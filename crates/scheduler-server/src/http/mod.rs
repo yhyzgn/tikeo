@@ -171,8 +171,6 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use axum::{body::Body, http::Request};
     use scheduler_proto::worker::v1::RegisterWorker;
     use scheduler_storage::{
@@ -555,7 +553,9 @@ mod tests {
         let (tx1, _rx1) = tokio::sync::mpsc::channel(1);
         let (tx2, _rx2) = tokio::sync::mpsc::channel(1);
         registry.register(worker("worker-a", "billing"), tx1).await;
-        registry.register(worker("worker-b", "analytics"), tx2).await;
+        registry
+            .register(worker("worker-b", "analytics"), tx2)
+            .await;
         let app = router_with_state(AppState::new(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),

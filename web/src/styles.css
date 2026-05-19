@@ -118,19 +118,23 @@ body {
 }
 
 .app-shell__header {
+  height: auto;
   min-height: 84px;
+  line-height: normal;
   display: flex;
   align-items: center;
-  padding: 0 28px;
+  justify-content: space-between;
+  padding: 16px 28px;
   background: rgba(255, 255, 255, 0.76);
   border-bottom: 1px solid #e7ecf4;
   backdrop-filter: blur(16px);
 }
 
 .app-shell__title.ant-typography {
-  margin: 0;
+  margin: 0 0 4px 0;
   color: #0f172a;
   letter-spacing: -0.04em;
+  line-height: 1.2;
 }
 
 .app-shell__content {
