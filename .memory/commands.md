@@ -193,3 +193,29 @@ bun run --cwd web build
 
 说明：`kubectl` 当前环境未安装，因此 K8s 做了 YAML 结构解析验证；Docker/Compose 已完成真实镜像构建与 Web -> backend API 代理冒烟。
 
+
+## 已验证命令（009-worker-dispatch）
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo build --workspace --all-features
+cargo run --bin scheduler -- serve --config examples/dev.toml
+curl -fsS http://127.0.0.1:9090/healthz
+curl -fsS http://127.0.0.1:9090/api/v1/jobs
+mvn -f java/pom.xml -q test
+bun install --cwd web
+bun run --cwd web lint
+bun run --cwd web typecheck
+bun test --cwd web
+bun run --cwd web build
+docker compose config
+docker build --network host -t scheduler:dev .
+docker build -t scheduler-web:dev ./web
+docker compose up -d --no-build
+curl -fsS http://127.0.0.1:9090/healthz
+curl -fsS http://127.0.0.1:8080/api/v1/jobs
+docker compose down
+```
+

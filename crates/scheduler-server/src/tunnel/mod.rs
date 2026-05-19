@@ -1,5 +1,6 @@
 //! Worker tunnel server implementation.
 
+pub mod dispatcher;
 pub mod registry;
 pub mod service;
 
@@ -10,6 +11,7 @@ use std::net::SocketAddr;
 
 use anyhow::{Context, Result};
 use scheduler_proto::worker::v1::worker_tunnel_service_server::WorkerTunnelServiceServer;
+use scheduler_storage::JobInstanceRepository;
 use tonic::transport::Server;
 use tracing::info;
 
@@ -18,11 +20,17 @@ use tracing::info;
 /// # Errors
 ///
 /// Returns an error when the listener fails to bind or serve.
-pub async fn serve(listen_addr: SocketAddr, registry: WorkerRegistry) -> Result<()> {
+pub async fn serve(
+    listen_addr: SocketAddr,
+    registry: WorkerRegistry,
+    instances: JobInstanceRepository,
+) -> Result<()> {
     info!(addr = %listen_addr, "scheduler Worker Tunnel listening");
 
     Server::builder()
-        .add_service(WorkerTunnelServiceServer::new(WorkerTunnel::new(registry)))
+        .add_service(WorkerTunnelServiceServer::new(WorkerTunnel::new(
+            registry, instances,
+        )))
         .serve(listen_addr)
         .await
         .context("worker tunnel gRPC server failed")

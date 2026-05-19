@@ -2013,10 +2013,12 @@ scheduler/
   - [ ] CRON tick loop
   - [ ] Fixed Rate tick loop
 - [ ] 单机执行 + 广播执行
+  - [x] 最小单机执行链路（pending instance -> first available worker -> running/succeeded/failed）
+  - [ ] 广播执行
 - [ ] Rust SDK (Worker 注册 + 心跳 + 任务执行)
   - [x] Rust Worker SDK 最小主动连接/注册/心跳客户端
   - [x] 基础 TaskProcessor trait / TaskContext / TaskOutcome
-  - [ ] Worker 真实任务接收与执行回传
+  - [x] Worker 真实任务接收与执行回传（Worker Tunnel dispatch + SDK TaskProcessor + result status update）
 - [x] 基础 HTTP REST API skeleton（统一 `{code,message,data}` 响应、system/cluster/jobs 占位）
 - [x] OpenAPI 3.1 文档与 Swagger UI（`/api-docs/openapi.json`、`/docs`）
 - [ ] 基础 Web UI (登录、Dashboard、Job 列表、创建、手动触发、实例详情、日志查看)

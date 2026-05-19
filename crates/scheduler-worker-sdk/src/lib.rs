@@ -6,8 +6,9 @@ use std::{collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
 use scheduler_proto::worker::v1::{
-    Heartbeat, Ping, RegisterWorker, ServerMessage, WorkerMessage, WorkerRegistered,
-    server_message, worker_message, worker_tunnel_service_client::WorkerTunnelServiceClient,
+    DispatchTask, Heartbeat, Ping, RegisterWorker, ServerMessage, TaskResult, WorkerMessage,
+    WorkerRegistered, server_message, worker_message,
+    worker_tunnel_service_client::WorkerTunnelServiceClient,
 };
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -130,6 +131,56 @@ impl WorkerSession {
         }
     }
 
+    /// Wait for one dispatched task, run it through the provided processor, and report the result.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the tunnel closes, the scheduler returns a gRPC error,
+    /// or the result cannot be sent back.
+    pub async fn process_next<P>(&mut self, processor: &P) -> Result<TaskOutcome, WorkerSdkError>
+    where
+        P: TaskProcessor,
+    {
+        loop {
+            let message = self.next_server_message().await?;
+            if let Some(server_message::Kind::DispatchTask(task)) = message.kind {
+                return self.process_task(processor, task).await;
+            }
+        }
+    }
+
+    async fn process_task<P>(
+        &self,
+        processor: &P,
+        task: DispatchTask,
+    ) -> Result<TaskOutcome, WorkerSdkError>
+    where
+        P: TaskProcessor,
+    {
+        let context = TaskContext {
+            job_id: task.job_id,
+            instance_id: task.instance_id,
+            payload: task.payload,
+        };
+        let outcome = match processor.process(context.clone()).await {
+            Ok(outcome) => outcome,
+            Err(error) => TaskOutcome::Failed(error.to_string()),
+        };
+        self.outbound
+            .send(WorkerMessage {
+                kind: Some(worker_message::Kind::TaskResult(TaskResult {
+                    worker_id: self.worker_id.clone(),
+                    instance_id: context.instance_id,
+                    success: matches!(outcome, TaskOutcome::Succeeded),
+                    message: outcome.message().unwrap_or_default(),
+                })),
+            })
+            .await
+            .map_err(|_| WorkerSdkError::TunnelClosed)?;
+
+        Ok(outcome)
+    }
+
     async fn next_server_message(&mut self) -> Result<ServerMessage, WorkerSdkError> {
         self.inbound
             .message()
@@ -187,7 +238,9 @@ async fn read_registration(
 
     match message.kind {
         Some(server_message::Kind::Registered(registered)) => Ok(registered),
-        Some(server_message::Kind::Ping(_)) | None => Err(WorkerSdkError::UnexpectedMessage),
+        Some(server_message::Kind::Ping(_) | server_message::Kind::DispatchTask(_)) | None => {
+            Err(WorkerSdkError::UnexpectedMessage)
+        }
     }
 }
 
@@ -218,6 +271,15 @@ pub enum TaskOutcome {
     Failed(String),
 }
 
+impl TaskOutcome {
+    fn message(&self) -> Option<String> {
+        match self {
+            Self::Succeeded => None,
+            Self::Failed(message) => Some(message.clone()),
+        }
+    }
+}
+
 /// Worker SDK errors.
 #[derive(Debug, Error)]
 pub enum WorkerSdkError {
@@ -239,17 +301,26 @@ pub enum WorkerSdkError {
 mod tests {
     use std::net::SocketAddr;
 
-    use scheduler_proto::worker::v1::worker_tunnel_service_server::WorkerTunnelServiceServer;
+    use async_trait::async_trait;
+    use scheduler_core::{InstanceStatus, TriggerType};
+    use scheduler_proto::worker::v1::{
+        DispatchTask, worker_tunnel_service_server::WorkerTunnelServiceServer,
+    };
     use scheduler_server::tunnel::{WorkerRegistry, WorkerTunnel};
+    use scheduler_storage::{
+        CreateJob, CreateJobInstance, JobInstanceRepository, JobRepository, connect_and_migrate,
+    };
     use tokio::{net::TcpListener, task::JoinHandle};
     use tokio_stream::wrappers::TcpListenerStream;
     use tonic::transport::Server;
 
-    use super::{WorkerClient, WorkerConfig};
+    use super::{
+        TaskContext, TaskOutcome, TaskProcessor, WorkerClient, WorkerConfig, WorkerSdkError,
+    };
 
     #[tokio::test]
     async fn worker_client_registers_and_sends_heartbeat() {
-        let (addr, server) = start_tunnel_server().await;
+        let (addr, server, _, _, _) = start_tunnel_server().await;
         let mut config = WorkerConfig::local(format!("http://{addr}"), "worker-sdk-1");
         config.app = "billing".to_owned();
         config.namespace = "default".to_owned();
@@ -270,7 +341,67 @@ mod tests {
         server.abort();
     }
 
-    async fn start_tunnel_server() -> (SocketAddr, JoinHandle<()>) {
+    #[tokio::test]
+    async fn worker_session_processes_dispatched_task_and_reports_result() {
+        let (addr, server, registry, instances, jobs) = start_tunnel_server().await;
+        let job = jobs
+            .create_job(CreateJob {
+                namespace: "default".to_owned(),
+                app: "default".to_owned(),
+                name: "manual".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                enabled: true,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should be created: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id.clone(),
+                trigger_type: TriggerType::Api,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should be created: {error}"))
+            .unwrap_or_else(|| panic!("job should exist"));
+
+        let config = WorkerConfig::local(format!("http://{addr}"), "worker-sdk-2");
+        let mut session = WorkerClient::new(config)
+            .connect()
+            .await
+            .unwrap_or_else(|error| panic!("worker should register: {error}"));
+        registry
+            .dispatch_to_first(DispatchTask {
+                instance_id: instance.id.clone(),
+                job_id: job.id,
+                payload: b"hello".to_vec(),
+            })
+            .await
+            .unwrap_or_else(|| panic!("worker should be available"));
+
+        let outcome = session
+            .process_next(&EchoProcessor)
+            .await
+            .unwrap_or_else(|error| panic!("task should process: {error}"));
+        assert_eq!(outcome, TaskOutcome::Succeeded);
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let updated = instances
+            .get(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("instance should load: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        assert_eq!(updated.status, InstanceStatus::Succeeded);
+
+        server.abort();
+    }
+
+    async fn start_tunnel_server() -> (
+        SocketAddr,
+        JoinHandle<()>,
+        WorkerRegistry,
+        JobInstanceRepository,
+        JobRepository,
+    ) {
         let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
             .unwrap_or_else(|error| panic!("listener should bind: {error}"));
@@ -278,7 +409,12 @@ mod tests {
             .local_addr()
             .unwrap_or_else(|error| panic!("listener should expose addr: {error}"));
         let incoming = TcpListenerStream::new(listener);
-        let service = WorkerTunnelServiceServer::new(WorkerTunnel::new(WorkerRegistry::default()));
+        let registry = WorkerRegistry::default();
+        let db = test_db().await;
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db);
+        let service =
+            WorkerTunnelServiceServer::new(WorkerTunnel::new(registry.clone(), instances.clone()));
         let server = tokio::spawn(async move {
             Server::builder()
                 .add_service(service)
@@ -286,6 +422,22 @@ mod tests {
                 .await
                 .unwrap_or_else(|error| panic!("test server should run: {error}"));
         });
-        (addr, server)
+        (addr, server, registry, instances, jobs)
+    }
+
+    async fn test_db() -> sea_orm::DatabaseConnection {
+        connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"))
+    }
+
+    struct EchoProcessor;
+
+    #[async_trait]
+    impl TaskProcessor for EchoProcessor {
+        async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError> {
+            assert_eq!(task.payload, b"hello");
+            Ok(TaskOutcome::Succeeded)
+        }
     }
 }

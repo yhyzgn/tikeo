@@ -80,10 +80,18 @@ fn api_router() -> Router<Arc<AppState>> {
 /// Returns an error when binding the configured listener address, initializing storage,
 /// or serving HTTP fails.
 pub async fn serve(listen_addr: SocketAddr, database_url: &str) -> Result<()> {
+    serve_with_state(listen_addr, router_for_database(database_url).await?).await
+}
+
+/// Run the unified HTTP listener with prebuilt application state.
+///
+/// # Errors
+///
+/// Returns an error when binding the configured listener address or serving HTTP fails.
+pub async fn serve_with_state(listen_addr: SocketAddr, router: Router) -> Result<()> {
     let listener = TcpListener::bind(listen_addr)
         .await
         .with_context(|| format!("failed to bind {listen_addr}"))?;
-    let router = router_for_database(database_url).await?;
 
     info!(addr = %listen_addr, "scheduler HTTP server listening");
 

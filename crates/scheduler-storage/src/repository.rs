@@ -2,7 +2,8 @@
 
 use scheduler_core::{InstanceStatus, TriggerType};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
 };
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
@@ -146,6 +147,51 @@ impl JobInstanceRepository {
             .one(&self.db)
             .await
             .map(|model| model.map(JobInstanceSummary::from))
+    }
+
+    /// List pending instances in creation order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn list_pending(
+        &self,
+        limit: u64,
+    ) -> Result<Vec<JobInstanceSummary>, sea_orm::DbErr> {
+        let rows = job_instance::Entity::find()
+            .filter(job_instance::Column::Status.eq(InstanceStatus::Pending.to_string()))
+            .order_by_asc(job_instance::Column::CreatedAt)
+            .limit(limit)
+            .all(&self.db)
+            .await?;
+
+        Ok(rows.into_iter().map(JobInstanceSummary::from).collect())
+    }
+
+    /// Update one instance status.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn update_status(
+        &self,
+        instance_id: &str,
+        status: InstanceStatus,
+    ) -> Result<Option<JobInstanceSummary>, sea_orm::DbErr> {
+        let Some(model) = job_instance::Entity::find_by_id(instance_id.to_owned())
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let mut active: job_instance::ActiveModel = model.into();
+        active.status = Set(status.to_string());
+        active.updated_at = Set(now_rfc3339());
+        active
+            .update(&self.db)
+            .await
+            .map(|model| Some(JobInstanceSummary::from(model)))
     }
 }
 
@@ -415,5 +461,18 @@ mod tests {
         assert_eq!(instance.status, InstanceStatus::Pending);
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].trigger_type, TriggerType::Api);
+
+        let pending = instances
+            .list_pending(10)
+            .await
+            .unwrap_or_else(|error| panic!("pending instances should list: {error}"));
+        assert_eq!(pending.len(), 1);
+
+        let updated = instances
+            .update_status(&instance.id, InstanceStatus::Running)
+            .await
+            .unwrap_or_else(|error| panic!("instance status should update: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        assert_eq!(updated.status, InstanceStatus::Running);
     }
 }

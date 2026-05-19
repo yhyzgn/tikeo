@@ -2,8 +2,9 @@
 
 use std::{collections::HashMap, sync::Arc, time::SystemTime};
 
-use scheduler_proto::worker::v1::RegisterWorker;
-use tokio::sync::RwLock;
+use scheduler_proto::worker::v1::{DispatchTask, RegisterWorker, ServerMessage, server_message};
+use tokio::sync::{RwLock, mpsc};
+use tonic::Status;
 
 /// Shared worker registry handle.
 #[derive(Debug, Clone, Default)]
@@ -13,7 +14,11 @@ pub struct WorkerRegistry {
 
 impl WorkerRegistry {
     /// Register or replace a worker record.
-    pub async fn register(&self, worker: RegisterWorker) -> RegisteredWorker {
+    pub async fn register(
+        &self,
+        worker: RegisterWorker,
+        outbound: mpsc::Sender<Result<ServerMessage, Status>>,
+    ) -> RegisteredWorker {
         let record = RegisteredWorker {
             worker_id: worker.worker_id.clone(),
             app: worker.app,
@@ -22,6 +27,7 @@ impl WorkerRegistry {
             region: worker.region,
             capabilities: worker.capabilities,
             labels: worker.labels,
+            outbound,
             registered_at: SystemTime::now(),
             last_heartbeat_at: SystemTime::now(),
             last_sequence: 0,
@@ -49,6 +55,24 @@ impl WorkerRegistry {
     pub async fn get(&self, worker_id: &str) -> Option<RegisteredWorker> {
         self.workers.read().await.get(worker_id).cloned()
     }
+
+    /// Dispatch one task to the first currently registered worker.
+    ///
+    /// # Errors
+    ///
+    /// Returns `None` when no worker is connected or the worker stream is closed.
+    pub async fn dispatch_to_first(&self, task: DispatchTask) -> Option<String> {
+        let worker = self.workers.read().await.values().next().cloned()?;
+        let worker_id = worker.worker_id.clone();
+        worker
+            .outbound
+            .send(Ok(ServerMessage {
+                kind: Some(server_message::Kind::DispatchTask(task)),
+            }))
+            .await
+            .ok()?;
+        Some(worker_id)
+    }
 }
 
 /// Registered worker metadata.
@@ -68,6 +92,8 @@ pub struct RegisteredWorker {
     pub capabilities: Vec<String>,
     /// Worker labels.
     pub labels: HashMap<String, String>,
+    /// Outbound stream sender for server-to-worker commands.
+    pub outbound: mpsc::Sender<Result<ServerMessage, Status>>,
     /// Registration timestamp.
     pub registered_at: SystemTime,
     /// Last heartbeat timestamp.
@@ -79,6 +105,7 @@ pub struct RegisteredWorker {
 #[cfg(test)]
 mod tests {
     use scheduler_proto::worker::v1::RegisterWorker;
+    use tokio::sync::mpsc;
 
     use super::WorkerRegistry;
 
@@ -86,15 +113,18 @@ mod tests {
     async fn registry_tracks_registration_and_heartbeat() {
         let registry = WorkerRegistry::default();
         registry
-            .register(RegisterWorker {
-                worker_id: "worker-1".to_owned(),
-                app: "billing".to_owned(),
-                namespace: "finance".to_owned(),
-                cluster: "prod".to_owned(),
-                region: "cn".to_owned(),
-                capabilities: vec!["http".to_owned()],
-                labels: [("runtime".to_owned(), "rust".to_owned())].into(),
-            })
+            .register(
+                RegisterWorker {
+                    worker_id: "worker-1".to_owned(),
+                    app: "billing".to_owned(),
+                    namespace: "finance".to_owned(),
+                    cluster: "prod".to_owned(),
+                    region: "cn".to_owned(),
+                    capabilities: vec!["http".to_owned()],
+                    labels: [("runtime".to_owned(), "rust".to_owned())].into(),
+                },
+                mpsc::channel(1).0,
+            )
             .await;
 
         let updated = registry

@@ -257,3 +257,35 @@ Verification:
 Git:
 - 待提交并推送。
 
+
+## 2026-05-19 — 009-worker-dispatch
+
+- Worker Tunnel proto 新增 `DispatchTask` 与 `TaskResult`，保留 `OpenTunnel` 双向流模型。
+- Server registry 记录每个 worker 的 outbound stream sender，可向在线 worker 下发任务。
+- 新增最小 dispatch loop：定期查询 pending job_instance，选择 first available worker，下发任务并把实例置为 running。
+- Worker Tunnel service 接收 `TaskResult`，将实例状态更新为 succeeded 或 failed。
+- `scheduler-worker-sdk` 新增 `WorkerSession::process_next`，接收 dispatch、构造 `TaskContext`、调用 `TaskProcessor`、回传 `TaskOutcome`。
+- Storage 新增 pending instance 查询与 status update repository 方法。
+- 测试覆盖 repository 状态流转、server dispatch、SDK dispatch -> processor -> result 回传。
+
+Verification:
+- `cargo fmt --all -- --check` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features` ✅
+- `cargo build --workspace --all-features` ✅
+- `cargo run --bin scheduler -- serve --config examples/dev.toml` + `/healthz` + `/api/v1/jobs` smoke ✅
+- `mvn -f java/pom.xml -q test` ✅
+- `bun install --cwd web` ✅
+- `bun run --cwd web lint` ✅
+- `bun run --cwd web typecheck` ✅
+- `bun test --cwd web` ✅
+- `bun run --cwd web build` ✅
+- `docker compose config` ✅
+- `docker build --network host -t scheduler:dev .` ✅
+- `docker compose up -d --no-build` + `/healthz` + Web nginx `/api/v1/jobs` 代理 ✅
+- `docker compose down` ✅
+- `docker build -t scheduler-web:dev ./web` ✅
+
+Git:
+- 待提交并推送。
+

@@ -200,3 +200,28 @@ Rationale:
 Constraint:
 - 后续 Worker/SDK/sidecar 示例不得引入 Server 直连 Worker 的反向入站模型；生产 Helm 需要继续保留 HTTP 与 Worker Tunnel 的清晰服务边界。
 
+
+## 2026-05-19 — Worker Dispatch 最小链路
+
+Decision:
+- 009 阶段采用最小 first-available worker dispatch loop：pending instance 由 Server 通过 Worker Tunnel 下发，Worker SDK 调用 `TaskProcessor` 后回传 `TaskResult`，Server 更新实例状态。
+- proto 继续维持单个 `OpenTunnel` 双向流，新增 server-to-worker `DispatchTask` 和 worker-to-server `TaskResult`。
+
+Rationale:
+- 先打通端到端执行闭环，再在后续阶段补能力匹配、租约、重试、日志和分布式队列。
+
+Constraint:
+- 即使存在 server-to-worker 指令，也必须经由 Worker 主动建立的 tunnel 返回；不得新增 Worker 入站 HTTP/gRPC 端口。
+
+
+## 2026-05-19 — Backend runtime image avoids apt in build path
+
+Decision:
+- Backend runtime image keeps `debian:bookworm-slim` but does not run `apt-get` during image build.
+
+Rationale:
+- Runtime only needs the statically linked Rust server binary for current HTTP/gRPC listeners; removing apt keeps builds reproducible in restricted networks and avoids package mirror stalls.
+
+Constraint:
+- If future outbound TLS clients require OS CA bundles inside the server image, add a deterministic CA strategy in a dedicated deployment hardening phase.
+

@@ -20,3 +20,6 @@
 - Docker/K8s 基础部署已验证；K8s 当前只有原始 YAML 与开发态 SQLite PVC，生产仍需要 Helm Chart、外部数据库、高可用、Ingress/Gateway、NetworkPolicy、PDB、ServiceMonitor。
 - Web nginx 代理假设后端服务名为 `scheduler`；Compose 与当前 K8s YAML 已保持该名称，若 Helm/生产命名变化，需要模板化 upstream。
 
+- 009 dispatch loop 当前是单节点 first-available worker 策略，尚未实现 capability/tag 匹配、租约过期剔除、任务 ack 超时、重试、幂等锁和多 server 协调。
+- TaskResult 当前只落实例最终状态，尚未持久化 worker_id、错误信息、执行耗时和日志。
+

@@ -1,9 +1,11 @@
 //! gRPC Worker Tunnel service.
 
+use scheduler_core::InstanceStatus;
 use scheduler_proto::worker::v1::{
-    Heartbeat, Ping, ServerMessage, WorkerMessage, WorkerRegistered, server_message,
+    Heartbeat, Ping, ServerMessage, TaskResult, WorkerMessage, WorkerRegistered, server_message,
     worker_message, worker_tunnel_service_server::WorkerTunnelService,
 };
+use scheduler_storage::JobInstanceRepository;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
@@ -16,13 +18,17 @@ const DEFAULT_LEASE_SECONDS: u64 = 30;
 #[derive(Debug, Clone)]
 pub struct WorkerTunnel {
     registry: WorkerRegistry,
+    instances: JobInstanceRepository,
 }
 
 impl WorkerTunnel {
     /// Create a Worker Tunnel service backed by an in-memory registry.
     #[must_use]
-    pub const fn new(registry: WorkerRegistry) -> Self {
-        Self { registry }
+    pub const fn new(registry: WorkerRegistry, instances: JobInstanceRepository) -> Self {
+        Self {
+            registry,
+            instances,
+        }
     }
 }
 
@@ -36,13 +42,15 @@ impl WorkerTunnelService for WorkerTunnel {
     ) -> Result<Response<Self::OpenTunnelStream>, Status> {
         let mut inbound = request.into_inner();
         let registry = self.registry.clone();
+        let instances = self.instances.clone();
         let (tx, rx) = mpsc::channel(16);
+        let outbound = tx.clone();
 
         tokio::spawn(async move {
             while let Some(message) = inbound.message().await.transpose() {
                 match message {
                     Ok(message) => {
-                        if handle_worker_message(&registry, message, &tx)
+                        if handle_worker_message(&registry, &instances, message, &tx, &outbound)
                             .await
                             .is_err()
                         {
@@ -63,12 +71,14 @@ impl WorkerTunnelService for WorkerTunnel {
 
 async fn handle_worker_message(
     registry: &WorkerRegistry,
+    instances: &JobInstanceRepository,
     message: WorkerMessage,
     tx: &mpsc::Sender<Result<ServerMessage, Status>>,
+    outbound: &mpsc::Sender<Result<ServerMessage, Status>>,
 ) -> Result<(), mpsc::error::SendError<Result<ServerMessage, Status>>> {
     match message.kind {
         Some(worker_message::Kind::Register(register)) => {
-            let worker = registry.register(register).await;
+            let worker = registry.register(register, outbound.clone()).await;
             tx.send(Ok(ServerMessage {
                 kind: Some(server_message::Kind::Registered(WorkerRegistered {
                     worker_id: worker.worker_id,
@@ -87,6 +97,21 @@ async fn handle_worker_message(
             }))
             .await
         }
+        Some(worker_message::Kind::TaskResult(TaskResult {
+            instance_id,
+            success,
+            ..
+        })) => {
+            let status = if success {
+                InstanceStatus::Succeeded
+            } else {
+                InstanceStatus::Failed
+            };
+            if let Err(error) = instances.update_status(&instance_id, status).await {
+                tracing::warn!(%error, %instance_id, "failed to persist task result");
+            }
+            Ok(())
+        }
         None => {
             tx.send(Err(Status::invalid_argument(
                 "worker message kind is required",
@@ -101,6 +126,7 @@ mod tests {
     use scheduler_proto::worker::v1::{
         RegisterWorker, WorkerMessage, server_message, worker_message,
     };
+    use scheduler_storage::{JobInstanceRepository, connect_and_migrate};
     use tokio::sync::mpsc;
 
     use super::{WorkerRegistry, handle_worker_message};
@@ -108,10 +134,12 @@ mod tests {
     #[tokio::test]
     async fn register_message_updates_registry_and_acknowledges_worker() {
         let registry = WorkerRegistry::default();
+        let instances = instances().await;
         let (tx, mut rx) = mpsc::channel(1);
 
         handle_worker_message(
             &registry,
+            &instances,
             WorkerMessage {
                 kind: Some(worker_message::Kind::Register(RegisterWorker {
                     worker_id: "worker-1".to_owned(),
@@ -123,6 +151,7 @@ mod tests {
                     labels: std::collections::HashMap::default(),
                 })),
             },
+            &tx,
             &tx,
         )
         .await
@@ -142,5 +171,12 @@ mod tests {
         }
 
         assert!(registry.get("worker-1").await.is_some());
+    }
+
+    async fn instances() -> JobInstanceRepository {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        JobInstanceRepository::new(db)
     }
 }

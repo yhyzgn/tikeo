@@ -10,6 +10,7 @@ message WorkerMessage {
   oneof kind {
     RegisterWorker register = 1;
     Heartbeat heartbeat = 2;
+    TaskResult task_result = 3;
   }
 }
 
@@ -17,6 +18,7 @@ message ServerMessage {
   oneof kind {
     WorkerRegistered registered = 1;
     Ping ping = 2;
+    DispatchTask dispatch_task = 3;
   }
 }
 
@@ -42,4 +44,17 @@ message WorkerRegistered {
 
 message Ping {
   uint64 sequence = 1;
+}
+
+message DispatchTask {
+  string instance_id = 1;
+  string job_id = 2;
+  bytes payload = 3;
+}
+
+message TaskResult {
+  string worker_id = 1;
+  string instance_id = 2;
+  bool success = 3;
+  string message = 4;
 }
