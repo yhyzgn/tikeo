@@ -16,10 +16,12 @@ export function Dashboard({ jobs, instances }: DashboardProps) {
   return (
     <div className="page-stack">
       <section className="hero-panel">
-        <div>
-          <Tag color="blue" className="soft-tag">MVP Console</Tag>
-          <Typography.Title level={1}>任务调度中枢</Typography.Title>
-          <Typography.Paragraph>
+        <div className="hero-panel__content">
+          <div className="hero-panel__header">
+            <Tag color="blue" className="soft-tag">MVP Console</Tag>
+            <Typography.Title level={1}>任务调度中枢</Typography.Title>
+          </div>
+          <Typography.Paragraph className="hero-panel__desc">
             用统一控制台管理任务、触发执行、查看实例与日志。当前菜单只开放已实现能力，规划中模块暂以禁用项展示。
           </Typography.Paragraph>
         </div>

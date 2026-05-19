@@ -167,48 +167,67 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 30px;
+  padding: 32px 36px;
   border: 1px solid #e7ecf4;
   border-radius: 24px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(239, 246, 255, 0.88));
   box-shadow: 0 18px 50px rgba(30, 64, 175, 0.07);
 }
 
-.hero-panel h1.ant-typography {
-  margin: 10px 0 8px;
-  color: #0f172a;
-  font-size: clamp(32px, 5vw, 52px);
-  line-height: 1;
-  letter-spacing: -0.07em;
+.hero-panel__content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.hero-panel .ant-typography {
+.hero-panel__header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.hero-panel__header h1.ant-typography {
+  margin: 0;
+  color: #0f172a;
+  font-size: clamp(32px, 5vw, 46px);
+  line-height: 1.1;
+  letter-spacing: -0.05em;
+}
+
+.hero-panel__desc.ant-typography {
+  margin: 0;
   max-width: 760px;
   color: #64748b;
   font-size: 16px;
+  line-height: 1.6;
 }
 
 .hero-panel__summary {
   min-width: 150px;
-  padding: 22px;
+  padding: 24px;
   border-radius: 22px;
   text-align: center;
   background: #ffffff;
   border: 1px solid #e7ecf4;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
 }
 
 .hero-panel__summary strong {
   display: block;
   color: #2563eb;
-  font-size: 46px;
+  font-size: 48px;
+  font-weight: 800;
   line-height: 1;
+  margin-bottom: 4px;
 }
 
 .hero-panel__summary span {
   color: #7b8aa0;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 11px;
+  letter-spacing: 0.1em;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .soft-tag {
