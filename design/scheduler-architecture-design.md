@@ -2006,7 +2006,7 @@ scheduler/
 **目标**：核心调度能力，可替换 PowerJob 的基本使用场景。
 
 - [x] 项目脚手架 (workspace, CI, root binary entrypoint)
-- [ ] gRPC 协议定义与代码生成
+- [x] gRPC 协议定义与代码生成（Worker Tunnel proto + server streaming skeleton）
 - [ ] SeaORM 存储层 + SQLite + MySQL 迁移
 - [ ] 基础调度器 (CRON + Fixed Rate + API 触发)
 - [ ] 单机执行 + 广播执行

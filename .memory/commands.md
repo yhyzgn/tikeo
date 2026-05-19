@@ -67,3 +67,17 @@ curl -sS -o /tmp/create-job.json -w '%{http_code}' -H 'content-type: application
 ```
 
 Expected: success responses use `code=0`; failures use non-zero code; `data` key is always present.
+
+
+## 已验证命令（003-worker-tunnel）
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo build --workspace --all-features
+cargo run --bin scheduler -- serve --config examples/dev.toml
+curl -fsS http://127.0.0.1:9090/healthz
+curl -fsS http://127.0.0.1:9090/api-docs/openapi.json
+# Smoke also verifies 127.0.0.1:9091 accepts TCP connection for Worker Tunnel gRPC listener.
+```

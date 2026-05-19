@@ -9,9 +9,10 @@ use std::{sync::Arc, time::SystemTime};
 
 use anyhow::{Context, Result};
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
-use scheduler_config::SchedulerConfig;
 use scheduler_core::HealthState;
 use serde::Serialize;
+use std::net::SocketAddr;
+
 use tokio::{net::TcpListener, signal};
 use tracing::info;
 use utoipa::OpenApi;
@@ -55,12 +56,12 @@ fn api_router() -> Router<Arc<AppState>> {
 /// # Errors
 ///
 /// Returns an error when binding the configured listener address or serving HTTP fails.
-pub async fn serve(config: SchedulerConfig) -> Result<()> {
-    let listener = TcpListener::bind(config.server.listen_addr)
+pub async fn serve(listen_addr: SocketAddr) -> Result<()> {
+    let listener = TcpListener::bind(listen_addr)
         .await
-        .with_context(|| format!("failed to bind {}", config.server.listen_addr))?;
+        .with_context(|| format!("failed to bind {listen_addr}"))?;
 
-    info!(addr = %config.server.listen_addr, "scheduler server listening");
+    info!(addr = %listen_addr, "scheduler HTTP server listening");
 
     axum::serve(listener, router())
         .with_graceful_shutdown(shutdown_signal())

@@ -6,7 +6,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use scheduler_config::load_config;
 
-use crate::http;
+use crate::server;
 
 /// scheduler command-line entrypoint.
 #[derive(Debug, Parser)]
@@ -32,7 +32,7 @@ impl Cli {
             Command::Serve { config } => {
                 init_tracing();
                 let config = load_config(config.as_deref())?;
-                http::serve(config).await
+                server::serve(config).await
             }
         }
     }

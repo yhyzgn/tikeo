@@ -19,14 +19,17 @@ pub struct SchedulerConfig {
 /// Server listener configuration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServerConfig {
-    /// Address used by the unified API and worker tunnel listener.
+    /// Address used by the HTTP management API listener.
     pub listen_addr: SocketAddr,
+    /// Address used by the gRPC Worker Tunnel listener.
+    pub worker_tunnel_addr: SocketAddr,
 }
 
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             listen_addr: SocketAddr::from(([127, 0, 0, 1], 9090)),
+            worker_tunnel_addr: SocketAddr::from(([127, 0, 0, 1], 9091)),
         }
     }
 }
@@ -48,10 +51,18 @@ pub enum ConfigError {
 /// Returns an error when the configuration file cannot be read, a value cannot be
 /// converted to the expected type, or environment overrides are invalid.
 pub fn load_config(path: Option<&Path>) -> Result<SchedulerConfig, ConfigError> {
-    let mut builder = Config::builder().set_default(
-        "server.listen_addr",
-        SchedulerConfig::default().server.listen_addr.to_string(),
-    )?;
+    let mut builder = Config::builder()
+        .set_default(
+            "server.listen_addr",
+            SchedulerConfig::default().server.listen_addr.to_string(),
+        )?
+        .set_default(
+            "server.worker_tunnel_addr",
+            SchedulerConfig::default()
+                .server
+                .worker_tunnel_addr
+                .to_string(),
+        )?;
 
     if let Some(path) = path {
         builder = builder.add_source(File::from(path).required(true));

@@ -16,7 +16,7 @@
 
 ## 下一大阶段
 
-进入代码开发：`001-bootstrap` 与 `002-http-api-and-openapi` 已完成；下一阶段执行 `003-worker-tunnel`。
+进入代码开发：`001-bootstrap`、`002-http-api-and-openapi`、`003-worker-tunnel` 已完成；下一阶段执行 `004-storage-and-scheduler`。
 
 - [x] 001-bootstrap：初始化 Cargo workspace 与 `./crates/*` crate 骨架
 - [x] 001-bootstrap：实现 `scheduler serve`、`/healthz`、`/readyz`
@@ -31,3 +31,8 @@
 - [x] 已在设计文档开发路线图标记完成项：脚手架、HTTP API skeleton、OpenAPI/Swagger、CLI serve
 - [x] 路线图完成项标记规范调整为仅使用 `[x]`，不额外使用 ✅ 图标
 - [x] Java SDK 规划补充：优先支持 Spring Boot Starter 模式
+- [x] 003-worker-tunnel：新增 `scheduler-proto` crate 与 Worker Tunnel protobuf
+- [x] 003-worker-tunnel：实现 server 侧 Worker Tunnel gRPC skeleton 与内存 registry
+- [x] 003-worker-tunnel：server 同时启动 HTTP 9090 与 Worker Tunnel gRPC 9091
+- [x] 设计路线图标记：gRPC 协议定义与代码生成
+- [ ] 004-storage-and-scheduler：存储层与基础调度器

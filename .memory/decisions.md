@@ -114,3 +114,16 @@ Rationale:
 
 Constraint:
 - Java Worker 仍必须主动连接 scheduler，不得要求业务应用暴露入站端口。
+
+
+## 2026-05-19 — Worker Tunnel 最小监听端口
+
+Decision:
+- 当前阶段使用独立 gRPC Worker Tunnel 监听地址，默认 `127.0.0.1:9091`。
+- HTTP 管理 API 继续使用 `127.0.0.1:9090`。
+
+Rationale:
+- 先用最小可验证切片落地 Worker 主动连接协议和 server skeleton；后续可再评估单端口 h2/multiplex。
+
+Constraint:
+- 即使使用独立端口，Worker 仍必须主动出站连接，Server 不直连 Worker。

@@ -163,3 +163,32 @@ Work:
 
 Verification:
 - 继续执行文档和代码完整验证。
+
+
+## 2026-05-19 — 003-worker-tunnel 完成
+
+Agent:
+- Codex
+
+Work:
+- 新增 `crates/scheduler-proto`，使用 tonic/prost 生成 Worker Tunnel gRPC bindings。
+- 新增 `proto/scheduler/worker/v1/worker.proto` 作为仓库级协议源。
+- 定义最小 Worker Tunnel 消息：RegisterWorker、Heartbeat、WorkerRegistered、Ping。
+- 实现 server 侧 `WorkerTunnelService::Connect` skeleton。
+- 实现内存 `WorkerRegistry`，记录 worker id、app、namespace、cluster、region、capabilities、labels 和 heartbeat sequence。
+- server 启动时同时监听 HTTP `9090` 与 Worker Tunnel gRPC `9091`。
+- 设计路线图中将 “gRPC 协议定义与代码生成” 标记为完成 `[x]`。
+- 新增 `.prompt/004-storage-and-scheduler.md`。
+
+Verification:
+- `cargo fmt --all -- --check` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features` ✅
+- `cargo build --workspace --all-features` ✅
+- `cargo run --bin scheduler -- serve --config examples/dev.toml` ✅
+- HTTP `/healthz` ✅
+- OpenAPI `/api-docs/openapi.json` ✅
+- Worker Tunnel TCP listener `127.0.0.1:9091` ✅
+
+Git:
+- 待提交并推送。

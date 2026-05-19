@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package scheduler.worker.v1;
+
+service WorkerTunnelService {
+  rpc Connect(stream WorkerMessage) returns (stream ServerMessage);
+}
+
+message WorkerMessage {
+  oneof kind {
+    RegisterWorker register = 1;
+    Heartbeat heartbeat = 2;
+  }
+}
+
+message ServerMessage {
+  oneof kind {
+    WorkerRegistered registered = 1;
+    Ping ping = 2;
+  }
+}
+
+message RegisterWorker {
+  string worker_id = 1;
+  string app = 2;
+  string namespace = 3;
+  string cluster = 4;
+  string region = 5;
+  repeated string capabilities = 6;
+  map<string, string> labels = 7;
+}
+
+message Heartbeat {
+  string worker_id = 1;
+  uint64 sequence = 2;
+}
+
+message WorkerRegistered {
+  string worker_id = 1;
+  uint64 lease_seconds = 2;
+}
+
+message Ping {
+  uint64 sequence = 1;
+}

@@ -4,6 +4,8 @@
 
 pub mod cli;
 pub mod http;
+pub mod server;
+pub mod tunnel;
 
 use anyhow::Result;
 use clap::Parser;
