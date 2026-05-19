@@ -6,7 +6,7 @@ use scheduler_storage::{JobInstanceRepository, JobRepository, connect_and_migrat
 use tokio::try_join;
 use tracing::info;
 
-use crate::{http, tunnel};
+use crate::{http, scheduler, tunnel};
 
 /// Run all scheduler server listeners.
 ///
@@ -22,18 +22,24 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
         .await
         .with_context(|| format!("failed to initialize storage at {database_url}"))?;
     let instances = JobInstanceRepository::new(db.clone());
-    let http_router = http::router_with_state(http::AppState::new(
-        JobRepository::new(db.clone()),
-        instances.clone(),
-    ));
+    let jobs = JobRepository::new(db.clone());
+    let http_router = http::router_with_state(http::AppState::new(jobs.clone(), instances.clone()));
+    let tunnel_instances = instances.clone();
+    let scheduler_instances = instances.clone();
+    let dispatcher_instances = instances;
 
     info!(%http_addr, %tunnel_addr, "starting scheduler listeners");
 
     try_join!(
         http::serve_with_state(http_addr, http_router),
-        tunnel::serve(tunnel_addr, registry.clone(), instances.clone()),
+        tunnel::serve(tunnel_addr, registry.clone(), tunnel_instances),
         async {
-            tunnel::dispatcher::run(instances, registry).await;
+            scheduler::run_tick_loop(jobs, scheduler_instances).await;
+            #[allow(unreachable_code)]
+            Ok::<(), anyhow::Error>(())
+        },
+        async {
+            tunnel::dispatcher::run(dispatcher_instances, registry).await;
             #[allow(unreachable_code)]
             Ok::<(), anyhow::Error>(())
         },

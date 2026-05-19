@@ -231,31 +231,23 @@ impl JobRepository {
             .find_also_related(app::Entity)
             .all(&self.db)
             .await?;
-        let mut jobs = Vec::with_capacity(rows.len());
+        self.hydrate_job_summaries(rows).await
+    }
 
-        for (job, app) in rows {
-            let app = app.unwrap_or_else(|| app::Model {
-                id: job.app_id.clone(),
-                namespace_id: job.namespace_id.clone(),
-                name: "unknown".to_owned(),
-                created_at: String::new(),
-                updated_at: String::new(),
-            });
-            let ns = namespace::Entity::find_by_id(job.namespace_id.clone())
-                .one(&self.db)
-                .await?;
-            jobs.push(JobSummary {
-                id: job.id,
-                namespace: ns.map_or_else(|| "unknown".to_owned(), |namespace| namespace.name),
-                app: app.name,
-                name: job.name,
-                schedule_type: job.schedule_type,
-                schedule_expr: job.schedule_expr,
-                enabled: job.enabled,
-            });
-        }
+    /// List enabled jobs whose schedule type is managed by the scheduler tick loop.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn list_enabled_scheduled_jobs(&self) -> Result<Vec<JobSummary>, sea_orm::DbErr> {
+        let rows = job::Entity::find()
+            .filter(job::Column::Enabled.eq(true))
+            .filter(job::Column::ScheduleType.is_in(["cron", "fixed_rate"]))
+            .find_also_related(app::Entity)
+            .all(&self.db)
+            .await?;
 
-        Ok(jobs)
+        self.hydrate_job_summaries(rows).await
     }
 
     /// Create a job, creating namespace/app metadata if needed.
@@ -292,6 +284,37 @@ impl JobRepository {
             schedule_expr: model.schedule_expr,
             enabled: model.enabled,
         })
+    }
+
+    async fn hydrate_job_summaries(
+        &self,
+        rows: Vec<(job::Model, Option<app::Model>)>,
+    ) -> Result<Vec<JobSummary>, sea_orm::DbErr> {
+        let mut jobs = Vec::with_capacity(rows.len());
+
+        for (job, app) in rows {
+            let app = app.unwrap_or_else(|| app::Model {
+                id: job.app_id.clone(),
+                namespace_id: job.namespace_id.clone(),
+                name: "unknown".to_owned(),
+                created_at: String::new(),
+                updated_at: String::new(),
+            });
+            let ns = namespace::Entity::find_by_id(job.namespace_id.clone())
+                .one(&self.db)
+                .await?;
+            jobs.push(JobSummary {
+                id: job.id,
+                namespace: ns.map_or_else(|| "unknown".to_owned(), |namespace| namespace.name),
+                app: app.name,
+                name: job.name,
+                schedule_type: job.schedule_type,
+                schedule_expr: job.schedule_expr,
+                enabled: job.enabled,
+            });
+        }
+
+        Ok(jobs)
     }
 
     async fn ensure_namespace(
@@ -414,11 +437,16 @@ mod tests {
             .list_jobs()
             .await
             .unwrap_or_else(|error| panic!("jobs should list: {error}"));
+        let scheduled = repository
+            .list_enabled_scheduled_jobs()
+            .await
+            .unwrap_or_else(|error| panic!("scheduled jobs should list: {error}"));
 
         assert_eq!(created.name, "nightly");
         assert_eq!(jobs.len(), 1);
         assert_eq!(jobs[0].app, "billing");
         assert!(jobs[0].enabled);
+        assert!(scheduled.is_empty());
     }
 
     #[tokio::test]

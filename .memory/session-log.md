@@ -289,3 +289,35 @@ Verification:
 Git:
 - 待提交并推送。
 
+
+## 2026-05-19 — 010-scheduler-tick-loop
+
+- 新增 `scheduler-server::scheduler` 自动调度 tick loop。
+- Storage 新增 `list_enabled_scheduled_jobs`，只查询 enabled 的 `cron` / `fixed_rate` jobs。
+- CRON 使用 `cron 0.16.0` 解析表达式，Fixed Rate 使用 `humantime 2.3.0` 解析持续时间表达式。
+- Tick loop 使用内存 cursor 避免同一 tick 重复触发；到期时创建 pending job_instance，并复用 009 dispatch loop。
+- Server 启动时同时运行 HTTP、Worker Tunnel、自动 scheduler tick loop 和 Worker dispatch loop。
+- 测试覆盖 fixed_rate 到期触发、cron 到期触发、disabled scheduled job 不触发。
+- 设计路线图已标记基础调度器 CRON/Fixed Rate/API 子项完成，Rust SDK 任务执行子项完成。
+
+Verification:
+- `cargo fmt --all -- --check` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features` ✅
+- `cargo build --workspace --all-features` ✅
+- `cargo run --bin scheduler -- serve --config examples/dev.toml` + fixed_rate job 自动创建 pending instance smoke ✅
+- `mvn -f java/pom.xml -q test` ✅
+- `bun install --cwd web` ✅
+- `bun run --cwd web lint` ✅
+- `bun run --cwd web typecheck` ✅
+- `bun test --cwd web` ✅
+- `bun run --cwd web build` ✅
+- `docker compose config` ✅
+- `docker build --network host -t scheduler:dev .` ✅
+- `docker build -t scheduler-web:dev ./web` ✅
+- `docker compose up -d --no-build` + `/healthz` + Web nginx `/api/v1/jobs` 代理 ✅
+- `docker compose down` ✅
+
+Git:
+- 待提交并推送。
+

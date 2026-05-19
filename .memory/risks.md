@@ -23,3 +23,6 @@
 - 009 dispatch loop 当前是单节点 first-available worker 策略，尚未实现 capability/tag 匹配、租约过期剔除、任务 ack 超时、重试、幂等锁和多 server 协调。
 - TaskResult 当前只落实例最终状态，尚未持久化 worker_id、错误信息、执行耗时和日志。
 
+- 010 scheduler tick loop 使用内存 cursor，server 重启后可能重新计算到期触发；后续需要持久化 next_fire_at / last_fire_at 与分布式锁。
+- CRON / Fixed Rate 当前只创建 pending instance，尚未实现 misfire 策略、时区配置、暂停/恢复、最大并发、任务堆积保护。
+

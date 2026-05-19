@@ -2008,14 +2008,14 @@ scheduler/
 - [x] 项目脚手架 (workspace, CI, root binary entrypoint)
 - [x] gRPC 协议定义与代码生成（Worker Tunnel proto + server streaming skeleton）
 - [x] SeaORM 存储层 + SQLite + MySQL 迁移（SQLite dev DB 已验证，MySQL migration 通过 SeaORM feature 启用）
-- [ ] 基础调度器 (CRON + Fixed Rate + API 触发)
+- [x] 基础调度器 (CRON + Fixed Rate + API 触发)
   - [x] API 手动触发实例链路（创建 pending job_instance + 实例列表/详情查询）
-  - [ ] CRON tick loop
-  - [ ] Fixed Rate tick loop
+  - [x] CRON tick loop（cron 0.16 expression + in-memory trigger cursor）
+  - [x] Fixed Rate tick loop（humantime duration expression + in-memory trigger cursor）
 - [ ] 单机执行 + 广播执行
   - [x] 最小单机执行链路（pending instance -> first available worker -> running/succeeded/failed）
   - [ ] 广播执行
-- [ ] Rust SDK (Worker 注册 + 心跳 + 任务执行)
+- [x] Rust SDK (Worker 注册 + 心跳 + 任务执行)
   - [x] Rust Worker SDK 最小主动连接/注册/心跳客户端
   - [x] 基础 TaskProcessor trait / TaskContext / TaskOutcome
   - [x] Worker 真实任务接收与执行回传（Worker Tunnel dispatch + SDK TaskProcessor + result status update）

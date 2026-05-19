@@ -225,3 +225,16 @@ Rationale:
 Constraint:
 - If future outbound TLS clients require OS CA bundles inside the server image, add a deterministic CA strategy in a dedicated deployment hardening phase.
 
+
+## 2026-05-19 — Scheduler tick loop dependency baseline
+
+Decision:
+- CRON expression parsing uses `cron 0.16.0`; Fixed Rate duration parsing uses `humantime 2.3.0`.
+- 010 keeps trigger cursor in memory and creates pending instances through the existing `JobInstanceRepository`.
+
+Rationale:
+- These are current stable crates from crates.io search, and the project needs a minimal automatic trigger loop before persistent scheduler metadata is designed.
+
+Constraint:
+- Before production deployment, schedule cursor and misfire handling must become durable and coordinated across server replicas.
+
