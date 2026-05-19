@@ -214,3 +214,13 @@ Git:
 - 新增 `java/` Maven 多模块 SDK 骨架：`scheduler-java-core`、`scheduler-spring-boot-autoconfigure`、`scheduler-spring-boot-starter`。
 - Java core 提供 `@SchedulerProcessor`、`WorkerRegistration`、`SchedulerWorkerClient`、`NoopSchedulerWorkerClient`。
 - Spring Boot autoconfigure 提供 `scheduler.worker.*` 配置、auto-configuration imports 和注解扫描 registry。
+
+
+## 2026-05-19 — 007-web-ui-foundation
+
+- 新增 `web/` Bun 工程，技术栈为 React 19、TypeScript 6、Vite 8、Ant Design 6。
+- 建立 AppShell、Dashboard、Jobs、Instances 页面骨架。
+- Jobs 页面支持调用 API 创建 Job 与 API trigger；Instances 页面展示实例列表。
+- 新增 typed API client，统一解析 `{code,message,data}` envelope。
+- 新增 Bun test API client 单元测试，覆盖成功与业务失败分支。
+- 建立 `lint`、`typecheck`、`test`、`build` 脚本并验证通过。

@@ -133,3 +133,28 @@ curl -fsS http://127.0.0.1:9090/api-docs/openapi.json
 ```
 
 说明：Rust Worker SDK 集成测试会启动内存 Worker Tunnel server，验证主动连接、注册与心跳 ping；Java SDK 当前验证 Maven 多模块编译测试。
+
+
+## 已验证命令（007-web-ui-foundation）
+
+```bash
+cd web
+bun install
+bun run lint
+bun run typecheck
+bun test
+bun run build
+
+# 后端 / Java 回归仍需保持
+mvn -f java/pom.xml -q test
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo build --workspace --all-features
+cargo run --bin scheduler -- serve --config examples/dev.toml
+curl -fsS http://127.0.0.1:9090/healthz
+curl -fsS http://127.0.0.1:9090/api-docs/openapi.json
+curl -fsS http://127.0.0.1:9090/api/v1/jobs
+```
+
+说明：Web build 当前有 Vite 大 chunk 警告（Ant Design bundle），不影响构建通过；后续可用路由级动态 import 拆包。

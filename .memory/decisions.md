@@ -170,3 +170,17 @@ Rationale:
 
 Constraint:
 - Spring Boot 4.1 发布稳定版后，应单独评估升级。
+
+
+## 2026-05-19 — Web 管理端依赖基线
+
+Decision:
+- Web 管理端使用 React `19.2.6`、Vite `8.0.13`、TypeScript `6.0.3`、Ant Design `6.4.3`、Bun `1.3.13`。
+- 测试使用 Bun test，API client 单元测试覆盖 `{code,message,data}` envelope 成功与失败分支。
+
+Rationale:
+- 新项目无历史包袱，按用户要求使用当前 latest stable 依赖。
+- Bun test 与项目包管理器一致，减少前端工具链分裂。
+
+Constraint:
+- 浏览器端只能访问 scheduler HTTP/OpenAPI，不直接访问 Worker Tunnel。

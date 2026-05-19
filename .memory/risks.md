@@ -13,3 +13,6 @@
 
 - Java SDK 当前只有 Spring Boot Starter 骨架、注解扫描和 Noop client，尚未生成/接入 Java gRPC Worker Tunnel 真实连接。
 - Worker Tunnel proto RPC 已从 `Connect` 改为 `OpenTunnel`；外部 SDK 若已基于旧名生成代码需要同步更新。
+
+- Web build 当前有 Vite 大 chunk 警告（Ant Design bundle），功能构建通过；后续可用动态 import / 路由拆包优化。
+- Web 当前是管理端骨架，登录、RBAC、实例日志查看和实时事件流尚未实现。

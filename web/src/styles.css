@@ -1,0 +1,46 @@
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #f5f7fb;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-shell__sider {
+  min-height: 100vh;
+}
+
+.app-shell__brand {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  padding-inline: 24px;
+  color: white;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.app-shell__header {
+  display: flex;
+  align-items: center;
+  background: white;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.app-shell__content {
+  padding: 24px;
+}
+
+.page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}

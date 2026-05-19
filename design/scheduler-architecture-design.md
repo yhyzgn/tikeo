@@ -2020,6 +2020,10 @@ scheduler/
 - [x] 基础 HTTP REST API skeleton（统一 `{code,message,data}` 响应、system/cluster/jobs 占位）
 - [x] OpenAPI 3.1 文档与 Swagger UI（`/api-docs/openapi.json`、`/docs`）
 - [ ] 基础 Web UI (登录、Dashboard、Job 列表、创建、手动触发、实例详情、日志查看)
+  - [x] Web 工程基础：React + TypeScript + Vite + Ant Design + Bun
+  - [x] Dashboard / Job 创建列表 / 手动触发 / 实例列表骨架
+  - [ ] 登录与权限感知操作
+  - [ ] 实例日志查看
 - [ ] Docker 镜像构建
 - [x] CLI 基础命令（`serve --config`）
 

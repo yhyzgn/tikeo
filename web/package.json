@@ -1,0 +1,34 @@
+{
+  "name": "scheduler-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "typecheck": "tsc -b --pretty false",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@ant-design/icons": "latest",
+    "antd": "6.4.3",
+    "lucide-react": "1.16.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@types/bun": "^1.3.14",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "6.0.2",
+    "eslint": "10.4.0",
+    "jsdom": "29.1.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.59.4",
+    "vite": "8.0.13",
+    "vitest": "4.1.6"
+  }
+}
