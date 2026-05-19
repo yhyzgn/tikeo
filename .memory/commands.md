@@ -1,6 +1,6 @@
 # 命令记录
 
-当前仓库尚未初始化 Rust workspace。代码开发阶段建立 workspace 后，必须补充实际命令。
+当前仓库已初始化 Rust workspace。
 
 预期基础命令：
 
@@ -22,4 +22,17 @@ bun run lint
 bun run typecheck
 bun test
 bun run build
+```
+
+
+## 已验证命令（001-bootstrap）
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo build --workspace --all-features
+cargo run --bin scheduler -- serve --config examples/dev.toml
+curl -fsS http://127.0.0.1:9090/healthz
+curl -fsS http://127.0.0.1:9090/readyz
 ```

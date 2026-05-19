@@ -1,0 +1,31 @@
+[package]
+name = "scheduler-server"
+description = "scheduler server binary and management gateway."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "scheduler"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+axum = "0"
+clap = { version = "4", features = ["derive", "env"] }
+scheduler-config = { path = "../scheduler-config" }
+scheduler-core = { path = "../scheduler-core" }
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal"] }
+tower = "0"
+tracing = "0"
+tracing-subscriber = { version = "0", features = ["env-filter", "fmt"] }
+
+[dev-dependencies]
+serde_json = "1"
+tower = { version = "0", features = ["util"] }
+
+[lints]
+workspace = true

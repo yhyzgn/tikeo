@@ -1,13 +1,12 @@
 # 下一步任务
 
-从 `.prompt/001-bootstrap.md` 开始进入代码开发阶段：
+执行 `.prompt/002-http-api-and-openapi.md`：
 
-1. 初始化 Rust workspace，所有 Rust crate 必须位于 `./crates/`。
-2. 建立基础 crate 拆分。
-3. 增加 CLI serve 子命令。
-4. 增加 Axum healthz/readyz 最小服务。
-5. 建立基础配置加载。
-6. 建立 CI 与本地验证命令。
-7. 运行 fmt、clippy、test、build、healthz 冒烟。
-8. 更新 `.memory` 和 `.prompt/002-http-api-and-openapi.md`，并保持后续 `006-web-ui-foundation` 的 `./web` + React + Ant Design + Bun 约束。
-9. 提交并推送。
+1. 选择并记录 OpenAPI 生成库，依赖默认使用当前最新稳定版。
+2. 建立 `/api/v1` HTTP 管理接口结构。
+3. 实现统一错误响应、分页/过滤基础模型。
+4. 增加 `/api/v1/system/info`、`/api/v1/cluster`、Jobs skeleton。
+5. 暴露 `/openapi.json` 与 `/docs`。
+6. 运行 fmt、clippy、test、build、healthz/readyz/openapi 冒烟。
+7. 更新 `.memory` 和 `.prompt/003-worker-tunnel.md`。
+8. 提交并推送。

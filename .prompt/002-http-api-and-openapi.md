@@ -1,20 +1,82 @@
 # 002-http-api-and-openapi：HTTP 管理接口与 OpenAPI
 
-> 本阶段提示词需在 001-bootstrap 完成后由执行智能体根据实际代码结构更新。
+## 阶段目标
 
-## 预期目标
+在已完成的 Rust workspace 和 Axum healthz/readyz 骨架上，建立 `/api/v1` 管理面 API 基础、统一错误/分页模型和 OpenAPI 3.1 输出，为 Web UI、CLI、CI/CD 与 GitOps 接入打基础。
 
-- 建立 `/api/v1` HTTP API 基础结构。
-- 实现 Auth placeholder、Job CRUD skeleton、Instance query skeleton。
-- 暴露 `/openapi.json` 与 `/docs`。
-- 建立统一错误响应、分页结构、trace_id。
-- 为 Web UI 和 CLI 提供稳定管理面接口基础。
+## 开始前必读
 
-## 依赖
+- `../prompt.md`
+- `../design/scheduler-architecture-design.md` 中 5.5、5.6、13 章
+- `../.memory/project.md`
+- `../.memory/decisions.md`
+- `../.memory/progress.md`
+- `../.memory/commands.md`
+- `../.memory/next.md`
 
-- 001-bootstrap 已完成并通过 fmt / clippy / test / build / healthz 冒烟。
+## 当前代码上下文
 
-## 完成后更新
+- Cargo workspace 已初始化。
+- Rust crate 均位于 `./crates/`：
+  - `scheduler-core`
+  - `scheduler-config`
+  - `scheduler-server`
+- `scheduler-server` 当前提供：
+  - CLI: `scheduler serve --config examples/dev.toml`
+  - HTTP: `GET /healthz`、`GET /readyz`
+- 依赖默认使用 Rust 1.95 兼容的最新稳定版。
 
-- `.memory/*`
+## 硬性约束
+
+- 所有 Rust 代码继续放在 `./crates/*` 对应 crate 中。
+- 不得把业务逻辑堆进 `scheduler-server`；DTO、错误、领域类型能抽到独立 crate 时优先抽离。
+- HTTP API 不得直连 Worker；执行链路仍要预留 Worker Tunnel。
+- 新增依赖默认使用当前最新稳定版；不能使用最新版时记录到 `.memory/decisions.md`。
+
+## 建议任务
+
+1. 选择 OpenAPI 生成库，优先评估 `utoipa` / `aide` / `schemars` 当前最新稳定版。
+2. 在 `scheduler-server` 中建立 HTTP 模块分层：
+   - `api` / `dto` / `error` / `pagination` / `routes`
+   - 或更合适但同样解耦的结构。
+3. 实现统一错误响应 Problem Details JSON：
+   - `code`
+   - `message`
+   - `trace_id`
+   - `details`
+4. 实现基础 API：
+   - `GET /api/v1/system/info`
+   - `GET /api/v1/cluster`
+   - `GET /api/v1/jobs` skeleton
+   - `POST /api/v1/jobs` skeleton，可先返回 501 或受控占位，但 OpenAPI 要清楚表达。
+5. 暴露：
+   - `GET /openapi.json`
+   - `GET /docs` 或 Swagger UI/Redoc 占位。
+6. 为新增 handler 和错误模型补测试。
+7. 更新 `.memory` 和 `.prompt/003-worker-tunnel.md`。
+
+## 验证命令
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo build --workspace --all-features
+cargo run --bin scheduler -- serve --config examples/dev.toml
+curl -fsS http://127.0.0.1:9090/healthz
+curl -fsS http://127.0.0.1:9090/readyz
+curl -fsS http://127.0.0.1:9090/openapi.json
+curl -fsS http://127.0.0.1:9090/api/v1/system/info
+```
+
+## 完成后必须更新
+
+- `.memory/session-log.md`
+- `.memory/progress.md`
+- `.memory/commands.md`
+- `.memory/next.md`
+- `.memory/decisions.md`（如选择 OpenAPI 依赖）
+- `.memory/risks.md`
 - `.prompt/003-worker-tunnel.md`
+
+验证通过后提交并推送。

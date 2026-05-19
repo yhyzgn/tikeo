@@ -16,4 +16,9 @@
 
 ## 下一大阶段
 
-进入代码开发：从 `001-bootstrap` 开始初始化 Rust workspace、基础 crate、CI/命令和最小可验证服务骨架。
+进入代码开发：`001-bootstrap` 已完成；下一阶段执行 `002-http-api-and-openapi`。
+
+- [x] 001-bootstrap：初始化 Cargo workspace 与 `./crates/*` crate 骨架
+- [x] 001-bootstrap：实现 `scheduler serve`、`/healthz`、`/readyz`
+- [x] 001-bootstrap：通过 fmt、clippy、test、build 与 healthz/readyz 冒烟
+- [ ] 002-http-api-and-openapi：HTTP 管理 API 与 OpenAPI 3.1

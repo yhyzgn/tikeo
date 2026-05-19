@@ -47,3 +47,30 @@ Work:
 Verification:
 - 文档约束 grep 校验。
 - 本次为约束文档更新，尚无 Rust/Web 工程可编译。
+
+
+## 2026-05-19 — 001-bootstrap Rust workspace 骨架完成
+
+Agent:
+- Codex
+
+Work:
+- 初始化 Cargo workspace，workspace members 限定在 `crates/*`。
+- 新增 `scheduler-core`、`scheduler-config`、`scheduler-server` 三个 crate。
+- 实现 `scheduler serve --config examples/dev.toml`。
+- 实现 Axum `/healthz` 与 `/readyz`。
+- 增加配置加载、health handler 单元测试。
+- 增加 `examples/dev.toml`、`rustfmt.toml`、GitHub Actions CI。
+- 更新下一阶段提示词 `.prompt/002-http-api-and-openapi.md`，新增 `.prompt/003-worker-tunnel.md`。
+
+Verification:
+- `cargo fmt --all -- --check` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features` ✅
+- `cargo build --workspace --all-features` ✅
+- `cargo run --bin scheduler -- serve --config examples/dev.toml` ✅
+- `curl -fsS http://127.0.0.1:9090/healthz` ✅ returned `{"status":"ok","uptime_seconds":0}`
+- `curl -fsS http://127.0.0.1:9090/readyz` ✅ returned `{"status":"ok","uptime_seconds":0}`
+
+Git:
+- 待提交并推送。
