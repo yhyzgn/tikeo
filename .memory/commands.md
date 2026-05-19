@@ -81,3 +81,21 @@ curl -fsS http://127.0.0.1:9090/healthz
 curl -fsS http://127.0.0.1:9090/api-docs/openapi.json
 # Smoke also verifies 127.0.0.1:9091 accepts TCP connection for Worker Tunnel gRPC listener.
 ```
+
+
+## 已验证命令（004-storage-and-scheduler）
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo build --workspace --all-features
+cargo run --bin scheduler -- serve --config examples/dev.toml
+curl -fsS http://127.0.0.1:9090/healthz
+curl -fsS http://127.0.0.1:9090/api-docs/openapi.json
+curl -fsS http://127.0.0.1:9090/api/v1/jobs
+curl -fsS -H 'content-type: application/json' -d '{"namespace":"default","app":"demo","name":"nightly","schedule_type":"api"}' http://127.0.0.1:9090/api/v1/jobs
+curl -fsS http://127.0.0.1:9090/api/v1/jobs
+```
+
+说明：本阶段新增 SeaORM storage crate；SQLite dev DB 使用 `examples/dev.toml` 的 `sqlite://scheduler-dev.db?mode=rwc`。

@@ -1,0 +1,21 @@
+[package]
+name = "scheduler-storage"
+description = "Persistent storage repositories and migrations for scheduler."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+sea-orm = { version = "1.1.20", features = ["sqlx-sqlite", "sqlx-mysql", "runtime-tokio-rustls", "macros"] }
+sea-orm-migration = { version = "1.1.20", default-features = false, features = ["sqlx-sqlite", "sqlx-mysql", "runtime-tokio-rustls"] }
+thiserror = "2"
+time = { version = "0.3", features = ["formatting", "macros"] }
+uuid = { version = "1", features = ["v7"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

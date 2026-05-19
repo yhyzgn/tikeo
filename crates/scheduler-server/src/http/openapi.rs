@@ -22,6 +22,7 @@ use super::{dto, routes};
         dto::ApiResponse<dto::SystemInfoResponse>,
         dto::ApiResponse<dto::ClusterResponse>,
         dto::ApiResponse<dto::Page>,
+        dto::ApiResponse<dto::JobSummary>,
         dto::ApiResponse<dto::ErrorData>,
         dto::ErrorData,
         dto::Page,

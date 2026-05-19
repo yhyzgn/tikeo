@@ -5,13 +5,13 @@ pub mod error;
 pub mod openapi;
 pub mod routes;
 
-use std::{sync::Arc, time::SystemTime};
+use std::{net::SocketAddr, sync::Arc, time::SystemTime};
 
 use anyhow::{Context, Result};
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
 use scheduler_core::HealthState;
+use scheduler_storage::{JobRepository, connect_and_migrate};
 use serde::Serialize;
-use std::net::SocketAddr;
 
 use tokio::{net::TcpListener, signal};
 use tracing::info;
@@ -21,27 +21,38 @@ use utoipa_swagger_ui::SwaggerUi;
 use self::openapi::ApiDoc;
 
 /// Shared HTTP application state.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AppState {
     started_at: SystemTime,
+    jobs: JobRepository,
 }
 
-impl Default for AppState {
-    fn default() -> Self {
+impl AppState {
+    /// Create shared HTTP state.
+    #[must_use]
+    pub fn new(jobs: JobRepository) -> Self {
         Self {
             started_at: SystemTime::now(),
+            jobs,
         }
     }
 }
 
-/// Construct the HTTP router.
-pub fn router() -> Router {
+/// Construct the HTTP router with an explicit application state.
+pub fn router_with_state(state: AppState) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
         .nest("/api/v1", api_router())
         .merge(SwaggerUi::new("/docs").url("/api-docs/openapi.json", ApiDoc::openapi()))
-        .with_state(Arc::new(AppState::default()))
+        .with_state(Arc::new(state))
+}
+
+async fn router_for_database(database_url: &str) -> Result<Router> {
+    let db = connect_and_migrate(database_url)
+        .await
+        .with_context(|| format!("failed to initialize storage at {database_url}"))?;
+    Ok(router_with_state(AppState::new(JobRepository::new(db))))
 }
 
 fn api_router() -> Router<Arc<AppState>> {
@@ -55,15 +66,17 @@ fn api_router() -> Router<Arc<AppState>> {
 ///
 /// # Errors
 ///
-/// Returns an error when binding the configured listener address or serving HTTP fails.
-pub async fn serve(listen_addr: SocketAddr) -> Result<()> {
+/// Returns an error when binding the configured listener address, initializing storage,
+/// or serving HTTP fails.
+pub async fn serve(listen_addr: SocketAddr, database_url: &str) -> Result<()> {
     let listener = TcpListener::bind(listen_addr)
         .await
         .with_context(|| format!("failed to bind {listen_addr}"))?;
+    let router = router_for_database(database_url).await?;
 
     info!(addr = %listen_addr, "scheduler HTTP server listening");
 
-    axum::serve(listener, router())
+    axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())
         .await
         .context("scheduler HTTP server failed")
@@ -107,10 +120,11 @@ async fn shutdown_signal() {
 #[cfg(test)]
 mod tests {
     use axum::{body::Body, http::Request};
+    use scheduler_storage::{JobRepository, connect_and_migrate};
     use serde_json::Value;
     use tower::ServiceExt;
 
-    use super::router;
+    use super::{AppState, router_with_state};
 
     #[tokio::test]
     async fn healthz_returns_ok() {
@@ -144,29 +158,43 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_job_returns_problem_details_placeholder() {
-        let response = router()
+    async fn create_job_persists_and_list_jobs_returns_it() {
+        let app = router().await;
+        let response = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .method("POST")
                     .uri("/api/v1/jobs")
                     .header("content-type", "application/json")
-                    .body(Body::from(r#"{"name":"nightly"}"#))
+                    .body(Body::from(
+                        r#"{"namespace":"default","app":"billing","name":"nightly"}"#,
+                    ))
                     .unwrap_or_else(|error| panic!("request should build: {error}")),
             )
             .await
             .unwrap_or_else(|error| panic!("router should respond: {error}"));
 
-        assert_eq!(response.status(), axum::http::StatusCode::NOT_IMPLEMENTED);
-
+        assert!(response.status().is_success());
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let created: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(created["code"], 0);
+        assert_eq!(created["data"]["name"], "nightly");
+        assert_eq!(created["data"]["namespace"], "default");
+        assert_eq!(created["data"]["app"], "billing");
+
+        let list = request_with(app, "/api/v1/jobs").await;
+        let body = axum::body::to_bytes(list.into_body(), usize::MAX)
             .await
             .unwrap_or_else(|error| panic!("body should collect: {error}"));
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
 
-        assert_eq!(json["code"], 10_001);
-        assert_eq!(json["message"], "job persistence is not implemented yet");
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["items"][0]["name"], "nightly");
         assert!(json.get("data").is_some());
     }
 
@@ -182,14 +210,24 @@ mod tests {
     }
 
     async fn request(uri: &str) -> axum::response::Response {
-        router()
-            .oneshot(
-                Request::builder()
-                    .uri(uri)
-                    .body(Body::empty())
-                    .unwrap_or_else(|error| panic!("request should build: {error}")),
-            )
+        request_with(router().await, uri).await
+    }
+
+    async fn request_with(app: axum::Router, uri: &str) -> axum::response::Response {
+        app.oneshot(
+            Request::builder()
+                .uri(uri)
+                .body(Body::empty())
+                .unwrap_or_else(|error| panic!("request should build: {error}")),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("router should respond: {error}"))
+    }
+
+    async fn router() -> axum::Router {
+        let db = connect_and_migrate("sqlite::memory:")
             .await
-            .unwrap_or_else(|error| panic!("router should respond: {error}"))
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        router_with_state(AppState::new(JobRepository::new(db)))
     }
 }

@@ -1,11 +1,16 @@
 //! HTTP route handlers for the management API.
 
-use axum::{Json, extract::Query};
+use std::sync::Arc;
+
+use axum::{Json, extract::Query, extract::State};
+use scheduler_storage::CreateJob;
 
 use super::{
+    AppState,
     dto::{
         ApiResponse, ClusterApiResponse, ClusterResponse, CreateJobRequest, ErrorResponse,
-        JobPageApiResponse, Page, PageQuery, SystemInfoApiResponse, SystemInfoResponse,
+        JobApiResponse, JobPageApiResponse, JobSummary, Page, PageQuery, SystemInfoApiResponse,
+        SystemInfoResponse,
     },
     error::ApiError,
 };
@@ -41,38 +46,90 @@ pub async fn cluster_status() -> Json<ClusterApiResponse> {
 }
 
 /// List jobs.
+///
+/// # Errors
+///
+/// Returns a storage error envelope when the repository query fails.
 #[utoipa::path(
     get,
     path = "/api/v1/jobs",
     tag = "jobs",
     params(PageQuery),
-    responses((status = 200, description = "Job page", body = JobPageApiResponse))
+    responses(
+        (status = 200, description = "Job page", body = JobPageApiResponse),
+        (status = 500, description = "Storage error", body = ErrorResponse)
+    )
 )]
-pub async fn list_jobs(Query(_query): Query<PageQuery>) -> Json<JobPageApiResponse> {
-    Json(ApiResponse::success(Page {
-        items: Vec::new(),
+pub async fn list_jobs(
+    State(state): State<Arc<AppState>>,
+    Query(_query): Query<PageQuery>,
+) -> Result<Json<JobPageApiResponse>, ApiError> {
+    let items = state
+        .jobs
+        .list_jobs()
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .into_iter()
+        .map(JobSummary::from)
+        .collect();
+
+    Ok(Json(ApiResponse::success(Page {
+        items,
         next_page_token: None,
-    }))
+    })))
 }
 
-/// Create a job placeholder.
+/// Create a job.
 ///
 /// # Errors
 ///
-/// Always returns a not implemented response until job persistence lands.
+/// Returns a storage error envelope when the job cannot be created.
 #[utoipa::path(
     post,
     path = "/api/v1/jobs",
     tag = "jobs",
     request_body = CreateJobRequest,
     responses(
-        (status = 501, description = "Job persistence is not implemented yet", body = ErrorResponse)
+        (status = 200, description = "Created job", body = JobApiResponse),
+        (status = 500, description = "Storage error", body = ErrorResponse)
     )
 )]
 pub async fn create_job(
-    Json(_request): Json<CreateJobRequest>,
-) -> Result<Json<JobPageApiResponse>, ApiError> {
-    Err(ApiError::NotImplemented {
-        message: "job persistence is not implemented yet".to_owned(),
-    })
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<CreateJobRequest>,
+) -> Result<Json<JobApiResponse>, ApiError> {
+    let created = state
+        .jobs
+        .create_job(CreateJob {
+            namespace: defaulted(request.namespace, "default"),
+            app: defaulted(request.app, "default"),
+            name: request.name,
+            schedule_type: defaulted(request.schedule_type, "api"),
+            schedule_expr: request.schedule_expr,
+            enabled: request.enabled.unwrap_or(true),
+        })
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+
+    Ok(Json(ApiResponse::success(JobSummary::from(created))))
+}
+
+impl From<scheduler_storage::JobSummary> for JobSummary {
+    fn from(value: scheduler_storage::JobSummary) -> Self {
+        Self {
+            id: value.id,
+            namespace: value.namespace,
+            app: value.app,
+            name: value.name,
+            schedule_type: value.schedule_type,
+            schedule_expr: value.schedule_expr,
+            enabled: value.enabled,
+        }
+    }
+}
+
+fn defaulted(value: Option<String>, default: &str) -> String {
+    value
+        .filter(|item| !item.trim().is_empty())
+        .unwrap_or_else(|| default.to_owned())
 }

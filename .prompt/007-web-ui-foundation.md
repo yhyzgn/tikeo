@@ -1,4 +1,4 @@
-# 006-web-ui-foundation：Web 管理端基础工程
+# 007-web-ui-foundation：Web 管理端基础工程
 
 > 本阶段提示词需在后端基础 API 和 OpenAPI 初步稳定后由执行智能体根据实际代码结构更新。
 

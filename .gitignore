@@ -14,3 +14,7 @@ build/
 .idea/
 .vscode/
 *.swp
+
+# Local development databases
+*.db
+*.db-*

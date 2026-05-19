@@ -61,6 +61,9 @@ pub type ClusterApiResponse = ApiResponse<ClusterResponse>;
 /// Job page API envelope.
 pub type JobPageApiResponse = ApiResponse<Page>;
 
+/// Created job API envelope.
+pub type JobApiResponse = ApiResponse<JobSummary>;
+
 /// Generic page response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct Page {
@@ -107,8 +110,16 @@ pub struct ClusterResponse {
 pub struct JobSummary {
     /// Job identifier.
     pub id: String,
+    /// Namespace name.
+    pub namespace: String,
+    /// Application name.
+    pub app: String,
     /// Display name.
     pub name: String,
+    /// Schedule type, for example `api`, `cron`, or `fixed_rate`.
+    pub schedule_type: String,
+    /// Optional schedule expression.
+    pub schedule_expr: Option<String>,
     /// Job enabled flag.
     pub enabled: bool,
 }
@@ -116,6 +127,16 @@ pub struct JobSummary {
 /// Create job request placeholder.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateJobRequest {
+    /// Namespace name. Defaults to `default` when omitted.
+    pub namespace: Option<String>,
+    /// Application name. Defaults to `default` when omitted.
+    pub app: Option<String>,
     /// Display name.
     pub name: String,
+    /// Schedule type. Defaults to `api` when omitted.
+    pub schedule_type: Option<String>,
+    /// Optional schedule expression for CRON/fixed-rate modes.
+    pub schedule_expr: Option<String>,
+    /// Enabled flag. Defaults to `true` when omitted.
+    pub enabled: Option<bool>,
 }

@@ -15,6 +15,7 @@ clap = { version = "4", features = ["derive", "env"] }
 scheduler-config = { path = "../scheduler-config" }
 scheduler-core = { path = "../scheduler-core" }
 scheduler-proto = { path = "../scheduler-proto" }
+scheduler-storage = { path = "../scheduler-storage" }
 serde = { version = "1", features = ["derive"] }
 tokio-stream = "0.1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "sync"] }

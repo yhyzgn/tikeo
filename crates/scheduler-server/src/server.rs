@@ -16,11 +16,15 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
     let registry = tunnel::WorkerRegistry::default();
     let http_addr = config.server.listen_addr;
     let tunnel_addr = config.server.worker_tunnel_addr;
+    let database_url = config.storage.database_url;
 
     info!(%http_addr, %tunnel_addr, "starting scheduler listeners");
 
-    try_join!(http::serve(http_addr), tunnel::serve(tunnel_addr, registry),)
-        .context("scheduler listener failed")?;
+    try_join!(
+        http::serve(http_addr, &database_url),
+        tunnel::serve(tunnel_addr, registry),
+    )
+    .context("scheduler listener failed")?;
 
     Ok(())
 }

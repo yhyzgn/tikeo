@@ -127,3 +127,18 @@ Rationale:
 
 Constraint:
 - 即使使用独立端口，Worker 仍必须主动出站连接，Server 不直连 Worker。
+
+
+## 2026-05-19 — SeaORM 稳定线版本选择
+
+Decision:
+- 存储层使用 SeaORM / sea-orm-migration `1.1.20` 稳定线。
+- 不采用 crates.io 当前标记为 latest 的 `2.0.0-rc.38`。
+- `scheduler-storage` 同时启用 `sqlx-sqlite` 与 `sqlx-mysql` feature；开发默认 SQLite，生产 MySQL migration 能复用通用 SeaORM schema。
+
+Rationale:
+- 用户要求依赖尽量使用最新版，但调度平台存储层属于核心基础设施，不应以 RC 版本作为初始长期基线。
+- `1.1.20` 是当前 1.x 稳定线可用版本，兼顾最新稳定与生态可靠性。
+
+Constraint:
+- SeaORM 2.0 发布稳定版后，应在独立阶段评估升级，不得在业务功能提交中顺手升级核心 ORM。

@@ -14,6 +14,9 @@ pub struct SchedulerConfig {
     /// HTTP/gRPC server settings.
     #[serde(default)]
     pub server: ServerConfig,
+    /// Persistent storage settings.
+    #[serde(default)]
+    pub storage: StorageConfig,
 }
 
 /// Server listener configuration.
@@ -30,6 +33,21 @@ impl Default for ServerConfig {
         Self {
             listen_addr: SocketAddr::from(([127, 0, 0, 1], 9090)),
             worker_tunnel_addr: SocketAddr::from(([127, 0, 0, 1], 9091)),
+        }
+    }
+}
+
+/// Persistent storage configuration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StorageConfig {
+    /// Database URL consumed by SeaORM/sqlx.
+    pub database_url: String,
+}
+
+impl Default for StorageConfig {
+    fn default() -> Self {
+        Self {
+            database_url: "sqlite://scheduler-dev.db?mode=rwc".to_owned(),
         }
     }
 }
@@ -62,6 +80,10 @@ pub fn load_config(path: Option<&Path>) -> Result<SchedulerConfig, ConfigError> 
                 .server
                 .worker_tunnel_addr
                 .to_string(),
+        )?
+        .set_default(
+            "storage.database_url",
+            SchedulerConfig::default().storage.database_url,
         )?;
 
     if let Some(path) = path {
