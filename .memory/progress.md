@@ -46,4 +46,4 @@
 - [x] 012-auth-rbac-foundation：登录与权限感知操作基础
 - [x] 013-broadcast-execution：广播执行基础
 - [x] 014-worker-capability-routing：Worker 能力 / 标签 / namespace / app 基础路由
-- [ ] 015-dynamic-script-sandbox：多语言脚本沙箱执行基础
+- [ ] 015-user-management-and-rbac：账号体系、用户管理与 RBAC 权限验证
