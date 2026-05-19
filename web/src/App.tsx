@@ -18,6 +18,7 @@ import { Dashboard } from './pages/Dashboard';
 import { InstancesPage } from './pages/InstancesPage';
 import { JobsPage } from './pages/JobsPage';
 import { LoginPage } from './pages/LoginPage';
+import { UsersPage } from './pages/UsersPage';
 
 export function App() {
   const [activePage, setActivePage] = useState('dashboard');
@@ -82,6 +83,9 @@ export function App() {
     if (activePage === 'instances') {
       return <InstancesPage jobs={jobs} instances={instances} />;
     }
+    if (activePage === 'users') {
+      return <UsersPage />;
+    }
     return <Dashboard jobs={jobs} instances={instances} />;
   }, [activePage, instances, jobs, loading, refresh]);
 
@@ -119,7 +123,7 @@ export function App() {
       ) : principal === null ? (
         <LoginPage onAuthenticated={handleAuthenticated} />
       ) : (
-        <AppShell activeKey={activePage} username={principal.username} onNavigate={setActivePage} onLogout={handleLogout}>
+        <AppShell activeKey={activePage} username={principal.username} roles={principal.roles} onNavigate={setActivePage} onLogout={handleLogout}>
           {error ? <Alert type="error" showIcon message="API 调用失败" description={error} /> : null}
           {page}
         </AppShell>

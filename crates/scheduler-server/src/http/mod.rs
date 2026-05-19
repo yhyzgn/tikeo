@@ -6,18 +6,18 @@ pub mod error;
 pub mod openapi;
 pub mod routes;
 
-use std::{net::SocketAddr, sync::Arc, time::SystemTime};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc, time::SystemTime};
 
 use anyhow::{Context, Result};
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
 use scheduler_core::HealthState;
 use scheduler_storage::{
     JobInstanceAttemptRepository, JobInstanceLogRepository, JobInstanceRepository, JobRepository,
-    connect_and_migrate,
+    UserRepository, connect_and_migrate,
 };
 use serde::Serialize;
 
-use tokio::{net::TcpListener, signal};
+use tokio::{net::TcpListener, signal, sync::RwLock};
 use tracing::info;
 use utoipa::OpenApi;
 
@@ -31,6 +31,8 @@ pub struct AppState {
     instances: JobInstanceRepository,
     logs: JobInstanceLogRepository,
     attempts: JobInstanceAttemptRepository,
+    users: UserRepository,
+    sessions: Arc<RwLock<HashMap<String, dto::MeResponse>>>,
     registry: crate::tunnel::WorkerRegistry,
 }
 
@@ -42,6 +44,7 @@ impl AppState {
         instances: JobInstanceRepository,
         logs: JobInstanceLogRepository,
         attempts: JobInstanceAttemptRepository,
+        users: UserRepository,
         registry: crate::tunnel::WorkerRegistry,
     ) -> Self {
         Self {
@@ -50,6 +53,8 @@ impl AppState {
             instances,
             logs,
             attempts,
+            users,
+            sessions: Arc::new(RwLock::new(HashMap::new())),
             registry,
         }
     }
@@ -73,7 +78,8 @@ async fn router_for_database(database_url: &str) -> Result<Router> {
         JobRepository::new(db.clone()),
         JobInstanceRepository::new(db.clone()),
         JobInstanceLogRepository::new(db.clone()),
-        JobInstanceAttemptRepository::new(db),
+        JobInstanceAttemptRepository::new(db.clone()),
+        UserRepository::new(db),
         crate::tunnel::WorkerRegistry::default(),
     )))
 }
@@ -89,6 +95,8 @@ fn api_router() -> Router<Arc<AppState>> {
         .route("/auth/login", axum::routing::post(auth::login))
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", axum::routing::post(auth::logout))
+        .route("/users", axum::routing::get(routes::list_users).post(routes::create_user))
+        .route("/users/{id}", axum::routing::patch(routes::update_user).delete(routes::delete_user))
         .route("/jobs", get(routes::list_jobs).post(routes::create_job))
         .route(
             "/jobs/{job_action}",
@@ -175,7 +183,7 @@ mod tests {
     use scheduler_proto::worker::v1::RegisterWorker;
     use scheduler_storage::{
         AppendJobInstanceLog, JobInstanceAttemptRepository, JobInstanceLogRepository,
-        JobInstanceRepository, JobRepository, connect_and_migrate,
+        JobInstanceRepository, JobRepository, UserRepository, connect_and_migrate,
     };
     use serde_json::Value;
     use tower::ServiceExt;
@@ -348,7 +356,8 @@ mod tests {
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
-            JobInstanceAttemptRepository::new(db),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
             registry,
         ));
 
@@ -435,6 +444,7 @@ mod tests {
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
             JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
             crate::tunnel::WorkerRegistry::default(),
         ));
         let created = post_json(
@@ -560,7 +570,8 @@ mod tests {
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
-            JobInstanceAttemptRepository::new(db),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
             registry,
         ));
 
@@ -596,6 +607,111 @@ mod tests {
         assert_eq!(json["data"]["items"][0]["worker_id"], "worker-a");
     }
 
+    #[tokio::test]
+    async fn user_management_and_rbac_integration() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db),
+            crate::tunnel::WorkerRegistry::default(),
+        ));
+
+        // 1. Get users list (should only contain seeded admin)
+        let response = app.clone().oneshot(
+            Request::builder()
+                .uri("/api/v1/users")
+                .header("authorization", "Bearer scheduler-init-token")
+                .body(Body::empty())
+                .unwrap()
+        ).await.unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["data"].as_array().map(Vec::len), Some(1));
+        assert_eq!(json["data"][0]["username"], "admin");
+
+        // 2. Create an operator user
+        let response = app.clone().oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/users")
+                .header("authorization", "Bearer scheduler-init-token")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"username":"test_operator","password":"Password@123","role":"operator"}"#))
+                .unwrap()
+        ).await.unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json: Value = serde_json::from_slice(&body).unwrap();
+        let user_id = json["data"]["id"].as_str().unwrap().to_owned();
+
+        // 3. Authenticate with newly created user
+        let login = post_json_without_auth(
+            app.clone(),
+            "/api/v1/auth/login",
+            r#"{"username":"test_operator","password":"Password@123"}"#,
+        ).await;
+        assert_eq!(login["code"], 0);
+        let operator_token = login["data"]["token"].as_str().unwrap().to_owned();
+
+        // 4. Verification: Operator is not allowed to create users (Admin only) -> Should return 403 Forbidden
+        let response = app.clone().oneshot(
+            Request::builder()
+                .uri("/api/v1/users")
+                .header("authorization", format!("Bearer {operator_token}"))
+                .body(Body::empty())
+                .unwrap()
+        ).await.unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::FORBIDDEN);
+
+        // 5. Update user role to admin
+        let response = app.clone().oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/v1/users/{user_id}"))
+                .header("authorization", "Bearer scheduler-init-token")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"role":"admin"}"#))
+                .unwrap()
+        ).await.unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        // 6. Perform a fresh login to fetch new token (the old token was invalidated on role change)
+        let login_again = post_json_without_auth(
+            app.clone(),
+            "/api/v1/auth/login",
+            r#"{"username":"test_operator","password":"Password@123"}"#,
+        ).await;
+        assert_eq!(login_again["code"], 0);
+        let new_operator_token = login_again["data"]["token"].as_str().unwrap().to_owned();
+
+        // Verify that updated user now HAS access to user list (returns 200 OK)
+        let response = app.clone().oneshot(
+            Request::builder()
+                .uri("/api/v1/users")
+                .header("authorization", format!("Bearer {new_operator_token}"))
+                .body(Body::empty())
+                .unwrap()
+        ).await.unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        // 7. Delete user
+        let response = app.clone().oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/api/v1/users/{user_id}"))
+                .header("authorization", "Bearer scheduler-init-token")
+                .body(Body::empty())
+                .unwrap()
+        ).await.unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+    }
+
     async fn router() -> axum::Router {
         let db = connect_and_migrate("sqlite::memory:")
             .await
@@ -604,7 +720,8 @@ mod tests {
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
-            JobInstanceAttemptRepository::new(db),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db),
             crate::tunnel::WorkerRegistry::default(),
         ))
     }

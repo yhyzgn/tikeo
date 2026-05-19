@@ -73,6 +73,31 @@ pub type JobPageApiResponse = ApiResponse<Page>;
 /// Created job API envelope.
 pub type JobApiResponse = ApiResponse<JobSummary>;
 
+/// DTO for creating a new user via API.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct CreateUserRequest {
+    /// Unique username.
+    pub username: String,
+    /// Plaintext password.
+    pub password: String,
+    /// User role (e.g. "admin", "operator", "viewer").
+    pub role: String,
+}
+
+/// DTO for updating a user via API.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct UpdateUserRequest {
+    /// Optional plaintext password update.
+    pub password: Option<String>,
+    /// Optional role update.
+    pub role: Option<String>,
+}
+
+/// User Management API response envelope.
+pub type UserApiResponse = ApiResponse<scheduler_storage::UserSummary>;
+/// User list API response envelope.
+pub type UserListApiResponse = ApiResponse<Vec<scheduler_storage::UserSummary>>;
+
 /// Job instance page API envelope.
 pub type JobInstancePageApiResponse = ApiResponse<JobInstancePage>;
 

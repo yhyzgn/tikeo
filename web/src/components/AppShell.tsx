@@ -6,6 +6,7 @@ import {
   LogoutOutlined,
   SafetyCertificateOutlined,
   ThunderboltOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import { Avatar, Badge, Button, Layout, Menu, Space, Typography } from 'antd';
 import type { ReactNode } from 'react';
@@ -16,11 +17,14 @@ export interface AppShellProps {
   children: ReactNode;
   activeKey: string;
   username: string;
+  roles?: string[];
   onNavigate: (key: string) => void;
   onLogout: () => void;
 }
 
-export function AppShell({ children, activeKey, username, onNavigate, onLogout }: AppShellProps) {
+export function AppShell({ children, activeKey, username, roles = [], onNavigate, onLogout }: AppShellProps) {
+  const isAdmin = roles.includes('admin');
+
   return (
     <Layout className="app-shell">
       <Sider breakpoint="lg" collapsedWidth="0" width={264} className="app-shell__sider">
@@ -40,6 +44,10 @@ export function AppShell({ children, activeKey, username, onNavigate, onLogout }
             { key: 'dashboard', icon: <DashboardOutlined />, label: '总览' },
             { key: 'jobs', icon: <ThunderboltOutlined />, label: '任务' },
             { key: 'instances', icon: <DeploymentUnitOutlined />, label: '实例' },
+            ...(isAdmin ? [
+              { type: 'divider' as const },
+              { key: 'users', icon: <UserOutlined />, label: '用户管理' }
+            ] : []),
             { type: 'divider' },
             { key: 'workers-next', icon: <ApiOutlined />, label: 'Worker 集群', disabled: true },
             { key: 'security-next', icon: <SafetyCertificateOutlined />, label: '安全策略', disabled: true },
@@ -56,7 +64,7 @@ export function AppShell({ children, activeKey, username, onNavigate, onLogout }
             <Typography.Text className="app-shell__subtitle">轻量、容器友好、Worker 主动隧道连接</Typography.Text>
           </div>
           <Space className="app-shell__user" size={14}>
-            <Badge status="processing" text="Dev" />
+            <Badge status="processing" text={isAdmin ? "Admin" : "Dev"} />
             <Avatar className="app-shell__avatar">{username.slice(0, 1).toUpperCase()}</Avatar>
             <Typography.Text className="app-shell__username">{username}</Typography.Text>
             <Button icon={<LogoutOutlined />} onClick={onLogout}>

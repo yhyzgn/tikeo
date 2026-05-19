@@ -5,6 +5,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, Set,
 };
+use serde::{Deserialize, Serialize};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
@@ -118,7 +119,7 @@ pub struct AppendJobInstanceLog {
 }
 
 /// Job instance log summary.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobInstanceLogSummary {
     /// Log identifier.
     pub id: String,
@@ -134,6 +135,166 @@ pub struct JobInstanceLogSummary {
     pub sequence: i64,
     /// Creation timestamp in RFC3339 format.
     pub created_at: String,
+}
+
+/// DTO for creating a new user.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateUser {
+    /// Unique username.
+    pub username: String,
+    /// BCrypt password hash.
+    pub password_hash: String,
+    /// System role (e.g. "admin", "operator", "viewer").
+    pub role: String,
+}
+
+/// DTO for user updates.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateUser {
+    /// Password hash to update, if provided.
+    pub password_hash: Option<String>,
+    /// Role to update, if provided.
+    pub role: Option<String>,
+}
+
+/// Lightweight platform user summary representation.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct UserSummary {
+    /// Unique user identifier.
+    pub id: String,
+    /// Unique username.
+    pub username: String,
+    /// System role.
+    pub role: String,
+    /// RFC3339 formatted creation timestamp.
+    pub created_at: String,
+}
+
+/// User repository.
+#[derive(Debug, Clone)]
+pub struct UserRepository {
+    db: DatabaseConnection,
+}
+
+impl UserRepository {
+    /// Create a repository using the provided database connection.
+    #[must_use]
+    pub const fn new(db: DatabaseConnection) -> Self {
+        Self { db }
+    }
+
+    /// Create a new user.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails or username is unique violation.
+    pub async fn create_user(&self, params: CreateUser) -> Result<UserSummary, sea_orm::DbErr> {
+        use crate::entities::user;
+
+        let active = user::ActiveModel {
+            id: Set(format!("usr-{}", Uuid::now_v7().to_string())),
+            username: Set(params.username),
+            password_hash: Set(params.password_hash),
+            role: Set(params.role),
+            created_at: Set(OffsetDateTime::now_utc()
+                .format(&time::format_description::well_known::Rfc3339)
+                .unwrap()),
+        };
+
+        let inserted = active.insert(&self.db).await?;
+        Ok(UserSummary {
+            id: inserted.id,
+            username: inserted.username,
+            role: inserted.role,
+            created_at: inserted.created_at,
+        })
+    }
+
+    /// List all platform users.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn list_users(&self) -> Result<Vec<UserSummary>, sea_orm::DbErr> {
+        use crate::entities::user;
+
+        let rows = user::Entity::find().all(&self.db).await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| UserSummary {
+                id: r.id,
+                username: r.username,
+                role: r.role,
+                created_at: r.created_at,
+            })
+            .collect())
+    }
+
+    /// Get user by username.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn get_by_username(&self, username: &str) -> Result<Option<crate::entities::user::Model>, sea_orm::DbErr> {
+        use crate::entities::user;
+
+        user::Entity::find()
+            .filter(user::Column::Username.eq(username.to_owned()))
+            .one(&self.db)
+            .await
+    }
+
+    /// Delete user by id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn delete_user(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
+        use crate::entities::user;
+
+        let res = user::Entity::delete_by_id(id.to_owned()).exec(&self.db).await?;
+        Ok(res.rows_affected > 0)
+    }
+
+    /// Get user by id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn get_user(&self, id: &str) -> Result<Option<crate::entities::user::Model>, sea_orm::DbErr> {
+        use crate::entities::user;
+
+        user::Entity::find_by_id(id.to_owned()).one(&self.db).await
+    }
+
+    /// Update user details.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn update_user(&self, id: &str, params: UpdateUser) -> Result<Option<UserSummary>, sea_orm::DbErr> {
+        use crate::entities::user;
+
+        let Some(existing) = user::Entity::find_by_id(id.to_owned()).one(&self.db).await? else {
+            return Ok(None);
+        };
+
+        let mut active: user::ActiveModel = existing.into();
+        if let Some(hash) = params.password_hash {
+            active.password_hash = Set(hash);
+        }
+        if let Some(role) = params.role {
+            active.role = Set(role);
+        }
+
+        let updated = active.update(&self.db).await?;
+        Ok(Some(UserSummary {
+            id: updated.id,
+            username: updated.username,
+            role: updated.role,
+            created_at: updated.created_at,
+        }))
+    }
 }
 
 /// Job instance attempt repository.
@@ -854,5 +1015,72 @@ mod tests {
             .unwrap_or_else(|error| panic!("logs should list: {error}"));
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].message, "hello");
+    }
+
+    #[tokio::test]
+    async fn user_repository_crud_operations() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        Migrator::up(&db, None)
+            .await
+            .unwrap_or_else(|error| panic!("migration should run: {error}"));
+        
+        let users = super::UserRepository::new(db);
+
+        // Seeding checked
+        let admin = users
+            .get_by_username("admin")
+            .await
+            .unwrap_or_else(|error| panic!("should load admin user: {error}"));
+        assert!(admin.is_some());
+        assert_eq!(admin.unwrap().role, "admin");
+
+        // Create user
+        let user = users
+            .create_user(super::CreateUser {
+                username: "operator-1".to_owned(),
+                password_hash: "$2b$10$operatorhash".to_owned(),
+                role: "operator".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("should create user: {error}"));
+        assert_eq!(user.username, "operator-1");
+        assert_eq!(user.role, "operator");
+
+        // List users
+        let listed = users
+            .list_users()
+            .await
+            .unwrap_or_else(|error| panic!("should list users: {error}"));
+        assert_eq!(listed.len(), 2); // admin + operator-1
+
+        // Update user
+        let updated = users
+            .update_user(
+                &user.id,
+                super::UpdateUser {
+                    password_hash: None,
+                    role: Some("viewer".to_owned()),
+                },
+            )
+            .await
+            .unwrap_or_else(|error| panic!("should update user: {error}"))
+            .unwrap_or_else(|| panic!("user should exist"));
+        assert_eq!(updated.role, "viewer");
+
+        // Delete user
+        let deleted = users
+            .delete_user(&user.id)
+            .await
+            .unwrap_or_else(|error| panic!("should delete user: {error}"));
+        assert!(deleted);
+
+        // List users again
+        let listed_again = users
+            .list_users()
+            .await
+            .unwrap_or_else(|error| panic!("should list users: {error}"));
+        assert_eq!(listed_again.len(), 1); // just admin
     }
 }

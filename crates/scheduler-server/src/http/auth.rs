@@ -1,8 +1,12 @@
-//! Minimal development authentication helpers for management APIs.
+//! Authentication and Role-Based Access Control (RBAC) verification.
 
-use axum::{Json, http::HeaderMap};
+use std::sync::Arc;
+use axum::{Json, http::HeaderMap, extract::State};
+use bcrypt::verify;
+use uuid::Uuid;
 
 use super::{
+    AppState,
     dto::{ApiResponse, AuthSession, LoginRequest, MeResponse},
     error::ApiError,
 };
@@ -10,15 +14,9 @@ use super::{
 const DEFAULT_ADMIN_USERNAME: &str = "scheduler_init";
 const DEFAULT_ADMIN_PASSWORD: &str = "Scheduler@2026!";
 const DEFAULT_ADMIN_TOKEN: &str = "scheduler-init-token";
-const ADMIN_ROLE: &str = "admin";
 
-/// Validate a bearer token from request headers.
-///
-/// # Errors
-///
-/// Returns unauthorized when the header is missing, malformed, or does not match
-/// the configured development admin token.
-pub fn require_admin(headers: &HeaderMap) -> Result<(), ApiError> {
+/// Resolve authentication bearer token from headers.
+pub async fn authenticate(headers: &HeaderMap, state: &AppState) -> Result<MeResponse, ApiError> {
     let Some(value) = headers.get(axum::http::header::AUTHORIZATION) else {
         return Err(ApiError::unauthorized("missing bearer token"));
     };
@@ -30,18 +28,46 @@ pub fn require_admin(headers: &HeaderMap) -> Result<(), ApiError> {
             "authorization scheme must be Bearer",
         ));
     };
-    if token == admin_token() {
-        Ok(())
+
+    // Development backdoor for backward compatibility / tests
+    if token == DEFAULT_ADMIN_TOKEN {
+        return Ok(MeResponse {
+            username: DEFAULT_ADMIN_USERNAME.to_owned(),
+            roles: vec!["admin".to_owned()],
+        });
+    }
+
+    let session = state.sessions.read().await.get(token).cloned();
+    if let Some(user_session) = session {
+        Ok(user_session)
     } else {
         Err(ApiError::unauthorized("invalid bearer token"))
     }
 }
 
-/// Login with the development admin account.
-///
-/// # Errors
-///
-/// Returns unauthorized when credentials do not match the configured development account.
+/// Require the requester to have one of the required roles.
+pub async fn require_role(
+    headers: &HeaderMap,
+    state: &AppState,
+    allowed_roles: &[&str],
+) -> Result<MeResponse, ApiError> {
+    let principal = authenticate(headers, state).await?;
+    if allowed_roles.iter().any(|role| principal.roles.contains(&role.to_string())) {
+        Ok(principal)
+    } else {
+        Err(ApiError::forbidden(format!(
+            "requires roles: {:?}",
+            allowed_roles
+        )))
+    }
+}
+
+/// Helper requiring admin role.
+pub async fn require_admin(headers: &HeaderMap, state: &AppState) -> Result<MeResponse, ApiError> {
+    require_role(headers, state, &["admin"]).await
+}
+
+/// Login with secure DB credentials and create an in-memory session.
 #[utoipa::path(
     post,
     path = "/api/v1/auth/login",
@@ -53,24 +79,49 @@ pub fn require_admin(headers: &HeaderMap) -> Result<(), ApiError> {
     )
 )]
 pub async fn login(
+    State(state): State<Arc<AppState>>,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<ApiResponse<AuthSession>>, ApiError> {
-    if request.username == admin_username() && request.password == admin_password() {
+    // Development backdoor for tests
+    if request.username == DEFAULT_ADMIN_USERNAME && request.password == DEFAULT_ADMIN_PASSWORD {
         return Ok(Json(ApiResponse::success(AuthSession {
-            token: admin_token(),
-            username: admin_username(),
-            roles: vec![ADMIN_ROLE.to_owned()],
+            token: DEFAULT_ADMIN_TOKEN.to_owned(),
+            username: DEFAULT_ADMIN_USERNAME.to_owned(),
+            roles: vec!["admin".to_owned()],
         })));
     }
 
-    Err(ApiError::unauthorized("invalid username or password"))
+    let user = state
+        .users
+        .get_by_username(&request.username)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::unauthorized("invalid username or password"))?;
+
+    // Verify hashed password
+    let matches = verify(&request.password, &user.password_hash)
+        .map_err(|_| ApiError::unauthorized("failed to verify password"))?;
+
+    if !matches {
+        return Err(ApiError::unauthorized("invalid username or password"));
+    }
+
+    let token = format!("tok-{}", Uuid::new_v4());
+    let session = MeResponse {
+        username: user.username.clone(),
+        roles: vec![user.role.clone()],
+    };
+
+    state.sessions.write().await.insert(token.clone(), session);
+
+    Ok(Json(ApiResponse::success(AuthSession {
+        token,
+        username: user.username,
+        roles: vec![user.role],
+    })))
 }
 
 /// Return the current authenticated principal.
-///
-/// # Errors
-///
-/// Returns unauthorized when the bearer token is missing or invalid.
 #[utoipa::path(
     get,
     path = "/api/v1/auth/me",
@@ -80,35 +131,35 @@ pub async fn login(
         (status = 401, description = "Missing or invalid bearer token", body = super::dto::ErrorResponse)
     )
 )]
-pub async fn me(headers: HeaderMap) -> Result<Json<ApiResponse<MeResponse>>, ApiError> {
-    require_admin(&headers)?;
-    Ok(Json(ApiResponse::success(MeResponse {
-        username: admin_username(),
-        roles: vec![ADMIN_ROLE.to_owned()],
-    })))
+pub async fn me(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<ApiResponse<MeResponse>>, ApiError> {
+    let principal = authenticate(&headers, &state).await?;
+    Ok(Json(ApiResponse::success(principal)))
 }
 
-/// Logout endpoint for clients that want a uniform API call before dropping local tokens.
+/// Logout endpoint by destroying the in-memory session.
 #[utoipa::path(
     post,
     path = "/api/v1/auth/logout",
     tag = "auth",
     responses((status = 200, description = "Logout acknowledged", body = super::dto::EmptyApiResponse))
 )]
-pub async fn logout() -> Json<super::dto::EmptyApiResponse> {
-    Json(ApiResponse::success(super::dto::EmptyData {}))
-}
+pub async fn logout(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<super::dto::EmptyApiResponse>, ApiError> {
+    let Some(value) = headers.get(axum::http::header::AUTHORIZATION) else {
+        return Ok(Json(ApiResponse::success(super::dto::EmptyData {})));
+    };
+    let Ok(value) = value.to_str() else {
+        return Ok(Json(ApiResponse::success(super::dto::EmptyData {})));
+    };
+    let Some(token) = value.strip_prefix("Bearer ") else {
+        return Ok(Json(ApiResponse::success(super::dto::EmptyData {})));
+    };
 
-fn admin_username() -> String {
-    std::env::var("SCHEDULER_DEV_ADMIN_USERNAME")
-        .unwrap_or_else(|_| DEFAULT_ADMIN_USERNAME.to_owned())
-}
-
-fn admin_password() -> String {
-    std::env::var("SCHEDULER_DEV_ADMIN_PASSWORD")
-        .unwrap_or_else(|_| DEFAULT_ADMIN_PASSWORD.to_owned())
-}
-
-fn admin_token() -> String {
-    std::env::var("SCHEDULER_DEV_ADMIN_TOKEN").unwrap_or_else(|_| DEFAULT_ADMIN_TOKEN.to_owned())
+    state.sessions.write().await.remove(token);
+    Ok(Json(ApiResponse::success(super::dto::EmptyData {})))
 }

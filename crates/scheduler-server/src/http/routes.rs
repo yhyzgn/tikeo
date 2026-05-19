@@ -15,6 +15,7 @@ use super::{
         JobInstanceLogPageApiResponse, JobInstanceLogSummary, JobInstancePage,
         JobInstancePageApiResponse, JobInstanceSummary, JobPageApiResponse, JobSummary, Page,
         PageQuery, SystemInfoApiResponse, SystemInfoResponse, TriggerJobRequest,
+        CreateUserRequest, UpdateUserRequest,
     },
     error::ApiError,
 };
@@ -104,7 +105,7 @@ pub async fn create_job(
     headers: HeaderMap,
     Json(request): Json<CreateJobRequest>,
 ) -> Result<Json<JobApiResponse>, ApiError> {
-    auth::require_admin(&headers)?;
+    auth::require_admin(&headers, &state).await?;
     let schedule_type = parse_schedule_type(request.schedule_type.as_deref().unwrap_or("api"))?;
     let created = state
         .jobs
@@ -146,7 +147,7 @@ pub async fn trigger_job(
     Path(job_action): Path<String>,
     Json(request): Json<TriggerJobRequest>,
 ) -> Result<Json<JobInstanceApiResponse>, ApiError> {
-    auth::require_admin(&headers)?;
+    auth::require_admin(&headers, &state).await?;
     let job = parse_trigger_path(&job_action)?;
     
     let job_summary = state
@@ -420,4 +421,174 @@ fn parse_trigger_path(value: &str) -> Result<String, ApiError> {
         .filter(|job| !job.is_empty())
         .map(ToOwned::to_owned)
         .ok_or_else(|| ApiError::not_found(format!("unsupported job action: {value}")))
+}
+
+/// List all platform users (Admin only).
+#[utoipa::path(
+    get,
+    path = "/api/v1/users",
+    tag = "users",
+    responses(
+        (status = 200, description = "User list", body = super::dto::UserListApiResponse),
+        (status = 401, description = "Unauthorized", body = super::dto::ErrorResponse),
+        (status = 403, description = "Forbidden", body = super::dto::ErrorResponse)
+    )
+)]
+pub async fn list_users(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<super::dto::UserListApiResponse>, ApiError> {
+    auth::require_admin(&headers, &state).await?;
+    let items = state
+        .users
+        .list_users()
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    
+    Ok(Json(ApiResponse::success(items)))
+}
+
+/// Create a new platform user (Admin only).
+#[utoipa::path(
+    post,
+    path = "/api/v1/users",
+    tag = "users",
+    request_body = CreateUserRequest,
+    responses(
+        (status = 200, description = "Created user", body = super::dto::UserApiResponse),
+        (status = 400, description = "Bad request", body = super::dto::ErrorResponse),
+        (status = 401, description = "Unauthorized", body = super::dto::ErrorResponse),
+        (status = 403, description = "Forbidden", body = super::dto::ErrorResponse)
+    )
+)]
+pub async fn create_user(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<super::dto::CreateUserRequest>,
+) -> Result<Json<super::dto::UserApiResponse>, ApiError> {
+    auth::require_admin(&headers, &state).await?;
+    
+    if request.username.trim().is_empty() || request.password.trim().is_empty() {
+        return Err(ApiError::bad_request("username and password cannot be empty"));
+    }
+
+    // Hash password with BCrypt
+    let hash = bcrypt::hash(request.password, 10)
+        .map_err(|_| ApiError::bad_request("failed to hash password"))?;
+
+    let created = state
+        .users
+        .create_user(scheduler_storage::CreateUser {
+            username: request.username,
+            password_hash: hash,
+            role: request.role,
+        })
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+
+    Ok(Json(ApiResponse::success(created)))
+}
+
+/// Update user details (Admin only).
+#[utoipa::path(
+    patch,
+    path = "/api/v1/users/{id}",
+    tag = "users",
+    request_body = UpdateUserRequest,
+    responses(
+        (status = 200, description = "Updated user", body = super::dto::UserApiResponse),
+        (status = 400, description = "Bad request", body = super::dto::ErrorResponse),
+        (status = 401, description = "Unauthorized", body = super::dto::ErrorResponse),
+        (status = 403, description = "Forbidden", body = super::dto::ErrorResponse),
+        (status = 404, description = "Not found", body = super::dto::ErrorResponse)
+    )
+)]
+pub async fn update_user(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<super::dto::UpdateUserRequest>,
+) -> Result<Json<super::dto::UserApiResponse>, ApiError> {
+    auth::require_admin(&headers, &state).await?;
+
+    let existing = state
+        .users
+        .get_user(&id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::not_found(format!("user not found: {id}")))?;
+
+    let password_hash = if let Some(plain) = request.password {
+        if plain.trim().is_empty() {
+            return Err(ApiError::bad_request("password cannot be empty"));
+        }
+        let hash = bcrypt::hash(plain, 10)
+            .map_err(|_| ApiError::bad_request("failed to hash password"))?;
+        Some(hash)
+    } else {
+        None
+    };
+
+    let updated = state
+        .users
+        .update_user(
+            &id,
+            scheduler_storage::UpdateUser {
+                password_hash,
+                role: request.role.clone(),
+            },
+        )
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::not_found(format!("user not found: {id}")))?;
+
+    // If role was updated, invalidate active in-memory sessions
+    if request.role.is_some() {
+        let mut sessions = state.sessions.write().await;
+        sessions.retain(|_, v| v.username != existing.username);
+    }
+
+    Ok(Json(ApiResponse::success(updated)))
+}
+
+/// Delete a platform user (Admin only).
+#[utoipa::path(
+    delete,
+    path = "/api/v1/users/{id}",
+    tag = "users",
+    responses(
+        (status = 200, description = "Deleted user acknowledged", body = super::dto::EmptyApiResponse),
+        (status = 401, description = "Unauthorized", body = super::dto::ErrorResponse),
+        (status = 403, description = "Forbidden", body = super::dto::ErrorResponse),
+        (status = 404, description = "Not found", body = super::dto::ErrorResponse)
+    )
+)]
+pub async fn delete_user(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<super::dto::EmptyApiResponse>, ApiError> {
+    auth::require_admin(&headers, &state).await?;
+
+    let existing = state
+        .users
+        .get_user(&id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+
+    let success = state
+        .users
+        .delete_user(&id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+
+    if success {
+        if let Some(user) = existing {
+            let mut sessions = state.sessions.write().await;
+            sessions.retain(|_, v| v.username != user.username);
+        }
+        Ok(Json(ApiResponse::success(super::dto::EmptyData {})))
+    } else {
+        Err(ApiError::not_found(format!("user not found: {id}")))
+    }
 }

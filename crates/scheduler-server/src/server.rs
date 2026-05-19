@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use scheduler_config::SchedulerConfig;
 use scheduler_storage::{
     JobInstanceAttemptRepository, JobInstanceLogRepository, JobInstanceRepository, JobRepository,
-    connect_and_migrate,
+    UserRepository, connect_and_migrate,
 };
 use tokio::try_join;
 use tracing::info;
@@ -28,11 +28,13 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
     let logs = JobInstanceLogRepository::new(db.clone());
     let attempts = JobInstanceAttemptRepository::new(db.clone());
     let jobs = JobRepository::new(db.clone());
+    let users = UserRepository::new(db.clone());
     let http_router = http::router_with_state(http::AppState::new(
         jobs.clone(),
         instances.clone(),
         logs.clone(),
         attempts.clone(),
+        users,
         registry.clone(),
     ));
     let tunnel_instances = instances.clone();

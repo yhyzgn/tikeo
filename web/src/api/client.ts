@@ -62,6 +62,24 @@ export interface JobInstanceLogSummary {
   created_at: string;
 }
 
+export interface UserSummary {
+  id: string;
+  username: string;
+  role: string;
+  created_at: string;
+}
+
+export interface CreateUserRequest {
+  username: string;
+  password?: string;
+  role: string;
+}
+
+export interface UpdateUserRequest {
+  password?: string;
+  role?: string;
+}
+
 export interface LoginRequest {
   username: string;
   password: string;
@@ -159,6 +177,31 @@ export async function listInstanceAttempts(instanceId: string): Promise<Page<Job
 
 export async function listInstanceLogs(instanceId: string): Promise<Page<JobInstanceLogSummary>> {
   return request<Page<JobInstanceLogSummary>>(`/api/v1/instances/${encodeURIComponent(instanceId)}/logs`);
+}
+
+export async function listUsers(): Promise<UserSummary[]> {
+  return request<UserSummary[]>('/api/v1/users');
+}
+
+export async function createUser(params: CreateUserRequest): Promise<UserSummary> {
+  return request<UserSummary>('/api/v1/users', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function updateUser(id: string, params: UpdateUserRequest): Promise<UserSummary> {
+  return request<UserSummary>(`/api/v1/users/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  await request<void>(`/api/v1/users/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    allowNullData: true,
+  });
 }
 
 interface SchedulerRequestInit extends RequestInit {

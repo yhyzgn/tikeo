@@ -24,11 +24,18 @@ impl MigrationTrait for CreateMetadataTables {
         create_job_instances(manager).await?;
         create_job_instance_attempts(manager).await?;
         create_job_instance_logs(manager).await?;
+        create_users(manager).await?;
         create_indexes(manager).await?;
+        
+        // Seed default admin
+        seed_admin_user(manager).await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(Users::Table).to_owned())
+            .await?;
         manager
             .drop_table(Table::drop().table(JobInstanceLogs::Table).to_owned())
             .await?;
@@ -98,6 +105,46 @@ async fn create_job_instance_logs(manager: &SchemaManager<'_>) -> Result<(), DbE
                 .to_owned(),
         )
         .await
+}
+
+async fn create_users(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(Users::Table)
+                .if_not_exists()
+                .col(string_pk(Users::Id))
+                .col(string_col(Users::Username))
+                .col(string_col(Users::PasswordHash))
+                .col(string_col(Users::Role))
+                .col(string_col(Users::CreatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn seed_admin_user(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    // Basic hardcoded bcrypt hash for "admin" (only for initial dev/MVP, should be changable)
+    // using $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
+    let insert = sea_query::Query::insert()
+        .into_table(Users::Table)
+        .columns([
+            Users::Id,
+            Users::Username,
+            Users::PasswordHash,
+            Users::Role,
+            Users::CreatedAt,
+        ])
+        .values_panic([
+            "usr-admin".into(),
+            "admin".into(),
+            "$2b$10$Y1w0jG08zT0.SjP0Z.T/kOScZz24Hh/3D5rA0S.S3y04YqM8T8UWC".into(), // hash for "admin"
+            "admin".into(),
+            time::OffsetDateTime::now_utc().format(&time::format_description::well_known::Rfc3339).unwrap().into(),
+        ])
+        .to_owned();
+    
+    manager.exec_stmt(insert).await
 }
 
 async fn create_namespaces(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
@@ -259,7 +306,28 @@ async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             .col(JobInstanceLogs::Sequence)
             .to_owned(),
     )
+    .await?;
+
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_users_username")
+            .table(Users::Table)
+            .col(Users::Username)
+            .unique()
+            .to_owned(),
+    )
     .await
+}
+
+#[derive(DeriveIden)]
+enum Users {
+    Table,
+    Id,
+    Username,
+    PasswordHash,
+    Role,
+    CreatedAt,
 }
 
 async fn create_attempt_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
