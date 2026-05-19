@@ -10,6 +10,9 @@
 - [x] 创建开发阶段总提示词：`prompt.md`
 - [x] 初始化 `.memory` 记忆库
 - [x] 初始化 `.prompt` 阶段提示词目录
+- [x] 固化 Rust workspace + `./crates/` 解耦约束
+- [x] 固化 Web 端 `./web` + React + Ant Design + Bun 约束
+- [x] 固化依赖尽量使用当前最新稳定版的约束
 
 ## 下一大阶段
 

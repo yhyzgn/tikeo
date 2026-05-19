@@ -22,8 +22,11 @@
 4. **自动提交并推送**：验证通过后自行 `git commit` 并 `git push` 到远程仓库。若远程不存在或推送失败，必须在 `./.memory/session-log.md` 和最终回复中明确记录原因与下一步。
 5. **保持小步提交**：每个提交聚焦一个阶段或一个可验证能力，避免混杂大改。
 6. **不丢设计目标**：实现必须服从 `./design/scheduler-architecture-design.md`，若代码实现需要偏离设计，必须先更新设计文档和 `./.memory/decisions.md`。
-7. **不要让 Worker 暴露入站端口**：scheduler 的核心架构是 Worker 主动通过 gRPC/HTTP2 tunnel 连接 Server，Server 反向指令复用该长连接。
-8. **Server 不执行用户代码**：动态脚本、WASM、HTTP、SQL 等处理器必须由 Worker 侧受控环境执行，Server 只调度、治理、审计。
+7. **Rust 代码必须 workspace + crates 解耦**：整个 Rust 项目必须使用 Cargo workspace；所有 Rust 模块抽取为独立 crate 并统一放在 `./crates/` 下，禁止把大量业务模块堆在单一 crate 中。
+8. **Web 端必须独立在 `./web/`**：Web 管理端代码必须放在 `./web/` 下，使用 React + TypeScript + Ant Design，包管理器固定使用 Bun。禁止使用 `webui/` 作为新的前端目录。
+9. **不要让 Worker 暴露入站端口**：scheduler 的核心架构是 Worker 主动通过 gRPC/HTTP2 tunnel 连接 Server，Server 反向指令复用该长连接。
+10. **Server 不执行用户代码**：动态脚本、WASM、HTTP、SQL 等处理器必须由 Worker 侧受控环境执行，Server 只调度、治理、审计。
+11. **依赖库尽量使用最新版**：新增 Rust crate、前端 npm/bun 包、构建工具和运行时依赖时，默认选择当前最新稳定版；若不能使用最新版，必须在 `./.memory/decisions.md` 记录原因、锁定版本和升级条件。
 
 ---
 
@@ -51,7 +54,7 @@
 
 ## 2. 推荐技术栈
 
-后续实现应优先遵循设计文档中的技术选型：
+后续实现应优先遵循设计文档中的技术选型；依赖版本默认选择当前最新稳定版，避免引入已停止维护、长期不更新或存在已知安全风险的库：
 
 - Rust 2024 Edition
 - Tokio：异步运行时
@@ -91,7 +94,7 @@ Web UI 是平台默认管理入口，必须作为一等能力实现。
 
 ### 3.2 UI 工程建议
 
-可以选择 React + TypeScript + Vite 或 Vue + TypeScript + Vite；优先采用设计文档和代码现状中已经确立的方案。原则：
+Web 端技术栈固定为 **React + TypeScript + Vite + Ant Design**，代码目录固定为 `./web/`，包管理工具固定为 **Bun**。原则：
 
 - API client 从 OpenAPI 生成，避免手写漂移。
 - 表单尽可能从 JSON Schema / OpenAPI 元数据生成。
@@ -106,7 +109,7 @@ Web UI 是平台默认管理入口，必须作为一等能力实现。
 若仓库尚未创建 UI 资源库，后续智能体应在实现 Web UI 时建立：
 
 ```text
-webui/
+web/
 ├── src/
 │   ├── app/              # 应用入口、路由、布局
 │   ├── components/       # 通用组件
@@ -149,14 +152,14 @@ webui/
 如果前端存在，还必须执行对应命令，例如：
 
 ```bash
-npm install / pnpm install
-npm run lint
-npm run typecheck
-npm test
-npm run build
+bun install
+bun run lint
+bun run typecheck
+bun test
+bun run build
 ```
 
-如果工作区命令尚未存在，需要先创建合理的脚本，并在 `./.memory/commands.md` 中记录。
+如果工作区命令尚未存在，需要先创建合理的脚本，并在 `./.memory/commands.md` 中记录。新增依赖后应运行依赖树/安全检查；若暂未配置安全检查，也要在 `.memory/risks.md` 记录。
 
 ---
 
@@ -322,12 +325,12 @@ git push -u origin HEAD
 
 后续智能体可根据实际进度调整，但调整必须写入 `./.memory/decisions.md` 与后续 `./.prompt`。
 
-1. **001-bootstrap**：Rust workspace、crate 拆分、CI、本地命令、基础配置。
+1. **001-bootstrap**：Rust workspace、`./crates/` 解耦 crate 拆分、CI、本地命令、基础配置。
 2. **002-http-api-and-openapi**：Axum gateway、healthz/readyz、基础 REST、OpenAPI。
 3. **003-worker-tunnel**：gRPC protobuf、Worker 主动注册、心跳、连接路由表。
 4. **004-storage-and-scheduler**：SeaORM、SQLite/MySQL、Job/Instance 模型、CRON/FIX_RATE。
 5. **005-worker-sdk-rust**：Rust Worker SDK、任务执行、状态上报、日志流。
-6. **006-web-ui-foundation**：前端工程、登录壳、Dashboard、Job 列表。
+6. **006-web-ui-foundation**：`./web/` React + Ant Design + Bun 前端工程、登录壳、Dashboard、Job 列表。
 7. **007-dynamic-script-sandbox**：Script Processor、安全策略、资源限制、审计。
 8. **008-workflow-engine**：DAG、条件、上下文、可视化接口。
 9. **009-container-and-k8s**：Dockerfile、Compose、Helm Chart、跨集群 Worker 示例。

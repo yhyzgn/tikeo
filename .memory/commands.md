@@ -13,11 +13,13 @@ cargo run --bin scheduler -- serve --config examples/dev.toml
 curl -fsS http://127.0.0.1:9090/healthz
 ```
 
-若前端初始化：
+若前端初始化在 `./web`：
 
 ```bash
-npm run lint
-npm run typecheck
-npm test
-npm run build
+cd web
+bun install
+bun run lint
+bun run typecheck
+bun test
+bun run build
 ```

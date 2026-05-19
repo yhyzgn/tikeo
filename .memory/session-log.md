@@ -17,3 +17,33 @@ Verification:
 
 Git:
 - 本次任务结束前应提交并推送这些文档变更。
+
+
+## 2026-05-19 — 固化 Rust workspace 与 Web 工程约束
+
+Agent:
+- Codex
+
+Work:
+- 将用户新增约束写入 `prompt.md`、`.memory`、`.prompt` 与设计文档。
+- 明确 Rust 必须 workspace + `./crates/` 多 crate 解耦。
+- 明确 Web 必须位于 `./web/`，使用 React + TypeScript + Ant Design + Bun。
+- 强化每次代码改动后编译、测试、运行、提交、推送要求。
+
+Verification:
+- 文档约束 grep 校验。
+- 本次为约束文档更新，尚无 Rust/Web 工程可编译。
+
+
+## 2026-05-19 — 固化依赖最新版策略
+
+Agent:
+- Codex
+
+Work:
+- 将“各种依赖库尽量使用最新版”的约束写入总提示词、设计文档、记忆库和阶段提示词。
+- 明确默认选择当前最新稳定版，不能使用最新版时需记录原因、锁定版本、风险与升级条件。
+
+Verification:
+- 文档约束 grep 校验。
+- 本次为约束文档更新，尚无 Rust/Web 工程可编译。

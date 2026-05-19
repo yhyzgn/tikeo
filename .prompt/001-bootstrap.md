@@ -2,7 +2,7 @@
 
 ## 阶段目标
 
-建立 scheduler 的最小 Rust workspace 与可运行服务骨架，为后续 HTTP API、Worker Tunnel、存储和 Web UI 开发提供稳定基础。
+建立 scheduler 的最小 Rust workspace（所有 crate 位于 `./crates/`）与可运行服务骨架，为后续 HTTP API、Worker Tunnel、存储和 Web UI 开发提供稳定基础。
 
 ## 开始前必读
 
@@ -24,16 +24,22 @@
 - 日志使用 tracing。
 - 后续需要支持 gRPC、SeaORM、OpenAPI、Worker Tunnel。
 
+## 依赖策略
+
+- 新增 Rust crate 时优先使用当前最新稳定版。
+- 若不能使用最新版，必须在 `.memory/decisions.md` 记录原因、锁定版本和升级条件。
+- Bootstrap 阶段应尽量加入基础依赖安全检查工具或在 `.memory/risks.md` 记录暂缓原因。
+
 ## 任务列表
 
-1. 初始化 Cargo workspace。
-2. 创建建议 crate：
+1. 初始化 Cargo workspace，根目录只放 workspace 配置，不承载业务代码。
+2. 在 `./crates/` 下创建建议 crate（所有 Rust 代码模块必须以 crate 形式解耦）：
    - `crates/scheduler-server`：server binary / HTTP gateway / CLI serve。
    - `crates/scheduler-core`：领域模型与核心 trait 占位。
    - `crates/scheduler-config`：配置加载。
    - 后续可增加 `scheduler-proto`、`scheduler-storage`、`scheduler-worker-sdk`。
 3. 增加根 `Cargo.toml` workspace 配置。
-4. 增加 `rustfmt.toml`、基础 `.gitignore`。
+4. 增加 `rustfmt.toml`、基础 `.gitignore`，并确保 workspace members 只指向 `crates/*` 下 crate。
 5. 实现 `scheduler serve`：
    - 读取默认配置。
    - 启动 Axum HTTP server。
@@ -42,8 +48,9 @@
    - 配置加载测试。
    - healthz handler 测试。
 7. 增加 `examples/dev.toml`。
-8. 更新 `.memory/commands.md` 中实际命令。
-9. 创建或更新 `.prompt/002-http-api-and-openapi.md`。
+8. 记录 Rust workspace 的实际命令；若创建前端占位，只能创建 `./web/`，不得创建 `webui/`。
+9. 更新 `.memory/commands.md` 中实际命令。
+10. 创建或更新 `.prompt/002-http-api-and-openapi.md`。
 
 ## 验证命令
 
