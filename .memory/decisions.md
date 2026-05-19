@@ -142,3 +142,31 @@ Rationale:
 
 Constraint:
 - SeaORM 2.0 发布稳定版后，应在独立阶段评估升级，不得在业务功能提交中顺手升级核心 ORM。
+
+
+## 2026-05-19 — Worker Tunnel RPC 命名避免客户端冲突
+
+Decision:
+- Worker Tunnel protobuf RPC 从 `Connect` 调整为 `OpenTunnel`。
+- Rust proto crate 开启 tonic client 生成，供 `scheduler-worker-sdk` 使用。
+
+Rationale:
+- tonic client 生成器会为客户端类型生成关联函数 `connect`；RPC 名称也叫 `Connect` 时会产生重复方法名。
+- 使用 `OpenTunnel` 保留语义并解除 SDK client 生成阻塞。
+
+Constraint:
+- 后续 SDK 和文档应统一使用 `OpenTunnel` 作为 gRPC 方法名；概念层仍可称 Worker Tunnel connect/register。
+
+
+## 2026-05-19 — Java SDK 初始依赖版本
+
+Decision:
+- Java SDK 使用 Spring Boot `4.0.6` 作为当前最新稳定基线。
+- 不采用 Maven Central 当前 latest/release 指向的 Spring Boot `4.1.0-RC1`。
+- gRPC Java 版本锁定为当前稳定 `1.81.0`，protobuf Java 预留 `4.34.1` 稳定线。
+
+Rationale:
+- 用户要求尽量使用最新版；SDK starter 属于企业接入面，应避免使用 RC 版本作为默认基线。
+
+Constraint:
+- Spring Boot 4.1 发布稳定版后，应单独评估升级。

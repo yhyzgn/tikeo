@@ -2014,6 +2014,9 @@ scheduler/
   - [ ] Fixed Rate tick loop
 - [ ] 单机执行 + 广播执行
 - [ ] Rust SDK (Worker 注册 + 心跳 + 任务执行)
+  - [x] Rust Worker SDK 最小主动连接/注册/心跳客户端
+  - [x] 基础 TaskProcessor trait / TaskContext / TaskOutcome
+  - [ ] Worker 真实任务接收与执行回传
 - [x] 基础 HTTP REST API skeleton（统一 `{code,message,data}` 响应、system/cluster/jobs 占位）
 - [x] OpenAPI 3.1 文档与 Swagger UI（`/api-docs/openapi.json`、`/docs`）
 - [ ] 基础 Web UI (登录、Dashboard、Job 列表、创建、手动触发、实例详情、日志查看)
@@ -2053,6 +2056,9 @@ scheduler/
 - [ ] Prometheus 指标 + Grafana Dashboard 模板
 - [ ] OpenTelemetry 分布式追踪
 - [ ] Java Spring Boot Starter SDK（优先）
+  - [x] Maven 多模块骨架：java-core / spring-boot-autoconfigure / spring-boot-starter
+  - [x] `@SchedulerProcessor` 注解扫描与 auto-configuration 骨架
+  - [ ] Java gRPC Worker Tunnel 真实连接与心跳
 - [ ] Java Core SDK + Node.js SDK
 - [ ] K8s Helm Chart
 - [ ] PowerJob 迁移工具

@@ -6,7 +6,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     prost_config.protoc_executable(protoc);
 
     tonic_prost_build::configure()
-        .build_client(false)
+        .build_client(true)
         .compile_with_config(prost_config, &["proto/worker.proto"], &["proto"])?;
     println!("cargo:rerun-if-changed=proto/worker.proto");
     Ok(())

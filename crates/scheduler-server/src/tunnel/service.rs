@@ -28,12 +28,12 @@ impl WorkerTunnel {
 
 #[tonic::async_trait]
 impl WorkerTunnelService for WorkerTunnel {
-    type ConnectStream = ReceiverStream<Result<ServerMessage, Status>>;
+    type OpenTunnelStream = ReceiverStream<Result<ServerMessage, Status>>;
 
-    async fn connect(
+    async fn open_tunnel(
         &self,
         request: Request<Streaming<WorkerMessage>>,
-    ) -> Result<Response<Self::ConnectStream>, Status> {
+    ) -> Result<Response<Self::OpenTunnelStream>, Status> {
         let mut inbound = request.into_inner();
         let registry = self.registry.clone();
         let (tx, rx) = mpsc::channel(16);

@@ -117,3 +117,19 @@ curl -fsS -H 'content-type: application/json' -d '{"trigger_type":"api"}' http:/
 curl -fsS http://127.0.0.1:9090/api/v1/jobs/<job_id>/instances
 curl -fsS http://127.0.0.1:9090/api/v1/instances/<instance_id>
 ```
+
+
+## 已验证命令（006-worker-sdk-rust-and-java-starter）
+
+```bash
+mvn -f java/pom.xml -q test
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo build --workspace --all-features
+cargo run --bin scheduler -- serve --config examples/dev.toml
+curl -fsS http://127.0.0.1:9090/healthz
+curl -fsS http://127.0.0.1:9090/api-docs/openapi.json
+```
+
+说明：Rust Worker SDK 集成测试会启动内存 Worker Tunnel server，验证主动连接、注册与心跳 ping；Java SDK 当前验证 Maven 多模块编译测试。

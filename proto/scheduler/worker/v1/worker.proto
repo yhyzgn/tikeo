@@ -3,7 +3,7 @@ syntax = "proto3";
 package scheduler.worker.v1;
 
 service WorkerTunnelService {
-  rpc Connect(stream WorkerMessage) returns (stream ServerMessage);
+  rpc OpenTunnel(stream WorkerMessage) returns (stream ServerMessage);
 }
 
 message WorkerMessage {

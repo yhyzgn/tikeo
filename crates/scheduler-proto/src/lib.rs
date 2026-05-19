@@ -11,7 +11,8 @@ pub mod worker {
             clippy::default_trait_access,
             clippy::derive_partial_eq_without_eq,
             clippy::doc_markdown,
-            clippy::missing_const_for_fn
+            clippy::missing_const_for_fn,
+            clippy::missing_errors_doc
         )]
         tonic::include_proto!("scheduler.worker.v1");
     }

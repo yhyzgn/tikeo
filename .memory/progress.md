@@ -16,7 +16,7 @@
 
 ## 下一大阶段
 
-进入代码开发：`001-bootstrap`、`002-http-api-and-openapi`、`003-worker-tunnel`、`004-storage-and-scheduler` 已完成；下一阶段执行 `005-basic-scheduler`。
+进入代码开发：`001-bootstrap`、`002-http-api-and-openapi`、`003-worker-tunnel`、`004-storage-and-scheduler`、`005-basic-scheduler`、`006-worker-sdk-rust-and-java-starter` 已完成；下一阶段执行 `007-web-ui-foundation`。
 
 - [x] 001-bootstrap：初始化 Cargo workspace 与 `./crates/*` crate 骨架
 - [x] 001-bootstrap：实现 `scheduler serve`、`/healthz`、`/readyz`
@@ -37,4 +37,5 @@
 - [x] 设计路线图标记：gRPC 协议定义与代码生成
 - [x] 004-storage-and-scheduler：SeaORM 存储层、SQLite dev DB、MySQL migration feature、Jobs API 持久化
 - [x] 005-basic-scheduler：调度领域模型、API 手动触发实例链路、实例列表查询
-- [ ] 006-worker-sdk-rust-and-java-starter：Rust Worker SDK 基础与 Java Spring Boot Starter 规划
+- [x] 006-worker-sdk-rust-and-java-starter：Rust Worker SDK 注册/心跳客户端 + Java Spring Boot Starter 骨架
+- [ ] 007-web-ui-foundation：Web 管理端基础工程

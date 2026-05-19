@@ -1,0 +1,24 @@
+[package]
+name = "scheduler-worker-sdk"
+description = "Rust Worker SDK for active outbound scheduler Worker Tunnel connections."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+async-trait = "0.1"
+scheduler-proto = { path = "../scheduler-proto" }
+thiserror = "2"
+tokio = { version = "1", features = ["sync"] }
+tokio-stream = "0.1"
+tonic = "0.14"
+
+[dev-dependencies]
+scheduler-server = { path = "../scheduler-server" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+
+[lints]
+workspace = true
