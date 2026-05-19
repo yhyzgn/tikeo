@@ -1,20 +1,65 @@
 //! HTTP DTOs used by the management API.
 
+#![allow(clippy::option_if_let_else)]
+
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-/// Stable problem details response for HTTP errors.
+/// Successful API code.
+pub const SUCCESS_CODE: i32 = 0;
+
+/// Generic API envelope. All business HTTP APIs must return this shape.
 #[derive(Debug, Clone, Serialize, ToSchema)]
-pub struct ProblemDetails {
-    /// Stable machine-readable error code.
-    pub code: &'static str,
-    /// Human-readable error message.
+pub struct ApiResponse<T>
+where
+    T: Serialize,
+{
+    /// Business status code. `0` means success; non-zero values mean failure.
+    pub code: i32,
+    /// Human-readable response information.
     pub message: String,
+    /// Response data. This field is always present, even when it is `null`.
+    pub data: Option<T>,
+}
+
+impl<T> ApiResponse<T>
+where
+    T: Serialize,
+{
+    /// Build a successful response with non-null data.
+    pub fn success(data: T) -> Self {
+        Self {
+            code: SUCCESS_CODE,
+            message: "success".to_owned(),
+            data: Some(data),
+        }
+    }
+}
+
+/// Empty response payload for operations that intentionally return no data.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct EmptyData {}
+
+/// Error details payload nested in the API envelope `data` field for failures.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ErrorData {
     /// Trace identifier used to correlate logs and client errors.
     pub trace_id: String,
     /// Optional structured error details.
     pub details: Option<serde_json::Value>,
 }
+
+/// Standard error envelope.
+pub type ErrorResponse = ApiResponse<ErrorData>;
+
+/// System information API envelope.
+pub type SystemInfoApiResponse = ApiResponse<SystemInfoResponse>;
+
+/// Cluster status API envelope.
+pub type ClusterApiResponse = ApiResponse<ClusterResponse>;
+
+/// Job page API envelope.
+pub type JobPageApiResponse = ApiResponse<Page>;
 
 /// Generic page response.
 #[derive(Debug, Clone, Serialize, ToSchema)]

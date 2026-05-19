@@ -33,6 +33,8 @@
 
 ## 硬性约束
 
+- HTTP 业务接口响应必须统一为 `{code, message, data}`；`code=0` 表示成功，非 0 表示失败；`data` 即使为 null 也必须显式返回。
+
 - 后端入口继续保留在根 `src/main.rs`。
 - 根 `src/` 不承载业务模块，业务能力必须进入 `crates/*`。
 - Worker 不暴露入站端口。

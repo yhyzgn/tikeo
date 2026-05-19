@@ -54,3 +54,16 @@ curl -fsS http://127.0.0.1:9090/api/v1/cluster
 curl -fsS http://127.0.0.1:9090/api/v1/jobs
 curl -sS -o /tmp/create-job.json -w '%{http_code}' -H 'content-type: application/json' -d '{"name":"nightly"}' http://127.0.0.1:9090/api/v1/jobs
 ```
+
+
+## HTTP 响应体契约检查
+
+业务接口响应必须包含 `code`、`message`、`data`：
+
+```bash
+curl -fsS http://127.0.0.1:9090/api/v1/system/info
+curl -fsS http://127.0.0.1:9090/api/v1/jobs
+curl -sS -o /tmp/create-job.json -w '%{http_code}' -H 'content-type: application/json' -d '{"name":"nightly"}' http://127.0.0.1:9090/api/v1/jobs
+```
+
+Expected: success responses use `code=0`; failures use non-zero code; `data` key is always present.

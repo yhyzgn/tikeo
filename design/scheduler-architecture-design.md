@@ -710,7 +710,8 @@ HTTP 接口是平台管理面的一等能力，面向 Web UI、CLI、CI/CD、Git
 - 幂等：创建、触发、取消、审批等写操作支持 `Idempotency-Key`。
 - 并发控制：更新接口支持 `resource_version` / `If-Match`，避免覆盖并发变更。
 - 分页：统一 `page_size`、`page_token`、`sort`、`filter`。
-- 错误：统一 Problem Details JSON，包含 `code`、`message`、`trace_id`、`details`。
+- 响应体：所有 HTTP 业务接口统一返回 `{code, message, data}`；`code` 为 int，`0` 表示成功，非 `0` 表示失败；`message` 为响应信息；`data` 必须显式存在，允许为 `null`。
+- 错误：错误响应同样使用 `{code, message, data}`，其中 `code != 0`，错误细节可放入 `data`。
 - 审计：所有写操作、密钥读取、脚本发布、权限变更、手动触发和取消都写审计日志。
 - OpenAPI：启动后暴露 `/api-docs/openapi.json`、`/docs`，CI 中校验 OpenAPI 兼容性。
 
@@ -1957,17 +1958,17 @@ scheduler/
 
 **目标**：核心调度能力，可替换 PowerJob 的基本使用场景。
 
-- [ ] 项目脚手架 (workspace, proto, CI)
+- [x] ✅ 项目脚手架 (workspace, CI, root binary entrypoint)
 - [ ] gRPC 协议定义与代码生成
 - [ ] SeaORM 存储层 + SQLite + MySQL 迁移
 - [ ] 基础调度器 (CRON + Fixed Rate + API 触发)
 - [ ] 单机执行 + 广播执行
 - [ ] Rust SDK (Worker 注册 + 心跳 + 任务执行)
-- [ ] 基础 HTTP REST API (Auth、Job CRUD、触发、实例查询、日志查询)
-- [ ] OpenAPI 3.1 文档与 Swagger UI
+- [x] ✅ 基础 HTTP REST API skeleton（统一 `{code,message,data}` 响应、system/cluster/jobs 占位）
+- [x] ✅ OpenAPI 3.1 文档与 Swagger UI（`/api-docs/openapi.json`、`/docs`）
 - [ ] 基础 Web UI (登录、Dashboard、Job 列表、创建、手动触发、实例详情、日志查看)
 - [ ] Docker 镜像构建
-- [ ] CLI 基础命令 (serve, job create/list/trigger)
+- [x] ✅ CLI 基础命令（`serve --config`）
 
 ### Phase 2: 工作流与分布式 (月 4-6)
 

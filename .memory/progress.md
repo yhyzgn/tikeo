@@ -27,3 +27,5 @@
 - [x] 002-http-api-and-openapi：暴露 `/api-docs/openapi.json` 与 `/docs`
 - [x] 002-http-api-and-openapi：后端入口调整为根 `src/main.rs`，业务模块继续在 `crates/*`
 - [ ] 003-worker-tunnel：Worker 主动连接与注册心跳
+- [x] 固化 HTTP 业务接口统一 `{code,message,data}` 响应规范
+- [x] 已在设计文档开发路线图标记完成项：脚手架、HTTP API skeleton、OpenAPI/Swagger、CLI serve

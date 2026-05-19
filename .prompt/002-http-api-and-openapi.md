@@ -28,6 +28,8 @@
 
 ## 硬性约束
 
+- HTTP 业务接口响应必须统一为 `{code, message, data}`；`code=0` 表示成功，非 0 表示失败；`data` 即使为 null 也必须显式返回。
+
 - 后端主程序入口保留在仓库根 `src/main.rs`；其余 Rust 代码继续放在 `./crates/*` 对应 crate 中。
 - 不得把业务逻辑堆进 `scheduler-server`；DTO、错误、领域类型能抽到独立 crate 时优先抽离。
 - HTTP API 不得直连 Worker；执行链路仍要预留 Worker Tunnel。

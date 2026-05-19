@@ -19,7 +19,11 @@ use super::{dto, routes};
         routes::create_job,
     ),
     components(schemas(
-        dto::ProblemDetails,
+        dto::ApiResponse<dto::SystemInfoResponse>,
+        dto::ApiResponse<dto::ClusterResponse>,
+        dto::ApiResponse<dto::Page>,
+        dto::ApiResponse<dto::ErrorData>,
+        dto::ErrorData,
         dto::Page,
         dto::SystemInfoResponse,
         dto::ClusterResponse,

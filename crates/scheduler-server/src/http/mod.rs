@@ -129,7 +129,9 @@ mod tests {
     async fn system_info_returns_scheduler_metadata() {
         let json = get_json("/api/v1/system/info").await;
 
-        assert_eq!(json["name"], "scheduler");
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["message"], "success");
+        assert_eq!(json["data"]["name"], "scheduler");
     }
 
     #[tokio::test]
@@ -155,6 +157,16 @@ mod tests {
             .unwrap_or_else(|error| panic!("router should respond: {error}"));
 
         assert_eq!(response.status(), axum::http::StatusCode::NOT_IMPLEMENTED);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert_eq!(json["code"], 10_001);
+        assert_eq!(json["message"], "job persistence is not implemented yet");
+        assert!(json.get("data").is_some());
     }
 
     async fn get_json(uri: &str) -> Value {

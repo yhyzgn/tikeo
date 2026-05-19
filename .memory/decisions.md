@@ -72,3 +72,32 @@ Rationale:
 
 Constraint:
 - 后续 Web API client 应以该 OpenAPI 文档为输入生成或校验。
+
+
+## 2026-05-19 — HTTP 业务接口统一响应体
+
+Decision:
+- 所有 HTTP 业务接口必须返回 `{code, message, data}` 三个字段。
+- `code` 是业务成功判断标准，int `0` 表示成功，非 `0` 表示失败。
+- `message` 是响应信息。
+- `data` 是响应数据，必须显式返回；无数据时返回 `null`。
+- HTTP 状态码仍保留协议语义，但客户端业务判断以响应体 `code` 为准。
+
+Rationale:
+- 提供稳定、统一、便于前端和外部系统接入的 API 契约。
+
+Constraint:
+- 后续不得新增裸 JSON DTO、Problem Details 顶层格式或只依赖 HTTP status 的业务接口。
+
+
+## 2026-05-19 — 开发路线图完成状态回写
+
+Decision:
+- 每个开发工作项完成后，必须更新 `design/scheduler-architecture-design.md` 的开发路线图。
+- 已完成项使用 `[x] ✅` 标记，并可补充实际完成范围说明。
+
+Rationale:
+- 设计文档是项目进度和范围共识源，路线图必须随实现推进同步更新。
+
+Constraint:
+- 后续提交若完成开发项但未更新路线图，视为交接上下文不完整。

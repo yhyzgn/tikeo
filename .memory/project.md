@@ -9,6 +9,7 @@
 - Server 不执行用户脚本或用户代码。
 - K8s / Docker / 跨集群 / 跨 VPC 部署必须是一等能力。
 - Web UI 与 HTTP/OpenAPI 管理接口是一等平台能力。
+- HTTP 业务接口必须统一返回 `{code,message,data}`；`code=0` 表示成功，非 0 表示失败，`data` 即使为 null 也必须显式返回。
 - Rust 代码必须完全解耦，使用 Cargo workspace，所有模块 crate 统一放在 `./crates/`。
 - Web 代码必须独立放在 `./web/`，使用 React + TypeScript + Ant Design，包管理器使用 Bun。
 - 各类依赖库、构建工具和运行时依赖尽量使用当前最新稳定版；不能使用最新版时必须记录原因。

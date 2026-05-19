@@ -2,7 +2,10 @@
 
 use axum::{Json, http::StatusCode, response::IntoResponse};
 
-use super::dto::ProblemDetails;
+use super::dto::{ApiResponse, ErrorData};
+
+/// Business code for endpoints that are intentionally not implemented yet.
+pub const NOT_IMPLEMENTED_CODE: i32 = 10_001;
 
 /// API error variants returned by management handlers.
 #[derive(Debug, Clone)]
@@ -21,9 +24,9 @@ impl ApiError {
         }
     }
 
-    const fn code(&self) -> &'static str {
+    const fn code(&self) -> i32 {
         match self {
-            Self::NotImplemented { .. } => "not_implemented",
+            Self::NotImplemented { .. } => NOT_IMPLEMENTED_CODE,
         }
     }
 
@@ -37,11 +40,13 @@ impl ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
         let status = self.status_code();
-        let body = ProblemDetails {
+        let body = ApiResponse {
             code: self.code(),
             message: self.message(),
-            trace_id: "unavailable".to_owned(),
-            details: None,
+            data: Some(ErrorData {
+                trace_id: "unavailable".to_owned(),
+                details: None,
+            }),
         };
 
         (status, Json(body)).into_response()

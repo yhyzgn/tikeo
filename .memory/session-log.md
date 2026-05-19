@@ -120,3 +120,32 @@ Verification:
 
 Git:
 - 待提交并推送。
+
+
+## 2026-05-19 — 固化并实现 HTTP 统一响应体
+
+Agent:
+- Codex
+
+Work:
+- 根据用户要求固化 HTTP 响应体规范：`code`、`message`、`data` 必须存在。
+- 成功响应使用 `code=0`；失败响应使用非 0 code。
+- 将现有 `/api/v1/system/info`、`/api/v1/cluster`、`/api/v1/jobs` 包装为统一 envelope。
+- 将 `POST /api/v1/jobs` placeholder 错误改为统一 envelope，code=`10001`。
+- 更新 OpenAPI schema、设计文档、总提示词和记忆库。
+
+Verification:
+- 继续执行当前阶段完整验证。
+
+
+## 2026-05-19 — 路线图完成项回写
+
+Agent:
+- Codex
+
+Work:
+- 根据用户要求，将已完成工作项在 `design/scheduler-architecture-design.md` 开发路线图中标记为 `[x] ✅`。
+- 固化后续开发完成项必须同步更新路线图的规则。
+
+Verification:
+- 继续执行当前阶段完整验证。
