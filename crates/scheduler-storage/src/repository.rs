@@ -1030,7 +1030,7 @@ mod tests {
 
         // Seeding checked
         let admin = users
-            .get_by_username("admin")
+            .get_by_username("scheduler_init")
             .await
             .unwrap_or_else(|error| panic!("should load admin user: {error}"));
         assert!(admin.is_some());

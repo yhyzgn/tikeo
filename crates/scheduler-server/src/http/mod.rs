@@ -633,7 +633,7 @@ mod tests {
         let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let json: Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["data"].as_array().map(Vec::len), Some(1));
-        assert_eq!(json["data"][0]["username"], "admin");
+        assert_eq!(json["data"][0]["username"], "scheduler_init");
 
         // 2. Create an operator user
         let response = app.clone().oneshot(

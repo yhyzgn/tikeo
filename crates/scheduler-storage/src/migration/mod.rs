@@ -124,8 +124,7 @@ async fn create_users(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
 }
 
 async fn seed_admin_user(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
-    // Basic hardcoded bcrypt hash for "admin" (only for initial dev/MVP, should be changable)
-    // using $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
+    // Seed initial admin user using credentials documented in README: scheduler_init / Scheduler@2026!
     let insert = sea_query::Query::insert()
         .into_table(Users::Table)
         .columns([
@@ -137,8 +136,8 @@ async fn seed_admin_user(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         ])
         .values_panic([
             "usr-admin".into(),
-            "admin".into(),
-            "$2b$10$Y1w0jG08zT0.SjP0Z.T/kOScZz24Hh/3D5rA0S.S3y04YqM8T8UWC".into(), // hash for "admin"
+            "scheduler_init".into(),
+            "$2b$10$/rflKev/thG2Je1e.2/7leHSg8Z/LYdSTqdpwsPKTyJMO5ajpysLW".into(), // hash for "Scheduler@2026!"
             "admin".into(),
             time::OffsetDateTime::now_utc().format(&time::format_description::well_known::Rfc3339).unwrap().into(),
         ])
