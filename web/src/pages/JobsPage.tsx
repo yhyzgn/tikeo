@@ -1,4 +1,4 @@
-import { Button, Card, Form, Input, Select, Space, Switch, Table, Tag, message } from 'antd';
+import { Button, Card, Dropdown, Form, Input, Select, Space, Switch, Table, Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 
 import { createJob, triggerJob, type CreateJobRequest, type JobSummary } from '../api/client';
@@ -22,16 +22,27 @@ export function JobsPage({ jobs, loading, onRefresh, onTriggered }: JobsPageProp
     {
       title: 'Actions',
       render: (_, job) => (
-        <Button
+        <Dropdown.Button
           type="link"
+          menu={{
+            items: [
+              { key: 'single', label: '单机执行' },
+              { key: 'broadcast', label: '广播执行' },
+            ],
+            onClick: async ({ key }) => {
+              await triggerJob(job.id, { trigger_type: 'api', execution_mode: key === 'broadcast' ? 'broadcast' : 'single' });
+              message.success(key === 'broadcast' ? `已广播触发 ${job.name}` : `已触发 ${job.name}`);
+              await onTriggered();
+            },
+          }}
           onClick={async () => {
-            await triggerJob(job.id, { trigger_type: 'api' });
+            await triggerJob(job.id, { trigger_type: 'api', execution_mode: 'single' });
             message.success(`已触发 ${job.name}`);
             await onTriggered();
           }}
         >
           Trigger
-        </Button>
+        </Dropdown.Button>
       ),
     },
   ];

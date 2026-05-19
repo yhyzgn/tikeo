@@ -86,7 +86,7 @@ describe('api client envelope handling', () => {
       return new Response(JSON.stringify({
         code: 0,
         message: 'success',
-        data: { id: 'inst_1', job_id: 'job_1', status: 'pending', trigger_type: 'api', created_at: 'now', updated_at: 'now' },
+        data: { id: 'inst_1', job_id: 'job_1', status: 'pending', trigger_type: 'api', execution_mode: 'single', created_at: 'now', updated_at: 'now' },
       }));
     }) as unknown as typeof fetch;
 

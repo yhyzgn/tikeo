@@ -36,3 +36,18 @@
 - 当前认证是开发期基础，不是生产安全方案；默认 `admin/admin` 和静态 bearer token 仅用于本地与早期集成。
 - 尚未实现正式 RBAC、OIDC、API Token 生命周期、密码哈希、审计日志、CSRF/刷新 token 等生产能力。
 - Web token 使用 `localStorage`，存在 XSS 后 token 泄露风险；正式安全阶段需要收敛为更安全的会话策略。
+
+
+## 2026-05-19 — Docker host 网络风险
+
+- 使用 `docker build --network host` 或运行时 host network 会掩盖容器 bridge DNS、端口映射、反向代理和多层网络路径问题。
+- 后续部署相关验收必须优先覆盖 Docker bridge / Compose bridge；K8s、WAF、LB 层验证在后续 Helm / ingress 阶段继续补齐。
+
+
+## 2026-05-19 — 013 broadcast / bridge container follow-up
+
+- Broadcast target set is currently all online workers; 014 must add namespace/app/capability/label matching to prevent cross-app fan-out.
+- Broadcast attempt dispatch has no lease timeout, retry, cancellation, or idempotency lock yet; multi-server coordination remains future work.
+- Parent broadcast aggregation currently distinguishes all-success vs partial-failed after all children finish; richer per-attempt error metadata is not persisted yet.
+- Docker bridge smoke validates Compose DNS/proxy locally, but WAF/LB/Ingress/Gateway/Service Mesh behavior still needs later deployment hardening tests.
+- Web production build still emits a large chunk warning from Ant Design bundle; functionality passes, later route-level code splitting can optimize it.

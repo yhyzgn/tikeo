@@ -22,6 +22,7 @@ impl MigrationTrait for CreateMetadataTables {
         create_apps(manager).await?;
         create_jobs(manager).await?;
         create_job_instances(manager).await?;
+        create_job_instance_attempts(manager).await?;
         create_job_instance_logs(manager).await?;
         create_indexes(manager).await?;
         Ok(())
@@ -30,6 +31,9 @@ impl MigrationTrait for CreateMetadataTables {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
             .drop_table(Table::drop().table(JobInstanceLogs::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(JobInstanceAttempts::Table).to_owned())
             .await?;
         manager
             .drop_table(Table::drop().table(JobInstances::Table).to_owned())
@@ -45,6 +49,30 @@ impl MigrationTrait for CreateMetadataTables {
             .await?;
         Ok(())
     }
+}
+
+async fn create_job_instance_attempts(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(JobInstanceAttempts::Table)
+                .if_not_exists()
+                .col(string_pk(JobInstanceAttempts::Id))
+                .col(string_col(JobInstanceAttempts::InstanceId))
+                .col(string_col(JobInstanceAttempts::WorkerId))
+                .col(string_col(JobInstanceAttempts::Status))
+                .col(string_col(JobInstanceAttempts::CreatedAt))
+                .col(string_col(JobInstanceAttempts::UpdatedAt))
+                .foreign_key(
+                    ForeignKey::create()
+                        .name("fk_job_instance_attempts_instance")
+                        .from(JobInstanceAttempts::Table, JobInstanceAttempts::InstanceId)
+                        .to(JobInstances::Table, JobInstances::Id)
+                        .on_delete(ForeignKeyAction::Cascade),
+                )
+                .to_owned(),
+        )
+        .await
 }
 
 async fn create_job_instance_logs(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
@@ -154,6 +182,7 @@ async fn create_job_instances(manager: &SchemaManager<'_>) -> Result<(), DbErr> 
                 .col(string_col(JobInstances::JobId))
                 .col(string_col(JobInstances::Status))
                 .col(string_col(JobInstances::TriggerType))
+                .col(string_col(JobInstances::ExecutionMode))
                 .col(string_col(JobInstances::CreatedAt))
                 .col(string_col(JobInstances::UpdatedAt))
                 .foreign_key(
@@ -223,6 +252,26 @@ async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     create_index(
         manager,
         Index::create()
+            .name("idx_job_instance_attempts_instance_worker")
+            .table(JobInstanceAttempts::Table)
+            .col(JobInstanceAttempts::InstanceId)
+            .col(JobInstanceAttempts::WorkerId)
+            .unique()
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_job_instance_attempts_status")
+            .table(JobInstanceAttempts::Table)
+            .col(JobInstanceAttempts::Status)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
             .name("idx_job_instance_logs_instance_seq")
             .table(JobInstanceLogs::Table)
             .col(JobInstanceLogs::InstanceId)
@@ -279,6 +328,18 @@ enum JobInstances {
     JobId,
     Status,
     TriggerType,
+    ExecutionMode,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum JobInstanceAttempts {
+    Table,
+    Id,
+    InstanceId,
+    WorkerId,
+    Status,
     CreatedAt,
     UpdatedAt,
 }

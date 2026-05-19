@@ -63,12 +63,12 @@ Constraint:
 ## 2026-05-19 — OpenAPI 生成库选择
 
 Decision:
-- HTTP/OpenAPI 阶段选择 `utoipa` + `utoipa-swagger-ui`。
-- OpenAPI JSON 暴露路径使用 `GET /api-docs/openapi.json`，Swagger UI 使用 `/docs`。
+- HTTP/OpenAPI 阶段选择 `utoipa`；禁止 API 文档 UI 依赖。
+- OpenAPI JSON 暴露路径使用 `GET /api-docs/openapi.json`；不提供文档 UI。
 
 Rationale:
 - `utoipa` 当前稳定、Axum 集成成熟，适合从 Rust handler/DTO 生成 OpenAPI。
-- `utoipa-swagger-ui` 会注册自身 OpenAPI JSON 路由，使用 `/api-docs/openapi.json` 可避免与手写 `/openapi.json` 路由冲突。
+- 已移除 API 文档 UI 依赖；后端手写暴露 `/api-docs/openapi.json`；不提供浏览器文档 UI。
 
 Constraint:
 - 后续 Web API client 应以该 OpenAPI 文档为输入生成或校验。
@@ -190,7 +190,7 @@ Constraint:
 
 Decision:
 - 后端使用仓库根 `Dockerfile` 产出 `scheduler` server 镜像，保持根 binary 入口，不把主程序入口迁入 `crates/`。
-- Web 使用 `web/Dockerfile` 产出独立 nginx 静态资源镜像，并通过同源 `/api/`、`/api-docs/`、`/docs` 反向代理访问后端 HTTP API。
+- Web 使用 `web/Dockerfile` 产出独立 nginx 静态资源镜像，并通过同源 `/api/`、`/api-docs/` 反向代理访问后端 HTTP API。
 - Compose 与 K8s baseline 均使用独立 Worker Tunnel 服务入口；Worker 只主动出站连接，不要求业务容器暴露入站端口。
 
 Rationale:
@@ -214,16 +214,16 @@ Constraint:
 - 即使存在 server-to-worker 指令，也必须经由 Worker 主动建立的 tunnel 返回；不得新增 Worker 入站 HTTP/gRPC 端口。
 
 
-## 2026-05-19 — Backend runtime image avoids apt in build path
+## 2026-05-19 — Backend runtime image uses Alpine
 
 Decision:
-- Backend runtime image keeps `debian:bookworm-slim` but does not run `apt-get` during image build.
+- Backend Dockerfile uses a layered Rust builder with cargo dependency fetch caching and builds `x86_64-unknown-linux-musl`; final runtime image is `alpine:3.22`.
 
 Rationale:
-- Runtime only needs the statically linked Rust server binary for current HTTP/gRPC listeners; removing apt keeps builds reproducible in restricted networks and avoids package mirror stalls.
+- Satisfies the project constraint that final runtime base image must be Alpine while retaining stable Rust build tooling and Docker layer caching.
 
 Constraint:
-- If future outbound TLS clients require OS CA bundles inside the server image, add a deterministic CA strategy in a dedicated deployment hardening phase.
+- Future native dependencies must remain compatible with the musl static build path or explicitly document why the runtime image strategy changes.
 
 
 ## 2026-05-19 — Scheduler tick loop dependency baseline
@@ -257,3 +257,26 @@ Constraint:
 - 012 阶段采用开发管理员 token 作为最小认证闭环，默认 `admin/admin` -> `dev-admin-token`，允许环境变量覆盖。
 - 写操作先保护 Job 创建与手动触发，读接口、health、ready、OpenAPI 暂保持开放，便于开发和部署烟测。
 - Web token 暂存在 `localStorage`，后续正式 RBAC/OIDC 阶段必须替换为更完整的会话、安全刷新与权限模型。
+
+
+## 2026-05-19 — Docker 网络验证基线
+
+- Docker 构建与运行验证不得使用 `--network host` 作为捷径。
+- 最低验收基线是 Docker 默认 bridge 网络与 `docker compose` bridge 网络；Web 容器必须通过 Compose 服务名 / bridge DNS 代理访问 scheduler。
+- 该约束用于提前暴露 WAF / LB / 多层网络下的问题，避免把本地 host 网络当成线上可行性证明。
+
+
+## 2026-05-19 — 禁止 API 文档 UI
+
+- 按最新约束，项目不使用 API 文档 UI，仅保留机器可读的 `/api-docs/openapi.json`。
+- 保留 `/api-docs/openapi.json` 作为机器可读 OpenAPI JSON，供 SDK / CI / 外部系统集成使用。
+- Web nginx 只代理 `/api/` 与 `/api-docs/`，不提供文档 UI 代理。
+
+
+## 2026-05-19 — Broadcast execution foundation
+
+- `ExecutionMode` supports `single` and `broadcast`; broadcast trigger creates per-worker `job_instance_attempts` for online workers.
+- Dispatcher sends broadcast attempts only through each Worker's existing outbound `OpenTunnel`; no Worker inbound port or Server direct callback is introduced.
+- Worker `TaskResult` first updates child attempt status, then aggregates parent instance to `succeeded` or `partial_failed`.
+- HTTP exposes `GET /api/v1/instances/{instance}/attempts`; Web can trigger broadcast and inspect child attempts.
+- Broadcast trigger validates that at least one Worker is online before creating the parent instance, avoiding orphan pending broadcasts.

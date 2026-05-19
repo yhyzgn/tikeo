@@ -53,7 +53,7 @@
    - `POST /api/v1/jobs` skeleton，可先返回 501 或受控占位，但 OpenAPI 要清楚表达。
 5. 暴露：
    - `GET /api-docs/openapi.json`
-   - `GET /docs` 或 Swagger UI/Redoc 占位。
+   - `GET /api-docs/openapi.json`（仅 JSON，不提供文档 UI）。
 6. 为新增 handler 和错误模型补测试。
 7. 更新 `.memory` 和 `.prompt/003-worker-tunnel.md`。
 

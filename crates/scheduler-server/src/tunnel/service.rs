@@ -5,7 +5,10 @@ use scheduler_proto::worker::v1::{
     Heartbeat, Ping, ServerMessage, TaskLog, TaskResult, WorkerMessage, WorkerRegistered,
     server_message, worker_message, worker_tunnel_service_server::WorkerTunnelService,
 };
-use scheduler_storage::{AppendJobInstanceLog, JobInstanceLogRepository, JobInstanceRepository};
+use scheduler_storage::{
+    AppendJobInstanceLog, JobInstanceAttemptRepository, JobInstanceLogRepository,
+    JobInstanceRepository,
+};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
@@ -20,6 +23,7 @@ pub struct WorkerTunnel {
     registry: WorkerRegistry,
     instances: JobInstanceRepository,
     logs: JobInstanceLogRepository,
+    attempts: JobInstanceAttemptRepository,
 }
 
 impl WorkerTunnel {
@@ -29,11 +33,13 @@ impl WorkerTunnel {
         registry: WorkerRegistry,
         instances: JobInstanceRepository,
         logs: JobInstanceLogRepository,
+        attempts: JobInstanceAttemptRepository,
     ) -> Self {
         Self {
             registry,
             instances,
             logs,
+            attempts,
         }
     }
 }
@@ -50,6 +56,7 @@ impl WorkerTunnelService for WorkerTunnel {
         let registry = self.registry.clone();
         let instances = self.instances.clone();
         let logs = self.logs.clone();
+        let attempts = self.attempts.clone();
         let (tx, rx) = mpsc::channel(16);
         let outbound = tx.clone();
 
@@ -58,7 +65,7 @@ impl WorkerTunnelService for WorkerTunnel {
                 match message {
                     Ok(message) => {
                         if handle_worker_message(
-                            &registry, &instances, &logs, message, &tx, &outbound,
+                            &registry, &instances, &logs, &attempts, message, &tx, &outbound,
                         )
                         .await
                         .is_err()
@@ -82,6 +89,7 @@ async fn handle_worker_message(
     registry: &WorkerRegistry,
     instances: &JobInstanceRepository,
     logs: &JobInstanceLogRepository,
+    attempts: &JobInstanceAttemptRepository,
     message: WorkerMessage,
     tx: &mpsc::Sender<Result<ServerMessage, Status>>,
     outbound: &mpsc::Sender<Result<ServerMessage, Status>>,
@@ -108,6 +116,7 @@ async fn handle_worker_message(
             .await
         }
         Some(worker_message::Kind::TaskResult(TaskResult {
+            worker_id,
             instance_id,
             success,
             ..
@@ -117,8 +126,25 @@ async fn handle_worker_message(
             } else {
                 InstanceStatus::Failed
             };
-            if let Err(error) = instances.update_status(&instance_id, status).await {
-                tracing::warn!(%error, %instance_id, "failed to persist task result");
+            match attempts
+                .update_status(&instance_id, &worker_id, status)
+                .await
+            {
+                Ok(Some(_)) => {
+                    if let Err(error) =
+                        refresh_broadcast_parent(instances, attempts, &instance_id).await
+                    {
+                        tracing::warn!(%error, %instance_id, "failed to refresh broadcast parent status");
+                    }
+                }
+                Ok(None) => {
+                    if let Err(error) = instances.update_status(&instance_id, status).await {
+                        tracing::warn!(%error, %instance_id, "failed to persist task result");
+                    }
+                }
+                Err(error) => {
+                    tracing::warn!(%error, %instance_id, %worker_id, "failed to persist attempt result");
+                }
             }
             Ok(())
         }
@@ -152,12 +178,45 @@ async fn handle_worker_message(
     }
 }
 
+async fn refresh_broadcast_parent(
+    instances: &JobInstanceRepository,
+    attempts: &JobInstanceAttemptRepository,
+    instance_id: &str,
+) -> Result<(), scheduler_storage::DbErr> {
+    let children = attempts.list_by_instance(instance_id).await?;
+    if children.is_empty() {
+        return Ok(());
+    }
+    let all_done = children.iter().all(|attempt| {
+        matches!(
+            attempt.status,
+            InstanceStatus::Succeeded | InstanceStatus::Failed
+        )
+    });
+    if !all_done {
+        return Ok(());
+    }
+    let status = if children
+        .iter()
+        .all(|attempt| attempt.status == InstanceStatus::Succeeded)
+    {
+        InstanceStatus::Succeeded
+    } else {
+        InstanceStatus::PartialFailed
+    };
+    let _ = instances.update_status(instance_id, status).await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use scheduler_proto::worker::v1::{
         RegisterWorker, WorkerMessage, server_message, worker_message,
     };
-    use scheduler_storage::{JobInstanceLogRepository, JobInstanceRepository, connect_and_migrate};
+    use scheduler_storage::{
+        JobInstanceAttemptRepository, JobInstanceLogRepository, JobInstanceRepository,
+        connect_and_migrate,
+    };
     use tokio::sync::mpsc;
 
     use super::{WorkerRegistry, handle_worker_message};
@@ -169,10 +228,13 @@ mod tests {
         let logs = logs().await;
         let (tx, mut rx) = mpsc::channel(1);
 
+        let attempts = attempts().await;
+
         handle_worker_message(
             &registry,
             &instances,
             &logs,
+            &attempts,
             WorkerMessage {
                 kind: Some(worker_message::Kind::Register(RegisterWorker {
                     worker_id: "worker-1".to_owned(),
@@ -211,6 +273,13 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         JobInstanceRepository::new(db)
+    }
+
+    async fn attempts() -> JobInstanceAttemptRepository {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        JobInstanceAttemptRepository::new(db)
     }
 
     async fn logs() -> JobInstanceLogRepository {

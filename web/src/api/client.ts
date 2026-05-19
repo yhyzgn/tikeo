@@ -30,6 +30,7 @@ export interface CreateJobRequest {
 
 export interface TriggerJobRequest {
   trigger_type?: string;
+  execution_mode?: 'single' | 'broadcast';
 }
 
 export interface JobInstanceSummary {
@@ -37,6 +38,16 @@ export interface JobInstanceSummary {
   job_id: string;
   status: string;
   trigger_type: string;
+  execution_mode: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface JobInstanceAttemptSummary {
+  id: string;
+  instance_id: string;
+  worker_id: string;
+  status: string;
   created_at: string;
   updated_at: string;
 }
@@ -140,6 +151,10 @@ export async function listJobInstances(jobId: string): Promise<Page<JobInstanceS
 
 export async function getInstance(instanceId: string): Promise<JobInstanceSummary> {
   return request<JobInstanceSummary>(`/api/v1/instances/${encodeURIComponent(instanceId)}`);
+}
+
+export async function listInstanceAttempts(instanceId: string): Promise<Page<JobInstanceAttemptSummary>> {
+  return request<Page<JobInstanceAttemptSummary>>(`/api/v1/instances/${encodeURIComponent(instanceId)}/attempts`);
 }
 
 export async function listInstanceLogs(instanceId: string): Promise<Page<JobInstanceLogSummary>> {

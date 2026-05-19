@@ -328,14 +328,14 @@ mod tests {
     use std::net::SocketAddr;
 
     use async_trait::async_trait;
-    use scheduler_core::{InstanceStatus, TriggerType};
+    use scheduler_core::{ExecutionMode, InstanceStatus, TriggerType};
     use scheduler_proto::worker::v1::{
         DispatchTask, worker_tunnel_service_server::WorkerTunnelServiceServer,
     };
     use scheduler_server::tunnel::{WorkerRegistry, WorkerTunnel};
     use scheduler_storage::{
-        CreateJob, CreateJobInstance, JobInstanceLogRepository, JobInstanceRepository,
-        JobRepository, connect_and_migrate,
+        CreateJob, CreateJobInstance, JobInstanceAttemptRepository, JobInstanceLogRepository,
+        JobInstanceRepository, JobRepository, connect_and_migrate,
     };
     use tokio::{net::TcpListener, task::JoinHandle};
     use tokio_stream::wrappers::TcpListenerStream;
@@ -386,6 +386,7 @@ mod tests {
             .create_pending(CreateJobInstance {
                 job_id: job.id.clone(),
                 trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
             })
             .await
             .unwrap_or_else(|error| panic!("instance should be created: {error}"))
@@ -451,11 +452,13 @@ mod tests {
         let db = test_db().await;
         let jobs = JobRepository::new(db.clone());
         let instances = JobInstanceRepository::new(db.clone());
-        let logs = JobInstanceLogRepository::new(db);
+        let logs = JobInstanceLogRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db);
         let service = WorkerTunnelServiceServer::new(WorkerTunnel::new(
             registry.clone(),
             instances.clone(),
             logs.clone(),
+            attempts,
         ));
         let server = tokio::spawn(async move {
             Server::builder()

@@ -82,6 +82,9 @@ pub type JobInstanceApiResponse = ApiResponse<JobInstanceSummary>;
 /// Job instance log page API envelope.
 pub type JobInstanceLogPageApiResponse = ApiResponse<JobInstanceLogPage>;
 
+/// Job instance attempt page API envelope.
+pub type JobInstanceAttemptPageApiResponse = ApiResponse<JobInstanceAttemptPage>;
+
 /// Generic page response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct Page {
@@ -193,6 +196,8 @@ pub struct CreateJobRequest {
 pub struct TriggerJobRequest {
     /// Optional trigger source. Defaults to `api`.
     pub trigger_type: Option<String>,
+    /// Optional execution mode. Defaults to `single`; `broadcast` fans out to all online workers.
+    pub execution_mode: Option<String>,
 }
 
 /// Job instance page response.
@@ -215,6 +220,34 @@ pub struct JobInstanceSummary {
     pub status: String,
     /// Trigger source.
     pub trigger_type: String,
+    /// Execution mode.
+    pub execution_mode: String,
+    /// Creation timestamp in RFC3339 format.
+    pub created_at: String,
+    /// Last update timestamp in RFC3339 format.
+    pub updated_at: String,
+}
+
+/// Job instance attempt page response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct JobInstanceAttemptPage {
+    /// Page items.
+    pub items: Vec<JobInstanceAttemptSummary>,
+    /// Token for the next page when more data is available.
+    pub next_page_token: Option<String>,
+}
+
+/// Per-worker job instance attempt summary.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct JobInstanceAttemptSummary {
+    /// Attempt identifier.
+    pub id: String,
+    /// Parent instance identifier.
+    pub instance_id: String,
+    /// Target worker identifier.
+    pub worker_id: String,
+    /// Current attempt status.
+    pub status: String,
     /// Creation timestamp in RFC3339 format.
     pub created_at: String,
     /// Last update timestamp in RFC3339 format.

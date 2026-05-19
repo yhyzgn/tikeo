@@ -97,10 +97,10 @@ Agent:
 
 Work:
 - 增加 HTTP API 分层：DTO、error、OpenAPI、routes。
-- 使用 `utoipa` + `utoipa-swagger-ui` 生成 OpenAPI 和 Swagger UI。
+- 使用 `utoipa` 生成 OpenAPI JSON；禁止 API 文档 UI 禁用。
 - 实现 `/api/v1/system/info`、`/api/v1/cluster`、`GET /api/v1/jobs`、`POST /api/v1/jobs` placeholder。
 - 实现 Problem Details JSON 错误响应。
-- 暴露 `/api-docs/openapi.json` 与 `/docs`。
+- 暴露 `/api-docs/openapi.json`；不提供文档 UI。
 - 根据用户要求将后端主程序入口保留在根 `src/main.rs`，`crates/*` 继续承载解耦模块。
 - 更新 `.prompt/003-worker-tunnel.md`。
 
@@ -230,7 +230,7 @@ Git:
 
 - 新增后端多阶段 Dockerfile：Rust release builder + Debian slim runtime，默认运行 `scheduler serve --config /app/examples/container.toml`。
 - 新增 `examples/container.toml`，容器内 HTTP `0.0.0.0:9090`、Worker Tunnel `0.0.0.0:9091`、SQLite dev 数据落 `/data/scheduler.db`。
-- 新增 Web Dockerfile：Bun 构建 React/Ant Design 静态资源，nginx 托管并代理 `/api/`、`/api-docs/`、`/docs` 到 scheduler HTTP 服务。
+- 新增 Web Dockerfile：Bun 构建 React/Ant Design 静态资源，nginx 托管并代理 `/api/`、`/api-docs/` 到 scheduler HTTP 服务。
 - 新增 `docker-compose.yml`，包含 scheduler server 与 web 两个服务；Worker Tunnel 只暴露为 worker 主动出站连接入口。
 - 新增 `deploy/k8s/scheduler.yaml` 与 README，包含 Namespace、ConfigMap、SQLite dev PVC、server Deployment/Service、worker tunnel Service、web Deployment/Service。
 - 新增 Docker ignore 规则，避免 target、node_modules、dist 进入镜像构建上下文。
@@ -281,7 +281,7 @@ Verification:
 - `bun test --cwd web` ✅
 - `bun run --cwd web build` ✅
 - `docker compose config` ✅
-- `docker build --network host -t scheduler:dev .` ✅
+- `docker build -t scheduler:dev .` ✅
 - `docker compose up -d --no-build` + `/healthz` + Web nginx `/api/v1/jobs` 代理 ✅
 - `docker compose down` ✅
 - `docker build -t scheduler-web:dev ./web` ✅
@@ -313,7 +313,7 @@ Verification:
 - `bun test --cwd web` ✅
 - `bun run --cwd web build` ✅
 - `docker compose config` ✅
-- `docker build --network host -t scheduler:dev .` ✅
+- `docker build -t scheduler:dev .` ✅
 - `docker build -t scheduler-web:dev ./web` ✅
 - `docker compose up -d --no-build` + `/healthz` + Web nginx `/api/v1/jobs` 代理 ✅
 - `docker compose down` ✅
@@ -344,7 +344,7 @@ Verification:
 - `bun test --cwd web` ✅
 - `bun run --cwd web build` ✅
 - `docker compose config` ✅
-- `docker build --network host -t scheduler:dev .` ✅
+- `docker build -t scheduler:dev .` ✅
 - `docker build -t scheduler-web:dev ./web` ✅
 - `docker compose up -d --no-build` + `/healthz` + Web nginx `/api/v1/jobs` 代理 ✅
 - `docker compose down` ✅
@@ -376,9 +376,42 @@ Verification:
 - `bun test --cwd web` ✅
 - `bun run --cwd web build` ✅
 - `docker compose config` ✅
-- `docker build --network host -t scheduler:dev .` ✅
+- `docker build -t scheduler:dev .` ✅
 - `docker build -t scheduler-web:dev ./web` ✅
 - `docker compose up -d --no-build` + `/healthz` + Web nginx `/` smoke ✅
+- `docker compose down` ✅
+
+Git:
+- 待提交并推送。
+
+
+## 2026-05-19 — 013-broadcast-execution + bridge-safe containers
+
+- Core 新增 `ExecutionMode::{single,broadcast}` 与 `InstanceStatus::partial_failed`。
+- Storage 新增 `job_instances.execution_mode` 与 `job_instance_attempts`，并提供 attempt repository。
+- HTTP `POST /api/v1/jobs/{job}:trigger` 支持 `execution_mode`；广播触发基于在线 Worker 创建子执行，并先校验在线 Worker 避免孤儿实例。
+- HTTP 新增 `GET /api/v1/instances/{instance}/attempts`，继续返回统一 `{code,message,data}` envelope。
+- Tunnel registry/dispatcher 支持按 worker id 发送任务；Worker 回传 `TaskResult` 后更新 attempt 并聚合父实例状态。
+- Web Job 页面支持 single/broadcast 触发；Instances 页面新增广播 attempt Drawer。
+- 移除浏览器 API 文档 UI 与相关依赖，只保留 `/api-docs/openapi.json` 机器可读契约。
+- Backend Dockerfile 改为分层缓存构建 + musl release binary + Alpine runtime。
+- Web Dockerfile/nginx 按分层构建与 nginx runtime 调整；Compose 使用默认 bridge 网络，Web 通过服务名 `scheduler` 反向代理后端。
+
+Verification:
+- `cargo fmt --all -- --check` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features` ✅
+- `cargo build --workspace --all-features` ✅
+- `mvn -f java/pom.xml -q test` ✅
+- `bun run --cwd web lint` ✅
+- `bun run --cwd web typecheck` ✅
+- `bun test --cwd web` ✅
+- `bun run --cwd web build` ✅
+- `docker compose config` ✅
+- `DOCKER_BUILDKIT=1 docker build -t scheduler:dev .` ✅
+- `DOCKER_BUILDKIT=1 docker build -t scheduler-web:dev ./web` ✅
+- `docker compose up -d --no-build` on default bridge ✅
+- `curl /healthz`, Web `/`, proxied `/api/v1/system/info`, proxied/direct `/api-docs/openapi.json` ✅
 - `docker compose down` ✅
 
 Git:

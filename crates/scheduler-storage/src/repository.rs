@@ -1,6 +1,6 @@
 //! Repository APIs over scheduler metadata tables.
 
-use scheduler_core::{InstanceStatus, TriggerType};
+use scheduler_core::{ExecutionMode, InstanceStatus, TriggerType};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, Set,
@@ -8,7 +8,7 @@ use sea_orm::{
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
-use crate::entities::{app, job, job_instance, job_instance_log, namespace};
+use crate::entities::{app, job, job_instance, job_instance_attempt, job_instance_log, namespace};
 
 /// Minimal job creation input.
 #[derive(Debug, Clone)]
@@ -53,6 +53,8 @@ pub struct CreateJobInstance {
     pub job_id: String,
     /// Trigger source for this instance.
     pub trigger_type: TriggerType,
+    /// Execution fan-out mode.
+    pub execution_mode: ExecutionMode,
 }
 
 /// Job instance summary returned to management API callers.
@@ -66,6 +68,34 @@ pub struct JobInstanceSummary {
     pub status: InstanceStatus,
     /// Trigger source.
     pub trigger_type: TriggerType,
+    /// Execution fan-out mode.
+    pub execution_mode: ExecutionMode,
+    /// Creation timestamp in RFC3339 format.
+    pub created_at: String,
+    /// Last update timestamp in RFC3339 format.
+    pub updated_at: String,
+}
+
+/// Job instance attempt creation input.
+#[derive(Debug, Clone)]
+pub struct CreateJobInstanceAttempt {
+    /// Parent instance identifier.
+    pub instance_id: String,
+    /// Target worker identifier.
+    pub worker_id: String,
+}
+
+/// Job instance attempt summary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JobInstanceAttemptSummary {
+    /// Attempt identifier.
+    pub id: String,
+    /// Parent instance identifier.
+    pub instance_id: String,
+    /// Target worker identifier.
+    pub worker_id: String,
+    /// Current attempt status.
+    pub status: InstanceStatus,
     /// Creation timestamp in RFC3339 format.
     pub created_at: String,
     /// Last update timestamp in RFC3339 format.
@@ -104,6 +134,142 @@ pub struct JobInstanceLogSummary {
     pub sequence: i64,
     /// Creation timestamp in RFC3339 format.
     pub created_at: String,
+}
+
+/// Job instance attempt repository.
+#[derive(Debug, Clone)]
+pub struct JobInstanceAttemptRepository {
+    db: DatabaseConnection,
+}
+
+impl JobInstanceAttemptRepository {
+    /// Create a repository using the provided database connection.
+    #[must_use]
+    pub const fn new(db: DatabaseConnection) -> Self {
+        Self { db }
+    }
+
+    /// Create pending attempts for selected workers if the parent instance exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn create_pending_for_workers(
+        &self,
+        instance_id: &str,
+        worker_ids: &[String],
+    ) -> Result<Vec<JobInstanceAttemptSummary>, sea_orm::DbErr> {
+        if job_instance::Entity::find_by_id(instance_id.to_owned())
+            .one(&self.db)
+            .await?
+            .is_none()
+        {
+            return Ok(Vec::new());
+        }
+
+        let mut created = Vec::with_capacity(worker_ids.len());
+        for worker_id in worker_ids {
+            let now = now_rfc3339();
+            let model = job_instance_attempt::ActiveModel {
+                id: Set(new_id("attempt")),
+                instance_id: Set(instance_id.to_owned()),
+                worker_id: Set(worker_id.clone()),
+                status: Set(InstanceStatus::Pending.to_string()),
+                created_at: Set(now.clone()),
+                updated_at: Set(now),
+            }
+            .insert(&self.db)
+            .await?;
+            created.push(JobInstanceAttemptSummary::from(model));
+        }
+
+        Ok(created)
+    }
+
+    /// List attempts for one parent instance ordered by creation time.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn list_by_instance(
+        &self,
+        instance_id: &str,
+    ) -> Result<Vec<JobInstanceAttemptSummary>, sea_orm::DbErr> {
+        let rows = job_instance_attempt::Entity::find()
+            .filter(job_instance_attempt::Column::InstanceId.eq(instance_id))
+            .order_by_asc(job_instance_attempt::Column::CreatedAt)
+            .all(&self.db)
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(JobInstanceAttemptSummary::from)
+            .collect())
+    }
+
+    /// List pending attempts in creation order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn list_pending(
+        &self,
+        limit: u64,
+    ) -> Result<Vec<JobInstanceAttemptSummary>, sea_orm::DbErr> {
+        let rows = job_instance_attempt::Entity::find()
+            .filter(job_instance_attempt::Column::Status.eq(InstanceStatus::Pending.to_string()))
+            .order_by_asc(job_instance_attempt::Column::CreatedAt)
+            .limit(limit)
+            .all(&self.db)
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(JobInstanceAttemptSummary::from)
+            .collect())
+    }
+
+    /// Update one attempt status.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn update_status(
+        &self,
+        instance_id: &str,
+        worker_id: &str,
+        status: InstanceStatus,
+    ) -> Result<Option<JobInstanceAttemptSummary>, sea_orm::DbErr> {
+        let Some(model) = job_instance_attempt::Entity::find()
+            .filter(job_instance_attempt::Column::InstanceId.eq(instance_id))
+            .filter(job_instance_attempt::Column::WorkerId.eq(worker_id))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let mut active: job_instance_attempt::ActiveModel = model.into();
+        active.status = Set(status.to_string());
+        active.updated_at = Set(now_rfc3339());
+        active
+            .update(&self.db)
+            .await
+            .map(|model| Some(JobInstanceAttemptSummary::from(model)))
+    }
+}
+
+impl From<job_instance_attempt::Model> for JobInstanceAttemptSummary {
+    fn from(value: job_instance_attempt::Model) -> Self {
+        Self {
+            id: value.id,
+            instance_id: value.instance_id,
+            worker_id: value.worker_id,
+            status: value.status.parse().unwrap_or(InstanceStatus::Failed),
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+        }
+    }
 }
 
 /// Job instance log repository.
@@ -220,6 +386,7 @@ impl JobInstanceRepository {
             job_id: Set(parent.id),
             status: Set(InstanceStatus::Pending.to_string()),
             trigger_type: Set(input.trigger_type.to_string()),
+            execution_mode: Set(input.execution_mode.to_string()),
             created_at: Set(now.clone()),
             updated_at: Set(now),
         }
@@ -262,17 +429,18 @@ impl JobInstanceRepository {
             .map(|model| model.map(JobInstanceSummary::from))
     }
 
-    /// List pending instances in creation order.
+    /// List pending single-mode instances in creation order.
     ///
     /// # Errors
     ///
     /// Returns an error when database access fails.
-    pub async fn list_pending(
+    pub async fn list_pending_single(
         &self,
         limit: u64,
     ) -> Result<Vec<JobInstanceSummary>, sea_orm::DbErr> {
         let rows = job_instance::Entity::find()
             .filter(job_instance::Column::Status.eq(InstanceStatus::Pending.to_string()))
+            .filter(job_instance::Column::ExecutionMode.eq(ExecutionMode::Single.to_string()))
             .order_by_asc(job_instance::Column::CreatedAt)
             .limit(limit)
             .all(&self.db)
@@ -315,6 +483,10 @@ impl From<job_instance::Model> for JobInstanceSummary {
             job_id: value.job_id,
             status: value.status.parse().unwrap_or(InstanceStatus::Failed),
             trigger_type: value.trigger_type.parse().unwrap_or(TriggerType::Api),
+            execution_mode: value
+                .execution_mode
+                .parse()
+                .unwrap_or(ExecutionMode::Single),
             created_at: value.created_at,
             updated_at: value.updated_at,
         }
@@ -495,7 +667,7 @@ mod tests {
     use sea_orm::{ConnectionTrait, Database, Statement};
     use sea_orm_migration::MigratorTrait;
 
-    use scheduler_core::{InstanceStatus, TriggerType};
+    use scheduler_core::{ExecutionMode, InstanceStatus, TriggerType};
 
     use crate::{
         migration::Migrator,
@@ -589,6 +761,7 @@ mod tests {
             .create_pending(CreateJobInstance {
                 job_id: job.id.clone(),
                 trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
             })
             .await
             .unwrap_or_else(|error| panic!("instance should be created: {error}"))
@@ -604,7 +777,7 @@ mod tests {
         assert_eq!(listed[0].trigger_type, TriggerType::Api);
 
         let pending = instances
-            .list_pending(10)
+            .list_pending_single(10)
             .await
             .unwrap_or_else(|error| panic!("pending instances should list: {error}"));
         assert_eq!(pending.len(), 1);
@@ -643,6 +816,7 @@ mod tests {
             .create_pending(CreateJobInstance {
                 job_id: job.id,
                 trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
             })
             .await
             .unwrap_or_else(|error| panic!("instance should be created: {error}"))

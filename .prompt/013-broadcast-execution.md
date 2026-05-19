@@ -56,7 +56,7 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-docker build --network host -t scheduler:dev .
+docker build -t scheduler:dev .
 docker build -t scheduler-web:dev ./web
 docker compose up -d --no-build
 curl -fsS http://127.0.0.1:9090/healthz

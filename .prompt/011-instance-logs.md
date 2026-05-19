@@ -39,7 +39,7 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-docker build --network host -t scheduler:dev .
+docker build -t scheduler:dev .
 docker build -t scheduler-web:dev ./web
 ```
 

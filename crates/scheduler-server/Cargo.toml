@@ -28,7 +28,6 @@ tower = "0"
 tracing = "0"
 tracing-subscriber = { version = "0", features = ["env-filter", "fmt"] }
 utoipa = { version = "5", features = ["axum_extras"] }
-utoipa-swagger-ui = { version = "9", features = ["axum"] }
 
 [dev-dependencies]
 tower = { version = "0", features = ["util"] }

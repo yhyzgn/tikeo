@@ -56,6 +56,29 @@ impl WorkerRegistry {
         self.workers.read().await.get(worker_id).cloned()
     }
 
+    /// Return currently connected worker ids.
+    pub async fn worker_ids(&self) -> Vec<String> {
+        self.workers.read().await.keys().cloned().collect()
+    }
+
+    /// Dispatch one task to a specific currently registered worker.
+    ///
+    /// # Errors
+    ///
+    /// Returns `None` when the worker is not connected or the worker stream is closed.
+    pub async fn dispatch_to_worker(&self, worker_id: &str, task: DispatchTask) -> Option<String> {
+        let worker = self.workers.read().await.get(worker_id).cloned()?;
+        let worker_id = worker.worker_id.clone();
+        worker
+            .outbound
+            .send(Ok(ServerMessage {
+                kind: Some(server_message::Kind::DispatchTask(task)),
+            }))
+            .await
+            .ok()?;
+        Some(worker_id)
+    }
+
     /// Dispatch one task to the first currently registered worker.
     ///
     /// # Errors

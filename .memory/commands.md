@@ -211,7 +211,7 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-docker build --network host -t scheduler:dev .
+docker build -t scheduler:dev .
 docker build -t scheduler-web:dev ./web
 docker compose up -d --no-build
 curl -fsS http://127.0.0.1:9090/healthz
@@ -238,7 +238,7 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-docker build --network host -t scheduler:dev .
+docker build -t scheduler:dev .
 docker build -t scheduler-web:dev ./web
 docker compose up -d --no-build
 curl -fsS http://127.0.0.1:9090/healthz
@@ -260,7 +260,7 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-docker build --network host -t scheduler:dev .
+docker build -t scheduler:dev .
 docker build -t scheduler-web:dev ./web
 docker compose up -d --no-build
 curl -fsS http://127.0.0.1:9090/healthz
@@ -294,7 +294,7 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-docker build --network host -t scheduler:dev .
+docker build -t scheduler:dev .
 docker build -t scheduler-web:dev ./web
 docker compose up -d --no-build
 curl -fsS http://127.0.0.1:9090/healthz
@@ -309,4 +309,31 @@ cargo run --bin scheduler -- serve --config examples/dev.toml
 curl -fsS http://127.0.0.1:9090/api/v1/auth/login -H 'content-type: application/json' -d '{"username":"admin","password":"admin"}'
 curl -fsS http://127.0.0.1:9090/api/v1/auth/me -H 'authorization: Bearer dev-admin-token'
 curl -fsS http://127.0.0.1:9090/api/v1/jobs -H 'content-type: application/json' -H 'authorization: Bearer dev-admin-token' -d '{"namespace":"default","app":"smoke","name":"auth-smoke"}'
+```
+
+
+## 2026-05-19 — 013-broadcast-execution / bridge container validation
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo build --workspace --all-features
+mvn -f java/pom.xml -q test
+bun run --cwd web lint
+bun run --cwd web typecheck
+bun test --cwd web
+bun run --cwd web build
+docker compose config
+DOCKER_BUILDKIT=1 docker build -t scheduler:dev .
+DOCKER_BUILDKIT=1 docker build -t scheduler-web:dev ./web
+docker compose down --remove-orphans || true
+docker compose up -d --no-build
+curl -fsS http://127.0.0.1:9090/healthz
+curl -fsS http://127.0.0.1:8080
+curl -fsS http://127.0.0.1:8080/api/v1/system/info
+curl -fsS http://127.0.0.1:8080/api-docs/openapi.json
+curl -fsS http://127.0.0.1:9090/api-docs/openapi.json
+docker compose ps
+docker compose down
 ```

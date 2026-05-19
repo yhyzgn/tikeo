@@ -3,17 +3,18 @@
 use std::{str::FromStr, sync::Arc};
 
 use axum::{Json, extract::Path, extract::Query, extract::State, http::HeaderMap};
-use scheduler_core::{ScheduleType, TriggerType};
+use scheduler_core::{ExecutionMode, ScheduleType, TriggerType};
 use scheduler_storage::{CreateJob, CreateJobInstance};
 
 use super::{
     AppState, auth,
     dto::{
         ApiResponse, ClusterApiResponse, ClusterResponse, CreateJobRequest, ErrorResponse,
-        JobApiResponse, JobInstanceApiResponse, JobInstanceLogPage, JobInstanceLogPageApiResponse,
-        JobInstanceLogSummary, JobInstancePage, JobInstancePageApiResponse, JobInstanceSummary,
-        JobPageApiResponse, JobSummary, Page, PageQuery, SystemInfoApiResponse, SystemInfoResponse,
-        TriggerJobRequest,
+        JobApiResponse, JobInstanceApiResponse, JobInstanceAttemptPage,
+        JobInstanceAttemptPageApiResponse, JobInstanceAttemptSummary, JobInstanceLogPage,
+        JobInstanceLogPageApiResponse, JobInstanceLogSummary, JobInstancePage,
+        JobInstancePageApiResponse, JobInstanceSummary, JobPageApiResponse, JobSummary, Page,
+        PageQuery, SystemInfoApiResponse, SystemInfoResponse, TriggerJobRequest,
     },
     error::ApiError,
 };
@@ -134,7 +135,7 @@ pub async fn create_job(
     request_body = TriggerJobRequest,
     responses(
         (status = 200, description = "Created pending job instance", body = JobInstanceApiResponse),
-        (status = 400, description = "Invalid trigger type", body = ErrorResponse),
+        (status = 400, description = "Invalid trigger or execution mode", body = ErrorResponse),
         (status = 404, description = "Job not found", body = ErrorResponse),
         (status = 500, description = "Storage error", body = ErrorResponse)
     )
@@ -148,15 +149,38 @@ pub async fn trigger_job(
     auth::require_admin(&headers)?;
     let job = parse_trigger_path(&job_action)?;
     let trigger_type = parse_trigger_type(request.trigger_type.as_deref().unwrap_or("api"))?;
+    let execution_mode =
+        parse_execution_mode(request.execution_mode.as_deref().unwrap_or("single"))?;
+    let broadcast_worker_ids = if execution_mode == ExecutionMode::Broadcast {
+        let worker_ids = state.registry.worker_ids().await;
+        if worker_ids.is_empty() {
+            return Err(ApiError::bad_request(
+                "broadcast execution requires at least one online worker",
+            ));
+        }
+        Some(worker_ids)
+    } else {
+        None
+    };
+
     let instance = state
         .instances
         .create_pending(CreateJobInstance {
             job_id: job.clone(),
             trigger_type,
+            execution_mode,
         })
         .await
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| ApiError::not_found(format!("job not found: {job}")))?;
+
+    if let Some(worker_ids) = broadcast_worker_ids {
+        state
+            .attempts
+            .create_pending_for_workers(&instance.id, &worker_ids)
+            .await
+            .map_err(|error| ApiError::storage(&error))?;
+    }
 
     Ok(Json(ApiResponse::success(JobInstanceSummary::from(
         instance,
@@ -233,6 +257,44 @@ pub async fn get_job_instance(
     ))))
 }
 
+/// List broadcast attempts for one job instance.
+///
+/// # Errors
+///
+/// Returns a storage error envelope when repository access fails.
+#[utoipa::path(
+    get,
+    path = "/api/v1/instances/{instance}/attempts",
+    tag = "jobs",
+    params(
+        ("instance" = String, Path, description = "Instance identifier"),
+        PageQuery,
+    ),
+    responses(
+        (status = 200, description = "Job instance attempt page", body = JobInstanceAttemptPageApiResponse),
+        (status = 500, description = "Storage error", body = ErrorResponse)
+    )
+)]
+pub async fn list_instance_attempts(
+    State(state): State<Arc<AppState>>,
+    Path(instance): Path<String>,
+    Query(_query): Query<PageQuery>,
+) -> Result<Json<JobInstanceAttemptPageApiResponse>, ApiError> {
+    let items = state
+        .attempts
+        .list_by_instance(&instance)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .into_iter()
+        .map(JobInstanceAttemptSummary::from)
+        .collect();
+
+    Ok(Json(ApiResponse::success(JobInstanceAttemptPage {
+        items,
+        next_page_token: None,
+    })))
+}
+
 /// List logs for one job instance.
 ///
 /// # Errors
@@ -292,6 +354,20 @@ impl From<scheduler_storage::JobInstanceSummary> for JobInstanceSummary {
             job_id: value.job_id,
             status: value.status.to_string(),
             trigger_type: value.trigger_type.to_string(),
+            execution_mode: value.execution_mode.to_string(),
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+        }
+    }
+}
+
+impl From<scheduler_storage::JobInstanceAttemptSummary> for JobInstanceAttemptSummary {
+    fn from(value: scheduler_storage::JobInstanceAttemptSummary) -> Self {
+        Self {
+            id: value.id,
+            instance_id: value.instance_id,
+            worker_id: value.worker_id,
+            status: value.status.to_string(),
             created_at: value.created_at,
             updated_at: value.updated_at,
         }
@@ -324,6 +400,10 @@ fn parse_schedule_type(value: &str) -> Result<ScheduleType, ApiError> {
 
 fn parse_trigger_type(value: &str) -> Result<TriggerType, ApiError> {
     TriggerType::from_str(value).map_err(|error| ApiError::bad_request(error.to_string()))
+}
+
+fn parse_execution_mode(value: &str) -> Result<ExecutionMode, ApiError> {
+    ExecutionMode::from_str(value).map_err(|error| ApiError::bad_request(error.to_string()))
 }
 
 fn parse_trigger_path(value: &str) -> Result<String, ApiError> {

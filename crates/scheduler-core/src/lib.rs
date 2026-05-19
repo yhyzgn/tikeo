@@ -71,6 +71,45 @@ impl FromStr for ScheduleType {
     }
 }
 
+/// Execution fan-out mode for a job instance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecutionMode {
+    /// Dispatch to one eligible worker.
+    Single,
+    /// Dispatch once to every selected worker.
+    Broadcast,
+}
+
+impl ExecutionMode {
+    /// Returns the stable storage and wire representation.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Single => "single",
+            Self::Broadcast => "broadcast",
+        }
+    }
+}
+
+impl fmt::Display for ExecutionMode {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for ExecutionMode {
+    type Err = ParseEnumError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "single" => Ok(Self::Single),
+            "broadcast" => Ok(Self::Broadcast),
+            _ => Err(ParseEnumError::new("execution_mode", value)),
+        }
+    }
+}
+
 /// Source that triggered a job instance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -130,6 +169,8 @@ pub enum InstanceStatus {
     Running,
     /// Instance completed successfully.
     Succeeded,
+    /// Broadcast instance had at least one failed child execution.
+    PartialFailed,
     /// Instance failed.
     Failed,
     /// Instance was cancelled.
@@ -145,6 +186,7 @@ impl InstanceStatus {
             Self::Dispatching => "dispatching",
             Self::Running => "running",
             Self::Succeeded => "succeeded",
+            Self::PartialFailed => "partial_failed",
             Self::Failed => "failed",
             Self::Cancelled => "cancelled",
         }
@@ -166,6 +208,7 @@ impl FromStr for InstanceStatus {
             "dispatching" => Ok(Self::Dispatching),
             "running" => Ok(Self::Running),
             "succeeded" => Ok(Self::Succeeded),
+            "partial_failed" | "partial-failed" | "partialfailed" => Ok(Self::PartialFailed),
             "failed" => Ok(Self::Failed),
             "cancelled" | "canceled" => Ok(Self::Cancelled),
             _ => Err(ParseEnumError::new("instance_status", value)),
@@ -217,7 +260,7 @@ impl std::error::Error for ParseEnumError {}
 mod tests {
     use std::str::FromStr;
 
-    use super::{HealthState, InstanceStatus, ScheduleType, TriggerType};
+    use super::{ExecutionMode, HealthState, InstanceStatus, ScheduleType, TriggerType};
 
     #[test]
     fn health_state_wire_value_is_stable() {
@@ -237,5 +280,13 @@ mod tests {
     fn trigger_and_status_values_are_stable() {
         assert_eq!(TriggerType::Api.as_str(), "api");
         assert_eq!(InstanceStatus::Pending.as_str(), "pending");
+        assert_eq!(
+            InstanceStatus::from_str("partial_failed"),
+            Ok(InstanceStatus::PartialFailed)
+        );
+        assert_eq!(
+            ExecutionMode::from_str("broadcast"),
+            Ok(ExecutionMode::Broadcast)
+        );
     }
 }

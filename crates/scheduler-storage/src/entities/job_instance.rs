@@ -15,6 +15,8 @@ pub struct Model {
     pub status: String,
     /// Trigger source.
     pub trigger_type: String,
+    /// Execution mode, for example `single` or `broadcast`.
+    pub execution_mode: String,
     /// Creation timestamp in RFC3339 format.
     pub created_at: String,
     /// Last update timestamp in RFC3339 format.

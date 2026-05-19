@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use scheduler_core::InstanceStatus;
 use scheduler_proto::worker::v1::DispatchTask;
-use scheduler_storage::JobInstanceRepository;
+use scheduler_storage::{JobInstanceAttemptRepository, JobInstanceRepository};
 use tokio::time;
 use tracing::{debug, warn};
 
@@ -14,11 +14,15 @@ const DISPATCH_INTERVAL: Duration = Duration::from_millis(500);
 const DISPATCH_BATCH_SIZE: u64 = 16;
 
 /// Run the minimal single-node dispatch loop forever.
-pub async fn run(instances: JobInstanceRepository, registry: WorkerRegistry) {
+pub async fn run(
+    instances: JobInstanceRepository,
+    attempts: JobInstanceAttemptRepository,
+    registry: WorkerRegistry,
+) {
     let mut ticker = time::interval(DISPATCH_INTERVAL);
     loop {
         ticker.tick().await;
-        if let Err(error) = dispatch_once(&instances, &registry).await {
+        if let Err(error) = dispatch_once(&instances, &attempts, &registry).await {
             warn!(%error, "worker dispatch iteration failed");
         }
     }
@@ -26,9 +30,18 @@ pub async fn run(instances: JobInstanceRepository, registry: WorkerRegistry) {
 
 async fn dispatch_once(
     instances: &JobInstanceRepository,
+    attempts: &JobInstanceAttemptRepository,
     registry: &WorkerRegistry,
 ) -> Result<(), scheduler_storage::DbErr> {
-    let pending = instances.list_pending(DISPATCH_BATCH_SIZE).await?;
+    dispatch_single_instances(instances, registry).await?;
+    dispatch_broadcast_attempts(instances, attempts, registry).await
+}
+
+async fn dispatch_single_instances(
+    instances: &JobInstanceRepository,
+    registry: &WorkerRegistry,
+) -> Result<(), scheduler_storage::DbErr> {
+    let pending = instances.list_pending_single(DISPATCH_BATCH_SIZE).await?;
 
     for instance in pending {
         let task = DispatchTask {
@@ -48,14 +61,50 @@ async fn dispatch_once(
     Ok(())
 }
 
+async fn dispatch_broadcast_attempts(
+    instances: &JobInstanceRepository,
+    attempts: &JobInstanceAttemptRepository,
+    registry: &WorkerRegistry,
+) -> Result<(), scheduler_storage::DbErr> {
+    let pending = attempts.list_pending(DISPATCH_BATCH_SIZE).await?;
+
+    for attempt in pending {
+        let Some(instance) = instances.get(&attempt.instance_id).await? else {
+            continue;
+        };
+        let task = DispatchTask {
+            instance_id: attempt.instance_id.clone(),
+            job_id: instance.job_id.clone(),
+            payload: Vec::new(),
+        };
+
+        if let Some(worker_id) = registry.dispatch_to_worker(&attempt.worker_id, task).await {
+            attempts
+                .update_status(
+                    &attempt.instance_id,
+                    &attempt.worker_id,
+                    InstanceStatus::Running,
+                )
+                .await?;
+            instances
+                .update_status(&attempt.instance_id, InstanceStatus::Running)
+                .await?;
+            debug!(%worker_id, instance_id = %attempt.instance_id, "dispatched broadcast attempt to worker");
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
-    use scheduler_core::{InstanceStatus, TriggerType};
+    use scheduler_core::{ExecutionMode, InstanceStatus, TriggerType};
     use scheduler_proto::worker::v1::{RegisterWorker, server_message};
     use scheduler_storage::{
-        CreateJob, CreateJobInstance, JobInstanceRepository, JobRepository, connect_and_migrate,
+        CreateJob, CreateJobInstance, JobInstanceAttemptRepository, JobInstanceRepository,
+        JobRepository, connect_and_migrate,
     };
     use tokio::sync::mpsc;
 
@@ -67,7 +116,8 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         let jobs = JobRepository::new(db.clone());
-        let instances = JobInstanceRepository::new(db);
+        let instances = JobInstanceRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db);
         let job = jobs
             .create_job(CreateJob {
                 namespace: "default".to_owned(),
@@ -83,6 +133,7 @@ mod tests {
             .create_pending(CreateJobInstance {
                 job_id: job.id,
                 trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
             })
             .await
             .unwrap_or_else(|error| panic!("instance should be created: {error}"))
@@ -104,7 +155,7 @@ mod tests {
             )
             .await;
 
-        dispatch_once(&instances, &registry)
+        dispatch_once(&instances, &attempts, &registry)
             .await
             .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
 

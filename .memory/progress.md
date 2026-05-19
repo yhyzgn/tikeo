@@ -16,19 +16,19 @@
 
 ## 下一大阶段
 
-进入代码开发：`001-bootstrap`、`002-http-api-and-openapi`、`003-worker-tunnel`、`004-storage-and-scheduler`、`005-basic-scheduler`、`006-worker-sdk-rust-and-java-starter`、`007-web-ui-foundation`、`008-container-deployment` 已完成；下一阶段执行 `013-broadcast-execution`。
+进入代码开发：`001-bootstrap` 至 `013-broadcast-execution` 已完成；下一阶段执行 `014-worker-capability-routing`。
 
 - [x] 001-bootstrap：初始化 Cargo workspace 与 `./crates/*` crate 骨架
 - [x] 001-bootstrap：实现 `scheduler serve`、`/healthz`、`/readyz`
 - [x] 001-bootstrap：通过 fmt、clippy、test、build 与 healthz/readyz 冒烟
 - [x] 002-http-api-and-openapi：HTTP 管理 API 与 OpenAPI 3.1
-- [x] 002-http-api-and-openapi：选择 `utoipa` + `utoipa-swagger-ui`
+- [x] 002-http-api-and-openapi：选择 `utoipa`；禁止 API 文档 UI 依赖
 - [x] 002-http-api-and-openapi：实现 `/api/v1/system/info`、`/api/v1/cluster`、Jobs skeleton
-- [x] 002-http-api-and-openapi：暴露 `/api-docs/openapi.json` 与 `/docs`
+- [x] 002-http-api-and-openapi：暴露 `/api-docs/openapi.json`；不提供文档 UI
 - [x] 002-http-api-and-openapi：后端入口调整为根 `src/main.rs`，业务模块继续在 `crates/*`
 - [x] 003-worker-tunnel：Worker 主动连接与注册心跳
 - [x] 固化 HTTP 业务接口统一 `{code,message,data}` 响应规范
-- [x] 已在设计文档开发路线图标记完成项：脚手架、HTTP API skeleton、OpenAPI/Swagger、CLI serve
+- [x] 已在设计文档开发路线图标记完成项：脚手架、HTTP API skeleton、OpenAPI JSON、CLI serve
 - [x] 路线图完成项标记规范调整为仅使用 `[x]`，不额外使用 ✅ 图标
 - [x] Java SDK 规划补充：优先支持 Spring Boot Starter 模式
 - [x] 003-worker-tunnel：新增 `scheduler-proto` crate 与 Worker Tunnel protobuf
@@ -44,4 +44,5 @@
 - [x] 010-scheduler-tick-loop：CRON / Fixed Rate tick loop 与调度触发
 - [x] 011-instance-logs：实例执行日志与 Web 日志查看基础
 - [x] 012-auth-rbac-foundation：登录与权限感知操作基础
-- [ ] 013-broadcast-execution：广播执行基础
+- [x] 013-broadcast-execution：广播执行基础
+- [ ] 014-worker-capability-routing：Worker 能力 / 标签 / namespace / app 基础路由

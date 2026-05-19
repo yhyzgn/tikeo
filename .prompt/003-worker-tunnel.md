@@ -25,11 +25,10 @@
   - `/healthz`
   - `/readyz`
   - `/api-docs/openapi.json`
-  - `/docs`
   - `/api/v1/system/info`
   - `/api/v1/cluster`
   - `/api/v1/jobs` GET/POST skeleton
-- OpenAPI 依赖已选择：`utoipa` + `utoipa-swagger-ui`。
+- OpenAPI 依赖已选择：`utoipa`；禁止 API 文档 UI 依赖。
 
 ## 硬性约束
 

@@ -12,14 +12,14 @@ use anyhow::{Context, Result};
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
 use scheduler_core::HealthState;
 use scheduler_storage::{
-    JobInstanceLogRepository, JobInstanceRepository, JobRepository, connect_and_migrate,
+    JobInstanceAttemptRepository, JobInstanceLogRepository, JobInstanceRepository, JobRepository,
+    connect_and_migrate,
 };
 use serde::Serialize;
 
 use tokio::{net::TcpListener, signal};
 use tracing::info;
 use utoipa::OpenApi;
-use utoipa_swagger_ui::SwaggerUi;
 
 use self::openapi::ApiDoc;
 
@@ -30,6 +30,8 @@ pub struct AppState {
     jobs: JobRepository,
     instances: JobInstanceRepository,
     logs: JobInstanceLogRepository,
+    attempts: JobInstanceAttemptRepository,
+    registry: crate::tunnel::WorkerRegistry,
 }
 
 impl AppState {
@@ -39,12 +41,16 @@ impl AppState {
         jobs: JobRepository,
         instances: JobInstanceRepository,
         logs: JobInstanceLogRepository,
+        attempts: JobInstanceAttemptRepository,
+        registry: crate::tunnel::WorkerRegistry,
     ) -> Self {
         Self {
             started_at: SystemTime::now(),
             jobs,
             instances,
             logs,
+            attempts,
+            registry,
         }
     }
 }
@@ -55,7 +61,7 @@ pub fn router_with_state(state: AppState) -> Router {
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
         .nest("/api/v1", api_router())
-        .merge(SwaggerUi::new("/docs").url("/api-docs/openapi.json", ApiDoc::openapi()))
+        .route("/api-docs/openapi.json", get(openapi_json))
         .with_state(Arc::new(state))
 }
 
@@ -66,8 +72,14 @@ async fn router_for_database(database_url: &str) -> Result<Router> {
     Ok(router_with_state(AppState::new(
         JobRepository::new(db.clone()),
         JobInstanceRepository::new(db.clone()),
-        JobInstanceLogRepository::new(db),
+        JobInstanceLogRepository::new(db.clone()),
+        JobInstanceAttemptRepository::new(db),
+        crate::tunnel::WorkerRegistry::default(),
     )))
+}
+
+async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
+    Json(ApiDoc::openapi())
 }
 
 fn api_router() -> Router<Arc<AppState>> {
@@ -87,6 +99,10 @@ fn api_router() -> Router<Arc<AppState>> {
         .route(
             "/instances/{instance}/logs",
             get(routes::list_instance_logs),
+        )
+        .route(
+            "/instances/{instance}/attempts",
+            get(routes::list_instance_attempts),
         )
 }
 
@@ -155,10 +171,13 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use axum::{body::Body, http::Request};
+    use scheduler_proto::worker::v1::RegisterWorker;
     use scheduler_storage::{
-        AppendJobInstanceLog, JobInstanceLogRepository, JobInstanceRepository, JobRepository,
-        connect_and_migrate,
+        AppendJobInstanceLog, JobInstanceAttemptRepository, JobInstanceLogRepository,
+        JobInstanceRepository, JobRepository, connect_and_migrate,
     };
     use serde_json::Value;
     use tower::ServiceExt;
@@ -201,6 +220,7 @@ mod tests {
         assert!(json["paths"]["/api/v1/jobs/{job}/instances"].is_object());
         assert!(json["paths"]["/api/v1/instances/{instance}"].is_object());
         assert!(json["paths"]["/api/v1/instances/{instance}/logs"].is_object());
+        assert!(json["paths"]["/api/v1/instances/{instance}/attempts"].is_object());
     }
 
     #[tokio::test]
@@ -315,6 +335,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn broadcast_trigger_creates_worker_attempts() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let registry = crate::tunnel::WorkerRegistry::default();
+        let (tx1, _rx1) = tokio::sync::mpsc::channel(1);
+        let (tx2, _rx2) = tokio::sync::mpsc::channel(1);
+        registry.register(worker("worker-a"), tx1).await;
+        registry.register(worker("worker-b"), tx2).await;
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db),
+            registry,
+        ));
+
+        let created = post_json(
+            app.clone(),
+            "/api/v1/jobs",
+            r#"{"namespace":"default","app":"billing","name":"broadcast"}"#,
+        )
+        .await;
+        let job_id = created["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("created job should contain id"));
+
+        let triggered = post_json(
+            app.clone(),
+            &format!("/api/v1/jobs/{job_id}:trigger"),
+            r#"{"trigger_type":"api","execution_mode":"broadcast"}"#,
+        )
+        .await;
+        let instance_id = triggered["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("triggered instance should contain id"));
+        assert_eq!(triggered["data"]["execution_mode"], "broadcast");
+
+        let attempts =
+            request_with(app, &format!("/api/v1/instances/{instance_id}/attempts")).await;
+        let body = axum::body::to_bytes(attempts.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["data"]["items"].as_array().map(Vec::len), Some(2));
+    }
+
+    #[tokio::test]
     async fn trigger_job_creates_pending_instance() {
         let app = router().await;
         let created = post_json(
@@ -365,6 +434,8 @@ mod tests {
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            crate::tunnel::WorkerRegistry::default(),
         ));
         let created = post_json(
             app.clone(),
@@ -461,6 +532,18 @@ mod tests {
         .unwrap_or_else(|error| panic!("router should respond: {error}"))
     }
 
+    fn worker(worker_id: &str) -> RegisterWorker {
+        RegisterWorker {
+            worker_id: worker_id.to_owned(),
+            app: "billing".to_owned(),
+            namespace: "default".to_owned(),
+            cluster: "local".to_owned(),
+            region: "local".to_owned(),
+            capabilities: Vec::new(),
+            labels: HashMap::default(),
+        }
+    }
+
     async fn router() -> axum::Router {
         let db = connect_and_migrate("sqlite::memory:")
             .await
@@ -468,7 +551,9 @@ mod tests {
         router_with_state(AppState::new(
             JobRepository::new(db.clone()),
             JobInstanceRepository::new(db.clone()),
-            JobInstanceLogRepository::new(db),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db),
+            crate::tunnel::WorkerRegistry::default(),
         ))
     }
 }

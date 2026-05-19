@@ -742,7 +742,7 @@ HTTP 接口是平台管理面的一等能力，面向 Web UI、CLI、CI/CD、Git
 | 模块 | 职责 | 说明 |
 |------|------|------|
 | `gateway/http.rs` | Axum 路由、middleware、错误映射 | REST API 入口 |
-| `gateway/openapi.rs` | OpenAPI 3.1 文档生成 | 支持 Swagger UI / Redoc / SDK 生成 |
+| `gateway/openapi.rs` | OpenAPI 3.1 文档生成 | 支持 OpenAPI JSON / SDK 生成；不提供浏览器文档 UI |
 | `gateway/realtime.rs` | SSE/WebSocket/gRPC-Web | 实时日志、状态、Dashboard 事件 |
 | `api/dto/` | HTTP DTO 与分页模型 | 与内部领域模型隔离 |
 | `api/handler/` | Job/Workflow/Worker/Auth/Audit 等 handler | 只编排 application service |
@@ -760,7 +760,7 @@ HTTP 接口是平台管理面的一等能力，面向 Web UI、CLI、CI/CD、Git
 - 响应体：所有 HTTP 业务接口统一返回 `{code, message, data}`；`code` 为 int，`0` 表示成功，非 `0` 表示失败；`message` 为响应信息；`data` 必须显式存在，允许为 `null`。
 - 错误：错误响应同样使用 `{code, message, data}`，其中 `code != 0`，错误细节可放入 `data`。
 - 审计：所有写操作、密钥读取、脚本发布、权限变更、手动触发和取消都写审计日志。
-- OpenAPI：启动后暴露 `/api-docs/openapi.json`、`/docs`，CI 中校验 OpenAPI 兼容性。
+- OpenAPI：启动后暴露 `/api-docs/openapi.json`；不提供文档 UI，CI 中校验 OpenAPI 兼容性。
 
 **核心 HTTP 路由规划**：
 
@@ -1908,7 +1908,7 @@ scheduler_grpc_request_duration_seconds{method}           # histogram
 | 前端 | React + TypeScript + Vite + Ant Design | 当前最新稳定版 | `./web` Web 管理控制台 |
 | 前端包管理 | Bun | 当前最新稳定版 | Web 依赖管理、脚本运行、测试、构建 |
 | 嵌入静态资源 | include_dir | 0.7+ | 编译时嵌入 `./web` 构建产物 |
-| OpenAPI | utoipa / aide / schemars | 当前最新稳定版 | OpenAPI 3.1、JSON Schema、Swagger UI |
+| OpenAPI | utoipa / aide / schemars | 当前最新稳定版 | OpenAPI 3.1、JSON Schema；不提供浏览器文档 UI |
 | 实时推送 | SSE / WebSocket | — | 实时日志、状态事件、Dashboard 刷新 |
 
 ### 13.2 开发工具链
@@ -2012,15 +2012,15 @@ scheduler/
   - [x] API 手动触发实例链路（创建 pending job_instance + 实例列表/详情查询）
   - [x] CRON tick loop（cron 0.16 expression + in-memory trigger cursor）
   - [x] Fixed Rate tick loop（humantime duration expression + in-memory trigger cursor）
-- [ ] 单机执行 + 广播执行
+- [x] 单机执行 + 广播执行
   - [x] 最小单机执行链路（pending instance -> first available worker -> running/succeeded/failed）
-  - [ ] 广播执行
+  - [x] 广播执行
 - [x] Rust SDK (Worker 注册 + 心跳 + 任务执行)
   - [x] Rust Worker SDK 最小主动连接/注册/心跳客户端
   - [x] 基础 TaskProcessor trait / TaskContext / TaskOutcome
   - [x] Worker 真实任务接收与执行回传（Worker Tunnel dispatch + SDK TaskProcessor + result status update）
 - [x] 基础 HTTP REST API skeleton（统一 `{code,message,data}` 响应、system/cluster/jobs 占位）
-- [x] OpenAPI 3.1 文档与 Swagger UI（`/api-docs/openapi.json`、`/docs`）
+- [x] OpenAPI 3.1 JSON 文档（`/api-docs/openapi.json`；不提供文档 UI）
 - [x] 基础 Web UI (登录、Dashboard、Job 列表、创建、手动触发、实例详情、日志查看)
   - [x] Web 工程基础：React + TypeScript + Vite + Ant Design + Bun
   - [x] Dashboard / Job 创建列表 / 手动触发 / 实例列表骨架

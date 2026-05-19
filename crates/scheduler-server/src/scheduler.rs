@@ -4,7 +4,7 @@ use std::{collections::HashMap, str::FromStr, time::Duration};
 
 use chrono::{DateTime, Utc};
 use cron::Schedule;
-use scheduler_core::{ScheduleType, TriggerType};
+use scheduler_core::{ExecutionMode, ScheduleType, TriggerType};
 use scheduler_storage::{CreateJobInstance, JobInstanceRepository, JobRepository, JobSummary};
 use tokio::sync::Mutex;
 use tracing::warn;
@@ -45,6 +45,7 @@ async fn tick_once(
             .create_pending(CreateJobInstance {
                 job_id: job.id.clone(),
                 trigger_type,
+                execution_mode: ExecutionMode::Single,
             })
             .await?;
         state.last_triggered_at.lock().await.insert(job.id, now);
