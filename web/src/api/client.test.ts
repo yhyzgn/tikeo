@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
-import { ApiClientError, listJobs } from './client';
+import { ApiClientError, listInstanceLogs, listJobs } from './client';
 
 const originalFetch = globalThis.fetch;
 
@@ -29,5 +29,19 @@ describe('api client envelope handling', () => {
     globalThis.fetch = mock(async () => new Response(JSON.stringify(body), { status: 400 })) as unknown as typeof fetch;
 
     await expect(listJobs()).rejects.toBeInstanceOf(ApiClientError);
+  });
+
+  test('loads instance logs through the envelope', async () => {
+    const body = {
+      code: 0,
+      message: 'success',
+      data: {
+        items: [{ id: 'log_1', instance_id: 'inst_1', worker_id: 'worker_1', level: 'info', message: 'hello', sequence: 1, created_at: '2026-05-19T00:00:00Z' }],
+        next_page_token: null,
+      },
+    };
+    globalThis.fetch = mock(async () => new Response(JSON.stringify(body))) as unknown as typeof fetch;
+
+    await expect(listInstanceLogs('inst_1')).resolves.toEqual(body.data);
   });
 });

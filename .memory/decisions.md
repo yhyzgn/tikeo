@@ -238,3 +238,15 @@ Rationale:
 Constraint:
 - Before production deployment, schedule cursor and misfire handling must become durable and coordinated across server replicas.
 
+
+## 2026-05-19 — Instance logs over Worker Tunnel
+
+Decision:
+- Worker 执行日志使用 Worker -> Server `TaskLog` tunnel 消息传输，Server 写入 `job_instance_logs`，HTTP/Web 从 Server 查询。
+
+Rationale:
+- 保持 Worker outbound-only 网络模型，同时给管理端提供实例日志闭环。
+
+Constraint:
+- 后续实时日志也必须复用 Worker 主动连接或 Server 侧事件推送，不得要求 Worker 暴露日志读取端口。
+

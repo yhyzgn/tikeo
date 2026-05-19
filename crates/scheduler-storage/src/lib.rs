@@ -12,8 +12,8 @@ use std::time::Duration;
 use thiserror::Error;
 
 pub use repository::{
-    CreateJob, CreateJobInstance, JobInstanceRepository, JobInstanceSummary, JobRepository,
-    JobSummary,
+    AppendJobInstanceLog, CreateJob, CreateJobInstance, JobInstanceLogRepository,
+    JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
 };
 pub use sea_orm::DbErr;
 

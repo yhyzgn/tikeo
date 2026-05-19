@@ -11,7 +11,7 @@ use std::net::SocketAddr;
 
 use anyhow::{Context, Result};
 use scheduler_proto::worker::v1::worker_tunnel_service_server::WorkerTunnelServiceServer;
-use scheduler_storage::JobInstanceRepository;
+use scheduler_storage::{JobInstanceLogRepository, JobInstanceRepository};
 use tonic::transport::Server;
 use tracing::info;
 
@@ -24,12 +24,13 @@ pub async fn serve(
     listen_addr: SocketAddr,
     registry: WorkerRegistry,
     instances: JobInstanceRepository,
+    logs: JobInstanceLogRepository,
 ) -> Result<()> {
     info!(addr = %listen_addr, "scheduler Worker Tunnel listening");
 
     Server::builder()
         .add_service(WorkerTunnelServiceServer::new(WorkerTunnel::new(
-            registry, instances,
+            registry, instances, logs,
         )))
         .serve(listen_addr)
         .await

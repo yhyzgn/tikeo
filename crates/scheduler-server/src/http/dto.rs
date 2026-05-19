@@ -70,6 +70,9 @@ pub type JobInstancePageApiResponse = ApiResponse<JobInstancePage>;
 /// Job instance API envelope.
 pub type JobInstanceApiResponse = ApiResponse<JobInstanceSummary>;
 
+/// Job instance log page API envelope.
+pub type JobInstanceLogPageApiResponse = ApiResponse<JobInstanceLogPage>;
+
 /// Generic page response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct Page {
@@ -178,4 +181,32 @@ pub struct JobInstanceSummary {
     pub created_at: String,
     /// Last update timestamp in RFC3339 format.
     pub updated_at: String,
+}
+
+/// Job instance log page response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct JobInstanceLogPage {
+    /// Page items.
+    pub items: Vec<JobInstanceLogSummary>,
+    /// Token for the next page when more data is available.
+    pub next_page_token: Option<String>,
+}
+
+/// Job instance log summary DTO.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct JobInstanceLogSummary {
+    /// Log identifier.
+    pub id: String,
+    /// Parent instance identifier.
+    pub instance_id: String,
+    /// Worker identifier.
+    pub worker_id: String,
+    /// Log level.
+    pub level: String,
+    /// Log message.
+    pub message: String,
+    /// Worker-local monotonic sequence.
+    pub sequence: i64,
+    /// Creation timestamp in RFC3339 format.
+    pub created_at: String,
 }

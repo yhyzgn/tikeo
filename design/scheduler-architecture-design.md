@@ -2025,7 +2025,7 @@ scheduler/
   - [x] Web 工程基础：React + TypeScript + Vite + Ant Design + Bun
   - [x] Dashboard / Job 创建列表 / 手动触发 / 实例列表骨架
   - [ ] 登录与权限感知操作
-  - [ ] 实例日志查看
+  - [x] 实例日志查看（Worker TaskLog -> storage -> HTTP logs API -> Web Drawer）
 - [x] Docker 镜像构建（server 多阶段镜像 + Web nginx 镜像 + Compose/K8s 基础部署）
 - [x] CLI 基础命令（`serve --config`）
 

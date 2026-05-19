@@ -8,7 +8,7 @@ use sea_orm::{
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
-use crate::entities::{app, job, job_instance, namespace};
+use crate::entities::{app, job, job_instance, job_instance_log, namespace};
 
 /// Minimal job creation input.
 #[derive(Debug, Clone)]
@@ -70,6 +70,119 @@ pub struct JobInstanceSummary {
     pub created_at: String,
     /// Last update timestamp in RFC3339 format.
     pub updated_at: String,
+}
+
+/// Job instance log append input.
+#[derive(Debug, Clone)]
+pub struct AppendJobInstanceLog {
+    /// Parent instance identifier.
+    pub instance_id: String,
+    /// Worker identifier.
+    pub worker_id: String,
+    /// Log level.
+    pub level: String,
+    /// Log message.
+    pub message: String,
+    /// Worker-local monotonic sequence.
+    pub sequence: i64,
+}
+
+/// Job instance log summary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JobInstanceLogSummary {
+    /// Log identifier.
+    pub id: String,
+    /// Parent instance identifier.
+    pub instance_id: String,
+    /// Worker identifier.
+    pub worker_id: String,
+    /// Log level.
+    pub level: String,
+    /// Log message.
+    pub message: String,
+    /// Worker-local monotonic sequence.
+    pub sequence: i64,
+    /// Creation timestamp in RFC3339 format.
+    pub created_at: String,
+}
+
+/// Job instance log repository.
+#[derive(Debug, Clone)]
+pub struct JobInstanceLogRepository {
+    db: DatabaseConnection,
+}
+
+impl JobInstanceLogRepository {
+    /// Create a repository using the provided database connection.
+    #[must_use]
+    pub const fn new(db: DatabaseConnection) -> Self {
+        Self { db }
+    }
+
+    /// Append a log row if the parent instance exists.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn append(
+        &self,
+        input: AppendJobInstanceLog,
+    ) -> Result<Option<JobInstanceLogSummary>, sea_orm::DbErr> {
+        if job_instance::Entity::find_by_id(input.instance_id.clone())
+            .one(&self.db)
+            .await?
+            .is_none()
+        {
+            return Ok(None);
+        }
+
+        let model = job_instance_log::ActiveModel {
+            id: Set(new_id("log")),
+            instance_id: Set(input.instance_id),
+            worker_id: Set(input.worker_id),
+            level: Set(input.level),
+            message: Set(input.message),
+            sequence: Set(input.sequence),
+            created_at: Set(now_rfc3339()),
+        }
+        .insert(&self.db)
+        .await?;
+
+        Ok(Some(JobInstanceLogSummary::from(model)))
+    }
+
+    /// List logs for an instance in sequence order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn list_by_instance(
+        &self,
+        instance_id: &str,
+    ) -> Result<Vec<JobInstanceLogSummary>, sea_orm::DbErr> {
+        let rows = job_instance_log::Entity::find()
+            .filter(job_instance_log::Column::InstanceId.eq(instance_id))
+            .order_by_asc(job_instance_log::Column::Sequence)
+            .order_by_asc(job_instance_log::Column::CreatedAt)
+            .all(&self.db)
+            .await?;
+
+        Ok(rows.into_iter().map(JobInstanceLogSummary::from).collect())
+    }
+}
+
+impl From<job_instance_log::Model> for JobInstanceLogSummary {
+    fn from(value: job_instance_log::Model) -> Self {
+        Self {
+            id: value.id,
+            instance_id: value.instance_id,
+            worker_id: value.worker_id,
+            level: value.level,
+            message: value.message,
+            sequence: value.sequence,
+            created_at: value.created_at,
+        }
+    }
 }
 
 /// Job instance repository.
@@ -386,7 +499,7 @@ mod tests {
 
     use crate::{
         migration::Migrator,
-        repository::{CreateJob, CreateJobInstance},
+        repository::{AppendJobInstanceLog, CreateJob, CreateJobInstance},
     };
 
     use super::JobRepository;
@@ -502,5 +615,55 @@ mod tests {
             .unwrap_or_else(|error| panic!("instance status should update: {error}"))
             .unwrap_or_else(|| panic!("instance should exist"));
         assert_eq!(updated.status, InstanceStatus::Running);
+    }
+
+    #[tokio::test]
+    async fn repository_appends_and_lists_job_instance_logs() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        Migrator::up(&db, None)
+            .await
+            .unwrap_or_else(|error| panic!("migration should run: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = super::JobInstanceRepository::new(db.clone());
+        let logs = super::JobInstanceLogRepository::new(db);
+        let job = jobs
+            .create_job(CreateJob {
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "manual".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                enabled: true,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should be created: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id,
+                trigger_type: TriggerType::Api,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should be created: {error}"))
+            .unwrap_or_else(|| panic!("job should exist"));
+
+        logs.append(AppendJobInstanceLog {
+            instance_id: instance.id.clone(),
+            worker_id: "worker-1".to_owned(),
+            level: "info".to_owned(),
+            message: "hello".to_owned(),
+            sequence: 1,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("log should append: {error}"))
+        .unwrap_or_else(|| panic!("instance should exist"));
+
+        let listed = logs
+            .list_by_instance(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("logs should list: {error}"));
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].message, "hello");
     }
 }

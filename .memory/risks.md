@@ -26,3 +26,6 @@
 - 010 scheduler tick loop 使用内存 cursor，server 重启后可能重新计算到期触发；后续需要持久化 next_fire_at / last_fire_at 与分布式锁。
 - CRON / Fixed Rate 当前只创建 pending instance，尚未实现 misfire 策略、时区配置、暂停/恢复、最大并发、任务堆积保护。
 
+- 011 日志当前按实例分页骨架返回全部结果，尚未实现游标分页、日志压缩/归档、实时 SSE/WebSocket 流和敏感信息脱敏策略。
+- TaskLog 持久化当前信任 worker 上报的 sequence/level/message，后续需要大小限制、速率限制和租户隔离。
+

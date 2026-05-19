@@ -10,7 +10,9 @@ use std::{net::SocketAddr, sync::Arc, time::SystemTime};
 use anyhow::{Context, Result};
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
 use scheduler_core::HealthState;
-use scheduler_storage::{JobInstanceRepository, JobRepository, connect_and_migrate};
+use scheduler_storage::{
+    JobInstanceLogRepository, JobInstanceRepository, JobRepository, connect_and_migrate,
+};
 use serde::Serialize;
 
 use tokio::{net::TcpListener, signal};
@@ -26,16 +28,22 @@ pub struct AppState {
     started_at: SystemTime,
     jobs: JobRepository,
     instances: JobInstanceRepository,
+    logs: JobInstanceLogRepository,
 }
 
 impl AppState {
     /// Create shared HTTP state.
     #[must_use]
-    pub fn new(jobs: JobRepository, instances: JobInstanceRepository) -> Self {
+    pub fn new(
+        jobs: JobRepository,
+        instances: JobInstanceRepository,
+        logs: JobInstanceLogRepository,
+    ) -> Self {
         Self {
             started_at: SystemTime::now(),
             jobs,
             instances,
+            logs,
         }
     }
 }
@@ -56,7 +64,8 @@ async fn router_for_database(database_url: &str) -> Result<Router> {
         .with_context(|| format!("failed to initialize storage at {database_url}"))?;
     Ok(router_with_state(AppState::new(
         JobRepository::new(db.clone()),
-        JobInstanceRepository::new(db),
+        JobInstanceRepository::new(db.clone()),
+        JobInstanceLogRepository::new(db),
     )))
 }
 
@@ -71,6 +80,10 @@ fn api_router() -> Router<Arc<AppState>> {
         )
         .route("/jobs/{job}/instances", get(routes::list_job_instances))
         .route("/instances/{instance}", get(routes::get_job_instance))
+        .route(
+            "/instances/{instance}/logs",
+            get(routes::list_instance_logs),
+        )
 }
 
 /// Run the unified HTTP listener.
@@ -139,7 +152,10 @@ async fn shutdown_signal() {
 #[cfg(test)]
 mod tests {
     use axum::{body::Body, http::Request};
-    use scheduler_storage::{JobInstanceRepository, JobRepository, connect_and_migrate};
+    use scheduler_storage::{
+        AppendJobInstanceLog, JobInstanceLogRepository, JobInstanceRepository, JobRepository,
+        connect_and_migrate,
+    };
     use serde_json::Value;
     use tower::ServiceExt;
 
@@ -177,6 +193,7 @@ mod tests {
         assert!(json["paths"]["/api/v1/jobs/{job}:trigger"].is_object());
         assert!(json["paths"]["/api/v1/jobs/{job}/instances"].is_object());
         assert!(json["paths"]["/api/v1/instances/{instance}"].is_object());
+        assert!(json["paths"]["/api/v1/instances/{instance}/logs"].is_object());
     }
 
     #[tokio::test]
@@ -263,6 +280,51 @@ mod tests {
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["data"]["id"], instance_id);
+
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+        ));
+        let created = post_json(
+            app.clone(),
+            "/api/v1/jobs",
+            r#"{"namespace":"default","app":"billing","name":"with-log"}"#,
+        )
+        .await;
+        let job_id = created["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("job id"));
+        let triggered = post_json(
+            app.clone(),
+            &format!("/api/v1/jobs/{job_id}:trigger"),
+            r#"{"trigger_type":"api"}"#,
+        )
+        .await;
+        let instance_id = triggered["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("instance id"));
+        JobInstanceLogRepository::new(db)
+            .append(AppendJobInstanceLog {
+                instance_id: instance_id.to_owned(),
+                worker_id: "worker-1".to_owned(),
+                level: "info".to_owned(),
+                message: "hello".to_owned(),
+                sequence: 1,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("log should append: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        let logs = request_with(app, &format!("/api/v1/instances/{instance_id}/logs")).await;
+        let body = axum::body::to_bytes(logs.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["data"]["items"][0]["message"], "hello");
     }
 
     async fn post_json(app: axum::Router, uri: &str, body: &str) -> Value {
@@ -316,7 +378,8 @@ mod tests {
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         router_with_state(AppState::new(
             JobRepository::new(db.clone()),
-            JobInstanceRepository::new(db),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db),
         ))
     }
 }

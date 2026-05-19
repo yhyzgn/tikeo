@@ -6,8 +6,8 @@ use std::{collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
 use scheduler_proto::worker::v1::{
-    DispatchTask, Heartbeat, Ping, RegisterWorker, ServerMessage, TaskResult, WorkerMessage,
-    WorkerRegistered, server_message, worker_message,
+    DispatchTask, Heartbeat, Ping, RegisterWorker, ServerMessage, TaskLog, TaskResult,
+    WorkerMessage, WorkerRegistered, server_message, worker_message,
     worker_tunnel_service_client::WorkerTunnelServiceClient,
 };
 use thiserror::Error;
@@ -129,6 +129,32 @@ impl WorkerSession {
             ticker.tick().await;
             self.heartbeat().await?;
         }
+    }
+
+    /// Emit one task log through the worker tunnel.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the tunnel is closed.
+    pub async fn emit_log(
+        &self,
+        instance_id: impl Into<String>,
+        level: impl Into<String>,
+        message: impl Into<String>,
+        sequence: i64,
+    ) -> Result<(), WorkerSdkError> {
+        self.outbound
+            .send(WorkerMessage {
+                kind: Some(worker_message::Kind::TaskLog(TaskLog {
+                    worker_id: self.worker_id.clone(),
+                    instance_id: instance_id.into(),
+                    level: level.into(),
+                    message: message.into(),
+                    sequence,
+                })),
+            })
+            .await
+            .map_err(|_| WorkerSdkError::TunnelClosed)
     }
 
     /// Wait for one dispatched task, run it through the provided processor, and report the result.
@@ -308,7 +334,8 @@ mod tests {
     };
     use scheduler_server::tunnel::{WorkerRegistry, WorkerTunnel};
     use scheduler_storage::{
-        CreateJob, CreateJobInstance, JobInstanceRepository, JobRepository, connect_and_migrate,
+        CreateJob, CreateJobInstance, JobInstanceLogRepository, JobInstanceRepository,
+        JobRepository, connect_and_migrate,
     };
     use tokio::{net::TcpListener, task::JoinHandle};
     use tokio_stream::wrappers::TcpListenerStream;
@@ -320,7 +347,7 @@ mod tests {
 
     #[tokio::test]
     async fn worker_client_registers_and_sends_heartbeat() {
-        let (addr, server, _, _, _) = start_tunnel_server().await;
+        let (addr, server, _, _, _, _) = start_tunnel_server().await;
         let mut config = WorkerConfig::local(format!("http://{addr}"), "worker-sdk-1");
         config.app = "billing".to_owned();
         config.namespace = "default".to_owned();
@@ -343,7 +370,7 @@ mod tests {
 
     #[tokio::test]
     async fn worker_session_processes_dispatched_task_and_reports_result() {
-        let (addr, server, registry, instances, jobs) = start_tunnel_server().await;
+        let (addr, server, registry, instances, jobs, logs) = start_tunnel_server().await;
         let job = jobs
             .create_job(CreateJob {
                 namespace: "default".to_owned(),
@@ -377,6 +404,10 @@ mod tests {
             })
             .await
             .unwrap_or_else(|| panic!("worker should be available"));
+        session
+            .emit_log(&instance.id, "info", "starting", 1)
+            .await
+            .unwrap_or_else(|error| panic!("log should emit: {error}"));
 
         let outcome = session
             .process_next(&EchoProcessor)
@@ -391,6 +422,12 @@ mod tests {
             .unwrap_or_else(|error| panic!("instance should load: {error}"))
             .unwrap_or_else(|| panic!("instance should exist"));
         assert_eq!(updated.status, InstanceStatus::Succeeded);
+        let listed_logs = logs
+            .list_by_instance(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("logs should load: {error}"));
+        assert_eq!(listed_logs.len(), 1);
+        assert_eq!(listed_logs[0].message, "starting");
 
         server.abort();
     }
@@ -401,6 +438,7 @@ mod tests {
         WorkerRegistry,
         JobInstanceRepository,
         JobRepository,
+        JobInstanceLogRepository,
     ) {
         let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
@@ -412,9 +450,13 @@ mod tests {
         let registry = WorkerRegistry::default();
         let db = test_db().await;
         let jobs = JobRepository::new(db.clone());
-        let instances = JobInstanceRepository::new(db);
-        let service =
-            WorkerTunnelServiceServer::new(WorkerTunnel::new(registry.clone(), instances.clone()));
+        let instances = JobInstanceRepository::new(db.clone());
+        let logs = JobInstanceLogRepository::new(db);
+        let service = WorkerTunnelServiceServer::new(WorkerTunnel::new(
+            registry.clone(),
+            instances.clone(),
+            logs.clone(),
+        ));
         let server = tokio::spawn(async move {
             Server::builder()
                 .add_service(service)
@@ -422,7 +464,7 @@ mod tests {
                 .await
                 .unwrap_or_else(|error| panic!("test server should run: {error}"));
         });
-        (addr, server, registry, instances, jobs)
+        (addr, server, registry, instances, jobs, logs)
     }
 
     async fn test_db() -> sea_orm::DatabaseConnection {

@@ -10,9 +10,10 @@ use super::{
     AppState,
     dto::{
         ApiResponse, ClusterApiResponse, ClusterResponse, CreateJobRequest, ErrorResponse,
-        JobApiResponse, JobInstanceApiResponse, JobInstancePage, JobInstancePageApiResponse,
-        JobInstanceSummary, JobPageApiResponse, JobSummary, Page, PageQuery, SystemInfoApiResponse,
-        SystemInfoResponse, TriggerJobRequest,
+        JobApiResponse, JobInstanceApiResponse, JobInstanceLogPage, JobInstanceLogPageApiResponse,
+        JobInstanceLogSummary, JobInstancePage, JobInstancePageApiResponse, JobInstanceSummary,
+        JobPageApiResponse, JobSummary, Page, PageQuery, SystemInfoApiResponse, SystemInfoResponse,
+        TriggerJobRequest,
     },
     error::ApiError,
 };
@@ -228,6 +229,44 @@ pub async fn get_job_instance(
     ))))
 }
 
+/// List logs for one job instance.
+///
+/// # Errors
+///
+/// Returns a storage error envelope when repository access fails.
+#[utoipa::path(
+    get,
+    path = "/api/v1/instances/{instance}/logs",
+    tag = "jobs",
+    params(
+        ("instance" = String, Path, description = "Instance identifier"),
+        PageQuery,
+    ),
+    responses(
+        (status = 200, description = "Job instance log page", body = JobInstanceLogPageApiResponse),
+        (status = 500, description = "Storage error", body = ErrorResponse)
+    )
+)]
+pub async fn list_instance_logs(
+    State(state): State<Arc<AppState>>,
+    Path(instance): Path<String>,
+    Query(_query): Query<PageQuery>,
+) -> Result<Json<JobInstanceLogPageApiResponse>, ApiError> {
+    let items = state
+        .logs
+        .list_by_instance(&instance)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .into_iter()
+        .map(JobInstanceLogSummary::from)
+        .collect();
+
+    Ok(Json(ApiResponse::success(JobInstanceLogPage {
+        items,
+        next_page_token: None,
+    })))
+}
+
 impl From<scheduler_storage::JobSummary> for JobSummary {
     fn from(value: scheduler_storage::JobSummary) -> Self {
         Self {
@@ -251,6 +290,20 @@ impl From<scheduler_storage::JobInstanceSummary> for JobInstanceSummary {
             trigger_type: value.trigger_type.to_string(),
             created_at: value.created_at,
             updated_at: value.updated_at,
+        }
+    }
+}
+
+impl From<scheduler_storage::JobInstanceLogSummary> for JobInstanceLogSummary {
+    fn from(value: scheduler_storage::JobInstanceLogSummary) -> Self {
+        Self {
+            id: value.id,
+            instance_id: value.instance_id,
+            worker_id: value.worker_id,
+            level: value.level,
+            message: value.message,
+            sequence: value.sequence,
+            created_at: value.created_at,
         }
     }
 }

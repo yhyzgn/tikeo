@@ -41,6 +41,16 @@ export interface JobInstanceSummary {
   updated_at: string;
 }
 
+export interface JobInstanceLogSummary {
+  id: string;
+  instance_id: string;
+  worker_id: string;
+  level: string;
+  message: string;
+  sequence: number;
+  created_at: string;
+}
+
 const API_BASE = import.meta.env.VITE_SCHEDULER_API_BASE ?? '';
 
 export class ApiClientError extends Error {
@@ -77,6 +87,10 @@ export async function listJobInstances(jobId: string): Promise<Page<JobInstanceS
 
 export async function getInstance(instanceId: string): Promise<JobInstanceSummary> {
   return request<JobInstanceSummary>(`/api/v1/instances/${encodeURIComponent(instanceId)}`);
+}
+
+export async function listInstanceLogs(instanceId: string): Promise<Page<JobInstanceLogSummary>> {
+  return request<Page<JobInstanceLogSummary>>(`/api/v1/instances/${encodeURIComponent(instanceId)}/logs`);
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {

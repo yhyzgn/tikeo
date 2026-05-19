@@ -321,3 +321,34 @@ Verification:
 Git:
 - 待提交并推送。
 
+
+## 2026-05-19 — 011-instance-logs
+
+- Storage 新增 `job_instance_logs` 表、SeaORM entity、migration、append/list repository。
+- Worker Tunnel proto 新增 `TaskLog`，Worker 继续通过主动建立的 `OpenTunnel` 回传日志。
+- Server Tunnel service 持久化 Worker `TaskLog`，不引入 Worker 入站端口。
+- Rust Worker SDK 新增 `WorkerSession::emit_log`。
+- HTTP 新增 `GET /api/v1/instances/{instance}/logs`，返回统一 `{code,message,data}` envelope。
+- OpenAPI 增加实例日志路径与 schema。
+- Web API client 增加 `listInstanceLogs`；Instances 页面增加日志 Drawer 查看。
+- 设计路线图已标记 Web 实例日志查看子项完成。
+
+Verification:
+- `cargo fmt --all -- --check` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features` ✅
+- `cargo build --workspace --all-features` ✅
+- `mvn -f java/pom.xml -q test` ✅
+- `bun run --cwd web lint` ✅
+- `bun run --cwd web typecheck` ✅
+- `bun test --cwd web` ✅
+- `bun run --cwd web build` ✅
+- `docker compose config` ✅
+- `docker build --network host -t scheduler:dev .` ✅
+- `docker build -t scheduler-web:dev ./web` ✅
+- `docker compose up -d --no-build` + `/healthz` + Web nginx `/api/v1/jobs` 代理 ✅
+- `docker compose down` ✅
+
+Git:
+- 待提交并推送。
+

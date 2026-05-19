@@ -246,3 +246,25 @@ curl -fsS http://127.0.0.1:8080/api/v1/jobs
 docker compose down
 ```
 
+
+## 已验证命令（011-instance-logs）
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo build --workspace --all-features
+mvn -f java/pom.xml -q test
+bun run --cwd web lint
+bun run --cwd web typecheck
+bun test --cwd web
+bun run --cwd web build
+docker compose config
+docker build --network host -t scheduler:dev .
+docker build -t scheduler-web:dev ./web
+docker compose up -d --no-build
+curl -fsS http://127.0.0.1:9090/healthz
+curl -fsS http://127.0.0.1:8080/api/v1/jobs
+docker compose down
+```
+

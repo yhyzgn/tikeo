@@ -22,11 +22,15 @@ impl MigrationTrait for CreateMetadataTables {
         create_apps(manager).await?;
         create_jobs(manager).await?;
         create_job_instances(manager).await?;
+        create_job_instance_logs(manager).await?;
         create_indexes(manager).await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(JobInstanceLogs::Table).to_owned())
+            .await?;
         manager
             .drop_table(Table::drop().table(JobInstances::Table).to_owned())
             .await?;
@@ -41,6 +45,31 @@ impl MigrationTrait for CreateMetadataTables {
             .await?;
         Ok(())
     }
+}
+
+async fn create_job_instance_logs(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(JobInstanceLogs::Table)
+                .if_not_exists()
+                .col(string_pk(JobInstanceLogs::Id))
+                .col(string_col(JobInstanceLogs::InstanceId))
+                .col(string_col(JobInstanceLogs::WorkerId))
+                .col(string_col(JobInstanceLogs::Level))
+                .col(string_col(JobInstanceLogs::Message))
+                .col(big_integer_col(JobInstanceLogs::Sequence))
+                .col(string_col(JobInstanceLogs::CreatedAt))
+                .foreign_key(
+                    ForeignKey::create()
+                        .name("fk_job_instance_logs_instance")
+                        .from(JobInstanceLogs::Table, JobInstanceLogs::InstanceId)
+                        .to(JobInstances::Table, JobInstances::Id)
+                        .on_delete(ForeignKeyAction::Cascade),
+                )
+                .to_owned(),
+        )
+        .await
 }
 
 async fn create_namespaces(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
@@ -190,6 +219,16 @@ async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             .col(JobInstances::CreatedAt)
             .to_owned(),
     )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_job_instance_logs_instance_seq")
+            .table(JobInstanceLogs::Table)
+            .col(JobInstanceLogs::InstanceId)
+            .col(JobInstanceLogs::Sequence)
+            .to_owned(),
+    )
     .await
 }
 
@@ -244,6 +283,18 @@ enum JobInstances {
     UpdatedAt,
 }
 
+#[derive(DeriveIden)]
+enum JobInstanceLogs {
+    Table,
+    Id,
+    InstanceId,
+    WorkerId,
+    Level,
+    Message,
+    Sequence,
+    CreatedAt,
+}
+
 fn string_pk<T>(column: T) -> ColumnDef
 where
     T: IntoIden,
@@ -274,4 +325,11 @@ where
     T: IntoIden,
 {
     ColumnDef::new(column).boolean().not_null().take()
+}
+
+fn big_integer_col<T>(column: T) -> ColumnDef
+where
+    T: IntoIden,
+{
+    ColumnDef::new(column).big_integer().not_null().take()
 }

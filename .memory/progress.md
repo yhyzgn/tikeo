@@ -16,7 +16,7 @@
 
 ## 下一大阶段
 
-进入代码开发：`001-bootstrap`、`002-http-api-and-openapi`、`003-worker-tunnel`、`004-storage-and-scheduler`、`005-basic-scheduler`、`006-worker-sdk-rust-and-java-starter`、`007-web-ui-foundation`、`008-container-deployment` 已完成；下一阶段执行 `011-instance-logs`。
+进入代码开发：`001-bootstrap`、`002-http-api-and-openapi`、`003-worker-tunnel`、`004-storage-and-scheduler`、`005-basic-scheduler`、`006-worker-sdk-rust-and-java-starter`、`007-web-ui-foundation`、`008-container-deployment` 已完成；下一阶段执行 `012-auth-rbac-foundation`。
 
 - [x] 001-bootstrap：初始化 Cargo workspace 与 `./crates/*` crate 骨架
 - [x] 001-bootstrap：实现 `scheduler serve`、`/healthz`、`/readyz`
@@ -42,4 +42,5 @@
 - [x] 008-container-deployment：Docker / Compose / K8s 部署基础
 - [x] 009-worker-dispatch：Worker Tunnel 真实任务分发、执行回传与实例状态流转
 - [x] 010-scheduler-tick-loop：CRON / Fixed Rate tick loop 与调度触发
-- [ ] 011-instance-logs：实例执行日志与 Web 日志查看基础
+- [x] 011-instance-logs：实例执行日志与 Web 日志查看基础
+- [ ] 012-auth-rbac-foundation：登录与权限感知操作基础
