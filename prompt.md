@@ -18,7 +18,7 @@
    - `./.prompt/README.md`
    - `./.prompt/` 中编号最新的阶段提示词
 2. **上下文永不丢失**：每次推进工作后，都必须更新 `./.memory`；每个阶段完成或调整后，都必须更新 `./.prompt` 中后续阶段提示词。
-3. **路线图完成项必须回写设计文档**：每个开发工作项完成后，必须在 `./design/scheduler-architecture-design.md` 的开发路线图中把对应条目标记为完成 `✅` / `[x]`。
+3. **路线图完成项必须回写设计文档**：每个开发工作项完成后，必须在 `./design/scheduler-architecture-design.md` 的开发路线图中把对应条目标记为完成 `[x]`，不额外添加 ✅ 图标。
 4. **代码必须可验证**：每个开发任务都要执行编译、测试、运行/冒烟验证。全部通过后才能提交。
 5. **自动提交并推送**：验证通过后自行 `git commit` 并 `git push` 到远程仓库。若远程不存在或推送失败，必须在 `./.memory/session-log.md` 和最终回复中明确记录原因与下一步。
 6. **保持小步提交**：每个提交聚焦一个阶段或一个可验证能力，避免混杂大改。
@@ -45,7 +45,7 @@
 - Server 不直连 Worker，不要求 Worker 暴露入站端口。
 - 支持 CRON、FIX_RATE、FIX_DELAY、API 触发、延迟任务、一次性任务、日历调度。
 - 支持单机、广播、分片、Map、MapReduce、DAG 工作流、长运行任务。
-- 支持多语言 SDK：Rust、Go、Python、Java、Node.js。
+- 支持多语言 SDK：Rust、Go、Python、Java、Node.js；Java 端优先支持 Spring Boot Starter 模式 SDK。
 - 支持多语言动态脚本：Shell、Python、Node.js/TypeScript、PowerShell、Rhai/CEL/JSONLogic、WASM/WASI、容器化 Runner。
 - 支持安全沙箱、RBAC、OIDC、mTLS、审计、Secret reference、URL policy、参数化 SQL。
 - 提供 Web UI 管理控制台和 HTTP/OpenAPI 管理接口。

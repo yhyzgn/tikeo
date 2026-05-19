@@ -17,3 +17,5 @@
 - 每次推进后必须更新 `.memory` 和后续 `.prompt`。
 
 设计源：`design/scheduler-architecture-design.md`。
+
+- Java 端 SDK 优先支持 Spring Boot Starter 模式，且仍必须通过 Worker 主动连接模型接入。

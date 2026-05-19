@@ -29,3 +29,5 @@
 - [ ] 003-worker-tunnel：Worker 主动连接与注册心跳
 - [x] 固化 HTTP 业务接口统一 `{code,message,data}` 响应规范
 - [x] 已在设计文档开发路线图标记完成项：脚手架、HTTP API skeleton、OpenAPI/Swagger、CLI serve
+- [x] 路线图完成项标记规范调整为仅使用 `[x]`，不额外使用 ✅ 图标
+- [x] Java SDK 规划补充：优先支持 Spring Boot Starter 模式

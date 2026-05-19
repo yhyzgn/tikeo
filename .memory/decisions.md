@@ -94,10 +94,23 @@ Constraint:
 
 Decision:
 - 每个开发工作项完成后，必须更新 `design/scheduler-architecture-design.md` 的开发路线图。
-- 已完成项使用 `[x] ✅` 标记，并可补充实际完成范围说明。
+- 已完成项使用 `[x]` 标记，并可补充实际完成范围说明；不额外添加 ✅ 图标。
 
 Rationale:
 - 设计文档是项目进度和范围共识源，路线图必须随实现推进同步更新。
 
 Constraint:
 - 后续提交若完成开发项但未更新路线图，视为交接上下文不完整。
+
+
+## 2026-05-19 — Java SDK 优先支持 Spring Boot Starter
+
+Decision:
+- 除规划中的 Rust/Go/Python/Node 等 SDK 外，Java 端 SDK 必须支持。
+- Java SDK 优先实现 Spring Boot Starter 模式，包括 starter、autoconfigure、annotation processor adapter 和 lifecycle 集成。
+
+Rationale:
+- 企业 Java/Spring Boot 业务接入调度平台时需要最小改造和自动配置体验。
+
+Constraint:
+- Java Worker 仍必须主动连接 scheduler，不得要求业务应用暴露入站端口。

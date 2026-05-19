@@ -149,3 +149,17 @@ Work:
 
 Verification:
 - 继续执行当前阶段完整验证。
+
+
+## 2026-05-19 — 调整路线图标记与 Java Starter SDK 规划
+
+Agent:
+- Codex
+
+Work:
+- 移除 `design` 开发路线图已完成项中的 ✅ 图标，仅保留 `[x]`。
+- 固化后续路线图完成项只用 `[x]` 标记的规则。
+- 补充 Java SDK 规划，优先支持 Spring Boot Starter 模式。
+
+Verification:
+- 继续执行文档和代码完整验证。

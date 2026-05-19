@@ -420,6 +420,7 @@ SDK 自动生成目标：
 ├── scheduler-sdk-go/      # Go module (grpc-go)
 ├── scheduler-sdk-python/  # Python package (grpcio)
 ├── scheduler-sdk-java/    # Java package (grpc-java)
+├── scheduler-spring-boot-starter/ # Java Spring Boot Starter SDK（优先支持）
 └── scheduler-sdk-node/    # TypeScript package (@grpc/grpc-js)
 ```
 
@@ -484,7 +485,53 @@ func main() {
 
 对比 PowerJob 的集成方式——需要添加 Maven 依赖、配置 properties、实现 Java 接口、Spring Boot 启动——scheduler 的多语言 SDK 将集成成本降低到**任意语言 3-5 行代码**。
 
-#### 4.2.3 动态脚本处理器设计
+#### 4.2.3 Java Spring Boot Starter SDK
+
+Java 端 SDK 优先支持 Spring Boot Starter 模式，目标是让现有 Spring Boot 业务以最小改造接入 scheduler Worker Tunnel。
+
+**模块规划**：
+
+```text
+sdks/java/
+├── scheduler-java-core/                 # gRPC client、协议模型、通用 Worker runtime
+├── scheduler-spring-boot-autoconfigure/ # AutoConfiguration、Properties、Bean 扫描
+└── scheduler-spring-boot-starter/       # starter 聚合包，业务侧直接依赖
+```
+
+**业务侧使用方式**：
+
+```java
+@Component
+public class BillingTasks {
+    @SchedulerProcessor("billing.reconcile")
+    public TaskResult reconcile(TaskContext context) {
+        return TaskResult.success("ok");
+    }
+}
+```
+
+```yaml
+scheduler:
+  server: https://scheduler.example.com
+  app-name: billing-service
+  worker-pool: prod-cn
+  namespace: finance
+  labels:
+    region: cn
+    runtime: spring-boot
+```
+
+Starter 需要提供：
+
+- `@EnableSchedulerWorker` 或自动启用的 Spring Boot auto-configuration。
+- `@SchedulerProcessor` 注解扫描和方法适配。
+- 与 Server 的 Worker Tunnel 主动连接、注册、心跳、状态上报和日志上报。
+- Spring Boot lifecycle 集成：应用启动后连接，`ContextClosedEvent` 时 drain/优雅下线。
+- Micrometer 指标、Actuator health indicator、结构化日志上下文。
+- mTLS / token / cert rotation 配置入口。
+- 默认不暴露入站端口，不要求业务 Service 被 scheduler 访问。
+
+#### 4.2.4 动态脚本处理器设计
 
 动态脚本是一等处理器能力，用于低频运维任务、轻量数据处理、迁移脚本、Webhook 编排和临时自动化。设计目标是**多语言可用，但默认不信任脚本**：脚本永远不在 scheduler Server 进程内执行，只能在 Worker 侧的受控执行环境中运行。
 
@@ -1958,17 +2005,17 @@ scheduler/
 
 **目标**：核心调度能力，可替换 PowerJob 的基本使用场景。
 
-- [x] ✅ 项目脚手架 (workspace, CI, root binary entrypoint)
+- [x] 项目脚手架 (workspace, CI, root binary entrypoint)
 - [ ] gRPC 协议定义与代码生成
 - [ ] SeaORM 存储层 + SQLite + MySQL 迁移
 - [ ] 基础调度器 (CRON + Fixed Rate + API 触发)
 - [ ] 单机执行 + 广播执行
 - [ ] Rust SDK (Worker 注册 + 心跳 + 任务执行)
-- [x] ✅ 基础 HTTP REST API skeleton（统一 `{code,message,data}` 响应、system/cluster/jobs 占位）
-- [x] ✅ OpenAPI 3.1 文档与 Swagger UI（`/api-docs/openapi.json`、`/docs`）
+- [x] 基础 HTTP REST API skeleton（统一 `{code,message,data}` 响应、system/cluster/jobs 占位）
+- [x] OpenAPI 3.1 文档与 Swagger UI（`/api-docs/openapi.json`、`/docs`）
 - [ ] 基础 Web UI (登录、Dashboard、Job 列表、创建、手动触发、实例详情、日志查看)
 - [ ] Docker 镜像构建
-- [x] ✅ CLI 基础命令（`serve --config`）
+- [x] CLI 基础命令（`serve --config`）
 
 ### Phase 2: 工作流与分布式 (月 4-6)
 
@@ -2002,7 +2049,8 @@ scheduler/
 - [ ] 告警系统 (邮件/Slack/钉钉/飞书/企业微信/PagerDuty)
 - [ ] Prometheus 指标 + Grafana Dashboard 模板
 - [ ] OpenTelemetry 分布式追踪
-- [ ] Java SDK + Node.js SDK
+- [ ] Java Spring Boot Starter SDK（优先）
+- [ ] Java Core SDK + Node.js SDK
 - [ ] K8s Helm Chart
 - [ ] PowerJob 迁移工具
 
