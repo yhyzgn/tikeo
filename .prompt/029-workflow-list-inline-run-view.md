@@ -17,3 +17,7 @@
 1. 若继续优化工作流运行体验，优先补齐后端 runtime 语义：condition/parallel/join/delay/approval/notification 的自动推进策略。
 2. 若继续优化 UI，建议为运行视图添加 compact 模式和空状态插画，但不要恢复全局 Collapse。
 3. 所有变更后执行：`cargo fmt --all`、`bun run --cwd web lint`、`bun run --cwd web typecheck`、`bun test --cwd web`、`bun run --cwd web build`、`cargo clippy --workspace --all-targets --all-features -- -D warnings`、`cargo test --workspace --all-features`、`cargo build --workspace --all-features`、`timeout 10 ./scripts/dev.sh`。
+
+## 追加：二级页返回入口
+- Workflow 新增/编辑页顶部 hero 区域已有“← 返回工作流列表”按钮。
+- 页面级返回入口保持在 hero 顶部，画布 Card extra 只放预览切换和 Dry-run 等工具动作。

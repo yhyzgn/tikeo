@@ -823,8 +823,9 @@ export function WorkflowEditorPage() {
 
   return (
     <Space direction="vertical" size={18} style={{ width: '100%' }}>
-      <div className="hero-panel workflow-hero">
+      <div className="hero-panel workflow-hero workflow-editor-hero">
         <div className="hero-panel__content">
+          <Button className="workflow-back-button" onClick={() => navigate('/workflows')}>← 返回工作流列表</Button>
           <Tag className="soft-tag" color="blue">Phase 2 · Workflow Engine</Tag>
           <Typography.Title level={1}>{isEdit ? '编辑工作流' : '新增工作流'}</Typography.Title>
           <Typography.Paragraph className="hero-panel__desc">
@@ -837,7 +838,7 @@ export function WorkflowEditorPage() {
       <Card
         title="可视化节点画布"
         loading={loading}
-        extra={<Space wrap><Segmented value={previewMode} onChange={(value) => setPreviewMode(value as 'visual' | 'json' | 'yaml')} options={[{ label: '画布', value: 'visual' }, { label: 'JSON', value: 'json' }, { label: 'YAML', value: 'yaml' }]} /><Button onClick={dryRunDraft}>Dry-run</Button><Button onClick={() => navigate('/workflows')}>返回列表</Button></Space>}
+        extra={<Space wrap><Segmented value={previewMode} onChange={(value) => setPreviewMode(value as 'visual' | 'json' | 'yaml')} options={[{ label: '画布', value: 'visual' }, { label: 'JSON', value: 'json' }, { label: 'YAML', value: 'yaml' }]} /><Button onClick={dryRunDraft}>Dry-run</Button></Space>}
       >
         <Form form={form} layout="inline" onFinish={submit} className="workflow-create-inline" initialValues={{ name: '' }}>
           <Form.Item name="name" label="名称" rules={[{ required: true }]}><Input placeholder="daily-pipeline" style={{ width: 260 }} /></Form.Item>

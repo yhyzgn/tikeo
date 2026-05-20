@@ -713,3 +713,8 @@ Git:
 - 用户指出“点击该条目的运行视图按钮展开详情”没有意义，且 `运行视图 · test` 这类 Collapse header 会在 item 多时制造混乱。
 - 已移除 WorkflowsPage 的 AntD Collapse 依赖与全局折叠项，改为在 selected workflow list item 下直接渲染运行视图和事件流。
 - 保留单条展开的 accordion-like 行为；切换条目时清理旧 activeInstance/events/shards，运行工作流后自动展开对应条目。
+
+### 2026-05-20 036 工作流二级页面返回按钮
+- 用户要求进入二级页面后增加返回按钮。
+- 已在 WorkflowEditorPage hero 顶部新增“← 返回工作流列表”按钮，并移除 Card extra 中原有的重复返回入口。
+- 验证通过前后端全量 lint/typecheck/test/build 与 dev.sh 启动烟测。
