@@ -703,3 +703,8 @@ Git:
 - 已新增 WorkflowEditorPage，并在 App 路由中加入 `/workflows/new`、`/workflows/:id/edit`。
 - WorkflowsPage 只负责列表、校验、运行、展开运行视图/事件流。
 - 为编辑保存补齐后端 update_workflow repository + HTTP PATCH + client updateWorkflow/getWorkflow。
+
+### 2026-05-20 034 工作流运行交互术语修正
+- 用户询问“物化下一节点”含义，并反馈当前 404。
+- 已把按钮改成产品化文案“准备下一节点执行”，404 空队列场景改为 info 提示。
+- 当前后端语义仍是 queued workflow node -> job_instance/shards/subworkflow instance 的准备执行步骤。

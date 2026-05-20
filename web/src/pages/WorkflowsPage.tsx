@@ -6,6 +6,7 @@ import {
   getWorkflow,
   listWorkflowShards,
   materializeNextWorkflowNode,
+  ApiClientError,
   recoverWorkflowNode,
   dryRunWorkflow,
   getAuthToken,
@@ -671,10 +672,18 @@ export function WorkflowsPage() {
   };
 
   const materializeNext = async () => {
-    const result = await materializeNextWorkflowNode();
-    setActiveInstance(result.instance);
-    setShards(result.shards);
-    message.success(`已物化节点：${result.node.node_key}`);
+    try {
+      const result = await materializeNextWorkflowNode();
+      setActiveInstance(result.instance);
+      setShards(result.shards);
+      message.success(`已准备节点执行：${result.node.node_key}`);
+    } catch (error) {
+      if (error instanceof ApiClientError && error.message.includes('no queued workflow node')) {
+        message.info('当前没有等待准备的节点：请先运行工作流，或先推进已有运行中节点。');
+        return;
+      }
+      message.error(error instanceof Error ? error.message : '准备下一节点失败');
+    }
   };
 
   const recoverFirstFailed = async () => {
@@ -733,7 +742,7 @@ export function WorkflowsPage() {
             label: `运行视图 · ${item.name}`,
             children: activeWorkflow?.id === item.id ? (
               <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                <Card size="small" title="运行视图" extra={<Space wrap><Button onClick={materializeNext}>物化下一节点</Button><Button onClick={completeFirstQueued} disabled={!activeInstance}>推进首个队列节点</Button><Button onClick={recoverFirstFailed} disabled={!activeInstance}>重试失败节点</Button><Button onClick={refreshShards} disabled={!activeInstance}>刷新 Shards</Button></Space>}>
+                <Card size="small" title="运行视图" extra={<Space wrap><Button onClick={materializeNext}>准备下一节点执行</Button><Button onClick={completeFirstQueued} disabled={!activeInstance}>标记当前节点成功</Button><Button onClick={recoverFirstFailed} disabled={!activeInstance}>重试失败节点</Button><Button onClick={refreshShards} disabled={!activeInstance}>刷新 Shards</Button></Space>}>
                   <DagPreview definition={item.definition} instance={activeInstance} />
                   {shards.length > 0 ? <List size="small" style={{ marginTop: 16 }} dataSource={shards} renderItem={(shard) => <List.Item><Typography.Text>{shard.node_key}#{shard.shard_index} · {shard.status} · {JSON.stringify(shard.input)}</Typography.Text></List.Item>} /> : null}
                 </Card>
