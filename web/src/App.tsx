@@ -18,6 +18,7 @@ import { Dashboard } from './pages/Dashboard';
 import { InstancesPage } from './pages/InstancesPage';
 import { JobsPage } from './pages/JobsPage';
 import { LoginPage } from './pages/LoginPage';
+import { AuditLogsPage } from './pages/AuditLogsPage';
 import { ScriptsPage } from './pages/ScriptsPage';
 import { UsersPage } from './pages/UsersPage';
 
@@ -89,6 +90,9 @@ export function App() {
     }
     if (activePage === 'scripts') {
       return <ScriptsPage />;
+    }
+    if (activePage === 'audit') {
+      return <AuditLogsPage />;
     }
     return <Dashboard jobs={jobs} instances={instances} />;
   }, [activePage, instances, jobs, loading, refresh]);

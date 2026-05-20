@@ -305,6 +305,21 @@ export async function deleteScript(id: string): Promise<void> {
   });
 }
 
+export interface AuditLogSummary {
+  id: string;
+  actor: string;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  detail: string | null;
+  ip_address: string | null;
+  created_at: string;
+}
+
+export async function listAuditLogs(): Promise<Page<AuditLogSummary>> {
+  return request<Page<AuditLogSummary>>('/api/v1/audit-logs');
+}
+
 interface SchedulerRequestInit extends RequestInit {
   auth?: boolean;
   allowNullData?: boolean;

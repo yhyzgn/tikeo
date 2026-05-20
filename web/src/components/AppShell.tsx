@@ -48,7 +48,8 @@ export function AppShell({ children, activeKey, username, roles = [], onNavigate
             ...(isAdmin ? [
               { type: 'divider' as const },
               { key: 'users', icon: <UserOutlined />, label: '用户管理' },
-              { key: 'scripts', icon: <CodeOutlined />, label: '脚本管理' }
+              { key: 'scripts', icon: <CodeOutlined />, label: '脚本管理' },
+              { key: 'audit', icon: <AuditOutlined />, label: '审计日志' }
             ] : []),
             { type: 'divider' },
             { key: 'workers-next', icon: <ApiOutlined />, label: 'Worker 集群', disabled: true },

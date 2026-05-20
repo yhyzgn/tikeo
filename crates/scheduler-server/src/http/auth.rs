@@ -8,6 +8,7 @@ use super::{
     AppState,
     dto::{ApiResponse, AuthSession, LoginRequest, MeResponse},
     error::ApiError,
+    routes::client_ip,
     session::SessionCreate,
 };
 
@@ -96,6 +97,7 @@ pub async fn require_admin(headers: &HeaderMap, state: &AppState) -> Result<MeRe
 )]
 pub async fn login(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<ApiResponse<AuthSession>>, ApiError> {
     let user = state
@@ -116,13 +118,25 @@ pub async fn login(
     let session = state
         .sessions
         .create_session(SessionCreate {
-            user_id: user.id,
-            username: user.username,
-            role: user.role,
+            user_id: user.id.clone(),
+            username: user.username.clone(),
+            role: user.role.clone(),
             device_id: None,
             device_name: None,
         })
         .await?;
+
+    let _ = state
+        .audit
+        .append(scheduler_storage::CreateAuditLog {
+            actor: user.username,
+            action: "login".to_owned(),
+            resource_type: "session".to_owned(),
+            resource_id: session.token.clone(),
+            detail: None,
+            ip_address: client_ip(&headers),
+        })
+        .await;
 
     Ok(Json(ApiResponse::success(session)))
 }
@@ -174,6 +188,22 @@ pub async fn logout(
         return Ok(Json(ApiResponse::success(super::dto::EmptyData {})));
     };
 
+    let principal = authenticate(&headers, &state).await.ok();
     state.sessions.revoke_token(token).await?;
+
+    if let Some(p) = &principal {
+        let _ = state
+            .audit
+            .append(scheduler_storage::CreateAuditLog {
+                actor: p.username.clone(),
+                action: "logout".to_owned(),
+                resource_type: "session".to_owned(),
+                resource_id: token.to_owned(),
+                detail: None,
+                ip_address: client_ip(&headers),
+            })
+            .await;
+    }
+
     Ok(Json(ApiResponse::success(super::dto::EmptyData {})))
 }

@@ -112,13 +112,24 @@ pub async fn create_job(
         .create_job(CreateJob {
             namespace: defaulted(request.namespace, "default"),
             app: defaulted(request.app, "default"),
-            name: request.name,
+            name: request.name.clone(),
             schedule_type: schedule_type.to_string(),
-            schedule_expr: request.schedule_expr,
+            schedule_expr: request.schedule_expr.clone(),
             enabled: request.enabled.unwrap_or(true),
         })
         .await
         .map_err(|error| ApiError::storage(&error))?;
+
+    audit(
+        &state,
+        "admin",
+        "create",
+        "job",
+        &created.id,
+        Some(format!("name={}", created.name)),
+        &headers,
+    )
+    .await;
 
     Ok(Json(ApiResponse::success(JobSummary::from(created))))
 }
@@ -193,6 +204,17 @@ pub async fn trigger_job(
             .await
             .map_err(|error| ApiError::storage(&error))?;
     }
+
+    audit(
+        &state,
+        "admin",
+        "trigger",
+        "job",
+        &job,
+        Some(format!("instance={}", instance.id)),
+        &headers,
+    )
+    .await;
 
     Ok(Json(ApiResponse::success(JobInstanceSummary::from(
         instance,
@@ -400,6 +422,37 @@ impl From<scheduler_storage::JobInstanceLogSummary> for JobInstanceLogSummary {
     }
 }
 
+pub(super) fn client_ip(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-forwarded-for")
+        .or_else(|| headers.get("x-real-ip"))
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.split(',').next().unwrap_or(v).trim().to_owned())
+}
+
+async fn audit(
+    state: &AppState,
+    actor: &str,
+    action: &str,
+    resource_type: &str,
+    resource_id: &str,
+    detail: Option<String>,
+    headers: &HeaderMap,
+) {
+    use scheduler_storage::CreateAuditLog;
+    let _ = state
+        .audit
+        .append(CreateAuditLog {
+            actor: actor.to_owned(),
+            action: action.to_owned(),
+            resource_type: resource_type.to_owned(),
+            resource_id: resource_id.to_owned(),
+            detail,
+            ip_address: client_ip(headers),
+        })
+        .await;
+}
+
 fn defaulted(value: Option<String>, default: &str) -> String {
     value
         .filter(|item| !item.trim().is_empty())
@@ -485,6 +538,7 @@ pub async fn create_script(
     Json(request): Json<CreateScriptRequest>,
 ) -> Result<Json<super::dto::ScriptApiResponse>, ApiError> {
     let principal = auth::require_admin(&headers, &state).await?;
+    let actor = principal.username.clone();
 
     let created = state
         .scripts
@@ -503,6 +557,17 @@ pub async fn create_script(
         })
         .await
         .map_err(|error| ApiError::storage(&error))?;
+
+    audit(
+        &state,
+        &actor,
+        "create",
+        "script",
+        &created.id,
+        Some(format!("name={}", created.name)),
+        &headers,
+    )
+    .await;
 
     Ok(Json(ApiResponse::success(created)))
 }
@@ -592,6 +657,17 @@ pub async fn update_script(
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| ApiError::not_found(format!("script not found: {id}")))?;
 
+    audit(
+        &state,
+        "admin",
+        "update",
+        "script",
+        &id,
+        Some(format!("name={}", updated.name)),
+        &headers,
+    )
+    .await;
+
     Ok(Json(ApiResponse::success(updated)))
 }
 
@@ -626,6 +702,7 @@ pub async fn delete_script(
         .map_err(|error| ApiError::storage(&error))?;
 
     if success {
+        audit(&state, "admin", "delete", "script", &id, None, &headers).await;
         Ok(Json(ApiResponse::success(super::dto::EmptyData {})))
     } else {
         Err(ApiError::not_found(format!("script not found: {id}")))
@@ -858,6 +935,17 @@ pub async fn create_user(
         .await
         .map_err(|error| ApiError::storage(&error))?;
 
+    audit(
+        &state,
+        "admin",
+        "create",
+        "user",
+        &created.id,
+        Some(format!("username={}", created.username)),
+        &headers,
+    )
+    .await;
+
     Ok(Json(ApiResponse::success(created)))
 }
 
@@ -928,6 +1016,17 @@ pub async fn update_user(
             .await?;
     }
 
+    audit(
+        &state,
+        "admin",
+        "update",
+        "user",
+        &id,
+        Some(format!("username={}", updated.username)),
+        &headers,
+    )
+    .await;
+
     Ok(Json(ApiResponse::success(updated)))
 }
 
@@ -969,6 +1068,16 @@ pub async fn delete_user(
     if success {
         if let Some(user) = existing {
             state.sessions.revoke_user_sessions(&user.username).await?;
+            audit(
+                &state,
+                "admin",
+                "delete",
+                "user",
+                &id,
+                Some(format!("username={}", user.username)),
+                &headers,
+            )
+            .await;
         }
         Ok(Json(ApiResponse::success(super::dto::EmptyData {})))
     } else {

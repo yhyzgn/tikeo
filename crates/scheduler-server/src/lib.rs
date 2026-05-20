@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod alert;
 pub mod cli;
 pub mod http;
 pub mod scheduler;
