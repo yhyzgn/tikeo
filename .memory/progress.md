@@ -104,3 +104,8 @@
 - Workflows 画布的边条件候选项改为根据前置节点类型生成：condition 显示 true/false，approval 显示 approved/rejected/always，parallel 默认 branch/always，HTTP/Script 显示成功/失败/完成等语义。
 - 新建连线默认条件取前置节点的首选输出语义；重连起点时自动切换为新前置节点默认条件。
 - 连线颜色按条件语义变化，并在线条上弱显示当前 condition 文本；点击画布空白处会关闭边关系浮层。
+
+## 2026-05-20 031：修复边端点重连层级
+- 修复点击线条后只能编辑条件、无法拖动两端的交互回归。
+- 选中边时除 SVG ghost handle 外，额外渲染高 z-index HTML 端点按钮，确保不被节点卡片、SVG 层级或条件浮层遮挡。
+- 端点按钮继续复用原重连逻辑：拖起点改 from，拖终点改 to。

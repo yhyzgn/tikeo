@@ -213,6 +213,12 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
     if (!from || !to) return null;
     return { x: Math.max(16, (from.x + 218 + to.x) / 2 - 110), y: Math.max(16, (from.y + to.y) / 2 + 22) };
   })() : null;
+  const selectedEdgeHandles = selectedEdge ? (() => {
+    const from = positions.get(selectedEdge.from);
+    const to = positions.get(selectedEdge.to);
+    if (!from || !to) return null;
+    return { from: { x: from.x + 218, y: from.y + 70 }, to: { x: to.x, y: to.y + 70 } };
+  })() : null;
   const jobOptions = jobs.map((job) => ({ label: `${job.name} · ${job.namespace}/${job.app}`, value: job.id }));
 
   const update = (next: WorkflowDefinition) => onChange?.(next);
@@ -301,7 +307,7 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
     const nextY = Math.max(18, point.y - dragging.offsetY);
     update({ ...definition, nodes: definition.nodes.map((node) => node.key === dragging.key ? withNodePosition(node, nextX, nextY) : node) });
   };
-  const startEdgeReconnect = (index: number, side: 'from' | 'to', event: PointerEvent<SVGCircleElement>) => {
+  const startEdgeReconnect = (index: number, side: 'from' | 'to', event: PointerEvent<Element>) => {
     if (!editable) return;
     event.preventDefault();
     event.stopPropagation();
@@ -385,8 +391,8 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
                   <text className="workflow-edge__label" x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 10} fill={meta.color}>{meta.value}</text>
                   {selected ? (
                     <>
-                      <circle className="workflow-edge__handle" cx={x1} cy={y1} r="7" onPointerDown={(event) => startEdgeReconnect(index, 'from', event)} />
-                      <circle className="workflow-edge__handle" cx={x2} cy={y2} r="7" onPointerDown={(event) => startEdgeReconnect(index, 'to', event)} />
+                      <circle className="workflow-edge__handle-ghost" cx={x1} cy={y1} r="7" />
+                      <circle className="workflow-edge__handle-ghost" cx={x2} cy={y2} r="7" />
                     </>
                   ) : null}
                 </g>
@@ -416,6 +422,24 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
               return <path className="workflow-node-canvas__temp-edge" d={`M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`} stroke="#0ea5e9" strokeWidth="2.5" fill="none" markerEnd="url(#workflow-arrow)" />;
             })() : null}
           </svg>
+          {selectedEdgeIndex !== null && selectedEdgeHandles ? (
+            <>
+              <button
+                className="workflow-edge-rehandle workflow-edge-rehandle--from"
+                type="button"
+                style={{ left: selectedEdgeHandles.from.x, top: selectedEdgeHandles.from.y }}
+                title="拖动调整连线起点"
+                onPointerDown={(event) => startEdgeReconnect(selectedEdgeIndex, 'from', event)}
+              />
+              <button
+                className="workflow-edge-rehandle workflow-edge-rehandle--to"
+                type="button"
+                style={{ left: selectedEdgeHandles.to.x, top: selectedEdgeHandles.to.y }}
+                title="拖动调整连线终点"
+                onPointerDown={(event) => startEdgeReconnect(selectedEdgeIndex, 'to', event)}
+              />
+            </>
+          ) : null}
           {selectedEdge && selectedEdgeOverlay ? (() => {
             const fromNode = definition.nodes.find((node) => node.key === selectedEdge.from);
             const options = edgeConditionOptionsFor(fromNode);

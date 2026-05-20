@@ -687,3 +687,8 @@ Git:
 - 已新增按 from 节点 kind 生成的边条件选项、默认条件和颜色 meta。
 - 新增 SVG text label 显示当前 condition；选中边 label 更明显，未选中弱显示。
 - 画布空白点击会清空 selectedEdgeIndex，关闭边关系浮层。
+
+### 2026-05-20 031 边端点拖拽回归修复
+- 用户反馈线条点击后只能编辑条件，无法再拖动两端。
+- 根因是 SVG 边 handle 处在节点卡片/浮层下方或命中层不稳定。
+- 已新增 `.workflow-edge-rehandle` 绝对定位按钮层，z-index 高于节点和弹窗，按选中边端点坐标显示，pointerdown 直接进入重连模式。
