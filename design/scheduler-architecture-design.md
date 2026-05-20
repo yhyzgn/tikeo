@@ -415,13 +415,13 @@ proto/scheduler/worker/v1/
 ├── processor.proto       # 处理器协议
 └── workflow.proto        # 工作流上下文
 
-SDK 自动生成目标：
-├── scheduler-sdk-rust/    # 原生 Rust crate (tonic)
-├── scheduler-sdk-go/      # Go module (grpc-go)
-├── scheduler-sdk-python/  # Python package (grpcio)
-├── scheduler-sdk-java/    # Java package (grpc-java)
-├── scheduler-spring-boot-starter/ # Java Spring Boot Starter SDK（优先支持）
-└── scheduler-sdk-node/    # TypeScript package (@grpc/grpc-js)
+SDK 统一目录：
+sdks/
+├── scheduler-worker-sdk/  # Rust Worker SDK crate (tonic)
+├── go/                    # Go module (grpc-go，规划)
+├── python/                # Python package (grpcio，规划)
+├── java/                  # Java + Spring Boot Starter SDK（优先支持）
+└── node/                  # TypeScript package (@grpc/grpc-js，规划)
 ```
 
 **集成体验对比**：
@@ -1981,10 +1981,11 @@ scheduler/
 │   └── scheduler-wasm/
 │
 ├── sdks/                             # 多语言 SDK
-│   ├── go/
-│   ├── python/
-│   ├── java/
-│   └── node/
+│   ├── scheduler-worker-sdk/         # Rust Worker SDK crate
+│   ├── go/                           # 规划
+│   ├── python/                       # 规划
+│   ├── java/                         # Java + Spring Boot Starter SDK
+│   └── node/                         # 规划
 │
 ├── web/                              # React + Ant Design + Bun 管理控制台
 ├── deploy/

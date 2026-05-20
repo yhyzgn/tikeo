@@ -29,7 +29,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 bun install --cwd web
 bun run --cwd web lint
 bun run --cwd web typecheck

@@ -20,7 +20,7 @@ build/
 *.db-*
 
 # Java/Maven build output
-java/**/target/
+sdks/java/**/target/
 
 # Local development script logs
 .dev/

@@ -26,11 +26,12 @@ COPY crates/scheduler-proto/build.rs crates/scheduler-proto/build.rs
 COPY crates/scheduler-proto/proto crates/scheduler-proto/proto
 COPY crates/scheduler-server/Cargo.toml crates/scheduler-server/Cargo.toml
 COPY crates/scheduler-storage/Cargo.toml crates/scheduler-storage/Cargo.toml
-COPY crates/scheduler-worker-sdk/Cargo.toml crates/scheduler-worker-sdk/Cargo.toml
+COPY sdks/scheduler-worker-sdk/Cargo.toml sdks/scheduler-worker-sdk/Cargo.toml
 
-RUN mkdir -p src \
+RUN mkdir -p src sdks/scheduler-worker-sdk/src \
     && echo 'fn main() {}' > src/main.rs \
-    && for crate in crates/*; do mkdir -p "${crate}/src"; echo 'pub fn placeholder() {}' > "${crate}/src/lib.rs"; done
+    && for crate in crates/*; do mkdir -p "${crate}/src"; echo 'pub fn placeholder() {}' > "${crate}/src/lib.rs"; done \
+    && echo 'pub fn placeholder() {}' > sdks/scheduler-worker-sdk/src/lib.rs
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
@@ -40,6 +41,7 @@ FROM dependencies AS builder
 
 COPY src ./src
 COPY crates ./crates
+COPY sdks ./sdks
 COPY proto ./proto
 COPY config ./config
 

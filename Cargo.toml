@@ -8,7 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [workspace]
-members = [".", "crates/*"]
+members = [".", "crates/*", "sdks/scheduler-worker-sdk"]
 resolver = "3"
 
 [workspace.package]

@@ -147,3 +147,8 @@
 ## 2026-05-20 039：工作流操作审计补齐
 - 工作流 HTTP 管理动作补齐 audit log：create/update/validate/dry-run/run/advance/materialize/recover。
 - 工作流集成测试增加审计断言，确认 workflow / workflow_instance / workflow_node_instance 相关动作写入审计日志。
+
+## 2026-05-20 040：SDK 目录统一
+- Rust Worker SDK 从 `crates/scheduler-worker-sdk` 迁移到 `sdks/scheduler-worker-sdk`，Cargo workspace 显式包含该路径。
+- Java Spring Boot Starter SDK 从 `java/` 迁移到 `sdks/java/`，Maven 验证命令统一改为 `mvn -f sdks/java/pom.xml -q test`。
+- Dockerfile、README、gitignore、design、prompt 和 memory 中的 SDK 路径引用已同步更新。

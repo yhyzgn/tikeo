@@ -122,7 +122,7 @@ curl -fsS http://0.0.0.0:9090/api/v1/instances/<instance_id>
 ## 已验证命令（006-worker-sdk-rust-and-java-starter）
 
 ```bash
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
@@ -146,7 +146,7 @@ bun test
 bun run build
 
 # 后端 / Java 回归仍需保持
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
@@ -183,7 +183,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 bun install --cwd web
 bun run --cwd web lint
 bun run --cwd web typecheck
@@ -204,7 +204,7 @@ cargo build --workspace --all-features
 cargo run --bin scheduler -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/api/v1/jobs
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 bun install --cwd web
 bun run --cwd web lint
 bun run --cwd web typecheck
@@ -231,7 +231,7 @@ cargo run --bin scheduler -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS -H 'content-type: application/json' -d '{"namespace":"default","app":"demo","name":"fast","schedule_type":"fixed_rate","schedule_expr":"1s"}' http://0.0.0.0:9090/api/v1/jobs
 curl -fsS http://0.0.0.0:9090/api/v1/jobs/<job_id>/instances
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 bun install --cwd web
 bun run --cwd web lint
 bun run --cwd web typecheck
@@ -254,7 +254,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 bun run --cwd web lint
 bun run --cwd web typecheck
 bun test --cwd web
@@ -287,7 +287,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 bun install --cwd web
 bun run --cwd web lint
 bun run --cwd web typecheck
@@ -320,7 +320,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 bun run --cwd web lint
 bun run --cwd web typecheck
 bun test --cwd web
@@ -348,7 +348,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 bun run --cwd web lint
 bun run --cwd web typecheck
 bun test --cwd web
@@ -371,7 +371,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 bun run --cwd web lint
 bun run --cwd web typecheck
 bun test --cwd web
@@ -390,7 +390,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 bun run --cwd web lint
 bun run --cwd web typecheck
 bun test --cwd web
@@ -430,7 +430,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 bun run --cwd web lint
 bun run --cwd web typecheck
 bun test --cwd web
@@ -455,7 +455,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 bun run --cwd web lint
 bun run --cwd web typecheck
 bun test --cwd web
@@ -483,7 +483,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 bun run --cwd web lint
 bun run --cwd web typecheck
 bun test --cwd web
@@ -498,7 +498,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-mvn -f java/pom.xml -q test
+mvn -f sdks/java/pom.xml -q test
 bun run --cwd web lint
 bun run --cwd web typecheck
 bun test --cwd web
