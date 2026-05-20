@@ -57,7 +57,7 @@ describe('api client envelope handling', () => {
       return new Response(JSON.stringify({
         code: 0,
         message: 'success',
-        data: { token: 'atk_test_token', username: 'scheduler_init', roles: ['admin'] },
+        data: { token: 'atk_test_token', username: 'scheduler_init', roles: ['admin'], permissions: [{ resource: 'users', action: 'manage' }] },
       }));
     }) as unknown as typeof fetch;
 

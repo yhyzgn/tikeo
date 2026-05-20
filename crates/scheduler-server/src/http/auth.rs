@@ -61,13 +61,37 @@ pub async fn require_role(
     }
 }
 
+/// Require the requester to have a resource/action permission.
+///
+/// # Errors
+///
+/// Returns unauthorized when authentication fails or forbidden when permission is missing.
+pub async fn require_permission(
+    headers: &HeaderMap,
+    state: &AppState,
+    resource: &str,
+    action: &str,
+) -> Result<MeResponse, ApiError> {
+    let principal = authenticate(headers, state).await?;
+    if state
+        .rbac
+        .principal_has_permission(&principal, resource, action)
+    {
+        Ok(principal)
+    } else {
+        Err(ApiError::forbidden(format!(
+            "requires permission: {resource}:{action}"
+        )))
+    }
+}
+
 /// Helper requiring admin role.
 ///
 /// # Errors
 ///
 /// Returns unauthorized or forbidden when the requester is not an admin.
 pub async fn require_admin(headers: &HeaderMap, state: &AppState) -> Result<MeResponse, ApiError> {
-    require_role(headers, state, &["admin"]).await
+    require_permission(headers, state, "users", "manage").await
 }
 
 /// Login with secure DB credentials and create a persisted session.

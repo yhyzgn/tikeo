@@ -606,3 +606,11 @@ Git:
 - `bun test --cwd web` ✅
 - `bun run --cwd web build` ✅（仍有 Vite 大 chunk 警告，后续路由级拆包处理）
 - `docker compose config` ✅
+
+## 2026-05-20 — 021 RBAC/service hardening 与模块拆分
+
+- 用户确认 021 先做 RBAC/service hardening，Phase2 工作流与分布式顺延到 022。
+- 新增 RBAC 软关联表设计与实体：`roles`、`permissions`、`role_permissions`，继续禁止数据库外键。
+- session principal 增加 `permissions`，HTTP 鉴权新增 `require_permission(resource, action)`。
+- Web 改为基于 `permissions` 的菜单/路由权限判断，并新增 403 页面。
+- 后端大文件拆分：`crates/scheduler-storage/src/repository.rs` 拆成 `repository/*`；`crates/scheduler-server/src/http/routes.rs` 拆成 `routes/*`。

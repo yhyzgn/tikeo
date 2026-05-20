@@ -9,6 +9,14 @@ export function usePrincipal() {
   return useContext(PrincipalContext);
 }
 
+export function hasPermission(principal: MeResponse | null, resource: string, action: string): boolean {
+  if (!principal) return false;
+  if (principal.roles.includes('admin')) return true;
+  return principal.permissions.some(
+    (permission) => permission.resource === resource && (permission.action === action || permission.action === 'manage'),
+  );
+}
+
 export function AuthGuard() {
   const [principal, setPrincipal] = useState<MeResponse | null>(null);
   const [bootstrapping, setBootstrapping] = useState(() => getAuthToken() !== null);
@@ -42,10 +50,10 @@ export function AuthGuard() {
   );
 }
 
-export function RequireAdmin({ children }: { children: ReactNode }) {
+export function RequirePermission({ children, resource, action }: { children: ReactNode; resource: string; action: string }) {
   const principal = usePrincipal();
-  if (principal && !principal.roles.includes('admin')) {
-    return <Navigate to="/dashboard" replace />;
+  if (principal && !hasPermission(principal, resource, action)) {
+    return <Navigate to="/forbidden" replace />;
   }
   return <>{children}</>;
 }

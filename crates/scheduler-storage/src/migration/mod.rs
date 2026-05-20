@@ -25,6 +25,7 @@ impl MigrationTrait for CreateMetadataTables {
         create_job_instance_attempts(manager).await?;
         create_job_instance_logs(manager).await?;
         create_users(manager).await?;
+        create_rbac_tables(manager).await?;
         create_auth_sessions(manager).await?;
         create_scripts(manager).await?;
         create_script_versions(manager).await?;
@@ -33,6 +34,7 @@ impl MigrationTrait for CreateMetadataTables {
 
         // Seed default admin
         seed_admin_user(manager).await?;
+        seed_rbac_defaults(manager).await?;
         Ok(())
     }
 
@@ -48,6 +50,15 @@ impl MigrationTrait for CreateMetadataTables {
             .await?;
         manager
             .drop_table(Table::drop().table(AuthSessions::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(RolePermissions::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(Permissions::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(Roles::Table).to_owned())
             .await?;
         manager
             .drop_table(Table::drop().table(Users::Table).to_owned())
@@ -120,6 +131,46 @@ async fn create_users(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(string_col(Users::Password))
                 .col(string_col(Users::Role))
                 .col(string_col(Users::CreatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_rbac_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(Roles::Table)
+                .if_not_exists()
+                .col(string_pk(Roles::Id))
+                .col(string_col(Roles::Name))
+                .col(string_col(Roles::Description))
+                .col(string_col(Roles::CreatedAt))
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_table(
+            Table::create()
+                .table(Permissions::Table)
+                .if_not_exists()
+                .col(string_pk(Permissions::Id))
+                .col(string_col(Permissions::Resource))
+                .col(string_col(Permissions::Action))
+                .col(string_col(Permissions::Description))
+                .col(string_col(Permissions::CreatedAt))
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_table(
+            Table::create()
+                .table(RolePermissions::Table)
+                .if_not_exists()
+                .col(string_pk(RolePermissions::Id))
+                .col(string_col(RolePermissions::RoleId))
+                .col(string_col(RolePermissions::PermissionId))
+                .col(string_col(RolePermissions::CreatedAt))
                 .to_owned(),
         )
         .await
@@ -236,6 +287,127 @@ async fn seed_admin_user(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         Err(error) => Err(error),
     }
 }
+
+async fn seed_rbac_defaults(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    let now = now_rfc3339();
+    for (id, name, description) in [
+        ("role-admin", "admin", "Full platform administration"),
+        (
+            "role-operator",
+            "operator",
+            "Operate scheduler jobs and instances",
+        ),
+        ("role-viewer", "viewer", "Read-only platform access"),
+    ] {
+        let insert = sea_query::Query::insert()
+            .into_table(Roles::Table)
+            .columns([Roles::Id, Roles::Name, Roles::Description, Roles::CreatedAt])
+            .values_panic([
+                id.into(),
+                name.into(),
+                description.into(),
+                now.clone().into(),
+            ])
+            .to_owned();
+        ignore_unique(manager.exec_stmt(insert).await)?;
+    }
+
+    for (id, resource, action, description) in DEFAULT_PERMISSIONS {
+        let insert = sea_query::Query::insert()
+            .into_table(Permissions::Table)
+            .columns([
+                Permissions::Id,
+                Permissions::Resource,
+                Permissions::Action,
+                Permissions::Description,
+                Permissions::CreatedAt,
+            ])
+            .values_panic([
+                (*id).into(),
+                (*resource).into(),
+                (*action).into(),
+                (*description).into(),
+                now.clone().into(),
+            ])
+            .to_owned();
+        ignore_unique(manager.exec_stmt(insert).await)?;
+    }
+
+    let admin_permissions: Vec<&str> = DEFAULT_PERMISSIONS
+        .iter()
+        .map(|permission| permission.0)
+        .collect();
+    let operator_permissions = [
+        "perm-jobs-read",
+        "perm-jobs-write",
+        "perm-instances-read",
+        "perm-instances-execute",
+        "perm-scripts-read",
+    ];
+    let viewer_permissions = ["perm-jobs-read", "perm-instances-read", "perm-scripts-read"];
+    seed_role_permissions(manager, "role-admin", admin_permissions).await?;
+    seed_role_permissions(manager, "role-operator", operator_permissions).await?;
+    seed_role_permissions(manager, "role-viewer", viewer_permissions).await
+}
+
+async fn seed_role_permissions<'a>(
+    manager: &SchemaManager<'_>,
+    role_id: &str,
+    permission_ids: impl IntoIterator<Item = &'a str>,
+) -> Result<(), DbErr> {
+    for permission_id in permission_ids {
+        let binding_id = format!("rp-{role_id}-{permission_id}");
+        let insert = sea_query::Query::insert()
+            .into_table(RolePermissions::Table)
+            .columns([
+                RolePermissions::Id,
+                RolePermissions::RoleId,
+                RolePermissions::PermissionId,
+                RolePermissions::CreatedAt,
+            ])
+            .values_panic([
+                binding_id.into(),
+                role_id.into(),
+                permission_id.into(),
+                now_rfc3339().into(),
+            ])
+            .to_owned();
+        ignore_unique(manager.exec_stmt(insert).await)?;
+    }
+    Ok(())
+}
+
+fn ignore_unique(result: Result<(), DbErr>) -> Result<(), DbErr> {
+    match result {
+        Ok(()) => Ok(()),
+        Err(DbErr::Exec(error)) if error.to_string().contains("UNIQUE") => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
+const DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
+    ("perm-system-read", "system", "read", "Read system metadata"),
+    ("perm-cluster-read", "cluster", "read", "Read cluster state"),
+    ("perm-users-read", "users", "read", "Read users"),
+    ("perm-users-manage", "users", "manage", "Manage users"),
+    ("perm-jobs-read", "jobs", "read", "Read jobs"),
+    ("perm-jobs-write", "jobs", "write", "Create and update jobs"),
+    (
+        "perm-instances-read",
+        "instances",
+        "read",
+        "Read job instances",
+    ),
+    (
+        "perm-instances-execute",
+        "instances",
+        "execute",
+        "Trigger job instances",
+    ),
+    ("perm-scripts-read", "scripts", "read", "Read scripts"),
+    ("perm-scripts-manage", "scripts", "manage", "Manage scripts"),
+    ("perm-audit-read", "audit", "read", "Read audit logs"),
+];
 
 fn now_rfc3339() -> String {
     time::OffsetDateTime::now_utc()
@@ -390,6 +562,38 @@ async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     create_index(
         manager,
         Index::create()
+            .name("idx_roles_name")
+            .table(Roles::Table)
+            .col(Roles::Name)
+            .unique()
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_permissions_resource_action")
+            .table(Permissions::Table)
+            .col(Permissions::Resource)
+            .col(Permissions::Action)
+            .unique()
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_role_permissions_role_permission")
+            .table(RolePermissions::Table)
+            .col(RolePermissions::RoleId)
+            .col(RolePermissions::PermissionId)
+            .unique()
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
             .name("idx_auth_sessions_token_hash")
             .table(AuthSessions::Table)
             .col(AuthSessions::TokenHash)
@@ -532,6 +736,34 @@ enum AuditLogs {
     ResourceId,
     Detail,
     IpAddress,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum Roles {
+    Table,
+    Id,
+    Name,
+    Description,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum Permissions {
+    Table,
+    Id,
+    Resource,
+    Action,
+    Description,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum RolePermissions {
+    Table,
+    Id,
+    RoleId,
+    PermissionId,
     CreatedAt,
 }
 

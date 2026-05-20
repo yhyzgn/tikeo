@@ -85,15 +85,22 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface PermissionSummary {
+  resource: string;
+  action: string;
+}
+
 export interface AuthSession {
   token: string;
   username: string;
   roles: string[];
+  permissions: PermissionSummary[];
 }
 
 export interface MeResponse {
   username: string;
   roles: string[];
+  permissions: PermissionSummary[];
 }
 
 const API_BASE = import.meta.env.VITE_SCHEDULER_API_BASE ?? '';

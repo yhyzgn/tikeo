@@ -76,3 +76,8 @@
 
 - 全库禁止数据库外键后，关系完整性必须由 repository/service 和测试保障；后续删除父记录时要显式处理子记录清理。
 - SQLite 兼容层会重建历史外键表；生产数据库迁移也必须遵守无外键策略并单独验证。
+
+## 021 后续风险
+
+- RBAC 当前是最小 `resource/action` 模型，尚未实现 namespace/app/worker_pool scope、多租户隔离、OIDC/SSO 或 API Token 生命周期。
+- roles/permissions seed 当前主要覆盖内置角色；后续若开放角色管理 UI，需要补角色 CRUD、权限绑定审计和权限变更 session 失效。

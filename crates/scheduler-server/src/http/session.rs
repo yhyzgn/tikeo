@@ -10,7 +10,7 @@ use std::{fmt, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use chrono::{Duration as ChronoDuration, Utc};
 use moka::future::Cache;
-use scheduler_storage::{AuthSessionRepository, CreateAuthSession};
+use scheduler_storage::{AuthSessionRepository, CreateAuthSession, RbacRepository};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -112,6 +112,7 @@ impl fmt::Debug for SessionManager {
 #[derive(Debug, Clone)]
 pub struct DbMokaSessionStore {
     repo: AuthSessionRepository,
+    rbac: RbacRepository,
     cache: Cache<String, MeResponse>,
     session_ttl: ChronoDuration,
 }
@@ -119,9 +120,10 @@ pub struct DbMokaSessionStore {
 impl DbMokaSessionStore {
     /// Build the default DB+moka session store.
     #[must_use]
-    pub fn new(repo: AuthSessionRepository) -> Self {
+    pub fn new(repo: AuthSessionRepository, rbac: RbacRepository) -> Self {
         Self {
             repo,
+            rbac,
             cache: Cache::builder()
                 .time_to_live(Duration::from_mins(5))
                 .max_capacity(16_384)
@@ -163,9 +165,16 @@ impl SessionStore for DbMokaSessionStore {
             .await
             .map_err(|error| ApiError::storage(&error))?;
 
+        let roles = vec![summary.role.clone()];
+        let permissions = self
+            .rbac
+            .permissions_for_roles(&roles)
+            .await
+            .map_err(|error| ApiError::storage(&error))?;
         let principal = MeResponse {
             username: summary.username.clone(),
-            roles: vec![summary.role.clone()],
+            roles,
+            permissions,
         };
         self.cache.insert(token_hash, principal.clone()).await;
 
@@ -173,6 +182,7 @@ impl SessionStore for DbMokaSessionStore {
             token,
             username: principal.username,
             roles: principal.roles,
+            permissions: principal.permissions,
         })
     }
 
@@ -192,9 +202,16 @@ impl SessionStore for DbMokaSessionStore {
             return Ok(None);
         };
 
+        let roles = vec![summary.role];
+        let permissions = self
+            .rbac
+            .permissions_for_roles(&roles)
+            .await
+            .map_err(|error| ApiError::storage(&error))?;
         let principal = MeResponse {
             username: summary.username,
-            roles: vec![summary.role],
+            roles,
+            permissions,
         };
         self.cache.insert(token_hash, principal.clone()).await;
         Ok(Some(principal))

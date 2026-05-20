@@ -19,8 +19,8 @@ pub use repository::{
     CreateJobInstance, CreateJobInstanceAttempt, CreateScript, CreateUser,
     JobInstanceAttemptRepository, JobInstanceAttemptSummary, JobInstanceLogRepository,
     JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
-    ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary, UpdateScript,
-    UpdateUser, UserRepository, UserSummary,
+    PermissionSummary, RbacRepository, ScriptRepository, ScriptSummary, ScriptVersionRepository,
+    ScriptVersionSummary, UpdateScript, UpdateUser, UserRepository, UserSummary,
 };
 pub use sea_orm::DbErr;
 
@@ -54,6 +54,7 @@ pub async fn connect_and_migrate(database_url: &str) -> Result<DatabaseConnectio
 async fn ensure_sqlite_schema_compatibility(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {
     ensure_broadcast_schema_compatibility(db).await?;
     ensure_auth_schema_compatibility(db).await?;
+    ensure_rbac_schema_compatibility(db).await?;
     ensure_scripts_schema_compatibility(db).await?;
     ensure_script_versions_schema_compatibility(db).await?;
     ensure_audit_logs_schema_compatibility(db).await?;
@@ -211,6 +212,159 @@ async fn ensure_audit_logs_schema_compatibility(
         "CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON audit_logs (resource_type, resource_id)",
     ))
     .await?;
+    Ok(())
+}
+
+async fn ensure_rbac_schema_compatibility(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {
+    if db.get_database_backend() != DatabaseBackend::Sqlite {
+        return Ok(());
+    }
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        r"CREATE TABLE IF NOT EXISTS roles (
+            id varchar NOT NULL PRIMARY KEY,
+            name varchar NOT NULL,
+            description varchar NOT NULL,
+            created_at varchar NOT NULL
+        )",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        r"CREATE TABLE IF NOT EXISTS permissions (
+            id varchar NOT NULL PRIMARY KEY,
+            resource varchar NOT NULL,
+            action varchar NOT NULL,
+            description varchar NOT NULL,
+            created_at varchar NOT NULL
+        )",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        r"CREATE TABLE IF NOT EXISTS role_permissions (
+            id varchar NOT NULL PRIMARY KEY,
+            role_id varchar NOT NULL,
+            permission_id varchar NOT NULL,
+            created_at varchar NOT NULL
+        )",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_roles_name ON roles (name)",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_permissions_resource_action ON permissions (resource, action)",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_role_permissions_role_permission ON role_permissions (role_id, permission_id)",
+    ))
+    .await?;
+    seed_sqlite_rbac_defaults(db).await
+}
+
+const SQLITE_DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
+    ("perm-system-read", "system", "read", "Read system metadata"),
+    ("perm-cluster-read", "cluster", "read", "Read cluster state"),
+    ("perm-users-read", "users", "read", "Read users"),
+    ("perm-users-manage", "users", "manage", "Manage users"),
+    ("perm-jobs-read", "jobs", "read", "Read jobs"),
+    ("perm-jobs-write", "jobs", "write", "Create and update jobs"),
+    (
+        "perm-instances-read",
+        "instances",
+        "read",
+        "Read job instances",
+    ),
+    (
+        "perm-instances-execute",
+        "instances",
+        "execute",
+        "Trigger job instances",
+    ),
+    ("perm-scripts-read", "scripts", "read", "Read scripts"),
+    ("perm-scripts-manage", "scripts", "manage", "Manage scripts"),
+    ("perm-audit-read", "audit", "read", "Read audit logs"),
+];
+
+async fn seed_sqlite_rbac_defaults(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {
+    let now = time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned());
+    for (id, name, description) in [
+        ("role-admin", "admin", "Full platform administration"),
+        (
+            "role-operator",
+            "operator",
+            "Operate scheduler jobs and instances",
+        ),
+        ("role-viewer", "viewer", "Read-only platform access"),
+    ] {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            format!(
+                "INSERT OR IGNORE INTO roles (id, name, description, created_at) VALUES ('{id}', '{name}', '{description}', '{now}')"
+            ),
+        ))
+        .await?;
+    }
+    for (id, resource, action, description) in SQLITE_DEFAULT_PERMISSIONS {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            format!(
+                "INSERT OR IGNORE INTO permissions (id, resource, action, description, created_at) VALUES ('{id}', '{resource}', '{action}', '{description}', '{now}')"
+            ),
+        ))
+        .await?;
+    }
+    let admin_permissions = SQLITE_DEFAULT_PERMISSIONS
+        .iter()
+        .map(|(id, _, _, _)| *id)
+        .collect::<Vec<_>>();
+    seed_sqlite_role_permissions(db, "role-admin", &admin_permissions, &now).await?;
+    seed_sqlite_role_permissions(
+        db,
+        "role-operator",
+        &[
+            "perm-jobs-read",
+            "perm-jobs-write",
+            "perm-instances-read",
+            "perm-instances-execute",
+            "perm-scripts-read",
+        ],
+        &now,
+    )
+    .await?;
+    seed_sqlite_role_permissions(
+        db,
+        "role-viewer",
+        &["perm-jobs-read", "perm-instances-read", "perm-scripts-read"],
+        &now,
+    )
+    .await
+}
+
+async fn seed_sqlite_role_permissions(
+    db: &DatabaseConnection,
+    role_id: &str,
+    permission_ids: &[&str],
+    now: &str,
+) -> Result<(), sea_orm::DbErr> {
+    for permission_id in permission_ids {
+        let id = format!("rp-{role_id}-{permission_id}");
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            format!(
+                "INSERT OR IGNORE INTO role_permissions (id, role_id, permission_id, created_at) VALUES ('{id}', '{role_id}', '{permission_id}', '{now}')"
+            ),
+        ))
+        .await?;
+    }
     Ok(())
 }
 

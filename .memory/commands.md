@@ -415,3 +415,25 @@ sqlite3 scheduler-dev.db "PRAGMA table_info(users);"
 Expected:
 - 第一条无输出，表示当前 SQLite dev DB 无数据库级外键。
 - `users` 表包含 `password` 列，不再包含 `password_hash`。
+
+## 已验证命令（021 RBAC/service hardening 开发中）
+
+```bash
+cargo check --workspace --all-features
+bun run --cwd web typecheck
+```
+
+## 已验证命令（021 RBAC/service hardening 完成）
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo build --workspace --all-features
+mvn -f java/pom.xml -q test
+bun run --cwd web lint
+bun run --cwd web typecheck
+bun test --cwd web
+bun run --cwd web build
+docker compose config
+```

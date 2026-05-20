@@ -1,20 +1,30 @@
 # 021-service-layer-and-rbac-hardening
 
-> 状态：已让位。用户明确要求 021 先做 Phase 2 工作项，因此本文件不再作为 021 主计划执行。
+## 背景
 
-## 后移原因
+020 已修复 015-019 的安全阻断与质量门禁问题。用户确认 021 先完成 RBAC/service hardening，Phase2 工作流与分布式阶段顺延到下一阶段。
 
-020 后曾计划在 021 进行 routes/service/RBAC hardening，但 `design/scheduler-architecture-design.md` 中该类 RBAC/企业治理更接近 Phase 3。当前应优先推进 Phase 2「工作流与分布式」。
+当前架构仍偏 handler/repository 直连，RBAC 仍是单字符串 role，Web 权限感知和 401/403 体验仍有提升空间。
 
-## 新的 021 主计划
+## 目标
 
-请执行：`.prompt/021-phase2-workflow-and-queue-foundation.md`
+把 015-020 的用户管理/认证能力从“基础可运行”升级为可长期演进的平台权限结构。
 
-## 本计划后续归属
+## 范围
 
-可改为 024 或 Phase 3 前置治理阶段，建议在 Phase 2 的 workflow/queue/event 基础稳定后再做：
+1. RBAC 设计升级：permission/action/resource 抽象，数据库仍禁止外键，只能软关联。
+2. 增加角色、权限、角色权限绑定的最小存储模型与 repository/service API。
+3. HTTP 鉴权从单纯 role 校验升级为 permission check，继续兼容初始化 admin。
+4. 拆出最小 application service 层：至少 UserService/AuthService/RbacService，避免 handler 继续堆业务编排。
+5. Web：建立 route meta 权限配置，补统一 401/403 页面或提示，权限不足时隐藏/禁用危险操作。
+6. 更新 `design/auth-session-design.md`、`design/scheduler-architecture-design.md` 和 `.memory/*`。
 
-1. 拆分 HTTP route 文件：system/auth/users/jobs/scripts/audit/workflows/events。
-2. 引入 application service 层：UserService、ScriptService、AuditService、WorkflowService、QueueService。
-3. RBAC 设计升级：permission/action/resource 抽象，数据库仍禁止外键，只能软关联。
-4. Web：建立 route meta 配置，补统一 401/403 页面。
+## 非目标
+
+- 不做 Phase2 DAG/queue/工作流实现；已顺延到 `.prompt/022-phase2-workflow-and-queue-foundation.md`。
+- 不引入数据库外键。
+- 不提供 Swagger UI。
+
+## 验证要求
+
+沿用 020 全量质量门禁：Rust fmt/clippy/test/build、Java mvn test、Web lint/typecheck/test/build、docker compose config。涉及鉴权链路需补 auth/users/rbac targeted tests。

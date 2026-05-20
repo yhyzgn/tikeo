@@ -169,6 +169,8 @@ pub struct AuthSession {
     pub username: String,
     /// Granted roles.
     pub roles: Vec<String>,
+    /// Granted permissions.
+    pub permissions: Vec<scheduler_storage::PermissionSummary>,
 }
 
 /// Current authenticated principal.
@@ -178,6 +180,8 @@ pub struct MeResponse {
     pub username: String,
     /// Granted roles.
     pub roles: Vec<String>,
+    /// Granted permissions.
+    pub permissions: Vec<scheduler_storage::PermissionSummary>,
 }
 
 /// Job summary DTO.

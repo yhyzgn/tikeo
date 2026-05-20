@@ -5,6 +5,7 @@ pub mod dto;
 pub mod error;
 pub mod openapi;
 pub mod routes;
+pub mod services;
 pub mod session;
 
 use std::{net::SocketAddr, sync::Arc, time::SystemTime};
@@ -21,8 +22,8 @@ use axum::{
 use scheduler_core::HealthState;
 use scheduler_storage::{
     AuditLogRepository, AuthSessionRepository, JobInstanceAttemptRepository,
-    JobInstanceLogRepository, JobInstanceRepository, JobRepository, ScriptRepository,
-    UserRepository, connect_and_migrate,
+    JobInstanceLogRepository, JobInstanceRepository, JobRepository, RbacRepository,
+    ScriptRepository, UserRepository, connect_and_migrate,
 };
 use serde::Serialize;
 
@@ -32,6 +33,7 @@ use utoipa::OpenApi;
 
 use self::{
     openapi::ApiDoc,
+    services::RbacService,
     session::{DbMokaSessionStore, SessionManager},
 };
 
@@ -47,6 +49,7 @@ pub struct AppState {
     scripts: ScriptRepository,
     audit: AuditLogRepository,
     sessions: SessionManager,
+    pub(crate) rbac: RbacService,
     registry: crate::tunnel::WorkerRegistry,
 }
 
@@ -64,9 +67,12 @@ impl AppState {
         audit: AuditLogRepository,
         registry: crate::tunnel::WorkerRegistry,
     ) -> Self {
-        let sessions = SessionManager::new(DbMokaSessionStore::new(AuthSessionRepository::new(
-            users.db(),
-        )));
+        let db = users.db();
+        let rbac = RbacService::new(RbacRepository::new(db.clone()));
+        let sessions = SessionManager::new(DbMokaSessionStore::new(
+            AuthSessionRepository::new(db.clone()),
+            RbacRepository::new(db),
+        ));
         Self {
             started_at: SystemTime::now(),
             jobs,
@@ -77,6 +83,7 @@ impl AppState {
             scripts,
             audit,
             sessions,
+            rbac,
             registry,
         }
     }

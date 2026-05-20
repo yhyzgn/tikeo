@@ -12,7 +12,7 @@ import {
 import { Avatar, Badge, Button, Layout, Menu, Space, Typography } from 'antd';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { usePrincipal } from './AuthGuard';
+import { hasPermission, usePrincipal } from './AuthGuard';
 
 const { Header, Sider, Content } = Layout;
 
@@ -22,10 +22,10 @@ const MENU_ITEMS = [
   { key: '/instances', icon: <DeploymentUnitOutlined />, label: '实例' },
 ];
 
-const ADMIN_ITEMS = [
-  { key: '/users', icon: <UserOutlined />, label: '用户管理' },
-  { key: '/scripts', icon: <CodeOutlined />, label: '脚本管理' },
-  { key: '/audit', icon: <AuditOutlined />, label: '审计日志' },
+const PROTECTED_ITEMS = [
+  { key: '/users', icon: <UserOutlined />, label: '用户管理', resource: 'users', action: 'read' },
+  { key: '/scripts', icon: <CodeOutlined />, label: '脚本管理', resource: 'scripts', action: 'read' },
+  { key: '/audit', icon: <AuditOutlined />, label: '审计日志', resource: 'audit', action: 'read' },
 ];
 
 const COMING_SOON_ITEMS = [
@@ -45,13 +45,14 @@ export function AppShell({ children, onLogout }: AppShellProps) {
   const username = principal?.username ?? '';
   const roles = principal?.roles ?? [];
   const isAdmin = roles.includes('admin');
+  const protectedItems = PROTECTED_ITEMS.filter((item) => hasPermission(principal, item.resource, item.action));
 
   const selectedKey = '/' + location.pathname.split('/').filter(Boolean)[0];
 
   const menuItems = [
     ...MENU_ITEMS,
-    ...(isAdmin
-      ? [{ type: 'divider' as const }, ...ADMIN_ITEMS]
+    ...(protectedItems.length > 0
+      ? [{ type: 'divider' as const }, ...protectedItems]
       : []),
     { type: 'divider' as const },
     ...COMING_SOON_ITEMS,

@@ -359,3 +359,10 @@ Constraint:
 - 删除 `scheduler-init-token` 静态 Bearer 后门；初始化账号仅通过 `/api/v1/auth/login` 获取 `atk_` session token。
 - 审计日志不得保存明文 Bearer token；session 相关审计只能保存脱敏标识或不可逆摘要。
 - 出站告警 Webhook 默认只允许 HTTPS，并拒绝 localhost/私网/link-local/metadata 目标；后续如需内网 webhook，必须显式 allowlist。
+
+## 2026-05-20 — 021 RBAC 使用软关联 permission/resource/action
+
+- RBAC 从单字符串 role check 升级为 `resource/action` 权限检查。
+- 数据库新增 roles、permissions、role_permissions，但不创建任何外键；角色名仍保留在 users.role 以兼容现有用户模型。
+- admin 角色保留全权限短路和全量默认权限绑定，operator/viewer 通过 seed 权限控制能力边界。
+- HTTP 层统一走 `require_permission`，Web 使用同一权限模型隐藏菜单和显示 403。

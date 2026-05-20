@@ -2027,6 +2027,8 @@ scheduler/
   - [x] Dashboard / Job 创建列表 / 手动触发 / 实例列表骨架
   - [x] 登录与权限感知操作
   - [x] 用户管理与基础 RBAC（Users API、Admin 管理界面、角色校验）
+  - [x] RBAC permission/resource/action 模型（roles / permissions / role_permissions 软关联，无外键）
+  - [x] 后端大文件模块化拆分（HTTP routes 与 storage repository 按领域拆分）
   - [x] 可插拔 SessionStore 抽象（当前 DB + moka，预留 Redis 分布式实现）
   - [x] 实例日志查看（Worker TaskLog -> storage -> HTTP logs API -> Web Drawer）
 - [x] Docker 镜像构建（server 多阶段镜像 + Web nginx 镜像 + Compose/K8s 基础部署）
@@ -2055,7 +2057,7 @@ scheduler/
 
 > 020 review remediation 结论：015-019 中已完成项若仅为骨架，路线图必须明确标注“骨架/基础”，不得把未接入真实执行链路、规则引擎或治理闭环的能力标为完全完成。
 
-- [ ] RBAC 权限系统
+- [x] RBAC 权限系统（021 已完成最小 permission/resource/action；OIDC/API Token/多租户 scope 后续继续增强）
 - [ ] OIDC/SSO 集成
 - [ ] mTLS 传输加密
 - [x] Web 前端路由与导航治理基础（React Router v7、路由守卫、URL 持久化、菜单与路由对齐）

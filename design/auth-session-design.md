@@ -85,11 +85,12 @@ sequenceDiagram
     Client->>Auth: POST /api/v1/auth/login username/password
     Auth->>Auth: `BCrypt` 校验 `users.password`（该字段保存 hash，不保存明文）
     Auth->>Store: create_session(user_id, username, role)
+    Store->>RBAC: resolve permissions by role
     Store->>Store: 生成 opaque token 并计算 SHA-256
     Store->>DB: INSERT auth_sessions(token_hash, user_id, expires_at)
     Store->>Cache: 缓存 token_hash -> MeResponse
     Store-->>Auth: AuthSession(token 明文仅返回一次)
-    Auth-->>Client: { code:0, message:"success", data:{token,...} }
+    Auth-->>Client: { code:0, message:"success", data:{token,roles,permissions} }
 ```
 
 ### 3.2 鉴权
@@ -126,7 +127,7 @@ sequenceDiagram
 | `POST /api/v1/auth/logout` | `revoke_token(token)` 删除 DB 行并 invalidate 对应 moka key |
 | 修改用户密码 | `revoke_user_sessions(username)` 删除该用户全部会话 |
 | 修改用户角色 | `revoke_user_sessions(username)` 强制重新登录以刷新权限 |
-| 删除用户 | DB 外键级联删除会话，SessionStore 同步清理本地缓存 |
+| 删除用户 | 先按软关联 user_id/username 删除会话，再删除用户；数据库严禁外键级联 |
 
 ---
 
@@ -193,3 +194,15 @@ Redis 实现要点：
 - 后端仍保持 workspace + crates 解耦，server 主入口不放入 `crates`。
 - Web 管理端继续使用 React + Ant Design + Bun。
 - 每次推进后需要更新 `.memory` 和 `.prompt`，并在验证通过后提交推送。
+
+
+## 7. 021 RBAC 权限模型补充
+
+021 阶段将基础 `role` 校验升级为 `resource/action` 权限校验：
+
+- `roles`：角色目录，例如 `admin`、`operator`、`viewer`。
+- `permissions`：权限目录，以 `resource + action` 表达，例如 `users:manage`、`scripts:read`、`instances:execute`。
+- `role_permissions`：角色与权限的软关联绑定。
+- 数据库仍然禁止外键；所有关系通过字段软关联表达，并由 repository/service 做一致性检查。
+- session principal 返回 `roles` 与 `permissions`，Web 根据权限隐藏/展示菜单，后端使用 `require_permission(resource, action)` 保护接口。
+- 为兼容初始化账号，`admin` 角色仍被视为全权限，同时默认 seed 全量权限绑定。

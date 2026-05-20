@@ -3,7 +3,7 @@ import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 
 import { logout, setAuthToken } from './api/client';
 import { AppShell } from './components/AppShell';
-import { AuthGuard, RequireAdmin } from './components/AuthGuard';
+import { AuthGuard, RequirePermission } from './components/AuthGuard';
 import { Dashboard } from './pages/Dashboard';
 import { InstancesPage } from './pages/InstancesPage';
 import { JobsPage } from './pages/JobsPage';
@@ -11,6 +11,7 @@ import { LoginPage } from './pages/LoginPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
 import { ScriptsPage } from './pages/ScriptsPage';
 import { UsersPage } from './pages/UsersPage';
+import { Result, Button } from 'antd';
 
 function AppLayout() {
   const navigate = useNavigate();
@@ -27,11 +28,24 @@ function AppLayout() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/instances" element={<InstancesPage />} />
-        <Route path="/users" element={<RequireAdmin><UsersPage /></RequireAdmin>} />
-        <Route path="/scripts" element={<RequireAdmin><ScriptsPage /></RequireAdmin>} />
-        <Route path="/audit" element={<RequireAdmin><AuditLogsPage /></RequireAdmin>} />
+        <Route path="/users" element={<RequirePermission resource="users" action="read"><UsersPage /></RequirePermission>} />
+        <Route path="/scripts" element={<RequirePermission resource="scripts" action="read"><ScriptsPage /></RequirePermission>} />
+        <Route path="/audit" element={<RequirePermission resource="audit" action="read"><AuditLogsPage /></RequirePermission>} />
+        <Route path="/forbidden" element={<ForbiddenPage />} />
       </Routes>
     </AppShell>
+  );
+}
+
+function ForbiddenPage() {
+  const navigate = useNavigate();
+  return (
+    <Result
+      status="403"
+      title="403"
+      subTitle="当前账号没有访问该功能的权限"
+      extra={<Button type="primary" onClick={() => navigate('/dashboard', { replace: true })}>返回总览</Button>}
+    />
   );
 }
 
