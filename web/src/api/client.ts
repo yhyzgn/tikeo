@@ -371,8 +371,10 @@ function readStoredToken(): string | null {
 export interface WorkflowNodeSpec {
   key: string;
   name?: string | null;
-  kind?: string | null;
+  kind?: 'job' | 'map' | 'map_reduce' | 'sub_workflow' | string | null;
   job_id?: string | null;
+  child_workflow_id?: string | null;
+  map_items?: unknown[] | null;
   config?: unknown;
 }
 
@@ -402,14 +404,47 @@ export interface WorkflowValidationResult {
   errors: string[];
 }
 
+export interface WorkflowDryRunResponse {
+  validation: WorkflowValidationResult;
+  start_nodes: string[];
+  node_count: number;
+  edge_count: number;
+}
+
+export interface WorkflowNodeInstanceSummary {
+  id: string;
+  workflow_instance_id: string;
+  node_key: string;
+  status: string;
+  job_instance_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface WorkflowInstanceSummary {
   id: string;
   workflow_id: string;
   status: string;
   trigger_type: string;
-  nodes: Array<{ id: string; workflow_instance_id: string; node_key: string; status: string; job_instance_id: string | null; created_at: string; updated_at: string }>;
+  nodes: WorkflowNodeInstanceSummary[];
   created_at: string;
   updated_at: string;
+}
+
+export interface WorkflowAdvanceResult {
+  instance: WorkflowInstanceSummary;
+  queued_nodes: string[];
+  completed: boolean;
+}
+
+export interface InstanceEventSummary {
+  id: string;
+  instance_id: string;
+  instance_type: string;
+  event_type: string;
+  message: string;
+  payload: string | null;
+  created_at: string;
 }
 
 export async function listWorkflows(): Promise<WorkflowSummary[]> {
@@ -424,6 +459,18 @@ export async function validateWorkflow(id: string): Promise<WorkflowValidationRe
   return request<WorkflowValidationResult>(`/api/v1/workflows/${encodeURIComponent(id)}/validate`, { method: 'POST', body: JSON.stringify({}) });
 }
 
+export async function dryRunWorkflow(definition: WorkflowDefinition): Promise<WorkflowDryRunResponse> {
+  return request<WorkflowDryRunResponse>('/api/v1/workflows/dry-run', { method: 'POST', body: JSON.stringify(definition) });
+}
+
 export async function runWorkflow(id: string): Promise<WorkflowInstanceSummary> {
   return request<WorkflowInstanceSummary>(`/api/v1/workflows/${encodeURIComponent(id)}/run`, { method: 'POST', body: JSON.stringify({ trigger_type: 'api' }) });
+}
+
+export async function advanceWorkflowInstance(instanceId: string, payload: { node_key: string; status: string; message?: string }): Promise<WorkflowAdvanceResult> {
+  return request<WorkflowAdvanceResult>(`/api/v1/workflow-instances/${encodeURIComponent(instanceId)}/advance`, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function workflowEventStreamUrl(instanceId: string): string {
+  return `${API_BASE}/api/v1/events/instances/${encodeURIComponent(instanceId)}/stream`;
 }

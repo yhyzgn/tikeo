@@ -19,23 +19,32 @@ use super::{
 ///
 /// Returns unauthorized for missing/invalid bearer tokens or storage errors from the session store.
 pub async fn authenticate(headers: &HeaderMap, state: &AppState) -> Result<MeResponse, ApiError> {
-    let Some(value) = headers.get(axum::http::header::AUTHORIZATION) else {
-        return Err(ApiError::unauthorized("missing bearer token"));
-    };
-    let Ok(value) = value.to_str() else {
-        return Err(ApiError::unauthorized("invalid authorization header"));
-    };
-    let Some(token) = value.strip_prefix("Bearer ") else {
-        return Err(ApiError::unauthorized(
-            "authorization scheme must be Bearer",
-        ));
-    };
+    let token = bearer_token(headers)?;
 
     state
         .sessions
-        .get_principal(token)
+        .get_principal(&token)
         .await?
         .ok_or_else(|| ApiError::unauthorized("invalid bearer token"))
+}
+
+fn bearer_token(headers: &HeaderMap) -> Result<String, ApiError> {
+    if let Some(value) = headers.get(axum::http::header::AUTHORIZATION) {
+        let value = value
+            .to_str()
+            .map_err(|_| ApiError::unauthorized("invalid authorization header"))?;
+        return value
+            .strip_prefix("Bearer ")
+            .map(str::to_owned)
+            .ok_or_else(|| ApiError::unauthorized("authorization scheme must be Bearer"));
+    }
+    if let Some(value) = headers.get("x-scheduler-token") {
+        return value
+            .to_str()
+            .map(str::to_owned)
+            .map_err(|_| ApiError::unauthorized("invalid x-scheduler-token header"));
+    }
+    Err(ApiError::unauthorized("missing bearer token"))
 }
 
 /// Require the requester to have one of the required roles.

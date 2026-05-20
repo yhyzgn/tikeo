@@ -192,6 +192,23 @@ pub type WorkflowListApiResponse = ApiResponse<Vec<scheduler_storage::WorkflowSu
 pub type WorkflowValidationApiResponse = ApiResponse<scheduler_storage::WorkflowValidationResult>;
 /// Workflow instance API envelope.
 pub type WorkflowInstanceApiResponse = ApiResponse<scheduler_storage::WorkflowInstanceSummary>;
+/// Workflow advance API envelope.
+pub type WorkflowAdvanceApiResponse = ApiResponse<scheduler_storage::AdvanceWorkflowResult>;
+/// Workflow dry-run API envelope.
+pub type WorkflowDryRunApiResponse = ApiResponse<WorkflowDryRunResponse>;
+
+/// Workflow dry-run response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct WorkflowDryRunResponse {
+    /// DAG validation result.
+    pub validation: scheduler_storage::WorkflowValidationResult,
+    /// Nodes without incoming edges.
+    pub start_nodes: Vec<String>,
+    /// Total node count.
+    pub node_count: usize,
+    /// Total edge count.
+    pub edge_count: usize,
+}
 
 /// Request to run a workflow.
 #[derive(Debug, Clone, Deserialize, ToSchema)]

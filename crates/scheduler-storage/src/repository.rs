@@ -34,9 +34,10 @@ pub use script::{
 };
 pub use user::{CreateUser, UpdateUser, UserRepository, UserSummary};
 pub use workflow::{
-    CreateWorkflow, InstanceEventSummary, WorkflowDefinition, WorkflowEdgeSpec,
-    WorkflowInstanceSummary, WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository,
-    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
+    AdvanceWorkflowInput, AdvanceWorkflowResult, CreateWorkflow, InstanceEventSummary,
+    WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary, WorkflowNodeInstanceSummary,
+    WorkflowNodeSpec, WorkflowRepository, WorkflowSummary, WorkflowValidationResult,
+    validate_workflow_definition,
 };
 
 #[cfg(test)]

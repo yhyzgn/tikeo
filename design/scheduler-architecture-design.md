@@ -2039,15 +2039,17 @@ scheduler/
 **目标**：覆盖 PowerJob 的全部调度模式。
 
 - [x] DAG 工作流引擎基础（定义存储、DAG 校验、最小 run API；可视化编排后续增强）
-- [ ] Map / MapReduce 执行模式
-- [ ] 子工作流嵌套
+- [x] Map / MapReduce 执行模式（定义模型 + 最小调度语义）
+- [x] 子工作流嵌套（节点引用 child_workflow_id）
 - [ ] PostgreSQL + CockroachDB 存储支持
 - [ ] Server 集群 (Raft 共识)
 - [x] 任务队列基础（dispatch_queue 持久化模型、priority/run_after/status 字段；dispatcher 多节点竞争后续增强）
 - [x] 持久化延迟队列基础（dispatch_queue.run_after）
 - [ ] 实时日志流 (gRPC Server Stream)
-- [ ] 工作流可视化编辑器
-- [x] Web UI 工作流 JSON 定义入口和 validate/run 基础（DAG 可视化、YAML、dry-run 后续）
+- [x] 工作流可视化编辑器（基础 DAG 预览 + 节点状态着色）
+- [x] Web UI 工作流 JSON 定义入口、YAML 预览、dry-run、validate/run 和 SSE 事件基础
+
+023 补充：workflow executor 已具备最小推进能力：`POST /api/v1/workflow-instances/{id}/advance` 按节点状态与边条件（always/on_success/on_failure）推进后继 waiting 节点到 queued，并写入 dispatch_queue 与 instance_events；Map/MapReduce 节点要求 `map_items`，子工作流节点要求 `child_workflow_id`。
 - [x] SSE 实时实例事件骨架（instance_events + /events/instances/:id/stream；WebSocket 后续）
 - [ ] Go SDK + Python SDK
 

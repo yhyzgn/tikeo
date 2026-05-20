@@ -181,6 +181,10 @@ fn api_router() -> Router<Arc<AppState>> {
             "/workflows",
             get(routes::list_workflows).post(routes::create_workflow),
         )
+        .route(
+            "/workflows/dry-run",
+            axum::routing::post(routes::dry_run_workflow),
+        )
         .route("/workflows/{id}", get(routes::get_workflow))
         .route(
             "/workflows/{id}/validate",
@@ -193,6 +197,10 @@ fn api_router() -> Router<Arc<AppState>> {
         .route(
             "/workflow-instances/{id}",
             get(routes::get_workflow_instance_route),
+        )
+        .route(
+            "/workflow-instances/{id}/advance",
+            axum::routing::post(routes::advance_workflow_instance),
         )
         .route(
             "/events/instances/{id}/stream",
@@ -772,12 +780,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn workflow_create_validate_and_run_returns_envelopes() {
+    async fn workflow_create_validate_run_and_advance_returns_envelopes() {
         let app = router().await;
         let create = post_json(
             app.clone(),
             "/api/v1/workflows",
-            r#"{"name":"demo-flow","definition":{"nodes":[{"key":"start","name":"Start","kind":"job"}],"edges":[]}}"#,
+            r#"{"name":"demo-flow","definition":{"nodes":[{"key":"start","name":"Start","kind":"job","job_id":"job-demo"},{"key":"fanout","name":"Fanout","kind":"map","map_items":[{"shard":1},{"shard":2}]},{"key":"child","name":"Child","kind":"sub_workflow","child_workflow_id":"wf_child"}],"edges":[{"from":"start","to":"fanout","condition":"on_success"},{"from":"fanout","to":"child","condition":"always"}]}}"#,
         )
         .await;
         assert_eq!(create["code"], 0);
@@ -793,8 +801,17 @@ mod tests {
         .await;
         assert_eq!(validate["data"]["valid"], true);
 
+        let dry_run = post_json(
+            app.clone(),
+            "/api/v1/workflows/dry-run",
+            r#"{"nodes":[{"key":"start","kind":"job","job_id":"job-demo"}],"edges":[]}"#,
+        )
+        .await;
+        assert_eq!(dry_run["data"]["validation"]["valid"], true);
+        assert_eq!(dry_run["data"]["start_nodes"][0], "start");
+
         let run = post_json(
-            app,
+            app.clone(),
             &format!("/api/v1/workflows/{workflow_id}/run"),
             r#"{"trigger_type":"api"}"#,
         )
@@ -802,6 +819,19 @@ mod tests {
         assert_eq!(run["code"], 0);
         assert_eq!(run["data"]["status"], "pending");
         assert_eq!(run["data"]["nodes"][0]["status"], "queued");
+        let instance_id = run["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("workflow instance id should exist"));
+
+        let advanced = post_json(
+            app,
+            &format!("/api/v1/workflow-instances/{instance_id}/advance"),
+            r#"{"node_key":"start","status":"succeeded","message":"ok"}"#,
+        )
+        .await;
+        assert_eq!(advanced["code"], 0);
+        assert_eq!(advanced["data"]["queued_nodes"][0], "fanout");
+        assert_eq!(advanced["data"]["instance"]["status"], "running");
     }
 
     #[tokio::test]

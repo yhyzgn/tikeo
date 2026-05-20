@@ -14,16 +14,16 @@ use std::time::Duration;
 use thiserror::Error;
 
 pub use repository::{
-    AppendJobInstanceLog, AuditLogFilters, AuditLogRepository, AuditLogSummary,
-    AuthSessionRepository, AuthSessionSummary, CreateAuditLog, CreateAuthSession, CreateJob,
-    CreateJobInstance, CreateJobInstanceAttempt, CreateScript, CreateUser, CreateWorkflow,
-    InstanceEventSummary, JobInstanceAttemptRepository, JobInstanceAttemptSummary,
-    JobInstanceLogRepository, JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary,
-    JobRepository, JobSummary, PermissionSummary, RbacRepository, ScriptRepository, ScriptSummary,
-    ScriptVersionRepository, ScriptVersionSummary, UpdateScript, UpdateUser, UserRepository,
-    UserSummary, WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary,
-    WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowSummary,
-    WorkflowValidationResult, validate_workflow_definition,
+    AdvanceWorkflowInput, AdvanceWorkflowResult, AppendJobInstanceLog, AuditLogFilters,
+    AuditLogRepository, AuditLogSummary, AuthSessionRepository, AuthSessionSummary, CreateAuditLog,
+    CreateAuthSession, CreateJob, CreateJobInstance, CreateJobInstanceAttempt, CreateScript,
+    CreateUser, CreateWorkflow, InstanceEventSummary, JobInstanceAttemptRepository,
+    JobInstanceAttemptSummary, JobInstanceLogRepository, JobInstanceLogSummary,
+    JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary, PermissionSummary,
+    RbacRepository, ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary,
+    UpdateScript, UpdateUser, UserRepository, UserSummary, WorkflowDefinition, WorkflowEdgeSpec,
+    WorkflowInstanceSummary, WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository,
+    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
 };
 pub use sea_orm::DbErr;
 

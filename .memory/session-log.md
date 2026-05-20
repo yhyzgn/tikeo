@@ -622,3 +622,11 @@ Git:
 - 新增 dispatch_queue 与 instance_events 表，提供 priority/run_after/status 与 SSE 事件流基础。
 - 新增 Workflow API：create/list/detail/validate/run/instance detail/SSE stream。
 - Web 新增 Workflows 菜单与 JSON 定义创建、校验、运行入口。
+
+## 2026-05-20 — 023 Phase2 workflow visual/mapreduce continuation
+
+- 完成 workflow executor 最小推进器：`advance_workflow` 根据节点 `succeeded/failed/skipped` 与边条件 `always/on_success/on_failure` 推进后继节点，更新 workflow instance 终态并写入 instance_events。
+- Workflow definition 扩展 `job_id` / `child_workflow_id` / `map_items` 约束：job 必须显式 job_id，map/map_reduce 必须有 map_items，sub_workflow 必须有 child_workflow_id。
+- HTTP 增加 `POST /api/v1/workflows/dry-run` 与 `POST /api/v1/workflow-instances/{id}/advance`，继续统一返回 `code/message/data`。
+- Web Workflows 页面升级为浅色现代化编排台：JSON 创建、YAML 预览、dry-run、基础 DAG 可视化、实例节点状态着色、SSE 事件流、手动推进 queued 节点。
+- SSE endpoint now also accepts `?token=` by translating it into a Bearer header server-side because browser EventSource cannot set custom Authorization headers; normal APIs still use Authorization.

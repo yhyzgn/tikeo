@@ -51,3 +51,4 @@
   - [x] 脚本版本历史（`script_versions` 表）、更新自动产生版本记录
   - [x] 版本 diff 对比 API 与 Web diff 视图
   - [x] 脚本编辑器语法高亮（CodeMirror 6，Shell/Python/Node）
+- 023 Phase2 workflow visual/mapreduce：executor 推进器、Map/MapReduce/子工作流定义约束、dry-run/advance API、Web DAG/SSE 基础已开发，等待完整验证。

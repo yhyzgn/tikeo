@@ -4,11 +4,13 @@ use std::{convert::Infallible, sync::Arc, time::Duration};
 
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::HeaderMap,
     response::sse::{Event, Sse},
 };
-use scheduler_storage::{CreateWorkflow, WorkflowDefinition, validate_workflow_definition};
+use scheduler_storage::{
+    AdvanceWorkflowInput, CreateWorkflow, WorkflowDefinition, validate_workflow_definition,
+};
 use serde::Deserialize;
 use tokio_stream::Stream;
 use tokio_stream::iter;
@@ -16,7 +18,8 @@ use tokio_stream::iter;
 use crate::http::{
     AppState, auth,
     dto::{
-        ApiResponse, WorkflowApiResponse, WorkflowInstanceApiResponse, WorkflowListApiResponse,
+        ApiResponse, WorkflowAdvanceApiResponse, WorkflowApiResponse, WorkflowDryRunApiResponse,
+        WorkflowDryRunResponse, WorkflowInstanceApiResponse, WorkflowListApiResponse,
         WorkflowRunRequest, WorkflowValidationApiResponse,
     },
     error::ApiError,
@@ -26,6 +29,11 @@ use crate::http::{
 pub struct CreateWorkflowRequest {
     pub name: String,
     pub definition: WorkflowDefinition,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct StreamAuthQuery {
+    pub token: Option<String>,
 }
 
 #[utoipa::path(post, path = "/api/v1/workflows", tag = "workflows", request_body = CreateWorkflowRequest)]
@@ -62,6 +70,32 @@ pub async fn list_workflows(
         .await
         .map_err(|error| ApiError::storage(&error))?;
     Ok(Json(ApiResponse::success(items)))
+}
+
+#[utoipa::path(post, path = "/api/v1/workflows/dry-run", tag = "workflows", request_body = WorkflowDefinition)]
+pub async fn dry_run_workflow(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(definition): Json<WorkflowDefinition>,
+) -> Result<Json<WorkflowDryRunApiResponse>, ApiError> {
+    auth::require_permission(&headers, &state, "workflows", "read").await?;
+    let target_nodes: std::collections::HashSet<&str> = definition
+        .edges
+        .iter()
+        .map(|edge| edge.to.as_str())
+        .collect();
+    let start_nodes = definition
+        .nodes
+        .iter()
+        .filter(|node| !target_nodes.contains(node.key.as_str()))
+        .map(|node| node.key.clone())
+        .collect();
+    Ok(Json(ApiResponse::success(WorkflowDryRunResponse {
+        validation: validate_workflow_definition(&definition),
+        start_nodes,
+        node_count: definition.nodes.len(),
+        edge_count: definition.edges.len(),
+    })))
 }
 
 #[utoipa::path(get, path = "/api/v1/workflows/{id}", tag = "workflows")]
@@ -132,11 +166,44 @@ pub async fn get_workflow_instance(
     Ok(Json(ApiResponse::success(item)))
 }
 
-pub async fn stream_instance_events(
+#[utoipa::path(post, path = "/api/v1/workflow-instances/{id}/advance", tag = "workflows", request_body = AdvanceWorkflowInput)]
+pub async fn advance_workflow_instance(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(id): Path<String>,
+    Json(request): Json<AdvanceWorkflowInput>,
+) -> Result<Json<WorkflowAdvanceApiResponse>, ApiError> {
+    auth::require_permission(&headers, &state, "workflows", "execute").await?;
+    let allowed_statuses = ["queued", "running", "succeeded", "failed", "skipped"];
+    if !allowed_statuses.contains(&request.status.as_str()) {
+        return Err(ApiError::bad_request(format!(
+            "unsupported workflow node status: {}",
+            request.status
+        )));
+    }
+    let item = state
+        .workflows
+        .advance_workflow(&id, request)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::not_found(format!("workflow instance not found: {id}")))?;
+    Ok(Json(ApiResponse::success(item)))
+}
+
+pub async fn stream_instance_events(
+    State(state): State<Arc<AppState>>,
+    mut headers: HeaderMap,
+    Path(id): Path<String>,
+    Query(query): Query<StreamAuthQuery>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
+    if let Some(token) = query.token
+        && !headers.contains_key(axum::http::header::AUTHORIZATION)
+    {
+        let value = format!("Bearer {token}")
+            .parse()
+            .map_err(|_| ApiError::unauthorized("invalid stream token"))?;
+        headers.insert(axum::http::header::AUTHORIZATION, value);
+    }
     auth::require_permission(&headers, &state, "workflows", "read").await?;
     let events = state
         .workflows

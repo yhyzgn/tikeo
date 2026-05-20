@@ -3,8 +3,8 @@
 use std::collections::{HashMap, HashSet};
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QueryOrder, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 
@@ -27,6 +27,8 @@ pub struct WorkflowNodeSpec {
     pub name: Option<String>,
     pub kind: Option<String>,
     pub job_id: Option<String>,
+    pub child_workflow_id: Option<String>,
+    pub map_items: Option<Vec<serde_json::Value>>,
     pub config: Option<serde_json::Value>,
 }
 
@@ -59,6 +61,20 @@ pub struct WorkflowSummary {
 pub struct WorkflowValidationResult {
     pub valid: bool,
     pub errors: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct AdvanceWorkflowInput {
+    pub node_key: String,
+    pub status: String,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct AdvanceWorkflowResult {
+    pub instance: WorkflowInstanceSummary,
+    pub queued_nodes: Vec<String>,
+    pub completed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
@@ -253,6 +269,135 @@ impl WorkflowRepository {
         )))
     }
 
+    #[allow(clippy::too_many_lines)]
+    pub async fn advance_workflow(
+        &self,
+        instance_id: &str,
+        input: AdvanceWorkflowInput,
+    ) -> Result<Option<AdvanceWorkflowResult>, sea_orm::DbErr> {
+        let Some(instance) = workflow_instance::Entity::find_by_id(instance_id.to_owned())
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let Some(workflow) = self.get_workflow(&instance.workflow_id).await? else {
+            return Ok(None);
+        };
+        let Some(node_model) = workflow_node_instance::Entity::find()
+            .filter(workflow_node_instance::Column::WorkflowInstanceId.eq(instance_id.to_owned()))
+            .filter(workflow_node_instance::Column::NodeKey.eq(input.node_key.clone()))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let now = now_rfc3339();
+        let txn = self.db.begin().await?;
+        let mut active: workflow_node_instance::ActiveModel = node_model.into();
+        active.status = Set(input.status.clone());
+        active.updated_at = Set(now.clone());
+        active.update(&txn).await?;
+
+        instance_event::ActiveModel {
+            id: Set(new_id("evt")),
+            instance_id: Set(instance_id.to_owned()),
+            instance_type: Set("workflow".to_owned()),
+            event_type: Set(format!("workflow.node.{}", input.status)),
+            message: Set(input
+                .message
+                .unwrap_or_else(|| format!("node {} {}", input.node_key, input.status))),
+            payload: Set(None),
+            created_at: Set(now.clone()),
+        }
+        .insert(&txn)
+        .await?;
+
+        let mut queued_nodes = Vec::new();
+        if input.status == "succeeded" || input.status == "failed" {
+            let eligible =
+                next_nodes_for_status(&workflow.definition, &input.node_key, &input.status);
+            for node_key in eligible {
+                if all_predecessors_satisfied(&workflow.definition, &node_key, instance_id, &txn)
+                    .await?
+                    && let Some(waiting) = workflow_node_instance::Entity::find()
+                        .filter(
+                            workflow_node_instance::Column::WorkflowInstanceId
+                                .eq(instance_id.to_owned()),
+                        )
+                        .filter(workflow_node_instance::Column::NodeKey.eq(node_key.clone()))
+                        .one(&txn)
+                        .await?
+                        .filter(|node| node.status == "waiting")
+                {
+                    let mut waiting_active: workflow_node_instance::ActiveModel = waiting.into();
+                    waiting_active.status = Set("queued".to_owned());
+                    waiting_active.updated_at = Set(now.clone());
+                    let queued = waiting_active.update(&txn).await?;
+                    dispatch_queue::ActiveModel {
+                        id: Set(new_id("dq")),
+                        job_instance_id: Set(None),
+                        workflow_node_instance_id: Set(Some(queued.id)),
+                        priority: Set(0),
+                        run_after: Set(now.clone()),
+                        status: Set("pending".to_owned()),
+                        attempt: Set(0),
+                        worker_selector: Set(None),
+                        created_at: Set(now.clone()),
+                        updated_at: Set(now.clone()),
+                    }
+                    .insert(&txn)
+                    .await?;
+                    queued_nodes.push(node_key);
+                }
+            }
+        }
+
+        let node_rows = workflow_node_instance::Entity::find()
+            .filter(workflow_node_instance::Column::WorkflowInstanceId.eq(instance_id.to_owned()))
+            .all(&txn)
+            .await?;
+        let completed = node_rows
+            .iter()
+            .all(|node| matches!(node.status.as_str(), "succeeded" | "failed" | "skipped"));
+        let next_instance_status = if completed {
+            if node_rows.iter().any(|node| node.status == "failed") {
+                "failed"
+            } else {
+                "succeeded"
+            }
+        } else {
+            "running"
+        };
+        let mut instance_active: workflow_instance::ActiveModel = instance.into();
+        instance_active.status = Set(next_instance_status.to_owned());
+        instance_active.updated_at = Set(now.clone());
+        instance_active.update(&txn).await?;
+        if completed {
+            instance_event::ActiveModel {
+                id: Set(new_id("evt")),
+                instance_id: Set(instance_id.to_owned()),
+                instance_type: Set("workflow".to_owned()),
+                event_type: Set(format!("workflow.{next_instance_status}")),
+                message: Set(format!("workflow {instance_id} {next_instance_status}")),
+                payload: Set(None),
+                created_at: Set(now),
+            }
+            .insert(&txn)
+            .await?;
+        }
+        txn.commit().await?;
+        let refreshed = self
+            .get_workflow_instance(instance_id)
+            .await?
+            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(instance_id.to_owned()))?;
+        Ok(Some(AdvanceWorkflowResult {
+            instance: refreshed,
+            queued_nodes,
+            completed,
+        }))
+    }
+
     pub async fn get_workflow_instance(
         &self,
         id: &str,
@@ -362,6 +507,24 @@ pub fn validate_workflow_definition(definition: &WorkflowDefinition) -> Workflow
             errors.push(format!("duplicate node key: {}", node.key));
         }
     }
+    let allowed_kinds = ["job", "map", "map_reduce", "sub_workflow"];
+    for node in &definition.nodes {
+        let kind = node.kind.as_deref().unwrap_or("job");
+        if !allowed_kinds.contains(&kind) {
+            errors.push(format!("unsupported node kind: {kind}"));
+        }
+        if kind == "sub_workflow" && node.child_workflow_id.as_deref().unwrap_or("").is_empty() {
+            errors.push(format!(
+                "sub_workflow node {} requires child_workflow_id",
+                node.key
+            ));
+        }
+        if (kind == "map" || kind == "map_reduce")
+            && node.map_items.as_ref().is_none_or(Vec::is_empty)
+        {
+            errors.push(format!("{kind} node {} requires map_items", node.key));
+        }
+    }
     let allowed_conditions = ["always", "on_success", "on_failure"];
     for edge in &definition.edges {
         if !keys.contains(&edge.from) {
@@ -384,6 +547,61 @@ pub fn validate_workflow_definition(definition: &WorkflowDefinition) -> Workflow
     WorkflowValidationResult {
         valid: errors.is_empty(),
         errors,
+    }
+}
+
+fn next_nodes_for_status(
+    definition: &WorkflowDefinition,
+    node_key: &str,
+    status: &str,
+) -> Vec<String> {
+    definition
+        .edges
+        .iter()
+        .filter(|edge| edge.from == node_key)
+        .filter(|edge| {
+            edge_condition_satisfied(status, edge.condition.as_deref().unwrap_or("on_success"))
+        })
+        .map(|edge| edge.to.clone())
+        .collect()
+}
+
+async fn all_predecessors_satisfied<C>(
+    definition: &WorkflowDefinition,
+    node_key: &str,
+    instance_id: &str,
+    db: &C,
+) -> Result<bool, sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    let incoming: Vec<&WorkflowEdgeSpec> = definition
+        .edges
+        .iter()
+        .filter(|edge| edge.to == node_key)
+        .collect();
+    for edge in incoming {
+        let predecessor = workflow_node_instance::Entity::find()
+            .filter(workflow_node_instance::Column::WorkflowInstanceId.eq(instance_id.to_owned()))
+            .filter(workflow_node_instance::Column::NodeKey.eq(edge.from.clone()))
+            .one(db)
+            .await?
+            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(edge.from.clone()))?;
+        if !edge_condition_satisfied(
+            &predecessor.status,
+            edge.condition.as_deref().unwrap_or("on_success"),
+        ) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn edge_condition_satisfied(status: &str, condition: &str) -> bool {
+    match condition {
+        "always" => matches!(status, "succeeded" | "failed" | "skipped"),
+        "on_failure" => status == "failed",
+        _ => status == "succeeded",
     }
 }
 
