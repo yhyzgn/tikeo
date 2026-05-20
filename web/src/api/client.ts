@@ -264,6 +264,40 @@ export async function updateScript(id: string, params: UpdateScriptRequest): Pro
   });
 }
 
+export interface ScriptVersionSummary {
+  id: string;
+  script_id: string;
+  version_number: number;
+  content: string;
+  language: string;
+  status: string;
+  timeout_seconds: number | null;
+  max_memory_bytes: number | null;
+  allow_network: boolean;
+  allowed_env_vars: string[] | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface FieldChange {
+  field: string;
+  before: string;
+  after: string;
+}
+
+export interface ScriptDiffResult {
+  content_diff: string;
+  policy_diff: FieldChange[];
+}
+
+export async function listScriptVersions(id: string): Promise<ScriptVersionSummary[]> {
+  return request<ScriptVersionSummary[]>(`/api/v1/scripts/${encodeURIComponent(id)}/versions`);
+}
+
+export async function diffScriptVersions(id: string, v1: number, v2: number): Promise<ScriptDiffResult> {
+  return request<ScriptDiffResult>(`/api/v1/scripts/${encodeURIComponent(id)}/diff?v1=${v1}&v2=${v2}`);
+}
+
 export async function deleteScript(id: string): Promise<void> {
   await request<void>(`/api/v1/scripts/${encodeURIComponent(id)}`, {
     method: 'DELETE',
