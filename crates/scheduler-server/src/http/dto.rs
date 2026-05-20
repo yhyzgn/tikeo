@@ -365,3 +365,46 @@ pub struct JobInstanceLogSummary {
     /// Creation timestamp in RFC3339 format.
     pub created_at: String,
 }
+
+/// Response for a single script version.
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct ScriptVersionApiResponse {
+    /// Version data.
+    #[schema(value_type = Object)]
+    pub data: scheduler_storage::ScriptVersionSummary,
+}
+
+/// Response for a list of script versions.
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct ScriptVersionListApiResponse {
+    /// List of versions.
+    #[schema(value_type = Vec<Object>)]
+    pub data: Vec<scheduler_storage::ScriptVersionSummary>,
+}
+
+/// Response for a script diff.
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct ScriptDiffApiResponse {
+    /// Diff result containing content and policy differences.
+    pub data: ScriptDiffResult,
+}
+
+/// Diff result between two script versions.
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct ScriptDiffResult {
+    /// Unified diff of script content.
+    pub content_diff: String,
+    /// Policy field changes.
+    pub policy_diff: Vec<FieldChange>,
+}
+
+/// A single field change between versions.
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct FieldChange {
+    /// Field name.
+    pub field: String,
+    /// Value in version 1.
+    pub before: String,
+    /// Value in version 2.
+    pub after: String,
+}

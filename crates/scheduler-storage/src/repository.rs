@@ -1,4 +1,9 @@
 //! Repository APIs over scheduler metadata tables.
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::must_use_candidate,
+    clippy::missing_const_for_fn
+)]
 
 use scheduler_core::{ExecutionMode, InstanceStatus, TriggerType};
 use sea_orm::{
@@ -11,7 +16,7 @@ use uuid::Uuid;
 
 use crate::entities::{
     app, auth_session, job, job_instance, job_instance_attempt, job_instance_log, namespace,
-    script, user,
+    script, script_version, user,
 };
 
 /// Minimal job creation input.
@@ -1109,17 +1114,22 @@ pub struct ScriptSummary {
 #[derive(Debug, Clone)]
 pub struct ScriptRepository {
     db: DatabaseConnection,
+    versions: ScriptVersionRepository,
 }
 
 impl ScriptRepository {
     /// Create a repository using the provided database connection.
-    #[must_use]
-    pub const fn new(db: DatabaseConnection) -> Self {
-        Self { db }
+    #[allow(clippy::missing_const_for_fn)]
+    pub fn new(db: DatabaseConnection) -> Self {
+        let versions = ScriptVersionRepository::new(db.clone());
+        Self { db, versions }
     }
 
-    /// List all scripts ordered by creation time.
-    ///
+    /// Access the version repository.
+    #[must_use]
+    pub fn versions(&self) -> &ScriptVersionRepository {
+        &self.versions
+    }
     /// # Errors
     ///
     /// Returns an error when database access fails.
@@ -1189,6 +1199,8 @@ impl ScriptRepository {
         else {
             return Ok(None);
         };
+        // Snapshot current state before applying changes
+        self.versions.create_version(&existing).await?;
         let mut active: script::ActiveModel = existing.into();
         if let Some(name) = params.name {
             active.name = Set(name);
@@ -1232,6 +1244,130 @@ impl ScriptRepository {
             .exec(&self.db)
             .await?;
         Ok(result.rows_affected > 0)
+    }
+}
+
+/// Summary of a script version snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScriptVersionSummary {
+    /// Version record id.
+    pub id: String,
+    /// Script id this version belongs to.
+    pub script_id: String,
+    /// Monotonically increasing version number.
+    pub version_number: i64,
+    /// Snapshot of script content.
+    pub content: String,
+    /// Snapshot of language.
+    pub language: String,
+    /// Snapshot of status.
+    pub status: String,
+    /// Snapshot of `timeout_seconds`.
+    pub timeout_seconds: Option<i64>,
+    /// Snapshot of `max_memory_bytes`.
+    pub max_memory_bytes: Option<i64>,
+    /// Snapshot of `allow_network`.
+    pub allow_network: bool,
+    /// Snapshot of `allowed_env_vars`.
+    pub allowed_env_vars: Option<String>,
+    /// User who created this version.
+    pub created_by: String,
+    /// Creation timestamp.
+    pub created_at: String,
+}
+
+/// Repository for script version history.
+#[derive(Debug, Clone)]
+pub struct ScriptVersionRepository {
+    db: DatabaseConnection,
+}
+
+impl ScriptVersionRepository {
+    #[allow(clippy::all)]
+    /// Create a new repository.
+    pub fn new(db: DatabaseConnection) -> Self {
+        Self { db }
+    }
+
+    /// Create a version snapshot from a script model.
+    pub async fn create_version(
+        &self,
+        script: &script::Model,
+    ) -> Result<ScriptVersionSummary, sea_orm::DbErr> {
+        let max_version: i64 = script_version::Entity::find()
+            .filter(script_version::Column::ScriptId.eq(&script.id))
+            .all(&self.db)
+            .await?
+            .iter()
+            .map(|v| v.version_number)
+            .max()
+            .unwrap_or(0);
+
+        let version_number = max_version + 1;
+        let id = format!("sv_{version_number}_{}", Uuid::new_v4().simple());
+
+        let active = script_version::ActiveModel {
+            id: Set(id),
+            script_id: Set(script.id.clone()),
+            version_number: Set(version_number),
+            content: Set(script.content.clone()),
+            language: Set(script.language.clone()),
+            status: Set(script.status.clone()),
+            timeout_seconds: Set(script.timeout_seconds),
+            max_memory_bytes: Set(script.max_memory_bytes),
+            allow_network: Set(script.allow_network),
+            allowed_env_vars: Set(script.allowed_env_vars.clone()),
+            created_by: Set(script.created_by.clone()),
+            created_at: Set(now_rfc3339()),
+        };
+        let model = active.insert(&self.db).await?;
+        Ok(ScriptVersionSummary::from(model))
+    }
+
+    /// List versions for a script, newest first.
+    pub async fn list_versions(
+        &self,
+        script_id: &str,
+    ) -> Result<Vec<ScriptVersionSummary>, sea_orm::DbErr> {
+        let versions = script_version::Entity::find()
+            .filter(script_version::Column::ScriptId.eq(script_id))
+            .order_by_desc(script_version::Column::VersionNumber)
+            .all(&self.db)
+            .await?;
+        Ok(versions
+            .into_iter()
+            .map(ScriptVersionSummary::from)
+            .collect())
+    }
+
+    /// Get a specific version by id.
+    pub async fn get_version(
+        &self,
+        id: &str,
+    ) -> Result<Option<ScriptVersionSummary>, sea_orm::DbErr> {
+        let version = script_version::Entity::find_by_id(id.to_owned())
+            .one(&self.db)
+            .await?;
+        Ok(version.map(ScriptVersionSummary::from))
+    }
+}
+
+impl From<script_version::Model> for ScriptVersionSummary {
+    fn from(value: script_version::Model) -> Self {
+        Self {
+            id: value.id,
+            script_id: value.script_id,
+            version_number: value.version_number,
+            content: value.content,
+            language: value.language,
+            status: value.status,
+            timeout_seconds: value.timeout_seconds,
+            max_memory_bytes: value.max_memory_bytes,
+            allow_network: value.allow_network,
+            allowed_env_vars: value.allowed_env_vars,
+            created_by: value.created_by,
+            created_at: value.created_at,
+        }
     }
 }
 

@@ -27,6 +27,7 @@ impl MigrationTrait for CreateMetadataTables {
         create_users(manager).await?;
         create_auth_sessions(manager).await?;
         create_scripts(manager).await?;
+        create_script_versions(manager).await?;
         create_indexes(manager).await?;
 
         // Seed default admin
@@ -35,6 +36,9 @@ impl MigrationTrait for CreateMetadataTables {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(ScriptVersions::Table).to_owned())
+            .await?;
         manager
             .drop_table(Table::drop().table(Scripts::Table).to_owned())
             .await?;
@@ -155,6 +159,29 @@ async fn create_scripts(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(string_col(Scripts::CreatedBy))
                 .col(string_col(Scripts::CreatedAt))
                 .col(string_col(Scripts::UpdatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_script_versions(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(ScriptVersions::Table)
+                .if_not_exists()
+                .col(string_pk(ScriptVersions::Id))
+                .col(string_col(ScriptVersions::ScriptId))
+                .col(big_integer_col(ScriptVersions::VersionNumber))
+                .col(string_col(ScriptVersions::Content))
+                .col(string_col(ScriptVersions::Language))
+                .col(string_col(ScriptVersions::Status))
+                .col(big_integer_null(ScriptVersions::TimeoutSeconds))
+                .col(big_integer_null(ScriptVersions::MaxMemoryBytes))
+                .col(boolean_col(ScriptVersions::AllowNetwork))
+                .col(string_null(ScriptVersions::AllowedEnvVars))
+                .col(string_col(ScriptVersions::CreatedBy))
+                .col(string_col(ScriptVersions::CreatedAt))
                 .to_owned(),
         )
         .await
@@ -373,6 +400,26 @@ async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             .col(Scripts::Name)
             .to_owned(),
     )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_script_versions_script_id")
+            .table(ScriptVersions::Table)
+            .col(ScriptVersions::ScriptId)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_script_versions_script_version")
+            .table(ScriptVersions::Table)
+            .col(ScriptVersions::ScriptId)
+            .col(ScriptVersions::VersionNumber)
+            .unique()
+            .to_owned(),
+    )
     .await
 }
 
@@ -405,6 +452,23 @@ enum Scripts {
     CreatedBy,
     CreatedAt,
     UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum ScriptVersions {
+    Table,
+    Id,
+    ScriptId,
+    VersionNumber,
+    Content,
+    Language,
+    Status,
+    TimeoutSeconds,
+    MaxMemoryBytes,
+    AllowNetwork,
+    AllowedEnvVars,
+    CreatedBy,
+    CreatedAt,
 }
 
 #[derive(DeriveIden)]

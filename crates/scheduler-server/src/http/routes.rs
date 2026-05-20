@@ -632,6 +632,159 @@ pub async fn delete_script(
     }
 }
 
+/// List version history for a script (Admin only).
+#[utoipa::path(
+    get,
+    path = "/api/v1/scripts/{id}/versions",
+    tag = "scripts",
+    params(("id" = String, Path, description = "Script identifier")),
+    responses(
+        (status = 200, description = "Version list", body = super::dto::ScriptVersionListApiResponse),
+        (status = 401, description = "Unauthorized", body = super::dto::ErrorResponse),
+        (status = 403, description = "Forbidden", body = super::dto::ErrorResponse)
+    )
+)]
+///
+/// # Errors
+///
+/// Returns authorization or storage errors.
+pub async fn list_script_versions(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<Vec<scheduler_storage::ScriptVersionSummary>>>, ApiError> {
+    auth::require_admin(&headers, &state).await?;
+    let versions = state
+        .scripts
+        .versions()
+        .list_versions(&id)
+        .await
+        .map_err(|e| ApiError::storage(&e))?;
+    Ok(Json(ApiResponse::success(versions)))
+}
+
+/// Diff two versions of a script (Admin only).
+#[utoipa::path(
+    get,
+    path = "/api/v1/scripts/{id}/diff",
+    tag = "scripts",
+    params(
+        ("id" = String, Path, description = "Script identifier"),
+        ("v1" = i64, Query, description = "Version number 1"),
+        ("v2" = i64, Query, description = "Version number 2")
+    ),
+    responses(
+        (status = 200, description = "Diff result", body = super::dto::ScriptDiffApiResponse),
+        (status = 401, description = "Unauthorized", body = super::dto::ErrorResponse),
+        (status = 404, description = "Version not found", body = super::dto::ErrorResponse)
+    )
+)]
+///
+/// # Errors
+///
+/// Returns authorization, not-found, or storage errors.
+pub async fn diff_script_versions(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Query(params): Query<DiffParams>,
+) -> Result<Json<ApiResponse<super::dto::ScriptDiffResult>>, ApiError> {
+    auth::require_admin(&headers, &state).await?;
+    let versions = state
+        .scripts
+        .versions()
+        .list_versions(&id)
+        .await
+        .map_err(|e| ApiError::storage(&e))?;
+    let v1 = versions
+        .iter()
+        .find(|v| v.version_number == params.v1)
+        .ok_or_else(|| ApiError::not_found(format!("version {} not found", params.v1)))?;
+    let v2 = versions
+        .iter()
+        .find(|v| v.version_number == params.v2)
+        .ok_or_else(|| ApiError::not_found(format!("version {} not found", params.v2)))?;
+    let content_diff = unified_diff(&v1.content, &v2.content);
+    let policy_diff = policy_diff(v1, v2);
+    Ok(Json(ApiResponse::success(super::dto::ScriptDiffResult {
+        content_diff,
+        policy_diff,
+    })))
+}
+
+#[derive(Debug, serde::Deserialize)]
+/// Diff query parameters.
+pub struct DiffParams {
+    v1: i64,
+    v2: i64,
+}
+
+fn unified_diff(old: &str, new: &str) -> String {
+    let old_lines: Vec<&str> = old.lines().collect();
+    let new_lines: Vec<&str> = new.lines().collect();
+    let mut result = Vec::new();
+    let mut i = 0;
+    let mut j = 0;
+    while i < old_lines.len() || j < new_lines.len() {
+        if i < old_lines.len() && j < new_lines.len() && old_lines[i] == new_lines[j] {
+            i += 1;
+            j += 1;
+        } else if j < new_lines.len()
+            && (i >= old_lines.len() || !old_lines[i..].contains(&new_lines[j]))
+        {
+            result.push(format!("+{}", new_lines[j]));
+            j += 1;
+        } else if i < old_lines.len() {
+            result.push(format!("-{}", old_lines[i]));
+            i += 1;
+        }
+    }
+    result.join("\n")
+}
+
+fn policy_diff(
+    v1: &scheduler_storage::ScriptVersionSummary,
+    v2: &scheduler_storage::ScriptVersionSummary,
+) -> Vec<super::dto::FieldChange> {
+    let mut changes = Vec::new();
+    let mut check = |field: &str, before: &str, after: &str| {
+        if before != after {
+            changes.push(super::dto::FieldChange {
+                field: field.to_owned(),
+                before: before.to_owned(),
+                after: after.to_owned(),
+            });
+        }
+    };
+    check("language", &v1.language, &v2.language);
+    check("status", &v1.status, &v2.status);
+    check(
+        "timeout_seconds",
+        &v1.timeout_seconds
+            .map_or_else(|| "null".to_owned(), |v| v.to_string()),
+        &v2.timeout_seconds
+            .map_or_else(|| "null".to_owned(), |v| v.to_string()),
+    );
+    check(
+        "max_memory_bytes",
+        &v1.max_memory_bytes
+            .map_or_else(|| "null".to_owned(), |v| v.to_string()),
+        &v2.max_memory_bytes
+            .map_or_else(|| "null".to_owned(), |v| v.to_string()),
+    );
+    check(
+        "allow_network",
+        &v1.allow_network.to_string(),
+        &v2.allow_network.to_string(),
+    );
+    check(
+        "allowed_env_vars",
+        v1.allowed_env_vars.as_deref().unwrap_or("null"),
+        v2.allowed_env_vars.as_deref().unwrap_or("null"),
+    );
+    changes
+}
+
 /// List all platform users (Admin only).
 ///
 /// # Errors

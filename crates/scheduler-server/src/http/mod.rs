@@ -124,6 +124,8 @@ fn api_router() -> Router<Arc<AppState>> {
                 .patch(routes::update_script)
                 .delete(routes::delete_script),
         )
+        .route("/scripts/{id}/versions", get(routes::list_script_versions))
+        .route("/scripts/{id}/diff", get(routes::diff_script_versions))
         .route("/jobs", get(routes::list_jobs).post(routes::create_job))
         .route(
             "/jobs/{job_action}",

@@ -18,7 +18,8 @@ pub use repository::{
     CreateJobInstance, CreateJobInstanceAttempt, CreateScript, CreateUser,
     JobInstanceAttemptRepository, JobInstanceAttemptSummary, JobInstanceLogRepository,
     JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
-    ScriptRepository, ScriptSummary, UpdateScript, UpdateUser, UserRepository, UserSummary,
+    ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary, UpdateScript,
+    UpdateUser, UserRepository, UserSummary,
 };
 pub use sea_orm::DbErr;
 
@@ -53,6 +54,7 @@ async fn ensure_sqlite_schema_compatibility(db: &DatabaseConnection) -> Result<(
     ensure_broadcast_schema_compatibility(db).await?;
     ensure_auth_schema_compatibility(db).await?;
     ensure_scripts_schema_compatibility(db).await?;
+    ensure_script_versions_schema_compatibility(db).await?;
     remove_sqlite_foreign_keys(db).await
 }
 
@@ -89,6 +91,43 @@ async fn ensure_scripts_schema_compatibility(
     db.execute(Statement::from_string(
         DatabaseBackend::Sqlite,
         "CREATE INDEX IF NOT EXISTS idx_scripts_name ON scripts (name)",
+    ))
+    .await?;
+    Ok(())
+}
+
+async fn ensure_script_versions_schema_compatibility(
+    db: &DatabaseConnection,
+) -> Result<(), sea_orm::DbErr> {
+    if db.get_database_backend() != DatabaseBackend::Sqlite {
+        return Ok(());
+    }
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        r"CREATE TABLE IF NOT EXISTS script_versions (
+            id varchar NOT NULL PRIMARY KEY,
+            script_id varchar NOT NULL,
+            version_number bigint NOT NULL,
+            content varchar NOT NULL,
+            language varchar NOT NULL,
+            status varchar NOT NULL,
+            timeout_seconds bigint,
+            max_memory_bytes bigint,
+            allow_network boolean NOT NULL DEFAULT 0,
+            allowed_env_vars varchar,
+            created_by varchar NOT NULL,
+            created_at varchar NOT NULL
+        )",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE INDEX IF NOT EXISTS idx_script_versions_script_id ON script_versions (script_id)",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_script_versions_script_version ON script_versions (script_id, version_number)",
     ))
     .await?;
     Ok(())

@@ -8,4 +8,5 @@ pub mod job_instance_attempt;
 pub mod job_instance_log;
 pub mod namespace;
 pub mod script;
+pub mod script_version;
 pub mod user;
