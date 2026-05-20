@@ -517,3 +517,34 @@ Verification:
 - SQLite dev DB 外键检查 ✅ 无 `REFERENCES` 表定义
 - SQLite `users` 表字段检查 ✅ 包含 `password`，不含 `password_hash`
 - 本地 serve + `/healthz` + `/auth/login` 冒烟 ✅，登录返回 `atk_` token。
+
+## 2026-05-20 — 016-dynamic-script-sandbox
+
+Agent:
+- Claude (GLM-5.1)
+
+Work:
+- `scheduler-core` 新增 `ScriptLanguage`（Shell/Python/Node/PowerShell/Rhai/Wasm）和 `ScriptStatus`（Draft/Approved/Disabled）枚举，含 `FromStr`/`Display`/`as_str()` 及测试。
+- `scheduler-storage` 新增 `scripts` 表 SeaORM entity（id/name/language/version/content/status/timeout_seconds/max_memory_bytes/allow_network/allowed_env_vars/created_by/created_at/updated_at），无外键。
+- Storage migration 新增 `create_scripts()` 与 status/name 索引，SQLite 兼容补表。
+- Storage 新增 `ScriptRepository`（list/get/create/update/delete）与 `CreateScript`/`UpdateScript`/`ScriptSummary` 类型。
+- HTTP 新增 5 个 Admin 权限保护端点：`GET /api/v1/scripts`、`POST /api/v1/scripts`、`GET /api/v1/scripts/{id}`、`PATCH /api/v1/scripts/{id}`、`DELETE /api/v1/scripts/{id}`。
+- OpenAPI 补充 script paths 与 DTO schema。
+- Web 新增脚本管理页面（ScriptsPage），含 Table、创建 Modal、行操作（approve/disable/delete）；AppShell 增加"脚本管理"菜单。
+- Web API client 新增 `listScripts`/`createScript`/`getScript`/`updateScript`/`deleteScript`。
+
+Verification:
+- `cargo fmt --all -- --check` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features` ✅
+- `cargo build --workspace --all-features` ✅
+- `bun run --cwd web lint` ✅
+- `bun run --cwd web typecheck` ✅
+- `bun test --cwd web` ✅（5 tests）
+- `bun run --cwd web build` ✅
+- `docker compose config` ✅
+- 本地 serve + 登录 + Script CRUD 冒烟 ✅（Create/GET/PATCH status draft→approved/DELETE 全链路通过）
+
+Git:
+- 后端已提交为 `ff17519` 并推送。
+- Web + memory 变更待本次一起提交推送。

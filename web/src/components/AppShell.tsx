@@ -1,6 +1,7 @@
 import {
   ApiOutlined,
   AuditOutlined,
+  CodeOutlined,
   DashboardOutlined,
   DeploymentUnitOutlined,
   LogoutOutlined,
@@ -46,7 +47,8 @@ export function AppShell({ children, activeKey, username, roles = [], onNavigate
             { key: 'instances', icon: <DeploymentUnitOutlined />, label: '实例' },
             ...(isAdmin ? [
               { type: 'divider' as const },
-              { key: 'users', icon: <UserOutlined />, label: '用户管理' }
+              { key: 'users', icon: <UserOutlined />, label: '用户管理' },
+              { key: 'scripts', icon: <CodeOutlined />, label: '脚本管理' }
             ] : []),
             { type: 'divider' },
             { key: 'workers-next', icon: <ApiOutlined />, label: 'Worker 集群', disabled: true },

@@ -204,6 +204,73 @@ export async function deleteUser(id: string): Promise<void> {
   });
 }
 
+export interface ScriptSummary {
+  id: string;
+  name: string;
+  language: string;
+  version: string;
+  status: string;
+  timeout_seconds: number | null;
+  max_memory_bytes: number | null;
+  allow_network: boolean;
+  allowed_env_vars: string[] | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateScriptRequest {
+  name: string;
+  language: string;
+  version: string;
+  content: string;
+  timeout_seconds?: number | null;
+  max_memory_bytes?: number | null;
+  allow_network?: boolean;
+  allowed_env_vars?: string[] | null;
+}
+
+export interface UpdateScriptRequest {
+  name?: string;
+  language?: string;
+  version?: string;
+  content?: string;
+  status?: string;
+  timeout_seconds?: number | null;
+  max_memory_bytes?: number | null;
+  allow_network?: boolean;
+  allowed_env_vars?: string[] | null;
+}
+
+export async function listScripts(): Promise<Page<ScriptSummary>> {
+  return request<Page<ScriptSummary>>('/api/v1/scripts');
+}
+
+export async function createScript(params: CreateScriptRequest): Promise<ScriptSummary> {
+  return request<ScriptSummary>('/api/v1/scripts', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function getScript(id: string): Promise<ScriptSummary> {
+  return request<ScriptSummary>(`/api/v1/scripts/${encodeURIComponent(id)}`);
+}
+
+export async function updateScript(id: string, params: UpdateScriptRequest): Promise<ScriptSummary> {
+  return request<ScriptSummary>(`/api/v1/scripts/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function deleteScript(id: string): Promise<void> {
+  await request<void>(`/api/v1/scripts/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    allowNullData: true,
+  });
+}
+
 interface SchedulerRequestInit extends RequestInit {
   auth?: boolean;
   allowNullData?: boolean;

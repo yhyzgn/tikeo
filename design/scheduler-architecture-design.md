@@ -2060,6 +2060,9 @@ scheduler/
 - [ ] Web UI 审计查询、权限感知操作、危险操作二次确认
 - [ ] WASM 沙箱处理器
 - [ ] 多语言动态脚本处理器（Python/Node/Shell/PowerShell/Rhai）
+  - [x] 脚本定义 Storage / Migration / Repository / HTTP CRUD API / OpenAPI
+  - [x] Web 脚本管理页面（列表、创建、审批、启用/禁用、删除）
+  - [ ] Worker 侧沙箱执行器（子进程/容器/WASM）
 - [ ] 脚本策略引擎（能力声明、审批、资源限制、网络/文件策略）
 - [ ] 告警系统 (邮件/Slack/钉钉/飞书/企业微信/PagerDuty)
 - [ ] Prometheus 指标 + Grafana Dashboard 模板
