@@ -708,3 +708,8 @@ Git:
 - 用户询问“物化下一节点”含义，并反馈当前 404。
 - 已把按钮改成产品化文案“准备下一节点执行”，404 空队列场景改为 info 提示。
 - 当前后端语义仍是 queued workflow node -> job_instance/shards/subworkflow instance 的准备执行步骤。
+
+### 2026-05-20 035 工作流运行视图内联化
+- 用户指出“点击该条目的运行视图按钮展开详情”没有意义，且 `运行视图 · test` 这类 Collapse header 会在 item 多时制造混乱。
+- 已移除 WorkflowsPage 的 AntD Collapse 依赖与全局折叠项，改为在 selected workflow list item 下直接渲染运行视图和事件流。
+- 保留单条展开的 accordion-like 行为；切换条目时清理旧 activeInstance/events/shards，运行工作流后自动展开对应条目。

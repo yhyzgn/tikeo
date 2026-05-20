@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { Alert, Button, Card, Collapse, Form, Input, List, Segmented, Select, Space, Tag, Timeline, Typography, message } from 'antd';
+import { Alert, Button, Card, Form, Input, List, Segmented, Select, Space, Tag, Timeline, Typography, message } from 'antd';
 import {
   advanceWorkflowInstance,
   createWorkflow,
@@ -613,7 +613,7 @@ export function WorkflowsPage() {
   const [activeInstance, setActiveInstance] = useState<WorkflowInstanceSummary | null>(null);
   const [events, setEvents] = useState<InstanceEventSummary[]>([]);
   const [shards, setShards] = useState<WorkflowShardSummary[]>([]);
-  const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
+  const [expandedWorkflowId, setExpandedWorkflowId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const fetchItems = async () => {
@@ -649,8 +649,15 @@ export function WorkflowsPage() {
   };
 
   const openRunView = (item: WorkflowSummary) => {
-    setActiveWorkflow(item);
-    setExpandedKeys((current) => current[0] === item.id ? [] : [item.id]);
+    setActiveWorkflow((current) => {
+      if (current?.id !== item.id) {
+        setActiveInstance(null);
+        setEvents([]);
+        setShards([]);
+      }
+      return item;
+    });
+    setExpandedWorkflowId((current) => current === item.id ? null : item.id);
   };
 
   const run = async (item: WorkflowSummary) => {
@@ -658,7 +665,7 @@ export function WorkflowsPage() {
     setActiveWorkflow(item);
     setActiveInstance(instance);
     setEvents([]);
-    setExpandedKeys([item.id]);
+    setExpandedWorkflowId(item.id);
     message.success(`Workflow instance queued: ${instance.id}`);
   };
 
@@ -717,42 +724,36 @@ export function WorkflowsPage() {
           dataSource={items}
           locale={{ emptyText: '暂无工作流' }}
           renderItem={(item) => (
-            <List.Item
-              actions={[
-                <Button key="view" onClick={() => openRunView(item)}>{expandedKeys[0] === item.id ? '收起运行视图' : '运行视图'}</Button>,
-                <Button key="edit" onClick={() => navigate(`/workflows/${encodeURIComponent(item.id)}/edit`)}>编辑</Button>,
-                <Button key="validate" onClick={() => validate(item)}>校验</Button>,
-                <Button key="run" type="primary" onClick={() => run(item)}>运行</Button>,
-              ]}
-            >
-              <List.Item.Meta
-                title={<Space><span>{item.name}</span><Tag color={STATUS_COLORS[item.status] ?? 'blue'}>{item.status}</Tag></Space>}
-                description={<span>{item.id} · nodes: {item.definition.nodes.length} · edges: {item.definition.edges.length}</span>}
-              />
-            </List.Item>
+            <div className="workflow-list-entry">
+              <List.Item
+                actions={[
+                  <Button key="view" onClick={() => openRunView(item)}>{expandedWorkflowId === item.id ? '收起运行视图' : '运行视图'}</Button>,
+                  <Button key="edit" onClick={() => navigate(`/workflows/${encodeURIComponent(item.id)}/edit`)}>编辑</Button>,
+                  <Button key="validate" onClick={() => validate(item)}>校验</Button>,
+                  <Button key="run" type="primary" onClick={() => run(item)}>运行</Button>,
+                ]}
+              >
+                <List.Item.Meta
+                  title={<Space><span>{item.name}</span><Tag color={STATUS_COLORS[item.status] ?? 'blue'}>{item.status}</Tag></Space>}
+                  description={<span>{item.id} · nodes: {item.definition.nodes.length} · edges: {item.definition.edges.length}</span>}
+                />
+              </List.Item>
+              {expandedWorkflowId === item.id ? (
+                <div className="workflow-inline-run-panel">
+                  <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                    <Card size="small" title="运行视图" extra={<Space wrap><Button onClick={materializeNext}>准备下一节点执行</Button><Button onClick={completeFirstQueued} disabled={!activeInstance}>标记当前节点成功</Button><Button onClick={recoverFirstFailed} disabled={!activeInstance}>重试失败节点</Button><Button onClick={refreshShards} disabled={!activeInstance}>刷新 Shards</Button></Space>}>
+                      <DagPreview definition={item.definition} instance={activeWorkflow?.id === item.id ? activeInstance : null} />
+                      {activeWorkflow?.id === item.id && shards.length > 0 ? <List size="small" style={{ marginTop: 16 }} dataSource={shards} renderItem={(shard) => <List.Item><Typography.Text>{shard.node_key}#{shard.shard_index} · {shard.status} · {JSON.stringify(shard.input)}</Typography.Text></List.Item>} /> : null}
+                    </Card>
+                    <Card size="small" title="实例事件流">
+                      {activeWorkflow?.id === item.id && activeInstance ? <Typography.Text type="secondary">{activeInstance.id} · {activeInstance.status}</Typography.Text> : <Typography.Text type="secondary">运行工作流后展示 SSE 事件</Typography.Text>}
+                      <Timeline style={{ marginTop: 18 }} items={(activeWorkflow?.id === item.id ? events : []).map((event) => ({ color: event.event_type.includes('failed') ? 'red' : 'blue', children: <span>{event.created_at} · {event.event_type} · {event.message}</span> }))} />
+                    </Card>
+                  </Space>
+                </div>
+              ) : null}
+            </div>
           )}
-        />
-        <Collapse
-          className="workflow-run-collapse"
-          activeKey={expandedKeys}
-          accordion
-          onChange={(keys) => setExpandedKeys(Array.isArray(keys) ? keys.map(String) : keys ? [String(keys)] : [])}
-          items={items.map((item) => ({
-            key: item.id,
-            label: `运行视图 · ${item.name}`,
-            children: activeWorkflow?.id === item.id ? (
-              <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                <Card size="small" title="运行视图" extra={<Space wrap><Button onClick={materializeNext}>准备下一节点执行</Button><Button onClick={completeFirstQueued} disabled={!activeInstance}>标记当前节点成功</Button><Button onClick={recoverFirstFailed} disabled={!activeInstance}>重试失败节点</Button><Button onClick={refreshShards} disabled={!activeInstance}>刷新 Shards</Button></Space>}>
-                  <DagPreview definition={item.definition} instance={activeInstance} />
-                  {shards.length > 0 ? <List size="small" style={{ marginTop: 16 }} dataSource={shards} renderItem={(shard) => <List.Item><Typography.Text>{shard.node_key}#{shard.shard_index} · {shard.status} · {JSON.stringify(shard.input)}</Typography.Text></List.Item>} /> : null}
-                </Card>
-                <Card size="small" title="实例事件流">
-                  {activeInstance ? <Typography.Text type="secondary">{activeInstance.id} · {activeInstance.status}</Typography.Text> : <Typography.Text type="secondary">运行工作流后展示 SSE 事件</Typography.Text>}
-                  <Timeline style={{ marginTop: 18 }} items={events.map((event) => ({ color: event.event_type.includes('failed') ? 'red' : 'blue', children: <span>{event.created_at} · {event.event_type} · {event.message}</span> }))} />
-                </Card>
-              </Space>
-            ) : <Typography.Text type="secondary">点击该条目的“运行视图”按钮展开详情。</Typography.Text>,
-          }))}
         />
       </Card>
     </Space>

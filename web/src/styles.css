@@ -688,3 +688,26 @@ body {
   cursor: grabbing;
   transform: translate(-50%, -50%) scale(1.12);
 }
+
+.workflow-list-entry {
+  border-bottom: 1px solid #eef2f7;
+}
+
+.workflow-list-entry:last-child {
+  border-bottom: 0;
+}
+
+.workflow-list-entry > .ant-list-item {
+  border-block-end: 0 !important;
+}
+
+.workflow-inline-run-panel {
+  padding: 0 0 18px 0;
+}
+
+.workflow-inline-run-panel .ant-card {
+  border-color: #e0ecff;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff) !important;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06) !important;
+}
