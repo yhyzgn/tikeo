@@ -2053,26 +2053,33 @@ scheduler/
 
 **目标**：可安全地在生产环境大规模部署。
 
+> 020 review remediation 结论：015-019 中已完成项若仅为骨架，路线图必须明确标注“骨架/基础”，不得把未接入真实执行链路、规则引擎或治理闭环的能力标为完全完成。
+
 - [ ] RBAC 权限系统
 - [ ] OIDC/SSO 集成
 - [ ] mTLS 传输加密
-- [ ] Web 前端路由与导航治理（React Router v7、路由守卫、URL 持久化、菜单与路由对齐）
-- [x] 审计日志（`audit_logs` 表、Repository、HTTP API、全写操作埋点）
+- [x] Web 前端路由与导航治理基础（React Router v7、路由守卫、URL 持久化、菜单与路由对齐）
+  - [ ] 路由 meta、懒加载、统一 403/401 与 URL 查询参数治理
+- [x] 审计日志骨架（`audit_logs` 表、Repository、HTTP API、关键写操作埋点）
+  - [ ] 审计 before/after、trace_id、失败结果、分页过滤与导出治理
 - [ ] Web UI 危险操作二次确认、权限感知操作
   - [x] Web UI 审计日志查询页面（按操作类型筛选）
 - [ ] WASM 沙箱处理器
 - [ ] 多语言动态脚本处理器（Python/Node/Shell/PowerShell/Rhai）
   - [x] 脚本定义 Storage / Migration / Repository / HTTP CRUD API / OpenAPI
   - [x] Web 脚本管理页面（列表、创建、审批、启用/禁用、删除）
-  - [x] 脚本版本历史表（`script_versions`），每次 content/policy 变更自动产生版本记录
+  - [x] 脚本版本历史表（`script_versions`），创建和更新时产生不可变版本快照
   - [x] 版本 diff 对比 API（`GET /api/v1/scripts/{id}/diff?v1=&v2=`）与 Web 侧 diff 视图
+  - [ ] 发布指针、回滚 API、审批流状态机与 Worker 侧执行版本绑定
   - [x] 脚本编辑器语法高亮（CodeMirror 6 Shell/Python/Node）
   - [ ] Worker 侧沙箱执行器（子进程/容器/WASM）
 - [ ] 脚本策略引擎（能力声明、审批、资源限制、网络/文件策略）
 - [ ] 告警系统 (邮件/Slack/钉钉/飞书/企业微信/PagerDuty)
-  - [x] AlertRule / AlertCondition / AlertDispatcher 框架与 Webhook 通知通道
+  - [x] AlertRule / AlertCondition / AlertDispatcher 安全 Webhook 通知骨架
+  - [ ] 告警规则 API、事件接入、去重静默、通知历史、恢复通知
 - [ ] Prometheus 指标 + Grafana Dashboard 模板
-  - [x] Prometheus 指标端点（`/metrics`）
+  - [x] Prometheus 指标端点（`/metrics`）与 HTTP/Worker 最小指标
+  - [ ] Grafana Dashboard、调度延迟、实例状态与业务 SLO 指标
 - [ ] OpenTelemetry 分布式追踪
 - [ ] Java Spring Boot Starter SDK（优先）
   - [x] Maven 多模块骨架：java-core / spring-boot-autoconfigure / spring-boot-starter

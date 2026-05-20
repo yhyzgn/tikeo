@@ -3,6 +3,7 @@
 use axum::{Json, extract::State, http::HeaderMap};
 use bcrypt::verify;
 use std::sync::Arc;
+use tracing::warn;
 
 use super::{
     AppState,
@@ -11,9 +12,6 @@ use super::{
     routes::client_ip,
     session::SessionCreate,
 };
-
-const DEFAULT_ADMIN_USERNAME: &str = "scheduler_init";
-const DEFAULT_ADMIN_TOKEN: &str = "scheduler-init-token";
 
 /// Resolve authentication bearer token from headers.
 ///
@@ -32,14 +30,6 @@ pub async fn authenticate(headers: &HeaderMap, state: &AppState) -> Result<MeRes
             "authorization scheme must be Bearer",
         ));
     };
-
-    // Development backdoor for backward compatibility / tests
-    if token == DEFAULT_ADMIN_TOKEN {
-        return Ok(MeResponse {
-            username: DEFAULT_ADMIN_USERNAME.to_owned(),
-            roles: vec!["admin".to_owned()],
-        });
-    }
 
     state
         .sessions
@@ -126,17 +116,20 @@ pub async fn login(
         })
         .await?;
 
-    let _ = state
+    if let Err(error) = state
         .audit
         .append(scheduler_storage::CreateAuditLog {
             actor: user.username,
             action: "login".to_owned(),
             resource_type: "session".to_owned(),
-            resource_id: session.token.clone(),
+            resource_id: redact_token_for_audit(&session.token),
             detail: None,
             ip_address: client_ip(&headers),
         })
-        .await;
+        .await
+    {
+        warn!(%error, "failed to append login audit log");
+    }
 
     Ok(Json(ApiResponse::success(session)))
 }
@@ -191,19 +184,26 @@ pub async fn logout(
     let principal = authenticate(&headers, &state).await.ok();
     state.sessions.revoke_token(token).await?;
 
-    if let Some(p) = &principal {
-        let _ = state
+    if let Some(p) = &principal
+        && let Err(error) = state
             .audit
             .append(scheduler_storage::CreateAuditLog {
                 actor: p.username.clone(),
                 action: "logout".to_owned(),
                 resource_type: "session".to_owned(),
-                resource_id: token.to_owned(),
+                resource_id: redact_token_for_audit(token),
                 detail: None,
                 ip_address: client_ip(&headers),
             })
-            .await;
+            .await
+    {
+        warn!(%error, "failed to append logout audit log");
     }
 
     Ok(Json(ApiResponse::success(super::dto::EmptyData {})))
+}
+
+fn redact_token_for_audit(token: &str) -> String {
+    let prefix: String = token.chars().take(8).collect();
+    format!("{prefix}…redacted")
 }

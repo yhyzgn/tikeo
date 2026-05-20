@@ -10,7 +10,14 @@ pub mod session;
 use std::{net::SocketAddr, sync::Arc, time::SystemTime};
 
 use anyhow::{Context, Result};
-use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
+use axum::{
+    Json, Router,
+    extract::{MatchedPath, State},
+    http::{Request, StatusCode},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
+    routing::get,
+};
 use scheduler_core::HealthState;
 use scheduler_storage::{
     AuditLogRepository, AuthSessionRepository, JobInstanceAttemptRepository,
@@ -84,7 +91,10 @@ pub fn router_with_state(state: AppState) -> Router {
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
         .route("/metrics", get(move || std::future::ready(handle.render())))
-        .nest("/api/v1", api_router())
+        .nest(
+            "/api/v1",
+            api_router().layer(middleware::from_fn(record_http_metrics)),
+        )
         .route("/api-docs/openapi.json", get(openapi_json))
         .with_state(Arc::new(state))
 }
@@ -107,6 +117,26 @@ async fn router_for_database(database_url: &str) -> Result<Router> {
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(ApiDoc::openapi())
+}
+
+async fn record_http_metrics(request: Request<axum::body::Body>, next: Next) -> Response {
+    let method = request.method().clone();
+    let path = request.extensions().get::<MatchedPath>().map_or_else(
+        || request.uri().path().to_owned(),
+        |matched| matched.as_str().to_owned(),
+    );
+    let started = std::time::Instant::now();
+    let response = next.run(request).await;
+    let status = response.status().as_u16().to_string();
+    let labels = [
+        ("method", method.as_str().to_owned()),
+        ("path", path),
+        ("status", status),
+    ];
+    metrics::counter!("scheduler_http_requests_total", &labels).increment(1);
+    metrics::histogram!("scheduler_http_request_duration_seconds", &labels)
+        .record(started.elapsed().as_secs_f64());
+    response
 }
 
 fn api_router() -> Router<Arc<AppState>> {
@@ -227,6 +257,8 @@ mod tests {
         UserRepository, connect_and_migrate,
     };
     use serde_json::Value;
+
+    const ADMIN_LOGIN: &str = r#"{"username":"scheduler_init","password":"Scheduler@2026!"}"#;
     use tower::ServiceExt;
 
     use super::{AppState, router_with_state};
@@ -317,7 +349,6 @@ mod tests {
                     .method("POST")
                     .uri("/api/v1/auth/login")
                     .header("content-type", "application/json")
-                    .header("authorization", "Bearer scheduler-init-token")
                     .body(Body::from(
                         r#"{"username":"scheduler_init","password":"wrong"}"#,
                     ))
@@ -539,16 +570,25 @@ mod tests {
     }
 
     async fn post_json_without_auth(app: axum::Router, uri: &str, body: &str) -> Value {
-        post_json_with_auth(app, uri, body, false).await
+        post_json_raw(app, uri, body, None).await
     }
 
     async fn post_json_with_auth(app: axum::Router, uri: &str, body: &str, auth: bool) -> Value {
+        let token = if auth {
+            Some(admin_token(app.clone()).await)
+        } else {
+            None
+        };
+        post_json_raw(app, uri, body, token.as_deref()).await
+    }
+
+    async fn post_json_raw(app: axum::Router, uri: &str, body: &str, token: Option<&str>) -> Value {
         let mut builder = Request::builder()
             .method("POST")
             .uri(uri)
             .header("content-type", "application/json");
-        if auth {
-            builder = builder.header("authorization", "Bearer scheduler-init-token");
+        if let Some(token) = token {
+            builder = builder.header("authorization", format!("Bearer {token}"));
         }
         let response = app
             .oneshot(
@@ -589,6 +629,44 @@ mod tests {
         )
         .await
         .unwrap_or_else(|error| panic!("router should respond: {error}"))
+    }
+
+    async fn admin_token(app: axum::Router) -> String {
+        let login = post_json_raw(app, "/api/v1/auth/login", ADMIN_LOGIN, None).await;
+        login["data"]["token"]
+            .as_str()
+            .unwrap_or_else(|| panic!("admin login should return token"))
+            .to_owned()
+    }
+
+    async fn admin_request_builder(
+        app: axum::Router,
+        method: &str,
+        uri: impl ToString,
+    ) -> Request<Body> {
+        let token = admin_token(app).await;
+        Request::builder()
+            .method(method)
+            .uri(uri.to_string())
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap_or_else(|error| panic!("request should build: {error}"))
+    }
+
+    async fn admin_json_request_builder(
+        app: axum::Router,
+        method: &str,
+        uri: impl ToString,
+        body: &str,
+    ) -> Request<Body> {
+        let token = admin_token(app).await;
+        Request::builder()
+            .method(method)
+            .uri(uri.to_string())
+            .header("authorization", format!("Bearer {token}"))
+            .header("content-type", "application/json")
+            .body(Body::from(body.to_owned()))
+            .unwrap_or_else(|error| panic!("request should build: {error}"))
     }
 
     fn worker(worker_id: &str, app: &str) -> RegisterWorker {
@@ -678,13 +756,7 @@ mod tests {
         // 1. Get users list (should only contain seeded admin)
         let response = app
             .clone()
-            .oneshot(
-                Request::builder()
-                    .uri("/api/v1/users")
-                    .header("authorization", "Bearer scheduler-init-token")
-                    .body(Body::empty())
-                    .unwrap_or_else(|error| panic!("test operation should succeed: {error}")),
-            )
+            .oneshot(admin_request_builder(app.clone(), "GET", "/api/v1/users").await)
             .await
             .unwrap_or_else(|error| panic!("test operation should succeed: {error}"));
         assert_eq!(response.status(), axum::http::StatusCode::OK);
@@ -697,15 +769,19 @@ mod tests {
         assert_eq!(json["data"][0]["username"], "scheduler_init");
 
         // 2. Create an operator user
-        let response = app.clone().oneshot(
-            Request::builder()
-                .method("POST")
-                .uri("/api/v1/users")
-                .header("authorization", "Bearer scheduler-init-token")
-                .header("content-type", "application/json")
-                .body(Body::from(r#"{"username":"test_operator","password":"Password@123","role":"operator"}"#))
-                .unwrap_or_else(|error| panic!("test operation should succeed: {error}"))
-        ).await.unwrap_or_else(|error| panic!("test operation should succeed: {error}"));
+        let response = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/users",
+                    r#"{"username":"test_operator","password":"Password@123","role":"operator"}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("test operation should succeed: {error}"));
         assert_eq!(response.status(), axum::http::StatusCode::OK);
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
@@ -748,13 +824,13 @@ mod tests {
         let response = app
             .clone()
             .oneshot(
-                Request::builder()
-                    .method("PATCH")
-                    .uri(format!("/api/v1/users/{user_id}"))
-                    .header("authorization", "Bearer scheduler-init-token")
-                    .header("content-type", "application/json")
-                    .body(Body::from(r#"{"role":"admin"}"#))
-                    .unwrap_or_else(|error| panic!("test operation should succeed: {error}")),
+                admin_json_request_builder(
+                    app.clone(),
+                    "PATCH",
+                    format!("/api/v1/users/{user_id}"),
+                    r#"{"role":"admin"}"#,
+                )
+                .await,
             )
             .await
             .unwrap_or_else(|error| panic!("test operation should succeed: {error}"));
@@ -791,12 +867,8 @@ mod tests {
         let response = app
             .clone()
             .oneshot(
-                Request::builder()
-                    .method("DELETE")
-                    .uri(format!("/api/v1/users/{user_id}"))
-                    .header("authorization", "Bearer scheduler-init-token")
-                    .body(Body::empty())
-                    .unwrap_or_else(|error| panic!("test operation should succeed: {error}")),
+                admin_request_builder(app.clone(), "DELETE", format!("/api/v1/users/{user_id}"))
+                    .await,
             )
             .await
             .unwrap_or_else(|error| panic!("test operation should succeed: {error}"));

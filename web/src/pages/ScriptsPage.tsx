@@ -238,7 +238,7 @@ export function ScriptsPage() {
       try {
         const vList = await listScriptVersions(script.id);
         setEditHasVersions(vList.length > 0);
-      } catch (_err) {
+      } catch {
         setEditHasVersions(false);
       }
       setEditModalOpen(true);
@@ -261,7 +261,7 @@ export function ScriptsPage() {
       setEditContentDiff(contentDiff);
       setEditPolicyDiff(policyDiff);
       setDiffPreviewOpen(true);
-    } catch (err) {
+    } catch {
       // form validation failed — errors shown on fields
     }
   };

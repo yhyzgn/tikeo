@@ -353,3 +353,9 @@ Rationale:
 Constraint:
 - 后续脚本相关功能开发不得跳过版本历史和 diff 对比；任何 content/policy 更新必须写入版本表。
 - 脚本编辑器必须支持语法检查（Shell/Python/Node 等），根据 language 实时校验，语法错误标红提示但不阻止保存。
+
+## 2026-05-20 — 020 安全善后决策
+
+- 删除 `scheduler-init-token` 静态 Bearer 后门；初始化账号仅通过 `/api/v1/auth/login` 获取 `atk_` session token。
+- 审计日志不得保存明文 Bearer token；session 相关审计只能保存脱敏标识或不可逆摘要。
+- 出站告警 Webhook 默认只允许 HTTPS，并拒绝 localhost/私网/link-local/metadata 目标；后续如需内网 webhook，必须显式 allowlist。

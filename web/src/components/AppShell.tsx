@@ -71,7 +71,7 @@ export function AppShell({ children, onLogout }: AppShellProps) {
           className="app-shell__menu"
           mode="inline"
           selectedKeys={[selectedKey]}
-          onClick={(event) => { if (!event.item.props.disabled) navigate(event.key); }}
+          onClick={(event) => navigate(event.key)}
           items={menuItems}
         />
       </Sider>

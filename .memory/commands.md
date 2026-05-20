@@ -307,8 +307,9 @@ docker compose down
 ```bash
 cargo run --bin scheduler -- serve --config config/dev.toml
 curl -fsS http://127.0.0.1:9090/api/v1/auth/login -H 'content-type: application/json' -d '{"username":"scheduler_init","password":"Scheduler@2026!"}'
-curl -fsS http://127.0.0.1:9090/api/v1/auth/me -H 'authorization: Bearer scheduler-init-token'
-curl -fsS http://127.0.0.1:9090/api/v1/jobs -H 'content-type: application/json' -H 'authorization: Bearer scheduler-init-token' -d '{"namespace":"default","app":"smoke","name":"auth-smoke"}'
+TOKEN=$(curl -fsS http://127.0.0.1:9090/api/v1/auth/login -H 'content-type: application/json' -d '{"username":"scheduler_init","password":"Scheduler@2026!"}' | jq -r '.data.token')
+curl -fsS http://127.0.0.1:9090/api/v1/auth/me -H "authorization: Bearer $TOKEN"
+curl -fsS http://127.0.0.1:9090/api/v1/jobs -H 'content-type: application/json' -H "authorization: Bearer $TOKEN" -d '{"namespace":"default","app":"smoke","name":"auth-smoke"}'
 ```
 
 

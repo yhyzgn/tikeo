@@ -31,18 +31,16 @@
 | --- | --- |
 | 用户名 | `scheduler_init` |
 | 密码 | `Scheduler@2026!` |
-| Bearer Token | `scheduler-init-token` |
 
 可通过环境变量覆盖：
 
 ```bash
 export SCHEDULER_DEV_ADMIN_USERNAME="scheduler_init"
 export SCHEDULER_DEV_ADMIN_PASSWORD="Scheduler@2026!"
-export SCHEDULER_DEV_ADMIN_TOKEN="scheduler-init-token"
 ./scripts/dev.sh
 ```
 
-当前账号仅用于开发初始化和调试，生产阶段必须接入正式 RBAC / OIDC / API Token 生命周期管理。
+当前账号仅用于开发初始化登录调试；系统不再内置静态 Bearer 后门，所有受保护 API 都必须先通过登录接口获取 `atk_` 会话 token。生产阶段必须接入正式 RBAC / OIDC / API Token 生命周期管理。
 
 ## 配置目录
 

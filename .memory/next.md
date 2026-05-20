@@ -1,17 +1,17 @@
 # 下一步
 
-## 当前建议阶段
+## 建议阶段
 
-执行 `.prompt/017-script-versioning-and-diff.md`。
+执行 `021-service-layer-and-rbac-hardening`（待创建）。
 
 ## 目标
 
-为脚本管理增加版本历史（`script_versions` 表）和 diff 对比能力。每次 content 或 policy 变更自动产生版本记录，支持任意两版本间的 content diff 和 policy diff。
+在 020 善后修复安全阻断后，继续把 015-019 的“能跑骨架”升级为平台级结构：拆分 HTTP routes、引入 application service 层、RBAC permission/resource action 模型、脚本发布指针/回滚/审批状态机、审计分页过滤与告警规则 API。
 
-## 开始前检查
+## 优先事项
 
-- 先确认 016-dynamic-script-sandbox 已提交并推送。
-- 脚本管理 CRUD 后端与 Web UI 已完成，但版本历史和 diff 对比尚未实现。
-- 接口继续遵循 `{code,message,data}` 规范。
-- 数据库禁止外键，只允许字段软关联。
-- 所有脚本更新操作必须支持 diff 对比（用户决策，见 `.memory/decisions.md`）。
+1. 拆分 `crates/scheduler-server/src/http/routes.rs`：system/auth/users/jobs/scripts/audit 分文件。
+2. 引入 `UserService`、`ScriptService`、`AuditService`，避免 handler 直接编排业务。
+3. RBAC 从单字符串 role 演进为 `permission + resource action`，继续保持 DB 软关联。
+4. 脚本补发布指针、回滚 API、审批状态机和 Worker 执行版本绑定。
+5. Web 拆分 `ScriptsPage` 并引入路由 meta、懒加载和统一 401/403/error 处理。

@@ -57,7 +57,7 @@ describe('api client envelope handling', () => {
       return new Response(JSON.stringify({
         code: 0,
         message: 'success',
-        data: { token: 'scheduler-init-token', username: 'scheduler_init', roles: ['admin'] },
+        data: { token: 'atk_test_token', username: 'scheduler_init', roles: ['admin'] },
       }));
     }) as unknown as typeof fetch;
 
@@ -75,11 +75,11 @@ describe('api client envelope handling', () => {
     await createJob({ name: 'demo' });
     const headers = calls.at(-1)?.headers;
     expect(headers).toBeInstanceOf(Headers);
-    expect((headers as Headers).get('authorization')).toBe('Bearer scheduler-init-token');
+    expect((headers as Headers).get('authorization')).toBe('Bearer atk_test_token');
   });
 
   test('sends authorization when triggering a job', async () => {
-    setAuthToken('scheduler-init-token');
+    setAuthToken('atk_test_token');
     let capturedHeaders = new Headers();
     globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
       capturedHeaders = init?.headers as Headers;
@@ -92,6 +92,6 @@ describe('api client envelope handling', () => {
 
     await triggerJob('job_1');
 
-    expect(capturedHeaders.get('authorization')).toBe('Bearer scheduler-init-token');
+    expect(capturedHeaders.get('authorization')).toBe('Bearer atk_test_token');
   });
 });

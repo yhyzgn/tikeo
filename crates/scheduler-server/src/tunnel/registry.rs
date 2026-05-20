@@ -33,10 +33,13 @@ impl WorkerRegistry {
             last_sequence: 0,
         };
 
-        self.workers
-            .write()
-            .await
-            .insert(record.worker_id.clone(), record.clone());
+        let worker_count = {
+            let mut workers = self.workers.write().await;
+            workers.insert(record.worker_id.clone(), record.clone());
+            workers.len()
+        };
+        metrics::gauge!("scheduler_worker_connected_total")
+            .set(u32::try_from(worker_count).map_or_else(|_| f64::from(u32::MAX), f64::from));
 
         record
     }
@@ -80,14 +83,20 @@ impl WorkerRegistry {
     pub async fn dispatch_to_worker(&self, worker_id: &str, task: DispatchTask) -> Option<String> {
         let worker = self.workers.read().await.get(worker_id).cloned()?;
         let worker_id = worker.worker_id.clone();
-        worker
+        if worker
             .outbound
             .send(Ok(ServerMessage {
                 kind: Some(server_message::Kind::DispatchTask(task)),
             }))
             .await
-            .ok()?;
-        Some(worker_id)
+            .is_ok()
+        {
+            metrics::counter!("scheduler_worker_dispatch_total", "result" => "sent").increment(1);
+            Some(worker_id)
+        } else {
+            metrics::counter!("scheduler_worker_dispatch_total", "result" => "closed").increment(1);
+            None
+        }
     }
 }
 

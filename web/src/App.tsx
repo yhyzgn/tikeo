@@ -1,5 +1,4 @@
-import { Alert, ConfigProvider, theme } from 'antd';
-import { useCallback } from 'react';
+import { ConfigProvider, theme } from 'antd';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 
 import { logout, setAuthToken } from './api/client';

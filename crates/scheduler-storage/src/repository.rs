@@ -8,7 +8,7 @@
 use scheduler_core::{ExecutionMode, InstanceStatus, TriggerType};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
@@ -1182,6 +1182,7 @@ impl ScriptRepository {
         }
         .insert(&self.db)
         .await?;
+        self.versions.create_version(&model).await?;
         Ok(ScriptSummary::from(model))
     }
 
@@ -1201,8 +1202,7 @@ impl ScriptRepository {
         else {
             return Ok(None);
         };
-        // Snapshot current state before applying changes
-        self.versions.create_version(&existing).await?;
+        let before = existing.clone();
         let mut active: script::ActiveModel = existing.into();
         if let Some(name) = params.name {
             active.name = Set(name);
@@ -1231,8 +1231,15 @@ impl ScriptRepository {
         if let Some(env) = params.allowed_env_vars {
             active.allowed_env_vars = Set(Some(env));
         }
+        if !script_changed(&before, &active) {
+            return Ok(Some(ScriptSummary::from(before)));
+        }
+
         active.updated_at = Set(now_rfc3339());
-        let updated = active.update(&self.db).await?;
+        let txn = self.db.begin().await?;
+        let updated = active.update(&txn).await?;
+        self.versions.create_version_in(&txn, &updated).await?;
+        txn.commit().await?;
         Ok(Some(ScriptSummary::from(updated)))
     }
 
@@ -1247,6 +1254,27 @@ impl ScriptRepository {
             .await?;
         Ok(result.rows_affected > 0)
     }
+}
+
+fn script_changed(before: &script::Model, active: &script::ActiveModel) -> bool {
+    use sea_orm::ActiveValue;
+
+    fn changed<T>(value: &ActiveValue<T>, before: &T) -> bool
+    where
+        T: PartialEq + Into<sea_orm::Value>,
+    {
+        matches!(value, ActiveValue::Set(after) if after != before)
+    }
+
+    changed(&active.name, &before.name)
+        || changed(&active.language, &before.language)
+        || changed(&active.version, &before.version)
+        || changed(&active.content, &before.content)
+        || changed(&active.status, &before.status)
+        || changed(&active.timeout_seconds, &before.timeout_seconds)
+        || changed(&active.max_memory_bytes, &before.max_memory_bytes)
+        || changed(&active.allow_network, &before.allow_network)
+        || changed(&active.allowed_env_vars, &before.allowed_env_vars)
 }
 
 /// Summary of a script version snapshot.
@@ -1285,9 +1313,9 @@ pub struct ScriptVersionRepository {
 }
 
 impl ScriptVersionRepository {
-    #[allow(clippy::all)]
     /// Create a new repository.
-    pub fn new(db: DatabaseConnection) -> Self {
+    #[must_use]
+    pub const fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
@@ -1296,16 +1324,26 @@ impl ScriptVersionRepository {
         &self,
         script: &script::Model,
     ) -> Result<ScriptVersionSummary, sea_orm::DbErr> {
-        let max_version: i64 = script_version::Entity::find()
-            .filter(script_version::Column::ScriptId.eq(&script.id))
-            .all(&self.db)
-            .await?
-            .iter()
-            .map(|v| v.version_number)
-            .max()
-            .unwrap_or(0);
+        self.create_version_in(&self.db, script).await
+    }
 
-        let version_number = max_version + 1;
+    async fn create_version_in<C>(
+        &self,
+        db: &C,
+        script: &script::Model,
+    ) -> Result<ScriptVersionSummary, sea_orm::DbErr>
+    where
+        C: sea_orm::ConnectionTrait,
+    {
+        let max_version: Option<i64> = script_version::Entity::find()
+            .filter(script_version::Column::ScriptId.eq(&script.id))
+            .select_only()
+            .column_as(script_version::Column::VersionNumber.max(), "max_version")
+            .into_tuple()
+            .one(db)
+            .await?;
+
+        let version_number = max_version.unwrap_or(0) + 1;
         let id = format!("sv_{version_number}_{}", Uuid::new_v4().simple());
 
         let active = script_version::ActiveModel {
@@ -1322,7 +1360,7 @@ impl ScriptVersionRepository {
             created_by: Set(script.created_by.clone()),
             created_at: Set(now_rfc3339()),
         };
-        let model = active.insert(&self.db).await?;
+        let model = active.insert(db).await?;
         Ok(ScriptVersionSummary::from(model))
     }
 
@@ -1348,6 +1386,20 @@ impl ScriptVersionRepository {
         id: &str,
     ) -> Result<Option<ScriptVersionSummary>, sea_orm::DbErr> {
         let version = script_version::Entity::find_by_id(id.to_owned())
+            .one(&self.db)
+            .await?;
+        Ok(version.map(ScriptVersionSummary::from))
+    }
+
+    /// Get a specific version by script id and version number.
+    pub async fn get_version_by_number(
+        &self,
+        script_id: &str,
+        version_number: i64,
+    ) -> Result<Option<ScriptVersionSummary>, sea_orm::DbErr> {
+        let version = script_version::Entity::find()
+            .filter(script_version::Column::ScriptId.eq(script_id))
+            .filter(script_version::Column::VersionNumber.eq(version_number))
             .one(&self.db)
             .await?;
         Ok(version.map(ScriptVersionSummary::from))

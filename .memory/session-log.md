@@ -579,3 +579,30 @@ Verification:
 Git:
 - 后端提交 `bb51a12`，Web 提交 `4921a30`。
 - 设计路线图待更新，018 prompt 待创建。
+
+## 2026-05-20 — 020-review-remediation 善后启动
+
+- Review 015-019 后确认需要善后：静态 admin bearer 后门、明文 token 审计、Webhook SSRF、脚本版本语义、空指标端点、审计静默失败、Web lint/fmt 失败等。
+- 新增 `.prompt/020-review-remediation.md` 作为阶段提示词，逐项列出问题、风险与整改方案。
+- 020 阶段目标：先修安全阻断和质量门禁，再修脚本版本核心语义，补最小业务指标，并把设计路线图中“骨架完成”和“完整平台能力”区分清楚。
+
+## 2026-05-20 — 020-review-remediation 善后完成
+
+- 删除 `scheduler-init-token` 静态 admin bearer 后门；后端测试改为先通过初始化账号登录获取真实 `atk_` session token。
+- login/logout 审计改为 token 脱敏标识，避免明文 Bearer token 写入 `audit_logs`；审计写入失败改为 `warn!`。
+- Alert Webhook 增加 HTTPS-only、localhost/私网/link-local/metadata 拒绝和 5s timeout，降低 SSRF 风险。
+- 脚本创建时写入初始版本；脚本更新在事务内写入更新后的不可变版本快照；diff API 改为按 `(script_id, version_number)` 精确查询；diff 输出改为带 header/hunk 的 LCS 结果。
+- `/metrics` 接入最小 HTTP request count/latency 与 Worker connected/dispatch 指标。
+- 修复 Rust fmt、Web lint/typecheck 问题；更新 README、020 prompt、路线图和记忆库。
+
+验证：
+- `cargo fmt --all -- --check` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features` ✅
+- `cargo build --workspace --all-features` ✅
+- `mvn -f java/pom.xml -q test` ✅
+- `bun run --cwd web lint` ✅
+- `bun run --cwd web typecheck` ✅
+- `bun test --cwd web` ✅
+- `bun run --cwd web build` ✅（仍有 Vite 大 chunk 警告，后续路由级拆包处理）
+- `docker compose config` ✅

@@ -1,8 +1,9 @@
 //! Alert rules and notification channels.
 
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{net::IpAddr, sync::Arc, time::Duration};
 use tracing::{info, warn};
+use url::Url;
 
 /// Alert severity.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -94,9 +95,16 @@ impl AlertDispatcher {
     /// Create a dispatcher with the given rules.
     #[must_use]
     pub fn new(rules: Vec<AlertRule>) -> Self {
+        let http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()
+            .unwrap_or_else(|error| {
+                warn!(%error, "failed to build alert HTTP client; using default client");
+                reqwest::Client::new()
+            });
         Self {
             rules: Arc::new(rules),
-            http: reqwest::Client::new(),
+            http,
         }
     }
 
@@ -151,6 +159,10 @@ impl AlertDispatcher {
         for channel in channels {
             match channel {
                 NotificationChannel::Webhook { url } => {
+                    if let Err(error) = validate_webhook_url(url) {
+                        warn!(url, %error, "alert webhook rejected by safety policy");
+                        continue;
+                    }
                     match self.http.post(url).json(payload).send().await {
                         Ok(resp) => {
                             info!(
@@ -169,6 +181,43 @@ impl AlertDispatcher {
                 }
             }
         }
+    }
+}
+
+fn validate_webhook_url(value: &str) -> Result<(), &'static str> {
+    let parsed = Url::parse(value).map_err(|_| "invalid url")?;
+    if parsed.scheme() != "https" {
+        return Err("webhook url must use https");
+    }
+    let Some(host) = parsed.host_str() else {
+        return Err("webhook url must include host");
+    };
+    let host_lower = host.to_ascii_lowercase();
+    if matches!(
+        host_lower.as_str(),
+        "localhost" | "metadata.google.internal"
+    ) {
+        return Err("webhook host is not allowed");
+    }
+    if let Ok(ip) = host.parse::<IpAddr>()
+        && !is_public_ip(ip)
+    {
+        return Err("webhook ip must be public");
+    }
+    Ok(())
+}
+
+const fn is_public_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => {
+            !(ip.is_private()
+                || ip.is_loopback()
+                || ip.is_link_local()
+                || ip.is_broadcast()
+                || ip.is_documentation()
+                || ip.is_unspecified())
+        }
+        IpAddr::V6(ip) => !(ip.is_loopback() || ip.is_unspecified()),
     }
 }
 

@@ -5,6 +5,7 @@ use std::{str::FromStr, sync::Arc};
 use axum::{Json, extract::Path, extract::Query, extract::State, http::HeaderMap};
 use scheduler_core::{ExecutionMode, ScheduleType, TriggerType};
 use scheduler_storage::{CreateJob, CreateJobInstance};
+use tracing::warn;
 
 use super::{
     AppState, auth,
@@ -440,7 +441,7 @@ async fn audit(
     headers: &HeaderMap,
 ) {
     use scheduler_storage::CreateAuditLog;
-    let _ = state
+    if let Err(error) = state
         .audit
         .append(CreateAuditLog {
             actor: actor.to_owned(),
@@ -450,7 +451,10 @@ async fn audit(
             detail,
             ip_address: client_ip(headers),
         })
-        .await;
+        .await
+    {
+        warn!(%error, %actor, %action, %resource_type, %resource_id, "failed to append audit log");
+    }
 }
 
 fn defaulted(value: Option<String>, default: &str) -> String {
@@ -702,7 +706,16 @@ pub async fn delete_script(
         .map_err(|error| ApiError::storage(&error))?;
 
     if success {
-        audit(&state, &principal.username, "delete", "script", &id, None, &headers).await;
+        audit(
+            &state,
+            &principal.username,
+            "delete",
+            "script",
+            &id,
+            None,
+            &headers,
+        )
+        .await;
         Ok(Json(ApiResponse::success(super::dto::EmptyData {})))
     } else {
         Err(ApiError::not_found(format!("script not found: {id}")))
@@ -767,22 +780,22 @@ pub async fn diff_script_versions(
     Query(params): Query<DiffParams>,
 ) -> Result<Json<ApiResponse<super::dto::ScriptDiffResult>>, ApiError> {
     auth::require_admin(&headers, &state).await?;
-    let versions = state
+    let v1 = state
         .scripts
         .versions()
-        .list_versions(&id)
+        .get_version_by_number(&id, params.v1)
         .await
-        .map_err(|e| ApiError::storage(&e))?;
-    let v1 = versions
-        .iter()
-        .find(|v| v.version_number == params.v1)
+        .map_err(|e| ApiError::storage(&e))?
         .ok_or_else(|| ApiError::not_found(format!("version {} not found", params.v1)))?;
-    let v2 = versions
-        .iter()
-        .find(|v| v.version_number == params.v2)
+    let v2 = state
+        .scripts
+        .versions()
+        .get_version_by_number(&id, params.v2)
+        .await
+        .map_err(|e| ApiError::storage(&e))?
         .ok_or_else(|| ApiError::not_found(format!("version {} not found", params.v2)))?;
     let content_diff = unified_diff(&v1.content, &v2.content);
-    let policy_diff = policy_diff(v1, v2);
+    let policy_diff = policy_diff(&v1, &v2);
     Ok(Json(ApiResponse::success(super::dto::ScriptDiffResult {
         content_diff,
         policy_diff,
@@ -799,24 +812,68 @@ pub struct DiffParams {
 fn unified_diff(old: &str, new: &str) -> String {
     let old_lines: Vec<&str> = old.lines().collect();
     let new_lines: Vec<&str> = new.lines().collect();
-    let mut result = Vec::new();
-    let mut i = 0;
-    let mut j = 0;
-    while i < old_lines.len() || j < new_lines.len() {
-        if i < old_lines.len() && j < new_lines.len() && old_lines[i] == new_lines[j] {
-            i += 1;
-            j += 1;
-        } else if j < new_lines.len()
-            && (i >= old_lines.len() || !old_lines[i..].contains(&new_lines[j]))
-        {
-            result.push(format!("+{}", new_lines[j]));
-            j += 1;
-        } else if i < old_lines.len() {
-            result.push(format!("-{}", old_lines[i]));
-            i += 1;
+    let mut result = vec!["--- v1".to_owned(), "+++ v2".to_owned()];
+    let operations = diff_operations(&old_lines, &new_lines);
+
+    if operations
+        .iter()
+        .all(|operation| matches!(operation, DiffOp::Equal(_)))
+    {
+        return result.join("\n");
+    }
+
+    result.push(format!(
+        "@@ -1,{} +1,{} @@",
+        old_lines.len(),
+        new_lines.len()
+    ));
+    for operation in operations {
+        match operation {
+            DiffOp::Equal(line) => result.push(format!(" {line}")),
+            DiffOp::Delete(line) => result.push(format!("-{line}")),
+            DiffOp::Insert(line) => result.push(format!("+{line}")),
         }
     }
     result.join("\n")
+}
+
+#[derive(Debug, Clone, Copy)]
+enum DiffOp<'a> {
+    Equal(&'a str),
+    Delete(&'a str),
+    Insert(&'a str),
+}
+
+fn diff_operations<'a>(old: &[&'a str], new: &[&'a str]) -> Vec<DiffOp<'a>> {
+    let mut lengths = vec![vec![0_u32; new.len() + 1]; old.len() + 1];
+    for (i, old_line) in old.iter().enumerate() {
+        for (j, new_line) in new.iter().enumerate() {
+            if old_line == new_line {
+                lengths[i + 1][j + 1] = lengths[i][j] + 1;
+            } else {
+                lengths[i + 1][j + 1] = lengths[i + 1][j].max(lengths[i][j + 1]);
+            }
+        }
+    }
+
+    let mut i = old.len();
+    let mut j = new.len();
+    let mut operations = Vec::with_capacity(old.len() + new.len());
+    while i > 0 || j > 0 {
+        if i > 0 && j > 0 && old[i - 1] == new[j - 1] {
+            operations.push(DiffOp::Equal(old[i - 1]));
+            i -= 1;
+            j -= 1;
+        } else if j > 0 && (i == 0 || lengths[i][j - 1] >= lengths[i - 1][j]) {
+            operations.push(DiffOp::Insert(new[j - 1]));
+            j -= 1;
+        } else if i > 0 {
+            operations.push(DiffOp::Delete(old[i - 1]));
+            i -= 1;
+        }
+    }
+    operations.reverse();
+    operations
 }
 
 fn policy_diff(

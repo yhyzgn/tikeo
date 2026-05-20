@@ -70,7 +70,7 @@ function parseErrorLinter() {
     const tree = view.state.parseResult?.tree ?? view.state.tree;
     if (!tree) return diagnostics;
     tree.iterate({
-      enter(node) {
+      enter(node: { type: { isError: boolean }; from: number; to: number }) {
         if (node.type.isError) {
           diagnostics.push({
             from: node.from,
