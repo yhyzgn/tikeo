@@ -548,3 +548,34 @@ Verification:
 Git:
 - 后端已提交为 `ff17519` 并推送。
 - Web + memory 变更待本次一起提交推送。
+
+## 2026-05-20 — 017-script-versioning-and-diff
+
+Agent:
+- Claude (GLM-5.1)
+
+Work:
+- Storage 新增 `script_versions` 表（id/script_id/version_number/content/language/status/timeout_seconds/max_memory_bytes/allow_network/allowed_env_vars/created_by/created_at），无外键。
+- Storage migration 新增 `create_script_versions()` + script_id + version_number 索引，SQLite 兼容补表。
+- Storage 新增 `ScriptVersionRepository`（create_version/list_versions/get_version）。
+- `ScriptRepository::update_script` 更新前自动将当前行快照写入 `script_versions`。
+- HTTP 新增 `GET /api/v1/scripts/{id}/versions`（版本历史列表）和 `GET /api/v1/scripts/{id}/diff?v1=&v2=`（diff 对比）。
+- Diff 返回 unified content diff + policy 字段对比（FieldChange[]）。
+- Web 新增 `ScriptVersionSummary`/`FieldChange`/`ScriptDiffResult` 类型和 `listScriptVersions`/`diffScriptVersions` API。
+- Web ScriptsPage 新增版本历史 Drawer、v1/v2 选择、diff 对比视图（content diff +/- 颜色编码 + policy diff 表格）。
+- Web 新增 `CodeEditor` 组件（CodeMirror 6），支持 Shell/Python/Node 语法高亮。
+- ScriptsPage 创建 Modal 使用 CodeEditor 替代 textarea。
+
+Verification:
+- `cargo fmt --all -- --check` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features` ✅
+- `cargo build --workspace --all-features` ✅
+- `bun run --cwd web lint` ✅
+- `bun run --cwd web typecheck` ✅
+- `bun test --cwd web` ✅（5 tests）
+- `bun run --cwd web build` ✅
+
+Git:
+- 后端提交 `bb51a12`，Web 提交 `4921a30`。
+- 设计路线图待更新，018 prompt 待创建。
