@@ -209,6 +209,7 @@ export interface ScriptSummary {
   name: string;
   language: string;
   version: string;
+  content: string;
   status: string;
   timeout_seconds: number | null;
   max_memory_bytes: number | null;

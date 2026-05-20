@@ -1,17 +1,27 @@
 import { Button, Card, Dropdown, Form, Input, Select, Space, Switch, Table, Tag, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { useCallback, useEffect, useState } from 'react';
 
-import { createJob, triggerJob, type CreateJobRequest, type JobSummary } from '../api/client';
+import { createJob, listJobs, triggerJob, type CreateJobRequest, type JobSummary } from '../api/client';
 
-export interface JobsPageProps {
-  jobs: JobSummary[];
-  loading: boolean;
-  onRefresh: () => Promise<void>;
-  onTriggered: () => Promise<void>;
-}
-
-export function JobsPage({ jobs, loading, onRefresh, onTriggered }: JobsPageProps) {
+export function JobsPage() {
+  const [jobs, setJobs] = useState<JobSummary[]>([]);
+  const [loading, setLoading] = useState(false);
   const [form] = Form.useForm<CreateJobRequest>();
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const page = await listJobs();
+      setJobs(page.items);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '加载失败');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   const columns: ColumnsType<JobSummary> = [
     { title: 'Name', dataIndex: 'name' },
@@ -33,7 +43,7 @@ export function JobsPage({ jobs, loading, onRefresh, onTriggered }: JobsPageProp
               try {
                 await triggerJob(job.id, { trigger_type: 'api', execution_mode: key === 'broadcast' ? 'broadcast' : 'single' });
                 message.success(key === 'broadcast' ? `已广播触发 ${job.name}` : `已触发 ${job.name}`);
-                await onTriggered();
+                await load();
               } catch (err) {
                 message.error(err instanceof Error ? err.message : '触发失败');
               }
@@ -43,7 +53,7 @@ export function JobsPage({ jobs, loading, onRefresh, onTriggered }: JobsPageProp
             try {
               await triggerJob(job.id, { trigger_type: 'api', execution_mode: 'single' });
               message.success(`已触发 ${job.name}`);
-              await onTriggered();
+              await load();
             } catch (err) {
               message.error(err instanceof Error ? err.message : '触发失败');
             }
@@ -67,7 +77,7 @@ export function JobsPage({ jobs, loading, onRefresh, onTriggered }: JobsPageProp
               await createJob(values);
               message.success('任务已创建');
               form.resetFields(['name', 'schedule_expr']);
-              await onRefresh();
+              await load();
             } catch (err) {
               message.error(err instanceof Error ? err.message : '创建失败');
             }
@@ -85,7 +95,7 @@ export function JobsPage({ jobs, loading, onRefresh, onTriggered }: JobsPageProp
       <Card
         className="clean-card"
         title="任务列表"
-        extra={<Space><Button onClick={onRefresh}>刷新</Button></Space>}
+        extra={<Space><Button onClick={load}>刷新</Button></Space>}
       >
         <Table rowKey="id" loading={loading} columns={columns} dataSource={jobs} pagination={{ pageSize: 8 }} size="middle" />
       </Card>

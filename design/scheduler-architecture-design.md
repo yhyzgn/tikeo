@@ -2056,8 +2056,10 @@ scheduler/
 - [ ] RBAC 权限系统
 - [ ] OIDC/SSO 集成
 - [ ] mTLS 传输加密
-- [ ] 审计日志
-- [ ] Web UI 审计查询、权限感知操作、危险操作二次确认
+- [ ] Web 前端路由与导航治理（React Router v7、路由守卫、URL 持久化、菜单与路由对齐）
+- [x] 审计日志（`audit_logs` 表、Repository、HTTP API、全写操作埋点）
+- [ ] Web UI 危险操作二次确认、权限感知操作
+  - [x] Web UI 审计日志查询页面（按操作类型筛选）
 - [ ] WASM 沙箱处理器
 - [ ] 多语言动态脚本处理器（Python/Node/Shell/PowerShell/Rhai）
   - [x] 脚本定义 Storage / Migration / Repository / HTTP CRUD API / OpenAPI
@@ -2068,7 +2070,9 @@ scheduler/
   - [ ] Worker 侧沙箱执行器（子进程/容器/WASM）
 - [ ] 脚本策略引擎（能力声明、审批、资源限制、网络/文件策略）
 - [ ] 告警系统 (邮件/Slack/钉钉/飞书/企业微信/PagerDuty)
+  - [x] AlertRule / AlertCondition / AlertDispatcher 框架与 Webhook 通知通道
 - [ ] Prometheus 指标 + Grafana Dashboard 模板
+  - [x] Prometheus 指标端点（`/metrics`）
 - [ ] OpenTelemetry 分布式追踪
 - [ ] Java Spring Boot Starter SDK（优先）
   - [x] Maven 多模块骨架：java-core / spring-boot-autoconfigure / spring-boot-starter

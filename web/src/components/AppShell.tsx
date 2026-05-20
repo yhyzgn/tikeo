@@ -10,21 +10,52 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { Avatar, Badge, Button, Layout, Menu, Space, Typography } from 'antd';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
+import { usePrincipal } from './AuthGuard';
 
 const { Header, Sider, Content } = Layout;
 
+const MENU_ITEMS = [
+  { key: '/dashboard', icon: <DashboardOutlined />, label: '总览' },
+  { key: '/jobs', icon: <ThunderboltOutlined />, label: '任务' },
+  { key: '/instances', icon: <DeploymentUnitOutlined />, label: '实例' },
+];
+
+const ADMIN_ITEMS = [
+  { key: '/users', icon: <UserOutlined />, label: '用户管理' },
+  { key: '/scripts', icon: <CodeOutlined />, label: '脚本管理' },
+  { key: '/audit', icon: <AuditOutlined />, label: '审计日志' },
+];
+
+const COMING_SOON_ITEMS = [
+  { key: 'workers-next', icon: <ApiOutlined />, label: 'Worker 集群', disabled: true },
+  { key: 'security-next', icon: <SafetyCertificateOutlined />, label: '安全策略', disabled: true },
+];
+
 export interface AppShellProps {
   children: ReactNode;
-  activeKey: string;
-  username: string;
-  roles?: string[];
-  onNavigate: (key: string) => void;
   onLogout: () => void;
 }
 
-export function AppShell({ children, activeKey, username, roles = [], onNavigate, onLogout }: AppShellProps) {
+export function AppShell({ children, onLogout }: AppShellProps) {
+  const principal = usePrincipal();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const username = principal?.username ?? '';
+  const roles = principal?.roles ?? [];
   const isAdmin = roles.includes('admin');
+
+  const selectedKey = '/' + location.pathname.split('/').filter(Boolean)[0];
+
+  const menuItems = [
+    ...MENU_ITEMS,
+    ...(isAdmin
+      ? [{ type: 'divider' as const }, ...ADMIN_ITEMS]
+      : []),
+    { type: 'divider' as const },
+    ...COMING_SOON_ITEMS,
+  ];
 
   return (
     <Layout className="app-shell">
@@ -39,23 +70,9 @@ export function AppShell({ children, activeKey, username, roles = [], onNavigate
         <Menu
           className="app-shell__menu"
           mode="inline"
-          selectedKeys={[activeKey]}
-          onClick={(event) => onNavigate(event.key)}
-          items={[
-            { key: 'dashboard', icon: <DashboardOutlined />, label: '总览' },
-            { key: 'jobs', icon: <ThunderboltOutlined />, label: '任务' },
-            { key: 'instances', icon: <DeploymentUnitOutlined />, label: '实例' },
-            ...(isAdmin ? [
-              { type: 'divider' as const },
-              { key: 'users', icon: <UserOutlined />, label: '用户管理' },
-              { key: 'scripts', icon: <CodeOutlined />, label: '脚本管理' },
-              { key: 'audit', icon: <AuditOutlined />, label: '审计日志' }
-            ] : []),
-            { type: 'divider' },
-            { key: 'workers-next', icon: <ApiOutlined />, label: 'Worker 集群', disabled: true },
-            { key: 'security-next', icon: <SafetyCertificateOutlined />, label: '安全策略', disabled: true },
-            { key: 'audit-next', icon: <AuditOutlined />, label: '审计日志', disabled: true },
-          ]}
+          selectedKeys={[selectedKey]}
+          onClick={(event) => { if (!event.item.props.disabled) navigate(event.key); }}
+          items={menuItems}
         />
       </Sider>
       <Layout className="app-shell__main">

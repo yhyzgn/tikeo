@@ -105,7 +105,7 @@ pub async fn create_job(
     headers: HeaderMap,
     Json(request): Json<CreateJobRequest>,
 ) -> Result<Json<JobApiResponse>, ApiError> {
-    auth::require_admin(&headers, &state).await?;
+    let principal = auth::require_admin(&headers, &state).await?;
     let schedule_type = parse_schedule_type(request.schedule_type.as_deref().unwrap_or("api"))?;
     let created = state
         .jobs
@@ -122,7 +122,7 @@ pub async fn create_job(
 
     audit(
         &state,
-        "admin",
+        &principal.username,
         "create",
         "job",
         &created.id,
@@ -158,7 +158,7 @@ pub async fn trigger_job(
     Path(job_action): Path<String>,
     Json(request): Json<TriggerJobRequest>,
 ) -> Result<Json<JobInstanceApiResponse>, ApiError> {
-    auth::require_admin(&headers, &state).await?;
+    let principal = auth::require_admin(&headers, &state).await?;
     let job = parse_trigger_path(&job_action)?;
 
     let job_summary = state
@@ -207,7 +207,7 @@ pub async fn trigger_job(
 
     audit(
         &state,
-        "admin",
+        &principal.username,
         "trigger",
         "job",
         &job,
@@ -633,7 +633,7 @@ pub async fn update_script(
     Path(id): Path<String>,
     Json(request): Json<UpdateScriptRequest>,
 ) -> Result<Json<super::dto::ScriptApiResponse>, ApiError> {
-    auth::require_admin(&headers, &state).await?;
+    let principal = auth::require_admin(&headers, &state).await?;
 
     let updated = state
         .scripts
@@ -659,7 +659,7 @@ pub async fn update_script(
 
     audit(
         &state,
-        "admin",
+        &principal.username,
         "update",
         "script",
         &id,
@@ -693,7 +693,7 @@ pub async fn delete_script(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<super::dto::EmptyApiResponse>, ApiError> {
-    auth::require_admin(&headers, &state).await?;
+    let principal = auth::require_admin(&headers, &state).await?;
 
     let success = state
         .scripts
@@ -702,7 +702,7 @@ pub async fn delete_script(
         .map_err(|error| ApiError::storage(&error))?;
 
     if success {
-        audit(&state, "admin", "delete", "script", &id, None, &headers).await;
+        audit(&state, &principal.username, "delete", "script", &id, None, &headers).await;
         Ok(Json(ApiResponse::success(super::dto::EmptyData {})))
     } else {
         Err(ApiError::not_found(format!("script not found: {id}")))
@@ -856,8 +856,12 @@ fn policy_diff(
     );
     check(
         "allowed_env_vars",
-        v1.allowed_env_vars.as_deref().unwrap_or("null"),
-        v2.allowed_env_vars.as_deref().unwrap_or("null"),
+        &v1.allowed_env_vars
+            .as_ref()
+            .map_or_else(|| "null".to_owned(), |v| v.join(",")),
+        &v2.allowed_env_vars
+            .as_ref()
+            .map_or_else(|| "null".to_owned(), |v| v.join(",")),
     );
     changes
 }
@@ -913,7 +917,7 @@ pub async fn create_user(
     headers: HeaderMap,
     Json(request): Json<super::dto::CreateUserRequest>,
 ) -> Result<Json<super::dto::UserApiResponse>, ApiError> {
-    auth::require_admin(&headers, &state).await?;
+    let principal = auth::require_admin(&headers, &state).await?;
 
     if request.username.trim().is_empty() || request.password.trim().is_empty() {
         return Err(ApiError::bad_request(
@@ -937,7 +941,7 @@ pub async fn create_user(
 
     audit(
         &state,
-        "admin",
+        &principal.username,
         "create",
         "user",
         &created.id,
@@ -973,7 +977,7 @@ pub async fn update_user(
     Path(id): Path<String>,
     Json(request): Json<super::dto::UpdateUserRequest>,
 ) -> Result<Json<super::dto::UserApiResponse>, ApiError> {
-    auth::require_admin(&headers, &state).await?;
+    let principal = auth::require_admin(&headers, &state).await?;
 
     let existing = state
         .users
@@ -1018,7 +1022,7 @@ pub async fn update_user(
 
     audit(
         &state,
-        "admin",
+        &principal.username,
         "update",
         "user",
         &id,
@@ -1051,7 +1055,7 @@ pub async fn delete_user(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<super::dto::EmptyApiResponse>, ApiError> {
-    auth::require_admin(&headers, &state).await?;
+    let principal = auth::require_admin(&headers, &state).await?;
 
     let existing = state
         .users
@@ -1070,7 +1074,7 @@ pub async fn delete_user(
             state.sessions.revoke_user_sessions(&user.username).await?;
             audit(
                 &state,
-                "admin",
+                &principal.username,
                 "delete",
                 "user",
                 &id,

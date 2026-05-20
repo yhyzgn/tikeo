@@ -1,22 +1,32 @@
 import { Button, Card, Drawer, Empty, Table, Tag, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
   listInstanceAttempts,
   listInstanceLogs,
+  listJobInstances,
+  listJobs,
   type JobInstanceAttemptSummary,
   type JobInstanceLogSummary,
   type JobInstanceSummary,
   type JobSummary,
 } from '../api/client';
 
-export interface InstancesPageProps {
-  jobs: JobSummary[];
-  instances: JobInstanceSummary[];
-}
+export function InstancesPage() {
+  const [jobs, setJobs] = useState<JobSummary[]>([]);
+  const [instances, setInstances] = useState<JobInstanceSummary[]>([]);
 
-export function InstancesPage({ jobs, instances }: InstancesPageProps) {
+  const load = useCallback(async () => {
+    try {
+      const jobPage = await listJobs();
+      setJobs(jobPage.items);
+      const instancePages = await Promise.all(jobPage.items.map((job) => listJobInstances(job.id)));
+      setInstances(instancePages.flatMap((page) => page.items));
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
   const jobName = new Map(jobs.map((job) => [job.id, job.name]));
   const [logDrawerOpen, setLogDrawerOpen] = useState(false);
   const [selectedInstance, setSelectedInstance] = useState<JobInstanceSummary | null>(null);

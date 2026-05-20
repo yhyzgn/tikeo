@@ -1092,6 +1092,8 @@ pub struct ScriptSummary {
     pub language: String,
     /// Semantic version.
     pub version: String,
+    /// Script source content.
+    pub content: String,
     /// Approval status.
     pub status: String,
     /// Timeout seconds for execution.
@@ -1101,7 +1103,7 @@ pub struct ScriptSummary {
     /// Whether network access is allowed.
     pub allow_network: bool,
     /// Allowed environment variable names.
-    pub allowed_env_vars: Option<String>,
+    pub allowed_env_vars: Option<Vec<String>>,
     /// Creator user id.
     pub created_by: String,
     /// Creation timestamp.
@@ -1269,7 +1271,7 @@ pub struct ScriptVersionSummary {
     /// Snapshot of `allow_network`.
     pub allow_network: bool,
     /// Snapshot of `allowed_env_vars`.
-    pub allowed_env_vars: Option<String>,
+    pub allowed_env_vars: Option<Vec<String>>,
     /// User who created this version.
     pub created_by: String,
     /// Creation timestamp.
@@ -1364,7 +1366,9 @@ impl From<script_version::Model> for ScriptVersionSummary {
             timeout_seconds: value.timeout_seconds,
             max_memory_bytes: value.max_memory_bytes,
             allow_network: value.allow_network,
-            allowed_env_vars: value.allowed_env_vars,
+            allowed_env_vars: value
+                .allowed_env_vars
+                .and_then(|s| serde_json::from_str(&s).ok()),
             created_by: value.created_by,
             created_at: value.created_at,
         }
@@ -1378,11 +1382,14 @@ impl From<script::Model> for ScriptSummary {
             name: value.name,
             language: value.language,
             version: value.version,
+            content: value.content,
             status: value.status,
             timeout_seconds: value.timeout_seconds,
             max_memory_bytes: value.max_memory_bytes,
             allow_network: value.allow_network,
-            allowed_env_vars: value.allowed_env_vars,
+            allowed_env_vars: value
+                .allowed_env_vars
+                .and_then(|s| serde_json::from_str(&s).ok()),
             created_by: value.created_by,
             created_at: value.created_at,
             updated_at: value.updated_at,

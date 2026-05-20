@@ -1,14 +1,24 @@
 import { ApiOutlined, ClockCircleOutlined, DeploymentUnitOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { Card, Col, Row, Statistic, Tag, Typography } from 'antd';
+import { useCallback, useEffect, useState } from 'react';
 
-import type { JobInstanceSummary, JobSummary } from '../api/client';
+import { listJobInstances, listJobs, type JobInstanceSummary, type JobSummary } from '../api/client';
 
-export interface DashboardProps {
-  jobs: JobSummary[];
-  instances: JobInstanceSummary[];
-}
+export function Dashboard() {
+  const [jobs, setJobs] = useState<JobSummary[]>([]);
+  const [instances, setInstances] = useState<JobInstanceSummary[]>([]);
 
-export function Dashboard({ jobs, instances }: DashboardProps) {
+  const load = useCallback(async () => {
+    try {
+      const jobPage = await listJobs();
+      setJobs(jobPage.items);
+      const instancePages = await Promise.all(jobPage.items.map((job) => listJobInstances(job.id)));
+      setInstances(instancePages.flatMap((page) => page.items));
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
   const enabledJobs = jobs.filter((job) => job.enabled).length;
   const pendingInstances = instances.filter((instance) => instance.status === 'pending').length;
   const broadcastInstances = instances.filter((instance) => instance.execution_mode === 'broadcast').length;

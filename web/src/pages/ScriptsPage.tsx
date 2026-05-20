@@ -1,5 +1,6 @@
 import { Button, Descriptions, Drawer, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Spin, Switch, Table, Tag, message } from 'antd';
 import { useEffect, useState } from 'react';
+import { diffLines } from 'diff';
 import type { ScriptDiffResult, ScriptSummary, ScriptVersionSummary } from '../api/client';
 import {
   createScript,
@@ -32,6 +33,48 @@ const STATUS_LABELS: Record<string, string> = {
   approved: '已审批',
   disabled: '已禁用',
 };
+
+function buildUnifiedDiff(oldText: string, newText: string): string {
+  const changes = diffLines(oldText, newText);
+  const lines: string[] = ['--- 原始内容', '+++ 修改内容'];
+  for (const part of changes) {
+    const prefix = part.added ? '+' : part.removed ? '-' : ' ';
+    for (const line of part.value.replace(/\n$/, '').split('\n')) {
+      lines.push(`${prefix}${line}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+function buildPolicyDiff(
+  original: Record<string, unknown>,
+  modified: Record<string, unknown>,
+): { field: string; before: string; after: string }[] {
+  const fields: Array<{ label: string; key: string; format?: (v: unknown) => string }> = [
+    { label: '名称', key: 'name' },
+    { label: '语言', key: 'language' },
+    { label: '版本', key: 'version' },
+    { label: '超时(秒)', key: 'timeout_seconds' },
+    { label: '内存限制(字节)', key: 'max_memory_bytes' },
+    { label: '允许网络', key: 'allow_network', format: (v) => (v ? '允许' : '禁止') },
+    { label: '允许的环境变量', key: 'allowed_env_vars', format: (v) => (Array.isArray(v) ? v.join(', ') : String(v ?? '')) },
+  ];
+  const changes: { field: string; before: string; after: string }[] = [];
+  for (const f of fields) {
+    const fmt = f.format ?? ((v: unknown) => String(v ?? ''));
+    const oldVal = fmt(original[f.key]);
+    const newVal = fmt(modified[f.key]);
+    if (oldVal !== newVal) {
+      changes.push({ field: f.label, before: oldVal || '(空)', after: newVal || '(空)' });
+    }
+  }
+  return changes;
+}
+
+function errorMessage(prefix: string, err: unknown): string {
+  const reason = err instanceof Error ? err.message : '';
+  return reason ? `${prefix}: ${reason}` : prefix;
+}
 
 function DiffContent({ diff }: { diff: string }) {
   const lines = diff.split('\n');
@@ -101,8 +144,6 @@ function PolicyDiffTable({ changes }: { changes: ScriptDiffResult['policy_diff']
   );
 }
 
-type ScriptDetail = ScriptSummary & { content?: string };
-
 export function ScriptsPage() {
   const [scripts, setScripts] = useState<ScriptSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -114,14 +155,21 @@ export function ScriptsPage() {
 
   // Edit modal
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editingScript, setEditingScript] = useState<ScriptDetail | null>(null);
+  const [editingScript, setEditingScript] = useState<ScriptSummary | null>(null);
   const [editForm] = Form.useForm();
   const editLanguage = Form.useWatch('language', editForm) ?? 'shell';
   const [editHasVersions, setEditHasVersions] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [originalScript, setOriginalScript] = useState<Record<string, unknown> | null>(null);
+
+  // Edit diff preview modal
+  const [diffPreviewOpen, setDiffPreviewOpen] = useState(false);
+  const [editContentDiff, setEditContentDiff] = useState('');
+  const [editPolicyDiff, setEditPolicyDiff] = useState<{ field: string; before: string; after: string }[]>([]);
 
   // View detail drawer
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
-  const [detailScript, setDetailScript] = useState<ScriptDetail | null>(null);
+  const [detailScript, setDetailScript] = useState<ScriptSummary | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
   // Version history drawer
@@ -139,8 +187,8 @@ export function ScriptsPage() {
     try {
       const page = await listScripts();
       setScripts(page.items);
-    } catch {
-      message.error('加载脚本列表失败');
+    } catch (err) {
+      message.error(errorMessage('加载脚本列表失败', err));
     } finally {
       setLoading(false);
     }
@@ -162,8 +210,8 @@ export function ScriptsPage() {
       setModalOpen(false);
       form.resetFields();
       void load();
-    } catch {
-      message.error('创建脚本失败');
+    } catch (err) {
+      message.error(errorMessage('创建脚本失败', err));
     }
   };
 
@@ -172,9 +220,9 @@ export function ScriptsPage() {
     setEditLoading(true);
     try {
       const full = await getScript(script.id);
-      const detail: ScriptDetail = { ...script, content: (full as ScriptSummary & { content?: string }).content ?? '' };
+      const detail: ScriptSummary = { ...full };
       setEditingScript(detail);
-      editForm.setFieldsValue({
+      const formValues = {
         name: detail.name,
         language: detail.language,
         version: detail.version,
@@ -183,28 +231,46 @@ export function ScriptsPage() {
         max_memory_bytes: detail.max_memory_bytes,
         allow_network: detail.allow_network,
         allowed_env_vars: detail.allowed_env_vars,
-      });
+      };
+      editForm.setFieldsValue(formValues);
+      setOriginalScript({ ...formValues });
       // Check if script has versions for diff hint
       try {
         const vList = await listScriptVersions(script.id);
         setEditHasVersions(vList.length > 0);
-      } catch {
+      } catch (_err) {
         setEditHasVersions(false);
       }
       setEditModalOpen(true);
-    } catch {
-      message.error('加载脚本详情失败');
+    } catch (err) {
+      message.error(errorMessage('加载脚本详情失败', err));
     } finally {
       setEditLoading(false);
     }
   };
 
-  const [editLoading, setEditLoading] = useState(false);
+  const handleEditPreview = async () => {
+    if (!editingScript || !originalScript) return;
+    try {
+      const values = await editForm.validateFields();
+      const contentDiff = buildUnifiedDiff(
+        (originalScript.content as string) ?? '',
+        values.content ?? '',
+      );
+      const policyDiff = buildPolicyDiff(originalScript, values);
+      setEditContentDiff(contentDiff);
+      setEditPolicyDiff(policyDiff);
+      setDiffPreviewOpen(true);
+    } catch (err) {
+      // form validation failed — errors shown on fields
+    }
+  };
 
-  const handleEdit = async () => {
+  const handleEditConfirm = async () => {
     if (!editingScript) return;
     try {
       const values = await editForm.validateFields();
+      setEditLoading(true);
       await updateScript(editingScript.id, {
         name: values.name,
         language: values.language,
@@ -216,12 +282,16 @@ export function ScriptsPage() {
         allowed_env_vars: values.allowed_env_vars,
       });
       message.success('脚本更新成功');
+      setDiffPreviewOpen(false);
       setEditModalOpen(false);
       editForm.resetFields();
       setEditingScript(null);
+      setOriginalScript(null);
       void load();
-    } catch {
-      message.error('更新脚本失败');
+    } catch (err) {
+      message.error(errorMessage('更新脚本失败', err));
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -231,8 +301,8 @@ export function ScriptsPage() {
       await updateScript(id, { status });
       message.success('状态已更新');
       void load();
-    } catch {
-      message.error('状态更新失败');
+    } catch (err) {
+      message.error(errorMessage('状态更新失败', err));
     }
   };
 
@@ -241,8 +311,8 @@ export function ScriptsPage() {
       await deleteScript(id);
       message.success('脚本已删除');
       void load();
-    } catch {
-      message.error('删除失败');
+    } catch (err) {
+      message.error(errorMessage('删除失败', err));
     }
   };
 
@@ -252,10 +322,10 @@ export function ScriptsPage() {
     setDetailLoading(true);
     try {
       const full = await getScript(script.id);
-      setDetailScript({ ...full, content: (full as ScriptSummary & { content?: string }).content ?? '' });
-    } catch {
+      setDetailScript({ ...full });
+    } catch (err) {
       setDetailScript(script);
-      message.error('加载脚本详情失败');
+      message.error(errorMessage('加载脚本详情失败', err));
     } finally {
       setDetailLoading(false);
     }
@@ -272,8 +342,8 @@ export function ScriptsPage() {
     try {
       const list = await listScriptVersions(script.id);
       setVersions(list);
-    } catch {
-      message.error('加载版本历史失败');
+    } catch (err) {
+      message.error(errorMessage('加载版本历史失败', err));
     } finally {
       setVersionsLoading(false);
     }
@@ -285,8 +355,8 @@ export function ScriptsPage() {
     try {
       const result = await diffScriptVersions(activeScript.id, selectedV1, selectedV2);
       setDiffResult(result);
-    } catch {
-      message.error('加载版本对比失败');
+    } catch (err) {
+      message.error(errorMessage('加载版本对比失败', err));
     } finally {
       setDiffLoading(false);
     }
@@ -423,10 +493,11 @@ export function ScriptsPage() {
       <Modal
         title={`编辑脚本 - ${editingScript?.name ?? ''}`}
         open={editModalOpen}
-        onOk={handleEdit}
-        onCancel={() => { setEditModalOpen(false); editForm.resetFields(); setEditingScript(null); }}
+        onOk={handleEditPreview}
+        onCancel={() => { setEditModalOpen(false); editForm.resetFields(); setEditingScript(null); setOriginalScript(null); }}
         width={700}
         confirmLoading={editLoading}
+        okText="预览变更"
       >
         {editHasVersions && (
           <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6, fontSize: 13 }}>
@@ -583,6 +654,37 @@ export function ScriptsPage() {
           </>
         )}
       </Drawer>
+
+      {/* Edit Diff Preview Modal */}
+      <Modal
+        title="变更预览"
+        open={diffPreviewOpen}
+        onCancel={() => setDiffPreviewOpen(false)}
+        width={800}
+        footer={[
+          <Button key="back" onClick={() => setDiffPreviewOpen(false)}>
+            返回编辑
+          </Button>,
+          <Button key="confirm" type="primary" loading={editLoading} onClick={() => void handleEditConfirm()}>
+            确认保存
+          </Button>,
+        ]}
+      >
+        {editPolicyDiff.length === 0 && editContentDiff.split('\n').filter((l) => l.startsWith('+') || l.startsWith('-')).length <= 2 ? (
+          <div style={{ color: '#888', textAlign: 'center', padding: 24 }}>未检测到变更</div>
+        ) : (
+          <>
+            {editPolicyDiff.length > 0 && (
+              <>
+                <h4>策略变更</h4>
+                <PolicyDiffTable changes={editPolicyDiff} />
+              </>
+            )}
+            <h4 style={{ marginTop: editPolicyDiff.length > 0 ? 24 : 0 }}>代码变更</h4>
+            <DiffContent diff={editContentDiff} />
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

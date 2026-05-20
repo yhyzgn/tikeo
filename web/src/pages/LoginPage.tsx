@@ -1,15 +1,13 @@
 import { Alert, Button, Card, Form, Input, Typography } from 'antd';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-import { login, type AuthSession, type LoginRequest } from '../api/client';
+import { login, setAuthToken, type LoginRequest } from '../api/client';
 
-export interface LoginPageProps {
-  onAuthenticated: (session: AuthSession) => void;
-}
-
-export function LoginPage({ onAuthenticated }: LoginPageProps) {
+export function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   return (
     <div className="login-page">
@@ -27,7 +25,8 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
             setError(null);
             try {
               const session = await login(values);
-              onAuthenticated(session);
+              setAuthToken(session.token);
+              navigate('/dashboard', { replace: true });
             } catch (cause) {
               setError(cause instanceof Error ? cause.message : '登录失败');
             } finally {
