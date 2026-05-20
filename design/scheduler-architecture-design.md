@@ -2062,8 +2062,9 @@ scheduler/
 - [ ] 多语言动态脚本处理器（Python/Node/Shell/PowerShell/Rhai）
   - [x] 脚本定义 Storage / Migration / Repository / HTTP CRUD API / OpenAPI
   - [x] Web 脚本管理页面（列表、创建、审批、启用/禁用、删除）
-  - [ ] 脚本版本历史表（`script_versions`），每次 content/policy 变更自动产生版本记录
-  - [ ] 版本 diff 对比 API（`GET /api/v1/scripts/{id}/diff?v1=&v2=`）与 Web 侧 diff 视图
+  - [x] 脚本版本历史表（`script_versions`），每次 content/policy 变更自动产生版本记录
+  - [x] 版本 diff 对比 API（`GET /api/v1/scripts/{id}/diff?v1=&v2=`）与 Web 侧 diff 视图
+  - [x] 脚本编辑器语法高亮（CodeMirror 6 Shell/Python/Node）
   - [ ] Worker 侧沙箱执行器（子进程/容器/WASM）
 - [ ] 脚本策略引擎（能力声明、审批、资源限制、网络/文件策略）
 - [ ] 告警系统 (邮件/Slack/钉钉/飞书/企业微信/PagerDuty)
