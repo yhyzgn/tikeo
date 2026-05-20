@@ -5,6 +5,7 @@ import {
   createScript,
   deleteScript,
   diffScriptVersions,
+  getScript,
   listScriptVersions,
   listScripts,
   updateScript,
@@ -24,6 +25,12 @@ const STATUS_COLORS: Record<string, string> = {
   draft: 'orange',
   approved: 'green',
   disabled: 'red',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  draft: '草稿',
+  approved: '已审批',
+  disabled: '已禁用',
 };
 
 function DiffContent({ diff }: { diff: string }) {
@@ -94,23 +101,38 @@ function PolicyDiffTable({ changes }: { changes: ScriptDiffResult['policy_diff']
   );
 }
 
+type ScriptDetail = ScriptSummary & { content?: string };
+
 export function ScriptsPage() {
   const [scripts, setScripts] = useState<ScriptSummary[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Create modal
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const currentLanguage = Form.useWatch('language', form) ?? 'shell';
 
+  // Edit modal
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingScript, setEditingScript] = useState<ScriptDetail | null>(null);
+  const [editForm] = Form.useForm();
+  const editLanguage = Form.useWatch('language', editForm) ?? 'shell';
+  const [editHasVersions, setEditHasVersions] = useState(false);
+
+  // View detail drawer
+  const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
+  const [detailScript, setDetailScript] = useState<ScriptDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // Version history drawer
   const [versionDrawerOpen, setVersionDrawerOpen] = useState(false);
   const [activeScript, setActiveScript] = useState<ScriptSummary | null>(null);
   const [versions, setVersions] = useState<ScriptVersionSummary[]>([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
-
   const [selectedV1, setSelectedV1] = useState<number | null>(null);
   const [selectedV2, setSelectedV2] = useState<number | null>(null);
   const [diffResult, setDiffResult] = useState<ScriptDiffResult | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
-
-  const currentLanguage = Form.useWatch('language', form) ?? 'shell';
 
   const load = async () => {
     setLoading(true);
@@ -128,6 +150,7 @@ export function ScriptsPage() {
     void load();
   }, []);
 
+  // Create
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
@@ -144,6 +167,65 @@ export function ScriptsPage() {
     }
   };
 
+  // Edit
+  const openEditModal = async (script: ScriptSummary) => {
+    setEditLoading(true);
+    try {
+      const full = await getScript(script.id);
+      const detail: ScriptDetail = { ...script, content: (full as ScriptSummary & { content?: string }).content ?? '' };
+      setEditingScript(detail);
+      editForm.setFieldsValue({
+        name: detail.name,
+        language: detail.language,
+        version: detail.version,
+        content: detail.content,
+        timeout_seconds: detail.timeout_seconds,
+        max_memory_bytes: detail.max_memory_bytes,
+        allow_network: detail.allow_network,
+        allowed_env_vars: detail.allowed_env_vars,
+      });
+      // Check if script has versions for diff hint
+      try {
+        const vList = await listScriptVersions(script.id);
+        setEditHasVersions(vList.length > 0);
+      } catch {
+        setEditHasVersions(false);
+      }
+      setEditModalOpen(true);
+    } catch {
+      message.error('加载脚本详情失败');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const [editLoading, setEditLoading] = useState(false);
+
+  const handleEdit = async () => {
+    if (!editingScript) return;
+    try {
+      const values = await editForm.validateFields();
+      await updateScript(editingScript.id, {
+        name: values.name,
+        language: values.language,
+        version: values.version,
+        content: values.content,
+        timeout_seconds: values.timeout_seconds,
+        max_memory_bytes: values.max_memory_bytes,
+        allow_network: values.allow_network,
+        allowed_env_vars: values.allowed_env_vars,
+      });
+      message.success('脚本更新成功');
+      setEditModalOpen(false);
+      editForm.resetFields();
+      setEditingScript(null);
+      void load();
+    } catch {
+      message.error('更新脚本失败');
+    }
+  };
+
+  // Status transitions
   const handleStatusChange = async (id: string, status: string) => {
     try {
       await updateScript(id, { status });
@@ -164,6 +246,22 @@ export function ScriptsPage() {
     }
   };
 
+  // View detail
+  const openDetailDrawer = async (script: ScriptSummary) => {
+    setDetailDrawerOpen(true);
+    setDetailLoading(true);
+    try {
+      const full = await getScript(script.id);
+      setDetailScript({ ...full, content: (full as ScriptSummary & { content?: string }).content ?? '' });
+    } catch {
+      setDetailScript(script);
+      message.error('加载脚本详情失败');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  // Version history
   const openVersionDrawer = async (script: ScriptSummary) => {
     setActiveScript(script);
     setVersionDrawerOpen(true);
@@ -182,9 +280,7 @@ export function ScriptsPage() {
   };
 
   const handleDiff = async () => {
-    if (!activeScript || selectedV1 === null || selectedV2 === null) {
-      return;
-    }
+    if (!activeScript || selectedV1 === null || selectedV2 === null) return;
     setDiffLoading(true);
     try {
       const result = await diffScriptVersions(activeScript.id, selectedV1, selectedV2);
@@ -209,7 +305,7 @@ export function ScriptsPage() {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (v: string) => <Tag color={STATUS_COLORS[v] ?? 'default'}>{v}</Tag>,
+      render: (v: string) => <Tag color={STATUS_COLORS[v] ?? 'default'}>{STATUS_LABELS[v] ?? v}</Tag>,
     },
     { title: '网络', dataIndex: 'allow_network', key: 'allow_network', render: (v: boolean) => v ? '允许' : '禁止' },
     {
@@ -222,15 +318,51 @@ export function ScriptsPage() {
       title: '操作',
       key: 'actions',
       render: (_: unknown, record: ScriptSummary) => (
-        <Space>
+        <Space size="small" wrap>
+          <Button size="small" type="link" onClick={() => void openDetailDrawer(record)}>
+            查看
+          </Button>
+          <Button size="small" type="link" onClick={() => void openEditModal(record)}>
+            编辑
+          </Button>
           <Button size="small" type="link" onClick={() => void openVersionDrawer(record)}>
             版本历史
           </Button>
           {record.status === 'draft' && (
-            <Button size="small" type="link" onClick={() => void handleStatusChange(record.id, 'approved')}>审批</Button>
+            <Popconfirm
+              title="提交审批"
+              description="确认提交审批？审批通过后脚本将可用于生产环境。"
+              onConfirm={() => void handleStatusChange(record.id, 'approved')}
+            >
+              <Button size="small" type="link">提交审批</Button>
+            </Popconfirm>
           )}
-          {record.status !== 'disabled' && (
-            <Button size="small" type="link" danger onClick={() => void handleStatusChange(record.id, 'disabled')}>禁用</Button>
+          {record.status === 'approved' && (
+            <>
+              <Popconfirm
+                title="禁用脚本"
+                description="确认禁用？禁用后脚本将无法执行。"
+                onConfirm={() => void handleStatusChange(record.id, 'disabled')}
+              >
+                <Button size="small" type="link" danger>禁用</Button>
+              </Popconfirm>
+              <Popconfirm
+                title="回退草稿"
+                description="确认回退为草稿状态？"
+                onConfirm={() => void handleStatusChange(record.id, 'draft')}
+              >
+                <Button size="small" type="link">回退草稿</Button>
+              </Popconfirm>
+            </>
+          )}
+          {record.status === 'disabled' && (
+            <Popconfirm
+              title="重新启用"
+              description="确认重新启用此脚本？"
+              onConfirm={() => void handleStatusChange(record.id, 'approved')}
+            >
+              <Button size="small" type="link">重新启用</Button>
+            </Popconfirm>
           )}
           <Popconfirm title="确定删除？" onConfirm={() => void handleDelete(record.id)}>
             <Button size="small" type="link" danger>删除</Button>
@@ -247,6 +379,7 @@ export function ScriptsPage() {
       </div>
       <Table rowKey="id" dataSource={scripts} columns={columns} loading={loading} pagination={false} />
 
+      {/* Create Modal */}
       <Modal
         title="新建脚本"
         open={modalOpen}
@@ -286,6 +419,94 @@ export function ScriptsPage() {
         </Form>
       </Modal>
 
+      {/* Edit Modal */}
+      <Modal
+        title={`编辑脚本 - ${editingScript?.name ?? ''}`}
+        open={editModalOpen}
+        onOk={handleEdit}
+        onCancel={() => { setEditModalOpen(false); editForm.resetFields(); setEditingScript(null); }}
+        width={700}
+        confirmLoading={editLoading}
+      >
+        {editHasVersions && (
+          <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6, fontSize: 13 }}>
+            此脚本存在历史版本，更新后将生成新版本记录。
+          </div>
+        )}
+        <Form form={editForm} layout="vertical">
+          <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="language" label="语言" rules={[{ required: true, message: '请选择语言' }]}>
+            <Select options={LANGUAGE_OPTIONS} />
+          </Form.Item>
+          <Form.Item name="version" label="版本">
+            <Input />
+          </Form.Item>
+          <Form.Item name="content" label="脚本内容" rules={[{ required: true, message: '请输入脚本内容' }]}>
+            <CodeEditor
+              value={editForm.getFieldValue('content') ?? ''}
+              onChange={(val) => editForm.setFieldValue('content', val)}
+              language={editLanguage}
+            />
+          </Form.Item>
+          <Form.Item name="timeout_seconds" label="超时(秒)">
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="max_memory_bytes" label="内存限制(字节)">
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="allow_network" label="允许网络" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="allowed_env_vars" label="允许的环境变量">
+            <Select mode="tags" placeholder="输入变量名后回车" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* View Detail Drawer */}
+      <Drawer
+        title={`脚本详情 - ${detailScript?.name ?? ''}`}
+        open={detailDrawerOpen}
+        onClose={() => { setDetailDrawerOpen(false); setDetailScript(null); }}
+        width={720}
+      >
+        {detailLoading ? (
+          <Spin />
+        ) : detailScript ? (
+          <div>
+            <Descriptions size="small" column={2} bordered>
+              <Descriptions.Item label="名称">{detailScript.name}</Descriptions.Item>
+              <Descriptions.Item label="语言">{detailScript.language.toUpperCase()}</Descriptions.Item>
+              <Descriptions.Item label="版本">{detailScript.version}</Descriptions.Item>
+              <Descriptions.Item label="状态">
+                <Tag color={STATUS_COLORS[detailScript.status] ?? 'default'}>{STATUS_LABELS[detailScript.status] ?? detailScript.status}</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="超时(秒)">{detailScript.timeout_seconds ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="内存限制(字节)">{detailScript.max_memory_bytes ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="允许网络">{detailScript.allow_network ? '允许' : '禁止'}</Descriptions.Item>
+              <Descriptions.Item label="允许的环境变量">
+                {detailScript.allowed_env_vars && detailScript.allowed_env_vars.length > 0
+                  ? detailScript.allowed_env_vars.join(', ')
+                  : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="创建者">{detailScript.created_by}</Descriptions.Item>
+              <Descriptions.Item label="创建时间">{new Date(detailScript.created_at).toLocaleString()}</Descriptions.Item>
+              <Descriptions.Item label="更新时间" span={2}>{new Date(detailScript.updated_at).toLocaleString()}</Descriptions.Item>
+            </Descriptions>
+            <h4 style={{ marginTop: 24 }}>脚本内容</h4>
+            <CodeEditor
+              value={detailScript.content ?? ''}
+              onChange={() => {}}
+              language={detailScript.language}
+              readOnly
+            />
+          </div>
+        ) : null}
+      </Drawer>
+
+      {/* Version History Drawer */}
       <Drawer
         title={`版本历史 - ${activeScript?.name ?? ''}`}
         open={versionDrawerOpen}
@@ -308,7 +529,7 @@ export function ScriptsPage() {
                   dataIndex: 'status',
                   key: 'status',
                   width: 80,
-                  render: (v: string) => <Tag color={STATUS_COLORS[v] ?? 'default'}>{v}</Tag>,
+                  render: (v: string) => <Tag color={STATUS_COLORS[v] ?? 'default'}>{STATUS_LABELS[v] ?? v}</Tag>,
                 },
                 { title: '创建者', dataIndex: 'created_by', key: 'created_by', width: 120 },
                 {
@@ -320,12 +541,7 @@ export function ScriptsPage() {
               ]}
             />
 
-            <Descriptions
-              title="版本对比"
-              size="small"
-              style={{ marginTop: 24 }}
-              column={3}
-            >
+            <Descriptions title="版本对比" size="small" style={{ marginTop: 24 }} column={3}>
               <Descriptions.Item label="版本 A">
                 <Select
                   style={{ width: 260 }}
@@ -360,7 +576,6 @@ export function ScriptsPage() {
               <div style={{ marginTop: 16 }}>
                 <h4>代码变更</h4>
                 <DiffContent diff={diffResult.content_diff} />
-
                 <h4 style={{ marginTop: 24 }}>策略变更</h4>
                 <PolicyDiffTable changes={diffResult.policy_diff} />
               </div>

@@ -11,6 +11,7 @@ interface CodeEditorProps {
   value: string;
   onChange: (value: string) => void;
   language: string;
+  readOnly?: boolean;
 }
 
 function getExtension(lang: string) {
@@ -27,7 +28,7 @@ function getExtension(lang: string) {
   }
 }
 
-export function CodeEditor({ value, onChange, language }: CodeEditorProps) {
+export function CodeEditor({ value, onChange, language, readOnly }: CodeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
@@ -38,22 +39,27 @@ export function CodeEditor({ value, onChange, language }: CodeEditorProps) {
       return;
     }
 
+    const extensions = [
+      basicSetup,
+      getExtension(language),
+      oneDark,
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          onChangeRef.current(update.state.doc.toString());
+        }
+      }),
+      EditorView.theme({
+        '&': { minHeight: '200px', border: '1px solid #d9d9d9', borderRadius: '6px' },
+        '.cm-content': { fontFamily: "'JetBrains Mono', 'Fira Code', monospace" },
+      }),
+    ];
+    if (readOnly) {
+      extensions.push(EditorState.readOnly.of(true));
+    }
+
     const state = EditorState.create({
       doc: value,
-      extensions: [
-        basicSetup,
-        getExtension(language),
-        oneDark,
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            onChangeRef.current(update.state.doc.toString());
-          }
-        }),
-        EditorView.theme({
-          '&': { minHeight: '200px', border: '1px solid #d9d9d9', borderRadius: '6px' },
-          '.cm-content': { fontFamily: "'JetBrains Mono', 'Fira Code', monospace" },
-        }),
-      ],
+      extensions,
     });
 
     const view = new EditorView({
