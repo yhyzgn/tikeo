@@ -21,3 +21,7 @@
 ## 追加：二级页返回入口
 - Workflow 新增/编辑页顶部 hero 区域已有“← 返回工作流列表”按钮。
 - 页面级返回入口保持在 hero 顶部，画布 Card extra 只放预览切换和 Dry-run 等工具动作。
+
+## 追加：运行视图只读约束
+- `/workflows` 列表内联运行视图必须只读：禁止节点拖拽、端口连线、边条件编辑、边删除、端点重连。
+- 只有 `/workflows/new` 与 `/workflows/:id/edit` 的编辑页可以传入 `DagPreview editable`。

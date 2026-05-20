@@ -718,3 +718,8 @@ Git:
 - 用户要求进入二级页面后增加返回按钮。
 - 已在 WorkflowEditorPage hero 顶部新增“← 返回工作流列表”按钮，并移除 Card extra 中原有的重复返回入口。
 - 验证通过前后端全量 lint/typecheck/test/build 与 dev.sh 启动烟测。
+
+### 2026-05-20 037 列表运行视图禁止编辑
+- 用户指出列表页面展开的运行视图应该禁止编辑节点和线条。
+- 已让 DagPreview 在非 editable 模式下不渲染端口、不渲染 edge hit path、不显示线条配置弹窗和重连 handle，节点点击也不会进入选中编辑态。
+- 编辑页继续传入 `editable`，不影响工作流创建/编辑画布。

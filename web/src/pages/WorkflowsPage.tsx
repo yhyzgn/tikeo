@@ -367,7 +367,7 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
           {edgeDrag ? <Tag color="purple">正在调整连线{edgeDrag.side === 'from' ? '起点' : '终点'}：松到目标端口完成</Tag> : null}
         </Space>
       ) : null}
-      <div className={`workflow-node-canvas ${linkDrag || edgeDrag ? 'workflow-node-canvas--linking' : ''}`} style={{ height: Math.min(720, canvasHeight + 40) }} onPointerMove={pointerMove} onPointerDown={(event) => { if (event.target === event.currentTarget) { setSelectedEdgeIndex(null); } }} onPointerUp={() => { setDragging(null); setLinkDrag(null); setEdgeDrag(null); }}>
+      <div className={`workflow-node-canvas ${editable ? 'workflow-node-canvas--editable' : 'workflow-node-canvas--readonly'} ${linkDrag || edgeDrag ? 'workflow-node-canvas--linking' : ''}`} style={{ height: Math.min(720, canvasHeight + 40) }} onPointerMove={pointerMove} onPointerDown={(event) => { if (event.target === event.currentTarget) { setSelectedEdgeIndex(null); } }} onPointerUp={() => { setDragging(null); setLinkDrag(null); setEdgeDrag(null); }}>
         <div ref={spaceRef} className="workflow-node-canvas__space" style={{ width: canvasWidth, height: canvasHeight }} onPointerDown={(event) => { if (event.target === event.currentTarget) setSelectedEdgeIndex(null); }}>
           <svg className="workflow-node-canvas__edges" width={canvasWidth} height={canvasHeight}>
             <defs>
@@ -390,7 +390,7 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
               const path = `M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`;
               return (
                 <g key={`${edge.from}-${edge.to}-${index}`} className={`workflow-edge ${selected ? 'workflow-edge--selected' : ''}`}>
-                  <path className="workflow-edge__hit" d={path} stroke="transparent" strokeWidth="16" fill="none" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedEdgeIndex(index); setSelectedNodeKey(null); }} />
+                  {editable ? <path className="workflow-edge__hit" d={path} stroke="transparent" strokeWidth="16" fill="none" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedEdgeIndex(index); setSelectedNodeKey(null); }} /> : null}
                   <path d={path} stroke={selected ? '#0ea5e9' : meta.color} strokeWidth={selected ? '3.5' : '2.5'} fill="none" markerEnd="url(#workflow-arrow)" />
                   <text className="workflow-edge__label" x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 10} fill={meta.color}>{meta.value}</text>
                   {selected ? (
@@ -426,7 +426,7 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
               return <path className="workflow-node-canvas__temp-edge" d={`M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`} stroke="#0ea5e9" strokeWidth="2.5" fill="none" markerEnd="url(#workflow-arrow)" />;
             })() : null}
           </svg>
-          {selectedEdgeIndex !== null && selectedEdgeHandles ? (
+          {editable && selectedEdgeIndex !== null && selectedEdgeHandles ? (
             <>
               <button
                 className="workflow-edge-rehandle workflow-edge-rehandle--from"
@@ -444,7 +444,7 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
               />
             </>
           ) : null}
-          {selectedEdge && selectedEdgeOverlay ? (() => {
+          {editable && selectedEdge && selectedEdgeOverlay ? (() => {
             const fromNode = definition.nodes.find((node) => node.key === selectedEdge.from);
             const options = edgeConditionOptionsFor(fromNode);
             const value = selectedEdge.condition ?? defaultEdgeConditionFor(fromNode);
@@ -468,9 +468,9 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
             const outgoing = definition.edges.filter((edge) => edge.from === node.key);
             const limits = nodeLimits(node);
             return (
-              <div className={`workflow-node-card ${editable ? 'workflow-node-card--editable' : ''} ${selectedNodeKey === node.key ? 'workflow-node-card--selected' : ''} ${linkDrag?.from === node.key ? 'workflow-node-card--linking' : ''}`} key={node.key} style={{ left: position.x, top: position.y }} onPointerDown={(event) => pointerDown(node, event)} onClick={() => { setSelectedNodeKey(node.key); setSelectedEdgeIndex(null); }}>
-                {limits.in > 0 ? <button className="workflow-node-port workflow-node-port--input" type="button" onPointerUp={(event) => finishLinkDrag(node.key, event)} onPointerDown={(event) => event.stopPropagation()} title={`输入端口：${incoming.length}/${limits.in}`} /> : null}
-                {limits.out > 0 ? <button className="workflow-node-port workflow-node-port--output" type="button" onPointerUp={(event) => finishEdgeReconnect(node.key, event)} onPointerDown={(event) => startLinkDrag(node.key, event)} title={`输出端口：${outgoing.length}/${limits.out}`} /> : null}
+              <div className={`workflow-node-card ${editable ? 'workflow-node-card--editable' : ''} ${editable && selectedNodeKey === node.key ? 'workflow-node-card--selected' : ''} ${linkDrag?.from === node.key ? 'workflow-node-card--linking' : ''}`} key={node.key} style={{ left: position.x, top: position.y }} onPointerDown={(event) => pointerDown(node, event)} onClick={() => { if (editable) { setSelectedNodeKey(node.key); setSelectedEdgeIndex(null); } }}>
+                {editable && limits.in > 0 ? <button className="workflow-node-port workflow-node-port--input" type="button" onPointerUp={(event) => finishLinkDrag(node.key, event)} onPointerDown={(event) => event.stopPropagation()} title={`输入端口：${incoming.length}/${limits.in}`} /> : null}
+                {editable && limits.out > 0 ? <button className="workflow-node-port workflow-node-port--output" type="button" onPointerUp={(event) => finishEdgeReconnect(node.key, event)} onPointerDown={(event) => startLinkDrag(node.key, event)} title={`输出端口：${outgoing.length}/${limits.out}`} /> : null}
                 <div className="workflow-node-card__header">
                   <span className="workflow-node-card__index">{index + 1}</span>
                   <span className="workflow-node-card__title">{node.name ?? node.key}</span>
