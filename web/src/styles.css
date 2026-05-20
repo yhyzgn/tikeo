@@ -566,3 +566,15 @@ body {
   margin-top: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
+
+.workflow-node-card--linking {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16), 0 18px 38px rgba(30, 64, 175, 0.14);
+}
+
+.workflow-node-port::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 999px;
+}

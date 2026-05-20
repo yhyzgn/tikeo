@@ -654,3 +654,8 @@ Git:
 - Removed the wide left definition panel from Workflows page; creation now only needs inline name + create button, and JSON/YAML/Dry-run are canvas card actions.
 - Fixed YAML preview by deriving YAML from current parsed JSON without replacing canonical draft state.
 - Fixed node port connection by stopping pointer propagation on ports, and added per-node-type in/out connection limits shown on each node.
+
+## 2026-05-20 — Workflow port linking reliability fix
+
+- Fixed workflow canvas linking reliability by triggering port actions on pointerdown as well as click, enlarging the invisible port hit area, cancelling drag state during linking, and highlighting the source node while linking.
+- Temporarily relaxed per-type port limits to 8 in/out for all node types to avoid UX-blocking false negatives while the exact product semantics are still evolving.
