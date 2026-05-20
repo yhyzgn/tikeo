@@ -40,7 +40,7 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
         attempts.clone(),
         users,
         scripts,
-        workflows,
+        workflows.clone(),
         audit,
         registry.clone(),
     ));
@@ -49,6 +49,7 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
     let dispatcher_jobs = jobs.clone();
     let dispatcher_instances = instances;
     let dispatcher_attempts = attempts.clone();
+    let dispatcher_workflows = workflows.clone();
     let tunnel_attempts = attempts;
 
     info!(%http_addr, %tunnel_addr, "starting scheduler listeners");
@@ -72,6 +73,7 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
                 dispatcher_jobs,
                 dispatcher_instances,
                 dispatcher_attempts,
+                dispatcher_workflows,
                 registry,
             )
             .await;

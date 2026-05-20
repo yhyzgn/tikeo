@@ -22,6 +22,7 @@ const MENU_ITEMS = [
   { key: '/jobs', icon: <ThunderboltOutlined />, label: '任务' },
   { key: '/instances', icon: <DeploymentUnitOutlined />, label: '实例' },
   { key: '/workflows', icon: <BranchesOutlined />, label: '工作流', resource: 'workflows', action: 'read' },
+  { key: '/workers', icon: <ApiOutlined />, label: 'Worker 集群', resource: 'workers', action: 'read' },
 ];
 
 const PROTECTED_ITEMS = [
@@ -31,7 +32,6 @@ const PROTECTED_ITEMS = [
 ];
 
 const COMING_SOON_ITEMS = [
-  { key: 'workers-next', icon: <ApiOutlined />, label: 'Worker 集群', disabled: true },
   { key: 'security-next', icon: <SafetyCertificateOutlined />, label: '安全策略', disabled: true },
 ];
 

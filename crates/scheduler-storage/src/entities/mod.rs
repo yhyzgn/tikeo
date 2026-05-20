@@ -21,3 +21,4 @@ pub mod workflow_edge;
 pub mod workflow_instance;
 pub mod workflow_node;
 pub mod workflow_node_instance;
+pub mod workflow_shard;

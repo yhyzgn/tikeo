@@ -59,6 +59,11 @@ impl WorkerRegistry {
         self.workers.read().await.get(worker_id).cloned()
     }
 
+    /// Return currently connected workers.
+    pub async fn workers(&self) -> Vec<RegisteredWorker> {
+        self.workers.read().await.values().cloned().collect()
+    }
+
     /// Return currently connected worker ids.
     pub async fn worker_ids(&self) -> Vec<String> {
         self.workers.read().await.keys().cloned().collect()

@@ -51,7 +51,7 @@ pub struct AppState {
     audit: AuditLogRepository,
     sessions: SessionManager,
     pub(crate) rbac: RbacService,
-    registry: crate::tunnel::WorkerRegistry,
+    pub(crate) registry: crate::tunnel::WorkerRegistry,
 }
 
 impl AppState {
@@ -195,12 +195,24 @@ fn api_router() -> Router<Arc<AppState>> {
             axum::routing::post(routes::run_workflow),
         )
         .route(
+            "/workflow-instances/materialize-next",
+            axum::routing::post(routes::materialize_next_workflow_node),
+        )
+        .route(
             "/workflow-instances/{id}",
             get(routes::get_workflow_instance_route),
         )
         .route(
             "/workflow-instances/{id}/advance",
             axum::routing::post(routes::advance_workflow_instance),
+        )
+        .route(
+            "/workflow-instances/{id}/recover",
+            axum::routing::post(routes::recover_workflow_node),
+        )
+        .route(
+            "/workflow-instances/{id}/shards",
+            get(routes::list_workflow_shards),
         )
         .route(
             "/events/instances/{id}/stream",
@@ -221,6 +233,8 @@ fn api_router() -> Router<Arc<AppState>> {
             "/instances/{instance}/attempts",
             get(routes::list_instance_attempts),
         )
+        .route("/workers", get(routes::list_workers))
+        .route("/dispatch-queue", get(routes::dispatch_queue))
         .route("/audit-logs", get(routes::list_audit_logs))
 }
 
@@ -823,8 +837,18 @@ mod tests {
             .as_str()
             .unwrap_or_else(|| panic!("workflow instance id should exist"));
 
+        let materialized_job = post_json(
+            app.clone(),
+            "/api/v1/workflow-instances/materialize-next",
+            "{}",
+        )
+        .await;
+        assert_eq!(materialized_job["code"], 0);
+        assert_eq!(materialized_job["data"]["node"]["node_key"], "start");
+        assert!(materialized_job["data"]["node"]["job_instance_id"].is_string());
+
         let advanced = post_json(
-            app,
+            app.clone(),
             &format!("/api/v1/workflow-instances/{instance_id}/advance"),
             r#"{"node_key":"start","status":"succeeded","message":"ok"}"#,
         )
@@ -832,6 +856,49 @@ mod tests {
         assert_eq!(advanced["code"], 0);
         assert_eq!(advanced["data"]["queued_nodes"][0], "fanout");
         assert_eq!(advanced["data"]["instance"]["status"], "running");
+
+        let materialized_map = post_json(
+            app.clone(),
+            "/api/v1/workflow-instances/materialize-next",
+            "{}",
+        )
+        .await;
+        assert_eq!(materialized_map["data"]["node"]["node_key"], "fanout");
+        assert_eq!(
+            materialized_map["data"]["shards"].as_array().map(Vec::len),
+            Some(2)
+        );
+
+        let shards = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app.clone(),
+                    "GET",
+                    format!("/api/v1/workflow-instances/{instance_id}/shards"),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("test operation should succeed: {error}"));
+        let body = axum::body::to_bytes(shards.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["data"].as_array().map(Vec::len), Some(2));
+
+        let queue = app
+            .clone()
+            .oneshot(admin_request_builder(app.clone(), "GET", "/api/v1/dispatch-queue").await)
+            .await
+            .unwrap_or_else(|error| panic!("test operation should succeed: {error}"));
+        let body = axum::body::to_bytes(queue.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert!(json["data"]["items"].as_array().is_some());
     }
 
     #[tokio::test]

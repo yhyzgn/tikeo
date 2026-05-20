@@ -30,6 +30,7 @@ impl MigrationTrait for CreateMetadataTables {
         create_scripts(manager).await?;
         create_script_versions(manager).await?;
         create_workflow_tables(manager).await?;
+        create_workflow_shards(manager).await?;
         create_dispatch_queue(manager).await?;
         create_instance_events(manager).await?;
         create_audit_logs(manager).await?;
@@ -355,8 +356,30 @@ async fn create_workflow_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr
                 .col(string_col(WorkflowNodeInstances::NodeKey))
                 .col(string_col(WorkflowNodeInstances::Status))
                 .col(string_null(WorkflowNodeInstances::JobInstanceId))
+                .col(string_null(WorkflowNodeInstances::ChildWorkflowInstanceId))
                 .col(string_col(WorkflowNodeInstances::CreatedAt))
                 .col(string_col(WorkflowNodeInstances::UpdatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_workflow_shards(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(WorkflowShards::Table)
+                .if_not_exists()
+                .col(string_pk(WorkflowShards::Id))
+                .col(string_col(WorkflowShards::WorkflowInstanceId))
+                .col(string_col(WorkflowShards::WorkflowNodeInstanceId))
+                .col(string_col(WorkflowShards::NodeKey))
+                .col(integer_col(WorkflowShards::ShardIndex))
+                .col(string_col(WorkflowShards::Status))
+                .col(string_col(WorkflowShards::Input))
+                .col(string_null(WorkflowShards::Output))
+                .col(string_col(WorkflowShards::CreatedAt))
+                .col(string_col(WorkflowShards::UpdatedAt))
                 .to_owned(),
         )
         .await
@@ -483,8 +506,17 @@ async fn seed_rbac_defaults(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         "perm-instances-read",
         "perm-instances-execute",
         "perm-scripts-read",
+        "perm-workflows-read",
+        "perm-workflows-execute",
+        "perm-workers-read",
     ];
-    let viewer_permissions = ["perm-jobs-read", "perm-instances-read", "perm-scripts-read"];
+    let viewer_permissions = [
+        "perm-jobs-read",
+        "perm-instances-read",
+        "perm-scripts-read",
+        "perm-workflows-read",
+        "perm-workers-read",
+    ];
     seed_role_permissions(manager, "role-admin", admin_permissions).await?;
     seed_role_permissions(manager, "role-operator", operator_permissions).await?;
     seed_role_permissions(manager, "role-viewer", viewer_permissions).await
@@ -559,6 +591,12 @@ const DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
         "workflows",
         "execute",
         "Run workflows",
+    ),
+    (
+        "perm-workers-read",
+        "workers",
+        "read",
+        "Read workers and queue state",
     ),
 ];
 
@@ -880,6 +918,15 @@ async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     create_index(
         manager,
         Index::create()
+            .name("idx_workflow_shards_node")
+            .table(WorkflowShards::Table)
+            .col(WorkflowShards::WorkflowNodeInstanceId)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
             .name("idx_dispatch_queue_status_run_after")
             .table(DispatchQueue::Table)
             .col(DispatchQueue::Status)
@@ -954,6 +1001,22 @@ enum WorkflowNodeInstances {
     NodeKey,
     Status,
     JobInstanceId,
+    ChildWorkflowInstanceId,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum WorkflowShards {
+    Table,
+    Id,
+    WorkflowInstanceId,
+    WorkflowNodeInstanceId,
+    NodeKey,
+    ShardIndex,
+    Status,
+    Input,
+    Output,
     CreatedAt,
     UpdatedAt,
 }

@@ -4,7 +4,9 @@ use std::time::Duration;
 
 use scheduler_core::InstanceStatus;
 use scheduler_proto::worker::v1::DispatchTask;
-use scheduler_storage::{JobInstanceAttemptRepository, JobInstanceRepository, JobRepository};
+use scheduler_storage::{
+    JobInstanceAttemptRepository, JobInstanceRepository, JobRepository, WorkflowRepository,
+};
 use tokio::time;
 use tracing::{debug, warn};
 
@@ -18,12 +20,14 @@ pub async fn run(
     jobs: JobRepository,
     instances: JobInstanceRepository,
     attempts: JobInstanceAttemptRepository,
+    workflows: WorkflowRepository,
     registry: WorkerRegistry,
 ) {
     let mut ticker = time::interval(DISPATCH_INTERVAL);
     loop {
         ticker.tick().await;
-        if let Err(error) = dispatch_once(&jobs, &instances, &attempts, &registry).await {
+        if let Err(error) = dispatch_once(&jobs, &instances, &attempts, &workflows, &registry).await
+        {
             warn!(%error, "worker dispatch iteration failed");
         }
     }
@@ -33,8 +37,10 @@ async fn dispatch_once(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,
     attempts: &JobInstanceAttemptRepository,
+    workflows: &WorkflowRepository,
     registry: &WorkerRegistry,
 ) -> Result<(), scheduler_storage::DbErr> {
+    let _ = workflows.materialize_next_queued_node().await?;
     dispatch_single_instances(jobs, instances, registry).await?;
     dispatch_broadcast_attempts(instances, attempts, registry).await
 }
@@ -116,7 +122,7 @@ mod tests {
     use scheduler_proto::worker::v1::{RegisterWorker, server_message};
     use scheduler_storage::{
         CreateJob, CreateJobInstance, JobInstanceAttemptRepository, JobInstanceRepository,
-        JobRepository, connect_and_migrate,
+        JobRepository, WorkflowRepository, connect_and_migrate,
     };
     use tokio::sync::mpsc;
 
@@ -129,7 +135,8 @@ mod tests {
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         let jobs = JobRepository::new(db.clone());
         let instances = JobInstanceRepository::new(db.clone());
-        let attempts = JobInstanceAttemptRepository::new(db);
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db);
         let job = jobs
             .create_job(CreateJob {
                 namespace: "default".to_owned(),
@@ -167,7 +174,7 @@ mod tests {
             )
             .await;
 
-        dispatch_once(&jobs, &instances, &attempts, &registry)
+        dispatch_once(&jobs, &instances, &attempts, &workflows, &registry)
             .await
             .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
 
@@ -198,7 +205,8 @@ mod tests {
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         let jobs = JobRepository::new(db.clone());
         let instances = JobInstanceRepository::new(db.clone());
-        let attempts = JobInstanceAttemptRepository::new(db);
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db);
         let job = jobs
             .create_job(CreateJob {
                 namespace: "default".to_owned(),
@@ -255,7 +263,7 @@ mod tests {
             )
             .await;
 
-        dispatch_once(&jobs, &instances, &attempts, &registry)
+        dispatch_once(&jobs, &instances, &attempts, &workflows, &registry)
             .await
             .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
 

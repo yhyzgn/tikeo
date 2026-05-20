@@ -3,6 +3,9 @@ import { Alert, Button, Card, Col, Form, Input, List, Row, Segmented, Space, Tag
 import {
   advanceWorkflowInstance,
   createWorkflow,
+  listWorkflowShards,
+  materializeNextWorkflowNode,
+  recoverWorkflowNode,
   dryRunWorkflow,
   getAuthToken,
   listWorkflows,
@@ -13,6 +16,7 @@ import {
   type WorkflowDefinition,
   type WorkflowDryRunResponse,
   type WorkflowInstanceSummary,
+  type WorkflowShardSummary,
   type WorkflowSummary,
 } from '../api/client';
 
@@ -103,6 +107,7 @@ export function WorkflowsPage() {
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowSummary | null>(null);
   const [activeInstance, setActiveInstance] = useState<WorkflowInstanceSummary | null>(null);
   const [events, setEvents] = useState<InstanceEventSummary[]>([]);
+  const [shards, setShards] = useState<WorkflowShardSummary[]>([]);
   const [form] = Form.useForm<{ name: string; definition: string }>();
 
   const fetchItems = async () => {
@@ -182,6 +187,28 @@ export function WorkflowsPage() {
     message.success(result.completed ? 'Workflow 已完成' : `已推进，入队节点：${result.queued_nodes.join(', ') || '无'}`);
   };
 
+
+  const materializeNext = async () => {
+    const result = await materializeNextWorkflowNode();
+    setActiveInstance(result.instance);
+    setShards(result.shards);
+    message.success(`已物化节点：${result.node.node_key}`);
+  };
+
+  const recoverFirstFailed = async () => {
+    if (!activeInstance) return;
+    const target = activeInstance.nodes.find((node) => node.status === 'failed');
+    if (!target) { message.info('没有失败节点'); return; }
+    const result = await recoverWorkflowNode(activeInstance.id, { node_key: target.node_key, action: 'retry', message: `retry ${target.node_key}` });
+    setActiveInstance(result.instance);
+    message.success(`已重试节点：${target.node_key}`);
+  };
+
+  const refreshShards = async () => {
+    if (!activeInstance) return;
+    setShards(await listWorkflowShards(activeInstance.id));
+  };
+
   const switchMode = (nextMode: 'json' | 'yaml') => {
     setMode(nextMode);
     if (nextMode === 'yaml' && previewDefinition) {
@@ -254,8 +281,9 @@ export function WorkflowsPage() {
       {activeWorkflow ? (
         <Row gutter={[18, 18]}>
           <Col xs={24} lg={14}>
-            <Card title={`运行视图 · ${activeWorkflow.name}`} extra={<Button onClick={completeFirstQueued} disabled={!activeInstance}>推进首个队列节点</Button>}>
+            <Card title={`运行视图 · ${activeWorkflow.name}`} extra={<Space wrap><Button onClick={materializeNext}>物化下一节点</Button><Button onClick={completeFirstQueued} disabled={!activeInstance}>推进首个队列节点</Button><Button onClick={recoverFirstFailed} disabled={!activeInstance}>重试失败节点</Button><Button onClick={refreshShards} disabled={!activeInstance}>刷新 Shards</Button></Space>} >
               <DagPreview definition={activeWorkflow.definition} instance={activeInstance} />
+            {shards.length > 0 ? <List size="small" style={{ marginTop: 16 }} dataSource={shards} renderItem={(shard) => <List.Item><Typography.Text>{shard.node_key}#{shard.shard_index} · {shard.status} · {JSON.stringify(shard.input)}</Typography.Text></List.Item>} /> : null}
             </Card>
           </Col>
           <Col xs={24} lg={10}>

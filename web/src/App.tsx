@@ -12,6 +12,7 @@ import { LoginPage } from './pages/LoginPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
 import { ScriptsPage } from './pages/ScriptsPage';
 import { UsersPage } from './pages/UsersPage';
+import { WorkersPage } from './pages/WorkersPage';
 import { Result, Button } from 'antd';
 
 function AppLayout() {
@@ -30,6 +31,7 @@ function AppLayout() {
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/instances" element={<InstancesPage />} />
         <Route path="/workflows" element={<RequirePermission resource="workflows" action="read"><WorkflowsPage /></RequirePermission>} />
+        <Route path="/workers" element={<RequirePermission resource="workers" action="read"><WorkersPage /></RequirePermission>} />
         <Route path="/users" element={<RequirePermission resource="users" action="read"><UsersPage /></RequirePermission>} />
         <Route path="/scripts" element={<RequirePermission resource="scripts" action="read"><ScriptsPage /></RequirePermission>} />
         <Route path="/audit" element={<RequirePermission resource="audit" action="read"><AuditLogsPage /></RequirePermission>} />

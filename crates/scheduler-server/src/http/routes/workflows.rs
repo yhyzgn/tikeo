@@ -9,7 +9,8 @@ use axum::{
     response::sse::{Event, Sse},
 };
 use scheduler_storage::{
-    AdvanceWorkflowInput, CreateWorkflow, WorkflowDefinition, validate_workflow_definition,
+    AdvanceWorkflowInput, CreateWorkflow, RecoverWorkflowNodeInput, WorkflowDefinition,
+    validate_workflow_definition,
 };
 use serde::Deserialize;
 use tokio_stream::Stream;
@@ -20,7 +21,8 @@ use crate::http::{
     dto::{
         ApiResponse, WorkflowAdvanceApiResponse, WorkflowApiResponse, WorkflowDryRunApiResponse,
         WorkflowDryRunResponse, WorkflowInstanceApiResponse, WorkflowListApiResponse,
-        WorkflowRunRequest, WorkflowValidationApiResponse,
+        WorkflowMaterializeApiResponse, WorkflowRecoverApiResponse, WorkflowRunRequest,
+        WorkflowShardListApiResponse, WorkflowValidationApiResponse,
     },
     error::ApiError,
 };
@@ -188,6 +190,61 @@ pub async fn advance_workflow_instance(
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| ApiError::not_found(format!("workflow instance not found: {id}")))?;
     Ok(Json(ApiResponse::success(item)))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/workflow-instances/materialize-next",
+    tag = "workflows"
+)]
+pub async fn materialize_next_workflow_node(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<WorkflowMaterializeApiResponse>, ApiError> {
+    auth::require_permission(&headers, &state, "workflows", "execute").await?;
+    let item = state
+        .workflows
+        .materialize_next_queued_node()
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::not_found("no queued workflow node found"))?;
+    Ok(Json(ApiResponse::success(item)))
+}
+
+#[utoipa::path(post, path = "/api/v1/workflow-instances/{id}/recover", tag = "workflows", request_body = RecoverWorkflowNodeInput)]
+pub async fn recover_workflow_node(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<RecoverWorkflowNodeInput>,
+) -> Result<Json<WorkflowRecoverApiResponse>, ApiError> {
+    auth::require_permission(&headers, &state, "workflows", "execute").await?;
+    let item = state
+        .workflows
+        .recover_workflow_node(&id, request)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::not_found(format!("workflow instance not found: {id}")))?;
+    Ok(Json(ApiResponse::success(item)))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/workflow-instances/{id}/shards",
+    tag = "workflows"
+)]
+pub async fn list_workflow_shards(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<WorkflowShardListApiResponse>, ApiError> {
+    auth::require_permission(&headers, &state, "workflows", "read").await?;
+    let items = state
+        .workflows
+        .list_workflow_shards(&id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    Ok(Json(ApiResponse::success(items)))
 }
 
 pub async fn stream_instance_events(

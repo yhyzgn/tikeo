@@ -1,12 +1,14 @@
 # Next Work
 
-当前阶段：023-phase2-workflow-visual-and-mapreduce 已进入验证/收尾。
+当前阶段：024-phase2-distributed-worker-and-recovery 已开发完成，进入验证/提交。
 
-下一阶段建议执行 `.prompt/024-phase2-distributed-worker-and-recovery.md`：
+下一阶段建议执行 `.prompt/025-phase2-workflow-worker-results-and-streaming.md`：
 
-1. 将 workflow queued node 与 worker dispatch 真正打通：job 节点创建 job_instance，map/map_reduce 生成 shard/subtask，sub_workflow 节点触发 child workflow instance。
-2. 增强失败恢复：节点重试、跳过、从失败节点恢复、实例回放。
-3. Worker 集群页面与 API：在线 worker、能力标签、心跳、隧道状态、队列积压。
-4. 完整验证：cargo fmt/clippy/test/build、mvn test、bun lint/typecheck/test/build、docker compose config。
+1. Worker task_result 与 workflow node 自动回写：job_instance 完成后映射回 workflow_node_instance，并自动 advance 后继节点。
+2. Map shard 真正分派给 worker，并支持 shard result、reduce 汇总、失败重试。
+3. 子 workflow 完成后自动回写父节点状态。
+4. 实时日志流从当前拉取/API 进化到 gRPC/SSE streaming。
+5. 强化队列多节点竞争：claim/lease/visibility-timeout，避免多 server 重复 materialize/dispatch。
+6. 完整验证并提交推送。
 
-硬约束继续保持：无数据库外键；API envelope 必须 `code/message/data`；禁止 Swagger UI；开发推进后更新 design/.memory/.prompt 并提交推送。
+硬约束继续保持：无数据库外键；API envelope 必须 `code/message/data`；禁止 Swagger UI；开发推进后更新 design/.memory/.prompt。

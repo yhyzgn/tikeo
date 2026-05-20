@@ -630,3 +630,11 @@ Git:
 - HTTP 增加 `POST /api/v1/workflows/dry-run` 与 `POST /api/v1/workflow-instances/{id}/advance`，继续统一返回 `code/message/data`。
 - Web Workflows 页面升级为浅色现代化编排台：JSON 创建、YAML 预览、dry-run、基础 DAG 可视化、实例节点状态着色、SSE 事件流、手动推进 queued 节点。
 - SSE endpoint now also accepts `?token=` by translating it into a Bearer header server-side because browser EventSource cannot set custom Authorization headers; normal APIs still use Authorization.
+
+## 2026-05-20 — 024 Phase2 distributed worker/recovery slice
+
+- Workflow queued node 与执行链路打通：`materialize_next_queued_node` 可把 job 节点生成 job_instance + dispatch_queue，把 map/map_reduce 节点生成 workflow_shards，把 sub_workflow 节点生成 child workflow_instance 软关联。
+- 新增 workflow_shards 表；workflow_node_instances 增加 child_workflow_instance_id，继续无外键，仅软关联。
+- 新增恢复 API：`POST /api/v1/workflow-instances/{id}/recover`，支持 retry/skip/fail/succeed 最小语义。
+- 新增 Worker/队列管理 API：`GET /api/v1/workers`、`GET /api/v1/dispatch-queue`，Web 新增 Worker 集群页面。
+- Dispatcher loop 每轮尝试 materialize 一个 queued workflow node，再走既有 job/broadcast dispatch。

@@ -17,12 +17,14 @@ pub use repository::{
     AdvanceWorkflowInput, AdvanceWorkflowResult, AppendJobInstanceLog, AuditLogFilters,
     AuditLogRepository, AuditLogSummary, AuthSessionRepository, AuthSessionSummary, CreateAuditLog,
     CreateAuthSession, CreateJob, CreateJobInstance, CreateJobInstanceAttempt, CreateScript,
-    CreateUser, CreateWorkflow, InstanceEventSummary, JobInstanceAttemptRepository,
-    JobInstanceAttemptSummary, JobInstanceLogRepository, JobInstanceLogSummary,
-    JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary, PermissionSummary,
-    RbacRepository, ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary,
-    UpdateScript, UpdateUser, UserRepository, UserSummary, WorkflowDefinition, WorkflowEdgeSpec,
-    WorkflowInstanceSummary, WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository,
+    CreateUser, CreateWorkflow, DispatchQueueSummary, InstanceEventSummary,
+    JobInstanceAttemptRepository, JobInstanceAttemptSummary, JobInstanceLogRepository,
+    JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
+    MaterializeWorkflowNodeResult, PermissionSummary, QueueOverview, RbacRepository,
+    RecoverWorkflowNodeInput, RecoverWorkflowNodeResult, ScriptRepository, ScriptSummary,
+    ScriptVersionRepository, ScriptVersionSummary, UpdateScript, UpdateUser, UserRepository,
+    UserSummary, WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary,
+    WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
     WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
 };
 pub use sea_orm::DbErr;
@@ -76,7 +78,8 @@ async fn ensure_workflow_schema_compatibility(
         r"CREATE TABLE IF NOT EXISTS workflow_nodes (id varchar NOT NULL PRIMARY KEY, workflow_id varchar NOT NULL, node_key varchar NOT NULL, name varchar NOT NULL, kind varchar NOT NULL, job_id varchar, config varchar, created_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS workflow_edges (id varchar NOT NULL PRIMARY KEY, workflow_id varchar NOT NULL, from_node_key varchar NOT NULL, to_node_key varchar NOT NULL, condition varchar NOT NULL, created_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS workflow_instances (id varchar NOT NULL PRIMARY KEY, workflow_id varchar NOT NULL, status varchar NOT NULL, trigger_type varchar NOT NULL, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
-        r"CREATE TABLE IF NOT EXISTS workflow_node_instances (id varchar NOT NULL PRIMARY KEY, workflow_instance_id varchar NOT NULL, node_key varchar NOT NULL, status varchar NOT NULL, job_instance_id varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
+        r"CREATE TABLE IF NOT EXISTS workflow_node_instances (id varchar NOT NULL PRIMARY KEY, workflow_instance_id varchar NOT NULL, node_key varchar NOT NULL, status varchar NOT NULL, job_instance_id varchar, child_workflow_instance_id varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
+        r"CREATE TABLE IF NOT EXISTS workflow_shards (id varchar NOT NULL PRIMARY KEY, workflow_instance_id varchar NOT NULL, workflow_node_instance_id varchar NOT NULL, node_key varchar NOT NULL, shard_index integer NOT NULL, status varchar NOT NULL, input varchar NOT NULL, output varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS dispatch_queue (id varchar NOT NULL PRIMARY KEY, job_instance_id varchar, workflow_node_instance_id varchar, priority integer NOT NULL, run_after varchar NOT NULL, status varchar NOT NULL, attempt integer NOT NULL, worker_selector varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS instance_events (id varchar NOT NULL PRIMARY KEY, instance_id varchar NOT NULL, instance_type varchar NOT NULL, event_type varchar NOT NULL, message varchar NOT NULL, payload varchar, created_at varchar NOT NULL)",
         "CREATE INDEX IF NOT EXISTS idx_workflows_name ON workflows (name)",
@@ -84,11 +87,20 @@ async fn ensure_workflow_schema_compatibility(
         "CREATE INDEX IF NOT EXISTS idx_workflow_edges_workflow ON workflow_edges (workflow_id)",
         "CREATE INDEX IF NOT EXISTS idx_workflow_instances_workflow_created ON workflow_instances (workflow_id, created_at)",
         "CREATE INDEX IF NOT EXISTS idx_workflow_node_instances_instance ON workflow_node_instances (workflow_instance_id)",
+        "CREATE INDEX IF NOT EXISTS idx_workflow_shards_node ON workflow_shards (workflow_node_instance_id)",
         "CREATE INDEX IF NOT EXISTS idx_dispatch_queue_status_run_after ON dispatch_queue (status, run_after)",
         "CREATE INDEX IF NOT EXISTS idx_instance_events_instance_created ON instance_events (instance_id, created_at)",
     ] {
         db.execute(Statement::from_string(DatabaseBackend::Sqlite, sql))
             .await?;
+    }
+
+    if !sqlite_column_exists(db, "workflow_node_instances", "child_workflow_instance_id").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE workflow_node_instances ADD COLUMN child_workflow_instance_id varchar",
+        ))
+        .await?;
     }
     Ok(())
 }

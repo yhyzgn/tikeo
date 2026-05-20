@@ -417,6 +417,7 @@ export interface WorkflowNodeInstanceSummary {
   node_key: string;
   status: string;
   job_instance_id: string | null;
+  child_workflow_instance_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -435,6 +436,66 @@ export interface WorkflowAdvanceResult {
   instance: WorkflowInstanceSummary;
   queued_nodes: string[];
   completed: boolean;
+}
+
+export interface WorkflowShardSummary {
+  id: string;
+  workflow_instance_id: string;
+  workflow_node_instance_id: string;
+  node_key: string;
+  shard_index: number;
+  status: string;
+  input: unknown;
+  output: unknown | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaterializeWorkflowNodeResult {
+  instance: WorkflowInstanceSummary;
+  node: WorkflowNodeInstanceSummary;
+  shards: WorkflowShardSummary[];
+}
+
+export interface RecoverWorkflowNodeResult {
+  instance: WorkflowInstanceSummary;
+  queued_nodes: string[];
+}
+
+export interface DispatchQueueSummary {
+  id: string;
+  job_instance_id: string | null;
+  workflow_node_instance_id: string | null;
+  priority: number;
+  run_after: string;
+  status: string;
+  attempt: number;
+  worker_selector: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QueueOverview {
+  pending: number;
+  running: number;
+  done: number;
+  failed: number;
+  items: DispatchQueueSummary[];
+}
+
+export interface WorkerSummary {
+  worker_id: string;
+  app: string;
+  namespace: string;
+  cluster: string;
+  region: string;
+  capabilities: string[];
+  last_sequence: number;
+}
+
+export interface WorkerListResponse {
+  online: number;
+  items: WorkerSummary[];
 }
 
 export interface InstanceEventSummary {
@@ -469,6 +530,26 @@ export async function runWorkflow(id: string): Promise<WorkflowInstanceSummary> 
 
 export async function advanceWorkflowInstance(instanceId: string, payload: { node_key: string; status: string; message?: string }): Promise<WorkflowAdvanceResult> {
   return request<WorkflowAdvanceResult>(`/api/v1/workflow-instances/${encodeURIComponent(instanceId)}/advance`, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function materializeNextWorkflowNode(): Promise<MaterializeWorkflowNodeResult> {
+  return request<MaterializeWorkflowNodeResult>('/api/v1/workflow-instances/materialize-next', { method: 'POST', body: JSON.stringify({}) });
+}
+
+export async function recoverWorkflowNode(instanceId: string, payload: { node_key: string; action: 'retry' | 'skip' | 'fail'; message?: string }): Promise<RecoverWorkflowNodeResult> {
+  return request<RecoverWorkflowNodeResult>(`/api/v1/workflow-instances/${encodeURIComponent(instanceId)}/recover`, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function listWorkflowShards(instanceId: string): Promise<WorkflowShardSummary[]> {
+  return request<WorkflowShardSummary[]>(`/api/v1/workflow-instances/${encodeURIComponent(instanceId)}/shards`);
+}
+
+export async function listWorkers(): Promise<WorkerListResponse> {
+  return request<WorkerListResponse>('/api/v1/workers');
+}
+
+export async function getDispatchQueue(): Promise<QueueOverview> {
+  return request<QueueOverview>('/api/v1/dispatch-queue');
 }
 
 export function workflowEventStreamUrl(instanceId: string): string {

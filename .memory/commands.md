@@ -490,3 +490,18 @@ bun test --cwd web
 bun run --cwd web build
 docker compose config
 ```
+
+## 已验证命令（024 Phase2 distributed worker/recovery 完成）
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo build --workspace --all-features
+mvn -f java/pom.xml -q test
+bun run --cwd web lint
+bun run --cwd web typecheck
+bun test --cwd web
+bun run --cwd web build
+docker compose config
+```

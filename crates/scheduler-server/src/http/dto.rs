@@ -194,6 +194,17 @@ pub type WorkflowValidationApiResponse = ApiResponse<scheduler_storage::Workflow
 pub type WorkflowInstanceApiResponse = ApiResponse<scheduler_storage::WorkflowInstanceSummary>;
 /// Workflow advance API envelope.
 pub type WorkflowAdvanceApiResponse = ApiResponse<scheduler_storage::AdvanceWorkflowResult>;
+/// Workflow node materialization API envelope.
+pub type WorkflowMaterializeApiResponse =
+    ApiResponse<scheduler_storage::MaterializeWorkflowNodeResult>;
+/// Workflow node recovery API envelope.
+pub type WorkflowRecoverApiResponse = ApiResponse<scheduler_storage::RecoverWorkflowNodeResult>;
+/// Workflow shard list API envelope.
+pub type WorkflowShardListApiResponse = ApiResponse<Vec<scheduler_storage::WorkflowShardSummary>>;
+/// Dispatch queue API envelope.
+pub type DispatchQueueApiResponse = ApiResponse<scheduler_storage::QueueOverview>;
+/// Worker list API envelope.
+pub type WorkerListApiResponse = ApiResponse<WorkerListResponse>;
 /// Workflow dry-run API envelope.
 pub type WorkflowDryRunApiResponse = ApiResponse<WorkflowDryRunResponse>;
 
@@ -208,6 +219,34 @@ pub struct WorkflowDryRunResponse {
     pub node_count: usize,
     /// Total edge count.
     pub edge_count: usize,
+}
+
+/// Online worker summary shown by management UI.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct WorkerSummary {
+    /// Worker id.
+    pub worker_id: String,
+    /// Worker app selector.
+    pub app: String,
+    /// Worker namespace selector.
+    pub namespace: String,
+    /// Worker cluster.
+    pub cluster: String,
+    /// Worker region.
+    pub region: String,
+    /// Runtime capabilities.
+    pub capabilities: Vec<String>,
+    /// Last heartbeat sequence.
+    pub last_sequence: u64,
+}
+
+/// Online worker list payload.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct WorkerListResponse {
+    /// Online worker count.
+    pub online: usize,
+    /// Online workers.
+    pub items: Vec<WorkerSummary>,
 }
 
 /// Request to run a workflow.
