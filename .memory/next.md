@@ -2,22 +2,17 @@
 
 ## 建议阶段
 
-执行 `022-phase2-workflow-and-queue-foundation`。
+执行 `023-phase2-workflow-visual-and-mapreduce`。
 
 ## 阶段定位
 
-021 已转为 RBAC/service hardening 与后端模块拆分阶段。下一阶段回到用户要求的 Phase2「工作流与分布式」。
-
-## 022 目标
-
-建立 Phase 2 第一条可运行纵切：DAG 工作流引擎 + dispatch queue/持久化延迟队列基础 + instance event/SSE 实时事件流骨架 + Web Workflows 最小入口。
+022 已完成 Phase2 第一条纵切：DAG 定义存储、校验、最小运行、dispatch_queue/delayed queue 基础、instance_events/SSE 骨架、Web Workflows JSON 入口。
 
 ## 优先事项
 
-1. 新增 workflow / workflow_node / workflow_edge / workflow_instance / workflow_node_instance 存储模型；继续禁止外键，只做软关联。
-2. 实现 DAG 定义校验：节点唯一、边引用存在、禁止环、start node 存在。
-3. 新增 Workflow HTTP API，所有响应保持 `{ code, message, data }` 且 data 必须出现。
-4. 引入 dispatch queue / delayed queue 存储模型和 dispatcher loop。
-5. 增加 instance event 抽象与 SSE 接口骨架。
-6. Web 新增 Workflows 菜单和基础 JSON/YAML 定义页面。
-7. 更新 design 路线图、.memory 与 .prompt/023；验证全量质量门禁后提交推送。
+1. 完善 workflow 执行推进器：根据 node result 和 edge condition 推进后继节点。
+2. 实现 Map / MapReduce 执行模式的存储与最小 API。
+3. 支持子工作流节点类型。
+4. Web 工作流页面从 JSON 表单升级为基础 DAG 可视化编辑器，并补 YAML/JSON 双模式和 dry-run。
+5. SSE 接入 Web 实时实例事件展示。
+6. 继续保持 API `{ code, message, data }` 和全库无外键。

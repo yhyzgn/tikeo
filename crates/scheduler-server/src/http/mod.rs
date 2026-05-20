@@ -23,7 +23,7 @@ use scheduler_core::HealthState;
 use scheduler_storage::{
     AuditLogRepository, AuthSessionRepository, JobInstanceAttemptRepository,
     JobInstanceLogRepository, JobInstanceRepository, JobRepository, RbacRepository,
-    ScriptRepository, UserRepository, connect_and_migrate,
+    ScriptRepository, UserRepository, WorkflowRepository, connect_and_migrate,
 };
 use serde::Serialize;
 
@@ -47,6 +47,7 @@ pub struct AppState {
     attempts: JobInstanceAttemptRepository,
     users: UserRepository,
     scripts: ScriptRepository,
+    workflows: WorkflowRepository,
     audit: AuditLogRepository,
     sessions: SessionManager,
     pub(crate) rbac: RbacService,
@@ -64,6 +65,7 @@ impl AppState {
         attempts: JobInstanceAttemptRepository,
         users: UserRepository,
         scripts: ScriptRepository,
+        workflows: WorkflowRepository,
         audit: AuditLogRepository,
         registry: crate::tunnel::WorkerRegistry,
     ) -> Self {
@@ -81,6 +83,7 @@ impl AppState {
             attempts,
             users,
             scripts,
+            workflows,
             audit,
             sessions,
             rbac,
@@ -117,6 +120,7 @@ async fn router_for_database(database_url: &str) -> Result<Router> {
         JobInstanceAttemptRepository::new(db.clone()),
         UserRepository::new(db.clone()),
         ScriptRepository::new(db.clone()),
+        WorkflowRepository::new(db.clone()),
         AuditLogRepository::new(db),
         crate::tunnel::WorkerRegistry::default(),
     )))
@@ -173,6 +177,27 @@ fn api_router() -> Router<Arc<AppState>> {
         )
         .route("/scripts/{id}/versions", get(routes::list_script_versions))
         .route("/scripts/{id}/diff", get(routes::diff_script_versions))
+        .route(
+            "/workflows",
+            get(routes::list_workflows).post(routes::create_workflow),
+        )
+        .route("/workflows/{id}", get(routes::get_workflow))
+        .route(
+            "/workflows/{id}/validate",
+            axum::routing::post(routes::validate_workflow),
+        )
+        .route(
+            "/workflows/{id}/run",
+            axum::routing::post(routes::run_workflow),
+        )
+        .route(
+            "/workflow-instances/{id}",
+            get(routes::get_workflow_instance_route),
+        )
+        .route(
+            "/events/instances/{id}/stream",
+            get(routes::stream_instance_events),
+        )
         .route("/jobs", get(routes::list_jobs).post(routes::create_job))
         .route(
             "/jobs/{job_action}",
@@ -261,7 +286,7 @@ mod tests {
     use scheduler_storage::{
         AppendJobInstanceLog, AuditLogRepository, JobInstanceAttemptRepository,
         JobInstanceLogRepository, JobInstanceRepository, JobRepository, ScriptRepository,
-        UserRepository, connect_and_migrate,
+        UserRepository, WorkflowRepository, connect_and_migrate,
     };
     use serde_json::Value;
 
@@ -442,6 +467,7 @@ mod tests {
             JobInstanceAttemptRepository::new(db.clone()),
             UserRepository::new(db.clone()),
             ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
             AuditLogRepository::new(db.clone()),
             registry,
         ));
@@ -531,6 +557,7 @@ mod tests {
             JobInstanceAttemptRepository::new(db.clone()),
             UserRepository::new(db.clone()),
             ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
             AuditLogRepository::new(db.clone()),
             crate::tunnel::WorkerRegistry::default(),
         ));
@@ -707,6 +734,7 @@ mod tests {
             JobInstanceAttemptRepository::new(db.clone()),
             UserRepository::new(db.clone()),
             ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
             AuditLogRepository::new(db.clone()),
             registry,
         ));
@@ -744,6 +772,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn workflow_create_validate_and_run_returns_envelopes() {
+        let app = router().await;
+        let create = post_json(
+            app.clone(),
+            "/api/v1/workflows",
+            r#"{"name":"demo-flow","definition":{"nodes":[{"key":"start","name":"Start","kind":"job"}],"edges":[]}}"#,
+        )
+        .await;
+        assert_eq!(create["code"], 0);
+        let workflow_id = create["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("workflow id should exist"));
+
+        let validate = post_json(
+            app.clone(),
+            &format!("/api/v1/workflows/{workflow_id}/validate"),
+            "{}",
+        )
+        .await;
+        assert_eq!(validate["data"]["valid"], true);
+
+        let run = post_json(
+            app,
+            &format!("/api/v1/workflows/{workflow_id}/run"),
+            r#"{"trigger_type":"api"}"#,
+        )
+        .await;
+        assert_eq!(run["code"], 0);
+        assert_eq!(run["data"]["status"], "pending");
+        assert_eq!(run["data"]["nodes"][0]["status"], "queued");
+    }
+
+    #[tokio::test]
     #[allow(clippy::too_many_lines)]
     async fn user_management_and_rbac_integration() {
         let db = connect_and_migrate("sqlite::memory:")
@@ -756,6 +817,7 @@ mod tests {
             JobInstanceAttemptRepository::new(db.clone()),
             UserRepository::new(db.clone()),
             ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
             AuditLogRepository::new(db),
             crate::tunnel::WorkerRegistry::default(),
         ));
@@ -893,6 +955,7 @@ mod tests {
             JobInstanceAttemptRepository::new(db.clone()),
             UserRepository::new(db.clone()),
             ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
             AuditLogRepository::new(db),
             crate::tunnel::WorkerRegistry::default(),
         ))

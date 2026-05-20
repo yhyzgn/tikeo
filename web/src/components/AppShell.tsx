@@ -7,6 +7,7 @@ import {
   LogoutOutlined,
   SafetyCertificateOutlined,
   ThunderboltOutlined,
+  BranchesOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import { Avatar, Badge, Button, Layout, Menu, Space, Typography } from 'antd';
@@ -20,6 +21,7 @@ const MENU_ITEMS = [
   { key: '/dashboard', icon: <DashboardOutlined />, label: '总览' },
   { key: '/jobs', icon: <ThunderboltOutlined />, label: '任务' },
   { key: '/instances', icon: <DeploymentUnitOutlined />, label: '实例' },
+  { key: '/workflows', icon: <BranchesOutlined />, label: '工作流', resource: 'workflows', action: 'read' },
 ];
 
 const PROTECTED_ITEMS = [
@@ -50,7 +52,7 @@ export function AppShell({ children, onLogout }: AppShellProps) {
   const selectedKey = '/' + location.pathname.split('/').filter(Boolean)[0];
 
   const menuItems = [
-    ...MENU_ITEMS,
+    ...MENU_ITEMS.filter((item) => !('resource' in item) || (typeof item.resource === 'string' && typeof item.action === 'string' && hasPermission(principal, item.resource, item.action))),
     ...(protectedItems.length > 0
       ? [{ type: 'divider' as const }, ...protectedItems]
       : []),

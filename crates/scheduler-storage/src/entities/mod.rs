@@ -3,6 +3,8 @@
 pub mod app;
 pub mod audit_log;
 pub mod auth_session;
+pub mod dispatch_queue;
+pub mod instance_event;
 pub mod job;
 pub mod job_instance;
 pub mod job_instance_attempt;
@@ -14,3 +16,8 @@ pub mod role_permission;
 pub mod script;
 pub mod script_version;
 pub mod user;
+pub mod workflow;
+pub mod workflow_edge;
+pub mod workflow_instance;
+pub mod workflow_node;
+pub mod workflow_node_instance;

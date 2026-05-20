@@ -437,3 +437,28 @@ bun test --cwd web
 bun run --cwd web build
 docker compose config
 ```
+
+## 已验证命令（022 开发中）
+
+```bash
+cargo check --workspace --all-features
+bun run --cwd web typecheck
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test -p scheduler-server workflow_create_validate_and_run_returns_envelopes --all-features
+cargo test -p scheduler-server user_management_and_rbac_integration --all-features
+```
+
+## 已验证命令（022 Phase2 workflow foundation 完成）
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo build --workspace --all-features
+mvn -f java/pom.xml -q test
+bun run --cwd web lint
+bun run --cwd web typecheck
+bun test --cwd web
+bun run --cwd web build
+docker compose config
+```

@@ -184,6 +184,22 @@ pub struct MeResponse {
     pub permissions: Vec<scheduler_storage::PermissionSummary>,
 }
 
+/// Workflow definition API envelope.
+pub type WorkflowApiResponse = ApiResponse<scheduler_storage::WorkflowSummary>;
+/// Workflow list API envelope.
+pub type WorkflowListApiResponse = ApiResponse<Vec<scheduler_storage::WorkflowSummary>>;
+/// Workflow validation API envelope.
+pub type WorkflowValidationApiResponse = ApiResponse<scheduler_storage::WorkflowValidationResult>;
+/// Workflow instance API envelope.
+pub type WorkflowInstanceApiResponse = ApiResponse<scheduler_storage::WorkflowInstanceSummary>;
+
+/// Request to run a workflow.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct WorkflowRunRequest {
+    /// Trigger type. Defaults to `api`.
+    pub trigger_type: Option<String>,
+}
+
 /// Job summary DTO.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct JobSummary {

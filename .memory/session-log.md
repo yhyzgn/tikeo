@@ -614,3 +614,11 @@ Git:
 - session principal 增加 `permissions`，HTTP 鉴权新增 `require_permission(resource, action)`。
 - Web 改为基于 `permissions` 的菜单/路由权限判断，并新增 403 页面。
 - 后端大文件拆分：`crates/scheduler-storage/src/repository.rs` 拆成 `repository/*`；`crates/scheduler-server/src/http/routes.rs` 拆成 `routes/*`。
+
+## 2026-05-20 — 022 Phase2 workflow/queue/event foundation
+
+- 删除未跟踪根目录 `AGENTS.md`。
+- 新增 workflow / workflow_node / workflow_edge / workflow_instance / workflow_node_instance 存储模型，继续无外键软关联。
+- 新增 dispatch_queue 与 instance_events 表，提供 priority/run_after/status 与 SSE 事件流基础。
+- 新增 Workflow API：create/list/detail/validate/run/instance detail/SSE stream。
+- Web 新增 Workflows 菜单与 JSON 定义创建、校验、运行入口。

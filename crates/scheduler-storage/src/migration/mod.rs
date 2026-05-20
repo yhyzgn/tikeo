@@ -29,6 +29,9 @@ impl MigrationTrait for CreateMetadataTables {
         create_auth_sessions(manager).await?;
         create_scripts(manager).await?;
         create_script_versions(manager).await?;
+        create_workflow_tables(manager).await?;
+        create_dispatch_queue(manager).await?;
+        create_instance_events(manager).await?;
         create_audit_logs(manager).await?;
         create_indexes(manager).await?;
 
@@ -41,6 +44,27 @@ impl MigrationTrait for CreateMetadataTables {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
             .drop_table(Table::drop().table(AuditLogs::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(InstanceEvents::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(DispatchQueue::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(WorkflowNodeInstances::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(WorkflowInstances::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(WorkflowEdges::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(WorkflowNodes::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(Workflows::Table).to_owned())
             .await?;
         manager
             .drop_table(Table::drop().table(ScriptVersions::Table).to_owned())
@@ -261,6 +285,122 @@ async fn create_script_versions(manager: &SchemaManager<'_>) -> Result<(), DbErr
         .await
 }
 
+async fn create_workflow_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(Workflows::Table)
+                .if_not_exists()
+                .col(string_pk(Workflows::Id))
+                .col(string_col(Workflows::Name))
+                .col(string_col(Workflows::Definition))
+                .col(string_col(Workflows::Status))
+                .col(string_col(Workflows::CreatedBy))
+                .col(string_col(Workflows::CreatedAt))
+                .col(string_col(Workflows::UpdatedAt))
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_table(
+            Table::create()
+                .table(WorkflowNodes::Table)
+                .if_not_exists()
+                .col(string_pk(WorkflowNodes::Id))
+                .col(string_col(WorkflowNodes::WorkflowId))
+                .col(string_col(WorkflowNodes::NodeKey))
+                .col(string_col(WorkflowNodes::Name))
+                .col(string_col(WorkflowNodes::Kind))
+                .col(string_null(WorkflowNodes::JobId))
+                .col(string_null(WorkflowNodes::Config))
+                .col(string_col(WorkflowNodes::CreatedAt))
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_table(
+            Table::create()
+                .table(WorkflowEdges::Table)
+                .if_not_exists()
+                .col(string_pk(WorkflowEdges::Id))
+                .col(string_col(WorkflowEdges::WorkflowId))
+                .col(string_col(WorkflowEdges::FromNodeKey))
+                .col(string_col(WorkflowEdges::ToNodeKey))
+                .col(string_col(WorkflowEdges::Condition))
+                .col(string_col(WorkflowEdges::CreatedAt))
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_table(
+            Table::create()
+                .table(WorkflowInstances::Table)
+                .if_not_exists()
+                .col(string_pk(WorkflowInstances::Id))
+                .col(string_col(WorkflowInstances::WorkflowId))
+                .col(string_col(WorkflowInstances::Status))
+                .col(string_col(WorkflowInstances::TriggerType))
+                .col(string_col(WorkflowInstances::CreatedAt))
+                .col(string_col(WorkflowInstances::UpdatedAt))
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_table(
+            Table::create()
+                .table(WorkflowNodeInstances::Table)
+                .if_not_exists()
+                .col(string_pk(WorkflowNodeInstances::Id))
+                .col(string_col(WorkflowNodeInstances::WorkflowInstanceId))
+                .col(string_col(WorkflowNodeInstances::NodeKey))
+                .col(string_col(WorkflowNodeInstances::Status))
+                .col(string_null(WorkflowNodeInstances::JobInstanceId))
+                .col(string_col(WorkflowNodeInstances::CreatedAt))
+                .col(string_col(WorkflowNodeInstances::UpdatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_dispatch_queue(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(DispatchQueue::Table)
+                .if_not_exists()
+                .col(string_pk(DispatchQueue::Id))
+                .col(string_null(DispatchQueue::JobInstanceId))
+                .col(string_null(DispatchQueue::WorkflowNodeInstanceId))
+                .col(integer_col(DispatchQueue::Priority))
+                .col(string_col(DispatchQueue::RunAfter))
+                .col(string_col(DispatchQueue::Status))
+                .col(integer_col(DispatchQueue::Attempt))
+                .col(string_null(DispatchQueue::WorkerSelector))
+                .col(string_col(DispatchQueue::CreatedAt))
+                .col(string_col(DispatchQueue::UpdatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_instance_events(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(InstanceEvents::Table)
+                .if_not_exists()
+                .col(string_pk(InstanceEvents::Id))
+                .col(string_col(InstanceEvents::InstanceId))
+                .col(string_col(InstanceEvents::InstanceType))
+                .col(string_col(InstanceEvents::EventType))
+                .col(string_col(InstanceEvents::Message))
+                .col(string_null(InstanceEvents::Payload))
+                .col(string_col(InstanceEvents::CreatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
 async fn seed_admin_user(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     // Seed initial admin user using credentials documented in README: scheduler_init / Scheduler@2026!
     let insert = sea_query::Query::insert()
@@ -407,6 +547,19 @@ const DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
     ("perm-scripts-read", "scripts", "read", "Read scripts"),
     ("perm-scripts-manage", "scripts", "manage", "Manage scripts"),
     ("perm-audit-read", "audit", "read", "Read audit logs"),
+    ("perm-workflows-read", "workflows", "read", "Read workflows"),
+    (
+        "perm-workflows-manage",
+        "workflows",
+        "manage",
+        "Manage workflows",
+    ),
+    (
+        "perm-workflows-execute",
+        "workflows",
+        "execute",
+        "Run workflows",
+    ),
 ];
 
 fn now_rfc3339() -> String {
@@ -675,7 +828,161 @@ async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             .col(AuditLogs::ResourceId)
             .to_owned(),
     )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_workflows_name")
+            .table(Workflows::Table)
+            .col(Workflows::Name)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_workflow_nodes_workflow_key")
+            .table(WorkflowNodes::Table)
+            .col(WorkflowNodes::WorkflowId)
+            .col(WorkflowNodes::NodeKey)
+            .unique()
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_workflow_edges_workflow")
+            .table(WorkflowEdges::Table)
+            .col(WorkflowEdges::WorkflowId)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_workflow_instances_workflow_created")
+            .table(WorkflowInstances::Table)
+            .col(WorkflowInstances::WorkflowId)
+            .col(WorkflowInstances::CreatedAt)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_workflow_node_instances_instance")
+            .table(WorkflowNodeInstances::Table)
+            .col(WorkflowNodeInstances::WorkflowInstanceId)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_dispatch_queue_status_run_after")
+            .table(DispatchQueue::Table)
+            .col(DispatchQueue::Status)
+            .col(DispatchQueue::RunAfter)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_instance_events_instance_created")
+            .table(InstanceEvents::Table)
+            .col(InstanceEvents::InstanceId)
+            .col(InstanceEvents::CreatedAt)
+            .to_owned(),
+    )
     .await
+}
+
+#[derive(DeriveIden)]
+enum Workflows {
+    Table,
+    Id,
+    Name,
+    Definition,
+    Status,
+    CreatedBy,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum WorkflowNodes {
+    Table,
+    Id,
+    WorkflowId,
+    NodeKey,
+    Name,
+    Kind,
+    JobId,
+    Config,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum WorkflowEdges {
+    Table,
+    Id,
+    WorkflowId,
+    FromNodeKey,
+    ToNodeKey,
+    Condition,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum WorkflowInstances {
+    Table,
+    Id,
+    WorkflowId,
+    Status,
+    TriggerType,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum WorkflowNodeInstances {
+    Table,
+    Id,
+    WorkflowInstanceId,
+    NodeKey,
+    Status,
+    JobInstanceId,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum DispatchQueue {
+    Table,
+    Id,
+    JobInstanceId,
+    WorkflowNodeInstanceId,
+    Priority,
+    RunAfter,
+    Status,
+    Attempt,
+    WorkerSelector,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum InstanceEvents {
+    Table,
+    Id,
+    InstanceId,
+    InstanceType,
+    EventType,
+    Message,
+    Payload,
+    CreatedAt,
 }
 
 #[derive(DeriveIden)]
@@ -920,4 +1227,11 @@ where
     T: IntoIden,
 {
     ColumnDef::new(column).big_integer().null().take()
+}
+
+fn integer_col<T>(column: T) -> ColumnDef
+where
+    T: IntoIden,
+{
+    ColumnDef::new(column).integer().not_null().take()
 }

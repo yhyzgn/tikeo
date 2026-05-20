@@ -367,3 +367,63 @@ function readStoredToken(): string | null {
   }
   return localStorage.getItem(TOKEN_STORAGE_KEY);
 }
+
+export interface WorkflowNodeSpec {
+  key: string;
+  name?: string | null;
+  kind?: string | null;
+  job_id?: string | null;
+  config?: unknown;
+}
+
+export interface WorkflowEdgeSpec {
+  from: string;
+  to: string;
+  condition?: 'always' | 'on_success' | 'on_failure' | null;
+}
+
+export interface WorkflowDefinition {
+  nodes: WorkflowNodeSpec[];
+  edges: WorkflowEdgeSpec[];
+}
+
+export interface WorkflowSummary {
+  id: string;
+  name: string;
+  definition: WorkflowDefinition;
+  status: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkflowValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+export interface WorkflowInstanceSummary {
+  id: string;
+  workflow_id: string;
+  status: string;
+  trigger_type: string;
+  nodes: Array<{ id: string; workflow_instance_id: string; node_key: string; status: string; job_instance_id: string | null; created_at: string; updated_at: string }>;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listWorkflows(): Promise<WorkflowSummary[]> {
+  return request<WorkflowSummary[]>('/api/v1/workflows');
+}
+
+export async function createWorkflow(payload: { name: string; definition: WorkflowDefinition }): Promise<WorkflowSummary> {
+  return request<WorkflowSummary>('/api/v1/workflows', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function validateWorkflow(id: string): Promise<WorkflowValidationResult> {
+  return request<WorkflowValidationResult>(`/api/v1/workflows/${encodeURIComponent(id)}/validate`, { method: 'POST', body: JSON.stringify({}) });
+}
+
+export async function runWorkflow(id: string): Promise<WorkflowInstanceSummary> {
+  return request<WorkflowInstanceSummary>(`/api/v1/workflows/${encodeURIComponent(id)}/run`, { method: 'POST', body: JSON.stringify({ trigger_type: 'api' }) });
+}

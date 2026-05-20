@@ -15,6 +15,7 @@ mod log;
 mod script;
 mod user;
 mod util;
+mod workflow;
 
 pub use attempt::{
     CreateJobInstanceAttempt, JobInstanceAttemptRepository, JobInstanceAttemptSummary,
@@ -32,6 +33,11 @@ pub use script::{
     UpdateScript,
 };
 pub use user::{CreateUser, UpdateUser, UserRepository, UserSummary};
+pub use workflow::{
+    CreateWorkflow, InstanceEventSummary, WorkflowDefinition, WorkflowEdgeSpec,
+    WorkflowInstanceSummary, WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository,
+    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
+};
 
 #[cfg(test)]
 mod tests {

@@ -2038,17 +2038,17 @@ scheduler/
 
 **目标**：覆盖 PowerJob 的全部调度模式。
 
-- [ ] DAG 工作流引擎 (可视化编排 + 条件分支)
+- [x] DAG 工作流引擎基础（定义存储、DAG 校验、最小 run API；可视化编排后续增强）
 - [ ] Map / MapReduce 执行模式
 - [ ] 子工作流嵌套
 - [ ] PostgreSQL + CockroachDB 存储支持
 - [ ] Server 集群 (Raft 共识)
-- [ ] 任务队列 (排队 + 优先级)
-- [ ] 持久化延迟队列
+- [x] 任务队列基础（dispatch_queue 持久化模型、priority/run_after/status 字段；dispatcher 多节点竞争后续增强）
+- [x] 持久化延迟队列基础（dispatch_queue.run_after）
 - [ ] 实时日志流 (gRPC Server Stream)
 - [ ] 工作流可视化编辑器
-- [ ] Web UI 工作流 DAG 编辑、YAML/JSON 双模式和 dry-run
-- [ ] SSE/WebSocket 实时日志与实例事件
+- [x] Web UI 工作流 JSON 定义入口和 validate/run 基础（DAG 可视化、YAML、dry-run 后续）
+- [x] SSE 实时实例事件骨架（instance_events + /events/instances/:id/stream；WebSocket 后续）
 - [ ] Go SDK + Python SDK
 
 ### Phase 3: 企业级特性 (月 7-9)
