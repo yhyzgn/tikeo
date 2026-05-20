@@ -13,8 +13,9 @@ use anyhow::{Context, Result};
 use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
 use scheduler_core::HealthState;
 use scheduler_storage::{
-    AuthSessionRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
-    JobInstanceRepository, JobRepository, ScriptRepository, UserRepository, connect_and_migrate,
+    AuditLogRepository, AuthSessionRepository, JobInstanceAttemptRepository,
+    JobInstanceLogRepository, JobInstanceRepository, JobRepository, ScriptRepository,
+    UserRepository, connect_and_migrate,
 };
 use serde::Serialize;
 
@@ -37,6 +38,7 @@ pub struct AppState {
     attempts: JobInstanceAttemptRepository,
     users: UserRepository,
     scripts: ScriptRepository,
+    audit: AuditLogRepository,
     sessions: SessionManager,
     registry: crate::tunnel::WorkerRegistry,
 }
@@ -44,6 +46,7 @@ pub struct AppState {
 impl AppState {
     /// Create shared HTTP state.
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         jobs: JobRepository,
         instances: JobInstanceRepository,
@@ -51,6 +54,7 @@ impl AppState {
         attempts: JobInstanceAttemptRepository,
         users: UserRepository,
         scripts: ScriptRepository,
+        audit: AuditLogRepository,
         registry: crate::tunnel::WorkerRegistry,
     ) -> Self {
         let sessions = SessionManager::new(DbMokaSessionStore::new(AuthSessionRepository::new(
@@ -64,6 +68,7 @@ impl AppState {
             attempts,
             users,
             scripts,
+            audit,
             sessions,
             registry,
         }
@@ -72,9 +77,13 @@ impl AppState {
 
 /// Construct the HTTP router with an explicit application state.
 pub fn router_with_state(state: AppState) -> Router {
+    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+    let handle = recorder.handle();
+
     Router::new()
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
+        .route("/metrics", get(move || std::future::ready(handle.render())))
         .nest("/api/v1", api_router())
         .route("/api-docs/openapi.json", get(openapi_json))
         .with_state(Arc::new(state))
@@ -90,7 +99,8 @@ async fn router_for_database(database_url: &str) -> Result<Router> {
         JobInstanceLogRepository::new(db.clone()),
         JobInstanceAttemptRepository::new(db.clone()),
         UserRepository::new(db.clone()),
-        ScriptRepository::new(db),
+        ScriptRepository::new(db.clone()),
+        AuditLogRepository::new(db),
         crate::tunnel::WorkerRegistry::default(),
     )))
 }
@@ -141,6 +151,7 @@ fn api_router() -> Router<Arc<AppState>> {
             "/instances/{instance}/attempts",
             get(routes::list_instance_attempts),
         )
+        .route("/audit-logs", get(routes::list_audit_logs))
 }
 
 /// Run the unified HTTP listener.
@@ -211,9 +222,9 @@ mod tests {
     use axum::{body::Body, http::Request};
     use scheduler_proto::worker::v1::RegisterWorker;
     use scheduler_storage::{
-        AppendJobInstanceLog, JobInstanceAttemptRepository, JobInstanceLogRepository,
-        JobInstanceRepository, JobRepository, ScriptRepository, UserRepository,
-        connect_and_migrate,
+        AppendJobInstanceLog, AuditLogRepository, JobInstanceAttemptRepository,
+        JobInstanceLogRepository, JobInstanceRepository, JobRepository, ScriptRepository,
+        UserRepository, connect_and_migrate,
     };
     use serde_json::Value;
     use tower::ServiceExt;
@@ -393,6 +404,7 @@ mod tests {
             JobInstanceAttemptRepository::new(db.clone()),
             UserRepository::new(db.clone()),
             ScriptRepository::new(db.clone()),
+            AuditLogRepository::new(db.clone()),
             registry,
         ));
 
@@ -481,6 +493,7 @@ mod tests {
             JobInstanceAttemptRepository::new(db.clone()),
             UserRepository::new(db.clone()),
             ScriptRepository::new(db.clone()),
+            AuditLogRepository::new(db.clone()),
             crate::tunnel::WorkerRegistry::default(),
         ));
         let created = post_json(
@@ -609,6 +622,7 @@ mod tests {
             JobInstanceAttemptRepository::new(db.clone()),
             UserRepository::new(db.clone()),
             ScriptRepository::new(db.clone()),
+            AuditLogRepository::new(db.clone()),
             registry,
         ));
 
@@ -656,7 +670,8 @@ mod tests {
             JobInstanceLogRepository::new(db.clone()),
             JobInstanceAttemptRepository::new(db.clone()),
             UserRepository::new(db.clone()),
-            ScriptRepository::new(db),
+            ScriptRepository::new(db.clone()),
+            AuditLogRepository::new(db),
             crate::tunnel::WorkerRegistry::default(),
         ));
 
@@ -798,7 +813,8 @@ mod tests {
             JobInstanceLogRepository::new(db.clone()),
             JobInstanceAttemptRepository::new(db.clone()),
             UserRepository::new(db.clone()),
-            ScriptRepository::new(db),
+            ScriptRepository::new(db.clone()),
+            AuditLogRepository::new(db),
             crate::tunnel::WorkerRegistry::default(),
         ))
     }

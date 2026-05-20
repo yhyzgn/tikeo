@@ -408,3 +408,51 @@ pub struct FieldChange {
     /// Value in version 2.
     pub after: String,
 }
+
+/// Audit log page response.
+pub type AuditLogPageApiResponse = ApiResponse<AuditLogPage>;
+
+/// Paginated audit log list.
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct AuditLogPage {
+    /// Audit log entries.
+    pub items: Vec<AuditLogSummary>,
+    /// Opaque token for the next page.
+    pub next_page_token: Option<String>,
+}
+
+/// Audit log summary for API responses.
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct AuditLogSummary {
+    /// Audit log identifier.
+    pub id: String,
+    /// Actor who performed the action.
+    pub actor: String,
+    /// Action performed.
+    pub action: String,
+    /// Resource type.
+    pub resource_type: String,
+    /// Resource identifier.
+    pub resource_id: String,
+    /// Optional detail.
+    pub detail: Option<String>,
+    /// Client IP address.
+    pub ip_address: Option<String>,
+    /// Creation timestamp.
+    pub created_at: String,
+}
+
+impl From<scheduler_storage::AuditLogSummary> for AuditLogSummary {
+    fn from(value: scheduler_storage::AuditLogSummary) -> Self {
+        Self {
+            id: value.id,
+            actor: value.actor,
+            action: value.action,
+            resource_type: value.resource_type,
+            resource_id: value.resource_id,
+            detail: value.detail,
+            ip_address: value.ip_address,
+            created_at: value.created_at,
+        }
+    }
+}

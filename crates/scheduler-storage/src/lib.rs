@@ -14,7 +14,8 @@ use std::time::Duration;
 use thiserror::Error;
 
 pub use repository::{
-    AppendJobInstanceLog, AuthSessionRepository, AuthSessionSummary, CreateAuthSession, CreateJob,
+    AppendJobInstanceLog, AuditLogFilters, AuditLogRepository, AuditLogSummary,
+    AuthSessionRepository, AuthSessionSummary, CreateAuditLog, CreateAuthSession, CreateJob,
     CreateJobInstance, CreateJobInstanceAttempt, CreateScript, CreateUser,
     JobInstanceAttemptRepository, JobInstanceAttemptSummary, JobInstanceLogRepository,
     JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
@@ -55,6 +56,7 @@ async fn ensure_sqlite_schema_compatibility(db: &DatabaseConnection) -> Result<(
     ensure_auth_schema_compatibility(db).await?;
     ensure_scripts_schema_compatibility(db).await?;
     ensure_script_versions_schema_compatibility(db).await?;
+    ensure_audit_logs_schema_compatibility(db).await?;
     remove_sqlite_foreign_keys(db).await
 }
 
@@ -171,6 +173,44 @@ async fn ensure_broadcast_schema_compatibility(
     ))
     .await?;
 
+    Ok(())
+}
+
+async fn ensure_audit_logs_schema_compatibility(
+    db: &DatabaseConnection,
+) -> Result<(), sea_orm::DbErr> {
+    if db.get_database_backend() != DatabaseBackend::Sqlite {
+        return Ok(());
+    }
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        r"CREATE TABLE IF NOT EXISTS audit_logs (
+            id varchar NOT NULL PRIMARY KEY,
+            actor varchar NOT NULL,
+            action varchar NOT NULL,
+            resource_type varchar NOT NULL,
+            resource_id varchar NOT NULL,
+            detail varchar,
+            ip_address varchar,
+            created_at varchar NOT NULL
+        )",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at)",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs (actor)",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON audit_logs (resource_type, resource_id)",
+    ))
+    .await?;
     Ok(())
 }
 

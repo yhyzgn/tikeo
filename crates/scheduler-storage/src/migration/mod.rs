@@ -28,6 +28,7 @@ impl MigrationTrait for CreateMetadataTables {
         create_auth_sessions(manager).await?;
         create_scripts(manager).await?;
         create_script_versions(manager).await?;
+        create_audit_logs(manager).await?;
         create_indexes(manager).await?;
 
         // Seed default admin
@@ -36,6 +37,9 @@ impl MigrationTrait for CreateMetadataTables {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(AuditLogs::Table).to_owned())
+            .await?;
         manager
             .drop_table(Table::drop().table(ScriptVersions::Table).to_owned())
             .await?;
@@ -159,6 +163,25 @@ async fn create_scripts(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(string_col(Scripts::CreatedBy))
                 .col(string_col(Scripts::CreatedAt))
                 .col(string_col(Scripts::UpdatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_audit_logs(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(AuditLogs::Table)
+                .if_not_exists()
+                .col(string_pk(AuditLogs::Id))
+                .col(string_col(AuditLogs::Actor))
+                .col(string_col(AuditLogs::Action))
+                .col(string_col(AuditLogs::ResourceType))
+                .col(string_col(AuditLogs::ResourceId))
+                .col(string_null(AuditLogs::Detail))
+                .col(string_null(AuditLogs::IpAddress))
+                .col(string_col(AuditLogs::CreatedAt))
                 .to_owned(),
         )
         .await
@@ -420,6 +443,34 @@ async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             .unique()
             .to_owned(),
     )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_audit_logs_created_at")
+            .table(AuditLogs::Table)
+            .col(AuditLogs::CreatedAt)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_audit_logs_actor")
+            .table(AuditLogs::Table)
+            .col(AuditLogs::Actor)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_audit_logs_resource")
+            .table(AuditLogs::Table)
+            .col(AuditLogs::ResourceType)
+            .col(AuditLogs::ResourceId)
+            .to_owned(),
+    )
     .await
 }
 
@@ -468,6 +519,19 @@ enum ScriptVersions {
     AllowNetwork,
     AllowedEnvVars,
     CreatedBy,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum AuditLogs {
+    Table,
+    Id,
+    Actor,
+    Action,
+    ResourceType,
+    ResourceId,
+    Detail,
+    IpAddress,
     CreatedAt,
 }
 

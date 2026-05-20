@@ -34,12 +34,14 @@ use super::{auth, dto, routes};
         routes::get_job_instance,
         routes::list_instance_attempts,
         routes::list_instance_logs,
+        routes::list_audit_logs,
     ),
     components(schemas(
         dto::ApiResponse<dto::SystemInfoResponse>,
         dto::ApiResponse<dto::ClusterResponse>,
         dto::ApiResponse<dto::AuthSession>,
         dto::ApiResponse<dto::MeResponse>,
+        dto::ApiResponse<dto::AuditLogPage>,
         dto::ApiResponse<dto::EmptyData>,
         dto::ApiResponse<dto::Page>,
         dto::ApiResponse<dto::JobSummary>,
@@ -75,13 +77,16 @@ use super::{auth, dto, routes};
         dto::JobInstanceLogPage,
         dto::ScriptPage,
         dto::CreateJobRequest,
+        dto::AuditLogSummary,
+        dto::AuditLogPage,
         dto::TriggerJobRequest,
     )),
     tags(
         (name = "system", description = "System and cluster metadata"),
         (name = "auth", description = "Development authentication endpoints"),
         (name = "scripts", description = "Script management endpoints"),
-        (name = "jobs", description = "Job management endpoints")
+        (name = "jobs", description = "Job management endpoints"),
+        (name = "audit", description = "Audit log endpoints")
     )
 )]
 pub struct ApiDoc;
