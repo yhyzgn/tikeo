@@ -229,7 +229,7 @@ impl WorkflowRepository {
                 condition: Set(edge
                     .condition
                     .clone()
-                    .unwrap_or_else(|| "on_success".to_owned())),
+                    .unwrap_or_else(|| "always".to_owned())),
                 created_at: Set(now.clone()),
             }
             .insert(&txn)
@@ -1004,7 +1004,7 @@ pub fn validate_workflow_definition(definition: &WorkflowDefinition) -> Workflow
         if !keys.contains(&edge.to) {
             errors.push(format!("edge references missing to node: {}", edge.to));
         }
-        let condition = edge.condition.as_deref().unwrap_or("on_success");
+        let condition = edge.condition.as_deref().unwrap_or("always");
         if !allowed_conditions.contains(&condition) {
             errors.push(format!("unsupported edge condition: {condition}"));
         }
@@ -1039,7 +1039,7 @@ fn next_nodes_for_status(
         .iter()
         .filter(|edge| edge.from == node_key)
         .filter(|edge| {
-            edge_condition_satisfied(status, edge.condition.as_deref().unwrap_or("on_success"))
+            edge_condition_satisfied(status, edge.condition.as_deref().unwrap_or("always"))
         })
         .map(|edge| edge.to.clone())
         .collect()
@@ -1068,7 +1068,7 @@ where
             .ok_or_else(|| sea_orm::DbErr::RecordNotFound(edge.from.clone()))?;
         if !edge_condition_satisfied(
             &predecessor.status,
-            edge.condition.as_deref().unwrap_or("on_success"),
+            edge.condition.as_deref().unwrap_or("always"),
         ) {
             return Ok(false);
         }

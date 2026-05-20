@@ -31,8 +31,8 @@ const DEFAULT_WORKFLOW: WorkflowDefinition = {
     { key: 'reduce', name: 'Reduce', kind: 'map_reduce', map_items: [{ shard: 1 }, { shard: 2 }], config: { ui: { x: 650, y: 160 } } },
   ],
   edges: [
-    { from: 'extract', to: 'map-users', condition: 'on_success' },
-    { from: 'map-users', to: 'reduce', condition: 'on_success' },
+    { from: 'extract', to: 'map-users', condition: 'always' },
+    { from: 'map-users', to: 'reduce', condition: 'always' },
   ],
 };
 const DEFAULT_DEFINITION = JSON.stringify(DEFAULT_WORKFLOW, null, 2);
@@ -92,7 +92,7 @@ function definitionToYaml(definition: WorkflowDefinition): string {
   for (const edge of definition.edges) {
     lines.push(`  - from: ${edge.from}`);
     lines.push(`    to: ${edge.to}`);
-    lines.push(`    condition: ${edge.condition ?? 'on_success'}`);
+    lines.push(`    condition: ${edge.condition ?? 'always'}`);
   }
   return lines.join('\n');
 }
