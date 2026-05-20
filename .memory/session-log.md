@@ -490,3 +490,30 @@ Verification:
 - `bun run --cwd web build` ✅（保留 Vite 大 chunk warning）
 - `docker compose config` ✅
 - `cargo run --bin scheduler -- serve --config config/dev.toml` + `/healthz` + `/auth/login` 冒烟 ✅，登录返回 `atk_` opaque token。
+
+## 2026-05-20 — 禁止外键与 session 过期物理删除
+
+Agent:
+- Codex
+
+Work:
+- 将“数据库全库禁止外键，只允许字段软关联”写入设计文档与记忆库。
+- 移除 SeaORM migration 中所有 `foreign_key` 定义和 entity relation 声明。
+- 为 SQLite 兼容层增加旧表重建逻辑，用无外键表结构替换已存在的外键表。
+- 为 `AuthSessionRepository` 增加 `delete_expired`，并在 `DbMokaSessionStore` 创建/读取 session 前执行过期物理清理。
+- 按用户要求将 `users.password_hash` 改为 `users.password`，字段内容仍保存 `BCrypt` hash，并为 SQLite 旧库增加列重命名兼容。
+
+Verification:
+- `cargo fmt --all -- --check` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features` ✅
+- `cargo build --workspace --all-features` ✅
+- `mvn -f java/pom.xml -q test` ✅
+- `bun run --cwd web lint` ✅
+- `bun run --cwd web typecheck` ✅
+- `bun test --cwd web` ✅
+- `bun run --cwd web build` ✅（保留 Vite 大 chunk warning）
+- `docker compose config` ✅
+- SQLite dev DB 外键检查 ✅ 无 `REFERENCES` 表定义
+- SQLite `users` 表字段检查 ✅ 包含 `password`，不含 `password_hash`
+- 本地 serve + `/healthz` + `/auth/login` 冒烟 ✅，登录返回 `atk_` token。

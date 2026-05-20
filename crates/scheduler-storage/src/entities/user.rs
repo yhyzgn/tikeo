@@ -12,8 +12,8 @@ pub struct Model {
     pub id: String,
     /// Unique username.
     pub username: String,
-    /// `BCrypt` password hash.
-    pub password_hash: String,
+    /// `BCrypt` password hash stored in the `password` column.
+    pub password: String,
     /// System role (e.g. "admin", "operator", "viewer").
     pub role: String,
     /// Timestamp when the user was created.

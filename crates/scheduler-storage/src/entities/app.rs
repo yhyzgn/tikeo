@@ -9,7 +9,7 @@ pub struct Model {
     /// Application identifier.
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
-    /// Owning namespace identifier.
+    /// Owning namespace identifier, soft-linked to `namespaces.id`.
     pub namespace_id: String,
     /// Application name unique within a namespace.
     pub name: String,
@@ -19,31 +19,8 @@ pub struct Model {
     pub updated_at: String,
 }
 
-/// Application relations.
+/// Database-level foreign keys are forbidden; relationships are soft-linked by id fields.
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {
-    /// Parent namespace.
-    #[sea_orm(
-        belongs_to = "super::namespace::Entity",
-        from = "Column::NamespaceId",
-        to = "super::namespace::Column::Id"
-    )]
-    Namespace,
-    /// Jobs belonging to the application.
-    #[sea_orm(has_many = "super::job::Entity")]
-    Job,
-}
-
-impl Related<super::namespace::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Namespace.def()
-    }
-}
-
-impl Related<super::job::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Job.def()
-    }
-}
+pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

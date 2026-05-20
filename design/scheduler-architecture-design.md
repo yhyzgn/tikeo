@@ -1205,7 +1205,7 @@ CREATE TABLE namespaces (
 -- 应用
 CREATE TABLE apps (
     id              BIGINT PRIMARY KEY,
-    namespace_id    BIGINT NOT NULL REFERENCES namespaces(id),
+    namespace_id    BIGINT NOT NULL, -- soft link: namespaces.id
     name            VARCHAR(128) NOT NULL,
     app_key         VARCHAR(64) NOT NULL UNIQUE,
     app_secret      VARCHAR(128) NOT NULL,
@@ -1218,7 +1218,7 @@ CREATE TABLE apps (
 -- 任务定义
 CREATE TABLE jobs (
     id              BIGINT PRIMARY KEY,
-    app_id          BIGINT NOT NULL REFERENCES apps(id),
+    app_id          BIGINT NOT NULL, -- soft link: apps.id
     name            VARCHAR(256) NOT NULL,
     description     TEXT,
 
@@ -1252,7 +1252,7 @@ CREATE TABLE jobs (
 -- 工作流定义
 CREATE TABLE workflows (
     id              BIGINT PRIMARY KEY,
-    app_id          BIGINT NOT NULL REFERENCES apps(id),
+    app_id          BIGINT NOT NULL, -- soft link: apps.id
     name            VARCHAR(256) NOT NULL,
     description     TEXT,
     dag_def         JSONB NOT NULL,
@@ -1267,8 +1267,8 @@ CREATE TABLE workflows (
 -- 任务实例
 CREATE TABLE instances (
     id              BIGINT PRIMARY KEY,
-    job_id          BIGINT NOT NULL REFERENCES jobs(id),
-    app_id          BIGINT NOT NULL REFERENCES apps(id),
+    job_id          BIGINT NOT NULL, -- soft link: jobs.id
+    app_id          BIGINT NOT NULL, -- soft link: apps.id
     instance_number BIGINT NOT NULL,
 
     status          VARCHAR(16) NOT NULL DEFAULT 'WAITING',
@@ -1298,8 +1298,8 @@ CREATE TABLE instances (
 -- 工作流实例
 CREATE TABLE workflow_instances (
     id              BIGINT PRIMARY KEY,
-    workflow_id     BIGINT NOT NULL REFERENCES workflows(id),
-    app_id          BIGINT NOT NULL REFERENCES apps(id),
+    workflow_id     BIGINT NOT NULL, -- soft link: workflows.id
+    app_id          BIGINT NOT NULL, -- soft link: apps.id
 
     status          VARCHAR(16) NOT NULL DEFAULT 'RUNNING',
     context         JSONB DEFAULT '{}',
@@ -1316,7 +1316,7 @@ CREATE TABLE workflow_instances (
 -- Worker 注册信息
 CREATE TABLE workers (
     id              BIGINT PRIMARY KEY,
-    app_id          BIGINT NOT NULL REFERENCES apps(id),
+    app_id          BIGINT NOT NULL, -- soft link: apps.id
     worker_id       VARCHAR(128) NOT NULL,
     address         VARCHAR(256) NOT NULL,
     tags            JSONB DEFAULT '[]',
@@ -1331,7 +1331,7 @@ CREATE TABLE workers (
 -- 告警规则
 CREATE TABLE alert_rules (
     id              BIGINT PRIMARY KEY,
-    app_id          BIGINT NOT NULL REFERENCES apps(id),
+    app_id          BIGINT NOT NULL, -- soft link: apps.id
     name            VARCHAR(256) NOT NULL,
     rule_type       VARCHAR(32) NOT NULL,
     condition       JSONB NOT NULL,
@@ -1357,7 +1357,7 @@ CREATE TABLE users (
     id              BIGINT PRIMARY KEY,
     username        VARCHAR(128) NOT NULL UNIQUE,
     email           VARCHAR(256),
-    password_hash   VARCHAR(256),
+    password   VARCHAR(256),
     oidc_subject    VARCHAR(256),
     role            VARCHAR(32) NOT NULL DEFAULT 'VIEWER',
     namespace_roles JSONB DEFAULT '{}',
@@ -1368,7 +1368,7 @@ CREATE TABLE users (
 -- 延迟任务队列
 CREATE TABLE delayed_tasks (
     id              BIGINT PRIMARY KEY,
-    job_id          BIGINT NOT NULL REFERENCES jobs(id),
+    job_id          BIGINT NOT NULL, -- soft link: jobs.id
     trigger_at      TIMESTAMPTZ NOT NULL,
     params          JSONB,
     outer_key       VARCHAR(256),

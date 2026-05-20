@@ -313,3 +313,28 @@ Rationale:
 
 Constraint:
 - 后续新增 Redis session 时必须实现同一 `SessionStore` trait；不能让 HTTP handler 直接依赖 Redis client。
+
+## 2026-05-20 — 数据库全库禁止外键
+
+Decision:
+- 全库严禁创建数据库级外键（`FOREIGN KEY` / `REFERENCES`）。
+- 所有跨表关系只能通过字段命名（如 `job_id`、`user_id`）和 repository/service 逻辑进行软关联。
+- SeaORM entity 不再声明 `belongs_to` / `has_many` relation，migration 和 SQLite 兼容建表 SQL 不得生成外键。
+
+Rationale:
+- 平台后续需要跨数据库、在线迁移、批量导入和分布式部署，数据库级外键会增加迁移和运维耦合。
+
+Constraint:
+- 后续新增表或字段时，必须用索引和业务校验维护关系完整性，不允许加外键。
+
+## 2026-05-20 — Users 密码字段命名
+
+Decision:
+- `users` 表密码列命名为 `password`，不使用 `password_hash`。
+- 字段内容仍必须保存 `BCrypt` hash，严禁保存明文密码。
+
+Rationale:
+- 用户要求字段名简化为 `password`，但安全语义不变。
+
+Constraint:
+- API 入参可以继续叫 `password` 表示明文输入；DB `users.password` 表示 hash 后的存储值。

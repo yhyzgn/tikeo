@@ -106,7 +106,7 @@ pub async fn login(
         .ok_or_else(|| ApiError::unauthorized("invalid username or password"))?;
 
     // Verify hashed password
-    let matches = verify(&request.password, &user.password_hash)
+    let matches = verify(&request.password, &user.password)
         .map_err(|_| ApiError::unauthorized("failed to verify password"))?;
 
     if !matches {

@@ -9,7 +9,7 @@ pub struct Model {
     /// Attempt identifier.
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
-    /// Parent instance identifier.
+    /// Parent instance identifier, soft-linked to `job_instances.id`.
     pub instance_id: String,
     /// Target worker identifier.
     pub worker_id: String,
@@ -21,22 +21,8 @@ pub struct Model {
     pub updated_at: String,
 }
 
-/// Job instance attempt relations.
+/// Database-level foreign keys are forbidden; relationships are soft-linked by id fields.
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {
-    /// Parent instance.
-    #[sea_orm(
-        belongs_to = "super::job_instance::Entity",
-        from = "Column::InstanceId",
-        to = "super::job_instance::Column::Id"
-    )]
-    JobInstance,
-}
-
-impl Related<super::job_instance::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::JobInstance.def()
-    }
-}
+pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

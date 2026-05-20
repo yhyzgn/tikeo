@@ -403,3 +403,14 @@ curl -fsS http://127.0.0.1:9090/api/v1/auth/login \
 ```
 
 说明：登录冒烟验证返回 `atk_` opaque token；Vite build 仍提示 Ant Design 相关大 chunk 警告，不影响构建通过。
+
+## 本轮新增检查（禁止外键 / users.password）
+
+```bash
+sqlite3 scheduler-dev.db "SELECT name, sql FROM sqlite_master WHERE type='table' AND sql LIKE '%REFERENCES%';"
+sqlite3 scheduler-dev.db "PRAGMA table_info(users);"
+```
+
+Expected:
+- 第一条无输出，表示当前 SQLite dev DB 无数据库级外键。
+- `users` 表包含 `password` 列，不再包含 `password_hash`。

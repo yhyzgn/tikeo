@@ -71,3 +71,8 @@
 - 当前 `authenticate` 仍保留开发期 `scheduler-init-token` backdoor 以兼容既有受保护 API 测试；登录接口已返回 `atk_` DB session token，生产安全阶段应移除静态 bearer backdoor。
 - 当前 session TTL 固定在代码中，后续应进入配置文件并支持 Redis 分布式实现。
 - moka 本地缓存不是权威状态；多节点部署前必须实现 Redis 或事件驱动的跨节点撤销同步。
+
+## 2026-05-20 — soft relation risk
+
+- 全库禁止数据库外键后，关系完整性必须由 repository/service 和测试保障；后续删除父记录时要显式处理子记录清理。
+- SQLite 兼容层会重建历史外键表；生产数据库迁移也必须遵守无外键策略并单独验证。

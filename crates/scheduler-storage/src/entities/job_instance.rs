@@ -9,7 +9,7 @@ pub struct Model {
     /// Instance identifier.
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
-    /// Parent job identifier.
+    /// Parent job identifier, soft-linked to `jobs.id`.
     pub job_id: String,
     /// Current instance status.
     pub status: String,
@@ -23,22 +23,8 @@ pub struct Model {
     pub updated_at: String,
 }
 
-/// Job instance relations.
+/// Database-level foreign keys are forbidden; relationships are soft-linked by id fields.
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {
-    /// Parent job.
-    #[sea_orm(
-        belongs_to = "super::job::Entity",
-        from = "Column::JobId",
-        to = "super::job::Column::Id"
-    )]
-    Job,
-}
-
-impl Related<super::job::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Job.def()
-    }
-}
+pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

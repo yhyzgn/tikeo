@@ -227,9 +227,8 @@ impl AuthSessionRepository {
         &self,
         token_hash: &str,
     ) -> Result<Option<AuthSessionSummary>, sea_orm::DbErr> {
-        let Some((session, user)) = auth_session::Entity::find()
+        let Some(session) = auth_session::Entity::find()
             .filter(auth_session::Column::TokenHash.eq(token_hash))
-            .find_also_related(user::Entity)
             .one(&self.db)
             .await?
         else {
@@ -241,11 +240,28 @@ impl AuthSessionRepository {
             return Ok(None);
         }
 
-        let Some(user) = user else {
+        let Some(user) = user::Entity::find_by_id(session.user_id.clone())
+            .one(&self.db)
+            .await?
+        else {
             return Ok(None);
         };
 
         Ok(Some(AuthSessionSummary::from_models(session, user)))
+    }
+
+    /// Physically delete expired sessions.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn delete_expired(&self) -> Result<u64, sea_orm::DbErr> {
+        let now = now_rfc3339();
+        let result = auth_session::Entity::delete_many()
+            .filter(auth_session::Column::ExpiresAt.lte(now))
+            .exec(&self.db)
+            .await?;
+        Ok(result.rows_affected)
     }
 
     /// Delete one session by token hash.
@@ -317,8 +333,8 @@ fn is_expired_rfc3339(value: &str) -> bool {
 pub struct CreateUser {
     /// Unique username.
     pub username: String,
-    /// `BCrypt` password hash.
-    pub password_hash: String,
+    /// `BCrypt` password hash stored in the `password` column.
+    pub password: String,
     /// System role (e.g. "admin", "operator", "viewer").
     pub role: String,
 }
@@ -326,8 +342,8 @@ pub struct CreateUser {
 /// DTO for user updates.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateUser {
-    /// Password hash to update, if provided.
-    pub password_hash: Option<String>,
+    /// `BCrypt` password hash to update, if provided.
+    pub password: Option<String>,
     /// Role to update, if provided.
     pub role: Option<String>,
 }
@@ -375,7 +391,7 @@ impl UserRepository {
         let active = user::ActiveModel {
             id: Set(format!("usr-{}", Uuid::now_v7())),
             username: Set(params.username),
-            password_hash: Set(params.password_hash),
+            password: Set(params.password),
             role: Set(params.role),
             created_at: Set(now_rfc3339()),
         };
@@ -474,8 +490,8 @@ impl UserRepository {
         };
 
         let mut active: user::ActiveModel = existing.into();
-        if let Some(hash) = params.password_hash {
-            active.password_hash = Set(hash);
+        if let Some(hash) = params.password {
+            active.password = Set(hash);
         }
         if let Some(role) = params.role {
             active.role = Set(role);
@@ -867,10 +883,7 @@ impl JobRepository {
     ///
     /// Returns an error when database access fails.
     pub async fn list_jobs(&self) -> Result<Vec<JobSummary>, sea_orm::DbErr> {
-        let rows = job::Entity::find()
-            .find_also_related(app::Entity)
-            .all(&self.db)
-            .await?;
+        let rows = job::Entity::find().all(&self.db).await?;
         self.hydrate_job_summaries(rows).await
     }
 
@@ -881,7 +894,6 @@ impl JobRepository {
     /// Returns an error when database access fails.
     pub async fn get(&self, job_id: &str) -> Result<Option<JobSummary>, sea_orm::DbErr> {
         let rows = job::Entity::find_by_id(job_id.to_owned())
-            .find_also_related(app::Entity)
             .all(&self.db)
             .await?;
 
@@ -898,7 +910,6 @@ impl JobRepository {
         let rows = job::Entity::find()
             .filter(job::Column::Enabled.eq(true))
             .filter(job::Column::ScheduleType.is_in(["cron", "fixed_rate"]))
-            .find_also_related(app::Entity)
             .all(&self.db)
             .await?;
 
@@ -943,25 +954,21 @@ impl JobRepository {
 
     async fn hydrate_job_summaries(
         &self,
-        rows: Vec<(job::Model, Option<app::Model>)>,
+        rows: Vec<job::Model>,
     ) -> Result<Vec<JobSummary>, sea_orm::DbErr> {
         let mut jobs = Vec::with_capacity(rows.len());
 
-        for (job, app) in rows {
-            let app = app.unwrap_or_else(|| app::Model {
-                id: job.app_id.clone(),
-                namespace_id: job.namespace_id.clone(),
-                name: "unknown".to_owned(),
-                created_at: String::new(),
-                updated_at: String::new(),
-            });
+        for job in rows {
+            let app = app::Entity::find_by_id(job.app_id.clone())
+                .one(&self.db)
+                .await?;
             let ns = namespace::Entity::find_by_id(job.namespace_id.clone())
                 .one(&self.db)
                 .await?;
             jobs.push(JobSummary {
                 id: job.id,
                 namespace: ns.map_or_else(|| "unknown".to_owned(), |namespace| namespace.name),
-                app: app.name,
+                app: app.map_or_else(|| "unknown".to_owned(), |app| app.name),
                 name: job.name,
                 schedule_type: job.schedule_type,
                 schedule_expr: job.schedule_expr,
@@ -1034,12 +1041,13 @@ fn new_id(prefix: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{ConnectionTrait, Database, Statement};
+    use sea_orm::{ActiveModelTrait, ConnectionTrait, Database, Set, Statement};
     use sea_orm_migration::MigratorTrait;
 
     use scheduler_core::{ExecutionMode, InstanceStatus, TriggerType};
 
     use crate::{
+        entities::auth_session,
         migration::Migrator,
         repository::{AppendJobInstanceLog, CreateJob, CreateJobInstance},
     };
@@ -1212,6 +1220,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn auth_session_repository_deletes_expired_rows() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        Migrator::up(&db, None)
+            .await
+            .unwrap_or_else(|error| panic!("migration should run: {error}"));
+
+        let users = super::UserRepository::new(db.clone());
+        let admin = users
+            .get_by_username("scheduler_init")
+            .await
+            .unwrap_or_else(|error| panic!("admin lookup should work: {error}"))
+            .unwrap_or_else(|| panic!("seeded admin should exist"));
+        let sessions = super::AuthSessionRepository::new(db);
+        auth_session::ActiveModel {
+            id: Set("expired-session".to_owned()),
+            user_id: Set(admin.id),
+            token_hash: Set("expired-token-hash".to_owned()),
+            device_id: Set(None),
+            device_name: Set(None),
+            expires_at: Set("1970-01-01T00:00:00Z".to_owned()),
+            created_at: Set("1970-01-01T00:00:00Z".to_owned()),
+            updated_at: Set("1970-01-01T00:00:00Z".to_owned()),
+        }
+        .insert(&sessions.db)
+        .await
+        .unwrap_or_else(|error| panic!("expired session should insert: {error}"));
+
+        let deleted = sessions
+            .delete_expired()
+            .await
+            .unwrap_or_else(|error| panic!("expired session should delete: {error}"));
+        assert_eq!(deleted, 1);
+        let loaded = sessions
+            .get_by_token_hash("expired-token-hash")
+            .await
+            .unwrap_or_else(|error| panic!("session lookup should work: {error}"));
+        assert!(loaded.is_none());
+    }
+
+    #[tokio::test]
     async fn user_repository_crud_operations() {
         let db = Database::connect("sqlite::memory:")
             .await
@@ -1234,7 +1284,7 @@ mod tests {
         let user = users
             .create_user(super::CreateUser {
                 username: "operator-1".to_owned(),
-                password_hash: "$2b$10$operatorhash".to_owned(),
+                password: "$2b$10$operatorhash".to_owned(),
                 role: "operator".to_owned(),
             })
             .await
@@ -1254,7 +1304,7 @@ mod tests {
             .update_user(
                 &user.id,
                 super::UpdateUser {
-                    password_hash: None,
+                    password: None,
                     role: Some("viewer".to_owned()),
                 },
             )

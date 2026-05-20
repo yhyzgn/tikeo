@@ -12,7 +12,9 @@
 4. **当前实现 DB+moka**：DB `auth_sessions` 表是权威状态；moka 只是单进程短缓存，用于降低高频鉴权数据库压力。
 5. **可扩展到 Redis**：未来多 server 节点部署时，新增 `RedisSessionStore` 实现同一个 trait，HTTP 层不需要重写。
 6. **主动撤销能力**：登出、用户密码变更、角色变更、删除用户时，可以立即删除权威 session 记录，并清理本地缓存。
-7. **API 响应规范保持不变**：所有业务 HTTP API 继续返回 `{ code, message, data }`，`data` 必须存在。
+7. **过期物理删除**：DB+moka 当前实现每次创建/读取 session 前会清理 `expires_at <= now` 的过期 `auth_sessions` 行；命中过期 token 时也会按 token hash 懒删除。
+8. **禁止数据库外键**：`auth_sessions.user_id` 只能软关联 `users.id`，不得创建 `FOREIGN KEY`。
+9. **API 响应规范保持不变**：所有业务 HTTP API 继续返回 `{ code, message, data }`，`data` 必须存在。
 
 ---
 
@@ -81,7 +83,7 @@ sequenceDiagram
     participant Cache as moka
 
     Client->>Auth: POST /api/v1/auth/login username/password
-    Auth->>Auth: BCrypt 校验 users.password_hash
+    Auth->>Auth: `BCrypt` 校验 `users.password`（该字段保存 hash，不保存明文）
     Auth->>Store: create_session(user_id, username, role)
     Store->>Store: 生成 opaque token 并计算 SHA-256
     Store->>DB: INSERT auth_sessions(token_hash, user_id, expires_at)
@@ -142,8 +144,7 @@ CREATE TABLE auth_sessions (
     expires_at varchar NOT NULL,
     created_at varchar NOT NULL,
     updated_at varchar NOT NULL,
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+    );
 
 CREATE UNIQUE INDEX idx_auth_sessions_token_hash ON auth_sessions(token_hash);
 CREATE INDEX idx_auth_sessions_user ON auth_sessions(user_id);

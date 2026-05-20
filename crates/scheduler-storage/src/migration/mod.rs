@@ -74,13 +74,6 @@ async fn create_job_instance_attempts(manager: &SchemaManager<'_>) -> Result<(),
                 .col(string_col(JobInstanceAttempts::Status))
                 .col(string_col(JobInstanceAttempts::CreatedAt))
                 .col(string_col(JobInstanceAttempts::UpdatedAt))
-                .foreign_key(
-                    ForeignKey::create()
-                        .name("fk_job_instance_attempts_instance")
-                        .from(JobInstanceAttempts::Table, JobInstanceAttempts::InstanceId)
-                        .to(JobInstances::Table, JobInstances::Id)
-                        .on_delete(ForeignKeyAction::Cascade),
-                )
                 .to_owned(),
         )
         .await
@@ -99,13 +92,6 @@ async fn create_job_instance_logs(manager: &SchemaManager<'_>) -> Result<(), DbE
                 .col(string_col(JobInstanceLogs::Message))
                 .col(big_integer_col(JobInstanceLogs::Sequence))
                 .col(string_col(JobInstanceLogs::CreatedAt))
-                .foreign_key(
-                    ForeignKey::create()
-                        .name("fk_job_instance_logs_instance")
-                        .from(JobInstanceLogs::Table, JobInstanceLogs::InstanceId)
-                        .to(JobInstances::Table, JobInstances::Id)
-                        .on_delete(ForeignKeyAction::Cascade),
-                )
                 .to_owned(),
         )
         .await
@@ -119,7 +105,7 @@ async fn create_users(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .if_not_exists()
                 .col(string_pk(Users::Id))
                 .col(string_col(Users::Username))
-                .col(string_col(Users::PasswordHash))
+                .col(string_col(Users::Password))
                 .col(string_col(Users::Role))
                 .col(string_col(Users::CreatedAt))
                 .to_owned(),
@@ -141,13 +127,6 @@ async fn create_auth_sessions(manager: &SchemaManager<'_>) -> Result<(), DbErr> 
                 .col(string_col(AuthSessions::ExpiresAt))
                 .col(string_col(AuthSessions::CreatedAt))
                 .col(string_col(AuthSessions::UpdatedAt))
-                .foreign_key(
-                    ForeignKey::create()
-                        .name("fk_auth_sessions_user")
-                        .from(AuthSessions::Table, AuthSessions::UserId)
-                        .to(Users::Table, Users::Id)
-                        .on_delete(ForeignKeyAction::Cascade),
-                )
                 .to_owned(),
         )
         .await
@@ -160,7 +139,7 @@ async fn seed_admin_user(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         .columns([
             Users::Id,
             Users::Username,
-            Users::PasswordHash,
+            Users::Password,
             Users::Role,
             Users::CreatedAt,
         ])
@@ -212,13 +191,6 @@ async fn create_apps(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(string_col(Apps::Name))
                 .col(string_col(Apps::CreatedAt))
                 .col(string_col(Apps::UpdatedAt))
-                .foreign_key(
-                    ForeignKey::create()
-                        .name("fk_apps_namespace")
-                        .from(Apps::Table, Apps::NamespaceId)
-                        .to(Namespaces::Table, Namespaces::Id)
-                        .on_delete(ForeignKeyAction::Cascade),
-                )
                 .to_owned(),
         )
         .await
@@ -239,20 +211,6 @@ async fn create_jobs(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(boolean_col(Jobs::Enabled))
                 .col(string_col(Jobs::CreatedAt))
                 .col(string_col(Jobs::UpdatedAt))
-                .foreign_key(
-                    ForeignKey::create()
-                        .name("fk_jobs_namespace")
-                        .from(Jobs::Table, Jobs::NamespaceId)
-                        .to(Namespaces::Table, Namespaces::Id)
-                        .on_delete(ForeignKeyAction::Cascade),
-                )
-                .foreign_key(
-                    ForeignKey::create()
-                        .name("fk_jobs_app")
-                        .from(Jobs::Table, Jobs::AppId)
-                        .to(Apps::Table, Apps::Id)
-                        .on_delete(ForeignKeyAction::Cascade),
-                )
                 .to_owned(),
         )
         .await
@@ -271,13 +229,6 @@ async fn create_job_instances(manager: &SchemaManager<'_>) -> Result<(), DbErr> 
                 .col(string_col(JobInstances::ExecutionMode))
                 .col(string_col(JobInstances::CreatedAt))
                 .col(string_col(JobInstances::UpdatedAt))
-                .foreign_key(
-                    ForeignKey::create()
-                        .name("fk_job_instances_job")
-                        .from(JobInstances::Table, JobInstances::JobId)
-                        .to(Jobs::Table, Jobs::Id)
-                        .on_delete(ForeignKeyAction::Cascade),
-                )
                 .to_owned(),
         )
         .await
@@ -396,7 +347,7 @@ enum Users {
     Table,
     Id,
     Username,
-    PasswordHash,
+    Password,
     Role,
     CreatedAt,
 }

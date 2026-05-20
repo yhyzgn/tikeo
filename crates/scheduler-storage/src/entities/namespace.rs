@@ -18,18 +18,8 @@ pub struct Model {
     pub updated_at: String,
 }
 
-/// Namespace relations.
+/// Database-level foreign keys are forbidden; relationships are soft-linked by id fields.
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {
-    /// Apps belonging to the namespace.
-    #[sea_orm(has_many = "super::app::Entity")]
-    App,
-}
-
-impl Related<super::app::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::App.def()
-    }
-}
+pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

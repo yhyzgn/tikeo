@@ -129,11 +129,24 @@ impl DbMokaSessionStore {
             session_ttl: ChronoDuration::hours(12),
         }
     }
+
+    async fn prune_expired_sessions(&self) -> Result<(), ApiError> {
+        let deleted = self
+            .repo
+            .delete_expired()
+            .await
+            .map_err(|error| ApiError::storage(&error))?;
+        if deleted > 0 {
+            self.cache.invalidate_all();
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
 impl SessionStore for DbMokaSessionStore {
     async fn create_session(&self, input: SessionCreate) -> Result<AuthSession, ApiError> {
+        self.prune_expired_sessions().await?;
         let token = generate_access_token();
         let token_hash = hash_token(&token);
         let expires_at = (Utc::now() + self.session_ttl).to_rfc3339();
@@ -164,6 +177,7 @@ impl SessionStore for DbMokaSessionStore {
     }
 
     async fn get_principal(&self, token: &str) -> Result<Option<MeResponse>, ApiError> {
+        self.prune_expired_sessions().await?;
         let token_hash = hash_token(token);
         if let Some(principal) = self.cache.get(&token_hash).await {
             return Ok(Some(principal));

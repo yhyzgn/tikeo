@@ -10,7 +10,7 @@ pub struct Model {
     /// Unique session identifier.
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
-    /// Related user id.
+    /// Related user id, soft-linked to `users.id`.
     pub user_id: String,
     /// SHA-256 hash of the opaque access token.
     #[sea_orm(unique)]
@@ -27,24 +27,8 @@ pub struct Model {
     pub updated_at: String,
 }
 
-/// Relations for auth sessions.
+/// Database-level foreign keys are forbidden; relationships are soft-linked by id fields.
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {
-    /// Auth session belongs to one user.
-    #[sea_orm(
-        belongs_to = "super::user::Entity",
-        from = "Column::UserId",
-        to = "super::user::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Cascade"
-    )]
-    User,
-}
-
-impl Related<super::user::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::User.def()
-    }
-}
+pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

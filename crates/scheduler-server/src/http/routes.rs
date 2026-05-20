@@ -492,7 +492,7 @@ pub async fn create_user(
         .users
         .create_user(scheduler_storage::CreateUser {
             username: request.username,
-            password_hash: hash,
+            password: hash,
             role: request.role,
         })
         .await
@@ -536,7 +536,7 @@ pub async fn update_user(
 
     let password_changed = request.password.is_some();
     let role_changed = request.role.is_some();
-    let password_hash = if let Some(plain) = request.password {
+    let password = if let Some(plain) = request.password {
         if plain.trim().is_empty() {
             return Err(ApiError::bad_request("password cannot be empty"));
         }
@@ -552,7 +552,7 @@ pub async fn update_user(
         .update_user(
             &id,
             scheduler_storage::UpdateUser {
-                password_hash,
+                password,
                 role: request.role.clone(),
             },
         )
