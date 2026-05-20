@@ -609,3 +609,21 @@ body {
   background: linear-gradient(180deg, #ffffff, #f8fbff) !important;
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06) !important;
 }
+
+.workflow-edge__hit {
+  cursor: pointer;
+  pointer-events: stroke;
+}
+
+.workflow-edge__handle {
+  fill: #ffffff;
+  stroke: #0ea5e9;
+  stroke-width: 3px;
+  cursor: grab;
+  pointer-events: all;
+  filter: drop-shadow(0 4px 8px rgba(14, 165, 233, 0.22));
+}
+
+.workflow-edge__handle:active {
+  cursor: grabbing;
+}

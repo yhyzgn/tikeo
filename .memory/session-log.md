@@ -671,3 +671,8 @@ Git:
 - 已让 Workflows 页面加载 Job 列表，Job 节点可在属性面板绑定具体任务 ID。
 - 画布节点点击后显示属性 Inspector，不同节点类型展示不同配置项；这些配置写回 workflow definition JSON。
 - 注意：当前 runtime 对新语义节点仍以定义/校验/人工推进为主，后续需要继续补齐 condition/parallel/join/delay/approval/notification 的自动执行语义。
+
+### 2026-05-20 028 工作流边编辑交互
+- 用户要求删除“连接最后两个节点”按钮，并支持点击箭头线条选中、拖动两端调整连接对象。
+- 已删除快捷连接按钮和未使用 addEdge 逻辑。
+- 已为 SVG 边增加可点击透明命中层、选中态样式、两端可拖拽 handle，以及重连时的临时箭头预览。

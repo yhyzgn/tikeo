@@ -152,6 +152,8 @@ function edgeColor(condition?: string | null) {
 function DagPreview({ definition, instance, jobs = [], editable = false, onChange }: { definition: WorkflowDefinition; instance?: WorkflowInstanceSummary | null; jobs?: JobSummary[]; editable?: boolean; onChange?: (definition: WorkflowDefinition) => void }) {
   const [dragging, setDragging] = useState<{ key: string; offsetX: number; offsetY: number } | null>(null);
   const [linkDrag, setLinkDrag] = useState<{ from: string; x: number; y: number } | null>(null);
+  const [edgeDrag, setEdgeDrag] = useState<{ index: number; side: 'from' | 'to'; anchorKey: string; x: number; y: number } | null>(null);
+  const [selectedEdgeIndex, setSelectedEdgeIndex] = useState<number | null>(null);
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(definition.nodes[0]?.key ?? null);
   const spaceRef = useRef<HTMLDivElement | null>(null);
   const statuses = new Map(instance?.nodes.map((node) => [node.node_key, node.status]) ?? []);
@@ -161,7 +163,7 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
   const jobOptions = jobs.map((job) => ({ label: `${job.name} · ${job.namespace}/${job.app}`, value: job.id }));
 
   const update = (next: WorkflowDefinition) => onChange?.(next);
-  const toCanvasPoint = (event: PointerEvent<HTMLElement>) => {
+  const toCanvasPoint = (event: PointerEvent<Element>) => {
     const rect = spaceRef.current?.getBoundingClientRect();
     if (!rect) return { x: event.clientX, y: event.clientY };
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
@@ -205,13 +207,6 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
     update({ ...definition, nodes: [...definition.nodes, node] });
     setSelectedNodeKey(node.key);
   };
-  const addEdge = () => {
-    if (definition.nodes.length < 2) return;
-    const from = definition.nodes.at(-2)?.key;
-    const to = definition.nodes.at(-1)?.key;
-    if (!from || !to) return;
-    connectNodes(from, to);
-  };
   const changeEdge = (index: number, patch: Partial<WorkflowEdgeSpec>) => update({ ...definition, edges: definition.edges.map((edge, edgeIndex) => edgeIndex === index ? { ...edge, ...patch } : edge) });
   const connectNodes = (from: string, to: string) => {
     if (from === to) { message.warning('不能连接到自身'); return; }
@@ -240,11 +235,38 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
       setLinkDrag({ ...linkDrag, ...toCanvasPoint(event) });
       return;
     }
+    if (edgeDrag) {
+      setEdgeDrag({ ...edgeDrag, ...toCanvasPoint(event) });
+      return;
+    }
     if (!dragging) return;
     const point = toCanvasPoint(event);
     const nextX = Math.max(18, point.x - dragging.offsetX);
     const nextY = Math.max(18, point.y - dragging.offsetY);
     update({ ...definition, nodes: definition.nodes.map((node) => node.key === dragging.key ? withNodePosition(node, nextX, nextY) : node) });
+  };
+  const startEdgeReconnect = (index: number, side: 'from' | 'to', event: PointerEvent<SVGCircleElement>) => {
+    if (!editable) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const edge = definition.edges[index];
+    if (!edge) return;
+    setSelectedEdgeIndex(index);
+    setSelectedNodeKey(null);
+    setDragging(null);
+    setEdgeDrag({ index, side, anchorKey: side === 'from' ? edge.to : edge.from, ...toCanvasPoint(event) });
+  };
+  const finishEdgeReconnect = (key: string, event: PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!editable || !edgeDrag) return;
+    const edge = definition.edges[edgeDrag.index];
+    if (!edge) return;
+    const nextEdge = edgeDrag.side === 'from' ? { ...edge, from: key } : { ...edge, to: key };
+    if (nextEdge.from === nextEdge.to) { message.warning('不能连接到自身'); setEdgeDrag(null); return; }
+    update({ ...definition, edges: definition.edges.map((item, index) => index === edgeDrag.index ? nextEdge : item) });
+    setSelectedEdgeIndex(edgeDrag.index);
+    setEdgeDrag(null);
   };
   const startLinkDrag = (key: string, event: PointerEvent<HTMLButtonElement>) => {
     if (!editable) return;
@@ -256,7 +278,12 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
   const finishLinkDrag = (key: string, event: PointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!editable || !linkDrag) return;
+    if (!editable) return;
+    if (edgeDrag) {
+      finishEdgeReconnect(key, event);
+      return;
+    }
+    if (!linkDrag) return;
     connectNodes(linkDrag.from, key);
     setLinkDrag(null);
   };
@@ -269,11 +296,11 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
       {editable ? (
         <Space wrap className="workflow-dag-toolbar">
           {NODE_CATALOG.map((node) => <Button key={node.kind} onClick={() => addNode(node.kind)}>+ {node.label}</Button>)}
-          <Button onClick={addEdge} disabled={definition.nodes.length < 2}>连接最后两个节点</Button>
           {linkDrag ? <Tag color="blue">从 {linkDrag.from} 拖线中：松到目标输入端口完成</Tag> : null}
+          {edgeDrag ? <Tag color="purple">正在调整连线{edgeDrag.side === 'from' ? '起点' : '终点'}：松到目标端口完成</Tag> : null}
         </Space>
       ) : null}
-      <div className={`workflow-node-canvas ${linkDrag ? 'workflow-node-canvas--linking' : ''}`} style={{ height: Math.min(720, canvasHeight + 40) }} onPointerMove={pointerMove} onPointerUp={() => { setDragging(null); setLinkDrag(null); }}>
+      <div className={`workflow-node-canvas ${linkDrag || edgeDrag ? 'workflow-node-canvas--linking' : ''}`} style={{ height: Math.min(720, canvasHeight + 40) }} onPointerMove={pointerMove} onPointerUp={() => { setDragging(null); setLinkDrag(null); setEdgeDrag(null); }}>
         <div ref={spaceRef} className="workflow-node-canvas__space" style={{ width: canvasWidth, height: canvasHeight }}>
           <svg className="workflow-node-canvas__edges" width={canvasWidth} height={canvasHeight}>
             <defs>
@@ -291,8 +318,34 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
               const y2 = to.y + 70;
               const mid = Math.max(80, Math.abs(x2 - x1) / 2);
               const color = edgeColor(edge.condition);
-              return <path key={`${edge.from}-${edge.to}-${index}`} d={`M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`} stroke={color} strokeWidth="2.5" fill="none" markerEnd="url(#workflow-arrow)" />;
+              const selected = selectedEdgeIndex === index;
+              const path = `M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`;
+              return (
+                <g key={`${edge.from}-${edge.to}-${index}`} className={`workflow-edge ${selected ? 'workflow-edge--selected' : ''}`}>
+                  <path className="workflow-edge__hit" d={path} stroke="transparent" strokeWidth="16" fill="none" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedEdgeIndex(index); setSelectedNodeKey(null); }} />
+                  <path d={path} stroke={selected ? '#0ea5e9' : color} strokeWidth={selected ? '3.5' : '2.5'} fill="none" markerEnd="url(#workflow-arrow)" />
+                  {selected ? (
+                    <>
+                      <circle className="workflow-edge__handle" cx={x1} cy={y1} r="7" onPointerDown={(event) => startEdgeReconnect(index, 'from', event)} />
+                      <circle className="workflow-edge__handle" cx={x2} cy={y2} r="7" onPointerDown={(event) => startEdgeReconnect(index, 'to', event)} />
+                    </>
+                  ) : null}
+                </g>
+              );
             })}
+            {edgeDrag ? (() => {
+              const edge = definition.edges[edgeDrag.index];
+              const anchor = positions.get(edgeDrag.anchorKey);
+              if (!edge || !anchor) return null;
+              const anchorX = edgeDrag.side === 'from' ? anchor.x : anchor.x + 218;
+              const anchorY = anchor.y + 70;
+              const x1 = edgeDrag.side === 'from' ? edgeDrag.x : anchorX;
+              const y1 = edgeDrag.side === 'from' ? edgeDrag.y : anchorY;
+              const x2 = edgeDrag.side === 'from' ? anchorX : edgeDrag.x;
+              const y2 = edgeDrag.side === 'from' ? anchorY : edgeDrag.y;
+              const mid = Math.max(80, Math.abs(x2 - x1) / 2);
+              return <path className="workflow-node-canvas__temp-edge" d={`M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`} stroke="#8b5cf6" strokeWidth="2.5" fill="none" markerEnd="url(#workflow-arrow)" />;
+            })() : null}
             {linkDrag ? (() => {
               const from = positions.get(linkDrag.from);
               if (!from) return null;
@@ -311,9 +364,9 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
             const outgoing = definition.edges.filter((edge) => edge.from === node.key);
             const limits = nodeLimits(node);
             return (
-              <div className={`workflow-node-card ${editable ? 'workflow-node-card--editable' : ''} ${selectedNodeKey === node.key ? 'workflow-node-card--selected' : ''} ${linkDrag?.from === node.key ? 'workflow-node-card--linking' : ''}`} key={node.key} style={{ left: position.x, top: position.y }} onPointerDown={(event) => pointerDown(node, event)} onClick={() => setSelectedNodeKey(node.key)}>
+              <div className={`workflow-node-card ${editable ? 'workflow-node-card--editable' : ''} ${selectedNodeKey === node.key ? 'workflow-node-card--selected' : ''} ${linkDrag?.from === node.key ? 'workflow-node-card--linking' : ''}`} key={node.key} style={{ left: position.x, top: position.y }} onPointerDown={(event) => pointerDown(node, event)} onClick={() => { setSelectedNodeKey(node.key); setSelectedEdgeIndex(null); }}>
                 {limits.in > 0 ? <button className="workflow-node-port workflow-node-port--input" type="button" onPointerUp={(event) => finishLinkDrag(node.key, event)} onPointerDown={(event) => event.stopPropagation()} title={`输入端口：${incoming.length}/${limits.in}`} /> : null}
-                {limits.out > 0 ? <button className="workflow-node-port workflow-node-port--output" type="button" onPointerDown={(event) => startLinkDrag(node.key, event)} title={`输出端口：${outgoing.length}/${limits.out}`} /> : null}
+                {limits.out > 0 ? <button className="workflow-node-port workflow-node-port--output" type="button" onPointerUp={(event) => finishEdgeReconnect(node.key, event)} onPointerDown={(event) => startLinkDrag(node.key, event)} title={`输出端口：${outgoing.length}/${limits.out}`} /> : null}
                 <div className="workflow-node-card__header">
                   <span className="workflow-node-card__index">{index + 1}</span>
                   <span className="workflow-node-card__title">{node.name ?? node.key}</span>

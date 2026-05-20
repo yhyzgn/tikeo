@@ -89,3 +89,8 @@
 - Workflows 画布新增节点属性面板：点击节点后可编辑 key/name，并按节点类型配置业务语义。
 - Job 节点可从已创建任务列表中绑定 job_id；Script/HTTP/Condition/Parallel/Join/Delay/Approval/Notification/Map/SubFlow 均有对应配置入口。
 - 后端 workflow 校验新增部分节点必填配置检查：condition.expression、http.url、script.source、approval.approvers；job/sub_workflow/map/map_reduce 原约束保持。
+
+## 2026-05-20 028：工作流连线选择与重连
+- Workflows 画布已移除“连接最后两个节点”快捷按钮，连线统一通过端口拖拽创建。
+- SVG 边增加透明 hit path：点击箭头线条可选中，选中后显示起点/终点 handle。
+- 按住连线两端 handle 可拖动重连到其他节点端口，用于调整边的 from/to 节点对象。
