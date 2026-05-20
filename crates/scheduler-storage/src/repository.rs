@@ -10,7 +10,8 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
 use crate::entities::{
-    app, auth_session, job, job_instance, job_instance_attempt, job_instance_log, namespace, user,
+    app, auth_session, job, job_instance, job_instance_attempt, job_instance_log, namespace,
+    script, user,
 };
 
 /// Minimal job creation input.
@@ -1026,6 +1027,230 @@ impl JobRepository {
         }
         .insert(&self.db)
         .await
+    }
+}
+
+/// Script creation input.
+#[derive(Debug, Clone)]
+pub struct CreateScript {
+    /// Display name.
+    pub name: String,
+    /// Script language.
+    pub language: String,
+    /// Semantic version.
+    pub version: String,
+    /// Script source content.
+    pub content: String,
+    /// Creator user id.
+    pub created_by: String,
+    /// Optional timeout seconds.
+    pub timeout_seconds: Option<i64>,
+    /// Optional max memory bytes.
+    pub max_memory_bytes: Option<i64>,
+    /// Whether network access is allowed.
+    pub allow_network: bool,
+    /// Allowed environment variable names.
+    pub allowed_env_vars: Option<String>,
+}
+
+/// Script update input.
+#[derive(Debug, Clone)]
+pub struct UpdateScript {
+    /// Optional name update.
+    pub name: Option<String>,
+    /// Optional language update.
+    pub language: Option<String>,
+    /// Optional version update.
+    pub version: Option<String>,
+    /// Optional content update.
+    pub content: Option<String>,
+    /// Optional status update.
+    pub status: Option<String>,
+    /// Optional timeout seconds update.
+    pub timeout_seconds: Option<i64>,
+    /// Optional max memory bytes update.
+    pub max_memory_bytes: Option<i64>,
+    /// Optional network policy update.
+    pub allow_network: Option<bool>,
+    /// Optional env vars update.
+    pub allowed_env_vars: Option<String>,
+}
+
+/// Script summary returned to management API callers.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct ScriptSummary {
+    /// Script identifier.
+    pub id: String,
+    /// Display name.
+    pub name: String,
+    /// Script language.
+    pub language: String,
+    /// Semantic version.
+    pub version: String,
+    /// Approval status.
+    pub status: String,
+    /// Timeout seconds for execution.
+    pub timeout_seconds: Option<i64>,
+    /// Max memory bytes for sandbox.
+    pub max_memory_bytes: Option<i64>,
+    /// Whether network access is allowed.
+    pub allow_network: bool,
+    /// Allowed environment variable names.
+    pub allowed_env_vars: Option<String>,
+    /// Creator user id.
+    pub created_by: String,
+    /// Creation timestamp.
+    pub created_at: String,
+    /// Last update timestamp.
+    pub updated_at: String,
+}
+
+/// Script repository.
+#[derive(Debug, Clone)]
+pub struct ScriptRepository {
+    db: DatabaseConnection,
+}
+
+impl ScriptRepository {
+    /// Create a repository using the provided database connection.
+    #[must_use]
+    pub const fn new(db: DatabaseConnection) -> Self {
+        Self { db }
+    }
+
+    /// List all scripts ordered by creation time.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn list_scripts(&self) -> Result<Vec<ScriptSummary>, sea_orm::DbErr> {
+        let rows = script::Entity::find()
+            .order_by_asc(script::Column::CreatedAt)
+            .all(&self.db)
+            .await?;
+        Ok(rows.into_iter().map(ScriptSummary::from).collect())
+    }
+
+    /// Get one script by id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn get(&self, id: &str) -> Result<Option<ScriptSummary>, sea_orm::DbErr> {
+        script::Entity::find_by_id(id.to_owned())
+            .one(&self.db)
+            .await
+            .map(|model| model.map(ScriptSummary::from))
+    }
+
+    /// Create a new script definition.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn create_script(
+        &self,
+        input: CreateScript,
+    ) -> Result<ScriptSummary, sea_orm::DbErr> {
+        let now = now_rfc3339();
+        let model = script::ActiveModel {
+            id: Set(new_id("script")),
+            name: Set(input.name),
+            language: Set(input.language),
+            version: Set(input.version),
+            content: Set(input.content),
+            status: Set("draft".to_owned()),
+            timeout_seconds: Set(input.timeout_seconds),
+            max_memory_bytes: Set(input.max_memory_bytes),
+            allow_network: Set(input.allow_network),
+            allowed_env_vars: Set(input.allowed_env_vars),
+            created_by: Set(input.created_by),
+            created_at: Set(now.clone()),
+            updated_at: Set(now),
+        }
+        .insert(&self.db)
+        .await?;
+        Ok(ScriptSummary::from(model))
+    }
+
+    /// Update a script definition.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn update_script(
+        &self,
+        id: &str,
+        params: UpdateScript,
+    ) -> Result<Option<ScriptSummary>, sea_orm::DbErr> {
+        let Some(existing) = script::Entity::find_by_id(id.to_owned())
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let mut active: script::ActiveModel = existing.into();
+        if let Some(name) = params.name {
+            active.name = Set(name);
+        }
+        if let Some(language) = params.language {
+            active.language = Set(language);
+        }
+        if let Some(version) = params.version {
+            active.version = Set(version);
+        }
+        if let Some(content) = params.content {
+            active.content = Set(content);
+        }
+        if let Some(status) = params.status {
+            active.status = Set(status);
+        }
+        if let Some(timeout) = params.timeout_seconds {
+            active.timeout_seconds = Set(Some(timeout));
+        }
+        if let Some(mem) = params.max_memory_bytes {
+            active.max_memory_bytes = Set(Some(mem));
+        }
+        if let Some(allow) = params.allow_network {
+            active.allow_network = Set(allow);
+        }
+        if let Some(env) = params.allowed_env_vars {
+            active.allowed_env_vars = Set(Some(env));
+        }
+        active.updated_at = Set(now_rfc3339());
+        let updated = active.update(&self.db).await?;
+        Ok(Some(ScriptSummary::from(updated)))
+    }
+
+    /// Delete a script by id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn delete_script(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
+        let result = script::Entity::delete_by_id(id.to_owned())
+            .exec(&self.db)
+            .await?;
+        Ok(result.rows_affected > 0)
+    }
+}
+
+impl From<script::Model> for ScriptSummary {
+    fn from(value: script::Model) -> Self {
+        Self {
+            id: value.id,
+            name: value.name,
+            language: value.language,
+            version: value.version,
+            status: value.status,
+            timeout_seconds: value.timeout_seconds,
+            max_memory_bytes: value.max_memory_bytes,
+            allow_network: value.allow_network,
+            allowed_env_vars: value.allowed_env_vars,
+            created_by: value.created_by,
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+        }
     }
 }
 

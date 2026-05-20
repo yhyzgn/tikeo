@@ -231,6 +231,104 @@ pub enum DispatchDecision {
     NoEligibleWorker,
 }
 
+/// Script language supported by the platform.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScriptLanguage {
+    /// Shell / Bash script.
+    Shell,
+    /// Python script.
+    Python,
+    /// Node.js / JavaScript / TypeScript script.
+    Node,
+    /// PowerShell script.
+    PowerShell,
+    /// Rhai embedded script.
+    Rhai,
+    /// WebAssembly module.
+    Wasm,
+}
+
+impl ScriptLanguage {
+    /// Returns the stable storage and wire representation.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Shell => "shell",
+            Self::Python => "python",
+            Self::Node => "node",
+            Self::PowerShell => "powershell",
+            Self::Rhai => "rhai",
+            Self::Wasm => "wasm",
+        }
+    }
+}
+
+impl fmt::Display for ScriptLanguage {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for ScriptLanguage {
+    type Err = ParseEnumError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "shell" | "bash" | "sh" => Ok(Self::Shell),
+            "python" | "py" => Ok(Self::Python),
+            "node" | "nodejs" | "javascript" | "js" | "typescript" | "ts" => Ok(Self::Node),
+            "powershell" | "ps1" | "pwsh" => Ok(Self::PowerShell),
+            "rhai" => Ok(Self::Rhai),
+            "wasm" | "webassembly" => Ok(Self::Wasm),
+            _ => Err(ParseEnumError::new("script_language", value)),
+        }
+    }
+}
+
+/// Approval status for a script definition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScriptStatus {
+    /// Script is a draft and not yet approved for execution.
+    Draft,
+    /// Script has been approved by an admin for execution.
+    Approved,
+    /// Script has been disabled / deprecated.
+    Disabled,
+}
+
+impl ScriptStatus {
+    /// Returns the stable storage and wire representation.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Draft => "draft",
+            Self::Approved => "approved",
+            Self::Disabled => "disabled",
+        }
+    }
+}
+
+impl fmt::Display for ScriptStatus {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for ScriptStatus {
+    type Err = ParseEnumError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "draft" => Ok(Self::Draft),
+            "approved" | "active" => Ok(Self::Approved),
+            "disabled" | "deprecated" | "inactive" => Ok(Self::Disabled),
+            _ => Err(ParseEnumError::new("script_status", value)),
+        }
+    }
+}
+
 /// Error returned when parsing a wire enum fails.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseEnumError {
@@ -260,7 +358,10 @@ impl std::error::Error for ParseEnumError {}
 mod tests {
     use std::str::FromStr;
 
-    use super::{ExecutionMode, HealthState, InstanceStatus, ScheduleType, TriggerType};
+    use super::{
+        ExecutionMode, HealthState, InstanceStatus, ScheduleType, ScriptLanguage, ScriptStatus,
+        TriggerType,
+    };
 
     #[test]
     fn health_state_wire_value_is_stable() {
@@ -274,6 +375,22 @@ mod tests {
             Ok(ScheduleType::FixedRate)
         );
         assert_eq!(ScheduleType::Cron.as_str(), "cron");
+    }
+
+    #[test]
+    fn script_enums_parse_aliases() {
+        assert_eq!(
+            ScriptLanguage::from_str("python"),
+            Ok(ScriptLanguage::Python)
+        );
+        assert_eq!(ScriptLanguage::from_str("js"), Ok(ScriptLanguage::Node));
+        assert_eq!(ScriptLanguage::Wasm.as_str(), "wasm");
+        assert_eq!(
+            ScriptStatus::from_str("approved"),
+            Ok(ScriptStatus::Approved)
+        );
+        assert_eq!(ScriptStatus::from_str("active"), Ok(ScriptStatus::Approved));
+        assert_eq!(ScriptStatus::Disabled.as_str(), "disabled");
     }
 
     #[test]

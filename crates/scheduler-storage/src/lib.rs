@@ -15,10 +15,10 @@ use thiserror::Error;
 
 pub use repository::{
     AppendJobInstanceLog, AuthSessionRepository, AuthSessionSummary, CreateAuthSession, CreateJob,
-    CreateJobInstance, CreateJobInstanceAttempt, CreateUser, JobInstanceAttemptRepository,
-    JobInstanceAttemptSummary, JobInstanceLogRepository, JobInstanceLogSummary,
-    JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary, UpdateUser,
-    UserRepository, UserSummary,
+    CreateJobInstance, CreateJobInstanceAttempt, CreateScript, CreateUser,
+    JobInstanceAttemptRepository, JobInstanceAttemptSummary, JobInstanceLogRepository,
+    JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
+    ScriptRepository, ScriptSummary, UpdateScript, UpdateUser, UserRepository, UserSummary,
 };
 pub use sea_orm::DbErr;
 
@@ -52,7 +52,46 @@ pub async fn connect_and_migrate(database_url: &str) -> Result<DatabaseConnectio
 async fn ensure_sqlite_schema_compatibility(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {
     ensure_broadcast_schema_compatibility(db).await?;
     ensure_auth_schema_compatibility(db).await?;
+    ensure_scripts_schema_compatibility(db).await?;
     remove_sqlite_foreign_keys(db).await
+}
+
+async fn ensure_scripts_schema_compatibility(
+    db: &DatabaseConnection,
+) -> Result<(), sea_orm::DbErr> {
+    if db.get_database_backend() != DatabaseBackend::Sqlite {
+        return Ok(());
+    }
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        r"CREATE TABLE IF NOT EXISTS scripts (
+            id varchar NOT NULL PRIMARY KEY,
+            name varchar NOT NULL,
+            language varchar NOT NULL,
+            version varchar NOT NULL,
+            content varchar NOT NULL,
+            status varchar NOT NULL,
+            timeout_seconds bigint,
+            max_memory_bytes bigint,
+            allow_network boolean NOT NULL DEFAULT 0,
+            allowed_env_vars varchar,
+            created_by varchar NOT NULL,
+            created_at varchar NOT NULL,
+            updated_at varchar NOT NULL
+        )",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE INDEX IF NOT EXISTS idx_scripts_status ON scripts (status)",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE INDEX IF NOT EXISTS idx_scripts_name ON scripts (name)",
+    ))
+    .await?;
+    Ok(())
 }
 
 async fn ensure_broadcast_schema_compatibility(

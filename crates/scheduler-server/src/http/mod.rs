@@ -14,7 +14,7 @@ use axum::{Json, Router, extract::State, http::StatusCode, response::IntoRespons
 use scheduler_core::HealthState;
 use scheduler_storage::{
     AuthSessionRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
-    JobInstanceRepository, JobRepository, UserRepository, connect_and_migrate,
+    JobInstanceRepository, JobRepository, ScriptRepository, UserRepository, connect_and_migrate,
 };
 use serde::Serialize;
 
@@ -36,6 +36,7 @@ pub struct AppState {
     logs: JobInstanceLogRepository,
     attempts: JobInstanceAttemptRepository,
     users: UserRepository,
+    scripts: ScriptRepository,
     sessions: SessionManager,
     registry: crate::tunnel::WorkerRegistry,
 }
@@ -49,6 +50,7 @@ impl AppState {
         logs: JobInstanceLogRepository,
         attempts: JobInstanceAttemptRepository,
         users: UserRepository,
+        scripts: ScriptRepository,
         registry: crate::tunnel::WorkerRegistry,
     ) -> Self {
         let sessions = SessionManager::new(DbMokaSessionStore::new(AuthSessionRepository::new(
@@ -61,6 +63,7 @@ impl AppState {
             logs,
             attempts,
             users,
+            scripts,
             sessions,
             registry,
         }
@@ -86,7 +89,8 @@ async fn router_for_database(database_url: &str) -> Result<Router> {
         JobInstanceRepository::new(db.clone()),
         JobInstanceLogRepository::new(db.clone()),
         JobInstanceAttemptRepository::new(db.clone()),
-        UserRepository::new(db),
+        UserRepository::new(db.clone()),
+        ScriptRepository::new(db),
         crate::tunnel::WorkerRegistry::default(),
     )))
 }
@@ -109,6 +113,16 @@ fn api_router() -> Router<Arc<AppState>> {
         .route(
             "/users/{id}",
             axum::routing::patch(routes::update_user).delete(routes::delete_user),
+        )
+        .route(
+            "/scripts",
+            get(routes::list_scripts).post(routes::create_script),
+        )
+        .route(
+            "/scripts/{id}",
+            get(routes::get_script)
+                .patch(routes::update_script)
+                .delete(routes::delete_script),
         )
         .route("/jobs", get(routes::list_jobs).post(routes::create_job))
         .route(
@@ -196,7 +210,8 @@ mod tests {
     use scheduler_proto::worker::v1::RegisterWorker;
     use scheduler_storage::{
         AppendJobInstanceLog, JobInstanceAttemptRepository, JobInstanceLogRepository,
-        JobInstanceRepository, JobRepository, UserRepository, connect_and_migrate,
+        JobInstanceRepository, JobRepository, ScriptRepository, UserRepository,
+        connect_and_migrate,
     };
     use serde_json::Value;
     use tower::ServiceExt;
@@ -375,6 +390,7 @@ mod tests {
             JobInstanceLogRepository::new(db.clone()),
             JobInstanceAttemptRepository::new(db.clone()),
             UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
             registry,
         ));
 
@@ -462,6 +478,7 @@ mod tests {
             JobInstanceLogRepository::new(db.clone()),
             JobInstanceAttemptRepository::new(db.clone()),
             UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
             crate::tunnel::WorkerRegistry::default(),
         ));
         let created = post_json(
@@ -589,6 +606,7 @@ mod tests {
             JobInstanceLogRepository::new(db.clone()),
             JobInstanceAttemptRepository::new(db.clone()),
             UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
             registry,
         ));
 
@@ -635,7 +653,8 @@ mod tests {
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
             JobInstanceAttemptRepository::new(db.clone()),
-            UserRepository::new(db),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db),
             crate::tunnel::WorkerRegistry::default(),
         ));
 
@@ -776,7 +795,8 @@ mod tests {
             JobInstanceRepository::new(db.clone()),
             JobInstanceLogRepository::new(db.clone()),
             JobInstanceAttemptRepository::new(db.clone()),
-            UserRepository::new(db),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db),
             crate::tunnel::WorkerRegistry::default(),
         ))
     }

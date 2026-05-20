@@ -9,12 +9,13 @@ use scheduler_storage::{CreateJob, CreateJobInstance};
 use super::{
     AppState, auth,
     dto::{
-        ApiResponse, ClusterApiResponse, ClusterResponse, CreateJobRequest, CreateUserRequest,
-        ErrorResponse, JobApiResponse, JobInstanceApiResponse, JobInstanceAttemptPage,
-        JobInstanceAttemptPageApiResponse, JobInstanceAttemptSummary, JobInstanceLogPage,
-        JobInstanceLogPageApiResponse, JobInstanceLogSummary, JobInstancePage,
+        ApiResponse, ClusterApiResponse, ClusterResponse, CreateJobRequest, CreateScriptRequest,
+        CreateUserRequest, ErrorResponse, JobApiResponse, JobInstanceApiResponse,
+        JobInstanceAttemptPage, JobInstanceAttemptPageApiResponse, JobInstanceAttemptSummary,
+        JobInstanceLogPage, JobInstanceLogPageApiResponse, JobInstanceLogSummary, JobInstancePage,
         JobInstancePageApiResponse, JobInstanceSummary, JobPageApiResponse, JobSummary, Page,
-        PageQuery, SystemInfoApiResponse, SystemInfoResponse, TriggerJobRequest, UpdateUserRequest,
+        PageQuery, ScriptPage, ScriptPageApiResponse, SystemInfoApiResponse, SystemInfoResponse,
+        TriggerJobRequest, UpdateScriptRequest, UpdateUserRequest,
     },
     error::ApiError,
 };
@@ -423,6 +424,212 @@ fn parse_trigger_path(value: &str) -> Result<String, ApiError> {
         .filter(|job| !job.is_empty())
         .map(ToOwned::to_owned)
         .ok_or_else(|| ApiError::not_found(format!("unsupported job action: {value}")))
+}
+
+/// List scripts.
+///
+/// # Errors
+///
+/// Returns authorization or storage errors when listing scripts fails.
+#[utoipa::path(
+    get,
+    path = "/api/v1/scripts",
+    tag = "scripts",
+    params(PageQuery),
+    responses(
+        (status = 200, description = "Script page", body = ScriptPageApiResponse),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 403, description = "Forbidden", body = ErrorResponse),
+        (status = 500, description = "Storage error", body = ErrorResponse)
+    )
+)]
+pub async fn list_scripts(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(_query): Query<PageQuery>,
+) -> Result<Json<ScriptPageApiResponse>, ApiError> {
+    auth::require_admin(&headers, &state).await?;
+    let items = state
+        .scripts
+        .list_scripts()
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+
+    Ok(Json(ApiResponse::success(ScriptPage {
+        items,
+        next_page_token: None,
+    })))
+}
+
+/// Create a new script definition (Admin only).
+///
+/// # Errors
+///
+/// Returns authorization or storage errors when the script cannot be created.
+#[utoipa::path(
+    post,
+    path = "/api/v1/scripts",
+    tag = "scripts",
+    request_body = CreateScriptRequest,
+    responses(
+        (status = 200, description = "Created script", body = super::dto::ScriptApiResponse),
+        (status = 400, description = "Bad request", body = super::dto::ErrorResponse),
+        (status = 401, description = "Unauthorized", body = super::dto::ErrorResponse),
+        (status = 403, description = "Forbidden", body = super::dto::ErrorResponse),
+        (status = 500, description = "Storage error", body = super::dto::ErrorResponse)
+    )
+)]
+pub async fn create_script(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<CreateScriptRequest>,
+) -> Result<Json<super::dto::ScriptApiResponse>, ApiError> {
+    let principal = auth::require_admin(&headers, &state).await?;
+
+    let created = state
+        .scripts
+        .create_script(scheduler_storage::CreateScript {
+            name: request.name,
+            language: request.language,
+            version: request.version,
+            content: request.content,
+            created_by: principal.username,
+            timeout_seconds: request.timeout_seconds,
+            max_memory_bytes: request.max_memory_bytes,
+            allow_network: request.allow_network.unwrap_or(false),
+            allowed_env_vars: request
+                .allowed_env_vars
+                .and_then(|vars| serde_json::to_string(&vars).ok()),
+        })
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+
+    Ok(Json(ApiResponse::success(created)))
+}
+
+/// Get one script by id (Admin only).
+///
+/// # Errors
+///
+/// Returns authorization, not-found, or storage errors when lookup fails.
+#[utoipa::path(
+    get,
+    path = "/api/v1/scripts/{id}",
+    tag = "scripts",
+    params(("id" = String, Path, description = "Script identifier")),
+    responses(
+        (status = 200, description = "Script", body = super::dto::ScriptApiResponse),
+        (status = 401, description = "Unauthorized", body = super::dto::ErrorResponse),
+        (status = 403, description = "Forbidden", body = super::dto::ErrorResponse),
+        (status = 404, description = "Not found", body = super::dto::ErrorResponse),
+        (status = 500, description = "Storage error", body = super::dto::ErrorResponse)
+    )
+)]
+pub async fn get_script(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<super::dto::ScriptApiResponse>, ApiError> {
+    auth::require_admin(&headers, &state).await?;
+
+    let summary = state
+        .scripts
+        .get(&id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::not_found(format!("script not found: {id}")))?;
+
+    Ok(Json(ApiResponse::success(summary)))
+}
+
+/// Update a script definition (Admin only).
+///
+/// # Errors
+///
+/// Returns authorization, not-found, or storage errors when the script cannot be updated.
+#[utoipa::path(
+    patch,
+    path = "/api/v1/scripts/{id}",
+    tag = "scripts",
+    params(("id" = String, Path, description = "Script identifier")),
+    request_body = UpdateScriptRequest,
+    responses(
+        (status = 200, description = "Updated script", body = super::dto::ScriptApiResponse),
+        (status = 400, description = "Bad request", body = super::dto::ErrorResponse),
+        (status = 401, description = "Unauthorized", body = super::dto::ErrorResponse),
+        (status = 403, description = "Forbidden", body = super::dto::ErrorResponse),
+        (status = 404, description = "Not found", body = super::dto::ErrorResponse),
+        (status = 500, description = "Storage error", body = super::dto::ErrorResponse)
+    )
+)]
+pub async fn update_script(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<UpdateScriptRequest>,
+) -> Result<Json<super::dto::ScriptApiResponse>, ApiError> {
+    auth::require_admin(&headers, &state).await?;
+
+    let updated = state
+        .scripts
+        .update_script(
+            &id,
+            scheduler_storage::UpdateScript {
+                name: request.name,
+                language: request.language,
+                version: request.version,
+                content: request.content,
+                status: request.status,
+                timeout_seconds: request.timeout_seconds,
+                max_memory_bytes: request.max_memory_bytes,
+                allow_network: request.allow_network,
+                allowed_env_vars: request
+                    .allowed_env_vars
+                    .and_then(|vars| serde_json::to_string(&vars).ok()),
+            },
+        )
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::not_found(format!("script not found: {id}")))?;
+
+    Ok(Json(ApiResponse::success(updated)))
+}
+
+/// Delete a script by id (Admin only).
+///
+/// # Errors
+///
+/// Returns authorization, not-found, or storage errors when the script cannot be deleted.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/scripts/{id}",
+    tag = "scripts",
+    params(("id" = String, Path, description = "Script identifier")),
+    responses(
+        (status = 200, description = "Deleted script acknowledged", body = super::dto::EmptyApiResponse),
+        (status = 401, description = "Unauthorized", body = super::dto::ErrorResponse),
+        (status = 403, description = "Forbidden", body = super::dto::ErrorResponse),
+        (status = 404, description = "Not found", body = super::dto::ErrorResponse)
+    )
+)]
+pub async fn delete_script(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<super::dto::EmptyApiResponse>, ApiError> {
+    auth::require_admin(&headers, &state).await?;
+
+    let success = state
+        .scripts
+        .delete_script(&id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+
+    if success {
+        Ok(Json(ApiResponse::success(super::dto::EmptyData {})))
+    } else {
+        Err(ApiError::not_found(format!("script not found: {id}")))
+    }
 }
 
 /// List all platform users (Admin only).

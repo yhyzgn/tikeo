@@ -288,6 +288,65 @@ pub struct JobInstanceLogPage {
     pub next_page_token: Option<String>,
 }
 
+/// Script page API envelope.
+pub type ScriptPageApiResponse = ApiResponse<ScriptPage>;
+
+/// Script API envelope.
+pub type ScriptApiResponse = ApiResponse<scheduler_storage::ScriptSummary>;
+
+/// Script page response.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ScriptPage {
+    /// Page items.
+    pub items: Vec<scheduler_storage::ScriptSummary>,
+    /// Token for the next page when more data is available.
+    pub next_page_token: Option<String>,
+}
+
+/// Create script request.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct CreateScriptRequest {
+    /// Display name.
+    pub name: String,
+    /// Script language.
+    pub language: String,
+    /// Semantic version.
+    pub version: String,
+    /// Script source content.
+    pub content: String,
+    /// Optional timeout seconds.
+    pub timeout_seconds: Option<i64>,
+    /// Optional max memory bytes.
+    pub max_memory_bytes: Option<i64>,
+    /// Whether network access is allowed.
+    pub allow_network: Option<bool>,
+    /// Allowed environment variable names.
+    pub allowed_env_vars: Option<Vec<String>>,
+}
+
+/// Update script request.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct UpdateScriptRequest {
+    /// Optional name update.
+    pub name: Option<String>,
+    /// Optional language update.
+    pub language: Option<String>,
+    /// Optional version update.
+    pub version: Option<String>,
+    /// Optional content update.
+    pub content: Option<String>,
+    /// Optional status update.
+    pub status: Option<String>,
+    /// Optional timeout seconds update.
+    pub timeout_seconds: Option<i64>,
+    /// Optional max memory bytes update.
+    pub max_memory_bytes: Option<i64>,
+    /// Optional network policy update.
+    pub allow_network: Option<bool>,
+    /// Optional allowed environment variable names update.
+    pub allowed_env_vars: Option<Vec<String>>,
+}
+
 /// Job instance log summary DTO.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct JobInstanceLogSummary {

@@ -26,6 +26,7 @@ impl MigrationTrait for CreateMetadataTables {
         create_job_instance_logs(manager).await?;
         create_users(manager).await?;
         create_auth_sessions(manager).await?;
+        create_scripts(manager).await?;
         create_indexes(manager).await?;
 
         // Seed default admin
@@ -34,6 +35,9 @@ impl MigrationTrait for CreateMetadataTables {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(Scripts::Table).to_owned())
+            .await?;
         manager
             .drop_table(Table::drop().table(AuthSessions::Table).to_owned())
             .await?;
@@ -127,6 +131,30 @@ async fn create_auth_sessions(manager: &SchemaManager<'_>) -> Result<(), DbErr> 
                 .col(string_col(AuthSessions::ExpiresAt))
                 .col(string_col(AuthSessions::CreatedAt))
                 .col(string_col(AuthSessions::UpdatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_scripts(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(Scripts::Table)
+                .if_not_exists()
+                .col(string_pk(Scripts::Id))
+                .col(string_col(Scripts::Name))
+                .col(string_col(Scripts::Language))
+                .col(string_col(Scripts::Version))
+                .col(string_col(Scripts::Content))
+                .col(string_col(Scripts::Status))
+                .col(big_integer_null(Scripts::TimeoutSeconds))
+                .col(big_integer_null(Scripts::MaxMemoryBytes))
+                .col(boolean_col(Scripts::AllowNetwork))
+                .col(string_null(Scripts::AllowedEnvVars))
+                .col(string_col(Scripts::CreatedBy))
+                .col(string_col(Scripts::CreatedAt))
+                .col(string_col(Scripts::UpdatedAt))
                 .to_owned(),
         )
         .await
@@ -234,6 +262,7 @@ async fn create_job_instances(manager: &SchemaManager<'_>) -> Result<(), DbErr> 
         .await
 }
 
+#[allow(clippy::too_many_lines)]
 async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     create_index(
         manager,
@@ -326,6 +355,24 @@ async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             .col(AuthSessions::UserId)
             .to_owned(),
     )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_scripts_status")
+            .table(Scripts::Table)
+            .col(Scripts::Status)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_scripts_name")
+            .table(Scripts::Table)
+            .col(Scripts::Name)
+            .to_owned(),
+    )
     .await
 }
 
@@ -338,6 +385,24 @@ enum AuthSessions {
     DeviceId,
     DeviceName,
     ExpiresAt,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum Scripts {
+    Table,
+    Id,
+    Name,
+    Language,
+    Version,
+    Content,
+    Status,
+    TimeoutSeconds,
+    MaxMemoryBytes,
+    AllowNetwork,
+    AllowedEnvVars,
+    CreatedBy,
     CreatedAt,
     UpdatedAt,
 }
@@ -488,4 +553,11 @@ where
     T: IntoIden,
 {
     ColumnDef::new(column).big_integer().not_null().take()
+}
+
+fn big_integer_null<T>(column: T) -> ColumnDef
+where
+    T: IntoIden,
+{
+    ColumnDef::new(column).big_integer().null().take()
 }
