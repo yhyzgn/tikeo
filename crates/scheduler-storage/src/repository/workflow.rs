@@ -966,6 +966,24 @@ pub fn validate_workflow_definition(definition: &WorkflowDefinition) -> Workflow
         if kind == "job" && node.job_id.as_deref().unwrap_or("").is_empty() {
             errors.push(format!("job node {} requires job_id", node.key));
         }
+        if kind == "condition" && node_config_string(node, "expression").is_none() {
+            errors.push(format!(
+                "condition node {} requires config.expression",
+                node.key
+            ));
+        }
+        if kind == "http" && node_config_string(node, "url").is_none() {
+            errors.push(format!("http node {} requires config.url", node.key));
+        }
+        if kind == "script" && node_config_string(node, "source").is_none() {
+            errors.push(format!("script node {} requires config.source", node.key));
+        }
+        if kind == "approval" && node_config_string(node, "approvers").is_none() {
+            errors.push(format!(
+                "approval node {} requires config.approvers",
+                node.key
+            ));
+        }
         if kind == "sub_workflow" && node.child_workflow_id.as_deref().unwrap_or("").is_empty() {
             errors.push(format!(
                 "sub_workflow node {} requires child_workflow_id",
@@ -1001,6 +1019,14 @@ pub fn validate_workflow_definition(definition: &WorkflowDefinition) -> Workflow
         valid: errors.is_empty(),
         errors,
     }
+}
+
+fn node_config_string<'a>(node: &'a WorkflowNodeSpec, key: &str) -> Option<&'a str> {
+    node.config
+        .as_ref()
+        .and_then(|value| value.get(key))
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
 }
 
 fn next_nodes_for_status(

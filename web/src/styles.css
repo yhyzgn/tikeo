@@ -597,3 +597,15 @@ body {
   inset: -12px;
   border-radius: 999px;
 }
+.workflow-node-card--selected {
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.18), 0 18px 38px rgba(30, 64, 175, 0.14);
+}
+
+.workflow-node-inspector.ant-card {
+  margin-top: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff) !important;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06) !important;
+}

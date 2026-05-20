@@ -665,3 +665,9 @@ Git:
 - 已在 `web/src/pages/WorkflowsPage.tsx` 使用 canvas-local pointer 坐标实现拖拽节点与拖拽连线，避免滚动画布/视口坐标偏移。
 - 已在 `web/src/styles.css` 隐藏默认端口，仅 hover/连线态显示端口，并增加临时连线虚线和阴影。
 - 已在 `crates/scheduler-storage/src/repository/workflow.rs` 扩展 workflow 节点类型白名单，避免 Web 新节点保存时报 unsupported node kind。
+
+### 2026-05-20 027 工作流节点业务语义补齐
+- 用户指出工作流节点必须能绑定任务，且条件分支、并行、人工审批等节点类型需要真实出现在编辑器中。
+- 已让 Workflows 页面加载 Job 列表，Job 节点可在属性面板绑定具体任务 ID。
+- 画布节点点击后显示属性 Inspector，不同节点类型展示不同配置项；这些配置写回 workflow definition JSON。
+- 注意：当前 runtime 对新语义节点仍以定义/校验/人工推进为主，后续需要继续补齐 condition/parallel/join/delay/approval/notification 的自动执行语义。

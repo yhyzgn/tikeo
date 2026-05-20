@@ -8,11 +8,13 @@ import {
   recoverWorkflowNode,
   dryRunWorkflow,
   getAuthToken,
+  listJobs,
   listWorkflows,
   runWorkflow,
   validateWorkflow,
   workflowEventStreamUrl,
   type InstanceEventSummary,
+  type JobSummary,
   type WorkflowDefinition,
   type WorkflowDryRunResponse,
   type WorkflowEdgeSpec,
@@ -105,17 +107,27 @@ function nodeLimits(node: WorkflowNodeSpec) {
 
 function makeNode(kind: string, index: number): WorkflowNodeSpec {
   const key = `${kind.replace('_', '-')}-${index}`;
-  const config = { ui: { x: 90 + index * 44, y: 100 + index * 34 } };
+  const ui = { x: 90 + index * 44, y: 100 + index * 34 };
   if (kind === 'map' || kind === 'map_reduce') {
-    return { key, name: key, kind, map_items: [{ shard: 1 }, { shard: 2 }], config };
+    return { key, name: key, kind, map_items: [{ shard: 1 }, { shard: 2 }], config: { ui, mode: kind === 'map' ? 'fan-out' : 'fan-out-reduce' } };
   }
   if (kind === 'sub_workflow') {
-    return { key, name: key, kind, child_workflow_id: 'wf_child', config };
+    return { key, name: key, kind, child_workflow_id: 'wf_child', config: { ui } };
   }
   if (kind === 'job') {
-    return { key, name: key, kind, job_id: `job_${key.replaceAll('-', '_')}`, config };
+    return { key, name: key, kind, job_id: '', config: { ui } };
   }
-  return { key, name: key, kind, config };
+  const configByKind: Record<string, Record<string, unknown>> = {
+    script: { language: 'rhai', sandbox: 'isolated', source: '' },
+    http: { method: 'GET', url: '', timeout_ms: 30000 },
+    condition: { expression: 'context.success == true', true_edge: 'on_success', false_edge: 'on_failure' },
+    parallel: { strategy: 'fan-out' },
+    join: { quorum: 'all' },
+    delay: { seconds: '60' },
+    approval: { approvers: 'role:ops', timeout: '24h' },
+    notification: { channel: 'webhook', target: '', template: '' },
+  };
+  return { key, name: key, kind, config: { ui, ...(configByKind[kind] ?? {}) } };
 }
 
 function nodePosition(node: WorkflowNodeSpec, index: number) {
@@ -137,12 +149,16 @@ function edgeColor(condition?: string | null) {
   return '#2563eb';
 }
 
-function DagPreview({ definition, instance, editable = false, onChange }: { definition: WorkflowDefinition; instance?: WorkflowInstanceSummary | null; editable?: boolean; onChange?: (definition: WorkflowDefinition) => void }) {
+function DagPreview({ definition, instance, jobs = [], editable = false, onChange }: { definition: WorkflowDefinition; instance?: WorkflowInstanceSummary | null; jobs?: JobSummary[]; editable?: boolean; onChange?: (definition: WorkflowDefinition) => void }) {
   const [dragging, setDragging] = useState<{ key: string; offsetX: number; offsetY: number } | null>(null);
   const [linkDrag, setLinkDrag] = useState<{ from: string; x: number; y: number } | null>(null);
+  const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(definition.nodes[0]?.key ?? null);
   const spaceRef = useRef<HTMLDivElement | null>(null);
   const statuses = new Map(instance?.nodes.map((node) => [node.node_key, node.status]) ?? []);
   const positions = new Map(definition.nodes.map((node, index) => [node.key, nodePosition(node, index)]));
+
+  const selectedNode = definition.nodes.find((node) => node.key === selectedNodeKey) ?? null;
+  const jobOptions = jobs.map((job) => ({ label: `${job.name} · ${job.namespace}/${job.app}`, value: job.id }));
 
   const update = (next: WorkflowDefinition) => onChange?.(next);
   const toCanvasPoint = (event: PointerEvent<HTMLElement>) => {
@@ -150,9 +166,45 @@ function DagPreview({ definition, instance, editable = false, onChange }: { defi
     if (!rect) return { x: event.clientX, y: event.clientY };
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
-  const removeNode = (key: string) => update({ nodes: definition.nodes.filter((node) => node.key !== key), edges: definition.edges.filter((edge) => edge.from !== key && edge.to !== key) });
+  const updateNode = (key: string, patch: Partial<WorkflowNodeSpec>) => update({ ...definition, nodes: definition.nodes.map((node) => node.key === key ? { ...node, ...patch } : node) });
+  const renameNodeKey = (oldKey: string, nextKey: string) => {
+    setSelectedNodeKey(nextKey);
+    update({
+      nodes: definition.nodes.map((node) => node.key === oldKey ? { ...node, key: nextKey, name: node.name === oldKey ? nextKey : node.name } : node),
+      edges: definition.edges.map((edge) => ({
+        ...edge,
+        from: edge.from === oldKey ? nextKey : edge.from,
+        to: edge.to === oldKey ? nextKey : edge.to,
+      })),
+    });
+  };
+  const updateNodeConfig = (key: string, patch: Record<string, unknown>) => update({
+    ...definition,
+    nodes: definition.nodes.map((node) => {
+      if (node.key !== key) return node;
+      const config = (typeof node.config === 'object' && node.config !== null ? node.config : {}) as Record<string, unknown>;
+      return { ...node, config: { ...config, ...patch } };
+    }),
+  });
+  const updateMapItems = (key: string, raw: string) => {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) { message.warning('map_items 必须是 JSON 数组'); return; }
+      updateNode(key, { map_items: parsed });
+    } catch {
+      message.warning('map_items 不是合法 JSON');
+    }
+  };
+  const removeNode = (key: string) => {
+    update({ nodes: definition.nodes.filter((node) => node.key !== key), edges: definition.edges.filter((edge) => edge.from !== key && edge.to !== key) });
+    if (selectedNodeKey === key) setSelectedNodeKey(definition.nodes.find((node) => node.key !== key)?.key ?? null);
+  };
   const removeEdge = (edge: WorkflowEdgeSpec) => update({ ...definition, edges: definition.edges.filter((item) => !(item.from === edge.from && item.to === edge.to && item.condition === edge.condition)) });
-  const addNode = (kind: string) => update({ ...definition, nodes: [...definition.nodes, makeNode(kind, definition.nodes.length + 1)] });
+  const addNode = (kind: string) => {
+    const node = makeNode(kind, definition.nodes.length + 1);
+    update({ ...definition, nodes: [...definition.nodes, node] });
+    setSelectedNodeKey(node.key);
+  };
   const addEdge = () => {
     if (definition.nodes.length < 2) return;
     const from = definition.nodes.at(-2)?.key;
@@ -259,7 +311,7 @@ function DagPreview({ definition, instance, editable = false, onChange }: { defi
             const outgoing = definition.edges.filter((edge) => edge.from === node.key);
             const limits = nodeLimits(node);
             return (
-              <div className={`workflow-node-card ${editable ? 'workflow-node-card--editable' : ''} ${linkDrag?.from === node.key ? 'workflow-node-card--linking' : ''}`} key={node.key} style={{ left: position.x, top: position.y }} onPointerDown={(event) => pointerDown(node, event)}>
+              <div className={`workflow-node-card ${editable ? 'workflow-node-card--editable' : ''} ${selectedNodeKey === node.key ? 'workflow-node-card--selected' : ''} ${linkDrag?.from === node.key ? 'workflow-node-card--linking' : ''}`} key={node.key} style={{ left: position.x, top: position.y }} onPointerDown={(event) => pointerDown(node, event)} onClick={() => setSelectedNodeKey(node.key)}>
                 {limits.in > 0 ? <button className="workflow-node-port workflow-node-port--input" type="button" onPointerUp={(event) => finishLinkDrag(node.key, event)} onPointerDown={(event) => event.stopPropagation()} title={`输入端口：${incoming.length}/${limits.in}`} /> : null}
                 {limits.out > 0 ? <button className="workflow-node-port workflow-node-port--output" type="button" onPointerDown={(event) => startLinkDrag(node.key, event)} title={`输出端口：${outgoing.length}/${limits.out}`} /> : null}
                 <div className="workflow-node-card__header">
@@ -270,8 +322,11 @@ function DagPreview({ definition, instance, editable = false, onChange }: { defi
                 <div className="workflow-node-card__body">
                   <Tag color="cyan">{nodeKind(node)}</Tag>
                   <Typography.Text className="workflow-node-card__key">{node.key}</Typography.Text>
-                  {node.job_id ? <Typography.Text type="secondary">job: {node.job_id}</Typography.Text> : null}
+                  {node.job_id ? <Typography.Text type="secondary">job: {jobs.find((job) => job.id === node.job_id)?.name ?? node.job_id}</Typography.Text> : null}
                   {node.child_workflow_id ? <Typography.Text type="secondary">child: {node.child_workflow_id}</Typography.Text> : null}
+                  {nodeKind(node) === 'condition' ? <Typography.Text type="secondary">条件分支</Typography.Text> : null}
+                  {nodeKind(node) === 'parallel' ? <Typography.Text type="secondary">并行分发</Typography.Text> : null}
+                  {nodeKind(node) === 'approval' ? <Typography.Text type="secondary">人工审批</Typography.Text> : null}
                 </div>
                 <div className="workflow-node-card__ports">
                   <span>in {incoming.length}/{limits.in}</span>
@@ -283,6 +338,113 @@ function DagPreview({ definition, instance, editable = false, onChange }: { defi
           })}
         </div>
       </div>
+
+      {editable && selectedNode ? (
+        <Card size="small" title={`节点属性 · ${selectedNode.key}`} className="workflow-node-inspector" extra={<Tag color="cyan">{nodeKind(selectedNode)}</Tag>}>
+          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            <Space wrap>
+              <Input addonBefore="Key" value={selectedNode.key} style={{ width: 260 }} onChange={(event) => renameNodeKey(selectedNode.key, event.target.value)} />
+              <Input addonBefore="名称" value={selectedNode.name ?? ''} style={{ width: 260 }} onChange={(event) => updateNode(selectedNode.key, { name: event.target.value })} />
+            </Space>
+
+            {nodeKind(selectedNode) === 'job' ? (
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Typography.Text strong>绑定调度任务</Typography.Text>
+                <Select
+                  showSearch
+                  placeholder="选择一个已创建 Job"
+                  value={selectedNode.job_id ?? undefined}
+                  options={jobOptions}
+                  optionFilterProp="label"
+                  style={{ width: '100%' }}
+                  onChange={(value) => updateNode(selectedNode.key, { job_id: value })}
+                />
+                <Typography.Text type="secondary">Job 节点会在物化时创建对应 job_instance，并进入 dispatch_queue。</Typography.Text>
+              </Space>
+            ) : null}
+
+            {nodeKind(selectedNode) === 'script' ? (
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Typography.Text strong>动态脚本节点</Typography.Text>
+                <Space wrap>
+                  <Select value={(selectedNode.config as { language?: string } | undefined)?.language ?? 'rhai'} style={{ width: 160 }} options={['rhai', 'python', 'javascript', 'shell'].map((value) => ({ value, label: value }))} onChange={(value) => updateNodeConfig(selectedNode.key, { language: value })} />
+                  <Input addonBefore="Sandbox" value={(selectedNode.config as { sandbox?: string } | undefined)?.sandbox ?? 'isolated'} style={{ width: 260 }} onChange={(event) => updateNodeConfig(selectedNode.key, { sandbox: event.target.value })} />
+                </Space>
+                <Input.TextArea rows={4} placeholder="脚本内容或脚本版本引用" value={(selectedNode.config as { source?: string } | undefined)?.source ?? ''} onChange={(event) => updateNodeConfig(selectedNode.key, { source: event.target.value })} />
+              </Space>
+            ) : null}
+
+            {nodeKind(selectedNode) === 'http' ? (
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Typography.Text strong>HTTP 调用节点</Typography.Text>
+                <Space wrap>
+                  <Select value={(selectedNode.config as { method?: string } | undefined)?.method ?? 'GET'} style={{ width: 120 }} options={['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => ({ value, label: value }))} onChange={(value) => updateNodeConfig(selectedNode.key, { method: value })} />
+                  <Input placeholder="https://service.internal/api" value={(selectedNode.config as { url?: string } | undefined)?.url ?? ''} style={{ width: 420 }} onChange={(event) => updateNodeConfig(selectedNode.key, { url: event.target.value })} />
+                </Space>
+              </Space>
+            ) : null}
+
+            {nodeKind(selectedNode) === 'condition' ? (
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Typography.Text strong>条件分支节点</Typography.Text>
+                <Input.TextArea rows={3} placeholder="例如：context.amount > 1000" value={(selectedNode.config as { expression?: string } | undefined)?.expression ?? ''} onChange={(event) => updateNodeConfig(selectedNode.key, { expression: event.target.value })} />
+                <Typography.Text type="secondary">建议将两条出边分别设置为 on_success / on_failure，表达式通过为 success，不通过为 failure。</Typography.Text>
+              </Space>
+            ) : null}
+
+            {nodeKind(selectedNode) === 'parallel' ? (
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Typography.Text strong>并行分发节点</Typography.Text>
+                <Input addonBefore="策略" value={(selectedNode.config as { strategy?: string } | undefined)?.strategy ?? 'fan-out'} onChange={(event) => updateNodeConfig(selectedNode.key, { strategy: event.target.value })} />
+                <Typography.Text type="secondary">该节点可连接多条输出边，用于同时推进多个后继分支。</Typography.Text>
+              </Space>
+            ) : null}
+
+            {nodeKind(selectedNode) === 'join' ? (
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Typography.Text strong>并行汇聚节点</Typography.Text>
+                <Input addonBefore="Quorum" value={(selectedNode.config as { quorum?: string } | undefined)?.quorum ?? 'all'} onChange={(event) => updateNodeConfig(selectedNode.key, { quorum: event.target.value })} />
+                <Typography.Text type="secondary">当前推进规则要求所有满足条件的前置边完成后才会进入该节点。</Typography.Text>
+              </Space>
+            ) : null}
+
+            {nodeKind(selectedNode) === 'delay' ? (
+              <Input addonBefore="延迟秒数" value={(selectedNode.config as { seconds?: string } | undefined)?.seconds ?? '60'} onChange={(event) => updateNodeConfig(selectedNode.key, { seconds: event.target.value })} />
+            ) : null}
+
+            {nodeKind(selectedNode) === 'approval' ? (
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Typography.Text strong>人工审批节点</Typography.Text>
+                <Input addonBefore="审批人" placeholder="alice,bob 或 role:ops" value={(selectedNode.config as { approvers?: string } | undefined)?.approvers ?? ''} onChange={(event) => updateNodeConfig(selectedNode.key, { approvers: event.target.value })} />
+                <Input addonBefore="超时" placeholder="24h" value={(selectedNode.config as { timeout?: string } | undefined)?.timeout ?? '24h'} onChange={(event) => updateNodeConfig(selectedNode.key, { timeout: event.target.value })} />
+              </Space>
+            ) : null}
+
+            {nodeKind(selectedNode) === 'notification' ? (
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Typography.Text strong>通知节点</Typography.Text>
+                <Space wrap>
+                  <Select value={(selectedNode.config as { channel?: string } | undefined)?.channel ?? 'webhook'} style={{ width: 160 }} options={['webhook', 'email', 'lark', 'dingtalk'].map((value) => ({ value, label: value }))} onChange={(value) => updateNodeConfig(selectedNode.key, { channel: value })} />
+                  <Input placeholder="目标地址 / 群 / 收件人" value={(selectedNode.config as { target?: string } | undefined)?.target ?? ''} style={{ width: 360 }} onChange={(event) => updateNodeConfig(selectedNode.key, { target: event.target.value })} />
+                </Space>
+                <Input.TextArea rows={3} placeholder="通知模板" value={(selectedNode.config as { template?: string } | undefined)?.template ?? ''} onChange={(event) => updateNodeConfig(selectedNode.key, { template: event.target.value })} />
+              </Space>
+            ) : null}
+
+            {(nodeKind(selectedNode) === 'map' || nodeKind(selectedNode) === 'map_reduce') ? (
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Typography.Text strong>分片输入 map_items</Typography.Text>
+                <Input.TextArea key={`map-items-${selectedNode.key}`} rows={4} defaultValue={JSON.stringify(selectedNode.map_items ?? [], null, 2)} onBlur={(event) => updateMapItems(selectedNode.key, event.target.value)} />
+              </Space>
+            ) : null}
+
+            {nodeKind(selectedNode) === 'sub_workflow' ? (
+              <Input addonBefore="子工作流 ID" value={selectedNode.child_workflow_id ?? ''} onChange={(event) => updateNode(selectedNode.key, { child_workflow_id: event.target.value })} />
+            ) : null}
+          </Space>
+        </Card>
+      ) : null}
+
       {editable && definition.edges.length > 0 ? (
         <Card size="small" title="边关系" className="workflow-edge-editor">
           <Space direction="vertical" style={{ width: '100%' }}>
@@ -304,6 +466,7 @@ function DagPreview({ definition, instance, editable = false, onChange }: { defi
 
 export function WorkflowsPage() {
   const [items, setItems] = useState<WorkflowSummary[]>([]);
+  const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [previewMode, setPreviewMode] = useState<'visual' | 'json' | 'yaml'>('visual');
   const [draft, setDraft] = useState(DEFAULT_DEFINITION);
@@ -316,7 +479,11 @@ export function WorkflowsPage() {
 
   const fetchItems = async () => {
     setLoading(true);
-    try { setItems(await listWorkflows()); } finally { setLoading(false); }
+    try {
+      const [workflowItems, jobPage] = await Promise.all([listWorkflows(), listJobs()]);
+      setItems(workflowItems);
+      setJobs(jobPage.items);
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { void fetchItems(); }, []);
@@ -440,7 +607,7 @@ export function WorkflowsPage() {
           <Form.Item><Button type="primary" htmlType="submit">创建工作流</Button></Form.Item>
           {dryRun ? <Alert type={dryRun.validation.valid ? 'success' : 'error'} message={dryRun.validation.valid ? 'Dry-run 通过' : 'Dry-run 失败'} description={`start: ${dryRun.start_nodes.join(', ') || '-'} · nodes: ${dryRun.node_count} · edges: ${dryRun.edge_count}${dryRun.validation.errors.length ? ` · ${dryRun.validation.errors.join('; ')}` : ''}`} /> : null}
         </Form>
-        {previewDefinition && previewMode === 'visual' ? <DagPreview definition={previewDefinition} instance={activeInstance} editable onChange={updateDefinition} /> : null}
+        {previewDefinition && previewMode === 'visual' ? <DagPreview definition={previewDefinition} instance={activeInstance} jobs={jobs} editable onChange={updateDefinition} /> : null}
         {previewMode === 'json' ? <Input.TextArea className="workflow-definition-preview" rows={18} spellCheck={false} value={draft} onChange={(event) => { setDraft(event.target.value); setDryRun(null); }} /> : null}
         {previewMode === 'yaml' ? <Input.TextArea className="workflow-definition-preview" rows={18} spellCheck={false} value={yamlPreview || 'JSON 解析失败，无法生成 YAML'} readOnly /> : null}
         {!previewDefinition && previewMode === 'visual' ? <Alert type="warning" message="JSON 解析失败，无法预览画布" /> : null}
