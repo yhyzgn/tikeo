@@ -352,3 +352,4 @@ Rationale:
 
 Constraint:
 - 后续脚本相关功能开发不得跳过版本历史和 diff 对比；任何 content/policy 更新必须写入版本表。
+- 脚本编辑器必须支持语法检查（Shell/Python/Node 等），根据 language 实时校验，语法错误标红提示但不阻止保存。

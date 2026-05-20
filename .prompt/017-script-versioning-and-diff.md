@@ -36,7 +36,15 @@
    - ScriptsPage 行操作增加"版本历史"按钮，打开版本列表 Drawer。
    - 版本列表 Drawer 中选择两个版本触发 diff 对比视图。
    - diff 视图展示 content unified diff（语法高亮）和 policy 字段变更。
-7. 测试：版本自动创建、版本列表查询、diff 输出验证。
+   - 脚本编辑器支持语法检查（Shell/Python/Node 等基础语法校验，实时标红提示）。
+7. 脚本编辑器语法检查：
+   - Web 脚本创建/编辑 Modal 内嵌语法检查，根据 `language` 字段切换检查器。
+   - Shell：基础语法校验（if/fi、case/esac、do/done 配对、未闭合引号等）。
+   - Python：基础缩进和语法错误检测。
+   - Node/JavaScript：基础语法校验。
+   - 可使用 CodeMirror/Monaco Editor 的语言模式，或接入轻量在线 linter。
+   - 语法错误实时标红，不阻止保存但必须提示。
+8. 测试：版本自动创建、版本列表查询、diff 输出验证、语法检查提示。
 
 ## 验证要求
 
