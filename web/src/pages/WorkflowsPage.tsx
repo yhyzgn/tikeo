@@ -143,10 +143,56 @@ function withNodePosition(node: WorkflowNodeSpec, x: number, y: number): Workflo
   return { ...node, config: { ...config, ui: { x, y } } };
 }
 
-function edgeColor(condition?: string | null) {
-  if (condition === 'on_failure') return '#ef4444';
-  if (condition === 'always') return '#8b5cf6';
-  return '#2563eb';
+type EdgeConditionOption = { label: string; value: string; color: string };
+
+const EDGE_CONDITION_OPTIONS: Record<string, EdgeConditionOption[]> = {
+  condition: [
+    { label: '条件成立 true', value: 'on_success', color: '#16a34a' },
+    { label: '条件不成立 false', value: 'on_failure', color: '#ef4444' },
+  ],
+  approval: [
+    { label: '审批通过 approved', value: 'on_success', color: '#16a34a' },
+    { label: '审批拒绝 rejected', value: 'on_failure', color: '#ef4444' },
+    { label: '审批完成 always', value: 'always', color: '#8b5cf6' },
+  ],
+  parallel: [
+    { label: '并行分支 branch', value: 'always', color: '#8b5cf6' },
+  ],
+  join: [
+    { label: '汇聚完成 joined', value: 'on_success', color: '#2563eb' },
+    { label: '汇聚失败 failed', value: 'on_failure', color: '#ef4444' },
+  ],
+  http: [
+    { label: 'HTTP 成功 2xx', value: 'on_success', color: '#16a34a' },
+    { label: 'HTTP 失败 non-2xx', value: 'on_failure', color: '#ef4444' },
+    { label: '请求完成 always', value: 'always', color: '#8b5cf6' },
+  ],
+  script: [
+    { label: '脚本成功', value: 'on_success', color: '#16a34a' },
+    { label: '脚本失败', value: 'on_failure', color: '#ef4444' },
+    { label: '脚本结束', value: 'always', color: '#8b5cf6' },
+  ],
+};
+
+const DEFAULT_EDGE_CONDITIONS: EdgeConditionOption[] = [
+  { label: '成功时 on_success', value: 'on_success', color: '#2563eb' },
+  { label: '失败时 on_failure', value: 'on_failure', color: '#ef4444' },
+  { label: '始终 always', value: 'always', color: '#8b5cf6' },
+];
+
+function edgeConditionOptionsFor(node?: WorkflowNodeSpec | null): EdgeConditionOption[] {
+  return EDGE_CONDITION_OPTIONS[node ? nodeKind(node) : ''] ?? DEFAULT_EDGE_CONDITIONS;
+}
+
+function defaultEdgeConditionFor(node?: WorkflowNodeSpec | null): WorkflowEdgeSpec['condition'] {
+  return (edgeConditionOptionsFor(node)[0]?.value ?? 'on_success') as WorkflowEdgeSpec['condition'];
+}
+
+function edgeConditionMeta(condition: string | null | undefined, fromNode?: WorkflowNodeSpec | null): EdgeConditionOption {
+  const value = condition ?? defaultEdgeConditionFor(fromNode) ?? 'on_success';
+  return edgeConditionOptionsFor(fromNode).find((option) => option.value === value)
+    ?? DEFAULT_EDGE_CONDITIONS.find((option) => option.value === value)
+    ?? { label: value, value, color: '#2563eb' };
 }
 
 function DagPreview({ definition, instance, jobs = [], editable = false, onChange }: { definition: WorkflowDefinition; instance?: WorkflowInstanceSummary | null; jobs?: JobSummary[]; editable?: boolean; onChange?: (definition: WorkflowDefinition) => void }) {
@@ -230,7 +276,7 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
     if (fromCount >= fromLimit) { message.warning(`${from} 的输出最多 ${fromLimit} 条`); return; }
     if (toCount >= toLimit) { message.warning(`${to} 的输入最多 ${toLimit} 条`); return; }
     if (definition.edges.some((edge) => edge.from === from && edge.to === to)) { message.info('这条连线已存在'); return; }
-    update({ ...definition, edges: [...definition.edges, { from, to, condition: 'on_success' }] });
+    update({ ...definition, edges: [...definition.edges, { from, to, condition: defaultEdgeConditionFor(fromNode) }] });
   };
   const pointerDown = (node: WorkflowNodeSpec, event: PointerEvent<HTMLDivElement>) => {
     if (!editable || (event.target as HTMLElement).closest('button,.workflow-node-port')) return;
@@ -272,7 +318,8 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
     if (!editable || !edgeDrag) return;
     const edge = definition.edges[edgeDrag.index];
     if (!edge) return;
-    const nextEdge = edgeDrag.side === 'from' ? { ...edge, from: key } : { ...edge, to: key };
+    const nextFromNode = edgeDrag.side === 'from' ? definition.nodes.find((node) => node.key === key) : definition.nodes.find((node) => node.key === edge.from);
+    const nextEdge: WorkflowEdgeSpec = edgeDrag.side === 'from' ? { ...edge, from: key, condition: defaultEdgeConditionFor(nextFromNode) } : { ...edge, to: key };
     if (nextEdge.from === nextEdge.to) { message.warning('不能连接到自身'); setEdgeDrag(null); return; }
     update({ ...definition, edges: definition.edges.map((item, index) => index === edgeDrag.index ? nextEdge : item) });
     setSelectedEdgeIndex(edgeDrag.index);
@@ -310,8 +357,8 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
           {edgeDrag ? <Tag color="purple">正在调整连线{edgeDrag.side === 'from' ? '起点' : '终点'}：松到目标端口完成</Tag> : null}
         </Space>
       ) : null}
-      <div className={`workflow-node-canvas ${linkDrag || edgeDrag ? 'workflow-node-canvas--linking' : ''}`} style={{ height: Math.min(720, canvasHeight + 40) }} onPointerMove={pointerMove} onPointerUp={() => { setDragging(null); setLinkDrag(null); setEdgeDrag(null); }}>
-        <div ref={spaceRef} className="workflow-node-canvas__space" style={{ width: canvasWidth, height: canvasHeight }}>
+      <div className={`workflow-node-canvas ${linkDrag || edgeDrag ? 'workflow-node-canvas--linking' : ''}`} style={{ height: Math.min(720, canvasHeight + 40) }} onPointerMove={pointerMove} onPointerDown={(event) => { if (event.target === event.currentTarget) { setSelectedEdgeIndex(null); } }} onPointerUp={() => { setDragging(null); setLinkDrag(null); setEdgeDrag(null); }}>
+        <div ref={spaceRef} className="workflow-node-canvas__space" style={{ width: canvasWidth, height: canvasHeight }} onPointerDown={(event) => { if (event.target === event.currentTarget) setSelectedEdgeIndex(null); }}>
           <svg className="workflow-node-canvas__edges" width={canvasWidth} height={canvasHeight}>
             <defs>
               <marker id="workflow-arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
@@ -327,13 +374,15 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
               const x2 = to.x;
               const y2 = to.y + 70;
               const mid = Math.max(80, Math.abs(x2 - x1) / 2);
-              const color = edgeColor(edge.condition);
+              const fromNode = definition.nodes.find((node) => node.key === edge.from);
+              const meta = edgeConditionMeta(edge.condition, fromNode);
               const selected = selectedEdgeIndex === index;
               const path = `M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`;
               return (
                 <g key={`${edge.from}-${edge.to}-${index}`} className={`workflow-edge ${selected ? 'workflow-edge--selected' : ''}`}>
                   <path className="workflow-edge__hit" d={path} stroke="transparent" strokeWidth="16" fill="none" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedEdgeIndex(index); setSelectedNodeKey(null); }} />
-                  <path d={path} stroke={selected ? '#0ea5e9' : color} strokeWidth={selected ? '3.5' : '2.5'} fill="none" markerEnd="url(#workflow-arrow)" />
+                  <path d={path} stroke={selected ? '#0ea5e9' : meta.color} strokeWidth={selected ? '3.5' : '2.5'} fill="none" markerEnd="url(#workflow-arrow)" />
+                  <text className="workflow-edge__label" x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 10} fill={meta.color}>{meta.value}</text>
                   {selected ? (
                     <>
                       <circle className="workflow-edge__handle" cx={x1} cy={y1} r="7" onPointerDown={(event) => startEdgeReconnect(index, 'from', event)} />
@@ -367,22 +416,23 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
               return <path className="workflow-node-canvas__temp-edge" d={`M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`} stroke="#0ea5e9" strokeWidth="2.5" fill="none" markerEnd="url(#workflow-arrow)" />;
             })() : null}
           </svg>
-          {selectedEdge && selectedEdgeOverlay ? (
-            <Card size="small" className="workflow-edge-popover" style={{ left: selectedEdgeOverlay.x, top: selectedEdgeOverlay.y }}>
-              <Space direction="vertical" size={8}>
-                <Typography.Text strong>{selectedEdge.from} → {selectedEdge.to}</Typography.Text>
-                <Select size="small" value={selectedEdge.condition ?? 'on_success'} style={{ width: 180 }} options={[
-                  { label: '成功时 on_success', value: 'on_success' },
-                  { label: '失败时 on_failure', value: 'on_failure' },
-                  { label: '始终 always', value: 'always' },
-                ]} onChange={(value) => changeEdge(selectedEdgeIndex ?? 0, { condition: value as WorkflowEdgeSpec['condition'] })} />
-                <Space>
-                  <Button size="small" danger onClick={() => selectedEdgeIndex !== null && removeEdgeAt(selectedEdgeIndex)}>删除连线</Button>
-                  <Typography.Text type="secondary">拖动两端圆点可重连</Typography.Text>
+          {selectedEdge && selectedEdgeOverlay ? (() => {
+            const fromNode = definition.nodes.find((node) => node.key === selectedEdge.from);
+            const options = edgeConditionOptionsFor(fromNode);
+            const value = selectedEdge.condition ?? defaultEdgeConditionFor(fromNode);
+            return (
+              <Card size="small" className="workflow-edge-popover" style={{ left: selectedEdgeOverlay.x, top: selectedEdgeOverlay.y }} onPointerDown={(event) => event.stopPropagation()}>
+                <Space direction="vertical" size={8}>
+                  <Typography.Text strong>{selectedEdge.from} → {selectedEdge.to}</Typography.Text>
+                  <Select size="small" value={value} style={{ width: 180 }} options={options.map((option) => ({ label: option.label, value: option.value }))} onChange={(nextValue) => changeEdge(selectedEdgeIndex ?? 0, { condition: nextValue as WorkflowEdgeSpec['condition'] })} />
+                  <Space>
+                    <Button size="small" danger onClick={() => selectedEdgeIndex !== null && removeEdgeAt(selectedEdgeIndex)}>删除连线</Button>
+                    <Typography.Text type="secondary">拖动两端圆点可重连</Typography.Text>
+                  </Space>
                 </Space>
-              </Space>
-            </Card>
-          ) : null}
+              </Card>
+            );
+          })() : null}
           {definition.nodes.map((node, index) => {
             const position = positions.get(node.key) ?? { x: 0, y: 0 };
             const status = statuses.get(node.key) ?? 'design';

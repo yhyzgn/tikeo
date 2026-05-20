@@ -642,3 +642,18 @@ body {
 .workflow-edge-popover .ant-card-body {
   padding: 10px 12px;
 }
+
+.workflow-edge__label {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.55;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 4px;
+  pointer-events: none;
+  text-anchor: middle;
+}
+
+.workflow-edge--selected .workflow-edge__label {
+  opacity: 0.9;
+}

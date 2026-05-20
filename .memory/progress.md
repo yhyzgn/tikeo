@@ -99,3 +99,8 @@
 - Workflows 画布移除底部“边关系”列表式编辑区域。
 - 点击连线后，在线条中点附近显示浮层，可直接修改 edge condition（on_success/on_failure/always）并删除连线。
 - 连线端点拖拽重连能力保留，浮层提示可拖动两端圆点调整连接对象。
+
+## 2026-05-20 030：边条件按前置节点语义生成
+- Workflows 画布的边条件候选项改为根据前置节点类型生成：condition 显示 true/false，approval 显示 approved/rejected/always，parallel 默认 branch/always，HTTP/Script 显示成功/失败/完成等语义。
+- 新建连线默认条件取前置节点的首选输出语义；重连起点时自动切换为新前置节点默认条件。
+- 连线颜色按条件语义变化，并在线条上弱显示当前 condition 文本；点击画布空白处会关闭边关系浮层。
