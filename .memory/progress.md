@@ -48,3 +48,4 @@
 - [x] 014-worker-capability-routing：Worker 能力 / 标签 / namespace / app 基础路由
 - [x] 015-user-management-and-rbac：账号体系、用户管理、RBAC 权限验证与 SessionStore 抽象
 - [x] 016-dynamic-script-sandbox：脚本定义 CRUD（storage + migration + repository + HTTP API + OpenAPI）、ScriptLanguage/ScriptStatus 核心类型、Web 脚本管理页面
+  - [ ] 待补充：脚本版本历史（`script_versions` 表）、版本 diff 对比 API 与 Web diff 视图、更新自动产生版本记录

@@ -338,3 +338,17 @@ Rationale:
 
 Constraint:
 - API 入参可以继续叫 `password` 表示明文输入；DB `users.password` 表示 hash 后的存储值。
+
+## 2026-05-20 — 脚本管理必须支持 diff 对比
+
+Decision:
+- 所有脚本管理操作必须支持 diff 对比能力。
+- 每次 content 或 policy 变更自动产生版本记录（存入 `script_versions` 表），不得覆盖历史版本。
+- 提供 `GET /api/v1/scripts/{id}/versions` 查看版本历史，`GET /api/v1/scripts/{id}/diff?v1=&v2=` 任意两版本 diff。
+- Web 脚本管理页面必须提供版本历史查看和 diff 视图（content diff + policy diff）。
+
+Rationale:
+- 动态脚本是高风险操作载体，版本可追溯和变更 diff 对比是安全审计和变更管理的基础要求。
+
+Constraint:
+- 后续脚本相关功能开发不得跳过版本历史和 diff 对比；任何 content/policy 更新必须写入版本表。
