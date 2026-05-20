@@ -62,3 +62,8 @@
 - Dispatcher loop 每轮尝试 materialize 一个 queued workflow node，再走既有 job/broadcast dispatch。
 
 - Workflow UI upgraded from preview-only to a lightweight visual editor: draggable node ordering, node/edge add-delete-edit, JSON sync, and existing dry-run/create path preserved.
+
+## 2026-05-20 — Blender-like workflow node canvas
+
+- Workflow visual editor upgraded from list/card layout to node-canvas style: grid canvas, absolute-positioned nodes, left input/right output ports, SVG Bézier arrow edges, port-click connection flow, and free node dragging with coordinates stored under node.config.ui.
+- JSON remains canonical; visual coordinates and edges are synced back into WorkflowDefinition.

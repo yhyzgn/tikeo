@@ -643,3 +643,8 @@ Git:
 
 - Workflows page now defaults to visual mode and supports drag-and-drop node reordering, quick add Job/Map/MapReduce/SubWorkflow nodes, edge editing via selects, edge/node deletion, and live sync back to JSON definition.
 - No heavy canvas dependency was added; this is a lightweight Ant Design + native HTML5 drag/drop editor suitable as an immediate usability improvement before a full graph canvas library.
+
+## 2026-05-20 — Blender-like workflow node canvas
+
+- Workflow visual editor upgraded from list/card layout to node-canvas style: grid canvas, absolute-positioned nodes, left input/right output ports, SVG Bézier arrow edges, port-click connection flow, and free node dragging with coordinates stored under node.config.ui.
+- JSON remains canonical; visual coordinates and edges are synced back into WorkflowDefinition.
