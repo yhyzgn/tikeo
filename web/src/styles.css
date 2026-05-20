@@ -385,3 +385,36 @@ body {
   flex-wrap: wrap;
   gap: 6px;
 }
+
+.workflow-dag-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.workflow-dag-toolbar {
+  padding: 10px;
+  border: 1px dashed #bfdbfe;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.workflow-dag__node--editable {
+  cursor: grab;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.workflow-dag__node--editable:hover {
+  transform: translateY(-1px);
+  border-color: #93c5fd;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.08);
+}
+
+.workflow-dag__node--editable:active {
+  cursor: grabbing;
+}
+
+.workflow-edge-editor.ant-card {
+  box-shadow: none !important;
+  background: #fbfdff !important;
+}

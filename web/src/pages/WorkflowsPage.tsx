@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, Col, Form, Input, List, Row, Segmented, Space, Tag, Timeline, Typography, message } from 'antd';
+import { useEffect, useMemo, useState, type DragEvent } from 'react';
+import { Alert, Button, Card, Col, Form, Input, List, Row, Segmented, Select, Space, Tag, Timeline, Typography, message } from 'antd';
 import {
   advanceWorkflowInstance,
   createWorkflow,
@@ -15,12 +15,14 @@ import {
   type InstanceEventSummary,
   type WorkflowDefinition,
   type WorkflowDryRunResponse,
+  type WorkflowEdgeSpec,
   type WorkflowInstanceSummary,
+  type WorkflowNodeSpec,
   type WorkflowShardSummary,
   type WorkflowSummary,
 } from '../api/client';
 
-const DEFAULT_DEFINITION = JSON.stringify({
+const DEFAULT_WORKFLOW: WorkflowDefinition = {
   nodes: [
     { key: 'extract', name: 'Extract', kind: 'job', job_id: 'job_extract' },
     { key: 'map-users', name: 'Map users', kind: 'map', map_items: [{ shard: 1 }, { shard: 2 }] },
@@ -30,7 +32,8 @@ const DEFAULT_DEFINITION = JSON.stringify({
     { from: 'extract', to: 'map-users', condition: 'on_success' },
     { from: 'map-users', to: 'reduce', condition: 'on_success' },
   ],
-}, null, 2);
+};
+const DEFAULT_DEFINITION = JSON.stringify(DEFAULT_WORKFLOW, null, 2);
 
 const STATUS_COLORS: Record<string, string> = {
   active: 'blue',
@@ -45,6 +48,10 @@ const STATUS_COLORS: Record<string, string> = {
 
 function parseDefinition(raw: string): WorkflowDefinition {
   return JSON.parse(raw) as WorkflowDefinition;
+}
+
+function stringifyDefinition(definition: WorkflowDefinition): string {
+  return JSON.stringify(definition, null, 2);
 }
 
 function definitionToYaml(definition: WorkflowDefinition): string {
@@ -66,34 +73,106 @@ function definitionToYaml(definition: WorkflowDefinition): string {
   return lines.join('\n');
 }
 
-function DagPreview({ definition, instance }: { definition: WorkflowDefinition; instance?: WorkflowInstanceSummary | null }) {
+function makeNode(kind: string, index: number): WorkflowNodeSpec {
+  const key = `${kind.replace('_', '-')}-${index}`;
+  if (kind === 'map' || kind === 'map_reduce') {
+    return { key, name: key, kind, map_items: [{ shard: 1 }, { shard: 2 }] };
+  }
+  if (kind === 'sub_workflow') {
+    return { key, name: key, kind, child_workflow_id: 'wf_child' };
+  }
+  return { key, name: key, kind: 'job', job_id: `job_${key.replaceAll('-', '_')}` };
+}
+
+function DagPreview({ definition, instance, editable = false, onChange }: { definition: WorkflowDefinition; instance?: WorkflowInstanceSummary | null; editable?: boolean; onChange?: (definition: WorkflowDefinition) => void }) {
+  const [dragKey, setDragKey] = useState<string | null>(null);
   const statuses = new Map(instance?.nodes.map((node) => [node.node_key, node.status]) ?? []);
+
+  const update = (next: WorkflowDefinition) => onChange?.(next);
+  const removeNode = (key: string) => update({ nodes: definition.nodes.filter((node) => node.key !== key), edges: definition.edges.filter((edge) => edge.from !== key && edge.to !== key) });
+  const removeEdge = (edge: WorkflowEdgeSpec) => update({ ...definition, edges: definition.edges.filter((item) => !(item.from === edge.from && item.to === edge.to && item.condition === edge.condition)) });
+  const addNode = (kind: string) => update({ ...definition, nodes: [...definition.nodes, makeNode(kind, definition.nodes.length + 1)] });
+  const addEdge = () => {
+    if (definition.nodes.length < 2) return;
+    const from = definition.nodes.at(-2)?.key;
+    const to = definition.nodes.at(-1)?.key;
+    if (!from || !to) return;
+    update({ ...definition, edges: [...definition.edges, { from, to, condition: 'on_success' }] });
+  };
+  const changeEdge = (index: number, patch: Partial<WorkflowEdgeSpec>) => update({ ...definition, edges: definition.edges.map((edge, edgeIndex) => edgeIndex === index ? { ...edge, ...patch } : edge) });
+  const dropOn = (targetKey: string, event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (!dragKey || dragKey === targetKey) return;
+    const nodes = [...definition.nodes];
+    const from = nodes.findIndex((node) => node.key === dragKey);
+    const to = nodes.findIndex((node) => node.key === targetKey);
+    if (from < 0 || to < 0) return;
+    const [moved] = nodes.splice(from, 1);
+    nodes.splice(to, 0, moved);
+    update({ ...definition, nodes });
+    setDragKey(null);
+  };
+
   return (
-    <div className="workflow-dag">
-      {definition.nodes.map((node, index) => {
-        const outgoing = definition.edges.filter((edge) => edge.from === node.key);
-        const status = statuses.get(node.key) ?? 'design';
-        return (
-          <div className="workflow-dag__node" key={node.key}>
-            <div className="workflow-dag__badge">{index + 1}</div>
-            <div className="workflow-dag__content">
-              <Space wrap>
-                <Typography.Text strong>{node.name ?? node.key}</Typography.Text>
-                <Tag color="cyan">{node.kind ?? 'job'}</Tag>
-                <Tag color={STATUS_COLORS[status] ?? 'default'}>{status}</Tag>
-              </Space>
-              <Typography.Text type="secondary" className="workflow-dag__meta">
-                {node.key}{node.job_id ? ` · job ${node.job_id}` : ''}{node.child_workflow_id ? ` · child ${node.child_workflow_id}` : ''}
-              </Typography.Text>
-              {outgoing.length > 0 ? (
-                <div className="workflow-dag__edges">
-                  {outgoing.map((edge) => <Tag key={`${edge.from}-${edge.to}`} color="blue">→ {edge.to} · {edge.condition ?? 'on_success'}</Tag>)}
-                </div>
-              ) : <Typography.Text type="secondary">终止节点</Typography.Text>}
+    <div className="workflow-dag-editor">
+      {editable ? (
+        <Space wrap className="workflow-dag-toolbar">
+          <Button onClick={() => addNode('job')}>+ Job</Button>
+          <Button onClick={() => addNode('map')}>+ Map</Button>
+          <Button onClick={() => addNode('map_reduce')}>+ MapReduce</Button>
+          <Button onClick={() => addNode('sub_workflow')}>+ 子工作流</Button>
+          <Button onClick={addEdge} disabled={definition.nodes.length < 2}>连接最后两个节点</Button>
+        </Space>
+      ) : null}
+      <div className="workflow-dag">
+        {definition.nodes.map((node, index) => {
+          const outgoing = definition.edges.filter((edge) => edge.from === node.key);
+          const status = statuses.get(node.key) ?? 'design';
+          return (
+            <div
+              className={`workflow-dag__node ${editable ? 'workflow-dag__node--editable' : ''}`}
+              draggable={editable}
+              key={node.key}
+              onDragStart={() => setDragKey(node.key)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => dropOn(node.key, event)}
+            >
+              <div className="workflow-dag__badge">{index + 1}</div>
+              <div className="workflow-dag__content">
+                <Space wrap>
+                  <Typography.Text strong>{node.name ?? node.key}</Typography.Text>
+                  <Tag color="cyan">{node.kind ?? 'job'}</Tag>
+                  <Tag color={STATUS_COLORS[status] ?? 'default'}>{status}</Tag>
+                  {editable ? <Button size="small" danger onClick={() => removeNode(node.key)}>删除</Button> : null}
+                </Space>
+                <Typography.Text type="secondary" className="workflow-dag__meta">
+                  {node.key}{node.job_id ? ` · job ${node.job_id}` : ''}{node.child_workflow_id ? ` · child ${node.child_workflow_id}` : ''}
+                </Typography.Text>
+                {outgoing.length > 0 ? (
+                  <div className="workflow-dag__edges">
+                    {outgoing.map((edge) => <Tag key={`${edge.from}-${edge.to}-${edge.condition}`} color="blue">→ {edge.to} · {edge.condition ?? 'on_success'}</Tag>)}
+                  </div>
+                ) : <Typography.Text type="secondary">终止节点</Typography.Text>}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      {editable ? (
+        <Card size="small" title="边关系" className="workflow-edge-editor">
+          <Space direction="vertical" style={{ width: '100%' }}>
+            {definition.edges.map((edge, index) => (
+              <Space wrap key={`${edge.from}-${edge.to}-${index}`}>
+                <Select value={edge.from} style={{ width: 140 }} options={definition.nodes.map((node) => ({ label: node.key, value: node.key }))} onChange={(value) => changeEdge(index, { from: value })} />
+                <Typography.Text>→</Typography.Text>
+                <Select value={edge.to} style={{ width: 140 }} options={definition.nodes.map((node) => ({ label: node.key, value: node.key }))} onChange={(value) => changeEdge(index, { to: value })} />
+                <Select value={edge.condition ?? 'on_success'} style={{ width: 140 }} options={['on_success', 'on_failure', 'always'].map((value) => ({ label: value, value }))} onChange={(value) => changeEdge(index, { condition: value as WorkflowEdgeSpec['condition'] })} />
+                <Button size="small" danger onClick={() => removeEdge(edge)}>删除边</Button>
+              </Space>
+            ))}
+          </Space>
+        </Card>
+      ) : null}
     </div>
   );
 }
@@ -101,7 +180,7 @@ function DagPreview({ definition, instance }: { definition: WorkflowDefinition; 
 export function WorkflowsPage() {
   const [items, setItems] = useState<WorkflowSummary[]>([]);
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<'json' | 'yaml'>('json');
+  const [mode, setMode] = useState<'visual' | 'json' | 'yaml'>('visual');
   const [draft, setDraft] = useState(DEFAULT_DEFINITION);
   const [dryRun, setDryRun] = useState<WorkflowDryRunResponse | null>(null);
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowSummary | null>(null);
@@ -140,6 +219,13 @@ export function WorkflowsPage() {
     try { return parseDefinition(draft); } catch { return null; }
   }, [draft]);
 
+  const updateDefinition = (definition: WorkflowDefinition) => {
+    const next = stringifyDefinition(definition);
+    setDraft(next);
+    form.setFieldValue('definition', next);
+    setDryRun(null);
+  };
+
   const submit = async (values: { name: string; definition: string }) => {
     let definition: WorkflowDefinition;
     try { definition = parseDefinition(values.definition); }
@@ -148,8 +234,7 @@ export function WorkflowsPage() {
     message.success('Workflow 已创建');
     setActiveWorkflow(created);
     form.resetFields();
-    setDraft(DEFAULT_DEFINITION);
-    form.setFieldValue('definition', DEFAULT_DEFINITION);
+    updateDefinition(DEFAULT_WORKFLOW);
     await fetchItems();
   };
 
@@ -187,7 +272,6 @@ export function WorkflowsPage() {
     message.success(result.completed ? 'Workflow 已完成' : `已推进，入队节点：${result.queued_nodes.join(', ') || '无'}`);
   };
 
-
   const materializeNext = async () => {
     const result = await materializeNextWorkflowNode();
     setActiveInstance(result.instance);
@@ -209,14 +293,18 @@ export function WorkflowsPage() {
     setShards(await listWorkflowShards(activeInstance.id));
   };
 
-  const switchMode = (nextMode: 'json' | 'yaml') => {
-    setMode(nextMode);
+  const switchMode = (nextMode: 'visual' | 'json' | 'yaml') => {
     if (nextMode === 'yaml' && previewDefinition) {
+      setMode(nextMode);
       setDraft(definitionToYaml(previewDefinition));
-      message.info('YAML 当前为只读预览；创建/ dry-run 仍以 JSON 模式提交');
-    } else if (nextMode === 'json') {
-      setDraft(DEFAULT_DEFINITION);
+      message.info('YAML 当前为只读预览；切回可视化/JSON 会恢复当前 JSON 定义');
+      return;
     }
+    if ((mode === 'yaml' || nextMode === 'visual') && !previewDefinition) {
+      setDraft(DEFAULT_DEFINITION);
+      form.setFieldValue('definition', DEFAULT_DEFINITION);
+    }
+    setMode(nextMode);
   };
 
   return (
@@ -226,7 +314,7 @@ export function WorkflowsPage() {
           <Tag className="soft-tag" color="blue">Phase 2 · Workflow Engine</Tag>
           <Typography.Title level={1}>工作流编排</Typography.Title>
           <Typography.Paragraph className="hero-panel__desc">
-            支持 DAG 校验、条件边推进、Map / MapReduce / 子工作流节点建模，以及面向调试的事件流和可视化基础能力。
+            支持 DAG 校验、拖拽式节点编排、条件边推进、Map / MapReduce / 子工作流节点建模，以及面向调试的事件流。
           </Typography.Paragraph>
         </div>
         <div className="hero-panel__summary"><strong>{items.length}</strong><span>flows</span></div>
@@ -234,15 +322,17 @@ export function WorkflowsPage() {
 
       <Row gutter={[18, 18]}>
         <Col xs={24} xl={11}>
-          <Card title="创建 / Dry-run" extra={<Segmented value={mode} onChange={(value) => switchMode(value as 'json' | 'yaml')} options={[{ label: 'JSON', value: 'json' }, { label: 'YAML 预览', value: 'yaml' }]} />}>
+          <Card title="创建 / Dry-run" extra={<Segmented value={mode} onChange={(value) => switchMode(value as 'visual' | 'json' | 'yaml')} options={[{ label: '可视化', value: 'visual' }, { label: 'JSON', value: 'json' }, { label: 'YAML 预览', value: 'yaml' }]} />}>
             <Form form={form} layout="vertical" initialValues={{ definition: DEFAULT_DEFINITION }} onFinish={submit}>
               <Form.Item name="name" label="名称" rules={[{ required: true }]}><Input placeholder="daily-pipeline" /></Form.Item>
-              <Form.Item name="definition" label={mode === 'json' ? '定义 JSON' : '定义 YAML 预览'} rules={[{ required: true }]}>
-                <Input.TextArea rows={14} spellCheck={false} value={draft} onChange={(event) => setDraft(event.target.value)} readOnly={mode === 'yaml'} />
-              </Form.Item>
+              {mode !== 'visual' ? (
+                <Form.Item name="definition" label={mode === 'json' ? '定义 JSON' : '定义 YAML 预览'} rules={[{ required: true }]}>
+                  <Input.TextArea rows={14} spellCheck={false} value={draft} onChange={(event) => { setDraft(event.target.value); setDryRun(null); }} readOnly={mode === 'yaml'} />
+                </Form.Item>
+              ) : <Form.Item name="definition" hidden><Input.TextArea value={draft} /></Form.Item>}
               <Space wrap>
-                <Button type="primary" htmlType="submit" disabled={mode !== 'json'}>创建工作流</Button>
-                <Button onClick={dryRunDraft} disabled={mode !== 'json'}>Dry-run 校验</Button>
+                <Button type="primary" htmlType="submit" disabled={mode === 'yaml'}>创建工作流</Button>
+                <Button onClick={dryRunDraft} disabled={mode === 'yaml'}>Dry-run 校验</Button>
               </Space>
             </Form>
             {dryRun ? (
@@ -256,8 +346,8 @@ export function WorkflowsPage() {
           </Card>
         </Col>
         <Col xs={24} xl={13}>
-          <Card title="DAG 可视化预览">
-            {previewDefinition ? <DagPreview definition={previewDefinition} instance={activeInstance} /> : <Alert type="warning" message="JSON 解析失败，无法预览" />}
+          <Card title={mode === 'visual' ? '可视化拖拽编排' : 'DAG 可视化预览'}>
+            {previewDefinition ? <DagPreview definition={previewDefinition} instance={activeInstance} editable={mode === 'visual'} onChange={updateDefinition} /> : <Alert type="warning" message="JSON 解析失败，无法预览" />}
           </Card>
         </Col>
       </Row>
@@ -283,7 +373,7 @@ export function WorkflowsPage() {
           <Col xs={24} lg={14}>
             <Card title={`运行视图 · ${activeWorkflow.name}`} extra={<Space wrap><Button onClick={materializeNext}>物化下一节点</Button><Button onClick={completeFirstQueued} disabled={!activeInstance}>推进首个队列节点</Button><Button onClick={recoverFirstFailed} disabled={!activeInstance}>重试失败节点</Button><Button onClick={refreshShards} disabled={!activeInstance}>刷新 Shards</Button></Space>} >
               <DagPreview definition={activeWorkflow.definition} instance={activeInstance} />
-            {shards.length > 0 ? <List size="small" style={{ marginTop: 16 }} dataSource={shards} renderItem={(shard) => <List.Item><Typography.Text>{shard.node_key}#{shard.shard_index} · {shard.status} · {JSON.stringify(shard.input)}</Typography.Text></List.Item>} /> : null}
+              {shards.length > 0 ? <List size="small" style={{ marginTop: 16 }} dataSource={shards} renderItem={(shard) => <List.Item><Typography.Text>{shard.node_key}#{shard.shard_index} · {shard.status} · {JSON.stringify(shard.input)}</Typography.Text></List.Item>} /> : null}
             </Card>
           </Col>
           <Col xs={24} lg={10}>

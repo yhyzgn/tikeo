@@ -638,3 +638,8 @@ Git:
 - 新增恢复 API：`POST /api/v1/workflow-instances/{id}/recover`，支持 retry/skip/fail/succeed 最小语义。
 - 新增 Worker/队列管理 API：`GET /api/v1/workers`、`GET /api/v1/dispatch-queue`，Web 新增 Worker 集群页面。
 - Dispatcher loop 每轮尝试 materialize 一个 queued workflow node，再走既有 job/broadcast dispatch。
+
+## 2026-05-20 — Workflow visual drag editor quick upgrade
+
+- Workflows page now defaults to visual mode and supports drag-and-drop node reordering, quick add Job/Map/MapReduce/SubWorkflow nodes, edge editing via selects, edge/node deletion, and live sync back to JSON definition.
+- No heavy canvas dependency was added; this is a lightweight Ant Design + native HTML5 drag/drop editor suitable as an immediate usability improvement before a full graph canvas library.
