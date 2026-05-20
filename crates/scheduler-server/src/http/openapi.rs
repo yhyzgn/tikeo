@@ -40,6 +40,7 @@ use super::{auth, dto, routes};
         routes::workflows::list_workflows,
         routes::workflows::create_workflow,
         routes::workflows::get_workflow,
+        routes::workflows::update_workflow,
         routes::workflows::dry_run_workflow,
         routes::workflows::validate_workflow,
         routes::workflows::run_workflow,
@@ -113,6 +114,7 @@ use super::{auth, dto, routes};
         scheduler_storage::DispatchQueueSummary,
         scheduler_storage::QueueOverview,
         crate::http::routes::workflows::CreateWorkflowRequest,
+        crate::http::routes::workflows::UpdateWorkflowRequest,
     )),
     tags(
         (name = "system", description = "System and cluster metadata"),

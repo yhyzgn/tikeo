@@ -697,3 +697,9 @@ Git:
 - 用户要求普通节点默认边关系为 always，并将项目中的 127.0.0.1 统一为 0.0.0.0、9091 统一为 9998。
 - 已排除 `.git`、`target`、`node_modules`、`dist`、`.omx/logs`、`.dev` 日志后全项目替换并复查无残留。
 - 注意：`0.0.0.0` 适合作为监听/容器绑定地址；脚本 smoke 也按用户约束使用该地址进行健康检查。
+
+### 2026-05-20 033 工作流页面布局重构
+- 用户要求一级页面只放工作流列表，运行视图和实例事件流默认不展示，改为 item 操作栏按钮触发手风琴展示；新增/编辑单独页面和路由。
+- 已新增 WorkflowEditorPage，并在 App 路由中加入 `/workflows/new`、`/workflows/:id/edit`。
+- WorkflowsPage 只负责列表、校验、运行、展开运行视图/事件流。
+- 为编辑保存补齐后端 update_workflow repository + HTTP PATCH + client updateWorkflow/getWorkflow。

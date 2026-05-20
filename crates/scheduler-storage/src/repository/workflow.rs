@@ -46,6 +46,12 @@ pub struct CreateWorkflow {
     pub created_by: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct UpdateWorkflow {
+    pub name: String,
+    pub definition: WorkflowDefinition,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct WorkflowSummary {
     pub id: String,
@@ -237,6 +243,74 @@ impl WorkflowRepository {
         }
         txn.commit().await?;
         WorkflowSummary::from_model(model)
+    }
+
+    pub async fn update_workflow(
+        &self,
+        id: &str,
+        input: UpdateWorkflow,
+    ) -> Result<Option<WorkflowSummary>, sea_orm::DbErr> {
+        let validation = validate_workflow_definition(&input.definition);
+        if !validation.valid {
+            return Err(sea_orm::DbErr::Custom(validation.errors.join("; ")));
+        }
+        let Some(existing) = workflow::Entity::find_by_id(id.to_owned())
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let now = now_rfc3339();
+        let definition_json = serde_json::to_string(&input.definition)
+            .map_err(|error| sea_orm::DbErr::Custom(error.to_string()))?;
+        let txn = self.db.begin().await?;
+        workflow_node::Entity::delete_many()
+            .filter(workflow_node::Column::WorkflowId.eq(id.to_owned()))
+            .exec(&txn)
+            .await?;
+        workflow_edge::Entity::delete_many()
+            .filter(workflow_edge::Column::WorkflowId.eq(id.to_owned()))
+            .exec(&txn)
+            .await?;
+        let mut active: workflow::ActiveModel = existing.into();
+        active.name = Set(input.name);
+        active.definition = Set(definition_json);
+        active.updated_at = Set(now.clone());
+        let model = active.update(&txn).await?;
+        for node in &input.definition.nodes {
+            workflow_node::ActiveModel {
+                id: Set(new_id("wfn")),
+                workflow_id: Set(id.to_owned()),
+                node_key: Set(node.key.clone()),
+                name: Set(node.name.clone().unwrap_or_else(|| node.key.clone())),
+                kind: Set(node.kind.clone().unwrap_or_else(|| "job".to_owned())),
+                job_id: Set(node.job_id.clone()),
+                config: Set(node
+                    .config
+                    .as_ref()
+                    .and_then(|value| serde_json::to_string(value).ok())),
+                created_at: Set(now.clone()),
+            }
+            .insert(&txn)
+            .await?;
+        }
+        for edge in &input.definition.edges {
+            workflow_edge::ActiveModel {
+                id: Set(new_id("wfe")),
+                workflow_id: Set(id.to_owned()),
+                from_node_key: Set(edge.from.clone()),
+                to_node_key: Set(edge.to.clone()),
+                condition: Set(edge
+                    .condition
+                    .clone()
+                    .unwrap_or_else(|| "always".to_owned())),
+                created_at: Set(now.clone()),
+            }
+            .insert(&txn)
+            .await?;
+        }
+        txn.commit().await?;
+        WorkflowSummary::from_model(model).map(Some)
     }
 
     pub async fn list_workflows(&self) -> Result<Vec<WorkflowSummary>, sea_orm::DbErr> {

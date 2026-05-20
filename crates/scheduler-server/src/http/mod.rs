@@ -185,7 +185,10 @@ fn api_router() -> Router<Arc<AppState>> {
             "/workflows/dry-run",
             axum::routing::post(routes::dry_run_workflow),
         )
-        .route("/workflows/{id}", get(routes::get_workflow))
+        .route(
+            "/workflows/{id}",
+            get(routes::get_workflow).patch(routes::update_workflow),
+        )
         .route(
             "/workflows/{id}/validate",
             axum::routing::post(routes::validate_workflow),

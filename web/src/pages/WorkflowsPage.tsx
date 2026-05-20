@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { Alert, Button, Card, Col, Form, Input, List, Row, Segmented, Select, Space, Tag, Timeline, Typography, message } from 'antd';
+import { Alert, Button, Card, Collapse, Form, Input, List, Segmented, Select, Space, Tag, Timeline, Typography, message } from 'antd';
 import {
   advanceWorkflowInstance,
   createWorkflow,
+  getWorkflow,
   listWorkflowShards,
   materializeNextWorkflowNode,
   recoverWorkflowNode,
@@ -11,6 +12,7 @@ import {
   listJobs,
   listWorkflows,
   runWorkflow,
+  updateWorkflow,
   validateWorkflow,
   workflowEventStreamUrl,
   type InstanceEventSummary,
@@ -23,6 +25,7 @@ import {
   type WorkflowShardSummary,
   type WorkflowSummary,
 } from '../api/client';
+import { useNavigate, useParams } from 'react-router-dom';
 
 const DEFAULT_WORKFLOW: WorkflowDefinition = {
   nodes: [
@@ -601,26 +604,20 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
   );
 }
 
+
 export function WorkflowsPage() {
   const [items, setItems] = useState<WorkflowSummary[]>([]);
-  const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [loading, setLoading] = useState(false);
-  const [previewMode, setPreviewMode] = useState<'visual' | 'json' | 'yaml'>('visual');
-  const [draft, setDraft] = useState(DEFAULT_DEFINITION);
-  const [dryRun, setDryRun] = useState<WorkflowDryRunResponse | null>(null);
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowSummary | null>(null);
   const [activeInstance, setActiveInstance] = useState<WorkflowInstanceSummary | null>(null);
   const [events, setEvents] = useState<InstanceEventSummary[]>([]);
   const [shards, setShards] = useState<WorkflowShardSummary[]>([]);
-  const [form] = Form.useForm<{ name: string }>();
+  const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
+  const navigate = useNavigate();
 
   const fetchItems = async () => {
     setLoading(true);
-    try {
-      const [workflowItems, jobPage] = await Promise.all([listWorkflows(), listJobs()]);
-      setItems(workflowItems);
-      setJobs(jobPage.items);
-    } finally { setLoading(false); }
+    try { setItems(await listWorkflows()); } finally { setLoading(false); }
   };
 
   useEffect(() => { void fetchItems(); }, []);
@@ -644,44 +641,15 @@ export function WorkflowsPage() {
     return () => source.close();
   }, [activeInstance]);
 
-  const previewDefinition = useMemo(() => {
-    try { return parseDefinition(draft); } catch { return null; }
-  }, [draft]);
-  const yamlPreview = previewDefinition ? definitionToYaml(previewDefinition) : '';
-
-  const updateDefinition = (definition: WorkflowDefinition) => {
-    const next = stringifyDefinition(definition);
-    setDraft(next);
-    setDryRun(null);
-  };
-
-  const submit = async (values: { name: string }) => {
-    let definition: WorkflowDefinition;
-    try { definition = parseDefinition(draft); }
-    catch { message.error('Workflow definition 必须是合法 JSON'); return; }
-    const created = await createWorkflow({ name: values.name, definition });
-    message.success('Workflow 已创建');
-    setActiveWorkflow(created);
-    form.resetFields();
-    updateDefinition(DEFAULT_WORKFLOW);
-    await fetchItems();
-  };
-
-  const dryRunDraft = async () => {
-    try {
-      const definition = parseDefinition(draft);
-      setDryRun(await dryRunWorkflow(definition));
-      message.success('Dry-run 已完成');
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : 'Dry-run 失败');
-    }
-  };
-
   const validate = async (item: WorkflowSummary) => {
     const result = await validateWorkflow(item.id);
     if (result.valid) message.success('DAG 校验通过');
     else message.error(result.errors.join('; '));
+  };
+
+  const openRunView = (item: WorkflowSummary) => {
     setActiveWorkflow(item);
+    setExpandedKeys((current) => current[0] === item.id ? [] : [item.id]);
   };
 
   const run = async (item: WorkflowSummary) => {
@@ -689,6 +657,7 @@ export function WorkflowsPage() {
     setActiveWorkflow(item);
     setActiveInstance(instance);
     setEvents([]);
+    setExpandedKeys([item.id]);
     message.success(`Workflow instance queued: ${instance.id}`);
   };
 
@@ -727,36 +696,26 @@ export function WorkflowsPage() {
       <div className="hero-panel workflow-hero">
         <div className="hero-panel__content">
           <Tag className="soft-tag" color="blue">Phase 2 · Workflow Engine</Tag>
-          <Typography.Title level={1}>工作流编排</Typography.Title>
-          <Typography.Paragraph className="hero-panel__desc">
-            支持 DAG 校验、节点画布、端口连线、条件边推进、Map / MapReduce / 子工作流节点建模，以及面向调试的事件流。
-          </Typography.Paragraph>
+          <Typography.Title level={1}>工作流列表</Typography.Title>
+          <Typography.Paragraph className="hero-panel__desc">统一查看、运行、校验工作流；运行视图和事件流按条目手风琴展开。</Typography.Paragraph>
         </div>
         <div className="hero-panel__summary"><strong>{items.length}</strong><span>flows</span></div>
       </div>
 
-      <Card
-        title="可视化节点画布"
-        extra={<Space wrap><Segmented value={previewMode} onChange={(value) => setPreviewMode(value as 'visual' | 'json' | 'yaml')} options={[{ label: '画布', value: 'visual' }, { label: 'JSON', value: 'json' }, { label: 'YAML', value: 'yaml' }]} /><Button onClick={dryRunDraft}>Dry-run</Button></Space>}
-      >
-        <Form form={form} layout="inline" onFinish={submit} className="workflow-create-inline">
-          <Form.Item name="name" label="名称" rules={[{ required: true }]}><Input placeholder="daily-pipeline" style={{ width: 260 }} /></Form.Item>
-          <Form.Item><Button type="primary" htmlType="submit">创建工作流</Button></Form.Item>
-          {dryRun ? <Alert type={dryRun.validation.valid ? 'success' : 'error'} message={dryRun.validation.valid ? 'Dry-run 通过' : 'Dry-run 失败'} description={`start: ${dryRun.start_nodes.join(', ') || '-'} · nodes: ${dryRun.node_count} · edges: ${dryRun.edge_count}${dryRun.validation.errors.length ? ` · ${dryRun.validation.errors.join('; ')}` : ''}`} /> : null}
-        </Form>
-        {previewDefinition && previewMode === 'visual' ? <DagPreview definition={previewDefinition} instance={activeInstance} jobs={jobs} editable onChange={updateDefinition} /> : null}
-        {previewMode === 'json' ? <Input.TextArea className="workflow-definition-preview" rows={18} spellCheck={false} value={draft} onChange={(event) => { setDraft(event.target.value); setDryRun(null); }} /> : null}
-        {previewMode === 'yaml' ? <Input.TextArea className="workflow-definition-preview" rows={18} spellCheck={false} value={yamlPreview || 'JSON 解析失败，无法生成 YAML'} readOnly /> : null}
-        {!previewDefinition && previewMode === 'visual' ? <Alert type="warning" message="JSON 解析失败，无法预览画布" /> : null}
-      </Card>
-
-      <Card title="工作流列表" extra={<Button onClick={fetchItems}>刷新</Button>}>
+      <Card title="工作流列表" extra={<Space><Button onClick={() => navigate('/workflows/new')} type="primary">新增工作流</Button><Button onClick={fetchItems}>刷新</Button></Space>}>
         <List
           loading={loading}
           dataSource={items}
           locale={{ emptyText: '暂无工作流' }}
           renderItem={(item) => (
-            <List.Item actions={[<Button key="validate" onClick={() => validate(item)}>校验</Button>, <Button key="run" type="primary" onClick={() => run(item)}>运行</Button>] }>
+            <List.Item
+              actions={[
+                <Button key="view" onClick={() => openRunView(item)}>{expandedKeys[0] === item.id ? '收起运行视图' : '运行视图'}</Button>,
+                <Button key="edit" onClick={() => navigate(`/workflows/${encodeURIComponent(item.id)}/edit`)}>编辑</Button>,
+                <Button key="validate" onClick={() => validate(item)}>校验</Button>,
+                <Button key="run" type="primary" onClick={() => run(item)}>运行</Button>,
+              ]}
+            >
               <List.Item.Meta
                 title={<Space><span>{item.name}</span><Tag color={STATUS_COLORS[item.status] ?? 'blue'}>{item.status}</Tag></Space>}
                 description={<span>{item.id} · nodes: {item.definition.nodes.length} · edges: {item.definition.edges.length}</span>}
@@ -764,24 +723,122 @@ export function WorkflowsPage() {
             </List.Item>
           )}
         />
+        <Collapse
+          className="workflow-run-collapse"
+          activeKey={expandedKeys}
+          accordion
+          onChange={(keys) => setExpandedKeys(Array.isArray(keys) ? keys.map(String) : keys ? [String(keys)] : [])}
+          items={items.map((item) => ({
+            key: item.id,
+            label: `运行视图 · ${item.name}`,
+            children: activeWorkflow?.id === item.id ? (
+              <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                <Card size="small" title="运行视图" extra={<Space wrap><Button onClick={materializeNext}>物化下一节点</Button><Button onClick={completeFirstQueued} disabled={!activeInstance}>推进首个队列节点</Button><Button onClick={recoverFirstFailed} disabled={!activeInstance}>重试失败节点</Button><Button onClick={refreshShards} disabled={!activeInstance}>刷新 Shards</Button></Space>}>
+                  <DagPreview definition={item.definition} instance={activeInstance} />
+                  {shards.length > 0 ? <List size="small" style={{ marginTop: 16 }} dataSource={shards} renderItem={(shard) => <List.Item><Typography.Text>{shard.node_key}#{shard.shard_index} · {shard.status} · {JSON.stringify(shard.input)}</Typography.Text></List.Item>} /> : null}
+                </Card>
+                <Card size="small" title="实例事件流">
+                  {activeInstance ? <Typography.Text type="secondary">{activeInstance.id} · {activeInstance.status}</Typography.Text> : <Typography.Text type="secondary">运行工作流后展示 SSE 事件</Typography.Text>}
+                  <Timeline style={{ marginTop: 18 }} items={events.map((event) => ({ color: event.event_type.includes('failed') ? 'red' : 'blue', children: <span>{event.created_at} · {event.event_type} · {event.message}</span> }))} />
+                </Card>
+              </Space>
+            ) : <Typography.Text type="secondary">点击该条目的“运行视图”按钮展开详情。</Typography.Text>,
+          }))}
+        />
       </Card>
+    </Space>
+  );
+}
 
-      {activeWorkflow ? (
-        <Row gutter={[18, 18]}>
-          <Col xs={24} lg={14}>
-            <Card title={`运行视图 · ${activeWorkflow.name}`} extra={<Space wrap><Button onClick={materializeNext}>物化下一节点</Button><Button onClick={completeFirstQueued} disabled={!activeInstance}>推进首个队列节点</Button><Button onClick={recoverFirstFailed} disabled={!activeInstance}>重试失败节点</Button><Button onClick={refreshShards} disabled={!activeInstance}>刷新 Shards</Button></Space>}>
-              <DagPreview definition={activeWorkflow.definition} instance={activeInstance} />
-              {shards.length > 0 ? <List size="small" style={{ marginTop: 16 }} dataSource={shards} renderItem={(shard) => <List.Item><Typography.Text>{shard.node_key}#{shard.shard_index} · {shard.status} · {JSON.stringify(shard.input)}</Typography.Text></List.Item>} /> : null}
-            </Card>
-          </Col>
-          <Col xs={24} lg={10}>
-            <Card title="实例事件流">
-              {activeInstance ? <Typography.Text type="secondary">{activeInstance.id} · {activeInstance.status}</Typography.Text> : <Typography.Text type="secondary">运行工作流后展示 SSE 事件</Typography.Text>}
-              <Timeline style={{ marginTop: 18 }} items={events.map((event) => ({ color: event.event_type.includes('failed') ? 'red' : 'blue', children: <span>{event.created_at} · {event.event_type} · {event.message}</span> }))} />
-            </Card>
-          </Col>
-        </Row>
-      ) : null}
+export function WorkflowEditorPage() {
+  const [jobs, setJobs] = useState<JobSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'visual' | 'json' | 'yaml'>('visual');
+  const [draft, setDraft] = useState(DEFAULT_DEFINITION);
+  const [dryRun, setDryRun] = useState<WorkflowDryRunResponse | null>(null);
+  const [form] = Form.useForm<{ name: string }>();
+  const navigate = useNavigate();
+  const params = useParams();
+  const workflowId = params.id;
+  const isEdit = Boolean(workflowId);
+
+  const fetchEditorData = async () => {
+    setLoading(true);
+    try {
+      const jobPage = await listJobs();
+      setJobs(jobPage.items);
+      if (workflowId) {
+        const workflow = await getWorkflow(workflowId);
+        form.setFieldsValue({ name: workflow.name });
+        setDraft(stringifyDefinition(workflow.definition));
+      }
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { void fetchEditorData(); }, [workflowId]);
+
+  const previewDefinition = useMemo(() => {
+    try { return parseDefinition(draft); } catch { return null; }
+  }, [draft]);
+  const yamlPreview = previewDefinition ? definitionToYaml(previewDefinition) : '';
+
+  const updateDefinition = (definition: WorkflowDefinition) => {
+    setDraft(stringifyDefinition(definition));
+    setDryRun(null);
+  };
+
+  const submit = async (values: { name: string }) => {
+    let definition: WorkflowDefinition;
+    try { definition = parseDefinition(draft); }
+    catch { message.error('Workflow definition 必须是合法 JSON'); return; }
+    if (workflowId) {
+      await updateWorkflow(workflowId, { name: values.name, definition });
+      message.success('Workflow 已更新');
+    } else {
+      await createWorkflow({ name: values.name, definition });
+      message.success('Workflow 已创建');
+    }
+    navigate('/workflows');
+  };
+
+  const dryRunDraft = async () => {
+    try {
+      const definition = parseDefinition(draft);
+      setDryRun(await dryRunWorkflow(definition));
+      message.success('Dry-run 已完成');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Dry-run 失败');
+    }
+  };
+
+  return (
+    <Space direction="vertical" size={18} style={{ width: '100%' }}>
+      <div className="hero-panel workflow-hero">
+        <div className="hero-panel__content">
+          <Tag className="soft-tag" color="blue">Phase 2 · Workflow Engine</Tag>
+          <Typography.Title level={1}>{isEdit ? '编辑工作流' : '新增工作流'}</Typography.Title>
+          <Typography.Paragraph className="hero-panel__desc">
+            使用节点画布编辑 DAG、节点属性、端口连线和边条件；保存后回到工作流列表统一运行和查看实例。
+          </Typography.Paragraph>
+        </div>
+        <div className="hero-panel__summary"><strong>{previewDefinition?.nodes.length ?? 0}</strong><span>nodes</span></div>
+      </div>
+
+      <Card
+        title="可视化节点画布"
+        loading={loading}
+        extra={<Space wrap><Segmented value={previewMode} onChange={(value) => setPreviewMode(value as 'visual' | 'json' | 'yaml')} options={[{ label: '画布', value: 'visual' }, { label: 'JSON', value: 'json' }, { label: 'YAML', value: 'yaml' }]} /><Button onClick={dryRunDraft}>Dry-run</Button><Button onClick={() => navigate('/workflows')}>返回列表</Button></Space>}
+      >
+        <Form form={form} layout="inline" onFinish={submit} className="workflow-create-inline" initialValues={{ name: '' }}>
+          <Form.Item name="name" label="名称" rules={[{ required: true }]}><Input placeholder="daily-pipeline" style={{ width: 260 }} /></Form.Item>
+          <Form.Item><Button type="primary" htmlType="submit">{isEdit ? '保存工作流' : '创建工作流'}</Button></Form.Item>
+          {dryRun ? <Alert type={dryRun.validation.valid ? 'success' : 'error'} message={dryRun.validation.valid ? 'Dry-run 通过' : 'Dry-run 失败'} description={`start: ${dryRun.start_nodes.join(', ') || '-'} · nodes: ${dryRun.node_count} · edges: ${dryRun.edge_count}${dryRun.validation.errors.length ? ` · ${dryRun.validation.errors.join('; ')}` : ''}`} /> : null}
+        </Form>
+        {previewDefinition && previewMode === 'visual' ? <DagPreview definition={previewDefinition} jobs={jobs} editable onChange={updateDefinition} /> : null}
+        {previewMode === 'json' ? <Input.TextArea className="workflow-definition-preview" rows={18} spellCheck={false} value={draft} onChange={(event) => { setDraft(event.target.value); setDryRun(null); }} /> : null}
+        {previewMode === 'yaml' ? <Input.TextArea className="workflow-definition-preview" rows={18} spellCheck={false} value={yamlPreview || 'JSON 解析失败，无法生成 YAML'} readOnly /> : null}
+        {!previewDefinition && previewMode === 'visual' ? <Alert type="warning" message="JSON 解析失败，无法预览画布" /> : null}
+      </Card>
     </Space>
   );
 }

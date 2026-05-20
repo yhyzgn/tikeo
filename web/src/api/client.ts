@@ -512,8 +512,16 @@ export async function listWorkflows(): Promise<WorkflowSummary[]> {
   return request<WorkflowSummary[]>('/api/v1/workflows');
 }
 
+export async function getWorkflow(id: string): Promise<WorkflowSummary> {
+  return request<WorkflowSummary>(`/api/v1/workflows/${encodeURIComponent(id)}`);
+}
+
 export async function createWorkflow(payload: { name: string; definition: WorkflowDefinition }): Promise<WorkflowSummary> {
   return request<WorkflowSummary>('/api/v1/workflows', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function updateWorkflow(id: string, payload: { name: string; definition: WorkflowDefinition }): Promise<WorkflowSummary> {
+  return request<WorkflowSummary>(`/api/v1/workflows/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
 export async function validateWorkflow(id: string): Promise<WorkflowValidationResult> {

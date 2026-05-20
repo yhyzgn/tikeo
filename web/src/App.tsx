@@ -7,7 +7,7 @@ import { AuthGuard, RequirePermission } from './components/AuthGuard';
 import { Dashboard } from './pages/Dashboard';
 import { InstancesPage } from './pages/InstancesPage';
 import { JobsPage } from './pages/JobsPage';
-import { WorkflowsPage } from './pages/WorkflowsPage';
+import { WorkflowEditorPage, WorkflowsPage } from './pages/WorkflowsPage';
 import { LoginPage } from './pages/LoginPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
 import { ScriptsPage } from './pages/ScriptsPage';
@@ -31,6 +31,8 @@ function AppLayout() {
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/instances" element={<InstancesPage />} />
         <Route path="/workflows" element={<RequirePermission resource="workflows" action="read"><WorkflowsPage /></RequirePermission>} />
+        <Route path="/workflows/new" element={<RequirePermission resource="workflows" action="manage"><WorkflowEditorPage /></RequirePermission>} />
+        <Route path="/workflows/:id/edit" element={<RequirePermission resource="workflows" action="manage"><WorkflowEditorPage /></RequirePermission>} />
         <Route path="/workers" element={<RequirePermission resource="workers" action="read"><WorkersPage /></RequirePermission>} />
         <Route path="/users" element={<RequirePermission resource="users" action="read"><UsersPage /></RequirePermission>} />
         <Route path="/scripts" element={<RequirePermission resource="scripts" action="read"><ScriptsPage /></RequirePermission>} />

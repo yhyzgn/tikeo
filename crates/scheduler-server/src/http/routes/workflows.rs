@@ -9,8 +9,8 @@ use axum::{
     response::sse::{Event, Sse},
 };
 use scheduler_storage::{
-    AdvanceWorkflowInput, CreateWorkflow, RecoverWorkflowNodeInput, WorkflowDefinition,
-    validate_workflow_definition,
+    AdvanceWorkflowInput, CreateWorkflow, RecoverWorkflowNodeInput, UpdateWorkflow,
+    WorkflowDefinition, validate_workflow_definition,
 };
 use serde::Deserialize;
 use tokio_stream::Stream;
@@ -29,6 +29,12 @@ use crate::http::{
 
 #[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
 pub struct CreateWorkflowRequest {
+    pub name: String,
+    pub definition: WorkflowDefinition,
+}
+
+#[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
+pub struct UpdateWorkflowRequest {
     pub name: String,
     pub definition: WorkflowDefinition,
 }
@@ -58,6 +64,32 @@ pub async fn create_workflow(
         .await
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     Ok(Json(ApiResponse::success(created)))
+}
+
+#[utoipa::path(patch, path = "/api/v1/workflows/{id}", tag = "workflows", request_body = UpdateWorkflowRequest)]
+pub async fn update_workflow(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<UpdateWorkflowRequest>,
+) -> Result<Json<WorkflowApiResponse>, ApiError> {
+    auth::require_permission(&headers, &state, "workflows", "manage").await?;
+    if request.name.trim().is_empty() {
+        return Err(ApiError::bad_request("workflow name cannot be empty"));
+    }
+    let updated = state
+        .workflows
+        .update_workflow(
+            &id,
+            UpdateWorkflow {
+                name: request.name,
+                definition: request.definition,
+            },
+        )
+        .await
+        .map_err(|error| ApiError::bad_request(error.to_string()))?
+        .ok_or_else(|| ApiError::not_found(format!("workflow not found: {id}")))?;
+    Ok(Json(ApiResponse::success(updated)))
 }
 
 #[utoipa::path(get, path = "/api/v1/workflows", tag = "workflows")]

@@ -22,8 +22,8 @@ pub use repository::{
     JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
     MaterializeWorkflowNodeResult, PermissionSummary, QueueOverview, RbacRepository,
     RecoverWorkflowNodeInput, RecoverWorkflowNodeResult, ScriptRepository, ScriptSummary,
-    ScriptVersionRepository, ScriptVersionSummary, UpdateScript, UpdateUser, UserRepository,
-    UserSummary, WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary,
+    ScriptVersionRepository, ScriptVersionSummary, UpdateScript, UpdateUser, UpdateWorkflow,
+    UserRepository, UserSummary, WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary,
     WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
     WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
 };

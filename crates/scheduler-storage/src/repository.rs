@@ -36,9 +36,9 @@ pub use user::{CreateUser, UpdateUser, UserRepository, UserSummary};
 pub use workflow::{
     AdvanceWorkflowInput, AdvanceWorkflowResult, CreateWorkflow, DispatchQueueSummary,
     InstanceEventSummary, MaterializeWorkflowNodeResult, QueueOverview, RecoverWorkflowNodeInput,
-    RecoverWorkflowNodeResult, WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary,
-    WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
-    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
+    RecoverWorkflowNodeResult, UpdateWorkflow, WorkflowDefinition, WorkflowEdgeSpec,
+    WorkflowInstanceSummary, WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository,
+    WorkflowShardSummary, WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
 };
 
 #[cfg(test)]

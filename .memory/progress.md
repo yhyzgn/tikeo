@@ -114,3 +114,9 @@
 - 普通节点新建边默认关系改为 `always`；特定节点仍使用各自语义默认值（如 condition true/on_success、approval approved/on_success、parallel always）。
 - 项目默认监听地址统一从 `127.0.0.1` 改为 `0.0.0.0`，覆盖配置、脚本、Vite proxy、README、prompt 和记忆库命令。
 - Worker Tunnel 端口统一从 `9091` 改为 `9998`，覆盖 Rust 默认配置、dev/container/k8s/docker-compose/Dockerfile、Rust/Java SDK 默认 endpoint 与文档。
+
+## 2026-05-20 033：工作流页面列表优先与编辑页拆分
+- `/workflows` 一级页面调整为工作流列表优先，不再默认展示画布编辑器、运行视图和事件流。
+- 新增 `/workflows/new` 与 `/workflows/:id/edit` 路由，使用独立编辑页承载节点画布、JSON/YAML、Dry-run、创建/保存。
+- 列表每个 item 操作栏新增“运行视图”按钮；运行视图与实例事件流通过 Collapse 手风琴展开，只展示一个条目的运行详情。
+- 后端新增 `PATCH /api/v1/workflows/{id}` 支持编辑保存工作流定义，并同步重建 workflow_node/workflow_edge 软关联记录。
