@@ -243,3 +243,8 @@
 - Enabled `sqlx-postgres` on `scheduler-storage` and migrations so PostgreSQL URLs compile through SeaORM/sqlx.
 - Added `config/postgres.toml` with PostgreSQL and CockroachDB URL examples; CockroachDB uses PostgreSQL wire protocol.
 - Roadmap marks PostgreSQL + CockroachDB storage support complete at driver/config/template level; live DB smoke remains environment-dependent.
+
+### 2026-05-21 Phase2 cluster coordinator foundation
+- Added `scheduler-server::cluster` with ClusterCoordinator trait, explicit ClusterMode/ClusterRole, and StandaloneCoordinator.
+- `/api/v1/cluster` now reports `role=standalone` with node_id/can_schedule/detail instead of fake `leader`.
+- Design now records Raft implementation boundaries: leader ownership gate, follower fencing, DB claim as final idempotency guard, and container-friendly networking.

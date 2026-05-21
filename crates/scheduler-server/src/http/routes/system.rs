@@ -1,4 +1,6 @@
-use axum::Json;
+use std::sync::Arc;
+
+use axum::{Json, extract::State};
 
 use crate::http::dto::{
     ApiResponse, ClusterApiResponse, ClusterResponse, SystemInfoApiResponse, SystemInfoResponse,
@@ -26,10 +28,16 @@ pub async fn system_info() -> Json<SystemInfoApiResponse> {
     tag = "system",
     responses((status = 200, description = "Cluster status", body = ClusterApiResponse))
 )]
-pub async fn cluster_status() -> Json<ClusterApiResponse> {
+pub async fn cluster_status(
+    State(state): State<Arc<crate::http::AppState>>,
+) -> Json<ClusterApiResponse> {
+    let status = state.cluster.status().await;
     Json(ApiResponse::success(ClusterResponse {
-        mode: "standalone",
-        role: "leader",
-        nodes: 1,
+        mode: status.mode.as_str().to_owned(),
+        role: status.role.as_str().to_owned(),
+        node_id: status.node_id,
+        nodes: status.nodes,
+        can_schedule: status.can_schedule,
+        detail: status.detail,
     }))
 }

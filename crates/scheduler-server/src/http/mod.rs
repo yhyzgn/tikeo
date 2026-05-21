@@ -10,6 +10,7 @@ pub mod session;
 
 use std::{net::SocketAddr, sync::Arc, time::SystemTime};
 
+use crate::cluster::{SharedClusterCoordinator, StandaloneCoordinator};
 use anyhow::{Context, Result};
 use axum::{
     Json, Router,
@@ -52,6 +53,7 @@ pub struct AppState {
     sessions: SessionManager,
     pub(crate) rbac: RbacService,
     pub(crate) registry: crate::tunnel::WorkerRegistry,
+    pub(crate) cluster: SharedClusterCoordinator,
 }
 
 impl AppState {
@@ -68,6 +70,7 @@ impl AppState {
         workflows: WorkflowRepository,
         audit: AuditLogRepository,
         registry: crate::tunnel::WorkerRegistry,
+        cluster: SharedClusterCoordinator,
     ) -> Self {
         let db = users.db();
         let rbac = RbacService::new(RbacRepository::new(db.clone()));
@@ -88,6 +91,7 @@ impl AppState {
             sessions,
             rbac,
             registry,
+            cluster,
         }
     }
 }
@@ -123,6 +127,7 @@ async fn router_for_database(database_url: &str) -> Result<Router> {
         WorkflowRepository::new(db.clone()),
         AuditLogRepository::new(db),
         crate::tunnel::WorkerRegistry::default(),
+        StandaloneCoordinator::shared("standalone-http"),
     )))
 }
 
@@ -314,6 +319,7 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
+    use crate::cluster::StandaloneCoordinator;
     use axum::{body::Body, http::Request};
     use scheduler_proto::worker::v1::RegisterWorker;
     use scheduler_storage::{
@@ -349,6 +355,17 @@ mod tests {
         assert_eq!(json["code"], 0);
         assert_eq!(json["message"], "success");
         assert_eq!(json["data"]["name"], "scheduler");
+    }
+
+    #[tokio::test]
+    async fn cluster_status_reports_explicit_standalone_role() {
+        let json = get_json("/api/v1/cluster").await;
+
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["mode"], "standalone");
+        assert_eq!(json["data"]["role"], "standalone");
+        assert_eq!(json["data"]["nodes"], 1);
+        assert_eq!(json["data"]["can_schedule"], true);
     }
 
     #[tokio::test]
@@ -503,6 +520,7 @@ mod tests {
             WorkflowRepository::new(db.clone()),
             AuditLogRepository::new(db.clone()),
             registry,
+            StandaloneCoordinator::shared("test-node"),
         ));
 
         let created = post_json(
@@ -593,6 +611,7 @@ mod tests {
             WorkflowRepository::new(db.clone()),
             AuditLogRepository::new(db.clone()),
             crate::tunnel::WorkerRegistry::default(),
+            StandaloneCoordinator::shared("test-node"),
         ));
         let created = post_json(
             app.clone(),
@@ -784,6 +803,7 @@ mod tests {
             WorkflowRepository::new(db.clone()),
             AuditLogRepository::new(db.clone()),
             registry,
+            StandaloneCoordinator::shared("test-node"),
         ));
 
         let created = post_json(
@@ -993,6 +1013,7 @@ mod tests {
             WorkflowRepository::new(db.clone()),
             AuditLogRepository::new(db),
             crate::tunnel::WorkerRegistry::default(),
+            StandaloneCoordinator::shared("test-node"),
         ));
 
         // 1. Get users list (should only contain seeded admin)
@@ -1131,6 +1152,7 @@ mod tests {
             WorkflowRepository::new(db.clone()),
             AuditLogRepository::new(db),
             crate::tunnel::WorkerRegistry::default(),
+            StandaloneCoordinator::shared("test-node"),
         ))
     }
 }

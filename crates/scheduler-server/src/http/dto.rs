@@ -140,15 +140,21 @@ pub struct SystemInfoResponse {
     pub target: &'static str,
 }
 
-/// Cluster status placeholder.
+/// Cluster status response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ClusterResponse {
     /// Cluster operating mode.
-    pub mode: &'static str,
+    pub mode: String,
     /// Current node role.
-    pub role: &'static str,
+    pub role: String,
+    /// Stable current node identifier.
+    pub node_id: String,
     /// Known server node count.
     pub nodes: u32,
+    /// Whether this node may own scheduler/dispatcher loops.
+    pub can_schedule: bool,
+    /// Human-readable implementation note.
+    pub detail: String,
 }
 
 /// Login request for the development admin account.
