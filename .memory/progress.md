@@ -157,3 +157,8 @@
 - dispatch_queue 在已有 lease_owner / lease_until 字段基础上新增 repository claim/release 能力：claim 会设置租约 owner、过期时间并递增 attempt。
 - 新增 `POST /api/v1/dispatch-queue:claim`，需要 workers manage 权限；成功 claim 会写入 audit log，便于追踪多 server/worker 对队列项的占用。
 - 增加存储层测试覆盖 claim、重复 claim 阻止、release 后重新 claim 与 attempt 递增。
+
+## 2026-05-21 042：开发脚本本地访问 URL 覆盖
+- 用户手动调整 `scripts/dev.sh`：新增 `SCHEDULER_API_PORT` / `SCHEDULER_WEB_URL` 可配置项。
+- dev 脚本默认仍让后端按配置绑定 `0.0.0.0`，但健康检查与浏览器提示默认使用 `http://localhost:<port>`，更符合本机开发访问习惯。
+- 验证：`bash -n scripts/dev.sh`；`timeout 10 ./scripts/dev.sh` 可成功启动后端与 Web，并在超时信号下清理进程。

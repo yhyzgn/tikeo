@@ -746,3 +746,8 @@ Git:
 - `WorkflowRepository` 新增 `claim_next_dispatch_queue_item`、`claim_dispatch_queue_item`、`release_dispatch_queue_item`，使用 lease_owner / lease_until 控制可占用性。
 - HTTP 新增 `POST /api/v1/dispatch-queue:claim`，记录 `dispatch_queue` 的 `claim` 审计日志。
 - 当前仍是最小实现；下一步建议继续把 dispatcher 的 materialize/dispatch 流程切到 claim API/原子条件更新路径，并补 visibility-timeout 回收。
+
+### 2026-05-21 042 dev.sh 本地访问 URL 调整
+- 用户手动修改 `scripts/dev.sh` 后要求代提交。
+- 变更保留容器/服务绑定可配置性，默认 API_URL 改为 `http://localhost:$SCHEDULER_API_PORT`，WEB_URL 改为独立可覆盖的 `SCHEDULER_WEB_URL`。
+- 烟测显示前后端均可启动：Web `http://localhost:5173`，Backend `http://localhost:9090`。

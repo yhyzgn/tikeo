@@ -3,8 +3,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_FILE="${SCHEDULER_CONFIG:-$ROOT_DIR/config/dev.toml}"
+API_PORT="${SCHEDULER_API_PORT:-9090}"
 WEB_PORT="${SCHEDULER_WEB_PORT:-5173}"
-API_URL="${SCHEDULER_API_URL:-http://0.0.0.0:9090}"
+API_URL="${SCHEDULER_API_URL:-http://localhost:$API_PORT}"
+WEB_URL="${SCHEDULER_WEB_URL:-http://localhost:$WEB_PORT}"
 LOG_DIR="$ROOT_DIR/.dev"
 
 export SCHEDULER_DEV_ADMIN_USERNAME="${SCHEDULER_DEV_ADMIN_USERNAME:-scheduler_init}"
@@ -80,7 +82,7 @@ if ! curl -fsS "$API_URL/healthz" >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "启动 Web：http://0.0.0.0:$WEB_PORT"
+echo "启动 Web：$WEB_URL"
 (
   cd "$ROOT_DIR/web"
   bun run dev -- --port "$WEB_PORT"
@@ -89,7 +91,7 @@ WEB_PID=$!
 
 echo -n "等待 Web dev server"
 for _ in $(seq 1 60); do
-  if curl -fsS "http://0.0.0.0:$WEB_PORT" >/dev/null 2>&1; then
+  if curl -fsS "$WEB_URL" >/dev/null 2>&1; then
     echo " OK"
     break
   fi
@@ -103,7 +105,7 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 
-if ! curl -fsS "http://0.0.0.0:$WEB_PORT" >/dev/null 2>&1; then
+if ! curl -fsS "$WEB_URL" >/dev/null 2>&1; then
   echo
   echo "Web 健康检查超时，最近日志：" >&2
   tail -n 80 "$LOG_DIR/web.log" >&2 || true
@@ -112,7 +114,7 @@ fi
 
 echo
 echo "开发环境已启动："
-echo "  Web UI:       http://0.0.0.0:$WEB_PORT"
+echo "  Web UI:       $WEB_URL"
 echo "  Backend API:  $API_URL"
 echo "  OpenAPI JSON: $API_URL/api-docs/openapi.json"
 echo "  初始化账号:  $SCHEDULER_DEV_ADMIN_USERNAME"
