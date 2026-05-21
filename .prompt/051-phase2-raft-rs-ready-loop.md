@@ -1,6 +1,8 @@
 # 051 — Phase 2 raft-rs Ready loop and leader fencing
 
 ## Context
+Current done: `RaftRuntimeCoordinator` starts for `mode=raft` with storage, drives `RawNode::tick()` every 100ms, persists Ready HardState/log/snapshot in order, then advances Ready. It still does not campaign, does not wire outbound transport, and keeps scheduler ownership fenced (`can_schedule=false`, `leader_fencing_token=null`).
+
 The project now uses TiKV raft-rs (`raft` crate 0.7.0). Completed foundations:
 - `scheduler-server::cluster::raft_rs` validates stable string node-id -> non-zero raft `u64` id mapping, initial voters, and `MemStorage + RawNode` bootstrap.
 - `raft_metadata` / `raft_members` persist local metadata and static peers.
@@ -9,18 +11,14 @@ The project now uses TiKV raft-rs (`raft` crate 0.7.0). Completed foundations:
 - `mode=raft` still reports `role=unknown`, `can_schedule=false`, `leader_fencing_token=null`.
 
 ## Goal
-Implement the first real raft-rs runtime loop slice without fake leadership.
+Continue from the first raft-rs runtime ticker slice without fake leadership.
 
 ## Required work
-1. Add a `RaftRuntimeCoordinator` behind `ClusterCoordinator` for `mode=raft`.
-2. Drive `RawNode::tick()` on an internal interval and expose observed raft-rs role in diagnostics.
-3. Implement Ready handling in the correct order:
-   - persist HardState into `raft_metadata`;
-   - persist entries into `raft_log_entries`;
-   - persist snapshot metadata/pointer into `raft_snapshots` when present;
-   - only then advance/apply Ready.
-4. Route already-validated inbound raft-rs messages into the runtime inbox, but reject/return clear errors if the runtime is not started.
-5. Only set `ClusterRole::Leader`, `can_schedule=true`, and `leader_fencing_token` after raft-rs reports real leader state and the token is persisted/fenced.
+1. Route already-validated inbound raft-rs messages into the runtime inbox, but return clear errors if the runtime is not started.
+2. Implement Ready apply/state-machine bookkeeping beyond append persistence.
+3. Wire outbound raft-rs messages to container/K8s/LB-safe peer HTTP transport.
+4. Only set `can_schedule=true` and `leader_fencing_token` after raft-rs reports real leader state and the token is persisted/fenced.
+5. Add dynamic membership/config change boundaries after the transport path is proven.
 6. Update design/.memory/roadmap and tests.
 
 ## Constraints

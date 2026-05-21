@@ -11,7 +11,7 @@ mod raft_rs;
 use scheduler_config::{ClusterConfig, ClusterModeConfig};
 use scheduler_storage::{RaftRepository, UpsertRaftMember, UpsertRaftMetadata};
 
-use self::raft_rs::{RAFT_RS_LIBRARY, validate_raft_rs_bootstrap};
+use self::raft_rs::{RAFT_RS_LIBRARY, RaftRuntimeCoordinator, validate_raft_rs_bootstrap};
 
 /// Cluster operating mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -125,10 +125,7 @@ pub async fn coordinator_from_config_with_storage(
                     })
                     .await?;
             }
-            Ok(raft_blocked_coordinator(
-                config,
-                "raft metadata persisted; consensus runtime is not started yet",
-            ))
+            RaftRuntimeCoordinator::start(config, repository.clone()).await
         }
     }
 }
@@ -287,7 +284,7 @@ mod tests {
             .unwrap_or_else(|error| panic!("members should load: {error}"));
 
         assert_eq!(status.mode, ClusterMode::Raft);
-        assert_eq!(status.role, ClusterRole::Unknown);
+        assert_eq!(status.role, ClusterRole::Follower);
         assert!(!status.can_schedule);
         assert_eq!(metadata.current_term, 0);
         assert_eq!(members.len(), 1);

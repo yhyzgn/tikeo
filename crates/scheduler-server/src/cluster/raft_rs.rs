@@ -1,16 +1,35 @@
-//! `TiKV` raft-rs bootstrap integration for future server consensus.
+//! `TiKV` raft-rs bootstrap and runtime integration.
 //!
-//! This module intentionally validates the crate/config/storage boundary only. It does
-//! not start a Raft event loop, campaign, or grant scheduler ownership.
+//! This module validates the crate/config/storage boundary and hosts the first runtime
+//! ticker. It deliberately does not campaign or grant scheduler ownership until real
+//! consensus leadership and fencing are implemented.
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
-use raft::{Config, StateRole, raw_node::RawNode, storage::MemStorage};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use protobuf::Message as PbMessage;
+use raft::{
+    Config, StateRole,
+    eraftpb::{Entry, HardState, Message, Snapshot},
+    raw_node::RawNode,
+    storage::MemStorage,
+};
 use scheduler_config::ClusterConfig;
+use scheduler_storage::{
+    RaftRepository, UpsertRaftLogEntry, UpsertRaftMetadata, UpsertRaftSnapshot,
+};
 use sha2::{Digest, Sha256};
+use tokio::sync::{Mutex, RwLock, mpsc};
+use tracing::{debug, warn};
+
+use super::{ClusterMode, ClusterRole, ClusterStatus, SharedClusterCoordinator};
 
 /// Crate-level runtime library label exposed in diagnostics and design docs.
 pub const RAFT_RS_LIBRARY: &str = "tikv/raft-rs crate raft 0.7.0";
+
+const CLUSTER_ID: &str = "default";
+const TICK_INTERVAL: Duration = Duration::from_millis(100);
+const INBOX_CAPACITY: usize = 256;
 
 /// Safe bootstrap status produced by constructing a raft-rs `RawNode` without driving it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,12 +46,93 @@ pub struct RaftRsBootstrapStatus {
     pub has_ready: bool,
 }
 
+/// Runtime coordinator backed by a raft-rs `RawNode` ticker.
+#[derive(Debug)]
+pub struct RaftRuntimeCoordinator {
+    status: Arc<RwLock<ClusterStatus>>,
+    _inbox: mpsc::Sender<Message>,
+}
+
+impl RaftRuntimeCoordinator {
+    /// Start the raft-rs ticker runtime and return a coordinator handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns a storage error if the initial runtime status cannot be persisted.
+    pub async fn start(
+        config: &ClusterConfig,
+        repository: RaftRepository,
+    ) -> Result<SharedClusterCoordinator, scheduler_storage::DbErr> {
+        let initial = build_runtime(config);
+        let (role, detail, node) = match initial {
+            Ok((node, bootstrap)) => (
+                ClusterRole::Follower,
+                format!(
+                    "{RAFT_RS_LIBRARY} runtime ticker started: raft_node_id={}, voters={}, initial_role={}, has_ready={}; no campaign, no leader fencing yet",
+                    bootstrap.raft_node_id,
+                    bootstrap.voter_ids.len(),
+                    bootstrap.initial_role,
+                    bootstrap.has_ready
+                ),
+                Some(node),
+            ),
+            Err(error) => (
+                ClusterRole::Unknown,
+                format!(
+                    "{RAFT_RS_LIBRARY} runtime bootstrap failed: {error}; raft ticker not started"
+                ),
+                None,
+            ),
+        };
+        let status = Arc::new(RwLock::new(ClusterStatus {
+            mode: ClusterMode::Raft,
+            role,
+            node_id: config.node_id.clone(),
+            nodes: u32::try_from(config.peers.len()).unwrap_or(u32::MAX).max(1),
+            can_schedule: false,
+            leader_fencing_token: None,
+            detail,
+        }));
+        let (tx, rx) = mpsc::channel(INBOX_CAPACITY);
+        if let Some(node) = node {
+            persist_role_metadata(&repository, &config.node_id, role).await?;
+            spawn_runtime_loop(config.node_id.clone(), status.clone(), repository, node, rx);
+        }
+        Ok(Arc::new(Self { status, _inbox: tx }))
+    }
+}
+
+#[async_trait::async_trait]
+impl super::ClusterCoordinator for RaftRuntimeCoordinator {
+    async fn status(&self) -> ClusterStatus {
+        self.status.read().await.clone()
+    }
+}
+
 /// Validate that the current cluster config can construct a raft-rs `RawNode`.
 ///
 /// # Errors
 ///
 /// Returns a human-readable error when the raft-rs config or bootstrap storage is invalid.
 pub fn validate_raft_rs_bootstrap(config: &ClusterConfig) -> Result<RaftRsBootstrapStatus, String> {
+    let (node, status) = build_runtime(config)?;
+    let _node = node;
+    Ok(status)
+}
+
+/// Deterministically map existing string node ids to raft-rs `u64` node ids.
+#[must_use]
+pub fn raft_numeric_id(node_id: &str) -> u64 {
+    let digest = Sha256::digest(node_id.as_bytes());
+    let mut bytes = [0_u8; 8];
+    bytes.copy_from_slice(&digest[..8]);
+    let id = u64::from_be_bytes(bytes);
+    if id == 0 { 1 } else { id }
+}
+
+fn build_runtime(
+    config: &ClusterConfig,
+) -> Result<(RawNode<MemStorage>, RaftRsBootstrapStatus), String> {
     let raft_node_id = raft_numeric_id(&config.node_id);
     let voter_ids = voter_ids(config, raft_node_id)?;
     let mut raft_config = Config::new(raft_node_id);
@@ -47,27 +147,207 @@ pub fn validate_raft_rs_bootstrap(config: &ClusterConfig) -> Result<RaftRsBootst
     let storage = MemStorage::new_with_conf_state((voter_ids.clone(), Vec::new()));
     let node = RawNode::with_default_logger(&raft_config, storage)
         .map_err(|error| format!("raft-rs RawNode bootstrap failed: {error}"))?;
-    let status = node.status();
-    let initial_role = raft_role_name(status.ss.raft_state).to_owned();
+    let raft_status = node.status();
+    let initial_role = raft_role_name(raft_status.ss.raft_state).to_owned();
     let has_ready = node.has_ready();
 
-    Ok(RaftRsBootstrapStatus {
-        node_id: config.node_id.clone(),
-        raft_node_id,
-        voter_ids,
-        initial_role,
-        has_ready,
-    })
+    Ok((
+        node,
+        RaftRsBootstrapStatus {
+            node_id: config.node_id.clone(),
+            raft_node_id,
+            voter_ids,
+            initial_role,
+            has_ready,
+        },
+    ))
 }
 
-/// Deterministically map existing string node ids to raft-rs `u64` node ids.
-#[must_use]
-pub fn raft_numeric_id(node_id: &str) -> u64 {
-    let digest = Sha256::digest(node_id.as_bytes());
-    let mut bytes = [0_u8; 8];
-    bytes.copy_from_slice(&digest[..8]);
-    let id = u64::from_be_bytes(bytes);
-    if id == 0 { 1 } else { id }
+fn spawn_runtime_loop(
+    node_id: String,
+    status: Arc<RwLock<ClusterStatus>>,
+    repository: RaftRepository,
+    node: RawNode<MemStorage>,
+    inbox: mpsc::Receiver<Message>,
+) {
+    tokio::spawn(async move {
+        let node = Arc::new(Mutex::new(node));
+        run_runtime_loop(node_id, status, repository, node, inbox).await;
+    });
+}
+
+#[allow(clippy::significant_drop_tightening)]
+async fn run_runtime_loop(
+    node_id: String,
+    status: Arc<RwLock<ClusterStatus>>,
+    repository: RaftRepository,
+    node: Arc<Mutex<RawNode<MemStorage>>>,
+    mut inbox: mpsc::Receiver<Message>,
+) {
+    let mut ticker = tokio::time::interval(TICK_INTERVAL);
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                let mut guard = node.lock().await;
+                guard.tick();
+                if let Err(error) = process_ready(&node_id, &repository, &mut guard, &status).await {
+                    warn!(%error, "raft-rs Ready processing failed");
+                }
+            }
+            message = inbox.recv() => {
+                let Some(message) = message else { break; };
+                let mut guard = node.lock().await;
+                if let Err(error) = guard.step(message) {
+                    warn!(%error, "raft-rs message step failed");
+                }
+                if let Err(error) = process_ready(&node_id, &repository, &mut guard, &status).await {
+                    warn!(%error, "raft-rs Ready processing failed");
+                }
+            }
+        }
+    }
+}
+
+async fn process_ready(
+    node_id: &str,
+    repository: &RaftRepository,
+    node: &mut RawNode<MemStorage>,
+    status: &Arc<RwLock<ClusterStatus>>,
+) -> Result<(), scheduler_storage::DbErr> {
+    if !node.has_ready() {
+        update_runtime_status(node, status).await;
+        return Ok(());
+    }
+
+    let ready = node.ready();
+    if let Some(hard_state) = ready.hs() {
+        persist_hard_state(node_id, repository, hard_state).await?;
+    }
+    for entry in ready.entries() {
+        persist_entry(node_id, repository, entry).await?;
+    }
+    if !ready.snapshot().is_empty() {
+        persist_snapshot(node_id, repository, ready.snapshot()).await?;
+    }
+    let outbound = ready.messages().len() + ready.persisted_messages().len();
+    if outbound > 0 {
+        debug!(
+            outbound,
+            "raft-rs outbound messages are not wired to transport yet"
+        );
+    }
+    let _light_ready = node.advance(ready);
+    update_runtime_status(node, status).await;
+    Ok(())
+}
+
+async fn persist_hard_state(
+    node_id: &str,
+    repository: &RaftRepository,
+    hard_state: &HardState,
+) -> Result<(), scheduler_storage::DbErr> {
+    repository
+        .upsert_metadata(UpsertRaftMetadata {
+            cluster_id: CLUSTER_ID.to_owned(),
+            node_id: node_id.to_owned(),
+            current_term: i64::try_from(hard_state.term).unwrap_or(i64::MAX),
+            voted_for: if hard_state.vote == 0 {
+                None
+            } else {
+                Some(hard_state.vote.to_string())
+            },
+            commit_index: i64::try_from(hard_state.commit).unwrap_or(i64::MAX),
+            applied_index: 0,
+            leader_fencing_token: None,
+        })
+        .await
+        .map(|_| ())
+}
+
+async fn persist_entry(
+    node_id: &str,
+    repository: &RaftRepository,
+    entry: &Entry,
+) -> Result<(), scheduler_storage::DbErr> {
+    repository
+        .upsert_log_entry(UpsertRaftLogEntry {
+            cluster_id: CLUSTER_ID.to_owned(),
+            node_id: node_id.to_owned(),
+            log_index: i64::try_from(entry.get_index()).unwrap_or(i64::MAX),
+            term: i64::try_from(entry.get_term()).unwrap_or(i64::MAX),
+            entry_type: format!("{:?}", entry.get_entry_type()),
+            data: STANDARD.encode(entry.get_data()),
+            context: if entry.get_context().is_empty() {
+                None
+            } else {
+                Some(STANDARD.encode(entry.get_context()))
+            },
+            sync_status: "persisted".to_owned(),
+        })
+        .await
+        .map(|_| ())
+}
+
+async fn persist_snapshot(
+    node_id: &str,
+    repository: &RaftRepository,
+    snapshot: &Snapshot,
+) -> Result<(), scheduler_storage::DbErr> {
+    let metadata = snapshot.get_metadata();
+    repository
+        .upsert_snapshot(UpsertRaftSnapshot {
+            cluster_id: CLUSTER_ID.to_owned(),
+            node_id: node_id.to_owned(),
+            snapshot_index: i64::try_from(metadata.index).unwrap_or(i64::MAX),
+            term: i64::try_from(metadata.term).unwrap_or(i64::MAX),
+            conf_state: metadata
+                .get_conf_state()
+                .write_to_bytes()
+                .ok()
+                .map(|bytes| STANDARD.encode(bytes)),
+            data: if snapshot.get_data().is_empty() {
+                None
+            } else {
+                Some(STANDARD.encode(snapshot.get_data()))
+            },
+        })
+        .await
+        .map(|_| ())
+}
+
+async fn update_runtime_status(node: &RawNode<MemStorage>, status: &Arc<RwLock<ClusterStatus>>) {
+    let raft_status = node.status();
+    let role = cluster_role_from_raft(raft_status.ss.raft_state);
+    let mut writable = status.write().await;
+    writable.role = role;
+    writable.can_schedule = false;
+    writable.leader_fencing_token = None;
+    writable.detail = format!(
+        "{RAFT_RS_LIBRARY} runtime ticker active: raft_role={}, term={}, commit={}, applied={}; scheduler ownership remains fenced until leader token support lands",
+        raft_role_name(raft_status.ss.raft_state),
+        raft_status.hs.term,
+        raft_status.hs.commit,
+        raft_status.applied
+    );
+}
+
+async fn persist_role_metadata(
+    repository: &RaftRepository,
+    node_id: &str,
+    _role: ClusterRole,
+) -> Result<(), scheduler_storage::DbErr> {
+    repository
+        .upsert_metadata(UpsertRaftMetadata {
+            cluster_id: CLUSTER_ID.to_owned(),
+            node_id: node_id.to_owned(),
+            current_term: 0,
+            voted_for: None,
+            commit_index: 0,
+            applied_index: 0,
+            leader_fencing_token: None,
+        })
+        .await
+        .map(|_| ())
 }
 
 fn voter_ids(config: &ClusterConfig, local_id: u64) -> Result<Vec<u64>, String> {
@@ -84,6 +364,15 @@ fn voter_ids(config: &ClusterConfig, local_id: u64) -> Result<Vec<u64>, String> 
     Ok(voters.into_iter().collect())
 }
 
+const fn cluster_role_from_raft(role: StateRole) -> ClusterRole {
+    match role {
+        StateRole::Leader => ClusterRole::Leader,
+        StateRole::Follower | StateRole::Candidate | StateRole::PreCandidate => {
+            ClusterRole::Follower
+        }
+    }
+}
+
 const fn raft_role_name(role: StateRole) -> &'static str {
     match role {
         StateRole::Follower => "follower",
@@ -96,8 +385,12 @@ const fn raft_role_name(role: StateRole) -> &'static str {
 #[cfg(test)]
 mod tests {
     use scheduler_config::{ClusterConfig, ClusterModeConfig, ClusterPeerConfig};
+    use scheduler_storage::{RaftRepository, connect_and_migrate};
 
-    use super::{raft_numeric_id, validate_raft_rs_bootstrap};
+    use std::time::Duration;
+
+    use super::{RaftRuntimeCoordinator, raft_numeric_id, validate_raft_rs_bootstrap};
+    use crate::cluster::{ClusterMode, ClusterRole};
 
     #[test]
     fn raft_numeric_id_is_stable_non_zero() {
@@ -110,7 +403,38 @@ mod tests {
 
     #[test]
     fn raft_rs_bootstrap_constructs_raw_node_without_leadership() {
-        let config = ClusterConfig {
+        let config = test_raft_config();
+
+        let status = validate_raft_rs_bootstrap(&config)
+            .unwrap_or_else(|error| panic!("raft-rs bootstrap should validate: {error}"));
+
+        assert_eq!(status.node_id, "scheduler-0");
+        assert_eq!(status.voter_ids.len(), 2);
+        assert_eq!(status.initial_role, "follower");
+    }
+
+    #[tokio::test]
+    async fn raft_runtime_starts_ticker_without_granting_scheduler_ownership() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should initialize: {error}"));
+        let repository = RaftRepository::new(db);
+        let coordinator = RaftRuntimeCoordinator::start(&test_raft_config(), repository)
+            .await
+            .unwrap_or_else(|error| panic!("raft runtime should start: {error}"));
+
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        let status = coordinator.status().await;
+
+        assert_eq!(status.mode, ClusterMode::Raft);
+        assert_eq!(status.role, ClusterRole::Follower);
+        assert!(!status.can_schedule);
+        assert_eq!(status.leader_fencing_token, None);
+        assert!(status.detail.contains("runtime ticker"));
+    }
+
+    fn test_raft_config() -> ClusterConfig {
+        ClusterConfig {
             mode: ClusterModeConfig::Raft,
             node_id: "scheduler-0".to_owned(),
             peers: vec![
@@ -123,13 +447,6 @@ mod tests {
                     endpoint: "http://scheduler-1.scheduler-headless:9999".to_owned(),
                 },
             ],
-        };
-
-        let status = validate_raft_rs_bootstrap(&config)
-            .unwrap_or_else(|error| panic!("raft-rs bootstrap should validate: {error}"));
-
-        assert_eq!(status.node_id, "scheduler-0");
-        assert_eq!(status.voter_ids.len(), 2);
-        assert_eq!(status.initial_role, "follower");
+        }
     }
 }

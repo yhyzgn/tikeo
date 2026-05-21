@@ -1546,7 +1546,8 @@ docker run -d \
 - **Raft transport placeholder**：预留 `/api/v1/raft/append-entries` HTTP transport 形状，适配 Docker bridge / K8s Service / LB/WAF 代理头；请求 DTO 已对齐 raft-rs `eraftpb::Message` 的 from/to/term/message_type/index/log_term/commit/entries/context/reject 字段，并在 route 层完成 message/entry type 校验、非负 index/term 校验和 base64 payload decode；当前仍只返回 `accepted=false`，不投递 event loop、不变更共识状态。
 - **Fencing token shape**：`ClusterStatus` 与 `raft_metadata.leader_fencing_token` 已预留 leader fencing token 字段；真实 token 只能由后续 consensus runtime 写入，配置态/占位 transport 均返回 `null`。
 - **Runtime implementation choice**：2026-05-21 改为集成 TiKV `raft-rs`（crate `raft` 0.7.0，Apache-2.0）。当前已在 `scheduler-server::cluster::raft_rs` 内完成 `RawNode` bootstrap/config/storage 边界校验：把现有字符串 `node_id` 通过 SHA-256 稳定映射为 raft-rs 需要的非 0 `u64` id，使用配置 peers 生成初始 voters，并构造 `MemStorage + RawNode` 证明依赖/API 可编译可运行。
-- **No fake leadership**：raft-rs bootstrap 仅证明 runtime 边界可创建，暂不启动 tick/event loop，不 campaign，不生成 leader token，不把配置态 Raft 解释为 leader；`mode=raft` 仍返回 `role=unknown` 且 `can_schedule=false`。
+- **No fake leadership**：raft-rs bootstrap/runtime ticker 仅证明 runtime 边界可创建与可驱动，暂不 campaign，不生成 leader token，不把配置态 Raft 解释为可调度 leader；`mode=raft` 带 storage 时可暴露 raft-rs 观察到的 follower/leader 角色，但 `can_schedule=false` 直到 leader fencing token 真实落地。
+- **Raft runtime ticker**：`mode=raft` 且带 storage 启动时会创建 `RaftRuntimeCoordinator`，启动 100ms ticker 驱动 raft-rs `RawNode::tick()`，并按 `Ready` 顺序预留持久化 HardState -> log entries -> snapshot -> `advance()`；当前不 campaign、不发送 outbound messages、不生成 leader fencing token，`can_schedule` 仍固定为 `false`。
 - **Cluster diagnostics**：`/api/v1/cluster/diagnostics` 暴露当前 coordinator 状态、调度 gate、持久化 term/index/peer、transport 占位状态和 runtime boundary；`ClusterStatus.detail` 会包含 raft-rs bootstrap 校验摘要，便于 operator 判断为什么 Raft 节点尚未参与调度。
 - **Container-first networking**：Raft 节点间通信必须可穿透 Docker bridge / K8s Service / LB，不能依赖 host network。
 
@@ -2131,7 +2132,8 @@ scheduler/
   - [x] TiKV raft-rs (`raft` 0.7.0) 依赖接入与 `RawNode` bootstrap 校验（不启动 event loop，不授予 leader）
   - [x] raft-rs durable record 基础（`raft_log_entries` / `raft_snapshots`，无外键，Repository upsert/list 覆盖 Ready 后续持久化入口）
   - [x] raft-rs message transport DTO + 转换校验基础（`/api/v1/raft/append-entries` 请求对齐 from/to/term/message_type/index/log_term/commit/entries/context/reject，可转换为 `eraftpb::Message`，仍不投递 event loop）
-  - [ ] raft-rs event loop、Ready 持久化/应用、leader/follower fencing token 生成、动态 membership/config change
+  - [x] raft-rs runtime ticker + Ready 持久化顺序骨架（tick -> Ready HardState/log/snapshot 持久化 -> advance；不 campaign，不 outbound transport，不授予 scheduling）
+  - [ ] raft-rs inbound runtime inbox 接入、Ready apply 状态机、outbound message transport、leader/follower fencing token 生成、动态 membership/config change
 - [x] 任务队列基础（dispatch_queue 持久化模型、priority/run_after/status/lease_owner/lease_until 字段；workflow queued node 自动 materialize）
 - [x] 持久化延迟队列基础（dispatch_queue.run_after）
 - [x] 实时日志流 (gRPC Server Stream：`SubscribeTaskLogs` 支持历史回放 + Worker Tunnel live fan-out)

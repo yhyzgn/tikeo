@@ -3077,6 +3077,7 @@ dependencies = [
  "metrics-exporter-prometheus",
  "metrics-util",
  "moka",
+ "protobuf",
  "raft",
  "reqwest",
  "scheduler-config",
