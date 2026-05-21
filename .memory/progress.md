@@ -213,6 +213,8 @@
 - Spring Boot auto-configuration 已把真实 gRPC client 接到 registry adapter，demo 的 `demo.echo` 可作为真实 processor 方法被调用。
 
 ## 2026-05-21 049：Java SDK 三模块重组
-- Java SDK 已按用户要求重组为 3 个 Gradle 子模块：`scheduler-java`、`scheduler-spring`、`scheduler-spring-boot`。
-- Spring Framework 的 `@SchedulerProcessor` registry/adapter 独立在 `scheduler-spring`；Spring Boot Properties/AutoConfiguration/starter 聚合在 `scheduler-spring-boot`。
-- Java demo 依赖已切换到 `cn.recycloud.scheduler:scheduler-spring-boot`。
+- Java SDK 已按用户要求重组为 3 个 Gradle 子模块：`scheduler-java`、`scheduler-spring`、`scheduler-spring-boot-starter`。
+- Spring Framework 的 `@SchedulerProcessor` registry/adapter 独立在 `scheduler-spring`；Spring Boot Properties/AutoConfiguration/starter 聚合在 `scheduler-spring-boot-starter`。
+- Java demo 依赖已切换到 `cn.recycloud.scheduler:scheduler-spring-boot-starter`。
+
+- Spring Boot Java SDK module renamed to `scheduler-spring-boot-starter` per user naming correction; demo dependency updated accordingly.

@@ -85,7 +85,7 @@ project(":scheduler-spring") {
     }
 }
 
-project(":scheduler-spring-boot") {
+project(":scheduler-spring-boot-starter") {
     dependencies {
         "api"(project(":scheduler-spring"))
         "api"(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))

@@ -6,7 +6,7 @@ Current packages:
 
 - `scheduler-java/` — native Java integration: Worker Tunnel gRPC client, protocol bindings, task contracts.
 - `scheduler-spring/` — Spring Framework integration: `@SchedulerProcessor` registry and method adapter.
-- `scheduler-spring-boot/` — Spring Boot integration: auto-configuration, properties, starter-style dependency.
+- `scheduler-spring-boot-starter/` — Spring Boot integration: auto-configuration, properties, starter-style dependency.
 
 Java SDK uses Gradle and requires JDK 21+. Maven `pom.xml` is intentionally not used. SDK/demo code may use Lombok to reduce boilerplate; Spring beans should prefer constructor injection.
 
@@ -18,7 +18,7 @@ Validation from repository root:
 ./sdks/java/gradlew -p sdks/java test
 ./sdks/java/gradlew -p sdks/java :scheduler-java:test
 ./sdks/java/gradlew -p sdks/java :scheduler-spring:test
-./sdks/java/gradlew -p sdks/java :scheduler-spring-boot:test
+./sdks/java/gradlew -p sdks/java :scheduler-spring-boot-starter:test
 ```
 
 Spring Boot starter properties:

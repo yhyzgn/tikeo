@@ -9,7 +9,7 @@ sdks/
 ├── rust/scheduler-worker-sdk/
 ├── java/scheduler-java/
 ├── java/scheduler-spring/
-├── java/scheduler-spring-boot/
+├── java/scheduler-spring-boot-starter/
 ├── go/scheduler-go-sdk/
 ├── python/scheduler-python-sdk/
 └── nodejs/scheduler-nodejs-sdk/

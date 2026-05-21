@@ -211,7 +211,7 @@ Git:
 - 新增 `sdks/rust`，实现 Rust Worker SDK 最小主动连接、注册、心跳客户端。
 - Rust Worker SDK 增加 `TaskProcessor` / `TaskContext` / `TaskOutcome` 基础处理器接口，为后续任务分发做准备。
 - Rust Worker SDK 集成测试启动真实 tonic Worker Tunnel server，验证 register ack 与 heartbeat ping。
-- 新增 `sdks/java/` Gradle 多模块 SDK 骨架：`scheduler-java`、`scheduler-spring`、`scheduler-spring-boot`。
+- 新增 `sdks/java/` Gradle 多模块 SDK 骨架：`scheduler-java`、`scheduler-spring`、`scheduler-spring-boot-starter`。
 - Java core 提供 `@SchedulerProcessor`、`WorkerRegistration`、`SchedulerWorkerClient`、`NoopSchedulerWorkerClient`。
 - Spring Boot autoconfigure 提供 `scheduler.worker.*` 配置、auto-configuration imports 和注解扫描 registry。
 
@@ -833,5 +833,9 @@ Git:
 ### 2026-05-21 Java SDK three-module restructure
 - Renamed Java native SDK module to `scheduler-java`.
 - Split Spring Framework adapter into `scheduler-spring`.
-- Moved Spring Boot auto-configuration/properties into `scheduler-spring-boot` and updated AutoConfiguration imports.
-- Updated Java demo and docs to use `scheduler-spring-boot`.
+- Moved Spring Boot auto-configuration/properties into `scheduler-spring-boot-starter` and updated AutoConfiguration imports.
+- Updated Java demo and docs to use `scheduler-spring-boot-starter`.
+
+### 2026-05-21 Java Spring Boot starter naming correction
+- Renamed `sdks/java/scheduler-spring-boot` to `sdks/java/scheduler-spring-boot-starter`.
+- Updated Gradle settings/build, Java demo dependency, README/design/prompt/memory references.

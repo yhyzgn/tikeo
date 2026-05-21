@@ -425,7 +425,7 @@ sdks/
 ├── java/
 │   ├── scheduler-java/                    # 原生 Java SDK
 │   ├── scheduler-spring/               # Spring 集成
-│   └── scheduler-spring-boot/          # Spring Boot 集成
+│   └── scheduler-spring-boot-starter/          # Spring Boot 集成
 ├── go/
 │   └── scheduler-go-sdk/               # 规划
 ├── python/
@@ -530,13 +530,13 @@ sdks/java/
 ├── build.gradle.kts                     # Java 21+ toolchain、统一依赖版本与发布元数据
 ├── scheduler-java/                     # 原生 Java 集成：gRPC client、协议模型、通用 Worker runtime
 ├── scheduler-spring/                   # Spring 集成：@SchedulerProcessor 注册表与方法适配
-└── scheduler-spring-boot/              # Spring Boot 集成：AutoConfiguration、Properties、starter 聚合
+└── scheduler-spring-boot-starter/              # Spring Boot 集成：AutoConfiguration、Properties、starter 聚合
 ```
 
 Java SDK 三层 Gradle 模块约束：
 - `scheduler-java`：原生 Java 集成，包含 Worker Tunnel gRPC client、协议生成、任务上下文与结果模型。
 - `scheduler-spring`：Spring Framework 集成，包含 `@SchedulerProcessor` 扫描、注册表和方法适配，不包含 Spring Boot autoconfigure。
-- `scheduler-spring-boot`：Spring Boot 集成，包含 Properties、AutoConfiguration 和 starter 聚合能力，依赖 `scheduler-spring`。
+- `scheduler-spring-boot-starter`：Spring Boot 集成，包含 Properties、AutoConfiguration 和 starter 聚合能力，依赖 `scheduler-spring`。
 
 Java SDK 构建约束：
 - 必须使用 Gradle（优先 Kotlin DSL：`settings.gradle.kts` / `build.gradle.kts`），不再使用 Maven `pom.xml` 作为主构建。
@@ -2031,7 +2031,7 @@ scheduler/
 │   ├── rust/scheduler-worker-sdk/    # Rust Worker SDK crate
 │   ├── java/scheduler-java/           # 原生 Java SDK
 │   ├── java/scheduler-spring/         # Spring 集成
-│   ├── java/scheduler-spring-boot/    # Spring Boot 集成
+│   ├── java/scheduler-spring-boot-starter/    # Spring Boot 集成
 │   ├── go/scheduler-go-sdk/           # 规划
 │   ├── python/scheduler-python-sdk/   # 规划
 │   └── nodejs/scheduler-nodejs-sdk/   # 规划

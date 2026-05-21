@@ -16,5 +16,5 @@ rootProject.name = "scheduler-java-sdk"
 include(
     "scheduler-java",
     "scheduler-spring",
-    "scheduler-spring-boot",
+    "scheduler-spring-boot-starter",
 )

@@ -1,6 +1,6 @@
 # Java Spring Worker Demo
 
-Runnable Spring Boot demo for `sdks/java/scheduler-spring-boot`.
+Runnable Spring Boot demo for `sdks/java/scheduler-spring-boot-starter`.
 
 Build and run independently from the repository root:
 
