@@ -59,7 +59,7 @@ class SchedulerProcessorRegistryTest {
         registry.postProcessAfterInitialization(new StringBean(), "stringBean");
         SpringSchedulerTaskProcessor processor = new SpringSchedulerTaskProcessor(registry);
 
-        TaskOutcome outcome = processor.process(context("demo.string", "payload"));
+        TaskOutcome outcome = processor.process(new TaskContext("job-1", "demo.string", "instance-1", "payload".getBytes(StandardCharsets.UTF_8)));
 
         assertThat(outcome).isEqualTo(new TaskOutcome(true, "echo:payload"));
     }

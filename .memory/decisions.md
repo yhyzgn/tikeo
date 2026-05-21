@@ -423,3 +423,8 @@ Constraint:
 ### Java Spring Boot starter artifact naming (2026-05-21)
 - The Spring Boot Java SDK module/artifact must be named `scheduler-spring-boot-starter` to match Spring Boot ecosystem conventions.
 - The three Java Gradle modules remain: `scheduler-java`, `scheduler-spring`, and `scheduler-spring-boot-starter`.
+
+### Worker dispatch processor key (2026-05-21)
+- `DispatchTask.processor_name` is the explicit SDK routing key for Java/Spring `@SchedulerProcessor` and future language SDK adapters.
+- Server currently populates `processor_name` from `job_id` for compatibility until job definitions carry a distinct processor binding.
+- SDKs may fallback to `job_id` only when `processor_name` is empty for backward compatibility.

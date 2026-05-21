@@ -204,8 +204,14 @@ impl WorkerSession {
     where
         P: TaskProcessor,
     {
+        let processor_name = if task.processor_name.is_empty() {
+            task.job_id.clone()
+        } else {
+            task.processor_name
+        };
         let context = TaskContext {
             job_id: task.job_id,
+            processor_name,
             instance_id: task.instance_id,
             payload: task.payload,
         };
@@ -303,6 +309,8 @@ pub trait TaskProcessor: Send + Sync + 'static {
 pub struct TaskContext {
     /// Job identifier.
     pub job_id: String,
+    /// Explicit processor key/name for SDK routing.
+    pub processor_name: String,
     /// Instance identifier.
     pub instance_id: String,
     /// Raw task payload.
@@ -392,6 +400,7 @@ mod tests {
             instance_id: "instance-1".to_owned(),
             job_id: "job-1".to_owned(),
             payload: b"hello".to_vec(),
+            processor_name: "demo.echo".to_owned(),
         }))
         .await;
 

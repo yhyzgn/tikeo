@@ -92,6 +92,7 @@ async fn dispatch_single_instances(
             instance_id: instance.id.clone(),
             job_id: instance.job_id.clone(),
             payload: Vec::new(),
+            processor_name: instance.job_id.clone(),
         };
 
         let eligible_workers = registry
@@ -135,6 +136,7 @@ async fn dispatch_broadcast_attempts(
             instance_id: attempt.instance_id.clone(),
             job_id: instance.job_id.clone(),
             payload: Vec::new(),
+            processor_name: instance.job_id.clone(),
         };
 
         if let Some(worker_id) = registry.dispatch_to_worker(&attempt.worker_id, task).await {
@@ -191,7 +193,7 @@ mod tests {
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
         let instance = instances
             .create_pending(CreateJobInstance {
-                job_id: job.id,
+                job_id: job.id.clone(),
                 trigger_type: TriggerType::Api,
                 execution_mode: ExecutionMode::Single,
             })
@@ -227,6 +229,7 @@ mod tests {
         match message.kind {
             Some(server_message::Kind::DispatchTask(task)) => {
                 assert_eq!(task.instance_id, instance.id);
+                assert_eq!(task.processor_name, job.id);
             }
             other => panic!("unexpected server message: {other:?}"),
         }
@@ -261,7 +264,7 @@ mod tests {
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
         let instance = instances
             .create_pending(CreateJobInstance {
-                job_id: job.id,
+                job_id: job.id.clone(),
                 trigger_type: TriggerType::Api,
                 execution_mode: ExecutionMode::Single,
             })
@@ -316,6 +319,7 @@ mod tests {
         match message.kind {
             Some(server_message::Kind::DispatchTask(task)) => {
                 assert_eq!(task.instance_id, instance.id);
+                assert_eq!(task.processor_name, job.id);
             }
             other => panic!("unexpected server message: {other:?}"),
         }

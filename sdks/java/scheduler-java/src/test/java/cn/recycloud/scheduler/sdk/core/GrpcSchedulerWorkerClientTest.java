@@ -75,6 +75,7 @@ class GrpcSchedulerWorkerClientTest {
         String serverName = "scheduler-worker-test-" + UUID.randomUUID();
         RecordingTunnelService service = new RecordingTunnelService(Worker.DispatchTask.newBuilder()
                 .setJobId("job-1")
+                .setProcessorName("demo.echo")
                 .setInstanceId("instance-1")
                 .setPayload(com.google.protobuf.ByteString.copyFromUtf8("hello"))
                 .build());
@@ -103,6 +104,7 @@ class GrpcSchedulerWorkerClientTest {
             client.close();
 
             assertEquals("instance-1", observed.get().instanceId());
+            assertEquals("demo.echo", observed.get().processorName());
             Worker.TaskResult result = service.result.get();
             assertTrue(result.getSuccess());
             assertEquals("assigned-java-worker", result.getWorkerId());

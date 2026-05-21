@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * Routes dispatched tasks to Spring {@code @SchedulerProcessor} handlers.
  *
- * <p>Current protocol convention: {@link TaskContext#jobId()} is treated as the processor name.
+ * <p>Routes by explicit {@link TaskContext#processorName()}, falling back to job id in older clients.
  */
 @RequiredArgsConstructor
 public final class SpringSchedulerTaskProcessor implements TaskProcessor {
@@ -16,6 +16,6 @@ public final class SpringSchedulerTaskProcessor implements TaskProcessor {
 
     @Override
     public TaskOutcome process(TaskContext context) {
-        return registry.invoke(context.jobId(), context);
+        return registry.invoke(context.processorName(), context);
     }
 }

@@ -455,6 +455,7 @@ examples/
 - 根 `Dockerfile` 只构建 scheduler 服务端镜像，不复制、不缓存、不构建 `sdks/` 与 `examples/`；SDK 与 Demo 必须作为独立构建产物验证。
 - 独立发布约束：每个 SDK 必须可按语言生态独立发布；Rust SDK 不能依赖服务端 `crates/*` path dependency，必须内聚协议定义或依赖已发布协议包。
 - Worker 注册约束：`worker_id` 必须由服务端生成并在 `WorkerRegistered` 下发；客户端只能上报可选 `client_instance_id` 作为实例提示，不能自行声明权威 ID。
+- Worker 分发约束：`DispatchTask.processor_name` 是 SDK 侧处理器路由的显式字段；当前服务端默认用 `job_id` 填充以兼容已有 Job 定义，SDK 可在空值时回退到 `job_id`。
 - Node 目录统一命名为 `nodejs`，避免和通用 node/graph 概念混淆。
 
 **集成体验对比**：
@@ -572,7 +573,7 @@ Starter 需要提供：
 
 - `@EnableSchedulerWorker` 或自动启用的 Spring Boot auto-configuration。
 - `@SchedulerProcessor` 注解扫描和方法适配。
-- 与 Server 的 Worker Tunnel 主动连接、注册、心跳、状态上报和日志上报。当前已完成真实 gRPC 连接、注册、心跳、日志、任务结果回传，并已支持将 `@SchedulerProcessor` 方法适配为真实任务处理器（当前约定 `DispatchTask.job_id` 匹配 processor name，payload 支持 UTF-8 String / byte[] / TaskContext）。
+- 与 Server 的 Worker Tunnel 主动连接、注册、心跳、状态上报和日志上报。当前已完成真实 gRPC 连接、注册、心跳、日志、任务结果回传，并已支持将 `@SchedulerProcessor` 方法适配为真实任务处理器（通过 `DispatchTask.processor_name` 匹配 processor name，payload 支持 UTF-8 String / byte[] / TaskContext；空值兼容回退到 `job_id`）。
 - Spring Boot lifecycle 集成：应用启动后连接，`ContextClosedEvent` 时 drain/优雅下线。
 - Micrometer 指标、Actuator health indicator、结构化日志上下文。
 - mTLS / token / cert rotation 配置入口。

@@ -52,6 +52,8 @@ message DispatchTask {
   string instance_id = 1;
   string job_id = 2;
   bytes payload = 3;
+  // Explicit processor key used by SDK adapters. Defaults to job_id for backwards compatibility.
+  string processor_name = 4;
 }
 
 message TaskResult {

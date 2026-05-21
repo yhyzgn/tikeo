@@ -254,7 +254,10 @@ public final class GrpcSchedulerWorkerClient implements SchedulerWorkerClient {
             TaskOutcome outcome;
             try {
                 outcome = processor.process(new TaskContext(
-                        task.getJobId(), task.getInstanceId(), task.getPayload().toByteArray()));
+                        task.getJobId(),
+                        task.getProcessorName(),
+                        task.getInstanceId(),
+                        task.getPayload().toByteArray()));
             } catch (Exception error) {
                 outcome = TaskOutcome.failed(error.getMessage());
             }

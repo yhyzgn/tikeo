@@ -839,3 +839,9 @@ Git:
 ### 2026-05-21 Java Spring Boot starter naming correction
 - Renamed `sdks/java/scheduler-spring-boot` to `sdks/java/scheduler-spring-boot-starter`.
 - Updated Gradle settings/build, Java demo dependency, README/design/prompt/memory references.
+
+### 2026-05-21 Worker processor key protocol
+- Added explicit `processor_name` to DispatchTask across server/Rust SDK/Java SDK protocol copies.
+- Updated server dispatch task construction and tests to assert processor key population.
+- Updated Rust SDK TaskContext and Java TaskContext to carry processor name.
+- Updated SpringSchedulerTaskProcessor to route by explicit processor name instead of job id fallback-only convention.

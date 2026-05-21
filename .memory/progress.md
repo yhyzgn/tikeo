@@ -218,3 +218,8 @@
 - Java demo 依赖已切换到 `cn.recycloud.scheduler:scheduler-spring-boot-starter`。
 
 - Spring Boot Java SDK module renamed to `scheduler-spring-boot-starter` per user naming correction; demo dependency updated accordingly.
+
+## 2026-05-21 050：Worker processor key protocol
+- Worker Tunnel `DispatchTask` proto 新增 `processor_name` 字段，并同步到服务端 proto、Rust SDK proto、Java SDK proto。
+- Server dispatcher 分发任务时填充 `processor_name`，当前兼容性默认等于 `job_id`。
+- Rust/Java TaskContext 暴露 processor name；Java Spring adapter 改为优先按 `processorName()` 路由 `@SchedulerProcessor`。
