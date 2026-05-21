@@ -45,7 +45,7 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
         workflows.clone(),
         audit,
         registry.clone(),
-        cluster,
+        cluster.clone(),
     ));
     let tunnel_instances = instances.clone();
     let scheduler_instances = instances.clone();
@@ -53,6 +53,8 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
     let dispatcher_instances = instances;
     let dispatcher_attempts = attempts.clone();
     let dispatcher_workflows = workflows.clone();
+    let tick_cluster = cluster.clone();
+    let dispatch_cluster = cluster.clone();
     let tunnel_attempts = attempts;
 
     info!(%http_addr, %tunnel_addr, "starting scheduler listeners");
@@ -69,7 +71,7 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
             log_broadcaster
         ),
         async {
-            scheduler::run_tick_loop(jobs, scheduler_instances).await;
+            scheduler::run_tick_loop(jobs, scheduler_instances, tick_cluster).await;
             #[allow(unreachable_code)]
             Ok::<(), anyhow::Error>(())
         },
@@ -80,6 +82,7 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
                 dispatcher_attempts,
                 dispatcher_workflows,
                 registry,
+                dispatch_cluster,
             )
             .await;
             #[allow(unreachable_code)]

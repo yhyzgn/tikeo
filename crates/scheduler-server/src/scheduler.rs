@@ -5,9 +5,11 @@ use std::{collections::HashMap, str::FromStr, time::Duration};
 use chrono::{DateTime, Utc};
 use cron::Schedule;
 use scheduler_core::{ExecutionMode, ScheduleType, TriggerType};
+
+use crate::cluster::SharedClusterCoordinator;
 use scheduler_storage::{CreateJobInstance, JobInstanceRepository, JobRepository, JobSummary};
 use tokio::sync::Mutex;
-use tracing::warn;
+use tracing::{debug, warn};
 
 const TICK_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -18,16 +20,37 @@ pub struct ScheduleState {
 }
 
 /// Run the automatic scheduler tick loop forever.
-pub async fn run_tick_loop(jobs: JobRepository, instances: JobInstanceRepository) {
+pub async fn run_tick_loop(
+    jobs: JobRepository,
+    instances: JobInstanceRepository,
+    cluster: SharedClusterCoordinator,
+) {
     let state = ScheduleState::default();
     let mut ticker = tokio::time::interval(TICK_INTERVAL);
 
     loop {
         ticker.tick().await;
-        if let Err(error) = tick_once(&jobs, &instances, &state, Utc::now()).await {
+        if let Err(error) =
+            tick_once_if_owner(&jobs, &instances, &state, &cluster, Utc::now()).await
+        {
             warn!(%error, "schedule tick iteration failed");
         }
     }
+}
+
+async fn tick_once_if_owner(
+    jobs: &JobRepository,
+    instances: &JobInstanceRepository,
+    state: &ScheduleState,
+    cluster: &SharedClusterCoordinator,
+    now: DateTime<Utc>,
+) -> Result<(), scheduler_storage::DbErr> {
+    let status = cluster.status().await;
+    if !status.can_schedule {
+        debug!(role = status.role.as_str(), node_id = %status.node_id, "skip schedule tick without cluster ownership");
+        return Ok(());
+    }
+    tick_once(jobs, instances, state, now).await
 }
 
 async fn tick_once(
@@ -130,11 +153,12 @@ enum ScheduleDecisionError {
 
 #[cfg(test)]
 mod tests {
+    use crate::cluster::{ClusterMode, ClusterRole, ClusterStatus, StaticCoordinator};
     use chrono::{TimeZone, Utc};
     use scheduler_core::{InstanceStatus, TriggerType};
     use scheduler_storage::{CreateJob, JobInstanceRepository, JobRepository, connect_and_migrate};
 
-    use super::{ScheduleState, tick_once};
+    use super::{ScheduleState, tick_once, tick_once_if_owner};
 
     #[tokio::test]
     async fn fixed_rate_tick_creates_one_pending_instance_when_due() {
@@ -230,6 +254,46 @@ mod tests {
         tick_once(&jobs, &instances, &state, now)
             .await
             .unwrap_or_else(|error| panic!("tick should run: {error}"));
+
+        let listed = instances
+            .list_by_job(&job.id)
+            .await
+            .unwrap_or_else(|error| panic!("instances should list: {error}"));
+        assert!(listed.is_empty());
+    }
+
+    #[tokio::test]
+    async fn follower_tick_does_not_create_instances() {
+        let (jobs, instances) = repositories().await;
+        let job = jobs
+            .create_job(CreateJob {
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "follower-skip".to_owned(),
+                schedule_type: "fixed_rate".to_owned(),
+                schedule_expr: Some("1s".to_owned()),
+                processor_name: None,
+                enabled: true,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should create: {error}"));
+        let state = ScheduleState::default();
+        let follower = StaticCoordinator::shared(ClusterStatus {
+            mode: ClusterMode::Raft,
+            role: ClusterRole::Follower,
+            node_id: "node-b".to_owned(),
+            nodes: 3,
+            can_schedule: false,
+            detail: "test follower".to_owned(),
+        });
+        let now = Utc
+            .with_ymd_and_hms(2026, 5, 19, 1, 0, 0)
+            .single()
+            .unwrap_or_else(|| panic!("valid time"));
+
+        tick_once_if_owner(&jobs, &instances, &state, &follower, now)
+            .await
+            .unwrap_or_else(|error| panic!("tick gate should run: {error}"));
 
         let listed = instances
             .list_by_job(&job.id)

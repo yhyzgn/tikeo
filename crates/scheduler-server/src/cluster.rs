@@ -79,6 +79,33 @@ pub trait ClusterCoordinator: Send + Sync + std::fmt::Debug {
 /// Shared cluster coordinator handle.
 pub type SharedClusterCoordinator = Arc<dyn ClusterCoordinator>;
 
+/// Static coordinator useful for tests and future externally-driven roles.
+#[derive(Debug, Clone)]
+pub struct StaticCoordinator {
+    status: ClusterStatus,
+}
+
+impl StaticCoordinator {
+    /// Create a static coordinator from a fixed status.
+    #[must_use]
+    pub const fn new(status: ClusterStatus) -> Self {
+        Self { status }
+    }
+
+    /// Create a shared static coordinator.
+    #[must_use]
+    pub fn shared(status: ClusterStatus) -> SharedClusterCoordinator {
+        Arc::new(Self::new(status))
+    }
+}
+
+#[async_trait::async_trait]
+impl ClusterCoordinator for StaticCoordinator {
+    async fn status(&self) -> ClusterStatus {
+        self.status.clone()
+    }
+}
+
 /// Standalone coordinator used until Raft is implemented.
 #[derive(Debug, Clone)]
 pub struct StandaloneCoordinator {

@@ -11,6 +11,7 @@ use tokio::time;
 use tracing::{debug, warn};
 
 use super::WorkerRegistry;
+use crate::cluster::SharedClusterCoordinator;
 
 const DISPATCH_INTERVAL: Duration = Duration::from_millis(500);
 const DISPATCH_BATCH_SIZE: u64 = 16;
@@ -24,15 +25,35 @@ pub async fn run(
     attempts: JobInstanceAttemptRepository,
     workflows: WorkflowRepository,
     registry: WorkerRegistry,
+    cluster: SharedClusterCoordinator,
 ) {
     let mut ticker = time::interval(DISPATCH_INTERVAL);
     loop {
         ticker.tick().await;
-        if let Err(error) = dispatch_once(&jobs, &instances, &attempts, &workflows, &registry).await
+        if let Err(error) = dispatch_once_if_owner(
+            &jobs, &instances, &attempts, &workflows, &registry, &cluster,
+        )
+        .await
         {
             warn!(%error, "worker dispatch iteration failed");
         }
     }
+}
+
+async fn dispatch_once_if_owner(
+    jobs: &JobRepository,
+    instances: &JobInstanceRepository,
+    attempts: &JobInstanceAttemptRepository,
+    workflows: &WorkflowRepository,
+    registry: &WorkerRegistry,
+    cluster: &SharedClusterCoordinator,
+) -> Result<(), scheduler_storage::DbErr> {
+    let status = cluster.status().await;
+    if !status.can_schedule {
+        debug!(role = status.role.as_str(), node_id = %status.node_id, "skip worker dispatch without cluster ownership");
+        return Ok(());
+    }
+    dispatch_once(jobs, instances, attempts, workflows, registry).await
 }
 
 async fn dispatch_once(
@@ -188,6 +209,7 @@ async fn resolve_processor_name(
 mod tests {
     use std::collections::HashMap;
 
+    use crate::cluster::{ClusterMode, ClusterRole, ClusterStatus, StaticCoordinator};
     use scheduler_core::{ExecutionMode, InstanceStatus, TriggerType};
     use scheduler_proto::worker::v1::{RegisterWorker, server_message};
     use scheduler_storage::{
@@ -196,7 +218,7 @@ mod tests {
     };
     use tokio::sync::mpsc;
 
-    use super::{WorkerRegistry, dispatch_once};
+    use super::{WorkerRegistry, dispatch_once, dispatch_once_if_owner};
 
     #[tokio::test]
     async fn dispatch_once_sends_pending_instance_to_registered_worker() {
@@ -359,6 +381,61 @@ mod tests {
             .unwrap_or_else(|error| panic!("instance should load: {error}"))
             .unwrap_or_else(|| panic!("instance should exist"));
         assert_eq!(updated.status, InstanceStatus::Running);
+    }
+
+    #[tokio::test]
+    async fn follower_dispatch_does_not_claim_queue_items() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db);
+        let job = jobs
+            .create_job(CreateJob {
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "follower-dispatch".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                processor_name: None,
+                enabled: true,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should be created: {error}"));
+        instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id.clone(),
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should be created: {error}"))
+            .unwrap_or_else(|| panic!("job should exist"));
+        let registry = WorkerRegistry::default();
+        let follower = StaticCoordinator::shared(ClusterStatus {
+            mode: ClusterMode::Raft,
+            role: ClusterRole::Follower,
+            node_id: "node-b".to_owned(),
+            nodes: 3,
+            can_schedule: false,
+            detail: "test follower".to_owned(),
+        });
+
+        dispatch_once_if_owner(
+            &jobs, &instances, &attempts, &workflows, &registry, &follower,
+        )
+        .await
+        .unwrap_or_else(|error| panic!("dispatch gate should run: {error}"));
+
+        let overview = workflows
+            .queue_overview(10)
+            .await
+            .unwrap_or_else(|error| panic!("queue should load: {error}"));
+        assert_eq!(overview.pending, 1);
+        assert_eq!(overview.running, 0);
+        assert!(overview.items[0].lease_owner.is_none());
     }
 
     #[tokio::test]

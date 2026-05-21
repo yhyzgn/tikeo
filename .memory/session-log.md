@@ -870,3 +870,8 @@ Git:
 - Added `scheduler-server::cluster` with ClusterCoordinator trait, explicit ClusterMode/ClusterRole, and StandaloneCoordinator.
 - `/api/v1/cluster` now reports `role=standalone` with node_id/can_schedule/detail instead of fake `leader`.
 - Design now records Raft implementation boundaries: leader ownership gate, follower fencing, DB claim as final idempotency guard, and container-friendly networking.
+
+### 2026-05-21 Phase2 cluster ownership gates
+- Scheduler tick loop and Worker dispatcher loop now consult `ClusterCoordinator` status before ownership-sensitive work.
+- Standalone remains schedulable; mock Raft follower tests prove tick and dispatch skip work when `can_schedule=false`.
+- dispatch_queue DB conditional claim remains in place as final idempotency/fencing guard.
