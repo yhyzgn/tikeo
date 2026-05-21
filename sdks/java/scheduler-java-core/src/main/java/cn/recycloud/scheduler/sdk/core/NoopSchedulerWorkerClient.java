@@ -4,7 +4,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Placeholder client used until the Java gRPC Worker Tunnel implementation lands.
+ * Dry-run client for demos/tests that should not open a live Worker Tunnel.
  */
 public final class NoopSchedulerWorkerClient implements SchedulerWorkerClient {
     private final WorkerRegistration registration;
@@ -20,6 +20,11 @@ public final class NoopSchedulerWorkerClient implements SchedulerWorkerClient {
 
     public boolean running() {
         return running.get();
+    }
+
+    @Override
+    public String workerId() {
+        return running.get() ? "dry-run-" + registration.clientInstanceId() : null;
     }
 
     @Override

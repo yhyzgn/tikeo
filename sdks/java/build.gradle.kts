@@ -1,5 +1,8 @@
+import com.google.protobuf.gradle.id
+
 plugins {
     `java-library`
+    id("com.google.protobuf") version "0.9.5" apply false
 }
 
 val springBootVersion = "4.0.6"
@@ -26,7 +29,6 @@ subprojects {
         options.encoding = "UTF-8"
     }
 
-
     dependencies {
         "testImplementation"("org.junit.jupiter:junit-jupiter:6.0.1")
         "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
@@ -38,10 +40,35 @@ subprojects {
 }
 
 project(":scheduler-java-core") {
+    apply(plugin = "com.google.protobuf")
+
     dependencies {
         "api"(platform("io.grpc:grpc-bom:$grpcVersion"))
         "api"("io.grpc:grpc-api")
+        "api"("io.grpc:grpc-stub")
+        "api"("io.grpc:grpc-protobuf")
+        "api"("io.grpc:grpc-netty-shaded")
         "api"("com.google.protobuf:protobuf-java:$protobufVersion")
+        "compileOnly"("javax.annotation:javax.annotation-api:1.3.2")
+        "testImplementation"("io.grpc:grpc-inprocess")
+    }
+
+    configure<com.google.protobuf.gradle.ProtobufExtension> {
+        protoc {
+            artifact = "com.google.protobuf:protoc:$protobufVersion"
+        }
+        plugins {
+            id("grpc") {
+                artifact = "io.grpc:protoc-gen-grpc-java:$grpcVersion"
+            }
+        }
+        generateProtoTasks {
+            all().configureEach {
+                plugins {
+                    id("grpc")
+                }
+            }
+        }
     }
 }
 
@@ -53,6 +80,10 @@ project(":scheduler-spring-boot-autoconfigure") {
         "api"("org.springframework:spring-context")
         "annotationProcessor"(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
         "annotationProcessor"("org.springframework.boot:spring-boot-configuration-processor")
+        "testImplementation"(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
+        "testImplementation"("org.springframework.boot:spring-boot-test")
+        "testImplementation"("org.springframework:spring-test")
+        "testImplementation"("org.assertj:assertj-core")
     }
 }
 

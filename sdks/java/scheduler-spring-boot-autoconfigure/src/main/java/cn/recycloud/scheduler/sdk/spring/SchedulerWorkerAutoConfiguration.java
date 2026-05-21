@@ -1,8 +1,11 @@
 package cn.recycloud.scheduler.sdk.spring;
 
+import cn.recycloud.scheduler.sdk.core.GrpcSchedulerWorkerClient;
 import cn.recycloud.scheduler.sdk.core.NoopSchedulerWorkerClient;
 import cn.recycloud.scheduler.sdk.core.SchedulerWorkerClient;
+import cn.recycloud.scheduler.sdk.core.TaskOutcome;
 import cn.recycloud.scheduler.sdk.core.WorkerRegistration;
+import java.time.Duration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -25,12 +28,19 @@ public class SchedulerWorkerAutoConfiguration {
                 properties.getRegion(),
                 properties.getCapabilities(),
                 properties.getLabels());
-        return new NoopSchedulerWorkerClient(registration);
+        if (properties.isDryRun()) {
+            return new NoopSchedulerWorkerClient(registration);
+        }
+        return new GrpcSchedulerWorkerClient(
+                properties.getEndpoint(),
+                registration,
+                context -> TaskOutcome.succeeded(),
+                Duration.ofMillis(properties.getHeartbeatIntervalMillis()));
     }
 
     @Bean
     @ConditionalOnMissingBean
-    SchedulerProcessorRegistry schedulerProcessorRegistry() {
+    static SchedulerProcessorRegistry schedulerProcessorRegistry() {
         return new SchedulerProcessorRegistry();
     }
 }

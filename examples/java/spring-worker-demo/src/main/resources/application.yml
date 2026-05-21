@@ -1,0 +1,15 @@
+scheduler:
+  worker:
+    dry-run: true
+    endpoint: http://0.0.0.0:9998
+    client-instance-id: spring-demo-worker
+    namespace: default
+    app: default
+    cluster: local
+    region: local
+    capabilities:
+      - java
+      - spring-boot
+    labels:
+      runtime: java
+      demo: spring-worker

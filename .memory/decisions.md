@@ -401,3 +401,8 @@ Constraint:
 - Authoritative `worker_id` is server-assigned during Worker Tunnel registration and returned in `WorkerRegistered`.
 - Clients may only send optional `client_instance_id` hints plus metadata; heartbeats/logs/results must use the assigned worker id.
 - Java SDK/starter configuration must expose `clientInstanceId` / `scheduler.worker.client-instance-id`, not `workerId`, until the server returns the authoritative id during tunnel registration.
+
+### Java Worker Tunnel real client boundary (2026-05-21)
+- Java SDK core owns gRPC/protobuf generated bindings inside `sdks/java/scheduler-java-core`; it must remain independently publishable and must not depend on server crates/modules.
+- Spring Boot starter may expose dry-run mode for local demos, but production default is the real `GrpcSchedulerWorkerClient`.
+- Remaining Java SDK gap is ergonomic `@SchedulerProcessor` method adaptation; do not revert to no-op as the default live client.

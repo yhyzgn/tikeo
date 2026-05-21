@@ -9,4 +9,4 @@ Build and run independently from the repository root:
 ./sdks/java/gradlew -p examples/java/spring-worker-demo bootRun
 ```
 
-The current Java SDK client is a safe no-op placeholder until the full Java gRPC Worker Tunnel implementation lands, so this demo validates starter wiring without requiring a live scheduler server.
+The demo defaults to `scheduler.worker.dry-run=true` so it can run without a live scheduler server. Set `SCHEDULER_WORKER_DRY_RUN=false` or override `scheduler.worker.dry-run=false` plus `scheduler.worker.endpoint` to connect the real Java gRPC Worker Tunnel client to a running scheduler.

@@ -17,7 +17,8 @@ public class SpringWorkerDemoApplication {
     CommandLineRunner demoRunner(SchedulerWorkerClient client) {
         return args -> {
             client.start();
-            System.out.println("Spring worker demo started with scheduler worker client: " + client.getClass().getSimpleName());
+            System.out.println("Spring worker demo started with scheduler worker client: "
+                    + client.getClass().getSimpleName() + ", workerId=" + client.workerId());
             client.close();
         };
     }

@@ -537,6 +537,7 @@ Java SDK 构建约束：
 - 必须使用 Gradle（优先 Kotlin DSL：`settings.gradle.kts` / `build.gradle.kts`），不再使用 Maven `pom.xml` 作为主构建。
 - Java toolchain 与源码/目标兼容级别必须支持 JDK 21+。
 - Spring Boot Starter 模式继续保留，业务侧只需依赖 starter。
+- 当前 Java Core SDK 已提供真实 gRPC Worker Tunnel 客户端：注册时只发送 `client_instance_id`，读取服务端下发的权威 `worker_id`，并用于心跳、任务日志和任务结果上报；Spring Boot demo 默认 dry-run，可通过配置切换到 live tunnel。
 - CI / 本地验证命令统一为 `./sdks/java/gradlew -p sdks/java test`；每个 Java SDK 子模块也必须支持 Gradle 单模块任务（如 `./sdks/java/gradlew -p sdks/java :scheduler-java-core:test`）；Maven 骨架与 `mvn -f sdks/java/pom.xml test` 文档引用不得再新增。
 
 **业务侧使用方式**：
@@ -566,7 +567,7 @@ Starter 需要提供：
 
 - `@EnableSchedulerWorker` 或自动启用的 Spring Boot auto-configuration。
 - `@SchedulerProcessor` 注解扫描和方法适配。
-- 与 Server 的 Worker Tunnel 主动连接、注册、心跳、状态上报和日志上报。
+- 与 Server 的 Worker Tunnel 主动连接、注册、心跳、状态上报和日志上报。当前已完成真实 gRPC 连接、注册、心跳、日志、任务结果回传；后续需把 `@SchedulerProcessor` 方法适配到真实任务处理器。
 - Spring Boot lifecycle 集成：应用启动后连接，`ContextClosedEvent` 时 drain/优雅下线。
 - Micrometer 指标、Actuator health indicator、结构化日志上下文。
 - mTLS / token / cert rotation 配置入口。
@@ -1620,7 +1621,7 @@ spec:
 
 | 形态 | 适用场景 | 网络要求 | 备注 |
 |------|----------|----------|------|
-| SDK 嵌入业务进程 | 业务代码直接实现处理器 | 业务进程出站访问 scheduler | 延迟最低，适合核心业务任务 |
+| SDK 嵌入业务进程 | 业务代码直接实现处理器 | 业务进程出站访问 scheduler | 延迟最低，适合核心业务任务；Java/Rust SDK 已按服务端下发 worker_id 模型接入 Worker Tunnel |
 | Sidecar | 不希望业务进程直接管理调度连接 | Pod 内 localhost 调业务容器；sidecar 出站访问 scheduler | 默认 K8s 推荐模式 |
 | 独立 Worker Deployment | HTTP/gRPC/SQL/Script 等通用任务 | Worker 出站访问 scheduler 和目标系统 | 适合共享 worker pool |
 | DaemonSet | 节点级任务、文件清理、宿主观测 | 每节点 Worker 出站访问 scheduler | 需更严格权限策略 |
@@ -2148,7 +2149,8 @@ scheduler/
   - [x] Gradle 多模块骨架：java-core / spring-boot-autoconfigure / spring-boot-starter（JDK 21+；已替换 Maven 骨架）
   - [x] `@SchedulerProcessor` 注解扫描与 auto-configuration 骨架
   - [ ] Java gRPC Worker Tunnel 真实连接与心跳
-- [ ] Java Core SDK + Node.js SDK
+- [ ] Node.js SDK
+- [x] Java Core SDK
 - [x] SDK 目录规范迁移：Rust SDK -> `sdks/rust/scheduler-worker-sdk`，Java SDK -> Gradle/JDK21+，新增 `examples/<language>/<demo-name>` demo 骨架，并补齐 Rust / Java 可独立运行 demo 基础
 - [ ] K8s Helm Chart
 - [ ] PowerJob 迁移工具

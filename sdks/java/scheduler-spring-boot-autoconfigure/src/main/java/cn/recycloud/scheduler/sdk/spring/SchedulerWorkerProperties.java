@@ -14,6 +14,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class SchedulerWorkerProperties {
     /** Scheduler Worker Tunnel endpoint. */
     private String endpoint = "http://0.0.0.0:9998";
+    /** Dry-run mode avoids opening a live Worker Tunnel. */
+    private boolean dryRun = false;
+    /** Heartbeat interval in milliseconds. */
+    private long heartbeatIntervalMillis = 10_000;
     /** Stable client-side instance hint; scheduler assigns the authoritative worker id. */
     private String clientInstanceId = "spring-worker";
     /** Namespace reported during registration. */
@@ -31,6 +35,10 @@ public class SchedulerWorkerProperties {
 
     public String getEndpoint() { return endpoint; }
     public void setEndpoint(String endpoint) { this.endpoint = endpoint; }
+    public boolean isDryRun() { return dryRun; }
+    public void setDryRun(boolean dryRun) { this.dryRun = dryRun; }
+    public long getHeartbeatIntervalMillis() { return heartbeatIntervalMillis; }
+    public void setHeartbeatIntervalMillis(long heartbeatIntervalMillis) { this.heartbeatIntervalMillis = heartbeatIntervalMillis; }
     public String getClientInstanceId() { return clientInstanceId; }
     public void setClientInstanceId(String clientInstanceId) { this.clientInstanceId = clientInstanceId; }
     public String getNamespace() { return namespace; }

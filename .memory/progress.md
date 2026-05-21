@@ -201,3 +201,8 @@
 - Server registry now generates authoritative `wrk-*` worker ids and returns them in `WorkerRegistered`.
 - Rust SDK stores server-assigned worker id after connect and uses it for heartbeat/log/result messages.
 - Worker identity cleanup verification completed for Rust workspace, standalone Rust SDK, Java SDK, and Java demo. Java wrapper download hit network EOF once, then verification passed with cached Gradle 8.14 binary.
+
+## 2026-05-21 047：Java SDK Worker Tunnel
+- Java Core SDK 新增 protobuf/gRPC 生成，内置 `GrpcSchedulerWorkerClient`，支持 OpenTunnel 注册、读取服务端下发 worker_id、定时心跳、任务日志和任务结果回传。
+- Spring Boot Starter auto-configuration 默认创建真实 gRPC client；新增 `scheduler.worker.dry-run` 让 demo/测试无需 live scheduler。
+- Java Spring demo 默认 dry-run，可通过配置切换到 live Worker Tunnel。

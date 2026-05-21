@@ -814,3 +814,9 @@ Git:
 - `./sdks/java/gradlew -p sdks/java test` attempted first but Gradle distribution download hit `curl: (56) OpenSSL SSL_read ... unexpected eof while reading`.
 - `~/.gradle/wrapper/dists/gradle-8.14-bin/.../bin/gradle -p sdks/java test` ✅ using cached Gradle.
 - `~/.gradle/wrapper/dists/gradle-8.14-bin/.../bin/gradle -p examples/java/spring-worker-demo test` ✅ using cached Gradle.
+
+### 2026-05-21 Java SDK Worker Tunnel implementation
+- Implemented `GrpcSchedulerWorkerClient` with server-assigned worker id registration semantics, heartbeat, task log emission, and dispatch result reporting.
+- Added Java protobuf generation from bundled `worker.proto` in Java core SDK.
+- Wired Spring Boot auto-configuration to create real gRPC client unless `scheduler.worker.dry-run=true`.
+- Updated Java Spring demo to default dry-run and smoke-run without live scheduler.

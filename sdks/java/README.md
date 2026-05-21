@@ -10,7 +10,7 @@ Current packages:
 
 Java SDK uses Gradle and requires JDK 21+. Maven `pom.xml` is intentionally not used.
 
-Registration model: Java workers must treat scheduler-assigned `worker_id` as authoritative. Starter configuration exposes only `scheduler.worker.client-instance-id` as an optional stable hint; future heartbeat/log/result calls must use the id returned by the server registration ack.
+Registration model: Java workers treat scheduler-assigned `worker_id` as authoritative. Starter configuration exposes `scheduler.worker.client-instance-id` only as an optional stable hint; `GrpcSchedulerWorkerClient` reads `WorkerRegistered.worker_id` and uses it for heartbeat/log/result calls.
 
 Validation from repository root:
 
@@ -19,4 +19,19 @@ Validation from repository root:
 ./sdks/java/gradlew -p sdks/java :scheduler-java-core:test
 ./sdks/java/gradlew -p sdks/java :scheduler-spring-boot-autoconfigure:test
 ./sdks/java/gradlew -p sdks/java :scheduler-spring-boot-starter:test
+```
+
+
+Spring Boot starter properties:
+
+```yaml
+scheduler:
+  worker:
+    dry-run: false # true for local demo without a live scheduler
+    endpoint: http://0.0.0.0:9998
+    client-instance-id: spring-worker
+    namespace: default
+    app: default
+    cluster: local
+    region: local
 ```
