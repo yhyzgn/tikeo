@@ -1,18 +1,17 @@
 package cn.recycloud.scheduler.sdk.core;
 
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Dry-run client for demos/tests that should not open a live Worker Tunnel.
  */
+@RequiredArgsConstructor
 public final class NoopSchedulerWorkerClient implements SchedulerWorkerClient {
+    @NonNull
     private final WorkerRegistration registration;
     private final AtomicBoolean running = new AtomicBoolean(false);
-
-    public NoopSchedulerWorkerClient(WorkerRegistration registration) {
-        this.registration = Objects.requireNonNull(registration, "registration");
-    }
 
     public WorkerRegistration registration() {
         return registration;

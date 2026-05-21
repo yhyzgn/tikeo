@@ -3,7 +3,6 @@ package cn.recycloud.scheduler.sdk.spring;
 import cn.recycloud.scheduler.sdk.core.GrpcSchedulerWorkerClient;
 import cn.recycloud.scheduler.sdk.core.NoopSchedulerWorkerClient;
 import cn.recycloud.scheduler.sdk.core.SchedulerWorkerClient;
-import cn.recycloud.scheduler.sdk.core.TaskOutcome;
 import cn.recycloud.scheduler.sdk.core.WorkerRegistration;
 import java.time.Duration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -19,7 +18,8 @@ import org.springframework.context.annotation.Bean;
 public class SchedulerWorkerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
-    SchedulerWorkerClient schedulerWorkerClient(SchedulerWorkerProperties properties) {
+    SchedulerWorkerClient schedulerWorkerClient(
+            SchedulerWorkerProperties properties, SchedulerProcessorRegistry processorRegistry) {
         var registration = new WorkerRegistration(
                 properties.getClientInstanceId(),
                 properties.getNamespace(),
@@ -34,7 +34,7 @@ public class SchedulerWorkerAutoConfiguration {
         return new GrpcSchedulerWorkerClient(
                 properties.getEndpoint(),
                 registration,
-                context -> TaskOutcome.succeeded(),
+                new SpringSchedulerTaskProcessor(processorRegistry),
                 Duration.ofMillis(properties.getHeartbeatIntervalMillis()));
     }
 

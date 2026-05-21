@@ -820,3 +820,12 @@ Git:
 - Added Java protobuf generation from bundled `worker.proto` in Java core SDK.
 - Wired Spring Boot auto-configuration to create real gRPC client unless `scheduler.worker.dry-run=true`.
 - Updated Java Spring demo to default dry-run and smoke-run without live scheduler.
+
+### 2026-05-21 Java SchedulerProcessor adapter
+- Implemented invocable Spring processor handlers and `SpringSchedulerTaskProcessor`.
+- Wired Spring Boot autoconfiguration so live Java gRPC Worker Tunnel dispatches route to annotated processor methods.
+- Added tests for context/string method invocation, exception failure mapping, duplicate processor rejection, route-by-job-id convention, and autoconfig registry wiring.
+
+### 2026-05-21 Java Lombok/style adjustment
+- Added Lombok to Java SDK and Java demo builds.
+- Converted demo runner to constructor-injected component and simplified Spring worker properties / dry-run client boilerplate with Lombok.

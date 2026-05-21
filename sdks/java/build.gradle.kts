@@ -8,6 +8,7 @@ plugins {
 val springBootVersion = "4.0.6"
 val grpcVersion = "1.81.0"
 val protobufVersion = "4.34.1"
+val lombokVersion = "1.18.46"
 
 allprojects {
     group = "cn.recycloud.scheduler"
@@ -30,6 +31,10 @@ subprojects {
     }
 
     dependencies {
+        "compileOnly"("org.projectlombok:lombok:$lombokVersion")
+        "annotationProcessor"("org.projectlombok:lombok:$lombokVersion")
+        "testCompileOnly"("org.projectlombok:lombok:$lombokVersion")
+        "testAnnotationProcessor"("org.projectlombok:lombok:$lombokVersion")
         "testImplementation"("org.junit.jupiter:junit-jupiter:6.0.1")
         "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
     }

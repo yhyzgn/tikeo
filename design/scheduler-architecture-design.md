@@ -567,7 +567,7 @@ Starter 需要提供：
 
 - `@EnableSchedulerWorker` 或自动启用的 Spring Boot auto-configuration。
 - `@SchedulerProcessor` 注解扫描和方法适配。
-- 与 Server 的 Worker Tunnel 主动连接、注册、心跳、状态上报和日志上报。当前已完成真实 gRPC 连接、注册、心跳、日志、任务结果回传；后续需把 `@SchedulerProcessor` 方法适配到真实任务处理器。
+- 与 Server 的 Worker Tunnel 主动连接、注册、心跳、状态上报和日志上报。当前已完成真实 gRPC 连接、注册、心跳、日志、任务结果回传，并已支持将 `@SchedulerProcessor` 方法适配为真实任务处理器（当前约定 `DispatchTask.job_id` 匹配 processor name，payload 支持 UTF-8 String / byte[] / TaskContext）。
 - Spring Boot lifecycle 集成：应用启动后连接，`ContextClosedEvent` 时 drain/优雅下线。
 - Micrometer 指标、Actuator health indicator、结构化日志上下文。
 - mTLS / token / cert rotation 配置入口。

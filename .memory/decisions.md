@@ -406,3 +406,12 @@ Constraint:
 - Java SDK core owns gRPC/protobuf generated bindings inside `sdks/java/scheduler-java-core`; it must remain independently publishable and must not depend on server crates/modules.
 - Spring Boot starter may expose dry-run mode for local demos, but production default is the real `GrpcSchedulerWorkerClient`.
 - Remaining Java SDK gap is ergonomic `@SchedulerProcessor` method adaptation; do not revert to no-op as the default live client.
+
+### Java processor dispatch convention (2026-05-21)
+- Until Worker Tunnel protocol gains an explicit processor/key field, Java Spring adapter treats `DispatchTask.job_id` as the processor name for `@SchedulerProcessor` routing.
+- Supported Java processor signatures are intentionally small and safe: zero args, `TaskContext`, UTF-8 `String`, or `byte[]`; return `TaskOutcome`, `String`, `boolean`, or `void`.
+- Exceptions are mapped to failed `TaskOutcome` instead of escaping the Worker Tunnel processing thread.
+
+### Java SDK Lombok and injection style (2026-05-21)
+- Java SDK and Java demos should use Lombok where it meaningfully removes boilerplate, currently pinned to Lombok 1.18.46.
+- Spring beans in SDK/demo code should prefer constructor injection over method/field injection.

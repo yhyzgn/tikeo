@@ -206,3 +206,8 @@
 - Java Core SDK 新增 protobuf/gRPC 生成，内置 `GrpcSchedulerWorkerClient`，支持 OpenTunnel 注册、读取服务端下发 worker_id、定时心跳、任务日志和任务结果回传。
 - Spring Boot Starter auto-configuration 默认创建真实 gRPC client；新增 `scheduler.worker.dry-run` 让 demo/测试无需 live scheduler。
 - Java Spring demo 默认 dry-run，可通过配置切换到 live Worker Tunnel。
+
+## 2026-05-21 048：Java SchedulerProcessor 适配
+- Spring `SchedulerProcessorRegistry` 已从 bean map 升级为 invocable handler registry，拒绝重复 processor name。
+- 新增 `SpringSchedulerTaskProcessor`，当前按 `TaskContext.jobId()` 匹配 `@SchedulerProcessor` 名称，支持 `TaskContext` / `String` / `byte[]` 入参和 `TaskOutcome` / `String` / `boolean` / `void` 返回。
+- Spring Boot auto-configuration 已把真实 gRPC client 接到 registry adapter，demo 的 `demo.echo` 可作为真实 processor 方法被调用。
