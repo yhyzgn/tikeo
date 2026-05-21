@@ -81,6 +81,7 @@ use super::{auth, dto, routes};
         scheduler_storage::ScriptSummary,
         dto::ErrorData,
         dto::Page,
+        dto::AuditLogQuery,
         dto::SystemInfoResponse,
         dto::ClusterResponse,
         dto::ClusterDiagnosticsResponse,

@@ -326,8 +326,28 @@ export interface AuditLogSummary {
   created_at: string;
 }
 
-export async function listAuditLogs(): Promise<Page<AuditLogSummary>> {
-  return request<Page<AuditLogSummary>>('/api/v1/audit-logs');
+export interface AuditLogQuery {
+  page_size?: number;
+  page_token?: string;
+  actor?: string;
+  action?: string;
+  resource_type?: string;
+  resource_id?: string;
+}
+
+export interface AuditLogPage extends Page<AuditLogSummary> {
+  total: number;
+}
+
+export async function listAuditLogs(query: AuditLogQuery = {}): Promise<AuditLogPage> {
+  const params = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      params.set(key, String(value));
+    }
+  });
+  const suffix = params.toString();
+  return request<AuditLogPage>(`/api/v1/audit-logs${suffix ? `?${suffix}` : ''}`);
 }
 
 interface SchedulerRequestInit extends RequestInit {

@@ -900,3 +900,8 @@ Git:
 - Reviewed Phase2: only full Raft runtime remains incomplete; Go/Python SDK stays Phase4.
 - Added `dispatch_queue.fencing_token` shape and SQLite compatibility migration; claim responses now include a fencing token.
 - Dispatcher now derives a fencing token from ClusterCoordinator status (`standalone:<node>:scheduler-dispatcher` today, future `raft:<node>:<leader-token>` when real consensus exists).
+
+### 2026-05-21 Phase2 closeout / Phase3 audit paging
+- Re-checked openraft: latest remains 0.10.0-alpha.20 with unknown rust-version, so full Raft runtime stays deferred instead of entering core scheduling unsafely.
+- Phase2 distributed safety foundations are documented as complete except real Raft runtime/membership.
+- Started Phase3 audit governance by adding server-side audit filters and pagination plus Web UI filter controls.

@@ -131,6 +131,24 @@ pub struct PageQuery {
     pub page_token: Option<String>,
 }
 
+/// Audit log list query parameters.
+#[derive(Debug, Clone, Default, Deserialize, ToSchema, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct AuditLogQuery {
+    /// Maximum number of items to return.
+    pub page_size: Option<u32>,
+    /// Opaque page token returned by a previous list call.
+    pub page_token: Option<String>,
+    /// Filter by actor.
+    pub actor: Option<String>,
+    /// Filter by action.
+    pub action: Option<String>,
+    /// Filter by resource type.
+    pub resource_type: Option<String>,
+    /// Filter by resource id.
+    pub resource_id: Option<String>,
+}
+
 /// System information shown by the management API.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct SystemInfoResponse {
@@ -614,6 +632,8 @@ pub type AuditLogPageApiResponse = ApiResponse<AuditLogPage>;
 pub struct AuditLogPage {
     /// Audit log entries.
     pub items: Vec<AuditLogSummary>,
+    /// Total matching row count before pagination.
+    pub total: u64,
     /// Opaque token for the next page.
     pub next_page_token: Option<String>,
 }

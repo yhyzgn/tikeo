@@ -332,7 +332,7 @@ mod tests {
     use axum::{body::Body, http::Request};
     use scheduler_proto::worker::v1::RegisterWorker;
     use scheduler_storage::{
-        AppendJobInstanceLog, AuditLogRepository, JobInstanceAttemptRepository,
+        AppendJobInstanceLog, AuditLogRepository, CreateAuditLog, JobInstanceAttemptRepository,
         JobInstanceLogRepository, JobInstanceRepository, JobRepository, ScriptRepository,
         UserRepository, WorkflowRepository, connect_and_migrate,
     };
@@ -448,6 +448,72 @@ mod tests {
             serde_json::Value::Null
         );
         assert_eq!(json["data"]["received_term"], 1);
+    }
+
+    #[tokio::test]
+    async fn audit_logs_support_server_side_filters_and_pagination() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let audit = AuditLogRepository::new(db.clone());
+        audit
+            .append(CreateAuditLog {
+                actor: "alice".to_owned(),
+                action: "create".to_owned(),
+                resource_type: "job".to_owned(),
+                resource_id: "job-1".to_owned(),
+                detail: None,
+                ip_address: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("audit should append: {error}"));
+        audit
+            .append(CreateAuditLog {
+                actor: "bob".to_owned(),
+                action: "delete".to_owned(),
+                resource_type: "script".to_owned(),
+                resource_id: "script-1".to_owned(),
+                detail: None,
+                ip_address: Some("10.0.0.1".to_owned()),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("audit should append: {error}"));
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            audit,
+            crate::tunnel::WorkerRegistry::default(),
+            StandaloneCoordinator::shared("test-node"),
+        ));
+
+        let response = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app,
+                    "GET",
+                    "/api/v1/audit-logs?action=delete&resource_type=script&page_size=1",
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["total"], 1);
+        assert_eq!(json["data"]["items"].as_array().map(Vec::len), Some(1));
+        assert_eq!(json["data"]["items"][0]["actor"], "bob");
+        assert_eq!(json["data"]["items"][0]["resource_type"], "script");
     }
 
     #[tokio::test]

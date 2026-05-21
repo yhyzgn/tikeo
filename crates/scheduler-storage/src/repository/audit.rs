@@ -1,6 +1,6 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
 use serde::{Deserialize, Serialize};
 
@@ -58,6 +58,19 @@ pub struct AuditLogFilters {
     pub resource_id: Option<String>,
     /// Maximum number of results (default 100).
     pub limit: Option<u64>,
+    /// Number of rows to skip.
+    pub offset: Option<u64>,
+}
+
+/// Paginated audit log query result.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditLogPageSummary {
+    /// Matching page items.
+    pub items: Vec<AuditLogSummary>,
+    /// Total matching row count before pagination.
+    pub total: u64,
+    /// Opaque next page token, currently the next offset.
+    pub next_page_token: Option<String>,
 }
 
 /// Audit log repository.
@@ -104,6 +117,18 @@ impl AuditLogRepository {
         &self,
         filters: AuditLogFilters,
     ) -> Result<Vec<AuditLogSummary>, sea_orm::DbErr> {
+        self.list_page(filters).await.map(|page| page.items)
+    }
+
+    /// List one page of audit logs with optional filters.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn list_page(
+        &self,
+        filters: AuditLogFilters,
+    ) -> Result<AuditLogPageSummary, sea_orm::DbErr> {
         let mut query = audit_log::Entity::find();
 
         if let Some(actor) = &filters.actor {
@@ -119,13 +144,23 @@ impl AuditLogRepository {
             query = query.filter(audit_log::Column::ResourceId.eq(resource_id.clone()));
         }
 
+        let limit = filters.limit.unwrap_or(100).clamp(1, 500);
+        let offset = filters.offset.unwrap_or(0);
+        let total = query.clone().count(&self.db).await?;
         let rows = query
             .order_by_desc(audit_log::Column::CreatedAt)
-            .limit(filters.limit.unwrap_or(100))
+            .limit(limit)
+            .offset(offset)
             .all(&self.db)
             .await?;
+        let next_offset = offset.saturating_add(rows.len() as u64);
+        let next_page_token = (next_offset < total).then(|| next_offset.to_string());
 
-        Ok(rows.into_iter().map(AuditLogSummary::from).collect())
+        Ok(AuditLogPageSummary {
+            items: rows.into_iter().map(AuditLogSummary::from).collect(),
+            total,
+            next_page_token,
+        })
     }
 
     /// Get one audit log by id.

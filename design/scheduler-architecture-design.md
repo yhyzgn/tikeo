@@ -2119,14 +2119,14 @@ scheduler/
 - [x] Map / MapReduce 执行模式（workflow_shards + materialize + shard job_instance/dispatch_queue 软关联）
 - [x] 子工作流嵌套（节点引用 child_workflow_id + 子实例软关联 + 子实例终态回写父节点）
 - [x] PostgreSQL + CockroachDB 存储支持（SeaORM/sqlx-postgres feature + `postgres://` 配置模板；CockroachDB 复用 PostgreSQL wire protocol）
-- [ ] Server 集群 (Raft 共识)
+- [ ] Server 集群 (Raft 共识；Phase2 已完成安全基础，真实 runtime 后置，避免 alpha 共识库强行进入核心路径)
   - [x] ClusterCoordinator 抽象与显式 standalone 状态（`/api/v1/cluster` 不再伪装 leader）
   - [x] tick/dispatcher ownership gate（非 `can_schedule` 节点跳过 CRON/fixed-rate tick 与 Worker dispatch loop）
   - [x] Raft 配置形状（mode/node_id/peers）与未启动 Raft 的 unknown/not-schedulable 状态
   - [x] Raft metadata/member 持久化基础（`raft_metadata` / `raft_members`，无外键，启动时写入配置 peers）
   - [x] Raft transport/fencing 形状（`/api/v1/raft/append-entries` 占位接口 + `leader_fencing_token` 字段，仍不授予 leader）
   - [x] Cluster diagnostics（`/api/v1/cluster/diagnostics` 展示 gate、term/index、peers、transport 占位和 runtime boundary）
-  - [ ] Raft membership runtime、leader/follower fencing token 生成、动态配置变更
+  - [ ] Raft membership runtime、leader/follower fencing token 生成、动态配置变更（后置：openraft 2026-05-21 最新仍为 0.10.0-alpha.20，暂不作为生产核心依赖）
 - [x] 任务队列基础（dispatch_queue 持久化模型、priority/run_after/status/lease_owner/lease_until 字段；workflow queued node 自动 materialize）
 - [x] 持久化延迟队列基础（dispatch_queue.run_after）
 - [x] 实时日志流 (gRPC Server Stream：`SubscribeTaskLogs` 支持历史回放 + Worker Tunnel live fan-out)
@@ -2157,7 +2157,8 @@ scheduler/
 - [x] Web 前端路由与导航治理基础（React Router v7、路由守卫、URL 持久化、菜单与路由对齐）
   - [ ] 路由 meta、懒加载、统一 403/401 与 URL 查询参数治理
 - [x] 审计日志骨架（`audit_logs` 表、Repository、HTTP API、关键写操作埋点）
-  - [ ] 审计 before/after、trace_id、失败结果、分页过滤与导出治理
+  - [x] 审计分页与服务端过滤（actor/action/resource_type/resource_id + page_size/page_token + total）
+  - [ ] 审计 before/after、trace_id、失败结果与导出治理
 - [ ] Web UI 危险操作二次确认、权限感知操作
   - [x] Web UI 审计日志查询页面（按操作类型筛选）
 - [ ] WASM 沙箱处理器

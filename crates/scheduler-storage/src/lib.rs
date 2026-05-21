@@ -15,10 +15,10 @@ use thiserror::Error;
 
 pub use repository::{
     AdvanceWorkflowInput, AdvanceWorkflowResult, AppendJobInstanceLog, AuditLogFilters,
-    AuditLogRepository, AuditLogSummary, AuthSessionRepository, AuthSessionSummary,
-    CompleteWorkflowShardInput, CompleteWorkflowShardResult, CreateAuditLog, CreateAuthSession,
-    CreateJob, CreateJobInstance, CreateJobInstanceAttempt, CreateScript, CreateUser,
-    CreateWorkflow, DispatchQueueClaim, DispatchQueueSummary, InstanceEventSummary,
+    AuditLogPageSummary, AuditLogRepository, AuditLogSummary, AuthSessionRepository,
+    AuthSessionSummary, CompleteWorkflowShardInput, CompleteWorkflowShardResult, CreateAuditLog,
+    CreateAuthSession, CreateJob, CreateJobInstance, CreateJobInstanceAttempt, CreateScript,
+    CreateUser, CreateWorkflow, DispatchQueueClaim, DispatchQueueSummary, InstanceEventSummary,
     JobInstanceAttemptRepository, JobInstanceAttemptSummary, JobInstanceLogRepository,
     JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
     MaterializeWorkflowNodeResult, PermissionSummary, QueueOverview, RaftMemberSummary,

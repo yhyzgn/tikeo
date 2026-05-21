@@ -21,7 +21,9 @@ mod workflow;
 pub use attempt::{
     CreateJobInstanceAttempt, JobInstanceAttemptRepository, JobInstanceAttemptSummary,
 };
-pub use audit::{AuditLogFilters, AuditLogRepository, AuditLogSummary, CreateAuditLog};
+pub use audit::{
+    AuditLogFilters, AuditLogPageSummary, AuditLogRepository, AuditLogSummary, CreateAuditLog,
+};
 pub use auth::{
     AuthSessionRepository, AuthSessionSummary, CreateAuthSession, PermissionSummary, RbacRepository,
 };
