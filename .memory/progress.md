@@ -312,3 +312,9 @@
 - Added optional `cluster.transport_token` config and `x-scheduler-raft-token` support so internal Raft HTTP transport can bypass human session auth without committing production secrets.
 - Wired Ready outbound messages through a `RaftPeerTransport` skeleton: raft-rs `Message` values serialize to the existing HTTP wire DTO, base64 payloads are preserved, peer URLs append `/api/v1/raft/append-entries`, and delivery runs asynchronously through reqwest.
 - Scheduler ownership remains fenced: no campaign, no leader token, no `can_schedule=true`. Next slice is committed-entry apply bookkeeping and fencing-token lifecycle.
+
+### 2026-05-21 End-of-day handoff checkpoint
+- Current pushed HEAD before this checkpoint: `222b1d6 Send raft-rs outbound messages through peer HTTP skeleton 📡`; working tree was clean before writing this memory checkpoint.
+- Today completed and pushed three Phase2 raft-rs slices: runtime ticker + Ready durability order (`fc67f13`), inbound HTTP -> runtime inbox (`dea7528`), and outbound peer HTTP skeleton + optional `cluster.transport_token` (`222b1d6`).
+- Full verification passed after the last code slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build`.
+- Next continuation prompt is `.prompt/053-phase2-raft-rs-apply-and-fencing.md`: implement Ready committed-entry apply bookkeeping (`applied_index` persistence), explicitly gate config-change entries, then design leader fencing-token lifecycle. Do not enable `can_schedule=true` from raft role alone.
