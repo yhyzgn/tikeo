@@ -229,3 +229,12 @@
 - Workflow `WorkflowNodeSpec` 新增可选 `processor_name`，job/map 节点 UI inspector 可配置 SDK processor 绑定。
 - Dispatcher processor 解析顺序固定为：Workflow 节点 processor -> Job processor -> legacy job_id，避免 SDK 路由继续依赖任务 ID。
 - SQLite 兼容迁移补齐 `jobs.processor_name` 与 `workflow_nodes.processor_name`，无外键规则保持不变。
+
+### 2026-05-21 Go/Python SDK deferral
+- User explicitly moved Go SDK + Python SDK out of Phase 2 and into Phase 4.
+- Current Phase 2 continuation target is realtime task log streaming over gRPC server stream.
+
+### 2026-05-21 Phase2 realtime task log stream
+- Worker Tunnel proto now exposes `SubscribeTaskLogs(SubscribeTaskLogsRequest) returns (stream TaskLog)`.
+- Server replays persisted `job_instance_logs` after a requested sequence and then streams live TaskLog records via an in-memory broadcast fan-out after successful DB append.
+- Go/Python SDK remains deferred to Phase4 per user instruction.

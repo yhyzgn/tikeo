@@ -1,6 +1,7 @@
 //! Generated scheduler protobuf and gRPC bindings.
 
 #![forbid(unsafe_code)]
+#![allow(clippy::too_many_lines)]
 
 /// Worker tunnel protocol bindings.
 pub mod worker {

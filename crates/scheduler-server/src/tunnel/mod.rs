@@ -5,7 +5,7 @@ pub mod registry;
 pub mod service;
 
 pub use registry::{RegisteredWorker, WorkerRegistry};
-pub use service::WorkerTunnel;
+pub use service::{TaskLogBroadcaster, WorkerTunnel};
 
 use std::net::SocketAddr;
 
@@ -30,12 +30,18 @@ pub async fn serve(
     logs: JobInstanceLogRepository,
     attempts: JobInstanceAttemptRepository,
     workflows: WorkflowRepository,
+    log_broadcaster: TaskLogBroadcaster,
 ) -> Result<()> {
     info!(addr = %listen_addr, "scheduler Worker Tunnel listening");
 
     Server::builder()
         .add_service(WorkerTunnelServiceServer::new(WorkerTunnel::new(
-            registry, instances, logs, attempts, workflows,
+            registry,
+            instances,
+            logs,
+            attempts,
+            workflows,
+            log_broadcaster,
         )))
         .serve(listen_addr)
         .await

@@ -19,6 +19,7 @@ use crate::{http, scheduler, tunnel};
 /// Returns an error when any listener fails to bind or serve.
 pub async fn serve(config: SchedulerConfig) -> Result<()> {
     let registry = tunnel::WorkerRegistry::default();
+    let log_broadcaster = tunnel::TaskLogBroadcaster::default();
     let http_addr = config.server.listen_addr;
     let tunnel_addr = config.server.worker_tunnel_addr;
     let database_url = config.storage.database_url;
@@ -62,7 +63,8 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
             tunnel_instances,
             logs,
             tunnel_attempts,
-            workflows.clone()
+            workflows.clone(),
+            log_broadcaster
         ),
         async {
             scheduler::run_tick_loop(jobs, scheduler_instances).await;

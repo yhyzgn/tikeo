@@ -4,6 +4,7 @@ package scheduler.worker.v1;
 
 service WorkerTunnelService {
   rpc OpenTunnel(stream WorkerMessage) returns (stream ServerMessage);
+  rpc SubscribeTaskLogs(SubscribeTaskLogsRequest) returns (stream TaskLog);
 }
 
 message WorkerMessage {
@@ -69,4 +70,10 @@ message TaskLog {
   string level = 3;
   string message = 4;
   int64 sequence = 5;
+}
+
+message SubscribeTaskLogsRequest {
+  string instance_id = 1;
+  int64 after_sequence = 2;
+  bool replay_existing = 3;
 }

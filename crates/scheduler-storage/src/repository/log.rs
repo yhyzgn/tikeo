@@ -94,8 +94,22 @@ impl JobInstanceLogRepository {
         &self,
         instance_id: &str,
     ) -> Result<Vec<JobInstanceLogSummary>, sea_orm::DbErr> {
+        self.list_by_instance_after_sequence(instance_id, 0).await
+    }
+
+    /// List logs for an instance after the provided sequence.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn list_by_instance_after_sequence(
+        &self,
+        instance_id: &str,
+        after_sequence: i64,
+    ) -> Result<Vec<JobInstanceLogSummary>, sea_orm::DbErr> {
         let rows = job_instance_log::Entity::find()
             .filter(job_instance_log::Column::InstanceId.eq(instance_id))
+            .filter(job_instance_log::Column::Sequence.gt(after_sequence))
             .order_by_asc(job_instance_log::Column::Sequence)
             .order_by_asc(job_instance_log::Column::CreatedAt)
             .all(&self.db)

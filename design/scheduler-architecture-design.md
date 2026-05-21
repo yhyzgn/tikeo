@@ -573,7 +573,7 @@ Starter 需要提供：
 
 - `@EnableSchedulerWorker` 或自动启用的 Spring Boot auto-configuration。
 - `@SchedulerProcessor` 注解扫描和方法适配。
-- 与 Server 的 Worker Tunnel 主动连接、注册、心跳、状态上报和日志上报。当前已完成真实 gRPC 连接、注册、心跳、日志、任务结果回传，并已支持将 `@SchedulerProcessor` 方法适配为真实任务处理器（通过 `DispatchTask.processor_name` 匹配 processor name，payload 支持 UTF-8 String / byte[] / TaskContext；空值兼容回退到 `job_id`）。
+- 与 Server 的 Worker Tunnel 主动连接、注册、心跳、状态上报、日志上报和日志订阅。当前已完成真实 gRPC 连接、注册、心跳、日志、任务结果回传，并已支持将 `@SchedulerProcessor` 方法适配为真实任务处理器（通过 `DispatchTask.processor_name` 匹配 processor name，payload 支持 UTF-8 String / byte[] / TaskContext；空值兼容回退到 `job_id`）。
 - Spring Boot lifecycle 集成：应用启动后连接，`ContextClosedEvent` 时 drain/优雅下线。
 - Micrometer 指标、Actuator health indicator、结构化日志上下文。
 - mTLS / token / cert rotation 配置入口。
@@ -2103,7 +2103,7 @@ scheduler/
 - [ ] Server 集群 (Raft 共识)
 - [x] 任务队列基础（dispatch_queue 持久化模型、priority/run_after/status/lease_owner/lease_until 字段；workflow queued node 自动 materialize）
 - [x] 持久化延迟队列基础（dispatch_queue.run_after）
-- [ ] 实时日志流 (gRPC Server Stream)
+- [x] 实时日志流 (gRPC Server Stream：`SubscribeTaskLogs` 支持历史回放 + Worker Tunnel live fan-out)
 - [x] 工作流可视化编辑器（基础 DAG 预览 + 节点状态着色）
 - [x] Web UI 工作流 JSON 定义入口、YAML 预览、dry-run、validate/run、SSE、shards 和恢复入口基础
 - [x] Workflow executor 最小推进能力（`advance` 按节点状态与边条件推进后继 waiting 节点到 queued，并写入 dispatch_queue 与 instance_events）
@@ -2117,7 +2117,6 @@ scheduler/
 - [x] Dispatch queue 最小租约与 claim API（lease_owner / lease_until + SQLite 兼容迁移；`POST /api/v1/dispatch-queue:claim` 支持按租约占用队列项）
 - [x] Dispatch queue 原子 claim 与 dispatcher 接入（DB 条件更新抢占租约、过期 pending lease 回收、workflow queued node 和 single job dispatch 统一走 dispatch_queue）
 - [x] SSE 实时实例事件骨架（instance_events + /events/instances/:id/stream；WebSocket 后续）
-- [ ] Go SDK + Python SDK
 
 ### Phase 3: 企业级特性 (月 7-9)
 
@@ -2166,6 +2165,7 @@ scheduler/
 
 **目标**：超越 PowerJob，建立差异化竞争力。
 
+- [ ] Go SDK + Python SDK（从 Phase 2 后置；待核心分布式/日志能力稳定后实现）
 - [ ] 任务依赖自动发现与拓扑可视化
 - [ ] 智能调度 (基于历史数据的资源预测)
 - [ ] 多租户隔离增强

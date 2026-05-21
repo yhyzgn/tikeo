@@ -475,6 +475,7 @@ mod tests {
     #[tonic::async_trait]
     impl worker_tunnel_service_server::WorkerTunnelService for MockTunnel {
         type OpenTunnelStream = ResponseStream;
+        type SubscribeTaskLogsStream = Pin<Box<dyn Stream<Item = Result<crate::proto::worker::v1::TaskLog, Status>> + Send>>;
 
         async fn open_tunnel(
             &self,
@@ -528,6 +529,13 @@ mod tests {
             Ok(Response::new(Box::pin(
                 tokio_stream::wrappers::ReceiverStream::new(outbound_rx),
             )))
+        }
+
+        async fn subscribe_task_logs(
+            &self,
+            _request: Request<crate::proto::worker::v1::SubscribeTaskLogsRequest>,
+        ) -> Result<Response<Self::SubscribeTaskLogsStream>, Status> {
+            Ok(Response::new(Box::pin(tokio_stream::empty())))
         }
     }
 

@@ -851,3 +851,12 @@ Git:
 - Server dispatch now resolves processor key from workflow node override, then job binding, then legacy job id.
 - Added HTTP test for job processor binding and dispatcher test for workflow node override.
 - Web Jobs page and Workflow DAG inspector can configure processor names.
+
+### 2026-05-21 Go/Python SDK deferral
+- User explicitly moved Go SDK + Python SDK out of Phase 2 and into Phase 4.
+- Current Phase 2 continuation target is realtime task log streaming over gRPC server stream.
+
+### 2026-05-21 Phase2 realtime task log stream
+- Worker Tunnel proto now exposes `SubscribeTaskLogs(SubscribeTaskLogsRequest) returns (stream TaskLog)`.
+- Server replays persisted `job_instance_logs` after a requested sequence and then streams live TaskLog records via an in-memory broadcast fan-out after successful DB append.
+- Go/Python SDK remains deferred to Phase4 per user instruction.
