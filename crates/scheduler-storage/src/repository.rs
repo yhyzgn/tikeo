@@ -574,6 +574,11 @@ mod tests {
             .unwrap_or_else(|| panic!("queue item should be claimable"));
         assert_eq!(claim.lease_owner, "server-a");
         assert_eq!(claim.item.lease_owner.as_deref(), Some("server-a"));
+        assert_eq!(
+            claim.item.fencing_token.as_deref(),
+            Some(claim.fencing_token.as_str())
+        );
+        assert!(claim.fencing_token.starts_with("lease:server-a:"));
         assert_eq!(claim.item.attempt, 1);
         assert!(claim.item.workflow_node_instance_id.is_some());
 
@@ -595,11 +600,21 @@ mod tests {
                 .unwrap_or_else(|error| panic!("release should succeed: {error}"))
         );
         let reclaimed = workflows
-            .claim_dispatch_queue_item(&claim.item.id, "server-b", 30)
+            .claim_dispatch_queue_item_with_fencing(
+                &claim.item.id,
+                "server-b",
+                30,
+                Some("raft:server-b:term-2"),
+            )
             .await
             .unwrap_or_else(|error| panic!("reclaim should succeed: {error}"))
             .unwrap_or_else(|| panic!("released item should be claimable"));
         assert_eq!(reclaimed.lease_owner, "server-b");
+        assert_eq!(reclaimed.fencing_token, "raft:server-b:term-2");
+        assert_eq!(
+            reclaimed.item.fencing_token.as_deref(),
+            Some("raft:server-b:term-2")
+        );
         assert_eq!(reclaimed.item.attempt, 2);
     }
 

@@ -1538,7 +1538,7 @@ docker run -d \
 
 - **Leader ownership gate**：只有 `Leader` 或显式 `Standalone` 能运行 CRON/fixed-rate tick loop、workflow materialize loop 和 dispatcher ownership-sensitive loop；当前代码已通过 `ClusterStatus.can_schedule` gate 保护 tick/dispatcher loop。
 - **Follower fencing**：Follower 可以服务只读管理 API 和 Worker Tunnel 连接，但不能产生新调度 tick，不能越权抢占不属于自己的集群级 ownership。
-- **DB conditional update remains required**：dispatch_queue lease/claim 的 DB 条件更新仍保留，用作 Raft 外的最后一道幂等/fencing 保护。
+- **DB conditional update remains required**：dispatch_queue lease/claim 的 DB 条件更新仍保留，用作 Raft 外的最后一道幂等/fencing 保护；`dispatch_queue.fencing_token` 已预留并随 claim 返回，后续可接入 Raft leader token。
 - **Raft scope**：membership、term/index、leader lease、配置变更、调度 shard ownership；业务数据仍存储在 SeaORM 支持的数据库中，且继续禁止数据库外键。
 - **Safe config shape first**：`cluster.mode/node_id/peers` 已可配置；`mode=raft` 在真实 consensus runtime 接入前返回 `role=unknown` 且 `can_schedule=false`，避免假 leader。
 - **Raft metadata foundation**：`raft_metadata` 与 `raft_members` 已通过 SeaORM migration 建表，启动时可持久化本节点 term/index 初始元数据和静态 peers；表结构不包含外键，只通过 `node_id` 等字段软关联。
@@ -2142,6 +2142,7 @@ scheduler/
 - [x] Workflow 操作审计日志（create/update/validate/dry-run/run/advance/materialize/recover 管理与执行动作写入 audit_logs）
 - [x] Dispatch queue 最小租约与 claim API（lease_owner / lease_until + SQLite 兼容迁移；`POST /api/v1/dispatch-queue:claim` 支持按租约占用队列项）
 - [x] Dispatch queue 原子 claim 与 dispatcher 接入（DB 条件更新抢占租约、过期 pending lease 回收、workflow queued node 和 single job dispatch 统一走 dispatch_queue）
+- [x] Dispatch queue fencing token 形状（`fencing_token` 随 claim 写入/返回，dispatcher 使用 cluster-derived token，后续接 Raft leader token）
 - [x] SSE 实时实例事件骨架（instance_events + /events/instances/:id/stream；WebSocket 后续）
 
 ### Phase 3: 企业级特性 (月 7-9)

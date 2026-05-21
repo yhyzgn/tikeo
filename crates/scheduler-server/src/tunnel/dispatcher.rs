@@ -18,6 +18,13 @@ const DISPATCH_BATCH_SIZE: u64 = 16;
 const DISPATCH_LEASE_SECONDS: i64 = 30;
 const DISPATCHER_LEASE_OWNER: &str = "scheduler-dispatcher";
 
+fn dispatcher_fencing_token(node_id: &str, leader_fencing_token: Option<&str>) -> String {
+    leader_fencing_token.map_or_else(
+        || format!("standalone:{node_id}:{DISPATCHER_LEASE_OWNER}"),
+        |token| format!("raft:{node_id}:{token}"),
+    )
+}
+
 /// Run the minimal single-node dispatch loop forever.
 pub async fn run(
     jobs: JobRepository,
@@ -53,7 +60,17 @@ async fn dispatch_once_if_owner(
         debug!(role = status.role.as_str(), node_id = %status.node_id, "skip worker dispatch without cluster ownership");
         return Ok(());
     }
-    dispatch_once(jobs, instances, attempts, workflows, registry).await
+    let fencing_token =
+        dispatcher_fencing_token(&status.node_id, status.leader_fencing_token.as_deref());
+    dispatch_once(
+        jobs,
+        instances,
+        attempts,
+        workflows,
+        registry,
+        &fencing_token,
+    )
+    .await
 }
 
 async fn dispatch_once(
@@ -62,12 +79,17 @@ async fn dispatch_once(
     attempts: &JobInstanceAttemptRepository,
     workflows: &WorkflowRepository,
     registry: &WorkerRegistry,
+    fencing_token: &str,
 ) -> Result<(), scheduler_storage::DbErr> {
     let _expired = workflows.clear_expired_dispatch_queue_leases().await?;
     let _ = workflows
-        .materialize_next_queued_node_with_lease(DISPATCHER_LEASE_OWNER, DISPATCH_LEASE_SECONDS)
+        .materialize_next_queued_node_with_fencing(
+            DISPATCHER_LEASE_OWNER,
+            DISPATCH_LEASE_SECONDS,
+            fencing_token,
+        )
         .await?;
-    dispatch_single_instances(jobs, instances, workflows, registry).await?;
+    dispatch_single_instances(jobs, instances, workflows, registry, fencing_token).await?;
     dispatch_broadcast_attempts(jobs, instances, attempts, workflows, registry).await
 }
 
@@ -76,10 +98,15 @@ async fn dispatch_single_instances(
     instances: &JobInstanceRepository,
     workflows: &WorkflowRepository,
     registry: &WorkerRegistry,
+    fencing_token: &str,
 ) -> Result<(), scheduler_storage::DbErr> {
     for _ in 0..DISPATCH_BATCH_SIZE {
         let Some(claim) = workflows
-            .claim_next_job_queue_item(DISPATCHER_LEASE_OWNER, DISPATCH_LEASE_SECONDS)
+            .claim_next_job_queue_item_with_fencing(
+                DISPATCHER_LEASE_OWNER,
+                DISPATCH_LEASE_SECONDS,
+                fencing_token,
+            )
             .await?
         else {
             break;
@@ -267,9 +294,16 @@ mod tests {
             )
             .await;
 
-        dispatch_once(&jobs, &instances, &attempts, &workflows, &registry)
-            .await
-            .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
+        dispatch_once(
+            &jobs,
+            &instances,
+            &attempts,
+            &workflows,
+            &registry,
+            "test-fence",
+        )
+        .await
+        .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
 
         let message = rx
             .recv()
@@ -358,9 +392,16 @@ mod tests {
             )
             .await;
 
-        dispatch_once(&jobs, &instances, &attempts, &workflows, &registry)
-            .await
-            .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
+        dispatch_once(
+            &jobs,
+            &instances,
+            &attempts,
+            &workflows,
+            &registry,
+            "test-fence",
+        )
+        .await
+        .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
 
         let message = rx1
             .recv()
@@ -506,9 +547,16 @@ mod tests {
             )
             .await;
 
-        dispatch_once(&jobs, &instances, &attempts, &workflows, &registry)
-            .await
-            .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
+        dispatch_once(
+            &jobs,
+            &instances,
+            &attempts,
+            &workflows,
+            &registry,
+            "test-fence",
+        )
+        .await
+        .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
 
         let message = rx
             .recv()

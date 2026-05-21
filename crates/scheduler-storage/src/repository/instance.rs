@@ -90,6 +90,7 @@ impl JobInstanceRepository {
                 attempt: Set(0),
                 lease_owner: Set(None),
                 lease_until: Set(None),
+                fencing_token: Set(None),
                 worker_selector: Set(None),
                 created_at: Set(now.clone()),
                 updated_at: Set(now),

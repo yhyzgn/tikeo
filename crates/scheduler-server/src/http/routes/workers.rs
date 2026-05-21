@@ -20,6 +20,7 @@ use super::common::audit;
 pub struct ClaimDispatchQueueRequest {
     pub lease_owner: String,
     pub lease_seconds: Option<i64>,
+    pub fencing_token: Option<String>,
 }
 
 #[utoipa::path(get, path = "/api/v1/workers", tag = "workers")]
@@ -72,9 +73,18 @@ pub async fn claim_dispatch_queue(
         return Err(ApiError::bad_request("lease_owner cannot be empty"));
     }
     let lease_owner = request.lease_owner.trim().to_owned();
+    let requested_fencing_token = request
+        .fencing_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
     let claim = state
         .workflows
-        .claim_next_dispatch_queue_item(&lease_owner, request.lease_seconds.unwrap_or(30))
+        .claim_next_dispatch_queue_item_with_fencing(
+            &lease_owner,
+            request.lease_seconds.unwrap_or(30),
+            requested_fencing_token,
+        )
         .await
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| ApiError::not_found("no claimable dispatch queue item found"))?;
@@ -85,8 +95,8 @@ pub async fn claim_dispatch_queue(
         "dispatch_queue",
         &claim.item.id,
         Some(format!(
-            "lease_owner={} lease_until={}",
-            claim.lease_owner, claim.lease_until
+            "lease_owner={} lease_until={} fencing_token={}",
+            claim.lease_owner, claim.lease_until, claim.fencing_token
         )),
         &headers,
     )

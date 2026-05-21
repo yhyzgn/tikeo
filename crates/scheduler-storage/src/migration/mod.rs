@@ -409,6 +409,7 @@ async fn create_dispatch_queue(manager: &SchemaManager<'_>) -> Result<(), DbErr>
                 .col(integer_col(DispatchQueue::Attempt))
                 .col(string_null(DispatchQueue::LeaseOwner))
                 .col(string_null(DispatchQueue::LeaseUntil))
+                .col(string_null(DispatchQueue::FencingToken))
                 .col(string_null(DispatchQueue::WorkerSelector))
                 .col(string_col(DispatchQueue::CreatedAt))
                 .col(string_col(DispatchQueue::UpdatedAt))
@@ -1114,6 +1115,7 @@ enum DispatchQueue {
     Attempt,
     LeaseOwner,
     LeaseUntil,
+    FencingToken,
     WorkerSelector,
     CreatedAt,
     UpdatedAt,

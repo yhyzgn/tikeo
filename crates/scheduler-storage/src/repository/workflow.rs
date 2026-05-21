@@ -149,6 +149,7 @@ pub struct DispatchQueueSummary {
     pub attempt: i32,
     pub lease_owner: Option<String>,
     pub lease_until: Option<String>,
+    pub fencing_token: Option<String>,
     pub worker_selector: Option<String>,
     pub created_at: String,
     pub updated_at: String,
@@ -159,6 +160,7 @@ pub struct DispatchQueueClaim {
     pub item: DispatchQueueSummary,
     pub lease_owner: String,
     pub lease_until: String,
+    pub fencing_token: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
@@ -416,6 +418,7 @@ impl WorkflowRepository {
                     attempt: Set(0),
                     lease_owner: Set(None),
                     lease_until: Set(None),
+                    fencing_token: Set(None),
                     worker_selector: Set(None),
                     created_at: Set(now.clone()),
                     updated_at: Set(now.clone()),
@@ -518,6 +521,7 @@ impl WorkflowRepository {
                         attempt: Set(0),
                         lease_owner: Set(None),
                         lease_until: Set(None),
+                        fencing_token: Set(None),
                         worker_selector: Set(None),
                         created_at: Set(now.clone()),
                         updated_at: Set(now.clone()),
@@ -593,8 +597,23 @@ impl WorkflowRepository {
         lease_owner: &str,
         lease_seconds: i64,
     ) -> Result<Option<MaterializeWorkflowNodeResult>, sea_orm::DbErr> {
+        self.materialize_next_queued_node_with_fencing(lease_owner, lease_seconds, lease_owner)
+            .await
+    }
+
+    #[allow(clippy::too_many_lines)]
+    pub async fn materialize_next_queued_node_with_fencing(
+        &self,
+        lease_owner: &str,
+        lease_seconds: i64,
+        fencing_token: &str,
+    ) -> Result<Option<MaterializeWorkflowNodeResult>, sea_orm::DbErr> {
         let Some(claim) = self
-            .claim_next_workflow_node_queue_item(lease_owner, lease_seconds)
+            .claim_next_workflow_node_queue_item_with_fencing(
+                lease_owner,
+                lease_seconds,
+                fencing_token,
+            )
             .await?
         else {
             return Ok(None);
@@ -671,6 +690,7 @@ impl WorkflowRepository {
                     attempt: Set(0),
                     lease_owner: Set(None),
                     lease_until: Set(None),
+                    fencing_token: Set(None),
                     worker_selector: Set(None),
                     created_at: Set(now.clone()),
                     updated_at: Set(now.clone()),
@@ -728,6 +748,7 @@ impl WorkflowRepository {
                         attempt: Set(0),
                         lease_owner: Set(None),
                         lease_until: Set(None),
+                        fencing_token: Set(None),
                         worker_selector: Set(None),
                         created_at: Set(now.clone()),
                         updated_at: Set(now.clone()),
@@ -777,6 +798,7 @@ impl WorkflowRepository {
                                 attempt: Set(0),
                                 lease_owner: Set(None),
                                 lease_until: Set(None),
+                                fencing_token: Set(None),
                                 worker_selector: Set(None),
                                 created_at: Set(now.clone()),
                                 updated_at: Set(now.clone()),
@@ -1008,6 +1030,7 @@ impl WorkflowRepository {
         });
         active.lease_owner = Set(None);
         active.lease_until = Set(None);
+        active.fencing_token = Set(None);
         active.updated_at = Set(now_rfc3339());
         active.update(&self.db).await?;
         Ok(())
@@ -1168,10 +1191,21 @@ impl WorkflowRepository {
         lease_owner: &str,
         lease_seconds: i64,
     ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
+        self.claim_next_dispatch_queue_item_with_fencing(lease_owner, lease_seconds, None)
+            .await
+    }
+
+    pub async fn claim_next_dispatch_queue_item_with_fencing(
+        &self,
+        lease_owner: &str,
+        lease_seconds: i64,
+        fencing_token: Option<&str>,
+    ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
         self.claim_next_dispatch_queue_item_matching(
             lease_owner,
             lease_seconds,
             DispatchQueueClaimKind::Any,
+            fencing_token,
         )
         .await
     }
@@ -1181,10 +1215,25 @@ impl WorkflowRepository {
         lease_owner: &str,
         lease_seconds: i64,
     ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
+        self.claim_next_workflow_node_queue_item_with_fencing(
+            lease_owner,
+            lease_seconds,
+            lease_owner,
+        )
+        .await
+    }
+
+    pub async fn claim_next_workflow_node_queue_item_with_fencing(
+        &self,
+        lease_owner: &str,
+        lease_seconds: i64,
+        fencing_token: &str,
+    ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
         self.claim_next_dispatch_queue_item_matching(
             lease_owner,
             lease_seconds,
             DispatchQueueClaimKind::WorkflowNode,
+            Some(fencing_token),
         )
         .await
     }
@@ -1194,10 +1243,21 @@ impl WorkflowRepository {
         lease_owner: &str,
         lease_seconds: i64,
     ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
+        self.claim_next_job_queue_item_with_fencing(lease_owner, lease_seconds, lease_owner)
+            .await
+    }
+
+    pub async fn claim_next_job_queue_item_with_fencing(
+        &self,
+        lease_owner: &str,
+        lease_seconds: i64,
+        fencing_token: &str,
+    ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
         self.claim_next_dispatch_queue_item_matching(
             lease_owner,
             lease_seconds,
             DispatchQueueClaimKind::JobInstance,
+            Some(fencing_token),
         )
         .await
     }
@@ -1207,6 +1267,7 @@ impl WorkflowRepository {
         lease_owner: &str,
         lease_seconds: i64,
         kind: DispatchQueueClaimKind,
+        fencing_token: Option<&str>,
     ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
         let now = now_rfc3339();
         let mut query = dispatch_queue::Entity::find()
@@ -1238,8 +1299,13 @@ impl WorkflowRepository {
         else {
             return Ok(None);
         };
-        self.claim_dispatch_queue_item(&queue_id, lease_owner, lease_seconds)
-            .await
+        self.claim_dispatch_queue_item_with_fencing(
+            &queue_id,
+            lease_owner,
+            lease_seconds,
+            fencing_token,
+        )
+        .await
     }
 
     pub async fn claim_dispatch_queue_item(
@@ -1248,8 +1314,23 @@ impl WorkflowRepository {
         lease_owner: &str,
         lease_seconds: i64,
     ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
+        self.claim_dispatch_queue_item_with_fencing(queue_id, lease_owner, lease_seconds, None)
+            .await
+    }
+
+    pub async fn claim_dispatch_queue_item_with_fencing(
+        &self,
+        queue_id: &str,
+        lease_owner: &str,
+        lease_seconds: i64,
+        fencing_token: Option<&str>,
+    ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
         let now = now_rfc3339();
         let lease_until = rfc3339_after_seconds(lease_seconds.max(1));
+        let fencing_token = fencing_token.map_or_else(
+            || format!("lease:{lease_owner}:{queue_id}:{lease_until}"),
+            ToOwned::to_owned,
+        );
         let txn = self.db.begin().await?;
         let result = dispatch_queue::Entity::update_many()
             .col_expr(
@@ -1259,6 +1340,10 @@ impl WorkflowRepository {
             .col_expr(
                 dispatch_queue::Column::LeaseUntil,
                 Expr::value(Some(lease_until.clone())),
+            )
+            .col_expr(
+                dispatch_queue::Column::FencingToken,
+                Expr::value(Some(fencing_token.clone())),
             )
             .col_expr(
                 dispatch_queue::Column::Attempt,
@@ -1287,6 +1372,7 @@ impl WorkflowRepository {
             item: DispatchQueueSummary::from(updated),
             lease_owner: lease_owner.to_owned(),
             lease_until,
+            fencing_token,
         }))
     }
 
@@ -1303,6 +1389,10 @@ impl WorkflowRepository {
             )
             .col_expr(
                 dispatch_queue::Column::LeaseUntil,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                dispatch_queue::Column::FencingToken,
                 Expr::value(Option::<String>::None),
             )
             .col_expr(
@@ -1325,6 +1415,10 @@ impl WorkflowRepository {
             )
             .col_expr(
                 dispatch_queue::Column::LeaseUntil,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                dispatch_queue::Column::FencingToken,
                 Expr::value(Option::<String>::None),
             )
             .col_expr(dispatch_queue::Column::UpdatedAt, Expr::value(now.clone()))
@@ -1351,6 +1445,7 @@ impl WorkflowRepository {
         let mut active: dispatch_queue::ActiveModel = row.into();
         active.lease_owner = Set(None);
         active.lease_until = Set(None);
+        active.fencing_token = Set(None);
         active.updated_at = Set(now_rfc3339());
         active.update(&self.db).await?;
         Ok(true)
@@ -1425,6 +1520,7 @@ impl WorkflowRepository {
                 attempt: Set(0),
                 lease_owner: Set(None),
                 lease_until: Set(None),
+                fencing_token: Set(None),
                 worker_selector: Set(None),
                 created_at: Set(now.clone()),
                 updated_at: Set(now.clone()),
@@ -1634,6 +1730,7 @@ impl From<dispatch_queue::Model> for DispatchQueueSummary {
             attempt: model.attempt,
             lease_owner: model.lease_owner,
             lease_until: model.lease_until,
+            fencing_token: model.fencing_token,
             worker_selector: model.worker_selector,
             created_at: model.created_at,
             updated_at: model.updated_at,

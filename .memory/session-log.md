@@ -895,3 +895,8 @@ Git:
 - Added `/api/v1/cluster/diagnostics` for operator-visible cluster readiness: current status, scheduling gate, persisted Raft metadata, members, transport placeholder, and runtime boundary.
 - Chose a separate diagnostics endpoint instead of bloating `/api/v1/cluster`; the lightweight status endpoint stays stable for UI polling.
 - Kept cluster runtime in `scheduler-server::cluster` for now; no `scheduler-cluster` crate until consensus/runtime traits stabilize.
+
+### 2026-05-21 Phase2 dispatch queue fencing token
+- Reviewed Phase2: only full Raft runtime remains incomplete; Go/Python SDK stays Phase4.
+- Added `dispatch_queue.fencing_token` shape and SQLite compatibility migration; claim responses now include a fencing token.
+- Dispatcher now derives a fencing token from ClusterCoordinator status (`standalone:<node>:scheduler-dispatcher` today, future `raft:<node>:<leader-token>` when real consensus exists).

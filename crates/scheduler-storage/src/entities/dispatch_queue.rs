@@ -18,6 +18,7 @@ pub struct Model {
     pub attempt: i32,
     pub lease_owner: Option<String>,
     pub lease_until: Option<String>,
+    pub fencing_token: Option<String>,
     pub worker_selector: Option<String>,
     pub created_at: String,
     pub updated_at: String,
