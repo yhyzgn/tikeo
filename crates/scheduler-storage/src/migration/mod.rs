@@ -378,6 +378,7 @@ async fn create_workflow_shards(manager: &SchemaManager<'_>) -> Result<(), DbErr
                 .col(string_col(WorkflowShards::Status))
                 .col(string_col(WorkflowShards::Input))
                 .col(string_null(WorkflowShards::Output))
+                .col(string_null(WorkflowShards::JobInstanceId))
                 .col(string_col(WorkflowShards::CreatedAt))
                 .col(string_col(WorkflowShards::UpdatedAt))
                 .to_owned(),
@@ -1019,6 +1020,7 @@ enum WorkflowShards {
     Status,
     Input,
     Output,
+    JobInstanceId,
     CreatedAt,
     UpdatedAt,
 }

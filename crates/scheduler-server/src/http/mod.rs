@@ -218,6 +218,10 @@ fn api_router() -> Router<Arc<AppState>> {
             get(routes::list_workflow_shards),
         )
         .route(
+            "/workflow-shards/{id}/complete",
+            axum::routing::post(routes::complete_workflow_shard),
+        )
+        .route(
             "/events/instances/{id}/stream",
             get(routes::stream_instance_events),
         )
@@ -801,6 +805,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
     async fn workflow_create_validate_run_and_advance_returns_envelopes() {
         let app = router().await;
         let create = post_json(
@@ -894,6 +899,17 @@ mod tests {
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["data"].as_array().map(Vec::len), Some(2));
+        let shard_id = json["data"][0]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("shard id should exist"));
+        let shard_completed = post_json(
+            app.clone(),
+            &format!("/api/v1/workflow-shards/{shard_id}/complete"),
+            r#"{"status":"succeeded","output":{"ok":true},"message":"done"}"#,
+        )
+        .await;
+        assert_eq!(shard_completed["code"], 0);
+        assert_eq!(shard_completed["data"]["shard"]["status"], "succeeded");
 
         let queue = app
             .clone()

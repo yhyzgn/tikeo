@@ -15,9 +15,10 @@ use thiserror::Error;
 
 pub use repository::{
     AdvanceWorkflowInput, AdvanceWorkflowResult, AppendJobInstanceLog, AuditLogFilters,
-    AuditLogRepository, AuditLogSummary, AuthSessionRepository, AuthSessionSummary, CreateAuditLog,
-    CreateAuthSession, CreateJob, CreateJobInstance, CreateJobInstanceAttempt, CreateScript,
-    CreateUser, CreateWorkflow, DispatchQueueClaim, DispatchQueueSummary, InstanceEventSummary,
+    AuditLogRepository, AuditLogSummary, AuthSessionRepository, AuthSessionSummary,
+    CompleteWorkflowShardInput, CompleteWorkflowShardResult, CreateAuditLog, CreateAuthSession,
+    CreateJob, CreateJobInstance, CreateJobInstanceAttempt, CreateScript, CreateUser,
+    CreateWorkflow, DispatchQueueClaim, DispatchQueueSummary, InstanceEventSummary,
     JobInstanceAttemptRepository, JobInstanceAttemptSummary, JobInstanceLogRepository,
     JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
     MaterializeWorkflowNodeResult, PermissionSummary, QueueOverview, RbacRepository,
@@ -79,7 +80,7 @@ async fn ensure_workflow_schema_compatibility(
         r"CREATE TABLE IF NOT EXISTS workflow_edges (id varchar NOT NULL PRIMARY KEY, workflow_id varchar NOT NULL, from_node_key varchar NOT NULL, to_node_key varchar NOT NULL, condition varchar NOT NULL, created_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS workflow_instances (id varchar NOT NULL PRIMARY KEY, workflow_id varchar NOT NULL, status varchar NOT NULL, trigger_type varchar NOT NULL, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS workflow_node_instances (id varchar NOT NULL PRIMARY KEY, workflow_instance_id varchar NOT NULL, node_key varchar NOT NULL, status varchar NOT NULL, job_instance_id varchar, child_workflow_instance_id varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
-        r"CREATE TABLE IF NOT EXISTS workflow_shards (id varchar NOT NULL PRIMARY KEY, workflow_instance_id varchar NOT NULL, workflow_node_instance_id varchar NOT NULL, node_key varchar NOT NULL, shard_index integer NOT NULL, status varchar NOT NULL, input varchar NOT NULL, output varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
+        r"CREATE TABLE IF NOT EXISTS workflow_shards (id varchar NOT NULL PRIMARY KEY, workflow_instance_id varchar NOT NULL, workflow_node_instance_id varchar NOT NULL, node_key varchar NOT NULL, shard_index integer NOT NULL, status varchar NOT NULL, input varchar NOT NULL, output varchar, job_instance_id varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS dispatch_queue (id varchar NOT NULL PRIMARY KEY, job_instance_id varchar, workflow_node_instance_id varchar, priority integer NOT NULL, run_after varchar NOT NULL, status varchar NOT NULL, attempt integer NOT NULL, lease_owner varchar, lease_until varchar, worker_selector varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS instance_events (id varchar NOT NULL PRIMARY KEY, instance_id varchar NOT NULL, instance_type varchar NOT NULL, event_type varchar NOT NULL, message varchar NOT NULL, payload varchar, created_at varchar NOT NULL)",
         "CREATE INDEX IF NOT EXISTS idx_workflows_name ON workflows (name)",
@@ -95,6 +96,13 @@ async fn ensure_workflow_schema_compatibility(
             .await?;
     }
 
+    if !sqlite_column_exists(db, "workflow_shards", "job_instance_id").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE workflow_shards ADD COLUMN job_instance_id varchar",
+        ))
+        .await?;
+    }
     if !sqlite_column_exists(db, "workflow_node_instances", "child_workflow_instance_id").await? {
         db.execute(Statement::from_string(
             DatabaseBackend::Sqlite,

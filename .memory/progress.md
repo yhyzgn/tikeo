@@ -168,3 +168,9 @@
 - `claim_dispatch_queue_item` 改为 DB 条件更新：只有 pending 且无未过期 lease 的行能被抢占，同时原子递增 attempt，避免多 server 并发重复 claim。
 - Workflow queued node materialize 也改为先 claim lease，再物化节点；物化完成后将原 workflow-node queue 行标记 done 并清理 lease。
 - dispatcher 每轮会清理过期 pending lease；worker 不可用或实例状态已变化时会 release lease 并恢复 pending，成功派发后把 job queue 行标记 running。
+
+## 2026-05-21 044：Workflow Shard 聚合与子工作流回写
+- workflow_shards 新增 `job_instance_id` 软关联字段；map / map_reduce materialize 时会为每个 shard 创建 job_instance 与 dispatch_queue 行，使 shard 可进入 worker 派发链路。
+- 新增 `CompleteWorkflowShardInput/Result` 与 `POST /api/v1/workflow-shards/{id}/complete`：写入 shard status/output/event，全部 shard 成功后自动 advance 当前 map 节点，任一 shard failed 时按失败边推进。
+- Worker TaskResult 回写扩展到 shard job_instance：若 job_instance 关联 shard，则先完成 shard，再由 shard 聚合决定是否推进 workflow node。
+- sub_workflow materialize 会初始化子工作流节点与起始 dispatch_queue；子工作流完成后自动回写父 sub_workflow 节点终态并推进父后继。

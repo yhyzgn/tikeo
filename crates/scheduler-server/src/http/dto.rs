@@ -201,6 +201,9 @@ pub type WorkflowMaterializeApiResponse =
 pub type WorkflowRecoverApiResponse = ApiResponse<scheduler_storage::RecoverWorkflowNodeResult>;
 /// Workflow shard list API envelope.
 pub type WorkflowShardListApiResponse = ApiResponse<Vec<scheduler_storage::WorkflowShardSummary>>;
+/// Workflow shard completion API envelope.
+pub type WorkflowShardCompleteApiResponse =
+    ApiResponse<scheduler_storage::CompleteWorkflowShardResult>;
 /// Dispatch queue API envelope.
 pub type DispatchQueueApiResponse = ApiResponse<scheduler_storage::QueueOverview>;
 /// Dispatch queue claim API envelope.

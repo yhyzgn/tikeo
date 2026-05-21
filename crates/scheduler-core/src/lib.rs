@@ -122,6 +122,8 @@ pub enum TriggerType {
     FixedRate,
     /// Manual operator trigger from UI or CLI.
     Manual,
+    /// Workflow shard fan-out trigger.
+    WorkflowShard,
 }
 
 impl TriggerType {
@@ -133,6 +135,7 @@ impl TriggerType {
             Self::Cron => "cron",
             Self::FixedRate => "fixed_rate",
             Self::Manual => "manual",
+            Self::WorkflowShard => "workflow_shard",
         }
     }
 }
@@ -152,6 +155,7 @@ impl FromStr for TriggerType {
             "cron" => Ok(Self::Cron),
             "fixed_rate" | "fixed-rate" | "fixedrate" => Ok(Self::FixedRate),
             "manual" => Ok(Self::Manual),
+            "workflow_shard" | "workflow-shard" | "workflowshard" => Ok(Self::WorkflowShard),
             _ => Err(ParseEnumError::new("trigger_type", value)),
         }
     }
@@ -396,6 +400,7 @@ mod tests {
     #[test]
     fn trigger_and_status_values_are_stable() {
         assert_eq!(TriggerType::Api.as_str(), "api");
+        assert_eq!(TriggerType::WorkflowShard.as_str(), "workflow_shard");
         assert_eq!(InstanceStatus::Pending.as_str(), "pending");
         assert_eq!(
             InstanceStatus::from_str("partial_failed"),

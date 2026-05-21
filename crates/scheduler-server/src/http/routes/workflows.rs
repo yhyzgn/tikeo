@@ -9,8 +9,8 @@ use axum::{
     response::sse::{Event, Sse},
 };
 use scheduler_storage::{
-    AdvanceWorkflowInput, CreateWorkflow, RecoverWorkflowNodeInput, UpdateWorkflow,
-    WorkflowDefinition, validate_workflow_definition,
+    AdvanceWorkflowInput, CompleteWorkflowShardInput, CreateWorkflow, RecoverWorkflowNodeInput,
+    UpdateWorkflow, WorkflowDefinition, validate_workflow_definition,
 };
 use serde::Deserialize;
 use tokio_stream::Stream;
@@ -24,7 +24,8 @@ use crate::http::{
         ApiResponse, WorkflowAdvanceApiResponse, WorkflowApiResponse, WorkflowDryRunApiResponse,
         WorkflowDryRunResponse, WorkflowInstanceApiResponse, WorkflowListApiResponse,
         WorkflowMaterializeApiResponse, WorkflowRecoverApiResponse, WorkflowRunRequest,
-        WorkflowShardListApiResponse, WorkflowValidationApiResponse,
+        WorkflowShardCompleteApiResponse, WorkflowShardListApiResponse,
+        WorkflowValidationApiResponse,
     },
     error::ApiError,
 };
@@ -381,6 +382,51 @@ pub async fn list_workflow_shards(
         .await
         .map_err(|error| ApiError::storage(&error))?;
     Ok(Json(ApiResponse::success(items)))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/workflow-shards/{id}/complete",
+    tag = "workflows",
+    request_body = CompleteWorkflowShardInput
+)]
+pub async fn complete_workflow_shard(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<CompleteWorkflowShardInput>,
+) -> Result<Json<WorkflowShardCompleteApiResponse>, ApiError> {
+    let principal = auth::require_permission(&headers, &state, "workflows", "execute").await?;
+    let status = request.status.clone();
+    if !matches!(status.as_str(), "succeeded" | "failed") {
+        return Err(ApiError::bad_request(format!(
+            "unsupported workflow shard status: {status}"
+        )));
+    }
+    let item = state
+        .workflows
+        .complete_workflow_shard(&id, request)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::not_found(format!("workflow shard not found: {id}")))?;
+    audit(
+        &state,
+        &principal.username,
+        "complete",
+        "workflow_shard",
+        &id,
+        Some(format!(
+            "status={} node_completed={} node_status={}",
+            item.shard.status,
+            item.node_completed,
+            item.node_status
+                .clone()
+                .unwrap_or_else(|| "pending".to_owned())
+        )),
+        &headers,
+    )
+    .await;
+    Ok(Json(ApiResponse::success(item)))
 }
 
 pub async fn stream_instance_events(

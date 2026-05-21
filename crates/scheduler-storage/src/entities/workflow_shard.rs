@@ -17,6 +17,7 @@ pub struct Model {
     pub status: String,
     pub input: String,
     pub output: Option<String>,
+    pub job_instance_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }

@@ -757,3 +757,8 @@ Git:
 - 单实例 CreateJobInstance 现在事务内同时写入 dispatch_queue；broadcast 仍走 attempts 旧路径。
 - Worker Tunnel dispatcher 已切到 dispatch_queue claim/lease 路径，避免直接 list pending instances 带来的多 server 重复派发风险。
 - 已更新设计路线图 Phase 2，新增并完成“Dispatch queue 原子 claim 与 dispatcher 接入”。
+
+### 2026-05-21 044 workflow shard / child workflow callback
+- 继续 032 阶段：补齐 shard job_instance 软关联、shard complete API、shard 聚合推进、worker TaskResult -> shard 回写，以及 child workflow terminal -> parent node 回写。
+- SQLite 兼容迁移会为既有 workflow_shards 增加 `job_instance_id` 列；全库仍无外键。
+- 后续建议继续做 shard retry 策略、reduce 节点输入汇总以及 UI 上的 shard 完成/输出查看交互。

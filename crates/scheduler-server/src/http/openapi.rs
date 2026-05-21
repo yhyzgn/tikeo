@@ -49,6 +49,7 @@ use super::{auth, dto, routes};
         routes::workflows::materialize_next_workflow_node,
         routes::workflows::recover_workflow_node,
         routes::workflows::list_workflow_shards,
+        routes::workflows::complete_workflow_shard,
     ),
     components(schemas(
         dto::ApiResponse<dto::SystemInfoResponse>,
@@ -111,6 +112,8 @@ use super::{auth, dto, routes};
         scheduler_storage::WorkflowInstanceSummary,
         scheduler_storage::WorkflowNodeInstanceSummary,
         scheduler_storage::WorkflowShardSummary,
+        scheduler_storage::CompleteWorkflowShardInput,
+        scheduler_storage::CompleteWorkflowShardResult,
         scheduler_storage::DispatchQueueSummary,
         scheduler_storage::QueueOverview,
         crate::http::routes::workflows::CreateWorkflowRequest,

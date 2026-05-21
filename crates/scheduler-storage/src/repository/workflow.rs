@@ -117,8 +117,24 @@ pub struct WorkflowShardSummary {
     pub status: String,
     pub input: serde_json::Value,
     pub output: Option<serde_json::Value>,
+    pub job_instance_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct CompleteWorkflowShardInput {
+    pub status: String,
+    pub output: Option<serde_json::Value>,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct CompleteWorkflowShardResult {
+    pub shard: WorkflowShardSummary,
+    pub node_completed: bool,
+    pub node_status: Option<String>,
+    pub advance: Option<AdvanceWorkflowResult>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
@@ -548,11 +564,16 @@ impl WorkflowRepository {
             .get_workflow_instance(instance_id)
             .await?
             .ok_or_else(|| sea_orm::DbErr::RecordNotFound(instance_id.to_owned()))?;
-        Ok(Some(AdvanceWorkflowResult {
+        let result = AdvanceWorkflowResult {
             instance: refreshed,
             queued_nodes,
             completed,
-        }))
+        };
+        if result.completed {
+            self.propagate_child_workflow_completion(&result.instance)
+                .await?;
+        }
+        Ok(Some(result))
     }
 
     #[allow(clippy::too_many_lines)]
@@ -655,12 +676,17 @@ impl WorkflowRepository {
                 .await?;
             }
             "map" | "map_reduce" => {
+                let shard_job_id = node_spec.job_id.clone().unwrap_or_else(|| {
+                    format!("workflow-shard-{}-{}", instance.workflow_id, node_spec.key)
+                });
+                ensure_workflow_job_soft_link(&txn, &shard_job_id, &now).await?;
                 for (index, item) in node_spec
                     .map_items
                     .unwrap_or_default()
                     .into_iter()
                     .enumerate()
                 {
+                    let job_instance_id = new_id("inst");
                     let shard = workflow_shard::ActiveModel {
                         id: Set(new_id("wfs")),
                         workflow_instance_id: Set(instance.id.clone()),
@@ -672,6 +698,34 @@ impl WorkflowRepository {
                             serde_json::to_string(&item).unwrap_or_else(|_| "null".to_owned())
                         ),
                         output: Set(None),
+                        job_instance_id: Set(Some(job_instance_id.clone())),
+                        created_at: Set(now.clone()),
+                        updated_at: Set(now.clone()),
+                    }
+                    .insert(&txn)
+                    .await?;
+                    crate::entities::job_instance::ActiveModel {
+                        id: Set(job_instance_id.clone()),
+                        job_id: Set(shard_job_id.clone()),
+                        status: Set("pending".to_owned()),
+                        trigger_type: Set("workflow_shard".to_owned()),
+                        execution_mode: Set("single".to_owned()),
+                        created_at: Set(now.clone()),
+                        updated_at: Set(now.clone()),
+                    }
+                    .insert(&txn)
+                    .await?;
+                    dispatch_queue::ActiveModel {
+                        id: Set(new_id("dq")),
+                        job_instance_id: Set(Some(job_instance_id)),
+                        workflow_node_instance_id: Set(None),
+                        priority: Set(0),
+                        run_after: Set(now.clone()),
+                        status: Set("pending".to_owned()),
+                        attempt: Set(0),
+                        lease_owner: Set(None),
+                        lease_until: Set(None),
+                        worker_selector: Set(None),
                         created_at: Set(now.clone()),
                         updated_at: Set(now.clone()),
                     }
@@ -682,9 +736,10 @@ impl WorkflowRepository {
             }
             "sub_workflow" => {
                 let child_id = new_id("wfi");
+                let child_workflow_id = node_spec.child_workflow_id.clone().unwrap_or_default();
                 workflow_instance::ActiveModel {
                     id: Set(child_id.clone()),
-                    workflow_id: Set(node_spec.child_workflow_id.clone().unwrap_or_default()),
+                    workflow_id: Set(child_workflow_id.clone()),
                     status: Set("pending".to_owned()),
                     trigger_type: Set("sub_workflow".to_owned()),
                     created_at: Set(now.clone()),
@@ -692,6 +747,53 @@ impl WorkflowRepository {
                 }
                 .insert(&txn)
                 .await?;
+                if let Some(child_workflow) = self.get_workflow(&child_workflow_id).await? {
+                    let child_start_nodes = start_node_keys(&child_workflow.definition);
+                    for child_node in &child_workflow.definition.nodes {
+                        let is_start = child_start_nodes.contains(&child_node.key);
+                        let child_node_instance = workflow_node_instance::ActiveModel {
+                            id: Set(new_id("wfni")),
+                            workflow_instance_id: Set(child_id.clone()),
+                            node_key: Set(child_node.key.clone()),
+                            status: Set(if is_start { "queued" } else { "waiting" }.to_owned()),
+                            job_instance_id: Set(None),
+                            child_workflow_instance_id: Set(None),
+                            created_at: Set(now.clone()),
+                            updated_at: Set(now.clone()),
+                        }
+                        .insert(&txn)
+                        .await?;
+                        if is_start {
+                            dispatch_queue::ActiveModel {
+                                id: Set(new_id("dq")),
+                                job_instance_id: Set(None),
+                                workflow_node_instance_id: Set(Some(child_node_instance.id)),
+                                priority: Set(0),
+                                run_after: Set(now.clone()),
+                                status: Set("pending".to_owned()),
+                                attempt: Set(0),
+                                lease_owner: Set(None),
+                                lease_until: Set(None),
+                                worker_selector: Set(None),
+                                created_at: Set(now.clone()),
+                                updated_at: Set(now.clone()),
+                            }
+                            .insert(&txn)
+                            .await?;
+                        }
+                    }
+                    instance_event::ActiveModel {
+                        id: Set(new_id("evt")),
+                        instance_id: Set(child_id.clone()),
+                        instance_type: Set("workflow".to_owned()),
+                        event_type: Set("workflow.started".to_owned()),
+                        message: Set(format!("workflow {child_workflow_id} started")),
+                        payload: Set(None),
+                        created_at: Set(now.clone()),
+                    }
+                    .insert(&txn)
+                    .await?;
+                }
                 node_active.child_workflow_instance_id = Set(Some(child_id.clone()));
                 instance_event::ActiveModel {
                     id: Set(new_id("evt")),
@@ -755,6 +857,35 @@ impl WorkflowRepository {
         status: InstanceStatus,
         message: Option<String>,
     ) -> Result<Option<WorkflowJobResultOutcome>, sea_orm::DbErr> {
+        let terminal_status = if status == InstanceStatus::Succeeded {
+            "succeeded"
+        } else {
+            "failed"
+        }
+        .to_owned();
+        if let Some(shard_result) = self
+            .complete_shard_by_job_instance(
+                job_instance_id,
+                CompleteWorkflowShardInput {
+                    status: terminal_status.clone(),
+                    output: None,
+                    message: message.clone(),
+                },
+            )
+            .await?
+        {
+            self.mark_job_queue_done(job_instance_id, terminal_status.as_str())
+                .await?;
+            return Ok(shard_result
+                .advance
+                .map(|advance| WorkflowJobResultOutcome {
+                    workflow_instance_id: advance.instance.id,
+                    node_key: shard_result.shard.node_key,
+                    status: terminal_status,
+                    queued_nodes: advance.queued_nodes,
+                    completed: advance.completed,
+                }));
+        }
         let Some(node) = workflow_node_instance::Entity::find()
             .filter(workflow_node_instance::Column::JobInstanceId.eq(job_instance_id.to_owned()))
             .one(&self.db)
@@ -762,12 +893,6 @@ impl WorkflowRepository {
         else {
             return Ok(None);
         };
-        let terminal_status = if status == InstanceStatus::Succeeded {
-            "succeeded"
-        } else {
-            "failed"
-        }
-        .to_owned();
         let node_key = node.node_key.clone();
         let workflow_instance_id = node.workflow_instance_id.clone();
         let advance = self
@@ -794,6 +919,21 @@ impl WorkflowRepository {
             queued_nodes: advance.queued_nodes,
             completed: advance.completed,
         }))
+    }
+
+    async fn complete_shard_by_job_instance(
+        &self,
+        job_instance_id: &str,
+        input: CompleteWorkflowShardInput,
+    ) -> Result<Option<CompleteWorkflowShardResult>, sea_orm::DbErr> {
+        let Some(shard) = workflow_shard::Entity::find()
+            .filter(workflow_shard::Column::JobInstanceId.eq(job_instance_id.to_owned()))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        self.complete_workflow_shard(&shard.id, input).await
     }
 
     async fn mark_job_queue_done(
@@ -831,6 +971,144 @@ impl WorkflowRepository {
             .all(&self.db)
             .await?;
         Ok(rows.into_iter().map(WorkflowShardSummary::from).collect())
+    }
+
+    pub async fn complete_workflow_shard(
+        &self,
+        shard_id: &str,
+        input: CompleteWorkflowShardInput,
+    ) -> Result<Option<CompleteWorkflowShardResult>, sea_orm::DbErr> {
+        let status = normalize_terminal_status(&input.status)?;
+        let Some(shard) = workflow_shard::Entity::find_by_id(shard_id.to_owned())
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        if matches!(shard.status.as_str(), "succeeded" | "failed") {
+            return Ok(Some(CompleteWorkflowShardResult {
+                shard: WorkflowShardSummary::from(shard),
+                node_completed: false,
+                node_status: None,
+                advance: None,
+            }));
+        }
+
+        let now = now_rfc3339();
+        let output = input
+            .output
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(|error| sea_orm::DbErr::Custom(error.to_string()))?;
+        let workflow_instance_id = shard.workflow_instance_id.clone();
+        let workflow_node_instance_id = shard.workflow_node_instance_id.clone();
+        let shard_job_instance_id = shard.job_instance_id.clone();
+        let node_key = shard.node_key.clone();
+        let shard_index = shard.shard_index;
+        let txn = self.db.begin().await?;
+        let mut active: workflow_shard::ActiveModel = shard.into();
+        active.status = Set(status.clone());
+        active.output = Set(output.clone());
+        active.updated_at = Set(now.clone());
+        let updated = active.update(&txn).await?;
+        instance_event::ActiveModel {
+            id: Set(new_id("evt")),
+            instance_id: Set(workflow_instance_id.clone()),
+            instance_type: Set("workflow".to_owned()),
+            event_type: Set(format!("workflow.shard.{status}")),
+            message: Set(input.message.unwrap_or_else(|| {
+                format!("shard {node_key}#{shard_index} completed as {status}")
+            })),
+            payload: Set(output),
+            created_at: Set(now.clone()),
+        }
+        .insert(&txn)
+        .await?;
+
+        let sibling_rows = workflow_shard::Entity::find()
+            .filter(
+                workflow_shard::Column::WorkflowNodeInstanceId
+                    .eq(workflow_node_instance_id.clone()),
+            )
+            .all(&txn)
+            .await?;
+        let has_failed = sibling_rows.iter().any(|row| row.status == "failed");
+        let all_succeeded = sibling_rows.iter().all(|row| row.status == "succeeded");
+        txn.commit().await?;
+        if let Some(job_instance_id) = &shard_job_instance_id {
+            self.mark_job_queue_done(job_instance_id, &status).await?;
+        }
+
+        let node_status = if has_failed {
+            Some("failed".to_owned())
+        } else if all_succeeded {
+            Some("succeeded".to_owned())
+        } else {
+            None
+        };
+        let advance = if let Some(node_status) = &node_status {
+            self.advance_workflow(
+                &workflow_instance_id,
+                AdvanceWorkflowInput {
+                    node_key,
+                    status: node_status.clone(),
+                    message: Some(format!(
+                        "workflow shards completed with aggregate status {node_status}"
+                    )),
+                },
+            )
+            .await?
+        } else {
+            None
+        };
+
+        Ok(Some(CompleteWorkflowShardResult {
+            shard: WorkflowShardSummary::from(updated),
+            node_completed: node_status.is_some(),
+            node_status,
+            advance,
+        }))
+    }
+
+    async fn propagate_child_workflow_completion(
+        &self,
+        child_instance: &WorkflowInstanceSummary,
+    ) -> Result<(), sea_orm::DbErr> {
+        let Some(parent_node) = workflow_node_instance::Entity::find()
+            .filter(
+                workflow_node_instance::Column::ChildWorkflowInstanceId
+                    .eq(child_instance.id.clone()),
+            )
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(());
+        };
+        if matches!(
+            parent_node.status.as_str(),
+            "succeeded" | "failed" | "skipped"
+        ) {
+            return Ok(());
+        }
+        let parent_status = if child_instance.status == "succeeded" {
+            "succeeded"
+        } else {
+            "failed"
+        };
+        let _ = Box::pin(self.advance_workflow(
+            &parent_node.workflow_instance_id,
+            AdvanceWorkflowInput {
+                node_key: parent_node.node_key,
+                status: parent_status.to_owned(),
+                message: Some(format!(
+                    "child workflow {} completed as {}",
+                    child_instance.id, child_instance.status
+                )),
+            },
+        ))
+        .await?;
+        Ok(())
     }
 
     pub async fn claim_next_dispatch_queue_item(
@@ -1284,6 +1562,7 @@ impl From<workflow_shard::Model> for WorkflowShardSummary {
             output: model
                 .output
                 .and_then(|value| serde_json::from_str(&value).ok()),
+            job_instance_id: model.job_instance_id,
             created_at: model.created_at,
             updated_at: model.updated_at,
         }
@@ -1306,6 +1585,15 @@ impl From<dispatch_queue::Model> for DispatchQueueSummary {
             created_at: model.created_at,
             updated_at: model.updated_at,
         }
+    }
+}
+
+fn normalize_terminal_status(status: &str) -> Result<String, sea_orm::DbErr> {
+    match status {
+        "succeeded" | "failed" => Ok(status.to_owned()),
+        other => Err(sea_orm::DbErr::Custom(format!(
+            "unsupported workflow shard status: {other}"
+        ))),
     }
 }
 

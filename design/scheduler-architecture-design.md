@@ -2040,8 +2040,8 @@ scheduler/
 **目标**：覆盖 PowerJob 的全部调度模式。
 
 - [x] DAG 工作流引擎基础（定义存储、DAG 校验、最小 run API；可视化编排后续增强）
-- [x] Map / MapReduce 执行模式（workflow_shards + 最小 materialize 语义）
-- [x] 子工作流嵌套（节点引用 child_workflow_id + 子实例软关联）
+- [x] Map / MapReduce 执行模式（workflow_shards + materialize + shard job_instance/dispatch_queue 软关联）
+- [x] 子工作流嵌套（节点引用 child_workflow_id + 子实例软关联 + 子实例终态回写父节点）
 - [ ] PostgreSQL + CockroachDB 存储支持
 - [ ] Server 集群 (Raft 共识)
 - [x] 任务队列基础（dispatch_queue 持久化模型、priority/run_after/status/lease_owner/lease_until 字段；workflow queued node 自动 materialize）
@@ -2054,7 +2054,8 @@ scheduler/
 - [x] Workflow queued node 物化执行（`materialize-next` 将 queued 节点物化为 job_instance、workflow_shards 或 child workflow instance）
 - [x] Workflow 节点恢复 API（`recover` 支持 retry/skip/fail/succeed 基础恢复语义）
 - [x] Worker / dispatch queue 管理 API 与 Web Worker 集群页面
-- [x] Worker TaskResult 自动推进 Workflow（按 job_instance_id 软关联回写 workflow_node_instance，并按边条件入队后继节点）
+- [x] Worker TaskResult 自动推进 Workflow（按 job_instance_id 软关联回写 workflow_node_instance / workflow_shard，并按边条件入队后继节点）
+- [x] Workflow shard 完成回调与聚合推进（`POST /api/v1/workflow-shards/{id}/complete` 写入 output/status，全部成功后自动推进后继，失败时走失败边）
 - [x] Workflow 操作审计日志（create/update/validate/dry-run/run/advance/materialize/recover 管理与执行动作写入 audit_logs）
 - [x] Dispatch queue 最小租约与 claim API（lease_owner / lease_until + SQLite 兼容迁移；`POST /api/v1/dispatch-queue:claim` 支持按租约占用队列项）
 - [x] Dispatch queue 原子 claim 与 dispatcher 接入（DB 条件更新抢占租约、过期 pending lease 回收、workflow queued node 和 single job dispatch 统一走 dispatch_queue）
