@@ -346,23 +346,52 @@ pub struct WorkerListResponse {
     pub items: Vec<WorkerSummary>,
 }
 
-/// Placeholder request shape for future Raft `AppendEntries` transport.
+/// Transport request shape aligned with raft-rs `eraftpb::Message`.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct RaftAppendEntriesRequest {
-    /// Sender node id.
-    pub leader_id: String,
+    /// Sender raft node id as derived by the server node-id mapping.
+    pub from: u64,
+    /// Target raft node id.
+    pub to: u64,
     /// Sender term.
     pub term: i64,
-    /// Previous log index.
-    pub prev_log_index: i64,
-    /// Previous log term.
-    pub prev_log_term: i64,
-    /// Leader commit index.
-    pub leader_commit: i64,
-    /// Opaque log entries placeholder. Real runtime will replace this with typed consensus entries.
-    pub entries: Vec<serde_json::Value>,
+    /// raft-rs message type name, e.g. `MsgAppend`, `MsgHeartbeat`, or `MsgRequestVote`.
+    pub message_type: String,
+    /// Log index carried by raft-rs message.
+    pub index: i64,
+    /// Log term carried by raft-rs message.
+    pub log_term: i64,
+    /// Commit index carried by raft-rs message.
+    pub commit: i64,
+    /// Candidate snapshot index, when a snapshot message is carried out-of-band.
+    pub snapshot_index: Option<i64>,
+    /// Candidate snapshot term, when a snapshot message is carried out-of-band.
+    pub snapshot_term: Option<i64>,
+    /// Entries carried by append messages. Payloads are base64 strings.
+    pub entries: Vec<RaftWireEntry>,
+    /// Optional base64 message context.
+    pub context: Option<String>,
+    /// Whether this is a rejection response.
+    pub reject: Option<bool>,
+    /// Rejection hint index from raft-rs.
+    pub reject_hint: Option<i64>,
     /// Optional fencing token carried by a real leader. Ignored until consensus runtime exists.
     pub leader_fencing_token: Option<String>,
+}
+
+/// Wire representation of a raft-rs log entry.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct RaftWireEntry {
+    /// Entry type name, e.g. `EntryNormal` or `EntryConfChange`.
+    pub entry_type: String,
+    /// Entry log index.
+    pub index: i64,
+    /// Entry term.
+    pub term: i64,
+    /// Base64-encoded entry data.
+    pub data: String,
+    /// Base64-encoded entry context.
+    pub context: Option<String>,
 }
 
 /// Placeholder response for reserved Raft transport messages.

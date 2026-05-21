@@ -38,7 +38,10 @@ pub async fn append_entries(
     let local = state.cluster.status().await;
     Ok(Json(ApiResponse::success(RaftMessageResult {
         accepted: false,
-        reason: "raft transport endpoint is reserved; consensus runtime is not started".to_owned(),
+        reason: format!(
+            "raft-rs {message_type} transport received but event loop is not started",
+            message_type = request.message_type
+        ),
         local_node_id: local.node_id,
         local_role: local.role.as_str().to_owned(),
         leader_fencing_token: None,

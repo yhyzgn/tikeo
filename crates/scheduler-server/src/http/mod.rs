@@ -427,7 +427,7 @@ mod tests {
                     app,
                     "POST",
                     "/api/v1/raft/append-entries",
-                    r#"{"leader_id":"scheduler-1","term":1,"prev_log_index":0,"prev_log_term":0,"leader_commit":0,"entries":[],"leader_fencing_token":"candidate"}"#,
+                    r#"{"from":1,"to":2,"term":1,"message_type":"MsgAppend","index":0,"log_term":0,"commit":0,"snapshot_index":null,"snapshot_term":null,"entries":[],"context":null,"reject":false,"reject_hint":null,"leader_fencing_token":"candidate"}"#,
                 )
                 .await,
             )

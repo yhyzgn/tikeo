@@ -32,7 +32,9 @@ pub use job::{CreateJob, JobSummary};
 pub use job_repo::JobRepository;
 pub use log::{AppendJobInstanceLog, JobInstanceLogRepository, JobInstanceLogSummary};
 pub use raft::{
-    RaftMemberSummary, RaftMetadataSummary, RaftRepository, UpsertRaftMember, UpsertRaftMetadata,
+    RaftLogEntrySummary, RaftMemberSummary, RaftMetadataSummary, RaftRepository,
+    RaftSnapshotSummary, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
+    UpsertRaftSnapshot,
 };
 pub use script::{
     CreateScript, ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary,
@@ -60,8 +62,8 @@ mod tests {
         entities::auth_session,
         migration::Migrator,
         repository::{
-            AppendJobInstanceLog, CreateJob, CreateJobInstance, RaftRepository, UpsertRaftMember,
-            UpsertRaftMetadata,
+            AppendJobInstanceLog, CreateJob, CreateJobInstance, RaftRepository, UpsertRaftLogEntry,
+            UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot,
         },
     };
 
@@ -149,6 +151,43 @@ mod tests {
             .unwrap_or_else(|error| panic!("members should list: {error}"));
         assert_eq!(members.len(), 1);
         assert_eq!(members[0].endpoint, "http://scheduler-1:9999");
+
+        let log = repository
+            .upsert_log_entry(UpsertRaftLogEntry {
+                cluster_id: "default".to_owned(),
+                node_id: "scheduler-1".to_owned(),
+                log_index: 1,
+                term: 2,
+                entry_type: "EntryNormal".to_owned(),
+                data: "cGl4ZWw=".to_owned(),
+                context: None,
+                sync_status: "persisted".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("raft log should upsert: {error}"));
+        assert_eq!(log.log_index, 1);
+        assert_eq!(log.term, 2);
+
+        let logs = repository
+            .list_log_entries("scheduler-1", 1, 10)
+            .await
+            .unwrap_or_else(|error| panic!("raft logs should list: {error}"));
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].entry_type, "EntryNormal");
+
+        let snapshot = repository
+            .upsert_snapshot(UpsertRaftSnapshot {
+                cluster_id: "default".to_owned(),
+                node_id: "scheduler-1".to_owned(),
+                snapshot_index: 4,
+                term: 2,
+                conf_state: Some("e30=".to_owned()),
+                data: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("raft snapshot should upsert: {error}"));
+        assert_eq!(snapshot.snapshot_index, 4);
+        assert_eq!(snapshot.term, 2);
     }
 
     #[tokio::test]

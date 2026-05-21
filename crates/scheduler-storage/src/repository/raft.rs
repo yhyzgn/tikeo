@@ -1,7 +1,10 @@
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
+};
 use serde::{Deserialize, Serialize};
 
-use crate::entities::{raft_member, raft_metadata};
+use crate::entities::{raft_log_entry, raft_member, raft_metadata, raft_snapshot};
 
 use super::util::{new_id, now_rfc3339};
 
@@ -33,6 +36,44 @@ pub struct UpsertRaftMember {
     pub endpoint: String,
     /// Member lifecycle status.
     pub status: String,
+}
+
+/// Raft log entry upsert input. Payloads are encoded by the caller.
+#[derive(Debug, Clone)]
+pub struct UpsertRaftLogEntry {
+    /// Logical cluster identifier.
+    pub cluster_id: String,
+    /// Stable scheduler node id owning this local log.
+    pub node_id: String,
+    /// Raft log index.
+    pub log_index: i64,
+    /// Raft term.
+    pub term: i64,
+    /// raft-rs entry type name.
+    pub entry_type: String,
+    /// Base64-encoded entry payload bytes.
+    pub data: String,
+    /// Base64-encoded entry context bytes.
+    pub context: Option<String>,
+    /// Persistence status used by the future Ready pipeline.
+    pub sync_status: String,
+}
+
+/// Raft snapshot upsert input. Payloads are encoded by the caller.
+#[derive(Debug, Clone)]
+pub struct UpsertRaftSnapshot {
+    /// Logical cluster identifier.
+    pub cluster_id: String,
+    /// Stable scheduler node id owning this local snapshot.
+    pub node_id: String,
+    /// Snapshot index.
+    pub snapshot_index: i64,
+    /// Snapshot term.
+    pub term: i64,
+    /// Base64-encoded `ConfState` bytes or JSON marker.
+    pub conf_state: Option<String>,
+    /// Base64-encoded snapshot data or object-store pointer.
+    pub data: Option<String>,
 }
 
 /// Stored Raft metadata summary.
@@ -75,7 +116,57 @@ pub struct RaftMemberSummary {
     pub updated_at: String,
 }
 
-/// Repository for Raft metadata and static member bootstrap records.
+/// Stored Raft log entry summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RaftLogEntrySummary {
+    /// Log row identifier.
+    pub id: String,
+    /// Logical cluster identifier.
+    pub cluster_id: String,
+    /// Stable scheduler node id owning this local log.
+    pub node_id: String,
+    /// Raft log index.
+    pub log_index: i64,
+    /// Raft term.
+    pub term: i64,
+    /// raft-rs entry type name.
+    pub entry_type: String,
+    /// Base64-encoded entry payload bytes.
+    pub data: String,
+    /// Base64-encoded entry context bytes.
+    pub context: Option<String>,
+    /// Persistence status used by the future Ready pipeline.
+    pub sync_status: String,
+    /// Creation timestamp.
+    pub created_at: String,
+    /// Last update timestamp.
+    pub updated_at: String,
+}
+
+/// Stored Raft snapshot summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RaftSnapshotSummary {
+    /// Snapshot row identifier.
+    pub id: String,
+    /// Logical cluster identifier.
+    pub cluster_id: String,
+    /// Stable scheduler node id owning this local snapshot.
+    pub node_id: String,
+    /// Snapshot index.
+    pub snapshot_index: i64,
+    /// Snapshot term.
+    pub term: i64,
+    /// Base64-encoded `ConfState` bytes or JSON marker.
+    pub conf_state: Option<String>,
+    /// Base64-encoded snapshot data or object-store pointer.
+    pub data: Option<String>,
+    /// Creation timestamp.
+    pub created_at: String,
+    /// Last update timestamp.
+    pub updated_at: String,
+}
+
+/// Repository for Raft metadata, membership, and future raft-rs durable records.
 #[derive(Debug, Clone)]
 pub struct RaftRepository {
     db: DatabaseConnection,
@@ -176,6 +267,101 @@ impl RaftRepository {
             .await
             .map(|rows| rows.into_iter().map(RaftMemberSummary::from).collect())
     }
+
+    /// Upsert a local raft-rs log entry by `(node_id, log_index)`.
+    pub async fn upsert_log_entry(
+        &self,
+        input: UpsertRaftLogEntry,
+    ) -> Result<RaftLogEntrySummary, sea_orm::DbErr> {
+        let now = now_rfc3339();
+        if let Some(existing) = raft_log_entry::Entity::find()
+            .filter(raft_log_entry::Column::NodeId.eq(input.node_id.clone()))
+            .filter(raft_log_entry::Column::LogIndex.eq(input.log_index))
+            .one(&self.db)
+            .await?
+        {
+            let mut active: raft_log_entry::ActiveModel = existing.into();
+            active.cluster_id = Set(input.cluster_id);
+            active.term = Set(input.term);
+            active.entry_type = Set(input.entry_type);
+            active.data = Set(input.data);
+            active.context = Set(input.context);
+            active.sync_status = Set(input.sync_status);
+            active.updated_at = Set(now);
+            return active.update(&self.db).await.map(RaftLogEntrySummary::from);
+        }
+
+        raft_log_entry::ActiveModel {
+            id: Set(new_id("raft_log")),
+            cluster_id: Set(input.cluster_id),
+            node_id: Set(input.node_id),
+            log_index: Set(input.log_index),
+            term: Set(input.term),
+            entry_type: Set(input.entry_type),
+            data: Set(input.data),
+            context: Set(input.context),
+            sync_status: Set(input.sync_status),
+            created_at: Set(now.clone()),
+            updated_at: Set(now),
+        }
+        .insert(&self.db)
+        .await
+        .map(RaftLogEntrySummary::from)
+    }
+
+    /// List local raft-rs log entries from `from_index` inclusive.
+    pub async fn list_log_entries(
+        &self,
+        node_id: &str,
+        from_index: i64,
+        limit: u64,
+    ) -> Result<Vec<RaftLogEntrySummary>, sea_orm::DbErr> {
+        raft_log_entry::Entity::find()
+            .filter(raft_log_entry::Column::NodeId.eq(node_id.to_owned()))
+            .filter(raft_log_entry::Column::LogIndex.gte(from_index))
+            .order_by_asc(raft_log_entry::Column::LogIndex)
+            .limit(limit)
+            .all(&self.db)
+            .await
+            .map(|rows| rows.into_iter().map(RaftLogEntrySummary::from).collect())
+    }
+
+    /// Upsert a local raft-rs snapshot by `(node_id, snapshot_index)`.
+    pub async fn upsert_snapshot(
+        &self,
+        input: UpsertRaftSnapshot,
+    ) -> Result<RaftSnapshotSummary, sea_orm::DbErr> {
+        let now = now_rfc3339();
+        if let Some(existing) = raft_snapshot::Entity::find()
+            .filter(raft_snapshot::Column::NodeId.eq(input.node_id.clone()))
+            .filter(raft_snapshot::Column::SnapshotIndex.eq(input.snapshot_index))
+            .one(&self.db)
+            .await?
+        {
+            let mut active: raft_snapshot::ActiveModel = existing.into();
+            active.cluster_id = Set(input.cluster_id);
+            active.term = Set(input.term);
+            active.conf_state = Set(input.conf_state);
+            active.data = Set(input.data);
+            active.updated_at = Set(now);
+            return active.update(&self.db).await.map(RaftSnapshotSummary::from);
+        }
+
+        raft_snapshot::ActiveModel {
+            id: Set(new_id("raft_snapshot")),
+            cluster_id: Set(input.cluster_id),
+            node_id: Set(input.node_id),
+            snapshot_index: Set(input.snapshot_index),
+            term: Set(input.term),
+            conf_state: Set(input.conf_state),
+            data: Set(input.data),
+            created_at: Set(now.clone()),
+            updated_at: Set(now),
+        }
+        .insert(&self.db)
+        .await
+        .map(RaftSnapshotSummary::from)
+    }
 }
 
 impl From<raft_metadata::Model> for RaftMetadataSummary {
@@ -201,6 +387,40 @@ impl From<raft_member::Model> for RaftMemberSummary {
             node_id: value.node_id,
             endpoint: value.endpoint,
             status: value.status,
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+        }
+    }
+}
+
+impl From<raft_log_entry::Model> for RaftLogEntrySummary {
+    fn from(value: raft_log_entry::Model) -> Self {
+        Self {
+            id: value.id,
+            cluster_id: value.cluster_id,
+            node_id: value.node_id,
+            log_index: value.log_index,
+            term: value.term,
+            entry_type: value.entry_type,
+            data: value.data,
+            context: value.context,
+            sync_status: value.sync_status,
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+        }
+    }
+}
+
+impl From<raft_snapshot::Model> for RaftSnapshotSummary {
+    fn from(value: raft_snapshot::Model) -> Self {
+        Self {
+            id: value.id,
+            cluster_id: value.cluster_id,
+            node_id: value.node_id,
+            snapshot_index: value.snapshot_index,
+            term: value.term,
+            conf_state: value.conf_state,
+            data: value.data,
             created_at: value.created_at,
             updated_at: value.updated_at,
         }

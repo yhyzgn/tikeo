@@ -89,6 +89,7 @@ use super::{auth, dto, routes};
         dto::RaftMemberDiagnostic,
         dto::RaftTransportDiagnostic,
         dto::RaftAppendEntriesRequest,
+        dto::RaftWireEntry,
         dto::RaftMessageResult,
         dto::LoginRequest,
         dto::AuthSession,

@@ -48,6 +48,12 @@ impl MigrationTrait for CreateMetadataTables {
             .drop_table(Table::drop().table(AuditLogs::Table).to_owned())
             .await?;
         manager
+            .drop_table(Table::drop().table(RaftSnapshots::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(RaftLogEntries::Table).to_owned())
+            .await?;
+        manager
             .drop_table(Table::drop().table(RaftMembers::Table).to_owned())
             .await?;
         manager
@@ -465,6 +471,42 @@ async fn create_raft_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(string_col(RaftMembers::Status))
                 .col(string_col(RaftMembers::CreatedAt))
                 .col(string_col(RaftMembers::UpdatedAt))
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_table(
+            Table::create()
+                .table(RaftLogEntries::Table)
+                .if_not_exists()
+                .col(string_pk(RaftLogEntries::Id))
+                .col(string_col(RaftLogEntries::ClusterId))
+                .col(string_col(RaftLogEntries::NodeId))
+                .col(big_integer_col(RaftLogEntries::LogIndex))
+                .col(big_integer_col(RaftLogEntries::Term))
+                .col(string_col(RaftLogEntries::EntryType))
+                .col(text_col(RaftLogEntries::Data))
+                .col(text_null(RaftLogEntries::Context))
+                .col(string_col(RaftLogEntries::SyncStatus))
+                .col(string_col(RaftLogEntries::CreatedAt))
+                .col(string_col(RaftLogEntries::UpdatedAt))
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_table(
+            Table::create()
+                .table(RaftSnapshots::Table)
+                .if_not_exists()
+                .col(string_pk(RaftSnapshots::Id))
+                .col(string_col(RaftSnapshots::ClusterId))
+                .col(string_col(RaftSnapshots::NodeId))
+                .col(big_integer_col(RaftSnapshots::SnapshotIndex))
+                .col(big_integer_col(RaftSnapshots::Term))
+                .col(text_null(RaftSnapshots::ConfState))
+                .col(text_null(RaftSnapshots::Data))
+                .col(string_col(RaftSnapshots::CreatedAt))
+                .col(string_col(RaftSnapshots::UpdatedAt))
                 .to_owned(),
         )
         .await
@@ -1023,6 +1065,38 @@ async fn create_raft_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             .col(RaftMembers::Status)
             .to_owned(),
     )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_raft_log_entries_node_index")
+            .table(RaftLogEntries::Table)
+            .col(RaftLogEntries::NodeId)
+            .col(RaftLogEntries::LogIndex)
+            .unique()
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_raft_log_entries_node_term")
+            .table(RaftLogEntries::Table)
+            .col(RaftLogEntries::NodeId)
+            .col(RaftLogEntries::Term)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_raft_snapshots_node_index")
+            .table(RaftSnapshots::Table)
+            .col(RaftSnapshots::NodeId)
+            .col(RaftSnapshots::SnapshotIndex)
+            .unique()
+            .to_owned(),
+    )
     .await
 }
 
@@ -1154,6 +1228,36 @@ enum RaftMembers {
     NodeId,
     Endpoint,
     Status,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum RaftLogEntries {
+    Table,
+    Id,
+    ClusterId,
+    NodeId,
+    LogIndex,
+    Term,
+    EntryType,
+    Data,
+    Context,
+    SyncStatus,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum RaftSnapshots {
+    Table,
+    Id,
+    ClusterId,
+    NodeId,
+    SnapshotIndex,
+    Term,
+    ConfState,
+    Data,
     CreatedAt,
     UpdatedAt,
 }
@@ -1380,6 +1484,20 @@ where
     T: IntoIden,
 {
     ColumnDef::new(column).string().null().take()
+}
+
+fn text_col<T>(column: T) -> ColumnDef
+where
+    T: IntoIden,
+{
+    ColumnDef::new(column).text().not_null().take()
+}
+
+fn text_null<T>(column: T) -> ColumnDef
+where
+    T: IntoIden,
+{
+    ColumnDef::new(column).text().null().take()
 }
 
 fn boolean_col<T>(column: T) -> ColumnDef

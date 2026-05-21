@@ -1542,7 +1542,8 @@ docker run -d \
 - **Raft scope**：membership、term/index、leader lease、配置变更、调度 shard ownership；业务数据仍存储在 SeaORM 支持的数据库中，且继续禁止数据库外键。
 - **Safe config shape first**：`cluster.mode/node_id/peers` 已可配置；`mode=raft` 在真实 consensus runtime 接入前返回 `role=unknown` 且 `can_schedule=false`，避免假 leader。
 - **Raft metadata foundation**：`raft_metadata` 与 `raft_members` 已通过 SeaORM migration 建表，启动时可持久化本节点 term/index 初始元数据和静态 peers；表结构不包含外键，只通过 `node_id` 等字段软关联。
-- **Raft transport placeholder**：预留 `/api/v1/raft/append-entries` HTTP transport 形状，适配 Docker bridge / K8s Service / LB/WAF 代理头；当前只返回 `accepted=false`，不变更共识状态。
+- **Raft durable records**：`raft_log_entries` 与 `raft_snapshots` 已加入 SeaORM migration/entity/repository，用于后续 raft-rs `Ready` 流水线持久化 log entries 与 snapshot metadata/payload pointer；仍不创建数据库外键，仅按 `cluster_id/node_id/log_index/snapshot_index` 软关联。
+- **Raft transport placeholder**：预留 `/api/v1/raft/append-entries` HTTP transport 形状，适配 Docker bridge / K8s Service / LB/WAF 代理头；请求 DTO 已对齐 raft-rs `eraftpb::Message` 的 from/to/term/message_type/index/log_term/commit/entries/context/reject 字段，但当前仍只返回 `accepted=false`，不变更共识状态。
 - **Fencing token shape**：`ClusterStatus` 与 `raft_metadata.leader_fencing_token` 已预留 leader fencing token 字段；真实 token 只能由后续 consensus runtime 写入，配置态/占位 transport 均返回 `null`。
 - **Runtime implementation choice**：2026-05-21 改为集成 TiKV `raft-rs`（crate `raft` 0.7.0，Apache-2.0）。当前已在 `scheduler-server::cluster::raft_rs` 内完成 `RawNode` bootstrap/config/storage 边界校验：把现有字符串 `node_id` 通过 SHA-256 稳定映射为 raft-rs 需要的非 0 `u64` id，使用配置 peers 生成初始 voters，并构造 `MemStorage + RawNode` 证明依赖/API 可编译可运行。
 - **No fake leadership**：raft-rs bootstrap 仅证明 runtime 边界可创建，暂不启动 tick/event loop，不 campaign，不生成 leader token，不把配置态 Raft 解释为 leader；`mode=raft` 仍返回 `role=unknown` 且 `can_schedule=false`。
@@ -2128,7 +2129,9 @@ scheduler/
   - [x] Raft transport/fencing 形状（`/api/v1/raft/append-entries` 占位接口 + `leader_fencing_token` 字段，仍不授予 leader）
   - [x] Cluster diagnostics（`/api/v1/cluster/diagnostics` 展示 gate、term/index、peers、transport 占位和 runtime boundary）
   - [x] TiKV raft-rs (`raft` 0.7.0) 依赖接入与 `RawNode` bootstrap 校验（不启动 event loop，不授予 leader）
-  - [ ] raft-rs event loop、HTTP/gRPC message transport、Ready 持久化/应用、leader/follower fencing token 生成、动态 membership/config change
+  - [x] raft-rs durable record 基础（`raft_log_entries` / `raft_snapshots`，无外键，Repository upsert/list 覆盖 Ready 后续持久化入口）
+  - [x] raft-rs message transport DTO 基础（`/api/v1/raft/append-entries` 请求对齐 from/to/term/message_type/index/log_term/commit/entries/context/reject，仍不 mutate）
+  - [ ] raft-rs event loop、Ready 持久化/应用、leader/follower fencing token 生成、动态 membership/config change
 - [x] 任务队列基础（dispatch_queue 持久化模型、priority/run_after/status/lease_owner/lease_until 字段；workflow queued node 自动 materialize）
 - [x] 持久化延迟队列基础（dispatch_queue.run_after）
 - [x] 实时日志流 (gRPC Server Stream：`SubscribeTaskLogs` 支持历史回放 + Worker Tunnel live fan-out)
