@@ -3,6 +3,7 @@
 
 # Rust build output
 /target/
+examples/rust/**/target/
 
 # Node/frontend dependencies and build output
 node_modules/
@@ -19,8 +20,11 @@ build/
 *.db
 *.db-*
 
-# Java/Maven build output
-sdks/java/**/target/
+# Java/Gradle build output
+sdks/java/**/build/
+sdks/java/.gradle/
+examples/java/**/build/
+examples/java/.gradle/
 
 # Local development script logs
 .dev/

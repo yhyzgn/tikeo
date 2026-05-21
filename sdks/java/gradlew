@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+GRADLE_VERSION="${GRADLE_VERSION:-8.14.3}"
+GRADLE_HOME="$SCRIPT_DIR/.gradle/wrapper/dists/gradle-$GRADLE_VERSION"
+GRADLE_BIN="$GRADLE_HOME/bin/gradle"
+
+if [[ ! -x "$GRADLE_BIN" ]]; then
+  mkdir -p "$SCRIPT_DIR/.gradle/wrapper/dists"
+  tmp_dir="$(mktemp -d)"
+  trap 'rm -rf "$tmp_dir"' EXIT
+  zip_file="$tmp_dir/gradle-$GRADLE_VERSION-bin.zip"
+  curl -fL --retry 3 --connect-timeout 20 --max-time 300 \
+    "https://services.gradle.org/distributions/gradle-$GRADLE_VERSION-bin.zip" \
+    -o "$zip_file"
+  unzip -q "$zip_file" -d "$tmp_dir"
+  rm -rf "$GRADLE_HOME"
+  mv "$tmp_dir/gradle-$GRADLE_VERSION" "$GRADLE_HOME"
+fi
+
+cd "$REPO_ROOT"
+exec "$GRADLE_BIN" "$@"

@@ -1,0 +1,13 @@
+[package]
+name = "scheduler-rust-worker-demo"
+description = "Runnable Rust worker SDK demo."
+edition = "2024"
+version = "0.1.0"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+scheduler-worker-sdk = { path = "../../../sdks/rust/scheduler-worker-sdk" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[workspace]

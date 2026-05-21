@@ -6,33 +6,38 @@ Normalize SDK and demo layout according to the latest project rule.
 ## Required target layout
 ```text
 sdks/
-├── rust/      # Rust Worker SDK crate (currently sdks/scheduler-worker-sdk; migrate here)
-├── java/      # Java 21+ Gradle multi-project Spring Boot Starter SDK
-├── go/        # planned Go SDK
-├── python/    # planned Python SDK
-└── nodejs/    # planned Node.js/TypeScript SDK
+├── rust/scheduler-worker-sdk/
+├── java/scheduler-java-core/
+├── java/scheduler-spring-boot-autoconfigure/
+├── java/scheduler-spring-boot-starter/
+├── go/scheduler-go-sdk/
+├── python/scheduler-python-sdk/
+└── nodejs/scheduler-nodejs-sdk/
 
 examples/
-├── rust/      # Rust SDK demo worker
-├── java/      # Java Spring Boot demo app, Gradle, JDK21+
-├── go/        # Go demo worker
-├── python/    # Python demo worker
-└── nodejs/    # Node.js demo worker
+├── rust/worker-demo/
+├── java/spring-worker-demo/
+├── go/worker-demo/
+├── python/worker-demo/
+└── nodejs/worker-demo/
 ```
 
-## Must do
-1. Move Rust SDK from `sdks/scheduler-worker-sdk` to `sdks/rust`.
-   - Update root Cargo workspace, Dockerfile cache stage, README, memory/prompt references.
-2. Convert Java SDK from Maven to Gradle.
-   - Remove/replace `pom.xml` main build files.
-   - Add `settings.gradle.kts` / `build.gradle.kts` multi-project setup.
-   - Use Java toolchain 21+.
-   - Keep Spring Boot Starter, autoconfigure, annotation scanning modules.
-   - Replace validation command with Gradle command.
-3. Create `examples/{rust,java,go,python,nodejs}` directories.
-   - Add minimal README or runnable skeleton where the corresponding SDK exists.
-   - For future SDKs without implementation, add placeholder README explaining planned demo.
-4. From now on, when SDK/Worker/workflow integration needs end-to-end debugging, autonomously create or update the relevant `examples/<language>` demo.
+## Rules
+- Every SDK must live at `sdks/<language>/<sdk-name>/` and be independently buildable/testable with its language-native tooling.
+- Every demo must live at `examples/<language>/<demo-name>/` and be independently buildable/runnable.
+- Root `Dockerfile` builds only scheduler server; it must not copy/cache/build SDK packages.
+- Java SDK uses Gradle, not Maven, with JDK 21+.
+- From now on, when SDK/Worker/workflow integration needs end-to-end debugging, autonomously create or update the relevant `examples/<language>/<demo-name>` demo.
+
+## Current status
+- Rust SDK is at `sdks/rust/scheduler-worker-sdk`.
+- Java SDK is a Gradle multi-project under `sdks/java` with sdk-name subprojects.
+- Rust and Java examples are runnable foundations under `examples/rust/worker-demo` and `examples/java/spring-worker-demo`; Go/Python/NodeJS placeholders must become runnable when those SDKs are implemented.
+
+## Next work
+1. Implement real Java gRPC Worker Tunnel client and replace the no-op placeholder.
+2. When Go/Python/NodeJS SDK work starts, create `sdks/<language>/<sdk-name>` first and immediately convert the matching `examples/<language>/worker-demo` into a runnable demo.
+3. Add shard retry / reduce UI work from 033 after SDK layout is stable.
 
 ## Hard constraints
 - `examples/` is for demos only; runtime config stays in `config/`.

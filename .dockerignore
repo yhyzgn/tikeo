@@ -8,3 +8,6 @@ scheduler-dev.db*
 .DS_Store
 .idea
 .vscode
+.gradle
+sdks
+examples

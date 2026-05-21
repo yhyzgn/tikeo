@@ -208,10 +208,10 @@ Git:
 
 - Worker Tunnel proto RPC 从 `Connect` 改为 `OpenTunnel`，解决 tonic client 生成方法名冲突。
 - `scheduler-proto` 开启 tonic client 生成。
-- 新增 `sdks/scheduler-worker-sdk`，实现 Rust Worker SDK 最小主动连接、注册、心跳客户端。
+- 新增 `sdks/rust`，实现 Rust Worker SDK 最小主动连接、注册、心跳客户端。
 - Rust Worker SDK 增加 `TaskProcessor` / `TaskContext` / `TaskOutcome` 基础处理器接口，为后续任务分发做准备。
 - Rust Worker SDK 集成测试启动真实 tonic Worker Tunnel server，验证 register ack 与 heartbeat ping。
-- 新增 `sdks/java/` Maven 多模块 SDK 骨架：`scheduler-java-core`、`scheduler-spring-boot-autoconfigure`、`scheduler-spring-boot-starter`。
+- 新增 `sdks/java/` Gradle 多模块 SDK 骨架：`scheduler-java-core`、`scheduler-spring-boot-autoconfigure`、`scheduler-spring-boot-starter`。
 - Java core 提供 `@SchedulerProcessor`、`WorkerRegistration`、`SchedulerWorkerClient`、`NoopSchedulerWorkerClient`。
 - Spring Boot autoconfigure 提供 `scheduler.worker.*` 配置、auto-configuration imports 和注解扫描 registry。
 
@@ -247,7 +247,7 @@ Verification:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
 - `cargo test --workspace --all-features` ✅
 - `cargo build --workspace --all-features` ✅
-- `mvn -f sdks/java/pom.xml -q test` ✅
+- `./sdks/java/gradlew -p sdks/java test` ✅
 - `bun install --cwd web` ✅
 - `bun run --cwd web lint` ✅
 - `bun run --cwd web typecheck` ✅
@@ -274,7 +274,7 @@ Verification:
 - `cargo test --workspace --all-features` ✅
 - `cargo build --workspace --all-features` ✅
 - `cargo run --bin scheduler -- serve --config config/dev.toml` + `/healthz` + `/api/v1/jobs` smoke ✅
-- `mvn -f sdks/java/pom.xml -q test` ✅
+- `./sdks/java/gradlew -p sdks/java test` ✅
 - `bun install --cwd web` ✅
 - `bun run --cwd web lint` ✅
 - `bun run --cwd web typecheck` ✅
@@ -306,7 +306,7 @@ Verification:
 - `cargo test --workspace --all-features` ✅
 - `cargo build --workspace --all-features` ✅
 - `cargo run --bin scheduler -- serve --config config/dev.toml` + fixed_rate job 自动创建 pending instance smoke ✅
-- `mvn -f sdks/java/pom.xml -q test` ✅
+- `./sdks/java/gradlew -p sdks/java test` ✅
 - `bun install --cwd web` ✅
 - `bun run --cwd web lint` ✅
 - `bun run --cwd web typecheck` ✅
@@ -338,7 +338,7 @@ Verification:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
 - `cargo test --workspace --all-features` ✅
 - `cargo build --workspace --all-features` ✅
-- `mvn -f sdks/java/pom.xml -q test` ✅
+- `./sdks/java/gradlew -p sdks/java test` ✅
 - `bun run --cwd web lint` ✅
 - `bun run --cwd web typecheck` ✅
 - `bun test --cwd web` ✅
@@ -369,7 +369,7 @@ Verification:
 - `cargo test --workspace --all-features` ✅
 - `cargo build --workspace --all-features` ✅
 - `cargo run --bin scheduler -- serve --config config/dev.toml` + `/healthz` + `/api/v1/auth/login` + `/api/v1/auth/me` + protected `POST /api/v1/jobs` smoke ✅
-- `mvn -f sdks/java/pom.xml -q test` ✅
+- `./sdks/java/gradlew -p sdks/java test` ✅
 - `bun install --cwd web` ✅
 - `bun run --cwd web lint` ✅
 - `bun run --cwd web typecheck` ✅
@@ -402,7 +402,7 @@ Verification:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
 - `cargo test --workspace --all-features` ✅
 - `cargo build --workspace --all-features` ✅
-- `mvn -f sdks/java/pom.xml -q test` ✅
+- `./sdks/java/gradlew -p sdks/java test` ✅
 - `bun run --cwd web lint` ✅
 - `bun run --cwd web typecheck` ✅
 - `bun test --cwd web` ✅
@@ -431,7 +431,7 @@ Verification:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
 - `cargo test --workspace --all-features` ✅
 - `cargo build --workspace --all-features` ✅
-- `mvn -f sdks/java/pom.xml -q test` ✅
+- `./sdks/java/gradlew -p sdks/java test` ✅
 - `bun run --cwd web lint` ✅
 - `bun run --cwd web typecheck` ✅
 - `bun test --cwd web` ✅
@@ -455,7 +455,7 @@ Verification:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
 - `cargo test --workspace --all-features` ✅
 - `cargo build --workspace --all-features` ✅
-- `mvn -f sdks/java/pom.xml -q test` ✅
+- `./sdks/java/gradlew -p sdks/java test` ✅
 - `bun run --cwd web lint` ✅
 - `bun run --cwd web typecheck` ✅
 - `bun test --cwd web` ✅
@@ -483,7 +483,7 @@ Verification:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
 - `cargo test --workspace --all-features` ✅
 - `cargo build --workspace --all-features` ✅
-- `mvn -f sdks/java/pom.xml -q test` ✅
+- `./sdks/java/gradlew -p sdks/java test` ✅
 - `bun run --cwd web lint` ✅
 - `bun run --cwd web typecheck` ✅
 - `bun test --cwd web` ✅
@@ -508,7 +508,7 @@ Verification:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
 - `cargo test --workspace --all-features` ✅
 - `cargo build --workspace --all-features` ✅
-- `mvn -f sdks/java/pom.xml -q test` ✅
+- `./sdks/java/gradlew -p sdks/java test` ✅
 - `bun run --cwd web lint` ✅
 - `bun run --cwd web typecheck` ✅
 - `bun test --cwd web` ✅
@@ -600,7 +600,7 @@ Git:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
 - `cargo test --workspace --all-features` ✅
 - `cargo build --workspace --all-features` ✅
-- `mvn -f sdks/java/pom.xml -q test` ✅
+- `./sdks/java/gradlew -p sdks/java test` ✅
 - `bun run --cwd web lint` ✅
 - `bun run --cwd web typecheck` ✅
 - `bun test --cwd web` ✅
@@ -737,8 +737,8 @@ Git:
 
 ### 2026-05-20 040 SDK 目录统一
 - 用户要求所有 SDK 包统一放到 `./sdks`。
-- 已迁移 Rust Worker SDK 到 `sdks/scheduler-worker-sdk`，Java 多模块 SDK 到 `sdks/java`。
-- 根 Cargo workspace 由 `crates/*` 扩展为显式包含 `sdks/scheduler-worker-sdk`；该 SDK 的 path dependency 改为指向 `../../crates/*`。
+- 已迁移 Rust Worker SDK 到 `sdks/rust/scheduler-worker-sdk`，Java 多模块 SDK 到 `sdks/java`。
+- 根 Cargo workspace 由 `crates/*` 扩展为显式包含 `sdks/rust/scheduler-worker-sdk`；该 SDK 的 path dependency 改为指向 `../../../crates/*`。
 - Dockerfile 分层缓存、README、.gitignore、历史 prompt/memory 验证命令和设计文档结构图已同步到新目录。
 
 ### 2026-05-21 041 Dispatch Queue Claim/Lease
@@ -767,3 +767,27 @@ Git:
 - 用户要求 `sdks` 下按语言子目录存放 SDK，Java 改用 Gradle 且支持 JDK21+，并新增与 SDK 语言结构对齐的 `examples` demo 项目目录。
 - 用户进一步要求后续开发过程中由 AI 在适当时候自行创建 demo 调试；已写入 design 与 memory 决策。
 - 当前仅规划，不迁移代码；下一阶段应执行目录迁移、Java Gradle 化、examples 骨架创建和验证命令替换。
+
+### 2026-05-21 046 SDK layout / Gradle migration
+- 执行用户要求的 SDK 目录整改：`sdks/rust/scheduler-worker-sdk`、`sdks/java/<sdk-name>`。
+- Java 构建从 Maven 切换到 Gradle Kotlin DSL + JDK21+；根 `gradlew` 会按需下载 Gradle。
+- 创建 examples `<language>/<demo-name>` 目录骨架，仅放 demo/README，不放运行配置。
+### 2026-05-21 SDK layout correction follow-up
+- 用户明确根 `Dockerfile` 只构建 scheduler 服务端；已约束不得复制/缓存/构建 `sdks/` 或 `examples/`。
+- SDK 路径规范固定为 `sdks/<language>/<sdk-name>/`，Demo 路径规范固定为 `examples/<language>/<demo-name>/`。
+- Rust SDK 路径为 `sdks/rust/scheduler-worker-sdk`，其 path dependencies 使用 `../../../crates/*`。
+- 已补齐可独立运行的 Rust demo（`examples/rust/worker-demo`）与 Java Spring Boot demo（`examples/java/spring-worker-demo`）基础。
+
+### 2026-05-21 verification — SDK layout correction
+- `./sdks/java/gradlew -p sdks/java test` ✅
+- `./sdks/java/gradlew -p examples/java/spring-worker-demo test` ✅
+- `cargo fmt --all -- --check` ✅
+- `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-features` ✅
+- `cargo run --manifest-path examples/rust/worker-demo/Cargo.toml` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features` ✅
+- `cargo build --workspace --all-features` ✅
+- `bun run --cwd web lint && bun run --cwd web typecheck && bun test --cwd web && bun run --cwd web build` ✅
+- `DOCKER_BUILDKIT=1 docker build -t scheduler:dev .` ✅
+- `DOCKER_BUILDKIT=1 docker build -t scheduler:dev .` ✅ after switching builder/runtime flow to Alpine-compatible server-only image build.
+- `cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features` ✅ rerun after Dockerfile/dependency adjustments.

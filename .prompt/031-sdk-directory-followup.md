@@ -1,28 +1,14 @@
-# 031 — SDK directory follow-up (superseded by 034)
+# 031 — SDK directory follow-up (completed / superseded by 034)
 
-## Updated rule
-The previous rule “all SDK packages live directly under `./sdks`” has been refined:
+## Final rule
 
 ```text
-sdks/
-├── rust/
-├── java/
-├── go/
-├── python/
-└── nodejs/
-
-examples/
-├── rust/
-├── java/
-├── go/
-├── python/
-└── nodejs/
+sdks/<language>/<sdk-name>/
+examples/<language>/<demo-name>/
 ```
 
-## Current known mismatch
-- Rust SDK currently still lives at `sdks/scheduler-worker-sdk`; migrate it to `sdks/rust`.
-- Java SDK currently still uses Maven `pom.xml`; migrate it to Gradle multi-project with JDK 21+ support.
-- `examples/` demo directories do not yet exist; create them when executing 034.
-
-## Forward path
-Use `.prompt/034-sdk-layout-gradle-examples.md` as the active execution plan for SDK layout normalization.
+## Completion status
+- Rust SDK is normalized at `sdks/rust/scheduler-worker-sdk`.
+- Java SDK is normalized as a Gradle/JDK21+ multi-project under `sdks/java/<sdk-name>`.
+- Root `Dockerfile` is server-only and must not copy/cache/build SDKs or demos.
+- Active follow-up details live in `.prompt/034-sdk-layout-gradle-examples.md`.

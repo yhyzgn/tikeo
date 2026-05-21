@@ -370,12 +370,25 @@ Constraint:
 ## 2026-05-21 — SDK/examples 语言目录规范与 demo 自主创建
 
 Decision:
-- `sdks/` 是 SDK 总目录，其下必须按语言子目录组织：`sdks/rust`、`sdks/java`、`sdks/go`、`sdks/python`、`sdks/nodejs`。
+- `sdks/` 是 SDK 总目录，其下必须按 `sdks/<language>/<sdk-name>/` 组织，例如 `sdks/rust/scheduler-worker-sdk`、`sdks/java/scheduler-spring-boot-starter`。
 - Java SDK 必须使用 Gradle（优先 Kotlin DSL）而不是 Maven，且 Java toolchain / source / target 必须支持 JDK 21+。
-- `examples/` 是 demo 总目录，必须按 `sdks/` 的语言结构一一对应：`examples/rust`、`examples/java`、`examples/go`、`examples/python`、`examples/nodejs`。
+- `examples/` 是 demo 总目录，必须按 `examples/<language>/<demo-name>/` 组织，并与 `sdks/` 语言结构对应。
 - `examples/` 不再用于存放运行配置；运行配置仍属于 `config/`。
 - 后续开发者/AI agent 在实现或验证 SDK、Worker、任务执行、工作流或跨语言集成时，需要自行判断并主动创建/更新相应 demo 项目用于调试，不必等待用户显式要求。
 
 Constraint:
-- Rust SDK 当前路径 `sdks/scheduler-worker-sdk` 需要迁移为 `sdks/rust`，Cargo workspace / Dockerfile / README / prompts 同步更新。
-- Java Maven `pom.xml` 骨架需要迁移为 Gradle 多模块，并把验证命令从 `mvn -f sdks/java/pom.xml -q test` 改为 Gradle 命令。
+- Rust SDK 路径为 `sdks/rust/scheduler-worker-sdk`；服务端 Dockerfile 不处理 SDK 构建或缓存。
+- Java Maven `pom.xml` 骨架已要求迁移为 Gradle 多模块，验证命令统一为 `./sdks/java/gradlew -p sdks/java test`。
+
+## 2026-05-21 — Server Dockerfile 与 SDK 解耦
+
+Decision:
+- 根 `Dockerfile` 只用于构建 scheduler server，不复制或缓存 `sdks/`。
+- SDK 与 examples 必须通过各自目录内的语言生态命令独立构建/运行。
+
+Constraint:
+- 后续修改 SDK 不应影响服务端 Dockerfile 分层缓存，除非显式构建 SDK 镜像。
+### SDK / Demo independent artifact rule (2026-05-21)
+- Root `Dockerfile` is server-only and must not process `sdks/` or `examples/`; SDKs/demos are independent artifacts with their own build/run commands.
+- SDK packages must use `sdks/<language>/<sdk-name>/`; demos must use `examples/<language>/<demo-name>/`.
+- Java SDK is Gradle + JDK 21+ only; Maven `pom.xml` must not be reintroduced for Java SDK builds.

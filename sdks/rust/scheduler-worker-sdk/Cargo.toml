@@ -9,16 +9,16 @@ rust-version.workspace = true
 
 [dependencies]
 async-trait = "0.1"
-scheduler-proto = { path = "../../crates/scheduler-proto" }
+scheduler-proto = { path = "../../../crates/scheduler-proto" }
 thiserror = "2"
 tokio = { version = "1", features = ["sync"] }
 tokio-stream = "0.1"
 tonic = "0.14"
 
 [dev-dependencies]
-scheduler-core = { path = "../../crates/scheduler-core" }
-scheduler-server = { path = "../../crates/scheduler-server" }
-scheduler-storage = { path = "../../crates/scheduler-storage" }
+scheduler-core = { path = "../../../crates/scheduler-core" }
+scheduler-server = { path = "../../../crates/scheduler-server" }
+scheduler-storage = { path = "../../../crates/scheduler-storage" }
 sea-orm = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }

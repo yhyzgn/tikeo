@@ -56,11 +56,28 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-mvn -f sdks/java/pom.xml -q test
+./sdks/java/gradlew -p sdks/java test
 bun run --cwd web lint
 bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
+```
+
+## SDK 与 Demo 目录规范
+
+- SDK 总目录：`sdks/<language>/<sdk-name>/`，例如 `sdks/rust/scheduler-worker-sdk/`、`sdks/java/scheduler-spring-boot-starter/`。
+- Demo 总目录：`examples/<language>/<demo-name>/`，例如 `examples/rust/worker-demo/`、`examples/java/spring-worker-demo/`。
+- 每个已实现 SDK / Demo 都必须能在自身目录或通过显式 `-p` / `--manifest-path` 单独构建、测试、运行。
+- 根 `Dockerfile` 只构建 scheduler 服务端镜像，绝不复制、缓存或构建 `sdks/` 与 `examples/`。
+
+当前独立验证示例：
+
+```bash
+cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-features
+cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
+./sdks/java/gradlew -p sdks/java test
+./sdks/java/gradlew -p sdks/java :scheduler-spring-boot-starter:test
+./sdks/java/gradlew -p examples/java/spring-worker-demo test
 ```
 
 ## Docker / Compose

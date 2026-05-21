@@ -420,26 +420,39 @@ SDK 与示例统一目录（强约束）：
 
 ```text
 sdks/
-├── rust/                  # Rust Worker SDK crate (tonic)
-├── java/                  # Java 21+ + Gradle + Spring Boot Starter SDK（优先支持）
-├── go/                    # Go module (grpc-go，规划)
-├── python/                # Python package (grpcio，规划)
-└── nodejs/                # TypeScript/Node.js package (@grpc/grpc-js，规划)
+├── rust/
+│   └── scheduler-worker-sdk/           # Rust Worker SDK crate (tonic)
+├── java/
+│   ├── scheduler-java-core/            # Java Core SDK
+│   ├── scheduler-spring-boot-autoconfigure/
+│   └── scheduler-spring-boot-starter/
+├── go/
+│   └── scheduler-go-sdk/               # 规划
+├── python/
+│   └── scheduler-python-sdk/           # 规划
+└── nodejs/
+    └── scheduler-nodejs-sdk/           # 规划
 
 examples/
-├── rust/                  # Rust SDK demo worker / task processor
-├── java/                  # Java Spring Boot demo app，Gradle 构建，JDK 21+
-├── go/                    # Go SDK demo worker
-├── python/                # Python SDK demo worker
-└── nodejs/                # Node.js SDK demo worker
+├── rust/
+│   └── worker-demo/                    # Rust SDK demo worker / task processor
+├── java/
+│   └── spring-worker-demo/             # Java Spring Boot demo app，Gradle 构建，JDK 21+
+├── go/
+│   └── worker-demo/                    # Go SDK demo worker
+├── python/
+│   └── worker-demo/                    # Python SDK demo worker
+└── nodejs/
+    └── worker-demo/                    # Node.js SDK demo worker
 ```
 
 规则：
-- `sdks/` 只存放 SDK 实现，不放业务 demo。
-- `examples/` 按 `sdks/` 的语言结构一一对应存放可运行 demo 项目。
+- `sdks/` 只存放 SDK 实现，不放业务 demo；每个 SDK 必须位于 `sdks/<language>/<sdk-name>/`，不能直接放在语言目录根下。
+- `examples/` 按 `sdks/` 的语言结构一一对应存放可运行 demo 项目；每个 demo 必须位于 `examples/<language>/<demo-name>/`，并能单独构建/运行。
 - 后续开发过程中，AI 开发者需要自行判断验证需要；当 SDK、Worker Tunnel、任务执行、工作流或跨语言集成链路需要端到端调试时，应主动创建/更新对应 `examples/<language>/...` demo，而不是等待用户显式要求。
 - 运行配置仍放 `config/`，不得把 `examples/` 再作为配置目录使用。
-- Rust SDK 当前需从 `sdks/scheduler-worker-sdk` 迁移到 `sdks/rust`，Cargo workspace 同步调整。
+- Rust SDK 已按规范迁移到 `sdks/rust/scheduler-worker-sdk`，Cargo workspace 已同步调整。
+- 根 `Dockerfile` 只构建 scheduler 服务端镜像，不复制、不缓存、不构建 `sdks/` 与 `examples/`；SDK 与 Demo 必须作为独立构建产物验证。
 - Node 目录统一命名为 `nodejs`，避免和通用 node/graph 概念混淆。
 
 **集成体验对比**：
@@ -522,7 +535,7 @@ Java SDK 构建约束：
 - 必须使用 Gradle（优先 Kotlin DSL：`settings.gradle.kts` / `build.gradle.kts`），不再使用 Maven `pom.xml` 作为主构建。
 - Java toolchain 与源码/目标兼容级别必须支持 JDK 21+。
 - Spring Boot Starter 模式继续保留，业务侧只需依赖 starter。
-- CI / 本地验证命令统一为 `./gradlew -p sdks/java test` 或使用仓库约定 wrapper；迁移完成后删除 Maven 骨架与 `mvn -f sdks/java/pom.xml test` 文档引用。
+- CI / 本地验证命令统一为 `./sdks/java/gradlew -p sdks/java test`；每个 Java SDK 子模块也必须支持 Gradle 单模块任务（如 `./sdks/java/gradlew -p sdks/java :scheduler-java-core:test`）；Maven 骨架与 `mvn -f sdks/java/pom.xml test` 文档引用不得再新增。
 
 **业务侧使用方式**：
 
@@ -2007,18 +2020,20 @@ scheduler/
 │   └── scheduler-wasm/
 │
 ├── sdks/                             # 多语言 SDK
-│   ├── rust/                         # Rust Worker SDK crate
-│   ├── java/                         # Java 21+ Gradle + Spring Boot Starter SDK
-│   ├── go/                           # 规划
-│   ├── python/                       # 规划
-│   └── nodejs/                       # 规划
+│   ├── rust/scheduler-worker-sdk/    # Rust Worker SDK crate
+│   ├── java/scheduler-java-core/      # Java Core SDK
+│   ├── java/scheduler-spring-boot-autoconfigure/
+│   ├── java/scheduler-spring-boot-starter/
+│   ├── go/scheduler-go-sdk/           # 规划
+│   ├── python/scheduler-python-sdk/   # 规划
+│   └── nodejs/scheduler-nodejs-sdk/   # 规划
 │
 ├── examples/                         # SDK demo 项目，按 sdks/ 语言结构对齐
-│   ├── rust/
-│   ├── java/
-│   ├── go/
-│   ├── python/
-│   └── nodejs/
+│   ├── rust/worker-demo/
+│   ├── java/spring-worker-demo/
+│   ├── go/worker-demo/
+│   ├── python/worker-demo/
+│   └── nodejs/worker-demo/
 │
 ├── web/                              # React + Ant Design + Bun 管理控制台
 ├── deploy/
@@ -2128,11 +2143,11 @@ scheduler/
   - [ ] Grafana Dashboard、调度延迟、实例状态与业务 SLO 指标
 - [ ] OpenTelemetry 分布式追踪
 - [ ] Java Spring Boot Starter SDK（优先）
-  - [ ] Gradle 多模块骨架：java-core / spring-boot-autoconfigure / spring-boot-starter（JDK 21+；替换既有 Maven 骨架）
+  - [x] Gradle 多模块骨架：java-core / spring-boot-autoconfigure / spring-boot-starter（JDK 21+；已替换 Maven 骨架）
   - [x] `@SchedulerProcessor` 注解扫描与 auto-configuration 骨架
   - [ ] Java gRPC Worker Tunnel 真实连接与心跳
 - [ ] Java Core SDK + Node.js SDK
-- [ ] SDK 目录规范迁移：Rust SDK -> `sdks/rust`，Java SDK -> Gradle/JDK21+，新增 `examples/{rust,java,go,python,nodejs}` demo 骨架
+- [x] SDK 目录规范迁移：Rust SDK -> `sdks/rust/scheduler-worker-sdk`，Java SDK -> Gradle/JDK21+，新增 `examples/<language>/<demo-name>` demo 骨架，并补齐 Rust / Java 可独立运行 demo 基础
 - [ ] K8s Helm Chart
 - [ ] PowerJob 迁移工具
 

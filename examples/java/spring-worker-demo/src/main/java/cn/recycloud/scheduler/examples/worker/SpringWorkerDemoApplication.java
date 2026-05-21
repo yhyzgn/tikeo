@@ -1,0 +1,29 @@
+package cn.recycloud.scheduler.examples.worker;
+
+import cn.recycloud.scheduler.sdk.core.SchedulerProcessor;
+import cn.recycloud.scheduler.sdk.core.SchedulerWorkerClient;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+
+@SpringBootApplication
+public class SpringWorkerDemoApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(SpringWorkerDemoApplication.class, args);
+    }
+
+    @Bean
+    CommandLineRunner demoRunner(SchedulerWorkerClient client) {
+        return args -> {
+            client.start();
+            System.out.println("Spring worker demo started with scheduler worker client: " + client.getClass().getSimpleName());
+            client.close();
+        };
+    }
+
+    @SchedulerProcessor("demo.echo")
+    public String echo(String payload) {
+        return payload;
+    }
+}

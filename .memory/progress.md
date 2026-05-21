@@ -149,8 +149,8 @@
 - 工作流集成测试增加审计断言，确认 workflow / workflow_instance / workflow_node_instance 相关动作写入审计日志。
 
 ## 2026-05-20 040：SDK 目录统一
-- Rust Worker SDK 从 `crates/scheduler-worker-sdk` 迁移到 `sdks/scheduler-worker-sdk`，Cargo workspace 显式包含该路径。
-- Java Spring Boot Starter SDK 从 `java/` 迁移到 `sdks/java/`，Maven 验证命令统一改为 `mvn -f sdks/java/pom.xml -q test`。
+- Rust Worker SDK 从 `crates/scheduler-worker-sdk` 迁移到 `sdks/rust/scheduler-worker-sdk`，Cargo workspace 显式包含该路径。
+- Java Spring Boot Starter SDK 从 `java/` 迁移到 `sdks/java/`；后续已改为 Gradle 验证命令 `./sdks/java/gradlew -p sdks/java test`。
 - Dockerfile、README、gitignore、design、prompt 和 memory 中的 SDK 路径引用已同步更新。
 
 ## 2026-05-21 041：Dispatch Queue 租约 Claim API
@@ -176,6 +176,17 @@
 - sub_workflow materialize 会初始化子工作流节点与起始 dispatch_queue；子工作流完成后自动回写父 sub_workflow 节点终态并推进父后继。
 
 ## 2026-05-21 045：SDK/examples 目录规范重规划
-- 规划 `sdks/{rust,java,go,python,nodejs}` 语言子目录结构，Rust SDK 后续从 `sdks/scheduler-worker-sdk` 迁移到 `sdks/rust`。
-- Java SDK 规划改为 Gradle 多模块 + JDK 21+，替换当前 Maven 骨架和 `mvn -f sdks/java/pom.xml -q test` 验证命令。
-- 新增 `examples/{rust,java,go,python,nodejs}` demo 目录规范；后续开发过程中由 AI 自主判断何时创建 demo 来调试 SDK/Worker/工作流集成链路。
+- 规划 `sdks/<language>/<sdk-name>` 结构，Rust SDK 从旧 `sdks/scheduler-worker-sdk` 迁移到 `sdks/rust/scheduler-worker-sdk`。
+- Java SDK 规划改为 Gradle 多模块 + JDK 21+，替换 Maven 骨架并统一使用 `./sdks/java/gradlew -p sdks/java test` 验证命令。
+- 新增 `examples/<language>/<demo-name>` demo 目录规范；后续开发过程中由 AI 自主判断何时创建 demo 来调试 SDK/Worker/工作流集成链路。
+
+## 2026-05-21 046：SDK 目录整改执行
+- Rust Worker SDK 已迁移为 `sdks/rust/scheduler-worker-sdk`，Cargo workspace 已同步；服务端 Dockerfile 已移除 SDK 处理。
+- Java SDK 已移除 Maven `pom.xml` 骨架，新增 Gradle Kotlin DSL 多模块构建，统一 JDK 21 toolchain / release。
+- 新增 `examples/<language>/<demo-name>` demo 目录骨架与 README；后续 SDK/Worker/工作流调试可按需扩展 runnable demo。
+### 2026-05-21 SDK layout correction follow-up
+- 用户明确根 `Dockerfile` 只构建 scheduler 服务端；已约束不得复制/缓存/构建 `sdks/` 或 `examples/`。
+- SDK 路径规范固定为 `sdks/<language>/<sdk-name>/`，Demo 路径规范固定为 `examples/<language>/<demo-name>/`。
+- Rust SDK 路径为 `sdks/rust/scheduler-worker-sdk`，其 path dependencies 使用 `../../../crates/*`。
+- 已补齐可独立运行的 Rust demo（`examples/rust/worker-demo`）与 Java Spring Boot demo（`examples/java/spring-worker-demo`）基础。
+- Dockerfile 继续保持服务端专用，构建阶段改为 Alpine Rust 镜像并使用 Alpine runtime，避免 SDK/Demo 进入镜像上下文。
