@@ -17,7 +17,7 @@ pub use repository::{
     AdvanceWorkflowInput, AdvanceWorkflowResult, AppendJobInstanceLog, AuditLogFilters,
     AuditLogRepository, AuditLogSummary, AuthSessionRepository, AuthSessionSummary, CreateAuditLog,
     CreateAuthSession, CreateJob, CreateJobInstance, CreateJobInstanceAttempt, CreateScript,
-    CreateUser, CreateWorkflow, DispatchQueueSummary, InstanceEventSummary,
+    CreateUser, CreateWorkflow, DispatchQueueClaim, DispatchQueueSummary, InstanceEventSummary,
     JobInstanceAttemptRepository, JobInstanceAttemptSummary, JobInstanceLogRepository,
     JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
     MaterializeWorkflowNodeResult, PermissionSummary, QueueOverview, RbacRepository,

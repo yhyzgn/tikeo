@@ -238,6 +238,10 @@ fn api_router() -> Router<Arc<AppState>> {
         )
         .route("/workers", get(routes::list_workers))
         .route("/dispatch-queue", get(routes::dispatch_queue))
+        .route(
+            "/dispatch-queue:claim",
+            axum::routing::post(routes::claim_dispatch_queue),
+        )
         .route("/audit-logs", get(routes::list_audit_logs))
 }
 

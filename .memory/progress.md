@@ -152,3 +152,8 @@
 - Rust Worker SDK 从 `crates/scheduler-worker-sdk` 迁移到 `sdks/scheduler-worker-sdk`，Cargo workspace 显式包含该路径。
 - Java Spring Boot Starter SDK 从 `java/` 迁移到 `sdks/java/`，Maven 验证命令统一改为 `mvn -f sdks/java/pom.xml -q test`。
 - Dockerfile、README、gitignore、design、prompt 和 memory 中的 SDK 路径引用已同步更新。
+
+## 2026-05-21 041：Dispatch Queue 租约 Claim API
+- dispatch_queue 在已有 lease_owner / lease_until 字段基础上新增 repository claim/release 能力：claim 会设置租约 owner、过期时间并递增 attempt。
+- 新增 `POST /api/v1/dispatch-queue:claim`，需要 workers manage 权限；成功 claim 会写入 audit log，便于追踪多 server/worker 对队列项的占用。
+- 增加存储层测试覆盖 claim、重复 claim 阻止、release 后重新 claim 与 attempt 递增。

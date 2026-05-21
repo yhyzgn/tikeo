@@ -740,3 +740,9 @@ Git:
 - 已迁移 Rust Worker SDK 到 `sdks/scheduler-worker-sdk`，Java 多模块 SDK 到 `sdks/java`。
 - 根 Cargo workspace 由 `crates/*` 扩展为显式包含 `sdks/scheduler-worker-sdk`；该 SDK 的 path dependency 改为指向 `../../crates/*`。
 - Dockerfile 分层缓存、README、.gitignore、历史 prompt/memory 验证命令和设计文档结构图已同步到新目录。
+
+### 2026-05-21 041 Dispatch Queue Claim/Lease
+- 按 030 阶段继续推进队列多节点竞争基础能力。
+- `WorkflowRepository` 新增 `claim_next_dispatch_queue_item`、`claim_dispatch_queue_item`、`release_dispatch_queue_item`，使用 lease_owner / lease_until 控制可占用性。
+- HTTP 新增 `POST /api/v1/dispatch-queue:claim`，记录 `dispatch_queue` 的 `claim` 审计日志。
+- 当前仍是最小实现；下一步建议继续把 dispatcher 的 materialize/dispatch 流程切到 claim API/原子条件更新路径，并补 visibility-timeout 回收。

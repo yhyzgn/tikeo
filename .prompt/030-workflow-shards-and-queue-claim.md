@@ -21,3 +21,9 @@
 ## 追加：审计约束
 - Workflow 管理/执行动作必须记录 audit log：create/update/validate/dry-run/run/advance/materialize/recover。
 - 后续新增 shard dispatch、shard result、child workflow callback、queue claim/release 等管理或执行动作时，也要同步写入 audit log；普通读取接口可不审计，避免刷屏。
+
+## 追加：dispatch queue claim 已完成的最小能力
+- `WorkflowRepository` 已提供 `claim_next_dispatch_queue_item`、`claim_dispatch_queue_item`、`release_dispatch_queue_item`。
+- HTTP 已提供 `POST /api/v1/dispatch-queue:claim`，body: `{ "lease_owner": "server-a", "lease_seconds": 30 }`。
+- Claim 会设置 `lease_owner`、`lease_until` 并递增 `attempt`；重复 claim 同一未过期租约会返回不可 claim。
+- 后续仍需把 dispatcher 内部物化/分派流程改造成真正的 DB 条件原子 claim + visibility-timeout 回收。

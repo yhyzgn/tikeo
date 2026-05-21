@@ -203,6 +203,8 @@ pub type WorkflowRecoverApiResponse = ApiResponse<scheduler_storage::RecoverWork
 pub type WorkflowShardListApiResponse = ApiResponse<Vec<scheduler_storage::WorkflowShardSummary>>;
 /// Dispatch queue API envelope.
 pub type DispatchQueueApiResponse = ApiResponse<scheduler_storage::QueueOverview>;
+/// Dispatch queue claim API envelope.
+pub type DispatchQueueClaimApiResponse = ApiResponse<scheduler_storage::DispatchQueueClaim>;
 /// Worker list API envelope.
 pub type WorkerListApiResponse = ApiResponse<WorkerListResponse>;
 /// Workflow dry-run API envelope.

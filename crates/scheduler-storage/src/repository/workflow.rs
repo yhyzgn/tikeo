@@ -14,7 +14,7 @@ use crate::entities::{
     workflow_instance, workflow_node, workflow_node_instance, workflow_shard,
 };
 
-use super::util::{new_id, now_rfc3339};
+use super::util::{new_id, now_rfc3339, rfc3339_after_seconds};
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct WorkflowDefinition {
@@ -135,6 +135,13 @@ pub struct DispatchQueueSummary {
     pub worker_selector: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct DispatchQueueClaim {
+    pub item: DispatchQueueSummary,
+    pub lease_owner: String,
+    pub lease_until: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
@@ -804,6 +811,86 @@ impl WorkflowRepository {
             .all(&self.db)
             .await?;
         Ok(rows.into_iter().map(WorkflowShardSummary::from).collect())
+    }
+
+    pub async fn claim_next_dispatch_queue_item(
+        &self,
+        lease_owner: &str,
+        lease_seconds: i64,
+    ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
+        let now = now_rfc3339();
+        let Some(row) = dispatch_queue::Entity::find()
+            .filter(dispatch_queue::Column::Status.eq("pending"))
+            .filter(dispatch_queue::Column::RunAfter.lte(now.clone()))
+            .filter(
+                dispatch_queue::Column::LeaseUntil
+                    .is_null()
+                    .or(dispatch_queue::Column::LeaseUntil.lt(now.clone())),
+            )
+            .order_by_asc(dispatch_queue::Column::Priority)
+            .order_by_asc(dispatch_queue::Column::RunAfter)
+            .limit(1)
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        self.claim_dispatch_queue_item(&row.id, lease_owner, lease_seconds)
+            .await
+    }
+
+    pub async fn claim_dispatch_queue_item(
+        &self,
+        queue_id: &str,
+        lease_owner: &str,
+        lease_seconds: i64,
+    ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
+        let now = now_rfc3339();
+        let Some(row) = dispatch_queue::Entity::find_by_id(queue_id.to_owned())
+            .one(&self.db)
+            .await?
+            .filter(|row| row.status == "pending")
+            .filter(|row| {
+                row.lease_until
+                    .as_deref()
+                    .is_none_or(|lease_until| lease_until < now.as_str())
+            })
+        else {
+            return Ok(None);
+        };
+        let lease_until = rfc3339_after_seconds(lease_seconds.max(1));
+        let next_attempt = row.attempt + 1;
+        let mut active: dispatch_queue::ActiveModel = row.into();
+        active.lease_owner = Set(Some(lease_owner.to_owned()));
+        active.lease_until = Set(Some(lease_until.clone()));
+        active.attempt = Set(next_attempt);
+        active.updated_at = Set(now_rfc3339());
+        let updated = active.update(&self.db).await?;
+        Ok(Some(DispatchQueueClaim {
+            item: DispatchQueueSummary::from(updated),
+            lease_owner: lease_owner.to_owned(),
+            lease_until,
+        }))
+    }
+
+    pub async fn release_dispatch_queue_item(
+        &self,
+        queue_id: &str,
+        lease_owner: &str,
+    ) -> Result<bool, sea_orm::DbErr> {
+        let Some(row) = dispatch_queue::Entity::find_by_id(queue_id.to_owned())
+            .one(&self.db)
+            .await?
+            .filter(|row| row.lease_owner.as_deref() == Some(lease_owner))
+        else {
+            return Ok(false);
+        };
+        let mut active: dispatch_queue::ActiveModel = row.into();
+        active.lease_owner = Set(None);
+        active.lease_until = Set(None);
+        active.updated_at = Set(now_rfc3339());
+        active.update(&self.db).await?;
+        Ok(true)
     }
 
     pub async fn queue_overview(&self, limit: u64) -> Result<QueueOverview, sea_orm::DbErr> {

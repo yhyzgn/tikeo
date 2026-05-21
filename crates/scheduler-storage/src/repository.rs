@@ -34,12 +34,12 @@ pub use script::{
 };
 pub use user::{CreateUser, UpdateUser, UserRepository, UserSummary};
 pub use workflow::{
-    AdvanceWorkflowInput, AdvanceWorkflowResult, CreateWorkflow, DispatchQueueSummary,
-    InstanceEventSummary, MaterializeWorkflowNodeResult, QueueOverview, RecoverWorkflowNodeInput,
-    RecoverWorkflowNodeResult, UpdateWorkflow, WorkflowDefinition, WorkflowEdgeSpec,
-    WorkflowInstanceSummary, WorkflowJobResultOutcome, WorkflowNodeInstanceSummary,
-    WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary, WorkflowSummary,
-    WorkflowValidationResult, validate_workflow_definition,
+    AdvanceWorkflowInput, AdvanceWorkflowResult, CreateWorkflow, DispatchQueueClaim,
+    DispatchQueueSummary, InstanceEventSummary, MaterializeWorkflowNodeResult, QueueOverview,
+    RecoverWorkflowNodeInput, RecoverWorkflowNodeResult, UpdateWorkflow, WorkflowDefinition,
+    WorkflowEdgeSpec, WorkflowInstanceSummary, WorkflowJobResultOutcome,
+    WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
+    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
 };
 
 #[cfg(test)]
@@ -426,5 +426,76 @@ mod tests {
         assert_eq!(refreshed.status, "running");
         assert_eq!(refreshed.nodes[0].status, "succeeded");
         assert_eq!(refreshed.nodes[1].status, "queued");
+    }
+
+    #[tokio::test]
+    async fn dispatch_queue_claim_sets_and_releases_lease() {
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let workflows = super::WorkflowRepository::new(db.clone());
+        let job = jobs
+            .create_job(CreateJob {
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "claimable".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                enabled: true,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should be created: {error}"));
+        let workflow = workflows
+            .create_workflow(super::CreateWorkflow {
+                name: "claim-flow".to_owned(),
+                created_by: "test".to_owned(),
+                definition: super::WorkflowDefinition {
+                    nodes: vec![super::WorkflowNodeSpec {
+                        key: "start".to_owned(),
+                        name: None,
+                        kind: Some("job".to_owned()),
+                        job_id: Some(job.id),
+                        child_workflow_id: None,
+                        map_items: None,
+                        config: None,
+                    }],
+                    edges: vec![],
+                },
+            })
+            .await
+            .unwrap_or_else(|error| panic!("workflow should be created: {error}"));
+        let _instance = workflows
+            .run_workflow(&workflow.id, "api")
+            .await
+            .unwrap_or_else(|error| panic!("workflow should run: {error}"))
+            .unwrap_or_else(|| panic!("workflow should exist"));
+
+        let claim = workflows
+            .claim_next_dispatch_queue_item("server-a", 30)
+            .await
+            .unwrap_or_else(|error| panic!("queue should claim: {error}"))
+            .unwrap_or_else(|| panic!("queue item should be claimable"));
+        assert_eq!(claim.lease_owner, "server-a");
+        assert_eq!(claim.item.lease_owner.as_deref(), Some("server-a"));
+        assert_eq!(claim.item.attempt, 1);
+        let second_claim = workflows
+            .claim_dispatch_queue_item(&claim.item.id, "server-b", 30)
+            .await
+            .unwrap_or_else(|error| panic!("second claim should not error: {error}"));
+        assert!(second_claim.is_none());
+        assert!(
+            workflows
+                .release_dispatch_queue_item(&claim.item.id, "server-a")
+                .await
+                .unwrap_or_else(|error| panic!("release should succeed: {error}"))
+        );
+        let reclaimed = workflows
+            .claim_dispatch_queue_item(&claim.item.id, "server-b", 30)
+            .await
+            .unwrap_or_else(|error| panic!("reclaim should succeed: {error}"))
+            .unwrap_or_else(|| panic!("released item should be claimable"));
+        assert_eq!(reclaimed.lease_owner, "server-b");
+        assert_eq!(reclaimed.item.attempt, 2);
     }
 }
