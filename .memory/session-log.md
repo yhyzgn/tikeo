@@ -860,3 +860,8 @@ Git:
 - Worker Tunnel proto now exposes `SubscribeTaskLogs(SubscribeTaskLogsRequest) returns (stream TaskLog)`.
 - Server replays persisted `job_instance_logs` after a requested sequence and then streams live TaskLog records via an in-memory broadcast fan-out after successful DB append.
 - Go/Python SDK remains deferred to Phase4 per user instruction.
+
+### 2026-05-21 Phase2 PostgreSQL/CockroachDB storage support
+- Enabled `sqlx-postgres` on `scheduler-storage` and migrations so PostgreSQL URLs compile through SeaORM/sqlx.
+- Added `config/postgres.toml` with PostgreSQL and CockroachDB URL examples; CockroachDB uses PostgreSQL wire protocol.
+- Roadmap marks PostgreSQL + CockroachDB storage support complete at driver/config/template level; live DB smoke remains environment-dependent.

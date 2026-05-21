@@ -1,0 +1,10 @@
+[server]
+listen_addr = "0.0.0.0:9090"
+worker_tunnel_addr = "0.0.0.0:9998"
+
+[storage]
+# Override for PostgreSQL / CockroachDB deployments.
+# Environment equivalent: SCHEDULER__STORAGE__DATABASE_URL
+# PostgreSQL:  postgres://scheduler:scheduler@postgres:5432/scheduler
+# CockroachDB: postgres://root@cockroach:26257/scheduler?sslmode=disable
+database_url = "postgres://scheduler:scheduler@postgres:5432/scheduler"

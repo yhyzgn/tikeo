@@ -1195,6 +1195,8 @@ let instance = db.transaction::<_, (), DbErr>(|txn| {
 | **MySQL 8.x** | 中小规模生产 | ✅ 必须支持 | PowerJob 用户迁移首选 |
 | **PostgreSQL 15+** | 大规模生产/集群 | ✅ 必须支持 | 高并发、JSONB、Citus 水平扩展 |
 | **CockroachDB** | 地理分布/云原生 | ✅ 必须支持 | 分布式 SQL，Serverless 友好 |
+> Phase 2 implementation note: `scheduler-storage` now enables `sqlx-postgres` alongside SQLite/MySQL. PostgreSQL and CockroachDB use `postgres://` URLs; CockroachDB relies on PostgreSQL wire protocol compatibility. Database relationships remain soft-linked by id fields only; no foreign keys are introduced for any backend.
+
 | **MariaDB** | MySQL 兼容替代 | 🔄 兼容支持 | 通过 MySQL driver 兼容 |
 
 ### 7.3 存储抽象层设计
@@ -2099,7 +2101,7 @@ scheduler/
 - [x] DAG 工作流引擎基础（定义存储、DAG 校验、最小 run API；可视化编排后续增强）
 - [x] Map / MapReduce 执行模式（workflow_shards + materialize + shard job_instance/dispatch_queue 软关联）
 - [x] 子工作流嵌套（节点引用 child_workflow_id + 子实例软关联 + 子实例终态回写父节点）
-- [ ] PostgreSQL + CockroachDB 存储支持
+- [x] PostgreSQL + CockroachDB 存储支持（SeaORM/sqlx-postgres feature + `postgres://` 配置模板；CockroachDB 复用 PostgreSQL wire protocol）
 - [ ] Server 集群 (Raft 共识)
 - [x] 任务队列基础（dispatch_queue 持久化模型、priority/run_after/status/lease_owner/lease_until 字段；workflow queued node 自动 materialize）
 - [x] 持久化延迟队列基础（dispatch_queue.run_after）

@@ -48,6 +48,23 @@ export SCHEDULER_DEV_ADMIN_PASSWORD="Scheduler@2026!"
 
 - `config/dev.toml`：本地开发配置，监听 `0.0.0.0:9090` / `0.0.0.0:9998`。
 - `config/container.toml`：容器部署配置，监听 `0.0.0.0:9090` / `0.0.0.0:9998`。
+- `config/postgres.toml`：PostgreSQL / CockroachDB 部署配置模板，默认使用 `postgres://...` URL。
+
+存储 URL 支持：
+
+| 数据库 | URL 示例 | 说明 |
+| --- | --- | --- |
+| SQLite | `sqlite://scheduler-dev.db?mode=rwc` | 本地开发默认 |
+| MySQL | `mysql://user:pass@mysql:3306/scheduler` | 生产可用 |
+| PostgreSQL | `postgres://user:pass@postgres:5432/scheduler` | Phase2 已启用 sqlx-postgres |
+| CockroachDB | `postgres://root@cockroach:26257/scheduler?sslmode=disable` | 复用 PostgreSQL wire protocol |
+
+环境变量覆盖示例：
+
+```bash
+export SCHEDULER__STORAGE__DATABASE_URL="postgres://scheduler:scheduler@postgres:5432/scheduler"
+./target/debug/scheduler serve --config config/postgres.toml
+```
 
 ## 常用验证命令
 
