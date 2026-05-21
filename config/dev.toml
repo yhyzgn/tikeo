@@ -4,3 +4,8 @@ worker_tunnel_addr = "0.0.0.0:9998"
 
 [storage]
 database_url = "sqlite://scheduler-dev.db?mode=rwc"
+
+[cluster]
+mode = "standalone"
+node_id = "standalone"
+peers = []

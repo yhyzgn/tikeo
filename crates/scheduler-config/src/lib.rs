@@ -17,6 +17,9 @@ pub struct SchedulerConfig {
     /// Persistent storage settings.
     #[serde(default)]
     pub storage: StorageConfig,
+    /// Server cluster coordination settings.
+    #[serde(default)]
+    pub cluster: ClusterConfig,
 }
 
 /// Server listener configuration.
@@ -52,6 +55,49 @@ impl Default for StorageConfig {
     }
 }
 
+/// Server cluster coordination settings.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClusterConfig {
+    /// Cluster mode: `standalone` or `raft`.
+    #[serde(default)]
+    pub mode: ClusterModeConfig,
+    /// Stable node id used in cluster status and future Raft membership.
+    pub node_id: String,
+    /// Static peer list for future Raft bootstrap.
+    #[serde(default)]
+    pub peers: Vec<ClusterPeerConfig>,
+}
+
+impl Default for ClusterConfig {
+    fn default() -> Self {
+        Self {
+            mode: ClusterModeConfig::Standalone,
+            node_id: "standalone".to_owned(),
+            peers: Vec::new(),
+        }
+    }
+}
+
+/// Cluster mode configuration.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ClusterModeConfig {
+    /// Single-node standalone mode.
+    #[default]
+    Standalone,
+    /// Raft mode. Consensus implementation is still gated behind server cluster work.
+    Raft,
+}
+
+/// Static cluster peer configuration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClusterPeerConfig {
+    /// Peer node id.
+    pub node_id: String,
+    /// Peer-to-peer endpoint URL or host:port reachable through container/K8s networking.
+    pub endpoint: String,
+}
+
 /// Errors raised while loading scheduler configuration.
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -84,6 +130,11 @@ pub fn load_config(path: Option<&Path>) -> Result<SchedulerConfig, ConfigError> 
         .set_default(
             "storage.database_url",
             SchedulerConfig::default().storage.database_url,
+        )?
+        .set_default("cluster.mode", "standalone")?
+        .set_default(
+            "cluster.node_id",
+            SchedulerConfig::default().cluster.node_id,
         )?;
 
     if let Some(path) = path {
@@ -101,7 +152,7 @@ pub fn load_config(path: Option<&Path>) -> Result<SchedulerConfig, ConfigError> 
 mod tests {
     use std::net::SocketAddr;
 
-    use super::{SchedulerConfig, load_config};
+    use super::{ClusterModeConfig, SchedulerConfig, load_config};
 
     #[test]
     fn default_config_listens_on_all_interfaces() {
@@ -112,6 +163,16 @@ mod tests {
             config.server.listen_addr,
             SocketAddr::from(([0, 0, 0, 0], 9090))
         );
+    }
+
+    #[test]
+    fn default_cluster_config_is_standalone() {
+        let config =
+            load_config(None).unwrap_or_else(|error| panic!("default config should load: {error}"));
+
+        assert_eq!(config.cluster.mode, ClusterModeConfig::Standalone);
+        assert_eq!(config.cluster.node_id, "standalone");
+        assert!(config.cluster.peers.is_empty());
     }
 
     #[test]

@@ -1,0 +1,18 @@
+[server]
+listen_addr = "0.0.0.0:9090"
+worker_tunnel_addr = "0.0.0.0:9998"
+
+[storage]
+# Raft deployments should use a production database backend.
+database_url = "postgres://scheduler:scheduler@postgres:5432/scheduler"
+
+[cluster]
+# Safe pre-Raft shape: mode=raft exposes node/peer metadata but does not claim leadership
+# until a real Raft coordinator is implemented behind ClusterCoordinator.
+mode = "raft"
+node_id = "scheduler-0"
+peers = [
+  { node_id = "scheduler-0", endpoint = "http://scheduler-0.scheduler-headless:9999" },
+  { node_id = "scheduler-1", endpoint = "http://scheduler-1.scheduler-headless:9999" },
+  { node_id = "scheduler-2", endpoint = "http://scheduler-2.scheduler-headless:9999" },
+]

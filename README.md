@@ -49,6 +49,7 @@ export SCHEDULER_DEV_ADMIN_PASSWORD="Scheduler@2026!"
 - `config/dev.toml`：本地开发配置，监听 `0.0.0.0:9090` / `0.0.0.0:9998`。
 - `config/container.toml`：容器部署配置，监听 `0.0.0.0:9090` / `0.0.0.0:9998`。
 - `config/postgres.toml`：PostgreSQL / CockroachDB 部署配置模板，默认使用 `postgres://...` URL。
+- `config/raft.toml`：Raft 集群配置形状模板；当前只暴露 `mode/node_id/peers` 与不可调度状态，真实 Raft runtime 仍在后续阶段实现。
 
 存储 URL 支持：
 
@@ -65,6 +66,19 @@ export SCHEDULER_DEV_ADMIN_PASSWORD="Scheduler@2026!"
 export SCHEDULER__STORAGE__DATABASE_URL="postgres://scheduler:scheduler@postgres:5432/scheduler"
 ./target/debug/scheduler serve --config config/postgres.toml
 ```
+
+## Cluster / Raft 配置状态
+
+当前已支持 `cluster` 配置段：
+
+```toml
+[cluster]
+mode = "standalone" # 或 "raft"
+node_id = "scheduler-0"
+peers = []
+```
+
+`mode = "raft"` 目前是安全前置形状：`/api/v1/cluster` 会返回 `mode=raft`、`role=unknown`、`can_schedule=false`，不会伪装 leader，也不会运行调度 ownership loop。真实 Raft membership / leader election / fencing token 将在后续阶段接入。
 
 ## 常用验证命令
 

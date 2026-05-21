@@ -10,7 +10,7 @@ use scheduler_storage::{
 use tokio::try_join;
 use tracing::info;
 
-use crate::{cluster::StandaloneCoordinator, http, scheduler, tunnel};
+use crate::{cluster::coordinator_from_config, http, scheduler, tunnel};
 
 /// Run all scheduler server listeners.
 ///
@@ -19,7 +19,7 @@ use crate::{cluster::StandaloneCoordinator, http, scheduler, tunnel};
 /// Returns an error when any listener fails to bind or serve.
 pub async fn serve(config: SchedulerConfig) -> Result<()> {
     let registry = tunnel::WorkerRegistry::default();
-    let cluster = StandaloneCoordinator::shared("standalone-server");
+    let cluster = coordinator_from_config(&config.cluster);
     let log_broadcaster = tunnel::TaskLogBroadcaster::default();
     let http_addr = config.server.listen_addr;
     let tunnel_addr = config.server.worker_tunnel_addr;

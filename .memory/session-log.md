@@ -875,3 +875,8 @@ Git:
 - Scheduler tick loop and Worker dispatcher loop now consult `ClusterCoordinator` status before ownership-sensitive work.
 - Standalone remains schedulable; mock Raft follower tests prove tick and dispatch skip work when `can_schedule=false`.
 - dispatch_queue DB conditional claim remains in place as final idempotency/fencing guard.
+
+### 2026-05-21 Phase2 Raft config shape
+- Added `[cluster]` config with `mode`, `node_id`, and static `peers` shape.
+- Server now builds ClusterCoordinator from config: standalone can schedule; raft mode reports unknown/not-schedulable until real consensus starts.
+- Added `config/raft.toml` as a safe template; no fake leader behavior introduced.

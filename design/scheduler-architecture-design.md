@@ -1540,6 +1540,7 @@ docker run -d \
 - **Follower fencing**：Follower 可以服务只读管理 API 和 Worker Tunnel 连接，但不能产生新调度 tick，不能越权抢占不属于自己的集群级 ownership。
 - **DB conditional update remains required**：dispatch_queue lease/claim 的 DB 条件更新仍保留，用作 Raft 外的最后一道幂等/fencing 保护。
 - **Raft scope**：membership、term/index、leader lease、配置变更、调度 shard ownership；业务数据仍存储在 SeaORM 支持的数据库中，且继续禁止数据库外键。
+- **Safe config shape first**：`cluster.mode/node_id/peers` 已可配置；`mode=raft` 在真实 consensus runtime 接入前返回 `role=unknown` 且 `can_schedule=false`，避免假 leader。
 - **Container-first networking**：Raft 节点间通信必须可穿透 Docker bridge / K8s Service / LB，不能依赖 host network。
 
 ### 8.3 Kubernetes 集群部署架构
@@ -2116,6 +2117,7 @@ scheduler/
 - [ ] Server 集群 (Raft 共识)
   - [x] ClusterCoordinator 抽象与显式 standalone 状态（`/api/v1/cluster` 不再伪装 leader）
   - [x] tick/dispatcher ownership gate（非 `can_schedule` 节点跳过 CRON/fixed-rate tick 与 Worker dispatch loop）
+  - [x] Raft 配置形状（mode/node_id/peers）与未启动 Raft 的 unknown/not-schedulable 状态
   - [ ] Raft membership、leader/follower fencing token、动态配置变更
 - [x] 任务队列基础（dispatch_queue 持久化模型、priority/run_after/status/lease_owner/lease_until 字段；workflow queued node 自动 materialize）
 - [x] 持久化延迟队列基础（dispatch_queue.run_after）

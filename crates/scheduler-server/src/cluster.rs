@@ -6,6 +6,8 @@
 
 use std::sync::Arc;
 
+use scheduler_config::{ClusterConfig, ClusterModeConfig};
+
 /// Cluster operating mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClusterMode {
@@ -67,6 +69,22 @@ pub struct ClusterStatus {
     pub can_schedule: bool,
     /// Human-readable implementation note.
     pub detail: String,
+}
+
+/// Build a cluster coordinator from process configuration.
+#[must_use]
+pub fn coordinator_from_config(config: &ClusterConfig) -> SharedClusterCoordinator {
+    match config.mode {
+        ClusterModeConfig::Standalone => StandaloneCoordinator::shared(config.node_id.clone()),
+        ClusterModeConfig::Raft => StaticCoordinator::shared(ClusterStatus {
+            mode: ClusterMode::Raft,
+            role: ClusterRole::Unknown,
+            node_id: config.node_id.clone(),
+            nodes: u32::try_from(config.peers.len()).unwrap_or(u32::MAX).max(1),
+            can_schedule: false,
+            detail: "raft mode configured but consensus runtime is not started yet".to_owned(),
+        }),
+    }
 }
 
 /// Cluster coordinator boundary used by HTTP and future scheduling gates.
@@ -144,7 +162,12 @@ impl ClusterCoordinator for StandaloneCoordinator {
 
 #[cfg(test)]
 mod tests {
-    use super::{ClusterCoordinator, ClusterMode, ClusterRole, StandaloneCoordinator};
+    use scheduler_config::{ClusterConfig, ClusterModeConfig, ClusterPeerConfig};
+
+    use super::{
+        ClusterCoordinator, ClusterMode, ClusterRole, StandaloneCoordinator,
+        coordinator_from_config,
+    };
 
     #[tokio::test]
     async fn standalone_status_is_explicit_not_fake_leader() {
@@ -156,5 +179,30 @@ mod tests {
         assert_eq!(status.node_id, "node-a");
         assert_eq!(status.nodes, 1);
         assert!(status.can_schedule);
+    }
+
+    #[tokio::test]
+    async fn raft_config_status_is_unknown_and_not_schedulable() {
+        let coordinator = coordinator_from_config(&ClusterConfig {
+            mode: ClusterModeConfig::Raft,
+            node_id: "scheduler-1".to_owned(),
+            peers: vec![
+                ClusterPeerConfig {
+                    node_id: "scheduler-1".to_owned(),
+                    endpoint: "http://scheduler-1:9999".to_owned(),
+                },
+                ClusterPeerConfig {
+                    node_id: "scheduler-2".to_owned(),
+                    endpoint: "http://scheduler-2:9999".to_owned(),
+                },
+            ],
+        });
+        let status = coordinator.status().await;
+
+        assert_eq!(status.mode, ClusterMode::Raft);
+        assert_eq!(status.role, ClusterRole::Unknown);
+        assert_eq!(status.node_id, "scheduler-1");
+        assert_eq!(status.nodes, 2);
+        assert!(!status.can_schedule);
     }
 }

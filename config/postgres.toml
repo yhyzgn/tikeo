@@ -8,3 +8,8 @@ worker_tunnel_addr = "0.0.0.0:9998"
 # PostgreSQL:  postgres://scheduler:scheduler@postgres:5432/scheduler
 # CockroachDB: postgres://root@cockroach:26257/scheduler?sslmode=disable
 database_url = "postgres://scheduler:scheduler@postgres:5432/scheduler"
+
+[cluster]
+mode = "standalone"
+node_id = "standalone"
+peers = []
