@@ -22,7 +22,7 @@ dependencies {
     testCompileOnly("org.projectlombok:lombok:$lombokVersion")
     testAnnotationProcessor("org.projectlombok:lombok:$lombokVersion")
     implementation("org.springframework.boot:spring-boot-starter")
-    implementation("cn.recycloud.scheduler:scheduler-spring-boot-starter:0.1.0-SNAPSHOT")
+    implementation("cn.recycloud.scheduler:scheduler-spring-boot:0.1.0-SNAPSHOT")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

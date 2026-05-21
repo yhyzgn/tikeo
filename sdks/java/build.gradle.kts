@@ -44,7 +44,7 @@ subprojects {
     }
 }
 
-project(":scheduler-java-core") {
+project(":scheduler-java") {
     apply(plugin = "com.google.protobuf")
 
     dependencies {
@@ -77,25 +77,25 @@ project(":scheduler-java-core") {
     }
 }
 
-project(":scheduler-spring-boot-autoconfigure") {
+project(":scheduler-spring") {
     dependencies {
-        "api"(project(":scheduler-java-core"))
+        "api"(project(":scheduler-java"))
+        "api"("org.springframework:spring-context:7.0.2")
+        "testImplementation"("org.assertj:assertj-core:3.27.7")
+    }
+}
+
+project(":scheduler-spring-boot") {
+    dependencies {
+        "api"(project(":scheduler-spring"))
         "api"(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
+        "api"("org.springframework.boot:spring-boot-starter")
         "api"("org.springframework.boot:spring-boot-autoconfigure")
-        "api"("org.springframework:spring-context")
         "annotationProcessor"(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
         "annotationProcessor"("org.springframework.boot:spring-boot-configuration-processor")
         "testImplementation"(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
         "testImplementation"("org.springframework.boot:spring-boot-test")
         "testImplementation"("org.springframework:spring-test")
         "testImplementation"("org.assertj:assertj-core")
-    }
-}
-
-project(":scheduler-spring-boot-starter") {
-    dependencies {
-        "api"(project(":scheduler-spring-boot-autoconfigure"))
-        "api"(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
-        "api"("org.springframework.boot:spring-boot-starter")
     }
 }

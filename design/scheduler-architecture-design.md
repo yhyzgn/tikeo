@@ -423,9 +423,9 @@ sdks/
 ├── rust/
 │   └── scheduler-worker-sdk/           # Rust Worker SDK crate (tonic)
 ├── java/
-│   ├── scheduler-java-core/            # Java Core SDK
-│   ├── scheduler-spring-boot-autoconfigure/
-│   └── scheduler-spring-boot-starter/
+│   ├── scheduler-java/                    # 原生 Java SDK
+│   ├── scheduler-spring/               # Spring 集成
+│   └── scheduler-spring-boot/          # Spring Boot 集成
 ├── go/
 │   └── scheduler-go-sdk/               # 规划
 ├── python/
@@ -528,17 +528,22 @@ Java 端 SDK 优先支持 Spring Boot Starter 模式，目标是让现有 Spring
 sdks/java/
 ├── settings.gradle.kts                  # Gradle multi-project settings
 ├── build.gradle.kts                     # Java 21+ toolchain、统一依赖版本与发布元数据
-├── scheduler-java-core/                 # gRPC client、协议模型、通用 Worker runtime
-├── scheduler-spring-boot-autoconfigure/ # AutoConfiguration、Properties、Bean 扫描
-└── scheduler-spring-boot-starter/       # starter 聚合包，业务侧直接依赖
+├── scheduler-java/                     # 原生 Java 集成：gRPC client、协议模型、通用 Worker runtime
+├── scheduler-spring/                   # Spring 集成：@SchedulerProcessor 注册表与方法适配
+└── scheduler-spring-boot/              # Spring Boot 集成：AutoConfiguration、Properties、starter 聚合
 ```
+
+Java SDK 三层 Gradle 模块约束：
+- `scheduler-java`：原生 Java 集成，包含 Worker Tunnel gRPC client、协议生成、任务上下文与结果模型。
+- `scheduler-spring`：Spring Framework 集成，包含 `@SchedulerProcessor` 扫描、注册表和方法适配，不包含 Spring Boot autoconfigure。
+- `scheduler-spring-boot`：Spring Boot 集成，包含 Properties、AutoConfiguration 和 starter 聚合能力，依赖 `scheduler-spring`。
 
 Java SDK 构建约束：
 - 必须使用 Gradle（优先 Kotlin DSL：`settings.gradle.kts` / `build.gradle.kts`），不再使用 Maven `pom.xml` 作为主构建。
 - Java toolchain 与源码/目标兼容级别必须支持 JDK 21+。
 - Spring Boot Starter 模式继续保留，业务侧只需依赖 starter。
 - 当前 Java Core SDK 已提供真实 gRPC Worker Tunnel 客户端：注册时只发送 `client_instance_id`，读取服务端下发的权威 `worker_id`，并用于心跳、任务日志和任务结果上报；Spring Boot demo 默认 dry-run，可通过配置切换到 live tunnel。
-- CI / 本地验证命令统一为 `./sdks/java/gradlew -p sdks/java test`；每个 Java SDK 子模块也必须支持 Gradle 单模块任务（如 `./sdks/java/gradlew -p sdks/java :scheduler-java-core:test`）；Maven 骨架与 `mvn -f sdks/java/pom.xml test` 文档引用不得再新增。
+- CI / 本地验证命令统一为 `./sdks/java/gradlew -p sdks/java test`；每个 Java SDK 子模块也必须支持 Gradle 单模块任务（如 `./sdks/java/gradlew -p sdks/java :scheduler-java:test`）；Maven 骨架与 `mvn -f sdks/java/pom.xml test` 文档引用不得再新增。
 
 **业务侧使用方式**：
 
@@ -2024,9 +2029,9 @@ scheduler/
 │
 ├── sdks/                             # 多语言 SDK
 │   ├── rust/scheduler-worker-sdk/    # Rust Worker SDK crate
-│   ├── java/scheduler-java-core/      # Java Core SDK
-│   ├── java/scheduler-spring-boot-autoconfigure/
-│   ├── java/scheduler-spring-boot-starter/
+│   ├── java/scheduler-java/           # 原生 Java SDK
+│   ├── java/scheduler-spring/         # Spring 集成
+│   ├── java/scheduler-spring-boot/    # Spring Boot 集成
 │   ├── go/scheduler-go-sdk/           # 规划
 │   ├── python/scheduler-python-sdk/   # 规划
 │   └── nodejs/scheduler-nodejs-sdk/   # 规划

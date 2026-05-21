@@ -4,9 +4,9 @@ Java SDK packages live under `sdks/java/<sdk-name>/`. This language directory is
 
 Current packages:
 
-- `scheduler-java-core/`
-- `scheduler-spring-boot-autoconfigure/`
-- `scheduler-spring-boot-starter/`
+- `scheduler-java/` — native Java integration: Worker Tunnel gRPC client, protocol bindings, task contracts.
+- `scheduler-spring/` — Spring Framework integration: `@SchedulerProcessor` registry and method adapter.
+- `scheduler-spring-boot/` — Spring Boot integration: auto-configuration, properties, starter-style dependency.
 
 Java SDK uses Gradle and requires JDK 21+. Maven `pom.xml` is intentionally not used. SDK/demo code may use Lombok to reduce boilerplate; Spring beans should prefer constructor injection.
 
@@ -16,11 +16,10 @@ Validation from repository root:
 
 ```bash
 ./sdks/java/gradlew -p sdks/java test
-./sdks/java/gradlew -p sdks/java :scheduler-java-core:test
-./sdks/java/gradlew -p sdks/java :scheduler-spring-boot-autoconfigure:test
-./sdks/java/gradlew -p sdks/java :scheduler-spring-boot-starter:test
+./sdks/java/gradlew -p sdks/java :scheduler-java:test
+./sdks/java/gradlew -p sdks/java :scheduler-spring:test
+./sdks/java/gradlew -p sdks/java :scheduler-spring-boot:test
 ```
-
 
 Spring Boot starter properties:
 

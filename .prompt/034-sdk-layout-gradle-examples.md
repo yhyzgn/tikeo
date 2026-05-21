@@ -7,9 +7,9 @@ Normalize SDK and demo layout according to the latest project rule.
 ```text
 sdks/
 ├── rust/scheduler-worker-sdk/
-├── java/scheduler-java-core/
-├── java/scheduler-spring-boot-autoconfigure/
-├── java/scheduler-spring-boot-starter/
+├── java/scheduler-java/
+├── java/scheduler-spring/
+├── java/scheduler-spring-boot/
 ├── go/scheduler-go-sdk/
 ├── python/scheduler-python-sdk/
 └── nodejs/scheduler-nodejs-sdk/

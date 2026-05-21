@@ -14,7 +14,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "scheduler-java-sdk"
 include(
-    "scheduler-java-core",
-    "scheduler-spring-boot-autoconfigure",
-    "scheduler-spring-boot-starter",
+    "scheduler-java",
+    "scheduler-spring",
+    "scheduler-spring-boot",
 )

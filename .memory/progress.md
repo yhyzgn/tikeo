@@ -211,3 +211,8 @@
 - Spring `SchedulerProcessorRegistry` 已从 bean map 升级为 invocable handler registry，拒绝重复 processor name。
 - 新增 `SpringSchedulerTaskProcessor`，当前按 `TaskContext.jobId()` 匹配 `@SchedulerProcessor` 名称，支持 `TaskContext` / `String` / `byte[]` 入参和 `TaskOutcome` / `String` / `boolean` / `void` 返回。
 - Spring Boot auto-configuration 已把真实 gRPC client 接到 registry adapter，demo 的 `demo.echo` 可作为真实 processor 方法被调用。
+
+## 2026-05-21 049：Java SDK 三模块重组
+- Java SDK 已按用户要求重组为 3 个 Gradle 子模块：`scheduler-java`、`scheduler-spring`、`scheduler-spring-boot`。
+- Spring Framework 的 `@SchedulerProcessor` registry/adapter 独立在 `scheduler-spring`；Spring Boot Properties/AutoConfiguration/starter 聚合在 `scheduler-spring-boot`。
+- Java demo 依赖已切换到 `cn.recycloud.scheduler:scheduler-spring-boot`。

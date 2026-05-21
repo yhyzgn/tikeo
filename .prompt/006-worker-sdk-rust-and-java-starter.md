@@ -18,10 +18,10 @@
 
 ## Java SDK 硬性约束
 
-- Java SDK 优先提供 `scheduler-spring-boot-starter`。
+- Java SDK 优先提供 `scheduler-spring-boot`。
 - 业务侧应通过 Spring Boot auto-configuration 和 `@SchedulerProcessor` 注解接入。
 - Java Worker 必须主动连接 scheduler Worker Tunnel，不得要求业务应用暴露入站端口。
-- 需要规划 `scheduler-java-core`、`scheduler-spring-boot-autoconfigure`、`scheduler-spring-boot-starter`。
+- 需要规划 `scheduler-java`、`scheduler-spring`、`scheduler-spring-boot`。
 
 ## 验证
 

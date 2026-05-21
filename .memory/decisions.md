@@ -370,7 +370,7 @@ Constraint:
 ## 2026-05-21 — SDK/examples 语言目录规范与 demo 自主创建
 
 Decision:
-- `sdks/` 是 SDK 总目录，其下必须按 `sdks/<language>/<sdk-name>/` 组织，例如 `sdks/rust/scheduler-worker-sdk`、`sdks/java/scheduler-spring-boot-starter`。
+- `sdks/` 是 SDK 总目录，其下必须按 `sdks/<language>/<sdk-name>/` 组织，例如 `sdks/rust/scheduler-worker-sdk`、`sdks/java/scheduler-spring-boot`。
 - Java SDK 必须使用 Gradle（优先 Kotlin DSL）而不是 Maven，且 Java toolchain / source / target 必须支持 JDK 21+。
 - `examples/` 是 demo 总目录，必须按 `examples/<language>/<demo-name>/` 组织，并与 `sdks/` 语言结构对应。
 - `examples/` 不再用于存放运行配置；运行配置仍属于 `config/`。
@@ -403,7 +403,7 @@ Constraint:
 - Java SDK/starter configuration must expose `clientInstanceId` / `scheduler.worker.client-instance-id`, not `workerId`, until the server returns the authoritative id during tunnel registration.
 
 ### Java Worker Tunnel real client boundary (2026-05-21)
-- Java SDK core owns gRPC/protobuf generated bindings inside `sdks/java/scheduler-java-core`; it must remain independently publishable and must not depend on server crates/modules.
+- Java SDK core owns gRPC/protobuf generated bindings inside `sdks/java/scheduler-java`; it must remain independently publishable and must not depend on server crates/modules.
 - Spring Boot starter may expose dry-run mode for local demos, but production default is the real `GrpcSchedulerWorkerClient`.
 - Remaining Java SDK gap is ergonomic `@SchedulerProcessor` method adaptation; do not revert to no-op as the default live client.
 
@@ -415,3 +415,7 @@ Constraint:
 ### Java SDK Lombok and injection style (2026-05-21)
 - Java SDK and Java demos should use Lombok where it meaningfully removes boilerplate, currently pinned to Lombok 1.18.46.
 - Spring beans in SDK/demo code should prefer constructor injection over method/field injection.
+
+### Java SDK three-layer Gradle layout (2026-05-21)
+- Java SDK Gradle modules are now exactly three integration layers: `scheduler-java` (native Java), `scheduler-spring` (Spring Framework adapter), and `scheduler-spring-boot` (Spring Boot autoconfiguration/starter).
+- Do not reintroduce `scheduler-java-core`, `scheduler-spring-boot-autoconfigure`, or separate `scheduler-spring-boot-starter` module names; Spring Boot starter behavior belongs in `scheduler-spring-boot`.
