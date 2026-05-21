@@ -14,6 +14,8 @@ use super::WorkerRegistry;
 
 const DISPATCH_INTERVAL: Duration = Duration::from_millis(500);
 const DISPATCH_BATCH_SIZE: u64 = 16;
+const DISPATCH_LEASE_SECONDS: i64 = 30;
+const DISPATCHER_LEASE_OWNER: &str = "scheduler-dispatcher";
 
 /// Run the minimal single-node dispatch loop forever.
 pub async fn run(
@@ -40,20 +42,49 @@ async fn dispatch_once(
     workflows: &WorkflowRepository,
     registry: &WorkerRegistry,
 ) -> Result<(), scheduler_storage::DbErr> {
-    let _ = workflows.materialize_next_queued_node().await?;
-    dispatch_single_instances(jobs, instances, registry).await?;
+    let _expired = workflows.clear_expired_dispatch_queue_leases().await?;
+    let _ = workflows
+        .materialize_next_queued_node_with_lease(DISPATCHER_LEASE_OWNER, DISPATCH_LEASE_SECONDS)
+        .await?;
+    dispatch_single_instances(jobs, instances, workflows, registry).await?;
     dispatch_broadcast_attempts(instances, attempts, registry).await
 }
 
 async fn dispatch_single_instances(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,
+    workflows: &WorkflowRepository,
     registry: &WorkerRegistry,
 ) -> Result<(), scheduler_storage::DbErr> {
-    let pending = instances.list_pending_single(DISPATCH_BATCH_SIZE).await?;
-
-    for instance in pending {
+    for _ in 0..DISPATCH_BATCH_SIZE {
+        let Some(claim) = workflows
+            .claim_next_job_queue_item(DISPATCHER_LEASE_OWNER, DISPATCH_LEASE_SECONDS)
+            .await?
+        else {
+            break;
+        };
+        let Some(instance_id) = claim.item.job_instance_id.clone() else {
+            continue;
+        };
+        let Some(instance) = instances.get(&instance_id).await? else {
+            let _ = workflows
+                .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                .await?;
+            continue;
+        };
+        if !instances.claim_pending_for_dispatch(&instance.id).await? {
+            let _ = workflows
+                .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                .await?;
+            continue;
+        }
         let Some(job) = jobs.get(&instance.job_id).await? else {
+            let _ = workflows
+                .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                .await?;
+            instances
+                .update_status(&instance.id, InstanceStatus::Pending)
+                .await?;
             continue;
         };
 
@@ -72,7 +103,17 @@ async fn dispatch_single_instances(
             instances
                 .update_status(&instance.id, InstanceStatus::Running)
                 .await?;
+            let _ = workflows
+                .mark_dispatch_queue_running(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                .await?;
             debug!(%worker_id, instance_id = %instance.id, "dispatched instance to worker");
+        } else {
+            let _ = workflows
+                .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                .await?;
+            instances
+                .update_status(&instance.id, InstanceStatus::Pending)
+                .await?;
         }
     }
 

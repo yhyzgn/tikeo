@@ -162,3 +162,9 @@
 - 用户手动调整 `scripts/dev.sh`：新增 `SCHEDULER_API_PORT` / `SCHEDULER_WEB_URL` 可配置项。
 - dev 脚本默认仍让后端按配置绑定 `0.0.0.0`，但健康检查与浏览器提示默认使用 `http://localhost:<port>`，更符合本机开发访问习惯。
 - 验证：`bash -n scripts/dev.sh`；`timeout 10 ./scripts/dev.sh` 可成功启动后端与 Web，并在超时信号下清理进程。
+
+## 2026-05-21 043：Dispatch Queue 原子 Claim 与 Dispatcher 接入
+- 单实例 job 创建时同步写入 dispatch_queue 软关联队列行，dispatcher 不再直接扫描 pending job_instance，而是通过 dispatch_queue claim/lease 抢占后再派发。
+- `claim_dispatch_queue_item` 改为 DB 条件更新：只有 pending 且无未过期 lease 的行能被抢占，同时原子递增 attempt，避免多 server 并发重复 claim。
+- Workflow queued node materialize 也改为先 claim lease，再物化节点；物化完成后将原 workflow-node queue 行标记 done 并清理 lease。
+- dispatcher 每轮会清理过期 pending lease；worker 不可用或实例状态已变化时会 release lease 并恢复 pending，成功派发后把 job queue 行标记 running。

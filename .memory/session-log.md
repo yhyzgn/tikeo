@@ -751,3 +751,9 @@ Git:
 - 用户手动修改 `scripts/dev.sh` 后要求代提交。
 - 变更保留容器/服务绑定可配置性，默认 API_URL 改为 `http://localhost:$SCHEDULER_API_PORT`，WEB_URL 改为独立可覆盖的 `SCHEDULER_WEB_URL`。
 - 烟测显示前后端均可启动：Web `http://localhost:5173`，Backend `http://localhost:9090`。
+
+### 2026-05-21 043 dispatch queue 原子 claim 善后
+- 按 030 阶段继续强化 dispatch_queue：补齐 repository 条件更新 claim、job queue claim、workflow-node queue claim、mark running、expired lease cleanup。
+- 单实例 CreateJobInstance 现在事务内同时写入 dispatch_queue；broadcast 仍走 attempts 旧路径。
+- Worker Tunnel dispatcher 已切到 dispatch_queue claim/lease 路径，避免直接 list pending instances 带来的多 server 重复派发风险。
+- 已更新设计路线图 Phase 2，新增并完成“Dispatch queue 原子 claim 与 dispatcher 接入”。

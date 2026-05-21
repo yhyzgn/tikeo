@@ -1,10 +1,10 @@
 use scheduler_core::{ExecutionMode, InstanceStatus, TriggerType};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    QuerySelect, Set, TransactionTrait, sea_query::Expr,
 };
 
-use crate::entities::{job, job_instance};
+use crate::entities::{dispatch_queue, job, job_instance};
 
 use super::util::{new_id, now_rfc3339};
 /// Minimal job instance creation input.
@@ -67,6 +67,7 @@ impl JobInstanceRepository {
         };
 
         let now = now_rfc3339();
+        let txn = self.db.begin().await?;
         let model = job_instance::ActiveModel {
             id: Set(new_id("inst")),
             job_id: Set(parent.id),
@@ -74,10 +75,29 @@ impl JobInstanceRepository {
             trigger_type: Set(input.trigger_type.to_string()),
             execution_mode: Set(input.execution_mode.to_string()),
             created_at: Set(now.clone()),
-            updated_at: Set(now),
+            updated_at: Set(now.clone()),
         }
-        .insert(&self.db)
+        .insert(&txn)
         .await?;
+        if input.execution_mode == ExecutionMode::Single {
+            dispatch_queue::ActiveModel {
+                id: Set(new_id("dq")),
+                job_instance_id: Set(Some(model.id.clone())),
+                workflow_node_instance_id: Set(None),
+                priority: Set(0),
+                run_after: Set(now.clone()),
+                status: Set("pending".to_owned()),
+                attempt: Set(0),
+                lease_owner: Set(None),
+                lease_until: Set(None),
+                worker_selector: Set(None),
+                created_at: Set(now.clone()),
+                updated_at: Set(now),
+            }
+            .insert(&txn)
+            .await?;
+        }
+        txn.commit().await?;
 
         Ok(Some(JobInstanceSummary::from(model)))
     }
@@ -133,6 +153,28 @@ impl JobInstanceRepository {
             .await?;
 
         Ok(rows.into_iter().map(JobInstanceSummary::from).collect())
+    }
+
+    /// Atomically mark a pending instance as dispatching before a worker send attempt.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn claim_pending_for_dispatch(
+        &self,
+        instance_id: &str,
+    ) -> Result<bool, sea_orm::DbErr> {
+        let result = job_instance::Entity::update_many()
+            .col_expr(
+                job_instance::Column::Status,
+                Expr::value(InstanceStatus::Dispatching.to_string()),
+            )
+            .col_expr(job_instance::Column::UpdatedAt, Expr::value(now_rfc3339()))
+            .filter(job_instance::Column::Id.eq(instance_id.to_owned()))
+            .filter(job_instance::Column::Status.eq(InstanceStatus::Pending.to_string()))
+            .exec(&self.db)
+            .await?;
+        Ok(result.rows_affected > 0)
     }
 
     /// Update one instance status.

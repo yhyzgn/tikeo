@@ -2056,7 +2056,8 @@ scheduler/
 - [x] Worker / dispatch queue 管理 API 与 Web Worker 集群页面
 - [x] Worker TaskResult 自动推进 Workflow（按 job_instance_id 软关联回写 workflow_node_instance，并按边条件入队后继节点）
 - [x] Workflow 操作审计日志（create/update/validate/dry-run/run/advance/materialize/recover 管理与执行动作写入 audit_logs）
-- [x] Dispatch queue 最小租约与 claim API（lease_owner / lease_until + SQLite 兼容迁移；`POST /api/v1/dispatch-queue:claim` 支持按租约占用队列项，后续继续强化 DB 原子条件更新 / visibility-timeout）
+- [x] Dispatch queue 最小租约与 claim API（lease_owner / lease_until + SQLite 兼容迁移；`POST /api/v1/dispatch-queue:claim` 支持按租约占用队列项）
+- [x] Dispatch queue 原子 claim 与 dispatcher 接入（DB 条件更新抢占租约、过期 pending lease 回收、workflow queued node 和 single job dispatch 统一走 dispatch_queue）
 - [x] SSE 实时实例事件骨架（instance_events + /events/instances/:id/stream；WebSocket 后续）
 - [ ] Go SDK + Python SDK
 

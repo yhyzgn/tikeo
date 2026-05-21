@@ -331,6 +331,7 @@ mod tests {
         assert_eq!(listed_again.len(), 1); // just admin
     }
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
     async fn workflow_job_result_auto_advances_next_node() {
         let db = crate::connect_and_migrate("sqlite::memory:")
             .await
@@ -403,11 +404,25 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("node should materialize: {error}"))
             .unwrap_or_else(|| panic!("queued node should exist"));
+        assert_eq!(materialized.queue_item.status, "done");
+        assert_eq!(materialized.queue_item.lease_owner, None);
+        let job_claim = workflows
+            .claim_next_job_queue_item("server-a", 30)
+            .await
+            .unwrap_or_else(|error| panic!("job queue should claim: {error}"))
+            .unwrap_or_else(|| panic!("job queue item should exist"));
+        assert_eq!(job_claim.item.attempt, 1);
         let job_instance_id = materialized
             .node
             .job_instance_id
             .clone()
             .unwrap_or_else(|| panic!("job node should create job instance"));
+
+        let running_marked = workflows
+            .mark_dispatch_queue_running(&job_claim.item.id, "server-a")
+            .await
+            .unwrap_or_else(|error| panic!("job queue should mark running: {error}"));
+        assert!(running_marked);
 
         let outcome = workflows
             .complete_job_node_from_result(&job_instance_id, InstanceStatus::Succeeded, None)
@@ -479,6 +494,14 @@ mod tests {
         assert_eq!(claim.lease_owner, "server-a");
         assert_eq!(claim.item.lease_owner.as_deref(), Some("server-a"));
         assert_eq!(claim.item.attempt, 1);
+        assert!(claim.item.workflow_node_instance_id.is_some());
+
+        let cleared = workflows
+            .clear_expired_dispatch_queue_leases()
+            .await
+            .unwrap_or_else(|error| panic!("expired lease cleanup should run: {error}"));
+        assert_eq!(cleared, 0);
+
         let second_claim = workflows
             .claim_dispatch_queue_item(&claim.item.id, "server-b", 30)
             .await
