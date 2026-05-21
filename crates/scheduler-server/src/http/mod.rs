@@ -23,7 +23,7 @@ use axum::{
 use scheduler_core::HealthState;
 use scheduler_storage::{
     AuditLogRepository, AuthSessionRepository, JobInstanceAttemptRepository,
-    JobInstanceLogRepository, JobInstanceRepository, JobRepository, RbacRepository,
+    JobInstanceLogRepository, JobInstanceRepository, JobRepository, RaftRepository, RbacRepository,
     ScriptRepository, UserRepository, WorkflowRepository, connect_and_migrate,
 };
 use serde::Serialize;
@@ -50,6 +50,7 @@ pub struct AppState {
     scripts: ScriptRepository,
     workflows: WorkflowRepository,
     audit: AuditLogRepository,
+    pub(crate) raft: RaftRepository,
     sessions: SessionManager,
     pub(crate) rbac: RbacService,
     pub(crate) registry: crate::tunnel::WorkerRegistry,
@@ -74,6 +75,7 @@ impl AppState {
     ) -> Self {
         let db = users.db();
         let rbac = RbacService::new(RbacRepository::new(db.clone()));
+        let raft = RaftRepository::new(db.clone());
         let sessions = SessionManager::new(DbMokaSessionStore::new(
             AuthSessionRepository::new(db.clone()),
             RbacRepository::new(db),
@@ -88,6 +90,7 @@ impl AppState {
             scripts,
             workflows,
             audit,
+            raft,
             sessions,
             rbac,
             registry,
@@ -155,10 +158,12 @@ async fn record_http_metrics(request: Request<axum::body::Body>, next: Next) -> 
     response
 }
 
+#[allow(clippy::too_many_lines)]
 fn api_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/system/info", get(routes::system_info))
         .route("/cluster", get(routes::cluster_status))
+        .route("/cluster/diagnostics", get(routes::cluster_diagnostics))
         .route(
             "/raft/append-entries",
             axum::routing::post(routes::append_entries),
@@ -377,10 +382,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cluster_diagnostics_exposes_runtime_boundary_without_fake_leader() {
+        let json = get_json("/api/v1/cluster/diagnostics").await;
+
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["status"]["role"], "standalone");
+        assert_eq!(json["data"]["scheduling_gated"], false);
+        assert_eq!(
+            json["data"]["transport"]["append_entries_path"],
+            "/api/v1/raft/append-entries"
+        );
+        assert_eq!(json["data"]["transport"]["mutating"], false);
+        assert_eq!(
+            json["data"]["runtime_boundary"],
+            "kept in scheduler-server::cluster until consensus runtime traits stabilize"
+        );
+    }
+
+    #[tokio::test]
     async fn openapi_json_contains_management_paths() {
         let json = get_json("/api-docs/openapi.json").await;
 
         assert!(json["paths"]["/api/v1/system/info"].is_object());
+        assert!(json["paths"]["/api/v1/cluster/diagnostics"].is_object());
         assert!(json["paths"]["/api/v1/auth/login"].is_object());
         assert!(json["paths"]["/api/v1/raft/append-entries"].is_object());
         assert!(json["paths"]["/api/v1/auth/me"].is_object());

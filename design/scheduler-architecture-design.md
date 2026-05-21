@@ -1545,6 +1545,7 @@ docker run -d \
 - **Raft transport placeholder**：预留 `/api/v1/raft/append-entries` HTTP transport 形状，适配 Docker bridge / K8s Service / LB/WAF 代理头；当前只返回 `accepted=false`，不变更共识状态。
 - **Fencing token shape**：`ClusterStatus` 与 `raft_metadata.leader_fencing_token` 已预留 leader fencing token 字段；真实 token 只能由后续 consensus runtime 写入，配置态/占位 transport 均返回 `null`。
 - **Runtime evaluation**：2026-05-21 检查 crates.io，`openraft` 最新为 `0.10.0-alpha.20`，仍处 alpha 发布线；本阶段先落持久化边界，不把配置态 Raft 解释为 leader。
+- **Cluster diagnostics**：`/api/v1/cluster/diagnostics` 暴露当前 coordinator 状态、调度 gate、持久化 term/index/peer、transport 占位状态和 runtime boundary，便于 operator 判断为什么 Raft 节点尚未参与调度。
 - **Container-first networking**：Raft 节点间通信必须可穿透 Docker bridge / K8s Service / LB，不能依赖 host network。
 
 ### 8.3 Kubernetes 集群部署架构
@@ -2124,6 +2125,7 @@ scheduler/
   - [x] Raft 配置形状（mode/node_id/peers）与未启动 Raft 的 unknown/not-schedulable 状态
   - [x] Raft metadata/member 持久化基础（`raft_metadata` / `raft_members`，无外键，启动时写入配置 peers）
   - [x] Raft transport/fencing 形状（`/api/v1/raft/append-entries` 占位接口 + `leader_fencing_token` 字段，仍不授予 leader）
+  - [x] Cluster diagnostics（`/api/v1/cluster/diagnostics` 展示 gate、term/index、peers、transport 占位和 runtime boundary）
   - [ ] Raft membership runtime、leader/follower fencing token 生成、动态配置变更
 - [x] 任务队列基础（dispatch_queue 持久化模型、priority/run_after/status/lease_owner/lease_until 字段；workflow queued node 自动 materialize）
 - [x] 持久化延迟队列基础（dispatch_queue.run_after）

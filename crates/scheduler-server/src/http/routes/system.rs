@@ -2,8 +2,14 @@ use std::sync::Arc;
 
 use axum::{Json, extract::State};
 
-use crate::http::dto::{
-    ApiResponse, ClusterApiResponse, ClusterResponse, SystemInfoApiResponse, SystemInfoResponse,
+use crate::http::{
+    AppState,
+    dto::{
+        ApiResponse, ClusterApiResponse, ClusterDiagnosticsApiResponse, ClusterDiagnosticsResponse,
+        ClusterResponse, RaftMemberDiagnostic, RaftMetadataDiagnostic, RaftTransportDiagnostic,
+        SystemInfoApiResponse, SystemInfoResponse,
+    },
+    error::ApiError,
 };
 
 /// Return scheduler server build and API metadata.
@@ -28,11 +34,72 @@ pub async fn system_info() -> Json<SystemInfoApiResponse> {
     tag = "system",
     responses((status = 200, description = "Cluster status", body = ClusterApiResponse))
 )]
-pub async fn cluster_status(
-    State(state): State<Arc<crate::http::AppState>>,
-) -> Json<ClusterApiResponse> {
+pub async fn cluster_status(State(state): State<Arc<AppState>>) -> Json<ClusterApiResponse> {
     let status = state.cluster.status().await;
-    Json(ApiResponse::success(ClusterResponse {
+    Json(ApiResponse::success(cluster_response(status)))
+}
+
+/// Return operator-visible cluster diagnostics.
+///
+/// # Errors
+///
+/// Returns a storage error envelope when persisted Raft diagnostics cannot be read.
+#[utoipa::path(
+    get,
+    path = "/api/v1/cluster/diagnostics",
+    tag = "system",
+    responses((status = 200, description = "Cluster diagnostics", body = ClusterDiagnosticsApiResponse))
+)]
+pub async fn cluster_diagnostics(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ClusterDiagnosticsApiResponse>, ApiError> {
+    let status = state.cluster.status().await;
+    let metadata = state
+        .raft
+        .get_metadata(&status.node_id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .map(|item| RaftMetadataDiagnostic {
+            cluster_id: item.cluster_id,
+            node_id: item.node_id,
+            current_term: item.current_term,
+            voted_for: item.voted_for,
+            commit_index: item.commit_index,
+            applied_index: item.applied_index,
+            leader_fencing_token: item.leader_fencing_token,
+            updated_at: item.updated_at,
+        });
+    let members = state
+        .raft
+        .list_members()
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .into_iter()
+        .map(|item| RaftMemberDiagnostic {
+            node_id: item.node_id,
+            endpoint: item.endpoint,
+            status: item.status,
+            updated_at: item.updated_at,
+        })
+        .collect();
+    let scheduling_gated = !status.can_schedule;
+    Ok(Json(ApiResponse::success(ClusterDiagnosticsResponse {
+        status: cluster_response(status),
+        scheduling_gated,
+        metadata,
+        members,
+        transport: RaftTransportDiagnostic {
+            append_entries_path: "/api/v1/raft/append-entries",
+            mutating: false,
+            status: "reserved_non_mutating",
+        },
+        runtime_boundary:
+            "kept in scheduler-server::cluster until consensus runtime traits stabilize".to_owned(),
+    })))
+}
+
+fn cluster_response(status: crate::cluster::ClusterStatus) -> ClusterResponse {
+    ClusterResponse {
         mode: status.mode.as_str().to_owned(),
         role: status.role.as_str().to_owned(),
         node_id: status.node_id,
@@ -40,5 +107,5 @@ pub async fn cluster_status(
         can_schedule: status.can_schedule,
         leader_fencing_token: status.leader_fencing_token,
         detail: status.detail,
-    }))
+    }
 }

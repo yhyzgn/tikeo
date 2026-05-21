@@ -890,3 +890,8 @@ Git:
 - Added leader fencing token field shape to cluster status and `raft_metadata`; placeholder/config paths keep it null.
 - Added reserved `/api/v1/raft/append-entries` HTTP transport endpoint for Docker/K8s/LB-safe node-to-node wiring; it returns `accepted=false` until real consensus runtime exists.
 - Kept current storage-backed no-op coordinator in `scheduler-server::cluster`; no new `scheduler-cluster` crate yet because runtime boundaries are not stable enough.
+
+### 2026-05-21 Phase2 cluster diagnostics
+- Added `/api/v1/cluster/diagnostics` for operator-visible cluster readiness: current status, scheduling gate, persisted Raft metadata, members, transport placeholder, and runtime boundary.
+- Chose a separate diagnostics endpoint instead of bloating `/api/v1/cluster`; the lightweight status endpoint stays stable for UI polling.
+- Kept cluster runtime in `scheduler-server::cluster` for now; no `scheduler-cluster` crate until consensus/runtime traits stabilize.

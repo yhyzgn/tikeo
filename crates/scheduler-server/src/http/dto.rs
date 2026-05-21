@@ -66,6 +66,8 @@ pub type SystemInfoApiResponse = ApiResponse<SystemInfoResponse>;
 
 /// Cluster status API envelope.
 pub type ClusterApiResponse = ApiResponse<ClusterResponse>;
+/// Cluster diagnostics API envelope.
+pub type ClusterDiagnosticsApiResponse = ApiResponse<ClusterDiagnosticsResponse>;
 
 /// Job page API envelope.
 pub type JobPageApiResponse = ApiResponse<Page>;
@@ -157,6 +159,68 @@ pub struct ClusterResponse {
     pub leader_fencing_token: Option<String>,
     /// Human-readable implementation note.
     pub detail: String,
+}
+
+/// Operator diagnostics for cluster runtime readiness.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ClusterDiagnosticsResponse {
+    /// Current coordinator status.
+    pub status: ClusterResponse,
+    /// Whether scheduler/dispatcher ownership loops are currently gated off.
+    pub scheduling_gated: bool,
+    /// Local persisted Raft metadata when present.
+    pub metadata: Option<RaftMetadataDiagnostic>,
+    /// Configured Raft peers/members.
+    pub members: Vec<RaftMemberDiagnostic>,
+    /// Reserved transport endpoint status.
+    pub transport: RaftTransportDiagnostic,
+    /// Runtime boundary decision for this phase.
+    pub runtime_boundary: String,
+}
+
+/// Local Raft metadata diagnostic fields.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct RaftMetadataDiagnostic {
+    /// Logical cluster identifier.
+    pub cluster_id: String,
+    /// Stable local node id.
+    pub node_id: String,
+    /// Last known term.
+    pub current_term: i64,
+    /// Vote target in current term, when any.
+    pub voted_for: Option<String>,
+    /// Last committed index.
+    pub commit_index: i64,
+    /// Last applied index.
+    pub applied_index: i64,
+    /// Leader fencing token, null until real consensus establishes leadership.
+    pub leader_fencing_token: Option<String>,
+    /// Last update timestamp.
+    pub updated_at: String,
+}
+
+/// Raft member diagnostic fields.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct RaftMemberDiagnostic {
+    /// Stable member node id.
+    pub node_id: String,
+    /// Peer endpoint reachable through container/K8s networking.
+    pub endpoint: String,
+    /// Member lifecycle status.
+    pub status: String,
+    /// Last update timestamp.
+    pub updated_at: String,
+}
+
+/// Reserved Raft transport diagnostic state.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct RaftTransportDiagnostic {
+    /// Reserved `AppendEntries` endpoint path.
+    pub append_entries_path: &'static str,
+    /// Whether the transport mutates consensus state. Currently false.
+    pub mutating: bool,
+    /// Human-readable transport status.
+    pub status: &'static str,
 }
 
 /// Login request for the development admin account.

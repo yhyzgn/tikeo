@@ -15,6 +15,7 @@ use super::{auth, dto, routes};
     paths(
         routes::system::system_info,
         routes::system::cluster_status,
+        routes::system::cluster_diagnostics,
         routes::raft::append_entries,
         auth::login,
         auth::me,
@@ -55,6 +56,7 @@ use super::{auth, dto, routes};
     components(schemas(
         dto::ApiResponse<dto::SystemInfoResponse>,
         dto::ApiResponse<dto::ClusterResponse>,
+        dto::ApiResponse<dto::ClusterDiagnosticsResponse>,
         dto::ApiResponse<dto::RaftMessageResult>,
         dto::ApiResponse<dto::AuthSession>,
         dto::ApiResponse<dto::MeResponse>,
@@ -81,6 +83,10 @@ use super::{auth, dto, routes};
         dto::Page,
         dto::SystemInfoResponse,
         dto::ClusterResponse,
+        dto::ClusterDiagnosticsResponse,
+        dto::RaftMetadataDiagnostic,
+        dto::RaftMemberDiagnostic,
+        dto::RaftTransportDiagnostic,
         dto::RaftAppendEntriesRequest,
         dto::RaftMessageResult,
         dto::LoginRequest,
