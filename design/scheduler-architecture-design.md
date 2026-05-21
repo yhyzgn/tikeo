@@ -1547,7 +1547,8 @@ docker run -d \
 - **Fencing token shape**：`ClusterStatus` 与 `raft_metadata.leader_fencing_token` 已预留 leader fencing token 字段；真实 token 只能由后续 consensus runtime 写入，配置态/占位 transport 均返回 `null`。
 - **Runtime implementation choice**：2026-05-21 改为集成 TiKV `raft-rs`（crate `raft` 0.7.0，Apache-2.0）。当前已在 `scheduler-server::cluster::raft_rs` 内完成 `RawNode` bootstrap/config/storage 边界校验：把现有字符串 `node_id` 通过 SHA-256 稳定映射为 raft-rs 需要的非 0 `u64` id，使用配置 peers 生成初始 voters，并构造 `MemStorage + RawNode` 证明依赖/API 可编译可运行。
 - **No fake leadership**：raft-rs bootstrap/runtime ticker 仅证明 runtime 边界可创建与可驱动，暂不 campaign，不生成 leader token，不把配置态 Raft 解释为可调度 leader；`mode=raft` 带 storage 时可暴露 raft-rs 观察到的 follower/leader 角色，但 `can_schedule=false` 直到 leader fencing token 真实落地。
-- **Raft runtime ticker/inbox**：`mode=raft` 且带 storage 启动时会创建 `RaftRuntimeCoordinator`，启动 100ms ticker 驱动 raft-rs `RawNode::tick()`，同时接收已校验的 HTTP 入站 `eraftpb::Message` 并调用 `RawNode::step()`；`Ready` 按 HardState -> log entries -> snapshot -> `advance()` 顺序持久化。当前不 campaign、不发送 outbound messages、不生成 leader fencing token，`can_schedule` 仍固定为 `false`。
+- **Raft runtime ticker/inbox/outbound skeleton**：`mode=raft` 且带 storage 启动时会创建 `RaftRuntimeCoordinator`，启动 100ms ticker 驱动 raft-rs `RawNode::tick()`，同时接收已校验的 HTTP 入站 `eraftpb::Message` 并调用 `RawNode::step()`；`Ready` 按 HardState -> log entries -> snapshot -> outbound messages -> `advance()` 顺序处理。Outbound skeleton 会把 raft-rs `Message` 转回 HTTP wire DTO 并按配置 peer endpoint 追加 `/api/v1/raft/append-entries` 发送，支持 Docker bridge / K8s Service / LB/WAF 路径；可选 `cluster.transport_token` 会通过 `x-scheduler-raft-token` 做内部节点认证。当前不 campaign、不生成 leader fencing token，`can_schedule` 仍固定为 `false`。
+- **Raft transport token**：`cluster.transport_token` 为可选 server-to-server shared token，应通过 Docker/K8s Secret 或环境变量 `SCHEDULER__CLUSTER__TRANSPORT_TOKEN` 注入，禁止提交生产 token。HTTP route 仍支持管理端 Bearer/RBAC；携带匹配 `x-scheduler-raft-token` 时可绕过人工 session，用于集群内部 Raft 消息。
 - **Cluster diagnostics**：`/api/v1/cluster/diagnostics` 暴露当前 coordinator 状态、调度 gate、持久化 term/index/peer、transport 占位状态和 runtime boundary；`ClusterStatus.detail` 会包含 raft-rs bootstrap 校验摘要，便于 operator 判断为什么 Raft 节点尚未参与调度。
 - **Container-first networking**：Raft 节点间通信必须可穿透 Docker bridge / K8s Service / LB，不能依赖 host network。
 
@@ -1967,7 +1968,7 @@ scheduler_grpc_request_duration_seconds{method}           # histogram
 | HTTP 框架 | Axum | 0.8+ | REST API、Web 控制台 |
 | protobuf | Prost | 0.13+ | Protocol Buffers 编解码 |
 | **ORM** | **SeaORM** | **1.1+** | **多数据库异步 ORM，SQLite/MySQL/Pg/CockroachDB** |
-| 共识算法 | TiKV raft-rs (`raft`) | 0.7.x | Server 集群 Raft 共识；当前已接入 bootstrap、ticker、Ready 持久化顺序与 inbound inbox，outbound transport/apply/membership 继续推进 |
+| 共识算法 | TiKV raft-rs (`raft`) | 0.7.x | Server 集群 Raft 共识；当前已接入 bootstrap、ticker、Ready 持久化顺序、inbound inbox 与 outbound HTTP skeleton，apply/fencing/membership 继续推进 |
 | WASM 运行时 | Wasmtime | 25+ | 用户代码沙箱 |
 | CLI 框架 | Clap | 4.x | 命令行解析 |
 | 配置 | config-rs | 0.14+ | TOML/YAML/ENV 配置 |
@@ -2122,7 +2123,7 @@ scheduler/
 - [x] Map / MapReduce 执行模式（workflow_shards + materialize + shard job_instance/dispatch_queue 软关联）
 - [x] 子工作流嵌套（节点引用 child_workflow_id + 子实例软关联 + 子实例终态回写父节点）
 - [x] PostgreSQL + CockroachDB 存储支持（SeaORM/sqlx-postgres feature + `postgres://` 配置模板；CockroachDB 复用 PostgreSQL wire protocol）
-- [ ] Server 集群 (Raft 共识；Phase2 已完成安全基础，已改用 TiKV raft-rs 并完成 bootstrap/ticker/inbound inbox，outbound transport/apply/leader fencing 继续推进)
+- [ ] Server 集群 (Raft 共识；Phase2 已完成安全基础，已改用 TiKV raft-rs 并完成 bootstrap/ticker/inbound inbox/outbound skeleton，apply/leader fencing 继续推进)
   - [x] ClusterCoordinator 抽象与显式 standalone 状态（`/api/v1/cluster` 不再伪装 leader）
   - [x] tick/dispatcher ownership gate（非 `can_schedule` 节点跳过 CRON/fixed-rate tick 与 Worker dispatch loop）
   - [x] Raft 配置形状（mode/node_id/peers）与未启动 Raft 的 unknown/not-schedulable 状态
@@ -2134,7 +2135,8 @@ scheduler/
   - [x] raft-rs message transport DTO + 转换校验基础（`/api/v1/raft/append-entries` 请求对齐 from/to/term/message_type/index/log_term/commit/entries/context/reject，可转换为 `eraftpb::Message`）
   - [x] raft-rs runtime ticker + Ready 持久化顺序骨架（tick -> Ready HardState/log/snapshot 持久化 -> advance；不 campaign，不 outbound transport，不授予 scheduling）
   - [x] raft-rs inbound runtime inbox 接入（HTTP 校验后投递 runtime mpsc inbox；`accepted=true` 仅表示本地队列接收成功，不授予 scheduling）
-  - [ ] raft-rs Ready apply 状态机、outbound message transport、leader/follower fencing token 生成、动态 membership/config change
+  - [x] raft-rs outbound message transport skeleton（Ready messages -> HTTP wire DTO -> peer endpoint `/api/v1/raft/append-entries`；支持可选 `cluster.transport_token` / `x-scheduler-raft-token`，不授予 scheduling）
+  - [ ] raft-rs Ready apply 状态机、leader/follower fencing token 生成、动态 membership/config change
 - [x] 任务队列基础（dispatch_queue 持久化模型、priority/run_after/status/lease_owner/lease_until 字段；workflow queued node 自动 materialize）
 - [x] 持久化延迟队列基础（dispatch_queue.run_after）
 - [x] 实时日志流 (gRPC Server Stream：`SubscribeTaskLogs` 支持历史回放 + Worker Tunnel live fan-out)

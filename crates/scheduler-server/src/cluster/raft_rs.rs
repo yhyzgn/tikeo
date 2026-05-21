@@ -4,7 +4,11 @@
 //! ticker. It deliberately does not campaign or grant scheduler ownership until real
 //! consensus leadership and fencing are implemented.
 
-use std::{collections::BTreeSet, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Duration,
+};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use protobuf::Message as PbMessage;
@@ -18,6 +22,7 @@ use scheduler_config::ClusterConfig;
 use scheduler_storage::{
     RaftRepository, UpsertRaftLogEntry, UpsertRaftMetadata, UpsertRaftSnapshot,
 };
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tokio::sync::{Mutex, RwLock, mpsc};
 use tracing::{debug, warn};
@@ -48,6 +53,84 @@ pub struct RaftRsBootstrapStatus {
     pub has_ready: bool,
 }
 
+#[derive(Debug, Clone)]
+struct RaftPeerTransport {
+    client: reqwest::Client,
+    endpoints: Arc<BTreeMap<u64, String>>,
+    token: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RaftWireMessage {
+    from: u64,
+    to: u64,
+    term: i64,
+    message_type: String,
+    index: i64,
+    log_term: i64,
+    commit: i64,
+    snapshot_index: Option<i64>,
+    snapshot_term: Option<i64>,
+    entries: Vec<RaftWireLogEntry>,
+    context: Option<String>,
+    reject: bool,
+    reject_hint: Option<i64>,
+    leader_fencing_token: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RaftWireLogEntry {
+    entry_type: String,
+    index: i64,
+    term: i64,
+    data: String,
+    context: Option<String>,
+}
+
+impl RaftPeerTransport {
+    fn new(endpoints: BTreeMap<u64, String>, token: Option<String>) -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            endpoints: Arc::new(endpoints),
+            token: token.filter(|value| !value.is_empty()),
+        }
+    }
+
+    fn dispatch_ready_messages(&self, messages: &[Message]) {
+        for message in messages {
+            let Some(endpoint) = self.endpoints.get(&message.to).cloned() else {
+                debug!(
+                    to = message.to,
+                    message_type = ?message.get_msg_type(),
+                    "skip raft-rs outbound message without configured peer endpoint"
+                );
+                continue;
+            };
+            let request = raft_message_to_wire_request(message);
+            let client = self.client.clone();
+            let token = self.token.clone();
+            tokio::spawn(async move {
+                let url = raft_append_entries_url(&endpoint);
+                let mut builder = client.post(&url).json(&request);
+                if let Some(token) = token {
+                    builder = builder.header("x-scheduler-raft-token", token);
+                }
+                match builder.send().await {
+                    Ok(response) if response.status().is_success() => {
+                        debug!(%url, "raft-rs outbound message delivered");
+                    }
+                    Ok(response) => {
+                        warn!(%url, status = %response.status(), "raft-rs outbound message rejected by peer");
+                    }
+                    Err(error) => {
+                        warn!(%url, %error, "raft-rs outbound message delivery failed");
+                    }
+                }
+            });
+        }
+    }
+}
+
 /// Runtime coordinator backed by a raft-rs `RawNode` ticker.
 #[derive(Debug)]
 pub struct RaftRuntimeCoordinator {
@@ -66,8 +149,8 @@ impl RaftRuntimeCoordinator {
         repository: RaftRepository,
     ) -> Result<SharedClusterCoordinator, scheduler_storage::DbErr> {
         let initial = build_runtime(config);
-        let (role, detail, node) = match initial {
-            Ok((node, bootstrap)) => (
+        let (role, detail, node, transport) = match initial {
+            Ok((node, bootstrap, transport)) => (
                 ClusterRole::Follower,
                 format!(
                     "{RAFT_RS_LIBRARY} runtime ticker started: raft_node_id={}, voters={}, initial_role={}, has_ready={}; no campaign, no leader fencing yet",
@@ -77,12 +160,14 @@ impl RaftRuntimeCoordinator {
                     bootstrap.has_ready
                 ),
                 Some(node),
+                Some(transport),
             ),
             Err(error) => (
                 ClusterRole::Unknown,
                 format!(
                     "{RAFT_RS_LIBRARY} runtime bootstrap failed: {error}; raft ticker not started"
                 ),
+                None,
                 None,
             ),
         };
@@ -96,9 +181,16 @@ impl RaftRuntimeCoordinator {
             detail,
         }));
         let (tx, rx) = mpsc::channel(INBOX_CAPACITY);
-        if let Some(node) = node {
+        if let (Some(node), Some(transport)) = (node, transport) {
             persist_role_metadata(&repository, &config.node_id, role).await?;
-            spawn_runtime_loop(config.node_id.clone(), status.clone(), repository, node, rx);
+            spawn_runtime_loop(
+                config.node_id.clone(),
+                status.clone(),
+                repository,
+                node,
+                transport,
+                rx,
+            );
         }
         Ok(Arc::new(Self { status, inbox: tx }))
     }
@@ -130,7 +222,7 @@ impl super::ClusterCoordinator for RaftRuntimeCoordinator {
 ///
 /// Returns a human-readable error when the raft-rs config or bootstrap storage is invalid.
 pub fn validate_raft_rs_bootstrap(config: &ClusterConfig) -> Result<RaftRsBootstrapStatus, String> {
-    let (node, status) = build_runtime(config)?;
+    let (node, status, _transport) = build_runtime(config)?;
     let _node = node;
     Ok(status)
 }
@@ -147,9 +239,17 @@ pub fn raft_numeric_id(node_id: &str) -> u64 {
 
 fn build_runtime(
     config: &ClusterConfig,
-) -> Result<(RawNode<MemStorage>, RaftRsBootstrapStatus), String> {
+) -> Result<
+    (
+        RawNode<MemStorage>,
+        RaftRsBootstrapStatus,
+        RaftPeerTransport,
+    ),
+    String,
+> {
     let raft_node_id = raft_numeric_id(&config.node_id);
     let voter_ids = voter_ids(config, raft_node_id)?;
+    let endpoints = peer_endpoints(config);
     let mut raft_config = Config::new(raft_node_id);
     raft_config.heartbeat_tick = 2;
     raft_config.election_tick = 20;
@@ -175,6 +275,7 @@ fn build_runtime(
             initial_role,
             has_ready,
         },
+        RaftPeerTransport::new(endpoints, config.transport_token.clone()),
     ))
 }
 
@@ -183,11 +284,12 @@ fn spawn_runtime_loop(
     status: Arc<RwLock<ClusterStatus>>,
     repository: RaftRepository,
     node: RawNode<MemStorage>,
+    transport: RaftPeerTransport,
     inbox: mpsc::Receiver<Message>,
 ) {
     tokio::spawn(async move {
         let node = Arc::new(Mutex::new(node));
-        run_runtime_loop(node_id, status, repository, node, inbox).await;
+        run_runtime_loop(node_id, status, repository, node, transport, inbox).await;
     });
 }
 
@@ -197,6 +299,7 @@ async fn run_runtime_loop(
     status: Arc<RwLock<ClusterStatus>>,
     repository: RaftRepository,
     node: Arc<Mutex<RawNode<MemStorage>>>,
+    transport: RaftPeerTransport,
     mut inbox: mpsc::Receiver<Message>,
 ) {
     let mut ticker = tokio::time::interval(TICK_INTERVAL);
@@ -205,7 +308,7 @@ async fn run_runtime_loop(
             _ = ticker.tick() => {
                 let mut guard = node.lock().await;
                 guard.tick();
-                if let Err(error) = process_ready(&node_id, &repository, &mut guard, &status).await {
+                if let Err(error) = process_ready(&node_id, &repository, &mut guard, &status, &transport).await {
                     warn!(%error, "raft-rs Ready processing failed");
                 }
             }
@@ -215,7 +318,7 @@ async fn run_runtime_loop(
                 if let Err(error) = guard.step(message) {
                     warn!(%error, "raft-rs message step failed");
                 }
-                if let Err(error) = process_ready(&node_id, &repository, &mut guard, &status).await {
+                if let Err(error) = process_ready(&node_id, &repository, &mut guard, &status, &transport).await {
                     warn!(%error, "raft-rs Ready processing failed");
                 }
             }
@@ -228,6 +331,7 @@ async fn process_ready(
     repository: &RaftRepository,
     node: &mut RawNode<MemStorage>,
     status: &Arc<RwLock<ClusterStatus>>,
+    transport: &RaftPeerTransport,
 ) -> Result<(), scheduler_storage::DbErr> {
     if !node.has_ready() {
         update_runtime_status(node, status).await;
@@ -244,13 +348,8 @@ async fn process_ready(
     if !ready.snapshot().is_empty() {
         persist_snapshot(node_id, repository, ready.snapshot()).await?;
     }
-    let outbound = ready.messages().len() + ready.persisted_messages().len();
-    if outbound > 0 {
-        debug!(
-            outbound,
-            "raft-rs outbound messages are not wired to transport yet"
-        );
-    }
+    transport.dispatch_ready_messages(ready.messages());
+    transport.dispatch_ready_messages(ready.persisted_messages());
     let _light_ready = node.advance(ready);
     update_runtime_status(node, status).await;
     Ok(())
@@ -365,6 +464,70 @@ async fn persist_role_metadata(
         .map(|_| ())
 }
 
+fn peer_endpoints(config: &ClusterConfig) -> BTreeMap<u64, String> {
+    config
+        .peers
+        .iter()
+        .map(|peer| (raft_numeric_id(&peer.node_id), peer.endpoint.clone()))
+        .collect()
+}
+
+fn raft_append_entries_url(endpoint: &str) -> String {
+    const PATH: &str = "/api/v1/raft/append-entries";
+    if endpoint.ends_with(PATH) {
+        endpoint.to_owned()
+    } else {
+        format!("{}{}", endpoint.trim_end_matches('/'), PATH)
+    }
+}
+
+fn raft_message_to_wire_request(message: &Message) -> RaftWireMessage {
+    let snapshot = message.get_snapshot();
+    let snapshot_metadata = snapshot.get_metadata();
+    RaftWireMessage {
+        from: message.from,
+        to: message.to,
+        term: u64_to_i64(message.term),
+        message_type: format!("{:?}", message.get_msg_type()),
+        index: u64_to_i64(message.index),
+        log_term: u64_to_i64(message.log_term),
+        commit: u64_to_i64(message.commit),
+        snapshot_index: (!snapshot.is_empty()).then_some(u64_to_i64(snapshot_metadata.index)),
+        snapshot_term: (!snapshot.is_empty()).then_some(u64_to_i64(snapshot_metadata.term)),
+        entries: message
+            .get_entries()
+            .iter()
+            .map(raft_entry_to_wire_entry)
+            .collect(),
+        context: if message.get_context().is_empty() {
+            None
+        } else {
+            Some(STANDARD.encode(message.get_context()))
+        },
+        reject: message.reject,
+        reject_hint: (message.reject_hint != 0).then_some(u64_to_i64(message.reject_hint)),
+        leader_fencing_token: None,
+    }
+}
+
+fn raft_entry_to_wire_entry(entry: &Entry) -> RaftWireLogEntry {
+    RaftWireLogEntry {
+        entry_type: format!("{:?}", entry.get_entry_type()),
+        index: u64_to_i64(entry.get_index()),
+        term: u64_to_i64(entry.get_term()),
+        data: STANDARD.encode(entry.get_data()),
+        context: if entry.get_context().is_empty() {
+            None
+        } else {
+            Some(STANDARD.encode(entry.get_context()))
+        },
+    }
+}
+
+fn u64_to_i64(value: u64) -> i64 {
+    i64::try_from(value).unwrap_or(i64::MAX)
+}
+
 fn voter_ids(config: &ClusterConfig, local_id: u64) -> Result<Vec<u64>, String> {
     let mut voters = BTreeSet::from([local_id]);
     for peer in &config.peers {
@@ -404,7 +567,10 @@ mod tests {
 
     use std::time::Duration;
 
-    use super::{RaftRuntimeCoordinator, raft_numeric_id, validate_raft_rs_bootstrap};
+    use super::{
+        RaftRuntimeCoordinator, raft_append_entries_url, raft_message_to_wire_request,
+        raft_numeric_id, validate_raft_rs_bootstrap,
+    };
     use crate::cluster::{ClusterMode, ClusterRole};
 
     #[test]
@@ -426,6 +592,52 @@ mod tests {
         assert_eq!(status.node_id, "scheduler-0");
         assert_eq!(status.voter_ids.len(), 2);
         assert_eq!(status.initial_role, "follower");
+    }
+
+    #[test]
+    fn raft_outbound_wire_request_preserves_message_fields() {
+        let mut entry = raft::eraftpb::Entry::new();
+        entry.set_entry_type(raft::eraftpb::EntryType::EntryNormal);
+        entry.index = 5;
+        entry.term = 3;
+        entry.data = b"payload".to_vec().into();
+        entry.context = b"entry-context".to_vec().into();
+        let mut message = raft::eraftpb::Message::new();
+        message.set_msg_type(raft::eraftpb::MessageType::MsgAppend);
+        message.from = 1;
+        message.to = 2;
+        message.term = 3;
+        message.index = 4;
+        message.log_term = 3;
+        message.commit = 4;
+        message.context = b"message-context".to_vec().into();
+        message.set_entries(vec![entry].into());
+
+        let wire = raft_message_to_wire_request(&message);
+
+        assert_eq!(wire.from, 1);
+        assert_eq!(wire.to, 2);
+        assert_eq!(wire.message_type, "MsgAppend");
+        assert_eq!(wire.entries[0].entry_type, "EntryNormal");
+        assert_eq!(wire.entries[0].data, "cGF5bG9hZA==");
+        assert_eq!(
+            wire.entries[0].context.as_deref(),
+            Some("ZW50cnktY29udGV4dA==")
+        );
+        assert_eq!(wire.context.as_deref(), Some("bWVzc2FnZS1jb250ZXh0"));
+        assert_eq!(wire.leader_fencing_token, None);
+    }
+
+    #[test]
+    fn raft_peer_endpoint_adds_append_entries_path_once() {
+        assert_eq!(
+            raft_append_entries_url("http://scheduler-1:9998"),
+            "http://scheduler-1:9998/api/v1/raft/append-entries"
+        );
+        assert_eq!(
+            raft_append_entries_url("http://scheduler-1:9998/api/v1/raft/append-entries"),
+            "http://scheduler-1:9998/api/v1/raft/append-entries"
+        );
     }
 
     #[tokio::test]
@@ -487,6 +699,7 @@ mod tests {
                     endpoint: "http://scheduler-1.scheduler-headless:9999".to_owned(),
                 },
             ],
+            transport_token: None,
         }
     }
 }

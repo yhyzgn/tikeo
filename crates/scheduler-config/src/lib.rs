@@ -66,6 +66,9 @@ pub struct ClusterConfig {
     /// Static peer list for future Raft bootstrap.
     #[serde(default)]
     pub peers: Vec<ClusterPeerConfig>,
+    /// Optional shared token for internal Raft HTTP transport.
+    #[serde(default)]
+    pub transport_token: Option<String>,
 }
 
 impl Default for ClusterConfig {
@@ -74,6 +77,7 @@ impl Default for ClusterConfig {
             mode: ClusterModeConfig::Standalone,
             node_id: "standalone".to_owned(),
             peers: Vec::new(),
+            transport_token: None,
         }
     }
 }

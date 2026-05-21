@@ -305,6 +305,7 @@ mod tests {
                 node_id: "scheduler-1".to_owned(),
                 endpoint: "http://scheduler-1:9999".to_owned(),
             }],
+            transport_token: None,
         };
 
         let coordinator = coordinator_from_config_with_storage(&config, &repository)
@@ -344,6 +345,7 @@ mod tests {
                     endpoint: "http://scheduler-2:9999".to_owned(),
                 },
             ],
+            transport_token: None,
         });
         let status = coordinator.status().await;
 

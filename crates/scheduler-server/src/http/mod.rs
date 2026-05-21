@@ -55,6 +55,7 @@ pub struct AppState {
     pub(crate) rbac: RbacService,
     pub(crate) registry: crate::tunnel::WorkerRegistry,
     pub(crate) cluster: SharedClusterCoordinator,
+    pub(crate) raft_transport_token: Option<String>,
 }
 
 impl AppState {
@@ -95,7 +96,15 @@ impl AppState {
             rbac,
             registry,
             cluster,
+            raft_transport_token: None,
         }
+    }
+
+    /// Attach the optional internal Raft transport token.
+    #[must_use]
+    pub fn with_raft_transport_token(mut self, token: Option<String>) -> Self {
+        self.raft_transport_token = token.filter(|value| !value.is_empty());
+        self
     }
 }
 
@@ -511,6 +520,7 @@ mod tests {
                         endpoint: "http://scheduler-1.scheduler-headless:9998".to_owned(),
                     },
                 ],
+                transport_token: None,
             },
             &RaftRepository::new(db.clone()),
         )

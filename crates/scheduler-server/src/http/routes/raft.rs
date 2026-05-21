@@ -41,7 +41,9 @@ pub async fn append_entries(
     headers: HeaderMap,
     Json(request): Json<RaftAppendEntriesRequest>,
 ) -> Result<Json<RaftAppendEntriesApiResponse>, ApiError> {
-    auth::require_permission(&headers, &state, "cluster", "read").await?;
+    if !is_internal_raft_transport(&headers, &state) {
+        auth::require_permission(&headers, &state, "cluster", "read").await?;
+    }
     let message = request_to_raft_message(&request)?;
     let submission = state.cluster.submit_raft_message(message).await;
     let local = state.cluster.status().await;
@@ -54,6 +56,16 @@ pub async fn append_entries(
         remote_addr: client_ip(&headers),
         received_term: request.term,
     })))
+}
+
+fn is_internal_raft_transport(headers: &HeaderMap, state: &AppState) -> bool {
+    let Some(expected) = state.raft_transport_token.as_deref() else {
+        return false;
+    };
+    headers
+        .get("x-scheduler-raft-token")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|actual| !actual.is_empty() && actual == expected)
 }
 
 fn request_to_raft_message(request: &RaftAppendEntriesRequest) -> Result<Message, ApiError> {

@@ -11,6 +11,9 @@ database_url = "postgres://scheduler:scheduler@postgres:5432/scheduler"
 # bootstrap, but does not claim leadership until the real event loop/transport is implemented.
 mode = "raft"
 node_id = "scheduler-0"
+# transport_token should be injected from a secret in real Docker/K8s deployments,
+# e.g. SCHEDULER__CLUSTER__TRANSPORT_TOKEN. Do not commit production tokens.
+# transport_token = "change-me-in-secret"
 peers = [
   { node_id = "scheduler-0", endpoint = "http://scheduler-0.scheduler-headless:9999" },
   { node_id = "scheduler-1", endpoint = "http://scheduler-1.scheduler-headless:9999" },

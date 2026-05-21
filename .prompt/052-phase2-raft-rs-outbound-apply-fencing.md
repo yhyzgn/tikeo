@@ -12,13 +12,16 @@ The project uses TiKV raft-rs (`raft` crate 0.7.x) for the scheduler server clus
 ## Hard safety rule
 Do **not** set `can_schedule=true`, do **not** emit `leader_fencing_token`, and do **not** let dispatch/tick ownership run from raft mode until real raft-rs leader state plus persisted fencing token are implemented and consumed by the existing dispatch gates.
 
-## Required next work
-1. Add an outbound peer transport abstraction that can send raft-rs `Ready.messages()` to configured peer endpoints over HTTP, compatible with Docker bridge / K8s Service / LB / WAF layers.
-2. Convert outbound `eraftpb::Message` values back into the existing wire DTO shape, with base64 payload encoding and no Swagger UI.
-3. Implement Ready apply/state-machine bookkeeping for committed entries and applied index persistence, while still avoiding scheduler authority changes.
-4. Add tests for outbound message serialization, transport failure handling, and applied-index persistence.
-5. Update `design/scheduler-architecture-design.md`, `.memory/*`, and roadmap checkboxes.
-6. Run full verification (`cargo fmt`, clippy, workspace tests, `cargo run -- --help`, web typecheck/build), commit with rich Lore trailers, and push.
+## Completed in 052
+1. Added an outbound peer transport skeleton for raft-rs `Ready.messages()` to configured peer endpoints over HTTP.
+2. Converted outbound `eraftpb::Message` values back into the existing wire DTO shape with base64 payload encoding.
+3. Added optional `cluster.transport_token` / `x-scheduler-raft-token` for internal server-to-server Raft HTTP auth.
+4. Added tests for outbound message serialization and endpoint path construction.
+
+## Remaining / continue with 053
+- Implement Ready committed-entry apply bookkeeping and applied-index persistence.
+- Implement leader fencing-token lifecycle before any raft-mode scheduling authority.
+- See `.prompt/053-phase2-raft-rs-apply-and-fencing.md`.
 
 ## Current constraints
 - API responses must always use `{ code, message, data }`.

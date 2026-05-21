@@ -24,6 +24,7 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
     let tunnel_addr = config.server.worker_tunnel_addr;
     let database_url = config.storage.database_url;
     let cluster_config = config.cluster;
+    let raft_transport_token = cluster_config.transport_token.clone();
     let db = connect_and_migrate(&database_url)
         .await
         .with_context(|| format!("failed to initialize storage at {database_url}"))?;
@@ -39,18 +40,21 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
     let scripts = ScriptRepository::new(db.clone());
     let workflows = WorkflowRepository::new(db.clone());
     let audit = AuditLogRepository::new(db.clone());
-    let http_router = http::router_with_state(http::AppState::new(
-        jobs.clone(),
-        instances.clone(),
-        logs.clone(),
-        attempts.clone(),
-        users,
-        scripts,
-        workflows.clone(),
-        audit,
-        registry.clone(),
-        cluster.clone(),
-    ));
+    let http_router = http::router_with_state(
+        http::AppState::new(
+            jobs.clone(),
+            instances.clone(),
+            logs.clone(),
+            attempts.clone(),
+            users,
+            scripts,
+            workflows.clone(),
+            audit,
+            registry.clone(),
+            cluster.clone(),
+        )
+        .with_raft_transport_token(raft_transport_token),
+    );
     let tunnel_instances = instances.clone();
     let scheduler_instances = instances.clone();
     let dispatcher_jobs = jobs.clone();
