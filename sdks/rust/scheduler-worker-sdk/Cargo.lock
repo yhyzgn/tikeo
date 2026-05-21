@@ -694,14 +694,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "scheduler-rust-worker-demo"
-version = "0.1.0"
-dependencies = [
- "scheduler-worker-sdk",
- "tokio",
-]
-
-[[package]]
 name = "scheduler-worker-sdk"
 version = "0.1.0"
 dependencies = [

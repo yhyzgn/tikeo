@@ -453,6 +453,7 @@ examples/
 - 运行配置仍放 `config/`，不得把 `examples/` 再作为配置目录使用。
 - Rust SDK 已按规范迁移到 `sdks/rust/scheduler-worker-sdk`，Cargo workspace 已同步调整。
 - 根 `Dockerfile` 只构建 scheduler 服务端镜像，不复制、不缓存、不构建 `sdks/` 与 `examples/`；SDK 与 Demo 必须作为独立构建产物验证。
+- 独立发布约束：每个 SDK 必须可按语言生态独立发布；Rust SDK 不能依赖服务端 `crates/*` path dependency，必须内聚协议定义或依赖已发布协议包。
 - Node 目录统一命名为 `nodejs`，避免和通用 node/graph 概念混淆。
 
 **集成体验对比**：

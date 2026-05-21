@@ -1,27 +1,38 @@
 [package]
 name = "scheduler-worker-sdk"
 description = "Rust Worker SDK for active outbound scheduler Worker Tunnel connections."
-edition.workspace = true
-version.workspace = true
-license.workspace = true
-repository.workspace = true
-rust-version.workspace = true
+edition = "2024"
+version = "0.1.0"
+license = "Apache-2.0"
+repository = "https://gitlab.recycloud.cn/pub/scheduler"
+rust-version = "1.95"
 
 [dependencies]
 async-trait = "0.1"
-scheduler-proto = { path = "../../../crates/scheduler-proto" }
+prost = "0.14"
 thiserror = "2"
 tokio = { version = "1", features = ["sync"] }
 tokio-stream = "0.1"
 tonic = "0.14"
+tonic-prost = "0.14"
 
 [dev-dependencies]
-scheduler-core = { path = "../../../crates/scheduler-core" }
-scheduler-server = { path = "../../../crates/scheduler-server" }
-scheduler-storage = { path = "../../../crates/scheduler-storage" }
-sea-orm = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 
-[lints]
-workspace = true
+[build-dependencies]
+protoc-bin-vendored = "3"
+tonic-prost-build = "0.14"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+
+[workspace]

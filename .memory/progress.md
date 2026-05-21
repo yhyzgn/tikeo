@@ -187,6 +187,11 @@
 ### 2026-05-21 SDK layout correction follow-up
 - 用户明确根 `Dockerfile` 只构建 scheduler 服务端；已约束不得复制/缓存/构建 `sdks/` 或 `examples/`。
 - SDK 路径规范固定为 `sdks/<language>/<sdk-name>/`，Demo 路径规范固定为 `examples/<language>/<demo-name>/`。
-- Rust SDK 路径为 `sdks/rust/scheduler-worker-sdk`，其 path dependencies 使用 `../../../crates/*`。
+- Rust SDK 路径为 `sdks/rust/scheduler-worker-sdk`；现已移除 repo-local path dependencies，满足独立发布约束。
 - 已补齐可独立运行的 Rust demo（`examples/rust/worker-demo`）与 Java Spring Boot demo（`examples/java/spring-worker-demo`）基础。
 - Dockerfile 继续保持服务端专用，构建阶段改为 Alpine Rust 镜像并使用 Alpine runtime，避免 SDK/Demo 进入镜像上下文。
+
+### 2026-05-21 Rust SDK independent publishing cleanup
+- Removed `sdks/rust/scheduler-worker-sdk` from root Cargo workspace and removed Dockerfile rewrite workaround.
+- Made Rust SDK self-contained by bundling `proto/worker.proto`, local `build.rs`, and removing all `../../../crates/*` path dependencies.
+- Replaced SDK integration tests with an in-crate mock Worker Tunnel server.

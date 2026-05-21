@@ -17,7 +17,6 @@ COPY .cargo/config.toml .cargo/config.toml
 
 COPY Cargo.toml Cargo.lock rustfmt.toml ./
 # Server image intentionally excludes ./sdks; keep Docker workspace server-only.
-RUN perl -0pi -e 's/, \"sdks\/rust\/scheduler-worker-sdk\"//' Cargo.toml
 COPY crates/scheduler-config/Cargo.toml crates/scheduler-config/Cargo.toml
 COPY crates/scheduler-core/Cargo.toml crates/scheduler-core/Cargo.toml
 COPY crates/scheduler-proto/Cargo.toml crates/scheduler-proto/Cargo.toml

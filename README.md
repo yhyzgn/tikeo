@@ -80,6 +80,10 @@ cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
 ./sdks/java/gradlew -p examples/java/spring-worker-demo test
 ```
 
+## SDK 发布约束
+
+每个语言 SDK 都必须能作为独立包发布：Rust SDK 不得依赖仓库内 `crates/*` path dependency；Java SDK 不得依赖服务端模块；后续 Go/Python/NodeJS SDK 也必须遵循各语言包管理器的独立发布规范。
+
 ## Docker / Compose
 
 ```bash

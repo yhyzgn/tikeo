@@ -519,3 +519,15 @@ cargo build --workspace --all-features
 bun run --cwd web lint && bun run --cwd web typecheck && bun test --cwd web && bun run --cwd web build
 DOCKER_BUILDKIT=1 docker build -t scheduler:dev .
 ```
+
+### Rust SDK independent publishing cleanup verification (2026-05-21)
+```bash
+cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-features
+cargo clippy --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-targets --all-features -- -D warnings
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
+DOCKER_BUILDKIT=1 docker build -t scheduler:dev .
+cargo package --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --allow-dirty
+```

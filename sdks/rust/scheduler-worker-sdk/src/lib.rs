@@ -4,12 +4,31 @@
 
 use std::{collections::HashMap, time::Duration};
 
-use async_trait::async_trait;
-use scheduler_proto::worker::v1::{
+/// Generated Worker Tunnel protocol bindings bundled for standalone SDK publishing.
+pub mod proto {
+    /// Worker tunnel protocol bindings.
+    pub mod worker {
+        /// Version 1 worker tunnel protocol.
+        pub mod v1 {
+            #![allow(
+                missing_docs,
+                clippy::default_trait_access,
+                clippy::derive_partial_eq_without_eq,
+                clippy::doc_markdown,
+                clippy::missing_const_for_fn,
+                clippy::missing_errors_doc
+            )]
+            tonic::include_proto!("scheduler.worker.v1");
+        }
+    }
+}
+
+use crate::proto::worker::v1::{
     DispatchTask, Heartbeat, Ping, RegisterWorker, ServerMessage, TaskLog, TaskResult,
     WorkerMessage, WorkerRegistered, server_message, worker_message,
     worker_tunnel_service_client::WorkerTunnelServiceClient,
 };
+use async_trait::async_trait;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -325,21 +344,18 @@ pub enum WorkerSdkError {
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
+    use std::{net::SocketAddr, pin::Pin};
 
     use async_trait::async_trait;
-    use scheduler_core::{ExecutionMode, InstanceStatus, TriggerType};
-    use scheduler_proto::worker::v1::{
-        DispatchTask, worker_tunnel_service_server::WorkerTunnelServiceServer,
+    use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
+    use tokio_stream::{Stream, StreamExt, wrappers::TcpListenerStream};
+    use tonic::{Request, Response, Status, transport::Server};
+
+    use crate::proto::worker::v1::{
+        DispatchTask, Ping, ServerMessage, WorkerMessage, WorkerRegistered, server_message,
+        worker_message, worker_tunnel_service_server,
+        worker_tunnel_service_server::WorkerTunnelServiceServer,
     };
-    use scheduler_server::tunnel::{WorkerRegistry, WorkerTunnel};
-    use scheduler_storage::{
-        CreateJob, CreateJobInstance, JobInstanceAttemptRepository, JobInstanceLogRepository,
-        JobInstanceRepository, JobRepository, connect_and_migrate,
-    };
-    use tokio::{net::TcpListener, task::JoinHandle};
-    use tokio_stream::wrappers::TcpListenerStream;
-    use tonic::transport::Server;
 
     use super::{
         TaskContext, TaskOutcome, TaskProcessor, WorkerClient, WorkerConfig, WorkerSdkError,
@@ -347,7 +363,7 @@ mod tests {
 
     #[tokio::test]
     async fn worker_client_registers_and_sends_heartbeat() {
-        let (addr, server, _, _, _, _) = start_tunnel_server().await;
+        let (addr, server, _events) = start_mock_tunnel_server(None).await;
         let mut config = WorkerConfig::local(format!("http://{addr}"), "worker-sdk-1");
         config.app = "billing".to_owned();
         config.namespace = "default".to_owned();
@@ -370,46 +386,20 @@ mod tests {
 
     #[tokio::test]
     async fn worker_session_processes_dispatched_task_and_reports_result() {
-        let (addr, server, registry, instances, jobs, logs) = start_tunnel_server().await;
-        let job = jobs
-            .create_job(CreateJob {
-                namespace: "default".to_owned(),
-                app: "default".to_owned(),
-                name: "manual".to_owned(),
-                schedule_type: "api".to_owned(),
-                schedule_expr: None,
-                enabled: true,
-            })
-            .await
-            .unwrap_or_else(|error| panic!("job should be created: {error}"));
-        let instance = instances
-            .create_pending(CreateJobInstance {
-                job_id: job.id.clone(),
-                trigger_type: TriggerType::Api,
-                execution_mode: ExecutionMode::Single,
-            })
-            .await
-            .unwrap_or_else(|error| panic!("instance should be created: {error}"))
-            .unwrap_or_else(|| panic!("job should exist"));
+        let (addr, server, mut events) = start_mock_tunnel_server(Some(DispatchTask {
+            instance_id: "instance-1".to_owned(),
+            job_id: "job-1".to_owned(),
+            payload: b"hello".to_vec(),
+        }))
+        .await;
 
         let config = WorkerConfig::local(format!("http://{addr}"), "worker-sdk-2");
         let mut session = WorkerClient::new(config)
             .connect()
             .await
             .unwrap_or_else(|error| panic!("worker should register: {error}"));
-        registry
-            .dispatch_to_worker(
-                "worker-sdk-2",
-                DispatchTask {
-                    instance_id: instance.id.clone(),
-                    job_id: job.id,
-                    payload: b"hello".to_vec(),
-                },
-            )
-            .await
-            .unwrap_or_else(|| panic!("worker should be available"));
         session
-            .emit_log(&instance.id, "info", "starting", 1)
+            .emit_log("instance-1", "info", "starting", 1)
             .await
             .unwrap_or_else(|error| panic!("log should emit: {error}"));
 
@@ -419,31 +409,29 @@ mod tests {
             .unwrap_or_else(|error| panic!("task should process: {error}"));
         assert_eq!(outcome, TaskOutcome::Succeeded);
 
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        let updated = instances
-            .get(&instance.id)
-            .await
-            .unwrap_or_else(|error| panic!("instance should load: {error}"))
-            .unwrap_or_else(|| panic!("instance should exist"));
-        assert_eq!(updated.status, InstanceStatus::Succeeded);
-        let listed_logs = logs
-            .list_by_instance(&instance.id)
-            .await
-            .unwrap_or_else(|error| panic!("logs should load: {error}"));
-        assert_eq!(listed_logs.len(), 1);
-        assert_eq!(listed_logs[0].message, "starting");
+        let mut saw_log = false;
+        let mut saw_result = false;
+        while let Some(message) = events.recv().await {
+            match message.kind {
+                Some(worker_message::Kind::TaskLog(log)) => {
+                    saw_log = log.instance_id == "instance-1" && log.message == "starting";
+                }
+                Some(worker_message::Kind::TaskResult(result)) => {
+                    saw_result = result.instance_id == "instance-1" && result.success;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        assert!(saw_log, "mock tunnel should receive emitted task log");
+        assert!(saw_result, "mock tunnel should receive task result");
 
         server.abort();
     }
 
-    async fn start_tunnel_server() -> (
-        SocketAddr,
-        JoinHandle<()>,
-        WorkerRegistry,
-        JobInstanceRepository,
-        JobRepository,
-        JobInstanceLogRepository,
-    ) {
+    async fn start_mock_tunnel_server(
+        dispatch: Option<DispatchTask>,
+    ) -> (SocketAddr, JoinHandle<()>, mpsc::Receiver<WorkerMessage>) {
         let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
             .unwrap_or_else(|error| panic!("listener should bind: {error}"));
@@ -451,20 +439,11 @@ mod tests {
             .local_addr()
             .unwrap_or_else(|error| panic!("listener should expose addr: {error}"));
         let incoming = TcpListenerStream::new(listener);
-        let registry = WorkerRegistry::default();
-        let db = test_db().await;
-        let jobs = JobRepository::new(db.clone());
-        let instances = JobInstanceRepository::new(db.clone());
-        let logs = JobInstanceLogRepository::new(db.clone());
-        let attempts = JobInstanceAttemptRepository::new(db.clone());
-        let workflows = scheduler_storage::WorkflowRepository::new(db);
-        let service = WorkerTunnelServiceServer::new(WorkerTunnel::new(
-            registry.clone(),
-            instances.clone(),
-            logs.clone(),
-            attempts,
-            workflows,
-        ));
+        let (events_tx, events_rx) = mpsc::channel(16);
+        let service = WorkerTunnelServiceServer::new(MockTunnel {
+            dispatch,
+            events: events_tx,
+        });
         let server = tokio::spawn(async move {
             Server::builder()
                 .add_service(service)
@@ -472,13 +451,73 @@ mod tests {
                 .await
                 .unwrap_or_else(|error| panic!("test server should run: {error}"));
         });
-        (addr, server, registry, instances, jobs, logs)
+        (addr, server, events_rx)
     }
 
-    async fn test_db() -> sea_orm::DatabaseConnection {
-        connect_and_migrate("sqlite::memory:")
-            .await
-            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"))
+    struct MockTunnel {
+        dispatch: Option<DispatchTask>,
+        events: mpsc::Sender<WorkerMessage>,
+    }
+
+    type ResponseStream = Pin<Box<dyn Stream<Item = Result<ServerMessage, Status>> + Send>>;
+
+    #[tonic::async_trait]
+    impl worker_tunnel_service_server::WorkerTunnelService for MockTunnel {
+        type OpenTunnelStream = ResponseStream;
+
+        async fn open_tunnel(
+            &self,
+            request: Request<tonic::Streaming<WorkerMessage>>,
+        ) -> Result<Response<Self::OpenTunnelStream>, Status> {
+            let mut inbound = request.into_inner();
+            let (outbound_tx, outbound_rx) = mpsc::channel(16);
+            let events = self.events.clone();
+            let dispatch = self.dispatch.clone();
+            tokio::spawn(async move {
+                while let Some(message) = inbound.next().await {
+                    let Ok(message) = message else { break };
+                    let _ = events.send(message.clone()).await;
+                    match message.kind {
+                        Some(worker_message::Kind::Register(register)) => {
+                            let _ = outbound_tx
+                                .send(Ok(ServerMessage {
+                                    kind: Some(server_message::Kind::Registered(
+                                        WorkerRegistered {
+                                            worker_id: register.worker_id,
+                                            lease_seconds: 30,
+                                        },
+                                    )),
+                                }))
+                                .await;
+                            if let Some(task) = dispatch.clone() {
+                                let _ = outbound_tx
+                                    .send(Ok(ServerMessage {
+                                        kind: Some(server_message::Kind::DispatchTask(task)),
+                                    }))
+                                    .await;
+                            }
+                        }
+                        Some(worker_message::Kind::Heartbeat(heartbeat)) => {
+                            let _ = outbound_tx
+                                .send(Ok(ServerMessage {
+                                    kind: Some(server_message::Kind::Ping(Ping {
+                                        sequence: heartbeat.sequence,
+                                    })),
+                                }))
+                                .await;
+                        }
+                        Some(
+                            worker_message::Kind::TaskResult(_) | worker_message::Kind::TaskLog(_),
+                        )
+                        | None => {}
+                    }
+                }
+            });
+
+            Ok(Response::new(Box::pin(
+                tokio_stream::wrappers::ReceiverStream::new(outbound_rx),
+            )))
+        }
     }
 
     struct EchoProcessor;

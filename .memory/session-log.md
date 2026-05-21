@@ -738,7 +738,7 @@ Git:
 ### 2026-05-20 040 SDK 目录统一
 - 用户要求所有 SDK 包统一放到 `./sdks`。
 - 已迁移 Rust Worker SDK 到 `sdks/rust/scheduler-worker-sdk`，Java 多模块 SDK 到 `sdks/java`。
-- 根 Cargo workspace 由 `crates/*` 扩展为显式包含 `sdks/rust/scheduler-worker-sdk`；该 SDK 的 path dependency 改为指向 `../../../crates/*`。
+- 根 Cargo workspace 已恢复为仅包含服务端与 `crates/*`；Rust SDK 独立于根 workspace 构建发布。
 - Dockerfile 分层缓存、README、.gitignore、历史 prompt/memory 验证命令和设计文档结构图已同步到新目录。
 
 ### 2026-05-21 041 Dispatch Queue Claim/Lease
@@ -775,7 +775,7 @@ Git:
 ### 2026-05-21 SDK layout correction follow-up
 - 用户明确根 `Dockerfile` 只构建 scheduler 服务端；已约束不得复制/缓存/构建 `sdks/` 或 `examples/`。
 - SDK 路径规范固定为 `sdks/<language>/<sdk-name>/`，Demo 路径规范固定为 `examples/<language>/<demo-name>/`。
-- Rust SDK 路径为 `sdks/rust/scheduler-worker-sdk`，其 path dependencies 使用 `../../../crates/*`。
+- Rust SDK 路径为 `sdks/rust/scheduler-worker-sdk`；现已移除 repo-local path dependencies，满足独立发布约束。
 - 已补齐可独立运行的 Rust demo（`examples/rust/worker-demo`）与 Java Spring Boot demo（`examples/java/spring-worker-demo`）基础。
 
 ### 2026-05-21 verification — SDK layout correction
@@ -791,3 +791,10 @@ Git:
 - `DOCKER_BUILDKIT=1 docker build -t scheduler:dev .` ✅
 - `DOCKER_BUILDKIT=1 docker build -t scheduler:dev .` ✅ after switching builder/runtime flow to Alpine-compatible server-only image build.
 - `cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features` ✅ rerun after Dockerfile/dependency adjustments.
+
+### 2026-05-21 Rust SDK independent publishing cleanup
+- Removed `sdks/rust/scheduler-worker-sdk` from root Cargo workspace and removed Dockerfile rewrite workaround.
+- Made Rust SDK self-contained by bundling `proto/worker.proto`, local `build.rs`, and removing all `../../../crates/*` path dependencies.
+- Replaced SDK integration tests with an in-crate mock Worker Tunnel server.
+- `cargo clippy --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-targets --all-features -- -D warnings` ✅
+- `cargo package --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --allow-dirty` ✅ proves Rust SDK package has no repo-local path dependencies.

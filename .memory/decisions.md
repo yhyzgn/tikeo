@@ -392,3 +392,7 @@ Constraint:
 - Root `Dockerfile` is server-only and must not process `sdks/` or `examples/`; SDKs/demos are independent artifacts with their own build/run commands.
 - SDK packages must use `sdks/<language>/<sdk-name>/`; demos must use `examples/<language>/<demo-name>/`.
 - Java SDK is Gradle + JDK 21+ only; Maven `pom.xml` must not be reintroduced for Java SDK builds.
+
+### SDK independent publishing rule (2026-05-21)
+- Every language SDK must be independently publishable through its native package ecosystem.
+- Rust SDK crates must not depend on repo-local `crates/*` path dependencies; protocol definitions must be bundled/generated locally or provided by a published crate.

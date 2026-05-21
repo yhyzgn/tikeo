@@ -23,7 +23,7 @@ examples/
 ```
 
 ## Rules
-- Every SDK must live at `sdks/<language>/<sdk-name>/` and be independently buildable/testable with its language-native tooling.
+- Every SDK must live at `sdks/<language>/<sdk-name>/`, be independently buildable/testable, and be independently publishable with its language-native package manager. No SDK may depend on server-local path modules.
 - Every demo must live at `examples/<language>/<demo-name>/` and be independently buildable/runnable.
 - Root `Dockerfile` builds only scheduler server; it must not copy/cache/build SDK packages.
 - Java SDK uses Gradle, not Maven, with JDK 21+.

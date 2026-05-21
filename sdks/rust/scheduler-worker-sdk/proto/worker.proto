@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package scheduler.worker.v1;
+
+service WorkerTunnelService {
+  rpc OpenTunnel(stream WorkerMessage) returns (stream ServerMessage);
+}
+
+message WorkerMessage {
+  oneof kind {
+    RegisterWorker register = 1;
+    Heartbeat heartbeat = 2;
+    TaskResult task_result = 3;
+    TaskLog task_log = 4;
+  }
+}
+
+message ServerMessage {
+  oneof kind {
+    WorkerRegistered registered = 1;
+    Ping ping = 2;
+    DispatchTask dispatch_task = 3;
+  }
+}
+
+message RegisterWorker {
+  string worker_id = 1;
+  string app = 2;
+  string namespace = 3;
+  string cluster = 4;
+  string region = 5;
+  repeated string capabilities = 6;
+  map<string, string> labels = 7;
+}
+
+message Heartbeat {
+  string worker_id = 1;
+  uint64 sequence = 2;
+}
+
+message WorkerRegistered {
+  string worker_id = 1;
+  uint64 lease_seconds = 2;
+}
+
+message Ping {
+  uint64 sequence = 1;
+}
+
+message DispatchTask {
+  string instance_id = 1;
+  string job_id = 2;
+  bytes payload = 3;
+}
+
+message TaskResult {
+  string worker_id = 1;
+  string instance_id = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+message TaskLog {
+  string worker_id = 1;
+  string instance_id = 2;
+  string level = 3;
+  string message = 4;
+  int64 sequence = 5;
+}
