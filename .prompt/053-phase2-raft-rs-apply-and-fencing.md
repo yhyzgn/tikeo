@@ -12,18 +12,15 @@ Completed raft-rs Phase2 safe slices:
 ## Hard safety rule
 Do **not** enable raft-mode scheduling from role alone. `ClusterRole::Leader` is not enough. `can_schedule=true` is allowed only after a leader fencing token is generated, persisted in `raft_metadata.leader_fencing_token`, and consumed by scheduler/dispatcher ownership gates.
 
-## Required next work
-1. Implement Ready committed-entry apply bookkeeping:
-   - iterate `ready.committed_entries()` after durability requirements are met;
-   - update `raft_metadata.applied_index` safely;
-   - reject/apply config-change entries deliberately (no silent membership changes yet).
-2. Decide and implement the first fencing-token lifecycle:
-   - derive only from real raft-rs leader status/term/node id;
-   - persist token before reporting `can_schedule=true`;
-   - clear token when not leader.
-3. Add tests for applied index persistence, config-change gating, token persistence/clearing, and dispatcher/scheduler gates still refusing unfenced raft nodes.
-4. Update design/.memory/roadmap and this prompt chain.
-5. Run full verification, commit with Lore trailers, and push.
+## Completed in 053
+1. Implemented Ready committed-entry apply bookkeeping with `advance_append` / `advance_apply_to`.
+2. `EntryNormal` committed entries now monotonically update `raft_metadata.applied_index`.
+3. `EntryConfChange` and `EntryConfChangeV2` are explicitly gated and never silently applied.
+4. Added a leader fencing-token lifecycle: only real raft-rs `Leader` with term > 0 derives a token, persists it first, then reports `can_schedule=true`; non-leaders clear the token.
+5. Added repository/runtime tests for applied-index monotonicity, config-change gating, and token derivation.
+
+## Continue with 054
+See `.prompt/054-phase2-raft-rs-business-apply-membership.md` for business apply and membership boundaries.
 
 ## Constraints
 - DB全库严禁外键；只能软关联字段。

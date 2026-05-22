@@ -941,3 +941,12 @@ Git:
 - Verification evidence from last code slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` all passed.
 - Tomorrow resume at `.prompt/053-phase2-raft-rs-apply-and-fencing.md`. Key safety rule: never set `can_schedule=true` or emit `leader_fencing_token` until real raft-rs leader state has generated and persisted a fencing token and dispatch/scheduler gates consume it.
 - Key files for resume: `crates/scheduler-server/src/cluster/raft_rs.rs`, `crates/scheduler-storage/src/repository/raft.rs`, `crates/scheduler-server/src/cluster.rs`, `design/scheduler-architecture-design.md`, `.prompt/053-phase2-raft-rs-apply-and-fencing.md`.
+
+### 2026-05-22 Phase2 raft-rs apply bookkeeping and fencing lifecycle
+- Resumed from `.prompt/053-phase2-raft-rs-apply-and-fencing.md`.
+- Implemented Ready committed-entry apply bookkeeping using `advance_append` / `advance_apply_to` instead of blindly advancing without state-machine acknowledgement.
+- Committed `EntryNormal` entries now monotonically update `raft_metadata.applied_index`; `EntryConfChange` / `EntryConfChangeV2` are explicitly gated and stop apply progress before silent membership mutation.
+- Added leader fencing-token lifecycle: only a real raft-rs `Leader` with term > 0 derives `raft:term:<term>:node:<node_id>`, persists it first, then reports `can_schedule=true`; non-leaders clear the token. Scheduler/dispatcher gates remain driven by `can_schedule` and dispatcher uses the persisted token.
+- Targeted verification run so far: `cargo fmt --all`; `cargo test -p scheduler-server raft --all-features`; `cargo test -p scheduler-storage raft --all-features`.
+- Next slice after commit: `.prompt/054-phase2-raft-rs-business-apply-membership.md`.
+- Full verification passed for this slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build`.

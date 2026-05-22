@@ -14,7 +14,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use protobuf::Message as PbMessage;
 use raft::{
     Config, StateRole,
-    eraftpb::{Entry, HardState, Message, Snapshot},
+    eraftpb::{Entry, EntryType, HardState, Message, Snapshot},
     raw_node::RawNode,
     storage::MemStorage,
 };
@@ -334,7 +334,7 @@ async fn process_ready(
     transport: &RaftPeerTransport,
 ) -> Result<(), scheduler_storage::DbErr> {
     if !node.has_ready() {
-        update_runtime_status(node, status).await;
+        update_runtime_status(node_id, repository, node, status).await?;
         return Ok(());
     }
 
@@ -350,8 +350,18 @@ async fn process_ready(
     }
     transport.dispatch_ready_messages(ready.messages());
     transport.dispatch_ready_messages(ready.persisted_messages());
-    let _light_ready = node.advance(ready);
-    update_runtime_status(node, status).await;
+    let applied = apply_committed_entries(node_id, repository, ready.committed_entries()).await?;
+    let light_ready = node.advance_append(ready);
+    if let Some(applied) = applied {
+        node.advance_apply_to(applied);
+    }
+    transport.dispatch_ready_messages(light_ready.messages());
+    let light_applied =
+        apply_committed_entries(node_id, repository, light_ready.committed_entries()).await?;
+    if let Some(applied) = light_applied {
+        node.advance_apply_to(applied);
+    }
+    update_runtime_status(node_id, repository, node, status).await?;
     Ok(())
 }
 
@@ -360,6 +370,7 @@ async fn persist_hard_state(
     repository: &RaftRepository,
     hard_state: &HardState,
 ) -> Result<(), scheduler_storage::DbErr> {
+    let existing = repository.get_metadata(node_id).await?;
     repository
         .upsert_metadata(UpsertRaftMetadata {
             cluster_id: CLUSTER_ID.to_owned(),
@@ -371,8 +382,8 @@ async fn persist_hard_state(
                 Some(hard_state.vote.to_string())
             },
             commit_index: i64::try_from(hard_state.commit).unwrap_or(i64::MAX),
-            applied_index: 0,
-            leader_fencing_token: None,
+            applied_index: existing.as_ref().map_or(0, |item| item.applied_index),
+            leader_fencing_token: existing.and_then(|item| item.leader_fencing_token),
         })
         .await
         .map(|_| ())
@@ -429,20 +440,63 @@ async fn persist_snapshot(
         .map(|_| ())
 }
 
-async fn update_runtime_status(node: &RawNode<MemStorage>, status: &Arc<RwLock<ClusterStatus>>) {
+async fn apply_committed_entries(
+    node_id: &str,
+    repository: &RaftRepository,
+    entries: &[Entry],
+) -> Result<Option<u64>, scheduler_storage::DbErr> {
+    let mut applied = None;
+    for entry in entries {
+        match entry.get_entry_type() {
+            EntryType::EntryNormal => {
+                applied = Some(entry.get_index());
+            }
+            EntryType::EntryConfChange | EntryType::EntryConfChangeV2 => {
+                warn!(
+                    index = entry.get_index(),
+                    term = entry.get_term(),
+                    entry_type = ?entry.get_entry_type(),
+                    "raft-rs config-change entry reached apply path; dynamic membership is gated"
+                );
+                break;
+            }
+        }
+    }
+    if let Some(applied) = applied {
+        repository
+            .update_applied_index(node_id, i64::try_from(applied).unwrap_or(i64::MAX))
+            .await?;
+    }
+    Ok(applied)
+}
+
+async fn update_runtime_status(
+    node_id: &str,
+    repository: &RaftRepository,
+    node: &RawNode<MemStorage>,
+    status: &Arc<RwLock<ClusterStatus>>,
+) -> Result<(), scheduler_storage::DbErr> {
     let raft_status = node.status();
     let role = cluster_role_from_raft(raft_status.ss.raft_state);
+    let leader_fencing_token = leader_fencing_token_for_role(role, node_id, raft_status.hs.term);
+    let persisted = repository
+        .update_leader_fencing_token(node_id, leader_fencing_token.clone())
+        .await?;
+    let persisted_token = persisted.and_then(|metadata| metadata.leader_fencing_token);
     let mut writable = status.write().await;
     writable.role = role;
-    writable.can_schedule = false;
-    writable.leader_fencing_token = None;
+    writable.can_schedule = role == ClusterRole::Leader
+        && leader_fencing_token.is_some()
+        && persisted_token == leader_fencing_token;
+    writable.leader_fencing_token = persisted_token;
     writable.detail = format!(
-        "{RAFT_RS_LIBRARY} runtime ticker active: raft_role={}, term={}, commit={}, applied={}; scheduler ownership remains fenced until leader token support lands",
+        "{RAFT_RS_LIBRARY} runtime active: raft_role={}, term={}, commit={}, applied={}; scheduling requires persisted leader fencing token",
         raft_role_name(raft_status.ss.raft_state),
         raft_status.hs.term,
         raft_status.hs.commit,
         raft_status.applied
     );
+    Ok(())
 }
 
 async fn persist_role_metadata(
@@ -528,6 +582,14 @@ fn u64_to_i64(value: u64) -> i64 {
     i64::try_from(value).unwrap_or(i64::MAX)
 }
 
+fn leader_fencing_token_for_role(role: ClusterRole, node_id: &str, term: u64) -> Option<String> {
+    if role == ClusterRole::Leader && term > 0 {
+        Some(format!("raft:term:{term}:node:{node_id}"))
+    } else {
+        None
+    }
+}
+
 fn voter_ids(config: &ClusterConfig, local_id: u64) -> Result<Vec<u64>, String> {
     let mut voters = BTreeSet::from([local_id]);
     for peer in &config.peers {
@@ -562,14 +624,16 @@ const fn raft_role_name(role: StateRole) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use raft::eraftpb::EntryType;
     use scheduler_config::{ClusterConfig, ClusterModeConfig, ClusterPeerConfig};
-    use scheduler_storage::{RaftRepository, connect_and_migrate};
+    use scheduler_storage::{RaftRepository, UpsertRaftMetadata, connect_and_migrate};
 
     use std::time::Duration;
 
     use super::{
-        RaftRuntimeCoordinator, raft_append_entries_url, raft_message_to_wire_request,
-        raft_numeric_id, validate_raft_rs_bootstrap,
+        CLUSTER_ID, RaftRuntimeCoordinator, apply_committed_entries, leader_fencing_token_for_role,
+        raft_append_entries_url, raft_message_to_wire_request, raft_numeric_id,
+        validate_raft_rs_bootstrap,
     };
     use crate::cluster::{ClusterMode, ClusterRole};
 
@@ -641,6 +705,81 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn raft_apply_committed_entries_updates_applied_index() {
+        let repository = test_raft_repository().await;
+        let mut first = raft::eraftpb::Entry::new();
+        first.set_entry_type(EntryType::EntryNormal);
+        first.index = 1;
+        first.term = 1;
+        let mut second = raft::eraftpb::Entry::new();
+        second.set_entry_type(EntryType::EntryNormal);
+        second.index = 3;
+        second.term = 1;
+
+        let applied = apply_committed_entries("scheduler-0", &repository, &[first, second])
+            .await
+            .unwrap_or_else(|error| panic!("committed entries should apply: {error}"));
+        let metadata = repository
+            .get_metadata("scheduler-0")
+            .await
+            .unwrap_or_else(|error| panic!("metadata should load: {error}"))
+            .unwrap_or_else(|| panic!("metadata should exist"));
+
+        assert_eq!(applied, Some(3));
+        assert_eq!(metadata.applied_index, 3);
+        assert_eq!(metadata.leader_fencing_token, None);
+    }
+
+    #[tokio::test]
+    async fn raft_apply_committed_entries_gates_config_changes() {
+        let repository = test_raft_repository().await;
+        let mut normal = raft::eraftpb::Entry::new();
+        normal.set_entry_type(EntryType::EntryNormal);
+        normal.index = 4;
+        normal.term = 2;
+        let mut conf_change = raft::eraftpb::Entry::new();
+        conf_change.set_entry_type(EntryType::EntryConfChange);
+        conf_change.index = 5;
+        conf_change.term = 2;
+        let mut after_conf_change = raft::eraftpb::Entry::new();
+        after_conf_change.set_entry_type(EntryType::EntryNormal);
+        after_conf_change.index = 6;
+        after_conf_change.term = 2;
+
+        let applied = apply_committed_entries(
+            "scheduler-0",
+            &repository,
+            &[normal, conf_change, after_conf_change],
+        )
+        .await
+        .unwrap_or_else(|error| panic!("committed entries should gate config changes: {error}"));
+        let metadata = repository
+            .get_metadata("scheduler-0")
+            .await
+            .unwrap_or_else(|error| panic!("metadata should load: {error}"))
+            .unwrap_or_else(|| panic!("metadata should exist"));
+
+        assert_eq!(applied, Some(4));
+        assert_eq!(metadata.applied_index, 4);
+    }
+
+    #[test]
+    fn leader_fencing_token_requires_real_leader_role_and_term() {
+        assert_eq!(
+            leader_fencing_token_for_role(ClusterRole::Leader, "scheduler-0", 7).as_deref(),
+            Some("raft:term:7:node:scheduler-0")
+        );
+        assert_eq!(
+            leader_fencing_token_for_role(ClusterRole::Leader, "scheduler-0", 0),
+            None
+        );
+        assert_eq!(
+            leader_fencing_token_for_role(ClusterRole::Follower, "scheduler-0", 7),
+            None
+        );
+    }
+
+    #[tokio::test]
     async fn raft_runtime_starts_ticker_without_granting_scheduler_ownership() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
@@ -657,7 +796,7 @@ mod tests {
         assert_eq!(status.role, ClusterRole::Follower);
         assert!(!status.can_schedule);
         assert_eq!(status.leader_fencing_token, None);
-        assert!(status.detail.contains("runtime ticker"));
+        assert!(status.detail.contains("runtime active"));
     }
 
     #[tokio::test]
@@ -701,5 +840,25 @@ mod tests {
             ],
             transport_token: None,
         }
+    }
+
+    async fn test_raft_repository() -> RaftRepository {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should initialize: {error}"));
+        let repository = RaftRepository::new(db);
+        repository
+            .upsert_metadata(UpsertRaftMetadata {
+                cluster_id: CLUSTER_ID.to_owned(),
+                node_id: "scheduler-0".to_owned(),
+                current_term: 1,
+                voted_for: None,
+                commit_index: 0,
+                applied_index: 0,
+                leader_fencing_token: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("metadata should upsert: {error}"));
+        repository
     }
 }

@@ -229,6 +229,65 @@ impl RaftRepository {
             .map(|row| row.map(RaftMetadataSummary::from))
     }
 
+    /// Monotonically update the local applied index for a Raft node.
+    ///
+    /// Returns the current row when it exists. If the requested index is older than the
+    /// stored value, the stored value is preserved.
+    pub async fn update_applied_index(
+        &self,
+        node_id: &str,
+        applied_index: i64,
+    ) -> Result<Option<RaftMetadataSummary>, sea_orm::DbErr> {
+        let Some(existing) = raft_metadata::Entity::find()
+            .filter(raft_metadata::Column::NodeId.eq(node_id.to_owned()))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        if applied_index <= existing.applied_index {
+            return Ok(Some(existing.into()));
+        }
+
+        let now = now_rfc3339();
+        let mut active: raft_metadata::ActiveModel = existing.into();
+        active.applied_index = Set(applied_index);
+        active.updated_at = Set(now);
+        active
+            .update(&self.db)
+            .await
+            .map(RaftMetadataSummary::from)
+            .map(Some)
+    }
+
+    /// Update only the local leader fencing token for a Raft node.
+    pub async fn update_leader_fencing_token(
+        &self,
+        node_id: &str,
+        leader_fencing_token: Option<String>,
+    ) -> Result<Option<RaftMetadataSummary>, sea_orm::DbErr> {
+        let Some(existing) = raft_metadata::Entity::find()
+            .filter(raft_metadata::Column::NodeId.eq(node_id.to_owned()))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        if existing.leader_fencing_token == leader_fencing_token {
+            return Ok(Some(existing.into()));
+        }
+
+        let now = now_rfc3339();
+        let mut active: raft_metadata::ActiveModel = existing.into();
+        active.leader_fencing_token = Set(leader_fencing_token);
+        active.updated_at = Set(now);
+        active
+            .update(&self.db)
+            .await
+            .map(RaftMetadataSummary::from)
+            .map(Some)
+    }
+
     /// Upsert a configured Raft member by `node_id`.
     pub async fn upsert_member(
         &self,

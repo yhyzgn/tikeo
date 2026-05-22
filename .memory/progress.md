@@ -318,3 +318,10 @@
 - Today completed and pushed three Phase2 raft-rs slices: runtime ticker + Ready durability order (`fc67f13`), inbound HTTP -> runtime inbox (`dea7528`), and outbound peer HTTP skeleton + optional `cluster.transport_token` (`222b1d6`).
 - Full verification passed after the last code slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build`.
 - Next continuation prompt is `.prompt/053-phase2-raft-rs-apply-and-fencing.md`: implement Ready committed-entry apply bookkeeping (`applied_index` persistence), explicitly gate config-change entries, then design leader fencing-token lifecycle. Do not enable `can_schedule=true` from raft role alone.
+
+### 2026-05-22 Phase2 raft-rs apply bookkeeping and fencing lifecycle
+- Implemented Ready committed-entry apply bookkeeping using `advance_append` / `advance_apply_to` instead of blindly advancing without state-machine acknowledgement.
+- Committed `EntryNormal` entries now monotonically update `raft_metadata.applied_index`; `EntryConfChange` / `EntryConfChangeV2` are explicitly gated and stop apply progress before silent membership mutation.
+- Added leader fencing-token lifecycle: only a real raft-rs `Leader` with term > 0 derives `raft:term:<term>:node:<node_id>`, persists it first, then reports `can_schedule=true`; non-leaders clear the token. Scheduler/dispatcher gates remain driven by `can_schedule` and dispatcher uses the persisted token.
+- Next slice: define business state-machine command envelope/replay idempotency and design dynamic membership handling.
+- Full verification passed for this slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build`.

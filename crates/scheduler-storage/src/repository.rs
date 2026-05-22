@@ -191,6 +191,61 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn raft_repository_updates_applied_index_and_fencing_token() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        Migrator::up(&db, None)
+            .await
+            .unwrap_or_else(|error| panic!("migration should run: {error}"));
+        let repository = RaftRepository::new(db);
+        repository
+            .upsert_metadata(UpsertRaftMetadata {
+                cluster_id: "default".to_owned(),
+                node_id: "scheduler-1".to_owned(),
+                current_term: 2,
+                voted_for: None,
+                commit_index: 4,
+                applied_index: 4,
+                leader_fencing_token: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("metadata should upsert: {error}"));
+
+        let older_applied = repository
+            .update_applied_index("scheduler-1", 3)
+            .await
+            .unwrap_or_else(|error| panic!("applied index should update: {error}"))
+            .unwrap_or_else(|| panic!("metadata should exist"));
+        assert_eq!(older_applied.applied_index, 4);
+        let newer_applied = repository
+            .update_applied_index("scheduler-1", 6)
+            .await
+            .unwrap_or_else(|error| panic!("applied index should update: {error}"))
+            .unwrap_or_else(|| panic!("metadata should exist"));
+        assert_eq!(newer_applied.applied_index, 6);
+
+        let fenced = repository
+            .update_leader_fencing_token(
+                "scheduler-1",
+                Some("raft:term:2:node:scheduler-1".to_owned()),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("fencing token should update: {error}"))
+            .unwrap_or_else(|| panic!("metadata should exist"));
+        assert_eq!(
+            fenced.leader_fencing_token.as_deref(),
+            Some("raft:term:2:node:scheduler-1")
+        );
+        let cleared = repository
+            .update_leader_fencing_token("scheduler-1", None)
+            .await
+            .unwrap_or_else(|error| panic!("fencing token should clear: {error}"))
+            .unwrap_or_else(|| panic!("metadata should exist"));
+        assert_eq!(cleared.leader_fencing_token, None);
+    }
+
+    #[tokio::test]
     async fn repository_creates_and_lists_jobs() {
         let db = Database::connect("sqlite::memory:")
             .await
