@@ -691,6 +691,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
     async fn transport_security_status_reports_defaults_and_partial_mtls_config() {
         let app = router().await;
         let default_status = app
@@ -705,6 +706,7 @@ mod tests {
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["code"], 0);
         assert_eq!(json["data"]["http"]["tls_enabled"], false);
+        assert_eq!(json["data"]["http"]["listener_mode"], "plaintext");
         assert_eq!(json["data"]["worker_tunnel"]["mtls_required"], false);
         assert_eq!(json["data"]["ready"], true);
         assert_eq!(json["data"]["issues"].as_array().map(Vec::len), Some(0));
@@ -747,6 +749,10 @@ mod tests {
         assert_eq!(json["data"]["worker_tunnel"]["cert_configured"], true);
         assert_eq!(json["data"]["worker_tunnel"]["key_configured"], false);
         assert_eq!(json["data"]["worker_tunnel"]["ca_configured"], false);
+        assert_eq!(
+            json["data"]["worker_tunnel"]["listener_mode"],
+            "tls_pending_listener"
+        );
         assert_eq!(json["data"]["ready"], false);
         assert!(
             json["data"]["issues"]
@@ -757,6 +763,46 @@ mod tests {
                     .as_str()
                     .is_some_and(|value| value.contains("key_path")))
         );
+
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let mut wired_security = tikee_config::TransportSecurityConfig::default();
+        wired_security.http.tls_enabled = true;
+        wired_security.http.cert_path = Some("/certs/http.crt".to_owned());
+        wired_security.http.key_path = Some("/certs/http.key".to_owned());
+        let app = router_with_state(
+            AppState::new(
+                JobRepository::new(db.clone()),
+                JobInstanceRepository::new(db.clone()),
+                JobInstanceLogRepository::new(db.clone()),
+                JobInstanceAttemptRepository::new(db.clone()),
+                UserRepository::new(db.clone()),
+                ScriptRepository::new(db.clone()),
+                WorkflowRepository::new(db.clone()),
+                AuditLogRepository::new(db),
+                crate::tunnel::WorkerRegistry::default(),
+                StandaloneCoordinator::shared("test-node"),
+            )
+            .with_transport_security_config(wired_security),
+        );
+        let tls_status = app
+            .clone()
+            .oneshot(admin_request_builder(app, "GET", "/api/v1/security/transport").await)
+            .await
+            .unwrap_or_else(|error| panic!("transport status route should respond: {error}"));
+        let body = axum::body::to_bytes(tls_status.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(
+            json["data"]["http"]["listener_mode"],
+            "tls_pending_listener"
+        );
+        assert_eq!(json["data"]["http"]["cert_configured"], true);
+        assert_eq!(json["data"]["http"]["key_configured"], true);
+        assert_eq!(json["data"]["ready"], false);
     }
 
     #[tokio::test]

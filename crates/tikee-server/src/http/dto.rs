@@ -467,6 +467,7 @@ pub struct TlsEndpointStatus {
     pub cert_configured: bool,
     pub key_configured: bool,
     pub ca_configured: bool,
+    pub listener_mode: String,
 }
 
 /// Current authenticated principal.

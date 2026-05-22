@@ -46,6 +46,9 @@ fn endpoint_status(
     let key_configured = is_present(config.key_path.as_ref());
     let ca_configured = is_present(config.client_ca_path.as_ref());
     if config.tls_enabled {
+        issues.push(format!(
+            "{name}.listener is still plaintext; TLS listener wiring is pending"
+        ));
         if !cert_configured {
             issues.push(format!("{name}.cert_path is required when TLS is enabled"));
         }
@@ -71,6 +74,12 @@ fn endpoint_status(
         cert_configured,
         key_configured,
         ca_configured,
+        listener_mode: if config.tls_enabled {
+            "tls_pending_listener"
+        } else {
+            "plaintext"
+        }
+        .to_owned(),
     }
 }
 

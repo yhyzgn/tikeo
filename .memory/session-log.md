@@ -1285,3 +1285,9 @@ Git:
 - Added `approval_ticket` and `signature` fields to `ScriptReleaseRequest` so clients cannot silently send ignored approval/signature data.
 - Publish/rollback now fail closed when those fields are present until real signature verification exists, and materialize `failure_reason=script_signature_verification_required` audit rows.
 - Existing safe publish/rollback and dangerous policy gate behavior remain unchanged; Server still never executes user code.
+
+### 2026-05-23 — Phase 094 transport listener boundary
+- Continued `.prompt/094-phase3-transport-listener-boundary.md` with a fail-closed TLS readiness boundary.
+- `GET /api/v1/security/transport` now reports `listener_mode` per endpoint: plaintext by default, `tls_pending_listener` when TLS is configured but listener wiring is not implemented.
+- TLS/mTLS-enabled configs are no longer considered ready solely because cert/key paths are present; status issues explicitly call out pending listener wiring while keeping paths redacted.
+- Added regression coverage for default plaintext, partial mTLS config, and fully path-configured HTTP TLS still failing closed until real TLS serving exists.
