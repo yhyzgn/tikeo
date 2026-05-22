@@ -2,7 +2,7 @@
 
 #![forbid(unsafe_code)]
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 /// Generated Worker Tunnel protocol bindings bundled for standalone SDK publishing.
 pub mod proto {
@@ -30,8 +30,9 @@ use crate::proto::worker::v1::{
     worker_tunnel_service_client::WorkerTunnelServiceClient,
 };
 use async_trait::async_trait;
+use sha2::{Digest, Sha256};
 use thiserror::Error;
-use tokio::sync::mpsc;
+use tokio::{io::AsyncWriteExt, process::Command, sync::mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Status, Streaming};
 
@@ -571,6 +572,178 @@ pub struct ScriptRunnerTask {
     pub policy: ScriptRunnerPolicy,
 }
 
+/// Opt-in local subprocess runner for non-WASM dynamic scripts.
+///
+/// This runner is intentionally small and default-deny: it validates immutable released
+/// version metadata, verifies the content SHA-256 digest, denies network/filesystem/secret
+/// grants, writes no host files, feeds script content through stdin, enforces wall-clock
+/// timeout, and caps captured output. Workers must opt in by constructing this runner;
+/// scheduler Server never executes user scripts.
+#[derive(Debug, Clone)]
+pub struct LocalSubprocessScriptRunner {
+    kind: ScriptRunnerKind,
+    command: PathBuf,
+    args: Vec<String>,
+}
+
+impl LocalSubprocessScriptRunner {
+    /// Create a runner using the default executable for the language.
+    #[must_use]
+    pub fn new(kind: ScriptRunnerKind) -> Self {
+        let (command, args): (&str, &[&str]) = match kind {
+            ScriptRunnerKind::Shell => ("sh", &["-s"]),
+            ScriptRunnerKind::Python => ("python3", &["-"]),
+            ScriptRunnerKind::Node => ("node", &["-"]),
+            ScriptRunnerKind::PowerShell => ("pwsh", &["-NoProfile", "-NonInteractive", "-Command", "-"]),
+            ScriptRunnerKind::Rhai => ("rhai", &[]),
+        };
+        Self::with_command(kind, command, args.iter().map(|arg| (*arg).to_owned()))
+    }
+
+    /// Create a runner with an explicit executable and argument vector.
+    #[must_use]
+    pub fn with_command(
+        kind: ScriptRunnerKind,
+        command: impl Into<PathBuf>,
+        args: impl IntoIterator<Item = String>,
+    ) -> Self {
+        Self {
+            kind,
+            command: command.into(),
+            args: args.into_iter().collect(),
+        }
+    }
+
+    fn validate_task(&self, task: &ScriptRunnerTask) -> Result<(), WorkerSdkError> {
+        task.policy.validate_default_deny()?;
+        let task_kind = ScriptRunnerKind::from_language(&task.language).ok_or_else(|| {
+            WorkerSdkError::UnsupportedScriptRunner(format!(
+                "unsupported script language: {}",
+                task.language
+            ))
+        })?;
+        if task_kind != self.kind {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(format!(
+                "{} runner cannot execute {} scripts",
+                self.kind.as_str(),
+                task.language
+            )));
+        }
+        if task.version_id.trim().is_empty() || task.version_number == 0 {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(
+                "script runner requires a released immutable script version snapshot".to_owned(),
+            ));
+        }
+        if task.content_sha256.trim().is_empty() {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(
+                "script runner requires a content sha256 digest".to_owned(),
+            ));
+        }
+        let actual = format!("{:x}", Sha256::digest(task.content.as_bytes()));
+        if !actual.eq_ignore_ascii_case(task.content_sha256.trim()) {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(
+                "script content sha256 digest mismatch".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ScriptRunner for LocalSubprocessScriptRunner {
+    fn kind(&self) -> ScriptRunnerKind {
+        self.kind
+    }
+
+    async fn run(&self, task: ScriptRunnerTask) -> Result<TaskOutcome, WorkerSdkError> {
+        self.validate_task(&task)?;
+
+        let mut command = Command::new(&self.command);
+        command.args(&self.args);
+        command.kill_on_drop(true);
+        command.stdin(std::process::Stdio::piped());
+        command.stdout(std::process::Stdio::piped());
+        command.stderr(std::process::Stdio::piped());
+        command.env_clear();
+        command.env("SCHEDULER_SCRIPT_ID", &task.script_id);
+        command.env("SCHEDULER_SCRIPT_VERSION_ID", &task.version_id);
+        command.env("SCHEDULER_SCRIPT_VERSION_NUMBER", task.version_number.to_string());
+        for name in &task.policy.env_vars {
+            if let Ok(value) = std::env::var(name) {
+                command.env(name, value);
+            }
+        }
+
+        let mut child = command.spawn().map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                WorkerSdkError::ScriptRuntimeUnavailable(format!(
+                    "{} runner executable not found: {}",
+                    self.kind.as_str(),
+                    self.command.display()
+                ))
+            } else {
+                WorkerSdkError::ScriptExecutionFailed(format!(
+                    "failed to spawn {} runner: {error}",
+                    self.kind.as_str()
+                ))
+            }
+        })?;
+
+        let Some(mut stdin) = child.stdin.take() else {
+            return Err(WorkerSdkError::ScriptExecutionFailed(
+                "script runner stdin was not available".to_owned(),
+            ));
+        };
+        let content = task.content.into_bytes();
+        let writer = tokio::spawn(async move {
+            stdin.write_all(&content).await?;
+            stdin.shutdown().await
+        });
+
+        let timeout = Duration::from_millis(task.policy.timeout_ms);
+        let output = if let Ok(result) = tokio::time::timeout(timeout, child.wait_with_output()).await {
+            result.map_err(|error| {
+                WorkerSdkError::ScriptExecutionFailed(format!(
+                    "{} runner failed: {error}",
+                    self.kind.as_str()
+                ))
+            })?
+        } else {
+            writer.abort();
+            return Err(WorkerSdkError::ScriptTimeout {
+                timeout_ms: task.policy.timeout_ms,
+            });
+        };
+        writer.await.map_err(|error| {
+            WorkerSdkError::ScriptExecutionFailed(format!("script stdin writer failed: {error}"))
+        })?.map_err(|error| {
+            WorkerSdkError::ScriptExecutionFailed(format!("script stdin write failed: {error}"))
+        })?;
+
+        let max_output = usize::try_from(task.policy.max_output_bytes).unwrap_or(usize::MAX);
+        let output_len = output.stdout.len().saturating_add(output.stderr.len());
+        if output_len > max_output {
+            return Err(WorkerSdkError::ScriptOutputLimitExceeded {
+                max_output_bytes: task.policy.max_output_bytes,
+                actual_bytes: u64::try_from(output_len).unwrap_or(u64::MAX),
+            });
+        }
+
+        if output.status.success() {
+            Ok(TaskOutcome::Succeeded)
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+            let message = if stderr.is_empty() { stdout } else { stderr };
+            Ok(TaskOutcome::Failed(if message.is_empty() {
+                format!("{} runner exited with status {}", self.kind.as_str(), output.status)
+            } else {
+                message
+            }))
+        }
+    }
+}
+
 /// Placeholder runner used until language-specific sandbox implementations are enabled.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UnsupportedScriptRunner;
@@ -643,6 +816,26 @@ pub enum WorkerSdkError {
     /// Scheduler returned an unexpected server message.
     #[error("unexpected worker tunnel server message")]
     UnexpectedMessage,
+    /// A dynamic script runtime executable is unavailable on this worker.
+    #[error("script runtime unavailable: {0}")]
+    ScriptRuntimeUnavailable(String),
+    /// Dynamic script execution failed before a task result could be produced.
+    #[error("script execution failed: {0}")]
+    ScriptExecutionFailed(String),
+    /// Dynamic script exceeded its wall-clock timeout.
+    #[error("script timed out after {timeout_ms}ms")]
+    ScriptTimeout {
+        /// Configured timeout in milliseconds.
+        timeout_ms: u64,
+    },
+    /// Dynamic script exceeded its captured output limit.
+    #[error("script output exceeded {max_output_bytes} bytes: {actual_bytes} bytes")]
+    ScriptOutputLimitExceeded {
+        /// Configured captured output limit.
+        max_output_bytes: u64,
+        /// Actual captured stdout+stderr bytes.
+        actual_bytes: u64,
+    },
     /// A dynamic script runner was requested before a safe sandbox implementation exists.
     #[error("unsupported script runner: {0}")]
     UnsupportedScriptRunner(String),
@@ -652,11 +845,10 @@ pub enum WorkerSdkError {
 mod tests {
     use std::{net::SocketAddr, pin::Pin};
 
+    use sha2::{Digest, Sha256};
     use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
     use tokio_stream::{Stream, StreamExt, wrappers::TcpListenerStream};
     use tonic::{Request, Response, Status, transport::Server};
-
-    use sha2::{Digest, Sha256};
 
     use crate::proto::worker::v1::{
         DispatchTask, Ping, ServerMessage, TaskProcessorBinding, WasmProcessorBinding,
@@ -665,9 +857,9 @@ mod tests {
     };
 
     use super::{
-        ScriptRunner, ScriptRunnerKind, ScriptRunnerPolicy, ScriptRunnerTask, TaskContext,
-        TaskOutcome, TaskProcessor, UnsupportedScriptRunner, WorkerClient, WorkerConfig,
-        WorkerSdkError,
+        LocalSubprocessScriptRunner, ScriptRunner, ScriptRunnerKind, ScriptRunnerPolicy,
+        ScriptRunnerTask, TaskContext, TaskOutcome, TaskProcessor, UnsupportedScriptRunner,
+        WorkerClient, WorkerConfig, WorkerSdkError,
     };
 
 
@@ -701,6 +893,88 @@ mod tests {
             Err(error) => error,
         };
         assert!(error.to_string().contains("network access"));
+    }
+
+    #[tokio::test]
+    async fn local_subprocess_shell_runner_executes_released_snapshot() {
+        let content = "exit 0\n";
+        let runner = LocalSubprocessScriptRunner::new(ScriptRunnerKind::Shell);
+        let outcome = runner
+            .run(script_task("shell", content, ScriptRunnerPolicy::default()))
+            .await
+            .unwrap_or_else(|error| panic!("shell runner should execute: {error}"));
+        assert_eq!(outcome, TaskOutcome::Succeeded);
+    }
+
+    #[tokio::test]
+    async fn local_subprocess_runner_enforces_digest_and_release_snapshot() {
+        let runner = LocalSubprocessScriptRunner::new(ScriptRunnerKind::Shell);
+        let mut task = script_task("shell", "exit 0\n", ScriptRunnerPolicy::default());
+        task.content_sha256 = "deadbeef".to_owned();
+        let error = match runner.run(task).await {
+            Ok(outcome) => panic!("digest mismatch should fail before execution: {outcome:?}"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("digest mismatch"));
+
+        let mut task = script_task("shell", "exit 0\n", ScriptRunnerPolicy::default());
+        task.version_id.clear();
+        let error = match runner.run(task).await {
+            Ok(outcome) => panic!("missing release snapshot should fail before execution: {outcome:?}"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("released immutable"));
+    }
+
+    #[tokio::test]
+    async fn local_subprocess_runner_enforces_timeout_and_output_limit() {
+        let timeout_runner = LocalSubprocessScriptRunner::with_command(
+            ScriptRunnerKind::Shell,
+            "sh",
+            ["-s".to_owned()],
+        );
+        let timeout_policy = ScriptRunnerPolicy {
+            timeout_ms: 10,
+            ..ScriptRunnerPolicy::default()
+        };
+        let error = match timeout_runner
+            .run(script_task("shell", "sleep 1\n", timeout_policy))
+            .await
+        {
+            Ok(outcome) => panic!("sleeping script should time out: {outcome:?}"),
+            Err(error) => error,
+        };
+        assert!(matches!(error, WorkerSdkError::ScriptTimeout { .. }));
+
+        let output_policy = ScriptRunnerPolicy {
+            max_output_bytes: 4,
+            ..ScriptRunnerPolicy::default()
+        };
+        let error = match timeout_runner
+            .run(script_task("shell", "printf 12345\n", output_policy))
+            .await
+        {
+            Ok(outcome) => panic!("large output should be rejected: {outcome:?}"),
+            Err(error) => error,
+        };
+        assert!(matches!(error, WorkerSdkError::ScriptOutputLimitExceeded { .. }));
+    }
+
+    #[tokio::test]
+    async fn local_subprocess_runner_reports_unavailable_runtime() {
+        let runner = LocalSubprocessScriptRunner::with_command(
+            ScriptRunnerKind::Shell,
+            "definitely-missing-scheduler-shell-runtime",
+            ["-s".to_owned()],
+        );
+        let error = match runner
+            .run(script_task("shell", "exit 0\n", ScriptRunnerPolicy::default()))
+            .await
+        {
+            Ok(outcome) => panic!("missing executable should fail: {outcome:?}"),
+            Err(error) => error,
+        };
+        assert!(matches!(error, WorkerSdkError::ScriptRuntimeUnavailable(_)));
     }
 
     #[tokio::test]
@@ -1012,6 +1286,18 @@ mod tests {
         async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError> {
             assert_eq!(task.payload, b"hello");
             Ok(TaskOutcome::Succeeded)
+        }
+    }
+
+    fn script_task(language: &str, content: &str, policy: ScriptRunnerPolicy) -> ScriptRunnerTask {
+        ScriptRunnerTask {
+            script_id: format!("script_{language}"),
+            version_id: "sv_1".to_owned(),
+            version_number: 1,
+            language: language.to_owned(),
+            content: content.to_owned(),
+            content_sha256: format!("{:x}", Sha256::digest(content.as_bytes())),
+            policy,
         }
     }
 

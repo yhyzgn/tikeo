@@ -1,9 +1,11 @@
 # Next Work
 
 ## Immediate next slice
-- Continue with `.prompt/073-phase3-script-sandbox-runner-implementations.md` unless user reports more UI/runtime issues.
-- If more Web pages show endless loading, first inspect unstable dependency objects passed into hooks/effects.
+- Continue with `.prompt/074-script-runner-protocol-and-ui-binding.md`.
+- Focus areas:
+  1. Decide and implement Worker Tunnel protocol metadata for non-WASM script bindings, still binding only released immutable `script_versions` snapshots.
+  2. Wire dispatcher/SDK adapter selection without letting scheduler Server execute user code.
+  3. Update Web/docs to clearly show which script languages are executable by which worker capabilities.
 
 ## Current status
-- Phase 072 completed and pushed. Script policy metadata/snapshots, Web chunk splitting, and Rust SDK non-WASM runner abstraction are done.
-- Audit log page loading loop was fixed by stabilizing URL query defaults; Web typecheck/test/build passed.
+- Phase 073 slice completed. Rust SDK has an explicit opt-in local subprocess runner foundation with digest/release checks, default-deny policy enforcement, timeout/output caps, env clearing, and runtime-unavailable handling. It is not yet wired into Worker Tunnel dispatch protocol for non-WASM scripts.

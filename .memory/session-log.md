@@ -1110,3 +1110,9 @@ Git:
 - Fixed Web audit log page infinite request/loading loop by hoisting `useUrlQueryState` defaults to a stable module-level object instead of recreating defaults on every render.
 - Root cause: unstable defaults changed the memoized URL query object, which changed `fetchLogs`, which retriggered the effect continuously and made the app feel unclickable.
 - Verification passed: `cd web && bun run typecheck && bun test && bun run build`.
+
+### 2026-05-22 — Phase 073 local subprocess script runner foundation
+- Implemented Rust SDK `LocalSubprocessScriptRunner` behind explicit worker opt-in for non-WASM dynamic scripts.
+- The runner requires immutable released script version metadata and content digest verification before spawning a child process; it denies network/filesystem/secrets through `ScriptRunnerPolicy` and uses stdin rather than writing script files.
+- Added timeout, output cap, unavailable executable, digest mismatch, missing release snapshot, and successful shell smoke tests.
+- Verification passed across Rust workspace, Web build/test, Rust SDK native+wasm+clippy, and Java Gradle tests.

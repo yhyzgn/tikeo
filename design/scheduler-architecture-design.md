@@ -2201,7 +2201,7 @@ scheduler/
   - [ ] 完整审批流状态机（多级审批、签名、生产发布门禁）
   - [x] 脚本编辑器语法高亮（CodeMirror 6 Shell/Python/Node）
   - [x] Worker 侧非 WASM Runner 抽象（072：Rust SDK `ScriptRunner` / `ScriptRunnerTask` / `ScriptRunnerPolicy`，Shell/Python/Node/PowerShell/Rhai 类型识别；默认 Unsupported runner 只验证策略并拒绝执行，等待具体沙箱实现）
-  - [ ] Worker 侧沙箱执行器具体实现（受限子进程/容器 runner）
+  - [x] Worker 侧沙箱执行器首个实现（073：Rust SDK `LocalSubprocessScriptRunner`，显式 opt-in，本地 stdin 子进程边界；校验 released version_id/version_number、content SHA-256、默认拒绝网络/文件/Secret，支持 timeout/output cap/runtime missing 测试；容器 runner 与协议接入后续继续）
 - [ ] 脚本策略引擎（能力声明、审批、资源限制、网络/文件策略）
   - [x] 默认拒绝策略元数据与不可变快照（072：`ScriptExecutionPolicy` 覆盖 resources/network/filesystem/secrets/env；`scripts.policy_json` 和 `script_versions.policy_json` 保存策略快照；HTTP create/update 拒绝网络/文件/Secret 危险能力；Web 可编辑资源/env 白名单并展示策略 diff）
   - [ ] 策略审批、签名、URL/File/Secret grant 与生产发布门禁
