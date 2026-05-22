@@ -5,6 +5,7 @@ pub(crate) mod alerts;
 pub(crate) mod audit;
 pub(crate) mod common;
 pub(crate) mod jobs;
+pub(crate) mod metrics;
 pub(crate) mod raft;
 pub(crate) mod scripts;
 pub(crate) mod system;
@@ -21,6 +22,7 @@ pub use jobs::{
     create_job, get_job_instance, list_instance_attempts, list_instance_logs, list_job_instances,
     list_jobs, trigger_job,
 };
+pub use metrics::metrics_summary;
 pub use raft::{append_entries, propose_member_change};
 pub use scripts::{
     create_script, delete_script, diff_script_versions, get_script, list_script_versions,

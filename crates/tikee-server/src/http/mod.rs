@@ -174,6 +174,7 @@ async fn record_http_metrics(request: Request<axum::body::Body>, next: Next) -> 
 fn api_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/system/info", get(routes::system_info))
+        .route("/metrics/summary", get(routes::metrics_summary))
         .route("/cluster", get(routes::cluster_status))
         .route("/cluster/diagnostics", get(routes::cluster_diagnostics))
         .route(
@@ -1223,6 +1224,118 @@ mod tests {
         assert_eq!(json["data"][0]["suppressed_count"], 1);
         assert_eq!(json["data"][0]["recovered_count"], 1);
         assert_eq!(json["data"][0]["latest_status"], "recovered");
+    }
+
+    #[tokio::test]
+    #[allow(clippy::too_many_lines)]
+    async fn metrics_summary_reports_storage_registry_and_alert_counts() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let job = jobs
+            .create_job(CreateJob {
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "metrics-job".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                processor_name: None,
+                enabled: true,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should create: {error}"));
+        let pending = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id.clone(),
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should create: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        let succeeded = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id,
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should create: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        instances
+            .update_status(&succeeded.id, tikee_core::InstanceStatus::Succeeded)
+            .await
+            .unwrap_or_else(|error| panic!("instance should update: {error}"));
+        assert_eq!(pending.status, tikee_core::InstanceStatus::Pending);
+
+        let registry = crate::tunnel::WorkerRegistry::default();
+        let (tx, _rx) = tokio::sync::mpsc::channel(1);
+        registry
+            .register(worker("metrics-worker", "billing"), tx)
+            .await;
+
+        let app = router_with_state(AppState::new(
+            jobs,
+            instances,
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            AuditLogRepository::new(db.clone()),
+            registry,
+            StandaloneCoordinator::shared("test-node"),
+        ));
+
+        app.clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/alert-rules",
+                    r#"{"name":"Runtime governance","severity":"warning","condition":{"type":"script_governance_failure","failure_class":"script_runtime_unavailable","threshold":1},"channels":[],"enabled":true,"dedupe_seconds":300}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("alert rule route should respond: {error}"));
+        crate::tunnel::governance::materialize_script_governance_audit(
+            &AuditLogRepository::new(db.clone()),
+            "tikee-dispatcher",
+            "inst-metrics",
+            "script_runtime_unavailable",
+            "runtime missing",
+        )
+        .await
+        .unwrap_or_else(|error| panic!("governance materialization should append: {error}"));
+
+        let summary = app
+            .clone()
+            .oneshot(admin_request_builder(app, "GET", "/api/v1/metrics/summary").await)
+            .await
+            .unwrap_or_else(|error| panic!("metrics summary route should respond: {error}"));
+        let status = summary.status();
+        let body = axum::body::to_bytes(summary.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert!(status.is_success(), "unexpected status {status}: {json}");
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["workers"]["online"], 1);
+        assert_eq!(json["data"]["instances"]["total"], 2);
+        assert_eq!(json["data"]["instances"]["by_status"]["pending"], 1);
+        assert_eq!(json["data"]["instances"]["by_status"]["succeeded"], 1);
+        assert_eq!(json["data"]["alerts"]["total_events"], 1);
+        assert_eq!(json["data"]["alerts"]["by_status"]["firing"], 1);
+        assert_eq!(json["data"]["governance"]["script_failure_events"], 1);
+        assert_eq!(
+            json["data"]["governance"]["by_failure_class"]["script_runtime_unavailable"],
+            1
+        );
     }
 
     #[tokio::test]

@@ -2225,7 +2225,8 @@ tikee/
   - [x] 告警规则 API、事件接入、去重静默、通知历史、恢复通知（080-082：alert_rules / alert_events 存储、HTTP API、script governance 事件历史 materialization、recovery 事件 append、alert-events:summary 运维汇总）
 - [ ] Prometheus 指标 + Grafana Dashboard 模板
   - [x] Prometheus 指标端点（`/metrics`）与 HTTP/Worker 最小指标
-  - [ ] Grafana Dashboard、调度延迟、实例状态与业务 SLO 指标
+  - [x] Metrics Summary API 基础（083：`GET /api/v1/metrics/summary` 汇总 worker online、实例状态、告警事件与脚本治理失败计数；Grafana 模板后续）
+  - [ ] Grafana Dashboard、调度延迟与完整业务 SLO 指标
 - [ ] OpenTelemetry 分布式追踪
 - [ ] Java Spring Boot Starter SDK（优先）
   - [x] Gradle 多模块骨架：java-core / spring-boot-autoconfigure / spring-boot-starter（JDK 21+；已替换 Maven 骨架）

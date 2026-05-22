@@ -1224,3 +1224,8 @@ Git:
 - Added `/api/v1/alert-events:summary` to roll up alert event history by rule, resource, and failure class while preserving list filters.
 - Summary rows include latest status/type/message, first/last seen timestamps, and firing/suppressed/silenced/recovered counts for operator notification history review.
 - Added regression coverage proving firing, suppressed, and recovered history rows collapse into a single deterministic summary without external webhook smoke.
+### 2026-05-23 — Phase 083 metrics summary and SLO API
+- Continued `.prompt/083-metrics-summary-and-slo.md`.
+- Added deterministic `/api/v1/metrics/summary` for operator dashboards without requiring external Prometheus/Grafana services in tests.
+- Summary includes online worker count, job instance status counts, alert event status counts, and script governance failure counts by failure class.
+- Added targeted regression coverage for storage/registry/alert count aggregation and standard HTTP envelope behavior.

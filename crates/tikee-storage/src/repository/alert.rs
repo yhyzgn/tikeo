@@ -4,7 +4,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, Set,
 };
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::entities::{alert_event, alert_rule};
 
@@ -69,6 +69,14 @@ pub struct AlertNotificationSummary {
     pub recovered_count: u64,
     pub first_seen: String,
     pub last_seen: String,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct AlertEventStatusCounts {
+    pub total_events: u64,
+    pub by_status: BTreeMap<String, u64>,
+    pub script_failure_events: u64,
+    pub by_failure_class: BTreeMap<String, u64>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -222,6 +230,22 @@ impl AlertRepository {
                 .then_with(|| left.resource_id.cmp(&right.resource_id))
         });
         Ok(items)
+    }
+
+    pub async fn count_events(&self) -> Result<AlertEventStatusCounts, sea_orm::DbErr> {
+        let rows = alert_event::Entity::find().all(&self.db).await?;
+        let mut counts = AlertEventStatusCounts::default();
+        for row in rows {
+            counts.total_events = counts.total_events.saturating_add(1);
+            *counts.by_status.entry(row.status).or_insert(0) += 1;
+            if row.resource_type == "script_execution_governance" {
+                counts.script_failure_events = counts.script_failure_events.saturating_add(1);
+                if let Some(failure_class) = row.failure_class {
+                    *counts.by_failure_class.entry(failure_class).or_insert(0) += 1;
+                }
+            }
+        }
+        Ok(counts)
     }
 
     pub async fn get_event(&self, id: &str) -> Result<Option<AlertEventSummary>, sea_orm::DbErr> {

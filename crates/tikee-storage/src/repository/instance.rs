@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, Set, TransactionTrait, sea_query::Expr,
@@ -35,6 +37,15 @@ pub struct JobInstanceSummary {
     pub created_at: String,
     /// Last update timestamp in RFC3339 format.
     pub updated_at: String,
+}
+
+/// Job instance count summary by status.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct JobInstanceStatusCounts {
+    /// Total instance rows.
+    pub total: u64,
+    /// Per-status counts keyed by canonical status string.
+    pub by_status: BTreeMap<String, u64>,
 }
 
 /// Job instance repository.
@@ -134,6 +145,21 @@ impl JobInstanceRepository {
             .one(&self.db)
             .await
             .map(|model| model.map(JobInstanceSummary::from))
+    }
+
+    /// Count all instances grouped by their current status.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn count_by_status(&self) -> Result<JobInstanceStatusCounts, sea_orm::DbErr> {
+        let rows = job_instance::Entity::find().all(&self.db).await?;
+        let mut counts = JobInstanceStatusCounts::default();
+        for row in rows {
+            counts.total = counts.total.saturating_add(1);
+            *counts.by_status.entry(row.status).or_insert(0) += 1;
+        }
+        Ok(counts)
     }
 
     /// List pending single-mode instances in creation order.

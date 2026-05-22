@@ -5,6 +5,7 @@
 #![allow(clippy::option_if_let_else)]
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use utoipa::ToSchema;
 
 /// Successful API code.
@@ -196,6 +197,42 @@ pub struct AlertNotificationSummary {
     pub recovered_count: u64,
     pub first_seen: String,
     pub last_seen: String,
+}
+
+/// Operator-facing metrics summary for dashboard/SLO surfaces.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct MetricsSummaryResponse {
+    pub workers: MetricsWorkerSummary,
+    pub instances: MetricsInstanceSummary,
+    pub alerts: MetricsAlertSummary,
+    pub governance: MetricsGovernanceSummary,
+}
+
+/// Worker metrics summary.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct MetricsWorkerSummary {
+    pub online: u64,
+}
+
+/// Job instance metrics summary.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct MetricsInstanceSummary {
+    pub total: u64,
+    pub by_status: BTreeMap<String, u64>,
+}
+
+/// Alert event metrics summary.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct MetricsAlertSummary {
+    pub total_events: u64,
+    pub by_status: BTreeMap<String, u64>,
+}
+
+/// Script governance metrics summary.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct MetricsGovernanceSummary {
+    pub script_failure_events: u64,
+    pub by_failure_class: BTreeMap<String, u64>,
 }
 
 /// Audit log list query parameters.
