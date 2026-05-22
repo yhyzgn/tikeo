@@ -1,4 +1,4 @@
-package com.yhyzgn.tikee.sdk.core;
+package com.yhyzgn.tikee.core;
 
 /**
  * Active outbound Worker Tunnel client contract.

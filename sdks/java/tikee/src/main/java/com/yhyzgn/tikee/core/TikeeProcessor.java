@@ -1,4 +1,4 @@
-package com.yhyzgn.tikee.sdk.core;
+package com.yhyzgn.tikee.core;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

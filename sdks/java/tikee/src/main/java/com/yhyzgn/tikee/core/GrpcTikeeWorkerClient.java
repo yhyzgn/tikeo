@@ -1,4 +1,4 @@
-package com.yhyzgn.tikee.sdk.core;
+package com.yhyzgn.tikee.core;
 
 import tikee.worker.v1.Worker;
 import tikee.worker.v1.WorkerTunnelServiceGrpc;

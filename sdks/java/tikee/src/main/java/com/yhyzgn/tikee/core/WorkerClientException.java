@@ -1,4 +1,4 @@
-package com.yhyzgn.tikee.sdk.core;
+package com.yhyzgn.tikee.core;
 
 /**
  * Runtime exception raised by the Java Worker Tunnel client.

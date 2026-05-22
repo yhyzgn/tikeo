@@ -1,11 +1,11 @@
-package com.yhyzgn.tikee.sdk.spring;
+package com.yhyzgn.tikee.spring;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.yhyzgn.tikee.sdk.core.TikeeProcessor;
-import com.yhyzgn.tikee.sdk.core.TaskContext;
-import com.yhyzgn.tikee.sdk.core.TaskOutcome;
+import com.yhyzgn.tikee.core.TikeeProcessor;
+import com.yhyzgn.tikee.core.TaskContext;
+import com.yhyzgn.tikee.core.TaskOutcome;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM rust:1.95-alpine AS dependencies
+FROM docker.io/library/rust:1.95-alpine AS dependencies
 
 RUN sed -i 's@dl-cdn.alpinelinux.org@mirrors.aliyun.com@g' /etc/apk/repositories \
     && apk add --no-cache build-base ca-certificates cmake perl pkgconf protobuf-dev gcompat
@@ -24,6 +24,7 @@ COPY crates/tikee-proto/build.rs crates/tikee-proto/build.rs
 COPY crates/tikee-proto/proto crates/tikee-proto/proto
 COPY crates/tikee-server/Cargo.toml crates/tikee-server/Cargo.toml
 COPY crates/tikee-storage/Cargo.toml crates/tikee-storage/Cargo.toml
+COPY crates/tikee-wasm/Cargo.toml crates/tikee-wasm/Cargo.toml
 
 RUN mkdir -p src \
     && echo 'fn main() {}' > src/main.rs \
@@ -46,7 +47,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release --locked --bin tikee \
     && cp /app/target/release/tikee /tmp/tikee
 
-FROM alpine:3.22 AS runtime
+FROM docker.io/library/alpine:3.22 AS runtime
 
 RUN sed -i 's@dl-cdn.alpinelinux.org@mirrors.aliyun.com@g' /etc/apk/repositories \
     && apk add --no-cache ca-certificates tzdata \

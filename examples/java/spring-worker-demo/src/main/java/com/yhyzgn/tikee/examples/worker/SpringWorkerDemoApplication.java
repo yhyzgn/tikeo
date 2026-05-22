@@ -1,7 +1,7 @@
 package com.yhyzgn.tikee.examples.worker;
 
-import com.yhyzgn.tikee.sdk.core.TikeeProcessor;
-import com.yhyzgn.tikee.sdk.core.TikeeWorkerClient;
+import com.yhyzgn.tikee.core.TikeeProcessor;
+import com.yhyzgn.tikee.core.TikeeWorkerClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;

@@ -1,4 +1,4 @@
-package com.yhyzgn.tikee.sdk.core;
+package com.yhyzgn.tikee.core;
 
 /**
  * Processes one task dispatched through the Worker Tunnel.

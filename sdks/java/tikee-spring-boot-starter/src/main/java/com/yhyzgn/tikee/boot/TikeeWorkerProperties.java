@@ -1,4 +1,4 @@
-package com.yhyzgn.tikee.sdk.boot;
+package com.yhyzgn.tikee.boot;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

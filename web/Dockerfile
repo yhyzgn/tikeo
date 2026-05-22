@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM oven/bun:latest AS builder
+FROM docker.io/oven/bun:latest AS builder
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ RUN bun install --frozen-lockfile && rm -rf /tmp/*
 COPY . .
 RUN NODE_ENV=production bun run build
 
-FROM nginx:1.29-alpine AS runtime
+FROM docker.io/library/nginx:1.29-alpine AS runtime
 
 WORKDIR /usr/share/nginx/html
 COPY --from=builder /app/dist .

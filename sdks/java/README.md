@@ -15,10 +15,10 @@ Registration model: Java workers treat tikee-assigned `worker_id` as authoritati
 Validation from repository root:
 
 ```bash
-./sdks/java/gradlew -p sdks/java test
-./sdks/java/gradlew -p sdks/java :tikee:test
-./sdks/java/gradlew -p sdks/java :tikee-spring:test
-./sdks/java/gradlew -p sdks/java :tikee-spring-boot-starter:test
+(cd sdks/java && ./gradlew test)
+(cd sdks/java && ./gradlew :tikee:test)
+(cd sdks/java && ./gradlew :tikee-spring:test)
+(cd sdks/java && ./gradlew :tikee-spring-boot-starter:test)
 ```
 
 Spring Boot starter properties:

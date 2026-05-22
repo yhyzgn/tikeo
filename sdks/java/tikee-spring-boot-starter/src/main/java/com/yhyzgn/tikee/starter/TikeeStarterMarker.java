@@ -1,4 +1,4 @@
-package com.yhyzgn.tikee.sdk.starter;
+package com.yhyzgn.tikee.starter;
 
 /**
  * Marker type for the tikee Spring Boot Starter artifact.

@@ -1,8 +1,8 @@
-package com.yhyzgn.tikee.sdk.spring;
+package com.yhyzgn.tikee.spring;
 
-import com.yhyzgn.tikee.sdk.core.TikeeProcessor;
-import com.yhyzgn.tikee.sdk.core.TaskContext;
-import com.yhyzgn.tikee.sdk.core.TaskOutcome;
+import com.yhyzgn.tikee.core.TikeeProcessor;
+import com.yhyzgn.tikee.core.TaskContext;
+import com.yhyzgn.tikee.core.TaskOutcome;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.LinkedHashMap;

@@ -42,6 +42,27 @@ export TIKEE_DEV_ADMIN_PASSWORD="Tikee@2026!"
 
 当前账号仅用于开发初始化登录调试；系统不再内置静态 Bearer 后门，所有受保护 API 都必须先通过登录接口获取 `atk_` 会话 token。生产阶段必须接入正式 RBAC / OIDC / API Token 生命周期管理。
 
+
+## 开发联调数据
+
+后端迁移完成后，可以一键写入本地联调样例数据：
+
+```bash
+./scripts/dev-seed.sh              # 默认写入 tikee-dev.db
+./scripts/dev-seed.sh /path/to.db  # 或指定 SQLite 数据库文件
+```
+
+脚本会执行 `scripts/dev-seed.sql`，内容包括：
+
+- `default` namespace 与 `observability-demo` app。
+- `dev_operator` / `dev_viewer` 两个开发账号，密码同初始化账号：`Tikee@2026!`。
+- API、fixed-rate、cron 三类任务样例。
+- 一个 pending dispatch queue 样例、一个 succeeded instance 与日志样例。
+- shell / python 两个 approved script 及 released version。
+- 一个两节点 workflow 样例与审计日志。
+
+SQL 使用稳定 id + upsert，可重复执行；仅用于本地开发联调，不作为生产初始化数据。
+
 ## 配置目录
 
 配置文件统一放在 `config/`：
@@ -87,7 +108,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-./sdks/java/gradlew -p sdks/java test
+(cd sdks/java && ./gradlew test)
 bun run --cwd web lint
 bun run --cwd web typecheck
 bun test --cwd web
@@ -106,9 +127,9 @@ bun run --cwd web build
 ```bash
 cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features
 cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
-./sdks/java/gradlew -p sdks/java test
-./sdks/java/gradlew -p sdks/java :tikee-spring-boot-starter:test
-./sdks/java/gradlew -p examples/java/spring-worker-demo test
+(cd sdks/java && ./gradlew test)
+(cd sdks/java && ./gradlew :tikee-spring-boot-starter:test)
+(cd examples/java/spring-worker-demo && ../../../sdks/java/gradlew test)
 ```
 
 ## Worker ID 注册约束

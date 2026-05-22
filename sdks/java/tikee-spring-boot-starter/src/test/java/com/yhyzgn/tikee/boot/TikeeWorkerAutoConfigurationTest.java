@@ -1,15 +1,15 @@
-package com.yhyzgn.tikee.sdk.boot;
+package com.yhyzgn.tikee.boot;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.yhyzgn.tikee.sdk.core.NoopTikeeWorkerClient;
-import com.yhyzgn.tikee.sdk.core.TikeeWorkerClient;
-import com.yhyzgn.tikee.sdk.spring.TikeeProcessorRegistry;
+import com.yhyzgn.tikee.core.NoopTikeeWorkerClient;
+import com.yhyzgn.tikee.core.TikeeWorkerClient;
+import com.yhyzgn.tikee.spring.TikeeProcessorRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import com.yhyzgn.tikee.sdk.core.TikeeProcessor;
+import com.yhyzgn.tikee.core.TikeeProcessor;
 
 class TikeeWorkerAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()

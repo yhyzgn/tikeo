@@ -1,11 +1,11 @@
-package com.yhyzgn.tikee.sdk.boot;
+package com.yhyzgn.tikee.boot;
 
-import com.yhyzgn.tikee.sdk.core.GrpcTikeeWorkerClient;
-import com.yhyzgn.tikee.sdk.core.NoopTikeeWorkerClient;
-import com.yhyzgn.tikee.sdk.core.TikeeWorkerClient;
-import com.yhyzgn.tikee.sdk.core.WorkerRegistration;
-import com.yhyzgn.tikee.sdk.spring.TikeeProcessorRegistry;
-import com.yhyzgn.tikee.sdk.spring.SpringTikeeTaskProcessor;
+import com.yhyzgn.tikee.core.GrpcTikeeWorkerClient;
+import com.yhyzgn.tikee.core.NoopTikeeWorkerClient;
+import com.yhyzgn.tikee.core.TikeeWorkerClient;
+import com.yhyzgn.tikee.core.WorkerRegistration;
+import com.yhyzgn.tikee.spring.TikeeProcessorRegistry;
+import com.yhyzgn.tikee.spring.SpringTikeeTaskProcessor;
 import java.time.Duration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;

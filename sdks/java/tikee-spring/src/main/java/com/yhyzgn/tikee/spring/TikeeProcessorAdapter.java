@@ -1,7 +1,7 @@
-package com.yhyzgn.tikee.sdk.spring;
+package com.yhyzgn.tikee.spring;
 
-import com.yhyzgn.tikee.sdk.core.TaskContext;
-import com.yhyzgn.tikee.sdk.core.TaskOutcome;
+import com.yhyzgn.tikee.core.TaskContext;
+import com.yhyzgn.tikee.core.TaskOutcome;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -9,7 +9,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Adapts {@code @TikeeProcessor} methods to the core {@link com.yhyzgn.tikee.sdk.core.TaskProcessor} model.
+ * Adapts {@code @TikeeProcessor} methods to the core {@link com.yhyzgn.tikee.core.TaskProcessor} model.
  */
 final class TikeeProcessorAdapter implements TikeeProcessorHandler {
     private final Object bean;
