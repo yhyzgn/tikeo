@@ -1,15 +1,17 @@
 # Next Work
 
 ## Immediate next slice
-- Continue with `.prompt/081-alert-recovery-and-notifications.md`.
+- Continue with `.prompt/083-metrics-summary-and-slo.md`.
 - Focus areas:
-  1. Add alert recovery transitions and notification history shaping for the existing `alert_events` table.
-  2. Surface alert rule/status management cleanly through Web/API while preserving the no-external-webhook verification constraint.
-  3. Keep the Phase 3 roadmap moving toward the remaining governance, metrics, and tracing items.
+  1. Add deterministic `/api/v1/metrics/summary` for operator dashboards without requiring Prometheus/Grafana in tests.
+  2. Summarize existing storage/state signals: instance status counts, worker online count, alert event counts, and governance failure counts.
+  3. Continue remaining Phase 3 governance/metrics/tracing work after metrics summary lands.
 
 ## Current status
 - Phase 079 materialized `script_execution_governance` failures into `audit_logs` with `failure_reason` filtering and Web audit-page support.
 - Phase 080 added `alert_rules` / `alert_events` storage plus HTTP APIs and deterministic governance-driven alert event history.
+- Phase 081 added deterministic alert recovery transitions and a resolve endpoint that appends `recovered` event history rows.
+- Phase 082 added `GET /api/v1/alert-events:summary` rollups by rule/resource/failure class with firing/suppressed/silenced/recovered counts.
 - Instance log compatibility from 078 remains intact; governance logs are still queryable via `page_token=script_execution_governance`.
 
 ## Deferred out of Phase 3

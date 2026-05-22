@@ -11,7 +11,10 @@ use serde::Deserialize;
 
 use crate::http::{
     AppState, auth,
-    dto::{AlertEventSummary, AlertRuleSummary, ApiResponse, CreateAlertRuleRequest},
+    dto::{
+        AlertEventSummary, AlertNotificationSummary, AlertRuleSummary, ApiResponse,
+        CreateAlertRuleRequest,
+    },
     error::ApiError,
 };
 
@@ -129,4 +132,79 @@ pub async fn list_alert_events(
         })
         .collect::<Vec<_>>();
     Ok(Json(ApiResponse::success(items)))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/alert-events:summary",
+    tag = "alerts",
+    params(AlertEventQuery)
+)]
+pub async fn list_alert_event_summaries(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(query): Query<AlertEventQuery>,
+) -> Result<Json<ApiResponse<Vec<AlertNotificationSummary>>>, ApiError> {
+    auth::require_permission(&headers, &state, "audit", "read").await?;
+    let items = state
+        .alerts
+        .list_event_summaries(tikee_storage::AlertEventFilters {
+            resource_type: query.resource_type,
+            resource_id: query.resource_id,
+            failure_class: query.failure_class,
+            rule_id: query.rule_id,
+            status: query.status,
+        })
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .into_iter()
+        .map(|summary| AlertNotificationSummary {
+            rule_id: summary.rule_id,
+            rule_name: summary.rule_name,
+            severity: summary.severity,
+            resource_type: summary.resource_type,
+            resource_id: summary.resource_id,
+            failure_class: summary.failure_class,
+            latest_status: summary.latest_status,
+            latest_event_type: summary.latest_event_type,
+            latest_message: summary.latest_message,
+            event_count: summary.event_count,
+            firing_count: summary.firing_count,
+            suppressed_count: summary.suppressed_count,
+            silenced_count: summary.silenced_count,
+            recovered_count: summary.recovered_count,
+            first_seen: summary.first_seen,
+            last_seen: summary.last_seen,
+        })
+        .collect::<Vec<_>>();
+    Ok(Json(ApiResponse::success(items)))
+}
+
+#[utoipa::path(post, path = "/api/v1/alert-events/{id}/resolve", tag = "alerts")]
+pub async fn resolve_alert_event(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Json<ApiResponse<AlertEventSummary>>, ApiError> {
+    auth::require_permission(&headers, &state, "audit", "read").await?;
+    let resolved = state
+        .alerts
+        .record_script_governance_recovery(&id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::not_found("alert event not found"))?;
+    Ok(Json(ApiResponse::success(AlertEventSummary {
+        id: resolved.id,
+        rule_id: resolved.rule_id,
+        rule_name: resolved.rule_name,
+        severity: resolved.severity,
+        status: resolved.status,
+        event_type: resolved.event_type,
+        resource_type: resolved.resource_type,
+        resource_id: resolved.resource_id,
+        failure_class: resolved.failure_class,
+        message: resolved.message,
+        dedupe_key: resolved.dedupe_key,
+        created_at: resolved.created_at,
+    })))
 }

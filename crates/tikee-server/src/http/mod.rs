@@ -291,6 +291,14 @@ fn api_router() -> Router<Arc<AppState>> {
             get(routes::list_alert_rules).post(routes::create_alert_rule),
         )
         .route("/alert-events", get(routes::list_alert_events))
+        .route(
+            "/alert-events/{id}/resolve",
+            axum::routing::post(routes::resolve_alert_event),
+        )
+        .route(
+            "/alert-events:summary",
+            axum::routing::get(routes::list_alert_event_summaries),
+        )
 }
 
 /// Run the unified HTTP listener.
@@ -983,6 +991,238 @@ mod tests {
         assert_eq!(json["data"][0]["status"], "suppressed");
         assert_eq!(json["data"][1]["status"], "firing");
         assert_eq!(json["data"][1]["resource_id"], "inst-alert-1");
+    }
+
+    #[tokio::test]
+    #[allow(clippy::too_many_lines)]
+    async fn alert_event_recovery_appends_resolved_history_entry() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            AuditLogRepository::new(db.clone()),
+            crate::tunnel::WorkerRegistry::default(),
+            StandaloneCoordinator::shared("test-node"),
+        ));
+        let created = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/alert-rules",
+                    r#"{"name":"Runtime governance","severity":"warning","condition":{"type":"script_governance_failure","failure_class":"script_runtime_unavailable","threshold":1},"channels":[],"enabled":true,"dedupe_seconds":300}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("alert rule route should respond: {error}"));
+        assert!(created.status().is_success());
+        let body = axum::body::to_bytes(created.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        let rule_id = json["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("rule id"))
+            .to_owned();
+
+        crate::tunnel::governance::materialize_script_governance_audit(
+            &AuditLogRepository::new(db.clone()),
+            "tikee-dispatcher",
+            "inst-alert-recover",
+            "script_runtime_unavailable",
+            "runtime missing",
+        )
+        .await
+        .unwrap_or_else(|error| panic!("governance materialization should append: {error}"));
+
+        let before = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app.clone(),
+                    "GET",
+                    "/api/v1/alert-events?resource_type=script_execution_governance&failure_class=script_runtime_unavailable",
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("alert events route should respond: {error}"));
+        let before_body = axum::body::to_bytes(before.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let before_json: Value = serde_json::from_slice(&before_body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        let event_id = before_json["data"][0]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("event id"));
+        assert_eq!(before_json["data"][0]["status"], "firing");
+        assert_eq!(before_json["data"][0]["rule_id"], rule_id);
+
+        let resolved = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app.clone(),
+                    "POST",
+                    &format!("/api/v1/alert-events/{event_id}/resolve"),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("resolve route should respond: {error}"));
+        assert!(resolved.status().is_success());
+
+        let after = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app,
+                    "GET",
+                    "/api/v1/alert-events?resource_type=script_execution_governance&failure_class=script_runtime_unavailable",
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("alert events route should respond: {error}"));
+        let after_body = axum::body::to_bytes(after.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let after_json: Value = serde_json::from_slice(&after_body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(after_json["data"].as_array().map(Vec::len), Some(2));
+        assert_eq!(after_json["data"][0]["status"], "recovered");
+        assert_eq!(after_json["data"][1]["status"], "firing");
+    }
+
+    #[tokio::test]
+    #[allow(clippy::too_many_lines)]
+    async fn alert_event_summary_rolls_up_history_by_rule_and_resource() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            AuditLogRepository::new(db.clone()),
+            crate::tunnel::WorkerRegistry::default(),
+            StandaloneCoordinator::shared("test-node"),
+        ));
+        let created = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/alert-rules",
+                    r#"{"name":"Runtime governance","severity":"warning","condition":{"type":"script_governance_failure","failure_class":"script_runtime_unavailable","threshold":1},"channels":[],"enabled":true,"dedupe_seconds":300}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("alert rule route should respond: {error}"));
+        assert!(created.status().is_success());
+
+        crate::tunnel::governance::materialize_script_governance_audit(
+            &AuditLogRepository::new(db.clone()),
+            "tikee-dispatcher",
+            "inst-alert-summary",
+            "script_runtime_unavailable",
+            "runtime missing",
+        )
+        .await
+        .unwrap_or_else(|error| panic!("governance materialization should append: {error}"));
+        crate::tunnel::governance::materialize_script_governance_audit(
+            &AuditLogRepository::new(db.clone()),
+            "tikee-dispatcher",
+            "inst-alert-summary",
+            "script_runtime_unavailable",
+            "runtime still missing",
+        )
+        .await
+        .unwrap_or_else(|error| panic!("governance materialization should append: {error}"));
+
+        let before = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app.clone(),
+                    "GET",
+                    "/api/v1/alert-events?resource_type=script_execution_governance&failure_class=script_runtime_unavailable",
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("alert events route should respond: {error}"));
+        let before_body = axum::body::to_bytes(before.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let before_json: Value = serde_json::from_slice(&before_body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        let event_id = before_json["data"][0]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("event id"));
+        assert_eq!(before_json["data"][0]["status"], "suppressed");
+        assert_eq!(before_json["data"][1]["status"], "firing");
+
+        app.clone()
+            .oneshot(
+                admin_request_builder(
+                    app.clone(),
+                    "POST",
+                    &format!("/api/v1/alert-events/{event_id}/resolve"),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("resolve route should respond: {error}"));
+
+        let summary = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app,
+                    "GET",
+                    "/api/v1/alert-events:summary?resource_type=script_execution_governance&failure_class=script_runtime_unavailable",
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("summary route should respond: {error}"));
+        assert!(summary.status().is_success());
+        let body = axum::body::to_bytes(summary.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"].as_array().map(Vec::len), Some(1));
+        assert_eq!(json["data"][0]["rule_name"], "Runtime governance");
+        assert_eq!(json["data"][0]["resource_id"], "inst-alert-summary");
+        assert_eq!(
+            json["data"][0]["failure_class"],
+            "script_runtime_unavailable"
+        );
+        assert_eq!(json["data"][0]["event_count"], 3);
+        assert_eq!(json["data"][0]["firing_count"], 1);
+        assert_eq!(json["data"][0]["suppressed_count"], 1);
+        assert_eq!(json["data"][0]["recovered_count"], 1);
+        assert_eq!(json["data"][0]["latest_status"], "recovered");
     }
 
     #[tokio::test]

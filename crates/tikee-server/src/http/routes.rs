@@ -12,7 +12,10 @@ pub(crate) mod users;
 pub(crate) mod workers;
 pub(crate) mod workflows;
 
-pub use alerts::{create_alert_rule, list_alert_events, list_alert_rules};
+pub use alerts::{
+    create_alert_rule, list_alert_event_summaries, list_alert_events, list_alert_rules,
+    resolve_alert_event,
+};
 pub use audit::{export_audit_logs, list_audit_logs};
 pub use jobs::{
     create_job, get_job_instance, list_instance_attempts, list_instance_logs, list_job_instances,

@@ -177,6 +177,27 @@ pub struct AlertEventSummary {
     pub created_at: String,
 }
 
+/// Alert notification history summary.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct AlertNotificationSummary {
+    pub rule_id: String,
+    pub rule_name: String,
+    pub severity: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub failure_class: Option<String>,
+    pub latest_status: String,
+    pub latest_event_type: String,
+    pub latest_message: Option<String>,
+    pub event_count: u64,
+    pub firing_count: u64,
+    pub suppressed_count: u64,
+    pub silenced_count: u64,
+    pub recovered_count: u64,
+    pub first_seen: String,
+    pub last_seen: String,
+}
+
 /// Audit log list query parameters.
 #[derive(Debug, Clone, Default, Deserialize, ToSchema, utoipa::IntoParams)]
 #[into_params(parameter_in = Query)]

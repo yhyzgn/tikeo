@@ -591,3 +591,13 @@
 - Exposed `/api/v1/alert-rules` and `/api/v1/alert-events` HTTP APIs behind existing admin/audit permissions and kept responses in the standard `{ code, message, data }` envelope.
 - Wired script governance materialization to append alert history entries alongside audit rows, including basic threshold/dedupe/silence handling for `script_governance_failure` rules.
 - Added regression coverage for alert rule creation, governance event ingestion, and alert event history queries.
+### 2026-05-23 — Phase 081 alert recovery and notification history
+- Continued `.prompt/081-alert-recovery-and-notifications.md`.
+- Added deterministic alert recovery transitions by appending `script_governance_recovery` history rows with `status=recovered` instead of mutating prior events.
+- Exposed a recovery HTTP endpoint for alert events and kept list/history queries stable for operators.
+- Added regression coverage proving a firing governance alert can be resolved into a recovery history entry while preserving the original firing event.
+### 2026-05-23 — Phase 082 alert notification summary
+- Continued `.prompt/082-alert-notification-summary.md`.
+- Added `/api/v1/alert-events:summary` to roll up alert event history by rule, resource, and failure class while preserving list filters.
+- Summary rows include latest status/type/message, first/last seen timestamps, and firing/suppressed/silenced/recovered counts for operator notification history review.
+- Added regression coverage proving firing, suppressed, and recovered history rows collapse into a single deterministic summary without external webhook smoke.

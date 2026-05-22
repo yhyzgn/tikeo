@@ -2222,7 +2222,7 @@ tikee/
   - [ ] 策略审批、签名、URL/File/Secret grant 与生产发布门禁
 - [ ] 告警系统 (邮件/Slack/钉钉/飞书/企业微信/PagerDuty)
   - [x] AlertRule / AlertCondition / AlertDispatcher 安全 Webhook 通知骨架
-  - [x] 告警规则 API、事件接入、去重静默、通知历史、恢复通知（080：alert_rules / alert_events 存储、HTTP API、script governance 事件历史 materialization）
+  - [x] 告警规则 API、事件接入、去重静默、通知历史、恢复通知（080-082：alert_rules / alert_events 存储、HTTP API、script governance 事件历史 materialization、recovery 事件 append、alert-events:summary 运维汇总）
 - [ ] Prometheus 指标 + Grafana Dashboard 模板
   - [x] Prometheus 指标端点（`/metrics`）与 HTTP/Worker 最小指标
   - [ ] Grafana Dashboard、调度延迟、实例状态与业务 SLO 指标

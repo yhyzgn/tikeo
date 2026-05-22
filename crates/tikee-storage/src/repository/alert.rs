@@ -4,6 +4,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, Set,
 };
+use std::collections::HashMap;
 
 use crate::entities::{alert_event, alert_rule};
 
@@ -48,6 +49,26 @@ pub struct AlertEventSummary {
     pub message: Option<String>,
     pub dedupe_key: String,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AlertNotificationSummary {
+    pub rule_id: String,
+    pub rule_name: String,
+    pub severity: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub failure_class: Option<String>,
+    pub latest_status: String,
+    pub latest_event_type: String,
+    pub latest_message: Option<String>,
+    pub event_count: u64,
+    pub firing_count: u64,
+    pub suppressed_count: u64,
+    pub silenced_count: u64,
+    pub recovered_count: u64,
+    pub first_seen: String,
+    pub last_seen: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -130,6 +151,113 @@ impl AlertRepository {
             .all(&self.db)
             .await?;
         Ok(rows.into_iter().map(AlertEventSummary::from).collect())
+    }
+
+    pub async fn list_event_summaries(
+        &self,
+        filters: AlertEventFilters,
+    ) -> Result<Vec<AlertNotificationSummary>, sea_orm::DbErr> {
+        let rows = self.list_events(filters).await?;
+        let mut summaries: HashMap<
+            (String, String, String, Option<String>),
+            AlertNotificationSummary,
+        > = HashMap::new();
+
+        for event in rows {
+            let key = (
+                event.rule_id.clone(),
+                event.resource_type.clone(),
+                event.resource_id.clone(),
+                event.failure_class.clone(),
+            );
+            let summary = summaries
+                .entry(key)
+                .or_insert_with(|| AlertNotificationSummary {
+                    rule_id: event.rule_id.clone(),
+                    rule_name: event.rule_name.clone(),
+                    severity: event.severity.clone(),
+                    resource_type: event.resource_type.clone(),
+                    resource_id: event.resource_id.clone(),
+                    failure_class: event.failure_class.clone(),
+                    latest_status: event.status.clone(),
+                    latest_event_type: event.event_type.clone(),
+                    latest_message: event.message.clone(),
+                    event_count: 0,
+                    firing_count: 0,
+                    suppressed_count: 0,
+                    silenced_count: 0,
+                    recovered_count: 0,
+                    first_seen: event.created_at.clone(),
+                    last_seen: event.created_at.clone(),
+                });
+
+            summary.event_count = summary.event_count.saturating_add(1);
+            match event.status.as_str() {
+                "firing" => summary.firing_count = summary.firing_count.saturating_add(1),
+                "suppressed" => {
+                    summary.suppressed_count = summary.suppressed_count.saturating_add(1);
+                }
+                "silenced" => summary.silenced_count = summary.silenced_count.saturating_add(1),
+                "recovered" => summary.recovered_count = summary.recovered_count.saturating_add(1),
+                _ => {}
+            }
+            if event.created_at > summary.last_seen {
+                summary.last_seen.clone_from(&event.created_at);
+                summary.latest_status.clone_from(&event.status);
+                summary.latest_event_type.clone_from(&event.event_type);
+                summary.latest_message.clone_from(&event.message);
+            }
+            if event.created_at < summary.first_seen {
+                summary.first_seen.clone_from(&event.created_at);
+            }
+        }
+
+        let mut items: Vec<_> = summaries.into_values().collect();
+        items.sort_by(|left, right| {
+            right
+                .last_seen
+                .cmp(&left.last_seen)
+                .then_with(|| left.rule_name.cmp(&right.rule_name))
+                .then_with(|| left.resource_type.cmp(&right.resource_type))
+                .then_with(|| left.resource_id.cmp(&right.resource_id))
+        });
+        Ok(items)
+    }
+
+    pub async fn get_event(&self, id: &str) -> Result<Option<AlertEventSummary>, sea_orm::DbErr> {
+        alert_event::Entity::find_by_id(id.to_owned())
+            .one(&self.db)
+            .await
+            .map(|model| model.map(AlertEventSummary::from))
+    }
+
+    pub async fn record_script_governance_recovery(
+        &self,
+        event_id: &str,
+    ) -> Result<Option<AlertEventSummary>, sea_orm::DbErr> {
+        let Some(previous) = self.get_event(event_id).await? else {
+            return Ok(None);
+        };
+        let _ = alert_event::ActiveModel {
+            id: Set(new_id("alert-event")),
+            rule_id: Set(previous.rule_id.clone()),
+            rule_name: Set(previous.rule_name.clone()),
+            severity: Set(previous.severity.clone()),
+            status: Set("recovered".to_owned()),
+            event_type: Set("script_governance_recovery".to_owned()),
+            resource_type: Set(previous.resource_type.clone()),
+            resource_id: Set(previous.resource_id.clone()),
+            failure_class: Set(previous.failure_class.clone()),
+            message: Set(Some(format!("recovered from {}", previous.status))),
+            dedupe_key: Set(format!(
+                "{}:recovery:{}",
+                previous.rule_id, previous.resource_id
+            )),
+            created_at: Set(now_rfc3339()),
+        }
+        .insert(&self.db)
+        .await?;
+        Ok(Some(previous))
     }
 
     pub async fn record_script_governance_failure(
