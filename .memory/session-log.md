@@ -1105,3 +1105,8 @@ Git:
 - Added Web policy types, safe policy editing fields, detail display, policy diff fields, and Vite/Rolldown vendor chunk groups to eliminate large chunk warning.
 - Added Rust SDK non-WASM runner abstraction and unsupported runner test as the handoff point for concrete sandbox runner implementation.
 - Verification passed: Rust workspace fmt/clippy/test/help, Web typecheck/test/build without large chunk warning, Rust SDK native+wasm tests/clippy, Java SDK Gradle test.
+
+### 2026-05-22 — Audit page loading loop fix
+- Fixed Web audit log page infinite request/loading loop by hoisting `useUrlQueryState` defaults to a stable module-level object instead of recreating defaults on every render.
+- Root cause: unstable defaults changed the memoized URL query object, which changed `fetchLogs`, which retriggered the effect continuously and made the app feel unclickable.
+- Verification passed: `cd web && bun run typecheck && bun test && bun run build`.

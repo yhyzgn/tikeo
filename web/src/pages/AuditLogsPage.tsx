@@ -19,13 +19,21 @@ const ACTION_COLORS: Record<string, string> = {
 };
 
 const PAGE_SIZE = 20;
+const AUDIT_QUERY_DEFAULTS = {
+  page_size: PAGE_SIZE,
+  page_token: '',
+  actor: '',
+  action: '',
+  resource_type: '',
+  resource_id: '',
+};
 
 export function AuditLogsPage() {
   const [form] = Form.useForm<AuditLogQuery>();
   const [logs, setLogs] = useState<AuditLogSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
-  const { query: urlQuery, setQuery: setUrlQuery, resetQuery } = useUrlQueryState({ page_size: PAGE_SIZE, page_token: '', actor: '', action: '', resource_type: '', resource_id: '' });
+  const { query: urlQuery, setQuery: setUrlQuery, resetQuery } = useUrlQueryState(AUDIT_QUERY_DEFAULTS);
   const query = useMemo<AuditLogQuery>(() => ({
     page_size: Number(urlQuery.page_size) || PAGE_SIZE,
     page_token: urlQuery.page_token || undefined,
