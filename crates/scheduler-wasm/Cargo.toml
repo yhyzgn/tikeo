@@ -1,0 +1,19 @@
+[package]
+name = "scheduler-wasm"
+description = "Worker-side WASM runtime executor for scheduler processors."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+scheduler-core = { path = "../scheduler-core" }
+thiserror = "2"
+wasmtime = { version = "45.0.0", default-features = false, features = ["cranelift", "runtime", "std"] }
+
+[dev-dependencies]
+wat = "1"
+
+[lints]
+workspace = true

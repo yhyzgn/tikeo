@@ -1052,3 +1052,10 @@ Git:
 - Updated design roadmap and created `.prompt/067-phase3-wasm-worker-runtime-executor.md`.
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-core --all-features`.
 - Full verification passed for 066: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build` (Vite chunk-size warning unchanged).
+
+### 2026-05-22 Phase3 WASM worker runtime executor
+- Started `.prompt/067-phase3-wasm-worker-runtime-executor.md`.
+- Added `scheduler-wasm` crate with Wasmtime executor and policy tests; no server HTTP/storage coupling.
+- Updated design roadmap and created `.prompt/068-phase3-wasm-script-binding-and-dispatch.md`.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-wasm --all-features`; `cargo clippy -p scheduler-wasm --all-targets --all-features -- -D warnings`.
+- Full verification passed for 067: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build` (Vite chunk-size warning unchanged).

@@ -438,3 +438,11 @@
 - Added core tests for stable wire serialization and policy validation.
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-core --all-features`.
 - Full verification passed for 066: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build` (Vite chunk-size warning unchanged).
+
+### 2026-05-22 Phase3 WASM worker runtime executor
+- Started `.prompt/067-phase3-wasm-worker-runtime-executor.md`.
+- Added dedicated `crates/scheduler-wasm` so Wasmtime remains worker/runtime-boundary only and is not pulled into server HTTP/storage paths.
+- Implemented `WasmExecutor` on Wasmtime 45.0.0 with fuel metering, epoch interruption timeout hook, memory cap via StoreLimits, and no WASI ambient imports.
+- Added tests for minimal WAT execution, network-capability rejection, missing entrypoint rejection, and fuel exhaustion on a busy loop.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-wasm --all-features`; `cargo clippy -p scheduler-wasm --all-targets --all-features -- -D warnings`.
+- Full verification passed for 067: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build` (Vite chunk-size warning unchanged).

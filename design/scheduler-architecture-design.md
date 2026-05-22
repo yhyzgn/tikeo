@@ -2055,7 +2055,7 @@ scheduler/
 │   ├── scheduler-client/
 │   ├── scheduler-proto/
 │   ├── scheduler-common/
-│   └── scheduler-wasm/
+│   └── scheduler-wasm/              # Worker 侧 Wasmtime 执行器；不耦合 server HTTP/storage
 │
 ├── sdks/                             # 多语言 SDK
 │   ├── rust/scheduler-worker-sdk/    # Rust Worker SDK crate
@@ -2187,7 +2187,8 @@ scheduler/
   - [x] 审计导出治理基础（`GET /api/v1/audit-logs:export?format=json`，复用过滤条件、`audit:read` 权限、500 行上限、JSON envelope、Web 导出入口；CSV/脱敏策略后续增强）
 - [x] Web UI 危险操作二次确认、权限感知操作（统一 `GuardedButton` / `PermissionGate`；用户/脚本删除与状态变更、任务触发、工作流运行/人工推进等按 RBAC 隐藏或二次确认）
   - [x] Web UI 审计日志查询页面（按操作类型筛选）
-- [x] WASM 沙箱处理器边界（066：`WasmProcessorSpec`/`WasmResourcePolicy`/`WasmCapabilities` 稳定 worker 合约；选型 Wasmtime 45.x；默认拒绝网络与文件系统预打开；真实 worker 运行时执行器后续接入）
+- [x] WASM 沙箱处理器边界（066：`WasmProcessorSpec`/`WasmResourcePolicy`/`WasmCapabilities` 稳定 worker 合约；选型 Wasmtime 45.x；默认拒绝网络与文件系统预打开）
+  - [x] Worker 侧 Wasmtime 执行器基础（067：`scheduler-wasm` crate；fuel/epoch interruption、memory cap、无 WASI ambient imports、策略拒绝测试、最小 WAT smoke）
 - [ ] 多语言动态脚本处理器（Python/Node/Shell/PowerShell/Rhai）
   - [x] 脚本定义 Storage / Migration / Repository / HTTP CRUD API / OpenAPI
   - [x] Web 脚本管理页面（列表、创建、审批、启用/禁用、删除）
