@@ -15,3 +15,7 @@
 
 ## SDK naming note
 - Rust SDK is `sdks/rust/tikee` / crate `tikee`. Java core SDK module/artifact is `tikee`; Java package prefix remains `com.yhyzgn.tikee`.
+
+## Roadmap adjustment
+- Phase 3 no longer includes Node.js SDK, K8s Helm Chart, or PowerJob migration tooling.
+- Phase 4 now owns Node.js SDK, K8s Helm Chart, PowerJob migration tooling, and the newly added XXL-JOB migration tooling.

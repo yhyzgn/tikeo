@@ -573,3 +573,9 @@
 
 ### 2026-05-23 — Script editor back button compact style
 - Script editor secondary page back button now keeps natural width instead of stretching across the hero content column.
+
+
+### 2026-05-23 — Phase 3 / Phase 4 roadmap scope adjustment
+- Moved Node.js SDK, K8s Helm Chart, and PowerJob migration tooling out of Phase 3 into Phase 4.
+- Added XXL-JOB migration tooling to Phase 4 alongside PowerJob migration tooling.
+- Phase 3 remains focused on enterprise governance/runtime safety work such as script governance, policy, audit, alerts, metrics, tracing, and Java/Rust SDK maturity.

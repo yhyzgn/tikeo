@@ -2230,18 +2230,19 @@ tikee/
   - [x] Gradle 多模块骨架：java-core / spring-boot-autoconfigure / spring-boot-starter（JDK 21+；已替换 Maven 骨架）
   - [x] `@TikeeProcessor` 注解扫描与 auto-configuration 骨架
   - [x] Java gRPC Worker Tunnel 真实连接与心跳
-- [ ] Node.js SDK
 - [x] Java Core SDK
 - [x] Worker processor binding model（Job 定义与 Workflow job/map 节点支持 `processor_name`，Worker dispatch 按 processor name 路由，legacy 数据回退 `job_id`）
 - [x] SDK 目录规范迁移：Rust SDK -> `sdks/rust/tikee`，Java SDK -> Gradle/JDK21+，新增 `examples/<language>/<demo-name>` demo 骨架，并补齐 Rust / Java 可独立运行 demo 基础
-- [ ] K8s Helm Chart
-- [ ] PowerJob 迁移工具
 
 ### Phase 4: 高级能力 (月 10-12)
 
 **目标**：超越 PowerJob，建立差异化竞争力。
 
 - [ ] Go SDK + Python SDK（从 Phase 2 后置；待核心分布式/日志能力稳定后实现）
+- [ ] Node.js SDK（从 Phase 3 后置；待 Rust/Java SDK 与 Worker Tunnel 稳定后实现）
+- [ ] K8s Helm Chart（从 Phase 3 后置；待生产部署参数、外部数据库和网关策略收敛后实现）
+- [ ] PowerJob 迁移工具（从 Phase 3 后置；与迁移报告/双跑能力一起实现）
+- [ ] XXL-JOB 迁移工具（新增；覆盖 xxl_job_group / xxl_job_info / CRON / child_jobid / GLUE 脚本迁移报告）
 - [ ] 任务依赖自动发现与拓扑可视化
 - [ ] 智能调度 (基于历史数据的资源预测)
 - [ ] 多租户隔离增强
@@ -2317,9 +2318,11 @@ tikee/
 迁移工具应支持：
 
 - `tikee migrate --from xxl-job --db mysql://... --dry-run`
+- `tikee migrate --from xxl-job --db mysql://... --dry-run --report migration-report.json`
 - `tikee migrate --from powerjob --db mysql://... --dry-run`
 - 生成迁移报告：不可迁移项、风险项、安全策略缺口、下次触发时间差异。
 - 支持 xxl-job / PowerJob 与 tikee 双跑一段时间，通过实例结果和日志对账后再切流。
+- Phase 4 同时落地 PowerJob 与 XXL-JOB 迁移工具；XXL-JOB 迁移重点是基础任务、路由策略、child_jobid DAG 化和 GLUE 脚本风险报告。
 
 ---
 

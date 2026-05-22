@@ -1195,3 +1195,10 @@ Git:
 ### 2026-05-23 — Script editor back button compact style
 - Fixed the secondary script editor back button being stretched by the hero flex-column container by constraining `.workflow-back-button.ant-btn` to `align-self: flex-start` and `width: auto`.
 - Verification passed: `cd web && bun run typecheck && bun test && bun run build`.
+
+
+### 2026-05-23 — Roadmap adjustment: migration and deployment scope
+- User requested deferring Node.js SDK, K8s Helm Chart, and PowerJob migration tool from Phase 3 to Phase 4.
+- Updated `design/tikee-architecture-design.md` Phase 3/4 roadmap accordingly.
+- Added XXL-JOB migration tool as a Phase 4 roadmap item and clarified migration CLI/report expectations.
+- Updated `.memory/next.md` and `.memory/progress.md` so future handoff resumes Phase 3 without accidentally picking those deferred items.
