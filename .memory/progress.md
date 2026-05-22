@@ -565,3 +565,8 @@
 - Web workflow client now normalizes legacy aliases before workflow create/update/dry-run, and the editor normalizes loaded definitions before showing the JSON draft.
 - `scripts/dev-seed.sql` now seeds the sample workflow definition and workflow_edges row with canonical `on_success`.
 - Regression tests cover stale `success`/`failed` aliases escaping through update/dry-run serialization.
+
+### 2026-05-23 — Script edit UX and workflow canvas fullscreen
+- Script edit moved from modal to guarded `/scripts/:id/edit` secondary page with a wide CodeMirror-centered layout and side cards for metadata/runtime/policy.
+- Script update still requires diff preview confirmation before saving and still creates immutable version snapshots through the existing API.
+- Workflow visual editor canvas now supports fullscreen toggle and Escape exit for large DAG editing.

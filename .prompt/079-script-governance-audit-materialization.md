@@ -35,3 +35,6 @@ Phase 078 made `script_execution_governance` instance logs queryable and UI-visi
 
 ## Interruption note — 2026-05-23 workflow edge-condition fix
 Before continuing this slice, a Web workflow bug was fixed: legacy dev seed data used edge `condition: "success"`, while the current UI selector already uses canonical `on_success`. The Web API boundary now normalizes stale aliases before create/update/dry-run, the editor normalizes loaded definitions, and `scripts/dev-seed.sql` seeds `on_success`.
+
+## Interruption note — 2026-05-23 Web UX fixes
+Before continuing this slice, two Web UX fixes were completed: script editing moved from modal to guarded secondary route `/scripts/:id/edit` with the existing diff-before-save confirmation preserved, and the workflow DAG editor canvas gained a fullscreen toggle for large workflow editing.

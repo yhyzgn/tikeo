@@ -208,6 +208,7 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
   const [edgeDrag, setEdgeDrag] = useState<{ index: number; side: 'from' | 'to'; anchorKey: string; x: number; y: number } | null>(null);
   const [selectedEdgeIndex, setSelectedEdgeIndex] = useState<number | null>(null);
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(definition.nodes[0]?.key ?? null);
+  const [isCanvasFullscreen, setIsCanvasFullscreen] = useState(false);
   const spaceRef = useRef<HTMLDivElement | null>(null);
   const statuses = new Map(instance?.nodes.map((node) => [node.node_key, node.status]) ?? []);
   const positions = new Map(definition.nodes.map((node, index) => [node.key, nodePosition(node, index)]));
@@ -358,19 +359,34 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
     setLinkDrag(null);
   };
 
+
+  useEffect(() => {
+    if (!isCanvasFullscreen) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsCanvasFullscreen(false);
+    };
+    document.body.classList.add('workflow-canvas-fullscreen-open');
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.classList.remove('workflow-canvas-fullscreen-open');
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isCanvasFullscreen]);
+
   const canvasWidth = Math.max(980, ...definition.nodes.map((node, index) => (positions.get(node.key)?.x ?? index * 220) + 280));
   const canvasHeight = Math.max(560, ...definition.nodes.map((node, index) => (positions.get(node.key)?.y ?? index * 100) + 210));
 
   return (
-    <div className="workflow-dag-editor">
+    <div className={`workflow-dag-editor ${isCanvasFullscreen ? 'workflow-dag-editor--fullscreen' : ''}`}>
       {editable ? (
         <Space wrap className="workflow-dag-toolbar">
           {NODE_CATALOG.map((node) => <Button key={node.kind} onClick={() => addNode(node.kind)}>+ {node.label}</Button>)}
           {linkDrag ? <Tag color="blue">从 {linkDrag.from} 拖线中：松到目标输入端口完成</Tag> : null}
           {edgeDrag ? <Tag color="purple">正在调整连线{edgeDrag.side === 'from' ? '起点' : '终点'}：松到目标端口完成</Tag> : null}
+          <Button onClick={() => setIsCanvasFullscreen((current) => !current)}>{isCanvasFullscreen ? '退出全屏' : '切换全屏'}</Button>
         </Space>
       ) : null}
-      <div className={`workflow-node-canvas ${editable ? 'workflow-node-canvas--editable' : 'workflow-node-canvas--readonly'} ${linkDrag || edgeDrag ? 'workflow-node-canvas--linking' : ''}`} style={{ height: Math.min(720, canvasHeight + 40) }} onPointerMove={pointerMove} onPointerDown={(event) => { if (event.target === event.currentTarget) { setSelectedEdgeIndex(null); } }} onPointerUp={() => { setDragging(null); setLinkDrag(null); setEdgeDrag(null); }}>
+      <div className={`workflow-node-canvas ${editable ? 'workflow-node-canvas--editable' : 'workflow-node-canvas--readonly'} ${linkDrag || edgeDrag ? 'workflow-node-canvas--linking' : ''}`} style={{ height: isCanvasFullscreen ? undefined : Math.min(720, canvasHeight + 40) }} onPointerMove={pointerMove} onPointerDown={(event) => { if (event.target === event.currentTarget) { setSelectedEdgeIndex(null); } }} onPointerUp={() => { setDragging(null); setLinkDrag(null); setEdgeDrag(null); }}>
         <div ref={spaceRef} className="workflow-node-canvas__space" style={{ width: canvasWidth, height: canvasHeight }} onPointerDown={(event) => { if (event.target === event.currentTarget) setSelectedEdgeIndex(null); }}>
           <svg className="workflow-node-canvas__edges" width={canvasWidth} height={canvasHeight}>
             <defs>

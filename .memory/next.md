@@ -9,7 +9,9 @@
 
 ## Current status
 - Phase 078 parsed governance log JSON into explicit API fields, added a governance-only log filter, added Web instance-log highlighting, and introduced `script_governance_failure` alert condition shape.
-- Interruption fix completed: the dev workflow editor/API boundary now normalizes stale edge condition aliases (`success`/`failed`) to canonical `on_success`/`on_failure`, and dev seed data uses `on_success`.
+- Interruption fixes completed:
+  - Web workflow client/editor normalizes stale edge condition aliases (`success`/`failed`) to canonical `on_success`/`on_failure`, and dev seed data uses `on_success`.
+  - Script edit moved to `/scripts/:id/edit`; workflow DAG editor canvas has fullscreen toggle.
 
 ## SDK naming note
 - Rust SDK is `sdks/rust/tikee` / crate `tikee`. Java core SDK module/artifact is `tikee`; Java package prefix remains `com.yhyzgn.tikee`.

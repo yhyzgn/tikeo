@@ -1,5 +1,6 @@
-import { Alert, Button, Descriptions, Drawer, Form, Input, InputNumber, Modal, Select, Space, Spin, Switch, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Descriptions, Drawer, Form, Input, InputNumber, Modal, Select, Space, Spin, Switch, Table, Tag, Typography, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { diffLines } from 'diff';
 import type { ScriptDiffResult, ScriptExecutionPolicy, ScriptSummary, ScriptVersionSummary } from '../api/client';
 import { GuardedButton, PermissionGate, useCan } from '../components/Permission';
@@ -206,6 +207,7 @@ function PolicyDiffTable({ changes }: { changes: ScriptDiffResult['policy_diff']
 }
 
 export function ScriptsPage() {
+  const navigate = useNavigate();
   const canManageScripts = useCan('scripts', 'manage');
   const { query, setQuery } = useUrlQueryState({ page: 1, page_size: 10, keyword: '', language: '', status: '' });
   const [scripts, setScripts] = useState<ScriptSummary[]>([]);
@@ -215,20 +217,6 @@ export function ScriptsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm();
   const currentLanguage = Form.useWatch('language', form) ?? 'shell';
-
-  // Edit modal
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editingScript, setEditingScript] = useState<ScriptSummary | null>(null);
-  const [editForm] = Form.useForm();
-  const editLanguage = Form.useWatch('language', editForm) ?? 'shell';
-  const [editHasVersions, setEditHasVersions] = useState(false);
-  const [editLoading, setEditLoading] = useState(false);
-  const [originalScript, setOriginalScript] = useState<Record<string, unknown> | null>(null);
-
-  // Edit diff preview modal
-  const [diffPreviewOpen, setDiffPreviewOpen] = useState(false);
-  const [editContentDiff, setEditContentDiff] = useState('');
-  const [editPolicyDiff, setEditPolicyDiff] = useState<{ field: string; before: string; after: string }[]>([]);
 
   // View detail drawer
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
@@ -277,89 +265,6 @@ export function ScriptsPage() {
       void load();
     } catch (err) {
       message.error(errorMessage('创建脚本失败', err));
-    }
-  };
-
-  // Edit
-  const openEditModal = async (script: ScriptSummary) => {
-    setEditLoading(true);
-    try {
-      const full = await getScript(script.id);
-      const detail: ScriptSummary = { ...full };
-      setEditingScript(detail);
-      const formValues = {
-        name: detail.name,
-        language: detail.language,
-        version: detail.version,
-        content: detail.content,
-        timeout_seconds: detail.timeout_seconds,
-        max_memory_bytes: detail.max_memory_bytes,
-        allow_network: detail.allow_network,
-        allowed_env_vars: detail.allowed_env_vars,
-        ...policyToForm(detail.policy),
-      };
-      editForm.setFieldsValue(formValues);
-      setOriginalScript({ ...formValues });
-      // Check if script has versions for diff hint
-      try {
-        const vList = await listScriptVersions(script.id);
-        setEditHasVersions(vList.length > 0);
-      } catch {
-        setEditHasVersions(false);
-      }
-      setEditModalOpen(true);
-    } catch (err) {
-      message.error(errorMessage('加载脚本详情失败', err));
-    } finally {
-      setEditLoading(false);
-    }
-  };
-
-  const handleEditPreview = async () => {
-    if (!canManageScripts) { message.error('当前账号无权限管理脚本'); return; }
-    if (!editingScript || !originalScript) return;
-    try {
-      const values = await editForm.validateFields();
-      const contentDiff = buildUnifiedDiff(
-        (originalScript.content as string) ?? '',
-        values.content ?? '',
-      );
-      const policyDiff = buildPolicyDiff(originalScript, values);
-      setEditContentDiff(contentDiff);
-      setEditPolicyDiff(policyDiff);
-      setDiffPreviewOpen(true);
-    } catch {
-      // form validation failed — errors shown on fields
-    }
-  };
-
-  const handleEditConfirm = async () => {
-    if (!editingScript) return;
-    try {
-      const values = await editForm.validateFields();
-      setEditLoading(true);
-      await updateScript(editingScript.id, {
-        name: values.name,
-        language: values.language,
-        version: values.version,
-        content: values.content,
-        timeout_seconds: values.timeout_seconds,
-        max_memory_bytes: values.max_memory_bytes,
-        allow_network: values.allow_network,
-        allowed_env_vars: values.allowed_env_vars,
-        policy: policyFromForm(values),
-      });
-      message.success('脚本更新成功');
-      setDiffPreviewOpen(false);
-      setEditModalOpen(false);
-      editForm.resetFields();
-      setEditingScript(null);
-      setOriginalScript(null);
-      void load();
-    } catch (err) {
-      message.error(errorMessage('更新脚本失败', err));
-    } finally {
-      setEditLoading(false);
     }
   };
 
@@ -507,7 +412,7 @@ export function ScriptsPage() {
           <Button size="small" type="link" onClick={() => void openDetailDrawer(record)}>
             查看
           </Button>
-          <GuardedButton resource="scripts" action="manage" size="small" type="link" onClick={() => void openEditModal(record)}>
+          <GuardedButton resource="scripts" action="manage" size="small" type="link" onClick={() => navigate(`/scripts/${record.id}/edit`)}>
             编辑
           </GuardedButton>
           <Button size="small" type="link" onClick={() => void openVersionDrawer(record)}>
@@ -685,81 +590,6 @@ export function ScriptsPage() {
         </Form>
       </Modal>
 
-      {/* Edit Modal */}
-      <Modal
-        title={`编辑脚本 - ${editingScript?.name ?? ''}`}
-        open={editModalOpen}
-        onOk={handleEditPreview}
-        onCancel={() => { setEditModalOpen(false); editForm.resetFields(); setEditingScript(null); setOriginalScript(null); }}
-        width={700}
-        confirmLoading={editLoading}
-        okText="预览变更"
-      >
-        {editHasVersions && (
-          <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6, fontSize: 13 }}>
-            此脚本存在历史版本，更新后将生成新版本记录。
-          </div>
-        )}
-        <Form form={editForm} layout="vertical">
-          <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="language" label="语言" rules={[{ required: true, message: '请选择语言' }]}>
-            <Select options={LANGUAGE_OPTIONS} />
-          </Form.Item>
-          {editLanguage === 'wasm' && (
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message="WASM 沙箱策略"
-              description="更新后会生成新的不可变版本快照与 SHA-256 摘要；默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
-            />
-          )}
-          <Form.Item name="version" label="版本">
-            <Input />
-          </Form.Item>
-          <Form.Item name="content" label="脚本内容" rules={[{ required: true, message: '请输入脚本内容' }]}>
-            <CodeEditor
-              value={editForm.getFieldValue('content') ?? ''}
-              onChange={(val) => editForm.setFieldValue('content', val)}
-              language={editLanguage}
-            />
-          </Form.Item>
-          <Form.Item name="timeout_seconds" label="超时(秒)">
-            <InputNumber min={1} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="max_memory_bytes" label="内存限制(字节)">
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="allow_network" label="允许网络" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item name="allowed_env_vars" label="允许的环境变量">
-            <Select mode="tags" placeholder="输入变量名后回车" />
-          </Form.Item>
-          <Alert
-            type="info"
-            showIcon
-            style={{ marginBottom: 16 }}
-            message="动态脚本策略（默认拒绝危险能力）"
-            description="当前阶段仅允许资源限制与环境变量白名单；网络、文件系统与 Secret 访问仍由后续审批/策略引擎开放。"
-          />
-          <Form.Item name="policy_timeout_ms" label="策略超时(秒)">
-            <InputNumber min={1} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="policy_max_memory_bytes" label="策略内存限制(字节)">
-            <InputNumber min={1} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="policy_max_output_bytes" label="策略输出限制(字节)">
-            <InputNumber min={1} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="policy_env_vars" label="策略环境变量白名单">
-            <Select mode="tags" placeholder="输入变量名后回车" />
-          </Form.Item>
-        </Form>
-      </Modal>
-
       {/* View Detail Drawer */}
       <Drawer
         title={`脚本详情 - ${detailScript?.name ?? ''}`}
@@ -909,36 +739,185 @@ export function ScriptsPage() {
         )}
       </Drawer>
 
-      {/* Edit Diff Preview Modal */}
+    </div>
+  );
+}
+
+
+export function ScriptEditorPage() {
+  const canManageScripts = useCan('scripts', 'manage');
+  const navigate = useNavigate();
+  const params = useParams();
+  const scriptId = params.id;
+  const [form] = Form.useForm();
+  const editLanguage = Form.useWatch('language', form) ?? 'shell';
+  const [editingScript, setEditingScript] = useState<ScriptSummary | null>(null);
+  const [originalScript, setOriginalScript] = useState<Record<string, unknown> | null>(null);
+  const [hasVersions, setHasVersions] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [diffPreviewOpen, setDiffPreviewOpen] = useState(false);
+  const [editContentDiff, setEditContentDiff] = useState('');
+  const [editPolicyDiff, setEditPolicyDiff] = useState<{ field: string; before: string; after: string }[]>([]);
+
+  useEffect(() => {
+    if (!scriptId) return;
+    setLoading(true);
+    void (async () => {
+      try {
+        const detail = await getScript(scriptId);
+        const formValues = {
+          name: detail.name,
+          language: detail.language,
+          version: detail.version,
+          content: detail.content,
+          timeout_seconds: detail.timeout_seconds,
+          max_memory_bytes: detail.max_memory_bytes,
+          allow_network: detail.allow_network,
+          allowed_env_vars: detail.allowed_env_vars,
+          ...policyToForm(detail.policy),
+        };
+        setEditingScript(detail);
+        setOriginalScript({ ...formValues });
+        form.setFieldsValue(formValues);
+        try {
+          const versionList = await listScriptVersions(scriptId);
+          setHasVersions(versionList.length > 0);
+        } catch {
+          setHasVersions(false);
+        }
+      } catch (err) {
+        message.error(errorMessage('加载脚本详情失败', err));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [form, scriptId]);
+
+  const handleEditPreview = async () => {
+    if (!canManageScripts) { message.error('当前账号无权限管理脚本'); return; }
+    if (!editingScript || !originalScript) return;
+    try {
+      const values = await form.validateFields();
+      setEditContentDiff(buildUnifiedDiff((originalScript.content as string) ?? '', values.content ?? ''));
+      setEditPolicyDiff(buildPolicyDiff(originalScript, values));
+      setDiffPreviewOpen(true);
+    } catch {
+      // form validation failed — errors shown on fields
+    }
+  };
+
+  const handleEditConfirm = async () => {
+    if (!editingScript) return;
+    try {
+      const values = await form.validateFields();
+      setSaving(true);
+      await updateScript(editingScript.id, {
+        name: values.name,
+        language: values.language,
+        version: values.version,
+        content: values.content,
+        timeout_seconds: values.timeout_seconds,
+        max_memory_bytes: values.max_memory_bytes,
+        allow_network: values.allow_network,
+        allowed_env_vars: values.allowed_env_vars,
+        policy: policyFromForm(values),
+      });
+      message.success('脚本更新成功');
+      setDiffPreviewOpen(false);
+      navigate('/scripts');
+    } catch (err) {
+      message.error(errorMessage('更新脚本失败', err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Space direction="vertical" size={18} style={{ width: '100%' }}>
+      <div className="hero-panel script-editor-hero">
+        <div className="hero-panel__content">
+          <Button className="workflow-back-button" onClick={() => navigate('/scripts')}>← 返回脚本列表</Button>
+          <Tag className="soft-tag" color="purple">Script Governance</Tag>
+          <Typography.Title level={1}>编辑脚本</Typography.Title>
+          <Typography.Paragraph className="hero-panel__desc">
+            在独立页面编辑脚本内容、执行限制和策略白名单；保存前会展示内容与策略 diff，确认后生成新的不可变版本快照。
+          </Typography.Paragraph>
+        </div>
+        <div className="hero-panel__summary"><strong>{editingScript?.language.toUpperCase() ?? '-'}</strong><span>runtime</span></div>
+      </div>
+
+      <Spin spinning={loading}>
+        <Form form={form} layout="vertical" className="script-editor-page">
+          <Card
+            className="script-editor-page__main"
+            title={<Space><span>{editingScript?.name ?? '脚本'}</span>{editingScript ? <Tag color={STATUS_COLORS[editingScript.status] ?? 'default'}>{STATUS_LABELS[editingScript.status] ?? editingScript.status}</Tag> : null}</Space>}
+            extra={<Space><Button onClick={() => navigate('/scripts')}>取消</Button><Button type="primary" loading={saving} onClick={() => void handleEditPreview()}>预览变更</Button></Space>}
+          >
+            {hasVersions ? (
+              <Alert type="warning" showIcon style={{ marginBottom: 16 }} message="此脚本存在历史版本，更新后将生成新版本记录。" />
+            ) : null}
+            {editLanguage === 'wasm' ? (
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginBottom: 16 }}
+                message="WASM 沙箱策略"
+                description="更新后将生成新的不可变版本快照与 SHA-256 摘要；默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
+              />
+            ) : null}
+            <div className="script-editor-page__grid">
+              <div className="script-editor-page__code">
+                <Form.Item name="content" label="脚本内容" rules={[{ required: true, message: '请输入脚本内容' }]}>
+                  <CodeEditor value={form.getFieldValue('content') ?? ''} onChange={(val) => form.setFieldValue('content', val)} language={editLanguage} />
+                </Form.Item>
+              </div>
+              <div className="script-editor-page__side">
+                <Card size="small" title="基本信息">
+                  <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}><Input /></Form.Item>
+                  <Form.Item name="language" label="语言" rules={[{ required: true, message: '请选择语言' }]}><Select options={LANGUAGE_OPTIONS} /></Form.Item>
+                  <Form.Item name="version" label="版本"><Input /></Form.Item>
+                  {editingScript ? <Typography.Text type="secondary">SHA-256：<Typography.Text code>{shortDigest(editingScript.content_sha256)}</Typography.Text></Typography.Text> : null}
+                </Card>
+                <Card size="small" title="运行限制">
+                  <Form.Item name="timeout_seconds" label="超时(秒)"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
+                  <Form.Item name="max_memory_bytes" label="内存限制(字节)"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item>
+                  <Form.Item name="allow_network" label="允许网络" valuePropName="checked"><Switch /></Form.Item>
+                  <Form.Item name="allowed_env_vars" label="允许的环境变量"><Select mode="tags" placeholder="输入变量名后回车" /></Form.Item>
+                </Card>
+                <Card size="small" title="执行策略">
+                  <Alert type="info" showIcon style={{ marginBottom: 16 }} message="默认拒绝危险能力" description="当前阶段仅允许资源限制与环境变量白名单；网络、文件系统与 Secret 访问仍由后续审批/策略引擎开放。" />
+                  <Form.Item name="policy_timeout_ms" label="策略超时(秒)"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
+                  <Form.Item name="policy_max_memory_bytes" label="策略内存限制(字节)"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
+                  <Form.Item name="policy_max_output_bytes" label="策略输出限制(字节)"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
+                  <Form.Item name="policy_env_vars" label="策略环境变量白名单"><Select mode="tags" placeholder="输入变量名后回车" /></Form.Item>
+                </Card>
+              </div>
+            </div>
+          </Card>
+        </Form>
+      </Spin>
+
       <Modal
         title="变更预览"
         open={diffPreviewOpen}
         onCancel={() => setDiffPreviewOpen(false)}
-        width={800}
+        width={900}
         footer={[
-          <Button key="back" onClick={() => setDiffPreviewOpen(false)}>
-            返回编辑
-          </Button>,
-          <Button key="confirm" type="primary" loading={editLoading} onClick={() => void handleEditConfirm()}>
-            确认保存
-          </Button>,
+          <Button key="back" onClick={() => setDiffPreviewOpen(false)}>返回编辑</Button>,
+          <Button key="confirm" type="primary" loading={saving} onClick={() => void handleEditConfirm()}>确认保存</Button>,
         ]}
       >
-        {editPolicyDiff.length === 0 && editContentDiff.split('\n').filter((l) => l.startsWith('+') || l.startsWith('-')).length <= 2 ? (
+        {editPolicyDiff.length === 0 && editContentDiff.split('\n').filter((line) => line.startsWith('+') || line.startsWith('-')).length <= 2 ? (
           <div style={{ color: '#888', textAlign: 'center', padding: 24 }}>未检测到变更</div>
         ) : (
           <>
-            {editPolicyDiff.length > 0 && (
-              <>
-                <h4>策略变更</h4>
-                <PolicyDiffTable changes={editPolicyDiff} />
-              </>
-            )}
+            {editPolicyDiff.length > 0 ? <><h4>策略变更</h4><PolicyDiffTable changes={editPolicyDiff} /></> : null}
             <h4 style={{ marginTop: editPolicyDiff.length > 0 ? 24 : 0 }}>代码变更</h4>
             <DiffContent diff={editContentDiff} />
           </>
         )}
       </Modal>
-    </div>
+    </Space>
   );
 }

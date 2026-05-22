@@ -734,3 +734,63 @@ body {
 .workflow-node-canvas--readonly .workflow-node-card {
   user-select: text;
 }
+
+.workflow-canvas-fullscreen-open {
+  overflow: hidden;
+}
+
+.workflow-dag-editor--fullscreen {
+  position: fixed;
+  inset: 16px;
+  z-index: 2000;
+  padding: 16px;
+  border-radius: 22px;
+  background: #f8fbff;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.32);
+}
+
+.workflow-dag-editor--fullscreen .workflow-dag-toolbar {
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.workflow-dag-editor--fullscreen .workflow-node-canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
+.script-editor-page__main.ant-card {
+  border: 1px solid #dbeafe;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff) !important;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.07) !important;
+}
+
+.script-editor-page__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+  align-items: start;
+}
+
+.script-editor-page__code .cm-editor {
+  min-height: 620px !important;
+}
+
+.script-editor-page__side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.script-editor-page__side .ant-card {
+  border-color: #e0ecff;
+  border-radius: 16px;
+}
+
+@media (max-width: 1100px) {
+  .script-editor-page__grid {
+    grid-template-columns: 1fr;
+  }
+}
