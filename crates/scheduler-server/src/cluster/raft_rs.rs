@@ -15,15 +15,16 @@ use protobuf::Message as PbMessage;
 use raft::{
     Config, StateRole,
     eraftpb::{
-        ConfChange, ConfChangeType, ConfChangeV2, Entry, EntryType, HardState, Message, Snapshot,
+        ConfChange, ConfChangeType, ConfChangeV2, ConfState, Entry, EntryType, HardState, Message,
+        Snapshot,
     },
     raw_node::RawNode,
     storage::MemStorage,
 };
 use scheduler_config::ClusterConfig;
 use scheduler_storage::{
-    RaftRepository, RecordRaftAppliedCommand, UpsertRaftLogEntry, UpsertRaftMember,
-    UpsertRaftMetadata, UpsertRaftSnapshot,
+    RaftLogEntrySummary, RaftRepository, RecordRaftAppliedCommand, UpsertRaftLogEntry,
+    UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -56,6 +57,8 @@ pub struct RaftRsBootstrapStatus {
     pub initial_role: String,
     /// Whether a freshly constructed node reports ready work before the event loop starts.
     pub has_ready: bool,
+    /// Number of persisted log entries restored into `MemStorage` before runtime start.
+    pub restored_entries: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -210,16 +213,17 @@ impl RaftRuntimeCoordinator {
         config: &ClusterConfig,
         repository: RaftRepository,
     ) -> Result<SharedClusterCoordinator, scheduler_storage::DbErr> {
-        let initial = build_runtime(config);
+        let initial = build_runtime_from_repository(config, &repository).await;
         let (role, detail, node, transport) = match initial {
             Ok((node, bootstrap, transport)) => (
                 ClusterRole::Follower,
                 format!(
-                    "{RAFT_RS_LIBRARY} runtime ticker started: raft_node_id={}, voters={}, initial_role={}, has_ready={}; no campaign, no leader fencing yet",
+                    "{RAFT_RS_LIBRARY} runtime ticker started: raft_node_id={}, voters={}, initial_role={}, has_ready={}, restored_entries={}; no campaign, stale leader fencing cleared until role is re-observed",
                     bootstrap.raft_node_id,
                     bootstrap.voter_ids.len(),
                     bootstrap.initial_role,
-                    bootstrap.has_ready
+                    bootstrap.has_ready,
+                    bootstrap.restored_entries
                 ),
                 Some(node),
                 Some(transport),
@@ -363,9 +367,119 @@ fn build_runtime(
             voter_ids,
             initial_role,
             has_ready,
+            restored_entries: 0,
         },
         RaftPeerTransport::new(endpoints, config.transport_token.clone()),
     ))
+}
+
+async fn build_runtime_from_repository(
+    config: &ClusterConfig,
+    repository: &RaftRepository,
+) -> Result<
+    (
+        RawNode<MemStorage>,
+        RaftRsBootstrapStatus,
+        RaftPeerTransport,
+    ),
+    String,
+> {
+    let (mut node, mut status, transport) = build_runtime(config)?;
+    status.restored_entries = restore_persisted_storage(&config.node_id, repository, &mut node)
+        .await
+        .map_err(|error| format!("raft-rs persisted storage restore failed: {error}"))?;
+    // A process restart must not inherit stale scheduler authority. The next observed
+    // raft-rs role will regenerate/persist a token only if this node is still leader.
+    repository
+        .update_leader_fencing_token(&config.node_id, None)
+        .await
+        .map_err(|error| format!("raft-rs stale fencing clear failed: {error}"))?;
+    Ok((node, status, transport))
+}
+
+async fn restore_persisted_storage(
+    node_id: &str,
+    repository: &RaftRepository,
+    node: &mut RawNode<MemStorage>,
+) -> Result<usize, scheduler_storage::DbErr> {
+    let Some(metadata) = repository.get_metadata(node_id).await? else {
+        return Ok(0);
+    };
+    if let Some(conf_state) = metadata.conf_state.as_deref() {
+        let conf_state = decode_conf_state(conf_state)?;
+        node.raft.mut_store().wl().set_conf_state(conf_state);
+    }
+    let entries = repository.list_log_entries(node_id, 1, 10_000).await?;
+    let restored = entries.len();
+    let entries = entries
+        .iter()
+        .map(stored_log_entry_to_raft)
+        .collect::<Result<Vec<_>, _>>()?;
+    if !entries.is_empty() {
+        node.raft
+            .mut_store()
+            .wl()
+            .append(&entries)
+            .map_err(|error| {
+                scheduler_storage::DbErr::Custom(format!(
+                    "raft-rs persisted MemStorage append failed: {error}"
+                ))
+            })?;
+    }
+    let mut hard_state = HardState::new();
+    hard_state.set_term(u64::try_from(metadata.current_term.max(0)).unwrap_or(u64::MAX));
+    hard_state.set_vote(
+        metadata
+            .voted_for
+            .as_deref()
+            .and_then(|vote| vote.parse::<u64>().ok())
+            .unwrap_or(0),
+    );
+    hard_state.set_commit(u64::try_from(metadata.commit_index.max(0)).unwrap_or(u64::MAX));
+    node.raft.mut_store().wl().set_hardstate(hard_state);
+    Ok(restored)
+}
+
+fn stored_log_entry_to_raft(row: &RaftLogEntrySummary) -> Result<Entry, scheduler_storage::DbErr> {
+    let mut entry = Entry::new();
+    entry.set_index(u64::try_from(row.log_index.max(0)).unwrap_or(u64::MAX));
+    entry.set_term(u64::try_from(row.term.max(0)).unwrap_or(u64::MAX));
+    entry.set_entry_type(stored_entry_type(&row.entry_type)?);
+    let data = STANDARD.decode(&row.data).map_err(|error| {
+        scheduler_storage::DbErr::Custom(format!("raft log entry data base64 invalid: {error}"))
+    })?;
+    entry.set_data(data.into());
+    if let Some(context) = row.context.as_deref() {
+        let context = STANDARD.decode(context).map_err(|error| {
+            scheduler_storage::DbErr::Custom(format!(
+                "raft log entry context base64 invalid: {error}"
+            ))
+        })?;
+        entry.set_context(context.into());
+    }
+    Ok(entry)
+}
+
+fn stored_entry_type(entry_type: &str) -> Result<EntryType, scheduler_storage::DbErr> {
+    match entry_type {
+        "EntryNormal" => Ok(EntryType::EntryNormal),
+        "EntryConfChange" => Ok(EntryType::EntryConfChange),
+        "EntryConfChangeV2" => Ok(EntryType::EntryConfChangeV2),
+        other => Err(scheduler_storage::DbErr::Custom(format!(
+            "unsupported persisted raft entry type: {other}"
+        ))),
+    }
+}
+
+fn decode_conf_state(conf_state: &str) -> Result<ConfState, scheduler_storage::DbErr> {
+    let bytes = STANDARD.decode(conf_state).map_err(|error| {
+        scheduler_storage::DbErr::Custom(format!("raft conf_state base64 invalid: {error}"))
+    })?;
+    let mut decoded = ConfState::new();
+    decoded.merge_from_bytes(&bytes).map_err(|error| {
+        scheduler_storage::DbErr::Custom(format!("raft conf_state protobuf invalid: {error}"))
+    })?;
+    Ok(decoded)
 }
 
 fn spawn_runtime_loop(
@@ -1134,6 +1248,12 @@ async fn persist_role_metadata(
     node_id: &str,
     _role: ClusterRole,
 ) -> Result<(), scheduler_storage::DbErr> {
+    if repository.get_metadata(node_id).await?.is_some() {
+        repository
+            .update_leader_fencing_token(node_id, None)
+            .await?;
+        return Ok(());
+    }
     repository
         .upsert_metadata(UpsertRaftMetadata {
             cluster_id: CLUSTER_ID.to_owned(),
@@ -1255,19 +1375,23 @@ const fn raft_role_name(role: StateRole) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use base64::Engine as _;
     use protobuf::Message as _;
-    use raft::eraftpb::EntryType;
+    use raft::{GetEntriesContext, Storage, eraftpb::EntryType};
     use scheduler_config::{ClusterConfig, ClusterModeConfig, ClusterPeerConfig};
-    use scheduler_storage::{RaftRepository, UpsertRaftMetadata, connect_and_migrate};
+    use scheduler_storage::{
+        RaftRepository, UpsertRaftLogEntry, UpsertRaftMetadata, connect_and_migrate,
+    };
 
     use std::{collections::BTreeMap, sync::Arc, time::Duration};
     use tokio::sync::RwLock;
 
     use super::{
-        CLUSTER_ID, RaftMembershipProposalContext, RaftRuntimeCoordinator, StateRole,
-        apply_committed_entries, build_membership_conf_change, leader_fencing_token_for_role,
-        persist_entry, persist_hard_state, raft_append_entries_url, raft_message_to_wire_request,
-        raft_numeric_id, update_runtime_status, validate_raft_rs_bootstrap,
+        CLUSTER_ID, RaftMembershipProposalContext, RaftRuntimeCoordinator, STANDARD, StateRole,
+        apply_committed_entries, build_membership_conf_change, build_runtime_from_repository,
+        leader_fencing_token_for_role, persist_entry, persist_hard_state, raft_append_entries_url,
+        raft_message_to_wire_request, raft_numeric_id, update_runtime_status,
+        validate_raft_rs_bootstrap,
     };
     use crate::cluster::{ClusterMode, ClusterRole, ClusterStatus, RaftMembershipProposal};
 
@@ -1290,6 +1414,65 @@ mod tests {
         assert_eq!(status.node_id, "scheduler-0");
         assert_eq!(status.voter_ids.len(), 2);
         assert_eq!(status.initial_role, "follower");
+    }
+
+    #[tokio::test]
+    async fn raft_runtime_restore_replays_persisted_metadata_and_clears_stale_fencing() {
+        let repository = test_raft_repository_for("scheduler-0").await;
+        repository
+            .upsert_metadata(UpsertRaftMetadata {
+                cluster_id: CLUSTER_ID.to_owned(),
+                node_id: "scheduler-0".to_owned(),
+                current_term: 7,
+                voted_for: Some("42".to_owned()),
+                commit_index: 2,
+                applied_index: 1,
+                leader_fencing_token: Some("raft:term:7:node:scheduler-0".to_owned()),
+                conf_state: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("metadata should persist: {error}"));
+        for index in 1..=2 {
+            repository
+                .upsert_log_entry(UpsertRaftLogEntry {
+                    cluster_id: CLUSTER_ID.to_owned(),
+                    node_id: "scheduler-0".to_owned(),
+                    log_index: index,
+                    term: 7,
+                    entry_type: "EntryNormal".to_owned(),
+                    data: STANDARD.encode(format!("entry-{index}")),
+                    context: None,
+                    sync_status: "persisted".to_owned(),
+                })
+                .await
+                .unwrap_or_else(|error| panic!("log entry should persist: {error}"));
+        }
+
+        let (node, bootstrap, _transport) =
+            build_runtime_from_repository(&test_raft_config(), &repository)
+                .await
+                .unwrap_or_else(|error| panic!("runtime should restore persisted state: {error}"));
+        let initial_state = node
+            .store()
+            .initial_state()
+            .unwrap_or_else(|error| panic!("initial state should load: {error}"));
+        let entries = node
+            .store()
+            .entries(1, 3, None, GetEntriesContext::empty(false))
+            .unwrap_or_else(|error| panic!("entries should restore: {error}"));
+        let metadata = repository
+            .get_metadata("scheduler-0")
+            .await
+            .unwrap_or_else(|error| panic!("metadata should load: {error}"))
+            .unwrap_or_else(|| panic!("metadata should exist"));
+
+        assert_eq!(bootstrap.restored_entries, 2);
+        assert_eq!(initial_state.hard_state.term, 7);
+        assert_eq!(initial_state.hard_state.vote, 42);
+        assert_eq!(initial_state.hard_state.commit, 2);
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].get_data(), b"entry-1");
+        assert_eq!(metadata.leader_fencing_token, None);
     }
 
     #[test]

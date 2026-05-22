@@ -362,3 +362,12 @@
 - Production Ready handling now mirrors the harness by syncing HardState/log/snapshot/commit into raft-rs `MemStorage` before `advance_append`, keeping RawNode memory state aligned with DB persistence.
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server raft_inprocess --all-features`; `cargo test -p scheduler-server raft --all-features`.
 - Full verification passed for 058: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase2 raft-rs restart recovery hardening
+- Continued `.prompt/059-phase2-raft-rs-http-transport-e2e-or-persistence-hardening.md` after 058 push.
+- Runtime startup now restores raft-rs `MemStorage` from persisted `raft_metadata` and `raft_log_entries`: HardState term/vote/commit plus stored log entries are replayed before the ticker loop starts.
+- Startup now clears stale `leader_fencing_token` before runtime observation; scheduling authority must be regenerated from the current real raft-rs role instead of reused after restart.
+- Added targeted test `raft_runtime_restore_replays_persisted_metadata_and_clears_stale_fencing` covering restored entries/hardstate and stale token removal.
+- Next prompt `.prompt/060-phase2-raft-rs-http-transport-smoke.md` keeps the remaining HTTP/Docker bridge transport smoke as the next Phase2 slice.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server raft_runtime_restore --all-features`; `cargo test -p scheduler-server raft --all-features`.
+- Full verification passed for 059: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).

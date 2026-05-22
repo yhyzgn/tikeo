@@ -991,3 +991,11 @@ Git:
 - Updated design roadmap item to completed and created `.prompt/059-phase2-raft-rs-http-transport-e2e-or-persistence-hardening.md` for HTTP transport/restart hardening.
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server raft_inprocess --all-features`; `cargo test -p scheduler-server raft --all-features`.
 - Full verification passed for 058: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase2 raft-rs restart recovery hardening
+- Resumed into `.prompt/059-phase2-raft-rs-http-transport-e2e-or-persistence-hardening.md`.
+- Added `build_runtime_from_repository` and `restore_persisted_storage` in `crates/scheduler-server/src/cluster/raft_rs.rs` to restore HardState/log entries into `MemStorage` on startup.
+- Changed initial role metadata persistence to preserve existing raft term/log/applied/conf_state rows and only clear stale leader fencing.
+- Added `.prompt/060-phase2-raft-rs-http-transport-smoke.md` for the next transport E2E/smoke slice.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server raft_runtime_restore --all-features`; `cargo test -p scheduler-server raft --all-features`.
+- Full verification passed for 059: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
