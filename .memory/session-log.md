@@ -1158,3 +1158,12 @@ Git:
   - `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`
   - `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`
   - `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`
+### 2026-05-23 — Phase 077 script execution governance visibility
+- Continued after context reload and RTK activation.
+- Implemented dispatcher governance logging for script fail-closed dispatch and no eligible script worker capability.
+- Implemented Rust SDK failure class detection for missing runner, policy rejection, digest mismatch, timeout, output limit, and runtime unavailable; Worker task result messages now carry JSON failure metadata for recognized script runner failures.
+- Server Worker Tunnel persists recognized JSON failure metadata as `script_execution_governance` instance logs.
+- Documented script-capable Worker Pool deployment constraints and `ContainerScriptRunner` usage in `design/tikee-architecture-design.md` and `sdks/rust/tikee/README.md`.
+- Created `.prompt/078-script-governance-audit-alerting.md`.
+- Targeted verification passed: `cargo test -p tikee-server tunnel::dispatcher --all-features`; `cargo test -p tikee-server tunnel::service --all-features`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml script`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml worker_session_rejects_script_binding_without_registered_runner`.
+- Full verification passed: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo build --workspace --all-features`; `cargo run -- --help`; `cd web && bun install && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.

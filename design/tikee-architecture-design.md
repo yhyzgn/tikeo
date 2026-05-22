@@ -604,6 +604,7 @@ Starter 需要提供：
 7. **凭证隔离**：脚本只能通过 Secret reference 获取临时凭证；日志和错误栈自动脱敏；禁止把密钥作为普通参数明文存储。
 8. **危险能力审批**：启用网络、写文件、执行外部命令、访问 Secret、长超时、高资源配额等能力需要策略审批。
 9. **审计与可追溯**：记录脚本版本、提交人、审批人、执行 Worker、输入摘要、能力清单、资源用量、网络目标和 artifact hash；所有脚本更新必须保留历史版本并支持 diff 对比。
+10. **执行治理失败分类**：调度与 Worker 结果必须把脚本失败归类为可观测治理事件，至少覆盖无匹配 Worker capability、Worker 未注册 runner、策略拒绝、内容摘要不匹配、超时、输出超限、运行时不可用。当前实现通过实例日志写入 `script_execution_governance` JSON，包含 `failure_class` 和 message，便于后续审计/告警聚合。
 
 **推荐执行路径**：
 
@@ -1538,6 +1539,13 @@ docker run -d \
 
 `docker compose` 推荐提供 `tikee-server`、`tikee-worker`、`postgres`、`prometheus` 四类服务模板；Worker 服务不声明 `ports`，只声明出站网络。
 
+脚本能力 Worker Pool 必须独立部署并显式授权容器/子进程运行边界：
+
+- Server 镜像/Pod 不挂载 Docker socket、不安装脚本运行时、不执行用户脚本。
+- Shell/Python/Node/PowerShell/Rhai Worker 根据实际注册 runner 广告 `script:shell`、`script:python`、`script:node`、`script:powershell`、`script:rhai`；受控共享池才允许 `script:*`，生产不推荐 `*`。
+- 使用 `ContainerScriptRunner` 的 Worker 需要 Docker-compatible runtime 权限，应放在隔离 namespace/node pool，配合只读 rootfs、seccomp/AppArmor、NetworkPolicy、资源限额和独立 ServiceAccount。
+- Worker 仅从 released immutable `script_versions` 快照执行，启动前校验 SHA-256，默认 `--network=none`、无宿主路径挂载、仅注入 tikee 元数据 env 与策略白名单 env。
+
 
 ### 8.4 Server 集群 / Raft 实施边界
 
@@ -2206,6 +2214,7 @@ tikee/
   - [x] Worker 侧沙箱执行器首个实现（073：Rust SDK `LocalSubprocessScriptRunner`，显式 opt-in，本地 stdin 子进程边界；校验 released version_id/version_number、content SHA-256、默认拒绝网络/文件/Secret，支持 timeout/output cap/runtime missing 测试；容器 runner 后续继续）
   - [x] 非 WASM 脚本 Worker Tunnel 协议绑定与能力路由（074：`ScriptProcessorBinding` 传递 released `script_versions` 快照 bytes/SHA-256/version/policy；dispatcher fail-closed 并按 `script:<language>`、`script:*`、`*` 过滤 worker；Rust SDK 仅在显式注册对应 `ScriptRunner` 后执行，Java SDK 明确拒绝暂不支持的脚本绑定；Web 展示语言所需 worker capability）
   - [x] Worker 侧容器化脚本 Runner 基础（075：Rust SDK `ContainerScriptRunner`，显式 opt-in，通过 Docker-compatible CLI `run --rm -i` 以 stdin 传入 released snapshot；默认 `--network=none`、`--read-only`、无宿主路径挂载，仅注入白名单 env 和 tikee 元数据；单元测试覆盖命令边界与危险策略预检，真实 Docker/K8s 执行治理后续增强）
+  - [x] 脚本执行治理失败可见性基础（077：dispatcher/Worker result 将无匹配 capability、缺 runner、策略拒绝、digest mismatch、timeout、output limit、runtime unavailable 归类为 `script_execution_governance` 实例日志；补充脚本 Worker Pool Docker/K8s 部署约束；Server 仍只调度不执行用户代码）
 - [ ] 脚本策略引擎（能力声明、审批、资源限制、网络/文件策略）
   - [x] 默认拒绝策略元数据与不可变快照（072：`ScriptExecutionPolicy` 覆盖 resources/network/filesystem/secrets/env；`scripts.policy_json` 和 `script_versions.policy_json` 保存策略快照；HTTP create/update 拒绝网络/文件/Secret 危险能力；Web 可编辑资源/env 白名单并展示策略 diff）
   - [ ] 策略审批、签名、URL/File/Secret grant 与生产发布门禁

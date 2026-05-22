@@ -235,6 +235,7 @@ async fn worker_session_rejects_script_binding_without_registered_runner() {
     let result = next_task_result(&mut events).await;
     assert!(!result.success);
     assert!(result.message.contains("not registered"));
+    assert!(result.message.contains("script_missing_worker_runner"));
     server.abort();
 }
 

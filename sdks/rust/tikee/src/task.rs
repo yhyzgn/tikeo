@@ -40,6 +40,39 @@ impl TaskOutcome {
             Self::Failed(message) => Some(message.clone()),
         }
     }
+
+    /// Stable governance failure class extracted from the failure message when available.
+    #[must_use]
+    pub fn failure_class(&self) -> Option<&'static str> {
+        match self {
+            Self::Succeeded => None,
+            Self::Failed(message) => classify_failure_message(message),
+        }
+    }
+}
+
+fn classify_failure_message(message: &str) -> Option<&'static str> {
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("not registered") || lower.contains("not enabled") {
+        Some("script_missing_worker_runner")
+    } else if lower.contains("policy")
+        || lower.contains("network access")
+        || lower.contains("filesystem access")
+        || lower.contains("secret access")
+        || lower.contains("must be greater than zero")
+    {
+        Some("script_policy_rejected")
+    } else if lower.contains("digest mismatch") {
+        Some("script_digest_mismatch")
+    } else if lower.contains("timed out") {
+        Some("script_timeout")
+    } else if lower.contains("output exceeded") {
+        Some("script_output_limit")
+    } else if lower.contains("runtime unavailable") || lower.contains("executable not found") {
+        Some("script_runtime_unavailable")
+    } else {
+        None
+    }
 }
 
 pub(crate) fn task_context(task: &DispatchTask) -> TaskContext {

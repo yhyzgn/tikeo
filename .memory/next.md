@@ -1,16 +1,16 @@
 # Next Work
 
 ## Immediate next slice
-- Continue with `.prompt/077-script-execution-governance-after-tikee-rename.md`.
+- Continue with `.prompt/078-script-governance-audit-alerting.md`.
 - Focus areas:
-  1. Add script-bound execution governance visibility: audit/result classification for missing worker capability, missing runner, policy rejection, digest mismatch, timeout, runtime unavailable, and output-limit failures.
-  2. Add an optional live smoke path for containerized script runner execution when Docker/compatible runtime is available, while keeping CI/unit tests deterministic without Docker.
-  3. Keep Server as metadata dispatcher only; all script execution remains Worker-side and opt-in.
+  1. Promote `script_execution_governance` instance logs into audit/alert inputs without adding foreign keys.
+  2. Add query/filter and Web highlighting for script governance failure classes.
+  3. Keep Server as metadata dispatcher only; script execution remains Worker-side opt-in from released immutable snapshots.
 
 ## Current status
-- Project identity has been renamed from the previous project identity to tikee.
-- Rust binary/crates, Docker/Compose/K8s naming, proto package, Rust SDK crate/path, Java Gradle modules, Java package prefix (`com.yhyzgn.tikee`), docs, memory, and prompts now use tikee naming.
-- Phase 075 functionality remains the current implementation baseline: Rust SDK includes opt-in `ContainerScriptRunner` for non-WASM scripts with default-deny Docker-compatible command construction.
+- Phase 077 added governance failure classification for dispatch-side script gating and Worker-side script result failures.
+- Rust SDK result messages now include stable `failure_class` JSON for recognized script runner failures.
+- Server stores recognized governance result classes as instance logs.
 
 ## SDK naming note
 - Rust SDK is `sdks/rust/tikee` / crate `tikee`. Java core SDK module/artifact is `tikee`; Java package prefix remains `com.yhyzgn.tikee`.

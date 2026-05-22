@@ -276,7 +276,7 @@ async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResu
         worker_id,
         instance_id,
         success,
-        ..
+        message,
     } = result;
     let status = if success {
         InstanceStatus::Succeeded
@@ -296,11 +296,48 @@ async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResu
             }
         }
         Ok(None) => {
+            persist_script_result_governance(context.logs, &worker_id, &instance_id, &message)
+                .await;
             handle_single_task_result(context, &worker_id, &instance_id, success, status).await;
         }
         Err(error) => {
             tracing::warn!(%error, %instance_id, %worker_id, "failed to persist attempt result");
         }
+    }
+}
+
+async fn persist_script_result_governance(
+    logs: &JobInstanceLogRepository,
+    worker_id: &str,
+    instance_id: &str,
+    message: &str,
+) {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(message) else {
+        return;
+    };
+    if value
+        .get("failure_class")
+        .and_then(serde_json::Value::as_str)
+        .is_none()
+    {
+        return;
+    }
+    if let Err(error) = logs
+        .append(AppendJobInstanceLog {
+            instance_id: instance_id.to_owned(),
+            worker_id: worker_id.to_owned(),
+            level: "warn".to_owned(),
+            message: serde_json::json!({
+                "event": "script_execution_governance",
+                "failure_class": value.get("failure_class"),
+                "message": value.get("message"),
+            })
+            .to_string(),
+            sequence: 0,
+        })
+        .await
+    {
+        tracing::warn!(%error, %instance_id, %worker_id, "failed to persist script governance result log");
     }
 }
 

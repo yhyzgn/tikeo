@@ -179,7 +179,7 @@ impl WorkerSession {
                     worker_id: self.worker_id.clone(),
                     instance_id,
                     success: matches!(outcome, TaskOutcome::Succeeded),
-                    message: outcome.message().unwrap_or_default(),
+                    message: task_result_message(outcome),
                 })),
             })
             .await
@@ -230,6 +230,18 @@ impl WorkerClient {
             inbound,
             heartbeat_sequence: 0,
         })
+    }
+}
+
+fn task_result_message(outcome: &TaskOutcome) -> String {
+    match (outcome.failure_class(), outcome.message()) {
+        (Some(class), Some(message)) => serde_json::json!({
+            "failure_class": class,
+            "message": message,
+        })
+        .to_string(),
+        (_, Some(message)) => message,
+        _ => String::new(),
     }
 }
 

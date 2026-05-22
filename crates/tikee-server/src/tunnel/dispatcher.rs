@@ -3,15 +3,16 @@
 use std::time::Duration;
 
 use tikee_core::{
-    InstanceStatus, ScriptExecutionPolicy, ScriptLanguage, ScriptStatus, WasmProcessorSpec,
+    InstanceStatus, ScriptExecutionPolicy, ScriptLanguage, ScriptPolicyError, ScriptStatus,
+    WasmProcessorSpec,
 };
 use tikee_proto::worker::v1::{
     DispatchTask, ScriptProcessorBinding, TaskProcessorBinding, WasmProcessorBinding,
     task_processor_binding,
 };
 use tikee_storage::{
-    JobInstanceAttemptRepository, JobInstanceRepository, JobRepository, ScriptRepository,
-    ScriptSummary, ScriptVersionSummary, WorkflowRepository,
+    AppendJobInstanceLog, JobInstanceAttemptRepository, JobInstanceRepository, JobRepository,
+    ScriptRepository, ScriptSummary, ScriptVersionSummary, WorkflowRepository,
 };
 use tokio::time;
 use tracing::{debug, warn};
@@ -32,12 +33,14 @@ fn dispatcher_fencing_token(node_id: &str, leader_fencing_token: Option<&str>) -
 }
 
 /// Run the minimal single-node dispatch loop forever.
+#[allow(clippy::too_many_arguments)]
 pub async fn run(
     jobs: JobRepository,
     instances: JobInstanceRepository,
     attempts: JobInstanceAttemptRepository,
     workflows: WorkflowRepository,
     scripts: ScriptRepository,
+    logs: tikee_storage::JobInstanceLogRepository,
     registry: WorkerRegistry,
     cluster: SharedClusterCoordinator,
 ) {
@@ -45,7 +48,7 @@ pub async fn run(
     loop {
         ticker.tick().await;
         if let Err(error) = dispatch_once_if_owner(
-            &jobs, &instances, &attempts, &workflows, &scripts, &registry, &cluster,
+            &jobs, &instances, &attempts, &workflows, &scripts, &logs, &registry, &cluster,
         )
         .await
         {
@@ -54,12 +57,14 @@ pub async fn run(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn dispatch_once_if_owner(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,
     attempts: &JobInstanceAttemptRepository,
     workflows: &WorkflowRepository,
     scripts: &ScriptRepository,
+    logs: &tikee_storage::JobInstanceLogRepository,
     registry: &WorkerRegistry,
     cluster: &SharedClusterCoordinator,
 ) -> Result<(), tikee_storage::DbErr> {
@@ -76,18 +81,21 @@ async fn dispatch_once_if_owner(
         attempts,
         workflows,
         scripts,
+        logs,
         registry,
         &fencing_token,
     )
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn dispatch_once(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,
     attempts: &JobInstanceAttemptRepository,
     workflows: &WorkflowRepository,
     scripts: &ScriptRepository,
+    logs: &tikee_storage::JobInstanceLogRepository,
     registry: &WorkerRegistry,
     fencing_token: &str,
 ) -> Result<(), tikee_storage::DbErr> {
@@ -99,8 +107,20 @@ async fn dispatch_once(
             fencing_token,
         )
         .await?;
-    dispatch_single_instances(jobs, instances, workflows, scripts, registry, fencing_token).await?;
-    dispatch_broadcast_attempts(jobs, instances, attempts, workflows, scripts, registry).await
+    dispatch_single_instances(
+        jobs,
+        instances,
+        workflows,
+        scripts,
+        logs,
+        registry,
+        fencing_token,
+    )
+    .await?;
+    dispatch_broadcast_attempts(
+        jobs, instances, attempts, workflows, scripts, logs, registry,
+    )
+    .await
 }
 
 async fn dispatch_single_instances(
@@ -108,6 +128,7 @@ async fn dispatch_single_instances(
     instances: &JobInstanceRepository,
     workflows: &WorkflowRepository,
     scripts: &ScriptRepository,
+    logs: &tikee_storage::JobInstanceLogRepository,
     registry: &WorkerRegistry,
     fencing_token: &str,
 ) -> Result<(), tikee_storage::DbErr> {
@@ -148,21 +169,25 @@ async fn dispatch_single_instances(
         };
 
         let processor_name = resolve_processor_name(workflows, &instance.id, &job).await?;
-        let Some(task) = build_dispatch_task(
+        let task = match build_dispatch_task(
             scripts,
             instance.id.clone(),
             instance.job_id.clone(),
             processor_name,
         )
         .await?
-        else {
-            let _ = workflows
-                .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
-                .await?;
-            instances
-                .update_status(&instance.id, InstanceStatus::Pending)
-                .await?;
-            continue;
+        {
+            DispatchTaskBuild::Built(task) => task,
+            DispatchTaskBuild::Rejected(failure) => {
+                append_script_governance_log(logs, &instance.id, &failure).await?;
+                let _ = workflows
+                    .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                    .await?;
+                instances
+                    .update_status(&instance.id, InstanceStatus::Pending)
+                    .await?;
+                continue;
+            }
         };
 
         let required_capability = required_task_capability(&task);
@@ -184,6 +209,14 @@ async fn dispatch_single_instances(
                 .await?;
             debug!(%worker_id, instance_id = %instance.id, "dispatched instance to worker");
         } else {
+            if let Some(capability) = required_capability.as_deref() {
+                append_script_governance_log(
+                    logs,
+                    &instance.id,
+                    &ScriptGovernanceFailure::NoEligibleWorkerCapability(capability.to_owned()),
+                )
+                .await?;
+            }
             let _ = workflows
                 .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
                 .await?;
@@ -202,6 +235,7 @@ async fn dispatch_broadcast_attempts(
     attempts: &JobInstanceAttemptRepository,
     workflows: &WorkflowRepository,
     scripts: &ScriptRepository,
+    logs: &tikee_storage::JobInstanceLogRepository,
     registry: &WorkerRegistry,
 ) -> Result<(), tikee_storage::DbErr> {
     let pending = attempts.list_pending(DISPATCH_BATCH_SIZE).await?;
@@ -215,15 +249,19 @@ async fn dispatch_broadcast_attempts(
         } else {
             instance.job_id.clone()
         };
-        let Some(task) = build_dispatch_task(
+        let task = match build_dispatch_task(
             scripts,
             attempt.instance_id.clone(),
             instance.job_id.clone(),
             processor_name,
         )
         .await?
-        else {
-            continue;
+        {
+            DispatchTaskBuild::Built(task) => task,
+            DispatchTaskBuild::Rejected(failure) => {
+                append_script_governance_log(logs, &attempt.instance_id, &failure).await?;
+                continue;
+            }
         };
 
         let required_capability = required_task_capability(&task);
@@ -231,6 +269,14 @@ async fn dispatch_broadcast_attempts(
             .worker_supports_capability(&attempt.worker_id, required_capability.as_deref())
             .await
         {
+            if let Some(capability) = required_capability.as_deref() {
+                append_script_governance_log(
+                    logs,
+                    &attempt.instance_id,
+                    &ScriptGovernanceFailure::NoEligibleWorkerCapability(capability.to_owned()),
+                )
+                .await?;
+            }
             continue;
         }
 
@@ -252,24 +298,106 @@ async fn dispatch_broadcast_attempts(
     Ok(())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DispatchTaskBuild {
+    Built(DispatchTask),
+    Rejected(ScriptGovernanceFailure),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ScriptGovernanceFailure {
+    MissingScript,
+    NotApproved,
+    MissingReleasePointer,
+    MissingReleasedVersion,
+    UnsupportedLanguage,
+    PolicyRejected(String),
+    NoEligibleWorkerCapability(String),
+}
+
+impl ScriptGovernanceFailure {
+    const fn code(&self) -> &'static str {
+        match self {
+            Self::MissingScript => "script_missing",
+            Self::NotApproved => "script_not_approved",
+            Self::MissingReleasePointer => "script_missing_release_pointer",
+            Self::MissingReleasedVersion => "script_missing_released_version",
+            Self::UnsupportedLanguage => "script_unsupported_language",
+            Self::PolicyRejected(_) => "script_policy_rejected",
+            Self::NoEligibleWorkerCapability(_) => "script_no_eligible_worker_capability",
+        }
+    }
+
+    fn message(&self) -> String {
+        match self {
+            Self::MissingScript => "script governance rejected dispatch: script definition is missing".to_owned(),
+            Self::NotApproved => "script governance rejected dispatch: script is not approved".to_owned(),
+            Self::MissingReleasePointer => {
+                "script governance rejected dispatch: approved script has no released version pointer"
+                    .to_owned()
+            }
+            Self::MissingReleasedVersion => {
+                "script governance rejected dispatch: released script version is missing".to_owned()
+            }
+            Self::UnsupportedLanguage => {
+                "script governance rejected dispatch: script language is unsupported".to_owned()
+            }
+            Self::PolicyRejected(reason) => {
+                format!("script governance rejected dispatch: policy rejected ({reason})")
+            }
+            Self::NoEligibleWorkerCapability(capability) => format!(
+                "script governance queued dispatch: no connected worker advertises required capability {capability}"
+            ),
+        }
+    }
+}
+
+async fn append_script_governance_log(
+    logs: &tikee_storage::JobInstanceLogRepository,
+    instance_id: &str,
+    failure: &ScriptGovernanceFailure,
+) -> Result<(), tikee_storage::DbErr> {
+    let payload = serde_json::json!({
+        "event": "script_execution_governance",
+        "failure_class": failure.code(),
+        "message": failure.message(),
+    });
+    let _ = logs
+        .append(AppendJobInstanceLog {
+            instance_id: instance_id.to_owned(),
+            worker_id: "tikee-dispatcher".to_owned(),
+            level: "warn".to_owned(),
+            message: payload.to_string(),
+            sequence: 0,
+        })
+        .await?;
+    Ok(())
+}
+
 async fn build_dispatch_task(
     scripts: &ScriptRepository,
     instance_id: String,
     job_id: String,
     processor_name: String,
-) -> Result<Option<DispatchTask>, tikee_storage::DbErr> {
+) -> Result<DispatchTaskBuild, tikee_storage::DbErr> {
     let processor_binding = if let Some(script_id) = processor_name.strip_prefix("script:") {
         let Some(script) = scripts.get(script_id).await? else {
             warn!(%script_id, "script processor binding references missing script; dispatch remains pending");
-            return Ok(None);
+            return Ok(DispatchTaskBuild::Rejected(
+                ScriptGovernanceFailure::MissingScript,
+            ));
         };
         if !script_is_dispatchable(&script) {
             warn!(script_id = %script.id, language = %script.language, status = %script.status, "script is not dispatchable; dispatch remains pending");
-            return Ok(None);
+            return Ok(DispatchTaskBuild::Rejected(
+                ScriptGovernanceFailure::NotApproved,
+            ));
         }
         let Some(version_number) = script.released_version_number else {
             warn!(script_id = %script.id, "approved script has no released version pointer; dispatch remains pending");
-            return Ok(None);
+            return Ok(DispatchTaskBuild::Rejected(
+                ScriptGovernanceFailure::MissingReleasePointer,
+            ));
         };
         let Some(version) = scripts
             .versions()
@@ -277,15 +405,21 @@ async fn build_dispatch_task(
             .await?
         else {
             warn!(script_id = %script.id, version_number, "released script version is missing; dispatch remains pending");
-            return Ok(None);
+            return Ok(DispatchTaskBuild::Rejected(
+                ScriptGovernanceFailure::MissingReleasedVersion,
+            ));
         };
         let Some(language) = parse_script_language(&version.language) else {
             warn!(script_id = %script.id, language = %version.language, "released script version has unsupported language; dispatch remains pending");
-            return Ok(None);
+            return Ok(DispatchTaskBuild::Rejected(
+                ScriptGovernanceFailure::UnsupportedLanguage,
+            ));
         };
-        if !script_version_is_dispatchable(&version) {
-            warn!(script_id = %script.id, version_number, language = %version.language, "released script version policy is not dispatchable; dispatch remains pending");
-            return Ok(None);
+        if let Err(error) = validate_script_version_dispatchable(&version) {
+            warn!(script_id = %script.id, version_number, language = %version.language, %error, "released script version policy is not dispatchable; dispatch remains pending");
+            return Ok(DispatchTaskBuild::Rejected(
+                ScriptGovernanceFailure::PolicyRejected(error.to_string()),
+            ));
         }
         if language == ScriptLanguage::Wasm {
             Some(Box::new(wasm_processor_binding(&script, &version)))
@@ -296,7 +430,7 @@ async fn build_dispatch_task(
         None
     };
 
-    Ok(Some(DispatchTask {
+    Ok(DispatchTaskBuild::Built(DispatchTask {
         instance_id,
         job_id,
         payload: Vec::new(),
@@ -318,17 +452,46 @@ fn script_is_dispatchable(script: &ScriptSummary) -> bool {
         && parse_script_language(&script.language).is_some()
 }
 
+#[cfg(test)]
 fn script_version_is_dispatchable(version: &ScriptVersionSummary) -> bool {
-    parse_script_language(&version.language).is_some_and(|language| match language {
-        ScriptLanguage::Wasm => script_version_to_wasm_spec(version).validate().is_ok(),
-        ScriptLanguage::Shell
-        | ScriptLanguage::Python
-        | ScriptLanguage::Node
-        | ScriptLanguage::PowerShell
-        | ScriptLanguage::Rhai => script_policy(version.policy.clone())
+    validate_script_version_dispatchable(version).is_ok()
+}
+
+fn validate_script_version_dispatchable(
+    version: &ScriptVersionSummary,
+) -> Result<(), ScriptDispatchValidationError> {
+    match parse_script_language(&version.language) {
+        Some(ScriptLanguage::Wasm) => script_version_to_wasm_spec(version)
+            .validate()
+            .map_err(|error| ScriptDispatchValidationError(error.to_string())),
+        Some(
+            ScriptLanguage::Shell
+            | ScriptLanguage::Python
+            | ScriptLanguage::Node
+            | ScriptLanguage::PowerShell
+            | ScriptLanguage::Rhai,
+        ) => script_policy(version.policy.clone())
             .validate_default_deny()
-            .is_ok(),
-    })
+            .map_err(ScriptDispatchValidationError::from),
+        None => Err(ScriptDispatchValidationError(
+            "script language is unsupported".to_owned(),
+        )),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ScriptDispatchValidationError(String);
+
+impl From<ScriptPolicyError> for ScriptDispatchValidationError {
+    fn from(value: ScriptPolicyError) -> Self {
+        Self(value.to_string())
+    }
+}
+
+impl std::fmt::Display for ScriptDispatchValidationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
 }
 
 fn parse_script_language(language: &str) -> Option<ScriptLanguage> {
@@ -446,8 +609,9 @@ mod tests {
     use tokio::sync::mpsc;
 
     use super::{
-        WorkerRegistry, build_dispatch_task, dispatch_once, dispatch_once_if_owner,
-        script_is_dispatchable, script_version_is_dispatchable,
+        DispatchTaskBuild, ScriptGovernanceFailure, WorkerRegistry, build_dispatch_task,
+        dispatch_once, dispatch_once_if_owner, script_is_dispatchable,
+        script_version_is_dispatchable,
     };
 
     #[tokio::test]
@@ -459,6 +623,7 @@ mod tests {
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let logs = tikee_storage::JobInstanceLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
         let job = jobs
             .create_job(CreateJob {
@@ -504,6 +669,7 @@ mod tests {
             &attempts,
             &workflows,
             &scripts,
+            &logs,
             &registry,
             "test-fence",
         )
@@ -540,6 +706,7 @@ mod tests {
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let logs = tikee_storage::JobInstanceLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
         let job = jobs
             .create_job(CreateJob {
@@ -604,6 +771,7 @@ mod tests {
             &attempts,
             &workflows,
             &scripts,
+            &logs,
             &registry,
             "test-fence",
         )
@@ -640,6 +808,7 @@ mod tests {
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let logs = tikee_storage::JobInstanceLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
         let job = jobs
             .create_job(CreateJob {
@@ -674,7 +843,7 @@ mod tests {
         });
 
         dispatch_once_if_owner(
-            &jobs, &instances, &attempts, &workflows, &scripts, &registry, &follower,
+            &jobs, &instances, &attempts, &workflows, &scripts, &logs, &registry, &follower,
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch gate should run: {error}"));
@@ -697,6 +866,7 @@ mod tests {
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let logs = tikee_storage::JobInstanceLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
         let job = jobs
             .create_job(CreateJob {
@@ -762,6 +932,7 @@ mod tests {
             &attempts,
             &workflows,
             &scripts,
+            &logs,
             &registry,
             "test-fence",
         )
@@ -790,6 +961,7 @@ mod tests {
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let logs = tikee_storage::JobInstanceLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
 
         let script = scripts
@@ -869,6 +1041,7 @@ mod tests {
             &attempts,
             &workflows,
             &scripts,
+            &logs,
             &registry,
             "test-fence",
         )
@@ -948,7 +1121,7 @@ mod tests {
             .unwrap_or_else(|error| panic!("script should publish: {error}"))
             .unwrap_or_else(|| panic!("script should exist"));
 
-        let task = build_dispatch_task(
+        let task = match build_dispatch_task(
             &scripts,
             "instance-shell".to_owned(),
             "job-shell".to_owned(),
@@ -956,7 +1129,12 @@ mod tests {
         )
         .await
         .unwrap_or_else(|error| panic!("task build should not error: {error}"))
-        .unwrap_or_else(|| panic!("released safe script should dispatch"));
+        {
+            DispatchTaskBuild::Built(task) => task,
+            DispatchTaskBuild::Rejected(failure) => {
+                panic!("released safe script should dispatch: {failure:?}")
+            }
+        };
 
         let binding = task
             .processor_binding
@@ -1032,7 +1210,10 @@ mod tests {
         )
         .await
         .unwrap_or_else(|error| panic!("task build should not error: {error}"));
-        assert!(task.is_none());
+        assert!(matches!(
+            task,
+            DispatchTaskBuild::Rejected(ScriptGovernanceFailure::MissingReleasePointer)
+        ));
     }
 
     #[tokio::test]

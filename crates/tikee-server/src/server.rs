@@ -73,7 +73,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
             tunnel_addr,
             registry.clone(),
             tunnel_instances,
-            logs,
+            logs.clone(),
             tunnel_attempts,
             workflows.clone(),
             log_broadcaster
@@ -90,6 +90,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
                 dispatcher_attempts,
                 dispatcher_workflows,
                 scripts.clone(),
+                logs.clone(),
                 registry,
                 dispatch_cluster,
             )

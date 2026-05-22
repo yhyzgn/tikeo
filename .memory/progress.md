@@ -546,3 +546,9 @@
 - Updated Java Gradle composite build so `tikee-spring` depends on `project(":tikee")`; Java package prefix remains `com.yhyzgn.tikee`.
 - Rename verification fixed one regression: the default admin password text changed to `Tikee@2026!`, so the seeded BCrypt hash was regenerated to match the new credential.
 - Full rename verification passed: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo build --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
+### 2026-05-23 Phase3 script execution governance visibility
+- Continued `.prompt/077-script-execution-governance-after-tikee-rename.md`.
+- Added dispatcher-side script governance instance logs for fail-closed dispatch cases and worker capability misses: missing script, not approved, missing release pointer/version, unsupported language, policy rejection, and no eligible `script:<language>`/`script:wasm` worker capability.
+- Added Rust SDK script failure classification via `TaskOutcome::failure_class()` and JSON result messages for missing runner, policy rejection, digest mismatch, timeout, output limit, and runtime unavailable; Server persists these Worker result classes as `script_execution_governance` instance logs.
+- Documented script-capable Worker Pool deployment for Docker/K8s and `ContainerScriptRunner` opt-in constraints in design and Rust SDK README.
+- Updated design roadmap and created `.prompt/078-script-governance-audit-alerting.md` for first-class audit/alert follow-up.
