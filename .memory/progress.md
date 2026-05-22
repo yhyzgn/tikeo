@@ -668,3 +668,9 @@
 - `GET /api/v1/security/transport` now reports `listener_mode` per endpoint: plaintext by default, `tls_pending_listener` when TLS is configured but listener wiring is not implemented.
 - TLS/mTLS-enabled configs are no longer considered ready solely because cert/key paths are present; status issues explicitly call out pending listener wiring while keeping paths redacted.
 - Added regression coverage for default plaintext, partial mTLS config, and fully path-configured HTTP TLS still failing closed until real TLS serving exists.
+
+### 2026-05-23 — Phase 3 closeout review
+- Completed `.prompt/095-phase3-closeout-review.md` as an honest roadmap closeout pass after the Phase 088-094 hardening run.
+- Confirmed Phase 3 top-level items that still require external systems or larger production wiring remain unchecked: real OIDC token exchange/JWKS, real TLS/mTLS listeners, full script approval/signing/grants, real alert provider delivery, complete business SLO metrics, and real OTLP exporter smoke.
+- Added Phase 3 closeout notes to `design/tikee-architecture-design.md` summarizing completed local foundations vs remaining production gaps.
+- Deferred Phase 4 scope remains unchanged: Node.js SDK, K8s Helm, PowerJob migration tooling, and XXL-JOB migration tooling.

@@ -81,3 +81,11 @@
 
 - RBAC 当前是最小 `resource/action` 模型，尚未实现 namespace/app/worker_pool scope、多租户隔离、OIDC/SSO 或 API Token 生命周期。
 - roles/permissions seed 当前主要覆盖内置角色；后续若开放角色管理 UI，需要补角色 CRUD、权限绑定审计和权限变更 session 失效。
+
+## 2026-05-23 — Phase 3 closeout production gaps
+
+- OIDC/SSO is fail-closed foundation only: authorize URL generation and callback shape exist, but no token exchange, JWKS verification, nonce/state persistence, user mapping, or session issuance from IdP identity is implemented.
+- TLS/mTLS is config/status foundation only: TLS-enabled endpoints explicitly report `tls_pending_listener`; HTTP and Worker Tunnel still serve plaintext until real listener wiring lands.
+- Script governance blocks unsafe releases and unverified approval/signature metadata, but full multi-level approval workflow, verified signatures/KMS, URL/File/Secret grants, and production release gates remain future work.
+- Alerting has durable rules/events/recovery/summary and redacted channel readiness, but real provider delivery is not enabled.
+- Observability has `/metrics`, metrics summary, Grafana template, dispatch queue SLO summary, trace-id propagation, and OTLP readiness config; complete business SLO histograms and live collector export smoke are still open.

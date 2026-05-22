@@ -2249,6 +2249,10 @@ tikee/
 - [x] Worker processor binding model（Job 定义与 Workflow job/map 节点支持 `processor_name`，Worker dispatch 按 processor name 路由，legacy 数据回退 `job_id`）
 - [x] SDK 目录规范迁移：Rust SDK -> `sdks/rust/tikee`，Java SDK -> Gradle/JDK21+，新增 `examples/<language>/<demo-name>` demo 骨架，并补齐 Rust / Java 可独立运行 demo 基础
 
+#### Phase 3 closeout notes (2026-05-23)
+
+Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确后续”的标准收敛：RBAC、审计、WASM/脚本治理、Worker Tunnel 分发绑定、告警历史、Prometheus/Grafana 基础、trace-id/OTLP 配置、OIDC 授权骨架、TLS/mTLS 诊断边界均有测试覆盖；仍保持未勾选的是需要外部系统或更大架构闭环的生产能力：真实 IdP token exchange/JWKS 校验、真实 TLS/mTLS listener、完整多级审批/签名/KMS/URL/File/Secret grant、真实通知 provider delivery、完整业务 SLO histogram/成功率、真实 OTLP exporter collector smoke、多租户 scope/API Token 生命周期。Node.js SDK、K8s Helm、PowerJob/XXL-JOB 迁移工具按用户要求留在 Phase 4。
+
 ### Phase 4: 高级能力 (月 10-12)
 
 **目标**：超越 PowerJob，建立差异化竞争力。
