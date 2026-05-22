@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { Alert, Button, Card, Form, Input, List, Segmented, Select, Space, Tag, Timeline, Typography, message } from 'antd';
+import { Alert, Button, Card, Form, Input, List, Popconfirm, Segmented, Select, Space, Tag, Timeline, Typography, message } from 'antd';
 import {
   advanceWorkflowInstance,
   createWorkflow,
@@ -26,6 +26,7 @@ import {
   type WorkflowShardSummary,
   type WorkflowSummary,
 } from '../api/client';
+import { PermissionGate, useCan } from '../components/Permission';
 import { useNavigate, useParams } from 'react-router-dom';
 
 const DEFAULT_WORKFLOW: WorkflowDefinition = {
@@ -610,6 +611,8 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
 
 
 export function WorkflowsPage() {
+  const canManageWorkflows = useCan('workflows', 'manage');
+  const canExecuteWorkflows = useCan('workflows', 'execute');
   const [items, setItems] = useState<WorkflowSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowSummary | null>(null);
@@ -721,7 +724,7 @@ export function WorkflowsPage() {
         <div className="hero-panel__summary"><strong>{items.length}</strong><span>flows</span></div>
       </div>
 
-      <Card title="工作流列表" extra={<Space><Button onClick={() => navigate('/workflows/new')} type="primary">新增工作流</Button><Button onClick={fetchItems}>刷新</Button></Space>}>
+      <Card title="工作流列表" extra={<Space><PermissionGate resource="workflows" action="manage"><Button onClick={() => navigate('/workflows/new')} type="primary">新增工作流</Button></PermissionGate><Button onClick={fetchItems}>刷新</Button></Space>}>
         <List
           loading={loading}
           dataSource={items}
@@ -731,9 +734,9 @@ export function WorkflowsPage() {
               <List.Item
                 actions={[
                   <Button key="view" onClick={() => openRunView(item)}>{expandedWorkflowId === item.id ? '收起运行视图' : '运行视图'}</Button>,
-                  <Button key="edit" onClick={() => navigate(`/workflows/${encodeURIComponent(item.id)}/edit`)}>编辑</Button>,
+                  canManageWorkflows ? <Button key="edit" onClick={() => navigate(`/workflows/${encodeURIComponent(item.id)}/edit`)}>编辑</Button> : null,
                   <Button key="validate" onClick={() => validate(item)}>校验</Button>,
-                  <Button key="run" type="primary" onClick={() => run(item)}>运行</Button>,
+                  canExecuteWorkflows ? <Popconfirm key="run" title="确认运行工作流？" description={`将创建新的工作流实例：${item.name}`} onConfirm={() => run(item)}><Button type="primary">运行</Button></Popconfirm> : null,
                 ]}
               >
                 <List.Item.Meta
@@ -744,7 +747,7 @@ export function WorkflowsPage() {
               {expandedWorkflowId === item.id ? (
                 <div className="workflow-inline-run-panel">
                   <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                    <Card size="small" title="运行视图" extra={<Space wrap><Button onClick={materializeNext}>准备下一节点执行</Button><Button onClick={completeFirstQueued} disabled={!activeInstance}>标记当前节点成功</Button><Button onClick={recoverFirstFailed} disabled={!activeInstance}>重试失败节点</Button><Button onClick={refreshShards} disabled={!activeInstance}>刷新 Shards</Button></Space>}>
+                    <Card size="small" title="运行视图" extra={<Space wrap>{canExecuteWorkflows ? <Popconfirm title="准备下一节点执行？" description="将把 queued 工作流节点物化为实际执行项。" onConfirm={materializeNext}><Button>准备下一节点执行</Button></Popconfirm> : null}{canExecuteWorkflows ? <Popconfirm title="标记当前节点成功？" description="该人工推进会改变工作流实例状态。" onConfirm={completeFirstQueued}><Button disabled={!activeInstance}>标记当前节点成功</Button></Popconfirm> : null}{canExecuteWorkflows ? <Popconfirm title="重试失败节点？" description="将对第一个失败节点执行 retry 恢复操作。" onConfirm={recoverFirstFailed}><Button disabled={!activeInstance}>重试失败节点</Button></Popconfirm> : null}<Button onClick={refreshShards} disabled={!activeInstance}>刷新 Shards</Button></Space>}>
                       <DagPreview definition={item.definition} instance={activeWorkflow?.id === item.id ? activeInstance : null} />
                       {activeWorkflow?.id === item.id && shards.length > 0 ? <List size="small" style={{ marginTop: 16 }} dataSource={shards} renderItem={(shard) => <List.Item><Typography.Text>{shard.node_key}#{shard.shard_index} · {shard.status} · {JSON.stringify(shard.input)}</Typography.Text></List.Item>} /> : null}
                     </Card>

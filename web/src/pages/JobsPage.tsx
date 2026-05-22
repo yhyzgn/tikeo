@@ -3,8 +3,11 @@ import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useState } from 'react';
 
 import { createJob, listJobs, triggerJob, type CreateJobRequest, type JobSummary } from '../api/client';
+import { PermissionGate, useCan } from '../components/Permission';
 
 export function JobsPage() {
+  const canWriteJobs = useCan('jobs', 'write');
+  const canExecuteInstances = useCan('instances', 'execute');
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm<CreateJobRequest>();
@@ -33,35 +36,37 @@ export function JobsPage() {
       title: 'Actions',
       width: 120,
       render: (_, job) => (
-        <Dropdown.Button
-          type="primary"
-          menu={{
-            items: [
-              { key: 'single', label: '单机执行' },
-              { key: 'broadcast', label: '广播执行' },
-            ],
-            onClick: async ({ key }) => {
+        canExecuteInstances ? (
+          <Dropdown.Button
+            type="primary"
+            menu={{
+              items: [
+                { key: 'single', label: '单机执行' },
+                { key: 'broadcast', label: '广播执行' },
+              ],
+              onClick: async ({ key }) => {
+                try {
+                  await triggerJob(job.id, { trigger_type: 'api', execution_mode: key === 'broadcast' ? 'broadcast' : 'single' });
+                  message.success(key === 'broadcast' ? `已广播触发 ${job.name}` : `已触发 ${job.name}`);
+                  await load();
+                } catch (err) {
+                  message.error(err instanceof Error ? err.message : '触发失败');
+                }
+              },
+            }}
+            onClick={async () => {
               try {
-                await triggerJob(job.id, { trigger_type: 'api', execution_mode: key === 'broadcast' ? 'broadcast' : 'single' });
-                message.success(key === 'broadcast' ? `已广播触发 ${job.name}` : `已触发 ${job.name}`);
+                await triggerJob(job.id, { trigger_type: 'api', execution_mode: 'single' });
+                message.success(`已触发 ${job.name}`);
                 await load();
               } catch (err) {
                 message.error(err instanceof Error ? err.message : '触发失败');
               }
-            },
-          }}
-          onClick={async () => {
-            try {
-              await triggerJob(job.id, { trigger_type: 'api', execution_mode: 'single' });
-              message.success(`已触发 ${job.name}`);
-              await load();
-            } catch (err) {
-              message.error(err instanceof Error ? err.message : '触发失败');
-            }
-          }}
-        >
-          触发
-        </Dropdown.Button>
+            }}
+          >
+            触发
+          </Dropdown.Button>
+        ) : null
       ),
     },
   ];
@@ -74,6 +79,7 @@ export function JobsPage() {
           layout="inline"
           initialValues={{ namespace: 'default', app: 'default', schedule_type: 'api', enabled: true }}
           onFinish={async (values) => {
+            if (!canWriteJobs) { message.error('当前账号无权限创建任务'); return; }
             try {
               await createJob(values);
               message.success('任务已创建');
@@ -91,7 +97,7 @@ export function JobsPage() {
           <Form.Item name="schedule_type">
             <Select style={{ width: 110 }} options={[{ value: 'api' }, { value: 'cron' }, { value: 'fixed_rate' }]} />
           </Form.Item>
-          <Form.Item><Button type="primary" htmlType="submit">Create</Button></Form.Item>
+          <Form.Item><PermissionGate resource="jobs" action="write"><Button type="primary" htmlType="submit">Create</Button></PermissionGate></Form.Item>
         </Form>
       </Card>
       <Card

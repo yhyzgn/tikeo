@@ -1,7 +1,8 @@
-import { Button, Descriptions, Drawer, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Spin, Switch, Table, Tag, message } from 'antd';
+import { Button, Descriptions, Drawer, Form, Input, InputNumber, Modal, Select, Space, Spin, Switch, Table, Tag, message } from 'antd';
 import { useEffect, useState } from 'react';
 import { diffLines } from 'diff';
 import type { ScriptDiffResult, ScriptSummary, ScriptVersionSummary } from '../api/client';
+import { GuardedButton, PermissionGate, useCan } from '../components/Permission';
 import {
   createScript,
   deleteScript,
@@ -145,6 +146,7 @@ function PolicyDiffTable({ changes }: { changes: ScriptDiffResult['policy_diff']
 }
 
 export function ScriptsPage() {
+  const canManageScripts = useCan('scripts', 'manage');
   const [scripts, setScripts] = useState<ScriptSummary[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -200,6 +202,7 @@ export function ScriptsPage() {
 
   // Create
   const handleCreate = async () => {
+    if (!canManageScripts) { message.error('当前账号无权限管理脚本'); return; }
     try {
       const values = await form.validateFields();
       await createScript({
@@ -250,6 +253,7 @@ export function ScriptsPage() {
   };
 
   const handleEditPreview = async () => {
+    if (!canManageScripts) { message.error('当前账号无权限管理脚本'); return; }
     if (!editingScript || !originalScript) return;
     try {
       const values = await editForm.validateFields();
@@ -392,51 +396,77 @@ export function ScriptsPage() {
           <Button size="small" type="link" onClick={() => void openDetailDrawer(record)}>
             查看
           </Button>
-          <Button size="small" type="link" onClick={() => void openEditModal(record)}>
+          <GuardedButton resource="scripts" action="manage" size="small" type="link" onClick={() => void openEditModal(record)}>
             编辑
-          </Button>
+          </GuardedButton>
           <Button size="small" type="link" onClick={() => void openVersionDrawer(record)}>
             版本历史
           </Button>
           {record.status === 'draft' && (
-            <Popconfirm
-              title="提交审批"
-              description="确认提交审批？审批通过后脚本将可用于生产环境。"
+            <GuardedButton
+              resource="scripts"
+              action="manage"
+              size="small"
+              type="link"
+              confirmTitle="提交审批"
+              confirmDescription="确认提交审批？审批通过后脚本将可用于生产环境。"
               onConfirm={() => void handleStatusChange(record.id, 'approved')}
             >
-              <Button size="small" type="link">提交审批</Button>
-            </Popconfirm>
+              提交审批
+            </GuardedButton>
           )}
           {record.status === 'approved' && (
             <>
-              <Popconfirm
-                title="禁用脚本"
-                description="确认禁用？禁用后脚本将无法执行。"
+              <GuardedButton
+                resource="scripts"
+                action="manage"
+                size="small"
+                type="link"
+                danger
+                confirmTitle="禁用脚本"
+                confirmDescription="确认禁用？禁用后脚本将无法执行。"
                 onConfirm={() => void handleStatusChange(record.id, 'disabled')}
               >
-                <Button size="small" type="link" danger>禁用</Button>
-              </Popconfirm>
-              <Popconfirm
-                title="回退草稿"
-                description="确认回退为草稿状态？"
+                禁用
+              </GuardedButton>
+              <GuardedButton
+                resource="scripts"
+                action="manage"
+                size="small"
+                type="link"
+                confirmTitle="回退草稿"
+                confirmDescription="确认回退为草稿状态？"
                 onConfirm={() => void handleStatusChange(record.id, 'draft')}
               >
-                <Button size="small" type="link">回退草稿</Button>
-              </Popconfirm>
+                回退草稿
+              </GuardedButton>
             </>
           )}
           {record.status === 'disabled' && (
-            <Popconfirm
-              title="重新启用"
-              description="确认重新启用此脚本？"
+            <GuardedButton
+              resource="scripts"
+              action="manage"
+              size="small"
+              type="link"
+              confirmTitle="重新启用"
+              confirmDescription="确认重新启用此脚本？"
               onConfirm={() => void handleStatusChange(record.id, 'approved')}
             >
-              <Button size="small" type="link">重新启用</Button>
-            </Popconfirm>
+              重新启用
+            </GuardedButton>
           )}
-          <Popconfirm title="确定删除？" onConfirm={() => void handleDelete(record.id)}>
-            <Button size="small" type="link" danger>删除</Button>
-          </Popconfirm>
+          <GuardedButton
+            resource="scripts"
+            action="manage"
+            size="small"
+            type="link"
+            danger
+            confirmTitle="确定删除脚本？"
+            confirmDescription="删除脚本会影响后续任务绑定与版本追踪，请确认。"
+            onConfirm={() => void handleDelete(record.id)}
+          >
+            删除
+          </GuardedButton>
         </Space>
       ),
     },
@@ -445,7 +475,7 @@ export function ScriptsPage() {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" onClick={() => setModalOpen(true)}>新建脚本</Button>
+        <PermissionGate resource="scripts" action="manage"><Button type="primary" onClick={() => setModalOpen(true)}>新建脚本</Button></PermissionGate>
       </div>
       <Table rowKey="id" dataSource={scripts} columns={columns} loading={loading} pagination={false} />
 

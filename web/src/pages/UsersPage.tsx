@@ -1,4 +1,4 @@
-import { Button, Card, Form, Input, Popconfirm, Select, Space, Table, Tag, message } from 'antd';
+import { Button, Card, Form, Input, Select, Space, Table, Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useEffect, useState } from 'react';
 
@@ -10,8 +10,10 @@ import {
   type CreateUserRequest,
   type UserSummary,
 } from '../api/client';
+import { GuardedButton, PermissionGate, useCan } from '../components/Permission';
 
 export function UsersPage() {
+  const canManageUsers = useCan('users', 'manage');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm<CreateUserRequest>();
@@ -98,19 +100,21 @@ export function UsersPage() {
       width: 160,
       render: (_, record) => (
         <Space size="middle">
-          <Button type="link" size="small" onClick={() => handleEdit(record)}>
+          <GuardedButton resource="users" action="manage" type="link" size="small" onClick={() => handleEdit(record)}>
             编辑
-          </Button>
-          <Popconfirm
-            title="确定要删除该用户吗？"
+          </GuardedButton>
+          <GuardedButton
+            resource="users"
+            action="manage"
+            type="link"
+            size="small"
+            danger
+            confirmTitle="确定要删除该用户吗？"
+            confirmDescription="删除用户会立即移除其登录与管理能力。"
             onConfirm={() => void handleDelete(record.id)}
-            okText="确定"
-            cancelText="取消"
           >
-            <Button type="link" size="small" danger>
-              删除
-            </Button>
-          </Popconfirm>
+            删除
+          </GuardedButton>
         </Space>
       ),
     },
@@ -123,7 +127,7 @@ export function UsersPage() {
           form={form}
           layout="inline"
           initialValues={{ role: 'viewer' }}
-          onFinish={handleFinish}
+          onFinish={(values) => { if (!canManageUsers) { message.error('当前账号无权限管理用户'); return; } void handleFinish(values); }}
         >
           <Form.Item name="username" rules={[{ required: true, message: '请输入用户名' }]}>
             <Input placeholder="用户名" disabled={editingId !== null} style={{ width: 160 }} />
@@ -146,9 +150,9 @@ export function UsersPage() {
           </Form.Item>
           <Form.Item>
             <Space>
-              <Button type="primary" htmlType="submit">
+              <PermissionGate resource="users" action="manage"><Button type="primary" htmlType="submit">
                 {editingId ? '保存' : '创建'}
-              </Button>
+              </Button></PermissionGate>
               {editingId && <Button onClick={handleCancelEdit}>取消</Button>}
             </Space>
           </Form.Item>

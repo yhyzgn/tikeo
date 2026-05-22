@@ -2185,7 +2185,7 @@ scheduler/
   - [x] 审计分页与服务端过滤（actor/action/resource_type/resource_id + page_size/page_token + total）
   - [x] 审计 before/after、trace_id、失败结果基础（`audit_logs` 扩展 before/after/trace_id/result/failure_reason；API/Web 展示；无外键）
   - [x] 审计导出治理基础（`GET /api/v1/audit-logs:export?format=json`，复用过滤条件、`audit:read` 权限、500 行上限、JSON envelope、Web 导出入口；CSV/脱敏策略后续增强）
-- [ ] Web UI 危险操作二次确认、权限感知操作
+- [x] Web UI 危险操作二次确认、权限感知操作（统一 `GuardedButton` / `PermissionGate`；用户/脚本删除与状态变更、任务触发、工作流运行/人工推进等按 RBAC 隐藏或二次确认）
   - [x] Web UI 审计日志查询页面（按操作类型筛选）
 - [ ] WASM 沙箱处理器
 - [ ] 多语言动态脚本处理器（Python/Node/Shell/PowerShell/Rhai）

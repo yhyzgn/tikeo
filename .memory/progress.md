@@ -408,3 +408,14 @@
 - Updated design roadmap and created `.prompt/064-phase3-web-danger-confirm-permission-actions.md` for the next Phase3 UI governance slice.
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server audit_logs_support_server_side_filters_and_pagination --all-features`; `cd web && bun run typecheck`.
 - Full verification passed for 063: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase3 Web dangerous confirmations and permission-aware actions
+- Continued `.prompt/064-phase3-web-danger-confirm-permission-actions.md` after governed audit export.
+- Added `web/src/components/Permission.tsx` with `useCan`, `PermissionGate`, and `GuardedButton` for RBAC-aware action hiding/disable and optional `Popconfirm` gating.
+- Jobs page now hides trigger actions without `instances:execute` and hides create action without `jobs:write`.
+- Users page now gates create/edit/delete behind `users:manage` and delete uses destructive confirmation.
+- Scripts page now gates create/edit/status transitions/delete behind `scripts:manage`; destructive or lifecycle-changing transitions require confirmation.
+- Workflows page now gates create/edit behind `workflows:manage`, run/manual materialize/advance/retry behind `workflows:execute`, and dangerous runtime mutations require confirmation.
+- Targeted verification so far: `cd web && bun run typecheck`.
+- Full verification passed for 064: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun run build` (Vite chunk-size warning only).
+

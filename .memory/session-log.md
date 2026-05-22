@@ -1029,3 +1029,11 @@ Git:
 - Created `.prompt/064-phase3-web-danger-confirm-permission-actions.md`.
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server audit_logs_support_server_side_filters_and_pagination --all-features`; `cd web && bun run typecheck`.
 - Full verification passed for 063: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase3 Web dangerous confirmations and permission-aware actions
+- Resumed into `.prompt/064-phase3-web-danger-confirm-permission-actions.md`.
+- Added permission-aware frontend helper components and applied them to Jobs, Users, Scripts, and Workflows pages.
+- Updated design roadmap item to completed and created `.prompt/065-phase3-route-meta-lazy-401-403-url-governance.md`.
+- Targeted verification so far: `cd web && bun run typecheck`.
+- Full verification passed for 064: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun run build` (Vite chunk-size warning only).
+
