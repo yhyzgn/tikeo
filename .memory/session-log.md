@@ -983,3 +983,11 @@ Git:
 - Added targeted tests for committed add-member happy path, malformed ConfChange handling, and no-runtime gating.
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server raft --all-features`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
 - Full verification passed for 057: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase2 raft-rs multi-node in-process E2E
+- Resumed from `.prompt/058-phase2-raft-rs-multinode-e2e.md`.
+- Added `TestRaftCluster` / `TestRaftNode` harness in `crates/scheduler-server/src/cluster/raft_rs.rs` for deterministic in-process message routing between three raft-rs RawNodes.
+- Added tests `raft_inprocess_harness_elects_real_leader_and_persists_fencing` and `raft_inprocess_membership_proposal_commits_and_applies_member`.
+- Updated design roadmap item to completed and created `.prompt/059-phase2-raft-rs-http-transport-e2e-or-persistence-hardening.md` for HTTP transport/restart hardening.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server raft_inprocess --all-features`; `cargo test -p scheduler-server raft --all-features`.
+- Full verification passed for 058: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).

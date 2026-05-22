@@ -447,18 +447,42 @@ async fn process_ready(
     let ready = node.ready();
     if let Some(hard_state) = ready.hs() {
         persist_hard_state(node_id, repository, hard_state).await?;
+        node.raft.mut_store().wl().set_hardstate(hard_state.clone());
     }
     for entry in ready.entries() {
         persist_entry(node_id, repository, entry).await?;
     }
+    node.raft
+        .mut_store()
+        .wl()
+        .append(ready.entries())
+        .map_err(|error| {
+            scheduler_storage::DbErr::Custom(format!("raft-rs MemStorage append failed: {error}"))
+        })?;
     if !ready.snapshot().is_empty() {
         persist_snapshot(node_id, repository, ready.snapshot()).await?;
+        node.raft
+            .mut_store()
+            .wl()
+            .apply_snapshot(ready.snapshot().clone())
+            .map_err(|error| {
+                scheduler_storage::DbErr::Custom(format!(
+                    "raft-rs MemStorage snapshot apply failed: {error}"
+                ))
+            })?;
     }
     transport.dispatch_ready_messages(ready.messages());
     transport.dispatch_ready_messages(ready.persisted_messages());
     let applied =
         apply_committed_entries(node_id, repository, Some(node), ready.committed_entries()).await?;
     let light_ready = node.advance_append(ready);
+    if let Some(commit) = light_ready.commit_index() {
+        node.raft
+            .mut_store()
+            .wl()
+            .mut_hard_state()
+            .set_commit(commit);
+    }
     if let Some(applied) = applied {
         node.advance_apply_to(applied);
     }
@@ -1236,14 +1260,16 @@ mod tests {
     use scheduler_config::{ClusterConfig, ClusterModeConfig, ClusterPeerConfig};
     use scheduler_storage::{RaftRepository, UpsertRaftMetadata, connect_and_migrate};
 
-    use std::time::Duration;
+    use std::{collections::BTreeMap, sync::Arc, time::Duration};
+    use tokio::sync::RwLock;
 
     use super::{
-        CLUSTER_ID, RaftMembershipProposalContext, RaftRuntimeCoordinator, apply_committed_entries,
-        build_membership_conf_change, leader_fencing_token_for_role, raft_append_entries_url,
-        raft_message_to_wire_request, raft_numeric_id, validate_raft_rs_bootstrap,
+        CLUSTER_ID, RaftMembershipProposalContext, RaftRuntimeCoordinator, StateRole,
+        apply_committed_entries, build_membership_conf_change, leader_fencing_token_for_role,
+        persist_entry, persist_hard_state, raft_append_entries_url, raft_message_to_wire_request,
+        raft_numeric_id, update_runtime_status, validate_raft_rs_bootstrap,
     };
-    use crate::cluster::{ClusterMode, ClusterRole, RaftMembershipProposal};
+    use crate::cluster::{ClusterMode, ClusterRole, ClusterStatus, RaftMembershipProposal};
 
     #[test]
     fn raft_numeric_id_is_stable_non_zero() {
@@ -1696,6 +1722,92 @@ mod tests {
         assert_eq!(status.leader_fencing_token, None);
     }
 
+    #[tokio::test]
+    async fn raft_inprocess_harness_elects_real_leader_and_persists_fencing() {
+        let mut cluster =
+            TestRaftCluster::new(&["scheduler-0", "scheduler-1", "scheduler-2"]).await;
+        cluster
+            .nodes
+            .get_mut("scheduler-0")
+            .unwrap_or_else(|| panic!("scheduler-0 should exist"))
+            .raw
+            .campaign()
+            .unwrap_or_else(|error| panic!("campaign should start: {error}"));
+        cluster.drain().await;
+
+        let leaders = cluster.leader_ids();
+        let status = cluster.nodes["scheduler-0"].status.read().await.clone();
+        let metadata = cluster.nodes["scheduler-0"]
+            .repository
+            .get_metadata("scheduler-0")
+            .await
+            .unwrap_or_else(|error| panic!("metadata should load: {error}"))
+            .unwrap_or_else(|| panic!("metadata should exist"));
+
+        assert_eq!(leaders, vec!["scheduler-0".to_owned()]);
+        assert_eq!(status.role, ClusterRole::Leader);
+        assert!(status.can_schedule);
+        assert_eq!(
+            metadata.leader_fencing_token.as_deref(),
+            Some("raft:term:1:node:scheduler-0")
+        );
+    }
+
+    #[tokio::test]
+    async fn raft_inprocess_membership_proposal_commits_and_applies_member() {
+        let mut cluster =
+            TestRaftCluster::new(&["scheduler-0", "scheduler-1", "scheduler-2"]).await;
+        cluster
+            .nodes
+            .get_mut("scheduler-0")
+            .unwrap_or_else(|| panic!("scheduler-0 should exist"))
+            .raw
+            .campaign()
+            .unwrap_or_else(|error| panic!("campaign should start: {error}"));
+        cluster.drain().await;
+        let proposal = RaftMembershipProposal {
+            proposal_id: "prop-add-4-e2e".to_owned(),
+            action: "add_voter".to_owned(),
+            node_id: "scheduler-4".to_owned(),
+            endpoint: Some("http://scheduler-4.scheduler-headless:9998".to_owned()),
+        };
+        cluster.record_proposal("scheduler-0", &proposal).await;
+        let conf_change = build_membership_conf_change(&proposal)
+            .unwrap_or_else(|error| panic!("conf change should build: {error}"));
+        cluster
+            .nodes
+            .get_mut("scheduler-0")
+            .unwrap_or_else(|| panic!("scheduler-0 should exist"))
+            .raw
+            .propose_conf_change(conf_change.get_context().to_vec(), conf_change)
+            .unwrap_or_else(|error| panic!("conf change should propose: {error}"));
+        cluster.drain().await;
+
+        let leader = &cluster.nodes["scheduler-0"];
+        let member = leader
+            .repository
+            .get_member("scheduler-4")
+            .await
+            .unwrap_or_else(|error| panic!("member should load: {error}"))
+            .unwrap_or_else(|| panic!("member should exist"));
+        let proposal = leader
+            .repository
+            .get_membership_proposal(CLUSTER_ID, "prop-add-4-e2e")
+            .await
+            .unwrap_or_else(|error| panic!("proposal should load: {error}"))
+            .unwrap_or_else(|| panic!("proposal should exist"));
+        let metadata = leader
+            .repository
+            .get_metadata("scheduler-0")
+            .await
+            .unwrap_or_else(|error| panic!("metadata should load: {error}"))
+            .unwrap_or_else(|| panic!("metadata should exist"));
+
+        assert_eq!(member.status, "active");
+        assert_eq!(proposal.status, "applied");
+        assert!(metadata.conf_state.is_some());
+    }
+
     fn test_raft_config() -> ClusterConfig {
         ClusterConfig {
             mode: ClusterModeConfig::Raft,
@@ -1748,6 +1860,214 @@ mod tests {
             .validate()
             .unwrap_or_else(|error| panic!("test raft config should validate: {error}"));
         let storage = raft::storage::MemStorage::new_with_conf_state((voter_ids, Vec::new()));
+        raft::raw_node::RawNode::with_default_logger(&config, storage)
+            .unwrap_or_else(|error| panic!("test raw node should build: {error}"))
+    }
+
+    struct TestRaftNode {
+        raw: raft::raw_node::RawNode<raft::storage::MemStorage>,
+        repository: RaftRepository,
+        status: Arc<RwLock<ClusterStatus>>,
+    }
+
+    struct TestRaftCluster {
+        nodes: BTreeMap<String, TestRaftNode>,
+    }
+
+    impl TestRaftCluster {
+        async fn new(node_ids: &[&str]) -> Self {
+            let mut nodes = BTreeMap::new();
+            let voter_ids = node_ids
+                .iter()
+                .map(|node_id| raft_numeric_id(node_id))
+                .collect::<Vec<_>>();
+            for node_id in node_ids {
+                nodes.insert(
+                    (*node_id).to_owned(),
+                    TestRaftNode {
+                        raw: test_raw_node_from_ids(node_id, voter_ids.clone()),
+                        repository: test_raft_repository_for(node_id).await,
+                        status: Arc::new(RwLock::new(test_cluster_status(node_id, node_ids.len()))),
+                    },
+                );
+            }
+            Self { nodes }
+        }
+
+        async fn drain(&mut self) {
+            for _ in 0..32 {
+                let mut messages = Vec::new();
+                for (node_id, node) in &mut self.nodes {
+                    messages.extend(process_test_ready(node_id, node).await);
+                }
+                if messages.is_empty() {
+                    continue;
+                }
+                for message in messages {
+                    if let Some(target) = self
+                        .nodes
+                        .values_mut()
+                        .find(|node| node.raw.raft.id == message.to)
+                    {
+                        target
+                            .raw
+                            .step(message)
+                            .unwrap_or_else(|error| panic!("message should step: {error}"));
+                    }
+                }
+            }
+        }
+
+        fn leader_ids(&self) -> Vec<String> {
+            self.nodes
+                .iter()
+                .filter(|(_, node)| node.raw.raft.state == StateRole::Leader)
+                .map(|(node_id, _)| node_id.clone())
+                .collect()
+        }
+
+        async fn record_proposal(&self, node_id: &str, proposal: &RaftMembershipProposal) {
+            self.nodes[node_id]
+                .repository
+                .record_membership_proposal(scheduler_storage::RecordRaftMembershipProposal {
+                    cluster_id: CLUSTER_ID.to_owned(),
+                    proposal_id: proposal.proposal_id.clone(),
+                    action: proposal.action.clone(),
+                    node_id: proposal.node_id.clone(),
+                    endpoint: proposal.endpoint.clone(),
+                    status: "proposed_conf_change".to_owned(),
+                    message: "test e2e proposal".to_owned(),
+                    created_by: "test".to_owned(),
+                })
+                .await
+                .unwrap_or_else(|error| panic!("proposal should record: {error}"));
+        }
+    }
+
+    async fn process_test_ready(
+        node_id: &str,
+        node: &mut TestRaftNode,
+    ) -> Vec<raft::eraftpb::Message> {
+        if !node.raw.has_ready() {
+            update_runtime_status(node_id, &node.repository, &node.raw, &node.status)
+                .await
+                .unwrap_or_else(|error| {
+                    panic!("test raft storage/status operation should succeed: {error}")
+                });
+            return Vec::new();
+        }
+        let ready = node.raw.ready();
+        if let Some(hard_state) = ready.hs() {
+            persist_hard_state(node_id, &node.repository, hard_state)
+                .await
+                .unwrap_or_else(|error| {
+                    panic!("test raft storage/status operation should succeed: {error}")
+                });
+            node.raw
+                .raft
+                .mut_store()
+                .wl()
+                .set_hardstate(hard_state.clone());
+        }
+        for entry in ready.entries() {
+            persist_entry(node_id, &node.repository, entry)
+                .await
+                .unwrap_or_else(|error| {
+                    panic!("test raft storage/status operation should succeed: {error}")
+                });
+        }
+        node.raw
+            .raft
+            .mut_store()
+            .wl()
+            .append(ready.entries())
+            .unwrap_or_else(|error| panic!("ready entries should append: {error}"));
+        let mut messages = ready.messages().to_vec();
+        messages.extend(ready.persisted_messages().iter().cloned());
+        let applied = apply_committed_entries(
+            node_id,
+            &node.repository,
+            Some(&mut node.raw),
+            ready.committed_entries(),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("test committed entries should apply: {error}"));
+        let light = node.raw.advance_append(ready);
+        if let Some(commit) = light.commit_index() {
+            node.raw
+                .raft
+                .mut_store()
+                .wl()
+                .mut_hard_state()
+                .set_commit(commit);
+        }
+        if let Some(applied) = applied {
+            node.raw.advance_apply_to(applied);
+        }
+        messages.extend(light.messages().iter().cloned());
+        let light_applied = apply_committed_entries(
+            node_id,
+            &node.repository,
+            Some(&mut node.raw),
+            light.committed_entries(),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("test committed entries should apply: {error}"));
+        if let Some(applied) = light_applied {
+            node.raw.advance_apply_to(applied);
+        }
+        update_runtime_status(node_id, &node.repository, &node.raw, &node.status)
+            .await
+            .unwrap_or_else(|error| panic!("test raft status update should succeed: {error}"));
+        messages
+    }
+
+    async fn test_raft_repository_for(node_id: &str) -> RaftRepository {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should initialize: {error}"));
+        let repository = RaftRepository::new(db);
+        repository
+            .upsert_metadata(UpsertRaftMetadata {
+                cluster_id: CLUSTER_ID.to_owned(),
+                node_id: node_id.to_owned(),
+                current_term: 1,
+                voted_for: None,
+                commit_index: 0,
+                applied_index: 0,
+                leader_fencing_token: None,
+                conf_state: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("metadata should upsert: {error}"));
+        repository
+    }
+
+    fn test_cluster_status(node_id: &str, nodes: usize) -> ClusterStatus {
+        ClusterStatus {
+            mode: ClusterMode::Raft,
+            role: ClusterRole::Follower,
+            node_id: node_id.to_owned(),
+            nodes: u32::try_from(nodes).unwrap_or(u32::MAX),
+            can_schedule: false,
+            leader_fencing_token: None,
+            detail: "test raft node".to_owned(),
+        }
+    }
+
+    fn test_raw_node_from_ids(
+        local: &str,
+        voters: Vec<u64>,
+    ) -> raft::raw_node::RawNode<raft::storage::MemStorage> {
+        let local_id = raft_numeric_id(local);
+        let mut config = raft::Config::new(local_id);
+        config.heartbeat_tick = 2;
+        config.election_tick = 10;
+        config.pre_vote = false;
+        config
+            .validate()
+            .unwrap_or_else(|error| panic!("test raft config should validate: {error}"));
+        let storage = raft::storage::MemStorage::new_with_conf_state((voters, Vec::new()));
         raft::raw_node::RawNode::with_default_logger(&config, storage)
             .unwrap_or_else(|error| panic!("test raw node should build: {error}"))
     }

@@ -353,3 +353,12 @@
 - Committed `EntryConfChange` / `EntryConfChangeV2` are now explicitly decoded. With a runtime node, successful `RawNode::apply_conf_change` persists base64 `raft_metadata.conf_state`, updates `raft_members` to `active/removed`, marks proposal `applied`, and advances applied index. Without runtime node, config-change entries remain gated and do not advance.
 - Malformed config-change payloads are treated as handled/rejected and advance apply index without mutating membership; unsupported multi-change V2 is rejected.
 - Full verification passed for committed ConfChange apply: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase2 raft-rs multi-node in-process E2E
+- Continued `.prompt/058-phase2-raft-rs-multinode-e2e.md` after committed ConfChange apply.
+- Added a deterministic in-process 3-node raft-rs `RawNode` harness that routes Ready messages directly between nodes and never fakes leadership.
+- The harness now proves a real `campaign()` election can produce exactly one leader, persist `raft:term:1:node:scheduler-0`, and set `can_schedule=true` only after the token is persisted.
+- Added membership proposal E2E coverage: record proposal intent, propose raft-rs ConfChange, commit/apply it, persist `raft_metadata.conf_state`, mark `raft_membership_proposals` as `applied`, and advance `raft_members` to `active` after committed apply.
+- Production Ready handling now mirrors the harness by syncing HardState/log/snapshot/commit into raft-rs `MemStorage` before `advance_append`, keeping RawNode memory state aligned with DB persistence.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server raft_inprocess --all-features`; `cargo test -p scheduler-server raft --all-features`.
+- Full verification passed for 058: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
