@@ -49,12 +49,12 @@ pub use script::{
 pub use user::{CreateUser, UpdateUser, UserRepository, UserSummary};
 pub use workflow::{
     AdvanceWorkflowInput, AdvanceWorkflowResult, CompleteWorkflowShardInput,
-    CompleteWorkflowShardResult, CreateWorkflow, DispatchQueueClaim, DispatchQueueSummary,
-    InstanceEventSummary, MaterializeWorkflowNodeResult, QueueOverview, RecoverWorkflowNodeInput,
-    RecoverWorkflowNodeResult, UpdateWorkflow, WorkflowDefinition, WorkflowEdgeSpec,
-    WorkflowInstanceSummary, WorkflowJobResultOutcome, WorkflowNodeInstanceSummary,
-    WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary, WorkflowSummary,
-    WorkflowValidationResult, validate_workflow_definition,
+    CompleteWorkflowShardResult, CreateWorkflow, DispatchQueueClaim, DispatchQueueSloSummary,
+    DispatchQueueSummary, InstanceEventSummary, MaterializeWorkflowNodeResult, QueueOverview,
+    RecoverWorkflowNodeInput, RecoverWorkflowNodeResult, UpdateWorkflow, WorkflowDefinition,
+    WorkflowEdgeSpec, WorkflowInstanceSummary, WorkflowJobResultOutcome,
+    WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
+    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
 };
 
 #[cfg(test)]

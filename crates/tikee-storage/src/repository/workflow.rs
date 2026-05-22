@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
@@ -136,6 +136,16 @@ pub struct CompleteWorkflowShardResult {
     pub node_completed: bool,
     pub node_status: Option<String>,
     pub advance: Option<AdvanceWorkflowResult>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct DispatchQueueSloSummary {
+    pub total: u64,
+    pub by_status: BTreeMap<String, u64>,
+    pub pending: u64,
+    pub running: u64,
+    pub oldest_pending_age_seconds: u64,
+    pub average_pending_age_seconds: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
@@ -1451,6 +1461,38 @@ impl WorkflowRepository {
         Ok(true)
     }
 
+    pub async fn dispatch_queue_slo_summary(
+        &self,
+    ) -> Result<DispatchQueueSloSummary, sea_orm::DbErr> {
+        let rows = dispatch_queue::Entity::find().all(&self.db).await?;
+        let now = time::OffsetDateTime::now_utc();
+        let mut summary = DispatchQueueSloSummary::default();
+        let mut pending_age_total = 0_u64;
+
+        for row in rows {
+            summary.total = summary.total.saturating_add(1);
+            *summary.by_status.entry(row.status.clone()).or_insert(0) += 1;
+            match row.status.as_str() {
+                "pending" => {
+                    summary.pending = summary.pending.saturating_add(1);
+                    let age = dispatch_queue_age_seconds(&row.created_at, now);
+                    pending_age_total = pending_age_total.saturating_add(age);
+                    summary.oldest_pending_age_seconds =
+                        summary.oldest_pending_age_seconds.max(age);
+                }
+                "running" => {
+                    summary.running = summary.running.saturating_add(1);
+                }
+                _ => {}
+            }
+        }
+
+        summary.average_pending_age_seconds =
+            pending_age_total.checked_div(summary.pending).unwrap_or(0);
+
+        Ok(summary)
+    }
+
     pub async fn queue_overview(&self, limit: u64) -> Result<QueueOverview, sea_orm::DbErr> {
         let rows = dispatch_queue::Entity::find()
             .order_by_desc(dispatch_queue::Column::CreatedAt)
@@ -1736,6 +1778,13 @@ impl From<dispatch_queue::Model> for DispatchQueueSummary {
             updated_at: model.updated_at,
         }
     }
+}
+
+fn dispatch_queue_age_seconds(created_at: &str, now: time::OffsetDateTime) -> u64 {
+    time::OffsetDateTime::parse(created_at, &time::format_description::well_known::Rfc3339)
+        .ok()
+        .and_then(|created| (now - created).whole_seconds().try_into().ok())
+        .unwrap_or(0)
 }
 
 fn normalize_terminal_status(status: &str) -> Result<String, sea_orm::DbErr> {

@@ -8,7 +8,11 @@
     "from": "now-6h",
     "to": "now"
   },
-  "tags": ["tikee", "phase3", "operations"],
+  "tags": [
+    "tikee",
+    "phase3",
+    "operations"
+  ],
   "templating": {
     "list": [
       {
@@ -34,7 +38,12 @@
           "expr": "sum(rate(tikee_http_requests_total[5m]))"
         }
       ],
-      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 }
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      }
     },
     {
       "id": 2,
@@ -47,7 +56,12 @@
           "expr": "histogram_quantile(0.95, sum(rate(tikee_http_request_duration_seconds_bucket[5m])) by (le, path, method))"
         }
       ],
-      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 0 }
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 6,
+        "y": 0
+      }
     },
     {
       "id": 3,
@@ -60,7 +74,12 @@
           "expr": "sum(tikee_worker_connected_total)"
         }
       ],
-      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 }
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      }
     },
     {
       "id": 4,
@@ -73,7 +92,12 @@
           "expr": "sum(rate(tikee_worker_dispatch_total[5m])) by (result)"
         }
       ],
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      }
     },
     {
       "id": 5,
@@ -87,7 +111,31 @@
           "expr": "sum(rate(tikee_http_requests_total{status=~\"5..\"}[5m])) / clamp_min(sum(rate(tikee_http_requests_total[5m])), 1)"
         }
       ],
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Dispatch Queue Pending Age p95",
+      "description": "Business SLO placeholder for queue wait time once histogram buckets are emitted by the server.",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum(rate(tikee_dispatch_queue_pending_age_seconds_bucket[5m])) by (le))"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      }
     }
   ]
 }

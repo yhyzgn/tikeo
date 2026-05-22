@@ -1517,6 +1517,16 @@ mod tests {
         assert_eq!(json["data"]["instances"]["total"], 2);
         assert_eq!(json["data"]["instances"]["by_status"]["pending"], 1);
         assert_eq!(json["data"]["instances"]["by_status"]["succeeded"], 1);
+        assert_eq!(json["data"]["queue"]["pending"], 2);
+        assert_eq!(json["data"]["queue"]["running"], 0);
+        assert_eq!(
+            json["data"]["queue"]["oldest_pending_age_seconds"].as_u64(),
+            Some(0)
+        );
+        assert_eq!(
+            json["data"]["queue"]["average_pending_age_seconds"].as_u64(),
+            Some(0)
+        );
         assert_eq!(json["data"]["alerts"]["total_events"], 1);
         assert_eq!(json["data"]["alerts"]["by_status"]["firing"], 1);
         assert_eq!(json["data"]["governance"]["script_failure_events"], 1);

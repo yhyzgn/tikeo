@@ -632,3 +632,9 @@
 - Added `observability/grafana/tikee-phase3-dashboard.json` as a deterministic Grafana dashboard template for existing Prometheus metrics: HTTP request rate, HTTP p95 latency, connected workers, worker dispatch outcomes, and an HTTP error-ratio SLO placeholder.
 - Added a Rust integration test that parses the dashboard JSON, asserts the expected title/panels shape, and verifies the required metric query strings stay present without needing a live Grafana/Prometheus service.
 - Roadmap now marks the Grafana template foundation complete while leaving richer scheduling-latency/business SLO metrics open.
+
+### 2026-05-23 — Phase 089 dispatch queue SLO summary
+- Continued `.prompt/089-phase3-business-slo-metrics.md` with a locally verifiable business SLO metric slice.
+- Added `DispatchQueueSloSummary` over existing `dispatch_queue` rows: total/by_status, pending/running counts, oldest pending age seconds, and average pending age seconds.
+- Extended `GET /api/v1/metrics/summary` with the queue SLO summary while preserving the standard HTTP envelope and avoiding external Prometheus/Grafana dependencies in tests.
+- Updated the Grafana template with a dispatch queue pending-age SLO query placeholder and kept JSON/metric-reference validation deterministic.

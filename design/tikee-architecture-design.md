@@ -2231,7 +2231,8 @@ tikee/
   - [x] Prometheus 指标端点（`/metrics`）与 HTTP/Worker 最小指标
   - [x] Metrics Summary API 基础（083：`GET /api/v1/metrics/summary` 汇总 worker online、实例状态、告警事件与脚本治理失败计数）
   - [x] Grafana Dashboard 模板基础（088：`observability/grafana/tikee-phase3-dashboard.json` 覆盖 HTTP request/rate/latency、worker connected/dispatch 与错误率 SLO 占位查询，含本地 JSON 结构/指标引用测试）
-  - [ ] 调度延迟与完整业务 SLO 指标
+  - [x] 调度队列 SLO 摘要基础（089：`GET /api/v1/metrics/summary` 增加 dispatch queue total/by_status/pending/running/oldest/average pending age，本地计算无需外部 Prometheus）
+  - [ ] 完整业务 SLO 指标（调度延迟 histogram、实例成功率、workflow/map-reduce SLA 等）
 - [ ] OpenTelemetry 分布式追踪
   - [x] HTTP Trace ID 传播基础（084：`x-request-id` / `x-trace-id` / W3C `traceparent` 解析，缺失时生成 `trc-*`，响应回写 `x-trace-id`，本地 tracing span 不依赖外部 collector）
 - [ ] Java Spring Boot Starter SDK（优先）

@@ -30,6 +30,11 @@ pub async fn metrics_summary(
         .count_events()
         .await
         .map_err(|error| ApiError::storage(&error))?;
+    let queue = state
+        .workflows
+        .dispatch_queue_slo_summary()
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
 
     Ok(Json(ApiResponse::success(MetricsSummaryResponse {
         workers: MetricsWorkerSummary {
@@ -47,5 +52,6 @@ pub async fn metrics_summary(
             script_failure_events: alert_counts.script_failure_events,
             by_failure_class: alert_counts.by_failure_class,
         },
+        queue,
     })))
 }
