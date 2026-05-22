@@ -559,3 +559,9 @@
 - Web Instances log drawer now highlights script governance failures and summarizes governance event count.
 - Added `AlertCondition::ScriptGovernanceFailure` as the deterministic alert rule shape for follow-up alert materialization.
 - Updated design roadmap and created `.prompt/079-script-governance-audit-materialization.md`.
+
+### 2026-05-23 — Workflow legacy edge condition frontend normalization
+- Fixed the dev workflow 400 path where `wf-dev-basic-pipeline` carried legacy `condition: "success"` from seed data even though the visible Web selector uses canonical `on_success`.
+- Web workflow client now normalizes legacy aliases before workflow create/update/dry-run, and the editor normalizes loaded definitions before showing the JSON draft.
+- `scripts/dev-seed.sql` now seeds the sample workflow definition and workflow_edges row with canonical `on_success`.
+- Regression tests cover stale `success`/`failed` aliases escaping through update/dry-run serialization.

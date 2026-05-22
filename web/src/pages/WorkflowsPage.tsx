@@ -12,6 +12,7 @@ import {
   getAuthToken,
   listJobs,
   listWorkflows,
+  normalizeWorkflowDefinition,
   runWorkflow,
   updateWorkflow,
   validateWorkflow,
@@ -803,7 +804,7 @@ export function WorkflowEditorPage() {
       if (workflowId) {
         const workflow = await getWorkflow(workflowId);
         form.setFieldsValue({ name: workflow.name });
-        setDraft(stringifyDefinition(workflow.definition));
+        setDraft(stringifyDefinition(normalizeWorkflowDefinition(workflow.definition)));
       }
     } finally { setLoading(false); }
   };

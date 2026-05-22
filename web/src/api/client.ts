@@ -479,10 +479,12 @@ export interface WorkflowNodeSpec {
   config?: unknown;
 }
 
+export type WorkflowEdgeCondition = 'always' | 'on_success' | 'on_failure';
+
 export interface WorkflowEdgeSpec {
   from: string;
   to: string;
-  condition?: 'always' | 'on_success' | 'on_failure' | null;
+  condition?: WorkflowEdgeCondition | null;
 }
 
 export interface WorkflowDefinition {
@@ -609,6 +611,37 @@ export interface InstanceEventSummary {
   created_at: string;
 }
 
+function normalizeWorkflowEdgeCondition(condition: unknown): WorkflowEdgeSpec['condition'] {
+  if (condition === null || condition === undefined) {
+    return condition as null | undefined;
+  }
+  if (typeof condition !== 'string') {
+    return condition as WorkflowEdgeSpec['condition'];
+  }
+  const normalized = condition.trim().toLowerCase();
+  if (normalized === 'success' || normalized === 'succeeded') {
+    return 'on_success';
+  }
+  if (normalized === 'failure' || normalized === 'failed') {
+    return 'on_failure';
+  }
+  return condition as WorkflowEdgeSpec['condition'];
+}
+
+export function normalizeWorkflowDefinition(definition: WorkflowDefinition): WorkflowDefinition {
+  return {
+    ...definition,
+    edges: definition.edges.map((edge) => ({
+      ...edge,
+      condition: normalizeWorkflowEdgeCondition(edge.condition),
+    })),
+  };
+}
+
+function normalizeWorkflowPayload(payload: { name: string; definition: WorkflowDefinition }): { name: string; definition: WorkflowDefinition } {
+  return { ...payload, definition: normalizeWorkflowDefinition(payload.definition) };
+}
+
 export async function listWorkflows(): Promise<WorkflowSummary[]> {
   return request<WorkflowSummary[]>('/api/v1/workflows');
 }
@@ -618,11 +651,11 @@ export async function getWorkflow(id: string): Promise<WorkflowSummary> {
 }
 
 export async function createWorkflow(payload: { name: string; definition: WorkflowDefinition }): Promise<WorkflowSummary> {
-  return request<WorkflowSummary>('/api/v1/workflows', { method: 'POST', body: JSON.stringify(payload) });
+  return request<WorkflowSummary>('/api/v1/workflows', { method: 'POST', body: JSON.stringify(normalizeWorkflowPayload(payload)) });
 }
 
 export async function updateWorkflow(id: string, payload: { name: string; definition: WorkflowDefinition }): Promise<WorkflowSummary> {
-  return request<WorkflowSummary>(`/api/v1/workflows/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) });
+  return request<WorkflowSummary>(`/api/v1/workflows/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(normalizeWorkflowPayload(payload)) });
 }
 
 export async function validateWorkflow(id: string): Promise<WorkflowValidationResult> {
@@ -630,7 +663,7 @@ export async function validateWorkflow(id: string): Promise<WorkflowValidationRe
 }
 
 export async function dryRunWorkflow(definition: WorkflowDefinition): Promise<WorkflowDryRunResponse> {
-  return request<WorkflowDryRunResponse>('/api/v1/workflows/dry-run', { method: 'POST', body: JSON.stringify(definition) });
+  return request<WorkflowDryRunResponse>('/api/v1/workflows/dry-run', { method: 'POST', body: JSON.stringify(normalizeWorkflowDefinition(definition)) });
 }
 
 export async function runWorkflow(id: string): Promise<WorkflowInstanceSummary> {

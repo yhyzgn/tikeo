@@ -32,3 +32,6 @@ Phase 078 made `script_execution_governance` instance logs queryable and UI-visi
 - Create the next `.prompt/080-*.md` before commit.
 - Mark completed roadmap items in `design/` using `[x]` only, no ✅.
 - Commit with Lore trailers and push.
+
+## Interruption note — 2026-05-23 workflow edge-condition fix
+Before continuing this slice, a Web workflow bug was fixed: legacy dev seed data used edge `condition: "success"`, while the current UI selector already uses canonical `on_success`. The Web API boundary now normalizes stale aliases before create/update/dry-run, the editor normalizes loaded definitions, and `scripts/dev-seed.sql` seeds `on_success`.

@@ -142,7 +142,7 @@ ON CONFLICT(id) DO UPDATE SET
   created_at = excluded.created_at;
 
 INSERT INTO workflows (id, name, definition, status, created_by, created_at, updated_at)
-VALUES ('wf-dev-basic-pipeline', 'dev-basic-pipeline', '{"nodes":[{"key":"hello","name":"API hello","kind":"job","job_id":"job-dev-api-hello","processor_name":null,"child_workflow_id":null,"map_items":null,"config":null},{"key":"report","name":"Minute report","kind":"job","job_id":"job-dev-cron-minute-report","processor_name":null,"child_workflow_id":null,"map_items":null,"config":null}],"edges":[{"from":"hello","to":"report","condition":"success"}]}', 'active', 'usr-admin', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+VALUES ('wf-dev-basic-pipeline', 'dev-basic-pipeline', '{"nodes":[{"key":"hello","name":"API hello","kind":"job","job_id":"job-dev-api-hello","processor_name":null,"child_workflow_id":null,"map_items":null,"config":null},{"key":"report","name":"Minute report","kind":"job","job_id":"job-dev-cron-minute-report","processor_name":null,"child_workflow_id":null,"map_items":null,"config":null}],"edges":[{"from":"hello","to":"report","condition":"on_success"}]}', 'active', 'usr-admin', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
   definition = excluded.definition,
@@ -165,7 +165,7 @@ ON CONFLICT(id) DO UPDATE SET
   created_at = excluded.created_at;
 
 INSERT INTO workflow_edges (id, workflow_id, from_node_key, to_node_key, condition, created_at)
-VALUES ('wfe-dev-basic-hello-report', 'wf-dev-basic-pipeline', 'hello', 'report', 'success', '2026-01-01T00:00:00Z')
+VALUES ('wfe-dev-basic-hello-report', 'wf-dev-basic-pipeline', 'hello', 'report', 'on_success', '2026-01-01T00:00:00Z')
 ON CONFLICT(id) DO UPDATE SET
   workflow_id = excluded.workflow_id,
   from_node_key = excluded.from_node_key,

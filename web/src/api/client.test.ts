@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
-import { ApiClientError, createJob, getAuthToken, listInstanceLogs, listJobs, login, setAuthErrorHandler, setAuthToken, triggerJob } from './client';
+import { ApiClientError, createJob, dryRunWorkflow, getAuthToken, listInstanceLogs, listJobs, login, setAuthErrorHandler, setAuthToken, triggerJob, updateWorkflow } from './client';
 
 const originalFetch = globalThis.fetch;
 
@@ -84,6 +84,63 @@ describe('api client envelope handling', () => {
 
     await expect(listInstanceLogs('inst_1', { governanceOnly: true })).resolves.toEqual(body.data);
     expect(fetch).toHaveBeenCalledWith('/api/v1/instances/inst_1/logs?page_token=script_execution_governance', expect.any(Object));
+  });
+
+  test('normalizes legacy workflow edge conditions before workflow mutations', async () => {
+    const bodies: unknown[] = [];
+    globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({
+        code: 0,
+        message: 'success',
+        data: {
+          id: 'wf_1',
+          name: 'legacy-flow',
+          definition: { nodes: [], edges: [] },
+          status: 'active',
+          created_by: 'usr-admin',
+          created_at: 'now',
+          updated_at: 'now',
+        },
+      }));
+    }) as unknown as typeof fetch;
+
+    await updateWorkflow('wf_1', {
+      name: 'legacy-flow',
+      definition: {
+        nodes: [
+          { key: 'hello', kind: 'job' },
+          { key: 'report', kind: 'job' },
+        ],
+        edges: [{ from: 'hello', to: 'report', condition: 'success' as never }],
+      },
+    });
+
+    expect(bodies.at(-1)).toMatchObject({
+      definition: { edges: [{ condition: 'on_success' }] },
+    });
+  });
+
+  test('normalizes legacy workflow edge conditions before dry-run validation', async () => {
+    let body: unknown = null;
+    globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({
+        code: 0,
+        message: 'success',
+        data: { validation: { valid: true, errors: [] }, start_nodes: ['hello'], node_count: 2, edge_count: 1 },
+      }));
+    }) as unknown as typeof fetch;
+
+    await dryRunWorkflow({
+      nodes: [
+        { key: 'hello', kind: 'job' },
+        { key: 'report', kind: 'job' },
+      ],
+      edges: [{ from: 'hello', to: 'report', condition: 'failed' as never }],
+    });
+
+    expect(body).toMatchObject({ edges: [{ condition: 'on_failure' }] });
   });
 
   test('stores login token and sends authorization for protected mutations', async () => {
