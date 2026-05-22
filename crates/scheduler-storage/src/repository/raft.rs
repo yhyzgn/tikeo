@@ -489,6 +489,14 @@ impl RaftRepository {
         {
             return Ok(existing.into());
         }
+        if let Some(existing) = raft_applied_command::Entity::find()
+            .filter(raft_applied_command::Column::ClusterId.eq(input.cluster_id.clone()))
+            .filter(raft_applied_command::Column::CommandId.eq(input.command_id.clone()))
+            .one(&self.db)
+            .await?
+        {
+            return Ok(existing.into());
+        }
 
         let now = now_rfc3339();
         raft_applied_command::ActiveModel {
@@ -508,6 +516,20 @@ impl RaftRepository {
         .insert(&self.db)
         .await
         .map(RaftAppliedCommandSummary::from)
+    }
+
+    /// Return an applied Raft command by its cluster-wide idempotency key.
+    pub async fn get_applied_command_by_command_id(
+        &self,
+        cluster_id: &str,
+        command_id: &str,
+    ) -> Result<Option<RaftAppliedCommandSummary>, sea_orm::DbErr> {
+        raft_applied_command::Entity::find()
+            .filter(raft_applied_command::Column::ClusterId.eq(cluster_id.to_owned()))
+            .filter(raft_applied_command::Column::CommandId.eq(command_id.to_owned()))
+            .one(&self.db)
+            .await
+            .map(|row| row.map(RaftAppliedCommandSummary::from))
     }
 
     /// List applied Raft commands for a node.

@@ -958,3 +958,11 @@ Git:
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-storage raft --all-features`; `cargo test -p scheduler-server raft --all-features`.
 - Next slice prompt: `.prompt/055-phase2-raft-rs-real-business-commands-and-membership.md`.
 - Full verification passed for this slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build`.
+
+### 2026-05-22 Phase2 raft-rs real member command apply
+- Resumed from `.prompt/055-phase2-raft-rs-real-business-commands-and-membership.md` and pushed previous local commit `7f82709`.
+- Added `raft_member_upsert` as the first real state-machine command. Scope is intentionally limited to member catalog metadata, so it is safe before dynamic ConfChange support.
+- Added duplicate `command_id` replay guard before side effects. Replayed commands advance Raft apply bookkeeping but do not reapply member mutations or violate the unique `(cluster_id, command_id)` index.
+- Updated design to document the dynamic membership two-layer flow: member catalog command first; future proposal API + raft-rs `propose_conf_change` + committed ConfState apply before changing voters/learners.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server raft_apply_committed_entries --all-features`; `cargo test -p scheduler-storage raft_tables_keep_soft_relationships_without_foreign_keys --all-features`.
+- Full verification passed for 055: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).

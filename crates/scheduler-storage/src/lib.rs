@@ -827,3 +827,35 @@ async fn sqlite_column_exists(
 
     Ok(false)
 }
+
+#[cfg(test)]
+mod tests {
+    use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
+
+    #[tokio::test]
+    async fn raft_tables_keep_soft_relationships_without_foreign_keys() {
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should initialize: {error}"));
+
+        for table in [
+            "raft_metadata",
+            "raft_members",
+            "raft_log_entries",
+            "raft_snapshots",
+            "raft_applied_commands",
+        ] {
+            let rows = db
+                .query_all(Statement::from_string(
+                    DatabaseBackend::Sqlite,
+                    format!("PRAGMA foreign_key_list({table})"),
+                ))
+                .await
+                .unwrap_or_else(|error| panic!("foreign key list should query: {error}"));
+            assert!(
+                rows.is_empty(),
+                "table {table} must use soft relationships only"
+            );
+        }
+    }
+}

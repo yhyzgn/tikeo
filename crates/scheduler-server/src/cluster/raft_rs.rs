@@ -20,13 +20,14 @@ use raft::{
 };
 use scheduler_config::ClusterConfig;
 use scheduler_storage::{
-    RaftRepository, RecordRaftAppliedCommand, UpsertRaftLogEntry, UpsertRaftMetadata,
-    UpsertRaftSnapshot,
+    RaftRepository, RecordRaftAppliedCommand, UpsertRaftLogEntry, UpsertRaftMember,
+    UpsertRaftMetadata, UpsertRaftSnapshot,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::sync::{Mutex, RwLock, mpsc};
 use tracing::{debug, warn};
+use url::Url;
 
 use super::{
     ClusterMode, ClusterRole, ClusterStatus, RaftMessageSubmission, SharedClusterCoordinator,
@@ -94,6 +95,38 @@ struct SchedulerRaftCommand {
     command_type: String,
     #[serde(default)]
     payload: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RaftMemberUpsertPayload {
+    node_id: String,
+    endpoint: String,
+    status: String,
+}
+
+#[derive(Debug, Clone)]
+enum RaftCommandApply {
+    Noop {
+        command_id: String,
+        payload: Option<String>,
+        message: String,
+    },
+    MemberUpsert {
+        command_id: String,
+        payload: RaftMemberUpsertPayload,
+        payload_json: String,
+    },
+    DeferredUnsupported {
+        command_id: String,
+        command_type: String,
+        payload: Option<String>,
+    },
+    Rejected {
+        command_id: String,
+        command_type: String,
+        payload: Option<String>,
+        message: String,
+    },
 }
 
 impl RaftPeerTransport {
@@ -485,39 +518,77 @@ async fn record_normal_command(
     repository: &RaftRepository,
     entry: &Entry,
 ) -> Result<(), scheduler_storage::DbErr> {
-    let (command_id, command_type, payload, status, message) = if entry.get_data().is_empty() {
-        (
-            format!("raft-noop-{}", entry.get_index()),
+    let command = parse_entry_command(entry);
+    if let Some(existing) = repository
+        .get_applied_command_by_command_id(CLUSTER_ID, command.command_id())
+        .await?
+    {
+        debug!(
+            command_id = existing.command_id,
+            original_log_index = existing.log_index,
+            replay_log_index = entry.get_index(),
+            "raft-rs command replay skipped by command_id idempotency"
+        );
+        return Ok(());
+    }
+
+    let (command_id, command_type, payload, status, message) = match command {
+        RaftCommandApply::Noop {
+            command_id,
+            payload,
+            message,
+        } => (
+            command_id,
             "noop".to_owned(),
-            None,
+            payload,
             "applied".to_owned(),
-            "empty raft entry treated as noop".to_owned(),
-        )
-    } else {
-        match serde_json::from_slice::<SchedulerRaftCommand>(entry.get_data()) {
-            Ok(command) if command.command_type == "noop" => (
-                command.command_id,
-                command.command_type,
-                Some(command.payload.to_string()),
+            message,
+        ),
+        RaftCommandApply::MemberUpsert {
+            command_id,
+            payload,
+            payload_json,
+        } => {
+            repository
+                .upsert_member(UpsertRaftMember {
+                    node_id: payload.node_id,
+                    endpoint: payload.endpoint,
+                    status: payload.status,
+                })
+                .await?;
+            (
+                command_id,
+                "raft_member_upsert".to_owned(),
+                Some(payload_json),
                 "applied".to_owned(),
-                "noop command applied idempotently".to_owned(),
-            ),
-            Ok(command) => (
-                command.command_id,
-                command.command_type,
-                Some(command.payload.to_string()),
-                "deferred_unsupported".to_owned(),
-                "command envelope recorded but business apply is not implemented for this type"
+                "raft member catalog metadata upserted idempotently; raft ConfChange remains gated"
                     .to_owned(),
-            ),
-            Err(error) => (
-                format!("raft-invalid-{}", entry.get_index()),
-                "invalid_json".to_owned(),
-                Some(STANDARD.encode(entry.get_data())),
-                "rejected".to_owned(),
-                format!("invalid command envelope JSON: {error}"),
-            ),
+            )
         }
+        RaftCommandApply::DeferredUnsupported {
+            command_id,
+            command_type,
+            payload,
+        } => (
+            command_id,
+            command_type,
+            payload,
+            "deferred_unsupported".to_owned(),
+            "command envelope recorded but business apply is not implemented for this type"
+                .to_owned(),
+        ),
+        RaftCommandApply::Rejected {
+            command_id,
+            command_type,
+            payload,
+            message,
+        } => (
+            command_id,
+            command_type,
+            payload,
+            "rejected".to_owned(),
+            message,
+        ),
     };
     repository
         .record_applied_command(RecordRaftAppliedCommand {
@@ -533,6 +604,140 @@ async fn record_normal_command(
         })
         .await
         .map(|_| ())
+}
+
+fn parse_entry_command(entry: &Entry) -> RaftCommandApply {
+    if entry.get_data().is_empty() {
+        return RaftCommandApply::Noop {
+            command_id: format!("raft-noop-{}", entry.get_index()),
+            payload: None,
+            message: "empty raft entry treated as noop".to_owned(),
+        };
+    }
+
+    match serde_json::from_slice::<SchedulerRaftCommand>(entry.get_data()) {
+        Ok(command) => parse_scheduler_command(command, entry.get_index()),
+        Err(error) => RaftCommandApply::Rejected {
+            command_id: format!("raft-invalid-{}", entry.get_index()),
+            command_type: "invalid_json".to_owned(),
+            payload: Some(STANDARD.encode(entry.get_data())),
+            message: format!("invalid command envelope JSON: {error}"),
+        },
+    }
+}
+
+fn parse_scheduler_command(command: SchedulerRaftCommand, log_index: u64) -> RaftCommandApply {
+    let command_id = command.command_id.trim().to_owned();
+    let command_type = command.command_type.trim().to_owned();
+    if command_id.is_empty() {
+        return RaftCommandApply::Rejected {
+            command_id: format!("raft-rejected-{log_index}"),
+            command_type: command_type_or_invalid(&command_type),
+            payload: Some(command.payload.to_string()),
+            message: "command_id must not be empty".to_owned(),
+        };
+    }
+    if command_type.is_empty() {
+        return RaftCommandApply::Rejected {
+            command_id,
+            command_type: "invalid_command_type".to_owned(),
+            payload: Some(command.payload.to_string()),
+            message: "command_type must not be empty".to_owned(),
+        };
+    }
+
+    match command_type.as_str() {
+        "noop" => RaftCommandApply::Noop {
+            command_id,
+            payload: Some(command.payload.to_string()),
+            message: "noop command applied idempotently".to_owned(),
+        },
+        "raft_member_upsert" => {
+            let payload_json = command.payload.to_string();
+            match parse_member_upsert_payload(command.payload) {
+                Ok((payload, payload_json)) => RaftCommandApply::MemberUpsert {
+                    command_id,
+                    payload,
+                    payload_json,
+                },
+                Err(message) => RaftCommandApply::Rejected {
+                    command_id,
+                    command_type,
+                    payload: Some(payload_json),
+                    message,
+                },
+            }
+        }
+        _ => RaftCommandApply::DeferredUnsupported {
+            command_id,
+            command_type,
+            payload: Some(command.payload.to_string()),
+        },
+    }
+}
+
+fn parse_member_upsert_payload(
+    payload: serde_json::Value,
+) -> Result<(RaftMemberUpsertPayload, String), String> {
+    let payload_json = payload.to_string();
+    let payload = serde_json::from_value::<RaftMemberUpsertPayload>(payload)
+        .map_err(|error| format!("raft_member_upsert payload is invalid: {error}"))?;
+    validate_member_node_id(&payload.node_id)?;
+    validate_member_endpoint(&payload.endpoint)?;
+    validate_member_status(&payload.status)?;
+    Ok((payload, payload_json))
+}
+
+fn validate_member_node_id(node_id: &str) -> Result<(), String> {
+    if node_id.trim().is_empty() {
+        return Err("raft_member_upsert node_id must not be empty".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_member_endpoint(endpoint: &str) -> Result<(), String> {
+    let parsed = Url::parse(endpoint)
+        .map_err(|error| format!("raft_member_upsert endpoint must be an absolute URL: {error}"))?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err("raft_member_upsert endpoint must use http or https".to_owned());
+    }
+    if parsed.host_str().is_none() {
+        return Err("raft_member_upsert endpoint must include a host".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_member_status(status: &str) -> Result<(), String> {
+    if matches!(
+        status,
+        "configured" | "joining" | "active" | "leaving" | "removed"
+    ) {
+        Ok(())
+    } else {
+        Err(
+            "raft_member_upsert status must be one of configured, joining, active, leaving, removed"
+                .to_owned(),
+        )
+    }
+}
+
+fn command_type_or_invalid(command_type: &str) -> String {
+    if command_type.is_empty() {
+        "invalid_command_type".to_owned()
+    } else {
+        command_type.to_owned()
+    }
+}
+
+impl RaftCommandApply {
+    fn command_id(&self) -> &str {
+        match self {
+            Self::Noop { command_id, .. }
+            | Self::MemberUpsert { command_id, .. }
+            | Self::DeferredUnsupported { command_id, .. }
+            | Self::Rejected { command_id, .. } => command_id,
+        }
+    }
 }
 
 async fn update_runtime_status(
@@ -828,6 +1033,109 @@ mod tests {
         assert_eq!(commands[0].command_type, "noop");
         assert_eq!(commands[0].status, "applied");
         assert_eq!(commands[0].payload.as_deref(), Some(r#"{"source":"test"}"#));
+    }
+
+    #[tokio::test]
+    async fn raft_apply_committed_entries_applies_member_upsert_once_by_command_id() {
+        let repository = test_raft_repository().await;
+        let mut first = raft::eraftpb::Entry::new();
+        first.set_entry_type(EntryType::EntryNormal);
+        first.index = 10;
+        first.term = 4;
+        first.data = br#"{"command_id":"cmd-member-1","command_type":"raft_member_upsert","payload":{"node_id":"scheduler-2","endpoint":"http://scheduler-2.scheduler-headless:9998","status":"active"}}"#
+            .to_vec()
+            .into();
+        let mut replay = raft::eraftpb::Entry::new();
+        replay.set_entry_type(EntryType::EntryNormal);
+        replay.index = 11;
+        replay.term = 4;
+        replay.data = br#"{"command_id":"cmd-member-1","command_type":"raft_member_upsert","payload":{"node_id":"scheduler-2","endpoint":"http://scheduler-2.example:9998","status":"removed"}}"#
+            .to_vec()
+            .into();
+
+        let applied = apply_committed_entries("scheduler-0", &repository, &[first, replay])
+            .await
+            .unwrap_or_else(|error| panic!("member upsert command should apply: {error}"));
+        let commands = repository
+            .list_applied_commands("scheduler-0")
+            .await
+            .unwrap_or_else(|error| panic!("applied commands should list: {error}"));
+        let members = repository
+            .list_members()
+            .await
+            .unwrap_or_else(|error| panic!("members should list: {error}"));
+        let metadata = repository
+            .get_metadata("scheduler-0")
+            .await
+            .unwrap_or_else(|error| panic!("metadata should load: {error}"))
+            .unwrap_or_else(|| panic!("metadata should exist"));
+
+        assert_eq!(applied, Some(11));
+        assert_eq!(metadata.applied_index, 11);
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].command_id, "cmd-member-1");
+        assert_eq!(commands[0].command_type, "raft_member_upsert");
+        assert_eq!(commands[0].status, "applied");
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0].node_id, "scheduler-2");
+        assert_eq!(
+            members[0].endpoint,
+            "http://scheduler-2.scheduler-headless:9998"
+        );
+        assert_eq!(members[0].status, "active");
+    }
+
+    #[tokio::test]
+    async fn raft_apply_committed_entries_records_unsupported_and_rejected_payloads() {
+        let repository = test_raft_repository().await;
+        let mut unsupported = raft::eraftpb::Entry::new();
+        unsupported.set_entry_type(EntryType::EntryNormal);
+        unsupported.index = 12;
+        unsupported.term = 4;
+        unsupported.data =
+            br#"{"command_id":"cmd-unknown-1","command_type":"future_command","payload":{"x":1}}"#
+                .to_vec()
+                .into();
+        let mut rejected = raft::eraftpb::Entry::new();
+        rejected.set_entry_type(EntryType::EntryNormal);
+        rejected.index = 13;
+        rejected.term = 4;
+        rejected.data = br#"{"command_id":"cmd-member-bad","command_type":"raft_member_upsert","payload":{"node_id":"scheduler-3","endpoint":"ftp://scheduler-3","status":"active"}}"#
+            .to_vec()
+            .into();
+        let mut invalid_json = raft::eraftpb::Entry::new();
+        invalid_json.set_entry_type(EntryType::EntryNormal);
+        invalid_json.index = 14;
+        invalid_json.term = 4;
+        invalid_json.data = b"not-json".to_vec().into();
+
+        let applied = apply_committed_entries(
+            "scheduler-0",
+            &repository,
+            &[unsupported, rejected, invalid_json],
+        )
+        .await
+        .unwrap_or_else(|error| panic!("non-applied command records should be stored: {error}"));
+        let commands = repository
+            .list_applied_commands("scheduler-0")
+            .await
+            .unwrap_or_else(|error| panic!("applied commands should list: {error}"));
+        let members = repository
+            .list_members()
+            .await
+            .unwrap_or_else(|error| panic!("members should list: {error}"));
+
+        assert_eq!(applied, Some(14));
+        assert_eq!(commands.len(), 3);
+        assert_eq!(commands[0].command_id, "cmd-unknown-1");
+        assert_eq!(commands[0].status, "deferred_unsupported");
+        assert_eq!(commands[1].command_id, "cmd-member-bad");
+        assert_eq!(commands[1].status, "rejected");
+        assert!(commands[1].message.contains("http or https"));
+        assert_eq!(commands[2].command_id, "raft-invalid-14");
+        assert_eq!(commands[2].command_type, "invalid_json");
+        assert_eq!(commands[2].status, "rejected");
+        assert!(members.is_empty());
     }
 
     #[tokio::test]

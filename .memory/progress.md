@@ -331,3 +331,11 @@
 - `EntryNormal` payloads now parse as scheduler command envelopes (`command_id`, `command_type`, `payload`). `noop` is applied, unknown command types are recorded as `deferred_unsupported`, invalid JSON is recorded as `rejected`, and apply index still advances deliberately.
 - Next slice: choose and implement the first real Raft-owned business command, plus dynamic membership/config-change design.
 - Full verification passed for this slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build`.
+
+### 2026-05-22 Phase2 raft-rs real member command apply
+- Pushed the prior 054 commit (`7f82709`) to origin/main before continuing.
+- Implemented first real Raft-owned business command: `raft_member_upsert`. It validates `node_id`, http/https endpoint, and member status (`configured/joining/active/leaving/removed`), then updates the no-FK `raft_members` catalog only.
+- Added command-id replay protection: `(cluster_id, command_id)` is checked before side effects, and `record_applied_command` now returns existing records for duplicate command ids to avoid unique-index failures.
+- Dynamic membership remains deliberately gated: `raft_member_upsert` does not call raft-rs `propose_conf_change`; committed `EntryConfChange/EntryConfChangeV2` still stop apply progress until proposal/API + ConfState application are implemented.
+- Targeted tests added for member command replay, unsupported commands, rejected payloads, invalid JSON, and raft table no-FK schema guarantees.
+- Full verification passed: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
