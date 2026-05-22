@@ -110,6 +110,7 @@ mod tests {
                 commit_index: 2,
                 applied_index: 1,
                 leader_fencing_token: Some("term-1-node-scheduler-1".to_owned()),
+                conf_state: None,
             })
             .await
             .unwrap_or_else(|error| panic!("metadata should upsert: {error}"));
@@ -129,6 +130,7 @@ mod tests {
                 commit_index: 4,
                 applied_index: 4,
                 leader_fencing_token: None,
+                conf_state: None,
             })
             .await
             .unwrap_or_else(|error| panic!("metadata should update: {error}"));
@@ -210,6 +212,7 @@ mod tests {
                 commit_index: 4,
                 applied_index: 4,
                 leader_fencing_token: None,
+                conf_state: None,
             })
             .await
             .unwrap_or_else(|error| panic!("metadata should upsert: {error}"));

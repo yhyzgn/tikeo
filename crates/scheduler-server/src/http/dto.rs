@@ -213,6 +213,8 @@ pub struct RaftMetadataDiagnostic {
     pub applied_index: i64,
     /// Leader fencing token, null until real consensus establishes leadership.
     pub leader_fencing_token: Option<String>,
+    /// Base64-encoded raft-rs `ConfState`, null until committed membership apply.
+    pub conf_state: Option<String>,
     /// Last update timestamp.
     pub updated_at: String,
 }

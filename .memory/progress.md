@@ -346,3 +346,10 @@
 - Added `POST /api/v1/raft/members:propose`; it requires a real Raft leader status, `can_schedule=true`, persisted `leader_fencing_token`, and validates add/remove voter intent before storing `pending_conf_change`.
 - The endpoint deliberately does not call raft-rs `propose_conf_change` yet; committed `EntryConfChange/EntryConfChangeV2` apply remains gated until ConfState persistence and quorum-safe transition logic are implemented.
 - Full verification passed for membership proposal intent API: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase2 raft-rs committed ConfChange apply
+- Added runtime command path for membership proposals: HTTP stores an idempotent proposal intent, then submits it to `RaftRuntimeCoordinator::propose_membership_change`; non-runtime/static coordinators now reject instead of pretending proposal success.
+- Runtime proposals build raft-rs `ConfChange` with JSON context (`proposal_id/action/node_id/endpoint`) and call `RawNode::propose_conf_change` only after real leader/fencing checks.
+- Committed `EntryConfChange` / `EntryConfChangeV2` are now explicitly decoded. With a runtime node, successful `RawNode::apply_conf_change` persists base64 `raft_metadata.conf_state`, updates `raft_members` to `active/removed`, marks proposal `applied`, and advances applied index. Without runtime node, config-change entries remain gated and do not advance.
+- Malformed config-change payloads are treated as handled/rejected and advance apply index without mutating membership; unsupported multi-change V2 is rejected.
+- Full verification passed for committed ConfChange apply: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).

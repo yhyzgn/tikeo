@@ -416,7 +416,7 @@ mod tests {
         );
         assert_eq!(
             json["data"]["runtime_boundary"],
-            "tikv/raft-rs runtime can tick and accept inbound messages; outbound transport, state-machine apply, and leader fencing are still gated"
+            "tikv/raft-rs runtime can tick, accept inbound messages, emit gated membership proposals, and apply committed ConfChange with persisted ConfState; leader fencing remains required for scheduling/proposals"
         );
     }
 
@@ -652,16 +652,17 @@ mod tests {
         let second = post_json(app, "/api/v1/raft/members:propose", request).await;
 
         assert_eq!(first["code"], 0);
-        assert_eq!(first["data"]["accepted"], true);
-        assert_eq!(first["data"]["proposal"]["status"], "pending_conf_change");
+        assert_eq!(first["data"]["accepted"], false);
+        assert_eq!(first["data"]["proposal"]["status"], "rejected");
         assert_eq!(second["code"], 0);
         assert_eq!(
             first["data"]["proposal"]["id"],
             second["data"]["proposal"]["id"]
         );
-        assert_eq!(
-            second["data"]["reason"],
-            "membership proposal intent stored; raft-rs ConfChange emission remains gated"
+        assert!(
+            second["data"]["reason"]
+                .as_str()
+                .is_some_and(|value| value.contains("runtime is not available"))
         );
     }
 

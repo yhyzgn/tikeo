@@ -486,6 +486,7 @@ async fn create_raft_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(big_integer_col(RaftMetadata::CommitIndex))
                 .col(big_integer_col(RaftMetadata::AppliedIndex))
                 .col(string_null(RaftMetadata::LeaderFencingToken))
+                .col(text_null(RaftMetadata::ConfState))
                 .col(string_col(RaftMetadata::UpdatedAt))
                 .to_owned(),
         )
@@ -1320,6 +1321,7 @@ enum RaftMetadata {
     CommitIndex,
     AppliedIndex,
     LeaderFencingToken,
+    ConfState,
     UpdatedAt,
 }
 

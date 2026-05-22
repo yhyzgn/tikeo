@@ -974,3 +974,12 @@ Git:
 - Tests added for non-leader rejection, invalid endpoint rejection, and duplicate proposal idempotency.
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server raft_membership_proposal --all-features`; `cargo test -p scheduler-storage raft_tables_keep_soft_relationships_without_foreign_keys --all-features`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
 - Full verification passed for 056: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase2 raft-rs committed ConfChange apply
+- Continued `.prompt/057-phase2-raft-rs-confchange-apply.md`.
+- Added `RaftMembershipProposal` and `RaftMembershipProposalSubmission` to the cluster trait boundary plus runtime command handling in `RaftRuntimeCoordinator`.
+- Added `raft_metadata.conf_state` persistence with SQLite compatibility migration and diagnostics exposure.
+- Implemented committed ConfChange handling: decode v1/v2, require runtime node to apply real membership changes, persist `ConfState` before updating `raft_members`, and update proposal status to `applied`/`rejected`.
+- Added targeted tests for committed add-member happy path, malformed ConfChange handling, and no-runtime gating.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server raft --all-features`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
+- Full verification passed for 057: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).

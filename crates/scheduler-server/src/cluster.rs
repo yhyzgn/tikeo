@@ -88,6 +88,48 @@ pub struct RaftMessageSubmission {
     pub reason: String,
 }
 
+/// Validated Raft membership proposal passed from HTTP to the runtime.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RaftMembershipProposal {
+    /// Client-provided proposal idempotency key.
+    pub proposal_id: String,
+    /// Membership action, for example `add_voter` or `remove_voter`.
+    pub action: String,
+    /// Target scheduler node id.
+    pub node_id: String,
+    /// Peer endpoint captured in the proposal context.
+    pub endpoint: Option<String>,
+}
+
+/// Result of submitting a membership proposal to the local raft-rs runtime.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RaftMembershipProposalSubmission {
+    /// Whether the runtime accepted the proposal for raft-rs processing.
+    pub accepted: bool,
+    /// Human-readable submission result.
+    pub reason: String,
+}
+
+impl RaftMembershipProposalSubmission {
+    /// Accepted by a running runtime.
+    #[must_use]
+    pub fn accepted(reason: impl Into<String>) -> Self {
+        Self {
+            accepted: true,
+            reason: reason.into(),
+        }
+    }
+
+    /// Rejected because the current coordinator cannot safely propose membership.
+    #[must_use]
+    pub fn unavailable(reason: impl Into<String>) -> Self {
+        Self {
+            accepted: false,
+            reason: reason.into(),
+        }
+    }
+}
+
 impl RaftMessageSubmission {
     /// Accepted by a running runtime inbox.
     #[must_use]
@@ -144,6 +186,7 @@ pub async fn coordinator_from_config_with_storage(
                     commit_index: 0,
                     applied_index: 0,
                     leader_fencing_token: None,
+                    conf_state: None,
                 })
                 .await?;
             for peer in &config.peers {
@@ -199,6 +242,17 @@ pub trait ClusterCoordinator: Send + Sync + std::fmt::Debug {
         let _message = message;
         RaftMessageSubmission::unavailable(
             "raft-rs runtime inbox is not available for this coordinator",
+        )
+    }
+
+    /// Submit a validated membership proposal to the local raft-rs runtime.
+    async fn propose_membership_change(
+        &self,
+        proposal: RaftMembershipProposal,
+    ) -> RaftMembershipProposalSubmission {
+        let _proposal = proposal;
+        RaftMembershipProposalSubmission::unavailable(
+            "raft-rs membership proposal runtime is not available for this coordinator",
         )
     }
 }

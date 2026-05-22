@@ -6,6 +6,7 @@ use raft::eraftpb::{Entry, EntryType, Message, MessageType};
 use scheduler_storage::RecordRaftMembershipProposal;
 use url::Url;
 
+use crate::cluster::RaftMembershipProposal;
 use crate::http::{
     AppState, auth,
     dto::{
@@ -95,21 +96,56 @@ pub async fn propose_member_change(
         .raft
         .record_membership_proposal(RecordRaftMembershipProposal {
             cluster_id: "default".to_owned(),
-            proposal_id: proposal.proposal_id,
-            action: proposal.action,
-            node_id: proposal.node_id,
-            endpoint: proposal.endpoint,
-            status: "pending_conf_change".to_owned(),
-            message: "membership proposal intent stored; raft-rs ConfChange emission remains gated"
+            proposal_id: proposal.proposal_id.clone(),
+            action: proposal.action.clone(),
+            node_id: proposal.node_id.clone(),
+            endpoint: proposal.endpoint.clone(),
+            status: "pending_propose".to_owned(),
+            message: "membership proposal intent stored; awaiting raft-rs propose_conf_change"
                 .to_owned(),
             created_by: principal.username,
         })
         .await
         .map_err(|error| ApiError::storage(&error))?;
+    let submission = state
+        .cluster
+        .propose_membership_change(RaftMembershipProposal {
+            proposal_id: proposal.proposal_id,
+            action: proposal.action,
+            node_id: proposal.node_id,
+            endpoint: proposal.endpoint,
+        })
+        .await;
+    let stored = if submission.accepted {
+        state
+            .raft
+            .update_membership_proposal_status(
+                "default",
+                &stored.proposal_id,
+                "proposed_conf_change",
+                &submission.reason,
+            )
+            .await
+            .map_err(|error| ApiError::storage(&error))?
+            .unwrap_or(stored)
+    } else {
+        state
+            .raft
+            .update_membership_proposal_status(
+                "default",
+                &stored.proposal_id,
+                "rejected",
+                &submission.reason,
+            )
+            .await
+            .map_err(|error| ApiError::storage(&error))?
+            .unwrap_or(stored)
+    };
+    let reason = submission.reason;
 
     Ok(Json(ApiResponse::success(RaftMembershipProposalResponse {
-        accepted: true,
-        reason: stored.message.clone(),
+        accepted: submission.accepted,
+        reason,
         local_node_id: status.node_id,
         local_role: status.role.as_str().to_owned(),
         leader_fencing_token: status.leader_fencing_token,

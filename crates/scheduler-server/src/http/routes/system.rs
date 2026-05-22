@@ -67,6 +67,7 @@ pub async fn cluster_diagnostics(
             commit_index: item.commit_index,
             applied_index: item.applied_index,
             leader_fencing_token: item.leader_fencing_token,
+            conf_state: item.conf_state,
             updated_at: item.updated_at,
         });
     let members = state
@@ -99,7 +100,7 @@ pub async fn cluster_diagnostics(
             },
         },
         runtime_boundary:
-            "tikv/raft-rs runtime can tick and accept inbound messages; outbound transport, state-machine apply, and leader fencing are still gated".to_owned(),
+            "tikv/raft-rs runtime can tick, accept inbound messages, emit gated membership proposals, and apply committed ConfChange with persisted ConfState; leader fencing remains required for scheduling/proposals".to_owned(),
     })))
 }
 

@@ -14,7 +14,9 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use protobuf::Message as PbMessage;
 use raft::{
     Config, StateRole,
-    eraftpb::{Entry, EntryType, HardState, Message, Snapshot},
+    eraftpb::{
+        ConfChange, ConfChangeType, ConfChangeV2, Entry, EntryType, HardState, Message, Snapshot,
+    },
     raw_node::RawNode,
     storage::MemStorage,
 };
@@ -25,12 +27,13 @@ use scheduler_storage::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tokio::sync::{Mutex, RwLock, mpsc};
+use tokio::sync::{Mutex, RwLock, mpsc, oneshot};
 use tracing::{debug, warn};
 use url::Url;
 
 use super::{
-    ClusterMode, ClusterRole, ClusterStatus, RaftMessageSubmission, SharedClusterCoordinator,
+    ClusterMode, ClusterRole, ClusterStatus, RaftMembershipProposal,
+    RaftMembershipProposalSubmission, RaftMessageSubmission, SharedClusterCoordinator,
 };
 
 /// Crate-level runtime library label exposed in diagnostics and design docs.
@@ -95,6 +98,23 @@ struct SchedulerRaftCommand {
     command_type: String,
     #[serde(default)]
     payload: serde_json::Value,
+}
+
+#[derive(Debug)]
+enum RaftRuntimeCommand {
+    Message(Message),
+    MembershipProposal {
+        proposal: RaftMembershipProposal,
+        respond_to: oneshot::Sender<RaftMembershipProposalSubmission>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RaftMembershipProposalContext {
+    proposal_id: String,
+    action: String,
+    node_id: String,
+    endpoint: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -177,7 +197,7 @@ impl RaftPeerTransport {
 #[derive(Debug)]
 pub struct RaftRuntimeCoordinator {
     status: Arc<RwLock<ClusterStatus>>,
-    inbox: mpsc::Sender<Message>,
+    inbox: mpsc::Sender<RaftRuntimeCommand>,
 }
 
 impl RaftRuntimeCoordinator {
@@ -246,7 +266,7 @@ impl super::ClusterCoordinator for RaftRuntimeCoordinator {
 
     async fn submit_raft_message(&self, message: Message) -> RaftMessageSubmission {
         let message_type = message.get_msg_type();
-        match self.inbox.try_send(message) {
+        match self.inbox.try_send(RaftRuntimeCommand::Message(message)) {
             Ok(()) => RaftMessageSubmission::accepted(message_type),
             Err(mpsc::error::TrySendError::Full(_)) => RaftMessageSubmission::unavailable(
                 "raft-rs runtime inbox is full; retry after the local node drains messages",
@@ -254,6 +274,33 @@ impl super::ClusterCoordinator for RaftRuntimeCoordinator {
             Err(mpsc::error::TrySendError::Closed(_)) => RaftMessageSubmission::unavailable(
                 "raft-rs runtime inbox is closed because bootstrap failed or runtime stopped",
             ),
+        }
+    }
+
+    async fn propose_membership_change(
+        &self,
+        proposal: RaftMembershipProposal,
+    ) -> RaftMembershipProposalSubmission {
+        let (tx, rx) = oneshot::channel();
+        match self.inbox.try_send(RaftRuntimeCommand::MembershipProposal {
+            proposal,
+            respond_to: tx,
+        }) {
+            Ok(()) => rx.await.unwrap_or_else(|_| {
+                RaftMembershipProposalSubmission::unavailable(
+                    "raft-rs membership proposal runtime stopped before responding",
+                )
+            }),
+            Err(mpsc::error::TrySendError::Full(_)) => {
+                RaftMembershipProposalSubmission::unavailable(
+                    "raft-rs runtime inbox is full; retry membership proposal later",
+                )
+            }
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                RaftMembershipProposalSubmission::unavailable(
+                    "raft-rs runtime inbox is closed because bootstrap failed or runtime stopped",
+                )
+            }
         }
     }
 }
@@ -327,7 +374,7 @@ fn spawn_runtime_loop(
     repository: RaftRepository,
     node: RawNode<MemStorage>,
     transport: RaftPeerTransport,
-    inbox: mpsc::Receiver<Message>,
+    inbox: mpsc::Receiver<RaftRuntimeCommand>,
 ) {
     tokio::spawn(async move {
         let node = Arc::new(Mutex::new(node));
@@ -342,7 +389,7 @@ async fn run_runtime_loop(
     repository: RaftRepository,
     node: Arc<Mutex<RawNode<MemStorage>>>,
     transport: RaftPeerTransport,
-    mut inbox: mpsc::Receiver<Message>,
+    mut inbox: mpsc::Receiver<RaftRuntimeCommand>,
 ) {
     let mut ticker = tokio::time::interval(TICK_INTERVAL);
     loop {
@@ -354,14 +401,31 @@ async fn run_runtime_loop(
                     warn!(%error, "raft-rs Ready processing failed");
                 }
             }
-            message = inbox.recv() => {
-                let Some(message) = message else { break; };
-                let mut guard = node.lock().await;
-                if let Err(error) = guard.step(message) {
-                    warn!(%error, "raft-rs message step failed");
-                }
-                if let Err(error) = process_ready(&node_id, &repository, &mut guard, &status, &transport).await {
-                    warn!(%error, "raft-rs Ready processing failed");
+            command = inbox.recv() => {
+                let Some(command) = command else { break; };
+                match command {
+                    RaftRuntimeCommand::Message(message) => {
+                        let mut guard = node.lock().await;
+                        if let Err(error) = guard.step(message) {
+                            warn!(%error, "raft-rs message step failed");
+                        }
+                        if let Err(error) = process_ready(&node_id, &repository, &mut guard, &status, &transport).await {
+                            warn!(%error, "raft-rs Ready processing failed");
+                        }
+                    }
+                    RaftRuntimeCommand::MembershipProposal { proposal, respond_to } => {
+                        let mut guard = node.lock().await;
+                        let response = propose_membership_change_to_runtime(
+                            &node_id,
+                            &repository,
+                            &mut guard,
+                            &status,
+                            &transport,
+                            proposal,
+                        )
+                        .await;
+                        let _ = respond_to.send(response);
+                    }
                 }
             }
         }
@@ -392,14 +456,20 @@ async fn process_ready(
     }
     transport.dispatch_ready_messages(ready.messages());
     transport.dispatch_ready_messages(ready.persisted_messages());
-    let applied = apply_committed_entries(node_id, repository, ready.committed_entries()).await?;
+    let applied =
+        apply_committed_entries(node_id, repository, Some(node), ready.committed_entries()).await?;
     let light_ready = node.advance_append(ready);
     if let Some(applied) = applied {
         node.advance_apply_to(applied);
     }
     transport.dispatch_ready_messages(light_ready.messages());
-    let light_applied =
-        apply_committed_entries(node_id, repository, light_ready.committed_entries()).await?;
+    let light_applied = apply_committed_entries(
+        node_id,
+        repository,
+        Some(node),
+        light_ready.committed_entries(),
+    )
+    .await?;
     if let Some(applied) = light_applied {
         node.advance_apply_to(applied);
     }
@@ -413,6 +483,11 @@ async fn persist_hard_state(
     hard_state: &HardState,
 ) -> Result<(), scheduler_storage::DbErr> {
     let existing = repository.get_metadata(node_id).await?;
+    let applied_index = existing.as_ref().map_or(0, |item| item.applied_index);
+    let leader_fencing_token = existing
+        .as_ref()
+        .and_then(|item| item.leader_fencing_token.clone());
+    let conf_state = existing.and_then(|item| item.conf_state);
     repository
         .upsert_metadata(UpsertRaftMetadata {
             cluster_id: CLUSTER_ID.to_owned(),
@@ -424,8 +499,9 @@ async fn persist_hard_state(
                 Some(hard_state.vote.to_string())
             },
             commit_index: i64::try_from(hard_state.commit).unwrap_or(i64::MAX),
-            applied_index: existing.as_ref().map_or(0, |item| item.applied_index),
-            leader_fencing_token: existing.and_then(|item| item.leader_fencing_token),
+            applied_index,
+            leader_fencing_token,
+            conf_state,
         })
         .await
         .map(|_| ())
@@ -485,6 +561,7 @@ async fn persist_snapshot(
 async fn apply_committed_entries(
     node_id: &str,
     repository: &RaftRepository,
+    mut node: Option<&mut RawNode<MemStorage>>,
     entries: &[Entry],
 ) -> Result<Option<u64>, scheduler_storage::DbErr> {
     let mut applied = None;
@@ -495,13 +572,13 @@ async fn apply_committed_entries(
                 applied = Some(entry.get_index());
             }
             EntryType::EntryConfChange | EntryType::EntryConfChangeV2 => {
-                warn!(
-                    index = entry.get_index(),
-                    term = entry.get_term(),
-                    entry_type = ?entry.get_entry_type(),
-                    "raft-rs config-change entry reached apply path; dynamic membership is gated"
-                );
-                break;
+                if apply_config_change_entry(node_id, repository, node.as_deref_mut(), entry)
+                    .await?
+                {
+                    applied = Some(entry.get_index());
+                } else {
+                    break;
+                }
             }
         }
     }
@@ -604,6 +681,265 @@ async fn record_normal_command(
         })
         .await
         .map(|_| ())
+}
+
+fn build_membership_conf_change(proposal: &RaftMembershipProposal) -> Result<ConfChange, String> {
+    let context = RaftMembershipProposalContext {
+        proposal_id: proposal.proposal_id.clone(),
+        action: proposal.action.clone(),
+        node_id: proposal.node_id.clone(),
+        endpoint: proposal.endpoint.clone(),
+    };
+    let context_bytes = serde_json::to_vec(&context)
+        .map_err(|error| format!("membership proposal context serialization failed: {error}"))?;
+    let change_type = membership_action_to_conf_change_type(&proposal.action)
+        .ok_or_else(|| format!("unsupported membership action: {}", proposal.action))?;
+    let mut conf_change = ConfChange::new();
+    conf_change.set_change_type(change_type);
+    conf_change.node_id = raft_numeric_id(&proposal.node_id);
+    conf_change.context = context_bytes.into();
+    Ok(conf_change)
+}
+
+async fn propose_membership_change_to_runtime(
+    node_id: &str,
+    repository: &RaftRepository,
+    node: &mut RawNode<MemStorage>,
+    status: &Arc<RwLock<ClusterStatus>>,
+    transport: &RaftPeerTransport,
+    proposal: RaftMembershipProposal,
+) -> RaftMembershipProposalSubmission {
+    let runtime_status = status.read().await.clone();
+    if runtime_status.role != ClusterRole::Leader
+        || !runtime_status.can_schedule
+        || runtime_status
+            .leader_fencing_token
+            .as_deref()
+            .is_none_or(str::is_empty)
+    {
+        return RaftMembershipProposalSubmission::unavailable(
+            "membership proposals require a real raft leader with a persisted fencing token",
+        );
+    }
+
+    let conf_change = match build_membership_conf_change(&proposal) {
+        Ok(conf_change) => conf_change,
+        Err(error) => {
+            return RaftMembershipProposalSubmission::unavailable(format!(
+                "membership proposal conversion failed: {error}"
+            ));
+        }
+    };
+
+    if let Err(error) =
+        node.propose_conf_change(conf_change.get_context().to_vec(), conf_change.clone())
+    {
+        return RaftMembershipProposalSubmission::unavailable(format!(
+            "raft-rs propose_conf_change rejected membership proposal: {error}"
+        ));
+    }
+    if let Err(error) = process_ready(node_id, repository, node, status, transport).await {
+        return RaftMembershipProposalSubmission::unavailable(format!(
+            "raft-rs Ready processing failed after membership proposal: {error}"
+        ));
+    }
+    RaftMembershipProposalSubmission::accepted(
+        "membership proposal submitted to raft-rs propose_conf_change",
+    )
+}
+
+async fn apply_config_change_entry(
+    node_id: &str,
+    repository: &RaftRepository,
+    node: Option<&mut RawNode<MemStorage>>,
+    entry: &Entry,
+) -> Result<bool, scheduler_storage::DbErr> {
+    let Some(node) = node else {
+        warn!(
+            index = entry.get_index(),
+            term = entry.get_term(),
+            entry_type = ?entry.get_entry_type(),
+            "raft-rs config-change entry reached apply path without runtime node; dynamic membership remains gated"
+        );
+        return Ok(false);
+    };
+
+    let decoded = match decode_config_change_entry(entry) {
+        Ok(decoded) => decoded,
+        Err(message) => {
+            warn!(
+                index = entry.get_index(),
+                term = entry.get_term(),
+                %message,
+                "raft-rs config-change entry rejected before apply"
+            );
+            return Ok(true);
+        }
+    };
+    let Some(context) = decoded.context else {
+        warn!(
+            index = entry.get_index(),
+            term = entry.get_term(),
+            "raft-rs config-change entry rejected because proposal context is missing or invalid"
+        );
+        return Ok(true);
+    };
+
+    let conf_state = match decoded.change {
+        DecodedConfChange::V1(conf_change) => match node.apply_conf_change(&conf_change) {
+            Ok(conf_state) => conf_state,
+            Err(error) => {
+                mark_membership_proposal_rejected(repository, &context, &format!("{error}"))
+                    .await?;
+                return Ok(true);
+            }
+        },
+        DecodedConfChange::V2(conf_change) => match node.apply_conf_change(&conf_change) {
+            Ok(conf_state) => conf_state,
+            Err(error) => {
+                mark_membership_proposal_rejected(repository, &context, &format!("{error}"))
+                    .await?;
+                return Ok(true);
+            }
+        },
+    };
+    let conf_state_bytes = conf_state.write_to_bytes().unwrap_or_default();
+    repository
+        .update_conf_state(node_id, STANDARD.encode(conf_state_bytes))
+        .await?;
+    node.raft.mut_store().wl().set_conf_state(conf_state);
+    apply_membership_context(repository, &context).await?;
+    repository
+        .update_membership_proposal_status(
+            CLUSTER_ID,
+            &context.proposal_id,
+            "applied",
+            "committed raft-rs ConfChange applied and ConfState persisted",
+        )
+        .await?;
+    Ok(true)
+}
+
+#[derive(Debug)]
+enum DecodedConfChange {
+    V1(ConfChange),
+    V2(ConfChangeV2),
+}
+
+#[derive(Debug)]
+struct DecodedConfChangeEntry {
+    change: DecodedConfChange,
+    context: Option<RaftMembershipProposalContext>,
+}
+
+fn decode_config_change_entry(entry: &Entry) -> Result<DecodedConfChangeEntry, String> {
+    match entry.get_entry_type() {
+        EntryType::EntryConfChange => {
+            let mut conf_change = ConfChange::new();
+            conf_change
+                .merge_from_bytes(entry.get_data())
+                .map_err(|error| format!("invalid ConfChange payload: {error}"))?;
+            let context = decode_membership_context(conf_change.get_context())
+                .or_else(|| decode_membership_context(entry.get_context()));
+            Ok(DecodedConfChangeEntry {
+                change: DecodedConfChange::V1(conf_change),
+                context,
+            })
+        }
+        EntryType::EntryConfChangeV2 => {
+            let mut conf_change = ConfChangeV2::new();
+            conf_change
+                .merge_from_bytes(entry.get_data())
+                .map_err(|error| format!("invalid ConfChangeV2 payload: {error}"))?;
+            if conf_change.get_changes().len() != 1 {
+                return Err(
+                    "only one-at-a-time ConfChangeV2 membership entries are supported".to_owned(),
+                );
+            }
+            let context = decode_membership_context(conf_change.get_context())
+                .or_else(|| decode_membership_context(entry.get_context()));
+            Ok(DecodedConfChangeEntry {
+                change: DecodedConfChange::V2(conf_change),
+                context,
+            })
+        }
+        EntryType::EntryNormal => Err("normal entries are not config changes".to_owned()),
+    }
+}
+
+fn decode_membership_context(bytes: &[u8]) -> Option<RaftMembershipProposalContext> {
+    if bytes.is_empty() {
+        return None;
+    }
+    serde_json::from_slice(bytes).ok()
+}
+
+async fn apply_membership_context(
+    repository: &RaftRepository,
+    context: &RaftMembershipProposalContext,
+) -> Result<(), scheduler_storage::DbErr> {
+    match context.action.as_str() {
+        "add_voter" => {
+            if let Some(endpoint) = &context.endpoint {
+                repository
+                    .upsert_member(UpsertRaftMember {
+                        node_id: context.node_id.clone(),
+                        endpoint: endpoint.clone(),
+                        status: "active".to_owned(),
+                    })
+                    .await?;
+            } else if let Some(existing) = repository.get_member(&context.node_id).await? {
+                repository
+                    .upsert_member(UpsertRaftMember {
+                        node_id: context.node_id.clone(),
+                        endpoint: existing.endpoint,
+                        status: "active".to_owned(),
+                    })
+                    .await?;
+            }
+        }
+        "remove_voter" => {
+            let endpoint = repository
+                .get_member(&context.node_id)
+                .await?
+                .and_then(|member| (!member.endpoint.is_empty()).then_some(member.endpoint))
+                .or_else(|| context.endpoint.clone())
+                .unwrap_or_default();
+            repository
+                .upsert_member(UpsertRaftMember {
+                    node_id: context.node_id.clone(),
+                    endpoint,
+                    status: "removed".to_owned(),
+                })
+                .await?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+async fn mark_membership_proposal_rejected(
+    repository: &RaftRepository,
+    context: &RaftMembershipProposalContext,
+    reason: &str,
+) -> Result<(), scheduler_storage::DbErr> {
+    repository
+        .update_membership_proposal_status(
+            CLUSTER_ID,
+            &context.proposal_id,
+            "rejected",
+            &format!("committed raft-rs ConfChange rejected: {reason}"),
+        )
+        .await?;
+    Ok(())
+}
+
+fn membership_action_to_conf_change_type(action: &str) -> Option<ConfChangeType> {
+    match action {
+        "add_voter" => Some(ConfChangeType::AddNode),
+        "remove_voter" => Some(ConfChangeType::RemoveNode),
+        _ => None,
+    }
 }
 
 fn parse_entry_command(entry: &Entry) -> RaftCommandApply {
@@ -783,6 +1119,7 @@ async fn persist_role_metadata(
             commit_index: 0,
             applied_index: 0,
             leader_fencing_token: None,
+            conf_state: None,
         })
         .await
         .map(|_| ())
@@ -894,6 +1231,7 @@ const fn raft_role_name(role: StateRole) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use protobuf::Message as _;
     use raft::eraftpb::EntryType;
     use scheduler_config::{ClusterConfig, ClusterModeConfig, ClusterPeerConfig};
     use scheduler_storage::{RaftRepository, UpsertRaftMetadata, connect_and_migrate};
@@ -901,11 +1239,11 @@ mod tests {
     use std::time::Duration;
 
     use super::{
-        CLUSTER_ID, RaftRuntimeCoordinator, apply_committed_entries, leader_fencing_token_for_role,
-        raft_append_entries_url, raft_message_to_wire_request, raft_numeric_id,
-        validate_raft_rs_bootstrap,
+        CLUSTER_ID, RaftMembershipProposalContext, RaftRuntimeCoordinator, apply_committed_entries,
+        build_membership_conf_change, leader_fencing_token_for_role, raft_append_entries_url,
+        raft_message_to_wire_request, raft_numeric_id, validate_raft_rs_bootstrap,
     };
-    use crate::cluster::{ClusterMode, ClusterRole};
+    use crate::cluster::{ClusterMode, ClusterRole, RaftMembershipProposal};
 
     #[test]
     fn raft_numeric_id_is_stable_non_zero() {
@@ -986,7 +1324,7 @@ mod tests {
         second.index = 3;
         second.term = 1;
 
-        let applied = apply_committed_entries("scheduler-0", &repository, &[first, second])
+        let applied = apply_committed_entries("scheduler-0", &repository, None, &[first, second])
             .await
             .unwrap_or_else(|error| panic!("committed entries should apply: {error}"));
         let metadata = repository
@@ -1019,7 +1357,7 @@ mod tests {
                 .to_vec()
                 .into();
 
-        let applied = apply_committed_entries("scheduler-0", &repository, &[entry])
+        let applied = apply_committed_entries("scheduler-0", &repository, None, &[entry])
             .await
             .unwrap_or_else(|error| panic!("noop command should apply: {error}"));
         let commands = repository
@@ -1053,7 +1391,7 @@ mod tests {
             .to_vec()
             .into();
 
-        let applied = apply_committed_entries("scheduler-0", &repository, &[first, replay])
+        let applied = apply_committed_entries("scheduler-0", &repository, None, &[first, replay])
             .await
             .unwrap_or_else(|error| panic!("member upsert command should apply: {error}"));
         let commands = repository
@@ -1112,6 +1450,7 @@ mod tests {
         let applied = apply_committed_entries(
             "scheduler-0",
             &repository,
+            None,
             &[unsupported, rejected, invalid_json],
         )
         .await
@@ -1157,6 +1496,7 @@ mod tests {
         let applied = apply_committed_entries(
             "scheduler-0",
             &repository,
+            None,
             &[normal, conf_change, after_conf_change],
         )
         .await
@@ -1169,6 +1509,130 @@ mod tests {
 
         assert_eq!(applied, Some(4));
         assert_eq!(metadata.applied_index, 4);
+    }
+
+    #[tokio::test]
+    async fn raft_apply_committed_conf_change_adds_member_after_commit() {
+        let repository = test_raft_repository().await;
+        let mut node = test_raw_node("scheduler-0", &["scheduler-0"]);
+        let proposal = RaftMembershipProposal {
+            proposal_id: "prop-add-3".to_owned(),
+            action: "add_voter".to_owned(),
+            node_id: "scheduler-3".to_owned(),
+            endpoint: Some("http://scheduler-3.scheduler-headless:9998".to_owned()),
+        };
+        repository
+            .record_membership_proposal(scheduler_storage::RecordRaftMembershipProposal {
+                cluster_id: CLUSTER_ID.to_owned(),
+                proposal_id: proposal.proposal_id.clone(),
+                action: proposal.action.clone(),
+                node_id: proposal.node_id.clone(),
+                endpoint: proposal.endpoint.clone(),
+                status: "proposed_conf_change".to_owned(),
+                message: "test proposal".to_owned(),
+                created_by: "test".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("proposal should record: {error}"));
+        let conf_change = build_membership_conf_change(&proposal)
+            .unwrap_or_else(|error| panic!("conf change should build: {error}"));
+        let mut entry = raft::eraftpb::Entry::new();
+        entry.set_entry_type(EntryType::EntryConfChange);
+        entry.index = 20;
+        entry.term = 5;
+        entry.data = conf_change
+            .write_to_bytes()
+            .unwrap_or_else(|error| panic!("conf change should encode: {error}"))
+            .into();
+
+        let applied =
+            apply_committed_entries("scheduler-0", &repository, Some(&mut node), &[entry])
+                .await
+                .unwrap_or_else(|error| panic!("conf change should apply: {error}"));
+        let metadata = repository
+            .get_metadata("scheduler-0")
+            .await
+            .unwrap_or_else(|error| panic!("metadata should load: {error}"))
+            .unwrap_or_else(|| panic!("metadata should exist"));
+        let member = repository
+            .get_member("scheduler-3")
+            .await
+            .unwrap_or_else(|error| panic!("member should load: {error}"))
+            .unwrap_or_else(|| panic!("member should exist"));
+        let stored = repository
+            .get_membership_proposal(CLUSTER_ID, "prop-add-3")
+            .await
+            .unwrap_or_else(|error| panic!("proposal should load: {error}"))
+            .unwrap_or_else(|| panic!("proposal should exist"));
+
+        assert_eq!(applied, Some(20));
+        assert_eq!(metadata.applied_index, 20);
+        assert!(metadata.conf_state.is_some());
+        assert_eq!(member.status, "active");
+        assert_eq!(stored.status, "applied");
+    }
+
+    #[tokio::test]
+    async fn raft_apply_committed_conf_change_rejects_malformed_payload_but_advances() {
+        let repository = test_raft_repository().await;
+        let mut node = test_raw_node("scheduler-0", &["scheduler-0"]);
+        let mut entry = raft::eraftpb::Entry::new();
+        entry.set_entry_type(EntryType::EntryConfChange);
+        entry.index = 21;
+        entry.term = 5;
+        entry.data = b"bad-conf-change".to_vec().into();
+
+        let applied =
+            apply_committed_entries("scheduler-0", &repository, Some(&mut node), &[entry])
+                .await
+                .unwrap_or_else(|error| {
+                    panic!("malformed conf change should be recorded as handled: {error}")
+                });
+        let metadata = repository
+            .get_metadata("scheduler-0")
+            .await
+            .unwrap_or_else(|error| panic!("metadata should load: {error}"))
+            .unwrap_or_else(|| panic!("metadata should exist"));
+
+        assert_eq!(applied, Some(21));
+        assert_eq!(metadata.applied_index, 21);
+        assert_eq!(metadata.conf_state, None);
+    }
+
+    #[tokio::test]
+    async fn raft_apply_committed_conf_change_without_runtime_remains_gated() {
+        let repository = test_raft_repository().await;
+        let mut conf_change = raft::eraftpb::ConfChange::new();
+        conf_change.set_change_type(raft::eraftpb::ConfChangeType::AddNode);
+        conf_change.node_id = raft_numeric_id("scheduler-4");
+        conf_change.context = serde_json::to_vec(&RaftMembershipProposalContext {
+            proposal_id: "prop-add-4".to_owned(),
+            action: "add_voter".to_owned(),
+            node_id: "scheduler-4".to_owned(),
+            endpoint: Some("http://scheduler-4.scheduler-headless:9998".to_owned()),
+        })
+        .unwrap_or_else(|error| panic!("context should encode: {error}"))
+        .into();
+        let mut entry = raft::eraftpb::Entry::new();
+        entry.set_entry_type(EntryType::EntryConfChange);
+        entry.index = 22;
+        entry.term = 5;
+        entry.data = conf_change
+            .write_to_bytes()
+            .unwrap_or_else(|error| panic!("conf change should encode: {error}"))
+            .into();
+
+        let applied = apply_committed_entries("scheduler-0", &repository, None, &[entry])
+            .await
+            .unwrap_or_else(|error| panic!("conf change without runtime should gate: {error}"));
+        let metadata = repository
+            .get_metadata("scheduler-0")
+            .await
+            .unwrap_or_else(|error| panic!("metadata should load: {error}"))
+            .unwrap_or_else(|| panic!("metadata should exist"));
+
+        assert_eq!(applied, None);
+        assert_eq!(metadata.applied_index, 0);
     }
 
     #[test]
@@ -1264,9 +1728,27 @@ mod tests {
                 commit_index: 0,
                 applied_index: 0,
                 leader_fencing_token: None,
+                conf_state: None,
             })
             .await
             .unwrap_or_else(|error| panic!("metadata should upsert: {error}"));
         repository
+    }
+
+    fn test_raw_node(
+        local: &str,
+        voters: &[&str],
+    ) -> raft::raw_node::RawNode<raft::storage::MemStorage> {
+        let local_id = raft_numeric_id(local);
+        let voter_ids = voters.iter().map(|node_id| raft_numeric_id(node_id));
+        let mut config = raft::Config::new(local_id);
+        config.heartbeat_tick = 2;
+        config.election_tick = 20;
+        config
+            .validate()
+            .unwrap_or_else(|error| panic!("test raft config should validate: {error}"));
+        let storage = raft::storage::MemStorage::new_with_conf_state((voter_ids, Vec::new()));
+        raft::raw_node::RawNode::with_default_logger(&config, storage)
+            .unwrap_or_else(|error| panic!("test raw node should build: {error}"))
     }
 }

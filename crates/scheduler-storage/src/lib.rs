@@ -166,7 +166,7 @@ async fn ensure_raft_schema_compatibility(db: &DatabaseConnection) -> Result<(),
         return Ok(());
     }
     for sql in [
-        r"CREATE TABLE IF NOT EXISTS raft_metadata (id varchar NOT NULL PRIMARY KEY, cluster_id varchar NOT NULL, node_id varchar NOT NULL, current_term bigint NOT NULL, voted_for varchar, commit_index bigint NOT NULL, applied_index bigint NOT NULL, leader_fencing_token varchar, updated_at varchar NOT NULL)",
+        r"CREATE TABLE IF NOT EXISTS raft_metadata (id varchar NOT NULL PRIMARY KEY, cluster_id varchar NOT NULL, node_id varchar NOT NULL, current_term bigint NOT NULL, voted_for varchar, commit_index bigint NOT NULL, applied_index bigint NOT NULL, leader_fencing_token varchar, conf_state text, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS raft_members (id varchar NOT NULL PRIMARY KEY, node_id varchar NOT NULL, endpoint varchar NOT NULL, status varchar NOT NULL, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS raft_log_entries (id varchar NOT NULL PRIMARY KEY, cluster_id varchar NOT NULL, node_id varchar NOT NULL, log_index bigint NOT NULL, term bigint NOT NULL, entry_type varchar NOT NULL, data text NOT NULL, context text, sync_status varchar NOT NULL, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS raft_snapshots (id varchar NOT NULL PRIMARY KEY, cluster_id varchar NOT NULL, node_id varchar NOT NULL, snapshot_index bigint NOT NULL, term bigint NOT NULL, conf_state text, data text, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
@@ -190,6 +190,13 @@ async fn ensure_raft_schema_compatibility(db: &DatabaseConnection) -> Result<(),
         db.execute(Statement::from_string(
             DatabaseBackend::Sqlite,
             "ALTER TABLE raft_metadata ADD COLUMN leader_fencing_token varchar",
+        ))
+        .await?;
+    }
+    if !sqlite_column_exists(db, "raft_metadata", "conf_state").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE raft_metadata ADD COLUMN conf_state text",
         ))
         .await?;
     }
