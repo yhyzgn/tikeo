@@ -234,6 +234,8 @@ export interface ScriptSummary {
   content: string;
   content_sha256: string;
   status: string;
+  released_version_id: string | null;
+  released_version_number: number | null;
   timeout_seconds: number | null;
   max_memory_bytes: number | null;
   allow_network: boolean;
@@ -285,6 +287,20 @@ export async function updateScript(id: string, params: UpdateScriptRequest): Pro
   return request<ScriptSummary>(`/api/v1/scripts/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(params),
+  });
+}
+
+export async function publishScript(id: string, versionNumber?: number): Promise<ScriptSummary> {
+  return request<ScriptSummary>(`/api/v1/scripts/${encodeURIComponent(id)}/publish`, {
+    method: 'POST',
+    body: JSON.stringify({ version_number: versionNumber ?? null }),
+  });
+}
+
+export async function rollbackScript(id: string, versionNumber: number): Promise<ScriptSummary> {
+  return request<ScriptSummary>(`/api/v1/scripts/${encodeURIComponent(id)}/rollback`, {
+    method: 'POST',
+    body: JSON.stringify({ version_number: versionNumber }),
   });
 }
 

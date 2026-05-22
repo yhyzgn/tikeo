@@ -63,9 +63,9 @@ mod tests {
         entities::auth_session,
         migration::Migrator,
         repository::{
-            AppendJobInstanceLog, CreateJob, CreateJobInstance, RaftRepository,
-            RecordRaftAppliedCommand, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
-            UpsertRaftSnapshot,
+            AppendJobInstanceLog, CreateJob, CreateJobInstance, CreateScript, RaftRepository,
+            RecordRaftAppliedCommand, ScriptRepository, UpdateScript, UpsertRaftLogEntry,
+            UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot,
         },
     };
 
@@ -89,6 +89,83 @@ mod tests {
             .unwrap_or_else(|error| panic!("sqlite_master query should run: {error}"));
 
         assert!(result.is_some());
+    }
+
+    #[tokio::test]
+    async fn script_repository_publishes_and_rolls_back_immutable_versions() {
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let scripts = ScriptRepository::new(db);
+
+        let script = scripts
+            .create_script(CreateScript {
+                name: "wasm-release".to_owned(),
+                language: "wasm".to_owned(),
+                version: "1.0.0".to_owned(),
+                content: "module-v1".to_owned(),
+                created_by: "tester".to_owned(),
+                timeout_seconds: Some(3),
+                max_memory_bytes: Some(4096),
+                allow_network: false,
+                allowed_env_vars: Some(r#"["SAFE_ENV"]"#.to_owned()),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("script should be created: {error}"));
+        assert_eq!(script.released_version_number, None);
+
+        scripts
+            .update_script(
+                &script.id,
+                UpdateScript {
+                    name: None,
+                    language: None,
+                    version: Some("1.0.1".to_owned()),
+                    content: Some("module-v2".to_owned()),
+                    status: None,
+                    timeout_seconds: None,
+                    max_memory_bytes: None,
+                    allow_network: None,
+                    allowed_env_vars: None,
+                },
+            )
+            .await
+            .unwrap_or_else(|error| panic!("script should update: {error}"));
+
+        let versions = scripts
+            .versions()
+            .list_versions(&script.id)
+            .await
+            .unwrap_or_else(|error| panic!("versions should list: {error}"));
+        assert_eq!(versions.len(), 2);
+        assert_eq!(versions[0].version_number, 2);
+        assert_eq!(versions[0].content, "module-v2");
+        assert_eq!(versions[1].version_number, 1);
+        assert_eq!(versions[1].content, "module-v1");
+
+        let published = scripts
+            .publish_version(&script.id, 2)
+            .await
+            .unwrap_or_else(|error| panic!("script should publish: {error}"))
+            .unwrap_or_else(|| panic!("script should exist"));
+        assert_eq!(published.status, "approved");
+        assert_eq!(
+            published.released_version_id.as_deref(),
+            Some(versions[0].id.as_str())
+        );
+        assert_eq!(published.released_version_number, Some(2));
+
+        let rolled_back = scripts
+            .rollback_release(&script.id, 1)
+            .await
+            .unwrap_or_else(|error| panic!("script should roll back: {error}"))
+            .unwrap_or_else(|| panic!("script should exist"));
+        assert_eq!(rolled_back.status, "approved");
+        assert_eq!(
+            rolled_back.released_version_id.as_deref(),
+            Some(versions[1].id.as_str())
+        );
+        assert_eq!(rolled_back.released_version_number, Some(1));
     }
 
     #[tokio::test]

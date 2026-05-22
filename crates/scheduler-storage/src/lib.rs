@@ -228,6 +228,20 @@ async fn ensure_scripts_schema_compatibility(
         )",
     ))
     .await?;
+    if !sqlite_column_exists(db, "scripts", "released_version_id").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE scripts ADD COLUMN released_version_id varchar",
+        ))
+        .await?;
+    }
+    if !sqlite_column_exists(db, "scripts", "released_version_number").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE scripts ADD COLUMN released_version_number bigint",
+        ))
+        .await?;
+    }
     db.execute(Statement::from_string(
         DatabaseBackend::Sqlite,
         "CREATE INDEX IF NOT EXISTS idx_scripts_status ON scripts (status)",

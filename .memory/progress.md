@@ -484,3 +484,14 @@
 - Web script management now shows content SHA-256 and WASM sandbox defaults/policy metadata in list/detail/version views.
 - Java Gradle protobuf plugin upgraded to 0.10.0 and protoc/grpc artifacts use explicit platform classifier notation, removing Gradle 10 multi-string dependency deprecation warnings under Gradle 9.5.1 `--warning-mode all`.
 - Full verification passed for 070: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
+
+### 2026-05-22 Phase3 script release pointer and worker version binding
+- Continued `.prompt/071-phase3-script-release-pointer-and-worker-version-binding.md` after WASM distribution integrity.
+- Added `scripts.released_version_id` / `released_version_number` as soft release pointers to immutable `script_versions` snapshots; no database foreign keys were introduced.
+- Fixed script version creation to handle empty version history safely and return constructed summaries without SQLite NULL aggregate decode failures.
+- Added repository publish/rollback APIs that move the release pointer and keep current draft content mutable but non-executable.
+- Added HTTP `POST /api/v1/scripts/{id}/publish` and `/rollback` endpoints using standard `{code,message,data}` envelopes and audit actions `publish`/`rollback`.
+- Dispatcher now fails closed for approved WASM scripts without a release pointer or missing released version, and worker bindings use released snapshot bytes, SHA-256, version id, and version number.
+- Web script page now shows released version/id, marks released history rows, and exposes publish/rollback actions under script manage permission.
+- Full verification passed for 071: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
+- Known warning: Web build still reports existing >500KB chunk-size warning for large lazily loaded chunks.

@@ -627,6 +627,13 @@ pub struct UpdateScriptRequest {
     pub allowed_env_vars: Option<Vec<String>>,
 }
 
+/// Publish or rollback script release pointer request.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct ScriptReleaseRequest {
+    /// Immutable script version number to release. Defaults to latest version when omitted.
+    pub version_number: Option<i64>,
+}
+
 /// Job instance log summary DTO.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct JobInstanceLogSummary {

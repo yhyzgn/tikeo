@@ -72,6 +72,10 @@ pub struct ScriptSummary {
     pub content_sha256: String,
     /// Approval status.
     pub status: String,
+    /// Released immutable script version id, soft-linked to `script_versions.id`.
+    pub released_version_id: Option<String>,
+    /// Released immutable script version number.
+    pub released_version_number: Option<i64>,
     /// Timeout seconds for execution.
     pub timeout_seconds: Option<i64>,
     /// Max memory bytes for sandbox.
@@ -141,22 +145,42 @@ impl ScriptRepository {
         input: CreateScript,
     ) -> Result<ScriptSummary, sea_orm::DbErr> {
         let now = now_rfc3339();
-        let model = script::ActiveModel {
-            id: Set(new_id("script")),
-            name: Set(input.name),
-            language: Set(input.language),
-            version: Set(input.version),
-            content: Set(input.content),
-            status: Set("draft".to_owned()),
-            timeout_seconds: Set(input.timeout_seconds),
-            max_memory_bytes: Set(input.max_memory_bytes),
-            allow_network: Set(input.allow_network),
-            allowed_env_vars: Set(input.allowed_env_vars),
-            created_by: Set(input.created_by),
-            created_at: Set(now.clone()),
-            updated_at: Set(now),
-        }
-        .insert(&self.db)
+        let id = new_id("script");
+        let model = script::Model {
+            id: id.clone(),
+            name: input.name,
+            language: input.language,
+            version: input.version,
+            content: input.content,
+            status: "draft".to_owned(),
+            released_version_id: None,
+            released_version_number: None,
+            timeout_seconds: input.timeout_seconds,
+            max_memory_bytes: input.max_memory_bytes,
+            allow_network: input.allow_network,
+            allowed_env_vars: input.allowed_env_vars,
+            created_by: input.created_by,
+            created_at: now.clone(),
+            updated_at: now,
+        };
+        script::Entity::insert(script::ActiveModel {
+            id: Set(model.id.clone()),
+            name: Set(model.name.clone()),
+            language: Set(model.language.clone()),
+            version: Set(model.version.clone()),
+            content: Set(model.content.clone()),
+            status: Set(model.status.clone()),
+            released_version_id: Set(None),
+            released_version_number: Set(None),
+            timeout_seconds: Set(model.timeout_seconds),
+            max_memory_bytes: Set(model.max_memory_bytes),
+            allow_network: Set(model.allow_network),
+            allowed_env_vars: Set(model.allowed_env_vars.clone()),
+            created_by: Set(model.created_by.clone()),
+            created_at: Set(model.created_at.clone()),
+            updated_at: Set(model.updated_at.clone()),
+        })
+        .exec(&self.db)
         .await?;
         self.versions.create_version(&model).await?;
         Ok(ScriptSummary::from(model))
@@ -219,6 +243,85 @@ impl ScriptRepository {
         Ok(Some(ScriptSummary::from(updated)))
     }
 
+    /// Publish a script version as the immutable release pointer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn publish_version(
+        &self,
+        id: &str,
+        version_number: i64,
+    ) -> Result<Option<ScriptSummary>, sea_orm::DbErr> {
+        let Some(version) = self
+            .versions
+            .get_version_by_number(id, version_number)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let Some(existing) = script::Entity::find_by_id(id.to_owned())
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let now = now_rfc3339();
+        script::Entity::update(script::ActiveModel {
+            id: Set(existing.id.clone()),
+            name: Set(existing.name.clone()),
+            language: Set(existing.language.clone()),
+            version: Set(existing.version.clone()),
+            content: Set(existing.content.clone()),
+            status: Set("approved".to_owned()),
+            released_version_id: Set(Some(version.id.clone())),
+            released_version_number: Set(Some(version.version_number)),
+            timeout_seconds: Set(existing.timeout_seconds),
+            max_memory_bytes: Set(existing.max_memory_bytes),
+            allow_network: Set(existing.allow_network),
+            allowed_env_vars: Set(existing.allowed_env_vars.clone()),
+            created_by: Set(existing.created_by.clone()),
+            created_at: Set(existing.created_at.clone()),
+            updated_at: Set(now.clone()),
+        })
+        .exec(&self.db)
+        .await?;
+
+        Ok(Some(ScriptSummary {
+            id: existing.id,
+            name: existing.name,
+            language: existing.language,
+            version: existing.version,
+            content_sha256: content_sha256(&existing.content),
+            content: existing.content,
+            status: "approved".to_owned(),
+            released_version_id: Some(version.id),
+            released_version_number: Some(version.version_number),
+            timeout_seconds: existing.timeout_seconds,
+            max_memory_bytes: existing.max_memory_bytes,
+            allow_network: existing.allow_network,
+            allowed_env_vars: existing
+                .allowed_env_vars
+                .and_then(|s| serde_json::from_str(&s).ok()),
+            created_by: existing.created_by,
+            created_at: existing.created_at,
+            updated_at: now,
+        }))
+    }
+
+    /// Roll back the release pointer to a previous immutable script version.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn rollback_release(
+        &self,
+        id: &str,
+        version_number: i64,
+    ) -> Result<Option<ScriptSummary>, sea_orm::DbErr> {
+        self.publish_version(id, version_number).await
+    }
+
     /// Delete a script by id.
     ///
     /// # Errors
@@ -247,6 +350,11 @@ fn script_changed(before: &script::Model, active: &script::ActiveModel) -> bool 
         || changed(&active.version, &before.version)
         || changed(&active.content, &before.content)
         || changed(&active.status, &before.status)
+        || changed(&active.released_version_id, &before.released_version_id)
+        || changed(
+            &active.released_version_number,
+            &before.released_version_number,
+        )
         || changed(&active.timeout_seconds, &before.timeout_seconds)
         || changed(&active.max_memory_bytes, &before.max_memory_bytes)
         || changed(&active.allow_network, &before.allow_network)
@@ -254,7 +362,7 @@ fn script_changed(before: &script::Model, active: &script::ActiveModel) -> bool 
 }
 
 /// Summary of a script version snapshot.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ScriptVersionSummary {
     /// Version record id.
     pub id: String,
@@ -313,7 +421,7 @@ impl ScriptVersionRepository {
     where
         C: sea_orm::ConnectionTrait,
     {
-        let max_version: Option<i64> = script_version::Entity::find()
+        let max_version: Option<Option<i64>> = script_version::Entity::find()
             .filter(script_version::Column::ScriptId.eq(&script.id))
             .select_only()
             .column_as(script_version::Column::VersionNumber.max(), "max_version")
@@ -321,14 +429,16 @@ impl ScriptVersionRepository {
             .one(db)
             .await?;
 
-        let version_number = max_version.unwrap_or(0) + 1;
+        let version_number = max_version.flatten().unwrap_or(0) + 1;
         let id = format!("sv_{version_number}_{}", Uuid::new_v4().simple());
 
-        let active = script_version::ActiveModel {
-            id: Set(id),
+        let digest = content_sha256(&script.content);
+        let created_at = now_rfc3339();
+        script_version::Entity::insert(script_version::ActiveModel {
+            id: Set(id.clone()),
             script_id: Set(script.id.clone()),
             version_number: Set(version_number),
-            content_sha256: Set(content_sha256(&script.content)),
+            content_sha256: Set(digest.clone()),
             content: Set(script.content.clone()),
             language: Set(script.language.clone()),
             status: Set(script.status.clone()),
@@ -337,13 +447,29 @@ impl ScriptVersionRepository {
             allow_network: Set(script.allow_network),
             allowed_env_vars: Set(script.allowed_env_vars.clone()),
             created_by: Set(script.created_by.clone()),
-            created_at: Set(now_rfc3339()),
-        };
-        let mut model = active.insert(db).await?;
-        if model.content_sha256.is_empty() {
-            model.content_sha256 = content_sha256(&model.content);
-        }
-        Ok(ScriptVersionSummary::from(model))
+            created_at: Set(created_at.clone()),
+        })
+        .exec(db)
+        .await?;
+
+        Ok(ScriptVersionSummary {
+            id,
+            script_id: script.id.clone(),
+            version_number,
+            content: script.content.clone(),
+            content_sha256: digest,
+            language: script.language.clone(),
+            status: script.status.clone(),
+            timeout_seconds: script.timeout_seconds,
+            max_memory_bytes: script.max_memory_bytes,
+            allow_network: script.allow_network,
+            allowed_env_vars: script
+                .allowed_env_vars
+                .as_ref()
+                .and_then(|value| serde_json::from_str(value).ok()),
+            created_by: script.created_by.clone(),
+            created_at,
+        })
     }
 
     /// List versions for a script, newest first.
@@ -424,6 +550,8 @@ impl From<script::Model> for ScriptSummary {
             content_sha256: content_sha256(&value.content),
             content: value.content,
             status: value.status,
+            released_version_id: value.released_version_id,
+            released_version_number: value.released_version_number,
             timeout_seconds: value.timeout_seconds,
             max_memory_bytes: value.max_memory_bytes,
             allow_network: value.allow_network,

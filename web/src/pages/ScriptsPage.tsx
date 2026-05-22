@@ -10,6 +10,8 @@ import {
   getScript,
   listScriptVersions,
   listScripts,
+  publishScript,
+  rollbackScript,
   updateScript,
 } from '../api/client';
 import { CodeEditor } from '../components/CodeEditor';
@@ -320,6 +322,36 @@ export function ScriptsPage() {
     }
   };
 
+  const handlePublish = async (script: ScriptSummary) => {
+    if (!canManageScripts) { message.error('当前账号无权限管理脚本'); return; }
+    try {
+      await publishScript(script.id);
+      message.success('发布指针已更新到最新版本');
+      void load();
+    } catch (err) {
+      message.error(errorMessage('发布失败', err));
+    }
+  };
+
+  const handleRollback = async (script: ScriptSummary) => {
+    if (!canManageScripts) { message.error('当前账号无权限管理脚本'); return; }
+    try {
+      const versionList = await listScriptVersions(script.id);
+      const older = versionList
+        .filter((version) => version.version_number !== script.released_version_number)
+        .sort((a, b) => b.version_number - a.version_number)[0];
+      if (!older) {
+        message.warning('没有可回滚的历史版本');
+        return;
+      }
+      await rollbackScript(script.id, older.version_number);
+      message.success(`已回滚发布指针到版本 #${older.version_number}`);
+      void load();
+    } catch (err) {
+      message.error(errorMessage('回滚失败', err));
+    }
+  };
+
   const handleDelete = async (id: string) => {
     try {
       await deleteScript(id);
@@ -395,6 +427,7 @@ export function ScriptsPage() {
     { title: '名称', dataIndex: 'name', key: 'name' },
     { title: '语言', dataIndex: 'language', key: 'language', render: (v: string) => v.toUpperCase() },
     { title: '版本', dataIndex: 'version', key: 'version' },
+    { title: '发布版本', dataIndex: 'released_version_number', key: 'released_version_number', render: (v: number | null) => v ? `#${v}` : <Tag color="orange">未发布</Tag> },
     {
       title: 'SHA-256',
       dataIndex: 'content_sha256',
@@ -428,6 +461,28 @@ export function ScriptsPage() {
           <Button size="small" type="link" onClick={() => void openVersionDrawer(record)}>
             版本历史
           </Button>
+          <GuardedButton
+            resource="scripts"
+            action="manage"
+            size="small"
+            type="link"
+            confirmTitle="发布脚本"
+            confirmDescription="确认将可执行发布指针移动到最新不可变版本？"
+            onConfirm={() => void handlePublish(record)}
+          >
+            发布
+          </GuardedButton>
+          <GuardedButton
+            resource="scripts"
+            action="manage"
+            size="small"
+            type="link"
+            confirmTitle="回滚发布指针"
+            confirmDescription="确认回滚到最近一个非当前发布版本？"
+            onConfirm={() => void handleRollback(record)}
+          >
+            回滚
+          </GuardedButton>
           {record.status === 'draft' && (
             <GuardedButton
               resource="scripts"
@@ -631,6 +686,8 @@ export function ScriptsPage() {
               <Descriptions.Item label="语言">{detailScript.language.toUpperCase()}</Descriptions.Item>
               <Descriptions.Item label="版本">{detailScript.version}</Descriptions.Item>
               <Descriptions.Item label="内容 SHA-256"><Typography.Text code copyable>{detailScript.content_sha256}</Typography.Text></Descriptions.Item>
+              <Descriptions.Item label="发布版本">{detailScript.released_version_number ? `#${detailScript.released_version_number}` : '未发布'}</Descriptions.Item>
+              <Descriptions.Item label="发布版本 ID"><Typography.Text code copyable>{detailScript.released_version_id ?? '-'}</Typography.Text></Descriptions.Item>
               <Descriptions.Item label="状态">
                 <Tag color={STATUS_COLORS[detailScript.status] ?? 'default'}>{STATUS_LABELS[detailScript.status] ?? detailScript.status}</Tag>
               </Descriptions.Item>
@@ -678,7 +735,18 @@ export function ScriptsPage() {
               dataSource={versions}
               rowKey="id"
               columns={[
-                { title: '版本号', dataIndex: 'version_number', key: 'version_number', width: 80 },
+                {
+                  title: '版本号',
+                  dataIndex: 'version_number',
+                  key: 'version_number',
+                  width: 100,
+                  render: (v: number) => (
+                    <Space size={4}>
+                      <span>#{v}</span>
+                      {activeScript?.released_version_number === v && <Tag color="green">已发布</Tag>}
+                    </Space>
+                  ),
+                },
                 {
                   title: 'SHA-256',
                   dataIndex: 'content_sha256',

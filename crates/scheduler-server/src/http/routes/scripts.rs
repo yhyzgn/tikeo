@@ -10,7 +10,7 @@ use crate::http::{
     AppState, auth,
     dto::{
         ApiResponse, CreateScriptRequest, ErrorResponse, PageQuery, ScriptPage,
-        ScriptPageApiResponse, UpdateScriptRequest,
+        ScriptPageApiResponse, ScriptReleaseRequest, UpdateScriptRequest,
     },
     error::ApiError,
 };
@@ -207,6 +207,131 @@ pub async fn update_script(
     .await;
 
     Ok(Json(ApiResponse::success(updated)))
+}
+
+/// Publish the latest or selected immutable script version as the executable release pointer.
+#[utoipa::path(
+    post,
+    path = "/api/v1/scripts/{id}/publish",
+    tag = "scripts",
+    params(("id" = String, Path, description = "Script identifier")),
+    request_body = ScriptReleaseRequest,
+    responses(
+        (status = 200, description = "Published script", body = crate::http::dto::ScriptApiResponse),
+        (status = 400, description = "Bad request", body = crate::http::dto::ErrorResponse),
+        (status = 401, description = "Unauthorized", body = crate::http::dto::ErrorResponse),
+        (status = 403, description = "Forbidden", body = crate::http::dto::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::http::dto::ErrorResponse),
+        (status = 500, description = "Storage error", body = crate::http::dto::ErrorResponse)
+    )
+)]
+///
+/// # Errors
+///
+/// Returns authorization, not-found, bad request, or storage errors.
+pub async fn publish_script(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<ScriptReleaseRequest>,
+) -> Result<Json<crate::http::dto::ScriptApiResponse>, ApiError> {
+    let principal = auth::require_permission(&headers, &state, "scripts", "manage").await?;
+    let version_number =
+        resolve_release_version_number(&state, &id, request.version_number).await?;
+    let published = state
+        .scripts
+        .publish_version(&id, version_number)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| {
+            ApiError::not_found(format!("script version not found: {id}@{version_number}"))
+        })?;
+
+    audit(
+        &state,
+        &principal.username,
+        "publish",
+        "script",
+        &id,
+        Some(format!("released_version_number={version_number}")),
+        &headers,
+    )
+    .await;
+
+    Ok(Json(ApiResponse::success(published)))
+}
+
+/// Roll back the executable release pointer to a selected immutable script version.
+#[utoipa::path(
+    post,
+    path = "/api/v1/scripts/{id}/rollback",
+    tag = "scripts",
+    params(("id" = String, Path, description = "Script identifier")),
+    request_body = ScriptReleaseRequest,
+    responses(
+        (status = 200, description = "Rolled back script release", body = crate::http::dto::ScriptApiResponse),
+        (status = 400, description = "Bad request", body = crate::http::dto::ErrorResponse),
+        (status = 401, description = "Unauthorized", body = crate::http::dto::ErrorResponse),
+        (status = 403, description = "Forbidden", body = crate::http::dto::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::http::dto::ErrorResponse),
+        (status = 500, description = "Storage error", body = crate::http::dto::ErrorResponse)
+    )
+)]
+///
+/// # Errors
+///
+/// Returns authorization, not-found, bad request, or storage errors.
+pub async fn rollback_script(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<ScriptReleaseRequest>,
+) -> Result<Json<crate::http::dto::ScriptApiResponse>, ApiError> {
+    let principal = auth::require_permission(&headers, &state, "scripts", "manage").await?;
+    let version_number = request
+        .version_number
+        .ok_or_else(|| ApiError::bad_request("version_number is required for rollback"))?;
+    let rolled_back = state
+        .scripts
+        .rollback_release(&id, version_number)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| {
+            ApiError::not_found(format!("script version not found: {id}@{version_number}"))
+        })?;
+
+    audit(
+        &state,
+        &principal.username,
+        "rollback",
+        "script",
+        &id,
+        Some(format!("released_version_number={version_number}")),
+        &headers,
+    )
+    .await;
+
+    Ok(Json(ApiResponse::success(rolled_back)))
+}
+
+async fn resolve_release_version_number(
+    state: &Arc<AppState>,
+    id: &str,
+    requested: Option<i64>,
+) -> Result<i64, ApiError> {
+    if let Some(version_number) = requested {
+        return Ok(version_number);
+    }
+    state
+        .scripts
+        .versions()
+        .list_versions(id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .into_iter()
+        .map(|version| version.version_number)
+        .max()
+        .ok_or_else(|| ApiError::not_found(format!("script has no versions: {id}")))
 }
 
 /// Delete a script by id (Admin only).

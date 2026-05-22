@@ -1,11 +1,11 @@
 # Next Work
 
 ## Immediate next slice
-- Continue with `.prompt/071-phase3-script-release-pointer-and-worker-version-binding.md`.
+- Continue with `.prompt/072-phase3-script-policy-engine-and-sandbox-runners.md`.
 - Focus areas:
-  1. Add explicit script release/publish pointer instead of dispatching from mutable current script rows.
-  2. Add rollback API and approval state transitions around immutable versions.
-  3. Make Worker dispatch always bind to a released immutable version snapshot.
+  1. Add explicit script policy metadata for capabilities/resources/network/filesystem/secrets.
+  2. Enforce default-deny policy validation and approval gates before release/execution.
+  3. Start Worker-side non-WASM runner abstraction while preserving Server no-user-code execution.
 
 ## Current status
-- Phase 070 completed and verified. WASM binding now carries SHA-256 integrity metadata and optional version snapshot hooks; Rust SDK verifies digest before execution; Web displays sandbox policy/integrity metadata; Java Gradle 10 deprecation warnings are cleared.
+- Phase 071 completed and verified. Scripts now have released immutable version pointers; publish/rollback APIs update soft release pointers and audit actions; WASM dispatch binds to released `script_versions` bytes/SHA-256/version metadata and fails closed without a release pointer.

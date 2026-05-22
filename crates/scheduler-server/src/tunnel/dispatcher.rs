@@ -147,13 +147,22 @@ async fn dispatch_single_instances(
         };
 
         let processor_name = resolve_processor_name(workflows, &instance.id, &job).await?;
-        let task = build_dispatch_task(
+        let Some(task) = build_dispatch_task(
             scripts,
             instance.id.clone(),
             instance.job_id.clone(),
             processor_name,
         )
-        .await?;
+        .await?
+        else {
+            let _ = workflows
+                .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                .await?;
+            instances
+                .update_status(&instance.id, InstanceStatus::Pending)
+                .await?;
+            continue;
+        };
 
         let eligible_workers = registry
             .find_eligible_workers(&job.namespace, &job.app)
@@ -200,13 +209,16 @@ async fn dispatch_broadcast_attempts(
         } else {
             instance.job_id.clone()
         };
-        let task = build_dispatch_task(
+        let Some(task) = build_dispatch_task(
             scripts,
             attempt.instance_id.clone(),
             instance.job_id.clone(),
             processor_name,
         )
-        .await?;
+        .await?
+        else {
+            continue;
+        };
 
         if let Some(worker_id) = registry.dispatch_to_worker(&attempt.worker_id, task).await {
             attempts
@@ -231,20 +243,23 @@ async fn build_dispatch_task(
     instance_id: String,
     job_id: String,
     processor_name: String,
-) -> Result<DispatchTask, scheduler_storage::DbErr> {
+) -> Result<Option<DispatchTask>, scheduler_storage::DbErr> {
     let processor_binding = if let Some(script_id) = processor_name.strip_prefix("script:") {
         match scripts.get(script_id).await? {
             Some(script) if wasm_script_is_dispatchable(&script) => {
-                let version = match scripts.versions().list_versions(&script.id).await {
-                    Ok(versions) => versions
-                        .into_iter()
-                        .find(|version| version.content == script.content),
-                    Err(error) => {
-                        warn!(script_id = %script.id, %error, "failed to load script version snapshot for wasm binding");
-                        None
-                    }
+                let Some(version_number) = script.released_version_number else {
+                    warn!(script_id = %script.id, "approved wasm script has no released version pointer; dispatch remains pending");
+                    return Ok(None);
                 };
-                Some(Box::new(wasm_processor_binding(&script, version.as_ref())))
+                let Some(version) = scripts
+                    .versions()
+                    .get_version_by_number(&script.id, version_number)
+                    .await?
+                else {
+                    warn!(script_id = %script.id, version_number, "released wasm script version is missing; dispatch remains pending");
+                    return Ok(None);
+                };
+                Some(Box::new(wasm_processor_binding(&script, &version)))
             }
             _ => None,
         }
@@ -252,13 +267,13 @@ async fn build_dispatch_task(
         None
     };
 
-    Ok(DispatchTask {
+    Ok(Some(DispatchTask {
         instance_id,
         job_id,
         payload: Vec::new(),
         processor_name,
         processor_binding,
-    })
+    }))
 }
 
 fn wasm_script_is_dispatchable(script: &ScriptSummary) -> bool {
@@ -269,14 +284,14 @@ fn wasm_script_is_dispatchable(script: &ScriptSummary) -> bool {
 
 fn wasm_processor_binding(
     script: &ScriptSummary,
-    version: Option<&ScriptVersionSummary>,
+    version: &ScriptVersionSummary,
 ) -> TaskProcessorBinding {
-    let spec = script_to_wasm_spec(script);
+    let spec = script_version_to_wasm_spec(version);
     TaskProcessorBinding {
         kind: Some(task_processor_binding::Kind::Wasm(WasmProcessorBinding {
             script_id: script.id.clone(),
             version: script.version.clone(),
-            module: script.content.as_bytes().to_vec(),
+            module: version.content.as_bytes().to_vec(),
             runtime: spec.runtime.as_str().to_owned(),
             entrypoint: spec.entrypoint,
             timeout_ms: spec.resources.timeout_ms,
@@ -284,17 +299,31 @@ fn wasm_processor_binding(
             fuel: spec.resources.fuel,
             allow_network: spec.capabilities.network,
             allowed_env_vars: spec.capabilities.env_vars,
-            version_id: version.map_or_else(String::new, |version| version.id.clone()),
-            version_number: version
-                .and_then(|version| u64::try_from(version.version_number).ok())
-                .unwrap_or_default(),
-            module_sha256: version.map_or_else(
-                || script.content_sha256.clone(),
-                |version| version.content_sha256.clone(),
-            ),
+            version_id: version.id.clone(),
+            version_number: u64::try_from(version.version_number).unwrap_or_default(),
+            module_sha256: version.content_sha256.clone(),
             module_signature: String::new(),
         })),
     }
+}
+
+fn script_version_to_wasm_spec(version: &ScriptVersionSummary) -> WasmProcessorSpec {
+    let mut spec = WasmProcessorSpec::default();
+    spec.resources.timeout_ms = version
+        .timeout_seconds
+        .and_then(|value| u64::try_from(value).ok())
+        .filter(|value| *value > 0)
+        .map_or(spec.resources.timeout_ms, |seconds| {
+            seconds.saturating_mul(1000)
+        });
+    spec.resources.max_memory_bytes = version
+        .max_memory_bytes
+        .and_then(|value| u64::try_from(value).ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(spec.resources.max_memory_bytes);
+    spec.capabilities.network = version.allow_network;
+    spec.capabilities.env_vars = version.allowed_env_vars.clone().unwrap_or_default();
+    spec
 }
 
 fn script_to_wasm_spec(script: &ScriptSummary) -> WasmProcessorSpec {
@@ -349,13 +378,12 @@ mod tests {
     use scheduler_storage::{
         CreateJob, CreateJobInstance, JobInstanceAttemptRepository, JobInstanceRepository,
         JobRepository, ScriptRepository, ScriptSummary, WorkflowRepository, connect_and_migrate,
-        entities::script,
     };
-    use sea_orm::{ActiveModelTrait, Set};
     use tokio::sync::mpsc;
 
     use super::{
-        WorkerRegistry, dispatch_once, dispatch_once_if_owner, wasm_script_is_dispatchable,
+        WorkerRegistry, build_dispatch_task, dispatch_once, dispatch_once_if_owner,
+        wasm_script_is_dispatchable,
     };
 
     #[tokio::test]
@@ -698,42 +726,40 @@ mod tests {
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
-        let scripts = ScriptRepository::new(db.clone());
-        let script = ScriptSummary {
-            id: "script_wasm_approved".to_owned(),
-            name: "wasm echo".to_owned(),
-            language: "wasm".to_owned(),
-            version: "1.0.0".to_owned(),
-            content: "wasm-demo-module".to_owned(),
-            content_sha256: "69600ecd3785f0f6b6909d2586910f471fafc7751c518901ac93c0ef1b0b92f9"
-                .to_owned(),
-            status: "approved".to_owned(),
-            timeout_seconds: Some(5),
-            max_memory_bytes: Some(1024 * 1024),
-            allow_network: false,
-            allowed_env_vars: None,
-            created_by: "tester".to_owned(),
-            created_at: "now".to_owned(),
-            updated_at: "now".to_owned(),
-        };
-        script::ActiveModel {
-            id: Set(script.id.clone()),
-            name: Set(script.name.clone()),
-            language: Set(script.language.clone()),
-            version: Set(script.version.clone()),
-            content: Set(script.content.clone()),
-            status: Set(script.status.clone()),
-            timeout_seconds: Set(script.timeout_seconds),
-            max_memory_bytes: Set(script.max_memory_bytes),
-            allow_network: Set(script.allow_network),
-            allowed_env_vars: Set(None),
-            created_by: Set(script.created_by.clone()),
-            created_at: Set(script.created_at.clone()),
-            updated_at: Set(script.updated_at.clone()),
-        }
-        .insert(&db)
-        .await
-        .unwrap_or_else(|error| panic!("script should be inserted: {error}"));
+        let scripts = ScriptRepository::new(db);
+
+        let script = scripts
+            .create_script(scheduler_storage::CreateScript {
+                name: "wasm echo".to_owned(),
+                language: "wasm".to_owned(),
+                version: "1.0.0".to_owned(),
+                content: "wasm-demo-module".to_owned(),
+                created_by: "tester".to_owned(),
+                timeout_seconds: Some(5),
+                max_memory_bytes: Some(1024 * 1024),
+                allow_network: false,
+                allowed_env_vars: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("script should be created: {error}"));
+        let version = scripts
+            .versions()
+            .get_version_by_number(&script.id, 1)
+            .await
+            .unwrap_or_else(|error| panic!("script version should load: {error}"))
+            .unwrap_or_else(|| panic!("script version should exist"));
+        let script = scripts
+            .publish_version(&script.id, version.version_number)
+            .await
+            .unwrap_or_else(|error| panic!("script should publish: {error}"))
+            .unwrap_or_else(|| panic!("script should exist"));
+        assert_eq!(script.status, "approved");
+        assert_eq!(
+            script.released_version_id.as_deref(),
+            Some(version.id.as_str())
+        );
+        assert_eq!(script.released_version_number, Some(version.version_number));
+
         let job = jobs
             .create_job(CreateJob {
                 namespace: "default".to_owned(),
@@ -805,16 +831,74 @@ mod tests {
                         assert_eq!(wasm.max_memory_bytes, 1024 * 1024);
                         assert!(!wasm.allow_network);
                         assert!(wasm.allowed_env_vars.is_empty());
-                        assert_eq!(wasm.version_id, "");
-                        assert_eq!(wasm.version_number, 0);
-                        assert_eq!(wasm.module_sha256, script.content_sha256);
+                        assert_eq!(wasm.version_id, version.id);
+                        assert_eq!(
+                            wasm.version_number,
+                            u64::try_from(version.version_number).unwrap_or_else(|error| panic!(
+                                "version number should convert: {error}"
+                            ))
+                        );
+                        assert_eq!(wasm.module_sha256, version.content_sha256);
                         assert_eq!(wasm.module_signature, "");
+                        assert_eq!(wasm.module, version.content.as_bytes());
                     }
                     other => panic!("unexpected binding: {other:?}"),
                 }
             }
             other => panic!("unexpected server message: {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn approved_wasm_script_without_release_pointer_fails_closed() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let scripts = ScriptRepository::new(db);
+        let script = scripts
+            .create_script(scheduler_storage::CreateScript {
+                name: "wasm unreleased".to_owned(),
+                language: "wasm".to_owned(),
+                version: "1.0.0".to_owned(),
+                content: "module".to_owned(),
+                created_by: "tester".to_owned(),
+                timeout_seconds: Some(1),
+                max_memory_bytes: Some(1024),
+                allow_network: false,
+                allowed_env_vars: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("script should be created: {error}"));
+        let approved = scripts
+            .update_script(
+                &script.id,
+                scheduler_storage::UpdateScript {
+                    name: None,
+                    language: None,
+                    version: None,
+                    content: None,
+                    status: Some("approved".to_owned()),
+                    timeout_seconds: None,
+                    max_memory_bytes: None,
+                    allow_network: None,
+                    allowed_env_vars: None,
+                },
+            )
+            .await
+            .unwrap_or_else(|error| panic!("script should update: {error}"))
+            .unwrap_or_else(|| panic!("script should exist"));
+        assert_eq!(approved.status, "approved");
+        assert_eq!(approved.released_version_number, None);
+
+        let task = build_dispatch_task(
+            &scripts,
+            "instance-1".to_owned(),
+            "job-1".to_owned(),
+            format!("script:{}", script.id),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("task build should not error: {error}"));
+        assert!(task.is_none());
     }
 
     #[tokio::test]
@@ -828,6 +912,8 @@ mod tests {
             content_sha256: "af67347816654d9b144b131e2c92b8b6f6ba3edecb7f1911ef6d8a81f8e08329"
                 .to_owned(),
             status: "draft".to_owned(),
+            released_version_id: None,
+            released_version_number: None,
             timeout_seconds: Some(1),
             max_memory_bytes: Some(1024),
             allow_network: false,

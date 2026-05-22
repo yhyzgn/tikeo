@@ -19,6 +19,10 @@ pub struct Model {
     pub content: String,
     /// Approval status: `draft`, `approved`, `disabled`.
     pub status: String,
+    /// Released immutable script version id, soft-linked to `script_versions.id`.
+    pub released_version_id: Option<String>,
+    /// Released immutable script version number.
+    pub released_version_number: Option<i64>,
     /// Optional timeout seconds for execution.
     pub timeout_seconds: Option<i64>,
     /// Optional max memory bytes for sandbox.

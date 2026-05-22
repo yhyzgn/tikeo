@@ -1088,3 +1088,12 @@ Git:
 - Added WASM binding integrity/version metadata, script-version SHA-256 persistence, Rust SDK digest validation, Web sandbox-policy visibility, and Gradle 10 deprecation cleanup.
 - Created `.prompt/071-phase3-script-release-pointer-and-worker-version-binding.md` for release-pointer/version-binding follow-up.
 - Verification passed: backend fmt/clippy/tests/help, web typecheck/tests/build, Rust SDK no-feature + wasm-feature tests + clippy, Java Gradle tests with `--warning-mode all` and no deprecation warning output.
+
+### 2026-05-22 — Phase 071 script release pointer / immutable dispatch binding
+- Implemented release pointer columns on `scripts` (`released_version_id`, `released_version_number`) and compatibility migration logic; relationships remain soft only.
+- Repository `create_script`/`create_version` now avoid SeaORM SQLite NULL aggregate decode issue by flattening `MAX(version_number)` and returning constructed summaries after inserts.
+- Added `publish_version` / `rollback_release` repository methods plus targeted storage test covering create -> update -> versions -> publish -> rollback.
+- Added HTTP publish/rollback routes and test asserting envelope response and pointer movement from latest version back to version 1.
+- Updated dispatch path so `script:<id>` WASM binding is built only from released immutable version snapshots; no release/missing snapshot leaves dispatch pending instead of sending mutable content.
+- Updated Web script management with released version metadata, released row tags, publish and rollback guarded actions.
+- Updated architecture roadmap and created `.prompt/072-phase3-script-policy-engine-and-sandbox-runners.md`.

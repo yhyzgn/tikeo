@@ -595,7 +595,7 @@ Starter 需要提供：
 **执行安全边界**：
 
 1. **Server 不执行用户代码**：Server 只保存脚本定义、版本、审批状态和策略，实际执行由匹配 Worker Pool 完成。
-2. **脚本版本化与签名**：脚本内容按 content hash 存储；每次更新自动产生新版本记录（content、policy 变更均产生版本）；支持任意两个版本间的 diff 对比（content diff、policy diff）；生产环境脚本必须经过审批、签名或可信发布流水线。
+2. **脚本版本化、发布指针与签名**：脚本内容按 content hash 存储；每次更新自动产生新版本记录（content、policy 变更均产生版本）；`scripts.released_version_id/released_version_number` 只作为软关联发布指针指向不可变 `script_versions` 快照，发布/回滚只移动指针不改历史；Worker 调度必须绑定发布快照的 bytes + SHA-256，禁止从可变 draft/current content 执行。支持任意两个版本间的 diff 对比（content diff、policy diff）；生产环境脚本必须经过审批、签名或可信发布流水线。
 3. **最小权限 capability**：脚本声明所需能力，例如 `network.egress`、`fs.read:/data/input`、`secret:db-readonly`；未声明能力默认不可用。
 4. **资源限制**：每次执行强制 timeout、CPU quota、内存上限、输出大小、日志速率、最大并发和重试预算。
 5. **文件系统隔离**：默认临时工作目录；只读挂载输入；输出通过受控 artifact API 写入；禁止访问宿主敏感路径。
@@ -610,7 +610,7 @@ Starter 需要提供：
 Job Definition
   -> Script Processor(language, code_ref, runtime_policy)
   -> Scheduler 选择具备对应 runtime 的 Worker Pool
-  -> Worker 拉取脚本版本并校验签名/hash
+  -> Worker 接收/拉取 released script_version 快照并校验签名/hash
   -> Sandbox Runner 创建隔离环境
   -> 执行脚本并流式上报日志/指标/artifact
   -> 清理临时目录并提交审计事件
@@ -826,7 +826,7 @@ HTTP 接口是平台管理面的一等能力，面向 Web UI、CLI、CI/CD、Git
 | Workflow Actions | `POST /api/v1/workflows/{workflow}:trigger`、`:validate`、`:dry-run` | 工作流触发、校验、试运行 |
 | Workers | `GET /api/v1/workers`、`GET /api/v1/workers/{worker}`、`POST /api/v1/workers/{worker}:drain` | Worker 观测与摘流 |
 | Worker Pools | `GET/POST /api/v1/worker-pools`、`PATCH /api/v1/worker-pools/{pool}` | Worker Pool 管理 |
-| Scripts | `GET/POST /api/v1/scripts`、`POST /api/v1/scripts/{script}:publish`、`:approve`、`:rollback`、`GET /api/v1/scripts/{script}/versions`、`GET /api/v1/scripts/{script}/diff?v1=&v2=` | 动态脚本版本、发布、审批、回滚、版本历史与 diff 对比 |
+| Scripts | `GET/POST /api/v1/scripts`、`POST /api/v1/scripts/{script}/publish`、`POST /api/v1/scripts/{script}/rollback`、`GET /api/v1/scripts/{script}/versions`、`GET /api/v1/scripts/{script}/diff?v1=&v2=` | 动态脚本版本、发布指针、回滚、版本历史与 diff 对比；所有响应保持 `{code,message,data}` |
 | Secrets | `GET/POST /api/v1/secrets`、`POST /api/v1/secrets/{secret}:rotate` | Secret reference 管理 |
 | Alerts | `GET/POST /api/v1/alert-rules`、`GET/POST /api/v1/notification-channels` | 告警规则与通知渠道 |
 | Audit | `GET /api/v1/audit-logs`, `GET /api/v1/audit-logs:export?format=json` | 审计查询与受治理 JSON 导出（500 行上限、`audit:read` 权限、标准 envelope） |
@@ -2197,7 +2197,8 @@ scheduler/
   - [x] Web 脚本管理页面（列表、创建、审批、启用/禁用、删除）
   - [x] 脚本版本历史表（`script_versions`），创建和更新时产生不可变版本快照
   - [x] 版本 diff 对比 API（`GET /api/v1/scripts/{id}/diff?v1=&v2=`）与 Web 侧 diff 视图
-  - [ ] 发布指针、回滚 API、审批流状态机与 Worker 侧执行版本绑定
+  - [x] 发布指针、回滚 API 与 Worker 侧执行版本绑定（071：`scripts.released_version_id/released_version_number` 软关联不可变 `script_versions`；`POST /api/v1/scripts/{id}/publish|rollback` 更新发布指针并审计；WASM dispatch fail-closed，必须使用 released snapshot bytes/SHA-256/version metadata）
+  - [ ] 完整审批流状态机（多级审批、签名、生产发布门禁）
   - [x] 脚本编辑器语法高亮（CodeMirror 6 Shell/Python/Node）
   - [ ] Worker 侧沙箱执行器（子进程/容器/WASM）
 - [ ] 脚本策略引擎（能力声明、审批、资源限制、网络/文件策略）

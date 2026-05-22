@@ -203,6 +203,14 @@ fn api_router() -> Router<Arc<AppState>> {
                 .delete(routes::delete_script),
         )
         .route("/scripts/{id}/versions", get(routes::list_script_versions))
+        .route(
+            "/scripts/{id}/publish",
+            axum::routing::post(routes::publish_script),
+        )
+        .route(
+            "/scripts/{id}/rollback",
+            axum::routing::post(routes::rollback_script),
+        )
         .route("/scripts/{id}/diff", get(routes::diff_script_versions))
         .route(
             "/workflows",
@@ -967,6 +975,65 @@ mod tests {
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["code"], 40101);
         assert!(json.get("data").is_some());
+    }
+
+    #[tokio::test]
+    async fn script_publish_and_rollback_return_release_pointer_envelopes() {
+        let app = router().await;
+        let created = post_json(
+            app.clone(),
+            "/api/v1/scripts",
+            r#"{"name":"wasm-release","language":"wasm","version":"1.0.0","content":"module-v1","timeout_seconds":3,"max_memory_bytes":4096,"allow_network":false}"#,
+        )
+        .await;
+        assert_eq!(created["code"], 0);
+        let script_id = created["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("script id should exist"))
+            .to_owned();
+
+        let token = admin_token(app.clone()).await;
+        let update = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri(format!("/api/v1/scripts/{script_id}"))
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"version":"1.0.1","content":"module-v2"}"#.to_owned(),
+                    ))
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(update.status().is_success());
+
+        let published = post_json(
+            app.clone(),
+            &format!("/api/v1/scripts/{script_id}/publish"),
+            r"{}",
+        )
+        .await;
+        assert_eq!(published["code"], 0);
+        assert_eq!(published["data"]["status"], "approved");
+        assert_eq!(published["data"]["released_version_number"], 2);
+        assert!(published["data"]["released_version_id"].is_string());
+
+        let rolled_back = post_json(
+            app,
+            &format!("/api/v1/scripts/{script_id}/rollback"),
+            r#"{"version_number":1}"#,
+        )
+        .await;
+        assert_eq!(rolled_back["code"], 0);
+        assert_eq!(rolled_back["data"]["status"], "approved");
+        assert_eq!(rolled_back["data"]["released_version_number"], 1);
+        assert_ne!(
+            rolled_back["data"]["released_version_id"],
+            published["data"]["released_version_id"]
+        );
     }
 
     #[tokio::test]

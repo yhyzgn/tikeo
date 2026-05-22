@@ -275,6 +275,8 @@ async fn create_scripts(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(string_col(Scripts::Version))
                 .col(string_col(Scripts::Content))
                 .col(string_col(Scripts::Status))
+                .col(string_null(Scripts::ReleasedVersionId))
+                .col(big_integer_null(Scripts::ReleasedVersionNumber))
                 .col(big_integer_null(Scripts::TimeoutSeconds))
                 .col(big_integer_null(Scripts::MaxMemoryBytes))
                 .col(boolean_col(Scripts::AllowNetwork))
@@ -1427,6 +1429,8 @@ enum Scripts {
     Version,
     Content,
     Status,
+    ReleasedVersionId,
+    ReleasedVersionNumber,
     TimeoutSeconds,
     MaxMemoryBytes,
     AllowNetwork,
