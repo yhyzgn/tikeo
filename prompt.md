@@ -1,4 +1,4 @@
-# scheduler 开发阶段总提示词（AI 接手协议）
+# tikee 开发阶段总提示词（AI 接手协议）
 
 > 适用对象：Codex、Claude、Gemini、OpenCode、Cursor Agent、Aider、Devin 类 AI 编程智能体。  
 > 目标：任何智能体在任意开发阶段打开本仓库后，都能基于本文件、`./design`、`./.memory`、`./.prompt` 无缝接手后续工作，保证上下文不丢失、实现可验证、提交可追溯。
@@ -9,7 +9,7 @@
 
 1. **先读上下文，再开发**：开始任何任务前必须阅读：
    - `./prompt.md`（本文件）
-   - `./design/scheduler-architecture-design.md`（架构与产品设计源）
+   - `./design/tikee-architecture-design.md`（架构与产品设计源）
    - `./.memory/README.md`
    - `./.memory/session-log.md`
    - `./.memory/decisions.md`
@@ -18,14 +18,14 @@
    - `./.prompt/README.md`
    - `./.prompt/` 中编号最新的阶段提示词
 2. **上下文永不丢失**：每次推进工作后，都必须更新 `./.memory`；每个阶段完成或调整后，都必须更新 `./.prompt` 中后续阶段提示词。
-3. **路线图完成项必须回写设计文档**：每个开发工作项完成后，必须在 `./design/scheduler-architecture-design.md` 的开发路线图中把对应条目标记为完成 `[x]`，不额外添加 ✅ 图标。
+3. **路线图完成项必须回写设计文档**：每个开发工作项完成后，必须在 `./design/tikee-architecture-design.md` 的开发路线图中把对应条目标记为完成 `[x]`，不额外添加 ✅ 图标。
 4. **代码必须可验证**：每个开发任务都要执行编译、测试、运行/冒烟验证。全部通过后才能提交。
 5. **自动提交并推送**：验证通过后自行 `git commit` 并 `git push` 到远程仓库。若远程不存在或推送失败，必须在 `./.memory/session-log.md` 和最终回复中明确记录原因与下一步。
 6. **保持小步提交**：每个提交聚焦一个阶段或一个可验证能力，避免混杂大改。
-7. **不丢设计目标**：实现必须服从 `./design/scheduler-architecture-design.md`，若代码实现需要偏离设计，必须先更新设计文档和 `./.memory/decisions.md`。
+7. **不丢设计目标**：实现必须服从 `./design/tikee-architecture-design.md`，若代码实现需要偏离设计，必须先更新设计文档和 `./.memory/decisions.md`。
 8. **Rust 代码必须 workspace + crates 解耦**：整个 Rust 项目必须使用 Cargo workspace；后端主程序入口位于仓库根 `src/main.rs`；其余 Rust 模块抽取为独立 crate 并统一放在 `./crates/` 下，禁止把大量业务模块堆在单一 crate 中。
 9. **Web 端必须独立在 `./web/`**：Web 管理端代码必须放在 `./web/` 下，使用 React + TypeScript + Ant Design，包管理器固定使用 Bun。禁止使用 `webui/` 作为新的前端目录。
-10. **不要让 Worker 暴露入站端口**：scheduler 的核心架构是 Worker 主动通过 gRPC/HTTP2 tunnel 连接 Server，Server 反向指令复用该长连接。
+10. **不要让 Worker 暴露入站端口**：tikee 的核心架构是 Worker 主动通过 gRPC/HTTP2 tunnel 连接 Server，Server 反向指令复用该长连接。
 11. **Server 不执行用户代码**：动态脚本、WASM、HTTP、SQL 等处理器必须由 Worker 侧受控环境执行，Server 只调度、治理、审计。
 12. **依赖库尽量使用最新版**：新增 Rust crate、前端 npm/bun 包、构建工具和运行时依赖时，默认选择当前最新稳定版；若不能使用最新版，必须在 `./.memory/decisions.md` 记录原因、锁定版本和升级条件。
 13. **HTTP 业务接口必须统一返回 `{code,message,data}`**：`code` 是成功判断标准，整数 `0` 表示成功，非 0 表示失败；`message` 是响应信息；`data` 是响应数据，即使为 `null` 也必须显式返回。
@@ -34,7 +34,7 @@
 
 ## 1. 项目简要说明
 
-`scheduler` 是一个用 Rust 从零构建的分布式任务调度与计算平台，目标是成为企业内部公共任务调度基础设施。
+`tikee` 是一个用 Rust 从零构建的分布式任务调度与计算平台，目标是成为企业内部公共任务调度基础设施。
 
 核心设计目标：
 
@@ -50,7 +50,7 @@
 - 支持安全沙箱、RBAC、OIDC、mTLS、审计、Secret reference、URL policy、参数化 SQL。
 - 提供 Web UI 管理控制台和 HTTP/OpenAPI 管理接口。
 
-详细设计以 `./design/scheduler-architecture-design.md` 为准。
+详细设计以 `./design/tikee-architecture-design.md` 为准。
 
 ---
 
@@ -181,7 +181,7 @@ cargo build --workspace --all-features
 运行/冒烟验证示例：
 
 ```bash
-cargo run --bin scheduler -- serve --config config/dev.toml
+cargo run --bin tikee -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/api-docs/openapi.json
 ```
@@ -205,10 +205,10 @@ curl -fsS http://0.0.0.0:9090/api-docs/openapi.json
 推荐格式：
 
 ```text
-🚀 建立 scheduler 调度核心的可验证基础骨架
+🚀 建立 tikee 调度核心的可验证基础骨架
 
 Context:
-- 基于 design/scheduler-architecture-design.md 的 Phase 1 目标推进
+- 基于 design/tikee-architecture-design.md 的 Phase 1 目标推进
 - 本阶段聚焦 workspace、配置、HTTP healthz 与基础 CLI
 
 Changes:
@@ -238,7 +238,7 @@ Risk:
 如果仓库配置了 oh-my-codex Lore Commit Protocol，则同时满足其 trailer 要求，例如：
 
 ```text
-Constraint: design/scheduler-architecture-design.md Phase 1
+Constraint: design/tikee-architecture-design.md Phase 1
 Confidence: high
 Scope-risk: narrow
 Tested: cargo fmt; cargo clippy; cargo test; cargo build; healthz smoke
@@ -302,7 +302,7 @@ git push -u origin HEAD
 ├── 001-bootstrap.md
 ├── 002-http-api-and-openapi.md
 ├── 003-worker-tunnel.md
-├── 004-storage-and-scheduler.md
+├── 004-storage-and-tikee.md
 └── ...
 ```
 
@@ -330,7 +330,7 @@ git push -u origin HEAD
 1. **001-bootstrap**：Rust workspace、`./crates/` 解耦 crate 拆分、CI、本地命令、基础配置。
 2. **002-http-api-and-openapi**：Axum gateway、healthz/readyz、基础 REST、OpenAPI。
 3. **003-worker-tunnel**：gRPC protobuf、Worker 主动注册、心跳、连接路由表。
-4. **004-storage-and-scheduler**：SeaORM、SQLite/MySQL、Job/Instance 模型、CRON/FIX_RATE。
+4. **004-storage-and-tikee**：SeaORM、SQLite/MySQL、Job/Instance 模型、CRON/FIX_RATE。
 5. **005-worker-sdk-rust**：Rust Worker SDK、任务执行、状态上报、日志流。
 6. **006-web-ui-foundation**：`./web/` React + Ant Design + Bun 前端工程、登录壳、Dashboard、Job 列表。
 7. **007-dynamic-script-sandbox**：Script Processor、安全策略、资源限制、审计。
@@ -348,7 +348,7 @@ git push -u origin HEAD
 pwd
 find . -maxdepth 3 -type f | sort
 cat ./prompt.md
-cat ./design/scheduler-architecture-design.md
+cat ./design/tikee-architecture-design.md
 cat ./.memory/README.md
 cat ./.memory/progress.md
 cat ./.memory/next.md

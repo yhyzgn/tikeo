@@ -12,9 +12,9 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "scheduler-java-sdk"
+rootProject.name = "tikee-sdk"
 include(
-    "scheduler-java",
-    "scheduler-spring",
-    "scheduler-spring-boot-starter",
+    "tikee",
+    "tikee-spring",
+    "tikee-spring-boot-starter",
 )

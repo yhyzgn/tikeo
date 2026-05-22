@@ -105,8 +105,8 @@ export interface MeResponse {
   permissions: PermissionSummary[];
 }
 
-const API_BASE = import.meta.env.VITE_SCHEDULER_API_BASE ?? '';
-const TOKEN_STORAGE_KEY = 'scheduler.auth.token';
+const API_BASE = import.meta.env.VITE_TIKEE_API_BASE ?? '';
+const TOKEN_STORAGE_KEY = 'tikee.auth.token';
 let authToken: string | null = readStoredToken();
 
 export class ApiClientError extends Error {
@@ -417,12 +417,12 @@ export async function exportAuditLogs(query: AuditLogQuery = {}): Promise<AuditL
   return request<AuditLogExport>(`/api/v1/audit-logs:export${suffix ? `?${suffix}` : ''}`);
 }
 
-interface SchedulerRequestInit extends RequestInit {
+interface TikeeRequestInit extends RequestInit {
   auth?: boolean;
   allowNullData?: boolean;
 }
 
-async function request<T>(path: string, init: SchedulerRequestInit = {}): Promise<T> {
+async function request<T>(path: string, init: TikeeRequestInit = {}): Promise<T> {
   const { auth = true, allowNullData = false, headers, ...fetchInit } = init;
   const mergedHeaders = new Headers(headers);
   if (!mergedHeaders.has('content-type')) {

@@ -12,14 +12,14 @@ export function LoginPage() {
   return (
     <div className="login-page">
       <Card className="login-card">
-        <Typography.Title level={2}>登录 scheduler</Typography.Title>
+        <Typography.Title level={2}>登录 tikee</Typography.Title>
         <Typography.Paragraph type="secondary">
           当前阶段提供开发管理员登录；后续会替换为正式 RBAC / OIDC 集成。
         </Typography.Paragraph>
         {error ? <Alert type="error" showIcon message="登录失败" description={error} /> : null}
         <Form<LoginRequest>
           layout="vertical"
-          initialValues={{ username: 'scheduler_init', password: 'Scheduler@2026!' }}
+          initialValues={{ username: 'tikee_init', password: 'Tikee@2026!' }}
           onFinish={async (values) => {
             setLoading(true);
             setError(null);

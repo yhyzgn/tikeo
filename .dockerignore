@@ -4,7 +4,7 @@ target
 **/target
 web/node_modules
 web/dist
-scheduler-dev.db*
+tikee-dev.db*
 .DS_Store
 .idea
 .vscode

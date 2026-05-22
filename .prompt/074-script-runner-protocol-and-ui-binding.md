@@ -1,7 +1,7 @@
 # 074 — Non-WASM script runner protocol and UI binding
 
 ## Context
-Phase 073 added Rust SDK `LocalSubprocessScriptRunner` as an explicit opt-in local subprocess boundary. It validates released immutable script snapshot metadata, content SHA-256, default-deny policy, timeout/output limits, and unavailable runtime behavior. The scheduler Server still never executes user code.
+Phase 073 added Rust SDK `LocalSubprocessScriptRunner` as an explicit opt-in local subprocess boundary. It validates released immutable script snapshot metadata, content SHA-256, default-deny policy, timeout/output limits, and unavailable runtime behavior. The tikee Server still never executes user code.
 
 ## Objectives
 1. Extend Worker Tunnel processor binding metadata for non-WASM scripts without breaking existing WASM binding behavior.
@@ -23,12 +23,12 @@ Phase 073 added Rust SDK `LocalSubprocessScriptRunner` as an explicit opt-in loc
 - `cargo test --workspace --all-features`
 - `cargo run -- --help`
 - `cd web && bun run typecheck && bun test && bun run build`
-- `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml`
-- `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --features wasm`
-- `cargo clippy --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-targets --all-features -- -D warnings`
+- `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`
+- `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`
+- `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`
 - `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`
 
 ## Completion notes
-- Update `design/scheduler-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`.
+- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`.
 - Create the next `.prompt/075-*.md` before commit.
 - Commit with Lore trailers and push.

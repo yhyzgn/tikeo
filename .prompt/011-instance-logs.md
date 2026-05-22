@@ -10,7 +10,7 @@
 - HTTP API 必须返回 `{ code, message, data }`，`data` 即使为 null 也必须存在。
 - Worker 仍只能主动出站连接 `OpenTunnel`；不得新增 Worker 入站端口。
 - `job_instances` 已支持 pending/running/succeeded/failed 状态流转。
-- `scheduler-server::scheduler` 已支持 cron/fixed_rate 自动创建 pending instance。
+- `tikee-server::tikee` 已支持 cron/fixed_rate 自动创建 pending instance。
 - Web 位于 `web/`，React + Ant Design + Bun，Instances 页面已有基础列表。
 
 ## 建议任务
@@ -39,8 +39,8 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-docker build -t scheduler:dev .
-docker build -t scheduler-web:dev ./web
+docker build -t tikee:dev .
+docker build -t tikee-web:dev ./web
 ```
 
 完成后必须更新路线图、记忆库、后续 prompt，提交并推送。

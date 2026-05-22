@@ -17,7 +17,7 @@
 3. HTTP 鉴权从单纯 role 校验升级为 permission check，继续兼容初始化 admin。
 4. 拆出最小 application service 层：至少 UserService/AuthService/RbacService，避免 handler 继续堆业务编排。
 5. Web：建立 route meta 权限配置，补统一 401/403 页面或提示，权限不足时隐藏/禁用危险操作。
-6. 更新 `design/auth-session-design.md`、`design/scheduler-architecture-design.md` 和 `.memory/*`。
+6. 更新 `design/auth-session-design.md`、`design/tikee-architecture-design.md` 和 `.memory/*`。
 
 ## 非目标
 

@@ -12,5 +12,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "scheduler-spring-worker-demo"
+rootProject.name = "tikee-spring-worker-demo"
 includeBuild("../../../sdks/java")

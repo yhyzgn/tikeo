@@ -21,7 +21,7 @@ val protocPlatform = when {
 }
 
 allprojects {
-    group = "cn.recycloud.scheduler"
+    group = "com.yhyzgn.tikee"
     version = "0.1.0-SNAPSHOT"
 }
 
@@ -54,7 +54,7 @@ subprojects {
     }
 }
 
-project(":scheduler-java") {
+project(":tikee") {
     apply(plugin = "com.google.protobuf")
 
     dependencies {
@@ -87,17 +87,17 @@ project(":scheduler-java") {
     }
 }
 
-project(":scheduler-spring") {
+project(":tikee-spring") {
     dependencies {
-        "api"(project(":scheduler-java"))
+        "api"(project(":tikee"))
         "api"("org.springframework:spring-context:7.0.2")
         "testImplementation"("org.assertj:assertj-core:3.27.7")
     }
 }
 
-project(":scheduler-spring-boot-starter") {
+project(":tikee-spring-boot-starter") {
     dependencies {
-        "api"(project(":scheduler-spring"))
+        "api"(project(":tikee-spring"))
         "api"(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
         "api"("org.springframework.boot:spring-boot-starter")
         "api"("org.springframework.boot:spring-boot-autoconfigure")

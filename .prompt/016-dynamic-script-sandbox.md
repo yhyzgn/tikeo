@@ -45,4 +45,4 @@ bun run --cwd web build
 docker compose config
 ```
 
-完成后更新 `design/scheduler-architecture-design.md`、`.memory/*`、后续 `.prompt/017-*.md`，提交并推送。
+完成后更新 `design/tikee-architecture-design.md`、`.memory/*`、后续 `.prompt/017-*.md`，提交并推送。

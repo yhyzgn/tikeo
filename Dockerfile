@@ -17,13 +17,13 @@ COPY .cargo/config.toml .cargo/config.toml
 
 COPY Cargo.toml Cargo.lock rustfmt.toml ./
 # Server image intentionally excludes ./sdks; keep Docker workspace server-only.
-COPY crates/scheduler-config/Cargo.toml crates/scheduler-config/Cargo.toml
-COPY crates/scheduler-core/Cargo.toml crates/scheduler-core/Cargo.toml
-COPY crates/scheduler-proto/Cargo.toml crates/scheduler-proto/Cargo.toml
-COPY crates/scheduler-proto/build.rs crates/scheduler-proto/build.rs
-COPY crates/scheduler-proto/proto crates/scheduler-proto/proto
-COPY crates/scheduler-server/Cargo.toml crates/scheduler-server/Cargo.toml
-COPY crates/scheduler-storage/Cargo.toml crates/scheduler-storage/Cargo.toml
+COPY crates/tikee-config/Cargo.toml crates/tikee-config/Cargo.toml
+COPY crates/tikee-core/Cargo.toml crates/tikee-core/Cargo.toml
+COPY crates/tikee-proto/Cargo.toml crates/tikee-proto/Cargo.toml
+COPY crates/tikee-proto/build.rs crates/tikee-proto/build.rs
+COPY crates/tikee-proto/proto crates/tikee-proto/proto
+COPY crates/tikee-server/Cargo.toml crates/tikee-server/Cargo.toml
+COPY crates/tikee-storage/Cargo.toml crates/tikee-storage/Cargo.toml
 
 RUN mkdir -p src \
     && echo 'fn main() {}' > src/main.rs \
@@ -43,8 +43,8 @@ COPY config ./config
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/app/target \
-    cargo build --release --locked --bin scheduler \
-    && cp /app/target/release/scheduler /tmp/scheduler
+    cargo build --release --locked --bin tikee \
+    && cp /app/target/release/tikee /tmp/tikee
 
 FROM alpine:3.22 AS runtime
 
@@ -54,10 +54,10 @@ RUN sed -i 's@dl-cdn.alpinelinux.org@mirrors.aliyun.com@g' /etc/apk/repositories
 
 ENV TZ=Asia/Shanghai
 WORKDIR /app
-COPY --from=builder /tmp/scheduler /usr/local/bin/scheduler
+COPY --from=builder /tmp/tikee /usr/local/bin/tikee
 COPY config ./config
 
 VOLUME ["/data"]
 EXPOSE 9090 9998
-ENTRYPOINT ["scheduler"]
+ENTRYPOINT ["tikee"]
 CMD ["serve", "--config", "/app/config/container.toml"]

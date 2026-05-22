@@ -3325,112 +3325,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "scheduler"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "scheduler-server",
- "tokio",
-]
-
-[[package]]
-name = "scheduler-config"
-version = "0.1.0"
-dependencies = [
- "config",
- "serde",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "scheduler-core"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "scheduler-proto"
-version = "0.1.0"
-dependencies = [
- "prost",
- "protoc-bin-vendored",
- "tonic",
- "tonic-prost",
- "tonic-prost-build",
-]
-
-[[package]]
-name = "scheduler-server"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum",
- "base64",
- "bcrypt",
- "chrono",
- "clap",
- "cron",
- "hex",
- "humantime",
- "metrics",
- "metrics-exporter-prometheus",
- "metrics-util",
- "moka",
- "protobuf",
- "raft",
- "reqwest",
- "scheduler-config",
- "scheduler-core",
- "scheduler-proto",
- "scheduler-storage",
- "sea-orm",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.18",
- "time",
- "tokio",
- "tokio-stream",
- "tonic",
- "tower",
- "tracing",
- "tracing-subscriber",
- "url",
- "utoipa",
- "uuid",
-]
-
-[[package]]
-name = "scheduler-storage"
-version = "0.1.0"
-dependencies = [
- "scheduler-core",
- "sea-orm",
- "sea-orm-migration",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.18",
- "time",
- "tokio",
- "utoipa",
- "uuid",
-]
-
-[[package]]
-name = "scheduler-wasm"
-version = "0.1.0"
-dependencies = [
- "scheduler-core",
- "thiserror 2.0.18",
- "wasmtime",
- "wat",
-]
-
-[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4307,6 +4201,112 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f60246a4944f24f6e018aa17cdeffb7818b76356965d03b07d6a9886e8962185"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "tikee"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "tikee-server",
+ "tokio",
+]
+
+[[package]]
+name = "tikee-config"
+version = "0.1.0"
+dependencies = [
+ "config",
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "tikee-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "tikee-proto"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "protoc-bin-vendored",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
+]
+
+[[package]]
+name = "tikee-server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "base64",
+ "bcrypt",
+ "chrono",
+ "clap",
+ "cron",
+ "hex",
+ "humantime",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "metrics-util",
+ "moka",
+ "protobuf",
+ "raft",
+ "reqwest",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.18",
+ "tikee-config",
+ "tikee-core",
+ "tikee-proto",
+ "tikee-storage",
+ "time",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tower",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
+name = "tikee-storage"
+version = "0.1.0"
+dependencies = [
+ "sea-orm",
+ "sea-orm-migration",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.18",
+ "tikee-core",
+ "time",
+ "tokio",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
+name = "tikee-wasm"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+ "tikee-core",
+ "wasmtime",
+ "wat",
 ]
 
 [[package]]

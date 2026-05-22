@@ -5,14 +5,14 @@ Phase2 raft-rs safe runtime foundations now include:
 - bootstrap/config/storage boundary for TiKV raft-rs (`raft` crate 0.7.x);
 - no-FK metadata/member/log/snapshot persistence;
 - inbound HTTP raft transport -> runtime inbox;
-- outbound peer HTTP transport skeleton with optional `cluster.transport_token` / `x-scheduler-raft-token`;
+- outbound peer HTTP transport skeleton with optional `cluster.transport_token` / `x-tikee-raft-token`;
 - Ready durability order using `advance_append` / `advance_apply_to`;
 - committed `EntryNormal` apply bookkeeping that advances `raft_metadata.applied_index` monotonically;
 - explicit gating for `EntryConfChange` / `EntryConfChangeV2` so membership is never silently changed;
 - leader fencing token lifecycle: only real raft-rs `Leader` with term > 0 can derive a token, token is persisted before `can_schedule=true`, non-leader clears token.
 
 ## Hard safety rule
-Do not weaken the no-fake-leader guarantee. Raft mode may schedule only when status has `can_schedule=true` **and** a persisted `leader_fencing_token`; scheduler/dispatcher ownership gates must continue to consume that boundary.
+Do not weaken the no-fake-leader guarantee. Raft mode may schedule only when status has `can_schedule=true` **and** a persisted `leader_fencing_token`; tikee/dispatcher ownership gates must continue to consume that boundary.
 
 ## Completed in 054
 1. Added `raft_applied_commands` durable no-FK table/entity/repository for idempotent state-machine bookkeeping.

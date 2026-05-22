@@ -8,7 +8,7 @@ Plan the Server cluster (Raft consensus) work item without prematurely implement
 
 ## Required work
 1. Review existing dispatch_queue lease/claim behavior and identify what still requires consensus vs database conditional updates.
-2. Define the Raft responsibilities: scheduler leadership, tick ownership, dispatcher ownership, config changes, and failover semantics.
+2. Define the Raft responsibilities: tikee leadership, tick ownership, dispatcher ownership, config changes, and failover semantics.
 3. Decide crate boundaries under `crates/` for cluster coordination.
 4. Produce/update design docs and route-map tasks for implementation.
 5. If a minimal safe implementation slice is obvious, implement only that slice with tests.

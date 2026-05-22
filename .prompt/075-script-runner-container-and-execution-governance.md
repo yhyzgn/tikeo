@@ -8,7 +8,7 @@ Phase 074 completed non-WASM script protocol binding. The Server now binds appro
 2. Preserve explicit opt-in: no worker executes scripts unless it registers the runner and advertises the matching capability.
 3. Keep default-deny policy enforcement for network, filesystem, secrets, env, timeout, memory, and output caps.
 4. Add execution governance visibility for script-bound tasks: clear result messages, audit-friendly fields, and Web/API hints for missing runner/capability/policy rejection.
-5. Document operational requirements for Docker/K8s runner deployment without requiring scheduler Server to have Docker access.
+5. Document operational requirements for Docker/K8s runner deployment without requiring tikee Server to have Docker access.
 
 ## Constraints
 - Server must never execute user code and must not require Docker/K8s privileges for script execution.
@@ -30,13 +30,13 @@ Phase 074 completed non-WASM script protocol binding. The Server now binds appro
 - `cargo test --workspace --all-features`
 - `cargo run -- --help`
 - `cd web && bun run typecheck && bun test && bun run build`
-- `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml`
-- `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --features wasm`
-- `cargo clippy --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-targets --all-features -- -D warnings`
+- `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`
+- `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`
+- `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`
 - `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`
 
 ## Completion notes
-- Update `design/scheduler-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`.
+- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`.
 - Create the next `.prompt/076-*.md` before commit.
 - Mark completed roadmap items in `design/` using `[x]` only, no ✅.
 - Commit with Lore trailers and push.

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "scheduler-web",
+      "name": "tikee-web",
       "dependencies": {
         "@ant-design/icons": "latest",
         "@codemirror/lang-javascript": "^6.2.5",

@@ -19,7 +19,7 @@
 - Web 保持 `web/` React + Ant Design + Bun。
 - Worker 仍只能主动 OpenTunnel；Server 不得直接反向连接 Worker。
 - HTTP API 必须保持 `{code,message,data}` envelope。
-- 完成后更新 `.memory/*`、`design/scheduler-architecture-design.md`、并新增 `.prompt/015-*.md`。
+- 完成后更新 `.memory/*`、`design/tikee-architecture-design.md`、并新增 `.prompt/015-*.md`。
 
 ## 建议范围
 
@@ -53,8 +53,8 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-DOCKER_BUILDKIT=1 docker build -t scheduler:dev .
-DOCKER_BUILDKIT=1 docker build -t scheduler-web:dev ./web
+DOCKER_BUILDKIT=1 docker build -t tikee:dev .
+DOCKER_BUILDKIT=1 docker build -t tikee-web:dev ./web
 docker compose down --remove-orphans || true
 docker compose up -d --no-build
 curl -fsS http://0.0.0.0:9090/healthz

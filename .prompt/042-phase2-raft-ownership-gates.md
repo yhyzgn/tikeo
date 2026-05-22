@@ -1,7 +1,7 @@
 # 042 — Phase 2 Raft ownership gates
 
 ## Context
-Cluster groundwork exists: `scheduler-server::cluster` defines `ClusterCoordinator`, `ClusterMode`, `ClusterRole`, and `StandaloneCoordinator`. `/api/v1/cluster` now reports explicit standalone status, not a fake leader. Dispatch queue DB conditional claim remains the final idempotency guard.
+Cluster groundwork exists: `tikee-server::cluster` defines `ClusterCoordinator`, `ClusterMode`, `ClusterRole`, and `StandaloneCoordinator`. `/api/v1/cluster` now reports explicit standalone status, not a fake leader. Dispatch queue DB conditional claim remains the final idempotency guard.
 
 ## Goal
 Add scheduling ownership gates before implementing full Raft so future follower nodes cannot accidentally run ownership-sensitive loops.

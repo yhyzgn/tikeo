@@ -1,4 +1,4 @@
-scheduler:
+tikee:
   worker:
     dry-run: true
     endpoint: http://0.0.0.0:9998

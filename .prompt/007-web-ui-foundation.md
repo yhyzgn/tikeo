@@ -10,7 +10,7 @@
 - React、Vite、Ant Design、测试与 lint 相关依赖默认使用当前最新稳定版；不能使用最新版时必须记录原因。
 - API client 应从 OpenAPI 生成或基于 OpenAPI 类型约束封装。
 - 当前可用 API 包含 Jobs 创建/列表、`POST /api/v1/jobs/{job}:trigger` 手动触发、`GET /api/v1/jobs/{job}/instances` 实例列表、`GET /api/v1/instances/{instance}` 实例详情。
-- 浏览器不得直接访问 Worker，只能访问 scheduler server HTTP/API/实时接口。
+- 浏览器不得直接访问 Worker，只能访问 tikee server HTTP/API/实时接口。
 
 ## 预期目标
 

@@ -8,7 +8,7 @@
 
 - 根 binary 入口在 `src/main.rs`，业务模块在 `crates/*`。
 - HTTP 业务接口必须统一返回 `{ code, message, data }`，`code=0` 表示成功，`data` 必须显式存在。
-- Worker Tunnel proto 位于 `proto/scheduler/worker/v1/worker.proto`，RPC 名称为 `OpenTunnel`。
+- Worker Tunnel proto 位于 `proto/tikee/worker/v1/worker.proto`，RPC 名称为 `OpenTunnel`。
 - Server 当前已支持 Worker 注册和 heartbeat，并维护内存 `WorkerRegistry`。
 - Storage 当前已支持 `job` 与 `job_instance` 持久化；API 手动触发会创建 pending instance。
 - Rust SDK 当前支持主动连接、注册、heartbeat，并定义了 `TaskProcessor` / `TaskContext` / `TaskOutcome` 占位。
@@ -38,7 +38,7 @@
    - SDK 集成测试启动真实 tonic server，验证 dispatch -> processor -> result。
    - HTTP 测试覆盖 trigger 后实例状态可查询。
 6. 文档与交接：
-   - 更新 `design/scheduler-architecture-design.md` 开发路线图中的相关完成子项。
+   - 更新 `design/tikee-architecture-design.md` 开发路线图中的相关完成子项。
    - 更新 `.memory/*`。
    - 生成 `.prompt/010-*.md` 下一阶段提示词。
 
@@ -56,8 +56,8 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-docker build -t scheduler:dev .
-docker build -t scheduler-web:dev ./web
+docker build -t tikee:dev .
+docker build -t tikee-web:dev ./web
 ```
 
 完成后必须更新路线图、记忆库、后续 prompt，提交并推送。

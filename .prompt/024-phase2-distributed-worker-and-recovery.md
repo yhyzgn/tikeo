@@ -15,7 +15,7 @@
 3. sub_workflow：根据 `child_workflow_id` 触发 child workflow instance，并把 child 终态映射回父节点。
 4. 恢复语义：增加节点重试、跳过、失败恢复 API 的最小设计和实现。
 5. Web：补 Worker 集群/队列状态页面基础，展示 worker tunnel、capabilities、pending queue。
-6. 文档/记忆：更新 `design/scheduler-architecture-design.md` Phase2 路线图、`.memory/*`，并根据实际进展调整后续 `.prompt`。
+6. 文档/记忆：更新 `design/tikee-architecture-design.md` Phase2 路线图、`.memory/*`，并根据实际进展调整后续 `.prompt`。
 
 ## 验证
 

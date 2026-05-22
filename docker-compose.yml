@@ -1,24 +1,24 @@
 services:
-  scheduler:
+  tikee:
     build:
       context: .
       dockerfile: Dockerfile
-    image: scheduler:dev
+    image: tikee:dev
     command: ["serve", "--config", "/app/config/container.toml"]
     ports:
       - "9090:9090"
       - "9998:9998"
     volumes:
-      - scheduler-data:/data
+      - tikee-data:/data
   web:
     build:
       context: ./web
       dockerfile: Dockerfile
-    image: scheduler-web:dev
+    image: tikee-web:dev
     depends_on:
-      - scheduler
+      - tikee
     ports:
       - "8080:80"
 
 volumes:
-  scheduler-data:
+  tikee-data:

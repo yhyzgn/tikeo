@@ -2,16 +2,16 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIG_FILE="${SCHEDULER_CONFIG:-$ROOT_DIR/config/dev.toml}"
-API_PORT="${SCHEDULER_API_PORT:-9090}"
-WEB_PORT="${SCHEDULER_WEB_PORT:-5173}"
-API_URL="${SCHEDULER_API_URL:-http://localhost:$API_PORT}"
-WEB_URL="${SCHEDULER_WEB_URL:-http://localhost:$WEB_PORT}"
+CONFIG_FILE="${TIKEE_CONFIG:-$ROOT_DIR/config/dev.toml}"
+API_PORT="${TIKEE_API_PORT:-9090}"
+WEB_PORT="${TIKEE_WEB_PORT:-5173}"
+API_URL="${TIKEE_API_URL:-http://localhost:$API_PORT}"
+WEB_URL="${TIKEE_WEB_URL:-http://localhost:$WEB_PORT}"
 LOG_DIR="$ROOT_DIR/.dev"
 
-export SCHEDULER_DEV_ADMIN_USERNAME="${SCHEDULER_DEV_ADMIN_USERNAME:-scheduler_init}"
-export SCHEDULER_DEV_ADMIN_PASSWORD="${SCHEDULER_DEV_ADMIN_PASSWORD:-Scheduler@2026!}"
-export SCHEDULER_DEV_ADMIN_TOKEN="${SCHEDULER_DEV_ADMIN_TOKEN:-scheduler-init-token}"
+export TIKEE_DEV_ADMIN_USERNAME="${TIKEE_DEV_ADMIN_USERNAME:-tikee_init}"
+export TIKEE_DEV_ADMIN_PASSWORD="${TIKEE_DEV_ADMIN_PASSWORD:-Tikee@2026!}"
+export TIKEE_DEV_ADMIN_TOKEN="${TIKEE_DEV_ADMIN_TOKEN:-tikee-init-token}"
 
 mkdir -p "$LOG_DIR"
 
@@ -29,7 +29,7 @@ need_cmd curl
 cleanup() {
   local code=$?
   echo
-  echo "正在停止 scheduler 开发进程..."
+  echo "正在停止 tikee 开发进程..."
   if [[ -n "${SERVER_PID:-}" ]] && kill -0 "$SERVER_PID" >/dev/null 2>&1; then
     kill "$SERVER_PID" >/dev/null 2>&1 || true
   fi
@@ -55,7 +55,7 @@ fi
 echo "启动后端：$API_URL"
 (
   cd "$ROOT_DIR"
-  cargo run --bin scheduler -- serve --config "$CONFIG_FILE"
+  cargo run --bin tikee -- serve --config "$CONFIG_FILE"
 ) >"$LOG_DIR/server.log" 2>&1 &
 SERVER_PID=$!
 
@@ -117,8 +117,8 @@ echo "开发环境已启动："
 echo "  Web UI:       $WEB_URL"
 echo "  Backend API:  $API_URL"
 echo "  OpenAPI JSON: $API_URL/api-docs/openapi.json"
-echo "  初始化账号:  $SCHEDULER_DEV_ADMIN_USERNAME"
-echo "  初始化密码:  $SCHEDULER_DEV_ADMIN_PASSWORD"
+echo "  初始化账号:  $TIKEE_DEV_ADMIN_USERNAME"
+echo "  初始化密码:  $TIKEE_DEV_ADMIN_PASSWORD"
 echo "  后端日志:    $LOG_DIR/server.log"
 echo "  前端日志:    $LOG_DIR/web.log"
 echo

@@ -42,7 +42,7 @@ export function AppShell({ children, onLogout }: AppShellProps) {
         <div className="app-shell__brand">
           <div className="app-shell__brand-mark">S</div>
           <div>
-            <div className="app-shell__brand-title">scheduler</div>
+            <div className="app-shell__brand-title">tikee</div>
             <div className="app-shell__brand-subtitle">Task Platform</div>
           </div>
         </div>

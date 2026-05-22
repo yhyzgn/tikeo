@@ -1,0 +1,19 @@
+[package]
+name = "tikee-wasm"
+description = "Worker-side WASM runtime executor for tikee processors."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+tikee-core = { path = "../tikee-core" }
+thiserror = "2"
+wasmtime = { version = "45.0.0", default-features = false, features = ["cranelift", "runtime", "std"] }
+
+[dev-dependencies]
+wat = "1"
+
+[lints]
+workspace = true

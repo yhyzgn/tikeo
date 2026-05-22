@@ -7,7 +7,7 @@
 ## 开始前必读
 
 - `../prompt.md`
-- `../design/scheduler-architecture-design.md` 中 5.5、5.6、13 章
+- `../design/tikee-architecture-design.md` 中 5.5、5.6、13 章
 - `../.memory/project.md`
 - `../.memory/decisions.md`
 - `../.memory/progress.md`
@@ -18,11 +18,11 @@
 
 - Cargo workspace 已初始化。
 - 后端入口位于根 `src/main.rs`；Rust 模块 crate 均位于 `./crates/`：
-  - `scheduler-core`
-  - `scheduler-config`
-  - `scheduler-server`
-- `scheduler-server` 当前提供：
-  - CLI: `scheduler serve --config config/dev.toml`
+  - `tikee-core`
+  - `tikee-config`
+  - `tikee-server`
+- `tikee-server` 当前提供：
+  - CLI: `tikee serve --config config/dev.toml`
   - HTTP: `GET /healthz`、`GET /readyz`
 - 依赖默认使用 Rust 1.95 兼容的最新稳定版。
 
@@ -31,14 +31,14 @@
 - HTTP 业务接口响应必须统一为 `{code, message, data}`；`code=0` 表示成功，非 0 表示失败；`data` 即使为 null 也必须显式返回。
 
 - 后端主程序入口保留在仓库根 `src/main.rs`；其余 Rust 代码继续放在 `./crates/*` 对应 crate 中。
-- 不得把业务逻辑堆进 `scheduler-server`；DTO、错误、领域类型能抽到独立 crate 时优先抽离。
+- 不得把业务逻辑堆进 `tikee-server`；DTO、错误、领域类型能抽到独立 crate 时优先抽离。
 - HTTP API 不得直连 Worker；执行链路仍要预留 Worker Tunnel。
 - 新增依赖默认使用当前最新稳定版；不能使用最新版时记录到 `.memory/decisions.md`。
 
 ## 建议任务
 
 1. 选择 OpenAPI 生成库，优先评估 `utoipa` / `aide` / `schemars` 当前最新稳定版。
-2. 在 `scheduler-server` 中建立 HTTP 模块分层：
+2. 在 `tikee-server` 中建立 HTTP 模块分层：
    - `api` / `dto` / `error` / `pagination` / `routes`
    - 或更合适但同样解耦的结构。
 3. 实现统一错误响应 Problem Details JSON：
@@ -64,7 +64,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-cargo run --bin scheduler -- serve --config config/dev.toml
+cargo run --bin tikee -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/readyz
 curl -fsS http://0.0.0.0:9090/api-docs/openapi.json

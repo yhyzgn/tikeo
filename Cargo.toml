@@ -1,5 +1,5 @@
 [package]
-name = "scheduler"
+name = "tikee"
 description = "Distributed task scheduling platform server entrypoint."
 edition.workspace = true
 version.workspace = true
@@ -15,7 +15,7 @@ resolver = "3"
 edition = "2024"
 version = "0.1.0"
 license = "Apache-2.0"
-repository = "https://gitlab.recycloud.cn/pub/scheduler"
+repository = "https://github.com/yhyzgn/tikee.git"
 rust-version = "1.95"
 
 [workspace.lints.rust]
@@ -31,7 +31,7 @@ expect_used = "warn"
 
 [dependencies]
 anyhow = "1"
-scheduler-server = { path = "crates/scheduler-server" }
+tikee-server = { path = "crates/tikee-server" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [lints]

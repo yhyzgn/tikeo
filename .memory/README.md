@@ -1,11 +1,11 @@
 # .memory 记忆库
 
-该目录用于保证 scheduler 开发上下文永不丢失。任何 AI 智能体在开始工作前必须阅读本目录；每次推进后必须更新相关文件。
+该目录用于保证 tikee 开发上下文永不丢失。任何 AI 智能体在开始工作前必须阅读本目录；每次推进后必须更新相关文件。
 
 必读顺序：
 
 1. `../prompt.md`
-2. `../design/scheduler-architecture-design.md`
+2. `../design/tikee-architecture-design.md`
 3. `.memory/project.md`
 4. `.memory/decisions.md`
 5. `.memory/progress.md`

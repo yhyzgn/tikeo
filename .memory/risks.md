@@ -18,12 +18,12 @@
 - Web 当前是管理端骨架，登录、RBAC、实例日志查看和实时事件流尚未实现。
 
 - Docker/K8s 基础部署已验证；K8s 当前只有原始 YAML 与开发态 SQLite PVC，生产仍需要 Helm Chart、外部数据库、高可用、Ingress/Gateway、NetworkPolicy、PDB、ServiceMonitor。
-- Web nginx 代理假设后端服务名为 `scheduler`；Compose 与当前 K8s YAML 已保持该名称，若 Helm/生产命名变化，需要模板化 upstream。
+- Web nginx 代理假设后端服务名为 `tikee`；Compose 与当前 K8s YAML 已保持该名称，若 Helm/生产命名变化，需要模板化 upstream。
 
 - 009 dispatch loop 当前是单节点 first-available worker 策略，尚未实现 capability/tag 匹配、租约过期剔除、任务 ack 超时、重试、幂等锁和多 server 协调。
 - TaskResult 当前只落实例最终状态，尚未持久化 worker_id、错误信息、执行耗时和日志。
 
-- 010 scheduler tick loop 使用内存 cursor，server 重启后可能重新计算到期触发；后续需要持久化 next_fire_at / last_fire_at 与分布式锁。
+- 010 tikee tick loop 使用内存 cursor，server 重启后可能重新计算到期触发；后续需要持久化 next_fire_at / last_fire_at 与分布式锁。
 - CRON / Fixed Rate 当前只创建 pending instance，尚未实现 misfire 策略、时区配置、暂停/恢复、最大并发、任务堆积保护。
 
 - 011 日志当前按实例分页骨架返回全部结果，尚未实现游标分页、日志压缩/归档、实时 SSE/WebSocket 流和敏感信息脱敏策略。
@@ -33,7 +33,7 @@
 
 ## 2026-05-19 — 012 auth 风险
 
-- 当前认证是开发期基础，不是生产安全方案；默认 `scheduler_init/Scheduler@2026!` 和静态 bearer token 仅用于本地与早期集成。
+- 当前认证是开发期基础，不是生产安全方案；默认 `tikee_init/Tikee@2026!` 和静态 bearer token 仅用于本地与早期集成。
 - 尚未实现正式 RBAC、OIDC、API Token 生命周期、密码哈希、审计日志、CSRF/刷新 token 等生产能力。
 - Web token 使用 `localStorage`，存在 XSS 后 token 泄露风险；正式安全阶段需要收敛为更安全的会话策略。
 
@@ -68,7 +68,7 @@
 
 ## 2026-05-20 — session abstraction follow-up
 
-- 020 阶段已删除开发期 `scheduler-init-token` 静态 bearer backdoor；后续风险转为需要完善正式 RBAC / OIDC / API Token 生命周期管理。
+- 020 阶段已删除开发期 `tikee-init-token` 静态 bearer backdoor；后续风险转为需要完善正式 RBAC / OIDC / API Token 生命周期管理。
 - 当前 session TTL 固定在代码中，后续应进入配置文件并支持 Redis 分布式实现。
 - moka 本地缓存不是权威状态；多节点部署前必须实现 Redis 或事件驱动的跨节点撤销同步。
 

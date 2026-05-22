@@ -5,7 +5,7 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
 }
 
-group = "cn.recycloud.scheduler.examples"
+group = "com.yhyzgn.tikee.examples"
 version = "0.1.0-SNAPSHOT"
 
 java {
@@ -22,13 +22,13 @@ dependencies {
     testCompileOnly("org.projectlombok:lombok:$lombokVersion")
     testAnnotationProcessor("org.projectlombok:lombok:$lombokVersion")
     implementation("org.springframework.boot:spring-boot-starter")
-    implementation("cn.recycloud.scheduler:scheduler-spring-boot-starter:0.1.0-SNAPSHOT")
+    implementation("com.yhyzgn.tikee:tikee-spring-boot-starter:0.1.0-SNAPSHOT")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 application {
-    mainClass.set("cn.recycloud.scheduler.examples.worker.SpringWorkerDemoApplication")
+    mainClass.set("com.yhyzgn.tikee.examples.worker.SpringWorkerDemoApplication")
 }
 
 tasks.withType<Test>().configureEach {

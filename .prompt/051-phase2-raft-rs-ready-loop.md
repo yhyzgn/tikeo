@@ -1,10 +1,10 @@
 # 051 — Phase 2 raft-rs Ready loop and leader fencing
 
 ## Context
-Current done: `RaftRuntimeCoordinator` starts for `mode=raft` with storage, drives `RawNode::tick()` every 100ms, persists Ready HardState/log/snapshot in order, advances Ready, and accepts already-validated HTTP raft messages into a bounded runtime inbox. It still does not campaign, does not wire outbound transport, and keeps scheduler ownership fenced (`can_schedule=false`, `leader_fencing_token=null`).
+Current done: `RaftRuntimeCoordinator` starts for `mode=raft` with storage, drives `RawNode::tick()` every 100ms, persists Ready HardState/log/snapshot in order, advances Ready, and accepts already-validated HTTP raft messages into a bounded runtime inbox. It still does not campaign, does not wire outbound transport, and keeps tikee ownership fenced (`can_schedule=false`, `leader_fencing_token=null`).
 
 The project now uses TiKV raft-rs (`raft` crate 0.7.0). Completed foundations:
-- `scheduler-server::cluster::raft_rs` validates stable string node-id -> non-zero raft `u64` id mapping, initial voters, and `MemStorage + RawNode` bootstrap.
+- `tikee-server::cluster::raft_rs` validates stable string node-id -> non-zero raft `u64` id mapping, initial voters, and `MemStorage + RawNode` bootstrap.
 - `raft_metadata` / `raft_members` persist local metadata and static peers.
 - `raft_log_entries` / `raft_snapshots` exist with SeaORM entities/repository helpers for future Ready log/snapshot persistence; no database foreign keys are used.
 - `/api/v1/raft/append-entries` now accepts a raft-rs-message-shaped DTO (`from/to/term/message_type/index/log_term/commit/entries/context/reject`), validates/converts it to `eraftpb::Message`, and returns `accepted=true` only when the raft runtime inbox accepts the message.
