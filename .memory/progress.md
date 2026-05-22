@@ -621,3 +621,8 @@
 - Added `transport_security` configuration shapes for HTTP and Worker Tunnel TLS/mTLS while keeping local development plaintext by default.
 - Added `GET /api/v1/security/transport` diagnostics that redacts paths but reports TLS/mTLS readiness and partial-config issues.
 - Added targeted regression coverage for default plaintext readiness and partial Worker Tunnel mTLS configuration diagnostics without certificate/network smoke.
+### 2026-05-23 — Phase 087 script approval policy gates
+- Continued `.prompt/087-script-approval-policy-gates.md`.
+- Added publish/rollback policy gate checks that re-validate immutable script version snapshots before changing the release pointer.
+- Dangerous legacy/imported versions that request network/filesystem/secret grants are blocked with a standard bad-request envelope and `failure_reason=script_policy_approval_required` audit rows.
+- Safe script publish and rollback behavior remains unchanged; added regression coverage for blocked dangerous publish/rollback and queryable failed audit entries.

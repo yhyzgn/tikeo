@@ -17,7 +17,7 @@ use crate::http::{
     error::ApiError,
 };
 
-use super::common::audit;
+use super::common::{audit, client_ip, trace_id};
 
 /// List scripts.
 ///
@@ -242,6 +242,7 @@ pub async fn publish_script(
     let principal = auth::require_permission(&headers, &state, "scripts", "manage").await?;
     let version_number =
         resolve_release_version_number(&state, &id, request.version_number).await?;
+    enforce_release_policy_gate(&state, &principal.username, &id, version_number, &headers).await?;
     let published = state
         .scripts
         .publish_version(&id, version_number)
@@ -263,6 +264,66 @@ pub async fn publish_script(
     .await;
 
     Ok(Json(ApiResponse::success(published)))
+}
+
+async fn enforce_release_policy_gate(
+    state: &Arc<AppState>,
+    actor: &str,
+    id: &str,
+    version_number: i64,
+    headers: &HeaderMap,
+) -> Result<(), ApiError> {
+    let version = state
+        .scripts
+        .versions()
+        .get_version_by_number(id, version_number)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| {
+            ApiError::not_found(format!("script version not found: {id}@{version_number}"))
+        })?;
+    let policy: ScriptExecutionPolicy = serde_json::from_value(version.policy.clone())
+        .map_err(|error| ApiError::bad_request(format!("invalid script policy: {error}")))?;
+    let policy_result = if version.allow_network && !policy.network.enabled {
+        Err("script release approval gate blocked legacy allow_network flag".to_owned())
+    } else {
+        policy
+            .validate_default_deny()
+            .map_err(|error| format!("script release approval gate blocked: {error}"))
+    };
+    if let Err(message) = policy_result {
+        append_policy_gate_audit(state, actor, id, &message, headers).await;
+        return Err(ApiError::bad_request(message));
+    }
+    Ok(())
+}
+
+async fn append_policy_gate_audit(
+    state: &AppState,
+    actor: &str,
+    id: &str,
+    detail: &str,
+    headers: &HeaderMap,
+) {
+    if let Err(error) = state
+        .audit
+        .append(tikee_storage::CreateAuditLog {
+            actor: actor.to_owned(),
+            action: "publish_blocked".to_owned(),
+            resource_type: "script".to_owned(),
+            resource_id: id.to_owned(),
+            detail: Some(detail.to_owned()),
+            before: None,
+            after: None,
+            trace_id: Some(trace_id(headers)),
+            result: "failed".to_owned(),
+            failure_reason: Some("script_policy_approval_required".to_owned()),
+            ip_address: client_ip(headers),
+        })
+        .await
+    {
+        tracing::warn!(%error, %id, "failed to append script policy gate audit log");
+    }
 }
 
 /// Roll back the executable release pointer to a selected immutable script version.
@@ -295,6 +356,7 @@ pub async fn rollback_script(
     let version_number = request
         .version_number
         .ok_or_else(|| ApiError::bad_request("version_number is required for rollback"))?;
+    enforce_release_policy_gate(&state, &principal.username, &id, version_number, &headers).await?;
     let rolled_back = state
         .scripts
         .rollback_release(&id, version_number)

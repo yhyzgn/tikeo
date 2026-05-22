@@ -1799,6 +1799,138 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
+    async fn script_publish_blocks_legacy_dangerous_policy_snapshot() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let scripts = ScriptRepository::new(db.clone());
+        let script = scripts
+            .create_script(tikee_storage::CreateScript {
+                name: "legacy-dangerous".to_owned(),
+                language: "python".to_owned(),
+                version: "1.0.0".to_owned(),
+                content: "print(1)".to_owned(),
+                created_by: "legacy-import".to_owned(),
+                timeout_seconds: Some(30),
+                max_memory_bytes: Some(64 * 1024 * 1024),
+                allow_network: true,
+                allowed_env_vars: None,
+                policy_json: Some(r#"{"resources":{"timeout_ms":30000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":true,"allowed_hosts":["example.com"]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[]}"#.to_owned()),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("legacy script should create: {error}"));
+        scripts
+            .update_script(
+                &script.id,
+                tikee_storage::UpdateScript {
+                    name: None,
+                    language: None,
+                    version: Some("1.0.1".to_owned()),
+                    content: Some("print(2)".to_owned()),
+                    status: None,
+                    timeout_seconds: None,
+                    max_memory_bytes: None,
+                    allow_network: Some(false),
+                    allowed_env_vars: None,
+                    policy_json: Some(r#"{"resources":{"timeout_ms":30000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[]}"#.to_owned()),
+                },
+            )
+            .await
+            .unwrap_or_else(|error| panic!("safe script version should create: {error}"));
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            scripts,
+            WorkflowRepository::new(db.clone()),
+            AuditLogRepository::new(db),
+            crate::tunnel::WorkerRegistry::default(),
+            StandaloneCoordinator::shared("test-node"),
+        ));
+
+        let response = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    format!("/api/v1/scripts/{}/publish", script.id),
+                    r#"{"version_number":1}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("publish route should respond: {error}"));
+        assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_ne!(json["code"], 0);
+        assert!(
+            json["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("approval gate"))
+        );
+
+        let published_safe = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    format!("/api/v1/scripts/{}/publish", script.id),
+                    r#"{"version_number":2}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("safe publish route should respond: {error}"));
+        assert!(published_safe.status().is_success());
+
+        let blocked_rollback = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    format!("/api/v1/scripts/{}/rollback", script.id),
+                    r#"{"version_number":1}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("rollback route should respond: {error}"));
+        assert_eq!(
+            blocked_rollback.status(),
+            axum::http::StatusCode::BAD_REQUEST
+        );
+
+        let audit = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app,
+                    "GET",
+                    "/api/v1/audit-logs?failure_reason=script_policy_approval_required",
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("audit route should respond: {error}"));
+        let body = axum::body::to_bytes(audit.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["data"]["items"].as_array().map(Vec::len), Some(2));
+    }
+
+    #[tokio::test]
     async fn create_job_persists_and_list_jobs_returns_it() {
         let app = router().await;
         let created = post_json(

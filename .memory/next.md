@@ -1,11 +1,11 @@
 # Next Work
 
 ## Immediate next slice
-- Continue with `.prompt/087-script-approval-policy-gates.md`.
+- Continue with `.prompt/088-phase3-remaining-hardening.md`.
 - Focus areas:
-  1. Add deterministic script approval/policy gate foundation for dangerous capability requests.
-  2. Preserve safe script publish/update flows and standard API envelopes.
-  3. Continue remaining Phase 3 governance/security work after policy gate foundation lands.
+  1. Pick the next smallest locally verifiable Phase 3 hardening slice.
+  2. Do not pull deferred Phase 4 items back into Phase 3.
+  3. Preserve envelopes, soft relationships, and local dev defaults.
 
 ## Current status
 - Phase 079 materialized `script_execution_governance` failures into `audit_logs` with `failure_reason` filtering and Web audit-page support.
@@ -16,6 +16,7 @@
 - Phase 084 added HTTP trace-id propagation/generation and local tracing spans without external OTLP collector requirements.
 - Phase 085 added OIDC/SSO config/status foundation while preserving local login.
 - Phase 086 added TLS/mTLS config/status diagnostics while keeping dev plaintext defaults.
+- Phase 087 added script publish/rollback policy gates for dangerous legacy policy snapshots plus failed audit rows.
 
 ## Deferred out of Phase 3
 - Node.js SDK, K8s Helm Chart, PowerJob migration tooling, and XXL-JOB migration tooling belong to Phase 4.
