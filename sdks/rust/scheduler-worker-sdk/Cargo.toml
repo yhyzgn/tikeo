@@ -7,6 +7,10 @@ license = "Apache-2.0"
 repository = "https://gitlab.recycloud.cn/pub/scheduler"
 rust-version = "1.95"
 
+[features]
+default = []
+wasm = ["dep:wasmtime"]
+
 [dependencies]
 async-trait = "0.1"
 prost = "0.14"
@@ -15,8 +19,10 @@ tokio = { version = "1", features = ["sync"] }
 tokio-stream = "0.1"
 tonic = "0.14"
 tonic-prost = "0.14"
+wasmtime = { version = "45.0.0", default-features = false, features = ["cranelift", "runtime", "std"], optional = true }
 
 [dev-dependencies]
+wat = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 

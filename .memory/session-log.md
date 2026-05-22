@@ -1073,3 +1073,11 @@ Git:
 - User corrected Gradle latest-version requirement; updated `sdks/java/gradlew` from 8.14.3 to Gradle 9.5.1 and defaulted distribution download to Huawei Cloud mirror with override support.
 - Fixed wrapper cwd from repo root to `sdks/java`.
 - Verification passed: `cd sdks/java && ./gradlew --version --no-daemon`; `cd sdks/java && ./gradlew test --no-daemon` (BUILD SUCCESSFUL). Warning: deprecated Gradle features need future Gradle 10 cleanup.
+
+
+### 2026-05-22 Phase3 WASM SDK execution adapters
+- Resumed `.prompt/069-phase3-wasm-sdk-execution-adapters.md`.
+- Implemented Rust SDK WASM binding path behind explicit `wasm` feature and preserved normal `TaskProcessor` routing otherwise.
+- Implemented Java SDK explicit unsupported result for WASM bindings with regression test that the normal processor is not called.
+- Updated design roadmap and created `.prompt/070-phase3-wasm-distribution-integrity-and-gradle10-cleanup.md`.
+- Verification passed: backend fmt/clippy/tests/help, web typecheck/tests/build, Rust SDK no-feature + wasm-feature tests + clippy, Java Gradle tests. Gradle 10 deprecation warning remains tracked for next slice.

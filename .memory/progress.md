@@ -463,3 +463,13 @@
 - Updated `sdks/java/gradlew` to default to Gradle 9.5.1 (latest stable confirmed from Gradle releases) and use a faster configurable distribution URL, defaulting to Huawei Cloud Gradle mirror while allowing `GRADLE_DISTRIBUTION_URL` override.
 - Fixed Java Gradle wrapper project root so `./gradlew test` runs from `sdks/java` instead of repo root.
 - Java SDK verification passed: `cd sdks/java && ./gradlew --version --no-daemon` (Gradle 9.5.1) and `cd sdks/java && ./gradlew test --no-daemon` (BUILD SUCCESSFUL, 18 tasks executed). Gradle reports deprecated features warning for Gradle 10 compatibility follow-up.
+
+
+### 2026-05-22 Phase3 WASM SDK execution adapters
+- Continued `.prompt/069-phase3-wasm-sdk-execution-adapters.md` after Java Gradle verification补齐.
+- Rust Worker SDK now detects `DispatchTask.processor_binding.wasm`; normal SDK processors remain unchanged for regular tasks.
+- Added opt-in Rust SDK `wasm` feature with Wasmtime 45.0.0 adapter, fuel metering, epoch timeout, memory limit, default network rejection, and tests for enabled execution / network rejection / disabled-feature failure.
+- Java core SDK now explicitly reports unsupported WASM processor binding and does not invoke the user `TaskProcessor` for WASM-bound dispatches.
+- Updated design roadmap and created `.prompt/070-phase3-wasm-distribution-integrity-and-gradle10-cleanup.md`.
+- Full verification passed for 069: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --no-daemon`.
+- Known warning: Java Gradle build still reports deprecated features that need Gradle 10 compatibility cleanup.

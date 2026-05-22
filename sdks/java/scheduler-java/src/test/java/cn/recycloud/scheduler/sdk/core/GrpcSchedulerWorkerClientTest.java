@@ -1,6 +1,7 @@
 package cn.recycloud.scheduler.sdk.core;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import scheduler.worker.v1.Worker;
@@ -108,6 +109,62 @@ class GrpcSchedulerWorkerClientTest {
             Worker.TaskResult result = service.result.get();
             assertTrue(result.getSuccess());
             assertEquals("assigned-java-worker", result.getWorkerId());
+        } finally {
+            channel.shutdownNow();
+            server.shutdownNow();
+        }
+    }
+
+    @Test
+    void wasmBoundDispatchReportsUnsupportedWithoutInvokingProcessor() throws Exception {
+        String serverName = "scheduler-worker-test-" + UUID.randomUUID();
+        RecordingTunnelService service = new RecordingTunnelService(Worker.DispatchTask.newBuilder()
+                .setJobId("job-wasm")
+                .setProcessorName("script:script_wasm")
+                .setInstanceId("instance-wasm")
+                .setProcessorBinding(Worker.TaskProcessorBinding.newBuilder()
+                        .setWasm(Worker.WasmProcessorBinding.newBuilder()
+                                .setScriptId("script_wasm")
+                                .setVersion("1.0.0")
+                                .setRuntime("wasmtime")
+                                .setEntrypoint("_start")
+                                .setTimeoutMs(1000)
+                                .setMaxMemoryBytes(1048576)
+                                .setFuel(1000000)
+                                .build())
+                        .build())
+                .build());
+        Server server = InProcessServerBuilder.forName(serverName)
+                .directExecutor()
+                .addService(service)
+                .build()
+                .start();
+        ManagedChannel channel = InProcessChannelBuilder.forName(serverName).directExecutor().build();
+        try {
+            AtomicReference<TaskContext> observed = new AtomicReference<>();
+            GrpcSchedulerWorkerClient client = new GrpcSchedulerWorkerClient(
+                    channel,
+                    false,
+                    new WorkerRegistration("java-instance-wasm", "default", "billing", "local", "local", List.of(), Map.of()),
+                    context -> {
+                        observed.set(context);
+                        return TaskOutcome.succeeded();
+                    },
+                    Duration.ofSeconds(60),
+                    Duration.ofSeconds(2),
+                    ignored -> {});
+
+            client.start();
+            service.awaitResult();
+            client.close();
+
+            assertNull(observed.get(), "unsupported wasm binding must not invoke the Java processor");
+            Worker.TaskResult result = service.result.get();
+            assertEquals("assigned-java-worker", result.getWorkerId());
+            assertEquals("instance-wasm", result.getInstanceId());
+            assertTrue(!result.getSuccess());
+            assertTrue(result.getMessage().contains("wasm"));
+            assertTrue(result.getMessage().contains("not supported"));
         } finally {
             channel.shutdownNow();
             server.shutdownNow();

@@ -2190,6 +2190,7 @@ scheduler/
 - [x] WASM 沙箱处理器边界（066：`WasmProcessorSpec`/`WasmResourcePolicy`/`WasmCapabilities` 稳定 worker 合约；选型 Wasmtime 45.x；默认拒绝网络与文件系统预打开）
   - [x] Worker 侧 Wasmtime 执行器基础（067：`scheduler-wasm` crate；fuel/epoch interruption、memory cap、无 WASI ambient imports、策略拒绝测试、最小 WAT smoke）
   - [x] WASM 脚本绑定与分发元数据基础（068：`DispatchTask.processor_binding` / `WasmProcessorBinding`；仅 `script:<id>` 且已审批、策略安全的 `language=wasm` 脚本下发模块与资源策略；Server 仅传递元数据不执行用户代码）
+  - [x] WASM SDK 执行适配（069：Rust Worker SDK 在显式 `wasm` feature 下用独立 Wasmtime 适配器执行 `processor_binding.wasm`，未启用 feature 时返回清晰失败；Java SDK 对暂不支持的 WASM binding 显式失败且不调用普通处理器）
 - [ ] 多语言动态脚本处理器（Python/Node/Shell/PowerShell/Rhai）
   - [x] 脚本定义 Storage / Migration / Repository / HTTP CRUD API / OpenAPI
   - [x] Web 脚本管理页面（列表、创建、审批、启用/禁用、删除）

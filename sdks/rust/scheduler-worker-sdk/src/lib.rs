@@ -16,7 +16,8 @@ pub mod proto {
                 clippy::derive_partial_eq_without_eq,
                 clippy::doc_markdown,
                 clippy::missing_const_for_fn,
-                clippy::missing_errors_doc
+                clippy::missing_errors_doc,
+                clippy::too_many_lines
             )]
             tonic::include_proto!("scheduler.worker.v1");
         }
@@ -25,7 +26,7 @@ pub mod proto {
 
 use crate::proto::worker::v1::{
     DispatchTask, Heartbeat, Ping, RegisterWorker, ServerMessage, TaskLog, TaskResult,
-    WorkerMessage, WorkerRegistered, server_message, worker_message,
+    WorkerMessage, WorkerRegistered, server_message, task_processor_binding, worker_message,
     worker_tunnel_service_client::WorkerTunnelServiceClient,
 };
 use async_trait::async_trait;
@@ -204,34 +205,37 @@ impl WorkerSession {
     where
         P: TaskProcessor,
     {
-        let processor_name = if task.processor_name.is_empty() {
-            task.job_id.clone()
+        let context = task_context(&task);
+        let outcome = if let Some(binding) = task.processor_binding.as_ref() {
+            process_bound_task(binding, &task)
         } else {
-            task.processor_name
+            match processor.process(context.clone()).await {
+                Ok(outcome) => outcome,
+                Err(error) => TaskOutcome::Failed(error.to_string()),
+            }
         };
-        let context = TaskContext {
-            job_id: task.job_id,
-            processor_name,
-            instance_id: task.instance_id,
-            payload: task.payload,
-        };
-        let outcome = match processor.process(context.clone()).await {
-            Ok(outcome) => outcome,
-            Err(error) => TaskOutcome::Failed(error.to_string()),
-        };
+        self.report_task_result(context.instance_id, &outcome)
+            .await?;
+
+        Ok(outcome)
+    }
+
+    async fn report_task_result(
+        &self,
+        instance_id: String,
+        outcome: &TaskOutcome,
+    ) -> Result<(), WorkerSdkError> {
         self.outbound
             .send(WorkerMessage {
                 kind: Some(worker_message::Kind::TaskResult(TaskResult {
                     worker_id: self.worker_id.clone(),
-                    instance_id: context.instance_id,
+                    instance_id,
                     success: matches!(outcome, TaskOutcome::Succeeded),
                     message: outcome.message().unwrap_or_default(),
                 })),
             })
             .await
-            .map_err(|_| WorkerSdkError::TunnelClosed)?;
-
-        Ok(outcome)
+            .map_err(|_| WorkerSdkError::TunnelClosed)
     }
 
     async fn next_server_message(&mut self) -> Result<ServerMessage, WorkerSdkError> {
@@ -297,6 +301,119 @@ async fn read_registration(
     }
 }
 
+fn task_context(task: &DispatchTask) -> TaskContext {
+    let processor_name = if task.processor_name.is_empty() {
+        task.job_id.clone()
+    } else {
+        task.processor_name.clone()
+    };
+    TaskContext {
+        job_id: task.job_id.clone(),
+        processor_name,
+        instance_id: task.instance_id.clone(),
+        payload: task.payload.clone(),
+    }
+}
+
+fn process_bound_task(
+    binding: &crate::proto::worker::v1::TaskProcessorBinding,
+    task: &DispatchTask,
+) -> TaskOutcome {
+    match binding.kind.as_ref() {
+        Some(task_processor_binding::Kind::Wasm(wasm)) => process_wasm_binding(wasm, task),
+        None => TaskOutcome::Failed("empty dynamic processor binding".to_owned()),
+    }
+}
+
+#[cfg(feature = "wasm")]
+fn process_wasm_binding(
+    binding: &crate::proto::worker::v1::WasmProcessorBinding,
+    _task: &DispatchTask,
+) -> TaskOutcome {
+    match wasm_runtime::execute(binding) {
+        Ok(()) => TaskOutcome::Succeeded,
+        Err(error) => TaskOutcome::Failed(error),
+    }
+}
+
+#[cfg(not(feature = "wasm"))]
+fn process_wasm_binding(
+    binding: &crate::proto::worker::v1::WasmProcessorBinding,
+    _task: &DispatchTask,
+) -> TaskOutcome {
+    TaskOutcome::Failed(format!(
+        "wasm processor binding for script {} requires enabling scheduler-worker-sdk feature 'wasm'",
+        binding.script_id
+    ))
+}
+
+#[cfg(feature = "wasm")]
+mod wasm_runtime {
+    use std::{thread, time::Duration};
+
+    use wasmtime::{Config, Engine, Linker, Module, Store, StoreLimitsBuilder};
+
+    use crate::proto::worker::v1::WasmProcessorBinding;
+
+    pub fn execute(binding: &WasmProcessorBinding) -> Result<(), String> {
+        validate(binding)?;
+        let mut config = Config::new();
+        config.consume_fuel(true);
+        config.epoch_interruption(true);
+        let engine = Engine::new(&config).map_err(|error| format!("wasm engine error: {error}"))?;
+        let module = Module::from_binary(&engine, &binding.module)
+            .map_err(|error| format!("wasm module error: {error}"))?;
+        let memory_size = usize::try_from(binding.max_memory_bytes).unwrap_or(usize::MAX);
+        let limits = StoreLimitsBuilder::new().memory_size(memory_size).build();
+        let mut store = Store::new(&engine, limits);
+        store
+            .set_fuel(binding.fuel)
+            .map_err(|error| format!("wasm fuel error: {error}"))?;
+        store.limiter(|limits| limits);
+        let timeout = Duration::from_millis(binding.timeout_ms);
+        let deadline_engine = engine.clone();
+        let _interrupter = thread::spawn(move || {
+            thread::sleep(timeout);
+            deadline_engine.increment_epoch();
+        });
+        store.set_epoch_deadline(1);
+        let linker = Linker::new(&engine);
+        let instance = linker
+            .instantiate(&mut store, &module)
+            .map_err(|error| format!("wasm instantiate error: {error}"))?;
+        let entrypoint = instance
+            .get_typed_func::<(), ()>(&mut store, &binding.entrypoint)
+            .map_err(|error| format!("wasm entrypoint error: {error}"))?;
+        entrypoint
+            .call(&mut store, ())
+            .map_err(|error| format!("wasm trap: {error}"))
+    }
+
+    fn validate(binding: &WasmProcessorBinding) -> Result<(), String> {
+        if binding.runtime != "wasmtime" {
+            return Err(format!("unsupported wasm runtime: {}", binding.runtime));
+        }
+        if binding.entrypoint.trim().is_empty() {
+            return Err("wasm entrypoint must not be empty".to_owned());
+        }
+        if binding.timeout_ms == 0 {
+            return Err("wasm timeout must be greater than zero".to_owned());
+        }
+        if binding.max_memory_bytes == 0 {
+            return Err("wasm memory limit must be greater than zero".to_owned());
+        }
+        if binding.fuel == 0 {
+            return Err("wasm fuel budget must be greater than zero".to_owned());
+        }
+        if binding.allow_network {
+            return Err(
+                "wasm network capability is not supported by the Rust SDK adapter yet".to_owned(),
+            );
+        }
+        Ok(())
+    }
+}
+
 /// User-provided async processor interface for future task dispatch support.
 #[async_trait]
 pub trait TaskProcessor: Send + Sync + 'static {
@@ -356,15 +473,14 @@ pub enum WorkerSdkError {
 mod tests {
     use std::{net::SocketAddr, pin::Pin};
 
-    use async_trait::async_trait;
     use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
     use tokio_stream::{Stream, StreamExt, wrappers::TcpListenerStream};
     use tonic::{Request, Response, Status, transport::Server};
 
     use crate::proto::worker::v1::{
-        DispatchTask, Ping, ServerMessage, WorkerMessage, WorkerRegistered, server_message,
-        worker_message, worker_tunnel_service_server,
-        worker_tunnel_service_server::WorkerTunnelServiceServer,
+        DispatchTask, Ping, ServerMessage, TaskProcessorBinding, WasmProcessorBinding,
+        WorkerMessage, WorkerRegistered, server_message, task_processor_binding, worker_message,
+        worker_tunnel_service_server, worker_tunnel_service_server::WorkerTunnelServiceServer,
     };
 
     use super::{
@@ -466,6 +582,101 @@ mod tests {
         (addr, server, events_rx)
     }
 
+    #[cfg(not(feature = "wasm"))]
+    #[tokio::test]
+    async fn worker_session_reports_wasm_binding_requires_feature_when_disabled() {
+        let dispatch = wasm_dispatch_task(
+            "instance-wasm-disabled",
+            wat_bytes(r#"(module (func (export "_start")))"#),
+            false,
+        );
+        let (addr, server, mut events) = start_mock_tunnel_server(Some(dispatch)).await;
+        let config = WorkerConfig::local(format!("http://{addr}"), "worker-sdk-wasm-disabled");
+        let mut session = WorkerClient::new(config)
+            .connect()
+            .await
+            .unwrap_or_else(|error| panic!("worker should register: {error}"));
+
+        let outcome = session
+            .process_next(&EchoProcessor)
+            .await
+            .unwrap_or_else(|error| panic!("wasm disabled result should report: {error}"));
+
+        assert!(
+            matches!(outcome, TaskOutcome::Failed(message) if message.contains("feature 'wasm'"))
+        );
+        let result = next_task_result(&mut events).await;
+        assert!(!result.success);
+        assert!(result.message.contains("feature 'wasm'"));
+        server.abort();
+    }
+
+    #[cfg(feature = "wasm")]
+    #[tokio::test]
+    async fn worker_session_executes_wasm_binding_when_feature_enabled() {
+        let dispatch = wasm_dispatch_task(
+            "instance-wasm-enabled",
+            wat_bytes(r#"(module (func (export "_start")))"#),
+            false,
+        );
+        let (addr, server, mut events) = start_mock_tunnel_server(Some(dispatch)).await;
+        let config = WorkerConfig::local(format!("http://{addr}"), "worker-sdk-wasm-enabled");
+        let mut session = WorkerClient::new(config)
+            .connect()
+            .await
+            .unwrap_or_else(|error| panic!("worker should register: {error}"));
+
+        let outcome = session
+            .process_next(&EchoProcessor)
+            .await
+            .unwrap_or_else(|error| panic!("wasm result should report: {error}"));
+
+        assert_eq!(outcome, TaskOutcome::Succeeded);
+        let result = next_task_result(&mut events).await;
+        assert!(result.success);
+        server.abort();
+    }
+
+    #[cfg(feature = "wasm")]
+    #[tokio::test]
+    async fn worker_session_rejects_wasm_network_capability() {
+        let dispatch = wasm_dispatch_task(
+            "instance-wasm-network",
+            wat_bytes(r#"(module (func (export "_start")))"#),
+            true,
+        );
+        let (addr, server, mut events) = start_mock_tunnel_server(Some(dispatch)).await;
+        let config = WorkerConfig::local(format!("http://{addr}"), "worker-sdk-wasm-network");
+        let mut session = WorkerClient::new(config)
+            .connect()
+            .await
+            .unwrap_or_else(|error| panic!("worker should register: {error}"));
+
+        let outcome = session
+            .process_next(&EchoProcessor)
+            .await
+            .unwrap_or_else(|error| panic!("wasm rejection should report: {error}"));
+
+        assert!(
+            matches!(outcome, TaskOutcome::Failed(message) if message.contains("network capability"))
+        );
+        let result = next_task_result(&mut events).await;
+        assert!(!result.success);
+        assert!(result.message.contains("network capability"));
+        server.abort();
+    }
+
+    async fn next_task_result(
+        events: &mut mpsc::Receiver<WorkerMessage>,
+    ) -> crate::proto::worker::v1::TaskResult {
+        while let Some(message) = events.recv().await {
+            if let Some(worker_message::Kind::TaskResult(result)) = message.kind {
+                return result;
+            }
+        }
+        panic!("task result should arrive");
+    }
+
     struct MockTunnel {
         dispatch: Option<DispatchTask>,
         events: mpsc::Sender<WorkerMessage>,
@@ -546,11 +757,38 @@ mod tests {
 
     struct EchoProcessor;
 
-    #[async_trait]
+    #[async_trait::async_trait]
     impl TaskProcessor for EchoProcessor {
         async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError> {
             assert_eq!(task.payload, b"hello");
             Ok(TaskOutcome::Succeeded)
         }
+    }
+
+    fn wasm_dispatch_task(instance_id: &str, module: Vec<u8>, allow_network: bool) -> DispatchTask {
+        DispatchTask {
+            instance_id: instance_id.to_owned(),
+            job_id: "job-wasm".to_owned(),
+            payload: Vec::new(),
+            processor_name: "script:script_wasm".to_owned(),
+            processor_binding: Some(Box::new(TaskProcessorBinding {
+                kind: Some(task_processor_binding::Kind::Wasm(WasmProcessorBinding {
+                    script_id: "script_wasm".to_owned(),
+                    version: "1.0.0".to_owned(),
+                    module,
+                    runtime: "wasmtime".to_owned(),
+                    entrypoint: "_start".to_owned(),
+                    timeout_ms: 1_000,
+                    max_memory_bytes: 1024 * 1024,
+                    fuel: 1_000_000,
+                    allow_network,
+                    allowed_env_vars: Vec::new(),
+                })),
+            })),
+        }
+    }
+
+    fn wat_bytes(source: &str) -> Vec<u8> {
+        wat::parse_str(source).unwrap_or_else(|error| panic!("wat fixture should compile: {error}"))
     }
 }

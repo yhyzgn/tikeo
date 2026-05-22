@@ -252,14 +252,18 @@ public final class GrpcSchedulerWorkerClient implements SchedulerWorkerClient {
         dispatchObserver.accept(task);
         processorExecutor.submit(() -> {
             TaskOutcome outcome;
-            try {
-                outcome = processor.process(new TaskContext(
-                        task.getJobId(),
-                        task.getProcessorName(),
-                        task.getInstanceId(),
-                        task.getPayload().toByteArray()));
-            } catch (Exception error) {
-                outcome = TaskOutcome.failed(error.getMessage());
+            if (task.hasProcessorBinding() && task.getProcessorBinding().hasWasm()) {
+                outcome = TaskOutcome.failed("wasm processor binding is not supported by Java SDK yet");
+            } else {
+                try {
+                    outcome = processor.process(new TaskContext(
+                            task.getJobId(),
+                            task.getProcessorName(),
+                            task.getInstanceId(),
+                            task.getPayload().toByteArray()));
+                } catch (Exception error) {
+                    outcome = TaskOutcome.failed(error.getMessage());
+                }
             }
             send(Worker.WorkerMessage.newBuilder()
                     .setTaskResult(Worker.TaskResult.newBuilder()
