@@ -1,4 +1,4 @@
-import { Button, Card, Drawer, Empty, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Drawer, Empty, Space, Table, Tag, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -83,11 +83,29 @@ export function InstancesPage() {
     { title: 'Updated At', dataIndex: 'updated_at', width: 180 },
   ];
 
+
+  const governanceLogs = logs.filter((log) => log.governance_event === 'script_execution_governance');
+
+  const renderLogMessage = (log: JobInstanceLogSummary) => {
+    if (log.governance_event !== 'script_execution_governance') {
+      return log.message;
+    }
+    return (
+      <Space direction="vertical" size={2}>
+        <Space wrap>
+          <Tag color="volcano">script governance</Tag>
+          {log.governance_failure_class ? <Tag color="red">{log.governance_failure_class}</Tag> : null}
+        </Space>
+        <Typography.Text>{log.governance_message ?? log.message}</Typography.Text>
+      </Space>
+    );
+  };
+
   const logColumns: ColumnsType<JobInstanceLogSummary> = [
     { title: '#', dataIndex: 'sequence', width: 60 },
     { title: 'Level', dataIndex: 'level', width: 90, render: (value: string) => <Tag color={value === 'error' ? 'red' : value === 'warn' ? 'orange' : 'blue'}>{value}</Tag> },
     { title: 'Worker', dataIndex: 'worker_id', ellipsis: true, width: 120 },
-    { title: 'Message', dataIndex: 'message' },
+    { title: 'Message', dataIndex: 'message', render: (_: string, log) => renderLogMessage(log) },
   ];
 
   return (
@@ -115,6 +133,15 @@ export function InstancesPage() {
           locale={{ emptyText: '非广播实例或暂无子执行' }}
         />
         <Typography.Title level={5} style={{ marginTop: 24 }}>执行日志</Typography.Title>
+        {governanceLogs.length > 0 ? (
+          <Alert
+            type="warning"
+            showIcon
+            message={`脚本执行治理事件 ${governanceLogs.length} 条`}
+            description="已识别脚本 capability、runner、policy、digest、timeout、output 或 runtime 相关治理失败。"
+            style={{ marginBottom: 12 }}
+          />
+        ) : null}
         <Table
           rowKey="id"
           loading={logsLoading}

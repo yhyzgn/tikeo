@@ -649,6 +649,12 @@ pub struct JobInstanceLogSummary {
     pub level: String,
     /// Log message.
     pub message: String,
+    /// Structured governance event name parsed from JSON logs.
+    pub governance_event: Option<String>,
+    /// Structured governance failure class parsed from JSON logs.
+    pub governance_failure_class: Option<String>,
+    /// Human-readable governance message parsed from JSON logs.
+    pub governance_message: Option<String>,
     /// Worker-local monotonic sequence.
     pub sequence: i64,
     /// Creation timestamp in RFC3339 format.

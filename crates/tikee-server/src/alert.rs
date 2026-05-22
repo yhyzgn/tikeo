@@ -48,6 +48,13 @@ pub enum AlertCondition {
         /// Maximum delay in seconds before alerting.
         threshold_seconds: u64,
     },
+    /// Script execution governance failures exceed a threshold.
+    ScriptGovernanceFailure {
+        /// Stable governance failure class.
+        failure_class: String,
+        /// Maximum failures before alerting.
+        threshold: u32,
+    },
 }
 
 /// Notification channel configuration.
@@ -131,6 +138,38 @@ impl AlertDispatcher {
                 ),
                 resource_type: "job".to_owned(),
                 resource_id: job_id.to_owned(),
+                triggered_at: now_rfc3339(),
+            };
+            self.dispatch(&rule.channels, &payload).await;
+        }
+    }
+
+    /// Fire a script governance failure alert.
+    pub async fn fire_script_governance_failure(
+        &self,
+        instance_id: &str,
+        failure_class: &str,
+        failure_count: u32,
+    ) {
+        for rule in self.rules.iter() {
+            let AlertCondition::ScriptGovernanceFailure {
+                failure_class: expected,
+                threshold,
+            } = &rule.condition
+            else {
+                continue;
+            };
+            if expected != failure_class || failure_count < *threshold {
+                continue;
+            }
+            let payload = AlertPayload {
+                rule_name: rule.name.clone(),
+                severity: rule.severity.clone(),
+                message: format!(
+                    "script governance failure {failure_class} occurred {failure_count} times (threshold={threshold})"
+                ),
+                resource_type: "script_execution_governance".to_owned(),
+                resource_id: instance_id.to_owned(),
                 triggered_at: now_rfc3339(),
             };
             self.dispatch(&rule.channels, &payload).await;
@@ -251,5 +290,19 @@ mod tests {
         let dispatcher = AlertDispatcher::noop();
         dispatcher.fire_job_failure("job_x", 10).await;
         dispatcher.fire_worker_offline("worker_x").await;
+        dispatcher
+            .fire_script_governance_failure("inst_x", "script_runtime_unavailable", 3)
+            .await;
+    }
+
+    #[test]
+    fn script_governance_alert_condition_serializes() {
+        let condition = AlertCondition::ScriptGovernanceFailure {
+            failure_class: "script_runtime_unavailable".to_owned(),
+            threshold: 3,
+        };
+        let json = serde_json::to_string(&condition).unwrap_or_default();
+        assert!(json.contains("script_governance_failure"));
+        assert!(json.contains("script_runtime_unavailable"));
     }
 }

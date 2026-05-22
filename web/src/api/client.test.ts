@@ -76,13 +76,14 @@ describe('api client envelope handling', () => {
       code: 0,
       message: 'success',
       data: {
-        items: [{ id: 'log_1', instance_id: 'inst_1', worker_id: 'worker_1', level: 'info', message: 'hello', sequence: 1, created_at: '2026-05-19T00:00:00Z' }],
+        items: [{ id: 'log_1', instance_id: 'inst_1', worker_id: 'worker_1', level: 'warn', message: 'runtime missing', governance_event: 'script_execution_governance', governance_failure_class: 'script_runtime_unavailable', governance_message: 'runtime missing', sequence: 1, created_at: '2026-05-19T00:00:00Z' }],
         next_page_token: null,
       },
     };
     globalThis.fetch = mock(async () => new Response(JSON.stringify(body))) as unknown as typeof fetch;
 
-    await expect(listInstanceLogs('inst_1')).resolves.toEqual(body.data);
+    await expect(listInstanceLogs('inst_1', { governanceOnly: true })).resolves.toEqual(body.data);
+    expect(fetch).toHaveBeenCalledWith('/api/v1/instances/inst_1/logs?page_token=script_execution_governance', expect.any(Object));
   });
 
   test('stores login token and sends authorization for protected mutations', async () => {

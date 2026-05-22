@@ -2215,6 +2215,7 @@ tikee/
   - [x] 非 WASM 脚本 Worker Tunnel 协议绑定与能力路由（074：`ScriptProcessorBinding` 传递 released `script_versions` 快照 bytes/SHA-256/version/policy；dispatcher fail-closed 并按 `script:<language>`、`script:*`、`*` 过滤 worker；Rust SDK 仅在显式注册对应 `ScriptRunner` 后执行，Java SDK 明确拒绝暂不支持的脚本绑定；Web 展示语言所需 worker capability）
   - [x] Worker 侧容器化脚本 Runner 基础（075：Rust SDK `ContainerScriptRunner`，显式 opt-in，通过 Docker-compatible CLI `run --rm -i` 以 stdin 传入 released snapshot；默认 `--network=none`、`--read-only`、无宿主路径挂载，仅注入白名单 env 和 tikee 元数据；单元测试覆盖命令边界与危险策略预检，真实 Docker/K8s 执行治理后续增强）
   - [x] 脚本执行治理失败可见性基础（077：dispatcher/Worker result 将无匹配 capability、缺 runner、策略拒绝、digest mismatch、timeout、output limit、runtime unavailable 归类为 `script_execution_governance` 实例日志；补充脚本 Worker Pool Docker/K8s 部署约束；Server 仍只调度不执行用户代码）
+  - [x] 脚本执行治理查询与 UI 高亮基础（078：实例日志 DTO 解析 `script_execution_governance` JSON 为 event/failure_class/message 字段；`page_token=script_execution_governance` 可筛选治理日志；Web Instances 日志抽屉高亮治理失败；AlertCondition 增加 `script_governance_failure` 条件）
 - [ ] 脚本策略引擎（能力声明、审批、资源限制、网络/文件策略）
   - [x] 默认拒绝策略元数据与不可变快照（072：`ScriptExecutionPolicy` 覆盖 resources/network/filesystem/secrets/env；`scripts.policy_json` 和 `script_versions.policy_json` 保存策略快照；HTTP create/update 拒绝网络/文件/Secret 危险能力；Web 可编辑资源/env 白名单并展示策略 diff）
   - [ ] 策略审批、签名、URL/File/Secret grant 与生产发布门禁

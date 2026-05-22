@@ -60,6 +60,9 @@ export interface JobInstanceLogSummary {
   worker_id: string;
   level: string;
   message: string;
+  governance_event?: string | null;
+  governance_failure_class?: string | null;
+  governance_message?: string | null;
   sequence: number;
   created_at: string;
 }
@@ -197,8 +200,9 @@ export async function listInstanceAttempts(instanceId: string): Promise<Page<Job
   return request<Page<JobInstanceAttemptSummary>>(`/api/v1/instances/${encodeURIComponent(instanceId)}/attempts`);
 }
 
-export async function listInstanceLogs(instanceId: string): Promise<Page<JobInstanceLogSummary>> {
-  return request<Page<JobInstanceLogSummary>>(`/api/v1/instances/${encodeURIComponent(instanceId)}/logs`);
+export async function listInstanceLogs(instanceId: string, options: { governanceOnly?: boolean } = {}): Promise<Page<JobInstanceLogSummary>> {
+  const suffix = options.governanceOnly ? '?page_token=script_execution_governance' : '';
+  return request<Page<JobInstanceLogSummary>>(`/api/v1/instances/${encodeURIComponent(instanceId)}/logs${suffix}`);
 }
 
 export async function listUsers(): Promise<UserSummary[]> {

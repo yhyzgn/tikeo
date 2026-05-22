@@ -326,7 +326,7 @@ pub async fn list_instance_attempts(
 pub async fn list_instance_logs(
     State(state): State<Arc<AppState>>,
     Path(instance): Path<String>,
-    Query(_query): Query<PageQuery>,
+    Query(query): Query<PageQuery>,
 ) -> Result<Json<JobInstanceLogPageApiResponse>, ApiError> {
     let items = state
         .logs
@@ -335,6 +335,10 @@ pub async fn list_instance_logs(
         .map_err(|error| ApiError::storage(&error))?
         .into_iter()
         .map(JobInstanceLogSummary::from)
+        .filter(|log| {
+            query.page_token.as_deref() != Some("script_execution_governance")
+                || log.governance_event.as_deref() == Some("script_execution_governance")
+        })
         .collect();
 
     Ok(Json(ApiResponse::success(JobInstanceLogPage {
@@ -387,14 +391,48 @@ impl From<tikee_storage::JobInstanceAttemptSummary> for JobInstanceAttemptSummar
 
 impl From<tikee_storage::JobInstanceLogSummary> for JobInstanceLogSummary {
     fn from(value: tikee_storage::JobInstanceLogSummary) -> Self {
+        let governance = parse_log_governance(&value.message);
         Self {
             id: value.id,
             instance_id: value.instance_id,
             worker_id: value.worker_id,
             level: value.level,
-            message: value.message,
+            message: governance
+                .as_ref()
+                .and_then(|parsed| parsed.message.clone())
+                .unwrap_or(value.message),
+            governance_event: governance.as_ref().map(|parsed| parsed.event.clone()),
+            governance_failure_class: governance
+                .as_ref()
+                .and_then(|parsed| parsed.failure_class.clone()),
+            governance_message: governance.and_then(|parsed| parsed.message),
             sequence: value.sequence,
             created_at: value.created_at,
         }
     }
+}
+
+struct ParsedLogGovernance {
+    event: String,
+    failure_class: Option<String>,
+    message: Option<String>,
+}
+
+fn parse_log_governance(message: &str) -> Option<ParsedLogGovernance> {
+    let value = serde_json::from_str::<serde_json::Value>(message).ok()?;
+    let event = value.get("event")?.as_str()?.to_owned();
+    if event != "script_execution_governance" {
+        return None;
+    }
+    Some(ParsedLogGovernance {
+        event,
+        failure_class: value
+            .get("failure_class")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned),
+        message: value
+            .get("message")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned),
+    })
 }

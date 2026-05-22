@@ -552,3 +552,10 @@
 - Added Rust SDK script failure classification via `TaskOutcome::failure_class()` and JSON result messages for missing runner, policy rejection, digest mismatch, timeout, output limit, and runtime unavailable; Server persists these Worker result classes as `script_execution_governance` instance logs.
 - Documented script-capable Worker Pool deployment for Docker/K8s and `ContainerScriptRunner` opt-in constraints in design and Rust SDK README.
 - Updated design roadmap and created `.prompt/078-script-governance-audit-alerting.md` for first-class audit/alert follow-up.
+### 2026-05-23 Phase3 script governance query/UI/alert foundation
+- Continued `.prompt/078-script-governance-audit-alerting.md`.
+- Instance log API now parses `script_execution_governance` JSON logs into `governance_event`, `governance_failure_class`, and `governance_message` fields while preserving plain log compatibility.
+- Added compatibility filtering for governance logs via `/api/v1/instances/{id}/logs?page_token=script_execution_governance`.
+- Web Instances log drawer now highlights script governance failures and summarizes governance event count.
+- Added `AlertCondition::ScriptGovernanceFailure` as the deterministic alert rule shape for follow-up alert materialization.
+- Updated design roadmap and created `.prompt/079-script-governance-audit-materialization.md`.

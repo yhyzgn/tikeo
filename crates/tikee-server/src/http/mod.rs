@@ -1149,6 +1149,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
     async fn trigger_job_creates_pending_instance() {
         let app = router().await;
         let created = post_json(
@@ -1225,7 +1226,8 @@ mod tests {
         let instance_id = triggered["data"]["id"]
             .as_str()
             .unwrap_or_else(|| panic!("instance id"));
-        JobInstanceLogRepository::new(db)
+        let log_repo = JobInstanceLogRepository::new(db);
+        log_repo
             .append(AppendJobInstanceLog {
                 instance_id: instance_id.to_owned(),
                 worker_id: "worker-1".to_owned(),
@@ -1236,13 +1238,58 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("log should append: {error}"))
             .unwrap_or_else(|| panic!("instance should exist"));
-        let logs = request_with(app, &format!("/api/v1/instances/{instance_id}/logs")).await;
+        log_repo
+            .append(AppendJobInstanceLog {
+                instance_id: instance_id.to_owned(),
+                worker_id: "tikee-dispatcher".to_owned(),
+                level: "warn".to_owned(),
+                message: serde_json::json!({
+                    "event": "script_execution_governance",
+                    "failure_class": "script_runtime_unavailable",
+                    "message": "runtime missing",
+                })
+                .to_string(),
+                sequence: 2,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("governance log should append: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        let logs = request_with(
+            app.clone(),
+            &format!("/api/v1/instances/{instance_id}/logs"),
+        )
+        .await;
         let body = axum::body::to_bytes(logs.into_body(), usize::MAX)
             .await
             .unwrap_or_else(|error| panic!("body should collect: {error}"));
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["data"]["items"][0]["message"], "hello");
+        assert_eq!(
+            json["data"]["items"][1]["governance_event"],
+            "script_execution_governance"
+        );
+        assert_eq!(
+            json["data"]["items"][1]["governance_failure_class"],
+            "script_runtime_unavailable"
+        );
+        assert_eq!(json["data"]["items"][1]["message"], "runtime missing");
+
+        let filtered = request_with(
+            app,
+            &format!("/api/v1/instances/{instance_id}/logs?page_token=script_execution_governance"),
+        )
+        .await;
+        let body = axum::body::to_bytes(filtered.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["data"]["items"].as_array().map(Vec::len), Some(1));
+        assert_eq!(
+            json["data"]["items"][0]["governance_failure_class"],
+            "script_runtime_unavailable"
+        );
     }
 
     #[tokio::test]
