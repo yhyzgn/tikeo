@@ -1021,3 +1021,11 @@ Git:
 - Updated design SQL sketch and roadmap: before/after trace/failure foundation complete; export governance remains `.prompt/063-phase3-audit-export-governance.md`.
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server audit_logs_support_server_side_filters_and_pagination --all-features`; `cargo test -p scheduler-storage migration_creates_metadata_tables --all-features`.
 - Full verification passed for 062: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase3 governed audit JSON export
+- Resumed into `.prompt/063-phase3-audit-export-governance.md`.
+- Implemented `export_audit_logs` route and DTOs for governed JSON audit export; routed `/api/v1/audit-logs:export` and added OpenAPI registration.
+- Updated Web audit client/page to download current-filter JSON exports.
+- Created `.prompt/064-phase3-web-danger-confirm-permission-actions.md`.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server audit_logs_support_server_side_filters_and_pagination --all-features`; `cd web && bun run typecheck`.
+- Full verification passed for 063: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).

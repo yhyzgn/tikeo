@@ -274,6 +274,7 @@ fn api_router() -> Router<Arc<AppState>> {
             axum::routing::post(routes::claim_dispatch_queue),
         )
         .route("/audit-logs", get(routes::list_audit_logs))
+        .route("/audit-logs:export", get(routes::export_audit_logs))
 }
 
 /// Run the unified HTTP listener.
@@ -756,6 +757,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
     async fn audit_logs_support_server_side_filters_and_pagination() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
@@ -810,7 +812,7 @@ mod tests {
             .clone()
             .oneshot(
                 admin_request_builder(
-                    app,
+                    app.clone(),
                     "GET",
                     "/api/v1/audit-logs?action=delete&resource_type=script&page_size=1",
                 )
@@ -837,6 +839,44 @@ mod tests {
         );
         assert!(json["data"]["items"][0]["before"].is_string());
         assert!(json["data"]["items"][0]["after"].is_string());
+
+        let export = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app.clone(),
+                    "GET",
+                    "/api/v1/audit-logs:export?action=delete&resource_type=script&format=json",
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("export route should respond: {error}"));
+        let export_body = axum::body::to_bytes(export.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("export body should collect: {error}"));
+        let export_json: Value = serde_json::from_slice(&export_body)
+            .unwrap_or_else(|error| panic!("export body should be JSON: {error}"));
+        assert_eq!(export_json["code"], 0);
+        assert_eq!(export_json["data"]["format"], "json");
+        assert_eq!(export_json["data"]["exported"], 1);
+        assert_eq!(export_json["data"]["max_rows"], 500);
+        assert_eq!(export_json["data"]["redacted"], false);
+        assert!(
+            export_json["data"]["governance"]
+                .as_str()
+                .is_some_and(|value| value.contains("capped at 500 rows"))
+        );
+        assert_eq!(export_json["data"]["items"][0]["trace_id"], "trace-audit-1");
+
+        let csv = app
+            .clone()
+            .oneshot(
+                admin_request_builder(app, "GET", "/api/v1/audit-logs:export?format=csv").await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("csv export route should respond: {error}"));
+        assert_eq!(csv.status(), axum::http::StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]

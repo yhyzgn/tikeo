@@ -147,6 +147,8 @@ pub struct AuditLogQuery {
     pub resource_type: Option<String>,
     /// Filter by resource id.
     pub resource_id: Option<String>,
+    /// Export format for governed export endpoint; currently only `json` is supported.
+    pub format: Option<String>,
 }
 
 /// System information shown by the management API.
@@ -685,6 +687,26 @@ pub struct FieldChange {
     pub before: String,
     /// Value in version 2.
     pub after: String,
+}
+
+/// Audit log export response.
+pub type AuditLogExportApiResponse = ApiResponse<AuditLogExport>;
+
+/// Governed audit log export payload.
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct AuditLogExport {
+    /// Export format. Currently `json`.
+    pub format: String,
+    /// Exported audit log entries.
+    pub items: Vec<AuditLogSummary>,
+    /// Number of exported items.
+    pub exported: u64,
+    /// Maximum rows allowed in one export.
+    pub max_rows: u64,
+    /// Whether sensitive snapshot/detail fields were redacted.
+    pub redacted: bool,
+    /// Governance note for operators.
+    pub governance: String,
 }
 
 /// Audit log page response.

@@ -38,6 +38,7 @@ use super::{auth, dto, routes};
         routes::jobs::list_instance_attempts,
         routes::jobs::list_instance_logs,
         routes::audit::list_audit_logs,
+        routes::audit::export_audit_logs,
         routes::workers::list_workers,
         routes::workers::dispatch_queue,
         routes::workflows::list_workflows,

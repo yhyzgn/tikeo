@@ -1,9 +1,9 @@
-import { FilterOutlined, ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { Button, Card, Form, Input, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
+import { DownloadOutlined, FilterOutlined, ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { Button, Card, Form, Input, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { AuditLogQuery, AuditLogSummary } from '../api/client';
-import { listAuditLogs } from '../api/client';
+import { exportAuditLogs, listAuditLogs } from '../api/client';
 
 const ACTION_COLORS: Record<string, string> = {
   create: 'green',
@@ -88,6 +88,18 @@ export function AuditLogsPage() {
     setQuery({ page_size: PAGE_SIZE });
   };
 
+  const exportCurrent = async () => {
+    const exported = await exportAuditLogs({ ...query, page_size: 500, page_token: undefined });
+    const blob = new Blob([JSON.stringify(exported, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `scheduler-audit-${new Date().toISOString()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    void message.success(`已导出 ${exported.exported} 条审计记录`);
+  };
+
   return (
     <div className="page-stack">
       <section className="hero-panel">
@@ -132,6 +144,7 @@ export function AuditLogsPage() {
               <Button type="primary" htmlType="submit">查询</Button>
               <Button onClick={resetFilters}>重置</Button>
               <Button icon={<ReloadOutlined />} onClick={() => void fetchLogs(query)} />
+              <Button icon={<DownloadOutlined />} onClick={() => void exportCurrent()}>导出 JSON</Button>
             </Space>
           </Form.Item>
         </Form>

@@ -829,7 +829,7 @@ HTTP 接口是平台管理面的一等能力，面向 Web UI、CLI、CI/CD、Git
 | Scripts | `GET/POST /api/v1/scripts`、`POST /api/v1/scripts/{script}:publish`、`:approve`、`:rollback`、`GET /api/v1/scripts/{script}/versions`、`GET /api/v1/scripts/{script}/diff?v1=&v2=` | 动态脚本版本、发布、审批、回滚、版本历史与 diff 对比 |
 | Secrets | `GET/POST /api/v1/secrets`、`POST /api/v1/secrets/{secret}:rotate` | Secret reference 管理 |
 | Alerts | `GET/POST /api/v1/alert-rules`、`GET/POST /api/v1/notification-channels` | 告警规则与通知渠道 |
-| Audit | `GET /api/v1/audit-logs` | 审计查询与导出 |
+| Audit | `GET /api/v1/audit-logs`, `GET /api/v1/audit-logs:export?format=json` | 审计查询与受治理 JSON 导出（500 行上限、`audit:read` 权限、标准 envelope） |
 | Metrics | `GET /metrics`、`GET /api/v1/metrics/summary` | Prometheus 与控制台摘要 |
 | System | `GET /healthz`、`GET /readyz`、`GET /api/v1/cluster` | 健康检查与集群状态 |
 
@@ -2184,7 +2184,7 @@ scheduler/
 - [x] 审计日志骨架（`audit_logs` 表、Repository、HTTP API、关键写操作埋点）
   - [x] 审计分页与服务端过滤（actor/action/resource_type/resource_id + page_size/page_token + total）
   - [x] 审计 before/after、trace_id、失败结果基础（`audit_logs` 扩展 before/after/trace_id/result/failure_reason；API/Web 展示；无外键）
-  - [ ] 审计导出治理（CSV/JSON export、脱敏、权限与限流）
+  - [x] 审计导出治理基础（`GET /api/v1/audit-logs:export?format=json`，复用过滤条件、`audit:read` 权限、500 行上限、JSON envelope、Web 导出入口；CSV/脱敏策略后续增强）
 - [ ] Web UI 危险操作二次确认、权限感知操作
   - [x] Web UI 审计日志查询页面（按操作类型筛选）
 - [ ] WASM 沙箱处理器

@@ -338,21 +338,40 @@ export interface AuditLogQuery {
   action?: string;
   resource_type?: string;
   resource_id?: string;
+  format?: string;
 }
 
 export interface AuditLogPage extends Page<AuditLogSummary> {
   total: number;
 }
 
-export async function listAuditLogs(query: AuditLogQuery = {}): Promise<AuditLogPage> {
+export interface AuditLogExport {
+  format: string;
+  items: AuditLogSummary[];
+  exported: number;
+  max_rows: number;
+  redacted: boolean;
+  governance: string;
+}
+
+function auditLogSearchParams(query: AuditLogQuery = {}): string {
   const params = new URLSearchParams();
   Object.entries(query).forEach(([key, value]) => {
     if (value !== undefined && value !== null && String(value).trim() !== '') {
       params.set(key, String(value));
     }
   });
-  const suffix = params.toString();
+  return params.toString();
+}
+
+export async function listAuditLogs(query: AuditLogQuery = {}): Promise<AuditLogPage> {
+  const suffix = auditLogSearchParams(query);
   return request<AuditLogPage>(`/api/v1/audit-logs${suffix ? `?${suffix}` : ''}`);
+}
+
+export async function exportAuditLogs(query: AuditLogQuery = {}): Promise<AuditLogExport> {
+  const suffix = auditLogSearchParams({ ...query, format: 'json' });
+  return request<AuditLogExport>(`/api/v1/audit-logs:export${suffix ? `?${suffix}` : ''}`);
 }
 
 interface SchedulerRequestInit extends RequestInit {
