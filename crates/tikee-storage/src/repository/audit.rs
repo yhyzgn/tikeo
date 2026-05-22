@@ -76,6 +76,8 @@ pub struct AuditLogFilters {
     pub resource_type: Option<String>,
     /// Filter by resource id.
     pub resource_id: Option<String>,
+    /// Filter by failure reason.
+    pub failure_reason: Option<String>,
     /// Maximum number of results (default 100).
     pub limit: Option<u64>,
     /// Number of rows to skip.
@@ -171,6 +173,9 @@ impl AuditLogRepository {
         }
         if let Some(resource_id) = &filters.resource_id {
             query = query.filter(audit_log::Column::ResourceId.eq(resource_id.clone()));
+        }
+        if let Some(failure_reason) = &filters.failure_reason {
+            query = query.filter(audit_log::Column::FailureReason.eq(failure_reason.clone()));
         }
 
         let limit = filters.limit.unwrap_or(100).clamp(1, 500);

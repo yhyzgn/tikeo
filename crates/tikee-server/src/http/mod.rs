@@ -357,11 +357,13 @@ mod tests {
     use axum::{body::Body, http::Request};
     use serde_json::Value;
     use tikee_config::{ClusterConfig, ClusterModeConfig, ClusterPeerConfig};
+    use tikee_core::{ExecutionMode, TriggerType};
     use tikee_proto::worker::v1::RegisterWorker;
     use tikee_storage::{
-        AppendJobInstanceLog, AuditLogRepository, CreateAuditLog, JobInstanceAttemptRepository,
-        JobInstanceLogRepository, JobInstanceRepository, JobRepository, RaftRepository,
-        ScriptRepository, UserRepository, WorkflowRepository, connect_and_migrate,
+        AppendJobInstanceLog, AuditLogRepository, CreateAuditLog, CreateJob, CreateJobInstance,
+        JobInstanceAttemptRepository, JobInstanceLogRepository, JobInstanceRepository,
+        JobRepository, RaftRepository, ScriptRepository, UserRepository, WorkflowRepository,
+        connect_and_migrate,
     };
 
     const ADMIN_LOGIN: &str = r#"{"username":"tikee_init","password":"Tikee@2026!"}"#;
@@ -885,6 +887,97 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("csv export route should respond: {error}"));
         assert_eq!(csv.status(), axum::http::StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn script_governance_audit_logs_filter_by_failure_reason() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
+        let job = jobs
+            .create_job(CreateJob {
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "governed-script".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                processor_name: Some("script:script-missing-runtime".to_owned()),
+                enabled: true,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should create: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id,
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should create: {error}"))
+            .unwrap_or_else(|| panic!("parent job should exist"));
+
+        crate::tunnel::governance::materialize_script_governance_audit(
+            &audit,
+            "tikee-dispatcher",
+            &instance.id,
+            "script_runtime_unavailable",
+            "runtime missing",
+        )
+        .await
+        .unwrap_or_else(|error| panic!("governance audit should append: {error}"));
+
+        let app = router_with_state(AppState::new(
+            jobs,
+            instances,
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            audit,
+            crate::tunnel::WorkerRegistry::default(),
+            StandaloneCoordinator::shared("test-node"),
+        ));
+
+        let response = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app,
+                    "GET",
+                    "/api/v1/audit-logs?resource_type=script_execution_governance&failure_reason=script_runtime_unavailable",
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(response.status().is_success());
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["total"], 1);
+        assert_eq!(json["data"]["items"].as_array().map(Vec::len), Some(1));
+        assert_eq!(
+            json["data"]["items"][0]["action"],
+            "script_governance_failure"
+        );
+        assert_eq!(
+            json["data"]["items"][0]["resource_type"],
+            "script_execution_governance"
+        );
+        assert_eq!(json["data"]["items"][0]["resource_id"], instance.id);
+        assert_eq!(
+            json["data"]["items"][0]["failure_reason"],
+            "script_runtime_unavailable"
+        );
+        assert_eq!(json["data"]["items"][0]["result"], "failed");
     }
 
     #[tokio::test]

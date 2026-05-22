@@ -1,21 +1,15 @@
 # Next Work
 
 ## Immediate next slice
-- Continue with `.prompt/079-script-governance-audit-materialization.md`.
+- Continue with `.prompt/080-alert-rule-event-history.md`.
 - Focus areas:
-  1. Materialize `script_execution_governance` events into audit/governance query surfaces without foreign keys.
-  2. Keep instance log compatibility and Web highlighting behavior stable.
-  3. Preserve Server as metadata dispatcher only; script execution remains Worker-side opt-in from released immutable snapshots.
+  1. Add alert rule management/query API for the existing `AlertRule` / `AlertCondition` model.
+  2. Add deterministic alert event history materialization for script governance failures and recovery-capable state transitions.
+  3. Keep notification dispatch safe and test-only: no external webhook smoke required unless explicitly enabled.
 
 ## Current status
-- Phase 078 parsed governance log JSON into explicit API fields, added a governance-only log filter, added Web instance-log highlighting, and introduced `script_governance_failure` alert condition shape.
-- Interruption fixes completed:
-  - Web workflow client/editor normalizes stale edge condition aliases (`success`/`failed`) to canonical `on_success`/`on_failure`, and dev seed data uses `on_success`.
-  - Script edit moved to `/scripts/:id/edit`; workflow DAG editor canvas has fullscreen toggle.
+- Phase 079 materialized `script_execution_governance` failures into `audit_logs` with `failure_reason` filtering and Web audit-page support.
+- Instance log compatibility from 078 remains intact; governance logs are still queryable via `page_token=script_execution_governance`.
 
-## SDK naming note
-- Rust SDK is `sdks/rust/tikee` / crate `tikee`. Java core SDK module/artifact is `tikee`; Java package prefix remains `com.yhyzgn.tikee`.
-
-## Roadmap adjustment
-- Phase 3 no longer includes Node.js SDK, K8s Helm Chart, or PowerJob migration tooling.
-- Phase 4 now owns Node.js SDK, K8s Helm Chart, PowerJob migration tooling, and the newly added XXL-JOB migration tooling.
+## Deferred out of Phase 3
+- Node.js SDK, K8s Helm Chart, PowerJob migration tooling, and XXL-JOB migration tooling belong to Phase 4.

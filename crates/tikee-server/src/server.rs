@@ -49,7 +49,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
             users,
             scripts.clone(),
             workflows.clone(),
-            audit,
+            audit.clone(),
             registry.clone(),
             cluster.clone(),
         )
@@ -76,6 +76,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
             logs.clone(),
             tunnel_attempts,
             workflows.clone(),
+            audit.clone(),
             log_broadcaster
         ),
         async {
@@ -91,6 +92,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
                 dispatcher_workflows,
                 scripts.clone(),
                 logs.clone(),
+                audit,
                 registry,
                 dispatch_cluster,
             )

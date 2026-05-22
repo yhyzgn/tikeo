@@ -32,7 +32,7 @@ impl Cli {
             Command::Serve { config } => {
                 init_tracing();
                 let config = load_config(config.as_deref())?;
-                server::serve(config).await
+                Box::pin(server::serve(config)).await
             }
         }
     }

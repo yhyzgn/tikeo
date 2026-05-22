@@ -7,14 +7,14 @@ use tikee_proto::worker::v1::{
     worker_tunnel_service_server::WorkerTunnelService,
 };
 use tikee_storage::{
-    AppendJobInstanceLog, JobInstanceAttemptRepository, JobInstanceLogRepository,
-    JobInstanceLogSummary, JobInstanceRepository, WorkflowRepository,
+    AppendJobInstanceLog, AuditLogRepository, JobInstanceAttemptRepository,
+    JobInstanceLogRepository, JobInstanceLogSummary, JobInstanceRepository, WorkflowRepository,
 };
 use tokio::sync::{broadcast, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
 
-use super::WorkerRegistry;
+use super::{WorkerRegistry, governance};
 
 const DEFAULT_LEASE_SECONDS: u64 = 30;
 const LOG_STREAM_BUFFER: usize = 256;
@@ -50,6 +50,7 @@ pub struct WorkerTunnel {
     logs: JobInstanceLogRepository,
     attempts: JobInstanceAttemptRepository,
     workflows: WorkflowRepository,
+    audit: AuditLogRepository,
     log_broadcaster: TaskLogBroadcaster,
 }
 
@@ -62,6 +63,7 @@ impl WorkerTunnel {
         logs: JobInstanceLogRepository,
         attempts: JobInstanceAttemptRepository,
         workflows: WorkflowRepository,
+        audit: AuditLogRepository,
         log_broadcaster: TaskLogBroadcaster,
     ) -> Self {
         Self {
@@ -70,6 +72,7 @@ impl WorkerTunnel {
             logs,
             attempts,
             workflows,
+            audit,
             log_broadcaster,
         }
     }
@@ -90,6 +93,7 @@ impl WorkerTunnelService for WorkerTunnel {
         let logs = self.logs.clone();
         let attempts = self.attempts.clone();
         let workflows = self.workflows.clone();
+        let audit = self.audit.clone();
         let log_broadcaster = self.log_broadcaster.clone();
         let (tx, rx) = mpsc::channel(16);
         let outbound = tx.clone();
@@ -104,6 +108,7 @@ impl WorkerTunnelService for WorkerTunnel {
                             logs: &logs,
                             attempts: &attempts,
                             workflows: &workflows,
+                            audit: &audit,
                             log_broadcaster: &log_broadcaster,
                             tx: &tx,
                             outbound: &outbound,
@@ -192,6 +197,7 @@ struct WorkerMessageContext<'a> {
     logs: &'a JobInstanceLogRepository,
     attempts: &'a JobInstanceAttemptRepository,
     workflows: &'a WorkflowRepository,
+    audit: &'a AuditLogRepository,
     log_broadcaster: &'a TaskLogBroadcaster,
     tx: &'a mpsc::Sender<Result<ServerMessage, Status>>,
     outbound: &'a mpsc::Sender<Result<ServerMessage, Status>>,
@@ -296,8 +302,14 @@ async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResu
             }
         }
         Ok(None) => {
-            persist_script_result_governance(context.logs, &worker_id, &instance_id, &message)
-                .await;
+            persist_script_result_governance(
+                context.logs,
+                context.audit,
+                &worker_id,
+                &instance_id,
+                &message,
+            )
+            .await;
             handle_single_task_result(context, &worker_id, &instance_id, success, status).await;
         }
         Err(error) => {
@@ -308,6 +320,7 @@ async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResu
 
 async fn persist_script_result_governance(
     logs: &JobInstanceLogRepository,
+    audit: &AuditLogRepository,
     worker_id: &str,
     instance_id: &str,
     message: &str,
@@ -315,29 +328,39 @@ async fn persist_script_result_governance(
     let Ok(value) = serde_json::from_str::<serde_json::Value>(message) else {
         return;
     };
-    if value
+    let Some(failure_class) = value
         .get("failure_class")
         .and_then(serde_json::Value::as_str)
-        .is_none()
-    {
+    else {
         return;
-    }
+    };
+    let governance_message = value
+        .get("message")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(message);
+    let payload = governance::script_governance_payload(failure_class, governance_message);
     if let Err(error) = logs
         .append(AppendJobInstanceLog {
             instance_id: instance_id.to_owned(),
             worker_id: worker_id.to_owned(),
             level: "warn".to_owned(),
-            message: serde_json::json!({
-                "event": "script_execution_governance",
-                "failure_class": value.get("failure_class"),
-                "message": value.get("message"),
-            })
-            .to_string(),
+            message: payload.to_string(),
             sequence: 0,
         })
         .await
     {
         tracing::warn!(%error, %instance_id, %worker_id, "failed to persist script governance result log");
+    }
+    if let Err(error) = governance::materialize_script_governance_audit(
+        audit,
+        worker_id,
+        instance_id,
+        failure_class,
+        governance_message,
+    )
+    .await
+    {
+        tracing::warn!(%error, %instance_id, %worker_id, "failed to persist script governance audit log");
     }
 }
 
@@ -426,8 +449,8 @@ mod tests {
         worker_message,
     };
     use tikee_storage::{
-        JobInstanceAttemptRepository, JobInstanceLogRepository, JobInstanceRepository,
-        WorkflowRepository, connect_and_migrate,
+        AuditLogRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
+        JobInstanceRepository, WorkflowRepository, connect_and_migrate,
     };
     use tokio::sync::mpsc;
     use tokio_stream::StreamExt;
@@ -439,6 +462,7 @@ mod tests {
         let registry = WorkerRegistry::default();
         let instances = instances().await;
         let logs = logs().await;
+        let audit = audit().await;
         let (tx, mut rx) = mpsc::channel(1);
 
         let attempts = attempts().await;
@@ -451,6 +475,7 @@ mod tests {
             logs: &logs,
             attempts: &attempts,
             workflows: &workflows,
+            audit: &audit,
             log_broadcaster: &log_broadcaster,
             tx: &tx,
             outbound: &tx,
@@ -541,6 +566,7 @@ mod tests {
         .await
         .unwrap_or_else(|error| panic!("existing log should append: {error}"));
 
+        let audit = audit().await;
         let broadcaster = TaskLogBroadcaster::default();
         let service = super::WorkerTunnel::new(
             WorkerRegistry::default(),
@@ -548,6 +574,7 @@ mod tests {
             logs,
             attempts,
             workflows,
+            audit,
             broadcaster.clone(),
         );
         let response = service
@@ -607,5 +634,12 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         JobInstanceLogRepository::new(db)
+    }
+
+    async fn audit() -> AuditLogRepository {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        AuditLogRepository::new(db)
     }
 }

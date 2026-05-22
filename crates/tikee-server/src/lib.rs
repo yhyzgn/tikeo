@@ -20,5 +20,5 @@ use clap::Parser;
 /// Returns an error when the selected command fails to load configuration or run.
 pub async fn run_cli() -> Result<()> {
     let cli = cli::Cli::parse();
-    cli.run().await
+    Box::pin(cli.run()).await
 }

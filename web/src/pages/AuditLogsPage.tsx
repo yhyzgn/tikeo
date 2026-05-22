@@ -26,6 +26,7 @@ const AUDIT_QUERY_DEFAULTS = {
   action: '',
   resource_type: '',
   resource_id: '',
+  failure_reason: '',
 };
 
 export function AuditLogsPage() {
@@ -41,6 +42,7 @@ export function AuditLogsPage() {
     action: urlQuery.action || undefined,
     resource_type: urlQuery.resource_type || undefined,
     resource_id: urlQuery.resource_id || undefined,
+    failure_reason: urlQuery.failure_reason || undefined,
   }), [urlQuery]);
 
   const fetchLogs = useCallback(async (nextQuery: AuditLogQuery = query) => {
@@ -130,7 +132,7 @@ export function AuditLogsPage() {
             <Typography.Title level={1}>审计日志</Typography.Title>
           </div>
           <Typography.Paragraph className="hero-panel__desc">
-            平台写操作审计追踪记录，支持服务端分页与 actor/action/resource 过滤。
+            平台写操作与脚本治理审计追踪记录，支持服务端分页、actor/action/resource 与失败原因过滤。
           </Typography.Paragraph>
         </div>
         <div className="hero-panel__summary">
@@ -159,6 +161,9 @@ export function AuditLogsPage() {
           </Form.Item>
           <Form.Item name="resource_id">
             <Input allowClear placeholder="Resource id" style={{ width: 180 }} />
+          </Form.Item>
+          <Form.Item name="failure_reason">
+            <Input allowClear placeholder="Failure reason" style={{ width: 190 }} />
           </Form.Item>
           <Form.Item>
             <Space>

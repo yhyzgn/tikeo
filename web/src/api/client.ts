@@ -385,6 +385,7 @@ export interface AuditLogQuery {
   action?: string;
   resource_type?: string;
   resource_id?: string;
+  failure_reason?: string;
   format?: string;
 }
 

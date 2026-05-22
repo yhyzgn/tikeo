@@ -1202,3 +1202,9 @@ Git:
 - Updated `design/tikee-architecture-design.md` Phase 3/4 roadmap accordingly.
 - Added XXL-JOB migration tool as a Phase 4 roadmap item and clarified migration CLI/report expectations.
 - Updated `.memory/next.md` and `.memory/progress.md` so future handoff resumes Phase 3 without accidentally picking those deferred items.
+### 2026-05-23 — Phase 079 script governance audit materialization
+- Continued `.prompt/079-script-governance-audit-materialization.md`.
+- Added `tunnel::governance` helper so dispatcher-side fail-closed script governance events and Worker result failure classes share the same canonical `script_execution_governance` payload.
+- Materialized governance failures into durable `audit_logs` rows with `action=script_governance_failure`, `resource_type=script_execution_governance`, soft `resource_id=<instance_id>`, `result=failed`, and `failure_reason=<failure_class>`; no database foreign keys were added.
+- Added audit repository/API filtering by `failure_reason`; Web audit page now keeps the filter in URL state and export uses the same filter.
+- Added regression coverage proving governance audit rows can be queried by failure class.

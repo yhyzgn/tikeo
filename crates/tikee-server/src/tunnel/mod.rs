@@ -1,6 +1,7 @@
 //! Worker tunnel server implementation.
 
 pub mod dispatcher;
+pub mod governance;
 pub mod registry;
 pub mod service;
 
@@ -12,8 +13,8 @@ use std::net::SocketAddr;
 use anyhow::{Context, Result};
 use tikee_proto::worker::v1::worker_tunnel_service_server::WorkerTunnelServiceServer;
 use tikee_storage::{
-    JobInstanceAttemptRepository, JobInstanceLogRepository, JobInstanceRepository,
-    WorkflowRepository,
+    AuditLogRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
+    JobInstanceRepository, WorkflowRepository,
 };
 use tonic::transport::Server;
 use tracing::info;
@@ -23,6 +24,7 @@ use tracing::info;
 /// # Errors
 ///
 /// Returns an error when the listener fails to bind or serve.
+#[allow(clippy::too_many_arguments)]
 pub async fn serve(
     listen_addr: SocketAddr,
     registry: WorkerRegistry,
@@ -30,6 +32,7 @@ pub async fn serve(
     logs: JobInstanceLogRepository,
     attempts: JobInstanceAttemptRepository,
     workflows: WorkflowRepository,
+    audit: AuditLogRepository,
     log_broadcaster: TaskLogBroadcaster,
 ) -> Result<()> {
     info!(addr = %listen_addr, "tikee Worker Tunnel listening");
@@ -41,6 +44,7 @@ pub async fn serve(
             logs,
             attempts,
             workflows,
+            audit,
             log_broadcaster,
         )))
         .serve(listen_addr)

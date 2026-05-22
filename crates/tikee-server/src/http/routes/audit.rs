@@ -48,6 +48,7 @@ pub async fn export_audit_logs(
             action: normalize_filter(query.action),
             resource_type: normalize_filter(query.resource_type),
             resource_id: normalize_filter(query.resource_id),
+            failure_reason: normalize_filter(query.failure_reason),
             limit: Some(
                 query
                     .page_size
@@ -103,6 +104,7 @@ pub async fn list_audit_logs(
             action: normalize_filter(query.action),
             resource_type: normalize_filter(query.resource_type),
             resource_id: normalize_filter(query.resource_id),
+            failure_reason: normalize_filter(query.failure_reason),
             limit: query.page_size.map(u64::from),
             offset: query
                 .page_token

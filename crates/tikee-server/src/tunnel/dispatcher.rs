@@ -11,13 +11,13 @@ use tikee_proto::worker::v1::{
     task_processor_binding,
 };
 use tikee_storage::{
-    AppendJobInstanceLog, JobInstanceAttemptRepository, JobInstanceRepository, JobRepository,
-    ScriptRepository, ScriptSummary, ScriptVersionSummary, WorkflowRepository,
+    AppendJobInstanceLog, AuditLogRepository, JobInstanceAttemptRepository, JobInstanceRepository,
+    JobRepository, ScriptRepository, ScriptSummary, ScriptVersionSummary, WorkflowRepository,
 };
 use tokio::time;
 use tracing::{debug, warn};
 
-use super::WorkerRegistry;
+use super::{WorkerRegistry, governance};
 use crate::cluster::SharedClusterCoordinator;
 
 const DISPATCH_INTERVAL: Duration = Duration::from_millis(500);
@@ -41,6 +41,7 @@ pub async fn run(
     workflows: WorkflowRepository,
     scripts: ScriptRepository,
     logs: tikee_storage::JobInstanceLogRepository,
+    audit: AuditLogRepository,
     registry: WorkerRegistry,
     cluster: SharedClusterCoordinator,
 ) {
@@ -48,7 +49,7 @@ pub async fn run(
     loop {
         ticker.tick().await;
         if let Err(error) = dispatch_once_if_owner(
-            &jobs, &instances, &attempts, &workflows, &scripts, &logs, &registry, &cluster,
+            &jobs, &instances, &attempts, &workflows, &scripts, &logs, &audit, &registry, &cluster,
         )
         .await
         {
@@ -65,6 +66,7 @@ async fn dispatch_once_if_owner(
     workflows: &WorkflowRepository,
     scripts: &ScriptRepository,
     logs: &tikee_storage::JobInstanceLogRepository,
+    audit: &AuditLogRepository,
     registry: &WorkerRegistry,
     cluster: &SharedClusterCoordinator,
 ) -> Result<(), tikee_storage::DbErr> {
@@ -82,6 +84,7 @@ async fn dispatch_once_if_owner(
         workflows,
         scripts,
         logs,
+        audit,
         registry,
         &fencing_token,
     )
@@ -96,6 +99,7 @@ async fn dispatch_once(
     workflows: &WorkflowRepository,
     scripts: &ScriptRepository,
     logs: &tikee_storage::JobInstanceLogRepository,
+    audit: &AuditLogRepository,
     registry: &WorkerRegistry,
     fencing_token: &str,
 ) -> Result<(), tikee_storage::DbErr> {
@@ -113,22 +117,25 @@ async fn dispatch_once(
         workflows,
         scripts,
         logs,
+        audit,
         registry,
         fencing_token,
     )
     .await?;
     dispatch_broadcast_attempts(
-        jobs, instances, attempts, workflows, scripts, logs, registry,
+        jobs, instances, attempts, workflows, scripts, logs, audit, registry,
     )
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn dispatch_single_instances(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,
     workflows: &WorkflowRepository,
     scripts: &ScriptRepository,
     logs: &tikee_storage::JobInstanceLogRepository,
+    audit: &AuditLogRepository,
     registry: &WorkerRegistry,
     fencing_token: &str,
 ) -> Result<(), tikee_storage::DbErr> {
@@ -179,7 +186,7 @@ async fn dispatch_single_instances(
         {
             DispatchTaskBuild::Built(task) => task,
             DispatchTaskBuild::Rejected(failure) => {
-                append_script_governance_log(logs, &instance.id, &failure).await?;
+                append_script_governance_log(logs, audit, &instance.id, &failure).await?;
                 let _ = workflows
                     .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
                     .await?;
@@ -212,6 +219,7 @@ async fn dispatch_single_instances(
             if let Some(capability) = required_capability.as_deref() {
                 append_script_governance_log(
                     logs,
+                    audit,
                     &instance.id,
                     &ScriptGovernanceFailure::NoEligibleWorkerCapability(capability.to_owned()),
                 )
@@ -229,6 +237,7 @@ async fn dispatch_single_instances(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn dispatch_broadcast_attempts(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,
@@ -236,6 +245,7 @@ async fn dispatch_broadcast_attempts(
     workflows: &WorkflowRepository,
     scripts: &ScriptRepository,
     logs: &tikee_storage::JobInstanceLogRepository,
+    audit: &AuditLogRepository,
     registry: &WorkerRegistry,
 ) -> Result<(), tikee_storage::DbErr> {
     let pending = attempts.list_pending(DISPATCH_BATCH_SIZE).await?;
@@ -259,7 +269,7 @@ async fn dispatch_broadcast_attempts(
         {
             DispatchTaskBuild::Built(task) => task,
             DispatchTaskBuild::Rejected(failure) => {
-                append_script_governance_log(logs, &attempt.instance_id, &failure).await?;
+                append_script_governance_log(logs, audit, &attempt.instance_id, &failure).await?;
                 continue;
             }
         };
@@ -272,6 +282,7 @@ async fn dispatch_broadcast_attempts(
             if let Some(capability) = required_capability.as_deref() {
                 append_script_governance_log(
                     logs,
+                    audit,
                     &attempt.instance_id,
                     &ScriptGovernanceFailure::NoEligibleWorkerCapability(capability.to_owned()),
                 )
@@ -354,14 +365,13 @@ impl ScriptGovernanceFailure {
 
 async fn append_script_governance_log(
     logs: &tikee_storage::JobInstanceLogRepository,
+    audit: &AuditLogRepository,
     instance_id: &str,
     failure: &ScriptGovernanceFailure,
 ) -> Result<(), tikee_storage::DbErr> {
-    let payload = serde_json::json!({
-        "event": "script_execution_governance",
-        "failure_class": failure.code(),
-        "message": failure.message(),
-    });
+    let failure_class = failure.code();
+    let message = failure.message();
+    let payload = governance::script_governance_payload(failure_class, &message);
     let _ = logs
         .append(AppendJobInstanceLog {
             instance_id: instance_id.to_owned(),
@@ -371,6 +381,14 @@ async fn append_script_governance_log(
             sequence: 0,
         })
         .await?;
+    governance::materialize_script_governance_audit(
+        audit,
+        "tikee-dispatcher",
+        instance_id,
+        failure_class,
+        &message,
+    )
+    .await?;
     Ok(())
 }
 
@@ -602,9 +620,9 @@ mod tests {
     use tikee_core::{ExecutionMode, InstanceStatus, TriggerType};
     use tikee_proto::worker::v1::{RegisterWorker, server_message, task_processor_binding};
     use tikee_storage::{
-        CreateJob, CreateJobInstance, JobInstanceAttemptRepository, JobInstanceRepository,
-        JobRepository, ScriptRepository, ScriptSummary, ScriptVersionSummary, WorkflowRepository,
-        connect_and_migrate,
+        AuditLogRepository, CreateJob, CreateJobInstance, JobInstanceAttemptRepository,
+        JobInstanceRepository, JobRepository, ScriptRepository, ScriptSummary,
+        ScriptVersionSummary, WorkflowRepository, connect_and_migrate,
     };
     use tokio::sync::mpsc;
 
@@ -624,6 +642,7 @@ mod tests {
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
         let logs = tikee_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
         let job = jobs
             .create_job(CreateJob {
@@ -670,6 +689,7 @@ mod tests {
             &workflows,
             &scripts,
             &logs,
+            &audit,
             &registry,
             "test-fence",
         )
@@ -707,6 +727,7 @@ mod tests {
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
         let logs = tikee_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
         let job = jobs
             .create_job(CreateJob {
@@ -772,6 +793,7 @@ mod tests {
             &workflows,
             &scripts,
             &logs,
+            &audit,
             &registry,
             "test-fence",
         )
@@ -809,6 +831,7 @@ mod tests {
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
         let logs = tikee_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
         let job = jobs
             .create_job(CreateJob {
@@ -843,7 +866,7 @@ mod tests {
         });
 
         dispatch_once_if_owner(
-            &jobs, &instances, &attempts, &workflows, &scripts, &logs, &registry, &follower,
+            &jobs, &instances, &attempts, &workflows, &scripts, &logs, &audit, &registry, &follower,
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch gate should run: {error}"));
@@ -867,6 +890,7 @@ mod tests {
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
         let logs = tikee_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
         let job = jobs
             .create_job(CreateJob {
@@ -933,6 +957,7 @@ mod tests {
             &workflows,
             &scripts,
             &logs,
+            &audit,
             &registry,
             "test-fence",
         )
@@ -962,6 +987,7 @@ mod tests {
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
         let logs = tikee_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
 
         let script = scripts
@@ -1042,6 +1068,7 @@ mod tests {
             &workflows,
             &scripts,
             &logs,
+            &audit,
             &registry,
             "test-fence",
         )

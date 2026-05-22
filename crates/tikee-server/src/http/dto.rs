@@ -147,6 +147,8 @@ pub struct AuditLogQuery {
     pub resource_type: Option<String>,
     /// Filter by resource id.
     pub resource_id: Option<String>,
+    /// Filter by failure reason.
+    pub failure_reason: Option<String>,
     /// Export format for governed export endpoint; currently only `json` is supported.
     pub format: Option<String>,
 }
