@@ -108,6 +108,11 @@ impl AuditLogRepository {
         Self { db }
     }
 
+    #[must_use]
+    pub fn db(&self) -> DatabaseConnection {
+        self.db.clone()
+    }
+
     /// Append a new audit log entry.
     ///
     /// # Errors

@@ -1,6 +1,6 @@
 //! Script execution governance audit materialization helpers.
 
-use tikee_storage::{AuditLogRepository, CreateAuditLog};
+use tikee_storage::{AlertRepository, AuditLogRepository, CreateAuditLog};
 
 const GOVERNANCE_EVENT: &str = "script_execution_governance";
 const GOVERNANCE_ACTION: &str = "script_governance_failure";
@@ -39,6 +39,9 @@ pub async fn materialize_script_governance_audit(
             failure_reason: Some(failure_class.to_owned()),
             ip_address: None,
         })
+        .await?;
+    AlertRepository::new(audit.db())
+        .record_script_governance_failure(instance_id, failure_class, message)
         .await?;
     Ok(())
 }

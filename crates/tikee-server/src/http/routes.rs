@@ -1,6 +1,7 @@
 //! HTTP route handlers for the management API.
 #![allow(clippy::redundant_pub_crate)]
 
+pub(crate) mod alerts;
 pub(crate) mod audit;
 pub(crate) mod common;
 pub(crate) mod jobs;
@@ -11,6 +12,7 @@ pub(crate) mod users;
 pub(crate) mod workers;
 pub(crate) mod workflows;
 
+pub use alerts::{create_alert_rule, list_alert_events, list_alert_rules};
 pub use audit::{export_audit_logs, list_audit_logs};
 pub use jobs::{
     create_job, get_job_instance, list_instance_attempts, list_instance_logs, list_job_instances,

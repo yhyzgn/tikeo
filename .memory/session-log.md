@@ -1208,3 +1208,9 @@ Git:
 - Materialized governance failures into durable `audit_logs` rows with `action=script_governance_failure`, `resource_type=script_execution_governance`, soft `resource_id=<instance_id>`, `result=failed`, and `failure_reason=<failure_class>`; no database foreign keys were added.
 - Added audit repository/API filtering by `failure_reason`; Web audit page now keeps the filter in URL state and export uses the same filter.
 - Added regression coverage proving governance audit rows can be queried by failure class.
+### 2026-05-23 — Phase 080 alert rule API and event history
+- Continued `.prompt/080-alert-rule-event-history.md`.
+- Added persistent `alert_rules` and `alert_events` metadata tables plus repository support for rule creation/listing and event history queries.
+- Exposed `/api/v1/alert-rules` and `/api/v1/alert-events` HTTP APIs behind existing admin/audit permissions and kept responses in the standard `{ code, message, data }` envelope.
+- Wired script governance materialization to append alert history entries alongside audit rows, including basic threshold/dedupe/silence handling for `script_governance_failure` rules.
+- Added regression coverage for alert rule creation, governance event ingestion, and alert event history queries.

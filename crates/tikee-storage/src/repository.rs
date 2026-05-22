@@ -2,9 +2,11 @@
 #![allow(
     clippy::missing_errors_doc,
     clippy::must_use_candidate,
-    clippy::missing_const_for_fn
+    clippy::missing_const_for_fn,
+    missing_docs
 )]
 
+mod alert;
 mod attempt;
 mod audit;
 mod auth;
@@ -18,6 +20,9 @@ mod user;
 mod util;
 mod workflow;
 
+pub use alert::{
+    AlertEventFilters, AlertEventSummary, AlertRepository, AlertRuleSummary, CreateAlertRule,
+};
 pub use attempt::{
     CreateJobInstanceAttempt, JobInstanceAttemptRepository, JobInstanceAttemptSummary,
 };

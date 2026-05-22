@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 //! HTTP DTOs used by the management API.
 
 #![allow(clippy::option_if_let_else)]
@@ -129,6 +131,50 @@ pub struct PageQuery {
     pub page_size: Option<u32>,
     /// Opaque page token returned by a previous list call.
     pub page_token: Option<String>,
+}
+
+/// Alert rule create request.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct CreateAlertRuleRequest {
+    pub name: String,
+    pub severity: String,
+    pub condition: serde_json::Value,
+    pub channels: Vec<serde_json::Value>,
+    pub enabled: bool,
+    pub dedupe_seconds: Option<u64>,
+    pub silenced_until: Option<String>,
+}
+
+/// Alert rule summary.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct AlertRuleSummary {
+    pub id: String,
+    pub name: String,
+    pub severity: String,
+    pub condition: serde_json::Value,
+    pub channels: Vec<serde_json::Value>,
+    pub enabled: bool,
+    pub dedupe_seconds: u64,
+    pub silenced_until: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Alert event summary.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct AlertEventSummary {
+    pub id: String,
+    pub rule_id: String,
+    pub rule_name: String,
+    pub severity: String,
+    pub status: String,
+    pub event_type: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub failure_class: Option<String>,
+    pub message: Option<String>,
+    pub dedupe_key: String,
+    pub created_at: String,
 }
 
 /// Audit log list query parameters.

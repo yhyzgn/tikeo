@@ -23,7 +23,7 @@ use axum::{
 use serde::Serialize;
 use tikee_core::HealthState;
 use tikee_storage::{
-    AuditLogRepository, AuthSessionRepository, JobInstanceAttemptRepository,
+    AlertRepository, AuditLogRepository, AuthSessionRepository, JobInstanceAttemptRepository,
     JobInstanceLogRepository, JobInstanceRepository, JobRepository, RaftRepository, RbacRepository,
     ScriptRepository, UserRepository, WorkflowRepository, connect_and_migrate,
 };
@@ -50,6 +50,7 @@ pub struct AppState {
     scripts: ScriptRepository,
     workflows: WorkflowRepository,
     audit: AuditLogRepository,
+    alerts: AlertRepository,
     pub(crate) raft: RaftRepository,
     sessions: SessionManager,
     pub(crate) rbac: RbacService,
@@ -77,6 +78,7 @@ impl AppState {
         let db = users.db();
         let rbac = RbacService::new(RbacRepository::new(db.clone()));
         let raft = RaftRepository::new(db.clone());
+        let alerts = AlertRepository::new(db.clone());
         let sessions = SessionManager::new(DbMokaSessionStore::new(
             AuthSessionRepository::new(db.clone()),
             RbacRepository::new(db),
@@ -91,6 +93,7 @@ impl AppState {
             scripts,
             workflows,
             audit,
+            alerts,
             raft,
             sessions,
             rbac,
@@ -283,6 +286,11 @@ fn api_router() -> Router<Arc<AppState>> {
         )
         .route("/audit-logs", get(routes::list_audit_logs))
         .route("/audit-logs:export", get(routes::export_audit_logs))
+        .route(
+            "/alert-rules",
+            get(routes::list_alert_rules).post(routes::create_alert_rule),
+        )
+        .route("/alert-events", get(routes::list_alert_events))
 }
 
 /// Run the unified HTTP listener.
@@ -552,7 +560,7 @@ mod tests {
             UserRepository::new(db.clone()),
             ScriptRepository::new(db.clone()),
             WorkflowRepository::new(db.clone()),
-            AuditLogRepository::new(db),
+            AuditLogRepository::new(db.clone()),
             crate::tunnel::WorkerRegistry::default(),
             cluster,
         ));
@@ -625,7 +633,7 @@ mod tests {
                 UserRepository::new(db.clone()),
                 ScriptRepository::new(db.clone()),
                 WorkflowRepository::new(db.clone()),
-                AuditLogRepository::new(db),
+                AuditLogRepository::new(db.clone()),
                 crate::tunnel::WorkerRegistry::default(),
                 cluster,
             )
@@ -887,6 +895,94 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("csv export route should respond: {error}"));
         assert_eq!(csv.status(), axum::http::StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn alert_rules_api_records_script_governance_event_history() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            AuditLogRepository::new(db.clone()),
+            crate::tunnel::WorkerRegistry::default(),
+            StandaloneCoordinator::shared("test-node"),
+        ));
+
+        let created = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/alert-rules",
+                    r#"{"name":"Runtime governance","severity":"warning","condition":{"type":"script_governance_failure","failure_class":"script_runtime_unavailable","threshold":1},"channels":[],"enabled":true,"dedupe_seconds":300}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("alert rule route should respond: {error}"));
+        assert!(created.status().is_success());
+        let body = axum::body::to_bytes(created.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["code"], 0);
+        assert_eq!(
+            json["data"]["condition"]["type"],
+            "script_governance_failure"
+        );
+
+        crate::tunnel::governance::materialize_script_governance_audit(
+            &AuditLogRepository::new(db.clone()),
+            "tikee-dispatcher",
+            "inst-alert-1",
+            "script_runtime_unavailable",
+            "runtime missing",
+        )
+        .await
+        .unwrap_or_else(|error| panic!("governance materialization should append: {error}"));
+        crate::tunnel::governance::materialize_script_governance_audit(
+            &AuditLogRepository::new(db.clone()),
+            "tikee-dispatcher",
+            "inst-alert-2",
+            "script_runtime_unavailable",
+            "runtime still missing",
+        )
+        .await
+        .unwrap_or_else(|error| panic!("governance materialization should append: {error}"));
+
+        let events = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app,
+                    "GET",
+                    "/api/v1/alert-events?resource_type=script_execution_governance&failure_class=script_runtime_unavailable",
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("alert events route should respond: {error}"));
+        assert!(events.status().is_success());
+        let body = axum::body::to_bytes(events.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"].as_array().map(Vec::len), Some(2));
+        assert_eq!(json["data"][0]["status"], "suppressed");
+        assert_eq!(json["data"][1]["status"], "firing");
+        assert_eq!(json["data"][1]["resource_id"], "inst-alert-1");
     }
 
     #[tokio::test]
@@ -1535,7 +1631,7 @@ mod tests {
             UserRepository::new(db.clone()),
             ScriptRepository::new(db.clone()),
             WorkflowRepository::new(db.clone()),
-            AuditLogRepository::new(db.clone()),
+            AuditLogRepository::new(db),
             registry,
             StandaloneCoordinator::shared("test-node"),
         ));
@@ -1745,7 +1841,7 @@ mod tests {
             UserRepository::new(db.clone()),
             ScriptRepository::new(db.clone()),
             WorkflowRepository::new(db.clone()),
-            AuditLogRepository::new(db),
+            AuditLogRepository::new(db.clone()),
             crate::tunnel::WorkerRegistry::default(),
             StandaloneCoordinator::shared("test-node"),
         ));

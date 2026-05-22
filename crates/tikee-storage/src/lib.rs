@@ -14,9 +14,10 @@ use std::time::Duration;
 use thiserror::Error;
 
 pub use repository::{
-    AdvanceWorkflowInput, AdvanceWorkflowResult, AppendJobInstanceLog, AuditLogFilters,
-    AuditLogPageSummary, AuditLogRepository, AuditLogSummary, AuthSessionRepository,
-    AuthSessionSummary, CompleteWorkflowShardInput, CompleteWorkflowShardResult, CreateAuditLog,
+    AdvanceWorkflowInput, AdvanceWorkflowResult, AlertEventFilters, AlertEventSummary,
+    AlertRepository, AlertRuleSummary, AppendJobInstanceLog, AuditLogFilters, AuditLogPageSummary,
+    AuditLogRepository, AuditLogSummary, AuthSessionRepository, AuthSessionSummary,
+    CompleteWorkflowShardInput, CompleteWorkflowShardResult, CreateAlertRule, CreateAuditLog,
     CreateAuthSession, CreateJob, CreateJobInstance, CreateJobInstanceAttempt, CreateScript,
     CreateUser, CreateWorkflow, DispatchQueueClaim, DispatchQueueSummary, InstanceEventSummary,
     JobInstanceAttemptRepository, JobInstanceAttemptSummary, JobInstanceLogRepository,

@@ -35,6 +35,8 @@ impl MigrationTrait for CreateMetadataTables {
         create_instance_events(manager).await?;
         create_raft_tables(manager).await?;
         create_audit_logs(manager).await?;
+        create_alert_rules(manager).await?;
+        create_alert_events(manager).await?;
         create_indexes(manager).await?;
 
         // Seed default admin
@@ -44,6 +46,12 @@ impl MigrationTrait for CreateMetadataTables {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(AlertEvents::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(AlertRules::Table).to_owned())
+            .await?;
         manager
             .drop_table(Table::drop().table(AuditLogs::Table).to_owned())
             .await?;
@@ -309,6 +317,50 @@ async fn create_audit_logs(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(string_null(AuditLogs::FailureReason))
                 .col(string_null(AuditLogs::IpAddress))
                 .col(string_col(AuditLogs::CreatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_alert_rules(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(AlertRules::Table)
+                .if_not_exists()
+                .col(string_pk(AlertRules::Id))
+                .col(string_col(AlertRules::Name))
+                .col(string_col(AlertRules::Severity))
+                .col(text_col(AlertRules::ConditionJson))
+                .col(text_col(AlertRules::ChannelsJson))
+                .col(boolean_col(AlertRules::Enabled))
+                .col(big_integer_col(AlertRules::DedupeSeconds))
+                .col(string_null(AlertRules::SilencedUntil))
+                .col(string_col(AlertRules::CreatedAt))
+                .col(string_col(AlertRules::UpdatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_alert_events(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(AlertEvents::Table)
+                .if_not_exists()
+                .col(string_pk(AlertEvents::Id))
+                .col(string_col(AlertEvents::RuleId))
+                .col(string_col(AlertEvents::RuleName))
+                .col(string_col(AlertEvents::Severity))
+                .col(string_col(AlertEvents::Status))
+                .col(string_col(AlertEvents::EventType))
+                .col(string_col(AlertEvents::ResourceType))
+                .col(string_col(AlertEvents::ResourceId))
+                .col(string_null(AlertEvents::FailureClass))
+                .col(string_null(AlertEvents::Message))
+                .col(string_col(AlertEvents::DedupeKey))
+                .col(string_col(AlertEvents::CreatedAt))
                 .to_owned(),
         )
         .await
@@ -1459,6 +1511,38 @@ enum ScriptVersions {
     AllowedEnvVars,
     PolicyJson,
     CreatedBy,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum AlertRules {
+    Table,
+    Id,
+    Name,
+    Severity,
+    ConditionJson,
+    ChannelsJson,
+    Enabled,
+    DedupeSeconds,
+    SilencedUntil,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum AlertEvents {
+    Table,
+    Id,
+    RuleId,
+    RuleName,
+    Severity,
+    Status,
+    EventType,
+    ResourceType,
+    ResourceId,
+    FailureClass,
+    Message,
+    DedupeKey,
     CreatedAt,
 }
 
