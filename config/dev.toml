@@ -24,3 +24,8 @@ mtls_required = false
 [transport_security.worker_tunnel]
 tls_enabled = false
 mtls_required = false
+
+[observability.tracing]
+enabled = false
+headers = []
+# otlp_endpoint = "http://otel-collector:4318/v1/traces"

@@ -22,7 +22,7 @@ use axum::{
     routing::get,
 };
 use serde::Serialize;
-use tikee_config::{AuthConfig, TransportSecurityConfig};
+use tikee_config::{AuthConfig, ObservabilityConfig, TransportSecurityConfig};
 use tikee_core::HealthState;
 use tikee_storage::{
     AlertRepository, AuditLogRepository, AuthSessionRepository, JobInstanceAttemptRepository,
@@ -55,6 +55,7 @@ pub struct AppState {
     alerts: AlertRepository,
     auth_config: AuthConfig,
     transport_security: TransportSecurityConfig,
+    observability: ObservabilityConfig,
     pub(crate) raft: RaftRepository,
     sessions: SessionManager,
     pub(crate) rbac: RbacService,
@@ -100,6 +101,7 @@ impl AppState {
             alerts,
             auth_config: AuthConfig::default(),
             transport_security: TransportSecurityConfig::default(),
+            observability: ObservabilityConfig::default(),
             raft,
             sessions,
             rbac,
@@ -123,6 +125,13 @@ impl AppState {
         transport_security: TransportSecurityConfig,
     ) -> Self {
         self.transport_security = transport_security;
+        self
+    }
+
+    /// Attach observability exporter configuration metadata.
+    #[must_use]
+    pub fn with_observability_config(mut self, observability: ObservabilityConfig) -> Self {
+        self.observability = observability;
         self
     }
 
@@ -204,6 +213,7 @@ fn api_router() -> Router<Arc<AppState>> {
             "/security/transport",
             get(routes::transport_security_status),
         )
+        .route("/observability/status", get(routes::observability_status))
         .route("/cluster", get(routes::cluster_status))
         .route("/cluster/diagnostics", get(routes::cluster_diagnostics))
         .route(
@@ -528,6 +538,73 @@ mod tests {
         assert_eq!(json["data"]["oidc"]["client_secret_configured"], true);
         assert_eq!(json["data"]["oidc"]["scopes"][0], "openid");
         assert!(json["data"]["oidc"].get("client_secret").is_none());
+    }
+
+    #[tokio::test]
+    async fn observability_status_reports_default_and_configured_otlp_without_collector() {
+        let app = router().await;
+        let default_status = app
+            .clone()
+            .oneshot(
+                admin_request_builder(app.clone(), "GET", "/api/v1/observability/status").await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("observability status route should respond: {error}"));
+        let body = axum::body::to_bytes(default_status.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["tracing"]["enabled"], false);
+        assert_eq!(json["data"]["tracing"]["exporter"], "none");
+        assert_eq!(json["data"]["ready"], true);
+
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let mut observability = tikee_config::ObservabilityConfig::default();
+        observability.tracing.enabled = true;
+        observability.tracing.otlp_endpoint =
+            Some("https://collector.example.com/v1/traces".to_owned());
+        observability.tracing.headers = vec!["authorization".to_owned(), "x-tenant".to_owned()];
+        let app = router_with_state(
+            AppState::new(
+                JobRepository::new(db.clone()),
+                JobInstanceRepository::new(db.clone()),
+                JobInstanceLogRepository::new(db.clone()),
+                JobInstanceAttemptRepository::new(db.clone()),
+                UserRepository::new(db.clone()),
+                ScriptRepository::new(db.clone()),
+                WorkflowRepository::new(db.clone()),
+                AuditLogRepository::new(db),
+                crate::tunnel::WorkerRegistry::default(),
+                StandaloneCoordinator::shared("test-node"),
+            )
+            .with_observability_config(observability),
+        );
+        let configured_status = app
+            .clone()
+            .oneshot(admin_request_builder(app, "GET", "/api/v1/observability/status").await)
+            .await
+            .unwrap_or_else(|error| panic!("observability status route should respond: {error}"));
+        let body = axum::body::to_bytes(configured_status.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["tracing"]["enabled"], true);
+        assert_eq!(json["data"]["tracing"]["exporter"], "otlp");
+        assert_eq!(json["data"]["tracing"]["endpoint_configured"], true);
+        assert_eq!(
+            json["data"]["tracing"]["header_names"]
+                .as_array()
+                .map(Vec::len),
+            Some(2)
+        );
+        assert!(json["data"]["tracing"].get("otlp_endpoint").is_none());
+        assert_eq!(json["data"]["ready"], true);
     }
 
     #[tokio::test]

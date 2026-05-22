@@ -26,6 +26,9 @@ pub struct TikeeConfig {
     /// TLS/mTLS transport security settings.
     #[serde(default)]
     pub transport_security: TransportSecurityConfig,
+    /// Observability export settings.
+    #[serde(default)]
+    pub observability: ObservabilityConfig,
 }
 
 /// Server listener configuration.
@@ -148,6 +151,28 @@ pub struct OidcConfig {
     pub scopes: Vec<String>,
 }
 
+/// Observability export configuration.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ObservabilityConfig {
+    /// Distributed tracing export settings.
+    #[serde(default)]
+    pub tracing: TracingConfig,
+}
+
+/// OpenTelemetry tracing exporter configuration.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TracingConfig {
+    /// Enable trace exporting beyond local spans and trace-id propagation.
+    #[serde(default)]
+    pub enabled: bool,
+    /// OTLP HTTP/gRPC collector endpoint. Redacted from status APIs.
+    #[serde(default)]
+    pub otlp_endpoint: Option<String>,
+    /// Optional header names configured for exporter authentication/tenancy. Values live outside status APIs.
+    #[serde(default)]
+    pub headers: Vec<String>,
+}
+
 /// TLS/mTLS transport security configuration.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TransportSecurityConfig {
@@ -241,7 +266,9 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeeConfig, ConfigError> {
         .set_default("transport_security.http.tls_enabled", false)?
         .set_default("transport_security.http.mtls_required", false)?
         .set_default("transport_security.worker_tunnel.tls_enabled", false)?
-        .set_default("transport_security.worker_tunnel.mtls_required", false)?;
+        .set_default("transport_security.worker_tunnel.mtls_required", false)?
+        .set_default("observability.tracing.enabled", false)?
+        .set_default("observability.tracing.headers", Vec::<String>::new())?;
 
     if let Some(path) = path {
         builder = builder.add_source(File::from(path).required(true));
@@ -299,6 +326,16 @@ mod tests {
         assert!(!config.transport_security.http.tls_enabled);
         assert!(!config.transport_security.worker_tunnel.tls_enabled);
         assert!(!config.transport_security.worker_tunnel.mtls_required);
+    }
+
+    #[test]
+    fn default_observability_config_disables_otlp_export() {
+        let config =
+            load_config(None).unwrap_or_else(|error| panic!("default config should load: {error}"));
+
+        assert!(!config.observability.tracing.enabled);
+        assert!(config.observability.tracing.otlp_endpoint.is_none());
+        assert!(config.observability.tracing.headers.is_empty());
     }
 
     #[test]

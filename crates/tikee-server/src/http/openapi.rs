@@ -15,6 +15,7 @@ use super::{auth, dto, routes};
     paths(
         routes::system::system_info,
         routes::metrics::metrics_summary,
+        routes::observability::observability_status,
         routes::security::transport_security_status,
         routes::system::cluster_status,
         routes::system::cluster_diagnostics,
@@ -67,6 +68,7 @@ use super::{auth, dto, routes};
         dto::ApiResponse<dto::ClusterResponse>,
         dto::ApiResponse<dto::MetricsSummaryResponse>,
         dto::ApiResponse<dto::TransportSecurityStatusResponse>,
+        dto::ApiResponse<dto::ObservabilityStatusResponse>,
         dto::ApiResponse<dto::ClusterDiagnosticsResponse>,
         dto::ApiResponse<dto::RaftMessageResult>,
         dto::ApiResponse<dto::RaftMembershipProposalResponse>,
@@ -108,6 +110,8 @@ use super::{auth, dto, routes};
         dto::MetricsGovernanceSummary,
         dto::TransportSecurityStatusResponse,
         dto::TlsEndpointStatus,
+        dto::ObservabilityStatusResponse,
+        dto::TracingStatus,
         dto::ClusterDiagnosticsResponse,
         dto::RaftMetadataDiagnostic,
         dto::RaftMemberDiagnostic,
@@ -168,6 +172,7 @@ use super::{auth, dto, routes};
         (name = "jobs", description = "Job management endpoints"),
         (name = "audit", description = "Audit log endpoints"),
         (name = "metrics", description = "Operator metrics summary endpoints"),
+        (name = "observability", description = "Tracing and exporter diagnostics"),
         (name = "security", description = "Security and transport diagnostics")
     )
 )]

@@ -9,3 +9,8 @@ database_url = "sqlite:///data/tikee.db?mode=rwc"
 mode = "standalone"
 node_id = "standalone"
 peers = []
+
+[observability.tracing]
+enabled = false
+headers = []
+# otlp_endpoint = "http://otel-collector:4318/v1/traces"

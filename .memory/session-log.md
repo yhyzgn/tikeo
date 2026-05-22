@@ -1261,3 +1261,9 @@ Git:
 - Added `DispatchQueueSloSummary` over existing `dispatch_queue` rows: total/by_status, pending/running counts, oldest pending age seconds, and average pending age seconds.
 - Extended `GET /api/v1/metrics/summary` with the queue SLO summary while preserving the standard HTTP envelope and avoiding external Prometheus/Grafana dependencies in tests.
 - Updated the Grafana template with a dispatch queue pending-age SLO query placeholder and kept JSON/metric-reference validation deterministic.
+
+### 2026-05-23 — Phase 090 OTLP exporter status foundation
+- Continued `.prompt/090-phase3-otel-exporter-foundation.md` with configuration/readiness plumbing before adding network exporter side effects.
+- Added `observability.tracing` config with disabled-by-default OTLP export, optional endpoint, and header-name metadata; local dev and container configs keep export disabled.
+- Added `GET /api/v1/observability/status` behind `system:read` permission to report tracing exporter readiness while redacting endpoint values and header secrets.
+- Added regression coverage for default no-collector mode and configured OTLP readiness without requiring a live collector.

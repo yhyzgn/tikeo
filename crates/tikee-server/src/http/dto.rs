@@ -76,6 +76,8 @@ pub type ClusterApiResponse = ApiResponse<ClusterResponse>;
 pub type ClusterDiagnosticsApiResponse = ApiResponse<ClusterDiagnosticsResponse>;
 /// Transport security status API envelope.
 pub type TransportSecurityStatusApiResponse = ApiResponse<TransportSecurityStatusResponse>;
+/// Observability status API envelope.
+pub type ObservabilityStatusApiResponse = ApiResponse<ObservabilityStatusResponse>;
 
 /// Job page API envelope.
 pub type JobPageApiResponse = ApiResponse<Page>;
@@ -395,6 +397,23 @@ pub struct OidcStatus {
     pub client_id: Option<String>,
     pub client_secret_configured: bool,
     pub scopes: Vec<String>,
+}
+
+/// Observability exporter status with sensitive values redacted.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ObservabilityStatusResponse {
+    pub tracing: TracingStatus,
+    pub ready: bool,
+    pub issues: Vec<String>,
+}
+
+/// OpenTelemetry tracing exporter readiness metadata.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct TracingStatus {
+    pub enabled: bool,
+    pub exporter: String,
+    pub endpoint_configured: bool,
+    pub header_names: Vec<String>,
 }
 
 /// TLS/mTLS transport security status.
