@@ -656,3 +656,9 @@
 - Added `GET /api/v1/auth/oidc/authorize` to build a redacted authorization URL from configured issuer/client/scopes without contacting the provider.
 - Added `GET /api/v1/auth/oidc/callback` as a safe callback contract that validates code/state shape but refuses to create sessions until real token exchange/JWKS verification exists.
 - Added regression coverage for disabled default behavior, configured authorize URL shape, secret redaction, and callback fail-closed behavior.
+
+### 2026-05-23 — Phase 093 script approval/signature fail-closed skeleton
+- Continued `.prompt/093-phase3-script-approval-signature-skeleton.md` with release metadata gates instead of runtime behavior.
+- Added `approval_ticket` and `signature` fields to `ScriptReleaseRequest` so clients cannot silently send ignored approval/signature data.
+- Publish/rollback now fail closed when those fields are present until real signature verification exists, and materialize `failure_reason=script_signature_verification_required` audit rows.
+- Existing safe publish/rollback and dangerous policy gate behavior remain unchanged; Server still never executes user code.

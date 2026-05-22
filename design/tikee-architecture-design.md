@@ -2213,6 +2213,7 @@ tikee/
   - [x] 发布指针、回滚 API 与 Worker 侧执行版本绑定（071：`scripts.released_version_id/released_version_number` 软关联不可变 `script_versions`；`POST /api/v1/scripts/{id}/publish|rollback` 更新发布指针并审计；WASM dispatch fail-closed，必须使用 released snapshot bytes/SHA-256/version metadata）
   - [ ] 完整审批流状态机（多级审批、签名、生产发布门禁）
   - [x] 发布/回滚策略门禁基础（087：publish/rollback 对历史危险 policy snapshot 再执行默认拒绝校验，阻断需要 URL/File/Secret grant 的版本并写入失败审计）
+  - [x] 审批/签名元数据 fail-closed 基础（093：`ScriptReleaseRequest.approval_ticket/signature` 显式建模；未接真实签名验证前提供即拒绝并写入 `script_signature_verification_required` 审计）
   - [x] 脚本编辑器语法高亮（CodeMirror 6 Shell/Python/Node）
   - [x] Worker 侧非 WASM Runner 抽象（072：Rust SDK `ScriptRunner` / `ScriptRunnerTask` / `ScriptRunnerPolicy`，Shell/Python/Node/PowerShell/Rhai 类型识别；默认 Unsupported runner 只验证策略并拒绝执行，等待具体沙箱实现）
   - [x] Worker 侧沙箱执行器首个实现（073：Rust SDK `LocalSubprocessScriptRunner`，显式 opt-in，本地 stdin 子进程边界；校验 released version_id/version_number、content SHA-256、默认拒绝网络/文件/Secret，支持 timeout/output cap/runtime missing 测试；容器 runner 后续继续）
@@ -2225,6 +2226,7 @@ tikee/
   - [x] 默认拒绝策略元数据与不可变快照（072：`ScriptExecutionPolicy` 覆盖 resources/network/filesystem/secrets/env；`scripts.policy_json` 和 `script_versions.policy_json` 保存策略快照；HTTP create/update 拒绝网络/文件/Secret 危险能力；Web 可编辑资源/env 白名单并展示策略 diff）
   - [ ] 策略审批、签名、URL/File/Secret grant 与生产发布门禁
   - [x] 策略门禁失败审计基础（087：`failure_reason=script_policy_approval_required` 可查询 blocked publish/rollback，无外键）
+  - [x] 签名验证缺失显式审计基础（093：`failure_reason=script_signature_verification_required` 可查询未验证 approval/signature 元数据的 blocked release）
 - [ ] 告警系统 (邮件/Slack/钉钉/飞书/企业微信/PagerDuty)
   - [x] AlertRule / AlertCondition / AlertDispatcher 安全 Webhook 通知骨架
   - [x] 告警规则 API、事件接入、去重静默、通知历史、恢复通知（080-082：alert_rules / alert_events 存储、HTTP API、script governance 事件历史 materialization、recovery 事件 append、alert-events:summary 运维汇总）

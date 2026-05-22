@@ -2022,6 +2022,65 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn script_release_rejects_unverified_approval_or_signature_metadata() {
+        let app = router().await;
+        let created = post_json(
+            app.clone(),
+            "/api/v1/scripts",
+            r#"{"name":"signed-release","language":"python","version":"1.0.0","content":"print(1)","timeout_seconds":3,"max_memory_bytes":4096,"allow_network":false}"#,
+        )
+        .await;
+        let script_id = created["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("script id should exist"));
+
+        let response = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    format!("/api/v1/scripts/{script_id}/publish"),
+                    r#"{"version_number":1,"approval_ticket":"CAB-42","signature":"unsigned-local"}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("publish route should respond: {error}"));
+        assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_ne!(json["code"], 0);
+        assert!(
+            json["message"].as_str().is_some_and(
+                |message| message.contains("signature verification is not yet enabled")
+            )
+        );
+
+        let audit = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app,
+                    "GET",
+                    "/api/v1/audit-logs?failure_reason=script_signature_verification_required",
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("audit route should respond: {error}"));
+        let body = axum::body::to_bytes(audit.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["data"]["items"].as_array().map(Vec::len), Some(1));
+    }
+
+    #[tokio::test]
     #[allow(clippy::too_many_lines)]
     async fn script_publish_blocks_legacy_dangerous_policy_snapshot() {
         let db = connect_and_migrate("sqlite::memory:")

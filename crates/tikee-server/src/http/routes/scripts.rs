@@ -240,6 +240,7 @@ pub async fn publish_script(
     Json(request): Json<ScriptReleaseRequest>,
 ) -> Result<Json<crate::http::dto::ScriptApiResponse>, ApiError> {
     let principal = auth::require_permission(&headers, &state, "scripts", "manage").await?;
+    enforce_release_signature_gate(&state, &principal.username, &id, &request, &headers).await?;
     let version_number =
         resolve_release_version_number(&state, &id, request.version_number).await?;
     enforce_release_policy_gate(&state, &principal.username, &id, version_number, &headers).await?;
@@ -264,6 +265,37 @@ pub async fn publish_script(
     .await;
 
     Ok(Json(ApiResponse::success(published)))
+}
+
+async fn enforce_release_signature_gate(
+    state: &AppState,
+    actor: &str,
+    id: &str,
+    request: &ScriptReleaseRequest,
+    headers: &HeaderMap,
+) -> Result<(), ApiError> {
+    let approval_present = request
+        .approval_ticket
+        .as_ref()
+        .is_some_and(|value| !value.trim().is_empty());
+    let signature_present = request
+        .signature
+        .as_ref()
+        .is_some_and(|value| !value.trim().is_empty());
+    if approval_present || signature_present {
+        let message = "script approval/signature metadata was provided, but signature verification is not yet enabled";
+        append_release_gate_audit(
+            state,
+            actor,
+            id,
+            message,
+            "script_signature_verification_required",
+            headers,
+        )
+        .await;
+        return Err(ApiError::bad_request(message));
+    }
+    Ok(())
 }
 
 async fn enforce_release_policy_gate(
@@ -292,17 +324,26 @@ async fn enforce_release_policy_gate(
             .map_err(|error| format!("script release approval gate blocked: {error}"))
     };
     if let Err(message) = policy_result {
-        append_policy_gate_audit(state, actor, id, &message, headers).await;
+        append_release_gate_audit(
+            state,
+            actor,
+            id,
+            &message,
+            "script_policy_approval_required",
+            headers,
+        )
+        .await;
         return Err(ApiError::bad_request(message));
     }
     Ok(())
 }
 
-async fn append_policy_gate_audit(
+async fn append_release_gate_audit(
     state: &AppState,
     actor: &str,
     id: &str,
     detail: &str,
+    failure_reason: &str,
     headers: &HeaderMap,
 ) {
     if let Err(error) = state
@@ -317,12 +358,12 @@ async fn append_policy_gate_audit(
             after: None,
             trace_id: Some(trace_id(headers)),
             result: "failed".to_owned(),
-            failure_reason: Some("script_policy_approval_required".to_owned()),
+            failure_reason: Some(failure_reason.to_owned()),
             ip_address: client_ip(headers),
         })
         .await
     {
-        tracing::warn!(%error, %id, "failed to append script policy gate audit log");
+        tracing::warn!(%error, %id, %failure_reason, "failed to append script release gate audit log");
     }
 }
 
@@ -353,6 +394,7 @@ pub async fn rollback_script(
     Json(request): Json<ScriptReleaseRequest>,
 ) -> Result<Json<crate::http::dto::ScriptApiResponse>, ApiError> {
     let principal = auth::require_permission(&headers, &state, "scripts", "manage").await?;
+    enforce_release_signature_gate(&state, &principal.username, &id, &request, &headers).await?;
     let version_number = request
         .version_number
         .ok_or_else(|| ApiError::bad_request("version_number is required for rollback"))?;

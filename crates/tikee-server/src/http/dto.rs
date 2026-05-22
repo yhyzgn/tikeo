@@ -836,6 +836,10 @@ pub struct UpdateScriptRequest {
 pub struct ScriptReleaseRequest {
     /// Immutable script version number to release. Defaults to latest version when omitted.
     pub version_number: Option<i64>,
+    /// Optional external approval ticket. Rejected until approval verification is implemented.
+    pub approval_ticket: Option<String>,
+    /// Optional content/signature attestation. Rejected until signature verification is implemented.
+    pub signature: Option<String>,
 }
 
 /// Job instance log summary DTO.
