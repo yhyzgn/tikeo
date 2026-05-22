@@ -1191,3 +1191,7 @@ Git:
 - Added editable workflow DAG canvas fullscreen toggle with Escape-to-exit and body scroll lock; the existing DAG data model, node editing, edge editing, JSON/YAML, and dry-run flows remain unchanged.
 - Added source-level Web tests for the new script edit route/page contract and workflow fullscreen affordance.
 - Verification passed: `cd web && bun run typecheck`; `cd web && bun test && bun run build`; `git diff --check` on changed files; `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo build --workspace --all-features`; `cargo run -- --help`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
+
+### 2026-05-23 — Script editor back button compact style
+- Fixed the secondary script editor back button being stretched by the hero flex-column container by constraining `.workflow-back-button.ant-btn` to `align-self: flex-start` and `width: auto`.
+- Verification passed: `cd web && bun run typecheck && bun test && bun run build`.

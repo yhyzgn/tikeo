@@ -719,6 +719,8 @@ body {
 }
 
 .workflow-back-button.ant-btn {
+  align-self: flex-start;
+  width: auto;
   margin-bottom: 14px;
   border-color: rgba(37, 99, 235, 0.18);
   color: #1d4ed8;

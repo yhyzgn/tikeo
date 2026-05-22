@@ -570,3 +570,6 @@
 - Script edit moved from modal to guarded `/scripts/:id/edit` secondary page with a wide CodeMirror-centered layout and side cards for metadata/runtime/policy.
 - Script update still requires diff preview confirmation before saving and still creates immutable version snapshots through the existing API.
 - Workflow visual editor canvas now supports fullscreen toggle and Escape exit for large DAG editing.
+
+### 2026-05-23 — Script editor back button compact style
+- Script editor secondary page back button now keeps natural width instead of stretching across the hero content column.
