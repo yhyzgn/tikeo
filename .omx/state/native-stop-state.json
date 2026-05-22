@@ -1,0 +1,74 @@
+{
+  "sessions": {
+    "omx-1779241449535-b8akfw": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|已完成并推送。 本次变更： - 已将“数据库全库禁止外键，只允许字段软关联”写入： - `design/scheduler-architecture-design.md` - `design/auth-session-design.md` - `.memory/decisions.md` - `.memory/risks.md` - `.memory/session-log.md` - 移除了代码中的数据库外键来源： - seaorm migration 中不再创建 `foreign_key` - seaorm entity 不再声明 `belongs_to` / `has_many` relation - repository 改为显式字段查询软关联 - 增加 sqlite 兼容逻辑： - 启动时检测历史 dev db 中带外键的表 - 自动重建为无外键表 - 保留数据并重建必要索引 - session 过期物理删除： - `authsessionrepository::delete_expired` - `dbmokasessionstore` 在创建/读取 session 前清理过期记录 - 命中过期 token 时仍会懒删除 - 按要求将 `users.password_hash` 改为 `users.password` - 字段内容仍然保存 bcrypt hash，不保存明文 - sqlite 旧库自动 `rename column password_hash to password` 验证： - `cargo fmt --all -- --check` - `cargo clippy --workspace --all-targets --all-features -- -d warnings` - `cargo test --workspace --all-features` - `cargo build --workspace --all-features` - `mvn -f java/pom.xml -q test` - `bun run --cwd web lint` - `bun run --cwd web typecheck` - `bun test --cwd web` - `bun run --cwd web build` - `docker compose config` - sqlite dev db 检查：无 `references` - `users` 表检查：有 `password`，无 `password_hash` - 本地 serve + `/healthz` + `/auth/login` 冒烟通过 提交并推送： - commit: `1551445 keep scheduler storage on soft relations only` - pushed to `main`",
+        "first_seen_at": "2026-05-20T02:21:47.352Z",
+        "last_seen_at": "2026-05-20T02:21:47.352Z",
+        "repeat_count": 1,
+        "last_turn_id": "019e4311-28b1-72e0-bfeb-51a89acf0313",
+        "last_thread_id": null
+      }
+    },
+    "omx-1779258845382-srx5sr": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|已完成并推送。 变更： - rust worker sdk： - `crates/scheduler-worker-sdk` → `sdks/scheduler-worker-sdk` - java sdk： - `java/` → `sdks/java/` - 更新： - cargo workspace - rust sdk path dependencies - dockerfile 分层缓存路径 - readme 验证命令 - `.gitignore` - design 文档 - `.memory` - `.prompt` - 新增后续约束： - `.prompt/031-sdk-directory-followup.md` 验证通过： - `cargo fmt --all` - `cargo clippy --workspace --all-targets --all-features -- -d warnings` - `cargo test --workspace --all-features` - `cargo build --workspace --all-features` - `mvn -f sdks/java/pom.xml -q test` - `bun run --cwd web lint` - `bun run --cwd web typecheck` - `bun test --cwd web` - `bun run --cwd web build` - `docker compose config` - `timeout 10 ./scripts/dev.sh` 提交： - `0d8b595 collect sdk packages under sdks` 已推送到 `main`。",
+        "first_seen_at": "2026-05-20T11:08:55.706Z",
+        "last_seen_at": "2026-05-20T11:08:55.706Z",
+        "repeat_count": 1,
+        "last_turn_id": "019e450e-32c2-7c73-8d8d-3d9ce302144d",
+        "last_thread_id": null
+      }
+    },
+    "omx-1779329419577-qaz92y": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|已继续完成并推送： - 提交：`7bf0cc4 close phase2 safely and page audit logs 🧭` - 处理： - 复核 `openraft`：仍为 `0.10.0-alpha.20`，决定不强行接入真实 raft runtime。 - 设计文档中明确 phase2：安全分布式基础完成，真实 raft runtime 后置。 - 进入 phase3 审计治理： - 审计日志支持服务端过滤：`actor/action/resource_type/resource_id` - 支持分页：`page_size/page_token` - 返回 `total` - web 审计页面增加过滤表单与分页展示 - 新增下一阶段提示词：`.prompt/049-phase3-audit-trace-failure-governance.md` 验证已通过： - `cargo fmt --all -- --check` - `cargo clippy --workspace --all-targets --all-features -- -d warnings` - `cargo test --workspace --all-features` - `cargo run -- --help` - `cd web && bun run typecheck` - `cd web && bun run build`",
+        "first_seen_at": "2026-05-21T09:06:41.174Z",
+        "last_seen_at": "2026-05-21T09:06:41.174Z",
+        "repeat_count": 1,
+        "last_turn_id": "019e49c2-edf9-7db1-98f0-e89443b0a394",
+        "last_thread_id": null
+      }
+    },
+    "omx-1779354755519-ed3r5g": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|已收尾并保存。 - 已写入： - `.memory/progress.md` - `.memory/session-log.md` - 已提交并推送： - `7fa4fe3 preserve raft-rs phase handoff context 🧠` - 当前工作区：干净 - 明天继续入口： - `.prompt/053-phase2-raft-rs-apply-and-fencing.md` 今天最后完成并验证过的代码进度： - raft-rs runtime ticker - inbound http -> runtime inbox - outbound peer http skeleton - optional `cluster.transport_token` - 仍然保持：不 campaign、不发 leader token、不允许 raft 模式调度所有权 明天从 053 开始：做 `ready.committed_entries()` apply bookkeeping、`applied_index` 持久化、config-change gating、leader fencing token 生命周期。",
+        "first_seen_at": "2026-05-21T10:30:03.759Z",
+        "last_seen_at": "2026-05-21T10:30:03.759Z",
+        "repeat_count": 1,
+        "last_turn_id": "019e4a14-98a4-7e71-91e4-05a5b96dfad6",
+        "last_thread_id": null
+      }
+    },
+    "omx-1779414411129-eul1p1": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|已继续推进并完成两段工作，均已验证、提交并推送到远程 `main`。 ## 已完成 ### 055：首个真实 raft 业务命令 提交：`0c7f65f apply first safe raft-rs business command 🧭` - 新增 `raft_member_upsert` 命令。 - 仅更新 `raft_members` 成员目录元数据，不触发 `confchange`。 - 基于 `(cluster_id, command_id)` 做幂等回放保护。 - 补充测试： - 重复 command_id 不重复应用副作用 - unsupported command - rejected payload - invalid json - raft 表无外键保障 ### 056：raft membership proposal 意图 api 提交：`7273d49 gate raft membership proposals behind leader fencing 🚧` - 新增无外键表：`raft_membership_proposals` - 新增 rbac 权限：`cluster:manage` - 新增接口：`post /api/v1/raft/members:propose` - 接口强约束： - 必须是 real raft leader - `can_schedule = true` - 必须有已持久化 `leader_fencing_token` - 需要 `cluster:manage` - endpoint 必须是 `http/https` - 禁止移除当前 leader - 禁止未实现 joint-consensus 前的危险 quorum 缩减 - 当前只存储 `pending_conf_change` proposal，不调用 `propose_conf_change`，不实际变更 voters/learners。 ## 文档/记忆已更新 - `design/scheduler-architecture-design.md` - `.memory/progress.md` - `.memory/session-log.md` - 新增下一阶段提示词： - `.prompt/057-phase2-raft-rs-confchange-apply.md` ## 验证已通过 - `cargo fmt --all -- --check` - `cargo clippy --workspace --all-targets --all-features -- -d warnings` - `cargo test --workspace --all-features` - `cargo run -- --help` - `cd web && bun run typecheck && bun run build` 仅有 vite chunk-size warning，无失败项。 下一阶段是 057：实现 committed `confchange/confchangev2` 解码、`confstate` 持久化和 membership 状态推进。",
+        "first_seen_at": "2026-05-22T02:28:35.451Z",
+        "last_seen_at": "2026-05-22T02:28:35.451Z",
+        "repeat_count": 1,
+        "last_turn_id": "019e4d5e-34c3-7092-9a36-784948d64dca",
+        "last_thread_id": null
+      }
+    },
+    "omx-1779420472203-tznwqc": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|已修复并推送。 原因： - 审计日志页每次 render 都新建 `useurlquerystate({...})` 的 defaults 对象。 - 这导致 `query -> fetchlogs -> useeffect` 依赖链持续变化，页面不断请求、一直 loading，菜单点击也会明显卡住。 修复： - 将审计页 url 查询默认值提升为模块级常量 `audit_query_defaults`，保持依赖稳定。 验证： - `cd web && bun run typecheck && bun test && bun run build` ✅ - web build 仍无 chunk 过大警告 ✅ 已提交推送： - `457a826 stop audit log page reload loop 🧭`",
+        "first_seen_at": "2026-05-22T09:00:27.639Z",
+        "last_seen_at": "2026-05-22T09:00:27.639Z",
+        "repeat_count": 1,
+        "last_turn_id": "019e4ee8-4270-78e3-9b3f-d99787188773",
+        "last_thread_id": null
+      }
+    },
+    "omx-1779441080965-5o41id": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|下一步按已生成的： `./.prompt/076-script-execution-governance-and-live-runner-smoke.md` 主要做 **076：脚本执行治理与容器 runner live smoke**。 核心工作项： 1. **脚本执行失败治理** - 区分并记录这些失败类型： - 没有可用 worker capability - worker 未注册对应 runner - policy 拒绝 - digest 不匹配 - timeout - output limit - runtime 不存在 2. **结果 / 审计可观测** - 在当前 schema 能支持的范围内，把脚本执行失败原因更清晰地进入 result / audit / 日志。 - 不加外键，继续软关联。 3. **容器 runner live smoke** - 增加可选脚本/测试路径： - 如果本机有 docker 或兼容 runtime，就跑一次真实容器脚本执行 smoke。 - ci / 普通单元测试不能强依赖 docker，仍保持 deterministic。 4. **部署文档补充** - 说明 docker / k8s 中怎么部署 script-capable worker pool。 - 说明 worker 应该声明： - `script:shell` - `script:python` - `script:node` - 或受控情况下 `script:*` 5. **继续遵守模块拆分约束** - 这阶段如果新增代码，默认继续按模块拆，不再堆大文件。 当前下一阶段目标一句话： > 让动态脚本执行从“能安全下发并有容器 runner 基础”推进到“执行失败可治理、可观测，并具备可选真实容器 smoke 验证”。",
+        "first_seen_at": "2026-05-22T09:54:44.356Z",
+        "last_seen_at": "2026-05-22T09:54:44.356Z",
+        "repeat_count": 1,
+        "last_turn_id": "019e4f1b-9670-7272-a9ef-aa0237945064",
+        "last_thread_id": null
+      }
+    }
+  }
+}

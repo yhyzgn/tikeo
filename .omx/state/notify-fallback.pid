@@ -1,0 +1,8 @@
+{
+  "pid": 1161127,
+  "parent_pid": 1161111,
+  "cwd": "/home/neo/Projects/recycloud/pub/scheduler",
+  "started_at": "2026-05-22T09:11:21.064Z",
+  "max_lifetime_ms": 21600000,
+  "owner_token": "1161127-1779441081064-6vqxlrkf"
+}

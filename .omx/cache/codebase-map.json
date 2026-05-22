@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "worktreeRoot": "/home/neo/Projects/recycloud/pub/scheduler",
+  "gitDir": "/home/neo/Projects/recycloud/pub/scheduler/.git",
+  "indexMtimeMs": 1779440400386.4287,
+  "indexSize": 33969,
+  "map": "  web/: eslint.config, App, client.test, client, AppShell, AuthGuard, CodeEditor, ForbiddenPage, Permission, RouteFallback",
+  "createdAt": "2026-05-22T09:11:21.002Z"
+}
