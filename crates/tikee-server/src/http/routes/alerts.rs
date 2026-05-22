@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::HeaderMap,
 };
 use serde::Deserialize;
@@ -12,8 +12,8 @@ use serde::Deserialize;
 use crate::http::{
     AppState, auth,
     dto::{
-        AlertEventSummary, AlertNotificationSummary, AlertRuleSummary, ApiResponse,
-        CreateAlertRuleRequest,
+        AlertDeliveryChannelStatus, AlertDeliveryStatusResponse, AlertEventSummary,
+        AlertNotificationSummary, AlertRuleSummary, ApiResponse, CreateAlertRuleRequest,
     },
     error::ApiError,
 };
@@ -55,6 +55,100 @@ pub async fn list_alert_rules(
         })
         .collect();
     Ok(Json(ApiResponse::success(items)))
+}
+
+#[utoipa::path(get, path = "/api/v1/alert-rules/{id}/delivery-status", tag = "alerts")]
+pub async fn alert_rule_delivery_status(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<ApiResponse<AlertDeliveryStatusResponse>>, ApiError> {
+    auth::require_permission(&headers, &state, "audit", "read").await?;
+    let rule = state
+        .alerts
+        .get_rule(&id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::not_found("alert rule not found"))?;
+    let channel_values: Vec<serde_json::Value> =
+        serde_json::from_str(&rule.channels_json).unwrap_or_default();
+    let mut issues = Vec::new();
+    let channels: Vec<_> = channel_values
+        .iter()
+        .enumerate()
+        .map(|(index, value)| channel_status(index, value))
+        .inspect(|status| issues.extend(status.issues.iter().cloned()))
+        .collect();
+    Ok(Json(ApiResponse::success(AlertDeliveryStatusResponse {
+        rule_id: rule.id,
+        ready: issues.is_empty(),
+        channel_count: u64::try_from(channels.len()).unwrap_or(u64::MAX),
+        channels,
+        issues,
+    })))
+}
+
+fn channel_status(index: usize, value: &serde_json::Value) -> AlertDeliveryChannelStatus {
+    let provider = value
+        .get("type")
+        .or_else(|| value.get("provider"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("unknown")
+        .to_owned();
+    let enabled = value
+        .get("enabled")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(true);
+    let target_configured = channel_target_configured(&provider, value);
+    let secret_configured = channel_secret_configured(value);
+    let mut issues = Vec::new();
+    if provider == "unknown" {
+        issues.push(format!("channels[{index}].type is required"));
+    }
+    if enabled && !target_configured {
+        issues.push(format!(
+            "channels[{index}] target is required for {provider}"
+        ));
+    }
+    AlertDeliveryChannelStatus {
+        provider,
+        target_configured,
+        secret_configured,
+        enabled,
+        issues,
+    }
+}
+
+fn channel_target_configured(provider: &str, value: &serde_json::Value) -> bool {
+    let keys: &[&str] = match provider {
+        "webhook" | "slack" | "dingtalk" | "feishu" | "wechat_work" | "pagerduty" => {
+            &["url", "webhook_url", "routing_key", "integration_key"]
+        }
+        "email" => &["to", "recipients"],
+        _ => &["target", "url", "to"],
+    };
+    keys.iter().any(|key| json_field_present(value, key))
+}
+
+fn channel_secret_configured(value: &serde_json::Value) -> bool {
+    [
+        "secret",
+        "token",
+        "authorization",
+        "routing_key",
+        "integration_key",
+    ]
+    .iter()
+    .any(|key| json_field_present(value, key))
+}
+
+fn json_field_present(value: &serde_json::Value, key: &str) -> bool {
+    value.get(key).is_some_and(|field| match field {
+        serde_json::Value::String(item) => !item.trim().is_empty(),
+        serde_json::Value::Array(items) => !items.is_empty(),
+        serde_json::Value::Null => false,
+        _ => true,
+    })
 }
 
 #[utoipa::path(post, path = "/api/v1/alert-rules", tag = "alerts", request_body = CreateAlertRuleRequest)]

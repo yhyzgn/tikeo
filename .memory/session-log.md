@@ -1267,3 +1267,9 @@ Git:
 - Added `observability.tracing` config with disabled-by-default OTLP export, optional endpoint, and header-name metadata; local dev and container configs keep export disabled.
 - Added `GET /api/v1/observability/status` behind `system:read` permission to report tracing exporter readiness while redacting endpoint values and header secrets.
 - Added regression coverage for default no-collector mode and configured OTLP readiness without requiring a live collector.
+
+### 2026-05-23 — Phase 091 alert delivery readiness foundation
+- Continued `.prompt/091-phase3-alert-provider-delivery-foundation.md` with a no-network notification hardening slice.
+- Added `GET /api/v1/alert-rules/{id}/delivery-status` behind existing audit read permission.
+- Delivery status parses persisted rule channels, reports provider/target/secret readiness, and redacts URLs/tokens/secrets from the response.
+- Added regression coverage for webhook/email channel readiness and redaction without sending real external notifications.

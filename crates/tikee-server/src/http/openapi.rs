@@ -108,6 +108,8 @@ use super::{auth, dto, routes};
         dto::MetricsInstanceSummary,
         dto::MetricsAlertSummary,
         dto::MetricsGovernanceSummary,
+        dto::AlertDeliveryStatusResponse,
+        dto::AlertDeliveryChannelStatus,
         dto::TransportSecurityStatusResponse,
         dto::TlsEndpointStatus,
         dto::ObservabilityStatusResponse,

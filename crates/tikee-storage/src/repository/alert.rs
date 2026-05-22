@@ -126,6 +126,13 @@ impl AlertRepository {
         Ok(AlertRuleSummary::from(model))
     }
 
+    pub async fn get_rule(&self, id: &str) -> Result<Option<AlertRuleSummary>, sea_orm::DbErr> {
+        alert_rule::Entity::find_by_id(id.to_owned())
+            .one(&self.db)
+            .await
+            .map(|model| model.map(AlertRuleSummary::from))
+    }
+
     pub async fn list_rules(&self) -> Result<Vec<AlertRuleSummary>, sea_orm::DbErr> {
         let rows = alert_rule::Entity::find()
             .order_by_desc(alert_rule::Column::CreatedAt)

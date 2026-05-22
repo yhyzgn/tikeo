@@ -331,6 +331,10 @@ fn api_router() -> Router<Arc<AppState>> {
             "/alert-rules",
             get(routes::list_alert_rules).post(routes::create_alert_rule),
         )
+        .route(
+            "/alert-rules/{id}/delivery-status",
+            get(routes::alert_rule_delivery_status),
+        )
         .route("/alert-events", get(routes::list_alert_events))
         .route(
             "/alert-events/{id}/resolve",
@@ -1489,6 +1493,59 @@ mod tests {
         assert_eq!(json["data"][0]["suppressed_count"], 1);
         assert_eq!(json["data"][0]["recovered_count"], 1);
         assert_eq!(json["data"][0]["latest_status"], "recovered");
+    }
+
+    #[tokio::test]
+    async fn alert_rule_delivery_status_redacts_channel_targets_and_reports_readiness() {
+        let app = router().await;
+        let created = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/alert-rules",
+                    r#"{"name":"Webhook delivery","severity":"critical","condition":{"type":"script_governance_failure","failure_class":"script_runtime_unavailable","threshold":1},"channels":[{"type":"webhook","url":"https://hooks.example.com/token","secret":"super-secret"},{"type":"email","to":"ops@example.com"}],"enabled":true,"dedupe_seconds":300}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("alert rule create should respond: {error}"));
+        let body = axum::body::to_bytes(created.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let created_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        let rule_id = created_json["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("created rule id should be present"));
+
+        let status = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app,
+                    "GET",
+                    &format!("/api/v1/alert-rules/{rule_id}/delivery-status"),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("delivery status route should respond: {error}"));
+        let body = axum::body::to_bytes(status.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["ready"], true);
+        assert_eq!(json["data"]["channel_count"], 2);
+        assert_eq!(json["data"]["channels"][0]["provider"], "webhook");
+        assert_eq!(json["data"]["channels"][0]["target_configured"], true);
+        assert_eq!(json["data"]["channels"][0]["secret_configured"], true);
+        assert!(json["data"]["channels"][0].get("url").is_none());
+        assert!(json["data"]["channels"][0].get("secret").is_none());
     }
 
     #[tokio::test]

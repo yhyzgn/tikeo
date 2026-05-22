@@ -185,6 +185,26 @@ pub struct AlertEventSummary {
     pub created_at: String,
 }
 
+/// Alert rule delivery readiness with channel targets redacted.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct AlertDeliveryStatusResponse {
+    pub rule_id: String,
+    pub ready: bool,
+    pub channel_count: u64,
+    pub channels: Vec<AlertDeliveryChannelStatus>,
+    pub issues: Vec<String>,
+}
+
+/// Redacted notification channel readiness metadata.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct AlertDeliveryChannelStatus {
+    pub provider: String,
+    pub target_configured: bool,
+    pub secret_configured: bool,
+    pub enabled: bool,
+    pub issues: Vec<String>,
+}
+
 /// Alert notification history summary.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct AlertNotificationSummary {
