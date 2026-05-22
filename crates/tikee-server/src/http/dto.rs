@@ -60,6 +60,8 @@ pub type LoginApiResponse = ApiResponse<AuthSession>;
 
 /// Auth status API envelope.
 pub type AuthStatusApiResponse = ApiResponse<AuthStatusResponse>;
+/// OIDC authorization bootstrap API envelope.
+pub type OidcAuthorizeApiResponse = ApiResponse<OidcAuthorizeResponse>;
 
 /// Current principal API envelope.
 pub type MeApiResponse = ApiResponse<MeResponse>;
@@ -399,6 +401,17 @@ pub struct AuthSession {
     pub roles: Vec<String>,
     /// Granted permissions.
     pub permissions: Vec<tikee_storage::PermissionSummary>,
+}
+
+/// OIDC authorization bootstrap response. Secrets are never included.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct OidcAuthorizeResponse {
+    pub provider: String,
+    pub authorization_url: String,
+    pub client_id: String,
+    pub scopes: Vec<String>,
+    pub state_required: bool,
+    pub pkce_required: bool,
 }
 
 /// Authentication mode/status metadata for clients.

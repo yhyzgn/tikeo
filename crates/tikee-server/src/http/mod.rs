@@ -226,6 +226,8 @@ fn api_router() -> Router<Arc<AppState>> {
         )
         .route("/auth/login", axum::routing::post(auth::login))
         .route("/auth/status", get(auth::status))
+        .route("/auth/oidc/authorize", get(auth::oidc_authorize))
+        .route("/auth/oidc/callback", get(auth::oidc_callback))
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", axum::routing::post(auth::logout))
         .route(
@@ -542,6 +544,83 @@ mod tests {
         assert_eq!(json["data"]["oidc"]["client_secret_configured"], true);
         assert_eq!(json["data"]["oidc"]["scopes"][0], "openid");
         assert!(json["data"]["oidc"].get("client_secret").is_none());
+    }
+
+    #[tokio::test]
+    async fn oidc_authorize_and_callback_shapes_are_local_without_live_provider() {
+        let local = request("/api/v1/auth/oidc/authorize").await;
+        assert_eq!(local.status(), axum::http::StatusCode::BAD_REQUEST);
+
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let mut auth = tikee_config::AuthConfig::default();
+        auth.oidc.enabled = true;
+        auth.oidc.issuer_url = Some("https://idp.example.com/realms/tikee".to_owned());
+        auth.oidc.client_id = Some("tikee-web".to_owned());
+        auth.oidc.client_secret = Some("super-secret".to_owned());
+        let app = router_with_state(
+            AppState::new(
+                JobRepository::new(db.clone()),
+                JobInstanceRepository::new(db.clone()),
+                JobInstanceLogRepository::new(db.clone()),
+                JobInstanceAttemptRepository::new(db.clone()),
+                UserRepository::new(db.clone()),
+                ScriptRepository::new(db.clone()),
+                WorkflowRepository::new(db.clone()),
+                AuditLogRepository::new(db),
+                crate::tunnel::WorkerRegistry::default(),
+                StandaloneCoordinator::shared("test-node"),
+            )
+            .with_auth_config(auth),
+        );
+
+        let authorize = app
+            .clone()
+            .oneshot(Request::builder()
+                    .uri("/api/v1/auth/oidc/authorize?redirect_uri=http://localhost:5173/auth/callback")
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")))
+            .await
+            .unwrap_or_else(|error| panic!("authorize route should respond: {error}"));
+        let body = axum::body::to_bytes(authorize.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["provider"], "oidc");
+        assert_eq!(json["data"]["client_id"], "tikee-web");
+        assert!(
+            json["data"]["authorization_url"]
+                .as_str()
+                .is_some_and(|value| value.contains("response_type=code"))
+        );
+        assert!(json["data"].get("client_secret").is_none());
+
+        let callback = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/auth/oidc/callback?code=fake&state=fake")
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("callback route should respond: {error}"));
+        let status = callback.status();
+        let body = axum::body::to_bytes(callback.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(status, axum::http::StatusCode::BAD_REQUEST);
+        assert_ne!(json["code"], 0);
+        assert!(
+            json["message"]
+                .as_str()
+                .is_some_and(|value| value.contains("not yet enabled"))
+        );
     }
 
     #[tokio::test]

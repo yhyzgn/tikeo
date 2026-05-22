@@ -2188,7 +2188,8 @@ tikee/
 
 - [x] RBAC 权限系统（021 已完成最小 permission/resource/action；OIDC/API Token/多租户 scope 后续继续增强）
 - [ ] OIDC/SSO 集成
-  - [x] OIDC/SSO 配置与状态基础（085：`auth.oidc` 配置、`GET /api/v1/auth/status` 暴露本地/oidc 模式与脱敏 provider 元数据；真实 IdP 登录回调后续）
+  - [x] OIDC/SSO 配置与状态基础（085：`auth.oidc` 配置、`GET /api/v1/auth/status` 暴露本地/oidc 模式与脱敏 provider 元数据）
+  - [x] OIDC 授权/回调骨架（092：`GET /api/v1/auth/oidc/authorize` 生成授权 URL 且不暴露 secret；`/callback` 校验 code/state 形状但明确拒绝未验证 token，不创建 session；真实 IdP token exchange/JWKS 验证后续）
 - [ ] mTLS 传输加密
   - [x] TLS/mTLS 配置与诊断基础（086：`transport_security` 配置、`GET /api/v1/security/transport` 脱敏显示 HTTP/Worker Tunnel TLS/mTLS readiness；真实证书加载与监听 TLS 后续）
 - [x] Web 前端路由与导航治理基础（React Router v7、路由守卫、URL 持久化、菜单与路由对齐）

@@ -1273,3 +1273,9 @@ Git:
 - Added `GET /api/v1/alert-rules/{id}/delivery-status` behind existing audit read permission.
 - Delivery status parses persisted rule channels, reports provider/target/secret readiness, and redacts URLs/tokens/secrets from the response.
 - Added regression coverage for webhook/email channel readiness and redaction without sending real external notifications.
+
+### 2026-05-23 — Phase 092 OIDC authorize/callback skeleton
+- Continued `.prompt/092-phase3-oidc-callback-skeleton.md` with a no-IdP local SSO shape slice.
+- Added `GET /api/v1/auth/oidc/authorize` to build a redacted authorization URL from configured issuer/client/scopes without contacting the provider.
+- Added `GET /api/v1/auth/oidc/callback` as a safe callback contract that validates code/state shape but refuses to create sessions until real token exchange/JWKS verification exists.
+- Added regression coverage for disabled default behavior, configured authorize URL shape, secret redaction, and callback fail-closed behavior.

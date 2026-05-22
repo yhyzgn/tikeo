@@ -1,13 +1,22 @@
 //! Authentication and Role-Based Access Control (RBAC) verification.
 
-use axum::{Json, extract::State, http::HeaderMap};
+use axum::{
+    Json,
+    extract::{Query, State},
+    http::HeaderMap,
+};
 use bcrypt::verify;
+use serde::Deserialize;
 use std::sync::Arc;
 use tracing::warn;
+use url::Url;
 
 use super::{
     AppState,
-    dto::{ApiResponse, AuthSession, AuthStatusResponse, LoginRequest, MeResponse, OidcStatus},
+    dto::{
+        ApiResponse, AuthSession, AuthStatusResponse, LoginRequest, MeResponse,
+        OidcAuthorizeResponse, OidcStatus,
+    },
     error::ApiError,
     routes::{client_ip, trace_id},
     session::SessionCreate,
@@ -172,6 +181,26 @@ pub async fn login(
     Ok(Json(ApiResponse::success(session)))
 }
 
+/// Query parameters used to build an OIDC authorization URL.
+#[derive(Debug, Deserialize)]
+pub struct OidcAuthorizeQuery {
+    /// Optional UI callback URL.
+    pub redirect_uri: Option<String>,
+    /// Optional caller-provided CSRF state value.
+    pub state: Option<String>,
+}
+
+/// Query parameters received by the OIDC callback placeholder.
+#[derive(Debug, Deserialize)]
+pub struct OidcCallbackQuery {
+    /// Authorization code returned by the provider.
+    pub code: Option<String>,
+    /// CSRF state returned by the provider.
+    pub state: Option<String>,
+    /// Provider-side error code, when authorization failed.
+    pub error: Option<String>,
+}
+
 /// Return authentication mode and SSO configuration status.
 #[utoipa::path(
     get,
@@ -210,6 +239,108 @@ pub async fn status(State(state): State<Arc<AppState>>) -> Json<ApiResponse<Auth
             scopes: oidc.scopes.clone(),
         },
     }))
+}
+
+/// Build an OIDC authorization URL without contacting the provider.
+///
+/// # Errors
+///
+/// Returns a bad request when OIDC is disabled or required provider metadata is missing.
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/oidc/authorize",
+    tag = "auth",
+    responses((status = 200, description = "OIDC authorization bootstrap", body = super::dto::OidcAuthorizeApiResponse))
+)]
+pub async fn oidc_authorize(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<OidcAuthorizeQuery>,
+) -> Result<Json<ApiResponse<OidcAuthorizeResponse>>, ApiError> {
+    let oidc = &state.auth_config.oidc;
+    if !oidc.enabled {
+        return Err(ApiError::bad_request("OIDC login is not enabled"));
+    }
+    let issuer = configured_value(oidc.issuer_url.as_ref(), "auth.oidc.issuer_url")?;
+    let client_id = configured_value(oidc.client_id.as_ref(), "auth.oidc.client_id")?;
+    let redirect_uri = query
+        .redirect_uri
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "/api/v1/auth/oidc/callback".to_owned());
+    let mut authorization_url = Url::parse(&format!(
+        "{}/protocol/openid-connect/auth",
+        issuer.trim_end_matches('/')
+    ))
+    .map_err(|_| ApiError::bad_request("auth.oidc.issuer_url must be a valid URL"))?;
+    authorization_url
+        .query_pairs_mut()
+        .append_pair("response_type", "code")
+        .append_pair("client_id", client_id)
+        .append_pair("redirect_uri", &redirect_uri)
+        .append_pair("scope", &oidc.scopes.join(" "));
+    if let Some(state_value) = query
+        .state
+        .as_ref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        authorization_url
+            .query_pairs_mut()
+            .append_pair("state", state_value);
+    }
+    Ok(Json(ApiResponse::success(OidcAuthorizeResponse {
+        provider: "oidc".to_owned(),
+        authorization_url: authorization_url.to_string(),
+        client_id: client_id.to_owned(),
+        scopes: oidc.scopes.clone(),
+        state_required: true,
+        pkce_required: true,
+    })))
+}
+
+/// OIDC callback contract placeholder; it never accepts unsigned identity locally.
+///
+/// # Errors
+///
+/// Always returns a bad request until real `IdP` token verification is implemented.
+#[utoipa::path(get, path = "/api/v1/auth/oidc/callback", tag = "auth")]
+pub async fn oidc_callback(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<OidcCallbackQuery>,
+) -> Result<Json<ApiResponse<super::dto::EmptyData>>, ApiError> {
+    if !state.auth_config.oidc.enabled {
+        return Err(ApiError::bad_request("OIDC login is not enabled"));
+    }
+    if let Some(error) = query
+        .error
+        .as_ref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        return Err(ApiError::bad_request(format!(
+            "OIDC provider returned error: {error}"
+        )));
+    }
+    let has_code = query
+        .code
+        .as_ref()
+        .is_some_and(|value| !value.trim().is_empty());
+    let has_state = query
+        .state
+        .as_ref()
+        .is_some_and(|value| !value.trim().is_empty());
+    if !has_code || !has_state {
+        return Err(ApiError::bad_request(
+            "OIDC callback requires code and state",
+        ));
+    }
+    Err(ApiError::bad_request(
+        "OIDC callback token verification is not yet enabled; no session was created",
+    ))
+}
+
+fn configured_value<'a>(value: Option<&'a String>, field: &str) -> Result<&'a str, ApiError> {
+    value
+        .map(String::as_str)
+        .filter(|item| !item.trim().is_empty())
+        .ok_or_else(|| ApiError::bad_request(format!("{field} is required when OIDC is enabled")))
 }
 
 /// Return the current authenticated principal.
