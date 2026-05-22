@@ -15,6 +15,8 @@ pub struct Model {
     pub version_number: i64,
     /// Snapshot of script content.
     pub content: String,
+    /// Lowercase hex SHA-256 digest of the content snapshot.
+    pub content_sha256: String,
     /// Snapshot of language.
     pub language: String,
     /// Snapshot of status.

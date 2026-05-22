@@ -1081,3 +1081,10 @@ Git:
 - Implemented Java SDK explicit unsupported result for WASM bindings with regression test that the normal processor is not called.
 - Updated design roadmap and created `.prompt/070-phase3-wasm-distribution-integrity-and-gradle10-cleanup.md`.
 - Verification passed: backend fmt/clippy/tests/help, web typecheck/tests/build, Rust SDK no-feature + wasm-feature tests + clippy, Java Gradle tests. Gradle 10 deprecation warning remains tracked for next slice.
+
+
+### 2026-05-22 Phase3 WASM distribution integrity and Gradle 10 cleanup
+- Resumed `.prompt/070-phase3-wasm-distribution-integrity-and-gradle10-cleanup.md`.
+- Added WASM binding integrity/version metadata, script-version SHA-256 persistence, Rust SDK digest validation, Web sandbox-policy visibility, and Gradle 10 deprecation cleanup.
+- Created `.prompt/071-phase3-script-release-pointer-and-worker-version-binding.md` for release-pointer/version-binding follow-up.
+- Verification passed: backend fmt/clippy/tests/help, web typecheck/tests/build, Rust SDK no-feature + wasm-feature tests + clippy, Java Gradle tests with `--warning-mode all` and no deprecation warning output.

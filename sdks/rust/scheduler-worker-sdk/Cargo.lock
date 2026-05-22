@@ -1101,6 +1101,7 @@ dependencies = [
  "async-trait",
  "prost",
  "protoc-bin-vendored",
+ "sha2",
  "thiserror",
  "tokio",
  "tokio-stream",

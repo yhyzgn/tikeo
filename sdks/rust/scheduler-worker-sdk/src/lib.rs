@@ -351,6 +351,7 @@ fn process_wasm_binding(
 mod wasm_runtime {
     use std::{thread, time::Duration};
 
+    use sha2::{Digest, Sha256};
     use wasmtime::{Config, Engine, Linker, Module, Store, StoreLimitsBuilder};
 
     use crate::proto::worker::v1::WasmProcessorBinding;
@@ -390,6 +391,12 @@ mod wasm_runtime {
     }
 
     fn validate(binding: &WasmProcessorBinding) -> Result<(), String> {
+        if !binding.module_sha256.trim().is_empty() {
+            let actual = format!("{:x}", Sha256::digest(&binding.module));
+            if !actual.eq_ignore_ascii_case(binding.module_sha256.trim()) {
+                return Err("wasm module sha256 digest mismatch".to_owned());
+            }
+        }
         if binding.runtime != "wasmtime" {
             return Err(format!("unsupported wasm runtime: {}", binding.runtime));
         }
@@ -476,6 +483,8 @@ mod tests {
     use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
     use tokio_stream::{Stream, StreamExt, wrappers::TcpListenerStream};
     use tonic::{Request, Response, Status, transport::Server};
+
+    use sha2::{Digest, Sha256};
 
     use crate::proto::worker::v1::{
         DispatchTask, Ping, ServerMessage, TaskProcessorBinding, WasmProcessorBinding,
@@ -639,6 +648,40 @@ mod tests {
 
     #[cfg(feature = "wasm")]
     #[tokio::test]
+    async fn worker_session_rejects_wasm_digest_mismatch() {
+        let mut dispatch = wasm_dispatch_task(
+            "instance-wasm-digest",
+            wat_bytes(r#"(module (func (export "_start")))"#),
+            false,
+        );
+        if let Some(binding) = dispatch.processor_binding.as_mut()
+            && let Some(task_processor_binding::Kind::Wasm(wasm)) = binding.kind.as_mut()
+        {
+            wasm.module_sha256 = "deadbeef".to_owned();
+        }
+        let (addr, server, mut events) = start_mock_tunnel_server(Some(dispatch)).await;
+        let config = WorkerConfig::local(format!("http://{addr}"), "worker-sdk-wasm-digest");
+        let mut session = WorkerClient::new(config)
+            .connect()
+            .await
+            .unwrap_or_else(|error| panic!("worker should register: {error}"));
+
+        let outcome = session
+            .process_next(&EchoProcessor)
+            .await
+            .unwrap_or_else(|error| panic!("wasm rejection should report: {error}"));
+
+        assert!(
+            matches!(outcome, TaskOutcome::Failed(message) if message.contains("digest mismatch"))
+        );
+        let result = next_task_result(&mut events).await;
+        assert!(!result.success);
+        assert!(result.message.contains("digest mismatch"));
+        server.abort();
+    }
+
+    #[cfg(feature = "wasm")]
+    #[tokio::test]
     async fn worker_session_rejects_wasm_network_capability() {
         let dispatch = wasm_dispatch_task(
             "instance-wasm-network",
@@ -766,6 +809,7 @@ mod tests {
     }
 
     fn wasm_dispatch_task(instance_id: &str, module: Vec<u8>, allow_network: bool) -> DispatchTask {
+        let module_sha256 = format!("{:x}", Sha256::digest(&module));
         DispatchTask {
             instance_id: instance_id.to_owned(),
             job_id: "job-wasm".to_owned(),
@@ -783,6 +827,10 @@ mod tests {
                     fuel: 1_000_000,
                     allow_network,
                     allowed_env_vars: Vec::new(),
+                    version_id: "sv_1".to_owned(),
+                    version_number: 1,
+                    module_sha256,
+                    module_signature: String::new(),
                 })),
             })),
         }

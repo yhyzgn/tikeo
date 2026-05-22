@@ -10,7 +10,7 @@ use scheduler_proto::worker::v1::{
 };
 use scheduler_storage::{
     JobInstanceAttemptRepository, JobInstanceRepository, JobRepository, ScriptRepository,
-    ScriptSummary, WorkflowRepository,
+    ScriptSummary, ScriptVersionSummary, WorkflowRepository,
 };
 use tokio::time;
 use tracing::{debug, warn};
@@ -235,7 +235,16 @@ async fn build_dispatch_task(
     let processor_binding = if let Some(script_id) = processor_name.strip_prefix("script:") {
         match scripts.get(script_id).await? {
             Some(script) if wasm_script_is_dispatchable(&script) => {
-                Some(Box::new(wasm_processor_binding(&script)))
+                let version = match scripts.versions().list_versions(&script.id).await {
+                    Ok(versions) => versions
+                        .into_iter()
+                        .find(|version| version.content == script.content),
+                    Err(error) => {
+                        warn!(script_id = %script.id, %error, "failed to load script version snapshot for wasm binding");
+                        None
+                    }
+                };
+                Some(Box::new(wasm_processor_binding(&script, version.as_ref())))
             }
             _ => None,
         }
@@ -258,7 +267,10 @@ fn wasm_script_is_dispatchable(script: &ScriptSummary) -> bool {
         && script_to_wasm_spec(script).validate().is_ok()
 }
 
-fn wasm_processor_binding(script: &ScriptSummary) -> TaskProcessorBinding {
+fn wasm_processor_binding(
+    script: &ScriptSummary,
+    version: Option<&ScriptVersionSummary>,
+) -> TaskProcessorBinding {
     let spec = script_to_wasm_spec(script);
     TaskProcessorBinding {
         kind: Some(task_processor_binding::Kind::Wasm(WasmProcessorBinding {
@@ -272,6 +284,15 @@ fn wasm_processor_binding(script: &ScriptSummary) -> TaskProcessorBinding {
             fuel: spec.resources.fuel,
             allow_network: spec.capabilities.network,
             allowed_env_vars: spec.capabilities.env_vars,
+            version_id: version.map_or_else(String::new, |version| version.id.clone()),
+            version_number: version
+                .and_then(|version| u64::try_from(version.version_number).ok())
+                .unwrap_or_default(),
+            module_sha256: version.map_or_else(
+                || script.content_sha256.clone(),
+                |version| version.content_sha256.clone(),
+            ),
+            module_signature: String::new(),
         })),
     }
 }
@@ -684,6 +705,8 @@ mod tests {
             language: "wasm".to_owned(),
             version: "1.0.0".to_owned(),
             content: "wasm-demo-module".to_owned(),
+            content_sha256: "69600ecd3785f0f6b6909d2586910f471fafc7751c518901ac93c0ef1b0b92f9"
+                .to_owned(),
             status: "approved".to_owned(),
             timeout_seconds: Some(5),
             max_memory_bytes: Some(1024 * 1024),
@@ -782,6 +805,10 @@ mod tests {
                         assert_eq!(wasm.max_memory_bytes, 1024 * 1024);
                         assert!(!wasm.allow_network);
                         assert!(wasm.allowed_env_vars.is_empty());
+                        assert_eq!(wasm.version_id, "");
+                        assert_eq!(wasm.version_number, 0);
+                        assert_eq!(wasm.module_sha256, script.content_sha256);
+                        assert_eq!(wasm.module_signature, "");
                     }
                     other => panic!("unexpected binding: {other:?}"),
                 }
@@ -798,6 +825,8 @@ mod tests {
             language: "wasm".to_owned(),
             version: "1.0.0".to_owned(),
             content: "module".to_owned(),
+            content_sha256: "af67347816654d9b144b131e2c92b8b6f6ba3edecb7f1911ef6d8a81f8e08329"
+                .to_owned(),
             status: "draft".to_owned(),
             timeout_seconds: Some(1),
             max_memory_bytes: Some(1024),

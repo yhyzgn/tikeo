@@ -473,3 +473,14 @@
 - Updated design roadmap and created `.prompt/070-phase3-wasm-distribution-integrity-and-gradle10-cleanup.md`.
 - Full verification passed for 069: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --no-daemon`.
 - Known warning: Java Gradle build still reports deprecated features that need Gradle 10 compatibility cleanup.
+
+
+### 2026-05-22 Phase3 WASM distribution integrity and Gradle 10 cleanup
+- Continued `.prompt/070-phase3-wasm-distribution-integrity-and-gradle10-cleanup.md`.
+- Extended Worker Tunnel `WasmProcessorBinding` with immutable version hooks (`version_id`, `version_number`), `module_sha256`, and reserved `module_signature` across server proto, Rust SDK proto, and Java SDK proto.
+- Script version snapshots now persist `content_sha256`; `ScriptSummary` computes SHA-256 for the current script content without adding database foreign keys.
+- Dispatcher includes SHA-256 in WASM bindings and uses matching immutable script version snapshot metadata when available; otherwise it still sends digest-only integrity metadata.
+- Rust Worker SDK validates `module_sha256` before Wasmtime compilation/execution and fails digest mismatches clearly.
+- Web script management now shows content SHA-256 and WASM sandbox defaults/policy metadata in list/detail/version views.
+- Java Gradle protobuf plugin upgraded to 0.10.0 and protoc/grpc artifacts use explicit platform classifier notation, removing Gradle 10 multi-string dependency deprecation warnings under Gradle 9.5.1 `--warning-mode all`.
+- Full verification passed for 070: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.

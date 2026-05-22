@@ -254,6 +254,7 @@ async fn ensure_script_versions_schema_compatibility(
             script_id varchar NOT NULL,
             version_number bigint NOT NULL,
             content varchar NOT NULL,
+            content_sha256 varchar NOT NULL DEFAULT '',
             language varchar NOT NULL,
             status varchar NOT NULL,
             timeout_seconds bigint,
@@ -265,6 +266,13 @@ async fn ensure_script_versions_schema_compatibility(
         )",
     ))
     .await?;
+    if !sqlite_column_exists(db, "script_versions", "content_sha256").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE script_versions ADD COLUMN content_sha256 varchar NOT NULL DEFAULT ''",
+        ))
+        .await?;
+    }
     db.execute(Statement::from_string(
         DatabaseBackend::Sqlite,
         "CREATE INDEX IF NOT EXISTS idx_script_versions_script_id ON script_versions (script_id)",

@@ -1,4 +1,4 @@
-import { Button, Descriptions, Drawer, Form, Input, InputNumber, Modal, Select, Space, Spin, Switch, Table, Tag, message } from 'antd';
+import { Alert, Button, Descriptions, Drawer, Form, Input, InputNumber, Modal, Select, Space, Spin, Switch, Table, Tag, Typography, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { diffLines } from 'diff';
 import type { ScriptDiffResult, ScriptSummary, ScriptVersionSummary } from '../api/client';
@@ -35,6 +35,14 @@ const STATUS_LABELS: Record<string, string> = {
   approved: '已审批',
   disabled: '已禁用',
 };
+
+function shortDigest(value?: string | null): string {
+  return value ? `${value.slice(0, 12)}…${value.slice(-8)}` : '-';
+}
+
+function defaultFuel(script: ScriptSummary): string {
+  return script.language === 'wasm' ? '10000000' : '-';
+}
 
 function buildUnifiedDiff(oldText: string, newText: string): string {
   const changes = diffLines(oldText, newText);
@@ -388,6 +396,12 @@ export function ScriptsPage() {
     { title: '语言', dataIndex: 'language', key: 'language', render: (v: string) => v.toUpperCase() },
     { title: '版本', dataIndex: 'version', key: 'version' },
     {
+      title: 'SHA-256',
+      dataIndex: 'content_sha256',
+      key: 'content_sha256',
+      render: (v: string) => <Typography.Text code>{shortDigest(v)}</Typography.Text>,
+    },
+    {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
@@ -511,6 +525,15 @@ export function ScriptsPage() {
           <Form.Item name="language" label="语言" rules={[{ required: true, message: '请选择语言' }]} initialValue="shell">
             <Select options={LANGUAGE_OPTIONS} />
           </Form.Item>
+          {currentLanguage === 'wasm' && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="WASM 沙箱策略"
+              description="审批后下发到 Worker 的模块会携带 SHA-256 摘要；Worker 必须校验摘要。默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
+            />
+          )}
           <Form.Item name="version" label="版本" initialValue="1.0.0">
             <Input />
           </Form.Item>
@@ -558,6 +581,15 @@ export function ScriptsPage() {
           <Form.Item name="language" label="语言" rules={[{ required: true, message: '请选择语言' }]}>
             <Select options={LANGUAGE_OPTIONS} />
           </Form.Item>
+          {editLanguage === 'wasm' && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="WASM 沙箱策略"
+              description="更新后会生成新的不可变版本快照与 SHA-256 摘要；默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
+            />
+          )}
           <Form.Item name="version" label="版本">
             <Input />
           </Form.Item>
@@ -598,12 +630,17 @@ export function ScriptsPage() {
               <Descriptions.Item label="名称">{detailScript.name}</Descriptions.Item>
               <Descriptions.Item label="语言">{detailScript.language.toUpperCase()}</Descriptions.Item>
               <Descriptions.Item label="版本">{detailScript.version}</Descriptions.Item>
+              <Descriptions.Item label="内容 SHA-256"><Typography.Text code copyable>{detailScript.content_sha256}</Typography.Text></Descriptions.Item>
               <Descriptions.Item label="状态">
                 <Tag color={STATUS_COLORS[detailScript.status] ?? 'default'}>{STATUS_LABELS[detailScript.status] ?? detailScript.status}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="超时(秒)">{detailScript.timeout_seconds ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="内存限制(字节)">{detailScript.max_memory_bytes ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="允许网络">{detailScript.allow_network ? '允许' : '禁止'}</Descriptions.Item>
+              <Descriptions.Item label="WASM Runtime">{detailScript.language === 'wasm' ? 'wasmtime' : '-'}</Descriptions.Item>
+              <Descriptions.Item label="WASM Entrypoint">{detailScript.language === 'wasm' ? '_start' : '-'}</Descriptions.Item>
+              <Descriptions.Item label="WASM Fuel">{defaultFuel(detailScript)}</Descriptions.Item>
+              <Descriptions.Item label="模块签名">{detailScript.language === 'wasm' ? '预留，当前未启用' : '-'}</Descriptions.Item>
               <Descriptions.Item label="允许的环境变量">
                 {detailScript.allowed_env_vars && detailScript.allowed_env_vars.length > 0
                   ? detailScript.allowed_env_vars.join(', ')
@@ -642,6 +679,13 @@ export function ScriptsPage() {
               rowKey="id"
               columns={[
                 { title: '版本号', dataIndex: 'version_number', key: 'version_number', width: 80 },
+                {
+                  title: 'SHA-256',
+                  dataIndex: 'content_sha256',
+                  key: 'content_sha256',
+                  width: 180,
+                  render: (v: string) => <Typography.Text code copyable>{shortDigest(v)}</Typography.Text>,
+                },
                 {
                   title: '状态',
                   dataIndex: 'status',

@@ -76,6 +76,14 @@ message WasmProcessorBinding {
   uint64 fuel = 8;
   bool allow_network = 9;
   repeated string allowed_env_vars = 10;
+  // Immutable script version snapshot identifier when available.
+  string version_id = 11;
+  // Monotonic script version snapshot number when available.
+  uint64 version_number = 12;
+  // Lowercase hex SHA-256 digest of module bytes. Workers must verify when present.
+  string module_sha256 = 13;
+  // Reserved signature hook for future PKI-backed module verification.
+  string module_signature = 14;
 }
 
 message TaskResult {

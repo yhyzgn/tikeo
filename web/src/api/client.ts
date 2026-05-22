@@ -232,6 +232,7 @@ export interface ScriptSummary {
   language: string;
   version: string;
   content: string;
+  content_sha256: string;
   status: string;
   timeout_seconds: number | null;
   max_memory_bytes: number | null;
@@ -292,6 +293,7 @@ export interface ScriptVersionSummary {
   script_id: string;
   version_number: number;
   content: string;
+  content_sha256: string;
   language: string;
   status: string;
   timeout_seconds: number | null;

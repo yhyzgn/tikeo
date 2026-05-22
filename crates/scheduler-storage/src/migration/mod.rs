@@ -321,6 +321,7 @@ async fn create_script_versions(manager: &SchemaManager<'_>) -> Result<(), DbErr
                 .col(string_col(ScriptVersions::ScriptId))
                 .col(big_integer_col(ScriptVersions::VersionNumber))
                 .col(string_col(ScriptVersions::Content))
+                .col(string_col(ScriptVersions::ContentSha256))
                 .col(string_col(ScriptVersions::Language))
                 .col(string_col(ScriptVersions::Status))
                 .col(big_integer_null(ScriptVersions::TimeoutSeconds))
@@ -1442,6 +1443,7 @@ enum ScriptVersions {
     ScriptId,
     VersionNumber,
     Content,
+    ContentSha256,
     Language,
     Status,
     TimeoutSeconds,

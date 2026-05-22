@@ -3,6 +3,7 @@ use sea_orm::{
     QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::entities::{script, script_version};
@@ -67,6 +68,8 @@ pub struct ScriptSummary {
     pub version: String,
     /// Script source content.
     pub content: String,
+    /// Lowercase hex SHA-256 digest of the script content.
+    pub content_sha256: String,
     /// Approval status.
     pub status: String,
     /// Timeout seconds for execution.
@@ -261,6 +264,8 @@ pub struct ScriptVersionSummary {
     pub version_number: i64,
     /// Snapshot of script content.
     pub content: String,
+    /// Lowercase hex SHA-256 digest of the content snapshot.
+    pub content_sha256: String,
     /// Snapshot of language.
     pub language: String,
     /// Snapshot of status.
@@ -323,6 +328,7 @@ impl ScriptVersionRepository {
             id: Set(id),
             script_id: Set(script.id.clone()),
             version_number: Set(version_number),
+            content_sha256: Set(content_sha256(&script.content)),
             content: Set(script.content.clone()),
             language: Set(script.language.clone()),
             status: Set(script.status.clone()),
@@ -333,7 +339,10 @@ impl ScriptVersionRepository {
             created_by: Set(script.created_by.clone()),
             created_at: Set(now_rfc3339()),
         };
-        let model = active.insert(db).await?;
+        let mut model = active.insert(db).await?;
+        if model.content_sha256.is_empty() {
+            model.content_sha256 = content_sha256(&model.content);
+        }
         Ok(ScriptVersionSummary::from(model))
     }
 
@@ -385,6 +394,11 @@ impl From<script_version::Model> for ScriptVersionSummary {
             id: value.id,
             script_id: value.script_id,
             version_number: value.version_number,
+            content_sha256: if value.content_sha256.is_empty() {
+                content_sha256(&value.content)
+            } else {
+                value.content_sha256
+            },
             content: value.content,
             language: value.language,
             status: value.status,
@@ -407,6 +421,7 @@ impl From<script::Model> for ScriptSummary {
             name: value.name,
             language: value.language,
             version: value.version,
+            content_sha256: content_sha256(&value.content),
             content: value.content,
             status: value.status,
             timeout_seconds: value.timeout_seconds,
@@ -420,4 +435,8 @@ impl From<script::Model> for ScriptSummary {
             updated_at: value.updated_at,
         }
     }
+}
+
+fn content_sha256(content: &str) -> String {
+    format!("{:x}", Sha256::digest(content.as_bytes()))
 }

@@ -2,13 +2,23 @@ import com.google.protobuf.gradle.id
 
 plugins {
     `java-library`
-    id("com.google.protobuf") version "0.9.5" apply false
+    id("com.google.protobuf") version "0.10.0" apply false
 }
 
 val springBootVersion = "4.0.6"
 val grpcVersion = "1.81.0"
 val protobufVersion = "4.34.1"
 val lombokVersion = "1.18.46"
+val osName = System.getProperty("os.name").lowercase()
+val osArch = System.getProperty("os.arch").lowercase()
+val protocPlatform = when {
+    osName.contains("linux") && (osArch == "amd64" || osArch == "x86_64") -> "linux-x86_64"
+    osName.contains("linux") && (osArch == "aarch64" || osArch == "arm64") -> "linux-aarch_64"
+    osName.contains("mac") && (osArch == "aarch64" || osArch == "arm64") -> "osx-aarch_64"
+    osName.contains("mac") -> "osx-x86_64"
+    osName.contains("windows") && (osArch == "amd64" || osArch == "x86_64") -> "windows-x86_64"
+    else -> error("Unsupported protoc platform: $osName/$osArch")
+}
 
 allprojects {
     group = "cn.recycloud.scheduler"
@@ -60,11 +70,11 @@ project(":scheduler-java") {
 
     configure<com.google.protobuf.gradle.ProtobufExtension> {
         protoc {
-            artifact = "com.google.protobuf:protoc:$protobufVersion"
+            artifact = "com.google.protobuf:protoc:$protobufVersion:$protocPlatform@exe"
         }
         plugins {
             id("grpc") {
-                artifact = "io.grpc:protoc-gen-grpc-java:$grpcVersion"
+                artifact = "io.grpc:protoc-gen-grpc-java:$grpcVersion:$protocPlatform@exe"
             }
         }
         generateProtoTasks {
