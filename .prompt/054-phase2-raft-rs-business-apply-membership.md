@@ -14,13 +14,15 @@ Phase2 raft-rs safe runtime foundations now include:
 ## Hard safety rule
 Do not weaken the no-fake-leader guarantee. Raft mode may schedule only when status has `can_schedule=true` **and** a persisted `leader_fencing_token`; scheduler/dispatcher ownership gates must continue to consume that boundary.
 
-## Required next work
-1. Define the first business state-machine command envelope for raft `EntryNormal` payloads.
-2. Implement a small, idempotent apply path for one safe command type, or explicitly document why business apply remains deferred.
-3. Add a durable applied-command/audit shape if needed, still with no database foreign keys.
-4. Design dynamic membership/config-change handling without silently applying `EntryConfChange` entries; update docs and tests.
-5. Add integration tests around replay/idempotency and token-gated scheduling/dispatch ownership.
-6. Run full verification, commit with Lore trailers, and push.
+## Completed in 054
+1. Added `raft_applied_commands` durable no-FK table/entity/repository for idempotent state-machine bookkeeping.
+2. Defined the first `EntryNormal` command envelope: `{ "command_id": string, "command_type": string, "payload": object }`.
+3. Implemented safe `noop` apply semantics; unknown command types are recorded as `deferred_unsupported`; invalid JSON is recorded as `rejected`.
+4. Apply records are idempotent by `(node_id, log_index)` and command ids are reserved by `(cluster_id, command_id)`.
+5. Config-change entries remain gated.
+
+## Continue with 055
+See `.prompt/055-phase2-raft-rs-real-business-commands-and-membership.md`.
 
 ## Constraints
 - API envelope remains `{ code, message, data }`.

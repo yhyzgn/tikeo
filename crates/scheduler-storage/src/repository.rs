@@ -32,9 +32,9 @@ pub use job::{CreateJob, JobSummary};
 pub use job_repo::JobRepository;
 pub use log::{AppendJobInstanceLog, JobInstanceLogRepository, JobInstanceLogSummary};
 pub use raft::{
-    RaftLogEntrySummary, RaftMemberSummary, RaftMetadataSummary, RaftRepository,
-    RaftSnapshotSummary, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
-    UpsertRaftSnapshot,
+    RaftAppliedCommandSummary, RaftLogEntrySummary, RaftMemberSummary, RaftMetadataSummary,
+    RaftRepository, RaftSnapshotSummary, RecordRaftAppliedCommand, UpsertRaftLogEntry,
+    UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot,
 };
 pub use script::{
     CreateScript, ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary,
@@ -62,8 +62,9 @@ mod tests {
         entities::auth_session,
         migration::Migrator,
         repository::{
-            AppendJobInstanceLog, CreateJob, CreateJobInstance, RaftRepository, UpsertRaftLogEntry,
-            UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot,
+            AppendJobInstanceLog, CreateJob, CreateJobInstance, RaftRepository,
+            RecordRaftAppliedCommand, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
+            UpsertRaftSnapshot,
         },
     };
 
@@ -243,6 +244,44 @@ mod tests {
             .unwrap_or_else(|error| panic!("fencing token should clear: {error}"))
             .unwrap_or_else(|| panic!("metadata should exist"));
         assert_eq!(cleared.leader_fencing_token, None);
+
+        let command = repository
+            .record_applied_command(RecordRaftAppliedCommand {
+                cluster_id: "default".to_owned(),
+                node_id: "scheduler-1".to_owned(),
+                log_index: 7,
+                term: 2,
+                command_id: "cmd-noop-1".to_owned(),
+                command_type: "noop".to_owned(),
+                payload: Some(r#"{"source":"test"}"#.to_owned()),
+                status: "applied".to_owned(),
+                message: "noop command applied idempotently".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("applied command should record: {error}"));
+        let duplicate = repository
+            .record_applied_command(RecordRaftAppliedCommand {
+                cluster_id: "default".to_owned(),
+                node_id: "scheduler-1".to_owned(),
+                log_index: 7,
+                term: 2,
+                command_id: "cmd-noop-1-duplicate".to_owned(),
+                command_type: "noop".to_owned(),
+                payload: None,
+                status: "applied".to_owned(),
+                message: "duplicate should return existing".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| {
+                panic!("duplicate applied command should be idempotent: {error}")
+            });
+        let commands = repository
+            .list_applied_commands("scheduler-1")
+            .await
+            .unwrap_or_else(|error| panic!("applied commands should list: {error}"));
+        assert_eq!(duplicate.id, command.id);
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].command_id, "cmd-noop-1");
     }
 
     #[tokio::test]

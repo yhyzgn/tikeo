@@ -325,3 +325,9 @@
 - Added leader fencing-token lifecycle: only a real raft-rs `Leader` with term > 0 derives `raft:term:<term>:node:<node_id>`, persists it first, then reports `can_schedule=true`; non-leaders clear the token. Scheduler/dispatcher gates remain driven by `can_schedule` and dispatcher uses the persisted token.
 - Next slice: define business state-machine command envelope/replay idempotency and design dynamic membership handling.
 - Full verification passed for this slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build`.
+
+### 2026-05-22 Phase2 raft-rs business command envelope foundation
+- Added `raft_applied_commands` no-FK table/entity/repository for idempotent state-machine apply records keyed by `(node_id, log_index)` with `(cluster_id, command_id)` reserved for replay idempotency.
+- `EntryNormal` payloads now parse as scheduler command envelopes (`command_id`, `command_type`, `payload`). `noop` is applied, unknown command types are recorded as `deferred_unsupported`, invalid JSON is recorded as `rejected`, and apply index still advances deliberately.
+- Next slice: choose and implement the first real Raft-owned business command, plus dynamic membership/config-change design.
+- Full verification passed for this slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build`.

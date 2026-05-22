@@ -950,3 +950,11 @@ Git:
 - Targeted verification run so far: `cargo fmt --all`; `cargo test -p scheduler-server raft --all-features`; `cargo test -p scheduler-storage raft --all-features`.
 - Next slice after commit: `.prompt/054-phase2-raft-rs-business-apply-membership.md`.
 - Full verification passed for this slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build`.
+
+### 2026-05-22 Phase2 raft-rs business command envelope foundation
+- Continued into `.prompt/054-phase2-raft-rs-business-apply-membership.md` after 053 commit.
+- Added `raft_applied_commands` no-FK table/entity/repository for idempotent state-machine apply records keyed by `(node_id, log_index)` with `(cluster_id, command_id)` reserved for replay idempotency.
+- `EntryNormal` payloads now parse as scheduler command envelopes (`command_id`, `command_type`, `payload`). `noop` is applied, unknown command types are recorded as `deferred_unsupported`, invalid JSON is recorded as `rejected`, and apply index still advances deliberately.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-storage raft --all-features`; `cargo test -p scheduler-server raft --all-features`.
+- Next slice prompt: `.prompt/055-phase2-raft-rs-real-business-commands-and-membership.md`.
+- Full verification passed for this slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build`.

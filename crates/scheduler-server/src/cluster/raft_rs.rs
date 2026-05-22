@@ -20,9 +20,10 @@ use raft::{
 };
 use scheduler_config::ClusterConfig;
 use scheduler_storage::{
-    RaftRepository, UpsertRaftLogEntry, UpsertRaftMetadata, UpsertRaftSnapshot,
+    RaftRepository, RecordRaftAppliedCommand, UpsertRaftLogEntry, UpsertRaftMetadata,
+    UpsertRaftSnapshot,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::sync::{Mutex, RwLock, mpsc};
 use tracing::{debug, warn};
@@ -85,6 +86,14 @@ struct RaftWireLogEntry {
     term: i64,
     data: String,
     context: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct SchedulerRaftCommand {
+    command_id: String,
+    command_type: String,
+    #[serde(default)]
+    payload: serde_json::Value,
 }
 
 impl RaftPeerTransport {
@@ -449,6 +458,7 @@ async fn apply_committed_entries(
     for entry in entries {
         match entry.get_entry_type() {
             EntryType::EntryNormal => {
+                record_normal_command(node_id, repository, entry).await?;
                 applied = Some(entry.get_index());
             }
             EntryType::EntryConfChange | EntryType::EntryConfChangeV2 => {
@@ -468,6 +478,61 @@ async fn apply_committed_entries(
             .await?;
     }
     Ok(applied)
+}
+
+async fn record_normal_command(
+    node_id: &str,
+    repository: &RaftRepository,
+    entry: &Entry,
+) -> Result<(), scheduler_storage::DbErr> {
+    let (command_id, command_type, payload, status, message) = if entry.get_data().is_empty() {
+        (
+            format!("raft-noop-{}", entry.get_index()),
+            "noop".to_owned(),
+            None,
+            "applied".to_owned(),
+            "empty raft entry treated as noop".to_owned(),
+        )
+    } else {
+        match serde_json::from_slice::<SchedulerRaftCommand>(entry.get_data()) {
+            Ok(command) if command.command_type == "noop" => (
+                command.command_id,
+                command.command_type,
+                Some(command.payload.to_string()),
+                "applied".to_owned(),
+                "noop command applied idempotently".to_owned(),
+            ),
+            Ok(command) => (
+                command.command_id,
+                command.command_type,
+                Some(command.payload.to_string()),
+                "deferred_unsupported".to_owned(),
+                "command envelope recorded but business apply is not implemented for this type"
+                    .to_owned(),
+            ),
+            Err(error) => (
+                format!("raft-invalid-{}", entry.get_index()),
+                "invalid_json".to_owned(),
+                Some(STANDARD.encode(entry.get_data())),
+                "rejected".to_owned(),
+                format!("invalid command envelope JSON: {error}"),
+            ),
+        }
+    };
+    repository
+        .record_applied_command(RecordRaftAppliedCommand {
+            cluster_id: CLUSTER_ID.to_owned(),
+            node_id: node_id.to_owned(),
+            log_index: i64::try_from(entry.get_index()).unwrap_or(i64::MAX),
+            term: i64::try_from(entry.get_term()).unwrap_or(i64::MAX),
+            command_id,
+            command_type,
+            payload,
+            status,
+            message,
+        })
+        .await
+        .map(|_| ())
 }
 
 async fn update_runtime_status(
@@ -728,6 +793,41 @@ mod tests {
         assert_eq!(applied, Some(3));
         assert_eq!(metadata.applied_index, 3);
         assert_eq!(metadata.leader_fencing_token, None);
+        let commands = repository
+            .list_applied_commands("scheduler-0")
+            .await
+            .unwrap_or_else(|error| panic!("applied commands should list: {error}"));
+        assert_eq!(commands.len(), 2);
+        assert_eq!(commands[0].command_type, "noop");
+        assert_eq!(commands[0].status, "applied");
+    }
+
+    #[tokio::test]
+    async fn raft_apply_committed_entries_records_noop_command_envelope() {
+        let repository = test_raft_repository().await;
+        let mut entry = raft::eraftpb::Entry::new();
+        entry.set_entry_type(EntryType::EntryNormal);
+        entry.index = 7;
+        entry.term = 3;
+        entry.data =
+            br#"{"command_id":"cmd-noop-1","command_type":"noop","payload":{"source":"test"}}"#
+                .to_vec()
+                .into();
+
+        let applied = apply_committed_entries("scheduler-0", &repository, &[entry])
+            .await
+            .unwrap_or_else(|error| panic!("noop command should apply: {error}"));
+        let commands = repository
+            .list_applied_commands("scheduler-0")
+            .await
+            .unwrap_or_else(|error| panic!("applied commands should list: {error}"));
+
+        assert_eq!(applied, Some(7));
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].command_id, "cmd-noop-1");
+        assert_eq!(commands[0].command_type, "noop");
+        assert_eq!(commands[0].status, "applied");
+        assert_eq!(commands[0].payload.as_deref(), Some(r#"{"source":"test"}"#));
     }
 
     #[tokio::test]

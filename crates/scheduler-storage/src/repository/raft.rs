@@ -4,7 +4,9 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::entities::{raft_log_entry, raft_member, raft_metadata, raft_snapshot};
+use crate::entities::{
+    raft_applied_command, raft_log_entry, raft_member, raft_metadata, raft_snapshot,
+};
 
 use super::util::{new_id, now_rfc3339};
 
@@ -74,6 +76,29 @@ pub struct UpsertRaftSnapshot {
     pub conf_state: Option<String>,
     /// Base64-encoded snapshot data or object-store pointer.
     pub data: Option<String>,
+}
+
+/// Applied Raft command insert input.
+#[derive(Debug, Clone)]
+pub struct RecordRaftAppliedCommand {
+    /// Logical cluster identifier.
+    pub cluster_id: String,
+    /// Stable local node id.
+    pub node_id: String,
+    /// Raft log index.
+    pub log_index: i64,
+    /// Raft term.
+    pub term: i64,
+    /// Idempotency key from the command envelope.
+    pub command_id: String,
+    /// Command type.
+    pub command_type: String,
+    /// Captured payload.
+    pub payload: Option<String>,
+    /// Apply status.
+    pub status: String,
+    /// Human-readable result.
+    pub message: String,
 }
 
 /// Stored Raft metadata summary.
@@ -160,6 +185,35 @@ pub struct RaftSnapshotSummary {
     pub conf_state: Option<String>,
     /// Base64-encoded snapshot data or object-store pointer.
     pub data: Option<String>,
+    /// Creation timestamp.
+    pub created_at: String,
+    /// Last update timestamp.
+    pub updated_at: String,
+}
+
+/// Stored applied Raft command summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RaftAppliedCommandSummary {
+    /// Row identifier.
+    pub id: String,
+    /// Logical cluster identifier.
+    pub cluster_id: String,
+    /// Stable local node id.
+    pub node_id: String,
+    /// Raft log index.
+    pub log_index: i64,
+    /// Raft term.
+    pub term: i64,
+    /// Command idempotency key.
+    pub command_id: String,
+    /// Command type.
+    pub command_type: String,
+    /// Captured payload.
+    pub payload: Option<String>,
+    /// Apply status.
+    pub status: String,
+    /// Human-readable result.
+    pub message: String,
     /// Creation timestamp.
     pub created_at: String,
     /// Last update timestamp.
@@ -421,6 +475,57 @@ impl RaftRepository {
         .await
         .map(RaftSnapshotSummary::from)
     }
+
+    /// Record an applied Raft command idempotently by `(node_id, log_index)`.
+    pub async fn record_applied_command(
+        &self,
+        input: RecordRaftAppliedCommand,
+    ) -> Result<RaftAppliedCommandSummary, sea_orm::DbErr> {
+        if let Some(existing) = raft_applied_command::Entity::find()
+            .filter(raft_applied_command::Column::NodeId.eq(input.node_id.clone()))
+            .filter(raft_applied_command::Column::LogIndex.eq(input.log_index))
+            .one(&self.db)
+            .await?
+        {
+            return Ok(existing.into());
+        }
+
+        let now = now_rfc3339();
+        raft_applied_command::ActiveModel {
+            id: Set(new_id("raft_cmd")),
+            cluster_id: Set(input.cluster_id),
+            node_id: Set(input.node_id),
+            log_index: Set(input.log_index),
+            term: Set(input.term),
+            command_id: Set(input.command_id),
+            command_type: Set(input.command_type),
+            payload: Set(input.payload),
+            status: Set(input.status),
+            message: Set(input.message),
+            created_at: Set(now.clone()),
+            updated_at: Set(now),
+        }
+        .insert(&self.db)
+        .await
+        .map(RaftAppliedCommandSummary::from)
+    }
+
+    /// List applied Raft commands for a node.
+    pub async fn list_applied_commands(
+        &self,
+        node_id: &str,
+    ) -> Result<Vec<RaftAppliedCommandSummary>, sea_orm::DbErr> {
+        raft_applied_command::Entity::find()
+            .filter(raft_applied_command::Column::NodeId.eq(node_id.to_owned()))
+            .order_by_asc(raft_applied_command::Column::LogIndex)
+            .all(&self.db)
+            .await
+            .map(|rows| {
+                rows.into_iter()
+                    .map(RaftAppliedCommandSummary::from)
+                    .collect()
+            })
+    }
 }
 
 impl From<raft_metadata::Model> for RaftMetadataSummary {
@@ -480,6 +585,25 @@ impl From<raft_snapshot::Model> for RaftSnapshotSummary {
             term: value.term,
             conf_state: value.conf_state,
             data: value.data,
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+        }
+    }
+}
+
+impl From<raft_applied_command::Model> for RaftAppliedCommandSummary {
+    fn from(value: raft_applied_command::Model) -> Self {
+        Self {
+            id: value.id,
+            cluster_id: value.cluster_id,
+            node_id: value.node_id,
+            log_index: value.log_index,
+            term: value.term,
+            command_id: value.command_id,
+            command_type: value.command_type,
+            payload: value.payload,
+            status: value.status,
+            message: value.message,
             created_at: value.created_at,
             updated_at: value.updated_at,
         }

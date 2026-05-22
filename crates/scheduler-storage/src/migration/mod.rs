@@ -48,6 +48,9 @@ impl MigrationTrait for CreateMetadataTables {
             .drop_table(Table::drop().table(AuditLogs::Table).to_owned())
             .await?;
         manager
+            .drop_table(Table::drop().table(RaftAppliedCommands::Table).to_owned())
+            .await?;
+        manager
             .drop_table(Table::drop().table(RaftSnapshots::Table).to_owned())
             .await?;
         manager
@@ -135,6 +138,26 @@ async fn create_job_instance_attempts(manager: &SchemaManager<'_>) -> Result<(),
                 .col(string_col(JobInstanceAttempts::Status))
                 .col(string_col(JobInstanceAttempts::CreatedAt))
                 .col(string_col(JobInstanceAttempts::UpdatedAt))
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_table(
+            Table::create()
+                .table(RaftAppliedCommands::Table)
+                .if_not_exists()
+                .col(string_pk(RaftAppliedCommands::Id))
+                .col(string_col(RaftAppliedCommands::ClusterId))
+                .col(string_col(RaftAppliedCommands::NodeId))
+                .col(big_integer_col(RaftAppliedCommands::LogIndex))
+                .col(big_integer_col(RaftAppliedCommands::Term))
+                .col(string_col(RaftAppliedCommands::CommandId))
+                .col(string_col(RaftAppliedCommands::CommandType))
+                .col(text_null(RaftAppliedCommands::Payload))
+                .col(string_col(RaftAppliedCommands::Status))
+                .col(text_col(RaftAppliedCommands::Message))
+                .col(string_col(RaftAppliedCommands::CreatedAt))
+                .col(string_col(RaftAppliedCommands::UpdatedAt))
                 .to_owned(),
         )
         .await
@@ -1097,6 +1120,28 @@ async fn create_raft_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             .unique()
             .to_owned(),
     )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_raft_applied_commands_node_index")
+            .table(RaftAppliedCommands::Table)
+            .col(RaftAppliedCommands::NodeId)
+            .col(RaftAppliedCommands::LogIndex)
+            .unique()
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_raft_applied_commands_command")
+            .table(RaftAppliedCommands::Table)
+            .col(RaftAppliedCommands::ClusterId)
+            .col(RaftAppliedCommands::CommandId)
+            .unique()
+            .to_owned(),
+    )
     .await
 }
 
@@ -1258,6 +1303,23 @@ enum RaftSnapshots {
     Term,
     ConfState,
     Data,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum RaftAppliedCommands {
+    Table,
+    Id,
+    ClusterId,
+    NodeId,
+    LogIndex,
+    Term,
+    CommandId,
+    CommandType,
+    Payload,
+    Status,
+    Message,
     CreatedAt,
     UpdatedAt,
 }
