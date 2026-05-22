@@ -446,3 +446,15 @@
 - Added tests for minimal WAT execution, network-capability rejection, missing entrypoint rejection, and fuel exhaustion on a busy loop.
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-wasm --all-features`; `cargo clippy -p scheduler-wasm --all-targets --all-features -- -D warnings`.
 - Full verification passed for 067: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build` (Vite chunk-size warning unchanged).
+
+### 2026-05-22 Phase3 WASM script binding and dispatch metadata
+- Started `.prompt/068-phase3-wasm-script-binding-and-dispatch.md`.
+- Extended worker proto in server/Rust SDK/Java SDK with `DispatchTask.processor_binding`, `TaskProcessorBinding`, and `WasmProcessorBinding` for dynamic WASM payload + policy metadata.
+- Dispatcher now receives `ScriptRepository`; when `processor_name` is `script:<id>`, it loads the script and attaches WASM binding only when `language=wasm`, `status=approved`, and `WasmProcessorSpec` validates default-deny network/filesystem policy.
+- Server still does not execute user code; it only passes approved module bytes and policy metadata to connected workers.
+- Added dispatcher tests for approved safe WASM binding shape and rejection of draft / network-enabled WASM scripts.
+- Rust Worker SDK proto fixture updated and SDK tests passed after regenerated proto.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server tunnel::dispatcher --all-features`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-features`.
+- Java SDK Gradle test was attempted but first Gradle distribution download was too slow and was stopped; rerun once Gradle is cached.
+- Full verification passed for 068: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-features`. Java SDK Gradle test was attempted but not completed because the first Gradle distribution download was too slow; rerun once cached.
+- Re-ran final 068 verification after proto boxing/clippy fixes: all listed Rust/backend/web/Rust-SDK checks passed again. Java SDK Gradle remains not completed due slow first distribution download.

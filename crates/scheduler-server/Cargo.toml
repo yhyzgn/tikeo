@@ -46,6 +46,7 @@ utoipa = { version = "5", features = ["axum_extras"] }
 
 [dev-dependencies]
 tower = { version = "0", features = ["util"] }
+sea-orm = "1"
 
 [lints]
 workspace = true

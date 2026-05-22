@@ -1059,3 +1059,12 @@ Git:
 - Updated design roadmap and created `.prompt/068-phase3-wasm-script-binding-and-dispatch.md`.
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-wasm --all-features`; `cargo clippy -p scheduler-wasm --all-targets --all-features -- -D warnings`.
 - Full verification passed for 067: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build` (Vite chunk-size warning unchanged).
+
+### 2026-05-22 Phase3 WASM script binding and dispatch metadata
+- Started `.prompt/068-phase3-wasm-script-binding-and-dispatch.md`.
+- Added worker proto dynamic WASM binding metadata across server/Rust SDK/Java SDK proto files.
+- Dispatcher attaches `WasmProcessorBinding` only for approved, policy-safe `script:<id>` WASM scripts and leaves regular SDK processor dispatch unchanged.
+- Updated design roadmap and created `.prompt/069-phase3-wasm-sdk-execution-adapters.md`.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server tunnel::dispatcher --all-features`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-features`; Java Gradle test attempted but stopped due slow first distribution download.
+- Full verification passed for 068: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-features`. Java SDK Gradle test was attempted but not completed because the first Gradle distribution download was too slow; rerun once cached.
+- Re-ran final 068 verification after proto boxing/clippy fixes: all listed Rust/backend/web/Rust-SDK checks passed again. Java SDK Gradle remains not completed due slow first distribution download.

@@ -401,6 +401,7 @@ mod tests {
             job_id: "job-1".to_owned(),
             payload: b"hello".to_vec(),
             processor_name: "demo.echo".to_owned(),
+            processor_binding: None,
         }))
         .await;
 
@@ -475,7 +476,8 @@ mod tests {
     #[tonic::async_trait]
     impl worker_tunnel_service_server::WorkerTunnelService for MockTunnel {
         type OpenTunnelStream = ResponseStream;
-        type SubscribeTaskLogsStream = Pin<Box<dyn Stream<Item = Result<crate::proto::worker::v1::TaskLog, Status>> + Send>>;
+        type SubscribeTaskLogsStream =
+            Pin<Box<dyn Stream<Item = Result<crate::proto::worker::v1::TaskLog, Status>> + Send>>;
 
         async fn open_tunnel(
             &self,
@@ -495,7 +497,10 @@ mod tests {
                                 .send(Ok(ServerMessage {
                                     kind: Some(server_message::Kind::Registered(
                                         WorkerRegistered {
-                                            worker_id: format!("mock-{}", register.client_instance_id),
+                                            worker_id: format!(
+                                                "mock-{}",
+                                                register.client_instance_id
+                                            ),
                                             lease_seconds: 30,
                                         },
                                     )),

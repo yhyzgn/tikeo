@@ -47,7 +47,7 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
             logs.clone(),
             attempts.clone(),
             users,
-            scripts,
+            scripts.clone(),
             workflows.clone(),
             audit,
             registry.clone(),
@@ -89,6 +89,7 @@ pub async fn serve(config: SchedulerConfig) -> Result<()> {
                 dispatcher_instances,
                 dispatcher_attempts,
                 dispatcher_workflows,
+                scripts.clone(),
                 registry,
                 dispatch_cluster,
             )

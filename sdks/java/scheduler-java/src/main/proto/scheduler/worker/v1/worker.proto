@@ -55,6 +55,27 @@ message DispatchTask {
   bytes payload = 3;
   // Explicit processor key used by SDK adapters. Defaults to job_id for backwards compatibility.
   string processor_name = 4;
+  // Optional dynamic processor metadata. Empty for normal SDK processors.
+  TaskProcessorBinding processor_binding = 5;
+}
+
+message TaskProcessorBinding {
+  oneof kind {
+    WasmProcessorBinding wasm = 1;
+  }
+}
+
+message WasmProcessorBinding {
+  string script_id = 1;
+  string version = 2;
+  bytes module = 3;
+  string runtime = 4;
+  string entrypoint = 5;
+  uint64 timeout_ms = 6;
+  uint64 max_memory_bytes = 7;
+  uint64 fuel = 8;
+  bool allow_network = 9;
+  repeated string allowed_env_vars = 10;
 }
 
 message TaskResult {
