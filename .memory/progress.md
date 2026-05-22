@@ -606,3 +606,8 @@
 - Added deterministic `/api/v1/metrics/summary` for operator dashboards without requiring external Prometheus/Grafana services in tests.
 - Summary includes online worker count, job instance status counts, alert event status counts, and script governance failure counts by failure class.
 - Added targeted regression coverage for storage/registry/alert count aggregation and standard HTTP envelope behavior.
+### 2026-05-23 — Phase 084 OpenTelemetry tracing foundation
+- Continued `.prompt/084-opentelemetry-tracing-foundation.md`.
+- Added HTTP trace-id middleware that accepts `x-request-id`, `x-trace-id`, or W3C `traceparent`, generates `trc-*` when missing, and writes `x-trace-id` on API responses.
+- Added local tracing span fields for method/path/trace_id without requiring an OTLP collector in tests; audit helpers now resolve the same generated/propagated trace id from request headers.
+- Added targeted regression coverage for explicit and generated trace-id response behavior plus traceparent parsing.

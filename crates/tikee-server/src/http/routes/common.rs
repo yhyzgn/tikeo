@@ -4,16 +4,10 @@ use axum::http::HeaderMap;
 use tikee_core::{ExecutionMode, ScheduleType, TriggerType};
 use tracing::warn;
 
-use crate::http::{AppState, error::ApiError};
+use crate::http::{AppState, error::ApiError, trace};
 
-pub(crate) fn trace_id(headers: &HeaderMap) -> Option<String> {
-    headers
-        .get("x-request-id")
-        .or_else(|| headers.get("x-trace-id"))
-        .and_then(|v| v.to_str().ok())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
+pub(crate) fn trace_id(headers: &HeaderMap) -> String {
+    trace::resolve_trace_id(headers)
 }
 
 pub(crate) fn client_ip(headers: &HeaderMap) -> Option<String> {
@@ -44,7 +38,7 @@ pub(super) async fn audit(
             detail,
             before: None,
             after: None,
-            trace_id: trace_id(headers),
+            trace_id: Some(trace_id(headers)),
             result: "success".to_owned(),
             failure_reason: None,
             ip_address: client_ip(headers),

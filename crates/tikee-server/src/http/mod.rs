@@ -7,6 +7,7 @@ pub mod openapi;
 pub mod routes;
 pub mod services;
 pub mod session;
+pub mod trace;
 
 use std::{net::SocketAddr, sync::Arc, time::SystemTime};
 
@@ -122,7 +123,9 @@ pub fn router_with_state(state: AppState) -> Router {
         .route("/metrics", get(move || std::future::ready(handle.render())))
         .nest(
             "/api/v1",
-            api_router().layer(middleware::from_fn(record_http_metrics)),
+            api_router()
+                .layer(middleware::from_fn(record_http_metrics))
+                .layer(middleware::from_fn(trace::trace_http)),
         )
         .route("/api-docs/openapi.json", get(openapi_json))
         .with_state(Arc::new(state))
@@ -409,6 +412,38 @@ mod tests {
         assert_eq!(json["code"], 0);
         assert_eq!(json["message"], "success");
         assert_eq!(json["data"]["name"], "tikee");
+    }
+
+    #[tokio::test]
+    async fn http_tracing_echoes_or_generates_trace_id_headers() {
+        let app = router().await;
+        let echoed = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/system/info")
+                    .header("x-request-id", "trace-explicit-1")
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(
+            echoed
+                .headers()
+                .get("x-trace-id")
+                .and_then(|value| value.to_str().ok()),
+            Some("trace-explicit-1")
+        );
+
+        let generated = request_with(app, "/api/v1/system/info").await;
+        let trace_id = generated
+            .headers()
+            .get("x-trace-id")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_else(|| panic!("trace id should be generated"));
+        assert!(trace_id.starts_with("trc-"));
+        assert!(trace_id.len() > 8);
     }
 
     #[tokio::test]

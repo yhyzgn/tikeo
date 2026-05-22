@@ -2228,6 +2228,7 @@ tikee/
   - [x] Metrics Summary API 基础（083：`GET /api/v1/metrics/summary` 汇总 worker online、实例状态、告警事件与脚本治理失败计数；Grafana 模板后续）
   - [ ] Grafana Dashboard、调度延迟与完整业务 SLO 指标
 - [ ] OpenTelemetry 分布式追踪
+  - [x] HTTP Trace ID 传播基础（084：`x-request-id` / `x-trace-id` / W3C `traceparent` 解析，缺失时生成 `trc-*`，响应回写 `x-trace-id`，本地 tracing span 不依赖外部 collector）
 - [ ] Java Spring Boot Starter SDK（优先）
   - [x] Gradle 多模块骨架：java-core / spring-boot-autoconfigure / spring-boot-starter（JDK 21+；已替换 Maven 骨架）
   - [x] `@TikeeProcessor` 注解扫描与 auto-configuration 骨架
