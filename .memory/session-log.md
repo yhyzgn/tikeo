@@ -1044,3 +1044,11 @@ Git:
 - Updated design roadmap and created `.prompt/066-phase3-wasm-sandbox-processor-spike.md`.
 - Targeted verification so far: `cd web && bun run typecheck`; `cd web && bun test`.
 - Full verification passed for 065: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build` (Vite chunk-size warning remains for Scripts/main chunks).
+
+### 2026-05-22 Phase3 WASM sandbox processor boundary
+- Started `.prompt/066-phase3-wasm-sandbox-processor-spike.md`.
+- Verified current `wasmtime = 45.0.0` with `cargo search --registry crates-io`; used upstream Wasmtime docs as policy evidence for fuel/epoch/resource limiting.
+- Implemented stable `scheduler-core` WASM processor spec and default-deny validation for network/filesystem capabilities.
+- Updated design roadmap and created `.prompt/067-phase3-wasm-worker-runtime-executor.md`.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-core --all-features`.
+- Full verification passed for 066: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build` (Vite chunk-size warning unchanged).

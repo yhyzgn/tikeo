@@ -589,7 +589,7 @@ Starter 需要提供：
 |------|-------------|----------|----------|
 | 默认支持 | Shell、Python、Node.js/TypeScript、PowerShell | 运维脚本、数据处理、API 编排 | 子进程沙箱，默认无网络/只读文件系统/资源限额 |
 | 安全表达式 | Rhai / CEL / JSONLogic | 工作流条件、参数转换、轻量计算 | 嵌入式解释器，禁用反射、IO、网络、进程启动 |
-| 高安全插件 | WASM/WASI | 可复用处理器、跨语言插件、强隔离任务 | Wasmtime fuel/epoch、capability-based WASI、签名校验 |
+| 高安全插件 | WASM/WASI | 可复用处理器、跨语言插件、强隔离任务 | Wasmtime 45.x（当前 crates.io 45.0.0）作为 worker 侧运行时；fuel/epoch interruption + ResourceLimiter/memory cap + capability-based WASI + 签名校验；默认无网络、无预打开目录、仅允许显式 env |
 | 企业扩展 | 容器化脚本运行器 | 需要系统依赖或复杂运行时的脚本 | 独立 Pod/容器，seccomp/AppArmor、NetworkPolicy、只读 rootfs |
 
 **执行安全边界**：
@@ -2187,7 +2187,7 @@ scheduler/
   - [x] 审计导出治理基础（`GET /api/v1/audit-logs:export?format=json`，复用过滤条件、`audit:read` 权限、500 行上限、JSON envelope、Web 导出入口；CSV/脱敏策略后续增强）
 - [x] Web UI 危险操作二次确认、权限感知操作（统一 `GuardedButton` / `PermissionGate`；用户/脚本删除与状态变更、任务触发、工作流运行/人工推进等按 RBAC 隐藏或二次确认）
   - [x] Web UI 审计日志查询页面（按操作类型筛选）
-- [ ] WASM 沙箱处理器
+- [x] WASM 沙箱处理器边界（066：`WasmProcessorSpec`/`WasmResourcePolicy`/`WasmCapabilities` 稳定 worker 合约；选型 Wasmtime 45.x；默认拒绝网络与文件系统预打开；真实 worker 运行时执行器后续接入）
 - [ ] 多语言动态脚本处理器（Python/Node/Shell/PowerShell/Rhai）
   - [x] 脚本定义 Storage / Migration / Repository / HTTP CRUD API / OpenAPI
   - [x] Web 脚本管理页面（列表、创建、审批、启用/禁用、删除）

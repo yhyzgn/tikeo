@@ -429,3 +429,12 @@
 - Added API client tests for 401/403 auth-error behavior.
 - Targeted verification so far: `cd web && bun run typecheck`; `cd web && bun test`.
 - Full verification passed for 065: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build` (Vite chunk-size warning remains for Scripts/main chunks).
+
+### 2026-05-22 Phase3 WASM sandbox processor boundary
+- Started `.prompt/066-phase3-wasm-sandbox-processor-spike.md` after Web route/auth governance.
+- Checked current crates.io via cargo: `wasmtime = "45.0.0"`; upstream Wasmtime docs expose fuel/epoch interruption and Store resource limiter APIs suitable for worker-side limits.
+- Added `scheduler-core` WASM contract types: `WasmRuntimeKind`, `WasmCapabilities`, `WasmResourcePolicy`, `WasmProcessorSpec`, and `WasmSpecError`.
+- Default WASM processor spec selects Wasmtime, `_start`, 30s timeout, 64MiB memory, fuel budget, no network, no preopened host directories, and validates denial of ambient host access.
+- Added core tests for stable wire serialization and policy validation.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-core --all-features`.
+- Full verification passed for 066: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build` (Vite chunk-size warning unchanged).

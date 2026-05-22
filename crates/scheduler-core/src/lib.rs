@@ -333,6 +333,163 @@ impl FromStr for ScriptStatus {
     }
 }
 
+/// WASM runtime chosen for high-isolation processor execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WasmRuntimeKind {
+    /// Wasmtime runtime.
+    Wasmtime,
+}
+
+impl WasmRuntimeKind {
+    /// Returns the stable wire representation.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Wasmtime => "wasmtime",
+        }
+    }
+}
+
+impl fmt::Display for WasmRuntimeKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for WasmRuntimeKind {
+    type Err = ParseEnumError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "wasmtime" => Ok(Self::Wasmtime),
+            _ => Err(ParseEnumError::new("wasm_runtime", value)),
+        }
+    }
+}
+
+/// Capability toggles for WASM/WASI processor execution.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WasmCapabilities {
+    /// Whether outbound network access is requested. Phase 3 default is false and should remain denied unless a later URL policy grants it.
+    pub network: bool,
+    /// Preopened host directories. Empty by default to avoid ambient filesystem access.
+    pub preopened_dirs: Vec<String>,
+    /// Allowed environment variable names. Empty by default.
+    pub env_vars: Vec<String>,
+}
+
+/// Resource policy for a WASM processor execution.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WasmResourcePolicy {
+    /// Maximum wall-clock runtime in milliseconds.
+    pub timeout_ms: u64,
+    /// Maximum linear memory in bytes.
+    pub max_memory_bytes: u64,
+    /// Fuel/instruction budget for deterministic interruption.
+    pub fuel: u64,
+}
+
+impl Default for WasmResourcePolicy {
+    fn default() -> Self {
+        Self {
+            timeout_ms: 30_000,
+            max_memory_bytes: 64 * 1024 * 1024,
+            fuel: 100_000_000,
+        }
+    }
+}
+
+/// Stable worker-side execution contract for a WASM processor.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WasmProcessorSpec {
+    /// Runtime implementation selected for the worker.
+    pub runtime: WasmRuntimeKind,
+    /// Exported function to call.
+    pub entrypoint: String,
+    /// Resource limits enforced by the worker runtime.
+    pub resources: WasmResourcePolicy,
+    /// Explicit capability grants. Defaults deny ambient host access.
+    pub capabilities: WasmCapabilities,
+}
+
+impl Default for WasmProcessorSpec {
+    fn default() -> Self {
+        Self {
+            runtime: WasmRuntimeKind::Wasmtime,
+            entrypoint: "_start".to_owned(),
+            resources: WasmResourcePolicy::default(),
+            capabilities: WasmCapabilities::default(),
+        }
+    }
+}
+
+impl WasmProcessorSpec {
+    /// Validate the processor spec before persisting or handing it to a worker.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WasmSpecError`] when required limits are zero, the entrypoint is empty,
+    /// or the requested capabilities would grant ambient network/filesystem access that
+    /// this phase deliberately denies.
+    pub fn validate(&self) -> Result<(), WasmSpecError> {
+        if self.entrypoint.trim().is_empty() {
+            return Err(WasmSpecError::EmptyEntrypoint);
+        }
+        if self.resources.timeout_ms == 0 {
+            return Err(WasmSpecError::ZeroTimeout);
+        }
+        if self.resources.max_memory_bytes == 0 {
+            return Err(WasmSpecError::ZeroMemory);
+        }
+        if self.resources.fuel == 0 {
+            return Err(WasmSpecError::ZeroFuel);
+        }
+        if self.capabilities.network {
+            return Err(WasmSpecError::NetworkNotSupported);
+        }
+        if !self.capabilities.preopened_dirs.is_empty() {
+            return Err(WasmSpecError::FilesystemNotSupported);
+        }
+        Ok(())
+    }
+}
+
+/// WASM processor spec validation error.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WasmSpecError {
+    /// Entrypoint is empty.
+    EmptyEntrypoint,
+    /// Timeout is zero.
+    ZeroTimeout,
+    /// Memory limit is zero.
+    ZeroMemory,
+    /// Fuel budget is zero.
+    ZeroFuel,
+    /// Network access is not yet granted in Phase 3.
+    NetworkNotSupported,
+    /// Filesystem preopens are not yet granted in Phase 3.
+    FilesystemNotSupported,
+}
+
+impl fmt::Display for WasmSpecError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyEntrypoint => formatter.write_str("wasm entrypoint must not be empty"),
+            Self::ZeroTimeout => formatter.write_str("wasm timeout must be greater than zero"),
+            Self::ZeroMemory => formatter.write_str("wasm memory limit must be greater than zero"),
+            Self::ZeroFuel => formatter.write_str("wasm fuel budget must be greater than zero"),
+            Self::NetworkNotSupported => {
+                formatter.write_str("wasm network capability requires a future URL policy grant")
+            }
+            Self::FilesystemNotSupported => formatter
+                .write_str("wasm filesystem preopens require a future filesystem policy grant"),
+        }
+    }
+}
+
+impl std::error::Error for WasmSpecError {}
+
 /// Error returned when parsing a wire enum fails.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseEnumError {
@@ -364,7 +521,7 @@ mod tests {
 
     use super::{
         ExecutionMode, HealthState, InstanceStatus, ScheduleType, ScriptLanguage, ScriptStatus,
-        TriggerType,
+        TriggerType, WasmCapabilities, WasmProcessorSpec, WasmRuntimeKind, WasmSpecError,
     };
 
     #[test]
@@ -395,6 +552,54 @@ mod tests {
         );
         assert_eq!(ScriptStatus::from_str("active"), Ok(ScriptStatus::Approved));
         assert_eq!(ScriptStatus::Disabled.as_str(), "disabled");
+    }
+
+    #[test]
+    fn wasm_runtime_and_processor_spec_are_stable() {
+        assert_eq!(
+            WasmRuntimeKind::from_str("wasmtime"),
+            Ok(WasmRuntimeKind::Wasmtime)
+        );
+        let spec = WasmProcessorSpec::default();
+        assert_eq!(spec.runtime.as_str(), "wasmtime");
+        assert_eq!(spec.entrypoint, "_start");
+        assert!(!spec.capabilities.network);
+        assert!(spec.capabilities.preopened_dirs.is_empty());
+        assert!(spec.validate().is_ok());
+    }
+
+    #[test]
+    fn wasm_processor_spec_denies_ambient_host_access() {
+        let mut with_network = WasmProcessorSpec::default();
+        with_network.capabilities.network = true;
+        assert_eq!(
+            with_network.validate(),
+            Err(WasmSpecError::NetworkNotSupported)
+        );
+
+        let with_filesystem = WasmProcessorSpec {
+            capabilities: WasmCapabilities {
+                preopened_dirs: vec!["/tmp".to_owned()],
+                ..WasmCapabilities::default()
+            },
+            ..WasmProcessorSpec::default()
+        };
+        assert_eq!(
+            with_filesystem.validate(),
+            Err(WasmSpecError::FilesystemNotSupported)
+        );
+    }
+
+    #[test]
+    fn wasm_processor_spec_serializes_as_worker_contract() {
+        let value = match serde_json::to_value(WasmProcessorSpec::default()) {
+            Ok(value) => value,
+            Err(error) => panic!("serialize wasm spec: {error}"),
+        };
+        assert_eq!(value["runtime"], "wasmtime");
+        assert_eq!(value["entrypoint"], "_start");
+        assert_eq!(value["capabilities"]["network"], false);
+        assert_eq!(value["resources"]["timeout_ms"], 30_000);
     }
 
     #[test]
