@@ -299,6 +299,11 @@ async fn create_audit_logs(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(string_col(AuditLogs::ResourceType))
                 .col(string_col(AuditLogs::ResourceId))
                 .col(string_null(AuditLogs::Detail))
+                .col(string_null(AuditLogs::Before))
+                .col(string_null(AuditLogs::After))
+                .col(string_null(AuditLogs::TraceId))
+                .col(string_col(AuditLogs::Result))
+                .col(string_null(AuditLogs::FailureReason))
                 .col(string_null(AuditLogs::IpAddress))
                 .col(string_col(AuditLogs::CreatedAt))
                 .to_owned(),
@@ -1456,6 +1461,11 @@ enum AuditLogs {
     ResourceType,
     ResourceId,
     Detail,
+    Before,
+    After,
+    TraceId,
+    Result,
+    FailureReason,
     IpAddress,
     CreatedAt,
 }

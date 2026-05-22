@@ -1392,12 +1392,17 @@ CREATE TABLE alert_rules (
 
 -- 审计日志
 CREATE TABLE audit_logs (
-    id              BIGINT PRIMARY KEY,
-    user_id         BIGINT,
+    id              VARCHAR(64) PRIMARY KEY,
+    actor           VARCHAR(128) NOT NULL,
     action          VARCHAR(64) NOT NULL,
     resource_type   VARCHAR(32) NOT NULL,
-    resource_id     BIGINT NOT NULL,
+    resource_id     VARCHAR(128) NOT NULL,
     detail          JSONB,
+    before          JSONB,
+    after           JSONB,
+    trace_id        VARCHAR(128),
+    result          VARCHAR(32) NOT NULL DEFAULT 'success',
+    failure_reason  TEXT,
     ip_address      VARCHAR(64),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -2178,7 +2183,8 @@ scheduler/
   - [ ] 路由 meta、懒加载、统一 403/401 与 URL 查询参数治理
 - [x] 审计日志骨架（`audit_logs` 表、Repository、HTTP API、关键写操作埋点）
   - [x] 审计分页与服务端过滤（actor/action/resource_type/resource_id + page_size/page_token + total）
-  - [ ] 审计 before/after、trace_id、失败结果与导出治理
+  - [x] 审计 before/after、trace_id、失败结果基础（`audit_logs` 扩展 before/after/trace_id/result/failure_reason；API/Web 展示；无外键）
+  - [ ] 审计导出治理（CSV/JSON export、脱敏、权限与限流）
 - [ ] Web UI 危险操作二次确认、权限感知操作
   - [x] Web UI 审计日志查询页面（按操作类型筛选）
 - [ ] WASM 沙箱处理器

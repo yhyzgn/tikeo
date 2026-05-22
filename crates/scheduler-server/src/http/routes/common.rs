@@ -6,6 +6,16 @@ use tracing::warn;
 
 use crate::http::{AppState, error::ApiError};
 
+pub(crate) fn trace_id(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-request-id")
+        .or_else(|| headers.get("x-trace-id"))
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+}
+
 pub(crate) fn client_ip(headers: &HeaderMap) -> Option<String> {
     headers
         .get("x-forwarded-for")
@@ -32,6 +42,11 @@ pub(super) async fn audit(
             resource_type: resource_type.to_owned(),
             resource_id: resource_id.to_owned(),
             detail,
+            before: None,
+            after: None,
+            trace_id: trace_id(headers),
+            result: "success".to_owned(),
+            failure_reason: None,
             ip_address: client_ip(headers),
         })
         .await

@@ -768,6 +768,11 @@ mod tests {
                 resource_type: "job".to_owned(),
                 resource_id: "job-1".to_owned(),
                 detail: None,
+                before: None,
+                after: None,
+                trace_id: None,
+                result: "success".to_owned(),
+                failure_reason: None,
                 ip_address: None,
             })
             .await
@@ -778,7 +783,12 @@ mod tests {
                 action: "delete".to_owned(),
                 resource_type: "script".to_owned(),
                 resource_id: "script-1".to_owned(),
-                detail: None,
+                detail: Some("delete script".to_owned()),
+                before: Some(r#"{"status":"enabled"}"#.to_owned()),
+                after: Some(r#"{"status":"deleted"}"#.to_owned()),
+                trace_id: Some("trace-audit-1".to_owned()),
+                result: "failed".to_owned(),
+                failure_reason: Some("dry-run failure sample".to_owned()),
                 ip_address: Some("10.0.0.1".to_owned()),
             })
             .await
@@ -819,6 +829,14 @@ mod tests {
         assert_eq!(json["data"]["items"].as_array().map(Vec::len), Some(1));
         assert_eq!(json["data"]["items"][0]["actor"], "bob");
         assert_eq!(json["data"]["items"][0]["resource_type"], "script");
+        assert_eq!(json["data"]["items"][0]["trace_id"], "trace-audit-1");
+        assert_eq!(json["data"]["items"][0]["result"], "failed");
+        assert_eq!(
+            json["data"]["items"][0]["failure_reason"],
+            "dry-run failure sample"
+        );
+        assert!(json["data"]["items"][0]["before"].is_string());
+        assert!(json["data"]["items"][0]["after"].is_string());
     }
 
     #[tokio::test]

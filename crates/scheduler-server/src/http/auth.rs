@@ -9,7 +9,7 @@ use super::{
     AppState,
     dto::{ApiResponse, AuthSession, LoginRequest, MeResponse},
     error::ApiError,
-    routes::client_ip,
+    routes::{client_ip, trace_id},
     session::SessionCreate,
 };
 
@@ -157,6 +157,11 @@ pub async fn login(
             resource_type: "session".to_owned(),
             resource_id: redact_token_for_audit(&session.token),
             detail: None,
+            before: None,
+            after: None,
+            trace_id: trace_id(&headers),
+            result: "success".to_owned(),
+            failure_reason: None,
             ip_address: client_ip(&headers),
         })
         .await
@@ -226,6 +231,11 @@ pub async fn logout(
                 resource_type: "session".to_owned(),
                 resource_id: redact_token_for_audit(token),
                 detail: None,
+                before: None,
+                after: None,
+                trace_id: trace_id(&headers),
+                result: "success".to_owned(),
+                failure_reason: None,
                 ip_address: client_ip(&headers),
             })
             .await

@@ -31,4 +31,4 @@ pub use workflows::{
     stream_instance_events, update_workflow, validate_workflow,
 };
 
-pub(crate) use common::client_ip;
+pub(crate) use common::{client_ip, trace_id};

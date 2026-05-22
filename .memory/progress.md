@@ -389,3 +389,13 @@
 - Updated `config/raft.toml` peer endpoints to the actual HTTP management API port `9090`; worker tunnel remains `9998`.
 - Ran `./scripts/raft-bridge-e2e.sh` successfully; output ended with `PASS: bridge-network raft HTTP smoke succeeded without host networking`.
 - Full verification passed for 061: `./scripts/raft-bridge-e2e.sh`; `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase3 audit before/after trace result foundation
+- Continued `.prompt/062-phase3-audit-before-after-trace-export.md` after Phase2 bridge E2E closeout.
+- Extended `audit_logs` storage/entity/repository/API summary with `before`, `after`, `trace_id`, `result`, and `failure_reason`; SQLite compatibility adds missing columns without foreign keys.
+- Existing audit helper now captures `x-request-id` / `x-trace-id` as trace id and defaults write-operation audit result to `success`; login/logout audit records also include trace/result fields.
+- Audit list API exposes the new fields and the Web audit page shows result, trace id, and before/after availability.
+- Added API test assertions for trace/result/failure/before/after fields in audit list output.
+- Export governance is split to `.prompt/063-phase3-audit-export-governance.md` to keep row limits/redaction/content-type decisions explicit.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server audit_logs_support_server_side_filters_and_pagination --all-features`; `cargo test -p scheduler-storage migration_creates_metadata_tables --all-features`.
+- Full verification passed for 062: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).

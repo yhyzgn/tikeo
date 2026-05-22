@@ -1,5 +1,5 @@
 import { FilterOutlined, ReloadOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
-import { Button, Card, Form, Input, Select, Space, Table, Tag, Typography } from 'antd';
+import { Button, Card, Form, Input, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { AuditLogQuery, AuditLogSummary } from '../api/client';
@@ -57,7 +57,25 @@ export function AuditLogsPage() {
       render: (v: string) => <Tag color={ACTION_COLORS[v] ?? 'default'}>{v}</Tag>,
     },
     { title: 'Resource', key: 'resource', width: 240, render: (_: unknown, r: AuditLogSummary) => <span>{r.resource_type}/{r.resource_id}</span> },
+    {
+      title: 'Result',
+      dataIndex: 'result',
+      key: 'result',
+      width: 100,
+      render: (v: string, r: AuditLogSummary) => (
+        <Tooltip title={r.failure_reason ?? undefined}>
+          <Tag color={v === 'failed' ? 'red' : 'green'}>{v}</Tag>
+        </Tooltip>
+      ),
+    },
+    { title: 'Trace', dataIndex: 'trace_id', key: 'trace', width: 160, ellipsis: true, render: (v: string | null) => v ?? '-' },
     { title: 'Detail', dataIndex: 'detail', key: 'detail', ellipsis: true },
+    {
+      title: 'Snapshot',
+      key: 'snapshot',
+      width: 120,
+      render: (_: unknown, r: AuditLogSummary) => (r.before || r.after ? <Tag color="geekblue">before/after</Tag> : '-'),
+    },
     { title: 'IP', dataIndex: 'ip_address', key: 'ip', width: 150, render: (v: string | null) => v ?? '-' },
   ];
 

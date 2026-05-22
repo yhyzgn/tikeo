@@ -322,6 +322,11 @@ export interface AuditLogSummary {
   resource_type: string;
   resource_id: string;
   detail: string | null;
+  before: string | null;
+  after: string | null;
+  trace_id: string | null;
+  result: 'success' | 'failed' | string;
+  failure_reason: string | null;
   ip_address: string | null;
   created_at: string;
 }

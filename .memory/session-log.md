@@ -1014,3 +1014,10 @@ Git:
 - Created `.prompt/062-phase3-audit-before-after-trace-export.md` as the next roadmap slice.
 - E2E verification passed: `./scripts/raft-bridge-e2e.sh`.
 - Full verification passed for 061: `./scripts/raft-bridge-e2e.sh`; `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase3 audit before/after trace result foundation
+- Resumed into `.prompt/062-phase3-audit-before-after-trace-export.md`.
+- Updated audit storage/model/API/Web for before/after/trace_id/result/failure_reason.
+- Updated design SQL sketch and roadmap: before/after trace/failure foundation complete; export governance remains `.prompt/063-phase3-audit-export-governance.md`.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server audit_logs_support_server_side_filters_and_pagination --all-features`; `cargo test -p scheduler-storage migration_creates_metadata_tables --all-features`.
+- Full verification passed for 062: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).

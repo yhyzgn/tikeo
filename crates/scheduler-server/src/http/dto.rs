@@ -716,6 +716,16 @@ pub struct AuditLogSummary {
     pub resource_id: String,
     /// Optional detail.
     pub detail: Option<String>,
+    /// Optional JSON snapshot before the action.
+    pub before: Option<String>,
+    /// Optional JSON snapshot after the action.
+    pub after: Option<String>,
+    /// Request trace id.
+    pub trace_id: Option<String>,
+    /// Result status (`success` or `failed`).
+    pub result: String,
+    /// Optional failure reason.
+    pub failure_reason: Option<String>,
     /// Client IP address.
     pub ip_address: Option<String>,
     /// Creation timestamp.
@@ -731,6 +741,11 @@ impl From<scheduler_storage::AuditLogSummary> for AuditLogSummary {
             resource_type: value.resource_type,
             resource_id: value.resource_id,
             detail: value.detail,
+            before: value.before,
+            after: value.after,
+            trace_id: value.trace_id,
+            result: value.result,
+            failure_reason: value.failure_reason,
             ip_address: value.ip_address,
             created_at: value.created_at,
         }

@@ -334,11 +334,27 @@ async fn ensure_audit_logs_schema_compatibility(
             resource_type varchar NOT NULL,
             resource_id varchar NOT NULL,
             detail varchar,
+            before varchar,
+            after varchar,
+            trace_id varchar,
+            result varchar NOT NULL DEFAULT 'success',
+            failure_reason varchar,
             ip_address varchar,
             created_at varchar NOT NULL
         )",
     ))
     .await?;
+    for statement in [
+        "ALTER TABLE audit_logs ADD COLUMN before varchar",
+        "ALTER TABLE audit_logs ADD COLUMN after varchar",
+        "ALTER TABLE audit_logs ADD COLUMN trace_id varchar",
+        "ALTER TABLE audit_logs ADD COLUMN result varchar NOT NULL DEFAULT 'success'",
+        "ALTER TABLE audit_logs ADD COLUMN failure_reason varchar",
+    ] {
+        let _ = db
+            .execute(Statement::from_string(DatabaseBackend::Sqlite, statement))
+            .await;
+    }
     db.execute(Statement::from_string(
         DatabaseBackend::Sqlite,
         "CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at)",

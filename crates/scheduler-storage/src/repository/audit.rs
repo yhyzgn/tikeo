@@ -20,6 +20,16 @@ pub struct CreateAuditLog {
     pub resource_id: String,
     /// Optional detail about the action.
     pub detail: Option<String>,
+    /// Optional JSON snapshot before the action.
+    pub before: Option<String>,
+    /// Optional JSON snapshot after the action.
+    pub after: Option<String>,
+    /// Request trace id.
+    pub trace_id: Option<String>,
+    /// Result status (`success` or `failed`).
+    pub result: String,
+    /// Optional failure reason.
+    pub failure_reason: Option<String>,
     /// Client IP address at the time of the action.
     pub ip_address: Option<String>,
 }
@@ -39,6 +49,16 @@ pub struct AuditLogSummary {
     pub resource_id: String,
     /// Optional detail about the action.
     pub detail: Option<String>,
+    /// Optional JSON snapshot before the action.
+    pub before: Option<String>,
+    /// Optional JSON snapshot after the action.
+    pub after: Option<String>,
+    /// Request trace id.
+    pub trace_id: Option<String>,
+    /// Result status (`success` or `failed`).
+    pub result: String,
+    /// Optional failure reason.
+    pub failure_reason: Option<String>,
     /// Client IP address.
     pub ip_address: Option<String>,
     /// Creation timestamp in RFC3339 format.
@@ -99,6 +119,15 @@ impl AuditLogRepository {
             resource_type: Set(input.resource_type),
             resource_id: Set(input.resource_id),
             detail: Set(input.detail),
+            before: Set(input.before),
+            after: Set(input.after),
+            trace_id: Set(input.trace_id),
+            result: Set(if input.result.trim().is_empty() {
+                "success".to_owned()
+            } else {
+                input.result
+            }),
+            failure_reason: Set(input.failure_reason),
             ip_address: Set(input.ip_address),
             created_at: Set(now_rfc3339()),
         }
@@ -185,6 +214,11 @@ impl From<audit_log::Model> for AuditLogSummary {
             resource_type: value.resource_type,
             resource_id: value.resource_id,
             detail: value.detail,
+            before: value.before,
+            after: value.after,
+            trace_id: value.trace_id,
+            result: value.result,
+            failure_reason: value.failure_reason,
             ip_address: value.ip_address,
             created_at: value.created_at,
         }

@@ -19,6 +19,16 @@ pub struct Model {
     pub resource_id: String,
     /// Optional JSON detail about the action.
     pub detail: Option<String>,
+    /// Optional JSON snapshot before the action.
+    pub before: Option<String>,
+    /// Optional JSON snapshot after the action.
+    pub after: Option<String>,
+    /// Request trace id for correlating logs across layers.
+    pub trace_id: Option<String>,
+    /// Audit result status, e.g. `success` or `failed`.
+    pub result: String,
+    /// Optional failure reason when `result=failed`.
+    pub failure_reason: Option<String>,
     /// Client IP address at the time of the action.
     pub ip_address: Option<String>,
     /// Creation timestamp in RFC3339 format.
