@@ -1551,7 +1551,7 @@ docker run -d \
 - **Dynamic membership apply**：成员变更拆成两层：1) 普通 `EntryNormal` 的 `raft_member_upsert` 只维护平台可观测成员目录，允许 `configured/joining/active/leaving/removed` 等软状态；2) 真正改变 raft voters/learners 必须由 `/api/v1/raft/members:propose` 创建变更意图，且该接口要求当前节点是 real Raft Leader、`can_schedule=true`、已持久化 `leader_fencing_token`、调用者具备 `cluster:manage` 权限，并校验节点 id、http/https endpoint、移除当前 leader/破坏 quorum 风险。proposal 写入无外键 `raft_membership_proposals` 后投递 runtime command，由 raft-rs `propose_conf_change` 发起；committed `EntryConfChange/EntryConfChangeV2` 会被显式解码，并且只有 `RawNode::apply_conf_change` 成功、`raft_metadata.conf_state` 持久化成功后，才把 `raft_members` 状态推进到 `active/removed` 并把 proposal 标记为 `applied`。没有 runtime node、非法 payload、缺失 proposal context、或 unsupported multi-change V2 会被 gate/reject，不能静默变更 membership。当前已加入 deterministic in-process 3 节点 raft-rs harness，覆盖真实 `campaign` leader election、leader fencing 持久化、ConfChange proposal commit/apply 到 `raft_membership_proposals` / `raft_metadata.conf_state` / `raft_members`。
 - **Raft transport token**：`cluster.transport_token` 为可选 server-to-server shared token，应通过 Docker/K8s Secret 或环境变量 `SCHEDULER__CLUSTER__TRANSPORT_TOKEN` 注入，禁止提交生产 token。HTTP route 仍支持管理端 Bearer/RBAC；携带匹配 `x-scheduler-raft-token` 时可绕过人工 session，用于集群内部 Raft 消息。
 - **Cluster diagnostics**：`/api/v1/cluster/diagnostics` 暴露当前 coordinator 状态、调度 gate、持久化 term/index/peer、transport 占位状态和 runtime boundary；`ClusterStatus.detail` 会包含 raft-rs bootstrap 校验摘要，便于 operator 判断为什么 Raft 节点尚未参与调度。
-- **Container-first networking**：Raft 节点间通信必须可穿透 Docker bridge / K8s Service / LB，不能依赖 host network。
+- **Container-first networking**：Raft 节点间通信必须可穿透 Docker bridge / K8s Service / LB，不能依赖 host network。`scripts/raft-bridge-e2e.sh` 会构建 alpine runtime 镜像、创建 Docker bridge 网络、用 container DNS (`scheduler-0:9090` 等) 写入 peers，并通过内部 `x-scheduler-raft-token` smoke-check `/healthz`、`/api/v1/cluster`、`/api/v1/cluster/diagnostics` 与 `/api/v1/raft/append-entries`；脚本同时校验最多一个可调度 leader 且必须带 fencing token。
 
 ### 8.3 Kubernetes 集群部署架构
 
@@ -2124,7 +2124,7 @@ scheduler/
 - [x] Map / MapReduce 执行模式（workflow_shards + materialize + shard job_instance/dispatch_queue 软关联）
 - [x] 子工作流嵌套（节点引用 child_workflow_id + 子实例软关联 + 子实例终态回写父节点）
 - [x] PostgreSQL + CockroachDB 存储支持（SeaORM/sqlx-postgres feature + `postgres://` 配置模板；CockroachDB 复用 PostgreSQL wire protocol）
-- [ ] Server 集群 (Raft 共识；Phase2 已完成安全基础，已改用 TiKV raft-rs 并完成 bootstrap/ticker/inbound inbox/outbound skeleton，apply/leader fencing 继续推进)
+- [x] Server 集群（Raft 共识安全基础；TiKV raft-rs 已完成 bootstrap/ticker/inbound/outbound/apply/fencing/membership 与 Docker bridge smoke，生产级快照压缩/Chaos 后续增强）
   - [x] ClusterCoordinator 抽象与显式 standalone 状态（`/api/v1/cluster` 不再伪装 leader）
   - [x] tick/dispatcher ownership gate（非 `can_schedule` 节点跳过 CRON/fixed-rate tick 与 Worker dispatch loop）
   - [x] Raft 配置形状（mode/node_id/peers）与未启动 Raft 的 unknown/not-schedulable 状态
@@ -2146,7 +2146,7 @@ scheduler/
   - [x] raft-rs 多节点实测 campaign/leader election + membership proposal e2e 验证（in-process 3 节点 RawNode harness，真实 campaign，无 fake leadership）
   - [x] raft-rs runtime 重启恢复硬化（从 `raft_metadata` / `raft_log_entries` 恢复 MemStorage HardState/log entries，并清空 stale leader fencing token）
   - [x] raft-rs HTTP transport token/auth/envelope smoke（本地 route harness 覆盖 `x-scheduler-raft-token` 免人工 session、错误 token 拒绝、runtime inbox accepted=true 语义）
-  - [ ] raft-rs Docker bridge / K8s Service 多容器 E2E 脚本化验证
+  - [x] raft-rs Docker bridge / K8s Service 多容器 E2E 脚本化验证（`scripts/raft-bridge-e2e.sh`，bridge 网络 + container DNS + token + health/cluster/diagnostics/append smoke；不使用 host network）
 - [x] 任务队列基础（dispatch_queue 持久化模型、priority/run_after/status/lease_owner/lease_until 字段；workflow queued node 自动 materialize）
 - [x] 持久化延迟队列基础（dispatch_queue.run_after）
 - [x] 实时日志流 (gRPC Server Stream：`SubscribeTaskLogs` 支持历史回放 + Worker Tunnel live fan-out)

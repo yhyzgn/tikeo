@@ -15,7 +15,7 @@ node_id = "scheduler-0"
 # e.g. SCHEDULER__CLUSTER__TRANSPORT_TOKEN. Do not commit production tokens.
 # transport_token = "change-me-in-secret"
 peers = [
-  { node_id = "scheduler-0", endpoint = "http://scheduler-0.scheduler-headless:9999" },
-  { node_id = "scheduler-1", endpoint = "http://scheduler-1.scheduler-headless:9999" },
-  { node_id = "scheduler-2", endpoint = "http://scheduler-2.scheduler-headless:9999" },
+  { node_id = "scheduler-0", endpoint = "http://scheduler-0.scheduler-headless:9090" },
+  { node_id = "scheduler-1", endpoint = "http://scheduler-1.scheduler-headless:9090" },
+  { node_id = "scheduler-2", endpoint = "http://scheduler-2.scheduler-headless:9090" },
 ]

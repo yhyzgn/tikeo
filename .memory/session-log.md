@@ -1006,3 +1006,11 @@ Git:
 - Created `.prompt/061-phase2-raft-rs-docker-bridge-e2e-script.md` for the remaining no-host-network Docker bridge E2E work.
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server raft_append_entries_internal_token --all-features`.
 - Full verification passed for 060: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase2 raft-rs Docker bridge E2E script
+- Implemented `scripts/raft-bridge-e2e.sh` for no-host-network Docker bridge verification with 3 scheduler containers and container-DNS raft peer endpoints.
+- Fixed Dockerfile alpine build dependency gap for raft-proto by adding `protobuf-dev gcompat` to the builder stage; runtime remains alpine.
+- Observed that bridge E2E may elect a real leader; script now accepts zero-or-one schedulable leader and requires any schedulable node to be `role=leader` with a fencing token.
+- Created `.prompt/062-phase3-audit-before-after-trace-export.md` as the next roadmap slice.
+- E2E verification passed: `./scripts/raft-bridge-e2e.sh`.
+- Full verification passed for 061: `./scripts/raft-bridge-e2e.sh`; `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).

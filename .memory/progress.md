@@ -380,3 +380,12 @@
 - Next prompt `.prompt/061-phase2-raft-rs-docker-bridge-e2e-script.md` targets bridge-network script verification without host networking.
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server raft_append_entries_internal_token --all-features`.
 - Full verification passed for 060: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase2 raft-rs Docker bridge E2E script
+- Continued `.prompt/061-phase2-raft-rs-docker-bridge-e2e-script.md` after 060 push.
+- Added `scripts/raft-bridge-e2e.sh`: builds the scheduler server image, creates a Docker bridge network, starts 3 scheduler containers with generated raft configs, peers by container DNS (`scheduler-N:9090`), and injects `SCHEDULER__CLUSTER__TRANSPORT_TOKEN` without committing secrets.
+- The script smoke-checks `/healthz`, `/api/v1/cluster`, `/api/v1/cluster/diagnostics`, and `/api/v1/raft/append-entries` through bridge networking; it also verifies wrong raft token returns 401 and that any schedulable leader is unique and has a fencing token.
+- Dockerfile builder now installs `protobuf-dev gcompat` so raft-proto/protobuf build scripts work on alpine while keeping the runtime image alpine.
+- Updated `config/raft.toml` peer endpoints to the actual HTTP management API port `9090`; worker tunnel remains `9998`.
+- Ran `./scripts/raft-bridge-e2e.sh` successfully; output ended with `PASS: bridge-network raft HTTP smoke succeeded without host networking`.
+- Full verification passed for 061: `./scripts/raft-bridge-e2e.sh`; `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).

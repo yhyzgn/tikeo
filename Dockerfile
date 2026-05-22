@@ -3,7 +3,7 @@
 FROM rust:1.95-alpine AS dependencies
 
 RUN sed -i 's@dl-cdn.alpinelinux.org@mirrors.aliyun.com@g' /etc/apk/repositories \
-    && apk add --no-cache build-base ca-certificates cmake perl pkgconf
+    && apk add --no-cache build-base ca-certificates cmake perl pkgconf protobuf-dev gcompat
 
 # rsproxy 源配置
 ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
