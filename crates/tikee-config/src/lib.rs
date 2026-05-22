@@ -20,6 +20,9 @@ pub struct TikeeConfig {
     /// Server cluster coordination settings.
     #[serde(default)]
     pub cluster: ClusterConfig,
+    /// HTTP authentication and SSO settings.
+    #[serde(default)]
+    pub auth: AuthConfig,
 }
 
 /// Server listener configuration.
@@ -102,6 +105,70 @@ pub struct ClusterPeerConfig {
     pub endpoint: String,
 }
 
+/// HTTP authentication configuration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AuthConfig {
+    /// Keep local username/password login enabled.
+    #[serde(default = "default_true")]
+    pub local_login_enabled: bool,
+    /// Optional OIDC/SSO provider configuration.
+    #[serde(default)]
+    pub oidc: OidcConfig,
+}
+
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            local_login_enabled: true,
+            oidc: OidcConfig::default(),
+        }
+    }
+}
+
+/// OIDC provider configuration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OidcConfig {
+    /// Whether OIDC login is enabled.
+    #[serde(default)]
+    pub enabled: bool,
+    /// OIDC issuer URL.
+    #[serde(default)]
+    pub issuer_url: Option<String>,
+    /// OAuth/OIDC client id.
+    #[serde(default)]
+    pub client_id: Option<String>,
+    /// OAuth/OIDC client secret; never returned by status APIs.
+    #[serde(default)]
+    pub client_secret: Option<String>,
+    /// Requested scopes.
+    #[serde(default = "default_oidc_scopes")]
+    pub scopes: Vec<String>,
+}
+
+impl Default for OidcConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            issuer_url: None,
+            client_id: None,
+            client_secret: None,
+            scopes: default_oidc_scopes(),
+        }
+    }
+}
+
+const fn default_true() -> bool {
+    true
+}
+
+fn default_oidc_scopes() -> Vec<String> {
+    vec![
+        "openid".to_owned(),
+        "profile".to_owned(),
+        "email".to_owned(),
+    ]
+}
+
 /// Errors raised while loading tikee configuration.
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -133,7 +200,10 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeeConfig, ConfigError> {
             TikeeConfig::default().storage.database_url,
         )?
         .set_default("cluster.mode", "standalone")?
-        .set_default("cluster.node_id", TikeeConfig::default().cluster.node_id)?;
+        .set_default("cluster.node_id", TikeeConfig::default().cluster.node_id)?
+        .set_default("auth.local_login_enabled", true)?
+        .set_default("auth.oidc.enabled", false)?
+        .set_default("auth.oidc.scopes", default_oidc_scopes())?;
 
     if let Some(path) = path {
         builder = builder.add_source(File::from(path).required(true));
@@ -171,6 +241,16 @@ mod tests {
         assert_eq!(config.cluster.mode, ClusterModeConfig::Standalone);
         assert_eq!(config.cluster.node_id, "standalone");
         assert!(config.cluster.peers.is_empty());
+    }
+
+    #[test]
+    fn default_auth_config_keeps_local_login_and_disables_oidc() {
+        let config =
+            load_config(None).unwrap_or_else(|error| panic!("default config should load: {error}"));
+
+        assert!(config.auth.local_login_enabled);
+        assert!(!config.auth.oidc.enabled);
+        assert_eq!(config.auth.oidc.scopes, ["openid", "profile", "email"]);
     }
 
     #[test]

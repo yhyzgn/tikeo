@@ -9,3 +9,10 @@ database_url = "sqlite://tikee-dev.db?mode=rwc"
 mode = "standalone"
 node_id = "standalone"
 peers = []
+
+[auth]
+local_login_enabled = true
+
+[auth.oidc]
+enabled = false
+scopes = ["openid", "profile", "email"]

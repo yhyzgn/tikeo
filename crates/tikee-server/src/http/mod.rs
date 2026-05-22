@@ -22,6 +22,7 @@ use axum::{
     routing::get,
 };
 use serde::Serialize;
+use tikee_config::AuthConfig;
 use tikee_core::HealthState;
 use tikee_storage::{
     AlertRepository, AuditLogRepository, AuthSessionRepository, JobInstanceAttemptRepository,
@@ -52,6 +53,7 @@ pub struct AppState {
     workflows: WorkflowRepository,
     audit: AuditLogRepository,
     alerts: AlertRepository,
+    auth_config: AuthConfig,
     pub(crate) raft: RaftRepository,
     sessions: SessionManager,
     pub(crate) rbac: RbacService,
@@ -95,6 +97,7 @@ impl AppState {
             workflows,
             audit,
             alerts,
+            auth_config: AuthConfig::default(),
             raft,
             sessions,
             rbac,
@@ -102,6 +105,13 @@ impl AppState {
             cluster,
             raft_transport_token: None,
         }
+    }
+
+    /// Attach auth/SSO configuration metadata.
+    #[must_use]
+    pub fn with_auth_config(mut self, auth_config: AuthConfig) -> Self {
+        self.auth_config = auth_config;
+        self
     }
 
     /// Attach the optional internal Raft transport token.
@@ -189,6 +199,7 @@ fn api_router() -> Router<Arc<AppState>> {
             axum::routing::post(routes::propose_member_change),
         )
         .route("/auth/login", axum::routing::post(auth::login))
+        .route("/auth/status", get(auth::status))
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", axum::routing::post(auth::logout))
         .route(
@@ -444,6 +455,63 @@ mod tests {
             .unwrap_or_else(|| panic!("trace id should be generated"));
         assert!(trace_id.starts_with("trc-"));
         assert!(trace_id.len() > 8);
+    }
+
+    #[tokio::test]
+    async fn auth_status_reports_local_and_oidc_configuration_without_live_provider() {
+        let local = get_json("/api/v1/auth/status").await;
+        assert_eq!(local["code"], 0);
+        assert_eq!(local["data"]["mode"], "local");
+        assert_eq!(local["data"]["local_login_enabled"], true);
+        assert_eq!(local["data"]["oidc"]["enabled"], false);
+        assert_eq!(local["data"]["oidc"]["client_secret_configured"], false);
+
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let mut auth = tikee_config::AuthConfig::default();
+        auth.oidc.enabled = true;
+        auth.oidc.issuer_url = Some("https://idp.example.com/realms/tikee".to_owned());
+        auth.oidc.client_id = Some("tikee-web".to_owned());
+        auth.oidc.client_secret = Some("super-secret".to_owned());
+        auth.oidc.scopes = vec![
+            "openid".to_owned(),
+            "profile".to_owned(),
+            "email".to_owned(),
+        ];
+        let app = router_with_state(
+            AppState::new(
+                JobRepository::new(db.clone()),
+                JobInstanceRepository::new(db.clone()),
+                JobInstanceLogRepository::new(db.clone()),
+                JobInstanceAttemptRepository::new(db.clone()),
+                UserRepository::new(db.clone()),
+                ScriptRepository::new(db.clone()),
+                WorkflowRepository::new(db.clone()),
+                AuditLogRepository::new(db),
+                crate::tunnel::WorkerRegistry::default(),
+                StandaloneCoordinator::shared("test-node"),
+            )
+            .with_auth_config(auth),
+        );
+        let oidc = request_with(app, "/api/v1/auth/status").await;
+        let body = axum::body::to_bytes(oidc.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["mode"], "oidc");
+        assert_eq!(json["data"]["local_login_enabled"], true);
+        assert_eq!(json["data"]["oidc"]["enabled"], true);
+        assert_eq!(
+            json["data"]["oidc"]["issuer_url"],
+            "https://idp.example.com/realms/tikee"
+        );
+        assert_eq!(json["data"]["oidc"]["client_id"], "tikee-web");
+        assert_eq!(json["data"]["oidc"]["client_secret_configured"], true);
+        assert_eq!(json["data"]["oidc"]["scopes"][0], "openid");
+        assert!(json["data"]["oidc"].get("client_secret").is_none());
     }
 
     #[tokio::test]

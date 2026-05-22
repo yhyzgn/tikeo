@@ -611,3 +611,8 @@
 - Added HTTP trace-id middleware that accepts `x-request-id`, `x-trace-id`, or W3C `traceparent`, generates `trc-*` when missing, and writes `x-trace-id` on API responses.
 - Added local tracing span fields for method/path/trace_id without requiring an OTLP collector in tests; audit helpers now resolve the same generated/propagated trace id from request headers.
 - Added targeted regression coverage for explicit and generated trace-id response behavior plus traceparent parsing.
+### 2026-05-23 — Phase 085 OIDC/SSO foundation
+- Continued `.prompt/085-oidc-sso-foundation.md`.
+- Added `auth` / `auth.oidc` configuration shapes with local login enabled and OIDC disabled by default.
+- Added public `GET /api/v1/auth/status` so clients can distinguish local vs OIDC-ready auth mode and see redacted provider metadata without a live IdP.
+- Preserved existing local admin login/session/RBAC behavior and added regression coverage for local and configured OIDC status responses.

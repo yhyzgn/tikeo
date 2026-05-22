@@ -7,7 +7,7 @@ use tracing::warn;
 
 use super::{
     AppState,
-    dto::{ApiResponse, AuthSession, LoginRequest, MeResponse},
+    dto::{ApiResponse, AuthSession, AuthStatusResponse, LoginRequest, MeResponse, OidcStatus},
     error::ApiError,
     routes::{client_ip, trace_id},
     session::SessionCreate,
@@ -170,6 +170,46 @@ pub async fn login(
     }
 
     Ok(Json(ApiResponse::success(session)))
+}
+
+/// Return authentication mode and SSO configuration status.
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/status",
+    tag = "auth",
+    responses((status = 200, description = "Authentication mode/status", body = super::dto::AuthStatusApiResponse))
+)]
+pub async fn status(State(state): State<Arc<AppState>>) -> Json<ApiResponse<AuthStatusResponse>> {
+    let oidc = &state.auth_config.oidc;
+    let oidc_ready = oidc.enabled
+        && oidc
+            .issuer_url
+            .as_ref()
+            .is_some_and(|value| !value.trim().is_empty())
+        && oidc
+            .client_id
+            .as_ref()
+            .is_some_and(|value| !value.trim().is_empty());
+    Json(ApiResponse::success(AuthStatusResponse {
+        mode: if oidc_ready { "oidc" } else { "local" }.to_owned(),
+        local_login_enabled: state.auth_config.local_login_enabled,
+        oidc: OidcStatus {
+            enabled: oidc.enabled,
+            issuer_url: oidc
+                .issuer_url
+                .clone()
+                .filter(|value| !value.trim().is_empty()),
+            client_id: oidc
+                .client_id
+                .clone()
+                .filter(|value| !value.trim().is_empty()),
+            client_secret_configured: oidc
+                .client_secret
+                .as_ref()
+                .is_some_and(|value| !value.trim().is_empty()),
+            scopes: oidc.scopes.clone(),
+        },
+    }))
 }
 
 /// Return the current authenticated principal.

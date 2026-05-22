@@ -58,6 +58,9 @@ pub type ErrorResponse = ApiResponse<ErrorData>;
 /// Login API envelope.
 pub type LoginApiResponse = ApiResponse<AuthSession>;
 
+/// Auth status API envelope.
+pub type AuthStatusApiResponse = ApiResponse<AuthStatusResponse>;
+
 /// Current principal API envelope.
 pub type MeApiResponse = ApiResponse<MeResponse>;
 
@@ -371,6 +374,24 @@ pub struct AuthSession {
     pub roles: Vec<String>,
     /// Granted permissions.
     pub permissions: Vec<tikee_storage::PermissionSummary>,
+}
+
+/// Authentication mode/status metadata for clients.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct AuthStatusResponse {
+    pub mode: String,
+    pub local_login_enabled: bool,
+    pub oidc: OidcStatus,
+}
+
+/// OIDC status metadata with secrets redacted.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct OidcStatus {
+    pub enabled: bool,
+    pub issuer_url: Option<String>,
+    pub client_id: Option<String>,
+    pub client_secret_configured: bool,
+    pub scopes: Vec<String>,
 }
 
 /// Current authenticated principal.
