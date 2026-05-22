@@ -23,6 +23,9 @@ pub struct TikeeConfig {
     /// HTTP authentication and SSO settings.
     #[serde(default)]
     pub auth: AuthConfig,
+    /// TLS/mTLS transport security settings.
+    #[serde(default)]
+    pub transport_security: TransportSecurityConfig,
 }
 
 /// Server listener configuration.
@@ -145,6 +148,37 @@ pub struct OidcConfig {
     pub scopes: Vec<String>,
 }
 
+/// TLS/mTLS transport security configuration.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TransportSecurityConfig {
+    /// HTTP management listener TLS settings.
+    #[serde(default)]
+    pub http: TlsEndpointConfig,
+    /// Worker Tunnel listener TLS/mTLS settings.
+    #[serde(default)]
+    pub worker_tunnel: TlsEndpointConfig,
+}
+
+/// TLS endpoint configuration.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TlsEndpointConfig {
+    /// Enable TLS for this endpoint.
+    #[serde(default)]
+    pub tls_enabled: bool,
+    /// Require client certificates.
+    #[serde(default)]
+    pub mtls_required: bool,
+    /// Server certificate path.
+    #[serde(default)]
+    pub cert_path: Option<String>,
+    /// Server private key path.
+    #[serde(default)]
+    pub key_path: Option<String>,
+    /// Client CA bundle path for mTLS verification.
+    #[serde(default)]
+    pub client_ca_path: Option<String>,
+}
+
 impl Default for OidcConfig {
     fn default() -> Self {
         Self {
@@ -203,7 +237,11 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeeConfig, ConfigError> {
         .set_default("cluster.node_id", TikeeConfig::default().cluster.node_id)?
         .set_default("auth.local_login_enabled", true)?
         .set_default("auth.oidc.enabled", false)?
-        .set_default("auth.oidc.scopes", default_oidc_scopes())?;
+        .set_default("auth.oidc.scopes", default_oidc_scopes())?
+        .set_default("transport_security.http.tls_enabled", false)?
+        .set_default("transport_security.http.mtls_required", false)?
+        .set_default("transport_security.worker_tunnel.tls_enabled", false)?
+        .set_default("transport_security.worker_tunnel.mtls_required", false)?;
 
     if let Some(path) = path {
         builder = builder.add_source(File::from(path).required(true));
@@ -251,6 +289,16 @@ mod tests {
         assert!(config.auth.local_login_enabled);
         assert!(!config.auth.oidc.enabled);
         assert_eq!(config.auth.oidc.scopes, ["openid", "profile", "email"]);
+    }
+
+    #[test]
+    fn default_transport_security_config_keeps_dev_plaintext() {
+        let config =
+            load_config(None).unwrap_or_else(|error| panic!("default config should load: {error}"));
+
+        assert!(!config.transport_security.http.tls_enabled);
+        assert!(!config.transport_security.worker_tunnel.tls_enabled);
+        assert!(!config.transport_security.worker_tunnel.mtls_required);
     }
 
     #[test]

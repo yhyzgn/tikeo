@@ -22,7 +22,7 @@ use axum::{
     routing::get,
 };
 use serde::Serialize;
-use tikee_config::AuthConfig;
+use tikee_config::{AuthConfig, TransportSecurityConfig};
 use tikee_core::HealthState;
 use tikee_storage::{
     AlertRepository, AuditLogRepository, AuthSessionRepository, JobInstanceAttemptRepository,
@@ -54,6 +54,7 @@ pub struct AppState {
     audit: AuditLogRepository,
     alerts: AlertRepository,
     auth_config: AuthConfig,
+    transport_security: TransportSecurityConfig,
     pub(crate) raft: RaftRepository,
     sessions: SessionManager,
     pub(crate) rbac: RbacService,
@@ -98,6 +99,7 @@ impl AppState {
             audit,
             alerts,
             auth_config: AuthConfig::default(),
+            transport_security: TransportSecurityConfig::default(),
             raft,
             sessions,
             rbac,
@@ -111,6 +113,16 @@ impl AppState {
     #[must_use]
     pub fn with_auth_config(mut self, auth_config: AuthConfig) -> Self {
         self.auth_config = auth_config;
+        self
+    }
+
+    /// Attach TLS/mTLS transport security configuration metadata.
+    #[must_use]
+    pub fn with_transport_security_config(
+        mut self,
+        transport_security: TransportSecurityConfig,
+    ) -> Self {
+        self.transport_security = transport_security;
         self
     }
 
@@ -188,6 +200,10 @@ fn api_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/system/info", get(routes::system_info))
         .route("/metrics/summary", get(routes::metrics_summary))
+        .route(
+            "/security/transport",
+            get(routes::transport_security_status),
+        )
         .route("/cluster", get(routes::cluster_status))
         .route("/cluster/diagnostics", get(routes::cluster_diagnostics))
         .route(
@@ -512,6 +528,75 @@ mod tests {
         assert_eq!(json["data"]["oidc"]["client_secret_configured"], true);
         assert_eq!(json["data"]["oidc"]["scopes"][0], "openid");
         assert!(json["data"]["oidc"].get("client_secret").is_none());
+    }
+
+    #[tokio::test]
+    async fn transport_security_status_reports_defaults_and_partial_mtls_config() {
+        let app = router().await;
+        let default_status = app
+            .clone()
+            .oneshot(admin_request_builder(app.clone(), "GET", "/api/v1/security/transport").await)
+            .await
+            .unwrap_or_else(|error| panic!("transport status route should respond: {error}"));
+        let body = axum::body::to_bytes(default_status.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["http"]["tls_enabled"], false);
+        assert_eq!(json["data"]["worker_tunnel"]["mtls_required"], false);
+        assert_eq!(json["data"]["ready"], true);
+        assert_eq!(json["data"]["issues"].as_array().map(Vec::len), Some(0));
+
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let mut security = tikee_config::TransportSecurityConfig::default();
+        security.worker_tunnel.tls_enabled = true;
+        security.worker_tunnel.mtls_required = true;
+        security.worker_tunnel.cert_path = Some("/certs/worker.crt".to_owned());
+        let app = router_with_state(
+            AppState::new(
+                JobRepository::new(db.clone()),
+                JobInstanceRepository::new(db.clone()),
+                JobInstanceLogRepository::new(db.clone()),
+                JobInstanceAttemptRepository::new(db.clone()),
+                UserRepository::new(db.clone()),
+                ScriptRepository::new(db.clone()),
+                WorkflowRepository::new(db.clone()),
+                AuditLogRepository::new(db),
+                crate::tunnel::WorkerRegistry::default(),
+                StandaloneCoordinator::shared("test-node"),
+            )
+            .with_transport_security_config(security),
+        );
+        let partial_status = app
+            .clone()
+            .oneshot(admin_request_builder(app, "GET", "/api/v1/security/transport").await)
+            .await
+            .unwrap_or_else(|error| panic!("transport status route should respond: {error}"));
+        let body = axum::body::to_bytes(partial_status.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["worker_tunnel"]["tls_enabled"], true);
+        assert_eq!(json["data"]["worker_tunnel"]["mtls_required"], true);
+        assert_eq!(json["data"]["worker_tunnel"]["cert_configured"], true);
+        assert_eq!(json["data"]["worker_tunnel"]["key_configured"], false);
+        assert_eq!(json["data"]["worker_tunnel"]["ca_configured"], false);
+        assert_eq!(json["data"]["ready"], false);
+        assert!(
+            json["data"]["issues"]
+                .as_array()
+                .unwrap_or_else(|| panic!("issues array"))
+                .iter()
+                .any(|issue| issue
+                    .as_str()
+                    .is_some_and(|value| value.contains("key_path")))
+        );
     }
 
     #[tokio::test]

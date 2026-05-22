@@ -25,6 +25,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
     let database_url = config.storage.database_url;
     let cluster_config = config.cluster;
     let auth_config = config.auth;
+    let transport_security = config.transport_security;
     let raft_transport_token = cluster_config.transport_token.clone();
     let db = connect_and_migrate(&database_url)
         .await
@@ -55,6 +56,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
             cluster.clone(),
         )
         .with_auth_config(auth_config)
+        .with_transport_security_config(transport_security)
         .with_raft_transport_token(raft_transport_token),
     );
     let tunnel_instances = instances.clone();

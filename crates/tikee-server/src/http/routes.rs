@@ -8,6 +8,7 @@ pub(crate) mod jobs;
 pub(crate) mod metrics;
 pub(crate) mod raft;
 pub(crate) mod scripts;
+pub(crate) mod security;
 pub(crate) mod system;
 pub(crate) mod users;
 pub(crate) mod workers;
@@ -28,6 +29,7 @@ pub use scripts::{
     create_script, delete_script, diff_script_versions, get_script, list_script_versions,
     list_scripts, publish_script, rollback_script, update_script,
 };
+pub use security::transport_security_status;
 pub use system::{cluster_diagnostics, cluster_status, system_info};
 pub use users::{create_user, delete_user, list_users, update_user};
 pub use workers::{claim_dispatch_queue, dispatch_queue, list_workers};

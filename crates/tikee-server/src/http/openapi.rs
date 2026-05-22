@@ -15,6 +15,7 @@ use super::{auth, dto, routes};
     paths(
         routes::system::system_info,
         routes::metrics::metrics_summary,
+        routes::security::transport_security_status,
         routes::system::cluster_status,
         routes::system::cluster_diagnostics,
         routes::raft::append_entries,
@@ -65,6 +66,7 @@ use super::{auth, dto, routes};
         dto::ApiResponse<dto::SystemInfoResponse>,
         dto::ApiResponse<dto::ClusterResponse>,
         dto::ApiResponse<dto::MetricsSummaryResponse>,
+        dto::ApiResponse<dto::TransportSecurityStatusResponse>,
         dto::ApiResponse<dto::ClusterDiagnosticsResponse>,
         dto::ApiResponse<dto::RaftMessageResult>,
         dto::ApiResponse<dto::RaftMembershipProposalResponse>,
@@ -104,6 +106,8 @@ use super::{auth, dto, routes};
         dto::MetricsInstanceSummary,
         dto::MetricsAlertSummary,
         dto::MetricsGovernanceSummary,
+        dto::TransportSecurityStatusResponse,
+        dto::TlsEndpointStatus,
         dto::ClusterDiagnosticsResponse,
         dto::RaftMetadataDiagnostic,
         dto::RaftMemberDiagnostic,
@@ -163,7 +167,8 @@ use super::{auth, dto, routes};
         (name = "scripts", description = "Script management endpoints"),
         (name = "jobs", description = "Job management endpoints"),
         (name = "audit", description = "Audit log endpoints"),
-        (name = "metrics", description = "Operator metrics summary endpoints")
+        (name = "metrics", description = "Operator metrics summary endpoints"),
+        (name = "security", description = "Security and transport diagnostics")
     )
 )]
 pub struct ApiDoc;

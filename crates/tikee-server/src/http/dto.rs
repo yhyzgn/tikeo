@@ -74,6 +74,8 @@ pub type SystemInfoApiResponse = ApiResponse<SystemInfoResponse>;
 pub type ClusterApiResponse = ApiResponse<ClusterResponse>;
 /// Cluster diagnostics API envelope.
 pub type ClusterDiagnosticsApiResponse = ApiResponse<ClusterDiagnosticsResponse>;
+/// Transport security status API envelope.
+pub type TransportSecurityStatusApiResponse = ApiResponse<TransportSecurityStatusResponse>;
 
 /// Job page API envelope.
 pub type JobPageApiResponse = ApiResponse<Page>;
@@ -392,6 +394,26 @@ pub struct OidcStatus {
     pub client_id: Option<String>,
     pub client_secret_configured: bool,
     pub scopes: Vec<String>,
+}
+
+/// TLS/mTLS transport security status.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct TransportSecurityStatusResponse {
+    pub http: TlsEndpointStatus,
+    pub worker_tunnel: TlsEndpointStatus,
+    pub ready: bool,
+    pub issues: Vec<String>,
+}
+
+/// TLS endpoint readiness metadata with paths redacted.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct TlsEndpointStatus {
+    pub tls_enabled: bool,
+    pub mtls_required: bool,
+    pub cert_configured: bool,
+    pub key_configured: bool,
+    pub ca_configured: bool,
 }
 
 /// Current authenticated principal.

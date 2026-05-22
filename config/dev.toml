@@ -16,3 +16,11 @@ local_login_enabled = true
 [auth.oidc]
 enabled = false
 scopes = ["openid", "profile", "email"]
+
+[transport_security.http]
+tls_enabled = false
+mtls_required = false
+
+[transport_security.worker_tunnel]
+tls_enabled = false
+mtls_required = false

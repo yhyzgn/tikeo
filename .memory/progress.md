@@ -616,3 +616,8 @@
 - Added `auth` / `auth.oidc` configuration shapes with local login enabled and OIDC disabled by default.
 - Added public `GET /api/v1/auth/status` so clients can distinguish local vs OIDC-ready auth mode and see redacted provider metadata without a live IdP.
 - Preserved existing local admin login/session/RBAC behavior and added regression coverage for local and configured OIDC status responses.
+### 2026-05-23 — Phase 086 mTLS transport foundation
+- Continued `.prompt/086-mtls-transport-foundation.md`.
+- Added `transport_security` configuration shapes for HTTP and Worker Tunnel TLS/mTLS while keeping local development plaintext by default.
+- Added `GET /api/v1/security/transport` diagnostics that redacts paths but reports TLS/mTLS readiness and partial-config issues.
+- Added targeted regression coverage for default plaintext readiness and partial Worker Tunnel mTLS configuration diagnostics without certificate/network smoke.
