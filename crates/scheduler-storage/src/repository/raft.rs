@@ -5,7 +5,8 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 
 use crate::entities::{
-    raft_applied_command, raft_log_entry, raft_member, raft_metadata, raft_snapshot,
+    raft_applied_command, raft_log_entry, raft_member, raft_membership_proposal, raft_metadata,
+    raft_snapshot,
 };
 
 use super::util::{new_id, now_rfc3339};
@@ -99,6 +100,27 @@ pub struct RecordRaftAppliedCommand {
     pub status: String,
     /// Human-readable result.
     pub message: String,
+}
+
+/// Membership proposal insert input.
+#[derive(Debug, Clone)]
+pub struct RecordRaftMembershipProposal {
+    /// Logical cluster identifier.
+    pub cluster_id: String,
+    /// Proposal idempotency key.
+    pub proposal_id: String,
+    /// Membership action.
+    pub action: String,
+    /// Target node id.
+    pub node_id: String,
+    /// Target endpoint for add/update actions.
+    pub endpoint: Option<String>,
+    /// Proposal status.
+    pub status: String,
+    /// Human-readable result.
+    pub message: String,
+    /// Authenticated actor.
+    pub created_by: String,
 }
 
 /// Stored Raft metadata summary.
@@ -214,6 +236,33 @@ pub struct RaftAppliedCommandSummary {
     pub status: String,
     /// Human-readable result.
     pub message: String,
+    /// Creation timestamp.
+    pub created_at: String,
+    /// Last update timestamp.
+    pub updated_at: String,
+}
+
+/// Stored Raft membership proposal summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct RaftMembershipProposalSummary {
+    /// Row identifier.
+    pub id: String,
+    /// Logical cluster identifier.
+    pub cluster_id: String,
+    /// Proposal idempotency key.
+    pub proposal_id: String,
+    /// Membership action.
+    pub action: String,
+    /// Target node id.
+    pub node_id: String,
+    /// Target endpoint.
+    pub endpoint: Option<String>,
+    /// Proposal status.
+    pub status: String,
+    /// Human-readable result.
+    pub message: String,
+    /// Authenticated actor.
+    pub created_by: String,
     /// Creation timestamp.
     pub created_at: String,
     /// Last update timestamp.
@@ -548,6 +597,39 @@ impl RaftRepository {
                     .collect()
             })
     }
+
+    /// Record a Raft membership proposal intent idempotently by `(cluster_id, proposal_id)`.
+    pub async fn record_membership_proposal(
+        &self,
+        input: RecordRaftMembershipProposal,
+    ) -> Result<RaftMembershipProposalSummary, sea_orm::DbErr> {
+        if let Some(existing) = raft_membership_proposal::Entity::find()
+            .filter(raft_membership_proposal::Column::ClusterId.eq(input.cluster_id.clone()))
+            .filter(raft_membership_proposal::Column::ProposalId.eq(input.proposal_id.clone()))
+            .one(&self.db)
+            .await?
+        {
+            return Ok(existing.into());
+        }
+
+        let now = now_rfc3339();
+        raft_membership_proposal::ActiveModel {
+            id: Set(new_id("raft_member_prop")),
+            cluster_id: Set(input.cluster_id),
+            proposal_id: Set(input.proposal_id),
+            action: Set(input.action),
+            node_id: Set(input.node_id),
+            endpoint: Set(input.endpoint),
+            status: Set(input.status),
+            message: Set(input.message),
+            created_by: Set(input.created_by),
+            created_at: Set(now.clone()),
+            updated_at: Set(now),
+        }
+        .insert(&self.db)
+        .await
+        .map(RaftMembershipProposalSummary::from)
+    }
 }
 
 impl From<raft_metadata::Model> for RaftMetadataSummary {
@@ -626,6 +708,24 @@ impl From<raft_applied_command::Model> for RaftAppliedCommandSummary {
             payload: value.payload,
             status: value.status,
             message: value.message,
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+        }
+    }
+}
+
+impl From<raft_membership_proposal::Model> for RaftMembershipProposalSummary {
+    fn from(value: raft_membership_proposal::Model) -> Self {
+        Self {
+            id: value.id,
+            cluster_id: value.cluster_id,
+            proposal_id: value.proposal_id,
+            action: value.action,
+            node_id: value.node_id,
+            endpoint: value.endpoint,
+            status: value.status,
+            message: value.message,
+            created_by: value.created_by,
             created_at: value.created_at,
             updated_at: value.updated_at,
         }

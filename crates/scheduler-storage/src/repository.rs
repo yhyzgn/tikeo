@@ -32,9 +32,10 @@ pub use job::{CreateJob, JobSummary};
 pub use job_repo::JobRepository;
 pub use log::{AppendJobInstanceLog, JobInstanceLogRepository, JobInstanceLogSummary};
 pub use raft::{
-    RaftAppliedCommandSummary, RaftLogEntrySummary, RaftMemberSummary, RaftMetadataSummary,
-    RaftRepository, RaftSnapshotSummary, RecordRaftAppliedCommand, UpsertRaftLogEntry,
-    UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot,
+    RaftAppliedCommandSummary, RaftLogEntrySummary, RaftMemberSummary,
+    RaftMembershipProposalSummary, RaftMetadataSummary, RaftRepository, RaftSnapshotSummary,
+    RecordRaftAppliedCommand, RecordRaftMembershipProposal, UpsertRaftLogEntry, UpsertRaftMember,
+    UpsertRaftMetadata, UpsertRaftSnapshot,
 };
 pub use script::{
     CreateScript, ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary,

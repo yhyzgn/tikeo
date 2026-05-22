@@ -3,12 +3,15 @@ use std::sync::Arc;
 use axum::{Json, extract::State, http::HeaderMap};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use raft::eraftpb::{Entry, EntryType, Message, MessageType};
+use scheduler_storage::RecordRaftMembershipProposal;
+use url::Url;
 
 use crate::http::{
     AppState, auth,
     dto::{
-        ApiResponse, RaftAppendEntriesApiResponse, RaftAppendEntriesRequest, RaftMessageResult,
-        RaftWireEntry,
+        ApiResponse, RaftAppendEntriesApiResponse, RaftAppendEntriesRequest,
+        RaftMembershipProposalApiResponse, RaftMembershipProposalRequest,
+        RaftMembershipProposalResponse, RaftMessageResult, RaftWireEntry,
     },
     error::ApiError,
 };
@@ -56,6 +59,167 @@ pub async fn append_entries(
         remote_addr: client_ip(&headers),
         received_term: request.term,
     })))
+}
+
+/// Create a gated Raft membership proposal intent.
+///
+/// This endpoint validates operator intent and leader fencing before storing the proposal.
+/// It intentionally does not apply raft-rs `ConfChange` yet; committed config-change handling
+/// remains gated until `ConfState` persistence and quorum-safe transitions are implemented.
+///
+/// # Errors
+///
+/// Returns auth, validation, or storage errors as the standard API envelope.
+#[utoipa::path(
+    post,
+    path = "/api/v1/raft/members:propose",
+    tag = "raft",
+    request_body = RaftMembershipProposalRequest,
+    responses(
+        (status = 200, description = "Membership proposal intent stored", body = RaftMembershipProposalApiResponse),
+        (status = 400, description = "Invalid proposal", body = crate::http::dto::ErrorResponse),
+        (status = 401, description = "Unauthorized", body = crate::http::dto::ErrorResponse),
+        (status = 403, description = "Forbidden or not leader", body = crate::http::dto::ErrorResponse)
+    )
+)]
+pub async fn propose_member_change(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<RaftMembershipProposalRequest>,
+) -> Result<Json<RaftMembershipProposalApiResponse>, ApiError> {
+    let principal = auth::require_permission(&headers, &state, "cluster", "manage").await?;
+    let status = state.cluster.status().await;
+    validate_membership_proposal_leader(&status)?;
+    let proposal = validate_membership_proposal_request(&request, &status, &state).await?;
+    let stored = state
+        .raft
+        .record_membership_proposal(RecordRaftMembershipProposal {
+            cluster_id: "default".to_owned(),
+            proposal_id: proposal.proposal_id,
+            action: proposal.action,
+            node_id: proposal.node_id,
+            endpoint: proposal.endpoint,
+            status: "pending_conf_change".to_owned(),
+            message: "membership proposal intent stored; raft-rs ConfChange emission remains gated"
+                .to_owned(),
+            created_by: principal.username,
+        })
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+
+    Ok(Json(ApiResponse::success(RaftMembershipProposalResponse {
+        accepted: true,
+        reason: stored.message.clone(),
+        local_node_id: status.node_id,
+        local_role: status.role.as_str().to_owned(),
+        leader_fencing_token: status.leader_fencing_token,
+        proposal: Some(stored),
+    })))
+}
+
+#[derive(Debug, Clone)]
+struct ValidatedMembershipProposal {
+    proposal_id: String,
+    action: String,
+    node_id: String,
+    endpoint: Option<String>,
+}
+
+fn validate_membership_proposal_leader(
+    status: &crate::cluster::ClusterStatus,
+) -> Result<(), ApiError> {
+    if status.mode != crate::cluster::ClusterMode::Raft
+        || status.role != crate::cluster::ClusterRole::Leader
+        || !status.can_schedule
+        || status
+            .leader_fencing_token
+            .as_deref()
+            .is_none_or(str::is_empty)
+    {
+        return Err(ApiError::forbidden(
+            "membership proposals require a real raft leader with a persisted fencing token",
+        ));
+    }
+    Ok(())
+}
+
+async fn validate_membership_proposal_request(
+    request: &RaftMembershipProposalRequest,
+    status: &crate::cluster::ClusterStatus,
+    state: &AppState,
+) -> Result<ValidatedMembershipProposal, ApiError> {
+    let proposal_id = require_non_empty(&request.proposal_id, "proposal_id")?;
+    let action = require_non_empty(&request.action, "action")?;
+    let node_id = require_non_empty(&request.node_id, "node_id")?;
+    match action.as_str() {
+        "add_voter" => {
+            let endpoint = request
+                .endpoint
+                .as_ref()
+                .ok_or_else(|| ApiError::bad_request("endpoint is required for add_voter"))?;
+            validate_member_endpoint(endpoint)?;
+            Ok(ValidatedMembershipProposal {
+                proposal_id,
+                action,
+                node_id,
+                endpoint: Some(endpoint.trim().to_owned()),
+            })
+        }
+        "remove_voter" => {
+            if node_id == status.node_id {
+                return Err(ApiError::bad_request(
+                    "remove_voter cannot target the current leader node",
+                ));
+            }
+            let members = state
+                .raft
+                .list_members()
+                .await
+                .map_err(|error| ApiError::storage(&error))?;
+            let active_count = members
+                .iter()
+                .filter(|member| {
+                    matches!(member.status.as_str(), "configured" | "joining" | "active")
+                })
+                .count();
+            if active_count <= 2 {
+                return Err(ApiError::bad_request(
+                    "remove_voter refuses quorum reduction until joint-consensus safety is implemented",
+                ));
+            }
+            Ok(ValidatedMembershipProposal {
+                proposal_id,
+                action,
+                node_id,
+                endpoint: None,
+            })
+        }
+        _ => Err(ApiError::bad_request(
+            "action must be one of add_voter, remove_voter",
+        )),
+    }
+}
+
+fn require_non_empty(value: &str, field: &str) -> Result<String, ApiError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        Err(ApiError::bad_request(format!("{field} must not be empty")))
+    } else {
+        Ok(trimmed.to_owned())
+    }
+}
+
+fn validate_member_endpoint(endpoint: &str) -> Result<(), ApiError> {
+    let parsed = Url::parse(endpoint).map_err(|error| {
+        ApiError::bad_request(format!("endpoint must be an absolute URL: {error}"))
+    })?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err(ApiError::bad_request("endpoint must use http or https"));
+    }
+    if parsed.host_str().is_none() {
+        return Err(ApiError::bad_request("endpoint must include a host"));
+    }
+    Ok(())
 }
 
 fn is_internal_raft_transport(headers: &HeaderMap, state: &AppState) -> bool {

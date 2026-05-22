@@ -177,6 +177,10 @@ fn api_router() -> Router<Arc<AppState>> {
             "/raft/append-entries",
             axum::routing::post(routes::append_entries),
         )
+        .route(
+            "/raft/members:propose",
+            axum::routing::post(routes::propose_member_change),
+        )
         .route("/auth/login", axum::routing::post(auth::login))
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", axum::routing::post(auth::logout))
@@ -337,7 +341,10 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
-    use crate::cluster::{StandaloneCoordinator, coordinator_from_config_with_storage};
+    use crate::cluster::{
+        ClusterMode, ClusterRole, ClusterStatus, StandaloneCoordinator, StaticCoordinator,
+        coordinator_from_config_with_storage,
+    };
     use axum::{body::Body, http::Request};
     use scheduler_config::{ClusterConfig, ClusterModeConfig, ClusterPeerConfig};
     use scheduler_proto::worker::v1::RegisterWorker;
@@ -570,6 +577,91 @@ mod tests {
         assert_eq!(
             json["data"]["leader_fencing_token"],
             serde_json::Value::Null
+        );
+    }
+
+    #[tokio::test]
+    async fn raft_membership_proposal_requires_real_leader_fencing() {
+        let app = router().await;
+        let response = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app,
+                    "POST",
+                    "/api/v1/raft/members:propose",
+                    r#"{"proposal_id":"prop-1","action":"add_voter","node_id":"scheduler-2","endpoint":"http://scheduler-2.scheduler-headless:9998"}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(response.status(), axum::http::StatusCode::FORBIDDEN);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert_ne!(json["code"], 0);
+        assert!(
+            json["message"]
+                .as_str()
+                .is_some_and(|value| value.contains("persisted fencing token"))
+        );
+        assert!(json.get("data").is_some());
+    }
+
+    #[tokio::test]
+    async fn raft_membership_proposal_validates_endpoint_before_storing() {
+        let app = router_with_leader_cluster().await;
+        let response = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app,
+                    "POST",
+                    "/api/v1/raft/members:propose",
+                    r#"{"proposal_id":"prop-bad","action":"add_voter","node_id":"scheduler-2","endpoint":"ftp://scheduler-2"}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert_ne!(json["code"], 0);
+        assert!(
+            json["message"]
+                .as_str()
+                .is_some_and(|value| value.contains("http or https"))
+        );
+    }
+
+    #[tokio::test]
+    async fn raft_membership_proposal_records_intent_idempotently() {
+        let app = router_with_leader_cluster().await;
+        let request = r#"{"proposal_id":"prop-add-2","action":"add_voter","node_id":"scheduler-2","endpoint":"http://scheduler-2.scheduler-headless:9998"}"#;
+
+        let first = post_json(app.clone(), "/api/v1/raft/members:propose", request).await;
+        let second = post_json(app, "/api/v1/raft/members:propose", request).await;
+
+        assert_eq!(first["code"], 0);
+        assert_eq!(first["data"]["accepted"], true);
+        assert_eq!(first["data"]["proposal"]["status"], "pending_conf_change");
+        assert_eq!(second["code"], 0);
+        assert_eq!(
+            first["data"]["proposal"]["id"],
+            second["data"]["proposal"]["id"]
+        );
+        assert_eq!(
+            second["data"]["reason"],
+            "membership proposal intent stored; raft-rs ConfChange emission remains gated"
         );
     }
 
@@ -1408,6 +1500,32 @@ mod tests {
             AuditLogRepository::new(db),
             crate::tunnel::WorkerRegistry::default(),
             StandaloneCoordinator::shared("test-node"),
+        ))
+    }
+
+    async fn router_with_leader_cluster() -> axum::Router {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            AuditLogRepository::new(db),
+            crate::tunnel::WorkerRegistry::default(),
+            StaticCoordinator::shared(ClusterStatus {
+                mode: ClusterMode::Raft,
+                role: ClusterRole::Leader,
+                node_id: "scheduler-0".to_owned(),
+                nodes: 3,
+                can_schedule: true,
+                leader_fencing_token: Some("raft:term:7:node:scheduler-0".to_owned()),
+                detail: "test leader with persisted fencing token".to_owned(),
+            }),
         ))
     }
 }

@@ -302,6 +302,8 @@ pub type DispatchQueueClaimApiResponse = ApiResponse<scheduler_storage::Dispatch
 pub type WorkerListApiResponse = ApiResponse<WorkerListResponse>;
 /// Raft `AppendEntries` API envelope.
 pub type RaftAppendEntriesApiResponse = ApiResponse<RaftMessageResult>;
+/// Raft membership proposal API envelope.
+pub type RaftMembershipProposalApiResponse = ApiResponse<RaftMembershipProposalResponse>;
 /// Workflow dry-run API envelope.
 pub type WorkflowDryRunApiResponse = ApiResponse<WorkflowDryRunResponse>;
 
@@ -411,6 +413,36 @@ pub struct RaftMessageResult {
     pub remote_addr: Option<String>,
     /// Received sender term.
     pub received_term: i64,
+}
+
+/// Request to create an intentionally gated Raft membership proposal.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct RaftMembershipProposalRequest {
+    /// Client-provided idempotency key.
+    pub proposal_id: String,
+    /// Membership action: `add_voter` or `remove_voter`.
+    pub action: String,
+    /// Target scheduler node id.
+    pub node_id: String,
+    /// Target endpoint for `add_voter`.
+    pub endpoint: Option<String>,
+}
+
+/// Response for a gated Raft membership proposal intent.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct RaftMembershipProposalResponse {
+    /// Whether proposal intent was accepted and stored.
+    pub accepted: bool,
+    /// Human-readable result.
+    pub reason: String,
+    /// Local node id.
+    pub local_node_id: String,
+    /// Local cluster role.
+    pub local_role: String,
+    /// Persisted local leader fencing token.
+    pub leader_fencing_token: Option<String>,
+    /// Stored proposal summary when the intent was accepted for later `ConfChange` wiring.
+    pub proposal: Option<scheduler_storage::RaftMembershipProposalSummary>,
 }
 
 /// Request to run a workflow.

@@ -339,3 +339,10 @@
 - Dynamic membership remains deliberately gated: `raft_member_upsert` does not call raft-rs `propose_conf_change`; committed `EntryConfChange/EntryConfChangeV2` still stop apply progress until proposal/API + ConfState application are implemented.
 - Targeted tests added for member command replay, unsupported commands, rejected payloads, invalid JSON, and raft table no-FK schema guarantees.
 - Full verification passed: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase2 raft-rs membership proposal intent API
+- Added `raft_membership_proposals` as a no-FK proposal-intent table with `(cluster_id, proposal_id)` idempotency.
+- Added `cluster:manage` RBAC permission for admin-only cluster mutation proposals.
+- Added `POST /api/v1/raft/members:propose`; it requires a real Raft leader status, `can_schedule=true`, persisted `leader_fencing_token`, and validates add/remove voter intent before storing `pending_conf_change`.
+- The endpoint deliberately does not call raft-rs `propose_conf_change` yet; committed `EntryConfChange/EntryConfChangeV2` apply remains gated until ConfState persistence and quorum-safe transition logic are implemented.
+- Full verification passed for membership proposal intent API: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).

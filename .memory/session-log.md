@@ -966,3 +966,11 @@ Git:
 - Updated design to document the dynamic membership two-layer flow: member catalog command first; future proposal API + raft-rs `propose_conf_change` + committed ConfState apply before changing voters/learners.
 - Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server raft_apply_committed_entries --all-features`; `cargo test -p scheduler-storage raft_tables_keep_soft_relationships_without_foreign_keys --all-features`.
 - Full verification passed for 055: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
+
+### 2026-05-22 Phase2 raft-rs membership proposal intent API
+- Continued automatically into `.prompt/056-phase2-raft-rs-membership-proposal-api.md` after committing 055.
+- Implemented no-FK `raft_membership_proposals` storage and idempotent repository insert by `(cluster_id, proposal_id)`.
+- Implemented `POST /api/v1/raft/members:propose` with `{ code, message, data }` envelope, `cluster:manage` RBAC, real-leader/fencing guard, http/https endpoint validation, self-removal block, and quorum-reduction block for unsafe remove proposals.
+- Tests added for non-leader rejection, invalid endpoint rejection, and duplicate proposal idempotency.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p scheduler-server raft_membership_proposal --all-features`; `cargo test -p scheduler-storage raft_tables_keep_soft_relationships_without_foreign_keys --all-features`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
+- Full verification passed for 056: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).

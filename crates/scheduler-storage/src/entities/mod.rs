@@ -14,6 +14,7 @@ pub mod permission;
 pub mod raft_applied_command;
 pub mod raft_log_entry;
 pub mod raft_member;
+pub mod raft_membership_proposal;
 pub mod raft_metadata;
 pub mod raft_snapshot;
 pub mod role;

@@ -22,14 +22,15 @@ pub use repository::{
     JobInstanceAttemptRepository, JobInstanceAttemptSummary, JobInstanceLogRepository,
     JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
     MaterializeWorkflowNodeResult, PermissionSummary, QueueOverview, RaftAppliedCommandSummary,
-    RaftLogEntrySummary, RaftMemberSummary, RaftMetadataSummary, RaftRepository,
-    RaftSnapshotSummary, RbacRepository, RecordRaftAppliedCommand, RecoverWorkflowNodeInput,
-    RecoverWorkflowNodeResult, ScriptRepository, ScriptSummary, ScriptVersionRepository,
-    ScriptVersionSummary, UpdateScript, UpdateUser, UpdateWorkflow, UpsertRaftLogEntry,
-    UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot, UserRepository, UserSummary,
-    WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary, WorkflowJobResultOutcome,
-    WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
-    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
+    RaftLogEntrySummary, RaftMemberSummary, RaftMembershipProposalSummary, RaftMetadataSummary,
+    RaftRepository, RaftSnapshotSummary, RbacRepository, RecordRaftAppliedCommand,
+    RecordRaftMembershipProposal, RecoverWorkflowNodeInput, RecoverWorkflowNodeResult,
+    ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary, UpdateScript,
+    UpdateUser, UpdateWorkflow, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
+    UpsertRaftSnapshot, UserRepository, UserSummary, WorkflowDefinition, WorkflowEdgeSpec,
+    WorkflowInstanceSummary, WorkflowJobResultOutcome, WorkflowNodeInstanceSummary,
+    WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary, WorkflowSummary,
+    WorkflowValidationResult, validate_workflow_definition,
 };
 pub use sea_orm::DbErr;
 
@@ -170,6 +171,7 @@ async fn ensure_raft_schema_compatibility(db: &DatabaseConnection) -> Result<(),
         r"CREATE TABLE IF NOT EXISTS raft_log_entries (id varchar NOT NULL PRIMARY KEY, cluster_id varchar NOT NULL, node_id varchar NOT NULL, log_index bigint NOT NULL, term bigint NOT NULL, entry_type varchar NOT NULL, data text NOT NULL, context text, sync_status varchar NOT NULL, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS raft_snapshots (id varchar NOT NULL PRIMARY KEY, cluster_id varchar NOT NULL, node_id varchar NOT NULL, snapshot_index bigint NOT NULL, term bigint NOT NULL, conf_state text, data text, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS raft_applied_commands (id varchar NOT NULL PRIMARY KEY, cluster_id varchar NOT NULL, node_id varchar NOT NULL, log_index bigint NOT NULL, term bigint NOT NULL, command_id varchar NOT NULL, command_type varchar NOT NULL, payload text, status varchar NOT NULL, message text NOT NULL, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
+        r"CREATE TABLE IF NOT EXISTS raft_membership_proposals (id varchar NOT NULL PRIMARY KEY, cluster_id varchar NOT NULL, proposal_id varchar NOT NULL, action varchar NOT NULL, node_id varchar NOT NULL, endpoint varchar, status varchar NOT NULL, message text NOT NULL, created_by varchar NOT NULL, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_raft_metadata_node ON raft_metadata (node_id)",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_raft_members_node ON raft_members (node_id)",
         "CREATE INDEX IF NOT EXISTS idx_raft_members_status ON raft_members (status)",
@@ -178,6 +180,8 @@ async fn ensure_raft_schema_compatibility(db: &DatabaseConnection) -> Result<(),
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_raft_snapshots_node_index ON raft_snapshots (node_id, snapshot_index)",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_raft_applied_commands_node_index ON raft_applied_commands (node_id, log_index)",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_raft_applied_commands_command ON raft_applied_commands (cluster_id, command_id)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_raft_membership_proposals_proposal ON raft_membership_proposals (cluster_id, proposal_id)",
+        "CREATE INDEX IF NOT EXISTS idx_raft_membership_proposals_node ON raft_membership_proposals (node_id, status)",
     ] {
         db.execute(Statement::from_string(DatabaseBackend::Sqlite, sql))
             .await?;
@@ -402,6 +406,12 @@ async fn ensure_rbac_schema_compatibility(db: &DatabaseConnection) -> Result<(),
 const SQLITE_DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
     ("perm-system-read", "system", "read", "Read system metadata"),
     ("perm-cluster-read", "cluster", "read", "Read cluster state"),
+    (
+        "perm-cluster-manage",
+        "cluster",
+        "manage",
+        "Manage cluster membership proposals",
+    ),
     ("perm-users-read", "users", "read", "Read users"),
     ("perm-users-manage", "users", "manage", "Manage users"),
     ("perm-jobs-read", "jobs", "read", "Read jobs"),
@@ -844,6 +854,7 @@ mod tests {
             "raft_log_entries",
             "raft_snapshots",
             "raft_applied_commands",
+            "raft_membership_proposals",
         ] {
             let rows = db
                 .query_all(Statement::from_string(

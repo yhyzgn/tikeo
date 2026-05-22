@@ -51,6 +51,13 @@ impl MigrationTrait for CreateMetadataTables {
             .drop_table(Table::drop().table(RaftAppliedCommands::Table).to_owned())
             .await?;
         manager
+            .drop_table(
+                Table::drop()
+                    .table(RaftMembershipProposals::Table)
+                    .to_owned(),
+            )
+            .await?;
+        manager
             .drop_table(Table::drop().table(RaftSnapshots::Table).to_owned())
             .await?;
         manager
@@ -532,6 +539,25 @@ async fn create_raft_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(string_col(RaftSnapshots::UpdatedAt))
                 .to_owned(),
         )
+        .await?;
+    manager
+        .create_table(
+            Table::create()
+                .table(RaftMembershipProposals::Table)
+                .if_not_exists()
+                .col(string_pk(RaftMembershipProposals::Id))
+                .col(string_col(RaftMembershipProposals::ClusterId))
+                .col(string_col(RaftMembershipProposals::ProposalId))
+                .col(string_col(RaftMembershipProposals::Action))
+                .col(string_col(RaftMembershipProposals::NodeId))
+                .col(string_null(RaftMembershipProposals::Endpoint))
+                .col(string_col(RaftMembershipProposals::Status))
+                .col(text_col(RaftMembershipProposals::Message))
+                .col(string_col(RaftMembershipProposals::CreatedBy))
+                .col(string_col(RaftMembershipProposals::CreatedAt))
+                .col(string_col(RaftMembershipProposals::UpdatedAt))
+                .to_owned(),
+        )
         .await
 }
 
@@ -671,6 +697,12 @@ fn ignore_unique(result: Result<(), DbErr>) -> Result<(), DbErr> {
 const DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
     ("perm-system-read", "system", "read", "Read system metadata"),
     ("perm-cluster-read", "cluster", "read", "Read cluster state"),
+    (
+        "perm-cluster-manage",
+        "cluster",
+        "manage",
+        "Manage cluster membership proposals",
+    ),
     ("perm-users-read", "users", "read", "Read users"),
     ("perm-users-manage", "users", "manage", "Manage users"),
     ("perm-jobs-read", "jobs", "read", "Read jobs"),
@@ -1142,6 +1174,31 @@ async fn create_raft_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             .unique()
             .to_owned(),
     )
+    .await?;
+    create_raft_membership_proposal_indexes(manager).await
+}
+
+async fn create_raft_membership_proposal_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_raft_membership_proposals_proposal")
+            .table(RaftMembershipProposals::Table)
+            .col(RaftMembershipProposals::ClusterId)
+            .col(RaftMembershipProposals::ProposalId)
+            .unique()
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_raft_membership_proposals_node")
+            .table(RaftMembershipProposals::Table)
+            .col(RaftMembershipProposals::NodeId)
+            .col(RaftMembershipProposals::Status)
+            .to_owned(),
+    )
     .await
 }
 
@@ -1320,6 +1377,22 @@ enum RaftAppliedCommands {
     Payload,
     Status,
     Message,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum RaftMembershipProposals {
+    Table,
+    Id,
+    ClusterId,
+    ProposalId,
+    Action,
+    NodeId,
+    Endpoint,
+    Status,
+    Message,
+    CreatedBy,
     CreatedAt,
     UpdatedAt,
 }
