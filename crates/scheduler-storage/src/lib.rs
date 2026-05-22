@@ -222,6 +222,7 @@ async fn ensure_scripts_schema_compatibility(
             max_memory_bytes bigint,
             allow_network boolean NOT NULL DEFAULT 0,
             allowed_env_vars varchar,
+            policy_json varchar,
             created_by varchar NOT NULL,
             created_at varchar NOT NULL,
             updated_at varchar NOT NULL
@@ -239,6 +240,13 @@ async fn ensure_scripts_schema_compatibility(
         db.execute(Statement::from_string(
             DatabaseBackend::Sqlite,
             "ALTER TABLE scripts ADD COLUMN released_version_number bigint",
+        ))
+        .await?;
+    }
+    if !sqlite_column_exists(db, "scripts", "policy_json").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE scripts ADD COLUMN policy_json varchar",
         ))
         .await?;
     }
@@ -275,6 +283,7 @@ async fn ensure_script_versions_schema_compatibility(
             max_memory_bytes bigint,
             allow_network boolean NOT NULL DEFAULT 0,
             allowed_env_vars varchar,
+            policy_json varchar,
             created_by varchar NOT NULL,
             created_at varchar NOT NULL
         )",
@@ -284,6 +293,13 @@ async fn ensure_script_versions_schema_compatibility(
         db.execute(Statement::from_string(
             DatabaseBackend::Sqlite,
             "ALTER TABLE script_versions ADD COLUMN content_sha256 varchar NOT NULL DEFAULT ''",
+        ))
+        .await?;
+    }
+    if !sqlite_column_exists(db, "script_versions", "policy_json").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE script_versions ADD COLUMN policy_json varchar",
         ))
         .await?;
     }

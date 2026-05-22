@@ -29,6 +29,8 @@ pub struct Model {
     pub allow_network: bool,
     /// Snapshot of `allowed_env_vars`.
     pub allowed_env_vars: Option<String>,
+    /// Snapshot of serialized `ScriptExecutionPolicy`.
+    pub policy_json: Option<String>,
     /// User who triggered this version.
     pub created_by: String,
     /// Timestamp in RFC3339 format.

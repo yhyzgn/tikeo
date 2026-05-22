@@ -226,6 +226,14 @@ export async function deleteUser(id: string): Promise<void> {
   });
 }
 
+export interface ScriptExecutionPolicy {
+  resources: { timeout_ms: number; max_memory_bytes: number; max_output_bytes: number };
+  network: { enabled: boolean; allowed_hosts: string[] };
+  filesystem: { read_only_paths: string[]; writable_paths: string[] };
+  secrets: { refs: string[] };
+  env_vars: string[];
+}
+
 export interface ScriptSummary {
   id: string;
   name: string;
@@ -240,6 +248,7 @@ export interface ScriptSummary {
   max_memory_bytes: number | null;
   allow_network: boolean;
   allowed_env_vars: string[] | null;
+  policy: ScriptExecutionPolicy;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -254,6 +263,7 @@ export interface CreateScriptRequest {
   max_memory_bytes?: number | null;
   allow_network?: boolean;
   allowed_env_vars?: string[] | null;
+  policy?: ScriptExecutionPolicy | null;
 }
 
 export interface UpdateScriptRequest {
@@ -266,6 +276,7 @@ export interface UpdateScriptRequest {
   max_memory_bytes?: number | null;
   allow_network?: boolean;
   allowed_env_vars?: string[] | null;
+  policy?: ScriptExecutionPolicy | null;
 }
 
 export async function listScripts(): Promise<Page<ScriptSummary>> {
@@ -316,6 +327,7 @@ export interface ScriptVersionSummary {
   max_memory_bytes: number | null;
   allow_network: boolean;
   allowed_env_vars: string[] | null;
+  policy: ScriptExecutionPolicy;
   created_by: string;
   created_at: string;
 }

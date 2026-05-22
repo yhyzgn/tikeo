@@ -602,6 +602,8 @@ pub struct CreateScriptRequest {
     pub allow_network: Option<bool>,
     /// Allowed environment variable names.
     pub allowed_env_vars: Option<Vec<String>>,
+    /// Optional execution policy snapshot. Dangerous capabilities remain rejected in this phase.
+    pub policy: Option<serde_json::Value>,
 }
 
 /// Update script request.
@@ -625,6 +627,8 @@ pub struct UpdateScriptRequest {
     pub allow_network: Option<bool>,
     /// Optional allowed environment variable names update.
     pub allowed_env_vars: Option<Vec<String>>,
+    /// Optional execution policy snapshot update. Dangerous capabilities remain rejected in this phase.
+    pub policy: Option<serde_json::Value>,
 }
 
 /// Publish or rollback script release pointer request.

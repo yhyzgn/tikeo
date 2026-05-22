@@ -495,3 +495,13 @@
 - Web script page now shows released version/id, marks released history rows, and exposes publish/rollback actions under script manage permission.
 - Full verification passed for 071: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
 - Known warning: Web build still reports existing >500KB chunk-size warning for large lazily loaded chunks.
+
+### 2026-05-22 Phase3 script policy metadata, runner abstraction, and Web chunk split
+- Continued `.prompt/072-phase3-script-policy-engine-and-sandbox-runners.md` and the user-requested Web chunk optimization.
+- Added `ScriptExecutionPolicy` in core with resources/network/filesystem/secrets/env metadata and default-deny validation for dangerous grants.
+- Persisted policy snapshots on `scripts.policy_json` and immutable `script_versions.policy_json`; compatibility migration uses soft schema changes only and still no database foreign keys.
+- HTTP script create/update accepts optional `policy`, rejects network/filesystem/secret grants for now, and returns policy data in the standard envelope.
+- Script version diff now includes `policy` changes; Web script management exposes safe resource/env policy fields and policy summaries.
+- Rust Worker SDK now has non-WASM `ScriptRunnerKind`, `ScriptRunnerPolicy`, `ScriptRunnerTask`, `ScriptRunner` and `UnsupportedScriptRunner` abstraction; unsupported runner validates default-deny policy and refuses execution until concrete sandbox runners are implemented.
+- Web build chunk issue fixed with Vite/Rolldown `codeSplitting.groups` for React/AntD/CodeMirror/utility vendor chunks; `bun run build` no longer emits >500KB chunk warnings.
+- Full verification passed for 072: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml`; `cargo test --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/scheduler-worker-sdk/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.

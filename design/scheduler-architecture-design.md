@@ -2200,8 +2200,11 @@ scheduler/
   - [x] 发布指针、回滚 API 与 Worker 侧执行版本绑定（071：`scripts.released_version_id/released_version_number` 软关联不可变 `script_versions`；`POST /api/v1/scripts/{id}/publish|rollback` 更新发布指针并审计；WASM dispatch fail-closed，必须使用 released snapshot bytes/SHA-256/version metadata）
   - [ ] 完整审批流状态机（多级审批、签名、生产发布门禁）
   - [x] 脚本编辑器语法高亮（CodeMirror 6 Shell/Python/Node）
-  - [ ] Worker 侧沙箱执行器（子进程/容器/WASM）
+  - [x] Worker 侧非 WASM Runner 抽象（072：Rust SDK `ScriptRunner` / `ScriptRunnerTask` / `ScriptRunnerPolicy`，Shell/Python/Node/PowerShell/Rhai 类型识别；默认 Unsupported runner 只验证策略并拒绝执行，等待具体沙箱实现）
+  - [ ] Worker 侧沙箱执行器具体实现（受限子进程/容器 runner）
 - [ ] 脚本策略引擎（能力声明、审批、资源限制、网络/文件策略）
+  - [x] 默认拒绝策略元数据与不可变快照（072：`ScriptExecutionPolicy` 覆盖 resources/network/filesystem/secrets/env；`scripts.policy_json` 和 `script_versions.policy_json` 保存策略快照；HTTP create/update 拒绝网络/文件/Secret 危险能力；Web 可编辑资源/env 白名单并展示策略 diff）
+  - [ ] 策略审批、签名、URL/File/Secret grant 与生产发布门禁
 - [ ] 告警系统 (邮件/Slack/钉钉/飞书/企业微信/PagerDuty)
   - [x] AlertRule / AlertCondition / AlertDispatcher 安全 Webhook 通知骨架
   - [ ] 告警规则 API、事件接入、去重静默、通知历史、恢复通知

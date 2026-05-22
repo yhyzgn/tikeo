@@ -109,10 +109,18 @@ mod tests {
                 max_memory_bytes: Some(4096),
                 allow_network: false,
                 allowed_env_vars: Some(r#"["SAFE_ENV"]"#.to_owned()),
+                policy_json: Some(r#"{"resources":{"timeout_ms":12000,"max_memory_bytes":33554432,"max_output_bytes":524288},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":["SAFE_ENV"]}"#.to_owned()),
             })
             .await
             .unwrap_or_else(|error| panic!("script should be created: {error}"));
         assert_eq!(script.released_version_number, None);
+        assert_eq!(script.policy["network"]["enabled"], false);
+        assert_eq!(script.policy["resources"]["timeout_ms"], 12_000);
+        assert_eq!(script.policy["env_vars"], serde_json::json!(["SAFE_ENV"]));
+        assert_eq!(
+            script.policy["filesystem"]["read_only_paths"],
+            serde_json::json!([])
+        );
 
         scripts
             .update_script(
@@ -127,6 +135,7 @@ mod tests {
                     max_memory_bytes: None,
                     allow_network: None,
                     allowed_env_vars: None,
+                    policy_json: None,
                 },
             )
             .await
@@ -142,6 +151,8 @@ mod tests {
         assert_eq!(versions[0].content, "module-v2");
         assert_eq!(versions[1].version_number, 1);
         assert_eq!(versions[1].content, "module-v1");
+        assert_eq!(versions[0].policy["network"]["enabled"], false);
+        assert_eq!(versions[1].policy["resources"]["timeout_ms"], 12_000);
 
         let published = scripts
             .publish_version(&script.id, 2)

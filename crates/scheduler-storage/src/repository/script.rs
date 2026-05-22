@@ -1,3 +1,4 @@
+use scheduler_core::ScriptExecutionPolicy;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, Set, TransactionTrait,
@@ -30,6 +31,8 @@ pub struct CreateScript {
     pub allow_network: bool,
     /// Allowed environment variable names.
     pub allowed_env_vars: Option<String>,
+    /// Serialized `ScriptExecutionPolicy`. Defaults to a generated default-deny policy.
+    pub policy_json: Option<String>,
 }
 
 /// Script update input.
@@ -53,6 +56,8 @@ pub struct UpdateScript {
     pub allow_network: Option<bool>,
     /// Optional env vars update.
     pub allowed_env_vars: Option<String>,
+    /// Optional serialized `ScriptExecutionPolicy` update.
+    pub policy_json: Option<String>,
 }
 
 /// Script summary returned to management API callers.
@@ -84,6 +89,8 @@ pub struct ScriptSummary {
     pub allow_network: bool,
     /// Allowed environment variable names.
     pub allowed_env_vars: Option<Vec<String>>,
+    /// Policy snapshot for dynamic script execution.
+    pub policy: serde_json::Value,
     /// Creator user id.
     pub created_by: String,
     /// Creation timestamp.
@@ -159,6 +166,7 @@ impl ScriptRepository {
             max_memory_bytes: input.max_memory_bytes,
             allow_network: input.allow_network,
             allowed_env_vars: input.allowed_env_vars,
+            policy_json: Some(input.policy_json.unwrap_or_else(default_policy_json)),
             created_by: input.created_by,
             created_at: now.clone(),
             updated_at: now,
@@ -176,6 +184,7 @@ impl ScriptRepository {
             max_memory_bytes: Set(model.max_memory_bytes),
             allow_network: Set(model.allow_network),
             allowed_env_vars: Set(model.allowed_env_vars.clone()),
+            policy_json: Set(model.policy_json.clone()),
             created_by: Set(model.created_by.clone()),
             created_at: Set(model.created_at.clone()),
             updated_at: Set(model.updated_at.clone()),
@@ -231,6 +240,9 @@ impl ScriptRepository {
         if let Some(env) = params.allowed_env_vars {
             active.allowed_env_vars = Set(Some(env));
         }
+        if let Some(policy_json) = params.policy_json {
+            active.policy_json = Set(Some(policy_json));
+        }
         if !script_changed(&before, &active) {
             return Ok(Some(ScriptSummary::from(before)));
         }
@@ -280,6 +292,7 @@ impl ScriptRepository {
             max_memory_bytes: Set(existing.max_memory_bytes),
             allow_network: Set(existing.allow_network),
             allowed_env_vars: Set(existing.allowed_env_vars.clone()),
+            policy_json: Set(existing.policy_json.clone()),
             created_by: Set(existing.created_by.clone()),
             created_at: Set(existing.created_at.clone()),
             updated_at: Set(now.clone()),
@@ -303,6 +316,7 @@ impl ScriptRepository {
             allowed_env_vars: existing
                 .allowed_env_vars
                 .and_then(|s| serde_json::from_str(&s).ok()),
+            policy: parse_policy(existing.policy_json.as_deref()),
             created_by: existing.created_by,
             created_at: existing.created_at,
             updated_at: now,
@@ -359,6 +373,7 @@ fn script_changed(before: &script::Model, active: &script::ActiveModel) -> bool 
         || changed(&active.max_memory_bytes, &before.max_memory_bytes)
         || changed(&active.allow_network, &before.allow_network)
         || changed(&active.allowed_env_vars, &before.allowed_env_vars)
+        || changed(&active.policy_json, &before.policy_json)
 }
 
 /// Summary of a script version snapshot.
@@ -386,6 +401,8 @@ pub struct ScriptVersionSummary {
     pub allow_network: bool,
     /// Snapshot of `allowed_env_vars`.
     pub allowed_env_vars: Option<Vec<String>>,
+    /// Snapshot of execution policy.
+    pub policy: serde_json::Value,
     /// User who created this version.
     pub created_by: String,
     /// Creation timestamp.
@@ -446,6 +463,7 @@ impl ScriptVersionRepository {
             max_memory_bytes: Set(script.max_memory_bytes),
             allow_network: Set(script.allow_network),
             allowed_env_vars: Set(script.allowed_env_vars.clone()),
+            policy_json: Set(script.policy_json.clone()),
             created_by: Set(script.created_by.clone()),
             created_at: Set(created_at.clone()),
         })
@@ -467,6 +485,7 @@ impl ScriptVersionRepository {
                 .allowed_env_vars
                 .as_ref()
                 .and_then(|value| serde_json::from_str(value).ok()),
+            policy: parse_policy(script.policy_json.as_deref()),
             created_by: script.created_by.clone(),
             created_at,
         })
@@ -534,6 +553,7 @@ impl From<script_version::Model> for ScriptVersionSummary {
             allowed_env_vars: value
                 .allowed_env_vars
                 .and_then(|s| serde_json::from_str(&s).ok()),
+            policy: parse_policy(value.policy_json.as_deref()),
             created_by: value.created_by,
             created_at: value.created_at,
         }
@@ -558,11 +578,23 @@ impl From<script::Model> for ScriptSummary {
             allowed_env_vars: value
                 .allowed_env_vars
                 .and_then(|s| serde_json::from_str(&s).ok()),
+            policy: parse_policy(value.policy_json.as_deref()),
             created_by: value.created_by,
             created_at: value.created_at,
             updated_at: value.updated_at,
         }
     }
+}
+
+fn default_policy_json() -> String {
+    serde_json::to_string(&ScriptExecutionPolicy::default()).unwrap_or_else(|_| "{}".to_owned())
+}
+
+fn parse_policy(value: Option<&str>) -> serde_json::Value {
+    let policy = value
+        .and_then(|json| serde_json::from_str::<ScriptExecutionPolicy>(json).ok())
+        .unwrap_or_default();
+    serde_json::to_value(policy).unwrap_or_else(|_| serde_json::json!({}))
 }
 
 fn content_sha256(content: &str) -> String {

@@ -31,6 +31,8 @@ pub struct Model {
     pub allow_network: bool,
     /// Allowed environment variable names as JSON array string.
     pub allowed_env_vars: Option<String>,
+    /// Serialized `ScriptExecutionPolicy` snapshot for draft/current policy.
+    pub policy_json: Option<String>,
     /// Creator user id, soft-linked to `users.id`.
     pub created_by: String,
     /// Creation timestamp in RFC3339 format.

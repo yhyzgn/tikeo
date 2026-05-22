@@ -421,6 +421,175 @@ mod wasm_runtime {
     }
 }
 
+
+/// Supported non-WASM dynamic script runner kinds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScriptRunnerKind {
+    /// POSIX shell runner.
+    Shell,
+    /// Python runner.
+    Python,
+    /// Node.js runner.
+    Node,
+    /// PowerShell runner.
+    PowerShell,
+    /// Rhai expression/script runner.
+    Rhai,
+}
+
+impl ScriptRunnerKind {
+    /// Parse a wire language value into a runner kind.
+    #[must_use]
+    pub fn from_language(language: &str) -> Option<Self> {
+        match language.trim().to_ascii_lowercase().as_str() {
+            "shell" | "sh" | "bash" => Some(Self::Shell),
+            "python" | "py" => Some(Self::Python),
+            "node" | "nodejs" | "javascript" | "js" | "typescript" | "ts" => Some(Self::Node),
+            "powershell" | "pwsh" => Some(Self::PowerShell),
+            "rhai" => Some(Self::Rhai),
+            _ => None,
+        }
+    }
+
+    /// Stable runner name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Shell => "shell",
+            Self::Python => "python",
+            Self::Node => "node",
+            Self::PowerShell => "powershell",
+            Self::Rhai => "rhai",
+        }
+    }
+}
+
+/// Default-deny policy snapshot for non-WASM dynamic script runners.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScriptRunnerPolicy {
+    /// Maximum wall-clock runtime in milliseconds.
+    pub timeout_ms: u64,
+    /// Maximum memory in bytes.
+    pub max_memory_bytes: u64,
+    /// Maximum captured output bytes.
+    pub max_output_bytes: u64,
+    /// Whether network egress is allowed. Current SDK abstraction rejects it.
+    pub allow_network: bool,
+    /// Allowed environment variable names.
+    pub env_vars: Vec<String>,
+    /// Read-only filesystem paths granted to the runner. Current SDK abstraction rejects them.
+    pub read_only_paths: Vec<String>,
+    /// Writable filesystem paths granted to the runner. Current SDK abstraction rejects them.
+    pub writable_paths: Vec<String>,
+    /// Secret references granted to the runner. Current SDK abstraction rejects them.
+    pub secret_refs: Vec<String>,
+}
+
+impl Default for ScriptRunnerPolicy {
+    fn default() -> Self {
+        Self {
+            timeout_ms: 30_000,
+            max_memory_bytes: 64 * 1024 * 1024,
+            max_output_bytes: 1024 * 1024,
+            allow_network: false,
+            env_vars: Vec::new(),
+            read_only_paths: Vec::new(),
+            writable_paths: Vec::new(),
+            secret_refs: Vec::new(),
+        }
+    }
+}
+
+impl ScriptRunnerPolicy {
+    /// Validate the SDK-side policy boundary before any future local runner executes code.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for zero limits or dangerous capabilities that require future
+    /// platform policy grants.
+    pub fn validate_default_deny(&self) -> Result<(), WorkerSdkError> {
+        if self.timeout_ms == 0 {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(
+                "script timeout must be greater than zero".to_owned(),
+            ));
+        }
+        if self.max_memory_bytes == 0 {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(
+                "script memory limit must be greater than zero".to_owned(),
+            ));
+        }
+        if self.max_output_bytes == 0 {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(
+                "script output limit must be greater than zero".to_owned(),
+            ));
+        }
+        if self.allow_network {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(
+                "script network access requires a future URL policy grant".to_owned(),
+            ));
+        }
+        if !self.read_only_paths.is_empty() || !self.writable_paths.is_empty() {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(
+                "script filesystem access requires a future filesystem policy grant".to_owned(),
+            ));
+        }
+        if !self.secret_refs.is_empty() {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(
+                "script secret access requires a future secret policy grant".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Future non-WASM dynamic script runner contract.
+#[async_trait]
+pub trait ScriptRunner: Send + Sync + 'static {
+    /// Runner language/kind.
+    fn kind(&self) -> ScriptRunnerKind;
+
+    /// Execute a released immutable script snapshot.
+    async fn run(&self, task: ScriptRunnerTask) -> Result<TaskOutcome, WorkerSdkError>;
+}
+
+/// Immutable script snapshot passed to a future non-WASM runner.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScriptRunnerTask {
+    /// Script id.
+    pub script_id: String,
+    /// Immutable script version id.
+    pub version_id: String,
+    /// Immutable script version number.
+    pub version_number: u64,
+    /// Script language.
+    pub language: String,
+    /// Script source content from the released version snapshot.
+    pub content: String,
+    /// Content SHA-256 digest.
+    pub content_sha256: String,
+    /// Default-deny execution policy snapshot.
+    pub policy: ScriptRunnerPolicy,
+}
+
+/// Placeholder runner used until language-specific sandbox implementations are enabled.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct UnsupportedScriptRunner;
+
+#[async_trait]
+impl ScriptRunner for UnsupportedScriptRunner {
+    fn kind(&self) -> ScriptRunnerKind {
+        ScriptRunnerKind::Shell
+    }
+
+    async fn run(&self, task: ScriptRunnerTask) -> Result<TaskOutcome, WorkerSdkError> {
+        task.policy.validate_default_deny()?;
+        Err(WorkerSdkError::UnsupportedScriptRunner(format!(
+            "{} script runner is not enabled; use a dedicated sandbox runner before executing dynamic scripts",
+            task.language
+        )))
+    }
+}
+
 /// User-provided async processor interface for future task dispatch support.
 #[async_trait]
 pub trait TaskProcessor: Send + Sync + 'static {
@@ -474,6 +643,9 @@ pub enum WorkerSdkError {
     /// Scheduler returned an unexpected server message.
     #[error("unexpected worker tunnel server message")]
     UnexpectedMessage,
+    /// A dynamic script runner was requested before a safe sandbox implementation exists.
+    #[error("unsupported script runner: {0}")]
+    UnsupportedScriptRunner(String),
 }
 
 #[cfg(test)]
@@ -493,8 +665,43 @@ mod tests {
     };
 
     use super::{
-        TaskContext, TaskOutcome, TaskProcessor, WorkerClient, WorkerConfig, WorkerSdkError,
+        ScriptRunner, ScriptRunnerKind, ScriptRunnerPolicy, ScriptRunnerTask, TaskContext,
+        TaskOutcome, TaskProcessor, UnsupportedScriptRunner, WorkerClient, WorkerConfig,
+        WorkerSdkError,
     };
+
+
+    #[tokio::test]
+    async fn unsupported_script_runner_validates_default_deny_policy_before_execution() {
+        assert_eq!(ScriptRunnerKind::from_language("python"), Some(ScriptRunnerKind::Python));
+        assert_eq!(ScriptRunnerKind::Node.as_str(), "node");
+
+        let runner = UnsupportedScriptRunner;
+        let task = ScriptRunnerTask {
+            script_id: "script_py".to_owned(),
+            version_id: "sv_1".to_owned(),
+            version_number: 1,
+            language: "python".to_owned(),
+            content: "print(1)".to_owned(),
+            content_sha256: "digest".to_owned(),
+            policy: ScriptRunnerPolicy::default(),
+        };
+        let error = match runner.run(task).await {
+            Ok(outcome) => panic!("runner should not execute yet: {outcome:?}"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("not enabled"));
+
+        let dangerous = ScriptRunnerPolicy {
+            allow_network: true,
+            ..ScriptRunnerPolicy::default()
+        };
+        let error = match dangerous.validate_default_deny() {
+            Ok(()) => panic!("dangerous policy should be rejected"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("network access"));
+    }
 
     #[tokio::test]
     async fn worker_client_registers_and_sends_heartbeat() {

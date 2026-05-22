@@ -6,6 +6,8 @@ use axum::{
     http::HeaderMap,
 };
 
+use scheduler_core::ScriptExecutionPolicy;
+
 use crate::http::{
     AppState, auth,
     dto::{
@@ -92,6 +94,7 @@ pub async fn create_script(
             allowed_env_vars: request
                 .allowed_env_vars
                 .and_then(|vars| serde_json::to_string(&vars).ok()),
+            policy_json: validate_policy_json(request.policy)?,
         })
         .await
         .map_err(|error| ApiError::storage(&error))?;
@@ -189,6 +192,7 @@ pub async fn update_script(
                 allowed_env_vars: request
                     .allowed_env_vars
                     .and_then(|vars| serde_json::to_string(&vars).ok()),
+                policy_json: validate_policy_json(request.policy)?,
             },
         )
         .await
@@ -332,6 +336,20 @@ async fn resolve_release_version_number(
         .map(|version| version.version_number)
         .max()
         .ok_or_else(|| ApiError::not_found(format!("script has no versions: {id}")))
+}
+
+fn validate_policy_json(value: Option<serde_json::Value>) -> Result<Option<String>, ApiError> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let policy: ScriptExecutionPolicy = serde_json::from_value(value)
+        .map_err(|error| ApiError::bad_request(format!("invalid script policy: {error}")))?;
+    policy
+        .validate_default_deny()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    serde_json::to_string(&policy)
+        .map(Some)
+        .map_err(|error| ApiError::bad_request(format!("invalid script policy: {error}")))
 }
 
 /// Delete a script by id (Admin only).
@@ -580,6 +598,11 @@ fn policy_diff(
         &v2.allowed_env_vars
             .as_ref()
             .map_or_else(|| "null".to_owned(), |v| v.join(",")),
+    );
+    check(
+        "policy",
+        &serde_json::to_string(&v1.policy).unwrap_or_else(|_| "{}".to_owned()),
+        &serde_json::to_string(&v2.policy).unwrap_or_else(|_| "{}".to_owned()),
     );
     changes
 }

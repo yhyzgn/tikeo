@@ -1020,6 +1020,7 @@ mod tests {
         assert_eq!(published["data"]["status"], "approved");
         assert_eq!(published["data"]["released_version_number"], 2);
         assert!(published["data"]["released_version_id"].is_string());
+        assert_eq!(published["data"]["policy"]["network"]["enabled"], false);
 
         let rolled_back = post_json(
             app,
@@ -1034,6 +1035,37 @@ mod tests {
             rolled_back["data"]["released_version_id"],
             published["data"]["released_version_id"]
         );
+    }
+
+    #[tokio::test]
+    async fn script_policy_rejects_dangerous_network_grant_for_now() {
+        let app = router().await;
+        let response = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app,
+                    "POST",
+                    "/api/v1/scripts",
+                    r#"{"name":"net-script","language":"python","version":"1.0.0","content":"print(1)","policy":{"resources":{"timeout_ms":30000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":true,"allowed_hosts":["example.com"]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[]}}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_ne!(json["code"], 0);
+        assert!(
+            json["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("network access"))
+        );
+        assert!(json.get("data").is_some());
     }
 
     #[tokio::test]

@@ -368,6 +368,146 @@ impl FromStr for WasmRuntimeKind {
     }
 }
 
+/// Filesystem capability policy for dynamic script execution.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScriptFilesystemPolicy {
+    /// Explicit read-only paths granted to the runner. Empty by default.
+    pub read_only_paths: Vec<String>,
+    /// Explicit writable paths granted to the runner. Empty by default.
+    pub writable_paths: Vec<String>,
+}
+
+impl ScriptFilesystemPolicy {
+    /// Returns true when any filesystem access has been requested.
+    #[must_use]
+    pub const fn grants_host_access(&self) -> bool {
+        !self.read_only_paths.is_empty() || !self.writable_paths.is_empty()
+    }
+}
+
+/// Network policy for dynamic script execution.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScriptNetworkPolicy {
+    /// Whether outbound network access is requested. Default is denied.
+    pub enabled: bool,
+    /// Allowed hosts or URL policy references. Empty means no egress targets.
+    pub allowed_hosts: Vec<String>,
+}
+
+/// Secret capability policy for dynamic script execution.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScriptSecretPolicy {
+    /// Secret references that may be mounted or injected as ephemeral credentials.
+    pub refs: Vec<String>,
+}
+
+/// Resource policy shared by dynamic script runners.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScriptResourcePolicy {
+    /// Maximum wall-clock runtime in milliseconds.
+    pub timeout_ms: u64,
+    /// Maximum memory in bytes.
+    pub max_memory_bytes: u64,
+    /// Maximum output bytes captured by the runner.
+    pub max_output_bytes: u64,
+}
+
+impl Default for ScriptResourcePolicy {
+    fn default() -> Self {
+        Self {
+            timeout_ms: 30_000,
+            max_memory_bytes: 64 * 1024 * 1024,
+            max_output_bytes: 1024 * 1024,
+        }
+    }
+}
+
+/// Stable policy snapshot for non-WASM dynamic script execution.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScriptExecutionPolicy {
+    /// Resource limits enforced by the runner.
+    pub resources: ScriptResourcePolicy,
+    /// Outbound network policy. Default denies network.
+    pub network: ScriptNetworkPolicy,
+    /// Filesystem policy. Default grants no host paths.
+    pub filesystem: ScriptFilesystemPolicy,
+    /// Secret references. Default grants no secrets.
+    pub secrets: ScriptSecretPolicy,
+    /// Allowed environment variable names.
+    pub env_vars: Vec<String>,
+}
+
+impl ScriptExecutionPolicy {
+    /// Validate a script execution policy before storing or releasing it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ScriptPolicyError`] when resource limits are zero or a dangerous
+    /// capability is requested without a later approval/signature gate.
+    pub const fn validate_default_deny(&self) -> Result<(), ScriptPolicyError> {
+        if self.resources.timeout_ms == 0 {
+            return Err(ScriptPolicyError::ZeroTimeout);
+        }
+        if self.resources.max_memory_bytes == 0 {
+            return Err(ScriptPolicyError::ZeroMemory);
+        }
+        if self.resources.max_output_bytes == 0 {
+            return Err(ScriptPolicyError::ZeroOutput);
+        }
+        if self.network.enabled || !self.network.allowed_hosts.is_empty() {
+            return Err(ScriptPolicyError::NetworkRequiresPolicyGrant);
+        }
+        if self.filesystem.grants_host_access() {
+            return Err(ScriptPolicyError::FilesystemRequiresPolicyGrant);
+        }
+        if !self.secrets.refs.is_empty() {
+            return Err(ScriptPolicyError::SecretsRequirePolicyGrant);
+        }
+        Ok(())
+    }
+}
+
+/// Dynamic script policy validation error.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScriptPolicyError {
+    /// Timeout is zero.
+    ZeroTimeout,
+    /// Memory limit is zero.
+    ZeroMemory,
+    /// Output limit is zero.
+    ZeroOutput,
+    /// Network access needs a future URL policy and approval grant.
+    NetworkRequiresPolicyGrant,
+    /// Filesystem access needs a future filesystem policy and approval grant.
+    FilesystemRequiresPolicyGrant,
+    /// Secret access needs a future secret policy and approval grant.
+    SecretsRequirePolicyGrant,
+}
+
+impl fmt::Display for ScriptPolicyError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ZeroTimeout => formatter.write_str("script timeout must be greater than zero"),
+            Self::ZeroMemory => {
+                formatter.write_str("script memory limit must be greater than zero")
+            }
+            Self::ZeroOutput => {
+                formatter.write_str("script output limit must be greater than zero")
+            }
+            Self::NetworkRequiresPolicyGrant => formatter
+                .write_str("script network access requires a future URL policy and approval grant"),
+            Self::FilesystemRequiresPolicyGrant => formatter.write_str(
+                "script filesystem access requires a future filesystem policy and approval grant",
+            ),
+            Self::SecretsRequirePolicyGrant => formatter.write_str(
+                "script secret access requires a future secret policy and approval grant",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ScriptPolicyError {}
+
 /// Capability toggles for WASM/WASI processor execution.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WasmCapabilities {
@@ -520,8 +660,10 @@ mod tests {
     use std::str::FromStr;
 
     use super::{
-        ExecutionMode, HealthState, InstanceStatus, ScheduleType, ScriptLanguage, ScriptStatus,
-        TriggerType, WasmCapabilities, WasmProcessorSpec, WasmRuntimeKind, WasmSpecError,
+        ExecutionMode, HealthState, InstanceStatus, ScheduleType, ScriptExecutionPolicy,
+        ScriptFilesystemPolicy, ScriptLanguage, ScriptNetworkPolicy, ScriptPolicyError,
+        ScriptSecretPolicy, ScriptStatus, TriggerType, WasmCapabilities, WasmProcessorSpec,
+        WasmRuntimeKind, WasmSpecError,
     };
 
     #[test]
@@ -552,6 +694,53 @@ mod tests {
         );
         assert_eq!(ScriptStatus::from_str("active"), Ok(ScriptStatus::Approved));
         assert_eq!(ScriptStatus::Disabled.as_str(), "disabled");
+    }
+
+    #[test]
+    fn script_execution_policy_defaults_deny_dangerous_capabilities() {
+        let policy = ScriptExecutionPolicy::default();
+        assert!(policy.validate_default_deny().is_ok());
+        assert_eq!(policy.resources.timeout_ms, 30_000);
+        assert_eq!(policy.resources.max_memory_bytes, 64 * 1024 * 1024);
+        assert_eq!(policy.resources.max_output_bytes, 1024 * 1024);
+        assert!(!policy.network.enabled);
+        assert!(policy.filesystem.read_only_paths.is_empty());
+        assert!(policy.secrets.refs.is_empty());
+
+        let with_network = ScriptExecutionPolicy {
+            network: ScriptNetworkPolicy {
+                enabled: true,
+                allowed_hosts: vec!["example.com".to_owned()],
+            },
+            ..ScriptExecutionPolicy::default()
+        };
+        assert_eq!(
+            with_network.validate_default_deny(),
+            Err(ScriptPolicyError::NetworkRequiresPolicyGrant)
+        );
+
+        let with_filesystem = ScriptExecutionPolicy {
+            filesystem: ScriptFilesystemPolicy {
+                read_only_paths: vec!["/data/input".to_owned()],
+                writable_paths: Vec::new(),
+            },
+            ..ScriptExecutionPolicy::default()
+        };
+        assert_eq!(
+            with_filesystem.validate_default_deny(),
+            Err(ScriptPolicyError::FilesystemRequiresPolicyGrant)
+        );
+
+        let with_secret = ScriptExecutionPolicy {
+            secrets: ScriptSecretPolicy {
+                refs: vec!["secret:db-readonly".to_owned()],
+            },
+            ..ScriptExecutionPolicy::default()
+        };
+        assert_eq!(
+            with_secret.validate_default_deny(),
+            Err(ScriptPolicyError::SecretsRequirePolicyGrant)
+        );
     }
 
     #[test]

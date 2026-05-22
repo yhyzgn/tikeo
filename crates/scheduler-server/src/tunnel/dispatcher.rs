@@ -739,6 +739,7 @@ mod tests {
                 max_memory_bytes: Some(1024 * 1024),
                 allow_network: false,
                 allowed_env_vars: None,
+                policy_json: None,
             })
             .await
             .unwrap_or_else(|error| panic!("script should be created: {error}"));
@@ -866,6 +867,7 @@ mod tests {
                 max_memory_bytes: Some(1024),
                 allow_network: false,
                 allowed_env_vars: None,
+                policy_json: None,
             })
             .await
             .unwrap_or_else(|error| panic!("script should be created: {error}"));
@@ -882,6 +884,7 @@ mod tests {
                     max_memory_bytes: None,
                     allow_network: None,
                     allowed_env_vars: None,
+                    policy_json: None,
                 },
             )
             .await
@@ -918,6 +921,13 @@ mod tests {
             max_memory_bytes: Some(1024),
             allow_network: false,
             allowed_env_vars: None,
+            policy: serde_json::json!({
+                "resources": {"timeout_ms": 30_000, "max_memory_bytes": 64 * 1024 * 1024, "max_output_bytes": 1024 * 1024},
+                "network": {"enabled": false, "allowed_hosts": []},
+                "filesystem": {"read_only_paths": [], "writable_paths": []},
+                "secrets": {"refs": []},
+                "env_vars": []
+            }),
             created_by: "tester".to_owned(),
             created_at: "now".to_owned(),
             updated_at: "now".to_owned(),

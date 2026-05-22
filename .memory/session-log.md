@@ -1097,3 +1097,11 @@ Git:
 - Updated dispatch path so `script:<id>` WASM binding is built only from released immutable version snapshots; no release/missing snapshot leaves dispatch pending instead of sending mutable content.
 - Updated Web script management with released version metadata, released row tags, publish and rollback guarded actions.
 - Updated architecture roadmap and created `.prompt/072-phase3-script-policy-engine-and-sandbox-runners.md`.
+
+### 2026-05-22 — Phase 072 policy metadata / runner abstraction / Web chunk split
+- Added default-deny script policy model to `scheduler-core` and validation tests.
+- Added `policy_json` to scripts and script_versions, threaded through repository summaries/version snapshots, and included policy in version diff.
+- Added HTTP policy validation for script create/update; dangerous network/filesystem/secret grants return bad-request envelopes.
+- Added Web policy types, safe policy editing fields, detail display, policy diff fields, and Vite/Rolldown vendor chunk groups to eliminate large chunk warning.
+- Added Rust SDK non-WASM runner abstraction and unsupported runner test as the handoff point for concrete sandbox runner implementation.
+- Verification passed: Rust workspace fmt/clippy/test/help, Web typecheck/test/build without large chunk warning, Rust SDK native+wasm tests/clippy, Java SDK Gradle test.

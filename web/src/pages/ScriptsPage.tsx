@@ -1,7 +1,7 @@
 import { Alert, Button, Descriptions, Drawer, Form, Input, InputNumber, Modal, Select, Space, Spin, Switch, Table, Tag, Typography, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { diffLines } from 'diff';
-import type { ScriptDiffResult, ScriptSummary, ScriptVersionSummary } from '../api/client';
+import type { ScriptDiffResult, ScriptExecutionPolicy, ScriptSummary, ScriptVersionSummary } from '../api/client';
 import { GuardedButton, PermissionGate, useCan } from '../components/Permission';
 import {
   createScript,
@@ -38,6 +38,43 @@ const STATUS_LABELS: Record<string, string> = {
   disabled: '已禁用',
 };
 
+const DEFAULT_SCRIPT_POLICY: ScriptExecutionPolicy = {
+  resources: { timeout_ms: 30_000, max_memory_bytes: 64 * 1024 * 1024, max_output_bytes: 1024 * 1024 },
+  network: { enabled: false, allowed_hosts: [] },
+  filesystem: { read_only_paths: [], writable_paths: [] },
+  secrets: { refs: [] },
+  env_vars: [],
+};
+
+function policyFromForm(values: Record<string, unknown>): ScriptExecutionPolicy {
+  return {
+    resources: {
+      timeout_ms: Number(values.policy_timeout_ms ?? DEFAULT_SCRIPT_POLICY.resources.timeout_ms / 1000) * 1000,
+      max_memory_bytes: Number(values.policy_max_memory_bytes ?? DEFAULT_SCRIPT_POLICY.resources.max_memory_bytes),
+      max_output_bytes: Number(values.policy_max_output_bytes ?? DEFAULT_SCRIPT_POLICY.resources.max_output_bytes),
+    },
+    network: { enabled: false, allowed_hosts: [] },
+    filesystem: { read_only_paths: [], writable_paths: [] },
+    secrets: { refs: [] },
+    env_vars: Array.isArray(values.policy_env_vars) ? values.policy_env_vars as string[] : [],
+  };
+}
+
+function policyToForm(policy?: ScriptExecutionPolicy) {
+  const p = policy ?? DEFAULT_SCRIPT_POLICY;
+  return {
+    policy_timeout_ms: Math.floor(p.resources.timeout_ms / 1000),
+    policy_max_memory_bytes: p.resources.max_memory_bytes,
+    policy_max_output_bytes: p.resources.max_output_bytes,
+    policy_env_vars: p.env_vars,
+  };
+}
+
+function policySummary(policy?: ScriptExecutionPolicy): string {
+  const p = policy ?? DEFAULT_SCRIPT_POLICY;
+  return `timeout=${p.resources.timeout_ms}ms, memory=${p.resources.max_memory_bytes}B, output=${p.resources.max_output_bytes}B, network=${p.network.enabled ? 'allow' : 'deny'}, fs=${p.filesystem.read_only_paths.length + p.filesystem.writable_paths.length}, secrets=${p.secrets.refs.length}`;
+}
+
 function shortDigest(value?: string | null): string {
   return value ? `${value.slice(0, 12)}…${value.slice(-8)}` : '-';
 }
@@ -70,6 +107,10 @@ function buildPolicyDiff(
     { label: '内存限制(字节)', key: 'max_memory_bytes' },
     { label: '允许网络', key: 'allow_network', format: (v) => (v ? '允许' : '禁止') },
     { label: '允许的环境变量', key: 'allowed_env_vars', format: (v) => (Array.isArray(v) ? v.join(', ') : String(v ?? '')) },
+    { label: '策略超时(秒)', key: 'policy_timeout_ms' },
+    { label: '策略内存限制(字节)', key: 'policy_max_memory_bytes' },
+    { label: '策略输出限制(字节)', key: 'policy_max_output_bytes' },
+    { label: '策略环境变量', key: 'policy_env_vars', format: (v) => (Array.isArray(v) ? v.join(', ') : String(v ?? '')) },
   ];
   const changes: { field: string; before: string; after: string }[] = [];
   for (const f of fields) {
@@ -220,6 +261,7 @@ export function ScriptsPage() {
       await createScript({
         ...values,
         allow_network: values.allow_network ?? false,
+        policy: policyFromForm(values),
       });
       message.success('脚本创建成功');
       setModalOpen(false);
@@ -246,6 +288,7 @@ export function ScriptsPage() {
         max_memory_bytes: detail.max_memory_bytes,
         allow_network: detail.allow_network,
         allowed_env_vars: detail.allowed_env_vars,
+        ...policyToForm(detail.policy),
       };
       editForm.setFieldsValue(formValues);
       setOriginalScript({ ...formValues });
@@ -296,6 +339,7 @@ export function ScriptsPage() {
         max_memory_bytes: values.max_memory_bytes,
         allow_network: values.allow_network,
         allowed_env_vars: values.allowed_env_vars,
+        policy: policyFromForm(values),
       });
       message.success('脚本更新成功');
       setDiffPreviewOpen(false);
@@ -557,7 +601,7 @@ export function ScriptsPage() {
     <div>
       <div style={{ marginBottom: 16 }}>
         <Space wrap>
-          <PermissionGate resource="scripts" action="manage"><Button type="primary" onClick={() => setModalOpen(true)}>新建脚本</Button></PermissionGate>
+          <PermissionGate resource="scripts" action="manage"><Button type="primary" onClick={() => { form.setFieldsValue(policyToForm()); setModalOpen(true); }}>新建脚本</Button></PermissionGate>
           <Input allowClear placeholder="搜索脚本/创建人" value={String(query.keyword ?? '')} onChange={(event) => setQuery({ keyword: event.target.value, page: 1 })} style={{ width: 220 }} />
           <Select allowClear placeholder="语言" value={query.language || undefined} onChange={(value) => setQuery({ language: value ?? '', page: 1 })} style={{ width: 150 }} options={LANGUAGE_OPTIONS} />
           <Select allowClear placeholder="状态" value={query.status || undefined} onChange={(value) => setQuery({ status: value ?? '', page: 1 })} style={{ width: 130 }} options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
@@ -608,7 +652,26 @@ export function ScriptsPage() {
           <Form.Item name="allow_network" label="允许网络" valuePropName="checked">
             <Switch />
           </Form.Item>
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="动态脚本策略（默认拒绝危险能力）"
+            description="当前阶段仅允许资源限制与环境变量白名单；网络、文件系统与 Secret 访问仍由后续审批/策略引擎开放。"
+          />
           <Form.Item name="allowed_env_vars" label="允许的环境变量">
+            <Select mode="tags" placeholder="输入变量名后回车" />
+          </Form.Item>
+          <Form.Item name="policy_timeout_ms" label="策略超时(秒)" initialValue={30}>
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="policy_max_memory_bytes" label="策略内存限制(字节)" initialValue={64 * 1024 * 1024}>
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="policy_max_output_bytes" label="策略输出限制(字节)" initialValue={1024 * 1024}>
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="policy_env_vars" label="策略环境变量白名单">
             <Select mode="tags" placeholder="输入变量名后回车" />
           </Form.Item>
         </Form>
@@ -667,6 +730,25 @@ export function ScriptsPage() {
           <Form.Item name="allowed_env_vars" label="允许的环境变量">
             <Select mode="tags" placeholder="输入变量名后回车" />
           </Form.Item>
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="动态脚本策略（默认拒绝危险能力）"
+            description="当前阶段仅允许资源限制与环境变量白名单；网络、文件系统与 Secret 访问仍由后续审批/策略引擎开放。"
+          />
+          <Form.Item name="policy_timeout_ms" label="策略超时(秒)">
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="policy_max_memory_bytes" label="策略内存限制(字节)">
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="policy_max_output_bytes" label="策略输出限制(字节)">
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="policy_env_vars" label="策略环境变量白名单">
+            <Select mode="tags" placeholder="输入变量名后回车" />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -698,6 +780,10 @@ export function ScriptsPage() {
               <Descriptions.Item label="WASM Entrypoint">{detailScript.language === 'wasm' ? '_start' : '-'}</Descriptions.Item>
               <Descriptions.Item label="WASM Fuel">{defaultFuel(detailScript)}</Descriptions.Item>
               <Descriptions.Item label="模块签名">{detailScript.language === 'wasm' ? '预留，当前未启用' : '-'}</Descriptions.Item>
+              <Descriptions.Item label="执行策略" span={2}>{policySummary(detailScript.policy)}</Descriptions.Item>
+              <Descriptions.Item label="策略环境变量">
+                {detailScript.policy.env_vars.length > 0 ? detailScript.policy.env_vars.join(', ') : '-'}
+              </Descriptions.Item>
               <Descriptions.Item label="允许的环境变量">
                 {detailScript.allowed_env_vars && detailScript.allowed_env_vars.length > 0
                   ? detailScript.allowed_env_vars.join(', ')

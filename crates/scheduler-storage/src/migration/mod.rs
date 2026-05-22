@@ -281,6 +281,7 @@ async fn create_scripts(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(big_integer_null(Scripts::MaxMemoryBytes))
                 .col(boolean_col(Scripts::AllowNetwork))
                 .col(string_null(Scripts::AllowedEnvVars))
+                .col(string_null(Scripts::PolicyJson))
                 .col(string_col(Scripts::CreatedBy))
                 .col(string_col(Scripts::CreatedAt))
                 .col(string_col(Scripts::UpdatedAt))
@@ -330,6 +331,7 @@ async fn create_script_versions(manager: &SchemaManager<'_>) -> Result<(), DbErr
                 .col(big_integer_null(ScriptVersions::MaxMemoryBytes))
                 .col(boolean_col(ScriptVersions::AllowNetwork))
                 .col(string_null(ScriptVersions::AllowedEnvVars))
+                .col(string_null(ScriptVersions::PolicyJson))
                 .col(string_col(ScriptVersions::CreatedBy))
                 .col(string_col(ScriptVersions::CreatedAt))
                 .to_owned(),
@@ -1435,6 +1437,7 @@ enum Scripts {
     MaxMemoryBytes,
     AllowNetwork,
     AllowedEnvVars,
+    PolicyJson,
     CreatedBy,
     CreatedAt,
     UpdatedAt,
@@ -1454,6 +1457,7 @@ enum ScriptVersions {
     MaxMemoryBytes,
     AllowNetwork,
     AllowedEnvVars,
+    PolicyJson,
     CreatedBy,
     CreatedAt,
 }
