@@ -117,6 +117,9 @@ pub struct AuthConfig {
     /// Keep local username/password login enabled.
     #[serde(default = "default_true")]
     pub local_login_enabled: bool,
+    /// Durable API token lifecycle policy.
+    #[serde(default)]
+    pub api_tokens: ApiTokenConfig,
     /// Optional OIDC/SSO provider configuration.
     #[serde(default)]
     pub oidc: OidcConfig,
@@ -126,7 +129,32 @@ impl Default for AuthConfig {
     fn default() -> Self {
         Self {
             local_login_enabled: true,
+            api_tokens: ApiTokenConfig::default(),
             oidc: OidcConfig::default(),
+        }
+    }
+}
+
+/// Durable API token lifecycle policy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApiTokenConfig {
+    /// Default token time-to-live in seconds.
+    #[serde(default = "default_api_token_ttl_seconds")]
+    pub default_ttl_seconds: i64,
+    /// Minimum accepted requested token TTL in seconds.
+    #[serde(default = "default_api_token_min_ttl_seconds")]
+    pub min_ttl_seconds: i64,
+    /// Maximum accepted requested token TTL in seconds.
+    #[serde(default = "default_api_token_max_ttl_seconds")]
+    pub max_ttl_seconds: i64,
+}
+
+impl Default for ApiTokenConfig {
+    fn default() -> Self {
+        Self {
+            default_ttl_seconds: default_api_token_ttl_seconds(),
+            min_ttl_seconds: default_api_token_min_ttl_seconds(),
+            max_ttl_seconds: default_api_token_max_ttl_seconds(),
         }
     }
 }
@@ -220,6 +248,18 @@ const fn default_true() -> bool {
     true
 }
 
+const fn default_api_token_ttl_seconds() -> i64 {
+    12 * 60 * 60
+}
+
+const fn default_api_token_min_ttl_seconds() -> i64 {
+    5 * 60
+}
+
+const fn default_api_token_max_ttl_seconds() -> i64 {
+    30 * 24 * 60 * 60
+}
+
 fn default_oidc_scopes() -> Vec<String> {
     vec![
         "openid".to_owned(),
@@ -261,6 +301,18 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeeConfig, ConfigError> {
         .set_default("cluster.mode", "standalone")?
         .set_default("cluster.node_id", TikeeConfig::default().cluster.node_id)?
         .set_default("auth.local_login_enabled", true)?
+        .set_default(
+            "auth.api_tokens.default_ttl_seconds",
+            default_api_token_ttl_seconds(),
+        )?
+        .set_default(
+            "auth.api_tokens.min_ttl_seconds",
+            default_api_token_min_ttl_seconds(),
+        )?
+        .set_default(
+            "auth.api_tokens.max_ttl_seconds",
+            default_api_token_max_ttl_seconds(),
+        )?
         .set_default("auth.oidc.enabled", false)?
         .set_default("auth.oidc.scopes", default_oidc_scopes())?
         .set_default("transport_security.http.tls_enabled", false)?
@@ -314,6 +366,9 @@ mod tests {
             load_config(None).unwrap_or_else(|error| panic!("default config should load: {error}"));
 
         assert!(config.auth.local_login_enabled);
+        assert_eq!(config.auth.api_tokens.default_ttl_seconds, 43_200);
+        assert_eq!(config.auth.api_tokens.min_ttl_seconds, 300);
+        assert_eq!(config.auth.api_tokens.max_ttl_seconds, 2_592_000);
         assert!(!config.auth.oidc.enabled);
         assert_eq!(config.auth.oidc.scopes, ["openid", "profile", "email"]);
     }

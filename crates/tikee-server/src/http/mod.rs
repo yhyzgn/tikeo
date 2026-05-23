@@ -249,6 +249,10 @@ fn api_router() -> Router<Arc<AppState>> {
             axum::routing::delete(auth::revoke_api_token),
         )
         .route(
+            "/auth/api-tokens/{id}/rotate",
+            axum::routing::post(auth::rotate_api_token),
+        )
+        .route(
             "/users",
             axum::routing::get(routes::list_users).post(routes::create_user),
         )
@@ -436,6 +440,7 @@ mod tests {
         coordinator_from_config_with_storage,
     };
     use axum::{body::Body, http::Request};
+    use chrono::{DateTime, Utc};
     use serde_json::Value;
     use tikee_config::{ClusterConfig, ClusterModeConfig, ClusterPeerConfig};
     use tikee_core::{ExecutionMode, TriggerType};
@@ -2113,6 +2118,136 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("router should respond: {error}"));
         assert_eq!(scoped_write.status(), axum::http::StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn api_token_policy_bounds_expiry_and_rotation_revokes_old_token() {
+        let app = router().await;
+        let admin = admin_token(app.clone()).await;
+        let created = post_json_raw(
+            app.clone(),
+            "/api/v1/auth/api-tokens",
+            r#"{"name":"short lived automation","scopes":["users:read"],"expires_in_seconds":900}"#,
+            Some(&admin),
+        )
+        .await;
+        assert_eq!(created["code"], 0);
+        assert_eq!(created["data"]["token"]["scopes"][0], "users:read");
+        let first_token_id = created["data"]["token"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("api token id should be present"))
+            .to_owned();
+        let first_access_token = created["data"]["access_token"]
+            .as_str()
+            .unwrap_or_else(|| panic!("api token value should be returned once"))
+            .to_owned();
+        let first_expires_at = DateTime::parse_from_rfc3339(
+            created["data"]["token"]["expires_at"]
+                .as_str()
+                .unwrap_or_else(|| panic!("expires_at should be present")),
+        )
+        .unwrap_or_else(|error| panic!("expires_at should be RFC3339: {error}"))
+        .with_timezone(&Utc);
+        assert!(
+            first_expires_at <= Utc::now() + chrono::Duration::seconds(1_000),
+            "requested 900 second token should not receive the default long session TTL"
+        );
+
+        let rotated = post_json_raw(
+            app.clone(),
+            &format!("/api/v1/auth/api-tokens/{first_token_id}/rotate"),
+            r#"{"name":"rotated automation","expires_in_seconds":1800}"#,
+            Some(&admin),
+        )
+        .await;
+        assert_eq!(rotated["code"], 0);
+        assert_ne!(rotated["data"]["token"]["id"], first_token_id);
+        assert_eq!(rotated["data"]["token"]["name"], "rotated automation");
+        assert_eq!(rotated["data"]["token"]["scopes"][0], "users:read");
+        let rotated_access_token = rotated["data"]["access_token"]
+            .as_str()
+            .unwrap_or_else(|| panic!("rotated token value should be returned once"))
+            .to_owned();
+        assert_ne!(rotated_access_token, first_access_token);
+
+        let old_token_rejected = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/auth/me")
+                    .header("authorization", format!("Bearer {first_access_token}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(
+            old_token_rejected.status(),
+            axum::http::StatusCode::UNAUTHORIZED
+        );
+
+        let rotated_read = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/users")
+                    .header("authorization", format!("Bearer {rotated_access_token}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(rotated_read.status().is_success());
+
+        let list = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/auth/api-tokens")
+                    .header("authorization", format!("Bearer {admin}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        let list_body = axum::body::to_bytes(list.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let list_json: Value = serde_json::from_slice(&list_body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(list_json["data"].as_array().map(Vec::len), Some(1));
+        assert_eq!(list_json["data"][0]["name"], "rotated automation");
+    }
+
+    #[tokio::test]
+    async fn api_token_policy_rejects_ttl_outside_configured_bounds() {
+        let app = router().await;
+        let admin = admin_token(app.clone()).await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/auth/api-tokens")
+                    .header("authorization", format!("Bearer {admin}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"name":"too long","expires_in_seconds":31536000}"#,
+                    ))
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_ne!(json["code"], 0);
+        assert!(
+            json["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("expires_in_seconds"))
+        );
     }
 
     #[tokio::test]

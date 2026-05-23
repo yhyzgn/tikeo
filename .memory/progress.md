@@ -710,3 +710,25 @@
 - Updated the demo runner to stay alive on a `CountDownLatch` until shutdown and close the worker client from `@PreDestroy`; dry-run bootRun now remains running instead of exiting immediately.
 - Changed the demo default Worker Tunnel endpoint to `http://127.0.0.1:9998`, added/committed a local demo `gradlew`, ignored demo `.gradle/`, and fixed README/root verification commands.
 - Started tikee with `config/dev.toml`, started the Java demo with `TIKEE_WORKER_DRY_RUN=false`, and verified `/api/v1/workers` reports one online worker with `java` and `spring-boot` capabilities.
+### 2026-05-24 — Phase 102 API token expiry and rotation policy
+- Continued `.prompt/102-phase3-api-token-expiry-rotation.md` with the remaining API token governance gap from Phase 3.
+- Added `auth.api_tokens` policy defaults for token default/min/max TTL and exposed the dev config values explicitly.
+- `POST /api/v1/auth/api-tokens` now accepts bounded `expires_in_seconds`; out-of-policy TTL requests fail with a standard bad-request envelope.
+- Added `POST /api/v1/auth/api-tokens/{id}/rotate` to preserve existing scopes, issue a replacement token, revoke the old token immediately, and audit the rotation.
+- Multi-tenant namespace/app/worker-pool scope binding remains open.
+Verification evidence:
+- `rtk cargo test -p tikee-server api_token_policy --all-features` failed before implementation for ignored TTL and missing TTL bound rejection, then passed after implementation.
+- `rtk cargo test -p tikee-server api_token --all-features` passed.
+- `rtk cargo test -p tikee-config default_auth_config --all-features` passed.
+- `rtk cargo fmt --all -- --check` passed.
+- `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test --workspace --all-features` passed: 120 tests.
+- `rtk cargo build --workspace --all-features` passed.
+- `rtk cargo run -- --help` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` passed.
+- `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
+- `rtk bash -lc 'cd web && bun run lint'` passed.
+- `rtk bash -lc 'cd web && bun run typecheck && bun test && bun run build'` passed.
+- `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.
+- Runtime smoke on temporary 127.0.0.1:19090/19998 server verified healthz, login, scoped token creation with 900s TTL, rotation, old-token 401, and new-token scoped users read.

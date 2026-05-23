@@ -37,6 +37,8 @@ pub struct SessionCreate {
     pub device_name: Option<String>,
     /// Optional API-token scope allow-list in `resource:action` form.
     pub token_scopes: Vec<String>,
+    /// Optional API-token lifetime override in seconds.
+    pub expires_in_seconds: Option<i64>,
 }
 
 /// Pluggable session store contract.
@@ -236,7 +238,10 @@ impl SessionStore for DbMokaSessionStore {
         self.prune_expired_sessions().await?;
         let token = generate_access_token();
         let token_hash = hash_token(&token);
-        let expires_at = (Utc::now() + self.session_ttl).to_rfc3339();
+        let ttl = input
+            .expires_in_seconds
+            .map_or(self.session_ttl, ChronoDuration::seconds);
+        let expires_at = (Utc::now() + ttl).to_rfc3339();
         let token_name = input
             .device_name
             .as_ref()

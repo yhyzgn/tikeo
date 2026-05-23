@@ -16,6 +16,7 @@ use super::{
     dto::{
         ApiResponse, ApiTokenSummary, AuthSession, AuthStatusResponse, CreateApiTokenRequest,
         CreatedApiToken, LoginRequest, MeResponse, OidcAuthorizeResponse, OidcStatus,
+        RotateApiTokenRequest,
     },
     error::ApiError,
     routes::{client_ip, trace_id},
@@ -156,6 +157,7 @@ pub async fn login(
             device_id: None,
             device_name: None,
             token_scopes: Vec::new(),
+            expires_in_seconds: None,
         })
         .await?;
 
@@ -212,6 +214,8 @@ pub async fn create_api_token(
     let roles = vec![user.role.clone()];
     let permissions = state.rbac.permissions_for_roles(&roles).await?;
     let token_scopes = validate_api_token_scopes(request.scopes.unwrap_or_default(), &permissions)?;
+    let expires_in_seconds =
+        validate_api_token_ttl(request.expires_in_seconds, &state.auth_config.api_tokens)?;
     let created = state
         .sessions
         .create_api_token(SessionCreate {
@@ -221,6 +225,7 @@ pub async fn create_api_token(
             device_id: None,
             device_name: Some(name.to_owned()),
             token_scopes,
+            expires_in_seconds: Some(expires_in_seconds),
         })
         .await?;
     audit_api_token(
@@ -248,6 +253,81 @@ pub async fn list_api_tokens(
     let principal = authenticate(&headers, &state).await?;
     let tokens = state.sessions.list_api_tokens(&principal.username).await?;
     Ok(Json(ApiResponse::success(tokens)))
+}
+
+/// Rotate one durable API token while preserving its scopes.
+///
+/// # Errors
+///
+/// Returns unauthorized, not found, bad request, or storage errors.
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/api-tokens/{id}/rotate",
+    tag = "auth",
+    request_body = RotateApiTokenRequest
+)]
+pub async fn rotate_api_token(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<RotateApiTokenRequest>,
+) -> Result<Json<ApiResponse<CreatedApiToken>>, ApiError> {
+    let principal = authenticate(&headers, &state).await?;
+    let existing = state
+        .sessions
+        .list_api_tokens(&principal.username)
+        .await?
+        .into_iter()
+        .find(|token| token.id == id)
+        .ok_or_else(|| ApiError::not_found("api token not found"))?;
+    let user = state
+        .users
+        .get_by_username(&principal.username)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::unauthorized("authenticated user no longer exists"))?;
+    let roles = vec![user.role.clone()];
+    let permissions = state.rbac.permissions_for_roles(&roles).await?;
+    let token_scopes = validate_api_token_scopes(existing.scopes, &permissions)?;
+    let name = request
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(existing.name.as_str())
+        .to_owned();
+    let expires_in_seconds =
+        validate_api_token_ttl(request.expires_in_seconds, &state.auth_config.api_tokens)?;
+
+    let created = state
+        .sessions
+        .create_api_token(SessionCreate {
+            user_id: user.id,
+            username: user.username.clone(),
+            role: user.role,
+            device_id: None,
+            device_name: Some(name),
+            token_scopes,
+            expires_in_seconds: Some(expires_in_seconds),
+        })
+        .await?;
+    let revoked = state
+        .sessions
+        .revoke_api_token(&principal.username, &id)
+        .await?;
+    if !revoked {
+        return Err(ApiError::not_found("api token not found"));
+    }
+    audit_api_token(
+        &state,
+        &principal.username,
+        "api_token_rotate",
+        &created.token.id,
+        Some(format!("rotated_from={id}")),
+        &headers,
+    )
+    .await;
+    Ok(Json(ApiResponse::success(created)))
 }
 
 /// Revoke one durable API token owned by the current principal.
@@ -561,6 +641,20 @@ fn validate_api_token_scopes(
     normalized.sort();
     normalized.dedup();
     Ok(normalized)
+}
+
+fn validate_api_token_ttl(
+    requested: Option<i64>,
+    policy: &tikee_config::ApiTokenConfig,
+) -> Result<i64, ApiError> {
+    let ttl = requested.unwrap_or(policy.default_ttl_seconds);
+    if ttl < policy.min_ttl_seconds || ttl > policy.max_ttl_seconds {
+        return Err(ApiError::bad_request(format!(
+            "expires_in_seconds must be between {} and {}",
+            policy.min_ttl_seconds, policy.max_ttl_seconds
+        )));
+    }
+    Ok(ttl)
 }
 
 async fn audit_api_token(

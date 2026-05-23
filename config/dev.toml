@@ -13,6 +13,11 @@ peers = []
 [auth]
 local_login_enabled = true
 
+[auth.api_tokens]
+default_ttl_seconds = 43200
+min_ttl_seconds = 300
+max_ttl_seconds = 2592000
+
 [auth.oidc]
 enabled = false
 scopes = ["openid", "profile", "email"]

@@ -410,6 +410,17 @@ pub struct CreateApiTokenRequest {
     pub name: String,
     /// Optional scope allow-list in `resource:action` form. Omit for current role permissions.
     pub scopes: Option<Vec<String>>,
+    /// Optional token lifetime in seconds, bounded by server policy.
+    pub expires_in_seconds: Option<i64>,
+}
+
+/// API token rotation request.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct RotateApiTokenRequest {
+    /// Optional replacement token name. Defaults to the existing token name.
+    pub name: Option<String>,
+    /// Optional replacement token lifetime in seconds, bounded by server policy.
+    pub expires_in_seconds: Option<i64>,
 }
 
 /// API token metadata returned after creation and list operations.

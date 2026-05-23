@@ -2199,6 +2199,7 @@ tikee/
 - [x] RBAC 权限系统（021 已完成最小 permission/resource/action；OIDC/多租户 scope 后续继续增强）
   - [x] API Token 生命周期基础（098：`POST/GET/DELETE /api/v1/auth/api-tokens`，token 只创建时返回明文，持久化仍为哈希；列表不暴露 token_hash，删除后 bearer 立即失效并审计）
   - [x] API Token 细粒度 scope 基础（099：创建时可传 `scopes=["resource:action"]`；scope 会收窄 effective permissions，`admin` role 不再绕过 scoped token 限制；列表返回 scopes，scope 校验不得超过当前 principal 权限）
+  - [x] API Token 过期/轮换策略基础（102：`auth.api_tokens` 配置 default/min/max TTL；创建可传受策略约束的 `expires_in_seconds`；`POST /api/v1/auth/api-tokens/{id}/rotate` 保留 scopes、签发新 token 并立即撤销旧 token）
 - [ ] OIDC/SSO 集成
   - [x] OIDC/SSO 配置与状态基础（085：`auth.oidc` 配置、`GET /api/v1/auth/status` 暴露本地/oidc 模式与脱敏 provider 元数据）
   - [x] OIDC 授权/回调骨架（092：`GET /api/v1/auth/oidc/authorize` 生成授权 URL 且不暴露 secret；`/callback` 校验 code/state 形状但明确拒绝未验证 token，不创建 session；真实 IdP token exchange/JWKS 验证后续）
@@ -2266,7 +2267,7 @@ tikee/
 
 #### Phase 3 closeout notes (2026-05-23)
 
-Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确后续”的标准收敛：RBAC、审计、WASM/脚本治理、Worker Tunnel 分发绑定、告警历史、Prometheus/Grafana 基础（含 dispatch queue pending-age histogram、实例成功率与治理失败 gauges）、trace-id/OTLP 配置、OIDC 授权骨架、TLS/mTLS 诊断边界均有测试覆盖；仍保持未勾选的是需要外部系统或更大架构闭环的生产能力：真实 IdP token exchange/JWKS 校验、真实 TLS/mTLS listener、完整多级审批/签名/KMS/URL/File/Secret grant、真实通知 provider delivery、完整业务 SLO histogram/成功率、真实 OTLP exporter collector smoke、多租户 scope 与 token rotation/expiry 策略。Node.js SDK、K8s Helm、PowerJob/XXL-JOB 迁移工具按用户要求留在 Phase 4。
+Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确后续”的标准收敛：RBAC、审计、WASM/脚本治理、Worker Tunnel 分发绑定、告警历史、Prometheus/Grafana 基础（含 dispatch queue pending-age histogram、实例成功率与治理失败 gauges）、trace-id/OTLP 配置、OIDC 授权骨架、TLS/mTLS 诊断边界均有测试覆盖；仍保持未勾选的是需要外部系统或更大架构闭环的生产能力：真实 IdP token exchange/JWKS 校验、真实 TLS/mTLS listener、完整多级审批/签名/KMS/URL/File/Secret grant、真实通知 provider delivery、完整业务 SLO histogram/成功率、真实 OTLP exporter collector smoke、多租户 namespace/app/worker-pool scope 绑定。Node.js SDK、K8s Helm、PowerJob/XXL-JOB 迁移工具按用户要求留在 Phase 4。
 
 ### Phase 4: 高级能力 (月 10-12)
 
