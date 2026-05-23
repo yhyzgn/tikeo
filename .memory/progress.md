@@ -851,3 +851,12 @@ Verification evidence:
 - Email remains production fail-closed outside explicit local loopback SMTP policy; production SMTP TLS/auth/secret handling remains future work.
 Verification evidence:
 - RED/green local SMTP delivery test plus fmt, clippy, email delivery, and delivery-status tests passed via RTK.
+
+
+### 2026-05-24 — Phase 111 alert retry/DLQ foundation
+- Added due retry scan/update storage helpers, bounded retry processor, dead-letter state handling, and `POST /api/v1/alert-delivery-attempts:retry-due`.
+- Retry processing appends new attempt rows while consuming old retry rows; unmatchable/exhausted attempts are marked `dead_letter`.
+- Remaining alert gap: production SMTP TLS/auth/secret handling, continuous background retry scheduling, and live external provider smoke.
+Verification evidence:
+- RED/green retry processor test plus fmt, clippy, and alert suite passed via RTK.
+- Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.

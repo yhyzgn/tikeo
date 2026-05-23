@@ -2,7 +2,7 @@
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder, QuerySelect, Set,
 };
 use std::collections::{BTreeMap, HashMap};
 
@@ -191,6 +191,53 @@ impl AlertRepository {
             .map(AlertDeliveryAttemptSummary::from)
             .collect())
     }
+
+    pub async fn list_due_delivery_attempts(
+        &self,
+        limit: u64,
+    ) -> Result<Vec<AlertDeliveryAttemptSummary>, sea_orm::DbErr> {
+        let now = now_rfc3339();
+        let rows = alert_delivery_attempt::Entity::find()
+            .filter(alert_delivery_attempt::Column::RetryState.eq("retry_pending"))
+            .filter(
+                alert_delivery_attempt::Column::NextRetryAt
+                    .is_null()
+                    .or(alert_delivery_attempt::Column::NextRetryAt.lte(now)),
+            )
+            .order_by_asc(alert_delivery_attempt::Column::NextRetryAt)
+            .order_by_asc(alert_delivery_attempt::Column::CreatedAt)
+            .limit(limit)
+            .all(&self.db)
+            .await?;
+        Ok(rows
+            .into_iter()
+            .map(AlertDeliveryAttemptSummary::from)
+            .collect())
+    }
+
+    pub async fn mark_delivery_attempt_retry_state(
+        &self,
+        id: &str,
+        retry_state: &str,
+        error: Option<&str>,
+        next_retry_at: Option<&str>,
+    ) -> Result<Option<AlertDeliveryAttemptSummary>, sea_orm::DbErr> {
+        let Some(row) = alert_delivery_attempt::Entity::find_by_id(id.to_owned())
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let mut active: alert_delivery_attempt::ActiveModel = row.into();
+        active.retry_state = Set(retry_state.to_owned());
+        if let Some(error) = error {
+            active.error = Set(Some(error.to_owned()));
+        }
+        active.next_retry_at = Set(next_retry_at.map(ToOwned::to_owned));
+        let updated = active.update(&self.db).await?;
+        Ok(Some(AlertDeliveryAttemptSummary::from(updated)))
+    }
+
     pub async fn create_rule(
         &self,
         input: CreateAlertRule,

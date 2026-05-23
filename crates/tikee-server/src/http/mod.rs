@@ -364,6 +364,10 @@ fn api_router() -> Router<Arc<AppState>> {
             "/alert-delivery-attempts",
             get(routes::list_alert_delivery_attempts),
         )
+        .route(
+            "/alert-delivery-attempts:retry-due",
+            axum::routing::post(routes::retry_due_alert_delivery_attempts),
+        )
         .route("/alert-events", get(routes::list_alert_events))
         .route(
             "/alert-events/{id}/resolve",

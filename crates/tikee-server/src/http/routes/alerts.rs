@@ -9,13 +9,16 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::http::{
-    AppState, auth,
-    dto::{
-        AlertDeliveryChannelStatus, AlertDeliveryStatusResponse, AlertEventSummary,
-        AlertNotificationSummary, AlertRuleSummary, ApiResponse, CreateAlertRuleRequest,
+use crate::{
+    alert::{AlertRetryPolicy, process_due_alert_delivery_retries},
+    http::{
+        AppState, auth,
+        dto::{
+            AlertDeliveryChannelStatus, AlertDeliveryStatusResponse, AlertEventSummary,
+            AlertNotificationSummary, AlertRuleSummary, ApiResponse, CreateAlertRuleRequest,
+        },
+        error::ApiError,
     },
-    error::ApiError,
 };
 
 #[derive(Debug, Clone, Default, Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
@@ -35,6 +38,13 @@ pub struct AlertDeliveryAttemptQuery {
     pub rule_id: Option<String>,
     pub provider: Option<String>,
     pub retry_state: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, utoipa::ToSchema)]
+pub struct AlertDeliveryRetryRequest {
+    pub limit: Option<u64>,
+    pub max_attempts: Option<i32>,
+    pub backoff_seconds: Option<i64>,
 }
 
 #[utoipa::path(get, path = "/api/v1/alert-rules", tag = "alerts")]
@@ -225,6 +235,32 @@ pub async fn list_alert_delivery_attempts(
         .await
         .map_err(|error| ApiError::storage(&error))?;
     Ok(Json(ApiResponse::success(items)))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/alert-delivery-attempts:retry-due",
+    tag = "alerts",
+    request_body = AlertDeliveryRetryRequest
+)]
+pub async fn retry_due_alert_delivery_attempts(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<AlertDeliveryRetryRequest>,
+) -> Result<Json<ApiResponse<crate::alert::AlertRetryProcessSummary>>, ApiError> {
+    auth::require_permission(&headers, &state, "audit", "read").await?;
+    let policy = AlertRetryPolicy {
+        max_attempts: request.max_attempts.unwrap_or(3).clamp(1, 20),
+        backoff_seconds: request.backoff_seconds.unwrap_or(300).clamp(1, 86_400),
+    };
+    let summary = process_due_alert_delivery_retries(
+        &state.alerts,
+        request.limit.unwrap_or(50).min(500),
+        policy,
+    )
+    .await
+    .map_err(|error| ApiError::storage(&error))?;
+    Ok(Json(ApiResponse::success(summary)))
 }
 
 #[utoipa::path(

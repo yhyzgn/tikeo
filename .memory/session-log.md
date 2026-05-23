@@ -1424,3 +1424,15 @@ Verification evidence:
 Verification evidence:
 - `rtk cargo test -p tikee-server email_dispatch_sends_plain_smtp_to_allowed_local_receiver --all-features` failed before implementation because email fields/delivery were missing, then passed.
 - `rtk bash -lc "cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test -p tikee-server email_dispatch_sends_plain_smtp_to_allowed_local_receiver --all-features && cargo test -p tikee-server alert_rule_delivery_status_redacts_channel_targets_and_reports_readiness --all-features"` passed.
+
+
+### 2026-05-24 — Phase 111 alert retry/DLQ foundation
+- Continued `.prompt/111-phase3-alert-retry-dlq-foundation.md` by adding bounded retry processing for persisted alert delivery attempts.
+- Storage can list due `retry_pending` attempts by `next_retry_at` and update retry state to `retry_consumed` / `dead_letter`.
+- Retry processing reconstructs alert payloads from event/rule history, matches the persisted provider/redacted target back to current notification channels, appends a new delivery attempt, applies backoff, and dead-letters exhausted or unmatchable attempts.
+- Added `POST /api/v1/alert-delivery-attempts:retry-due` returning scanned/retried/dead_lettered/skipped counts while keeping production-safe delivery policy by default.
+- Remaining alert hardening: production SMTP TLS/auth/secret handling, continuous background retry worker scheduling, and live external provider smoke.
+Verification evidence:
+- `rtk cargo test -p tikee-server retry_processor_delivers_due_attempt_and_marks_previous_consumed --all-features` failed before storage retry methods existed, then passed after implementation.
+- `rtk bash -lc "cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test -p tikee-server alert --all-features"` passed.
+- Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.

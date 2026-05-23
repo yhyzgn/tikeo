@@ -1,8 +1,10 @@
 //! Alert rules and notification channels.
 
 mod email;
+mod retry;
 
 use email::deliver_email_channel;
+pub use retry::{AlertRetryPolicy, AlertRetryProcessSummary, process_due_alert_delivery_retries};
 use serde::{Deserialize, Serialize};
 use std::{net::IpAddr, sync::Arc, time::Duration};
 use tracing::{info, warn};
@@ -165,6 +167,53 @@ pub struct AlertDeliveryResult {
     pub status: Option<u16>,
     /// Error or rejection reason when delivery did not succeed.
     pub error: Option<String>,
+}
+
+/// Redacted provider identity for matching persisted retry attempts back to rule channels.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NotificationChannelIdentity {
+    /// Provider name.
+    pub provider: String,
+    /// Redacted delivery target.
+    pub target: String,
+}
+
+/// Return the retry identity for a notification channel without sending it.
+#[must_use]
+pub fn notification_channel_identity(channel: &NotificationChannel) -> NotificationChannelIdentity {
+    match channel {
+        NotificationChannel::Webhook { url } => NotificationChannelIdentity {
+            provider: "webhook".to_owned(),
+            target: redact_url(url),
+        },
+        NotificationChannel::Slack { url } => NotificationChannelIdentity {
+            provider: "slack".to_owned(),
+            target: redact_url(url),
+        },
+        NotificationChannel::DingTalk { url } => NotificationChannelIdentity {
+            provider: "dingtalk".to_owned(),
+            target: redact_url(url),
+        },
+        NotificationChannel::Feishu { url } => NotificationChannelIdentity {
+            provider: "feishu".to_owned(),
+            target: redact_url(url),
+        },
+        NotificationChannel::WechatWork { url } => NotificationChannelIdentity {
+            provider: "wechat_work".to_owned(),
+            target: redact_url(url),
+        },
+        NotificationChannel::PagerDuty { url, .. } => NotificationChannelIdentity {
+            provider: "pagerduty".to_owned(),
+            target: redact_url(
+                url.as_deref()
+                    .unwrap_or("https://events.pagerduty.com/v2/enqueue"),
+            ),
+        },
+        NotificationChannel::Email { recipients, .. } => NotificationChannelIdentity {
+            provider: "email".to_owned(),
+            target: recipients.join(","),
+        },
+    }
 }
 
 /// Alert dispatcher that evaluates rules and sends notifications.

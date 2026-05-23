@@ -18,6 +18,7 @@ pub(crate) mod workflows;
 pub use alerts::{
     alert_rule_delivery_status, create_alert_rule, list_alert_delivery_attempts,
     list_alert_event_summaries, list_alert_events, list_alert_rules, resolve_alert_event,
+    retry_due_alert_delivery_attempts,
 };
 pub use audit::{export_audit_logs, list_audit_logs};
 pub use jobs::{
