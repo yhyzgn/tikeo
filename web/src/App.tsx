@@ -84,11 +84,12 @@ export function App() {
     >
       <Suspense fallback={<RouteFallback />}>
         <Routes>
+          <Route path="/" element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
           <Route path="/login" element={<LoginPage />} />
           <Route element={<AuthGuard />}>
             <Route element={<AppLayout />}>
-              <Route index element={<Navigate to="/dashboard" replace />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              <Route index element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
+              <Route path="*" element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
             </Route>
           </Route>
         </Routes>

@@ -1355,3 +1355,9 @@ Verification evidence:
 - `rtk bash -lc 'cd web && bun run typecheck && bun test && bun run build'` passed.
 - `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.
 - Runtime smoke on temporary 127.0.0.1:19090/19998 server verified healthz, login, scoped token creation with 900s TTL, rotation, old-token 401, and new-token scoped users read.
+### 2026-05-24 — Web login bypass and root dashboard route
+- Responded to user UX feedback that `/login` should not stay visible while a session token exists and the bare domain should have a default page.
+- Added an explicit `/` route redirecting to `ROUTE_META.dashboard.path`, so direct domain access lands on the overview route before protected-route auth handling.
+- `LoginPage` now checks `getAuthToken()` on mount and replace-navigates to the dashboard when a token is present; successful login still returns to the originally requested protected path when available.
+- Added a source-level route regression test for the login bypass and root default route.
+- Verification passed: targeted RED/green route test and full Web `lint`, `typecheck`, `bun test`, `build`.
