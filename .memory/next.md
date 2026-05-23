@@ -9,7 +9,7 @@
 - Real OIDC token exchange/JWKS validation/user mapping/session issuance.
 - Real HTTP and Worker Tunnel TLS/mTLS listeners and certificate reload/rotation.
 - Full multi-level script approval state machine, verified signatures/KMS, production release gates, and URL/File/Secret grants.
-- Real non-webhook alert provider delivery for email/Slack/DingTalk/Feishu/WeCom/PagerDuty, plus retries/DLQ and persisted delivery attempts.
+- Remaining alert delivery hardening: email/SMTP, retry/backoff/DLQ, persisted delivery attempts, and live provider smoke for external Slack/DingTalk/Feishu/WeCom/PagerDuty endpoints.
 - Full tenant/app/worker-pool management UI and OIDC identity-to-tenant mapping.
 - Remaining business observability hardening: end-to-end dispatch latency histograms, live Prometheus/Grafana recording-rule validation, and real OTLP exporter collector smoke.
 

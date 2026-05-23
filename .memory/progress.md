@@ -798,3 +798,24 @@ Verification evidence:
 - `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
 - `rtk bash -lc 'cd web && bun run lint && bun run typecheck && bun test && bun run build'` passed.
 - `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.
+
+### 2026-05-24 — Phase 107 alert provider delivery adapters
+- Continued `.prompt/107-phase3-alert-non-webhook-providers.md` by adding provider-specific alert channel adapters beyond generic webhooks.
+- `NotificationChannel` now supports Slack, DingTalk, Feishu/Lark, WeChat Work/WeCom, and PagerDuty channel variants with provider-specific JSON payloads.
+- Provider delivery reuses the webhook delivery safety policy: default production mode remains HTTPS/public-only, and loopback HTTP is only available through explicit local policy.
+- Added local Axum receiver coverage that verifies all provider adapters POST and emit expected payload shapes without contacting external services.
+- Email/SMTP, retries/backoff/DLQ, persisted delivery attempts, and live provider smoke remain future hardening.
+Verification evidence:
+- `rtk cargo test -p tikee-server provider_dispatch_posts_expected_payload_shapes_to_allowed_local_receivers --all-features` failed before implementation because provider channel variants were missing, then passed.
+- `rtk cargo test -p tikee-server alert --all-features` passed.
+- `rtk cargo test -p tikee-server alert_rule_delivery_status_redacts_channel_targets_and_reports_readiness --all-features` passed.
+- `rtk cargo fmt --all -- --check` passed.
+- `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test --workspace --all-features` passed: 125 tests across workspace suites.
+- `rtk cargo build --workspace --all-features` passed.
+- `rtk cargo run -- --help` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` passed.
+- `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
+- `rtk bash -lc 'cd web && bun run lint && bun run typecheck && bun test && bun run build'` passed.
+- `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.

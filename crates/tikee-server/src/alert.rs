@@ -61,10 +61,40 @@ pub enum AlertCondition {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum NotificationChannel {
-    /// Webhook notification (HTTP POST).
+    /// Generic webhook notification (HTTP POST).
     Webhook {
         /// Target URL.
         url: String,
+    },
+    /// Slack incoming webhook notification.
+    Slack {
+        /// Slack incoming webhook URL.
+        url: String,
+    },
+    /// `DingTalk` robot webhook notification.
+    #[serde(rename = "dingtalk", alias = "ding_talk")]
+    DingTalk {
+        /// `DingTalk` webhook URL.
+        url: String,
+    },
+    /// Feishu/Lark robot webhook notification.
+    Feishu {
+        /// Feishu webhook URL.
+        url: String,
+    },
+    /// WeCom/WeChat Work robot webhook notification.
+    #[serde(rename = "wechat_work", alias = "wecom")]
+    WechatWork {
+        /// `WeChat` Work webhook URL.
+        url: String,
+    },
+    /// `PagerDuty` Events API v2 notification.
+    #[serde(rename = "pagerduty", alias = "pager_duty")]
+    PagerDuty {
+        /// Optional Events API URL, primarily for local smoke tests.
+        url: Option<String>,
+        /// `PagerDuty` routing/integration key.
+        routing_key: String,
     },
     /// Email channel (reserved for future implementation).
     #[allow(dead_code)]
@@ -262,45 +292,52 @@ impl AlertDispatcher {
         for channel in channels {
             match channel {
                 NotificationChannel::Webhook { url } => {
-                    if let Err(error) = validate_webhook_url(url, self.policy) {
-                        warn!(target = %redact_url(url), %error, "alert webhook rejected by safety policy");
-                        results.push(AlertDeliveryResult {
-                            provider: "webhook".to_owned(),
-                            target: redact_url(url),
-                            delivered: false,
-                            status: None,
-                            error: Some(error.to_owned()),
-                        });
-                        continue;
-                    }
-                    match self.http.post(url).json(payload).send().await {
-                        Ok(resp) => {
-                            let status = resp.status();
-                            let delivered = status.is_success();
-                            info!(target = %redact_url(url), status = status.as_u16(), "alert webhook delivered");
-                            results.push(AlertDeliveryResult {
-                                provider: "webhook".to_owned(),
-                                target: redact_url(url),
-                                delivered,
-                                status: Some(status.as_u16()),
-                                error: if delivered {
-                                    None
-                                } else {
-                                    Some(format!("webhook returned HTTP {status}"))
-                                },
-                            });
-                        }
-                        Err(e) => {
-                            warn!(target = %redact_url(url), error = %e, "alert webhook delivery failed");
-                            results.push(AlertDeliveryResult {
-                                provider: "webhook".to_owned(),
-                                target: redact_url(url),
-                                delivered: false,
-                                status: None,
-                                error: Some(e.to_string()),
-                            });
-                        }
-                    }
+                    let body =
+                        serde_json::to_value(payload).unwrap_or_else(|_| serde_json::json!({}));
+                    results.push(self.post_json("webhook", url, &body).await);
+                }
+                NotificationChannel::Slack { url } => {
+                    let body = serde_json::json!({ "text": alert_text(payload) });
+                    results.push(self.post_json("slack", url, &body).await);
+                }
+                NotificationChannel::DingTalk { url } => {
+                    let body = serde_json::json!({
+                        "msgtype": "text",
+                        "text": { "content": alert_text(payload) },
+                    });
+                    results.push(self.post_json("dingtalk", url, &body).await);
+                }
+                NotificationChannel::Feishu { url } => {
+                    let body = serde_json::json!({
+                        "msg_type": "text",
+                        "content": { "text": alert_text(payload) },
+                    });
+                    results.push(self.post_json("feishu", url, &body).await);
+                }
+                NotificationChannel::WechatWork { url } => {
+                    let body = serde_json::json!({
+                        "msgtype": "text",
+                        "text": { "content": alert_text(payload) },
+                    });
+                    results.push(self.post_json("wechat_work", url, &body).await);
+                }
+                NotificationChannel::PagerDuty { url, routing_key } => {
+                    let target = url
+                        .as_deref()
+                        .unwrap_or("https://events.pagerduty.com/v2/enqueue");
+                    let body = serde_json::json!({
+                        "routing_key": routing_key,
+                        "event_action": "trigger",
+                        "dedup_key": format!("{}:{}", payload.resource_type, payload.resource_id),
+                        "payload": {
+                            "summary": payload.message,
+                            "source": "tikee",
+                            "severity": pagerduty_severity(&payload.severity),
+                            "component": payload.resource_type,
+                            "custom_details": payload,
+                        },
+                    });
+                    results.push(self.post_json("pagerduty", target, &body).await);
                 }
                 NotificationChannel::Email { .. } => {
                     warn!("email notification channel not yet implemented");
@@ -315,6 +352,71 @@ impl AlertDispatcher {
             }
         }
         results
+    }
+
+    async fn post_json(
+        &self,
+        provider: &str,
+        url: &str,
+        body: &serde_json::Value,
+    ) -> AlertDeliveryResult {
+        if let Err(error) = validate_webhook_url(url, self.policy) {
+            warn!(provider, target = %redact_url(url), %error, "alert provider rejected by safety policy");
+            return AlertDeliveryResult {
+                provider: provider.to_owned(),
+                target: redact_url(url),
+                delivered: false,
+                status: None,
+                error: Some(error.to_owned()),
+            };
+        }
+        match self.http.post(url).json(body).send().await {
+            Ok(resp) => {
+                let status = resp.status();
+                let delivered = status.is_success();
+                info!(provider, target = %redact_url(url), status = status.as_u16(), "alert provider delivered");
+                AlertDeliveryResult {
+                    provider: provider.to_owned(),
+                    target: redact_url(url),
+                    delivered,
+                    status: Some(status.as_u16()),
+                    error: if delivered {
+                        None
+                    } else {
+                        Some(format!("{provider} returned HTTP {status}"))
+                    },
+                }
+            }
+            Err(error) => {
+                warn!(provider, target = %redact_url(url), %error, "alert provider delivery failed");
+                AlertDeliveryResult {
+                    provider: provider.to_owned(),
+                    target: redact_url(url),
+                    delivered: false,
+                    status: None,
+                    error: Some(error.to_string()),
+                }
+            }
+        }
+    }
+}
+
+fn alert_text(payload: &AlertPayload) -> String {
+    format!(
+        "[tikee/{:?}] {}: {} ({}/{})",
+        payload.severity,
+        payload.rule_name,
+        payload.message,
+        payload.resource_type,
+        payload.resource_id
+    )
+}
+
+const fn pagerduty_severity(severity: &Severity) -> &'static str {
+    match severity {
+        Severity::Critical => "critical",
+        Severity::Warning => "warning",
+        Severity::Info => "info",
     }
 }
 
@@ -461,6 +563,109 @@ mod tests {
             results[0].error.as_deref(),
             Some("webhook url must use https")
         );
+    }
+
+    #[tokio::test]
+    async fn provider_dispatch_posts_expected_payload_shapes_to_allowed_local_receivers() {
+        use axum::{Json, Router, extract::OriginalUri, routing::post};
+
+        type CapturedRequests =
+            std::sync::Arc<tokio::sync::Mutex<Vec<(String, serde_json::Value)>>>;
+
+        async fn capture(
+            axum::extract::State(captured): axum::extract::State<CapturedRequests>,
+            OriginalUri(uri): OriginalUri,
+            Json(payload): Json<serde_json::Value>,
+        ) {
+            captured.lock().await.push((uri.path().to_owned(), payload));
+        }
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .unwrap_or_else(|error| panic!("test listener should bind: {error}"));
+        let address = listener
+            .local_addr()
+            .unwrap_or_else(|error| panic!("test listener should expose addr: {error}"));
+        let captured: CapturedRequests = std::sync::Arc::default();
+        let app = Router::new()
+            .route("/slack", post(capture))
+            .route("/dingtalk", post(capture))
+            .route("/feishu", post(capture))
+            .route("/wechat", post(capture))
+            .route("/pagerduty", post(capture))
+            .with_state(captured.clone());
+        tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .unwrap_or_else(|error| panic!("test provider server should run: {error}"));
+        });
+
+        let dispatcher = AlertDispatcher::new_with_policy(
+            vec![AlertRule {
+                id: "rule-provider-webhooks".to_owned(),
+                name: "Provider webhooks".to_owned(),
+                severity: Severity::Critical,
+                condition: AlertCondition::ScriptGovernanceFailure {
+                    failure_class: "script_runtime_unavailable".to_owned(),
+                    threshold: 1,
+                },
+                channels: vec![
+                    NotificationChannel::Slack {
+                        url: format!("http://{address}/slack"),
+                    },
+                    NotificationChannel::DingTalk {
+                        url: format!("http://{address}/dingtalk"),
+                    },
+                    NotificationChannel::Feishu {
+                        url: format!("http://{address}/feishu"),
+                    },
+                    NotificationChannel::WechatWork {
+                        url: format!("http://{address}/wechat"),
+                    },
+                    NotificationChannel::PagerDuty {
+                        url: Some(format!("http://{address}/pagerduty")),
+                        routing_key: "route-123".to_owned(),
+                    },
+                ],
+            }],
+            AlertDeliveryPolicy {
+                allow_insecure_loopback: true,
+            },
+        );
+
+        let results = dispatcher
+            .fire_script_governance_failure("inst-provider", "script_runtime_unavailable", 1)
+            .await;
+
+        assert_eq!(results.len(), 5);
+        assert!(results.iter().all(|result| result.delivered));
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                if captured.lock().await.len() == 5 {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|error| panic!("provider payloads should arrive: {error}"));
+        let captured = captured.lock().await.clone();
+        let payload_for = |path: &str| {
+            captured
+                .iter()
+                .find_map(|(captured_path, payload)| (captured_path == path).then_some(payload))
+                .unwrap_or_else(|| panic!("missing provider payload for {path}: {captured:?}"))
+        };
+        assert!(
+            payload_for("/slack")["text"]
+                .as_str()
+                .is_some_and(|value| value.contains("script governance failure"))
+        );
+        assert_eq!(payload_for("/dingtalk")["msgtype"], "text");
+        assert_eq!(payload_for("/feishu")["msg_type"], "text");
+        assert_eq!(payload_for("/wechat")["msgtype"], "text");
+        assert_eq!(payload_for("/pagerduty")["routing_key"], "route-123");
+        assert_eq!(payload_for("/pagerduty")["event_action"], "trigger");
     }
 
     #[tokio::test]

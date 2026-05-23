@@ -2247,6 +2247,7 @@ tikee/
   - [x] 告警规则 API、事件接入、去重静默、通知历史、恢复通知（080-082：alert_rules / alert_events 存储、HTTP API、script governance 事件历史 materialization、recovery 事件 append、alert-events:summary 运维汇总）
   - [x] 通知通道投递状态基础（091：`GET /api/v1/alert-rules/{id}/delivery-status` 本地解析 webhook/email/Slack/钉钉/飞书/企微/PagerDuty channel readiness，脱敏 target/secret）
   - [x] Webhook 真实投递基础（105：默认生产策略仅允许 HTTPS/public webhook；显式本地策略允许 loopback HTTP smoke；AlertDispatcher 返回脱敏投递结果；脚本治理 firing 事件会触发 channel delivery）
+  - [x] 常见非 Webhook Provider 投递基础（107：Slack、钉钉、飞书、企业微信、PagerDuty adapter 生成 provider-specific JSON 并复用生产安全 URL 策略；本地 loopback smoke 覆盖 payload shape）
 - [ ] Prometheus 指标 + Grafana Dashboard 模板
   - [x] Prometheus 指标端点（`/metrics`）与 HTTP/Worker 最小指标
   - [x] Metrics Summary API 基础（083：`GET /api/v1/metrics/summary` 汇总 worker online、实例状态、告警事件与脚本治理失败计数）
@@ -2270,7 +2271,7 @@ tikee/
 
 #### Phase 3 closeout notes (2026-05-23)
 
-Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确后续”的标准收敛：RBAC、审计、WASM/脚本治理、Worker Tunnel 分发绑定、告警历史、Prometheus/Grafana 基础（含 dispatch queue pending-age histogram、实例成功率与治理失败 gauges）、trace-id/OTLP 配置、OIDC 授权骨架、TLS/mTLS 诊断边界均有测试覆盖；仍保持未勾选的是需要外部系统或更大架构闭环的生产能力：真实 IdP token exchange/JWKS 校验、真实 TLS/mTLS listener、完整多级审批/签名/KMS/URL/File/Secret grant、真实非 Webhook provider delivery、端到端调度延迟 histogram、真实 recording-rule 校验、真实 OTLP exporter collector smoke、完整租户/app/worker-pool 管理 UI 与 OIDC 身份映射。Node.js SDK、K8s Helm、PowerJob/XXL-JOB 迁移工具按用户要求留在 Phase 4。
+Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确后续”的标准收敛：RBAC、审计、WASM/脚本治理、Worker Tunnel 分发绑定、告警历史、Prometheus/Grafana 基础（含 dispatch queue pending-age histogram、实例成功率与治理失败 gauges）、trace-id/OTLP 配置、OIDC 授权骨架、TLS/mTLS 诊断边界均有测试覆盖；仍保持未勾选的是需要外部系统或更大架构闭环的生产能力：真实 IdP token exchange/JWKS 校验、真实 TLS/mTLS listener、完整多级审批/签名/KMS/URL/File/Secret grant、Email/重试/DLQ/投递历史、端到端调度延迟 histogram、真实 recording-rule 校验、真实 OTLP exporter collector smoke、完整租户/app/worker-pool 管理 UI 与 OIDC 身份映射。Node.js SDK、K8s Helm、PowerJob/XXL-JOB 迁移工具按用户要求留在 Phase 4。
 
 ### Phase 4: 高级能力 (月 10-12)
 
