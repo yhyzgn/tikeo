@@ -40,7 +40,7 @@ impl RbacService {
         resource: &str,
         action: &str,
     ) -> bool {
-        principal.roles.iter().any(|role| role == "admin")
+        (!principal.scope_limited && principal.roles.iter().any(|role| role == "admin"))
             || principal.permissions.iter().any(|permission| {
                 permission.resource == resource
                     && (permission.action == action || permission.action == "manage")

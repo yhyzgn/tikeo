@@ -155,6 +155,7 @@ pub async fn login(
             role: user.role.clone(),
             device_id: None,
             device_name: None,
+            token_scopes: Vec::new(),
         })
         .await?;
 
@@ -208,6 +209,9 @@ pub async fn create_api_token(
         .await
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| ApiError::unauthorized("authenticated user no longer exists"))?;
+    let roles = vec![user.role.clone()];
+    let permissions = state.rbac.permissions_for_roles(&roles).await?;
+    let token_scopes = validate_api_token_scopes(request.scopes.unwrap_or_default(), &permissions)?;
     let created = state
         .sessions
         .create_api_token(SessionCreate {
@@ -216,6 +220,7 @@ pub async fn create_api_token(
             role: user.role,
             device_id: None,
             device_name: Some(name.to_owned()),
+            token_scopes,
         })
         .await?;
     audit_api_token(
@@ -515,6 +520,47 @@ pub async fn logout(
 fn redact_token_for_audit(token: &str) -> String {
     let prefix: String = token.chars().take(8).collect();
     format!("{prefix}…redacted")
+}
+
+fn validate_api_token_scopes(
+    scopes: Vec<String>,
+    permissions: &[tikee_storage::PermissionSummary],
+) -> Result<Vec<String>, ApiError> {
+    let mut normalized = Vec::new();
+    for scope in scopes {
+        let scope = scope.trim();
+        if scope.is_empty() {
+            continue;
+        }
+        let Some((resource, action)) = scope.split_once(':') else {
+            return Err(ApiError::bad_request(
+                "api token scopes must use resource:action format",
+            ));
+        };
+        if resource.trim().is_empty()
+            || action.trim().is_empty()
+            || resource.contains(',')
+            || action.contains(',')
+        {
+            return Err(ApiError::bad_request(
+                "api token scopes must use non-empty resource:action values without commas",
+            ));
+        }
+        let normalized_scope = format!("{}:{}", resource.trim(), action.trim());
+        let allowed = permissions.iter().any(|permission| {
+            permission.resource == resource.trim()
+                && (permission.action == action.trim() || permission.action == "manage")
+        });
+        if !allowed {
+            return Err(ApiError::forbidden(format!(
+                "api token scope is not granted to the current principal: {normalized_scope}"
+            )));
+        }
+        normalized.push(normalized_scope);
+    }
+    normalized.sort();
+    normalized.dedup();
+    Ok(normalized)
 }
 
 async fn audit_api_token(

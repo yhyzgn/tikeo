@@ -1988,6 +1988,10 @@ mod tests {
         .await;
         assert_eq!(created["code"], 0);
         assert_eq!(created["data"]["token"]["name"], "nightly automation");
+        assert_eq!(
+            created["data"]["token"]["scopes"].as_array().map(Vec::len),
+            Some(0)
+        );
         let token_id = created["data"]["token"]["id"]
             .as_str()
             .unwrap_or_else(|| panic!("api token id should be present"))
@@ -2061,6 +2065,54 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("router should respond: {error}"));
         assert_eq!(rejected.status(), axum::http::StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn scoped_api_token_limits_effective_permissions() {
+        let app = router().await;
+        let admin = admin_token(app.clone()).await;
+        let created = post_json_raw(
+            app.clone(),
+            "/api/v1/auth/api-tokens",
+            r#"{"name":"read only users","scopes":["users:read"]}"#,
+            Some(&admin),
+        )
+        .await;
+        assert_eq!(created["code"], 0);
+        assert_eq!(created["data"]["token"]["scopes"][0], "users:read");
+        let api_token = created["data"]["access_token"]
+            .as_str()
+            .unwrap_or_else(|| panic!("api token value should be returned once"))
+            .to_owned();
+
+        let scoped_read = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/users")
+                    .header("authorization", format!("Bearer {api_token}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(scoped_read.status().is_success());
+
+        let scoped_write = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/users")
+                    .header("authorization", format!("Bearer {api_token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"username":"scoped-denied","password":"Secret123!","role":"viewer"}"#,
+                    ))
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(scoped_write.status(), axum::http::StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]

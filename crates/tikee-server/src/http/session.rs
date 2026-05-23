@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use chrono::{Duration as ChronoDuration, Utc};
 use moka::future::Cache;
 use sha2::{Digest, Sha256};
-use tikee_storage::{AuthSessionRepository, CreateAuthSession, RbacRepository};
+use tikee_storage::{AuthSessionRepository, CreateAuthSession, PermissionSummary, RbacRepository};
 use uuid::Uuid;
 
 use super::{
@@ -20,6 +20,7 @@ use super::{
 };
 
 const API_TOKEN_DEVICE_PREFIX: &str = "api-token:";
+const API_TOKEN_SCOPE_SEPARATOR: &str = ";scopes=";
 
 /// Session creation input passed from the authentication boundary.
 #[derive(Debug, Clone)]
@@ -34,6 +35,8 @@ pub struct SessionCreate {
     pub device_id: Option<String>,
     /// Optional human-readable device name supplied by clients in the future.
     pub device_name: Option<String>,
+    /// Optional API-token scope allow-list in `resource:action` form.
+    pub token_scopes: Vec<String>,
 }
 
 /// Pluggable session store contract.
@@ -216,6 +219,8 @@ impl SessionStore for DbMokaSessionStore {
             username: summary.username.clone(),
             roles,
             permissions,
+            scope_limited: false,
+            token_scopes: Vec::new(),
         };
         self.cache.insert(token_hash, principal.clone()).await;
 
@@ -245,10 +250,7 @@ impl SessionStore for DbMokaSessionStore {
             .create_session(CreateAuthSession {
                 user_id: input.user_id,
                 token_hash: token_hash.clone(),
-                device_id: Some(format!(
-                    "{API_TOKEN_DEVICE_PREFIX}{}",
-                    Uuid::new_v4().as_simple()
-                )),
+                device_id: Some(encode_api_token_device_id(&input.token_scopes)),
                 device_name: Some(token_name),
                 expires_at,
             })
@@ -256,15 +258,23 @@ impl SessionStore for DbMokaSessionStore {
             .map_err(|error| ApiError::storage(&error))?;
 
         let roles = vec![summary.role.clone()];
-        let permissions = self
+        let role_permissions = self
             .rbac
             .permissions_for_roles(&roles)
             .await
             .map_err(|error| ApiError::storage(&error))?;
+        let token_scopes = api_token_scopes(&summary);
+        let permissions = if token_scopes.is_empty() {
+            role_permissions
+        } else {
+            permissions_from_scopes(&token_scopes)
+        };
         let principal = MeResponse {
             username: summary.username.clone(),
             roles,
             permissions,
+            scope_limited: !token_scopes.is_empty(),
+            token_scopes,
         };
         self.cache.insert(token_hash, principal).await;
 
@@ -327,16 +337,24 @@ impl SessionStore for DbMokaSessionStore {
             return Ok(None);
         };
 
-        let roles = vec![summary.role];
-        let permissions = self
+        let roles = vec![summary.role.clone()];
+        let role_permissions = self
             .rbac
             .permissions_for_roles(&roles)
             .await
             .map_err(|error| ApiError::storage(&error))?;
+        let token_scopes = api_token_scopes(&summary);
+        let permissions = if token_scopes.is_empty() {
+            role_permissions
+        } else {
+            permissions_from_scopes(&token_scopes)
+        };
         let principal = MeResponse {
             username: summary.username,
             roles,
             permissions,
+            scope_limited: !token_scopes.is_empty(),
+            token_scopes,
         };
         self.cache.insert(token_hash, principal.clone()).await;
         Ok(Some(principal))
@@ -372,15 +390,54 @@ fn is_api_token_session(session: &tikee_storage::AuthSessionSummary) -> bool {
 }
 
 fn api_token_summary(session: tikee_storage::AuthSessionSummary) -> ApiTokenSummary {
+    let scopes = api_token_scopes(&session);
     ApiTokenSummary {
         id: session.id,
         name: session
             .device_name
             .unwrap_or_else(|| "api-token".to_owned()),
         username: session.username,
+        scopes,
         expires_at: session.expires_at,
         created_at: session.created_at,
     }
+}
+
+fn encode_api_token_device_id(scopes: &[String]) -> String {
+    let id = format!("{API_TOKEN_DEVICE_PREFIX}{}", Uuid::new_v4().as_simple());
+    if scopes.is_empty() {
+        id
+    } else {
+        format!("{id}{API_TOKEN_SCOPE_SEPARATOR}{}", scopes.join(","))
+    }
+}
+
+fn api_token_scopes(session: &tikee_storage::AuthSessionSummary) -> Vec<String> {
+    let Some(device_id) = session.device_id.as_deref() else {
+        return Vec::new();
+    };
+    let Some((_, scopes)) = device_id.split_once(API_TOKEN_SCOPE_SEPARATOR) else {
+        return Vec::new();
+    };
+    scopes
+        .split(',')
+        .map(str::trim)
+        .filter(|scope| !scope.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+fn permissions_from_scopes(scopes: &[String]) -> Vec<PermissionSummary> {
+    scopes
+        .iter()
+        .filter_map(|scope| {
+            let (resource, action) = scope.split_once(':')?;
+            Some(PermissionSummary {
+                resource: resource.to_owned(),
+                action: action.to_owned(),
+            })
+        })
+        .collect()
 }
 
 fn generate_access_token() -> String {

@@ -408,6 +408,8 @@ pub struct AuthSession {
 pub struct CreateApiTokenRequest {
     /// Human-readable token name.
     pub name: String,
+    /// Optional scope allow-list in `resource:action` form. Omit for current role permissions.
+    pub scopes: Option<Vec<String>>,
 }
 
 /// API token metadata returned after creation and list operations.
@@ -419,6 +421,8 @@ pub struct ApiTokenSummary {
     pub name: String,
     /// Username that owns the token.
     pub username: String,
+    /// Optional scope allow-list in `resource:action` form. Empty means current role permissions.
+    pub scopes: Vec<String>,
     /// RFC3339 expiration timestamp.
     pub expires_at: String,
     /// RFC3339 creation timestamp.
@@ -510,6 +514,10 @@ pub struct MeResponse {
     pub roles: Vec<String>,
     /// Granted permissions.
     pub permissions: Vec<tikee_storage::PermissionSummary>,
+    /// Whether bearer access is narrowed by API-token scopes.
+    pub scope_limited: bool,
+    /// Active API-token scopes in `resource:action` form, if any.
+    pub token_scopes: Vec<String>,
 }
 
 /// Workflow definition API envelope.

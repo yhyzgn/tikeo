@@ -692,3 +692,9 @@
 - Added authenticated `POST /api/v1/auth/api-tokens`, `GET /api/v1/auth/api-tokens`, and `DELETE /api/v1/auth/api-tokens/{id}` endpoints.
 - API tokens reuse the DB-backed session store, persist only SHA-256 token hashes, return the raw bearer token only at creation time, hide `token_hash` from list responses, and invalidate bearer access immediately on revoke.
 - Added audit entries for API token create/revoke; fine-grained token scopes, rotation policy, and multi-tenant scope binding remain future work.
+
+### 2026-05-23 — Phase 099 scoped API token permissions
+- Continued `.prompt/099-phase3-api-token-scopes.md` by adding fine-grained API token scope allow-lists.
+- `POST /api/v1/auth/api-tokens` now accepts optional `scopes` in `resource:action` form, validates every requested scope against the current principal permissions, stores the scope metadata with the hashed token session, and returns scopes in token metadata.
+- Scoped API tokens now resolve to narrowed effective permissions; an `admin` role no longer bypasses scoped-token limits, so a `users:read` token can list users but cannot create users.
+- Multi-tenant namespace/app/worker-pool scope binding and token rotation/expiry policy remain future work.
