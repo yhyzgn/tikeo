@@ -14,3 +14,10 @@ peers = []
 enabled = false
 headers = []
 # otlp_endpoint = "http://otel-collector:4318/v1/traces"
+
+[alert_retry]
+enabled = true
+interval_seconds = 60
+batch_size = 50
+max_attempts = 3
+backoff_seconds = 300

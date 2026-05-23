@@ -860,3 +860,14 @@ Verification evidence:
 Verification evidence:
 - RED/green retry processor test plus fmt, clippy, and alert suite passed via RTK.
 - Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
+
+### 2026-05-24 — Phase 112 alert retry background worker
+- Added enabled-by-default `alert_retry` config for interval, batch size, max attempts, and retry backoff.
+- Server startup now runs an ownership-gated background retry worker alongside HTTP, Worker Tunnel, schedule tick, and dispatch loops.
+- Retry scans skip automatically when cluster status cannot schedule, keeping Raft followers from processing shared retry state.
+- Remaining alert gap: production SMTP TLS/auth/secret handling and live external provider smoke.
+Verification evidence:
+- RED config test failed before `AlertRetryConfig` existed, then passed.
+- RED ownership-gate test failed before `retry_once_if_owner` existed, then passed.
+- Targeted fmt and clippy for `tikee-server` / `tikee-config` passed via RTK.
+- Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.

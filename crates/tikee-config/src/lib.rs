@@ -29,6 +29,9 @@ pub struct TikeeConfig {
     /// Observability export settings.
     #[serde(default)]
     pub observability: ObservabilityConfig,
+    /// Alert delivery retry worker settings.
+    #[serde(default)]
+    pub alert_retry: AlertRetryConfig,
 }
 
 /// Server listener configuration.
@@ -179,6 +182,38 @@ pub struct OidcConfig {
     pub scopes: Vec<String>,
 }
 
+/// Alert delivery retry worker settings.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AlertRetryConfig {
+    /// Run the background alert retry worker.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Interval between due-attempt scans.
+    #[serde(default = "default_alert_retry_interval_seconds")]
+    pub interval_seconds: u64,
+    /// Maximum due attempts scanned per iteration.
+    #[serde(default = "default_alert_retry_batch_size")]
+    pub batch_size: u64,
+    /// Maximum delivery attempts before dead-lettering.
+    #[serde(default = "default_alert_retry_max_attempts")]
+    pub max_attempts: i32,
+    /// Backoff before the next retry attempt.
+    #[serde(default = "default_alert_retry_backoff_seconds")]
+    pub backoff_seconds: i64,
+}
+
+impl Default for AlertRetryConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval_seconds: default_alert_retry_interval_seconds(),
+            batch_size: default_alert_retry_batch_size(),
+            max_attempts: default_alert_retry_max_attempts(),
+            backoff_seconds: default_alert_retry_backoff_seconds(),
+        }
+    }
+}
+
 /// Observability export configuration.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObservabilityConfig {
@@ -260,6 +295,22 @@ const fn default_api_token_max_ttl_seconds() -> i64 {
     30 * 24 * 60 * 60
 }
 
+const fn default_alert_retry_interval_seconds() -> u64 {
+    60
+}
+
+const fn default_alert_retry_batch_size() -> u64 {
+    50
+}
+
+const fn default_alert_retry_max_attempts() -> i32 {
+    3
+}
+
+const fn default_alert_retry_backoff_seconds() -> i64 {
+    300
+}
+
 fn default_oidc_scopes() -> Vec<String> {
     vec![
         "openid".to_owned(),
@@ -320,7 +371,12 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeeConfig, ConfigError> {
         .set_default("transport_security.worker_tunnel.tls_enabled", false)?
         .set_default("transport_security.worker_tunnel.mtls_required", false)?
         .set_default("observability.tracing.enabled", false)?
-        .set_default("observability.tracing.headers", Vec::<String>::new())?;
+        .set_default("observability.tracing.headers", Vec::<String>::new())?
+        .set_default("alert_retry.enabled", true)?
+        .set_default("alert_retry.interval_seconds", 60)?
+        .set_default("alert_retry.batch_size", 50)?
+        .set_default("alert_retry.max_attempts", 3)?
+        .set_default("alert_retry.backoff_seconds", 300)?;
 
     if let Some(path) = path {
         builder = builder.add_source(File::from(path).required(true));
@@ -391,6 +447,18 @@ mod tests {
         assert!(!config.observability.tracing.enabled);
         assert!(config.observability.tracing.otlp_endpoint.is_none());
         assert!(config.observability.tracing.headers.is_empty());
+    }
+
+    #[test]
+    fn default_alert_retry_config_enables_bounded_background_scheduler() {
+        let config =
+            load_config(None).unwrap_or_else(|error| panic!("default config should load: {error}"));
+
+        assert!(config.alert_retry.enabled);
+        assert_eq!(config.alert_retry.interval_seconds, 60);
+        assert_eq!(config.alert_retry.batch_size, 50);
+        assert_eq!(config.alert_retry.max_attempts, 3);
+        assert_eq!(config.alert_retry.backoff_seconds, 300);
     }
 
     #[test]

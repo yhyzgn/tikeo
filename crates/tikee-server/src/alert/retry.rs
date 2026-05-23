@@ -1,7 +1,11 @@
 //! Alert delivery retry processor.
 
 use super::{AlertDeliveryPolicy, AlertDispatcher};
+use crate::cluster::SharedClusterCoordinator;
+use std::time::Duration;
 use tikee_storage::{AlertRepository, RecordAlertDeliveryAttempt};
+use tokio::time as tokio_time;
+use tracing::{debug, info, warn};
 
 /// Retry policy for alert delivery attempts.
 #[derive(Debug, Clone, Copy)]
@@ -50,6 +54,58 @@ pub async fn process_due_alert_delivery_retries(
         AlertDeliveryPolicy::production(),
     )
     .await
+}
+
+/// Process due alert delivery attempts with an explicit delivery policy.
+///
+/// # Errors
+/// Returns storage errors from loading rules/events or writing retry attempt state.
+#[allow(clippy::too_many_lines)]
+pub async fn retry_once_if_owner(
+    alerts: &AlertRepository,
+    cluster: &SharedClusterCoordinator,
+    limit: u64,
+    policy: AlertRetryPolicy,
+) -> Result<AlertRetryProcessSummary, tikee_storage::DbErr> {
+    let status = cluster.status().await;
+    if !status.can_schedule {
+        debug!(role = status.role.as_str(), node_id = %status.node_id, "skip alert retry processing without cluster ownership");
+        return Ok(AlertRetryProcessSummary::default());
+    }
+    process_due_alert_delivery_retries(alerts, limit, policy).await
+}
+
+/// Run the alert retry worker forever.
+pub async fn run_retry_loop(
+    alerts: AlertRepository,
+    cluster: SharedClusterCoordinator,
+    interval: Duration,
+    limit: u64,
+    policy: AlertRetryPolicy,
+) {
+    let mut ticker = tokio_time::interval(interval.max(Duration::from_secs(1)));
+    info!(
+        interval_seconds = interval.as_secs(),
+        limit,
+        max_attempts = policy.max_attempts,
+        "alert retry worker started"
+    );
+    loop {
+        ticker.tick().await;
+        match retry_once_if_owner(&alerts, &cluster, limit, policy).await {
+            Ok(summary) if summary.scanned > 0 => {
+                info!(
+                    scanned = summary.scanned,
+                    retried = summary.retried,
+                    dead_lettered = summary.dead_lettered,
+                    skipped = summary.skipped,
+                    "alert retry iteration completed"
+                );
+            }
+            Ok(_) => {}
+            Err(error) => warn!(%error, "alert retry iteration failed"),
+        }
+    }
 }
 
 /// Process due alert delivery attempts with an explicit delivery policy.
@@ -206,6 +262,36 @@ fn retry_after_seconds(seconds: i64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cluster::{ClusterMode, ClusterRole, ClusterStatus, StaticCoordinator};
+
+    #[tokio::test]
+    async fn retry_once_if_owner_skips_when_cluster_cannot_schedule() {
+        let db = tikee_storage::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("storage should initialize: {error}"));
+        let alerts = AlertRepository::new(db);
+        let summary = retry_once_if_owner(
+            &alerts,
+            &StaticCoordinator::shared(ClusterStatus {
+                mode: ClusterMode::Raft,
+                role: ClusterRole::Follower,
+                node_id: "node-b".to_owned(),
+                nodes: 3,
+                can_schedule: false,
+                leader_fencing_token: None,
+                detail: "test follower".to_owned(),
+            }),
+            10,
+            AlertRetryPolicy::default(),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("retry ownership gate should run: {error}"));
+
+        assert_eq!(summary.scanned, 0);
+        assert_eq!(summary.retried, 0);
+        assert_eq!(summary.dead_lettered, 0);
+        assert_eq!(summary.skipped, 0);
+    }
 
     #[tokio::test]
     async fn retry_processor_delivers_due_attempt_and_marks_previous_consumed() {

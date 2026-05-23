@@ -1,7 +1,7 @@
 //! Server process orchestration.
 
 use anyhow::{Context, Result};
-use tikee_config::TikeeConfig;
+use tikee_config::{AlertRetryConfig, TikeeConfig};
 use tikee_storage::{
     AuditLogRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
     JobInstanceRepository, JobRepository, RaftRepository, ScriptRepository, UserRepository,
@@ -10,7 +10,7 @@ use tikee_storage::{
 use tokio::try_join;
 use tracing::info;
 
-use crate::{cluster::coordinator_from_config_with_storage, http, tikee, tunnel};
+use crate::{alert, cluster::coordinator_from_config_with_storage, http, tikee, tunnel};
 
 /// Run all tikee server listeners.
 ///
@@ -27,6 +27,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
     let auth_config = config.auth;
     let transport_security = config.transport_security;
     let observability = config.observability;
+    let alert_retry_config = config.alert_retry;
     let raft_transport_token = cluster_config.transport_token.clone();
     let db = connect_and_migrate(&database_url)
         .await
@@ -43,6 +44,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
     let scripts = ScriptRepository::new(db.clone());
     let workflows = WorkflowRepository::new(db.clone());
     let audit = AuditLogRepository::new(db.clone());
+    let alerts = tikee_storage::AlertRepository::new(db.clone());
     let http_router = http::router_with_state(
         http::AppState::new(
             jobs.clone(),
@@ -69,6 +71,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
     let dispatcher_workflows = workflows.clone();
     let tick_cluster = cluster.clone();
     let dispatch_cluster = cluster.clone();
+    let alert_retry_cluster = cluster.clone();
     let tunnel_attempts = attempts;
 
     info!(%http_addr, %tunnel_addr, "starting tikee listeners");
@@ -106,8 +109,33 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
             #[allow(unreachable_code)]
             Ok::<(), anyhow::Error>(())
         },
+        run_alert_retry_worker(alerts, alert_retry_cluster, alert_retry_config),
     )
     .context("tikee listener failed")?;
 
+    Ok(())
+}
+
+async fn run_alert_retry_worker(
+    alerts: tikee_storage::AlertRepository,
+    cluster: crate::cluster::SharedClusterCoordinator,
+    config: AlertRetryConfig,
+) -> Result<()> {
+    if config.enabled {
+        alert::run_retry_loop(
+            alerts,
+            cluster,
+            std::time::Duration::from_secs(config.interval_seconds.max(1)),
+            config.batch_size.min(500),
+            alert::AlertRetryPolicy {
+                max_attempts: config.max_attempts.clamp(1, 20),
+                backoff_seconds: config.backoff_seconds.clamp(1, 86_400),
+            },
+        )
+        .await;
+    } else {
+        std::future::pending::<()>().await;
+    }
+    #[allow(unreachable_code)]
     Ok(())
 }

@@ -4,7 +4,9 @@ mod email;
 mod retry;
 
 use email::deliver_email_channel;
-pub use retry::{AlertRetryPolicy, AlertRetryProcessSummary, process_due_alert_delivery_retries};
+pub use retry::{
+    AlertRetryPolicy, AlertRetryProcessSummary, process_due_alert_delivery_retries, run_retry_loop,
+};
 use serde::{Deserialize, Serialize};
 use std::{net::IpAddr, sync::Arc, time::Duration};
 use tracing::{info, warn};
