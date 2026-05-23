@@ -37,6 +37,7 @@ impl MigrationTrait for CreateMetadataTables {
         create_audit_logs(manager).await?;
         create_alert_rules(manager).await?;
         create_alert_events(manager).await?;
+        create_alert_delivery_attempts(manager).await?;
         create_indexes(manager).await?;
 
         // Seed default admin
@@ -46,6 +47,9 @@ impl MigrationTrait for CreateMetadataTables {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(AlertDeliveryAttempts::Table).to_owned())
+            .await?;
         manager
             .drop_table(Table::drop().table(AlertEvents::Table).to_owned())
             .await?;
@@ -361,6 +365,29 @@ async fn create_alert_events(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(string_null(AlertEvents::Message))
                 .col(string_col(AlertEvents::DedupeKey))
                 .col(string_col(AlertEvents::CreatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_alert_delivery_attempts(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(AlertDeliveryAttempts::Table)
+                .if_not_exists()
+                .col(string_pk(AlertDeliveryAttempts::Id))
+                .col(string_col(AlertDeliveryAttempts::EventId))
+                .col(string_col(AlertDeliveryAttempts::RuleId))
+                .col(string_col(AlertDeliveryAttempts::Provider))
+                .col(string_col(AlertDeliveryAttempts::Target))
+                .col(boolean_col(AlertDeliveryAttempts::Delivered))
+                .col(integer_null(AlertDeliveryAttempts::StatusCode))
+                .col(text_null(AlertDeliveryAttempts::Error))
+                .col(integer_col(AlertDeliveryAttempts::Attempt))
+                .col(string_col(AlertDeliveryAttempts::RetryState))
+                .col(string_null(AlertDeliveryAttempts::NextRetryAt))
+                .col(string_col(AlertDeliveryAttempts::CreatedAt))
                 .to_owned(),
         )
         .await
@@ -1547,6 +1574,23 @@ enum AlertEvents {
 }
 
 #[derive(DeriveIden)]
+enum AlertDeliveryAttempts {
+    Table,
+    Id,
+    EventId,
+    RuleId,
+    Provider,
+    Target,
+    Delivered,
+    StatusCode,
+    Error,
+    Attempt,
+    RetryState,
+    NextRetryAt,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
 enum AuditLogs {
     Table,
     Id,
@@ -1767,4 +1811,11 @@ where
     T: IntoIden,
 {
     ColumnDef::new(column).integer().not_null().take()
+}
+
+fn integer_null<T>(column: T) -> ColumnDef
+where
+    T: IntoIden,
+{
+    ColumnDef::new(column).integer().null().take()
 }

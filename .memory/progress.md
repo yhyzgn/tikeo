@@ -826,3 +826,13 @@ Verification evidence:
 Verification evidence:
 - Targeted route test failed before implementation and passed after.
 - Web lint, typecheck, targeted route test, and production build passed through RTK.
+
+
+### 2026-05-24 — Phase 108 alert delivery attempt history
+- Added durable `alert_delivery_attempts` storage and API foundation for alert channel delivery history/retry state, with no database foreign keys.
+- Script governance firing alert delivery now records provider, redacted target, delivery status, status code/error, attempt number, retry state, and next retry time per channel.
+- `GET /api/v1/alert-delivery-attempts` supports event/rule/provider/retry_state filters and is represented in OpenAPI.
+- Remaining alert hardening: retry/backoff/DLQ processing, email/SMTP, and live external provider smoke.
+Verification evidence:
+- Targeted governance history, alert suite, OpenAPI route, storage migration, fmt, and clippy checks passed via RTK.
+- Full workspace/backend, Rust SDK, Web, and Java SDK verification command passed via RTK.

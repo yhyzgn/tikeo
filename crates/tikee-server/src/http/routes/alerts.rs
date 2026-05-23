@@ -28,6 +28,15 @@ pub struct AlertEventQuery {
     pub status: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct AlertDeliveryAttemptQuery {
+    pub event_id: Option<String>,
+    pub rule_id: Option<String>,
+    pub provider: Option<String>,
+    pub retry_state: Option<String>,
+}
+
 #[utoipa::path(get, path = "/api/v1/alert-rules", tag = "alerts")]
 pub async fn list_alert_rules(
     State(state): State<Arc<AppState>>,
@@ -184,6 +193,31 @@ pub async fn create_alert_rule(
         created_at: created.created_at,
         updated_at: created.updated_at,
     })))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/alert-delivery-attempts",
+    tag = "alerts",
+    params(AlertDeliveryAttemptQuery)
+)]
+pub async fn list_alert_delivery_attempts(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(query): Query<AlertDeliveryAttemptQuery>,
+) -> Result<Json<ApiResponse<Vec<tikee_storage::AlertDeliveryAttemptSummary>>>, ApiError> {
+    auth::require_permission(&headers, &state, "audit", "read").await?;
+    let items = state
+        .alerts
+        .list_delivery_attempts(tikee_storage::AlertDeliveryAttemptFilters {
+            event_id: query.event_id,
+            rule_id: query.rule_id,
+            provider: query.provider,
+            retry_state: query.retry_state,
+        })
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    Ok(Json(ApiResponse::success(items)))
 }
 
 #[utoipa::path(

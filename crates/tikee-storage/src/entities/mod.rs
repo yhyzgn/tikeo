@@ -1,5 +1,6 @@
 //! `SeaORM` entity definitions for tikee metadata.
 
+pub mod alert_delivery_attempt;
 pub mod alert_event;
 pub mod alert_rule;
 pub mod app;

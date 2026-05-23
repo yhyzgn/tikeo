@@ -21,7 +21,8 @@ mod util;
 mod workflow;
 
 pub use alert::{
-    AlertEventFilters, AlertEventSummary, AlertRepository, AlertRuleSummary, CreateAlertRule,
+    AlertDeliveryAttemptFilters, AlertDeliveryAttemptSummary, AlertEventFilters, AlertEventSummary,
+    AlertRepository, AlertRuleSummary, CreateAlertRule, RecordAlertDeliveryAttempt,
 };
 pub use attempt::{
     CreateJobInstanceAttempt, JobInstanceAttemptRepository, JobInstanceAttemptSummary,

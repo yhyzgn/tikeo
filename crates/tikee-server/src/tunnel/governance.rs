@@ -1,7 +1,9 @@
 //! Script execution governance audit materialization helpers.
 
 use crate::alert::{AlertDispatcher, AlertPayload, NotificationChannel, Severity};
-use tikee_storage::{AlertRepository, AuditLogRepository, CreateAuditLog};
+use tikee_storage::{
+    AlertRepository, AuditLogRepository, CreateAuditLog, RecordAlertDeliveryAttempt,
+};
 
 const GOVERNANCE_EVENT: &str = "script_execution_governance";
 const GOVERNANCE_ACTION: &str = "script_governance_failure";
@@ -61,9 +63,36 @@ pub async fn materialize_script_governance_audit(
             resource_id: event.resource_id,
             triggered_at: event.created_at,
         };
-        let _results = AlertDispatcher::noop()
+        let results = AlertDispatcher::noop()
             .deliver_payload(&channels, &payload)
             .await;
+        for (index, result) in results.into_iter().enumerate() {
+            let delivered = result.delivered;
+            let status_code = result.status.map(i32::from);
+            let retry_state = if delivered {
+                "delivered".to_owned()
+            } else {
+                "retry_pending".to_owned()
+            };
+            let _attempt = alerts
+                .record_delivery_attempt(RecordAlertDeliveryAttempt {
+                    event_id: event.id.clone(),
+                    rule_id: event.rule_id.clone(),
+                    provider: result.provider,
+                    target: result.target,
+                    delivered,
+                    status_code,
+                    error: result.error,
+                    attempt: i32::try_from(index.saturating_add(1)).unwrap_or(i32::MAX),
+                    retry_state,
+                    next_retry_at: if delivered {
+                        None
+                    } else {
+                        Some(retry_after_seconds(60))
+                    },
+                })
+                .await?;
+        }
     }
     Ok(())
 }
@@ -84,4 +113,11 @@ fn severity_from_str(value: &str) -> Severity {
         "warning" => Severity::Warning,
         _ => Severity::Info,
     }
+}
+
+fn retry_after_seconds(seconds: i64) -> String {
+    time::OffsetDateTime::now_utc()
+        .saturating_add(time::Duration::seconds(seconds.max(1)))
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned())
 }

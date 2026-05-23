@@ -14,8 +14,9 @@ use std::time::Duration;
 use thiserror::Error;
 
 pub use repository::{
-    AdvanceWorkflowInput, AdvanceWorkflowResult, AlertEventFilters, AlertEventSummary,
-    AlertRepository, AlertRuleSummary, AppendJobInstanceLog, AuditLogFilters, AuditLogPageSummary,
+    AdvanceWorkflowInput, AdvanceWorkflowResult, AlertDeliveryAttemptFilters,
+    AlertDeliveryAttemptSummary, AlertEventFilters, AlertEventSummary, AlertRepository,
+    AlertRuleSummary, AppendJobInstanceLog, AuditLogFilters, AuditLogPageSummary,
     AuditLogRepository, AuditLogSummary, AuthSessionRepository, AuthSessionSummary,
     CompleteWorkflowShardInput, CompleteWorkflowShardResult, CreateAlertRule, CreateAuditLog,
     CreateAuthSession, CreateJob, CreateJobInstance, CreateJobInstanceAttempt, CreateScript,
@@ -25,14 +26,14 @@ pub use repository::{
     JobRepository, JobSummary, MaterializeWorkflowNodeResult, PermissionSummary, QueueOverview,
     RaftAppliedCommandSummary, RaftLogEntrySummary, RaftMemberSummary,
     RaftMembershipProposalSummary, RaftMetadataSummary, RaftRepository, RaftSnapshotSummary,
-    RbacRepository, RecordRaftAppliedCommand, RecordRaftMembershipProposal,
-    RecoverWorkflowNodeInput, RecoverWorkflowNodeResult, ScriptRepository, ScriptSummary,
-    ScriptVersionRepository, ScriptVersionSummary, UpdateScript, UpdateUser, UpdateWorkflow,
-    UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot, UserRepository,
-    UserSummary, WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary,
-    WorkflowJobResultOutcome, WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository,
-    WorkflowShardSummary, WorkflowSloSummary, WorkflowSummary, WorkflowValidationResult,
-    validate_workflow_definition,
+    RbacRepository, RecordAlertDeliveryAttempt, RecordRaftAppliedCommand,
+    RecordRaftMembershipProposal, RecoverWorkflowNodeInput, RecoverWorkflowNodeResult,
+    ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary, UpdateScript,
+    UpdateUser, UpdateWorkflow, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
+    UpsertRaftSnapshot, UserRepository, UserSummary, WorkflowDefinition, WorkflowEdgeSpec,
+    WorkflowInstanceSummary, WorkflowJobResultOutcome, WorkflowNodeInstanceSummary,
+    WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary, WorkflowSloSummary,
+    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
 };
 pub use sea_orm::DbErr;
 
@@ -71,6 +72,7 @@ async fn ensure_sqlite_schema_compatibility(db: &DatabaseConnection) -> Result<(
     ensure_scripts_schema_compatibility(db).await?;
     ensure_script_versions_schema_compatibility(db).await?;
     ensure_audit_logs_schema_compatibility(db).await?;
+    ensure_alert_schema_compatibility(db).await?;
     ensure_workflow_schema_compatibility(db).await?;
     ensure_raft_schema_compatibility(db).await?;
     remove_sqlite_foreign_keys(db).await
@@ -87,6 +89,41 @@ async fn ensure_job_schema_compatibility(db: &DatabaseConnection) -> Result<(), 
         ))
         .await?;
     }
+    Ok(())
+}
+
+async fn ensure_alert_schema_compatibility(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {
+    if db.get_database_backend() != DatabaseBackend::Sqlite {
+        return Ok(());
+    }
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        r"CREATE TABLE IF NOT EXISTS alert_delivery_attempts (
+            id varchar NOT NULL PRIMARY KEY,
+            event_id varchar NOT NULL,
+            rule_id varchar NOT NULL,
+            provider varchar NOT NULL,
+            target varchar NOT NULL,
+            delivered boolean NOT NULL,
+            status_code integer,
+            error text,
+            attempt integer NOT NULL,
+            retry_state varchar NOT NULL,
+            next_retry_at varchar,
+            created_at varchar NOT NULL
+        )",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE INDEX IF NOT EXISTS idx_alert_delivery_attempts_event ON alert_delivery_attempts (event_id, created_at)",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE INDEX IF NOT EXISTS idx_alert_delivery_attempts_retry ON alert_delivery_attempts (retry_state, next_retry_at)",
+    ))
+    .await?;
     Ok(())
 }
 

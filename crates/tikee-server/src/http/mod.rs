@@ -360,6 +360,10 @@ fn api_router() -> Router<Arc<AppState>> {
             "/alert-rules/{id}/delivery-status",
             get(routes::alert_rule_delivery_status),
         )
+        .route(
+            "/alert-delivery-attempts",
+            get(routes::list_alert_delivery_attempts),
+        )
         .route("/alert-events", get(routes::list_alert_events))
         .route(
             "/alert-events/{id}/resolve",
@@ -1326,6 +1330,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
     async fn alert_rules_api_records_script_governance_event_history() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
@@ -1350,7 +1355,7 @@ mod tests {
                     app.clone(),
                     "POST",
                     "/api/v1/alert-rules",
-                    r#"{"name":"Runtime governance","severity":"warning","condition":{"type":"script_governance_failure","failure_class":"script_runtime_unavailable","threshold":1},"channels":[],"enabled":true,"dedupe_seconds":300}"#,
+                    r#"{"name":"Runtime governance","severity":"warning","condition":{"type":"script_governance_failure","failure_class":"script_runtime_unavailable","threshold":1},"channels":[{"type":"webhook","url":"http://127.0.0.1:9/alert?token=secret"}],"enabled":true,"dedupe_seconds":300}"#,
                 )
                 .await,
             )
@@ -1391,7 +1396,7 @@ mod tests {
             .clone()
             .oneshot(
                 admin_request_builder(
-                    app,
+                    app.clone(),
                     "GET",
                     "/api/v1/alert-events?resource_type=script_execution_governance&failure_class=script_runtime_unavailable",
                 )
@@ -1411,6 +1416,42 @@ mod tests {
         assert_eq!(json["data"][0]["status"], "suppressed");
         assert_eq!(json["data"][1]["status"], "firing");
         assert_eq!(json["data"][1]["resource_id"], "inst-alert-1");
+
+        let attempts = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app.clone(),
+                    "GET",
+                    &format!(
+                        "/api/v1/alert-delivery-attempts?event_id={}",
+                        json["data"][1]["id"]
+                            .as_str()
+                            .unwrap_or_else(|| panic!("event id should exist"))
+                    ),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| {
+                panic!("alert delivery attempts route should respond: {error}")
+            });
+        assert!(attempts.status().is_success());
+        let body = axum::body::to_bytes(attempts.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"].as_array().map(Vec::len), Some(1));
+        assert_eq!(json["data"][0]["provider"], "webhook");
+        assert_eq!(json["data"][0]["delivered"], false);
+        assert_eq!(json["data"][0]["target"], "http://127.0.0.1:9/...");
+        assert!(
+            json["data"][0]["error"]
+                .as_str()
+                .is_some_and(|value| value.contains("https"))
+        );
     }
 
     #[tokio::test]

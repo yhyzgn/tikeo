@@ -6,9 +6,47 @@ use sea_orm::{
 };
 use std::collections::{BTreeMap, HashMap};
 
-use crate::entities::{alert_event, alert_rule};
+use crate::entities::{alert_delivery_attempt, alert_event, alert_rule};
 
 use super::util::{new_id, now_rfc3339};
+
+#[derive(Debug, Clone)]
+pub struct RecordAlertDeliveryAttempt {
+    pub event_id: String,
+    pub rule_id: String,
+    pub provider: String,
+    pub target: String,
+    pub delivered: bool,
+    pub status_code: Option<i32>,
+    pub error: Option<String>,
+    pub attempt: i32,
+    pub retry_state: String,
+    pub next_retry_at: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct AlertDeliveryAttemptSummary {
+    pub id: String,
+    pub event_id: String,
+    pub rule_id: String,
+    pub provider: String,
+    pub target: String,
+    pub delivered: bool,
+    pub status_code: Option<i32>,
+    pub error: Option<String>,
+    pub attempt: i32,
+    pub retry_state: String,
+    pub next_retry_at: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AlertDeliveryAttemptFilters {
+    pub event_id: Option<String>,
+    pub rule_id: Option<String>,
+    pub provider: Option<String>,
+    pub retry_state: Option<String>,
+}
 
 #[derive(Debug, Clone)]
 pub struct CreateAlertRule {
@@ -104,6 +142,55 @@ impl AlertRepository {
         self.db.clone()
     }
 
+    pub async fn record_delivery_attempt(
+        &self,
+        input: RecordAlertDeliveryAttempt,
+    ) -> Result<AlertDeliveryAttemptSummary, sea_orm::DbErr> {
+        let model = alert_delivery_attempt::ActiveModel {
+            id: Set(new_id("alert-delivery")),
+            event_id: Set(input.event_id),
+            rule_id: Set(input.rule_id),
+            provider: Set(input.provider),
+            target: Set(input.target),
+            delivered: Set(input.delivered),
+            status_code: Set(input.status_code),
+            error: Set(input.error),
+            attempt: Set(input.attempt),
+            retry_state: Set(input.retry_state),
+            next_retry_at: Set(input.next_retry_at),
+            created_at: Set(now_rfc3339()),
+        }
+        .insert(&self.db)
+        .await?;
+        Ok(AlertDeliveryAttemptSummary::from(model))
+    }
+
+    pub async fn list_delivery_attempts(
+        &self,
+        filters: AlertDeliveryAttemptFilters,
+    ) -> Result<Vec<AlertDeliveryAttemptSummary>, sea_orm::DbErr> {
+        let mut query = alert_delivery_attempt::Entity::find();
+        if let Some(value) = filters.event_id {
+            query = query.filter(alert_delivery_attempt::Column::EventId.eq(value));
+        }
+        if let Some(value) = filters.rule_id {
+            query = query.filter(alert_delivery_attempt::Column::RuleId.eq(value));
+        }
+        if let Some(value) = filters.provider {
+            query = query.filter(alert_delivery_attempt::Column::Provider.eq(value));
+        }
+        if let Some(value) = filters.retry_state {
+            query = query.filter(alert_delivery_attempt::Column::RetryState.eq(value));
+        }
+        let rows = query
+            .order_by_desc(alert_delivery_attempt::Column::CreatedAt)
+            .all(&self.db)
+            .await?;
+        Ok(rows
+            .into_iter()
+            .map(AlertDeliveryAttemptSummary::from)
+            .collect())
+    }
     pub async fn create_rule(
         &self,
         input: CreateAlertRule,
@@ -391,6 +478,25 @@ impl From<alert_event::Model> for AlertEventSummary {
             failure_class: value.failure_class,
             message: value.message,
             dedupe_key: value.dedupe_key,
+            created_at: value.created_at,
+        }
+    }
+}
+
+impl From<alert_delivery_attempt::Model> for AlertDeliveryAttemptSummary {
+    fn from(value: alert_delivery_attempt::Model) -> Self {
+        Self {
+            id: value.id,
+            event_id: value.event_id,
+            rule_id: value.rule_id,
+            provider: value.provider,
+            target: value.target,
+            delivered: value.delivered,
+            status_code: value.status_code,
+            error: value.error,
+            attempt: value.attempt,
+            retry_state: value.retry_state,
+            next_retry_at: value.next_retry_at,
             created_at: value.created_at,
         }
     }

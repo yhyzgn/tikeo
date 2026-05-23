@@ -1389,3 +1389,16 @@ Verification evidence:
 - `rtk bash -lc "cd web && bun test src/pages/__tests__/RouteAuth.test.tsx"` failed before the route-level guard, then passed after implementation.
 - `rtk bash -lc "cd web && bun run lint && bun run typecheck && bun test src/pages/__tests__/RouteAuth.test.tsx"` passed.
 - `rtk bash -lc "cd web && bun run build"` passed.
+
+
+### 2026-05-24 — Phase 108 alert delivery attempt history
+- Continued `.prompt/108-phase3-alert-delivery-attempt-history.md` by adding durable alert notification delivery attempt records.
+- Added `alert_delivery_attempts` storage/entity/migration compatibility without database foreign keys, including provider, redacted target, delivered flag, status code, error, attempt number, retry state, next retry time, and created time.
+- Script governance firing alert dispatch now persists one attempt per channel delivery result, including production-policy rejections as failed `retry_pending` attempts.
+- Added `GET /api/v1/alert-delivery-attempts` with event/rule/provider/retry_state filters and OpenAPI schema coverage.
+- Retry/backoff workers, DLQ processing, email/SMTP, and live external provider smoke remain future alert delivery hardening.
+Verification evidence:
+- `rtk cargo test -p tikee-server alert_rules_api_records_script_governance_event_history --all-features` passed after fixing storage/root exports and route re-export.
+- `rtk bash -lc "cargo test -p tikee-server alert --all-features && cargo test -p tikee-server openapi_json_contains_management_paths --all-features && cargo test -p tikee-storage migration_creates_metadata_tables --all-features"` passed.
+- `rtk bash -lc "cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings"` passed after test-size allow annotation.
+- Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
