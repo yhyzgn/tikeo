@@ -927,3 +927,25 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.scope-management-page {
+  --scope-accent: #4f46e5;
+}
+
+.scope-management-hero.hero-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.scope-form-card .ant-card-body {
+  min-height: 238px;
+}
+
+@media (max-width: 767px) {
+  .scope-management-hero.hero-panel {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

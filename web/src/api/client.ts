@@ -67,6 +67,35 @@ export interface JobInstanceLogSummary {
   created_at: string;
 }
 
+
+export interface NamespaceSummary {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppScopeSummary {
+  id: string;
+  namespace: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkerPoolSummary {
+  id: string;
+  namespace: string;
+  app: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateNamespaceRequest { name: string }
+export interface CreateAppScopeRequest { namespace: string; name: string }
+export interface CreateWorkerPoolRequest { namespace: string; app: string; name: string }
+
 export interface UserSummary {
   id: string;
   username: string;
@@ -203,6 +232,47 @@ export async function listInstanceAttempts(instanceId: string): Promise<Page<Job
 export async function listInstanceLogs(instanceId: string, options: { governanceOnly?: boolean } = {}): Promise<Page<JobInstanceLogSummary>> {
   const suffix = options.governanceOnly ? '?page_token=script_execution_governance' : '';
   return request<Page<JobInstanceLogSummary>>(`/api/v1/instances/${encodeURIComponent(instanceId)}/logs${suffix}`);
+}
+
+
+export async function listNamespaces(): Promise<NamespaceSummary[]> {
+  return request<NamespaceSummary[]>('/api/v1/namespaces');
+}
+
+export async function createNamespace(payload: CreateNamespaceRequest): Promise<NamespaceSummary> {
+  return request<NamespaceSummary>('/api/v1/namespaces', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listAppScopes(params: { namespace?: string } = {}): Promise<AppScopeSummary[]> {
+  const query = new URLSearchParams();
+  if (params.namespace) query.set('namespace', params.namespace);
+  const suffix = query.toString() ? `?${query}` : '';
+  return request<AppScopeSummary[]>(`/api/v1/apps${suffix}`);
+}
+
+export async function createAppScope(payload: CreateAppScopeRequest): Promise<AppScopeSummary> {
+  return request<AppScopeSummary>('/api/v1/apps', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listWorkerPools(params: { namespace?: string; app?: string } = {}): Promise<WorkerPoolSummary[]> {
+  const query = new URLSearchParams();
+  if (params.namespace) query.set('namespace', params.namespace);
+  if (params.app) query.set('app', params.app);
+  const suffix = query.toString() ? `?${query}` : '';
+  return request<WorkerPoolSummary[]>(`/api/v1/worker-pools${suffix}`);
+}
+
+export async function createWorkerPool(payload: CreateWorkerPoolRequest): Promise<WorkerPoolSummary> {
+  return request<WorkerPoolSummary>('/api/v1/worker-pools', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function listUsers(): Promise<UserSummary[]> {

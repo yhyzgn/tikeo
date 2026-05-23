@@ -1457,3 +1457,13 @@ Verification evidence:
 - RED management API test failed before the routes existed, then passed after implementation.
 - Targeted fmt, clippy for storage/server, migration, OpenAPI, and management API tests passed via RTK.
 - Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
+
+### 2026-05-24 — Phase 114 tenant scope management UI
+- Added Web client methods for namespace, app, and Worker Pool create/list APIs.
+- Added governed `/scopes` route and menu entry for `tenants:read`.
+- Added `ScopesPage` with focused create cards guarded by `tenants:manage` plus metadata tables for namespace/app/Worker Pool visibility.
+- Remaining tenant gap: destructive lifecycle/cascade policy and OIDC identity-to-tenant mapping.
+Verification evidence:
+- RED Web client/page tests failed before the API exports and page existed, then passed after implementation.
+- Web lint, typecheck, targeted tests, and production build passed via RTK.
+- Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.

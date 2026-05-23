@@ -6,6 +6,7 @@ import {
   DashboardOutlined,
   DeploymentUnitOutlined,
   SafetyCertificateOutlined,
+  PartitionOutlined,
   ThunderboltOutlined,
   UserOutlined,
 } from '@ant-design/icons';
@@ -34,6 +35,7 @@ export const ROUTE_META = {
   workflows: { path: '/workflows', menuKey: '/workflows', label: '工作流', icon: <BranchesOutlined />, permission: { resource: 'workflows', action: 'read' }, menu: true, group: 'main' },
   workers: { path: '/workers', menuKey: '/workers', label: 'Worker 集群', icon: <ApiOutlined />, permission: { resource: 'workers', action: 'read' }, menu: true, group: 'main' },
   users: { path: '/users', menuKey: '/users', label: '用户管理', icon: <UserOutlined />, permission: { resource: 'users', action: 'read' }, menu: true, group: 'governance' },
+  scopes: { path: '/scopes', menuKey: '/scopes', label: '租户范围', icon: <PartitionOutlined />, permission: { resource: 'tenants', action: 'read' }, menu: true, group: 'governance' },
   scripts: { path: '/scripts', menuKey: '/scripts', label: '脚本管理', icon: <CodeOutlined />, permission: { resource: 'scripts', action: 'read' }, menu: true, group: 'governance' },
   scriptEdit: { path: '/scripts/:id/edit', menuKey: '/scripts', label: '编辑脚本', permission: { resource: 'scripts', action: 'manage' }, menu: false },
   audit: { path: '/audit', menuKey: '/audit', label: '审计日志', icon: <AuditOutlined />, permission: { resource: 'audit', action: 'read' }, menu: true, group: 'governance' },

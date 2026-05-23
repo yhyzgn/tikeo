@@ -1,0 +1,28 @@
+import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+
+const appSource = readFileSync(new URL('../../App.tsx', import.meta.url), 'utf8');
+const routesSource = readFileSync(new URL('../../routes.tsx', import.meta.url), 'utf8');
+const pageSource = readFileSync(new URL('../ScopesPage.tsx', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
+
+describe('tenant scope management page', () => {
+  test('exposes a governed route and menu entry for tenant scopes', () => {
+    expect(routesSource).toContain('scopes');
+    expect(routesSource).toContain('/scopes');
+    expect(routesSource).toContain("resource: 'tenants'");
+    expect(appSource).toContain('ScopesPage');
+    expect(appSource).toContain('ROUTE_META.scopes.path');
+  });
+
+  test('builds namespace app and worker-pool management around focused cards', () => {
+    expect(pageSource).toContain('listNamespaces');
+    expect(pageSource).toContain('createNamespace');
+    expect(pageSource).toContain('createAppScope');
+    expect(pageSource).toContain('createWorkerPool');
+    expect(pageSource).toContain('命名空间');
+    expect(pageSource).toContain('应用');
+    expect(pageSource).toContain('Worker Pool');
+    expect(styles).toContain('.scope-management-page');
+  });
+});

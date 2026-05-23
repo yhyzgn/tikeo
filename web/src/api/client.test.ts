@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
-import { ApiClientError, createJob, dryRunWorkflow, getAuthToken, listInstanceLogs, listJobs, login, setAuthErrorHandler, setAuthToken, triggerJob, updateWorkflow } from './client';
+import { ApiClientError, createAppScope, createJob, createNamespace, createWorkerPool, dryRunWorkflow, getAuthToken, listInstanceLogs, listJobs, listNamespaces, listWorkerPools, login, setAuthErrorHandler, setAuthToken, triggerJob, updateWorkflow } from './client';
 
 const originalFetch = globalThis.fetch;
 
@@ -169,6 +169,43 @@ describe('api client envelope handling', () => {
     const headers = calls.at(-1)?.headers;
     expect(headers).toBeInstanceOf(Headers);
     expect((headers as Headers).get('authorization')).toBe('Bearer atk_test_token');
+  });
+
+
+
+  test('loads and creates tenant scope resources through management endpoints', async () => {
+    const calls: Array<{ url: string; body?: unknown }> = [];
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      if (String(url).includes('/worker-pools')) {
+        return new Response(JSON.stringify({
+          code: 0,
+          message: 'success',
+          data: [{ id: 'wp_1', namespace: 'default', app: 'billing', name: 'critical', created_at: 'now', updated_at: 'now' }],
+        }));
+      }
+      return new Response(JSON.stringify({
+        code: 0,
+        message: 'success',
+        data: [{ id: 'ns_1', name: 'default', created_at: 'now', updated_at: 'now' }],
+      }));
+    }) as unknown as typeof fetch;
+
+    await expect(listNamespaces()).resolves.toEqual([{ id: 'ns_1', name: 'default', created_at: 'now', updated_at: 'now' }]);
+    await expect(listWorkerPools({ namespace: 'default', app: 'billing' })).resolves.toEqual([{ id: 'wp_1', namespace: 'default', app: 'billing', name: 'critical', created_at: 'now', updated_at: 'now' }]);
+
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      return new Response(JSON.stringify({ code: 0, message: 'success', data: { id: 'ok', name: 'ok', namespace: 'default', app: 'billing', created_at: 'now', updated_at: 'now' } }));
+    }) as unknown as typeof fetch;
+
+    await createNamespace({ name: 'payments' });
+    await createAppScope({ namespace: 'payments', name: 'settlement' });
+    await createWorkerPool({ namespace: 'payments', app: 'settlement', name: 'critical' });
+
+    expect(calls.map((call) => call.url)).toContain('/api/v1/namespaces');
+    expect(calls.map((call) => call.url)).toContain('/api/v1/worker-pools?namespace=default&app=billing');
+    expect(calls.at(-1)?.body).toEqual({ namespace: 'payments', app: 'settlement', name: 'critical' });
   });
 
   test('sends authorization when triggering a job', async () => {
