@@ -844,3 +844,10 @@ Verification evidence:
 - Remaining observability gap: live Prometheus/Grafana recording-rule validation and real OTLP collector/export smoke.
 Verification evidence:
 - RED/green metrics summary test plus fmt, clippy, targeted metrics, and Grafana dashboard tests passed via RTK.
+
+
+### 2026-05-24 — Phase 110 email SMTP delivery foundation
+- Added local-loopback SMTP email delivery foundation for alert channels, including recipients/smtp_url/from channel fields and readiness validation.
+- Email remains production fail-closed outside explicit local loopback SMTP policy; production SMTP TLS/auth/secret handling remains future work.
+Verification evidence:
+- RED/green local SMTP delivery test plus fmt, clippy, email delivery, and delivery-status tests passed via RTK.

@@ -1413,3 +1413,14 @@ Verification evidence:
 Verification evidence:
 - `rtk cargo test -p tikee-server metrics_summary_reports_storage_registry_and_alert_counts --all-features` failed before implementation because dispatch latency fields were missing, then passed after implementation.
 - `rtk bash -lc "cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test -p tikee-server metrics_summary_reports_storage_registry_and_alert_counts --all-features && cargo test -p tikee-server --test grafana_dashboard --all-features"` passed.
+
+
+### 2026-05-24 — Phase 110 email SMTP delivery foundation
+- Continued `.prompt/110-phase3-email-smtp-delivery.md` by replacing the explicitly unsupported email branch with a local SMTP delivery foundation.
+- `NotificationChannel::Email` now accepts recipients plus optional `smtp_url`/`from`, with `to`/`url` aliases for simple JSON channel configs.
+- Email delivery sends a plain SMTP message to loopback `smtp://` endpoints only under explicit local policy; missing recipients/SMTP endpoint or non-loopback production policy fails closed with structured delivery errors.
+- Alert delivery readiness now requires email recipients and an SMTP endpoint.
+- Remaining alert hardening: production SMTP TLS/auth/secret handling, retry/backoff/DLQ processing, and live external provider smoke.
+Verification evidence:
+- `rtk cargo test -p tikee-server email_dispatch_sends_plain_smtp_to_allowed_local_receiver --all-features` failed before implementation because email fields/delivery were missing, then passed.
+- `rtk bash -lc "cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test -p tikee-server email_dispatch_sends_plain_smtp_to_allowed_local_receiver --all-features && cargo test -p tikee-server alert_rule_delivery_status_redacts_channel_targets_and_reports_readiness --all-features"` passed.

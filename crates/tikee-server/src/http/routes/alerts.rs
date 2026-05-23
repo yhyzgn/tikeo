@@ -129,11 +129,18 @@ fn channel_status(index: usize, value: &serde_json::Value) -> AlertDeliveryChann
 }
 
 fn channel_target_configured(provider: &str, value: &serde_json::Value) -> bool {
+    if provider == "email" {
+        return ["to", "recipients"]
+            .iter()
+            .any(|key| json_field_present(value, key))
+            && ["smtp_url", "url"]
+                .iter()
+                .any(|key| json_field_present(value, key));
+    }
     let keys: &[&str] = match provider {
         "webhook" | "slack" | "dingtalk" | "feishu" | "wechat_work" | "pagerduty" => {
             &["url", "webhook_url", "routing_key", "integration_key"]
         }
-        "email" => &["to", "recipients"],
         _ => &["target", "url", "to"],
     };
     keys.iter().any(|key| json_field_present(value, key))

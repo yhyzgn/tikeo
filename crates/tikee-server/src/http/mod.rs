@@ -1696,7 +1696,7 @@ mod tests {
                     app.clone(),
                     "POST",
                     "/api/v1/alert-rules",
-                    r#"{"name":"Webhook delivery","severity":"critical","condition":{"type":"script_governance_failure","failure_class":"script_runtime_unavailable","threshold":1},"channels":[{"type":"webhook","url":"https://hooks.example.com/token","secret":"super-secret"},{"type":"email","to":"ops@example.com"}],"enabled":true,"dedupe_seconds":300}"#,
+                    r#"{"name":"Webhook delivery","severity":"critical","condition":{"type":"script_governance_failure","failure_class":"script_runtime_unavailable","threshold":1},"channels":[{"type":"webhook","url":"https://hooks.example.com/token","secret":"super-secret"},{"type":"email","to":"ops@example.com","smtp_url":"smtp://smtp.example.com:25"}],"enabled":true,"dedupe_seconds":300}"#,
                 )
                 .await,
             )

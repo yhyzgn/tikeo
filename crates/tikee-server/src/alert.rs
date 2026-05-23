@@ -1,5 +1,8 @@
 //! Alert rules and notification channels.
 
+mod email;
+
+use email::deliver_email_channel;
 use serde::{Deserialize, Serialize};
 use std::{net::IpAddr, sync::Arc, time::Duration};
 use tracing::{info, warn};
@@ -96,11 +99,22 @@ pub enum NotificationChannel {
         /// `PagerDuty` routing/integration key.
         routing_key: String,
     },
-    /// Email channel (reserved for future implementation).
+    /// Email channel delivered through a configured SMTP endpoint.
     #[allow(dead_code)]
     Email {
         /// Recipient addresses.
+        #[serde(
+            default,
+            alias = "to",
+            deserialize_with = "email::deserialize_recipients"
+        )]
         recipients: Vec<String>,
+        /// SMTP endpoint URL. Plain `smtp://` is allowed only for explicit local loopback smoke tests.
+        #[serde(default, alias = "url")]
+        smtp_url: Option<String>,
+        /// Envelope sender address.
+        #[serde(default)]
+        from: Option<String>,
     },
 }
 
@@ -339,19 +353,41 @@ impl AlertDispatcher {
                     });
                     results.push(self.post_json("pagerduty", target, &body).await);
                 }
-                NotificationChannel::Email { .. } => {
-                    warn!("email notification channel not yet implemented");
-                    results.push(AlertDeliveryResult {
-                        provider: "email".to_owned(),
-                        target: "email".to_owned(),
-                        delivered: false,
-                        status: None,
-                        error: Some("email notification channel not yet implemented".to_owned()),
-                    });
+                NotificationChannel::Email {
+                    recipients,
+                    smtp_url,
+                    from,
+                } => {
+                    results.push(
+                        self.deliver_email(
+                            recipients,
+                            smtp_url.as_deref(),
+                            from.as_deref(),
+                            payload,
+                        )
+                        .await,
+                    );
                 }
             }
         }
         results
+    }
+
+    async fn deliver_email(
+        &self,
+        recipients: &[String],
+        smtp_url: Option<&str>,
+        from: Option<&str>,
+        payload: &AlertPayload,
+    ) -> AlertDeliveryResult {
+        let Some(smtp_url) = smtp_url else {
+            return email_failure(recipients, "smtp_url is required for email delivery");
+        };
+        if recipients.is_empty() {
+            return email_failure(recipients, "at least one email recipient is required");
+        }
+        let from = from.unwrap_or("tikee@localhost");
+        deliver_email_channel(smtp_url, from, recipients, payload, self.policy).await
     }
 
     async fn post_json(
@@ -398,6 +434,20 @@ impl AlertDispatcher {
                 }
             }
         }
+    }
+}
+
+fn email_failure(recipients: &[String], error: &str) -> AlertDeliveryResult {
+    AlertDeliveryResult {
+        provider: "email".to_owned(),
+        target: if recipients.is_empty() {
+            "email".to_owned()
+        } else {
+            recipients.join(",")
+        },
+        delivered: false,
+        status: None,
+        error: Some(error.to_owned()),
     }
 }
 
@@ -563,6 +613,101 @@ mod tests {
             results[0].error.as_deref(),
             Some("webhook url must use https")
         );
+    }
+
+    #[tokio::test]
+    async fn email_dispatch_sends_plain_smtp_to_allowed_local_receiver() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .unwrap_or_else(|error| panic!("smtp listener should bind: {error}"));
+        let address = listener
+            .local_addr()
+            .unwrap_or_else(|error| panic!("smtp listener should expose addr: {error}"));
+        let captured = std::sync::Arc::new(tokio::sync::Mutex::new(String::new()));
+        let captured_server = captured.clone();
+        let smtp_server = tokio::spawn(async move {
+            let (mut stream, _) = listener
+                .accept()
+                .await
+                .unwrap_or_else(|error| panic!("smtp client should connect: {error}"));
+            stream
+                .write_all(b"220 tikee-test-smtp ESMTP\r\n")
+                .await
+                .unwrap_or_else(|error| panic!("smtp greeting should send: {error}"));
+            let mut buffer = [0_u8; 4096];
+            let mut transcript = String::new();
+            loop {
+                let read = stream
+                    .read(&mut buffer)
+                    .await
+                    .unwrap_or_else(|error| panic!("smtp command should read: {error}"));
+                if read == 0 {
+                    break;
+                }
+                transcript.push_str(&String::from_utf8_lossy(&buffer[..read]));
+                if transcript.contains("DATA\r\n") && !transcript.contains("\r\n.\r\n") {
+                    stream
+                        .write_all(
+                            b"250 hello\r\n250 sender ok\r\n250 recipient ok\r\n354 end data\r\n",
+                        )
+                        .await
+                        .unwrap_or_else(|error| panic!("smtp data prompt should send: {error}"));
+                } else if transcript.contains("\r\n.\r\n") {
+                    stream
+                        .write_all(b"250 queued\r\n221 bye\r\n")
+                        .await
+                        .unwrap_or_else(|error| panic!("smtp completion should send: {error}"));
+                    break;
+                } else {
+                    stream
+                        .write_all(b"250 ok\r\n")
+                        .await
+                        .unwrap_or_else(|error| panic!("smtp response should send: {error}"));
+                }
+            }
+            *captured_server.lock().await = transcript;
+        });
+
+        let dispatcher = AlertDispatcher::new_with_policy(
+            vec![AlertRule {
+                id: "rule-email".to_owned(),
+                name: "Email alerts".to_owned(),
+                severity: Severity::Warning,
+                condition: AlertCondition::ScriptGovernanceFailure {
+                    failure_class: "script_runtime_unavailable".to_owned(),
+                    threshold: 1,
+                },
+                channels: vec![NotificationChannel::Email {
+                    recipients: vec!["ops@example.com".to_owned()],
+                    smtp_url: Some(format!("smtp://{address}")),
+                    from: Some("tikee@example.com".to_owned()),
+                }],
+            }],
+            AlertDeliveryPolicy {
+                allow_insecure_loopback: true,
+            },
+        );
+
+        let results = dispatcher
+            .fire_script_governance_failure("inst-email", "script_runtime_unavailable", 1)
+            .await;
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].provider, "email");
+        assert_eq!(results[0].target, "ops@example.com");
+        assert!(
+            results[0].delivered,
+            "email result should be delivered: {results:?}"
+        );
+        smtp_server
+            .await
+            .unwrap_or_else(|error| panic!("smtp server task should complete: {error}"));
+        let transcript = captured.lock().await.clone();
+        assert!(transcript.contains("MAIL FROM:<tikee@example.com>"));
+        assert!(transcript.contains("RCPT TO:<ops@example.com>"));
+        assert!(transcript.contains("Subject: [tikee/warning] Email alerts"));
     }
 
     #[tokio::test]
