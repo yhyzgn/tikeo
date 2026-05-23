@@ -36,6 +36,11 @@ pub async fn metrics_summary(
         .dispatch_queue_slo_summary()
         .await
         .map_err(|error| ApiError::storage(&error))?;
+    let workflows = state
+        .workflows
+        .workflow_slo_summary()
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
     let workers_online = u64::try_from(workers.len()).unwrap_or(u64::MAX);
     metrics::with_local_recorder(&*recorder, || {
         record_dispatch_queue_metrics(&queue);
@@ -47,6 +52,7 @@ pub async fn metrics_summary(
             alert_counts.script_failure_events,
             &alert_counts.by_failure_class,
         );
+        record_workflow_slo_metrics(&workflows);
     });
 
     Ok(Json(ApiResponse::success(MetricsSummaryResponse {
@@ -66,6 +72,7 @@ pub async fn metrics_summary(
             by_failure_class: alert_counts.by_failure_class,
         },
         queue,
+        workflows,
     })))
 }
 
@@ -110,6 +117,36 @@ fn record_business_slo_metrics(
         metrics::gauge!("tikee_script_governance_failures_current", "failure_class" => failure_class.clone())
             .set(u64_metric_value(*count));
     }
+}
+
+fn record_workflow_slo_metrics(workflows: &tikee_storage::WorkflowSloSummary) {
+    metrics::gauge!("tikee_workflow_instances_current", "status" => "all")
+        .set(u64_metric_value(workflows.instances_total));
+    for (status, count) in &workflows.instances_by_status {
+        metrics::gauge!("tikee_workflow_instances_current", "status" => status.clone())
+            .set(u64_metric_value(*count));
+    }
+    metrics::gauge!("tikee_workflow_instance_success_ratio").set(workflows.instance_success_ratio);
+    metrics::histogram!("tikee_workflow_instance_duration_seconds", "stat" => "average").record(
+        std::time::Duration::from_secs(workflows.average_instance_duration_seconds),
+    );
+    metrics::histogram!("tikee_workflow_instance_duration_seconds", "stat" => "longest").record(
+        std::time::Duration::from_secs(workflows.longest_instance_duration_seconds),
+    );
+
+    metrics::gauge!("tikee_workflow_shards_current", "status" => "all")
+        .set(u64_metric_value(workflows.shards_total));
+    for (status, count) in &workflows.shards_by_status {
+        metrics::gauge!("tikee_workflow_shards_current", "status" => status.clone())
+            .set(u64_metric_value(*count));
+    }
+    metrics::gauge!("tikee_workflow_shard_success_ratio").set(workflows.shard_success_ratio);
+    metrics::histogram!("tikee_workflow_shard_duration_seconds", "stat" => "average").record(
+        std::time::Duration::from_secs(workflows.average_shard_duration_seconds),
+    );
+    metrics::histogram!("tikee_workflow_shard_duration_seconds", "stat" => "longest").record(
+        std::time::Duration::from_secs(workflows.longest_shard_duration_seconds),
+    );
 }
 
 fn instance_success_ratio(instances_by_status: &BTreeMap<String, u64>) -> f64 {

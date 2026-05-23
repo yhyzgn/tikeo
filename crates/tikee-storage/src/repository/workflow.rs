@@ -148,6 +148,22 @@ pub struct DispatchQueueSloSummary {
     pub average_pending_age_seconds: u64,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct WorkflowSloSummary {
+    pub instances_total: u64,
+    pub instances_by_status: BTreeMap<String, u64>,
+    pub completed_instances: u64,
+    pub instance_success_ratio: f64,
+    pub average_instance_duration_seconds: u64,
+    pub longest_instance_duration_seconds: u64,
+    pub shards_total: u64,
+    pub shards_by_status: BTreeMap<String, u64>,
+    pub completed_shards: u64,
+    pub shard_success_ratio: f64,
+    pub average_shard_duration_seconds: u64,
+    pub longest_shard_duration_seconds: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct DispatchQueueSummary {
     pub id: String,
@@ -1493,6 +1509,82 @@ impl WorkflowRepository {
         Ok(summary)
     }
 
+    pub async fn workflow_slo_summary(&self) -> Result<WorkflowSloSummary, sea_orm::DbErr> {
+        let instances = workflow_instance::Entity::find().all(&self.db).await?;
+        let shards = workflow_shard::Entity::find().all(&self.db).await?;
+        let mut summary = WorkflowSloSummary::default();
+        let mut instance_successes = 0_u64;
+        let mut instance_failures = 0_u64;
+        let mut instance_duration_total = 0_u64;
+        let mut shard_successes = 0_u64;
+        let mut shard_failures = 0_u64;
+        let mut shard_duration_total = 0_u64;
+
+        for row in instances {
+            summary.instances_total = summary.instances_total.saturating_add(1);
+            *summary
+                .instances_by_status
+                .entry(row.status.clone())
+                .or_insert(0) += 1;
+            match row.status.as_str() {
+                "succeeded" => {
+                    instance_successes = instance_successes.saturating_add(1);
+                    summary.completed_instances = summary.completed_instances.saturating_add(1);
+                    let duration = elapsed_seconds(&row.created_at, &row.updated_at);
+                    instance_duration_total = instance_duration_total.saturating_add(duration);
+                    summary.longest_instance_duration_seconds =
+                        summary.longest_instance_duration_seconds.max(duration);
+                }
+                "failed" => {
+                    instance_failures = instance_failures.saturating_add(1);
+                    summary.completed_instances = summary.completed_instances.saturating_add(1);
+                    let duration = elapsed_seconds(&row.created_at, &row.updated_at);
+                    instance_duration_total = instance_duration_total.saturating_add(duration);
+                    summary.longest_instance_duration_seconds =
+                        summary.longest_instance_duration_seconds.max(duration);
+                }
+                _ => {}
+            }
+        }
+        summary.average_instance_duration_seconds = instance_duration_total
+            .checked_div(summary.completed_instances)
+            .unwrap_or(0);
+        summary.instance_success_ratio = success_ratio(instance_successes, instance_failures);
+
+        for row in shards {
+            summary.shards_total = summary.shards_total.saturating_add(1);
+            *summary
+                .shards_by_status
+                .entry(row.status.clone())
+                .or_insert(0) += 1;
+            match row.status.as_str() {
+                "succeeded" => {
+                    shard_successes = shard_successes.saturating_add(1);
+                    summary.completed_shards = summary.completed_shards.saturating_add(1);
+                    let duration = elapsed_seconds(&row.created_at, &row.updated_at);
+                    shard_duration_total = shard_duration_total.saturating_add(duration);
+                    summary.longest_shard_duration_seconds =
+                        summary.longest_shard_duration_seconds.max(duration);
+                }
+                "failed" => {
+                    shard_failures = shard_failures.saturating_add(1);
+                    summary.completed_shards = summary.completed_shards.saturating_add(1);
+                    let duration = elapsed_seconds(&row.created_at, &row.updated_at);
+                    shard_duration_total = shard_duration_total.saturating_add(duration);
+                    summary.longest_shard_duration_seconds =
+                        summary.longest_shard_duration_seconds.max(duration);
+                }
+                _ => {}
+            }
+        }
+        summary.average_shard_duration_seconds = shard_duration_total
+            .checked_div(summary.completed_shards)
+            .unwrap_or(0);
+        summary.shard_success_ratio = success_ratio(shard_successes, shard_failures);
+
+        Ok(summary)
+    }
+
     pub async fn queue_overview(&self, limit: u64) -> Result<QueueOverview, sea_orm::DbErr> {
         let rows = dispatch_queue::Entity::find()
             .order_by_desc(dispatch_queue::Column::CreatedAt)
@@ -1785,6 +1877,28 @@ fn dispatch_queue_age_seconds(created_at: &str, now: time::OffsetDateTime) -> u6
         .ok()
         .and_then(|created| (now - created).whole_seconds().try_into().ok())
         .unwrap_or(0)
+}
+
+fn elapsed_seconds(start: &str, end: &str) -> u64 {
+    let Ok(start) =
+        time::OffsetDateTime::parse(start, &time::format_description::well_known::Rfc3339)
+    else {
+        return 0;
+    };
+    let Ok(end) = time::OffsetDateTime::parse(end, &time::format_description::well_known::Rfc3339)
+    else {
+        return 0;
+    };
+    (end - start).whole_seconds().try_into().unwrap_or(0)
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn success_ratio(successes: u64, failures: u64) -> f64 {
+    let terminal = successes.saturating_add(failures);
+    if terminal == 0 {
+        return 1.0;
+    }
+    successes as f64 / terminal as f64
 }
 
 fn normalize_terminal_status(status: &str) -> Result<String, sea_orm::DbErr> {

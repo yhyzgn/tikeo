@@ -447,9 +447,10 @@ mod tests {
     use tikee_core::{ExecutionMode, TriggerType};
     use tikee_proto::worker::v1::RegisterWorker;
     use tikee_storage::{
-        AppendJobInstanceLog, AuditLogRepository, CreateAuditLog, CreateJob, CreateJobInstance,
-        JobInstanceAttemptRepository, JobInstanceLogRepository, JobInstanceRepository,
-        JobRepository, RaftRepository, ScriptRepository, UserRepository, WorkflowRepository,
+        AppendJobInstanceLog, AuditLogRepository, CompleteWorkflowShardInput, CreateAuditLog,
+        CreateJob, CreateJobInstance, CreateWorkflow, JobInstanceAttemptRepository,
+        JobInstanceLogRepository, JobInstanceRepository, JobRepository, RaftRepository,
+        ScriptRepository, UserRepository, WorkflowDefinition, WorkflowNodeSpec, WorkflowRepository,
         connect_and_migrate,
     };
 
@@ -1741,6 +1742,61 @@ mod tests {
             .unwrap_or_else(|error| panic!("instance should update: {error}"));
         assert_eq!(pending.status, tikee_core::InstanceStatus::Pending);
 
+        let workflows = WorkflowRepository::new(db.clone());
+        let workflow = workflows
+            .create_workflow(CreateWorkflow {
+                name: "metrics-map".to_owned(),
+                definition: WorkflowDefinition {
+                    nodes: vec![WorkflowNodeSpec {
+                        key: "fanout".to_owned(),
+                        name: Some("Fanout".to_owned()),
+                        kind: Some("map".to_owned()),
+                        job_id: Some("job-metrics-shard".to_owned()),
+                        processor_name: None,
+                        child_workflow_id: None,
+                        map_items: Some(vec![
+                            serde_json::json!({"item": 1}),
+                            serde_json::json!({"item": 2}),
+                        ]),
+                        config: None,
+                    }],
+                    edges: vec![],
+                },
+                created_by: "metrics-test".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("workflow should create: {error}"));
+        let workflow_instance = workflows
+            .run_workflow(&workflow.id, "api")
+            .await
+            .unwrap_or_else(|error| panic!("workflow should run: {error}"))
+            .unwrap_or_else(|| panic!("workflow should exist"));
+        let materialized = workflows
+            .materialize_next_queued_node()
+            .await
+            .unwrap_or_else(|error| panic!("workflow node should materialize: {error}"))
+            .unwrap_or_else(|| panic!("workflow node should materialize"));
+        assert_eq!(materialized.shards.len(), 2);
+        for shard in materialized.shards {
+            workflows
+                .complete_workflow_shard(
+                    &shard.id,
+                    CompleteWorkflowShardInput {
+                        status: "succeeded".to_owned(),
+                        output: Some(serde_json::json!({"ok": true})),
+                        message: Some("shard succeeded".to_owned()),
+                    },
+                )
+                .await
+                .unwrap_or_else(|error| panic!("workflow shard should complete: {error}"));
+        }
+        let completed_workflow = workflows
+            .get_workflow_instance(&workflow_instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("workflow instance should reload: {error}"))
+            .unwrap_or_else(|| panic!("workflow instance should exist"));
+        assert_eq!(completed_workflow.status, "succeeded");
+
         let registry = crate::tunnel::WorkerRegistry::default();
         let (tx, _rx) = tokio::sync::mpsc::channel(1);
         registry
@@ -1754,7 +1810,7 @@ mod tests {
             JobInstanceAttemptRepository::new(db.clone()),
             UserRepository::new(db.clone()),
             ScriptRepository::new(db.clone()),
-            WorkflowRepository::new(db.clone()),
+            workflows,
             AuditLogRepository::new(db.clone()),
             registry,
             StandaloneCoordinator::shared("test-node"),
@@ -1797,8 +1853,8 @@ mod tests {
         assert!(status.is_success(), "unexpected status {status}: {json}");
         assert_eq!(json["code"], 0);
         assert_eq!(json["data"]["workers"]["online"], 1);
-        assert_eq!(json["data"]["instances"]["total"], 2);
-        assert_eq!(json["data"]["instances"]["by_status"]["pending"], 1);
+        assert_eq!(json["data"]["instances"]["total"], 4);
+        assert_eq!(json["data"]["instances"]["by_status"]["pending"], 3);
         assert_eq!(json["data"]["instances"]["by_status"]["succeeded"], 1);
         assert_eq!(json["data"]["queue"]["pending"], 2);
         assert_eq!(json["data"]["queue"]["running"], 0);
@@ -1816,6 +1872,24 @@ mod tests {
         assert_eq!(
             json["data"]["governance"]["by_failure_class"]["script_runtime_unavailable"],
             1
+        );
+        assert_eq!(json["data"]["workflows"]["instances_total"], 1);
+        assert_eq!(
+            json["data"]["workflows"]["instances_by_status"]["succeeded"],
+            1
+        );
+        assert_eq!(json["data"]["workflows"]["shards_total"], 2);
+        assert_eq!(
+            json["data"]["workflows"]["shards_by_status"]["succeeded"],
+            2
+        );
+        assert_eq!(
+            json["data"]["workflows"]["instance_success_ratio"].as_f64(),
+            Some(1.0)
+        );
+        assert_eq!(
+            json["data"]["workflows"]["shard_success_ratio"].as_f64(),
+            Some(1.0)
         );
 
         let metrics = app
@@ -1848,6 +1922,18 @@ mod tests {
         assert!(
             text.contains("tikee_script_governance_failures_current"),
             "metrics body should expose script governance failure gauges: {text}"
+        );
+        assert!(
+            text.contains("tikee_workflow_instances_current"),
+            "metrics body should expose workflow instance status gauges: {text}"
+        );
+        assert!(
+            text.contains("tikee_workflow_instance_duration_seconds"),
+            "metrics body should expose workflow instance duration histogram: {text}"
+        );
+        assert!(
+            text.contains("tikee_workflow_shard_duration_seconds"),
+            "metrics body should expose workflow shard duration histogram: {text}"
         );
     }
 

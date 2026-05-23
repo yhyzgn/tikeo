@@ -236,6 +236,7 @@ pub struct MetricsSummaryResponse {
     pub alerts: MetricsAlertSummary,
     pub governance: MetricsGovernanceSummary,
     pub queue: tikee_storage::DispatchQueueSloSummary,
+    pub workflows: tikee_storage::WorkflowSloSummary,
 }
 
 /// Worker metrics summary.

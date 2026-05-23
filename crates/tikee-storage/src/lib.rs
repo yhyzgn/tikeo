@@ -31,7 +31,8 @@ pub use repository::{
     UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot, UserRepository,
     UserSummary, WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary,
     WorkflowJobResultOutcome, WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository,
-    WorkflowShardSummary, WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
+    WorkflowShardSummary, WorkflowSloSummary, WorkflowSummary, WorkflowValidationResult,
+    validate_workflow_definition,
 };
 pub use sea_orm::DbErr;
 

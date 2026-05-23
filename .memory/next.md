@@ -11,7 +11,7 @@
 - Full multi-level script approval state machine, verified signatures/KMS, production release gates, and URL/File/Secret grants.
 - Real non-webhook alert provider delivery for email/Slack/DingTalk/Feishu/WeCom/PagerDuty, plus retries/DLQ and persisted delivery attempts.
 - Full tenant/app/worker-pool management UI and OIDC identity-to-tenant mapping.
-- Full business SLO metrics/histograms beyond the current summary-backed snapshots, plus live Prometheus/Grafana recording-rule validation and real OTLP exporter collector smoke.
+- Remaining business observability hardening: end-to-end dispatch latency histograms, live Prometheus/Grafana recording-rule validation, and real OTLP exporter collector smoke.
 
 ## Deferred out of Phase 3
 - Node.js SDK, K8s Helm Chart, PowerJob migration tooling, and XXL-JOB migration tooling belong to Phase 4.

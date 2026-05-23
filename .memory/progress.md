@@ -778,3 +778,23 @@ Verification evidence:
 - `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
 - `rtk bash -lc 'cd web && bun run lint && bun run typecheck && bun test && bun run build'` passed.
 - `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.
+
+### 2026-05-24 — Phase 106 workflow and map-shard SLO metrics
+- Continued `.prompt/106-phase3-workflow-slo-metrics.md` by adding workflow SLA coverage to the metrics summary and Prometheus recorder path.
+- `GET /api/v1/metrics/summary` now includes workflow instance totals/statuses, terminal success ratio, duration rollups, shard totals/statuses, shard success ratio, and shard duration rollups.
+- `/metrics` now exposes workflow instance/shard status gauges, success-ratio gauges, and `tikee_workflow_instance_duration_seconds` / `tikee_workflow_shard_duration_seconds` histograms.
+- Updated the Phase 3 Grafana dashboard template with real workflow SLA queries.
+- Remaining observability gaps are end-to-end dispatch latency histograms, live Prometheus/Grafana recording-rule validation, and real OTLP collector smoke.
+Verification evidence:
+- `rtk cargo test -p tikee-server metrics_summary_reports_storage_registry_and_alert_counts --all-features` failed before implementation because `data.workflows` was missing, then passed.
+- `rtk cargo test -p tikee-server --test grafana_dashboard --all-features` passed.
+- `rtk cargo fmt --all -- --check` passed.
+- `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test --workspace --all-features` passed: 124 tests across workspace suites.
+- `rtk cargo build --workspace --all-features` passed.
+- `rtk cargo run -- --help` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` passed.
+- `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
+- `rtk bash -lc 'cd web && bun run lint && bun run typecheck && bun test && bun run build'` passed.
+- `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.

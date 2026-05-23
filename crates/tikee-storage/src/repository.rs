@@ -54,7 +54,7 @@ pub use workflow::{
     RecoverWorkflowNodeInput, RecoverWorkflowNodeResult, UpdateWorkflow, WorkflowDefinition,
     WorkflowEdgeSpec, WorkflowInstanceSummary, WorkflowJobResultOutcome,
     WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
-    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
+    WorkflowSloSummary, WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
 };
 
 #[cfg(test)]
