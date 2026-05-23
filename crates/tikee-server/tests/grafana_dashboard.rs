@@ -28,6 +28,7 @@ fn phase3_grafana_dashboard_is_valid_and_covers_core_metrics() -> Result<(), ser
         "tikee_worker_connected_total",
         "tikee_worker_dispatch_total",
         "tikee_dispatch_queue_pending_age_seconds",
+        "tikee_dispatch_queue_dispatch_latency_seconds",
         "tikee_workflow_instance_duration_seconds",
         "tikee_workflow_shard_duration_seconds",
         "tikee_workflow_instance_success_ratio",

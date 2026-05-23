@@ -836,3 +836,11 @@ Verification evidence:
 Verification evidence:
 - Targeted governance history, alert suite, OpenAPI route, storage migration, fmt, and clippy checks passed via RTK.
 - Full workspace/backend, Rust SDK, Web, and Java SDK verification command passed via RTK.
+
+
+### 2026-05-24 — Phase 109 dispatch latency metrics
+- Added completed dispatch queue latency rollups and Prometheus snapshot recording for `tikee_dispatch_queue_dispatch_latency_seconds`.
+- Grafana template and regression coverage now include the dispatch latency query.
+- Remaining observability gap: live Prometheus/Grafana recording-rule validation and real OTLP collector/export smoke.
+Verification evidence:
+- RED/green metrics summary test plus fmt, clippy, targeted metrics, and Grafana dashboard tests passed via RTK.

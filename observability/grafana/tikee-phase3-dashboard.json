@@ -128,6 +128,10 @@
         {
           "refId": "A",
           "expr": "histogram_quantile(0.95, sum(rate(tikee_dispatch_queue_pending_age_seconds_bucket[5m])) by (le))"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum(rate(tikee_dispatch_queue_dispatch_latency_seconds_bucket[5m])) by (le))"
         }
       ],
       "gridPos": {

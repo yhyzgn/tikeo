@@ -144,6 +144,9 @@ pub struct DispatchQueueSloSummary {
     pub by_status: BTreeMap<String, u64>,
     pub pending: u64,
     pub running: u64,
+    pub completed_dispatches: u64,
+    pub average_dispatch_latency_seconds: u64,
+    pub longest_dispatch_latency_seconds: u64,
     pub oldest_pending_age_seconds: u64,
     pub average_pending_age_seconds: u64,
 }
@@ -1484,6 +1487,7 @@ impl WorkflowRepository {
         let now = time::OffsetDateTime::now_utc();
         let mut summary = DispatchQueueSloSummary::default();
         let mut pending_age_total = 0_u64;
+        let mut dispatch_latency_total = 0_u64;
 
         for row in rows {
             summary.total = summary.total.saturating_add(1);
@@ -1499,12 +1503,22 @@ impl WorkflowRepository {
                 "running" => {
                     summary.running = summary.running.saturating_add(1);
                 }
+                "done" | "failed" => {
+                    summary.completed_dispatches = summary.completed_dispatches.saturating_add(1);
+                    let latency = elapsed_seconds(&row.created_at, &row.updated_at);
+                    dispatch_latency_total = dispatch_latency_total.saturating_add(latency);
+                    summary.longest_dispatch_latency_seconds =
+                        summary.longest_dispatch_latency_seconds.max(latency);
+                }
                 _ => {}
             }
         }
 
         summary.average_pending_age_seconds =
             pending_age_total.checked_div(summary.pending).unwrap_or(0);
+        summary.average_dispatch_latency_seconds = dispatch_latency_total
+            .checked_div(summary.completed_dispatches)
+            .unwrap_or(0);
 
         Ok(summary)
     }

@@ -83,6 +83,16 @@ fn record_dispatch_queue_metrics(queue: &tikee_storage::DispatchQueueSloSummary)
         .record(oldest);
     metrics::histogram!("tikee_dispatch_queue_pending_age_seconds", "stat" => "average")
         .record(average);
+    metrics::histogram!("tikee_dispatch_queue_dispatch_latency_seconds", "stat" => "average")
+        .record(std::time::Duration::from_secs(
+            queue.average_dispatch_latency_seconds,
+        ));
+    metrics::histogram!("tikee_dispatch_queue_dispatch_latency_seconds", "stat" => "longest")
+        .record(std::time::Duration::from_secs(
+            queue.longest_dispatch_latency_seconds,
+        ));
+    metrics::gauge!("tikee_dispatch_queue_completed_total")
+        .set(u64_metric_value(queue.completed_dispatches));
     metrics::gauge!("tikee_dispatch_queue_items_total", "status" => "pending")
         .set(u64_metric_value(queue.pending));
     metrics::gauge!("tikee_dispatch_queue_items_total", "status" => "running")

@@ -1899,6 +1899,18 @@ mod tests {
         assert_eq!(json["data"]["instances"]["by_status"]["succeeded"], 1);
         assert_eq!(json["data"]["queue"]["pending"], 2);
         assert_eq!(json["data"]["queue"]["running"], 0);
+        assert!(
+            json["data"]["queue"]["completed_dispatches"]
+                .as_u64()
+                .is_some_and(|value| value >= 1),
+            "queue summary should count completed dispatch rows"
+        );
+        assert!(
+            json["data"]["queue"]["longest_dispatch_latency_seconds"]
+                .as_u64()
+                .is_some(),
+            "queue summary should include completed dispatch latency rollups"
+        );
         assert_eq!(
             json["data"]["queue"]["oldest_pending_age_seconds"].as_u64(),
             Some(0)
@@ -1951,6 +1963,10 @@ mod tests {
         assert!(
             text.contains("tikee_dispatch_queue_pending_age_seconds"),
             "metrics body should expose dispatch queue pending age histogram: {text}"
+        );
+        assert!(
+            text.contains("tikee_dispatch_queue_dispatch_latency_seconds"),
+            "metrics body should expose dispatch latency histogram: {text}"
         );
         assert!(
             text.contains("tikee_job_instances_current"),

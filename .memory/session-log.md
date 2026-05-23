@@ -1402,3 +1402,14 @@ Verification evidence:
 - `rtk bash -lc "cargo test -p tikee-server alert --all-features && cargo test -p tikee-server openapi_json_contains_management_paths --all-features && cargo test -p tikee-storage migration_creates_metadata_tables --all-features"` passed.
 - `rtk bash -lc "cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings"` passed after test-size allow annotation.
 - Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
+
+
+### 2026-05-24 — Phase 109 dispatch latency metrics
+- Continued `.prompt/109-phase3-dispatch-latency-metrics.md` by closing the local dispatch latency histogram gap.
+- `DispatchQueueSloSummary` now includes completed dispatch count plus average/longest dispatch latency seconds calculated from terminal dispatch queue rows.
+- `/api/v1/metrics/summary` records `tikee_dispatch_queue_dispatch_latency_seconds` histogram snapshots and `tikee_dispatch_queue_completed_total` gauge into the Prometheus recorder.
+- Updated the Phase 3 Grafana dashboard template and dashboard regression coverage for the dispatch latency metric.
+- Remaining observability hardening: live Prometheus/Grafana recording-rule validation and real OTLP collector/export smoke.
+Verification evidence:
+- `rtk cargo test -p tikee-server metrics_summary_reports_storage_registry_and_alert_counts --all-features` failed before implementation because dispatch latency fields were missing, then passed after implementation.
+- `rtk bash -lc "cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test -p tikee-server metrics_summary_reports_storage_registry_and_alert_counts --all-features && cargo test -p tikee-server --test grafana_dashboard --all-features"` passed.
