@@ -1297,3 +1297,9 @@ Git:
 - Confirmed Phase 3 top-level items that still require external systems or larger production wiring remain unchecked: real OIDC token exchange/JWKS, real TLS/mTLS listeners, full script approval/signing/grants, real alert provider delivery, complete business SLO metrics, and real OTLP exporter smoke.
 - Added Phase 3 closeout notes to `design/tikee-architecture-design.md` summarizing completed local foundations vs remaining production gaps.
 - Deferred Phase 4 scope remains unchanged: Node.js SDK, K8s Helm, PowerJob migration tooling, and XXL-JOB migration tooling.
+
+### 2026-05-23 — Phase 096 dispatch queue Prometheus SLO metric
+- Continued Phase 3 observability hardening by making the Grafana dispatch queue pending-age query backed by a real server-emitted Prometheus histogram instead of a dashboard-only placeholder.
+- `GET /api/v1/metrics/summary` now records `tikee_dispatch_queue_pending_age_seconds{stat="oldest|average"}` and `tikee_dispatch_queue_items_total{status="pending|running"}` into the same local Prometheus recorder exposed by `/metrics`.
+- Added regression coverage that calls the summary endpoint, then scrapes `/metrics` and asserts the dispatch queue pending-age metric is present.
+- Full business SLO coverage remains open for broader dispatch latency, instance success-rate, workflow SLA, and map-reduce metrics.

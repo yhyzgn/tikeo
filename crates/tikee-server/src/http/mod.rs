@@ -14,7 +14,7 @@ use std::{net::SocketAddr, sync::Arc, time::SystemTime};
 use crate::cluster::{SharedClusterCoordinator, StandaloneCoordinator};
 use anyhow::{Context, Result};
 use axum::{
-    Json, Router,
+    Extension, Json, Router,
     extract::{MatchedPath, State},
     http::{Request, StatusCode},
     middleware::{self, Next},
@@ -145,13 +145,22 @@ impl AppState {
 
 /// Construct the HTTP router with an explicit application state.
 pub fn router_with_state(state: AppState) -> Router {
-    let recorder = metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder();
+    let recorder =
+        std::sync::Arc::new(metrics_exporter_prometheus::PrometheusBuilder::new().build_recorder());
     let handle = recorder.handle();
+    let metrics_recorder = Arc::clone(&recorder);
 
     Router::new()
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
-        .route("/metrics", get(move || std::future::ready(handle.render())))
+        .route(
+            "/metrics",
+            get(move || {
+                let handle = handle.clone();
+                let recorder = Arc::clone(&metrics_recorder);
+                std::future::ready(metrics::with_local_recorder(&*recorder, || handle.render()))
+            }),
+        )
         .nest(
             "/api/v1",
             api_router()
@@ -159,6 +168,7 @@ pub fn router_with_state(state: AppState) -> Router {
                 .layer(middleware::from_fn(trace::trace_http)),
         )
         .route("/api-docs/openapi.json", get(openapi_json))
+        .layer(Extension(recorder))
         .with_state(Arc::new(state))
 }
 
@@ -1760,7 +1770,7 @@ mod tests {
 
         let summary = app
             .clone()
-            .oneshot(admin_request_builder(app, "GET", "/api/v1/metrics/summary").await)
+            .oneshot(admin_request_builder(app.clone(), "GET", "/api/v1/metrics/summary").await)
             .await
             .unwrap_or_else(|error| panic!("metrics summary route should respond: {error}"));
         let status = summary.status();
@@ -1792,6 +1802,26 @@ mod tests {
         assert_eq!(
             json["data"]["governance"]["by_failure_class"]["script_runtime_unavailable"],
             1
+        );
+
+        let metrics = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/metrics")
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("metrics route should respond: {error}"));
+        let body = axum::body::to_bytes(metrics.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let text = String::from_utf8(body.to_vec())
+            .unwrap_or_else(|error| panic!("metrics body should be utf8: {error}"));
+        assert!(
+            text.contains("tikee_dispatch_queue_pending_age_seconds"),
+            "metrics body should expose dispatch queue pending age histogram: {text}"
         );
     }
 
