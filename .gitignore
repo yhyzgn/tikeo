@@ -25,6 +25,7 @@ sdks/java/**/build/
 sdks/java/.gradle/
 examples/java/**/build/
 examples/java/.gradle/
+examples/java/**/.gradle/
 
 # Local development script logs
 .dev/

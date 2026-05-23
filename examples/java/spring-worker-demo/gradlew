@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GRADLE_PROJECT_ROOT="$SCRIPT_DIR"
+GRADLE_VERSION="${GRADLE_VERSION:-9.5.1}"
+GRADLE_HOME="$SCRIPT_DIR/.gradle/wrapper/dists/gradle-$GRADLE_VERSION"
+GRADLE_BIN="$GRADLE_HOME/bin/gradle"
+
+if [[ ! -x "$GRADLE_BIN" ]]; then
+  mkdir -p "$SCRIPT_DIR/.gradle/wrapper/dists"
+  tmp_dir="$(mktemp -d)"
+  trap 'rm -rf "$tmp_dir"' EXIT
+  zip_file="$tmp_dir/gradle-$GRADLE_VERSION-bin.zip"
+  GRADLE_DISTRIBUTION_URL="${GRADLE_DISTRIBUTION_URL:-https://mirrors.huaweicloud.com/gradle/gradle-$GRADLE_VERSION-bin.zip}"
+  curl -fL --retry 3 --connect-timeout 20 --max-time 600 \
+    "$GRADLE_DISTRIBUTION_URL" \
+    -o "$zip_file"
+  unzip -q "$zip_file" -d "$tmp_dir"
+  rm -rf "$GRADLE_HOME"
+  mv "$tmp_dir/gradle-$GRADLE_VERSION" "$GRADLE_HOME"
+fi
+
+cd "$GRADLE_PROJECT_ROOT"
+exec "$GRADLE_BIN" "$@"

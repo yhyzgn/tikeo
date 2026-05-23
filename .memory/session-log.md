@@ -1327,3 +1327,9 @@ Git:
 - Split `WorkersPage` into focused components under `web/src/pages/workers/`: cluster overview/queue stats, filterable worker table, dispatch queue status panel, and pure page-model helpers.
 - Added worker search, namespace filtering, capability filtering, queue status drill-down, queue pressure/health affordances, responsive CSS, and static regression coverage for the new interaction contracts.
 - No API contract changes; the page still uses `GET /api/v1/workers` and `GET /api/v1/dispatch-queue`.
+
+### 2026-05-23 — Phase 101 Java Spring worker demo runtime fix
+- Reproduced the Java Spring worker demo exiting immediately: `DemoRunner` called `client.close()` directly after `client.start()`, and the README command used the SDK wrapper without selecting the demo project.
+- Updated the demo runner to stay alive on a `CountDownLatch` until shutdown and close the worker client from `@PreDestroy`; dry-run bootRun now remains running instead of exiting immediately.
+- Changed the demo default Worker Tunnel endpoint to `http://127.0.0.1:9998`, added/committed a local demo `gradlew`, ignored demo `.gradle/`, and fixed README/root verification commands.
+- Started tikee with `config/dev.toml`, started the Java demo with `TIKEE_WORKER_DRY_RUN=false`, and verified `/api/v1/workers` reports one online worker with `java` and `spring-boot` capabilities.

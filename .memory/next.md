@@ -1,8 +1,9 @@
 # Next Work
 
 ## Current pause point
-- Paused after `.prompt/100-worker-cluster-page-ux-refresh.md`: Worker cluster page layout and interactions were rebuilt into a data-dense operations dashboard with worker filters and dispatch queue status drill-down.
-- Resume with the next Phase 3 production gap that can be made locally verifiable without pulling Phase 4 scope back in.
+- Java Spring worker demo is currently running against the local tikee server and visible through the Worker API / Worker cluster page.
+- Live local processes started for the user: backend `cargo run -- serve --config config/dev.toml`, web `bun run dev`, and Java demo `TIKEE_WORKER_DRY_RUN=false TIKEE_WORKER_ENDPOINT=http://127.0.0.1:9998 ./gradlew bootRun`.
+- Resume Phase 3 with the next production gap that can be made locally verifiable without pulling Phase 4 scope back in.
 
 ## Remaining production follow-ups intentionally not marked complete
 - Real OIDC token exchange/JWKS validation/user mapping/session issuance.

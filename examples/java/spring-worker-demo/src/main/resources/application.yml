@@ -1,7 +1,7 @@
 tikee:
   worker:
     dry-run: true
-    endpoint: http://0.0.0.0:9998
+    endpoint: http://127.0.0.1:9998
     client-instance-id: spring-demo-worker
     namespace: default
     app: default

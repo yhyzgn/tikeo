@@ -129,7 +129,8 @@ cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features
 cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
 (cd sdks/java && ./gradlew test)
 (cd sdks/java && ./gradlew :tikee-spring-boot-starter:test)
-(cd examples/java/spring-worker-demo && ../../../sdks/java/gradlew test)
+(cd examples/java/spring-worker-demo && ./gradlew test)
+(cd examples/java/spring-worker-demo && TIKEE_WORKER_DRY_RUN=false TIKEE_WORKER_ENDPOINT=http://127.0.0.1:9998 ./gradlew bootRun)
 ```
 
 ## Worker ID 注册约束
