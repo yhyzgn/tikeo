@@ -1946,11 +1946,13 @@ graph TB
 ### 12.2 内置指标 (Prometheus)
 
 ```
-# 调度指标
+# 调度/实例 SLO 指标
 tikee_tikee_tasks_dispatched_total{app, job_type}
 tikee_tikee_tasks_succeeded_total{app, job_type}
 tikee_tikee_tasks_failed_total{app, job_type}
 tikee_tikee_dispatch_duration_seconds{app}        # histogram
+tikee_job_instances_current{status}
+tikee_job_instance_success_ratio
 
 # 队列指标
 tikee_tikee_queue_length{app}
@@ -1960,8 +1962,13 @@ tikee_dispatch_queue_items_total{status="pending|running"}
 
 # Worker 指标
 tikee_worker_active_count{app}
+tikee_workers_online_current
 tikee_worker_heartbeat_latency_seconds{app, worker}
 tikee_worker_task_duration_seconds{app, processor}    # histogram
+
+# 告警/治理指标
+tikee_alert_events_current{status}
+tikee_script_governance_failures_current{failure_class}
 
 # 系统指标
 tikee_server_uptime_seconds
@@ -2240,7 +2247,8 @@ tikee/
   - [x] Grafana Dashboard 模板基础（088：`observability/grafana/tikee-phase3-dashboard.json` 覆盖 HTTP request/rate/latency、worker connected/dispatch 与错误率 SLO 占位查询，含本地 JSON 结构/指标引用测试）
   - [x] 调度队列 SLO 摘要基础（089：`GET /api/v1/metrics/summary` 增加 dispatch queue total/by_status/pending/running/oldest/average pending age，本地计算无需外部 Prometheus）
   - [x] 调度队列 pending-age Prometheus histogram 基础（096：`/api/v1/metrics/summary` 采样 dispatch queue SLO 后写入 `/metrics` 暴露的 `tikee_dispatch_queue_pending_age_seconds{stat="oldest|average"}` 与 pending/running gauges）
-  - [ ] 完整业务 SLO 指标（调度延迟 histogram、实例成功率、workflow/map-reduce SLA 等）
+  - [x] 实例/告警/治理 SLO Prometheus snapshot 基础（097：`/api/v1/metrics/summary` 同步写入 worker online、job instance status、success ratio、alert status、script governance failure gauges）
+  - [ ] 完整业务 SLO 指标（端到端调度延迟 histogram、workflow/map-reduce SLA、真实 scrape/recording-rule 校验等）
 - [ ] OpenTelemetry 分布式追踪
   - [x] HTTP Trace ID 传播基础（084：`x-request-id` / `x-trace-id` / W3C `traceparent` 解析，缺失时生成 `trc-*`，响应回写 `x-trace-id`，本地 tracing span 不依赖外部 collector）
   - [x] OTLP exporter 配置与状态基础（090：`observability.tracing` 配置、`GET /api/v1/observability/status` 脱敏显示 exporter/endpoint/header readiness；真实 exporter 初始化与 collector smoke 后续）
@@ -2254,7 +2262,7 @@ tikee/
 
 #### Phase 3 closeout notes (2026-05-23)
 
-Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确后续”的标准收敛：RBAC、审计、WASM/脚本治理、Worker Tunnel 分发绑定、告警历史、Prometheus/Grafana 基础（含 dispatch queue pending-age histogram）、trace-id/OTLP 配置、OIDC 授权骨架、TLS/mTLS 诊断边界均有测试覆盖；仍保持未勾选的是需要外部系统或更大架构闭环的生产能力：真实 IdP token exchange/JWKS 校验、真实 TLS/mTLS listener、完整多级审批/签名/KMS/URL/File/Secret grant、真实通知 provider delivery、完整业务 SLO histogram/成功率、真实 OTLP exporter collector smoke、多租户 scope/API Token 生命周期。Node.js SDK、K8s Helm、PowerJob/XXL-JOB 迁移工具按用户要求留在 Phase 4。
+Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确后续”的标准收敛：RBAC、审计、WASM/脚本治理、Worker Tunnel 分发绑定、告警历史、Prometheus/Grafana 基础（含 dispatch queue pending-age histogram、实例成功率与治理失败 gauges）、trace-id/OTLP 配置、OIDC 授权骨架、TLS/mTLS 诊断边界均有测试覆盖；仍保持未勾选的是需要外部系统或更大架构闭环的生产能力：真实 IdP token exchange/JWKS 校验、真实 TLS/mTLS listener、完整多级审批/签名/KMS/URL/File/Secret grant、真实通知 provider delivery、完整业务 SLO histogram/成功率、真实 OTLP exporter collector smoke、多租户 scope/API Token 生命周期。Node.js SDK、K8s Helm、PowerJob/XXL-JOB 迁移工具按用户要求留在 Phase 4。
 
 ### Phase 4: 高级能力 (月 10-12)
 

@@ -1823,6 +1823,18 @@ mod tests {
             text.contains("tikee_dispatch_queue_pending_age_seconds"),
             "metrics body should expose dispatch queue pending age histogram: {text}"
         );
+        assert!(
+            text.contains("tikee_job_instances_current"),
+            "metrics body should expose job instance status gauges: {text}"
+        );
+        assert!(
+            text.contains("tikee_job_instance_success_ratio"),
+            "metrics body should expose job instance success ratio: {text}"
+        );
+        assert!(
+            text.contains("tikee_script_governance_failures_current"),
+            "metrics body should expose script governance failure gauges: {text}"
+        );
     }
 
     #[tokio::test]

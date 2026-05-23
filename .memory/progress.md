@@ -680,3 +680,9 @@
 - `GET /api/v1/metrics/summary` now records `tikee_dispatch_queue_pending_age_seconds{stat="oldest|average"}` and `tikee_dispatch_queue_items_total{status="pending|running"}` into the same local Prometheus recorder exposed by `/metrics`.
 - Added regression coverage that calls the summary endpoint, then scrapes `/metrics` and asserts the dispatch queue pending-age metric is present.
 - Full business SLO coverage remains open for broader dispatch latency, instance success-rate, workflow SLA, and map-reduce metrics.
+
+### 2026-05-23 — Phase 097 business SLO Prometheus snapshots
+- Continued `.prompt/097-phase3-business-slo-prometheus-snapshots.md` by promoting more existing metrics summary data into real Prometheus series.
+- `GET /api/v1/metrics/summary` now records worker online, job instance status, job instance success ratio, alert status, and script governance failure gauges into the router-local recorder exposed by `/metrics`.
+- Extended regression coverage so the summary-then-scrape path proves the new instance success and script governance SLO metric names are emitted.
+- Kept full business SLO coverage open for end-to-end dispatch latency histograms, workflow/map-reduce SLA, and live Prometheus recording-rule validation.

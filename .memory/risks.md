@@ -88,4 +88,4 @@
 - TLS/mTLS is config/status foundation only: TLS-enabled endpoints explicitly report `tls_pending_listener`; HTTP and Worker Tunnel still serve plaintext until real listener wiring lands.
 - Script governance blocks unsafe releases and unverified approval/signature metadata, but full multi-level approval workflow, verified signatures/KMS, URL/File/Secret grants, and production release gates remain future work.
 - Alerting has durable rules/events/recovery/summary and redacted channel readiness, but real provider delivery is not enabled.
-- Observability has `/metrics`, metrics summary, Grafana template, dispatch queue SLO summary plus a real pending-age Prometheus histogram, trace-id propagation, and OTLP readiness config; broader business SLO histograms and live collector export smoke are still open.
+- Observability has `/metrics`, metrics summary, Grafana template, dispatch queue SLO summary plus real pending-age, instance status/success-ratio, alert status, and script-governance Prometheus gauges; broader latency/SLA histograms, live recording-rule validation, and collector export smoke are still open.

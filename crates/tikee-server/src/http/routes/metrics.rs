@@ -1,6 +1,6 @@
 #![allow(missing_docs, clippy::missing_errors_doc)]
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use axum::{Extension, Json, extract::State, http::HeaderMap};
 
@@ -36,11 +36,22 @@ pub async fn metrics_summary(
         .dispatch_queue_slo_summary()
         .await
         .map_err(|error| ApiError::storage(&error))?;
-    metrics::with_local_recorder(&*recorder, || record_dispatch_queue_metrics(&queue));
+    let workers_online = u64::try_from(workers.len()).unwrap_or(u64::MAX);
+    metrics::with_local_recorder(&*recorder, || {
+        record_dispatch_queue_metrics(&queue);
+        record_business_slo_metrics(
+            workers_online,
+            instances.total,
+            &instances.by_status,
+            &alert_counts.by_status,
+            alert_counts.script_failure_events,
+            &alert_counts.by_failure_class,
+        );
+    });
 
     Ok(Json(ApiResponse::success(MetricsSummaryResponse {
         workers: MetricsWorkerSummary {
-            online: u64::try_from(workers.len()).unwrap_or(u64::MAX),
+            online: workers_online,
         },
         instances: MetricsInstanceSummary {
             total: instances.total,
@@ -69,6 +80,55 @@ fn record_dispatch_queue_metrics(queue: &tikee_storage::DispatchQueueSloSummary)
         .set(u64_metric_value(queue.pending));
     metrics::gauge!("tikee_dispatch_queue_items_total", "status" => "running")
         .set(u64_metric_value(queue.running));
+}
+
+fn record_business_slo_metrics(
+    workers_online: u64,
+    instances_total: u64,
+    instances_by_status: &BTreeMap<String, u64>,
+    alerts_by_status: &BTreeMap<String, u64>,
+    script_failure_events: u64,
+    script_failures_by_class: &BTreeMap<String, u64>,
+) {
+    metrics::gauge!("tikee_workers_online_current").set(u64_metric_value(workers_online));
+    metrics::gauge!("tikee_job_instances_current", "status" => "all")
+        .set(u64_metric_value(instances_total));
+    for (status, count) in instances_by_status {
+        metrics::gauge!("tikee_job_instances_current", "status" => status.clone())
+            .set(u64_metric_value(*count));
+    }
+    metrics::gauge!("tikee_job_instance_success_ratio")
+        .set(instance_success_ratio(instances_by_status));
+
+    for (status, count) in alerts_by_status {
+        metrics::gauge!("tikee_alert_events_current", "status" => status.clone())
+            .set(u64_metric_value(*count));
+    }
+    metrics::gauge!("tikee_script_governance_failures_current", "failure_class" => "all")
+        .set(u64_metric_value(script_failure_events));
+    for (failure_class, count) in script_failures_by_class {
+        metrics::gauge!("tikee_script_governance_failures_current", "failure_class" => failure_class.clone())
+            .set(u64_metric_value(*count));
+    }
+}
+
+fn instance_success_ratio(instances_by_status: &BTreeMap<String, u64>) -> f64 {
+    let succeeded = *instances_by_status.get("succeeded").unwrap_or(&0);
+    let failed = instances_by_status
+        .get("failed")
+        .copied()
+        .unwrap_or(0)
+        .saturating_add(
+            instances_by_status
+                .get("partial_failed")
+                .copied()
+                .unwrap_or(0),
+        );
+    let terminal = succeeded.saturating_add(failed);
+    if terminal == 0 {
+        return 1.0;
+    }
+    u64_metric_value(succeeded) / u64_metric_value(terminal)
 }
 
 #[allow(clippy::cast_precision_loss)]
