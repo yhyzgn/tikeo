@@ -2252,6 +2252,7 @@ tikee/
   - [x] Email/SMTP 本地投递基础（110：Email channel 支持 recipients/smtp_url/from；显式 local policy 下可向 loopback `smtp://` 投递纯文本邮件；默认缺少 SMTP 或非 loopback 策略 fail-closed；delivery-status 要求收件人与 SMTP endpoint）
   - [x] 告警 retry/backoff/DLQ 处理基础（111：`retry_pending` attempts 可按 `next_retry_at` 扫描；匹配当前 rule channel 后追加 retry attempt；旧 attempt 标记 `retry_consumed`，耗尽/缺失/无匹配进入 `dead_letter`；`POST /api/v1/alert-delivery-attempts:retry-due` 返回处理汇总）
   - [x] 告警 retry 后台调度（112：`alert_retry` 配置控制 bounded retry worker；server 启动时并行运行；按 cluster `can_schedule` 做所有权门控，避免 Raft follower 处理共享 retry 状态）
+  - [x] 租户 namespace/app/worker-pool 管理 API 基础（113：新增 `worker_pools` 软链接元数据；`/api/v1/namespaces`、`/api/v1/apps`、`/api/v1/worker-pools` 支持鉴权 create/list；RBAC seed 增加 `tenants` read/manage；OpenAPI 覆盖）
 - [ ] Prometheus 指标 + Grafana Dashboard 模板
   - [x] Prometheus 指标端点（`/metrics`）与 HTTP/Worker 最小指标
   - [x] Metrics Summary API 基础（083：`GET /api/v1/metrics/summary` 汇总 worker online、实例状态、告警事件与脚本治理失败计数）

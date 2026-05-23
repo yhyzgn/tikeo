@@ -16,24 +16,25 @@ use thiserror::Error;
 pub use repository::{
     AdvanceWorkflowInput, AdvanceWorkflowResult, AlertDeliveryAttemptFilters,
     AlertDeliveryAttemptSummary, AlertEventFilters, AlertEventSummary, AlertRepository,
-    AlertRuleSummary, AppendJobInstanceLog, AuditLogFilters, AuditLogPageSummary,
+    AlertRuleSummary, AppSummary, AppendJobInstanceLog, AuditLogFilters, AuditLogPageSummary,
     AuditLogRepository, AuditLogSummary, AuthSessionRepository, AuthSessionSummary,
     CompleteWorkflowShardInput, CompleteWorkflowShardResult, CreateAlertRule, CreateAuditLog,
     CreateAuthSession, CreateJob, CreateJobInstance, CreateJobInstanceAttempt, CreateScript,
     CreateUser, CreateWorkflow, DispatchQueueClaim, DispatchQueueSloSummary, DispatchQueueSummary,
     InstanceEventSummary, JobInstanceAttemptRepository, JobInstanceAttemptSummary,
     JobInstanceLogRepository, JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary,
-    JobRepository, JobSummary, MaterializeWorkflowNodeResult, PermissionSummary, QueueOverview,
-    RaftAppliedCommandSummary, RaftLogEntrySummary, RaftMemberSummary,
+    JobRepository, JobSummary, MaterializeWorkflowNodeResult, NamespaceSummary, PermissionSummary,
+    QueueOverview, RaftAppliedCommandSummary, RaftLogEntrySummary, RaftMemberSummary,
     RaftMembershipProposalSummary, RaftMetadataSummary, RaftRepository, RaftSnapshotSummary,
     RbacRepository, RecordAlertDeliveryAttempt, RecordRaftAppliedCommand,
     RecordRaftMembershipProposal, RecoverWorkflowNodeInput, RecoverWorkflowNodeResult,
-    ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary, UpdateScript,
-    UpdateUser, UpdateWorkflow, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
-    UpsertRaftSnapshot, UserRepository, UserSummary, WorkflowDefinition, WorkflowEdgeSpec,
-    WorkflowInstanceSummary, WorkflowJobResultOutcome, WorkflowNodeInstanceSummary,
-    WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary, WorkflowSloSummary,
-    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
+    ScopeRepository, ScriptRepository, ScriptSummary, ScriptVersionRepository,
+    ScriptVersionSummary, UpdateScript, UpdateUser, UpdateWorkflow, UpsertRaftLogEntry,
+    UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot, UserRepository, UserSummary,
+    WorkerPoolSummary, WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary,
+    WorkflowJobResultOutcome, WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository,
+    WorkflowShardSummary, WorkflowSloSummary, WorkflowSummary, WorkflowValidationResult,
+    validate_workflow_definition,
 };
 pub use sea_orm::DbErr;
 
@@ -514,6 +515,18 @@ const SQLITE_DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
     ),
     ("perm-users-read", "users", "read", "Read users"),
     ("perm-users-manage", "users", "manage", "Manage users"),
+    (
+        "perm-tenants-read",
+        "tenants",
+        "read",
+        "Read tenants, apps, and worker pools",
+    ),
+    (
+        "perm-tenants-manage",
+        "tenants",
+        "manage",
+        "Manage tenants, apps, and worker pools",
+    ),
     ("perm-jobs-read", "jobs", "read", "Read jobs"),
     ("perm-jobs-write", "jobs", "write", "Create and update jobs"),
     (
@@ -585,6 +598,7 @@ async fn seed_sqlite_rbac_defaults(db: &DatabaseConnection) -> Result<(), sea_or
         db,
         "role-operator",
         &[
+            "perm-tenants-read",
             "perm-jobs-read",
             "perm-jobs-write",
             "perm-instances-read",
@@ -600,6 +614,7 @@ async fn seed_sqlite_rbac_defaults(db: &DatabaseConnection) -> Result<(), sea_or
         db,
         "role-viewer",
         &[
+            "perm-tenants-read",
             "perm-jobs-read",
             "perm-instances-read",
             "perm-scripts-read",
@@ -714,6 +729,27 @@ async fn remove_sqlite_foreign_keys(db: &DatabaseConnection) -> Result<(), sea_o
             updated_at varchar NOT NULL
         )",
         &["id", "namespace_id", "name", "created_at", "updated_at"],
+    )
+    .await?;
+    rebuild_sqlite_table_without_foreign_keys(
+        db,
+        "worker_pools",
+        r"CREATE TABLE worker_pools (
+            id varchar NOT NULL PRIMARY KEY,
+            namespace_id varchar NOT NULL,
+            app_id varchar NOT NULL,
+            name varchar NOT NULL,
+            created_at varchar NOT NULL,
+            updated_at varchar NOT NULL
+        )",
+        &[
+            "id",
+            "namespace_id",
+            "app_id",
+            "name",
+            "created_at",
+            "updated_at",
+        ],
     )
     .await?;
     rebuild_sqlite_table_without_foreign_keys(
@@ -901,6 +937,7 @@ async fn sqlite_table_has_foreign_keys(
 async fn ensure_sqlite_indexes(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {
     for sql in [
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_apps_namespace_name ON apps (namespace_id, name)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_pools_app_name ON worker_pools (app_id, name)",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_app_name ON jobs (app_id, name)",
         "CREATE INDEX IF NOT EXISTS idx_jobs_enabled ON jobs (enabled)",
         "CREATE INDEX IF NOT EXISTS idx_job_instances_job_created ON job_instances (job_id, created_at)",

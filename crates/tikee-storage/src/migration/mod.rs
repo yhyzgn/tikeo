@@ -20,6 +20,7 @@ impl MigrationTrait for CreateMetadataTables {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         create_namespaces(manager).await?;
         create_apps(manager).await?;
+        create_worker_pools(manager).await?;
         create_jobs(manager).await?;
         create_job_instances(manager).await?;
         create_job_instance_attempts(manager).await?;
@@ -137,6 +138,9 @@ impl MigrationTrait for CreateMetadataTables {
             .await?;
         manager
             .drop_table(Table::drop().table(Apps::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(WorkerPools::Table).to_owned())
             .await?;
         manager
             .drop_table(Table::drop().table(Namespaces::Table).to_owned())
@@ -795,6 +799,18 @@ const DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
     ),
     ("perm-users-read", "users", "read", "Read users"),
     ("perm-users-manage", "users", "manage", "Manage users"),
+    (
+        "perm-tenants-read",
+        "tenants",
+        "read",
+        "Read tenants, apps, and worker pools",
+    ),
+    (
+        "perm-tenants-manage",
+        "tenants",
+        "manage",
+        "Manage tenants, apps, and worker pools",
+    ),
     ("perm-jobs-read", "jobs", "read", "Read jobs"),
     ("perm-jobs-write", "jobs", "write", "Create and update jobs"),
     (
@@ -870,6 +886,23 @@ async fn create_apps(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         .await
 }
 
+async fn create_worker_pools(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(WorkerPools::Table)
+                .if_not_exists()
+                .col(string_pk(WorkerPools::Id))
+                .col(string_col(WorkerPools::NamespaceId))
+                .col(string_col(WorkerPools::AppId))
+                .col(string_col(WorkerPools::Name))
+                .col(string_col(WorkerPools::CreatedAt))
+                .col(string_col(WorkerPools::UpdatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
 async fn create_jobs(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     manager
         .create_table(
@@ -928,6 +961,17 @@ async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             .table(Apps::Table)
             .col(Apps::NamespaceId)
             .col(Apps::Name)
+            .unique()
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_worker_pools_app_name")
+            .table(WorkerPools::Table)
+            .col(WorkerPools::AppId)
+            .col(WorkerPools::Name)
             .unique()
             .to_owned(),
     )
@@ -1691,6 +1735,17 @@ enum Apps {
     Table,
     Id,
     NamespaceId,
+    Name,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum WorkerPools {
+    Table,
+    Id,
+    NamespaceId,
+    AppId,
     Name,
     CreatedAt,
     UpdatedAt,

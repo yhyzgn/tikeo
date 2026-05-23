@@ -15,6 +15,7 @@ mod job;
 mod job_repo;
 mod log;
 mod raft;
+mod scope;
 mod script;
 mod user;
 mod util;
@@ -43,6 +44,7 @@ pub use raft::{
     RecordRaftAppliedCommand, RecordRaftMembershipProposal, UpsertRaftLogEntry, UpsertRaftMember,
     UpsertRaftMetadata, UpsertRaftSnapshot,
 };
+pub use scope::{AppSummary, NamespaceSummary, ScopeRepository, WorkerPoolSummary};
 pub use script::{
     CreateScript, ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary,
     UpdateScript,

@@ -329,6 +329,15 @@ fn api_router() -> Router<Arc<AppState>> {
             "/events/instances/{id}/stream",
             get(routes::stream_instance_events),
         )
+        .route(
+            "/namespaces",
+            get(routes::list_namespaces).post(routes::create_namespace),
+        )
+        .route("/apps", get(routes::list_apps).post(routes::create_app))
+        .route(
+            "/worker-pools",
+            get(routes::list_worker_pools).post(routes::create_worker_pool),
+        )
         .route("/jobs", get(routes::list_jobs).post(routes::create_job))
         .route(
             "/jobs/{job_action}",
@@ -2569,6 +2578,80 @@ mod tests {
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["code"], 40101);
         assert!(json.get("data").is_some());
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_management_api_creates_and_lists_namespaces_apps_and_worker_pools() {
+        let app = router().await;
+
+        let namespace =
+            post_json(app.clone(), "/api/v1/namespaces", r#"{"name":"payments"}"#).await;
+        assert_eq!(namespace["code"], 0);
+        assert_eq!(namespace["data"]["name"], "payments");
+
+        let app_scope = post_json(
+            app.clone(),
+            "/api/v1/apps",
+            r#"{"namespace":"payments","name":"settlement"}"#,
+        )
+        .await;
+        assert_eq!(app_scope["code"], 0);
+        assert_eq!(app_scope["data"]["namespace"], "payments");
+        assert_eq!(app_scope["data"]["name"], "settlement");
+
+        let pool = post_json(
+            app.clone(),
+            "/api/v1/worker-pools",
+            r#"{"namespace":"payments","app":"settlement","name":"critical"}"#,
+        )
+        .await;
+        assert_eq!(pool["code"], 0);
+        assert_eq!(pool["data"]["namespace"], "payments");
+        assert_eq!(pool["data"]["app"], "settlement");
+        assert_eq!(pool["data"]["name"], "critical");
+
+        let namespaces = app
+            .clone()
+            .oneshot(admin_request_builder(app.clone(), "GET", "/api/v1/namespaces").await)
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(namespaces.status().is_success());
+        let body = axum::body::to_bytes(namespaces.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["code"], 0);
+        assert!(
+            json["data"]
+                .as_array()
+                .is_some_and(|items| items.iter().any(|item| item["name"] == "payments"))
+        );
+
+        let pools = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app,
+                    "GET",
+                    "/api/v1/worker-pools?namespace=payments&app=settlement",
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(pools.status().is_success());
+        let body = axum::body::to_bytes(pools.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["code"], 0);
+        assert!(
+            json["data"]
+                .as_array()
+                .is_some_and(|items| items.iter().any(|item| item["name"] == "critical"))
+        );
     }
 
     #[tokio::test]

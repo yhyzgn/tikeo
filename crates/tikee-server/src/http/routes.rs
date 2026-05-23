@@ -8,6 +8,7 @@ pub(crate) mod jobs;
 pub(crate) mod metrics;
 pub(crate) mod observability;
 pub(crate) mod raft;
+pub(crate) mod scope;
 pub(crate) mod scripts;
 pub(crate) mod security;
 pub(crate) mod system;
@@ -28,6 +29,9 @@ pub use jobs::{
 pub use metrics::metrics_summary;
 pub use observability::observability_status;
 pub use raft::{append_entries, propose_member_change};
+pub use scope::{
+    create_app, create_namespace, create_worker_pool, list_apps, list_namespaces, list_worker_pools,
+};
 pub use scripts::{
     create_script, delete_script, diff_script_versions, get_script, list_script_versions,
     list_scripts, publish_script, rollback_script, update_script,

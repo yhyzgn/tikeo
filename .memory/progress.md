@@ -871,3 +871,13 @@ Verification evidence:
 - RED ownership-gate test failed before `retry_once_if_owner` existed, then passed.
 - Targeted fmt and clippy for `tikee-server` / `tikee-config` passed via RTK.
 - Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
+
+### 2026-05-24 — Phase 113 tenant scope management API foundation
+- Added persistent worker-pool metadata using soft namespace/app links and no database foreign keys.
+- Added scope repository operations and authenticated `/api/v1/namespaces`, `/api/v1/apps`, and `/api/v1/worker-pools` create/list routes.
+- Seeded tenant read/manage RBAC permissions and added OpenAPI coverage for the new management API.
+- Remaining tenant gap: full web UI, destructive lifecycle/cascade policy, and OIDC identity-to-tenant mapping.
+Verification evidence:
+- RED management API test failed before the routes existed, then passed after implementation.
+- Targeted fmt, clippy for storage/server, migration, OpenAPI, and management API tests passed via RTK.
+- Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.

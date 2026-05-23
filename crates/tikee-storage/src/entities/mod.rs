@@ -25,6 +25,7 @@ pub mod role_permission;
 pub mod script;
 pub mod script_version;
 pub mod user;
+pub mod worker_pool;
 pub mod workflow;
 pub mod workflow_edge;
 pub mod workflow_instance;

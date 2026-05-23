@@ -10,7 +10,7 @@
 - Real HTTP and Worker Tunnel TLS/mTLS listeners and certificate reload/rotation.
 - Full multi-level script approval state machine, verified signatures/KMS, production release gates, and URL/File/Secret grants.
 - Remaining alert delivery hardening: production SMTP TLS/auth/secret handling and live provider smoke for external SMTP/Slack/DingTalk/Feishu/WeCom/PagerDuty endpoints.
-- Full tenant/app/worker-pool management UI and OIDC identity-to-tenant mapping.
+- Tenant/app/worker-pool management UI, destructive scope lifecycle policy, and OIDC identity-to-tenant mapping.
 - Remaining business observability hardening: live Prometheus/Grafana recording-rule validation and real OTLP exporter collector smoke.
 
 ## Deferred out of Phase 3
