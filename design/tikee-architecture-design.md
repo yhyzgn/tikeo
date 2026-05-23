@@ -2254,6 +2254,7 @@ tikee/
   - [x] 告警 retry 后台调度（112：`alert_retry` 配置控制 bounded retry worker；server 启动时并行运行；按 cluster `can_schedule` 做所有权门控，避免 Raft follower 处理共享 retry 状态）
   - [x] 租户 namespace/app/worker-pool 管理 API 基础（113：新增 `worker_pools` 软链接元数据；`/api/v1/namespaces`、`/api/v1/apps`、`/api/v1/worker-pools` 支持鉴权 create/list；RBAC seed 增加 `tenants` read/manage；OpenAPI 覆盖）
   - [x] 租户 namespace/app/worker-pool Web 管理 UI（114：新增 `/scopes` 菜单与路由；支持 namespace/app/Worker Pool create/list；创建入口按 `tenants:manage` 守卫）
+  - [x] 租户 scope 删除生命周期策略（115：namespace/app/Worker Pool DELETE 路由与 UI 删除入口；namespace/app 非空时拒绝删除，避免无外键软关联误级联；Worker Pool 元数据删除不影响在线 Worker）
 - [ ] Prometheus 指标 + Grafana Dashboard 模板
   - [x] Prometheus 指标端点（`/metrics`）与 HTTP/Worker 最小指标
   - [x] Metrics Summary API 基础（083：`GET /api/v1/metrics/summary` 汇总 worker online、实例状态、告警事件与脚本治理失败计数）

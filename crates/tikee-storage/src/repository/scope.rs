@@ -1,6 +1,6 @@
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 
-use crate::entities::{app, namespace, worker_pool};
+use crate::entities::{app, job, namespace, worker_pool};
 
 use super::util::{new_id, now_rfc3339};
 
@@ -176,6 +176,67 @@ impl ScopeRepository {
             created_at: model.created_at,
             updated_at: model.updated_at,
         })
+    }
+
+    pub async fn delete_namespace_if_empty(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
+        let Some(ns) = namespace::Entity::find_by_id(id.to_owned())
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(false);
+        };
+        let app_count = app::Entity::find()
+            .filter(app::Column::NamespaceId.eq(ns.id.clone()))
+            .all(&self.db)
+            .await?
+            .len();
+        let pool_count = worker_pool::Entity::find()
+            .filter(worker_pool::Column::NamespaceId.eq(ns.id.clone()))
+            .all(&self.db)
+            .await?
+            .len();
+        let job_count = job::Entity::find()
+            .filter(job::Column::NamespaceId.eq(ns.id.clone()))
+            .all(&self.db)
+            .await?
+            .len();
+        if app_count + pool_count + job_count > 0 {
+            return Err(sea_orm::DbErr::Custom("namespace is not empty".to_owned()));
+        }
+        namespace::Entity::delete_by_id(ns.id)
+            .exec(&self.db)
+            .await?;
+        Ok(true)
+    }
+
+    pub async fn delete_app_if_empty(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
+        let Some(app_model) = app::Entity::find_by_id(id.to_owned()).one(&self.db).await? else {
+            return Ok(false);
+        };
+        let pool_count = worker_pool::Entity::find()
+            .filter(worker_pool::Column::AppId.eq(app_model.id.clone()))
+            .all(&self.db)
+            .await?
+            .len();
+        let job_count = job::Entity::find()
+            .filter(job::Column::AppId.eq(app_model.id.clone()))
+            .all(&self.db)
+            .await?
+            .len();
+        if pool_count + job_count > 0 {
+            return Err(sea_orm::DbErr::Custom("app is not empty".to_owned()));
+        }
+        app::Entity::delete_by_id(app_model.id)
+            .exec(&self.db)
+            .await?;
+        Ok(true)
+    }
+
+    pub async fn delete_worker_pool(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
+        let result = worker_pool::Entity::delete_by_id(id.to_owned())
+            .exec(&self.db)
+            .await?;
+        Ok(result.rows_affected > 0)
     }
 
     async fn ensure_namespace(

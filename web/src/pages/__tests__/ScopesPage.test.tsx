@@ -20,9 +20,15 @@ describe('tenant scope management page', () => {
     expect(pageSource).toContain('createNamespace');
     expect(pageSource).toContain('createAppScope');
     expect(pageSource).toContain('createWorkerPool');
+    expect(pageSource).toContain('deleteNamespace');
+    expect(pageSource).toContain('deleteAppScope');
+    expect(pageSource).toContain('deleteWorkerPool');
     expect(pageSource).toContain('命名空间');
     expect(pageSource).toContain('应用');
     expect(pageSource).toContain('Worker Pool');
+    expect(pageSource).toContain('confirmTitle="删除命名空间"');
+    expect(pageSource).toContain('confirmTitle="删除应用"');
+    expect(pageSource).toContain('confirmTitle="删除 Worker Pool"');
     expect(styles).toContain('.scope-management-page');
   });
 });

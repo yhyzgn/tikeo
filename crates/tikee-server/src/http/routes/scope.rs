@@ -136,6 +136,60 @@ pub async fn create_worker_pool(
     Ok(Json(ApiResponse::success(item)))
 }
 
+#[utoipa::path(delete, path = "/api/v1/namespaces/{id}", tag = "tenancy", params(("id" = String, Path, description = "Namespace id")))]
+pub async fn delete_namespace(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Json<ApiResponse<crate::http::dto::EmptyData>>, ApiError> {
+    auth::require_permission(&headers, &state, "tenants", "manage").await?;
+    let repo = ScopeRepository::new(state.users.db());
+    match repo.delete_namespace_if_empty(&id).await {
+        Ok(true) => Ok(Json(ApiResponse::success(crate::http::dto::EmptyData {}))),
+        Ok(false) => Err(ApiError::not_found("namespace not found")),
+        Err(error) if error.to_string().contains("not empty") => {
+            Err(ApiError::bad_request("namespace is not empty"))
+        }
+        Err(error) => Err(ApiError::storage(&error)),
+    }
+}
+
+#[utoipa::path(delete, path = "/api/v1/apps/{id}", tag = "tenancy", params(("id" = String, Path, description = "App id")))]
+pub async fn delete_app(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Json<ApiResponse<crate::http::dto::EmptyData>>, ApiError> {
+    auth::require_permission(&headers, &state, "tenants", "manage").await?;
+    let repo = ScopeRepository::new(state.users.db());
+    match repo.delete_app_if_empty(&id).await {
+        Ok(true) => Ok(Json(ApiResponse::success(crate::http::dto::EmptyData {}))),
+        Ok(false) => Err(ApiError::not_found("app not found")),
+        Err(error) if error.to_string().contains("not empty") => {
+            Err(ApiError::bad_request("app is not empty"))
+        }
+        Err(error) => Err(ApiError::storage(&error)),
+    }
+}
+
+#[utoipa::path(delete, path = "/api/v1/worker-pools/{id}", tag = "tenancy", params(("id" = String, Path, description = "Worker pool id")))]
+pub async fn delete_worker_pool(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Json<ApiResponse<crate::http::dto::EmptyData>>, ApiError> {
+    auth::require_permission(&headers, &state, "tenants", "manage").await?;
+    let repo = ScopeRepository::new(state.users.db());
+    let deleted = repo
+        .delete_worker_pool(&id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    if !deleted {
+        return Err(ApiError::not_found("worker pool not found"));
+    }
+    Ok(Json(ApiResponse::success(crate::http::dto::EmptyData {})))
+}
+
 fn normalize_name(value: &str, field: &str) -> Result<String, ApiError> {
     let trimmed = value.trim();
     if trimmed.is_empty() {

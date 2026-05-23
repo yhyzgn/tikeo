@@ -275,6 +275,19 @@ export async function createWorkerPool(payload: CreateWorkerPoolRequest): Promis
   });
 }
 
+
+export async function deleteNamespace(id: string): Promise<void> {
+  await request<void>(`/api/v1/namespaces/${encodeURIComponent(id)}`, { method: 'DELETE', allowNullData: true });
+}
+
+export async function deleteAppScope(id: string): Promise<void> {
+  await request<void>(`/api/v1/apps/${encodeURIComponent(id)}`, { method: 'DELETE', allowNullData: true });
+}
+
+export async function deleteWorkerPool(id: string): Promise<void> {
+  await request<void>(`/api/v1/worker-pools/${encodeURIComponent(id)}`, { method: 'DELETE', allowNullData: true });
+}
+
 export async function listUsers(): Promise<UserSummary[]> {
   return request<UserSummary[]>('/api/v1/users');
 }

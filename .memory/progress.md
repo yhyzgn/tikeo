@@ -891,3 +891,16 @@ Verification evidence:
 - RED Web client/page tests failed before the API exports and page existed, then passed after implementation.
 - Web lint, typecheck, targeted tests, and production build passed via RTK.
 - Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
+
+### 2026-05-24 — Phase 115 tenant scope lifecycle policy
+- Added guarded DELETE routes for namespaces, apps, and Worker Pool metadata.
+- Namespace deletion now rejects non-empty scopes with apps, Worker Pools, or jobs; app deletion rejects remaining Worker Pools or jobs.
+- Worker Pool metadata can be deleted without affecting online Worker sessions or job records.
+- Added Web console delete actions with confirmation copy that documents the non-empty rejection policy.
+- Remaining tenant gap: OIDC identity-to-tenant mapping and advanced tenant isolation policy UI.
+Verification evidence:
+- RED backend delete lifecycle test failed with 404 before DELETE routes existed, then passed after implementation.
+- RED Web page test required delete client/actions/confirm copy and passed after implementation.
+- Targeted storage/server clippy, backend lifecycle/OpenAPI tests, Web lint/typecheck/targeted test/build passed via RTK.
+
+- Phase115 full verification passed: rtk bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features && cargo run -- --help >/tmp/tikee-help.out && cargo test --manifest-path sdks/rust/tikee/Cargo.toml && cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm && cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings && cd web && bun run lint && bun run typecheck && bun test && bun run build && cd ../sdks/java && ./gradlew test --warning-mode all --no-daemon'

@@ -30,7 +30,8 @@ pub use metrics::metrics_summary;
 pub use observability::observability_status;
 pub use raft::{append_entries, propose_member_change};
 pub use scope::{
-    create_app, create_namespace, create_worker_pool, list_apps, list_namespaces, list_worker_pools,
+    create_app, create_namespace, create_worker_pool, delete_app, delete_namespace,
+    delete_worker_pool, list_apps, list_namespaces, list_worker_pools,
 };
 pub use scripts::{
     create_script, delete_script, diff_script_versions, get_script, list_script_versions,

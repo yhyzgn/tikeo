@@ -79,7 +79,7 @@
 
 ## 021 后续风险
 
-- RBAC 当前是最小 `resource/action` 模型；API Token 已有 create/list/revoke、细粒度 `resource:action` scope、TTL 策略、rotate 与 namespace/app/worker_pool binding 基础；tenant/app/worker-pool 后端管理 API 与 Web create/list UI 已具备基础，删除/级联策略、租户隔离策略闭环和 OIDC 身份映射仍未实现。
+- RBAC 当前是最小 `resource/action` 模型；API Token 已有 create/list/revoke、细粒度 `resource:action` scope、TTL 策略、rotate 与 namespace/app/worker_pool binding 基础；tenant/app/worker-pool 后端管理 API 与 Web create/list/delete UI 已具备基础，删除策略采用非空拒绝而非隐式级联；租户隔离策略闭环和 OIDC 身份映射仍未实现。
 - roles/permissions seed 当前主要覆盖内置角色；后续若开放角色管理 UI，需要补角色 CRUD、权限绑定审计和权限变更 session 失效。
 
 ## 2026-05-23 — Phase 3 closeout production gaps

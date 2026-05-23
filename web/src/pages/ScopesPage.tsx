@@ -6,6 +6,9 @@ import {
   createAppScope,
   createNamespace,
   createWorkerPool,
+  deleteAppScope,
+  deleteNamespace,
+  deleteWorkerPool,
   listAppScopes,
   listNamespaces,
   listWorkerPools,
@@ -16,7 +19,7 @@ import {
   type NamespaceSummary,
   type WorkerPoolSummary,
 } from '../api/client';
-import { PermissionGate, useCan } from '../components/Permission';
+import { GuardedButton, PermissionGate, useCan } from '../components/Permission';
 
 export function ScopesPage() {
   const canManageScopes = useCan('tenants', 'manage');
@@ -71,16 +74,37 @@ export function ScopesPage() {
     await refresh();
   };
 
+
+  const handleNamespaceDelete = async (id: string) => {
+    await deleteNamespace(id);
+    message.success('命名空间已删除');
+    await refresh();
+  };
+
+  const handleAppDelete = async (id: string) => {
+    await deleteAppScope(id);
+    message.success('应用已删除');
+    await refresh();
+  };
+
+  const handleWorkerPoolDelete = async (id: string) => {
+    await deleteWorkerPool(id);
+    message.success('Worker Pool 已删除');
+    await refresh();
+  };
+
   const namespaceColumns: ColumnsType<NamespaceSummary> = [
     { title: '命名空间', dataIndex: 'name', render: (name: string) => <strong>{name}</strong> },
     { title: '创建时间', dataIndex: 'created_at' },
     { title: '更新时间', dataIndex: 'updated_at' },
+    { title: '操作', width: 120, render: (_, record) => <GuardedButton resource="tenants" action="manage" type="link" size="small" danger confirmTitle="删除命名空间" confirmDescription="仅空命名空间可删除；含应用、Worker Pool 或任务时后端会拒绝。" onConfirm={() => void handleNamespaceDelete(record.id)}>删除</GuardedButton> },
   ];
 
   const appColumns: ColumnsType<AppScopeSummary> = [
     { title: '命名空间', dataIndex: 'namespace', render: (value: string) => <Tag color="blue">{value}</Tag> },
     { title: '应用', dataIndex: 'name', render: (name: string) => <strong>{name}</strong> },
     { title: '更新时间', dataIndex: 'updated_at' },
+    { title: '操作', width: 120, render: (_, record) => <GuardedButton resource="tenants" action="manage" type="link" size="small" danger confirmTitle="删除应用" confirmDescription="仅空应用可删除；含 Worker Pool 或任务时后端会拒绝。" onConfirm={() => void handleAppDelete(record.id)}>删除</GuardedButton> },
   ];
 
   const poolColumns: ColumnsType<WorkerPoolSummary> = [
@@ -88,6 +112,7 @@ export function ScopesPage() {
     { title: '应用', dataIndex: 'app', render: (value: string) => <Tag color="purple">{value}</Tag> },
     { title: 'Worker Pool', dataIndex: 'name', render: (name: string) => <strong>{name}</strong> },
     { title: '更新时间', dataIndex: 'updated_at' },
+    { title: '操作', width: 140, render: (_, record) => <GuardedButton resource="tenants" action="manage" type="link" size="small" danger confirmTitle="删除 Worker Pool" confirmDescription="删除后不会影响在线 Worker，会移除该持久化元数据。" onConfirm={() => void handleWorkerPoolDelete(record.id)}>删除</GuardedButton> },
   ];
 
   return (

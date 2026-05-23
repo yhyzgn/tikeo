@@ -333,10 +333,19 @@ fn api_router() -> Router<Arc<AppState>> {
             "/namespaces",
             get(routes::list_namespaces).post(routes::create_namespace),
         )
+        .route(
+            "/namespaces/{id}",
+            axum::routing::delete(routes::delete_namespace),
+        )
         .route("/apps", get(routes::list_apps).post(routes::create_app))
+        .route("/apps/{id}", axum::routing::delete(routes::delete_app))
         .route(
             "/worker-pools",
             get(routes::list_worker_pools).post(routes::create_worker_pool),
+        )
+        .route(
+            "/worker-pools/{id}",
+            axum::routing::delete(routes::delete_worker_pool),
         )
         .route("/jobs", get(routes::list_jobs).post(routes::create_job))
         .route(
@@ -2578,6 +2587,85 @@ mod tests {
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["code"], 40101);
         assert!(json.get("data").is_some());
+    }
+
+    #[tokio::test]
+    async fn tenant_scope_delete_rejects_non_empty_parents_and_deletes_empty_worker_pool() {
+        let app = router().await;
+        let namespace = post_json(app.clone(), "/api/v1/namespaces", r#"{"name":"ops"}"#).await;
+        let app_scope = post_json(
+            app.clone(),
+            "/api/v1/apps",
+            r#"{"namespace":"ops","name":"control"}"#,
+        )
+        .await;
+        let pool = post_json(
+            app.clone(),
+            "/api/v1/worker-pools",
+            r#"{"namespace":"ops","app":"control","name":"blue"}"#,
+        )
+        .await;
+
+        let namespace_id = namespace["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("namespace id"));
+        let app_id = app_scope["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("app id"));
+        let pool_id = pool["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("pool id"));
+
+        let blocked_namespace = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app.clone(),
+                    "DELETE",
+                    format!("/api/v1/namespaces/{namespace_id}"),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(
+            blocked_namespace.status(),
+            axum::http::StatusCode::BAD_REQUEST
+        );
+
+        let deleted_pool = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app.clone(),
+                    "DELETE",
+                    format!("/api/v1/worker-pools/{pool_id}"),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(deleted_pool.status(), axum::http::StatusCode::OK);
+
+        let deleted_app = app
+            .clone()
+            .oneshot(
+                admin_request_builder(app.clone(), "DELETE", format!("/api/v1/apps/{app_id}"))
+                    .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(deleted_app.status(), axum::http::StatusCode::OK);
+
+        let deleted_namespace = app
+            .clone()
+            .oneshot(
+                admin_request_builder(app, "DELETE", format!("/api/v1/namespaces/{namespace_id}"))
+                    .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(deleted_namespace.status(), axum::http::StatusCode::OK);
     }
 
     #[tokio::test]
