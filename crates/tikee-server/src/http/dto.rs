@@ -403,6 +403,37 @@ pub struct AuthSession {
     pub permissions: Vec<tikee_storage::PermissionSummary>,
 }
 
+/// API token creation request.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct CreateApiTokenRequest {
+    /// Human-readable token name.
+    pub name: String,
+}
+
+/// API token metadata returned after creation and list operations.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ApiTokenSummary {
+    /// Token/session identifier used for revocation.
+    pub id: String,
+    /// Human-readable token name.
+    pub name: String,
+    /// Username that owns the token.
+    pub username: String,
+    /// RFC3339 expiration timestamp.
+    pub expires_at: String,
+    /// RFC3339 creation timestamp.
+    pub created_at: String,
+}
+
+/// API token creation response. The raw bearer token is only returned once.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct CreatedApiToken {
+    /// Token metadata.
+    pub token: ApiTokenSummary,
+    /// Raw bearer token; store it immediately because it is not persisted in plaintext.
+    pub access_token: String,
+}
+
 /// OIDC authorization bootstrap response. Secrets are never included.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct OidcAuthorizeResponse {

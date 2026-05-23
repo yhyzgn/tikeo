@@ -116,6 +116,37 @@ impl AuthSessionRepository {
         Ok(Some(AuthSessionSummary::from_models(session, user)))
     }
 
+    /// List valid sessions owned by a username.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn list_by_username(
+        &self,
+        username: &str,
+    ) -> Result<Vec<AuthSessionSummary>, sea_orm::DbErr> {
+        let Some(user) = user::Entity::find()
+            .filter(user::Column::Username.eq(username))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(Vec::new());
+        };
+        let rows = auth_session::Entity::find()
+            .filter(auth_session::Column::UserId.eq(user.id.clone()))
+            .all(&self.db)
+            .await?;
+        let mut sessions = Vec::new();
+        for session in rows {
+            if is_expired_rfc3339(&session.expires_at) {
+                let _ = self.delete_by_token_hash(&session.token_hash).await?;
+                continue;
+            }
+            sessions.push(AuthSessionSummary::from_models(session, user.clone()));
+        }
+        Ok(sessions)
+    }
+
     /// Physically delete expired sessions.
     ///
     /// # Errors
@@ -138,6 +169,31 @@ impl AuthSessionRepository {
     pub async fn delete_by_token_hash(&self, token_hash: &str) -> Result<bool, sea_orm::DbErr> {
         let result = auth_session::Entity::delete_many()
             .filter(auth_session::Column::TokenHash.eq(token_hash))
+            .exec(&self.db)
+            .await?;
+        Ok(result.rows_affected > 0)
+    }
+
+    /// Delete one session id owned by a username.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn delete_by_id_for_username(
+        &self,
+        session_id: &str,
+        username: &str,
+    ) -> Result<bool, sea_orm::DbErr> {
+        let Some(user) = user::Entity::find()
+            .filter(user::Column::Username.eq(username))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(false);
+        };
+        let result = auth_session::Entity::delete_many()
+            .filter(auth_session::Column::Id.eq(session_id))
+            .filter(auth_session::Column::UserId.eq(user.id))
             .exec(&self.db)
             .await?;
         Ok(result.rows_affected > 0)

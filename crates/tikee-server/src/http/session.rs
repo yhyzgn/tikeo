@@ -15,9 +15,11 @@ use tikee_storage::{AuthSessionRepository, CreateAuthSession, RbacRepository};
 use uuid::Uuid;
 
 use super::{
-    dto::{AuthSession, MeResponse},
+    dto::{ApiTokenSummary, AuthSession, CreatedApiToken, MeResponse},
     error::ApiError,
 };
+
+const API_TOKEN_DEVICE_PREFIX: &str = "api-token:";
 
 /// Session creation input passed from the authentication boundary.
 #[derive(Debug, Clone)]
@@ -39,6 +41,15 @@ pub struct SessionCreate {
 pub trait SessionStore: Send + Sync {
     /// Create a new session and return the bearer token to the caller.
     async fn create_session(&self, input: SessionCreate) -> Result<AuthSession, ApiError>;
+
+    /// Create a durable API token and return the raw bearer token once.
+    async fn create_api_token(&self, input: SessionCreate) -> Result<CreatedApiToken, ApiError>;
+
+    /// List durable API token metadata for one principal.
+    async fn list_api_tokens(&self, username: &str) -> Result<Vec<ApiTokenSummary>, ApiError>;
+
+    /// Revoke one API token owned by the principal.
+    async fn revoke_api_token(&self, username: &str, token_id: &str) -> Result<bool, ApiError>;
 
     /// Resolve an opaque bearer token to the authenticated principal.
     async fn get_principal(&self, token: &str) -> Result<Option<MeResponse>, ApiError>;
@@ -72,6 +83,36 @@ impl SessionManager {
     /// Returns an API error when the configured store cannot persist the session.
     pub async fn create_session(&self, input: SessionCreate) -> Result<AuthSession, ApiError> {
         self.inner.create_session(input).await
+    }
+
+    /// Create a durable API token.
+    ///
+    /// # Errors
+    ///
+    /// Returns an API error when the configured store cannot persist the token.
+    pub async fn create_api_token(
+        &self,
+        input: SessionCreate,
+    ) -> Result<CreatedApiToken, ApiError> {
+        self.inner.create_api_token(input).await
+    }
+
+    /// List durable API tokens for a username.
+    ///
+    /// # Errors
+    ///
+    /// Returns an API error when the configured store cannot list tokens.
+    pub async fn list_api_tokens(&self, username: &str) -> Result<Vec<ApiTokenSummary>, ApiError> {
+        self.inner.list_api_tokens(username).await
+    }
+
+    /// Revoke one durable API token.
+    ///
+    /// # Errors
+    ///
+    /// Returns an API error when the configured store cannot revoke the token.
+    pub async fn revoke_api_token(&self, username: &str, token_id: &str) -> Result<bool, ApiError> {
+        self.inner.revoke_api_token(username, token_id).await
     }
 
     /// Resolve a bearer token.
@@ -186,6 +227,90 @@ impl SessionStore for DbMokaSessionStore {
         })
     }
 
+    async fn create_api_token(&self, input: SessionCreate) -> Result<CreatedApiToken, ApiError> {
+        self.prune_expired_sessions().await?;
+        let token = generate_access_token();
+        let token_hash = hash_token(&token);
+        let expires_at = (Utc::now() + self.session_ttl).to_rfc3339();
+        let token_name = input
+            .device_name
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+            .unwrap_or("api-token")
+            .to_owned();
+
+        let summary = self
+            .repo
+            .create_session(CreateAuthSession {
+                user_id: input.user_id,
+                token_hash: token_hash.clone(),
+                device_id: Some(format!(
+                    "{API_TOKEN_DEVICE_PREFIX}{}",
+                    Uuid::new_v4().as_simple()
+                )),
+                device_name: Some(token_name),
+                expires_at,
+            })
+            .await
+            .map_err(|error| ApiError::storage(&error))?;
+
+        let roles = vec![summary.role.clone()];
+        let permissions = self
+            .rbac
+            .permissions_for_roles(&roles)
+            .await
+            .map_err(|error| ApiError::storage(&error))?;
+        let principal = MeResponse {
+            username: summary.username.clone(),
+            roles,
+            permissions,
+        };
+        self.cache.insert(token_hash, principal).await;
+
+        Ok(CreatedApiToken {
+            access_token: token,
+            token: api_token_summary(summary),
+        })
+    }
+
+    async fn list_api_tokens(&self, username: &str) -> Result<Vec<ApiTokenSummary>, ApiError> {
+        self.prune_expired_sessions().await?;
+        let sessions = self
+            .repo
+            .list_by_username(username)
+            .await
+            .map_err(|error| ApiError::storage(&error))?;
+        Ok(sessions
+            .into_iter()
+            .filter(is_api_token_session)
+            .map(api_token_summary)
+            .collect())
+    }
+
+    async fn revoke_api_token(&self, username: &str, token_id: &str) -> Result<bool, ApiError> {
+        let sessions = self
+            .repo
+            .list_by_username(username)
+            .await
+            .map_err(|error| ApiError::storage(&error))?;
+        let Some(session) = sessions
+            .into_iter()
+            .find(|session| session.id == token_id && is_api_token_session(session))
+        else {
+            return Ok(false);
+        };
+        let revoked = self
+            .repo
+            .delete_by_id_for_username(token_id, username)
+            .await
+            .map_err(|error| ApiError::storage(&error))?;
+        if revoked {
+            self.cache.invalidate(&session.token_hash).await;
+        }
+        Ok(revoked)
+    }
+
     async fn get_principal(&self, token: &str) -> Result<Option<MeResponse>, ApiError> {
         self.prune_expired_sessions().await?;
         let token_hash = hash_token(token);
@@ -236,6 +361,25 @@ impl SessionStore for DbMokaSessionStore {
         // short local cache keeps correctness simple; DB remains authoritative.
         self.cache.invalidate_all();
         Ok(())
+    }
+}
+
+fn is_api_token_session(session: &tikee_storage::AuthSessionSummary) -> bool {
+    session
+        .device_id
+        .as_ref()
+        .is_some_and(|value| value.starts_with(API_TOKEN_DEVICE_PREFIX))
+}
+
+fn api_token_summary(session: tikee_storage::AuthSessionSummary) -> ApiTokenSummary {
+    ApiTokenSummary {
+        id: session.id,
+        name: session
+            .device_name
+            .unwrap_or_else(|| "api-token".to_owned()),
+        username: session.username,
+        expires_at: session.expires_at,
+        created_at: session.created_at,
     }
 }
 

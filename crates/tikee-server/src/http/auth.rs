@@ -2,7 +2,7 @@
 
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::HeaderMap,
 };
 use bcrypt::verify;
@@ -14,8 +14,8 @@ use url::Url;
 use super::{
     AppState,
     dto::{
-        ApiResponse, AuthSession, AuthStatusResponse, LoginRequest, MeResponse,
-        OidcAuthorizeResponse, OidcStatus,
+        ApiResponse, ApiTokenSummary, AuthSession, AuthStatusResponse, CreateApiTokenRequest,
+        CreatedApiToken, LoginRequest, MeResponse, OidcAuthorizeResponse, OidcStatus,
     },
     error::ApiError,
     routes::{client_ip, trace_id},
@@ -179,6 +179,101 @@ pub async fn login(
     }
 
     Ok(Json(ApiResponse::success(session)))
+}
+
+/// Create a durable API token for the current principal.
+///
+/// # Errors
+///
+/// Returns unauthorized, forbidden, bad request, or storage errors.
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/api-tokens",
+    tag = "auth",
+    request_body = CreateApiTokenRequest
+)]
+pub async fn create_api_token(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<CreateApiTokenRequest>,
+) -> Result<Json<ApiResponse<CreatedApiToken>>, ApiError> {
+    let principal = authenticate(&headers, &state).await?;
+    let name = request.name.trim();
+    if name.is_empty() {
+        return Err(ApiError::bad_request("api token name is required"));
+    }
+    let user = state
+        .users
+        .get_by_username(&principal.username)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::unauthorized("authenticated user no longer exists"))?;
+    let created = state
+        .sessions
+        .create_api_token(SessionCreate {
+            user_id: user.id,
+            username: user.username.clone(),
+            role: user.role,
+            device_id: None,
+            device_name: Some(name.to_owned()),
+        })
+        .await?;
+    audit_api_token(
+        &state,
+        &user.username,
+        "api_token_create",
+        &created.token.id,
+        Some(format!("name={}", created.token.name)),
+        &headers,
+    )
+    .await;
+    Ok(Json(ApiResponse::success(created)))
+}
+
+/// List durable API token metadata for the current principal.
+///
+/// # Errors
+///
+/// Returns unauthorized or storage errors.
+#[utoipa::path(get, path = "/api/v1/auth/api-tokens", tag = "auth")]
+pub async fn list_api_tokens(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<ApiResponse<Vec<ApiTokenSummary>>>, ApiError> {
+    let principal = authenticate(&headers, &state).await?;
+    let tokens = state.sessions.list_api_tokens(&principal.username).await?;
+    Ok(Json(ApiResponse::success(tokens)))
+}
+
+/// Revoke one durable API token owned by the current principal.
+///
+/// # Errors
+///
+/// Returns unauthorized, not found, or storage errors.
+#[utoipa::path(delete, path = "/api/v1/auth/api-tokens/{id}", tag = "auth")]
+pub async fn revoke_api_token(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<super::dto::EmptyApiResponse>, ApiError> {
+    let principal = authenticate(&headers, &state).await?;
+    let revoked = state
+        .sessions
+        .revoke_api_token(&principal.username, &id)
+        .await?;
+    if !revoked {
+        return Err(ApiError::not_found("api token not found"));
+    }
+    audit_api_token(
+        &state,
+        &principal.username,
+        "api_token_revoke",
+        &id,
+        None,
+        &headers,
+    )
+    .await;
+    Ok(Json(ApiResponse::success(super::dto::EmptyData {})))
 }
 
 /// Query parameters used to build an OIDC authorization URL.
@@ -420,4 +515,33 @@ pub async fn logout(
 fn redact_token_for_audit(token: &str) -> String {
     let prefix: String = token.chars().take(8).collect();
     format!("{prefix}…redacted")
+}
+
+async fn audit_api_token(
+    state: &AppState,
+    actor: &str,
+    action: &str,
+    token_id: &str,
+    detail: Option<String>,
+    headers: &HeaderMap,
+) {
+    if let Err(error) = state
+        .audit
+        .append(tikee_storage::CreateAuditLog {
+            actor: actor.to_owned(),
+            action: action.to_owned(),
+            resource_type: "api_token".to_owned(),
+            resource_id: token_id.to_owned(),
+            detail,
+            before: None,
+            after: None,
+            trace_id: Some(trace_id(headers)),
+            result: "success".to_owned(),
+            failure_reason: None,
+            ip_address: client_ip(headers),
+        })
+        .await
+    {
+        warn!(%error, "failed to append api token audit log");
+    }
 }

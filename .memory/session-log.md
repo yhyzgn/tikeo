@@ -1309,3 +1309,9 @@ Git:
 - `GET /api/v1/metrics/summary` now records worker online, job instance status, job instance success ratio, alert status, and script governance failure gauges into the router-local recorder exposed by `/metrics`.
 - Extended regression coverage so the summary-then-scrape path proves the new instance success and script governance SLO metric names are emitted.
 - Kept full business SLO coverage open for end-to-end dispatch latency histograms, workflow/map-reduce SLA, and live Prometheus recording-rule validation.
+
+### 2026-05-23 — Phase 098 API token lifecycle foundation
+- Continued Phase 3 auth/RBAC hardening with a durable API token lifecycle slice.
+- Added authenticated `POST /api/v1/auth/api-tokens`, `GET /api/v1/auth/api-tokens`, and `DELETE /api/v1/auth/api-tokens/{id}` endpoints.
+- API tokens reuse the DB-backed session store, persist only SHA-256 token hashes, return the raw bearer token only at creation time, hide `token_hash` from list responses, and invalidate bearer access immediately on revoke.
+- Added audit entries for API token create/revoke; fine-grained token scopes, rotation policy, and multi-tenant scope binding remain future work.

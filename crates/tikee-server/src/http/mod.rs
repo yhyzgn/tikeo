@@ -241,6 +241,14 @@ fn api_router() -> Router<Arc<AppState>> {
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", axum::routing::post(auth::logout))
         .route(
+            "/auth/api-tokens",
+            get(auth::list_api_tokens).post(auth::create_api_token),
+        )
+        .route(
+            "/auth/api-tokens/{id}",
+            axum::routing::delete(auth::revoke_api_token),
+        )
+        .route(
             "/users",
             axum::routing::get(routes::list_users).post(routes::create_user),
         )
@@ -1964,6 +1972,95 @@ mod tests {
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(me["code"], 0);
         assert_eq!(me["data"]["username"], "tikee_init");
+    }
+
+    #[tokio::test]
+    async fn api_token_lifecycle_creates_lists_authenticates_and_revokes() {
+        let app = router().await;
+        let admin = admin_token(app.clone()).await;
+
+        let created = post_json_raw(
+            app.clone(),
+            "/api/v1/auth/api-tokens",
+            r#"{"name":"nightly automation"}"#,
+            Some(&admin),
+        )
+        .await;
+        assert_eq!(created["code"], 0);
+        assert_eq!(created["data"]["token"]["name"], "nightly automation");
+        let token_id = created["data"]["token"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("api token id should be present"))
+            .to_owned();
+        let api_token = created["data"]["access_token"]
+            .as_str()
+            .unwrap_or_else(|| panic!("api token value should be returned once"))
+            .to_owned();
+        assert!(api_token.starts_with("atk_"));
+
+        let list_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/auth/api-tokens")
+                    .header("authorization", format!("Bearer {admin}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(list_response.status().is_success());
+        let list_body = axum::body::to_bytes(list_response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let list_text = String::from_utf8(list_body.to_vec())
+            .unwrap_or_else(|error| panic!("body should be utf8: {error}"));
+        assert!(!list_text.contains("token_hash"));
+        assert!(!list_text.contains(&api_token));
+        let list: Value = serde_json::from_str(&list_text)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(list["code"], 0);
+        assert_eq!(list["data"].as_array().map(Vec::len), Some(1));
+        assert_eq!(list["data"][0]["id"], token_id);
+
+        let me = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/auth/me")
+                    .header("authorization", format!("Bearer {api_token}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(me.status().is_success());
+
+        let revoke = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/v1/auth/api-tokens/{token_id}"))
+                    .header("authorization", format!("Bearer {admin}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(revoke.status().is_success());
+
+        let rejected = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/auth/me")
+                    .header("authorization", format!("Bearer {api_token}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(rejected.status(), axum::http::StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
