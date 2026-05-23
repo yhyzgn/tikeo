@@ -296,9 +296,10 @@ impl AlertRepository {
         resource_id: &str,
         failure_class: &str,
         message: &str,
-    ) -> Result<(), sea_orm::DbErr> {
+    ) -> Result<Vec<AlertEventSummary>, sea_orm::DbErr> {
         let rules = self.list_rules().await?;
         let now = now_rfc3339();
+        let mut created_events = Vec::new();
         for rule in rules.into_iter().filter(|rule| rule.enabled) {
             let Ok(condition) = serde_json::from_str::<serde_json::Value>(&rule.condition_json)
             else {
@@ -337,7 +338,7 @@ impl AlertRepository {
             } else {
                 "firing"
             };
-            let _ = alert_event::ActiveModel {
+            let model = alert_event::ActiveModel {
                 id: Set(new_id("alert-event")),
                 rule_id: Set(rule.id.clone()),
                 rule_name: Set(rule.name.clone()),
@@ -353,8 +354,9 @@ impl AlertRepository {
             }
             .insert(&self.db)
             .await?;
+            created_events.push(AlertEventSummary::from(model));
         }
-        Ok(())
+        Ok(created_events)
     }
 }
 

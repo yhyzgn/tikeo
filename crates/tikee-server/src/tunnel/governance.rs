@@ -1,5 +1,6 @@
 //! Script execution governance audit materialization helpers.
 
+use crate::alert::{AlertDispatcher, AlertPayload, NotificationChannel, Severity};
 use tikee_storage::{AlertRepository, AuditLogRepository, CreateAuditLog};
 
 const GOVERNANCE_EVENT: &str = "script_execution_governance";
@@ -40,9 +41,30 @@ pub async fn materialize_script_governance_audit(
             ip_address: None,
         })
         .await?;
-    AlertRepository::new(audit.db())
+    let alerts = AlertRepository::new(audit.db());
+    let events = alerts
         .record_script_governance_failure(instance_id, failure_class, message)
         .await?;
+    for event in events.into_iter().filter(|event| event.status == "firing") {
+        let Some(rule) = alerts.get_rule(&event.rule_id).await? else {
+            continue;
+        };
+        let Ok(channels) = serde_json::from_str::<Vec<NotificationChannel>>(&rule.channels_json)
+        else {
+            continue;
+        };
+        let payload = AlertPayload {
+            rule_name: event.rule_name,
+            severity: severity_from_str(&event.severity),
+            message: event.message.unwrap_or_else(|| message.to_owned()),
+            resource_type: event.resource_type,
+            resource_id: event.resource_id,
+            triggered_at: event.created_at,
+        };
+        let _results = AlertDispatcher::noop()
+            .deliver_payload(&channels, &payload)
+            .await;
+    }
     Ok(())
 }
 
@@ -54,4 +76,12 @@ pub fn script_governance_payload(failure_class: &str, message: &str) -> serde_js
         "failure_class": failure_class,
         "message": message,
     })
+}
+
+fn severity_from_str(value: &str) -> Severity {
+    match value {
+        "critical" => Severity::Critical,
+        "warning" => Severity::Warning,
+        _ => Severity::Info,
+    }
 }

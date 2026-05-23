@@ -757,3 +757,24 @@ Verification evidence:
 - `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
 - `rtk bash -lc 'cd web && bun run lint && bun run typecheck && bun test && bun run build'` passed.
 - `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.
+
+### 2026-05-24 — Phase 105 alert webhook delivery foundation
+- Continued `.prompt/105-phase3-alert-webhook-delivery.md` by converting alert webhook delivery from log-only skeleton into real HTTP POST delivery with structured results.
+- Added `AlertDeliveryPolicy` with production-safe default HTTPS/public-only validation and explicit loopback-HTTP allowance for local smoke tests.
+- `AlertDispatcher` now returns per-channel delivery results with provider, redacted target, accepted status, HTTP status, and error details; email remains explicitly unsupported.
+- Script governance alert materialization now returns created alert events and delivers notification channels for newly firing events.
+- Non-webhook providers, retries/DLQ, and persisted delivery attempt history remain future provider-delivery work.
+Verification evidence:
+- `rtk cargo test -p tikee-server production_policy_rejects_insecure_loopback_webhook --all-features` passed.
+- `rtk cargo test -p tikee-server webhook_dispatch_posts_payload_to_allowed_local_receiver --all-features` passed.
+- `rtk cargo test -p tikee-server alert --all-features` passed.
+- `rtk cargo fmt --all -- --check` passed.
+- `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test --workspace --all-features` passed: 124 tests across workspace suites.
+- `rtk cargo build --workspace --all-features` passed.
+- `rtk cargo run -- --help` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` passed.
+- `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
+- `rtk bash -lc 'cd web && bun run lint && bun run typecheck && bun test && bun run build'` passed.
+- `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.
