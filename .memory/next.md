@@ -1,7 +1,7 @@
 # Next Work
 
 ## Current pause point
-- Paused after `.prompt/099-phase3-api-token-scopes.md`: API tokens now support optional fine-grained `resource:action` scopes that narrow effective permissions and prevent `admin` role bypass when scoped.
+- Paused after `.prompt/100-worker-cluster-page-ux-refresh.md`: Worker cluster page layout and interactions were rebuilt into a data-dense operations dashboard with worker filters and dispatch queue status drill-down.
 - Resume with the next Phase 3 production gap that can be made locally verifiable without pulling Phase 4 scope back in.
 
 ## Remaining production follow-ups intentionally not marked complete

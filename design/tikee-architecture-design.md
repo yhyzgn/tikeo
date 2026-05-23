@@ -2181,6 +2181,7 @@ tikee/
 - [x] Workflow queued node 物化执行（`materialize-next` 将 queued 节点物化为 job_instance、workflow_shards 或 child workflow instance）
 - [x] Workflow 节点恢复 API（`recover` 支持 retry/skip/fail/succeed 基础恢复语义）
 - [x] Worker / dispatch queue 管理 API 与 Web Worker 集群页面
+  - [x] Worker 集群页面运维布局重做（100：数据密集 dashboard；Worker table 支持 search/namespace/capability 筛选；Dispatch Queue 支持状态 drill-down；队列压力/健康状态卡片；拆分为 focused React components）
 - [x] Worker TaskResult 自动推进 Workflow（按 job_instance_id 软关联回写 workflow_node_instance / workflow_shard，并按边条件入队后继节点）
 - [x] Workflow shard 完成回调与聚合推进（`POST /api/v1/workflow-shards/{id}/complete` 写入 output/status，全部成功后自动推进后继，失败时走失败边）
 - [x] Workflow 操作审计日志（create/update/validate/dry-run/run/advance/materialize/recover 管理与执行动作写入 audit_logs）

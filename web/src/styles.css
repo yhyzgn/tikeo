@@ -796,3 +796,134 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.worker-cluster-page {
+  --worker-blue: #1e40af;
+  --worker-ink: #0f172a;
+}
+
+.worker-cluster-hero.hero-panel {
+  align-items: stretch;
+}
+
+.worker-cluster-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.worker-cluster-hero__summary-grid {
+  min-width: min(430px, 100%);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.worker-mini-stat.ant-card {
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05) !important;
+}
+
+.worker-mini-stat .ant-card-body {
+  padding: 18px;
+}
+
+.worker-mini-stat--wide {
+  grid-column: 1 / -1;
+}
+
+.worker-health {
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.worker-health--healthy {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.worker-health--busy {
+  color: #92400e;
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.worker-health--blocked {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.worker-stat-card .ant-card-body {
+  padding: 16px 18px;
+}
+
+.worker-stat-card .ant-statistic-title,
+.worker-mini-stat .ant-statistic-title {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.worker-stat-card .ant-statistic-content,
+.worker-mini-stat .ant-statistic-content {
+  color: var(--worker-ink);
+  font-weight: 800;
+}
+
+.worker-stat-card--danger .ant-statistic-content {
+  color: #dc2626;
+}
+
+.worker-ops-card.ant-card {
+  height: 100%;
+}
+
+.worker-ops-card .ant-card-head-title {
+  padding-block: 14px;
+}
+
+.worker-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 0.45fr) minmax(160px, 0.55fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.dispatch-queue-filter {
+  margin-bottom: 14px;
+}
+
+.dispatch-queue-list .ant-list-item {
+  padding: 12px 0;
+}
+
+.dispatch-queue-item {
+  border-bottom-color: #e7ecf4 !important;
+}
+
+.dispatch-queue-item__meta {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  color: #64748b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+@media (max-width: 1199px) {
+  .worker-cluster-hero__summary-grid {
+    min-width: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  .worker-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .worker-cluster-hero__summary-grid {
+    grid-template-columns: 1fr;
+  }
+}

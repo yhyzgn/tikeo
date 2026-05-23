@@ -1321,3 +1321,9 @@ Git:
 - `POST /api/v1/auth/api-tokens` now accepts optional `scopes` in `resource:action` form, validates every requested scope against the current principal permissions, stores the scope metadata with the hashed token session, and returns scopes in token metadata.
 - Scoped API tokens now resolve to narrowed effective permissions; an `admin` role no longer bypasses scoped-token limits, so a `users:read` token can list users but cannot create users.
 - Multi-tenant namespace/app/worker-pool scope binding and token rotation/expiry policy remain future work.
+
+### 2026-05-23 — Phase 100 Worker cluster page interaction/layout refresh
+- Responded to the user-requested Worker cluster page UX fix by replacing the two-list layout with an operations dashboard.
+- Split `WorkersPage` into focused components under `web/src/pages/workers/`: cluster overview/queue stats, filterable worker table, dispatch queue status panel, and pure page-model helpers.
+- Added worker search, namespace filtering, capability filtering, queue status drill-down, queue pressure/health affordances, responsive CSS, and static regression coverage for the new interaction contracts.
+- No API contract changes; the page still uses `GET /api/v1/workers` and `GET /api/v1/dispatch-queue`.
