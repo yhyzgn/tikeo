@@ -45,7 +45,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
     let audit = AuditLogRepository::new(db.clone());
     let alerts = tikee_storage::AlertRepository::new(db.clone());
     let worker_lifecycle = WorkerLifecycleRepository::new(db.clone());
-    let registry = tunnel::WorkerRegistry::with_lifecycle(worker_lifecycle);
+    let registry = tunnel::WorkerRegistry::with_lifecycle(worker_lifecycle.clone());
     let http_router = http::router_with_state(
         http::AppState::new(
             jobs.clone(),
@@ -114,9 +114,16 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
             Ok::<(), anyhow::Error>(())
         },
         run_alert_retry_worker(alerts, alert_retry_cluster, alert_retry_config),
+        run_worker_lease_scanner(worker_lifecycle),
     )
     .context("tikee listener failed")?;
 
+    Ok(())
+}
+
+async fn run_worker_lease_scanner(lifecycle: WorkerLifecycleRepository) -> Result<()> {
+    tunnel::lifecycle::run_lease_scanner(lifecycle, std::time::Duration::from_secs(10)).await;
+    #[allow(unreachable_code)]
     Ok(())
 }
 

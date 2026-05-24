@@ -5,8 +5,8 @@ Rebalance remaining Phase 3 / Phase 4 work around service usability first. Prefe
 
 ## P0 — service usage / production blockers
 1. Worker identity/session lifecycle governance for K8s/Docker and bare metal/VM/systemd: logical worker, session generation, fencing token, lost-reason evidence, history UI.
-   - Done: in-memory logical key, generation, heartbeat fencing, replacement reason, latest-online worker list, Rust/Java heartbeat token echo; persistent logical/session/event tables and registry-backed registration/replacement/heartbeat writes.
-   - Remaining next: lease scanner lost reasons, graceful unregister, assignment token validation, Web layered UI/history.
+   - Done: in-memory logical key, generation, heartbeat fencing, replacement reason, latest-online worker list, Rust/Java heartbeat token echo; persistent logical/session/event tables and registry-backed registration/replacement/heartbeat writes; lease scanner marks expired online sessions as `offline / lease_expired_unknown` with events.
+   - Remaining next: graceful unregister, assignment token validation, Web layered UI/history.
 2. Deployment/operations bootstrap: Compose/systemd/bare-metal templates first; Helm after production parameters for external DB, secrets, gateway, and TLS settle.
 3. Production alert delivery hardening: SMTP TLS/auth/secret references, provider secrets, retry/DLQ visibility, minimal live smoke.
 

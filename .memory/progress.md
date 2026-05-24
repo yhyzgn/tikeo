@@ -1028,3 +1028,15 @@ Verification evidence:
 - `rtk cargo test -p tikee-server worker --all-features` passed.
 - `rtk cargo build -p tikee-server --all-features` passed.
 - Serve smoke with temporary SQLite config reached listener startup (`timeout` 124 => `smoke_started`) without missing-table startup errors.
+
+
+### 2026-05-25 — P0 Worker lifecycle Slice C: lease scanner
+- Added persistent lease scanner support for Worker lifecycle governance.
+- `WorkerLifecycleRepository::mark_expired_online_sessions` scans expired `online` sessions and marks them `offline` with reason `lease_expired_unknown`, writes a `lease_expired` event, and degrades the current logical worker only when the expired session is still current.
+- Added `tunnel::lifecycle::run_lease_scanner` and wired it into server startup as a background maintenance task.
+- Preserved design constraint: heartbeat timeout evidence says lease expired without graceful/replacement/transport evidence and does not call it a crash.
+- Kept module split; no new clippy allow was added.
+Verification evidence:
+- RED storage test failed before `mark_expired_online_sessions` existed, then passed.
+- `rtk cargo clippy -p tikee-server --all-targets --all-features -- -D warnings` passed after extracting `run_worker_lease_scanner` instead of adding a too-many-lines allow.
+- `rtk cargo test -p tikee-storage worker_lifecycle --all-features` passed.

@@ -2,6 +2,7 @@
 
 pub mod dispatcher;
 pub mod governance;
+pub mod lifecycle;
 pub mod registry;
 pub mod service;
 

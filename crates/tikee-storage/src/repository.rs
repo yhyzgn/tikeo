@@ -184,6 +184,67 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn worker_lifecycle_marks_expired_online_sessions_unknown_without_calling_them_crashes() {
+        use crate::repository::{RegisterWorkerSession, WorkerLifecycleRepository};
+
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let repository = WorkerLifecycleRepository::new(db);
+        let registered = repository
+            .register_session(RegisterWorkerSession {
+                worker_id: "wrk-expired".to_owned(),
+                namespace_name: "finance".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "prod".to_owned(),
+                region: "cn".to_owned(),
+                client_instance_id: "host-a#slot-1".to_owned(),
+                connection_id: "conn-expired".to_owned(),
+                fencing_token: "token-expired".to_owned(),
+                lease_seconds: -1,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("expired test session should persist: {error}"));
+
+        let expired = repository
+            .mark_expired_online_sessions(10)
+            .await
+            .unwrap_or_else(|error| panic!("lease scan should run: {error}"));
+
+        assert_eq!(expired, vec![registered.worker_id.clone()]);
+        let session = repository
+            .get_session(&registered.worker_id)
+            .await
+            .unwrap_or_else(|error| panic!("expired session should load: {error}"))
+            .unwrap_or_else(|| panic!("expired session should remain inspectable"));
+        assert_eq!(session.status, "offline");
+        assert_eq!(
+            session.status_reason.as_deref(),
+            Some("lease_expired_unknown")
+        );
+        assert!(
+            session
+                .status_evidence
+                .as_deref()
+                .is_some_and(
+                    |evidence| evidence.contains("lease expired") && !evidence.contains("crash")
+                ),
+            "timeout evidence must be explicit but must not claim a crash"
+        );
+
+        let events = repository
+            .list_session_events(&registered.worker_id)
+            .await
+            .unwrap_or_else(|error| panic!("events should load: {error}"));
+        assert!(
+            events
+                .iter()
+                .any(|event| event.event_type == "lease_expired"
+                    && event.reason.as_deref() == Some("lease_expired_unknown"))
+        );
+    }
+
+    #[tokio::test]
     async fn migration_creates_metadata_tables() {
         let db = Database::connect("sqlite::memory:")
             .await

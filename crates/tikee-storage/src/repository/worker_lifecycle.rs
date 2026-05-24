@@ -1,6 +1,6 @@
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder, QuerySelect, Set,
 };
 use sha2::{Digest, Sha256};
 
@@ -11,7 +11,10 @@ use super::util::{new_id, now_rfc3339, rfc3339_after_seconds};
 const STATUS_ACTIVE: &str = "active";
 const STATUS_ONLINE: &str = "online";
 const STATUS_REPLACED: &str = "replaced";
+const STATUS_OFFLINE: &str = "offline";
+const STATUS_DEGRADED: &str = "degraded";
 const REASON_REPLACED: &str = "replaced_by_new_generation";
+const REASON_LEASE_EXPIRED_UNKNOWN: &str = "lease_expired_unknown";
 
 /// Input for creating a new ephemeral worker session under a logical worker instance.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -192,6 +195,41 @@ impl WorkerLifecycleRepository {
         )))
     }
 
+    /// Mark expired online sessions as offline with evidence-limited unknown lease expiry reason.
+    pub async fn mark_expired_online_sessions(
+        &self,
+        limit: u64,
+    ) -> Result<Vec<String>, sea_orm::DbErr> {
+        let now = now_rfc3339();
+        let sessions = worker_session::Entity::find()
+            .filter(worker_session::Column::Status.eq(STATUS_ONLINE.to_owned()))
+            .filter(worker_session::Column::LeaseExpiresAt.lt(now.clone()))
+            .order_by_asc(worker_session::Column::LeaseExpiresAt)
+            .limit(limit)
+            .all(&self.db)
+            .await?;
+
+        let mut expired_worker_ids = Vec::with_capacity(sessions.len());
+        for session in sessions {
+            let worker_id = session.worker_id.clone();
+            let logical_instance_id = session.logical_instance_id.clone();
+            self.mark_session_lease_expired(session, &now).await?;
+            self.mark_logical_degraded_if_current(&logical_instance_id, &worker_id, &now)
+                .await?;
+            self.record_event(
+                &worker_id,
+                &logical_instance_id,
+                "lease_expired",
+                Some(REASON_LEASE_EXPIRED_UNKNOWN),
+                None,
+                &now,
+            )
+            .await?;
+            expired_worker_ids.push(worker_id);
+        }
+        Ok(expired_worker_ids)
+    }
+
     /// Load a persisted session by worker id.
     pub async fn get_session(
         &self,
@@ -344,6 +382,45 @@ impl WorkerLifecycleRepository {
         active.last_seen_at = Set(now.to_owned());
         active.updated_at = Set(now.to_owned());
         active.update(&self.db).await
+    }
+
+    async fn mark_session_lease_expired(
+        &self,
+        session: worker_session::Model,
+        now: &str,
+    ) -> Result<worker_session::Model, sea_orm::DbErr> {
+        let mut active = session.into_active_model();
+        active.status = Set(STATUS_OFFLINE.to_owned());
+        active.status_reason = Set(Some(REASON_LEASE_EXPIRED_UNKNOWN.to_owned()));
+        active.status_evidence = Set(Some(
+            "lease expired without graceful shutdown, replacement, or transport close evidence"
+                .to_owned(),
+        ));
+        active.disconnected_at = Set(Some(now.to_owned()));
+        active.updated_at = Set(now.to_owned());
+        active.update(&self.db).await
+    }
+
+    async fn mark_logical_degraded_if_current(
+        &self,
+        logical_instance_id: &str,
+        worker_id: &str,
+        now: &str,
+    ) -> Result<(), sea_orm::DbErr> {
+        let Some(logical) = worker_logical_instance::Entity::find_by_id(logical_instance_id)
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(());
+        };
+        if logical.current_worker_id.as_deref() != Some(worker_id) {
+            return Ok(());
+        }
+        let mut active = logical.into_active_model();
+        active.status = Set(STATUS_DEGRADED.to_owned());
+        active.updated_at = Set(now.to_owned());
+        active.update(&self.db).await?;
+        Ok(())
     }
 
     async fn get_session_model(
