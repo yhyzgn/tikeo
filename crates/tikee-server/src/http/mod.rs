@@ -392,6 +392,10 @@ fn api_router() -> Router<Arc<AppState>> {
             get(routes::list_alert_delivery_attempts),
         )
         .route(
+            "/alert-delivery-attempts:queue-status",
+            get(routes::alert_delivery_queue_status),
+        )
+        .route(
             "/alert-delivery-attempts:retry-due",
             axum::routing::post(routes::retry_due_alert_delivery_attempts),
         )
@@ -2180,7 +2184,7 @@ mod tests {
                     app.clone(),
                     "POST",
                     "/api/v1/alert-rules",
-                    r#"{"name":"Webhook delivery","severity":"critical","condition":{"type":"script_governance_failure","failure_class":"script_runtime_unavailable","threshold":1},"channels":[{"type":"webhook","url":"https://hooks.example.com/token","secret":"super-secret"},{"type":"email","to":"ops@example.com","smtp_url":"smtp://smtp.example.com:25"}],"enabled":true,"dedupe_seconds":300}"#,
+                    r#"{"name":"Webhook delivery","severity":"critical","condition":{"type":"script_governance_failure","failure_class":"script_runtime_unavailable","threshold":1},"channels":[{"type":"webhook","url":"https://hooks.example.com/token","secret":"super-secret"},{"type":"email","to":"ops@example.com","smtp_url":"smtps://smtp.example.com:465"}],"enabled":true,"dedupe_seconds":300}"#,
                 )
                 .await,
             )
@@ -2219,8 +2223,91 @@ mod tests {
         assert_eq!(json["data"]["channels"][0]["provider"], "webhook");
         assert_eq!(json["data"]["channels"][0]["target_configured"], true);
         assert_eq!(json["data"]["channels"][0]["secret_configured"], true);
+        assert_eq!(
+            json["data"]["channels"][0]["target_redacted"],
+            "https://hooks.example.com/..."
+        );
+        assert_eq!(json["data"]["channels"][0]["transport_security"], "https");
+        assert_eq!(json["data"]["channels"][1]["transport_security"], "tls");
         assert!(json["data"]["channels"][0].get("url").is_none());
         assert!(json["data"]["channels"][0].get("secret").is_none());
+    }
+
+    #[tokio::test]
+    async fn alert_delivery_queue_status_summarizes_retry_and_dlq_states() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            AuditLogRepository::new(db.clone()),
+            crate::tunnel::WorkerRegistry::default(),
+            StandaloneCoordinator::shared("test-node"),
+        ));
+        let alert_repo = tikee_storage::AlertRepository::new(db);
+        let rule = alert_repo
+            .create_rule(tikee_storage::CreateAlertRule {
+                name: "DLQ rule".to_owned(),
+                severity: "critical".to_owned(),
+                condition_json: serde_json::json!({"type":"script_governance_failure","failure_class":"script_runtime_unavailable","threshold":1}).to_string(),
+                channels_json: serde_json::json!([{"type":"webhook","url":"https://hooks.example.com/token"}]).to_string(),
+                enabled: true,
+                dedupe_seconds: 300,
+                silenced_until: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("rule should create: {error}"));
+        let event = alert_repo
+            .record_script_governance_failure("inst-dlq", "script_runtime_unavailable", "dlq")
+            .await
+            .unwrap_or_else(|error| panic!("event should create: {error}"))
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| panic!("event should exist"));
+        alert_repo
+            .record_delivery_attempt(tikee_storage::RecordAlertDeliveryAttempt {
+                event_id: event.id.clone(),
+                rule_id: rule.id,
+                provider: "webhook".to_owned(),
+                target: "https://hooks.example.com/...".to_owned(),
+                delivered: false,
+                status_code: None,
+                error: Some("boom".to_owned()),
+                attempt: 3,
+                retry_state: "dead_letter".to_owned(),
+                next_retry_at: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("attempt should record: {error}"));
+
+        let response = app
+            .clone()
+            .oneshot(
+                admin_request_builder(app, "GET", "/api/v1/alert-delivery-attempts:queue-status")
+                    .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("queue status route should respond: {error}"));
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["dead_letter"], 1);
+        assert_eq!(
+            json["data"]["recent_dead_letters"]
+                .as_array()
+                .map(std::vec::Vec::len),
+            Some(1)
+        );
     }
 
     #[tokio::test]

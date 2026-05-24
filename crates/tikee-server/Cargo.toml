@@ -24,6 +24,7 @@ raft = { version = "0.7", default-features = true }
 hex = "0.4"
 async-trait = "0.1"
 base64 = "0.22"
+rustls-native-certs = "0.8"
 bcrypt = "0.15"
 uuid = { version = "1", features = ["v4"] }
 hyper-util = { version = "0.1", features = ["server-auto", "service", "tokio"] }

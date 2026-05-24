@@ -1,5 +1,6 @@
 import {
   ApiOutlined,
+  AlertOutlined,
   AuditOutlined,
   BranchesOutlined,
   CodeOutlined,
@@ -38,6 +39,7 @@ export const ROUTE_META = {
   scopes: { path: '/scopes', menuKey: '/scopes', label: '租户范围', icon: <PartitionOutlined />, permission: { resource: 'tenants', action: 'read' }, menu: true, group: 'governance' },
   scripts: { path: '/scripts', menuKey: '/scripts', label: '脚本管理', icon: <CodeOutlined />, permission: { resource: 'scripts', action: 'read' }, menu: true, group: 'governance' },
   scriptEdit: { path: '/scripts/:id/edit', menuKey: '/scripts', label: '编辑脚本', permission: { resource: 'scripts', action: 'manage' }, menu: false },
+  alerts: { path: '/alerts', menuKey: '/alerts', label: '告警投递', icon: <AlertOutlined />, permission: { resource: 'audit', action: 'read' }, menu: true, group: 'governance' },
   audit: { path: '/audit', menuKey: '/audit', label: '审计日志', icon: <AuditOutlined />, permission: { resource: 'audit', action: 'read' }, menu: true, group: 'governance' },
   workflowNew: { path: '/workflows/new', menuKey: '/workflows', label: '新增工作流', permission: { resource: 'workflows', action: 'manage' }, menu: false },
   workflowEdit: { path: '/workflows/:id/edit', menuKey: '/workflows', label: '编辑工作流', permission: { resource: 'workflows', action: 'manage' }, menu: false },

@@ -14,8 +14,9 @@ use crate::{
     http::{
         AppState, auth,
         dto::{
-            AlertDeliveryChannelStatus, AlertDeliveryStatusResponse, AlertEventSummary,
-            AlertNotificationSummary, AlertRuleSummary, ApiResponse, CreateAlertRuleRequest,
+            AlertDeliveryChannelStatus, AlertDeliveryQueueStatusResponse,
+            AlertDeliveryStatusResponse, AlertEventSummary, AlertNotificationSummary,
+            AlertRuleSummary, ApiResponse, CreateAlertRuleRequest,
         },
         error::ApiError,
     },
@@ -120,6 +121,8 @@ fn channel_status(index: usize, value: &serde_json::Value) -> AlertDeliveryChann
         .unwrap_or(true);
     let target_configured = channel_target_configured(&provider, value);
     let secret_configured = channel_secret_configured(value);
+    let transport_security = channel_transport_security(&provider, value);
+    let target_redacted = channel_target_redacted(&provider, value);
     let mut issues = Vec::new();
     if provider == "unknown" {
         issues.push(format!("channels[{index}].type is required"));
@@ -129,11 +132,18 @@ fn channel_status(index: usize, value: &serde_json::Value) -> AlertDeliveryChann
             "channels[{index}] target is required for {provider}"
         ));
     }
+    if enabled && provider == "email" && transport_security.as_deref() == Some("plain") {
+        issues.push(format!(
+            "channels[{index}] smtp:// is only allowed for explicit local smoke tests"
+        ));
+    }
     AlertDeliveryChannelStatus {
         provider,
         target_configured,
         secret_configured,
         enabled,
+        target_redacted,
+        transport_security,
         issues,
     }
 }
@@ -143,7 +153,7 @@ fn channel_target_configured(provider: &str, value: &serde_json::Value) -> bool 
         return ["to", "recipients"]
             .iter()
             .any(|key| json_field_present(value, key))
-            && ["smtp_url", "url"]
+            && ["smtp_url", "url", "smtp_url_secret_ref"]
                 .iter()
                 .any(|key| json_field_present(value, key));
     }
@@ -159,13 +169,96 @@ fn channel_target_configured(provider: &str, value: &serde_json::Value) -> bool 
 fn channel_secret_configured(value: &serde_json::Value) -> bool {
     [
         "secret",
+        "secret_ref",
         "token",
+        "token_ref",
         "authorization",
+        "authorization_ref",
         "routing_key",
+        "routing_key_ref",
         "integration_key",
+        "integration_key_ref",
+        "smtp_url_secret_ref",
+        "password_secret_ref",
     ]
     .iter()
     .any(|key| json_field_present(value, key))
+}
+
+fn channel_transport_security(provider: &str, value: &serde_json::Value) -> Option<String> {
+    if provider == "email" {
+        let url = ["smtp_url", "url"]
+            .iter()
+            .find_map(|key| value.get(key).and_then(serde_json::Value::as_str));
+        if value.get("smtp_url_secret_ref").is_some() {
+            return Some("secret_ref".to_owned());
+        }
+        return url.map(|url| {
+            if url.starts_with("smtps://") {
+                "tls".to_owned()
+            } else if url.starts_with("smtp+starttls://") {
+                "starttls".to_owned()
+            } else {
+                "plain".to_owned()
+            }
+        });
+    }
+    target_url(value).map(|url| {
+        if url.starts_with("https://") {
+            "https".to_owned()
+        } else {
+            "insecure".to_owned()
+        }
+    })
+}
+
+fn channel_target_redacted(provider: &str, value: &serde_json::Value) -> Option<String> {
+    if provider == "email" {
+        return ["to", "recipients"]
+            .iter()
+            .find_map(|key| value.get(key))
+            .map(redact_email_target);
+    }
+    target_url(value).map(redact_url_like)
+}
+
+fn target_url(value: &serde_json::Value) -> Option<&str> {
+    ["url", "webhook_url"]
+        .iter()
+        .find_map(|key| value.get(key).and_then(serde_json::Value::as_str))
+}
+
+fn redact_email_target(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(item) => item.to_owned(),
+        serde_json::Value::Array(items) => items
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect::<Vec<_>>()
+            .join(","),
+        _ => "email".to_owned(),
+    }
+}
+
+fn redact_url_like(value: &str) -> String {
+    url::Url::parse(value).map_or_else(
+        |_| "invalid-url".to_owned(),
+        |url| {
+            let mut redacted = format!(
+                "{}://{}",
+                url.scheme(),
+                url.host_str().unwrap_or("unknown-host")
+            );
+            if let Some(port) = url.port() {
+                redacted.push(':');
+                redacted.push_str(&port.to_string());
+            }
+            if url.path() != "/" && !url.path().is_empty() {
+                redacted.push_str("/...");
+            }
+            redacted
+        },
+    )
 }
 
 fn json_field_present(value: &serde_json::Value, key: &str) -> bool {
@@ -235,6 +328,47 @@ pub async fn list_alert_delivery_attempts(
         .await
         .map_err(|error| ApiError::storage(&error))?;
     Ok(Json(ApiResponse::success(items)))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/alert-delivery-attempts:queue-status",
+    tag = "alerts"
+)]
+pub async fn alert_delivery_queue_status(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<ApiResponse<AlertDeliveryQueueStatusResponse>>, ApiError> {
+    auth::require_permission(&headers, &state, "audit", "read").await?;
+    let attempts = state
+        .alerts
+        .list_delivery_attempts(tikee_storage::AlertDeliveryAttemptFilters::default())
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    let mut response = AlertDeliveryQueueStatusResponse {
+        total_attempts: attempts.len() as u64,
+        delivered: 0,
+        retry_pending: 0,
+        dead_letter: 0,
+        retry_consumed: 0,
+        failed: 0,
+        recent_dead_letters: Vec::new(),
+    };
+    for attempt in attempts {
+        match attempt.retry_state.as_str() {
+            "delivered" => response.delivered += 1,
+            "retry_pending" => response.retry_pending += 1,
+            "dead_letter" => {
+                response.dead_letter += 1;
+                if response.recent_dead_letters.len() < 20 {
+                    response.recent_dead_letters.push(attempt);
+                }
+            }
+            "retry_consumed" => response.retry_consumed += 1,
+            _ => response.failed += 1,
+        }
+    }
+    Ok(Json(ApiResponse::success(response)))
 }
 
 #[utoipa::path(

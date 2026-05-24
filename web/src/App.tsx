@@ -15,6 +15,7 @@ const JobsPage = lazy(() => import('./pages/JobsPage').then((module) => ({ defau
 const WorkflowEditorPage = lazy(() => import('./pages/WorkflowsPage').then((module) => ({ default: module.WorkflowEditorPage })));
 const WorkflowsPage = lazy(() => import('./pages/WorkflowsPage').then((module) => ({ default: module.WorkflowsPage })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })));
+const AlertDeliveryPage = lazy(() => import('./pages/AlertDeliveryPage').then((module) => ({ default: module.AlertDeliveryPage })));
 const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage').then((module) => ({ default: module.AuditLogsPage })));
 const ScriptsPage = lazy(() => import('./pages/ScriptsPage').then((module) => ({ default: module.ScriptsPage })));
 const ScriptEditorPage = lazy(() => import('./pages/ScriptsPage').then((module) => ({ default: module.ScriptEditorPage })));
@@ -68,6 +69,7 @@ function AppLayout() {
           <Route path={ROUTE_META.scopes.path} element={<GuardedRoute route={ROUTE_META.scopes}><ScopesPage /></GuardedRoute>} />
           <Route path={ROUTE_META.scripts.path} element={<GuardedRoute route={ROUTE_META.scripts}><ScriptsPage /></GuardedRoute>} />
           <Route path={ROUTE_META.scriptEdit.path} element={<GuardedRoute route={ROUTE_META.scriptEdit}><ScriptEditorPage /></GuardedRoute>} />
+          <Route path={ROUTE_META.alerts.path} element={<GuardedRoute route={ROUTE_META.alerts}><AlertDeliveryPage /></GuardedRoute>} />
           <Route path={ROUTE_META.audit.path} element={<GuardedRoute route={ROUTE_META.audit}><AuditLogsPage /></GuardedRoute>} />
           <Route path="/forbidden" element={<ForbiddenPage />} />
         </Routes>

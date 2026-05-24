@@ -1091,3 +1091,10 @@ Verification evidence:
 - P0 部署与运维 bootstrap 已补齐 Compose/systemd/裸机模板：`deploy/compose/tikee.env.example`、`deploy/systemd/tikee.service`、`deploy/systemd/tikee.env`、`deploy/bare-metal/check-config.sh`。
 - 根 `docker-compose.yml` 支持镜像、端口和数据卷通过环境变量覆盖，便于本地生产化试跑。
 - 新增 `scripts/verify-deploy-bootstrap.sh` 静态校验；Helm 继续后置到外部 DB、secret、网关和 TLS 生产参数稳定后。
+
+## 2026-05-25 P0 alert delivery hardening
+
+- P0 生产告警投递硬化已补齐：Email channel 支持 `smtps://` / `smtp+starttls://`、AUTH LOGIN、`smtp_url_secret_ref` 与 `password_secret_ref` 环境变量引用；明文 `smtp://` 仅保留 loopback smoke 场景。
+- 告警投递状态 API 增强为返回脱敏 target 与 transport security；新增 `GET /api/v1/alert-delivery-attempts:queue-status` 汇总 delivered/retry_pending/dead_letter/retry_consumed 并返回最近 DLQ。
+- Web 新增“告警投递”运维页面，展示 retry/DLQ 汇总与最近 DLQ 明细；Compose/systemd env 模板补充 `TIKEE_ALERT_SECRET_` secret ref 约定。
+- 验证：`cargo test -p tikee-server alert::`、`cargo test -p tikee-server http::tests::alert`、`cargo test -p tikee-config --lib`、`cargo clippy -p tikee-server --all-targets --all-features -- -D warnings`、`cargo clippy -p tikee-config --all-targets --all-features -- -D warnings`、`cd web && bun run typecheck && bun run lint && bun test src/pages/__tests__/AlertDeliveryPage.test.tsx`。

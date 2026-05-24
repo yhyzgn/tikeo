@@ -4372,6 +4372,7 @@ dependencies = [
  "raft",
  "reqwest",
  "rustls",
+ "rustls-native-certs",
  "rustls-pemfile",
  "sea-orm",
  "serde",

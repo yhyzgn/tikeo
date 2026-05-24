@@ -32,6 +32,9 @@ pub struct TikeeConfig {
     /// Alert delivery retry worker settings.
     #[serde(default)]
     pub alert_retry: AlertRetryConfig,
+    /// Alert provider secret management settings.
+    #[serde(default)]
+    pub alert_secrets: AlertSecretConfig,
 }
 
 /// Server listener configuration.
@@ -182,6 +185,26 @@ pub struct OidcConfig {
     pub scopes: Vec<String>,
 }
 
+/// Alert provider secret reference settings.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AlertSecretConfig {
+    /// Allow `env:NAME` references for alert provider secrets.
+    #[serde(default = "default_true")]
+    pub allow_env_refs: bool,
+    /// Prefix that env secret names should use in production deployments.
+    #[serde(default = "default_alert_secret_env_prefix")]
+    pub env_prefix: String,
+}
+
+impl Default for AlertSecretConfig {
+    fn default() -> Self {
+        Self {
+            allow_env_refs: true,
+            env_prefix: default_alert_secret_env_prefix(),
+        }
+    }
+}
+
 /// Alert delivery retry worker settings.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AlertRetryConfig {
@@ -295,6 +318,10 @@ const fn default_api_token_max_ttl_seconds() -> i64 {
     30 * 24 * 60 * 60
 }
 
+fn default_alert_secret_env_prefix() -> String {
+    "TIKEE_ALERT_SECRET_".to_owned()
+}
+
 const fn default_alert_retry_interval_seconds() -> u64 {
     60
 }
@@ -372,6 +399,11 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeeConfig, ConfigError> {
         .set_default("transport_security.worker_tunnel.mtls_required", false)?
         .set_default("observability.tracing.enabled", false)?
         .set_default("observability.tracing.headers", Vec::<String>::new())?
+        .set_default("alert_secrets.allow_env_refs", true)?
+        .set_default(
+            "alert_secrets.env_prefix",
+            default_alert_secret_env_prefix(),
+        )?
         .set_default("alert_retry.enabled", true)?
         .set_default("alert_retry.interval_seconds", 60)?
         .set_default("alert_retry.batch_size", 50)?
@@ -459,6 +491,15 @@ mod tests {
         assert_eq!(config.alert_retry.batch_size, 50);
         assert_eq!(config.alert_retry.max_attempts, 3);
         assert_eq!(config.alert_retry.backoff_seconds, 300);
+    }
+
+    #[test]
+    fn default_alert_secret_config_allows_prefixed_env_refs() {
+        let config =
+            load_config(None).unwrap_or_else(|error| panic!("default config should load: {error}"));
+
+        assert!(config.alert_secrets.allow_env_refs);
+        assert_eq!(config.alert_secrets.env_prefix, "TIKEE_ALERT_SECRET_");
     }
 
     #[test]

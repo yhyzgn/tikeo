@@ -21,3 +21,7 @@ interval_seconds = 60
 batch_size = 50
 max_attempts = 3
 backoff_seconds = 300
+
+[alert_secrets]
+allow_env_refs = true
+env_prefix = "TIKEE_ALERT_SECRET_"

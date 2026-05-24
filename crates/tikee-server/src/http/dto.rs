@@ -197,6 +197,18 @@ pub struct AlertDeliveryStatusResponse {
     pub issues: Vec<String>,
 }
 
+/// Alert delivery retry/DLQ status rollup.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct AlertDeliveryQueueStatusResponse {
+    pub total_attempts: u64,
+    pub delivered: u64,
+    pub retry_pending: u64,
+    pub dead_letter: u64,
+    pub retry_consumed: u64,
+    pub failed: u64,
+    pub recent_dead_letters: Vec<tikee_storage::AlertDeliveryAttemptSummary>,
+}
+
 /// Redacted notification channel readiness metadata.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct AlertDeliveryChannelStatus {
@@ -204,6 +216,8 @@ pub struct AlertDeliveryChannelStatus {
     pub target_configured: bool,
     pub secret_configured: bool,
     pub enabled: bool,
+    pub target_redacted: Option<String>,
+    pub transport_security: Option<String>,
     pub issues: Vec<String>,
 }
 

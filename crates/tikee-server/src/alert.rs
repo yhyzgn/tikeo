@@ -104,7 +104,6 @@ pub enum NotificationChannel {
         routing_key: String,
     },
     /// Email channel delivered through a configured SMTP endpoint.
-    #[allow(dead_code)]
     Email {
         /// Recipient addresses.
         #[serde(
@@ -116,9 +115,18 @@ pub enum NotificationChannel {
         /// SMTP endpoint URL. Plain `smtp://` is allowed only for explicit local loopback smoke tests.
         #[serde(default, alias = "url")]
         smtp_url: Option<String>,
+        /// Secret/env reference that contains the SMTP endpoint URL.
+        #[serde(default)]
+        smtp_url_secret_ref: Option<String>,
         /// Envelope sender address.
         #[serde(default)]
         from: Option<String>,
+        /// SMTP username or user secret/env reference.
+        #[serde(default)]
+        username: Option<String>,
+        /// SMTP password secret/env reference.
+        #[serde(default)]
+        password_secret_ref: Option<String>,
     },
 }
 
@@ -407,13 +415,22 @@ impl AlertDispatcher {
                 NotificationChannel::Email {
                     recipients,
                     smtp_url,
+                    smtp_url_secret_ref,
                     from,
+                    username,
+                    password_secret_ref,
                 } => {
+                    let smtp_url = smtp_url
+                        .clone()
+                        .or_else(|| resolve_secret_ref(smtp_url_secret_ref.as_deref()));
+                    let password = resolve_secret_ref(password_secret_ref.as_deref());
                     results.push(
                         self.deliver_email(
                             recipients,
                             smtp_url.as_deref(),
                             from.as_deref(),
+                            username.as_deref(),
+                            password.as_deref(),
                             payload,
                         )
                         .await,
@@ -429,6 +446,8 @@ impl AlertDispatcher {
         recipients: &[String],
         smtp_url: Option<&str>,
         from: Option<&str>,
+        username: Option<&str>,
+        password: Option<&str>,
         payload: &AlertPayload,
     ) -> AlertDeliveryResult {
         let Some(smtp_url) = smtp_url else {
@@ -438,7 +457,16 @@ impl AlertDispatcher {
             return email_failure(recipients, "at least one email recipient is required");
         }
         let from = from.unwrap_or("tikee@localhost");
-        deliver_email_channel(smtp_url, from, recipients, payload, self.policy).await
+        deliver_email_channel(
+            smtp_url,
+            from,
+            recipients,
+            username,
+            password,
+            payload,
+            self.policy,
+        )
+        .await
     }
 
     async fn post_json(
@@ -500,6 +528,14 @@ fn email_failure(recipients: &[String], error: &str) -> AlertDeliveryResult {
         status: None,
         error: Some(error.to_owned()),
     }
+}
+
+fn resolve_secret_ref(reference: Option<&str>) -> Option<String> {
+    let reference = reference?.trim();
+    let key = reference.strip_prefix("env:").unwrap_or(reference);
+    std::env::var(key)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
 }
 
 fn alert_text(payload: &AlertPayload) -> String {
@@ -733,7 +769,10 @@ mod tests {
                 channels: vec![NotificationChannel::Email {
                     recipients: vec!["ops@example.com".to_owned()],
                     smtp_url: Some(format!("smtp://{address}")),
+                    smtp_url_secret_ref: None,
                     from: Some("tikee@example.com".to_owned()),
+                    username: None,
+                    password_secret_ref: None,
                 }],
             }],
             AlertDeliveryPolicy {

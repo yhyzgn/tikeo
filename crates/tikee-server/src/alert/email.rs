@@ -1,22 +1,30 @@
 //! SMTP email alert delivery helpers.
 
 use super::{AlertDeliveryPolicy, AlertDeliveryResult, AlertPayload, Severity, is_loopback_host};
+use rustls::pki_types::ServerName;
 use serde::Deserialize;
+use std::sync::Arc;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
+use tokio_rustls::{TlsConnector, client::TlsStream};
 use url::Url;
 
 pub async fn deliver_email_channel(
     smtp_url: &str,
     from: &str,
     recipients: &[String],
+    username: Option<&str>,
+    password: Option<&str>,
     payload: &AlertPayload,
     policy: AlertDeliveryPolicy,
 ) -> AlertDeliveryResult {
     let target = recipients.join(",");
-    let result = send_plain_smtp(smtp_url, from, recipients, payload, policy).await;
+    let result = send_plain_smtp(
+        smtp_url, from, recipients, username, password, payload, policy,
+    )
+    .await;
     match result {
         Ok(()) => AlertDeliveryResult {
             provider: "email".to_owned(),
@@ -39,6 +47,8 @@ async fn send_plain_smtp(
     smtp_url: &str,
     from: &str,
     recipients: &[String],
+    username: Option<&str>,
+    password: Option<&str>,
     payload: &AlertPayload,
     policy: AlertDeliveryPolicy,
 ) -> Result<(), String> {
@@ -46,21 +56,120 @@ async fn send_plain_smtp(
     let host = parsed
         .host_str()
         .ok_or_else(|| "smtp url must include host".to_owned())?;
-    let port = parsed.port().unwrap_or(25);
-    let mut stream = TcpStream::connect((host, port))
-        .await
-        .map_err(|error| format!("smtp connect failed: {error}"))?;
+    let port = parsed
+        .port()
+        .unwrap_or_else(|| if parsed.scheme() == "smtps" { 465 } else { 25 });
+    if parsed.scheme() == "smtps" {
+        let tcp = connect_smtp_tcp(host, port).await?;
+        let mut stream = connect_smtp_tls(tcp, host).await?;
+        smtp_handshake_and_auth(&mut stream, username, password).await?;
+        write_envelope_and_data(&mut stream, from, recipients, payload).await?;
+        write_smtp_command(&mut stream, "QUIT").await?;
+        let _ = read_smtp_response(&mut stream).await;
+        return Ok(());
+    }
+    let mut stream = connect_smtp_tcp(host, port).await?;
     read_smtp_response(&mut stream).await?;
     write_smtp_command(&mut stream, "EHLO tikee").await?;
     read_smtp_response(&mut stream).await?;
-    write_smtp_command(&mut stream, &format!("MAIL FROM:<{from}>")).await?;
-    read_smtp_response(&mut stream).await?;
-    for recipient in recipients {
-        write_smtp_command(&mut stream, &format!("RCPT TO:<{recipient}>")).await?;
+    if parsed.scheme() == "smtp+starttls" {
+        write_smtp_command(&mut stream, "STARTTLS").await?;
         read_smtp_response(&mut stream).await?;
+        let mut stream = connect_smtp_tls(stream, host).await?;
+        smtp_handshake_and_auth(&mut stream, username, password).await?;
+        write_envelope_and_data(&mut stream, from, recipients, payload).await?;
+        write_smtp_command(&mut stream, "QUIT").await?;
+        let _ = read_smtp_response(&mut stream).await;
+        return Ok(());
     }
-    write_smtp_command(&mut stream, "DATA").await?;
-    read_smtp_response(&mut stream).await?;
+    smtp_auth(&mut stream, username, password).await?;
+    write_envelope_and_data(&mut stream, from, recipients, payload).await?;
+    write_smtp_command(&mut stream, "QUIT").await?;
+    let _ = read_smtp_response(&mut stream).await;
+    Ok(())
+}
+
+async fn connect_smtp_tcp(host: &str, port: u16) -> Result<TcpStream, String> {
+    TcpStream::connect((host, port))
+        .await
+        .map_err(|error| format!("smtp connect failed: {error}"))
+}
+
+async fn connect_smtp_tls(stream: TcpStream, host: &str) -> Result<TlsStream<TcpStream>, String> {
+    let mut roots = rustls::RootCertStore::empty();
+    let native_certs = rustls_native_certs::load_native_certs();
+    if !native_certs.errors.is_empty() {
+        return Err("smtp tls native cert load failed".to_owned());
+    }
+    for cert in native_certs.certs {
+        roots
+            .add(cert)
+            .map_err(|error| format!("smtp tls root cert load failed: {error}"))?;
+    }
+    let config = rustls::ClientConfig::builder()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    let server_name = ServerName::try_from(host.to_owned())
+        .map_err(|_| "smtp tls server name is invalid".to_owned())?;
+    TlsConnector::from(Arc::new(config))
+        .connect(server_name, stream)
+        .await
+        .map_err(|error| format!("smtp tls handshake failed: {error}"))
+}
+
+async fn smtp_handshake_and_auth<S>(
+    stream: &mut S,
+    username: Option<&str>,
+    password: Option<&str>,
+) -> Result<(), String>
+where
+    S: AsyncReadExt + AsyncWriteExt + Unpin,
+{
+    read_smtp_response(stream).await?;
+    write_smtp_command(stream, "EHLO tikee").await?;
+    read_smtp_response(stream).await?;
+    smtp_auth(stream, username, password).await
+}
+
+async fn smtp_auth<S>(
+    stream: &mut S,
+    username: Option<&str>,
+    password: Option<&str>,
+) -> Result<(), String>
+where
+    S: AsyncReadExt + AsyncWriteExt + Unpin,
+{
+    if let Some(username) = username {
+        let password = password.ok_or_else(|| {
+            "smtp password secret ref is required when username is configured".to_owned()
+        })?;
+        write_smtp_command(stream, "AUTH LOGIN").await?;
+        read_smtp_response(stream).await?;
+        write_smtp_command(stream, &base64_encode(username)).await?;
+        read_smtp_response(stream).await?;
+        write_smtp_command(stream, &base64_encode(password)).await?;
+        read_smtp_response(stream).await?;
+    }
+    Ok(())
+}
+
+async fn write_envelope_and_data<S>(
+    stream: &mut S,
+    from: &str,
+    recipients: &[String],
+    payload: &AlertPayload,
+) -> Result<(), String>
+where
+    S: AsyncReadExt + AsyncWriteExt + Unpin,
+{
+    write_smtp_command(stream, &format!("MAIL FROM:<{from}>")).await?;
+    read_smtp_response(stream).await?;
+    for recipient in recipients {
+        write_smtp_command(stream, &format!("RCPT TO:<{recipient}>")).await?;
+        read_smtp_response(stream).await?;
+    }
+    write_smtp_command(stream, "DATA").await?;
+    read_smtp_response(stream).await?;
     let subject = format!(
         "[tikee/{}] {}",
         severity_label(&payload.severity),
@@ -74,10 +183,8 @@ async fn send_plain_smtp(
         payload.resource_id,
         payload.triggered_at,
     );
-    write_smtp_command(&mut stream, &body).await?;
-    read_smtp_response(&mut stream).await?;
-    write_smtp_command(&mut stream, "QUIT").await?;
-    let _ = read_smtp_response(&mut stream).await;
+    write_smtp_command(stream, &body).await?;
+    read_smtp_response(stream).await?;
     Ok(())
 }
 
@@ -87,14 +194,23 @@ fn validate_smtp_url(value: &str, policy: AlertDeliveryPolicy) -> Result<Url, St
         return Err("smtp url must include host".to_owned());
     };
     let host_lower = host.to_ascii_lowercase();
-    if parsed.scheme() == "smtp" && policy.allow_insecure_loopback && is_loopback_host(&host_lower)
-    {
-        return Ok(parsed);
+    match parsed.scheme() {
+        "smtp" if policy.allow_insecure_loopback && is_loopback_host(&host_lower) => Ok(parsed),
+        "smtps" | "smtp+starttls" => Ok(parsed),
+        "smtp" => Err("plain smtp is allowed only for explicit loopback smoke tests".to_owned()),
+        _ => Err("smtp url must use smtps://, smtp+starttls://, or loopback smtp://".to_owned()),
     }
-    Err("smtp delivery currently requires explicit local loopback smtp:// policy".to_owned())
 }
 
-async fn write_smtp_command(stream: &mut TcpStream, command: &str) -> Result<(), String> {
+fn base64_encode(value: &str) -> String {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    STANDARD.encode(value.as_bytes())
+}
+
+async fn write_smtp_command<S>(stream: &mut S, command: &str) -> Result<(), String>
+where
+    S: AsyncWriteExt + Unpin,
+{
     stream
         .write_all(command.as_bytes())
         .await
@@ -105,7 +221,10 @@ async fn write_smtp_command(stream: &mut TcpStream, command: &str) -> Result<(),
         .map_err(|error| format!("smtp write failed: {error}"))
 }
 
-async fn read_smtp_response(stream: &mut TcpStream) -> Result<String, String> {
+async fn read_smtp_response<S>(stream: &mut S) -> Result<String, String>
+where
+    S: AsyncReadExt + Unpin,
+{
     let mut buffer = [0_u8; 1024];
     let read = stream
         .read(&mut buffer)
