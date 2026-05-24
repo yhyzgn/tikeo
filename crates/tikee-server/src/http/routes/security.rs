@@ -46,14 +46,15 @@ fn endpoint_status(
     let key_configured = is_present(config.key_path.as_ref());
     let ca_configured = is_present(config.client_ca_path.as_ref());
     if config.tls_enabled {
-        issues.push(format!(
-            "{name}.listener is still plaintext; TLS listener wiring is pending"
-        ));
         if !cert_configured {
             issues.push(format!("{name}.cert_path is required when TLS is enabled"));
+        } else if !is_readable_file(config.cert_path.as_ref()) {
+            issues.push(format!("{name}.cert_path is not readable"));
         }
         if !key_configured {
             issues.push(format!("{name}.key_path is required when TLS is enabled"));
+        } else if !is_readable_file(config.key_path.as_ref()) {
+            issues.push(format!("{name}.key_path is not readable"));
         }
     }
     if config.mtls_required {
@@ -66,6 +67,8 @@ fn endpoint_status(
             issues.push(format!(
                 "{name}.client_ca_path is required when mTLS is required"
             ));
+        } else if !is_readable_file(config.client_ca_path.as_ref()) {
+            issues.push(format!("{name}.client_ca_path is not readable"));
         }
     }
     TlsEndpointStatus {
@@ -74,15 +77,33 @@ fn endpoint_status(
         cert_configured,
         key_configured,
         ca_configured,
-        listener_mode: if config.tls_enabled {
-            "tls_pending_listener"
-        } else {
-            "plaintext"
-        }
-        .to_owned(),
+        listener_mode: listener_mode(config, cert_configured, key_configured, ca_configured)
+            .to_owned(),
     }
+}
+
+const fn listener_mode(
+    config: &TlsEndpointConfig,
+    cert_configured: bool,
+    key_configured: bool,
+    ca_configured: bool,
+) -> &'static str {
+    if !config.tls_enabled {
+        return "plaintext";
+    }
+    if !cert_configured || !key_configured || (config.mtls_required && !ca_configured) {
+        return "tls_config_error";
+    }
+    if config.mtls_required { "mtls" } else { "tls" }
 }
 
 fn is_present(value: Option<&String>) -> bool {
     value.is_some_and(|item| !item.trim().is_empty())
+}
+
+fn is_readable_file(value: Option<&String>) -> bool {
+    value
+        .map(String::as_str)
+        .filter(|path| !path.trim().is_empty())
+        .is_some_and(|path| std::fs::metadata(path).is_ok_and(|metadata| metadata.is_file()))
 }

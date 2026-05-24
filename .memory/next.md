@@ -4,10 +4,9 @@
 Rebalance remaining Phase 3 / Phase 4 work around service usability first. Prefer items that make tikee safer and easier to run as a real shared service before ecosystem or migration features.
 
 ## P0 — service usage / production blockers
-1. Real HTTP and Worker Tunnel TLS/mTLS listeners, certificate reload/rotation, and startup diagnostics.
-2. Worker identity/session lifecycle governance for K8s/Docker and bare metal/VM/systemd: logical worker, session generation, fencing token, lost-reason evidence, history UI.
-3. Deployment/operations bootstrap: Compose/systemd/bare-metal templates first; Helm after production parameters for external DB, secrets, gateway, and TLS settle.
-4. Production alert delivery hardening: SMTP TLS/auth/secret references, provider secrets, retry/DLQ visibility, minimal live smoke.
+1. Worker identity/session lifecycle governance for K8s/Docker and bare metal/VM/systemd: logical worker, session generation, fencing token, lost-reason evidence, history UI.
+2. Deployment/operations bootstrap: Compose/systemd/bare-metal templates first; Helm after production parameters for external DB, secrets, gateway, and TLS settle.
+3. Production alert delivery hardening: SMTP TLS/auth/secret references, provider secrets, retry/DLQ visibility, minimal live smoke.
 
 ## P1 — production hardening / common enterprise use
 - Full script approval/signature/KMS plus URL/File/Secret grants and production release gates.
@@ -26,3 +25,4 @@ Rebalance remaining Phase 3 / Phase 4 work around service usability first. Prefe
 
 ## Recently completed
 - P0 OIDC external subject -> local user/role/tenant mapping and opaque tikee session issuance is complete; local login state remains opaque `auth_sessions` bearer tokens, not JWT.
+- P0 real HTTP and Worker Tunnel TLS/mTLS listeners are complete; HTTP reloads certificate material per new TLS connection, Worker Tunnel starts with tonic TLS/mTLS, and diagnostics report `tls|mtls|tls_config_error`.

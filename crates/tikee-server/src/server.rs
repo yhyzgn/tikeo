@@ -59,7 +59,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
             cluster.clone(),
         )
         .with_auth_config(auth_config)
-        .with_transport_security_config(transport_security)
+        .with_transport_security_config(transport_security.clone())
         .with_observability_config(observability)
         .with_raft_transport_token(raft_transport_token),
     );
@@ -77,16 +77,19 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
     info!(%http_addr, %tunnel_addr, "starting tikee listeners");
 
     try_join!(
-        http::serve_with_state(http_addr, http_router),
-        tunnel::serve(
+        run_http_listener(http_addr, http_router, transport_security.http.clone()),
+        tunnel::serve_with_security(
             tunnel_addr,
-            registry.clone(),
-            tunnel_instances,
-            logs.clone(),
-            tunnel_attempts,
-            workflows.clone(),
-            audit.clone(),
-            log_broadcaster
+            tunnel_runtime(
+                registry.clone(),
+                tunnel_instances,
+                logs.clone(),
+                tunnel_attempts,
+                workflows.clone(),
+                audit.clone(),
+                log_broadcaster,
+            ),
+            &transport_security.worker_tunnel,
         ),
         async {
             tikee::run_tick_loop(jobs, tikee_instances, tick_cluster).await;
@@ -114,6 +117,37 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
     .context("tikee listener failed")?;
 
     Ok(())
+}
+
+async fn run_http_listener(
+    http_addr: std::net::SocketAddr,
+    http_router: axum::Router,
+    tls: tikee_config::TlsEndpointConfig,
+) -> Result<()> {
+    let listener = tokio::net::TcpListener::bind(http_addr)
+        .await
+        .with_context(|| format!("failed to bind HTTP listener at {http_addr}"))?;
+    http::serve_listener_with_state(listener, http_router, &tls).await
+}
+
+const fn tunnel_runtime(
+    registry: tunnel::WorkerRegistry,
+    instances: JobInstanceRepository,
+    logs: JobInstanceLogRepository,
+    attempts: JobInstanceAttemptRepository,
+    workflows: WorkflowRepository,
+    audit: AuditLogRepository,
+    log_broadcaster: tunnel::TaskLogBroadcaster,
+) -> tunnel::WorkerTunnelRuntime {
+    tunnel::WorkerTunnelRuntime::new(
+        registry,
+        instances,
+        logs,
+        attempts,
+        workflows,
+        audit,
+        log_broadcaster,
+    )
 }
 
 async fn run_alert_retry_worker(

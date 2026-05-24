@@ -990,3 +990,13 @@ Verification evidence:
 - RED mapped-subject callback test failed before `OidcIdentityRepository` existed, then passed.
 - Targeted OIDC tests, storage/server clippy, and fmt check passed via RTK.
 - P0 OIDC mapped opaque session full backend verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out'`.
+
+### 2026-05-25 — P0 real TLS/mTLS listeners
+- Added real HTTP HTTPS serving with rustls and a TLS smoke test that reaches an axum route over `https://127.0.0.1`.
+- Added shared TLS material loading for rustls/tonic, Worker Tunnel TLS/mTLS startup wiring, and a `WorkerTunnelRuntime` dependency bundle to avoid adding clippy argument-count allowances.
+- HTTP TLS rebuilds the acceptor from configured files for each new connection so certificate/key/CA file rotation is picked up without process restart.
+- Transport security diagnostics now report `plaintext`, `tls`, `mtls`, or `tls_config_error` and check certificate/key/CA file readability instead of claiming `tls_pending_listener`.
+Verification evidence:
+- `rtk cargo test -p tikee-server http_tls_listener_serves_https_when_configured --all-features` passed.
+- `rtk cargo test -p tikee-server transport_security_status_reports_defaults_and_partial_mtls_config --all-features` passed.
+- Full backend verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out'`.

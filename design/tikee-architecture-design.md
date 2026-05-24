@@ -2211,6 +2211,7 @@ tikee/
 - [ ] mTLS 传输加密
   - [x] TLS/mTLS 配置与诊断基础（086：`transport_security` 配置、`GET /api/v1/security/transport` 脱敏显示 HTTP/Worker Tunnel TLS/mTLS readiness）
   - [x] TLS listener 边界 fail-closed（094：状态返回 `listener_mode=plaintext|tls_pending_listener`；TLS/mTLS 开启时即使证书路径齐全也标记 not ready，直到真实监听器 TLS wiring 完成）
+  - [x] 真实 HTTP 与 Worker Tunnel TLS/mTLS listener（123：HTTP 使用 rustls 实际 HTTPS listener，按新连接重载证书文件以支持轮换；Worker Tunnel 使用 tonic TLS/mTLS listener；诊断从 `tls_pending_listener` 更新为 `tls|mtls|tls_config_error` 并校验证书文件可读）
 - [x] Web 前端路由与导航治理基础（React Router v7、路由守卫、URL 持久化、菜单与路由对齐）
   - [x] 路由 meta、懒加载、统一 403/401 与 URL 查询参数治理（`web/src/routes.tsx` 单一元信息源；页面 lazy chunks；API client 统一 401 清 token 跳登录、403 跳禁止页；审计/任务/脚本/工作流列表查询状态进入 URL）
 - [x] 审计日志骨架（`audit_logs` 表、Repository、HTTP API、关键写操作埋点）
@@ -2294,7 +2295,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
 **P0 — 服务使用 / 生产上线阻塞项（优先实现）**
 
 - [x] OIDC 外部 subject → 本地 user/role/tenant 映射，并签发 tikee opaque session（122：provider token 不成为本地登录态；`auth_sessions` + moka 仍是唯一登录态来源；OIDC scope binding 可限制 namespace/app/worker_pool）。
-- [ ] 真实 HTTP 与 Worker Tunnel TLS/mTLS listener、证书 reload/rotation、启动诊断和失败回滚。
+- [x] 真实 HTTP 与 Worker Tunnel TLS/mTLS listener、证书 reload/rotation、启动诊断和失败回滚（123：HTTP 新连接重载证书；Worker Tunnel 启动加载 TLS/mTLS；启动与 `/security/transport` 均 fail-closed 报告证书配置错误）。
 - [ ] Worker 身份与会话生命周期治理（K8s/Docker 与裸机/VM/systemd 同等支持；Logical Worker / Session / generation / fencing token / lost reason 分层）。
 - [ ] 部署与运维 bootstrap：本地/裸机/systemd/Compose 的最小生产模板优先，Helm 在外部 DB、secret、网关和 TLS 参数稳定后落地。
 - [ ] 生产告警投递硬化：SMTP TLS/auth/secret reference、Provider secret 管理、重试/DLQ 可视化与最小 live smoke。

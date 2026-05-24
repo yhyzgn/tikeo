@@ -35,6 +35,7 @@ use tikee_storage::{
 };
 
 use tokio::{net::TcpListener, signal};
+use tokio_rustls::TlsAcceptor;
 use tracing::info;
 use utoipa::OpenApi;
 
@@ -419,13 +420,83 @@ pub async fn serve_with_state(listen_addr: SocketAddr, router: Router) -> Result
     let listener = TcpListener::bind(listen_addr)
         .await
         .with_context(|| format!("failed to bind {listen_addr}"))?;
+    serve_listener_with_state(
+        listener,
+        router,
+        &tikee_config::TlsEndpointConfig::default(),
+    )
+    .await
+}
+
+/// Run the HTTP listener using an already-bound socket and endpoint TLS config.
+///
+/// # Errors
+///
+/// Returns an error when TLS material cannot be loaded or serving HTTP fails.
+pub async fn serve_listener_with_state(
+    listener: TcpListener,
+    router: Router,
+    tls: &tikee_config::TlsEndpointConfig,
+) -> Result<()> {
+    let listen_addr = listener
+        .local_addr()
+        .context("failed to read HTTP listener local address")?;
 
     info!(addr = %listen_addr, "tikee HTTP server listening");
 
-    axum::serve(listener, router)
-        .with_graceful_shutdown(shutdown_signal())
+    if tls.tls_enabled {
+        serve_tls_listener(listener, router, tls).await
+    } else {
+        axum::serve(listener, router)
+            .with_graceful_shutdown(shutdown_signal())
+            .await
+            .context("tikee HTTP server failed")
+    }
+}
+
+async fn serve_tls_listener(
+    listener: TcpListener,
+    router: Router,
+    tls: &tikee_config::TlsEndpointConfig,
+) -> Result<()> {
+    // Validate once at startup, then rebuild the acceptor for each new connection so
+    // certificate/key/CA file rotations are picked up without restarting the process.
+    crate::transport_security::rustls_server_config(tls)?;
+    let tls = tls.clone();
+    loop {
+        tokio::select! {
+            () = shutdown_signal() => return Ok(()),
+            accepted = listener.accept() => {
+                let (stream, _peer_addr) = accepted.context("failed to accept HTTP TLS connection")?;
+                let router = router.clone();
+                let tls = tls.clone();
+                tokio::spawn(async move {
+                    if let Err(error) = serve_tls_connection(stream, &tls, router).await {
+                        tracing::warn!(%error, "HTTP TLS connection failed");
+                    }
+                });
+            }
+        }
+    }
+}
+
+async fn serve_tls_connection(
+    stream: tokio::net::TcpStream,
+    tls: &tikee_config::TlsEndpointConfig,
+    router: Router,
+) -> Result<()> {
+    let config = crate::transport_security::rustls_server_config(tls)?;
+    let acceptor = TlsAcceptor::from(Arc::new(config));
+    let tls_stream = acceptor
+        .accept(stream)
         .await
-        .context("tikee HTTP server failed")
+        .context("failed to accept HTTP TLS handshake")?;
+    let io = hyper_util::rt::TokioIo::new(tls_stream);
+    let service = hyper_util::service::TowerToHyperService::new(router);
+    hyper_util::server::conn::auto::Builder::new(hyper_util::rt::TokioExecutor::new())
+        .serve_connection_with_upgrades(io, service)
+        .await
+        .map_err(|error| anyhow::anyhow!("failed to serve HTTP TLS connection: {error}"))
 }
 
 #[derive(Debug, Serialize)]
@@ -469,10 +540,10 @@ mod tests {
         ClusterMode, ClusterRole, ClusterStatus, StandaloneCoordinator, StaticCoordinator,
         coordinator_from_config_with_storage,
     };
-    use axum::{body::Body, http::Request};
+    use axum::{Router, body::Body, http::Request, routing::get};
     use chrono::{DateTime, Utc};
     use serde_json::Value;
-    use tikee_config::{ClusterConfig, ClusterModeConfig, ClusterPeerConfig};
+    use tikee_config::{ClusterConfig, ClusterModeConfig, ClusterPeerConfig, TlsEndpointConfig};
     use tikee_core::{ExecutionMode, TriggerType};
     use tikee_proto::worker::v1::RegisterWorker;
     use tikee_storage::{
@@ -488,6 +559,46 @@ mod tests {
     use tower::ServiceExt;
 
     use super::{AppState, router_with_state};
+
+    #[tokio::test]
+    async fn http_tls_listener_serves_https_when_configured() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .unwrap_or_else(|error| panic!("test listener should bind: {error}"));
+        let addr = listener
+            .local_addr()
+            .unwrap_or_else(|error| panic!("test listener should expose local addr: {error}"));
+        let cert_path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/tls/server.crt");
+        let key_path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/tls/server.key");
+        let tls = TlsEndpointConfig {
+            tls_enabled: true,
+            mtls_required: false,
+            cert_path: Some(cert_path.to_owned()),
+            key_path: Some(key_path.to_owned()),
+            client_ca_path: None,
+        };
+        let app = Router::new().route("/tls-smoke", get(|| async { "tls-ok" }));
+        let server = tokio::spawn(async move {
+            super::serve_listener_with_state(listener, app, &tls)
+                .await
+                .unwrap_or_else(|error| panic!("TLS listener should serve: {error}"));
+        });
+
+        let url = format!("https://{addr}/tls-smoke");
+        let body = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .unwrap_or_else(|error| panic!("test client should build: {error}"))
+            .get(url)
+            .send()
+            .await
+            .unwrap_or_else(|error| panic!("TLS request should succeed: {error}"))
+            .text()
+            .await
+            .unwrap_or_else(|error| panic!("TLS response body should read: {error}"));
+        assert_eq!(body, "tls-ok");
+        server.abort();
+    }
 
     struct MockOidcProvider {
         issuer: String,
@@ -1149,7 +1260,7 @@ mod tests {
         assert_eq!(json["data"]["worker_tunnel"]["ca_configured"], false);
         assert_eq!(
             json["data"]["worker_tunnel"]["listener_mode"],
-            "tls_pending_listener"
+            "tls_config_error"
         );
         assert_eq!(json["data"]["ready"], false);
         assert!(
@@ -1167,8 +1278,10 @@ mod tests {
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         let mut wired_security = tikee_config::TransportSecurityConfig::default();
         wired_security.http.tls_enabled = true;
-        wired_security.http.cert_path = Some("/certs/http.crt".to_owned());
-        wired_security.http.key_path = Some("/certs/http.key".to_owned());
+        wired_security.http.cert_path =
+            Some(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/tls/server.crt").to_owned());
+        wired_security.http.key_path =
+            Some(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/tls/server.key").to_owned());
         let app = router_with_state(
             AppState::new(
                 JobRepository::new(db.clone()),
@@ -1194,13 +1307,10 @@ mod tests {
             .unwrap_or_else(|error| panic!("body should collect: {error}"));
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
-        assert_eq!(
-            json["data"]["http"]["listener_mode"],
-            "tls_pending_listener"
-        );
+        assert_eq!(json["data"]["http"]["listener_mode"], "tls");
         assert_eq!(json["data"]["http"]["cert_configured"], true);
         assert_eq!(json["data"]["http"]["key_configured"], true);
-        assert_eq!(json["data"]["ready"], false);
+        assert_eq!(json["data"]["ready"], true);
     }
 
     #[tokio::test]

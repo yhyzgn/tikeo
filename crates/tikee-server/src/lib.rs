@@ -9,6 +9,7 @@ pub mod http;
 pub mod observability;
 pub mod server;
 pub mod tikee;
+pub mod transport_security;
 pub mod tunnel;
 
 use anyhow::Result;
