@@ -2296,7 +2296,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
 
 - [x] OIDC 外部 subject → 本地 user/role/tenant 映射，并签发 tikee opaque session（122：provider token 不成为本地登录态；`auth_sessions` + moka 仍是唯一登录态来源；OIDC scope binding 可限制 namespace/app/worker_pool）。
 - [x] 真实 HTTP 与 Worker Tunnel TLS/mTLS listener、证书 reload/rotation、启动诊断和失败回滚（123：HTTP 新连接重载证书；Worker Tunnel 启动加载 TLS/mTLS；启动与 `/security/transport` 均 fail-closed 报告证书配置错误）。
-- [ ] Worker 身份与会话生命周期治理（K8s/Docker 与裸机/VM/systemd 同等支持；Logical Worker / Session / generation / fencing token / lost reason 分层）。
+- [x] Worker 身份与会话生命周期治理（K8s/Docker 与裸机/VM/systemd 同等支持；Logical Worker / Session / generation / fencing token / lost reason 分层）。
   - [x] Slice A 内存态 session generation/fencing 基础（124：`WorkerRegistered` 返回 generation/fencing_token；Heartbeat 携带并校验；同 logical key 重注册会将旧 session 标记为 `replaced_by_new_generation`，调度与 `/workers` 只使用最新 online generation；Rust/Java SDK 已对齐 heartbeat fencing 字段）。
   - [x] Slice B 持久化 `worker_logical_instances` / `worker_sessions` / `worker_session_events`，注册/替换/心跳写入持久层，启动迁移兼容旧 SQLite 库。
   - [x] Slice C lease scanner：过期 online session 持久标记为 `offline / lease_expired_unknown`，写入 `lease_expired` 事件，不将 heartbeat timeout 误判为 crash。

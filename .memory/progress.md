@@ -1098,3 +1098,8 @@ Verification evidence:
 - 告警投递状态 API 增强为返回脱敏 target 与 transport security；新增 `GET /api/v1/alert-delivery-attempts:queue-status` 汇总 delivered/retry_pending/dead_letter/retry_consumed 并返回最近 DLQ。
 - Web 新增“告警投递”运维页面，展示 retry/DLQ 汇总与最近 DLQ 明细；Compose/systemd env 模板补充 `TIKEE_ALERT_SECRET_` secret ref 约定。
 - 验证：`cargo test -p tikee-server alert::`、`cargo test -p tikee-server http::tests::alert`、`cargo test -p tikee-config --lib`、`cargo clippy -p tikee-server --all-targets --all-features -- -D warnings`、`cargo clippy -p tikee-config --all-targets --all-features -- -D warnings`、`cd web && bun run typecheck && bun run lint && bun test src/pages/__tests__/AlertDeliveryPage.test.tsx`。
+
+## 2026-05-25 P0 completion checkpoint
+
+- P0 服务使用 / 生产上线阻塞项全部完成：OIDC opaque session、HTTP/Worker Tunnel TLS/mTLS、Worker 身份与会话生命周期治理、部署运维 bootstrap、生产告警投递硬化均已落地并提交。
+- 按用户要求 P0 完成后停止，不自动进入 P1/P2。
