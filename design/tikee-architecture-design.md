@@ -454,7 +454,8 @@ examples/
 - Rust SDK 已按规范迁移到 `sdks/rust/tikee`，Cargo workspace 已同步调整。
 - 根 `Dockerfile` 只构建 tikee 服务端镜像，不复制、不缓存、不构建 `sdks/` 与 `examples/`；SDK 与 Demo 必须作为独立构建产物验证。
 - 独立发布约束：每个 SDK 必须可按语言生态独立发布；Rust SDK 不能依赖服务端 `crates/*` path dependency，必须内聚协议定义或依赖已发布协议包。
-- Worker 注册约束：`worker_id` 必须由服务端生成并在 `WorkerRegistered` 下发；客户端只能上报可选 `client_instance_id` 作为实例提示，不能自行声明权威 ID。
+- Worker 注册约束：`worker_id` 必须由服务端生成并在 `WorkerRegistered` 下发；客户端只能上报可选 `client_instance_id` 作为实例提示，不能自行声明权威 ID。`worker_id` 语义上代表一次具体 Worker Tunnel session/incarnation，而不是长期稳定机器 ID。
+- Worker 身份生命周期约束：生产环境需要区分 Worker Pool、Logical Worker Instance（`namespace/app/cluster/region/client_instance_id`）和 Worker Session（`worker_id/generation/fencing_token`）。失联判定必须按证据分级，心跳超时只能标记为租约过期/原因未确认，不能直接断言异常宕机。完整方案见 `design/worker-identity-lifecycle-design.md`。
 - Worker 分发约束：`DispatchTask.processor_name` 是 SDK 侧处理器路由的显式字段；Job 定义与 Workflow job/map 节点均支持显式 `processor_name` 绑定，dispatcher 优先使用节点绑定，其次使用 Job 绑定，最后仅为历史数据回退到 `job_id`。
 - Node 目录统一命名为 `nodejs`，避免和通用 node/graph 概念混淆。
 - 代码组织约束：所有 Rust server/crates、Web、SDK 和 demo 默认按职责拆分模块；禁止让单个源文件持续膨胀，新增功能若使文件明显变大，必须同步拆到按功能命名的模块文件中。
@@ -2297,6 +2298,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
 - [ ] 任务依赖自动发现与拓扑可视化
 - [ ] 智能调度 (基于历史数据的资源预测)
 - [ ] 多租户隔离增强
+- [ ] Worker 身份与会话生命周期治理（Worker Pool / Logical Worker / Worker Session 三层身份；generation + fencing token；graceful/replaced/heartbeat_timeout 证据分级；历史归档与 Worker UI 分层，详见 `design/worker-identity-lifecycle-design.md`）
 - [ ] 插件系统 (自定义处理器类型、告警通道)
 - [ ] Terraform Provider
 - [ ] Webhook 入站/出站
@@ -2310,6 +2312,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
 | 能力 | 说明 | 所属阶段 |
 |------|------|----------|
 | Worker 主动连接公共服务 | 无业务入站端口，Server/Worker 可分离部署到不同容器、namespace、集群、VPC；反向调用复用 Worker tunnel 穿透多级网络 | Phase 1-2 |
+| Worker 身份与会话生命周期治理 | 将 Worker Pool、Logical Worker Instance 和 Worker Session 分层；用 generation/fencing token 处理重启、替换、掉线和历史归档，避免 K8s/Docker 高频重启污染在线视图 | Phase 4 |
 | GitOps/IaC | YAML、K8s CRD、Terraform Provider、PR diff、变更审计 | Phase 4 |
 | 任务版本与灰度 | Job version、canary、按 worker tag 灰度、失败自动回滚 | Phase 4 |
 | 调度仿真 | 变更前模拟未来 N 次触发、misfire 结果、资源占用 | Phase 4 |

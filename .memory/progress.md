@@ -961,3 +961,9 @@ Verification evidence:
 - RED starter test failed before `TikeeWorkerLifecycle` existed, then passed after implementation.
 - `rtk bash -lc 'cd sdks/java && ./gradlew :tikee-spring-boot-starter:test --warning-mode all --no-daemon'` passed.
 - Phase120 Java verification passed: `rtk bash -lc 'set -euo pipefail; cd sdks/java; ./gradlew test --warning-mode all --no-daemon; cd ../../examples/java/spring-worker-demo; ./gradlew build --warning-mode all --no-daemon'`.
+
+### 2026-05-24 — Worker identity lifecycle design
+- Added `design/worker-identity-lifecycle-design.md` to separate the production design for Worker Pool / Logical Worker / Worker Session identity, status reason evidence, generation fencing, lease expiry, replacement, graceful shutdown, history retention, UI layering, and SDK defaults.
+- Updated the architecture design with the `worker_id` session/incarnation semantics and added Worker identity/session lifecycle governance to the Phase 4 roadmap and innovation capability table.
+Verification evidence:
+- Documentation-only change reviewed with `rtk git diff --check`.
