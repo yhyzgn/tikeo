@@ -6,7 +6,7 @@
 - Resume Phase 3 with the next production gap that can be made locally verifiable without pulling Phase 4 scope back in.
 
 ## Remaining production follow-ups intentionally not marked complete
-- OIDC JWKS validation, nonce/state persistence, user mapping, and session issuance.
+- OIDC JWT signature/claims validation, nonce/state persistence, user mapping, and session issuance.
 - Real HTTP and Worker Tunnel TLS/mTLS listeners and certificate reload/rotation.
 - Full multi-level script approval state machine, verified signatures/KMS, production release gates, and URL/File/Secret grants.
 - Remaining alert delivery hardening: production SMTP TLS/auth/secret handling and live provider smoke for external SMTP/Slack/DingTalk/Feishu/WeCom/PagerDuty endpoints.

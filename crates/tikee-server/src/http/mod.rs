@@ -486,6 +486,121 @@ mod tests {
 
     use super::{AppState, router_with_state};
 
+    struct MockOidcProvider {
+        issuer: String,
+        token_hits: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+        discovery_hits: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+        jwks_hits: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+        server: tokio::task::JoinHandle<()>,
+    }
+
+    async fn spawn_mock_oidc_provider() -> MockOidcProvider {
+        let token_hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let discovery_hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let jwks_hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let app = mock_oidc_router(
+            token_hits.clone(),
+            discovery_hits.clone(),
+            jwks_hits.clone(),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .unwrap_or_else(|error| panic!("mock OIDC listener should bind: {error}"));
+        let base_url = format!(
+            "http://{}",
+            listener
+                .local_addr()
+                .unwrap_or_else(|error| panic!("mock OIDC addr should resolve: {error}"))
+        );
+        let issuer = format!("{base_url}/realms/tikee");
+        let app = app.with_state(base_url);
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .unwrap_or_else(|error| panic!("mock OIDC server should run: {error}"));
+        });
+        MockOidcProvider {
+            issuer,
+            token_hits,
+            discovery_hits,
+            jwks_hits,
+            server,
+        }
+    }
+
+    fn mock_oidc_router(
+        token_hits: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+        discovery_hits: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+        jwks_hits: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    ) -> axum::Router<String> {
+        axum::Router::new()
+            .route(
+                "/realms/tikee/protocol/openid-connect/token",
+                axum::routing::post(
+                    move |axum::Form(form): axum::Form<
+                        std::collections::HashMap<String, String>,
+                    >| {
+                        let token_hits = token_hits.clone();
+                        async move {
+                            assert_eq!(
+                                form.get("grant_type").map(String::as_str),
+                                Some("authorization_code")
+                            );
+                            assert_eq!(form.get("code").map(String::as_str), Some("mock-code"));
+                            assert_eq!(
+                                form.get("client_id").map(String::as_str),
+                                Some("tikee-web")
+                            );
+                            assert_eq!(
+                                form.get("client_secret").map(String::as_str),
+                                Some("super-secret")
+                            );
+                            token_hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                            axum::Json(serde_json::json!({
+                                "access_token": "access",
+                                "id_token": "unsigned.id.token",
+                                "token_type": "Bearer"
+                            }))
+                        }
+                    },
+                ),
+            )
+            .route(
+                "/realms/tikee/.well-known/openid-configuration",
+                axum::routing::get(
+                    move |axum::extract::State(base_url): axum::extract::State<String>| {
+                        let discovery_hits = discovery_hits.clone();
+                        async move {
+                            discovery_hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                            axum::Json(serde_json::json!({
+                                "issuer": format!("{base_url}/realms/tikee"),
+                                "jwks_uri": format!("{base_url}/realms/tikee/protocol/openid-connect/certs")
+                            }))
+                        }
+                    },
+                ),
+            )
+            .route(
+                "/realms/tikee/protocol/openid-connect/certs",
+                axum::routing::get(move || {
+                    let jwks_hits = jwks_hits.clone();
+                    async move {
+                        jwks_hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        axum::Json(serde_json::json!({
+                            "keys": [{
+                                "kty": "RSA",
+                                "kid": "mock-key",
+                                "use": "sig",
+                                "alg": "RS256",
+                                "n": "00",
+                                "e": "AQAB"
+                            }]
+                        }))
+                    }
+                }),
+            )
+    }
+
     #[tokio::test]
     async fn healthz_returns_ok() {
         let json = get_json("/healthz").await;
@@ -676,56 +791,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn oidc_callback_exchanges_code_before_failing_closed_on_unverified_id_token() {
-        let token_hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let token_hits_for_route = token_hits.clone();
-        let token_server = axum::Router::new().route(
-            "/realms/tikee/protocol/openid-connect/token",
-            axum::routing::post(
-                move |axum::Form(form): axum::Form<std::collections::HashMap<String, String>>| {
-                    let token_hits = token_hits_for_route.clone();
-                    async move {
-                        assert_eq!(
-                            form.get("grant_type").map(String::as_str),
-                            Some("authorization_code")
-                        );
-                        assert_eq!(form.get("code").map(String::as_str), Some("mock-code"));
-                        assert_eq!(form.get("client_id").map(String::as_str), Some("tikee-web"));
-                        assert_eq!(
-                            form.get("client_secret").map(String::as_str),
-                            Some("super-secret")
-                        );
-                        token_hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                        axum::Json(serde_json::json!({
-                            "access_token": "access",
-                            "id_token": "unsigned.id.token",
-                            "token_type": "Bearer"
-                        }))
-                    }
-                },
-            ),
-        );
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .unwrap_or_else(|error| panic!("mock OIDC token listener should bind: {error}"));
-        let issuer = format!(
-            "http://{}/realms/tikee",
-            listener
-                .local_addr()
-                .unwrap_or_else(|error| panic!("mock OIDC addr should resolve: {error}"))
-        );
-        let server = tokio::spawn(async move {
-            axum::serve(listener, token_server)
-                .await
-                .unwrap_or_else(|error| panic!("mock OIDC token server should run: {error}"));
-        });
-
+    async fn oidc_callback_exchanges_code_and_fetches_jwks_before_failing_closed() {
+        let mock = spawn_mock_oidc_provider().await;
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         let mut auth = tikee_config::AuthConfig::default();
         auth.oidc.enabled = true;
-        auth.oidc.issuer_url = Some(issuer);
+        auth.oidc.issuer_url = Some(mock.issuer.clone());
         auth.oidc.client_id = Some("tikee-web".to_owned());
         auth.oidc.client_secret = Some("super-secret".to_owned());
         let app = router_with_state(
@@ -765,10 +838,16 @@ mod tests {
         assert!(
             json["message"]
                 .as_str()
-                .is_some_and(|value| value.contains("JWKS validation"))
+                .is_some_and(|value| value.contains("signature verification"))
         );
-        assert_eq!(token_hits.load(std::sync::atomic::Ordering::SeqCst), 1);
-        server.abort();
+        assert_eq!(mock.token_hits.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(
+            mock.discovery_hits
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
+        assert_eq!(mock.jwks_hits.load(std::sync::atomic::Ordering::SeqCst), 1);
+        mock.server.abort();
     }
 
     #[tokio::test]

@@ -5,6 +5,7 @@
 //! wired, so the server never creates a session from unverified provider data.
 
 use serde::Deserialize;
+use serde_json::Value;
 use url::Url;
 
 use super::error::ApiError;
@@ -36,6 +37,20 @@ pub struct OidcCallbackQuery {
 pub struct OidcTokenResponse {
     /// Provider-issued ID token that still requires signature/JWKS validation.
     pub id_token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OidcDiscoveryDocument {
+    jwks_uri: Option<String>,
+}
+
+/// Minimal JWKS metadata fetched before local signature verification can proceed.
+#[derive(Debug, Clone)]
+pub struct OidcJwks {
+    /// Raw JWKS document.
+    pub document: Value,
+    /// Number of keys in the key set.
+    pub key_count: usize,
 }
 
 /// Build the configured provider token endpoint URL.
@@ -85,4 +100,74 @@ pub async fn exchange_authorization_code(
         .json::<OidcTokenResponse>()
         .await
         .map_err(|error| ApiError::bad_request(format!("OIDC token response is invalid: {error}")))
+}
+
+/// Discover the provider JWKS URI from the standard `OpenID` Provider Configuration document.
+///
+/// # Errors
+///
+/// Returns a bad request when discovery fails or the provider omits `jwks_uri`.
+pub async fn discover_jwks_uri(issuer: &str) -> Result<Url, ApiError> {
+    let discovery_url = Url::parse(&format!(
+        "{}/.well-known/openid-configuration",
+        issuer.trim_end_matches('/')
+    ))
+    .map_err(|_| ApiError::bad_request("auth.oidc.issuer_url must be a valid URL"))?;
+    let response = reqwest::Client::new()
+        .get(discovery_url)
+        .send()
+        .await
+        .map_err(|error| ApiError::bad_request(format!("OIDC discovery failed: {error}")))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(ApiError::bad_request(format!(
+            "OIDC discovery rejected with status {status}"
+        )));
+    }
+    let discovery = response
+        .json::<OidcDiscoveryDocument>()
+        .await
+        .map_err(|error| {
+            ApiError::bad_request(format!("OIDC discovery response is invalid: {error}"))
+        })?;
+    let jwks_uri = discovery
+        .jwks_uri
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| ApiError::bad_request("OIDC discovery response missing jwks_uri"))?;
+    Url::parse(jwks_uri)
+        .map_err(|_| ApiError::bad_request("OIDC discovery jwks_uri must be a valid URL"))
+}
+
+/// Fetch the provider JWKS document.
+///
+/// # Errors
+///
+/// Returns a bad request when the key set cannot be fetched or is empty.
+pub async fn fetch_jwks(jwks_uri: Url) -> Result<OidcJwks, ApiError> {
+    let response = reqwest::Client::new()
+        .get(jwks_uri)
+        .send()
+        .await
+        .map_err(|error| ApiError::bad_request(format!("OIDC JWKS fetch failed: {error}")))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(ApiError::bad_request(format!(
+            "OIDC JWKS fetch rejected with status {status}"
+        )));
+    }
+    let document = response.json::<Value>().await.map_err(|error| {
+        ApiError::bad_request(format!("OIDC JWKS response is invalid: {error}"))
+    })?;
+    let key_count = document
+        .get("keys")
+        .and_then(Value::as_array)
+        .map_or(0, Vec::len);
+    if key_count == 0 {
+        return Err(ApiError::bad_request("OIDC JWKS response contains no keys"));
+    }
+    Ok(OidcJwks {
+        document,
+        key_count,
+    })
 }

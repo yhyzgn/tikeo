@@ -915,3 +915,13 @@ Verification evidence:
 - Targeted OIDC tests and tikee-server clippy passed via RTK.
 
 - Phase116 full verification passed: rtk bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features && cargo run -- --help >/tmp/tikee-help.out && cargo test --manifest-path sdks/rust/tikee/Cargo.toml && cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm && cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings && cd web && bun run lint && bun run typecheck && bun test && bun run build && cd ../sdks/java && ./gradlew test --warning-mode all --no-daemon'
+
+### 2026-05-24 — Phase 117 OIDC JWKS discovery boundary
+- Added OIDC provider discovery and JWKS retrieval after authorization-code token exchange.
+- Callback now requires provider discovery `jwks_uri` plus a non-empty key set, but still fails closed before trusting `id_token` signatures or creating sessions.
+- Extended the mock IdP regression test to prove token, discovery, and JWKS endpoints are each reached once while preserving the `{ code, message, data }` failure envelope.
+- Remaining OIDC gap: JWT header/kid selection, signature/issuer/audience/nonce/expiry claims validation, user/role/tenant mapping, and session issuance.
+Verification evidence:
+- Targeted OIDC tests and tikee-server clippy passed via RTK.
+
+- Phase117 full verification passed: rtk bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features && cargo run -- --help >/tmp/tikee-help.out && cargo test --manifest-path sdks/rust/tikee/Cargo.toml && cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm && cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings && cd web && bun run lint && bun run typecheck && bun test && bun run build && cd ../sdks/java && ./gradlew test --warning-mode all --no-daemon'

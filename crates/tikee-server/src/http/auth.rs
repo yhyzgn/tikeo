@@ -507,10 +507,12 @@ pub async fn oidc_callback(
     )
     .await?;
     configured_value(token.id_token.as_ref(), "OIDC token response id_token")?;
+    let jwks = super::oidc::fetch_jwks(super::oidc::discover_jwks_uri(issuer).await?).await?;
 
-    Err(ApiError::bad_request(
-        "OIDC id_token verification and JWKS validation are not yet enabled; no session was created",
-    ))
+    Err(ApiError::bad_request(format!(
+        "OIDC id_token signature verification is not yet enabled after fetching {key_count} JWKS key(s); no session was created",
+        key_count = jwks.key_count
+    )))
 }
 
 fn configured_value<'a>(value: Option<&'a String>, field: &str) -> Result<&'a str, ApiError> {
