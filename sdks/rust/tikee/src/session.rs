@@ -9,7 +9,8 @@ use crate::{
     error::WorkerSdkError,
     proto::worker::v1::{
         DispatchTask, Heartbeat, Ping, ScriptProcessorBinding, ServerMessage, TaskLog, TaskResult,
-        WorkerMessage, WorkerRegistered, server_message, task_processor_binding, worker_message,
+        UnregisterWorker, WorkerMessage, WorkerRegistered, server_message, task_processor_binding,
+        worker_message,
         worker_tunnel_service_client::WorkerTunnelServiceClient,
     },
     script::{ScriptRunnerKind, ScriptRunnerPolicy, ScriptRunnerRegistry, ScriptRunnerTask},
@@ -89,6 +90,24 @@ impl WorkerSession {
             ticker.tick().await;
             self.heartbeat().await?;
         }
+    }
+
+    /// Gracefully unregister this worker session before closing the tunnel.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the tunnel is already closed before the unregister message is queued.
+    pub async fn close(self) -> Result<(), WorkerSdkError> {
+        self.outbound
+            .send(WorkerMessage {
+                kind: Some(worker_message::Kind::Unregister(UnregisterWorker {
+                    worker_id: self.worker_id,
+                    generation: self.generation,
+                    fencing_token: self.fencing_token,
+                })),
+            })
+            .await
+            .map_err(|_| WorkerSdkError::TunnelClosed)
     }
 
     /// Emit one task log through the worker tunnel.

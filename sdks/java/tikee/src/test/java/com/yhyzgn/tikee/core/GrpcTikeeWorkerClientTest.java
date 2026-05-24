@@ -67,6 +67,45 @@ class GrpcTikeeWorkerClientTest {
             assertTrue(service.messages.stream()
                     .filter(Worker.WorkerMessage::hasTaskLog)
                     .anyMatch(message -> "assigned-java-worker".equals(message.getTaskLog().getWorkerId())));
+            assertTrue(service.messages.stream()
+                    .filter(Worker.WorkerMessage::hasUnregister)
+                    .anyMatch(message -> "assigned-java-worker".equals(message.getUnregister().getWorkerId())
+                            && message.getUnregister().getGeneration() == 1
+                            && "java-fencing-token".equals(message.getUnregister().getFencingToken())));
+        } finally {
+            channel.shutdownNow();
+            server.shutdownNow();
+        }
+    }
+
+    @Test
+    void closeSendsGracefulUnregisterWithGenerationAndFencingToken() throws Exception {
+        String serverName = "tikee-worker-test-" + UUID.randomUUID();
+        RecordingTunnelService service = new RecordingTunnelService();
+        Server server = InProcessServerBuilder.forName(serverName)
+                .directExecutor()
+                .addService(service)
+                .build()
+                .start();
+        ManagedChannel channel = InProcessChannelBuilder.forName(serverName).directExecutor().build();
+        try {
+            GrpcTikeeWorkerClient client = new GrpcTikeeWorkerClient(
+                    channel,
+                    false,
+                    new WorkerRegistration("java-instance-stop", "default", "billing", "local", "local", List.of(), Map.of()),
+                    context -> TaskOutcome.succeeded(),
+                    Duration.ofSeconds(60),
+                    Duration.ofSeconds(2),
+                    ignored -> {});
+
+            client.start();
+            client.close();
+            service.awaitUnregister();
+
+            Worker.UnregisterWorker unregister = service.unregister.get();
+            assertEquals("assigned-java-worker", unregister.getWorkerId());
+            assertEquals(1, unregister.getGeneration());
+            assertEquals("java-fencing-token", unregister.getFencingToken());
         } finally {
             channel.shutdownNow();
             server.shutdownNow();
@@ -237,7 +276,9 @@ class GrpcTikeeWorkerClientTest {
         private final Worker.DispatchTask dispatchTask;
         private final CountDownLatch messageLatch = new CountDownLatch(3);
         private final CountDownLatch resultLatch = new CountDownLatch(1);
+        private final CountDownLatch unregisterLatch = new CountDownLatch(1);
         private final AtomicReference<Worker.TaskResult> result = new AtomicReference<>();
+        private final AtomicReference<Worker.UnregisterWorker> unregister = new AtomicReference<>();
 
         private RecordingTunnelService() {
             this(null);
@@ -280,6 +321,10 @@ class GrpcTikeeWorkerClientTest {
                         result.set(message.getTaskResult());
                         resultLatch.countDown();
                     }
+                    if (message.hasUnregister()) {
+                        unregister.set(message.getUnregister());
+                        unregisterLatch.countDown();
+                    }
                 }
 
                 @Override
@@ -311,6 +356,10 @@ class GrpcTikeeWorkerClientTest {
 
         private void awaitResult() throws InterruptedException {
             assertTrue(resultLatch.await(2, TimeUnit.SECONDS));
+        }
+
+        private void awaitUnregister() throws InterruptedException {
+            assertTrue(unregisterLatch.await(2, TimeUnit.SECONDS));
         }
     }
 }

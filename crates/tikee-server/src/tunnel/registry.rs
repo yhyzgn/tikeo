@@ -183,6 +183,63 @@ impl WorkerRegistry {
             .await;
     }
 
+    /// Gracefully unregister a current worker session.
+    pub async fn unregister(
+        &self,
+        worker_id: &str,
+        generation: u64,
+        fencing_token: &str,
+    ) -> Option<RegisteredWorker> {
+        let stopped = self
+            .stop_in_memory_worker(worker_id, generation, fencing_token)
+            .await?;
+        self.persist_unregister(&stopped, generation, fencing_token)
+            .await;
+        Some(stopped)
+    }
+
+    async fn stop_in_memory_worker(
+        &self,
+        worker_id: &str,
+        generation: u64,
+        fencing_token: &str,
+    ) -> Option<RegisteredWorker> {
+        let stopped = {
+            let mut workers = self.workers.write().await;
+            let worker = workers.get_mut(worker_id)?;
+            if !worker.accepts_heartbeat(generation, fencing_token) {
+                metrics::counter!("tikee_worker_stale_messages_total", "kind" => "unregister")
+                    .increment(1);
+                return None;
+            }
+            worker.status = WorkerSessionStatus::Stopped;
+            worker.status_reason = Some("graceful_shutdown".to_owned());
+            worker.status_evidence = Some("worker sent graceful unregister".to_owned());
+            let stopped = worker.clone();
+            drop(workers);
+            stopped
+        };
+        Some(stopped)
+    }
+
+    async fn persist_unregister(
+        &self,
+        worker: &RegisteredWorker,
+        generation: u64,
+        fencing_token: &str,
+    ) {
+        let Some(lifecycle) = self.lifecycle.as_ref() else {
+            return;
+        };
+        let _ = lifecycle
+            .graceful_unregister(
+                &worker.worker_id,
+                i64::try_from(generation).unwrap_or(i64::MAX),
+                fencing_token,
+            )
+            .await;
+    }
+
     /// Return a worker by id.
     pub async fn get(&self, worker_id: &str) -> Option<RegisteredWorker> {
         self.workers.read().await.get(worker_id).cloned()
@@ -366,6 +423,8 @@ pub enum WorkerSessionStatus {
     Online,
     /// Session was superseded by a newer generation for the same logical instance.
     Replaced,
+    /// Worker sent a graceful unregister before closing the tunnel.
+    Stopped,
 }
 
 impl WorkerSessionStatus {
@@ -375,6 +434,7 @@ impl WorkerSessionStatus {
         match self {
             Self::Online => "online",
             Self::Replaced => "replaced",
+            Self::Stopped => "stopped",
         }
     }
 }

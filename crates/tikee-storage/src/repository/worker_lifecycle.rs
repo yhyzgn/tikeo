@@ -12,9 +12,12 @@ const STATUS_ACTIVE: &str = "active";
 const STATUS_ONLINE: &str = "online";
 const STATUS_REPLACED: &str = "replaced";
 const STATUS_OFFLINE: &str = "offline";
+const STATUS_STOPPED: &str = "stopped";
+const STATUS_INACTIVE: &str = "inactive";
 const STATUS_DEGRADED: &str = "degraded";
 const REASON_REPLACED: &str = "replaced_by_new_generation";
 const REASON_LEASE_EXPIRED_UNKNOWN: &str = "lease_expired_unknown";
+const REASON_GRACEFUL_SHUTDOWN: &str = "graceful_shutdown";
 
 /// Input for creating a new ephemeral worker session under a logical worker instance.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -193,6 +196,65 @@ impl WorkerLifecycleRepository {
             updated,
             Some(input.worker_id),
         )))
+    }
+
+    /// Mark a current fenced session as gracefully stopped.
+    pub async fn graceful_unregister(
+        &self,
+        worker_id: &str,
+        generation: i64,
+        fencing_token: &str,
+    ) -> Result<Option<WorkerSessionSummary>, sea_orm::DbErr> {
+        let Some(session) = self.get_session_model(worker_id).await? else {
+            return Ok(None);
+        };
+        let heartbeat = WorkerHeartbeat {
+            worker_id: worker_id.to_owned(),
+            generation,
+            fencing_token: fencing_token.to_owned(),
+            sequence: session.last_sequence,
+            lease_seconds: 0,
+        };
+        if !session_accepts_heartbeat(&session, &heartbeat) {
+            self.record_event(
+                &session.worker_id,
+                &session.logical_instance_id,
+                "stale_worker_message",
+                Some("unregister_fenced"),
+                None,
+                &now_rfc3339(),
+            )
+            .await?;
+            return Ok(None);
+        }
+        let Some(logical) =
+            worker_logical_instance::Entity::find_by_id(&session.logical_instance_id)
+                .one(&self.db)
+                .await?
+        else {
+            return Ok(None);
+        };
+        if logical.current_worker_id.as_deref() != Some(session.worker_id.as_str())
+            || logical.current_generation != session.generation
+        {
+            return Ok(None);
+        }
+
+        let now = now_rfc3339();
+        let logical_instance_id = session.logical_instance_id.clone();
+        let updated = self.mark_session_gracefully_stopped(session, &now).await?;
+        self.mark_logical_inactive_if_current(&logical_instance_id, worker_id, &now)
+            .await?;
+        self.record_event(
+            worker_id,
+            &logical_instance_id,
+            "graceful_shutdown",
+            Some(REASON_GRACEFUL_SHUTDOWN),
+            None,
+            &now,
+        )
+        .await?;
+        Ok(Some(WorkerSessionSummary::from_model(updated, None)))
     }
 
     /// Mark expired online sessions as offline with evidence-limited unknown lease expiry reason.
@@ -382,6 +444,44 @@ impl WorkerLifecycleRepository {
         active.last_seen_at = Set(now.to_owned());
         active.updated_at = Set(now.to_owned());
         active.update(&self.db).await
+    }
+
+    async fn mark_session_gracefully_stopped(
+        &self,
+        session: worker_session::Model,
+        now: &str,
+    ) -> Result<worker_session::Model, sea_orm::DbErr> {
+        let mut active = session.into_active_model();
+        active.status = Set(STATUS_STOPPED.to_owned());
+        active.status_reason = Set(Some(REASON_GRACEFUL_SHUTDOWN.to_owned()));
+        active.status_evidence = Set(Some(
+            "worker sent graceful unregister before closing tunnel".to_owned(),
+        ));
+        active.disconnected_at = Set(Some(now.to_owned()));
+        active.updated_at = Set(now.to_owned());
+        active.update(&self.db).await
+    }
+
+    async fn mark_logical_inactive_if_current(
+        &self,
+        logical_instance_id: &str,
+        worker_id: &str,
+        now: &str,
+    ) -> Result<(), sea_orm::DbErr> {
+        let Some(logical) = worker_logical_instance::Entity::find_by_id(logical_instance_id)
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(());
+        };
+        if logical.current_worker_id.as_deref() != Some(worker_id) {
+            return Ok(());
+        }
+        let mut active = logical.into_active_model();
+        active.status = Set(STATUS_INACTIVE.to_owned());
+        active.updated_at = Set(now.to_owned());
+        active.update(&self.db).await?;
+        Ok(())
     }
 
     async fn mark_session_lease_expired(

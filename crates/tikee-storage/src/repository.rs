@@ -184,6 +184,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn worker_lifecycle_graceful_unregister_stops_current_session_with_evidence() {
+        use crate::repository::{RegisterWorkerSession, WorkerLifecycleRepository};
+
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let repository = WorkerLifecycleRepository::new(db);
+        let registered = repository
+            .register_session(RegisterWorkerSession {
+                worker_id: "wrk-stop".to_owned(),
+                namespace_name: "finance".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "prod".to_owned(),
+                region: "cn".to_owned(),
+                client_instance_id: "host-a#slot-1".to_owned(),
+                connection_id: "conn-stop".to_owned(),
+                fencing_token: "token-stop".to_owned(),
+                lease_seconds: 30,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("session should persist: {error}"));
+
+        let stopped = repository
+            .graceful_unregister(&registered.worker_id, registered.generation, "token-stop")
+            .await
+            .unwrap_or_else(|error| panic!("graceful unregister should run: {error}"))
+            .unwrap_or_else(|| panic!("current fenced session should stop"));
+
+        assert_eq!(stopped.status, "stopped");
+        assert_eq!(stopped.status_reason.as_deref(), Some("graceful_shutdown"));
+        let session = repository
+            .get_session(&registered.worker_id)
+            .await
+            .unwrap_or_else(|error| panic!("stopped session should load: {error}"))
+            .unwrap_or_else(|| panic!("stopped session should exist"));
+        assert_eq!(session.status, "stopped");
+        let events = repository
+            .list_session_events(&registered.worker_id)
+            .await
+            .unwrap_or_else(|error| panic!("events should load: {error}"));
+        assert!(
+            events
+                .iter()
+                .any(|event| event.event_type == "graceful_shutdown"
+                    && event.reason.as_deref() == Some("graceful_shutdown"))
+        );
+    }
+
+    #[tokio::test]
     async fn worker_lifecycle_marks_expired_online_sessions_unknown_without_calling_them_crashes() {
         use crate::repository::{RegisterWorkerSession, WorkerLifecycleRepository};
 

@@ -13,6 +13,7 @@ message WorkerMessage {
     Heartbeat heartbeat = 2;
     TaskResult task_result = 3;
     TaskLog task_log = 4;
+    UnregisterWorker unregister = 5;
   }
 }
 
@@ -47,6 +48,12 @@ message WorkerRegistered {
   uint64 lease_seconds = 2;
   uint64 generation = 3;
   string fencing_token = 4;
+}
+
+message UnregisterWorker {
+  string worker_id = 1;
+  uint64 generation = 2;
+  string fencing_token = 3;
 }
 
 message Ping {

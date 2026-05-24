@@ -1040,3 +1040,20 @@ Verification evidence:
 - RED storage test failed before `mark_expired_online_sessions` existed, then passed.
 - `rtk cargo clippy -p tikee-server --all-targets --all-features -- -D warnings` passed after extracting `run_worker_lease_scanner` instead of adding a too-many-lines allow.
 - `rtk cargo test -p tikee-storage worker_lifecycle --all-features` passed.
+
+
+### 2026-05-25 — P0 Worker lifecycle Slice D: graceful unregister across Rust and Java SDKs
+- Added Worker Tunnel `UnregisterWorker` protocol message to server, root proto, Rust SDK proto, and Java SDK proto.
+- Added persistent `WorkerLifecycleRepository::graceful_unregister` to mark current fenced sessions as `stopped / graceful_shutdown` and record a `graceful_shutdown` event.
+- Added `WorkerRegistry::unregister` and server tunnel handling for active worker-initiated unregister messages.
+- Rust `WorkerSession::close()` now sends unregister with worker_id/generation/fencing_token.
+- Java `GrpcTikeeWorkerClient.close()` now sends unregister with worker_id/generation/fencing_token before completing the stream.
+- Kept Java and Rust SDK behavior aligned per user direction.
+Verification evidence:
+- RED storage and Rust SDK close tests failed before implementation, then passed.
+- `rtk cargo clippy -p tikee-server --all-targets --all-features -- -D warnings` passed after splitting the oversized Worker message handler instead of adding allow.
+- `rtk cargo test -p tikee-storage worker_lifecycle --all-features` passed.
+- `rtk cargo test -p tikee-server worker --all-features` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml worker_session_close_sends_graceful_unregister --features wasm` passed.
+- `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
+- `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.core.GrpcTikeeWorkerClientTest --warning-mode all --no-daemon'` passed.

@@ -155,6 +155,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
         heartbeatTask = null;
         StreamObserver<Worker.WorkerMessage> observer = outbound.getAndSet(null);
         if (observer != null) {
+            sendGracefulUnregister(observer);
             observer.onCompleted();
         }
         tikee.shutdownNow();
@@ -162,6 +163,20 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
         if (ownsChannel) {
             channel.shutdownNow();
         }
+    }
+
+    private void sendGracefulUnregister(StreamObserver<Worker.WorkerMessage> observer) {
+        String assignedWorkerId = workerId.get();
+        if (assignedWorkerId == null || assignedWorkerId.isBlank()) {
+            return;
+        }
+        observer.onNext(Worker.WorkerMessage.newBuilder()
+                .setUnregister(Worker.UnregisterWorker.newBuilder()
+                        .setWorkerId(assignedWorkerId)
+                        .setGeneration(generation.get())
+                        .setFencingToken(fencingToken.get())
+                        .build())
+                .build());
     }
 
     private static ManagedChannel channelForEndpoint(String endpoint) {

@@ -262,6 +262,33 @@ async fn worker_client_registers_and_sends_heartbeat() {
     server.abort();
 }
 
+
+#[tokio::test]
+async fn worker_session_close_sends_graceful_unregister() {
+    let (addr, server, mut events) = start_mock_tunnel_server(None).await;
+    let config = WorkerConfig::local(format!("http://{addr}"), "worker-sdk-stop");
+    let session = WorkerClient::new(config)
+        .connect()
+        .await
+        .unwrap_or_else(|error| panic!("worker should register: {error}"));
+
+    session
+        .close()
+        .await
+        .unwrap_or_else(|error| panic!("graceful close should send unregister: {error}"));
+
+    while let Some(message) = events.recv().await {
+        if let Some(worker_message::Kind::Unregister(unregister)) = message.kind {
+            assert_eq!(unregister.worker_id, "mock-worker-sdk-stop");
+            assert_eq!(unregister.generation, 1);
+            assert_eq!(unregister.fencing_token, "mock-fencing-token");
+            server.abort();
+            return;
+        }
+    }
+    panic!("unregister should arrive before the tunnel closes");
+}
+
 #[tokio::test]
 async fn worker_session_processes_dispatched_task_and_reports_result() {
     let (addr, server, mut events) = start_mock_tunnel_server(Some(DispatchTask {
@@ -514,7 +541,9 @@ impl worker_tunnel_service_server::WorkerTunnelService for MockTunnel {
                             .await;
                     }
                     Some(
-                        worker_message::Kind::TaskResult(_) | worker_message::Kind::TaskLog(_),
+                        worker_message::Kind::TaskResult(_)
+                        | worker_message::Kind::TaskLog(_)
+                        | worker_message::Kind::Unregister(_),
                     )
                     | None => {}
                 }

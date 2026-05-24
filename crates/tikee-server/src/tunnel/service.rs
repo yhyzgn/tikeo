@@ -2,8 +2,8 @@
 
 use tikee_core::InstanceStatus;
 use tikee_proto::worker::v1::{
-    Heartbeat, Ping, ServerMessage, SubscribeTaskLogsRequest, TaskLog, TaskResult, WorkerMessage,
-    WorkerRegistered, server_message, worker_message,
+    Heartbeat, Ping, ServerMessage, SubscribeTaskLogsRequest, TaskLog, TaskResult,
+    UnregisterWorker, WorkerMessage, WorkerRegistered, server_message, worker_message,
     worker_tunnel_service_server::WorkerTunnelService,
 };
 use tikee_storage::{
@@ -208,86 +208,18 @@ async fn handle_worker_message(
     message: WorkerMessage,
 ) -> Result<(), mpsc::error::SendError<Result<ServerMessage, Status>>> {
     match message.kind {
-        Some(worker_message::Kind::Register(register)) => {
-            let worker = context
-                .registry
-                .register(register, context.outbound.clone())
-                .await;
-            context
-                .tx
-                .send(Ok(ServerMessage {
-                    kind: Some(server_message::Kind::Registered(WorkerRegistered {
-                        worker_id: worker.worker_id,
-                        lease_seconds: DEFAULT_LEASE_SECONDS,
-                        generation: worker.generation,
-                        fencing_token: worker.fencing_token,
-                    })),
-                }))
-                .await
+        Some(worker_message::Kind::Register(register)) => handle_register(context, register).await,
+        Some(worker_message::Kind::Heartbeat(heartbeat)) => {
+            handle_heartbeat(context, heartbeat).await
         }
-        Some(worker_message::Kind::Heartbeat(Heartbeat {
-            worker_id,
-            sequence,
-            generation,
-            fencing_token,
-        })) => {
-            if context
-                .registry
-                .heartbeat(&worker_id, sequence, generation, &fencing_token)
-                .await
-                .is_some()
-            {
-                context
-                    .tx
-                    .send(Ok(ServerMessage {
-                        kind: Some(server_message::Kind::Ping(Ping { sequence })),
-                    }))
-                    .await
-            } else {
-                context
-                    .tx
-                    .send(Err(Status::failed_precondition(
-                        "stale worker heartbeat rejected",
-                    )))
-                    .await
-            }
+        Some(worker_message::Kind::Unregister(unregister)) => {
+            handle_unregister(context, unregister).await
         }
         Some(worker_message::Kind::TaskResult(result)) => {
             handle_task_result(context, result).await;
             Ok(())
         }
-        Some(worker_message::Kind::TaskLog(log)) => {
-            let TaskLog {
-                worker_id,
-                instance_id,
-                level,
-                message,
-                sequence,
-            } = log;
-            if !context.registry.accepts_worker_message(&worker_id).await {
-                metrics::counter!("tikee_worker_stale_messages_total", "kind" => "task_log")
-                    .increment(1);
-                return Ok(());
-            }
-            match context
-                .logs
-                .append(AppendJobInstanceLog {
-                    instance_id,
-                    worker_id,
-                    level,
-                    message,
-                    sequence,
-                })
-                .await
-            {
-                Ok(Some(saved)) => context
-                    .log_broadcaster
-                    .publish(task_log_from_summary(saved)),
-                Ok(None) => {}
-                Err(error) => tracing::warn!(%error, "failed to persist task log"),
-            }
-            Ok(())
-        }
+        Some(worker_message::Kind::TaskLog(log)) => handle_task_log(context, log).await,
         None => {
             context
                 .tx
@@ -297,6 +229,120 @@ async fn handle_worker_message(
                 .await
         }
     }
+}
+
+async fn handle_register(
+    context: &WorkerMessageContext<'_>,
+    register: tikee_proto::worker::v1::RegisterWorker,
+) -> Result<(), mpsc::error::SendError<Result<ServerMessage, Status>>> {
+    let worker = context
+        .registry
+        .register(register, context.outbound.clone())
+        .await;
+    context
+        .tx
+        .send(Ok(ServerMessage {
+            kind: Some(server_message::Kind::Registered(WorkerRegistered {
+                worker_id: worker.worker_id,
+                lease_seconds: DEFAULT_LEASE_SECONDS,
+                generation: worker.generation,
+                fencing_token: worker.fencing_token,
+            })),
+        }))
+        .await
+}
+
+async fn handle_heartbeat(
+    context: &WorkerMessageContext<'_>,
+    heartbeat: Heartbeat,
+) -> Result<(), mpsc::error::SendError<Result<ServerMessage, Status>>> {
+    let Heartbeat {
+        worker_id,
+        sequence,
+        generation,
+        fencing_token,
+    } = heartbeat;
+    if context
+        .registry
+        .heartbeat(&worker_id, sequence, generation, &fencing_token)
+        .await
+        .is_some()
+    {
+        context
+            .tx
+            .send(Ok(ServerMessage {
+                kind: Some(server_message::Kind::Ping(Ping { sequence })),
+            }))
+            .await
+    } else {
+        context
+            .tx
+            .send(Err(Status::failed_precondition(
+                "stale worker heartbeat rejected",
+            )))
+            .await
+    }
+}
+
+async fn handle_unregister(
+    context: &WorkerMessageContext<'_>,
+    unregister: UnregisterWorker,
+) -> Result<(), mpsc::error::SendError<Result<ServerMessage, Status>>> {
+    let UnregisterWorker {
+        worker_id,
+        generation,
+        fencing_token,
+    } = unregister;
+    if context
+        .registry
+        .unregister(&worker_id, generation, &fencing_token)
+        .await
+        .is_some()
+    {
+        Ok(())
+    } else {
+        context
+            .tx
+            .send(Err(Status::failed_precondition(
+                "stale worker unregister rejected",
+            )))
+            .await
+    }
+}
+
+async fn handle_task_log(
+    context: &WorkerMessageContext<'_>,
+    log: TaskLog,
+) -> Result<(), mpsc::error::SendError<Result<ServerMessage, Status>>> {
+    let TaskLog {
+        worker_id,
+        instance_id,
+        level,
+        message,
+        sequence,
+    } = log;
+    if !context.registry.accepts_worker_message(&worker_id).await {
+        metrics::counter!("tikee_worker_stale_messages_total", "kind" => "task_log").increment(1);
+        return Ok(());
+    }
+    match context
+        .logs
+        .append(AppendJobInstanceLog {
+            instance_id,
+            worker_id,
+            level,
+            message,
+            sequence,
+        })
+        .await
+    {
+        Ok(Some(saved)) => context
+            .log_broadcaster
+            .publish(task_log_from_summary(saved)),
+        Ok(None) => {}
+        Err(error) => tracing::warn!(%error, "failed to persist task log"),
+    }
+    Ok(())
 }
 
 async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResult) {

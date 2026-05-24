@@ -262,9 +262,9 @@ detail_json
 created_at
 ```
 
-当前已落地事件包括 `session_registered`、`session_replaced`、`stale_worker_message`；后续继续扩展 `heartbeat_renewed`、`dispatch_assigned`、`transport_closed`、`lease_expired`、`graceful_shutdown`、`drain_requested`、`history_archived`。
+当前已落地事件包括 `session_registered`、`session_replaced`、`stale_worker_message`、`lease_expired`、`graceful_shutdown`；后续继续扩展 `heartbeat_renewed`、`dispatch_assigned`、`transport_closed`、`drain_requested`、`history_archived`。
 
-> 2026-05-25 已落地 Slice B/C：`worker_logical_instances` / `worker_sessions` / `worker_session_events` 已进入迁移与 SQLite 兼容初始化；`WorkerRegistry` 在配置持久化仓储后会将注册、替换与心跳续租写入这些表；后台 lease scanner 会将过期 online session 标记为 `offline / lease_expired_unknown` 并写入 `lease_expired` 事件。遵守项目既定约束：所有跨表关系都是软关联，不创建数据库外键。
+> 2026-05-25 已落地 Slice B/C/D：`worker_logical_instances` / `worker_sessions` / `worker_session_events` 已进入迁移与 SQLite 兼容初始化；`WorkerRegistry` 在配置持久化仓储后会将注册、替换与心跳续租写入这些表；后台 lease scanner 会将过期 online session 标记为 `offline / lease_expired_unknown` 并写入 `lease_expired` 事件；Rust/Java SDK close 会发送 graceful unregister，Server 标记为 `stopped / graceful_shutdown`。遵守项目既定约束：所有跨表关系都是软关联，不创建数据库外键。
 
 ## 8. SDK 配置建议
 
