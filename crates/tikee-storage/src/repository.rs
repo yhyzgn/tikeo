@@ -21,6 +21,7 @@ mod scope;
 mod script;
 mod user;
 mod util;
+mod worker_lifecycle;
 mod workflow;
 
 pub use alert::{
@@ -54,6 +55,10 @@ pub use script::{
     UpdateScript,
 };
 pub use user::{CreateUser, UpdateUser, UserRepository, UserSummary};
+pub use worker_lifecycle::{
+    RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository, WorkerSessionEventSummary,
+    WorkerSessionSummary,
+};
 pub use workflow::{
     AdvanceWorkflowInput, AdvanceWorkflowResult, CompleteWorkflowShardInput,
     CompleteWorkflowShardResult, CreateWorkflow, DispatchQueueClaim, DispatchQueueSloSummary,
@@ -82,6 +87,101 @@ mod tests {
     };
 
     use super::JobRepository;
+
+    #[tokio::test]
+    async fn worker_lifecycle_repository_replaces_generations_and_fences_stale_heartbeats() {
+        use crate::repository::{
+            RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository,
+        };
+
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let repository = WorkerLifecycleRepository::new(db);
+
+        let first = repository
+            .register_session(RegisterWorkerSession {
+                worker_id: "wrk-one".to_owned(),
+                namespace_name: "finance".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "prod".to_owned(),
+                region: "cn".to_owned(),
+                client_instance_id: "host-a#slot-1".to_owned(),
+                connection_id: "conn-one".to_owned(),
+                fencing_token: "token-one".to_owned(),
+                lease_seconds: 30,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("first session should persist: {error}"));
+        let second = repository
+            .register_session(RegisterWorkerSession {
+                worker_id: "wrk-two".to_owned(),
+                namespace_name: "finance".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "prod".to_owned(),
+                region: "cn".to_owned(),
+                client_instance_id: "host-a#slot-1".to_owned(),
+                connection_id: "conn-two".to_owned(),
+                fencing_token: "token-two".to_owned(),
+                lease_seconds: 30,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("replacement session should persist: {error}"));
+
+        assert_eq!(first.generation, 1);
+        assert_eq!(second.generation, 2);
+        assert_eq!(second.current_worker_id.as_deref(), Some("wrk-two"));
+
+        let old = repository
+            .get_session("wrk-one")
+            .await
+            .unwrap_or_else(|error| panic!("old session lookup should run: {error}"))
+            .unwrap_or_else(|| panic!("old session should remain inspectable"));
+        assert_eq!(old.status, "replaced");
+        assert_eq!(
+            old.status_reason.as_deref(),
+            Some("replaced_by_new_generation")
+        );
+        assert_eq!(old.replaced_by_worker_id.as_deref(), Some("wrk-two"));
+
+        assert!(
+            repository
+                .heartbeat(WorkerHeartbeat {
+                    worker_id: "wrk-one".to_owned(),
+                    generation: first.generation,
+                    fencing_token: "token-one".to_owned(),
+                    sequence: 7,
+                    lease_seconds: 30,
+                })
+                .await
+                .unwrap_or_else(|error| panic!("stale heartbeat should be handled: {error}"))
+                .is_none(),
+            "stale replaced heartbeat must not renew the old session"
+        );
+        let renewed = repository
+            .heartbeat(WorkerHeartbeat {
+                worker_id: "wrk-two".to_owned(),
+                generation: second.generation,
+                fencing_token: "token-two".to_owned(),
+                sequence: 8,
+                lease_seconds: 30,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("current heartbeat should persist: {error}"))
+            .unwrap_or_else(|| panic!("current heartbeat should be accepted"));
+        assert_eq!(renewed.last_sequence, 8);
+
+        let events = repository
+            .list_session_events("wrk-one")
+            .await
+            .unwrap_or_else(|error| panic!("events should load: {error}"));
+        assert!(
+            events
+                .iter()
+                .any(|event| event.event_type == "session_replaced"
+                    && event.reason.as_deref() == Some("replaced_by_new_generation"))
+        );
+    }
 
     #[tokio::test]
     async fn migration_creates_metadata_tables() {

@@ -1012,3 +1012,19 @@ Verification evidence:
 - `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.
 - `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` and Rust SDK clippy passed.
 - Full backend verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out'`.
+
+
+### 2026-05-25 — P0 Worker lifecycle Slice B: persistent lifecycle store
+- Reviewed `design/worker-identity-lifecycle-design.md` again before implementation and continued the approved Worker identity/session lifecycle design.
+- Added persistent `worker_logical_instances`, `worker_sessions`, and `worker_session_events` entities/migration/SQLite compatibility initialization with soft links only, no database foreign keys.
+- Added `WorkerLifecycleRepository` for logical key upsert, generation increment, replacement marking, event recording, and fenced heartbeat lease renewal.
+- Wired production server startup to create `WorkerRegistry::with_lifecycle(...)`, so Worker Tunnel registration/replacement/heartbeat now persists lifecycle state while tests can still use in-memory registries.
+- Avoided `#[allow(clippy::too_many_lines)]`; split lifecycle storage into dedicated entity/repository modules and refactored migration down helpers to keep clippy clean.
+Verification evidence:
+- RED storage lifecycle test failed before repository types existed, then passed after implementation.
+- `rtk cargo clippy -p tikee-storage --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo clippy -p tikee-server --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test -p tikee-storage --all-features` passed.
+- `rtk cargo test -p tikee-server worker --all-features` passed.
+- `rtk cargo build -p tikee-server --all-features` passed.
+- Serve smoke with temporary SQLite config reached listener startup (`timeout` 124 => `smoke_started`) without missing-table startup errors.

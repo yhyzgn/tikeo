@@ -30,13 +30,14 @@ pub use repository::{
     RaftMembershipProposalSummary, RaftMetadataSummary, RaftRepository, RaftSnapshotSummary,
     RbacRepository, RecordAlertDeliveryAttempt, RecordRaftAppliedCommand,
     RecordRaftMembershipProposal, RecoverWorkflowNodeInput, RecoverWorkflowNodeResult,
-    ScopeRepository, ScriptRepository, ScriptSummary, ScriptVersionRepository,
-    ScriptVersionSummary, UpdateScript, UpdateUser, UpdateWorkflow, UpsertOidcIdentity,
-    UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot, UserRepository,
-    UserSummary, WorkerPoolSummary, WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary,
-    WorkflowJobResultOutcome, WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository,
-    WorkflowShardSummary, WorkflowSloSummary, WorkflowSummary, WorkflowValidationResult,
-    validate_workflow_definition,
+    RegisterWorkerSession, ScopeRepository, ScriptRepository, ScriptSummary,
+    ScriptVersionRepository, ScriptVersionSummary, UpdateScript, UpdateUser, UpdateWorkflow,
+    UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
+    UpsertRaftSnapshot, UserRepository, UserSummary, WorkerHeartbeat, WorkerLifecycleRepository,
+    WorkerPoolSummary, WorkerSessionEventSummary, WorkerSessionSummary, WorkflowDefinition,
+    WorkflowEdgeSpec, WorkflowInstanceSummary, WorkflowJobResultOutcome,
+    WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
+    WorkflowSloSummary, WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
 };
 pub use sea_orm::DbErr;
 
@@ -74,6 +75,7 @@ async fn ensure_sqlite_schema_compatibility(db: &DatabaseConnection) -> Result<(
     ensure_oidc_identity_schema_compatibility(db).await?;
     ensure_rbac_schema_compatibility(db).await?;
     ensure_scope_schema_compatibility(db).await?;
+    ensure_worker_lifecycle_schema_compatibility(db).await?;
     ensure_job_schema_compatibility(db).await?;
     ensure_scripts_schema_compatibility(db).await?;
     ensure_script_versions_schema_compatibility(db).await?;
@@ -121,6 +123,62 @@ async fn ensure_scope_schema_compatibility(db: &DatabaseConnection) -> Result<()
         )",
     ))
     .await?;
+    Ok(())
+}
+
+async fn ensure_worker_lifecycle_schema_compatibility(
+    db: &DatabaseConnection,
+) -> Result<(), sea_orm::DbErr> {
+    if db.get_database_backend() != DatabaseBackend::Sqlite {
+        return Ok(());
+    }
+    for sql in [
+        r"CREATE TABLE IF NOT EXISTS worker_logical_instances (
+            id varchar NOT NULL PRIMARY KEY,
+            namespace_name varchar NOT NULL,
+            app_name varchar NOT NULL,
+            cluster varchar NOT NULL,
+            region varchar NOT NULL,
+            client_instance_id varchar NOT NULL,
+            current_worker_id varchar,
+            current_generation bigint NOT NULL,
+            status varchar NOT NULL,
+            last_seen_at varchar NOT NULL,
+            created_at varchar NOT NULL,
+            updated_at varchar NOT NULL
+        )",
+        r"CREATE TABLE IF NOT EXISTS worker_sessions (
+            worker_id varchar NOT NULL PRIMARY KEY,
+            logical_instance_id varchar NOT NULL,
+            connection_id varchar NOT NULL,
+            generation bigint NOT NULL,
+            fencing_token_hash varchar NOT NULL,
+            status varchar NOT NULL,
+            status_reason varchar,
+            status_evidence text,
+            lease_expires_at varchar NOT NULL,
+            last_heartbeat_at varchar NOT NULL,
+            last_sequence bigint NOT NULL,
+            connected_at varchar NOT NULL,
+            disconnected_at varchar,
+            replaced_by_worker_id varchar,
+            drain_requested_at varchar,
+            created_at varchar NOT NULL,
+            updated_at varchar NOT NULL
+        )",
+        r"CREATE TABLE IF NOT EXISTS worker_session_events (
+            id varchar NOT NULL PRIMARY KEY,
+            worker_id varchar NOT NULL,
+            logical_instance_id varchar NOT NULL,
+            event_type varchar NOT NULL,
+            reason varchar,
+            detail_json text,
+            created_at varchar NOT NULL
+        )",
+    ] {
+        db.execute(Statement::from_string(DatabaseBackend::Sqlite, sql))
+            .await?;
+    }
     Ok(())
 }
 
@@ -1060,6 +1118,10 @@ async fn ensure_sqlite_indexes(db: &DatabaseConnection) -> Result<(), sea_orm::D
         "CREATE INDEX IF NOT EXISTS idx_oidc_auth_states_expires ON oidc_auth_states (expires_at)",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_oidc_identities_issuer_subject ON oidc_identities (issuer, subject)",
         "CREATE INDEX IF NOT EXISTS idx_oidc_identities_username ON oidc_identities (username)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_logical_instances_key ON worker_logical_instances (namespace_name, app_name, cluster, region, client_instance_id)",
+        "CREATE INDEX IF NOT EXISTS idx_worker_sessions_status_lease ON worker_sessions (status, lease_expires_at)",
+        "CREATE INDEX IF NOT EXISTS idx_worker_sessions_logical_generation ON worker_sessions (logical_instance_id, generation)",
+        "CREATE INDEX IF NOT EXISTS idx_worker_session_events_worker_created ON worker_session_events (worker_id, created_at)",
     ] {
         db.execute(Statement::from_string(DatabaseBackend::Sqlite, sql))
             .await?;

@@ -5,7 +5,7 @@ use tikee_config::{AlertRetryConfig, TikeeConfig};
 use tikee_storage::{
     AuditLogRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
     JobInstanceRepository, JobRepository, RaftRepository, ScriptRepository, UserRepository,
-    WorkflowRepository, connect_and_migrate,
+    WorkerLifecycleRepository, WorkflowRepository, connect_and_migrate,
 };
 use tokio::try_join;
 use tracing::info;
@@ -18,7 +18,6 @@ use crate::{alert, cluster::coordinator_from_config_with_storage, http, tikee, t
 ///
 /// Returns an error when any listener fails to bind or serve.
 pub async fn serve(config: TikeeConfig) -> Result<()> {
-    let registry = tunnel::WorkerRegistry::default();
     let log_broadcaster = tunnel::TaskLogBroadcaster::default();
     let http_addr = config.server.listen_addr;
     let tunnel_addr = config.server.worker_tunnel_addr;
@@ -45,6 +44,8 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
     let workflows = WorkflowRepository::new(db.clone());
     let audit = AuditLogRepository::new(db.clone());
     let alerts = tikee_storage::AlertRepository::new(db.clone());
+    let worker_lifecycle = WorkerLifecycleRepository::new(db.clone());
+    let registry = tunnel::WorkerRegistry::with_lifecycle(worker_lifecycle);
     let http_router = http::router_with_state(
         http::AppState::new(
             jobs.clone(),

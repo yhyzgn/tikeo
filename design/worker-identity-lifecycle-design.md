@@ -233,6 +233,7 @@ status_reason
 status_evidence
 lease_expires_at
 last_heartbeat_at
+last_sequence
 connected_at
 disconnected_at
 replaced_by_worker_id
@@ -261,9 +262,9 @@ detail_json
 created_at
 ```
 
-事件包括 registered、heartbeat_renewed、dispatch_assigned、transport_closed、lease_expired、replaced、graceful_shutdown、stale_message_rejected、drain_requested、history_archived。
+当前已落地事件包括 `session_registered`、`session_replaced`、`stale_worker_message`；后续继续扩展 `heartbeat_renewed`、`dispatch_assigned`、`transport_closed`、`lease_expired`、`graceful_shutdown`、`drain_requested`、`history_archived`。
 
-> 遵守项目既定约束：所有跨表关系都是软关联，不创建数据库外键。
+> 2026-05-25 已落地 Slice B：`worker_logical_instances` / `worker_sessions` / `worker_session_events` 已进入迁移与 SQLite 兼容初始化；`WorkerRegistry` 在配置持久化仓储后会将注册、替换与心跳续租写入这些表。遵守项目既定约束：所有跨表关系都是软关联，不创建数据库外键。
 
 ## 8. SDK 配置建议
 

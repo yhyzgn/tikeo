@@ -21,6 +21,7 @@ impl MigrationTrait for CreateMetadataTables {
         create_namespaces(manager).await?;
         create_apps(manager).await?;
         create_worker_pools(manager).await?;
+        create_worker_lifecycle_tables(manager).await?;
         create_jobs(manager).await?;
         create_job_instances(manager).await?;
         create_job_instance_attempts(manager).await?;
@@ -50,103 +51,66 @@ impl MigrationTrait for CreateMetadataTables {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .drop_table(Table::drop().table(AlertDeliveryAttempts::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(AlertEvents::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(AlertRules::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(AuditLogs::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(RaftAppliedCommands::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(
-                Table::drop()
-                    .table(RaftMembershipProposals::Table)
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .drop_table(Table::drop().table(RaftSnapshots::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(RaftLogEntries::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(RaftMembers::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(RaftMetadata::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(InstanceEvents::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(DispatchQueue::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(WorkflowNodeInstances::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(WorkflowInstances::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(WorkflowEdges::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(WorkflowNodes::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Workflows::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(ScriptVersions::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Scripts::Table).to_owned())
-            .await?;
-        drop_auth_tables(manager).await?;
-        manager
-            .drop_table(Table::drop().table(RolePermissions::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Permissions::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Roles::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Users::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(JobInstanceLogs::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(JobInstanceAttempts::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(JobInstances::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Jobs::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Apps::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(WorkerPools::Table).to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Namespaces::Table).to_owned())
-            .await?;
-        Ok(())
+        drop_metadata_tables(manager).await
     }
+}
+
+async fn drop_metadata_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    drop_tables(
+        manager,
+        &[
+            AlertDeliveryAttempts::Table.into_iden(),
+            AlertEvents::Table.into_iden(),
+            AlertRules::Table.into_iden(),
+            AuditLogs::Table.into_iden(),
+            RaftAppliedCommands::Table.into_iden(),
+            RaftMembershipProposals::Table.into_iden(),
+            RaftSnapshots::Table.into_iden(),
+            RaftLogEntries::Table.into_iden(),
+            RaftMembers::Table.into_iden(),
+            RaftMetadata::Table.into_iden(),
+            InstanceEvents::Table.into_iden(),
+            DispatchQueue::Table.into_iden(),
+            WorkflowNodeInstances::Table.into_iden(),
+            WorkflowInstances::Table.into_iden(),
+            WorkflowEdges::Table.into_iden(),
+            WorkflowNodes::Table.into_iden(),
+            Workflows::Table.into_iden(),
+            ScriptVersions::Table.into_iden(),
+            Scripts::Table.into_iden(),
+        ],
+    )
+    .await?;
+    drop_auth_tables(manager).await?;
+    drop_tables(
+        manager,
+        &[
+            RolePermissions::Table.into_iden(),
+            Permissions::Table.into_iden(),
+            Roles::Table.into_iden(),
+            Users::Table.into_iden(),
+            JobInstanceLogs::Table.into_iden(),
+            JobInstanceAttempts::Table.into_iden(),
+            JobInstances::Table.into_iden(),
+            Jobs::Table.into_iden(),
+            Apps::Table.into_iden(),
+            WorkerSessionEvents::Table.into_iden(),
+            WorkerSessions::Table.into_iden(),
+            WorkerLogicalInstances::Table.into_iden(),
+            WorkerPools::Table.into_iden(),
+            Namespaces::Table.into_iden(),
+        ],
+    )
+    .await
+}
+
+async fn drop_tables(manager: &SchemaManager<'_>, tables: &[DynIden]) -> Result<(), DbErr> {
+    for table in tables {
+        manager
+            .drop_table(Table::drop().table(table.clone()).to_owned())
+            .await?;
+    }
+    Ok(())
 }
 
 async fn create_job_instance_attempts(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
@@ -952,6 +916,116 @@ async fn create_worker_pools(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         .await
 }
 
+async fn create_worker_lifecycle_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(WorkerLogicalInstances::Table)
+                .if_not_exists()
+                .col(string_pk(WorkerLogicalInstances::Id))
+                .col(string_col(WorkerLogicalInstances::NamespaceName))
+                .col(string_col(WorkerLogicalInstances::AppName))
+                .col(string_col(WorkerLogicalInstances::Cluster))
+                .col(string_col(WorkerLogicalInstances::Region))
+                .col(string_col(WorkerLogicalInstances::ClientInstanceId))
+                .col(string_null(WorkerLogicalInstances::CurrentWorkerId))
+                .col(big_integer_col(WorkerLogicalInstances::CurrentGeneration))
+                .col(string_col(WorkerLogicalInstances::Status))
+                .col(string_col(WorkerLogicalInstances::LastSeenAt))
+                .col(string_col(WorkerLogicalInstances::CreatedAt))
+                .col(string_col(WorkerLogicalInstances::UpdatedAt))
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_table(
+            Table::create()
+                .table(WorkerSessions::Table)
+                .if_not_exists()
+                .col(string_pk(WorkerSessions::WorkerId))
+                .col(string_col(WorkerSessions::LogicalInstanceId))
+                .col(string_col(WorkerSessions::ConnectionId))
+                .col(big_integer_col(WorkerSessions::Generation))
+                .col(string_col(WorkerSessions::FencingTokenHash))
+                .col(string_col(WorkerSessions::Status))
+                .col(string_null(WorkerSessions::StatusReason))
+                .col(text_null(WorkerSessions::StatusEvidence))
+                .col(string_col(WorkerSessions::LeaseExpiresAt))
+                .col(string_col(WorkerSessions::LastHeartbeatAt))
+                .col(big_integer_col(WorkerSessions::LastSequence))
+                .col(string_col(WorkerSessions::ConnectedAt))
+                .col(string_null(WorkerSessions::DisconnectedAt))
+                .col(string_null(WorkerSessions::ReplacedByWorkerId))
+                .col(string_null(WorkerSessions::DrainRequestedAt))
+                .col(string_col(WorkerSessions::CreatedAt))
+                .col(string_col(WorkerSessions::UpdatedAt))
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_table(
+            Table::create()
+                .table(WorkerSessionEvents::Table)
+                .if_not_exists()
+                .col(string_pk(WorkerSessionEvents::Id))
+                .col(string_col(WorkerSessionEvents::WorkerId))
+                .col(string_col(WorkerSessionEvents::LogicalInstanceId))
+                .col(string_col(WorkerSessionEvents::EventType))
+                .col(string_null(WorkerSessionEvents::Reason))
+                .col(text_null(WorkerSessionEvents::DetailJson))
+                .col(string_col(WorkerSessionEvents::CreatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_worker_lifecycle_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_worker_logical_instances_key")
+            .table(WorkerLogicalInstances::Table)
+            .col(WorkerLogicalInstances::NamespaceName)
+            .col(WorkerLogicalInstances::AppName)
+            .col(WorkerLogicalInstances::Cluster)
+            .col(WorkerLogicalInstances::Region)
+            .col(WorkerLogicalInstances::ClientInstanceId)
+            .unique()
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_worker_sessions_status_lease")
+            .table(WorkerSessions::Table)
+            .col(WorkerSessions::Status)
+            .col(WorkerSessions::LeaseExpiresAt)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_worker_sessions_logical_generation")
+            .table(WorkerSessions::Table)
+            .col(WorkerSessions::LogicalInstanceId)
+            .col(WorkerSessions::Generation)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_worker_session_events_worker_created")
+            .table(WorkerSessionEvents::Table)
+            .col(WorkerSessionEvents::WorkerId)
+            .col(WorkerSessionEvents::CreatedAt)
+            .to_owned(),
+    )
+    .await
+}
+
 async fn create_jobs(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     manager
         .create_table(
@@ -1038,6 +1112,7 @@ async fn create_oidc_identity_indexes(manager: &SchemaManager<'_>) -> Result<(),
 
 async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     create_scope_indexes(manager).await?;
+    create_worker_lifecycle_indexes(manager).await?;
     create_job_indexes(manager).await?;
     create_auth_indexes(manager).await?;
     create_script_indexes(manager).await?;
@@ -1895,6 +1970,57 @@ enum WorkerPools {
     Name,
     CreatedAt,
     UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum WorkerLogicalInstances {
+    Table,
+    Id,
+    NamespaceName,
+    AppName,
+    Cluster,
+    Region,
+    ClientInstanceId,
+    CurrentWorkerId,
+    CurrentGeneration,
+    Status,
+    LastSeenAt,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum WorkerSessions {
+    Table,
+    WorkerId,
+    LogicalInstanceId,
+    ConnectionId,
+    Generation,
+    FencingTokenHash,
+    Status,
+    StatusReason,
+    StatusEvidence,
+    LeaseExpiresAt,
+    LastHeartbeatAt,
+    LastSequence,
+    ConnectedAt,
+    DisconnectedAt,
+    ReplacedByWorkerId,
+    DrainRequestedAt,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum WorkerSessionEvents {
+    Table,
+    Id,
+    WorkerId,
+    LogicalInstanceId,
+    EventType,
+    Reason,
+    DetailJson,
+    CreatedAt,
 }
 
 #[derive(DeriveIden)]

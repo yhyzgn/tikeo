@@ -7,6 +7,7 @@ use std::{
 };
 
 use tikee_proto::worker::v1::{DispatchTask, RegisterWorker, ServerMessage, server_message};
+use tikee_storage::{RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository};
 use tokio::sync::{RwLock, mpsc};
 use tonic::Status;
 use uuid::Uuid;
@@ -17,9 +18,19 @@ const DEFAULT_LEASE_SECONDS: u64 = 30;
 #[derive(Debug, Clone, Default)]
 pub struct WorkerRegistry {
     workers: Arc<RwLock<HashMap<String, RegisteredWorker>>>,
+    lifecycle: Option<WorkerLifecycleRepository>,
 }
 
 impl WorkerRegistry {
+    /// Create a registry backed by persistent worker lifecycle storage.
+    #[must_use]
+    pub fn with_lifecycle(lifecycle: WorkerLifecycleRepository) -> Self {
+        Self {
+            workers: Arc::new(RwLock::const_new(HashMap::new())),
+            lifecycle: Some(lifecycle),
+        }
+    }
+
     /// Register or replace a worker record.
     pub async fn register(
         &self,
@@ -28,7 +39,7 @@ impl WorkerRegistry {
     ) -> RegisteredWorker {
         let now = SystemTime::now();
         let worker_id = format!("wrk-{}", Uuid::now_v7());
-        let client_instance_id = empty_to_none(worker.client_instance_id);
+        let client_instance_id = empty_to_none(worker.client_instance_id.clone());
         let logical_instance_id = logical_instance_id(
             &worker.namespace,
             &worker.app,
@@ -37,9 +48,15 @@ impl WorkerRegistry {
             client_instance_id.as_deref(),
             &worker_id,
         );
+        let connection_id = format!("conn-{}", Uuid::now_v7());
+        let fencing_token = format!("wft-{}", Uuid::now_v7());
+        let persisted_generation = self
+            .persist_registration(&worker, &worker_id, &connection_id, &fencing_token)
+            .await;
         let (record, worker_count) = {
             let mut workers = self.workers.write().await;
-            let generation = next_generation(&workers, &logical_instance_id);
+            let generation = persisted_generation
+                .unwrap_or_else(|| next_generation(&workers, &logical_instance_id));
             let record = RegisteredWorker {
                 worker_id: worker_id.clone(),
                 logical_instance_id: logical_instance_id.clone(),
@@ -52,7 +69,7 @@ impl WorkerRegistry {
                 labels: worker.labels,
                 outbound,
                 generation,
-                fencing_token: format!("wft-{}", Uuid::now_v7()),
+                fencing_token,
                 status: WorkerSessionStatus::Online,
                 status_reason: None,
                 status_evidence: None,
@@ -77,8 +94,33 @@ impl WorkerRegistry {
         record
     }
 
+    async fn persist_registration(
+        &self,
+        worker: &RegisterWorker,
+        worker_id: &str,
+        connection_id: &str,
+        fencing_token: &str,
+    ) -> Option<u64> {
+        let lifecycle = self.lifecycle.as_ref()?;
+        let persisted = lifecycle
+            .register_session(RegisterWorkerSession {
+                worker_id: worker_id.to_owned(),
+                namespace_name: worker.namespace.clone(),
+                app_name: worker.app.clone(),
+                cluster: worker.cluster.clone(),
+                region: worker.region.clone(),
+                client_instance_id: empty_to_none(worker.client_instance_id.clone())
+                    .unwrap_or_else(|| worker_id.to_owned()),
+                connection_id: connection_id.to_owned(),
+                fencing_token: fencing_token.to_owned(),
+                lease_seconds: i64::try_from(DEFAULT_LEASE_SECONDS).unwrap_or(i64::MAX),
+            })
+            .await
+            .ok()?;
+        u64::try_from(persisted.generation).ok()
+    }
+
     /// Record a heartbeat for a known worker.
-    #[allow(clippy::significant_drop_tightening)]
     pub async fn heartbeat(
         &self,
         worker_id: &str,
@@ -86,18 +128,59 @@ impl WorkerRegistry {
         generation: u64,
         fencing_token: &str,
     ) -> Option<RegisteredWorker> {
+        let updated = self
+            .record_in_memory_heartbeat(worker_id, sequence, generation, fencing_token)
+            .await?;
+        self.persist_heartbeat(&updated, sequence, generation, fencing_token)
+            .await;
+        Some(updated)
+    }
+
+    async fn record_in_memory_heartbeat(
+        &self,
+        worker_id: &str,
+        sequence: u64,
+        generation: u64,
+        fencing_token: &str,
+    ) -> Option<RegisteredWorker> {
         let now = SystemTime::now();
-        let mut workers = self.workers.write().await;
-        let worker = workers.get_mut(worker_id)?;
-        if !worker.accepts_heartbeat(generation, fencing_token) {
-            metrics::counter!("tikee_worker_stale_messages_total", "kind" => "heartbeat")
-                .increment(1);
-            return None;
-        }
-        worker.last_heartbeat_at = now;
-        worker.lease_expires_at = now + Duration::from_secs(DEFAULT_LEASE_SECONDS);
-        worker.last_sequence = sequence;
-        Some(worker.clone())
+        let updated = {
+            let mut workers = self.workers.write().await;
+            let worker = workers.get_mut(worker_id)?;
+            if !worker.accepts_heartbeat(generation, fencing_token) {
+                metrics::counter!("tikee_worker_stale_messages_total", "kind" => "heartbeat")
+                    .increment(1);
+                return None;
+            }
+            worker.last_heartbeat_at = now;
+            worker.lease_expires_at = now + Duration::from_secs(DEFAULT_LEASE_SECONDS);
+            worker.last_sequence = sequence;
+            let updated = worker.clone();
+            drop(workers);
+            updated
+        };
+        Some(updated)
+    }
+
+    async fn persist_heartbeat(
+        &self,
+        worker: &RegisteredWorker,
+        sequence: u64,
+        generation: u64,
+        fencing_token: &str,
+    ) {
+        let Some(lifecycle) = self.lifecycle.as_ref() else {
+            return;
+        };
+        let _ = lifecycle
+            .heartbeat(WorkerHeartbeat {
+                worker_id: worker.worker_id.clone(),
+                generation: i64::try_from(generation).unwrap_or(i64::MAX),
+                fencing_token: fencing_token.to_owned(),
+                sequence: i64::try_from(sequence).unwrap_or(i64::MAX),
+                lease_seconds: i64::try_from(DEFAULT_LEASE_SECONDS).unwrap_or(i64::MAX),
+            })
+            .await;
     }
 
     /// Return a worker by id.
@@ -360,6 +443,8 @@ mod tests {
     use tikee_proto::worker::v1::RegisterWorker;
     use tokio::sync::mpsc;
 
+    use tikee_storage::WorkerLifecycleRepository;
+
     use super::{WorkerRegistry, WorkerSessionStatus};
 
     #[tokio::test]
@@ -443,6 +528,56 @@ mod tests {
             .unwrap_or_else(|| panic!("new generation heartbeat should renew"));
         assert_eq!(renewed.last_sequence, 10);
         assert_eq!(registry.worker_ids().await, vec![second.worker_id]);
+    }
+
+    #[tokio::test]
+    async fn registry_persists_replaced_generations_when_lifecycle_store_is_configured() {
+        let db = tikee_storage::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let lifecycle = WorkerLifecycleRepository::new(db);
+        let registry = WorkerRegistry::with_lifecycle(lifecycle.clone());
+
+        let first = registry
+            .register(register_worker("pod-1"), mpsc::channel(1).0)
+            .await;
+        let second = registry
+            .register(register_worker("pod-1"), mpsc::channel(1).0)
+            .await;
+
+        let persisted_first = lifecycle
+            .get_session(&first.worker_id)
+            .await
+            .unwrap_or_else(|error| panic!("persisted old session should load: {error}"))
+            .unwrap_or_else(|| panic!("persisted old session should exist"));
+        let persisted_second = lifecycle
+            .get_session(&second.worker_id)
+            .await
+            .unwrap_or_else(|error| panic!("persisted new session should load: {error}"))
+            .unwrap_or_else(|| panic!("persisted new session should exist"));
+
+        assert_eq!(persisted_first.status, "replaced");
+        assert_eq!(
+            persisted_first.status_reason.as_deref(),
+            Some("replaced_by_new_generation")
+        );
+        assert_eq!(persisted_second.generation, 2);
+
+        registry
+            .heartbeat(
+                &second.worker_id,
+                11,
+                second.generation,
+                &second.fencing_token,
+            )
+            .await
+            .unwrap_or_else(|| panic!("current heartbeat should renew"));
+        let renewed = lifecycle
+            .get_session(&second.worker_id)
+            .await
+            .unwrap_or_else(|error| panic!("renewed session should load: {error}"))
+            .unwrap_or_else(|| panic!("renewed session should exist"));
+        assert_eq!(renewed.last_sequence, 11);
     }
 
     fn register_worker(client_instance_id: &str) -> RegisterWorker {
