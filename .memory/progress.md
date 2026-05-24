@@ -904,3 +904,14 @@ Verification evidence:
 - Targeted storage/server clippy, backend lifecycle/OpenAPI tests, Web lint/typecheck/targeted test/build passed via RTK.
 
 - Phase115 full verification passed: rtk bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features && cargo run -- --help >/tmp/tikee-help.out && cargo test --manifest-path sdks/rust/tikee/Cargo.toml && cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm && cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings && cd web && bun run lint && bun run typecheck && bun test && bun run build && cd ../sdks/java && ./gradlew test --warning-mode all --no-daemon'
+
+### 2026-05-24 — Phase 116 OIDC token exchange boundary
+- Added an OIDC callback token-exchange boundary that posts authorization codes to the configured provider token endpoint with client credentials.
+- Callback now requires an `id_token` response but still fails closed before session issuance until JWKS/signature/claims validation and user mapping land.
+- Split OIDC network exchange helpers into `crates/tikee-server/src/http/oidc.rs` to keep auth routing focused.
+- Remaining OIDC gap: JWKS discovery/cache, ID token verification, nonce/state persistence, user/role/tenant mapping, and session issuance.
+Verification evidence:
+- RED/green mock IdP test covers code exchange and proves the callback does not create a session from an unverified ID token.
+- Targeted OIDC tests and tikee-server clippy passed via RTK.
+
+- Phase116 full verification passed: rtk bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features && cargo run -- --help >/tmp/tikee-help.out && cargo test --manifest-path sdks/rust/tikee/Cargo.toml && cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm && cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings && cd web && bun run lint && bun run typecheck && bun test && bun run build && cd ../sdks/java && ./gradlew test --warning-mode all --no-daemon'

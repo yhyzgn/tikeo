@@ -6,10 +6,8 @@ use axum::{
     http::HeaderMap,
 };
 use bcrypt::verify;
-use serde::Deserialize;
 use std::sync::Arc;
 use tracing::warn;
-use url::Url;
 
 use super::{
     AppState,
@@ -371,26 +369,6 @@ pub async fn revoke_api_token(
     Ok(Json(ApiResponse::success(super::dto::EmptyData {})))
 }
 
-/// Query parameters used to build an OIDC authorization URL.
-#[derive(Debug, Deserialize)]
-pub struct OidcAuthorizeQuery {
-    /// Optional UI callback URL.
-    pub redirect_uri: Option<String>,
-    /// Optional caller-provided CSRF state value.
-    pub state: Option<String>,
-}
-
-/// Query parameters received by the OIDC callback placeholder.
-#[derive(Debug, Deserialize)]
-pub struct OidcCallbackQuery {
-    /// Authorization code returned by the provider.
-    pub code: Option<String>,
-    /// CSRF state returned by the provider.
-    pub state: Option<String>,
-    /// Provider-side error code, when authorization failed.
-    pub error: Option<String>,
-}
-
 /// Return authentication mode and SSO configuration status.
 #[utoipa::path(
     get,
@@ -444,7 +422,7 @@ pub async fn status(State(state): State<Arc<AppState>>) -> Json<ApiResponse<Auth
 )]
 pub async fn oidc_authorize(
     State(state): State<Arc<AppState>>,
-    Query(query): Query<OidcAuthorizeQuery>,
+    Query(query): Query<super::oidc::OidcAuthorizeQuery>,
 ) -> Result<Json<ApiResponse<OidcAuthorizeResponse>>, ApiError> {
     let oidc = &state.auth_config.oidc;
     if !oidc.enabled {
@@ -456,7 +434,7 @@ pub async fn oidc_authorize(
         .redirect_uri
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| "/api/v1/auth/oidc/callback".to_owned());
-    let mut authorization_url = Url::parse(&format!(
+    let mut authorization_url = url::Url::parse(&format!(
         "{}/protocol/openid-connect/auth",
         issuer.trim_end_matches('/')
     ))
@@ -486,17 +464,19 @@ pub async fn oidc_authorize(
     })))
 }
 
-/// OIDC callback contract placeholder; it never accepts unsigned identity locally.
+/// OIDC callback token exchange boundary; it never accepts unverified identity locally.
 ///
 /// # Errors
 ///
-/// Always returns a bad request until real `IdP` token verification is implemented.
+/// Returns a bad request when OIDC is disabled, callback data is malformed, token exchange fails,
+/// or until real `IdP` ID token verification/JWKS validation is implemented.
 #[utoipa::path(get, path = "/api/v1/auth/oidc/callback", tag = "auth")]
 pub async fn oidc_callback(
     State(state): State<Arc<AppState>>,
-    Query(query): Query<OidcCallbackQuery>,
+    Query(query): Query<super::oidc::OidcCallbackQuery>,
 ) -> Result<Json<ApiResponse<super::dto::EmptyData>>, ApiError> {
-    if !state.auth_config.oidc.enabled {
+    let oidc = &state.auth_config.oidc;
+    if !oidc.enabled {
         return Err(ApiError::bad_request("OIDC login is not enabled"));
     }
     if let Some(error) = query
@@ -508,21 +488,28 @@ pub async fn oidc_callback(
             "OIDC provider returned error: {error}"
         )));
     }
-    let has_code = query
-        .code
-        .as_ref()
-        .is_some_and(|value| !value.trim().is_empty());
-    let has_state = query
-        .state
-        .as_ref()
-        .is_some_and(|value| !value.trim().is_empty());
-    if !has_code || !has_state {
-        return Err(ApiError::bad_request(
-            "OIDC callback requires code and state",
-        ));
-    }
+    let code = configured_value(query.code.as_ref(), "OIDC callback code")?;
+    let _state = configured_value(query.state.as_ref(), "OIDC callback state")?;
+    let issuer = configured_value(oidc.issuer_url.as_ref(), "auth.oidc.issuer_url")?;
+    let client_id = configured_value(oidc.client_id.as_ref(), "auth.oidc.client_id")?;
+    let client_secret = configured_value(oidc.client_secret.as_ref(), "auth.oidc.client_secret")?;
+    let redirect_uri = query
+        .redirect_uri
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("/api/v1/auth/oidc/callback");
+    let token = super::oidc::exchange_authorization_code(
+        super::oidc::token_endpoint(issuer)?,
+        code,
+        redirect_uri,
+        client_id,
+        client_secret,
+    )
+    .await?;
+    configured_value(token.id_token.as_ref(), "OIDC token response id_token")?;
+
     Err(ApiError::bad_request(
-        "OIDC callback token verification is not yet enabled; no session was created",
+        "OIDC id_token verification and JWKS validation are not yet enabled; no session was created",
     ))
 }
 

@@ -4,6 +4,7 @@ pub mod access_scope;
 pub mod auth;
 pub mod dto;
 pub mod error;
+pub mod oidc;
 pub mod openapi;
 pub mod routes;
 pub mod services;
@@ -670,8 +671,104 @@ mod tests {
         assert!(
             json["message"]
                 .as_str()
-                .is_some_and(|value| value.contains("not yet enabled"))
+                .is_some_and(|value| value.contains("token exchange failed"))
         );
+    }
+
+    #[tokio::test]
+    async fn oidc_callback_exchanges_code_before_failing_closed_on_unverified_id_token() {
+        let token_hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let token_hits_for_route = token_hits.clone();
+        let token_server = axum::Router::new().route(
+            "/realms/tikee/protocol/openid-connect/token",
+            axum::routing::post(
+                move |axum::Form(form): axum::Form<std::collections::HashMap<String, String>>| {
+                    let token_hits = token_hits_for_route.clone();
+                    async move {
+                        assert_eq!(
+                            form.get("grant_type").map(String::as_str),
+                            Some("authorization_code")
+                        );
+                        assert_eq!(form.get("code").map(String::as_str), Some("mock-code"));
+                        assert_eq!(form.get("client_id").map(String::as_str), Some("tikee-web"));
+                        assert_eq!(
+                            form.get("client_secret").map(String::as_str),
+                            Some("super-secret")
+                        );
+                        token_hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        axum::Json(serde_json::json!({
+                            "access_token": "access",
+                            "id_token": "unsigned.id.token",
+                            "token_type": "Bearer"
+                        }))
+                    }
+                },
+            ),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .unwrap_or_else(|error| panic!("mock OIDC token listener should bind: {error}"));
+        let issuer = format!(
+            "http://{}/realms/tikee",
+            listener
+                .local_addr()
+                .unwrap_or_else(|error| panic!("mock OIDC addr should resolve: {error}"))
+        );
+        let server = tokio::spawn(async move {
+            axum::serve(listener, token_server)
+                .await
+                .unwrap_or_else(|error| panic!("mock OIDC token server should run: {error}"));
+        });
+
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let mut auth = tikee_config::AuthConfig::default();
+        auth.oidc.enabled = true;
+        auth.oidc.issuer_url = Some(issuer);
+        auth.oidc.client_id = Some("tikee-web".to_owned());
+        auth.oidc.client_secret = Some("super-secret".to_owned());
+        let app = router_with_state(
+            AppState::new(
+                JobRepository::new(db.clone()),
+                JobInstanceRepository::new(db.clone()),
+                JobInstanceLogRepository::new(db.clone()),
+                JobInstanceAttemptRepository::new(db.clone()),
+                UserRepository::new(db.clone()),
+                ScriptRepository::new(db.clone()),
+                WorkflowRepository::new(db.clone()),
+                AuditLogRepository::new(db),
+                crate::tunnel::WorkerRegistry::default(),
+                StandaloneCoordinator::shared("test-node"),
+            )
+            .with_auth_config(auth),
+        );
+
+        let callback = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/auth/oidc/callback?code=mock-code&state=mock-state&redirect_uri=http://localhost:5173/auth/callback")
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("callback route should respond: {error}"));
+        let status = callback.status();
+        let body = axum::body::to_bytes(callback.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert_eq!(status, axum::http::StatusCode::BAD_REQUEST);
+        assert_ne!(json["code"], 0);
+        assert!(
+            json["message"]
+                .as_str()
+                .is_some_and(|value| value.contains("JWKS validation"))
+        );
+        assert_eq!(token_hits.load(std::sync::atomic::Ordering::SeqCst), 1);
+        server.abort();
     }
 
     #[tokio::test]

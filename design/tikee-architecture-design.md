@@ -2203,7 +2203,8 @@ tikee/
   - [x] API Token namespace/app/worker-pool scope binding 基础（104：创建 token 可传 `scope_bindings`；token metadata 与 `/auth/me` 返回绑定；jobs list/create/trigger 按 namespace/app 过滤或拒绝；workers list 按 namespace/app/worker_pool label 过滤）
 - [ ] OIDC/SSO 集成
   - [x] OIDC/SSO 配置与状态基础（085：`auth.oidc` 配置、`GET /api/v1/auth/status` 暴露本地/oidc 模式与脱敏 provider 元数据）
-  - [x] OIDC 授权/回调骨架（092：`GET /api/v1/auth/oidc/authorize` 生成授权 URL 且不暴露 secret；`/callback` 校验 code/state 形状但明确拒绝未验证 token，不创建 session；真实 IdP token exchange/JWKS 验证后续）
+  - [x] OIDC 授权/回调骨架（092：`GET /api/v1/auth/oidc/authorize` 生成授权 URL 且不暴露 secret；`/callback` 校验 code/state 形状但明确拒绝未验证 token，不创建 session）
+  - [x] OIDC token exchange 边界（116：callback 使用配置的 client credentials 调用 provider token endpoint，要求返回 `id_token`，但在 JWKS/signature/claims 验证和用户映射前仍 fail-closed 不创建 session）
 - [ ] mTLS 传输加密
   - [x] TLS/mTLS 配置与诊断基础（086：`transport_security` 配置、`GET /api/v1/security/transport` 脱敏显示 HTTP/Worker Tunnel TLS/mTLS readiness）
   - [x] TLS listener 边界 fail-closed（094：状态返回 `listener_mode=plaintext|tls_pending_listener`；TLS/mTLS 开启时即使证书路径齐全也标记 not ready，直到真实监听器 TLS wiring 完成）
@@ -2279,7 +2280,7 @@ tikee/
 
 #### Phase 3 closeout notes (2026-05-23)
 
-Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确后续”的标准收敛：RBAC、审计、WASM/脚本治理、Worker Tunnel 分发绑定、告警历史、Prometheus/Grafana 基础（含 dispatch queue pending-age histogram、实例成功率与治理失败 gauges）、trace-id/OTLP 配置、OIDC 授权骨架、TLS/mTLS 诊断边界均有测试覆盖；仍保持未勾选的是需要外部系统或更大架构闭环的生产能力：真实 IdP token exchange/JWKS 校验、真实 TLS/mTLS listener、完整多级审批/签名/KMS/URL/File/Secret grant、生产 SMTP TLS/auth、后台 retry worker 调度、真实 recording-rule 校验、真实 OTLP exporter collector smoke、完整租户/app/worker-pool 管理 UI 与 OIDC 身份映射。Node.js SDK、K8s Helm、PowerJob/XXL-JOB 迁移工具按用户要求留在 Phase 4。
+Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确后续”的标准收敛：RBAC、审计、WASM/脚本治理、Worker Tunnel 分发绑定、告警历史、Prometheus/Grafana 基础（含 dispatch queue pending-age histogram、实例成功率与治理失败 gauges）、trace-id/OTLP 配置、OIDC 授权骨架、TLS/mTLS 诊断边界均有测试覆盖；仍保持未勾选的是需要外部系统或更大架构闭环的生产能力：真实 JWKS 校验/claims 验证、真实 TLS/mTLS listener、完整多级审批/签名/KMS/URL/File/Secret grant、生产 SMTP TLS/auth、后台 retry worker 调度、真实 recording-rule 校验、真实 OTLP exporter collector smoke、完整租户/app/worker-pool 管理 UI 与 OIDC 身份映射。Node.js SDK、K8s Helm、PowerJob/XXL-JOB 迁移工具按用户要求留在 Phase 4。
 
 ### Phase 4: 高级能力 (月 10-12)
 

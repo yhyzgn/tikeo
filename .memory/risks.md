@@ -84,7 +84,7 @@
 
 ## 2026-05-23 — Phase 3 closeout production gaps
 
-- OIDC/SSO is fail-closed foundation only: authorize URL generation and callback shape exist, but no token exchange, JWKS verification, nonce/state persistence, user mapping, or session issuance from IdP identity is implemented.
+- OIDC/SSO is fail-closed foundation only: authorize URL generation and callback token exchange exist, but JWKS verification, nonce/state persistence, user mapping, and session issuance from IdP identity are not implemented.
 - TLS/mTLS is config/status foundation only: TLS-enabled endpoints explicitly report `tls_pending_listener`; HTTP and Worker Tunnel still serve plaintext until real listener wiring lands.
 - Script governance blocks unsafe releases and unverified approval/signature metadata, but full multi-level approval workflow, verified signatures/KMS, URL/File/Secret grants, and production release gates remain future work.
 - Alerting has durable rules/events/recovery/summary, redacted channel readiness, production-guarded webhook/provider POST delivery, provider-specific Slack/DingTalk/Feishu/WeCom/PagerDuty JSON adapters, persisted delivery attempt history, local-loopback SMTP email delivery foundation, and bounded retry/DLQ processing plus ownership-gated background retry scheduling; production SMTP TLS/auth/secret handling and live external provider smoke remain future work.
