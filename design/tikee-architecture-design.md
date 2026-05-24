@@ -2267,9 +2267,10 @@ tikee/
   - [x] Workflow / Map shard SLA Prometheus snapshot 基础（106：metrics summary 返回 workflow instance/shard status、success ratio、duration；`/metrics` 暴露 `tikee_workflow_instance_duration_seconds` 与 `tikee_workflow_shard_duration_seconds` histogram；Grafana 模板引用真实查询）
   - [x] 端到端 dispatch latency Prometheus snapshot 基础（109：`DispatchQueueSloSummary` 返回 completed_dispatches/average/longest dispatch latency；`/metrics` 暴露 `tikee_dispatch_queue_dispatch_latency_seconds` histogram 与 completed gauge；Grafana 模板引用真实查询）
   - [ ] 完整业务 SLO 指标（真实 scrape/recording-rule 校验等）
-- [ ] OpenTelemetry 分布式追踪
+- [x] OpenTelemetry 分布式追踪
   - [x] HTTP Trace ID 传播基础（084：`x-request-id` / `x-trace-id` / W3C `traceparent` 解析，缺失时生成 `trc-*`，响应回写 `x-trace-id`，本地 tracing span 不依赖外部 collector）
-  - [x] OTLP exporter 配置与状态基础（090：`observability.tracing` 配置、`GET /api/v1/observability/status` 脱敏显示 exporter/endpoint/header readiness；真实 exporter 初始化与 collector smoke 后续）
+  - [x] OTLP exporter 配置与状态基础（090：`observability.tracing` 配置、`GET /api/v1/observability/status` 脱敏显示 exporter/endpoint/header readiness）
+  - [x] 真实 OTLP HTTP exporter 初始化与本地 collector smoke（119：server startup 根据配置启用 `tracing-opentelemetry` + OTLP/HTTP protobuf exporter；测试接收非空 `/v1/traces` payload 并验证配置 header 送达）
 - [ ] Java Spring Boot Starter SDK（优先）
   - [x] Gradle 多模块骨架：java-core / spring-boot-autoconfigure / spring-boot-starter（JDK 21+；已替换 Maven 骨架）
   - [x] `@TikeeProcessor` 注解扫描与 auto-configuration 骨架
@@ -2281,7 +2282,7 @@ tikee/
 
 #### Phase 3 closeout notes (2026-05-23)
 
-Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确后续”的标准收敛：RBAC、审计、WASM/脚本治理、Worker Tunnel 分发绑定、告警历史、Prometheus/Grafana 基础（含 dispatch queue pending-age histogram、实例成功率与治理失败 gauges）、trace-id/OTLP 配置、OIDC 授权骨架、TLS/mTLS 诊断边界均有测试覆盖；仍保持未勾选的是需要外部系统或更大架构闭环的生产能力：真实 OIDC UserInfo subject 到本地用户/角色/租户映射与 opaque session 签发、真实 TLS/mTLS listener、完整多级审批/签名/KMS/URL/File/Secret grant、生产 SMTP TLS/auth、后台 retry worker 调度、真实 recording-rule 校验、真实 OTLP exporter collector smoke、完整租户/app/worker-pool 管理 UI 与 OIDC 身份映射。Node.js SDK、K8s Helm、PowerJob/XXL-JOB 迁移工具按用户要求留在 Phase 4。
+Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确后续”的标准收敛：RBAC、审计、WASM/脚本治理、Worker Tunnel 分发绑定、告警历史、Prometheus/Grafana 基础（含 dispatch queue pending-age histogram、实例成功率与治理失败 gauges）、trace-id/OTLP 配置、OIDC 授权骨架、TLS/mTLS 诊断边界均有测试覆盖；仍保持未勾选的是需要外部系统或更大架构闭环的生产能力：真实 OIDC UserInfo subject 到本地用户/角色/租户映射与 opaque session 签发、真实 TLS/mTLS listener、完整多级审批/签名/KMS/URL/File/Secret grant、生产 SMTP TLS/auth、后台 retry worker 调度、真实 recording-rule 校验、完整租户/app/worker-pool 管理 UI 与 OIDC 身份映射。Node.js SDK、K8s Helm、PowerJob/XXL-JOB 迁移工具按用户要求留在 Phase 4。
 
 ### Phase 4: 高级能力 (月 10-12)
 

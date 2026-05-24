@@ -41,7 +41,11 @@ time = { version = "0.3", features = ["formatting"] }
 tonic = "0.14"
 tower = "0"
 tracing = "0"
-tracing-subscriber = { version = "0", features = ["env-filter", "fmt"] }
+tracing-opentelemetry = "0.31"
+opentelemetry = "0.30"
+opentelemetry_sdk = "0.30"
+opentelemetry-otlp = { version = "0.30", default-features = false, features = ["http-proto", "reqwest-blocking-client"] }
+tracing-subscriber = { version = "0", features = ["env-filter", "fmt", "registry"] }
 utoipa = { version = "5", features = ["axum_extras"] }
 
 [dev-dependencies]

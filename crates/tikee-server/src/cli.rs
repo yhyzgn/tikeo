@@ -6,7 +6,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use tikee_config::load_config;
 
-use crate::server;
+use crate::{observability::tracing::TracingRuntime, server};
 
 /// tikee command-line entrypoint.
 #[derive(Debug, Parser)]
@@ -30,9 +30,11 @@ impl Cli {
     pub async fn run(self) -> Result<()> {
         match self.command {
             Command::Serve { config } => {
-                init_tracing();
                 let config = load_config(config.as_deref())?;
-                Box::pin(server::serve(config)).await
+                let mut tracing_runtime = TracingRuntime::start(&config.observability.tracing)?;
+                let result = Box::pin(server::serve(config)).await;
+                tokio::task::spawn_blocking(move || tracing_runtime.shutdown()).await??;
+                result
             }
         }
     }
@@ -47,15 +49,4 @@ pub enum Command {
         #[arg(long, env = "TIKEE_CONFIG")]
         config: Option<PathBuf>,
     },
-}
-
-fn init_tracing() {
-    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("tikee=info,tower_http=info"));
-
-    tracing_subscriber::fmt()
-        .with_env_filter(env_filter)
-        .with_target(false)
-        .compact()
-        .init();
 }

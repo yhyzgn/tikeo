@@ -11,7 +11,7 @@
 - Full multi-level script approval state machine, verified signatures/KMS, production release gates, and URL/File/Secret grants.
 - Remaining alert delivery hardening: production SMTP TLS/auth/secret handling and live provider smoke for external SMTP/Slack/DingTalk/Feishu/WeCom/PagerDuty endpoints.
 - OIDC identity-to-tenant mapping and advanced tenant isolation policy UI.
-- Remaining business observability hardening: live Prometheus/Grafana recording-rule validation and real OTLP exporter collector smoke.
+- Remaining business observability hardening: live Prometheus/Grafana recording-rule validation.
 
 ## Deferred out of Phase 3
 - Node.js SDK, K8s Helm Chart, PowerJob migration tooling, and XXL-JOB migration tooling belong to Phase 4.

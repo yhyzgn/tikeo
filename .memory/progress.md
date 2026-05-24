@@ -937,3 +937,16 @@ Verification evidence:
 - Storage and server clippy passed via RTK after the correction.
 
 - Phase118 full verification passed: rtk bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features && cargo run -- --help >/tmp/tikee-help.out && cargo test --manifest-path sdks/rust/tikee/Cargo.toml && cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm && cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings && cd web && bun run lint && bun run typecheck && bun test && bun run build && cd ../sdks/java && ./gradlew test --warning-mode all --no-daemon'
+
+
+### 2026-05-24 — Phase 119 real OTLP exporter smoke
+- Completed the OpenTelemetry distributed tracing Phase 3 item with real OTLP HTTP exporter startup wiring.
+- Added focused `observability::tracing::TracingRuntime` using OpenTelemetry SDK plus `tracing-opentelemetry`, keeping local tracing disabled-by-default unless configured.
+- Added local collector smoke coverage proving exported spans POST a non-empty OTLP protobuf payload to `/v1/traces` and carry configured exporter headers.
+- Remaining observability gap is Prometheus/Grafana recording-rule validation, not OTLP tracing.
+Verification evidence:
+- `rtk cargo test -p tikee-server --test otel_exporter_smoke --all-features` passed.
+- `rtk cargo test -p tikee-server observability_status_reports_default_and_configured_otlp_without_collector --all-features` passed.
+- Targeted `rtk cargo fmt --all -- --check` and `rtk cargo clippy -p tikee-server --all-targets --all-features -- -D warnings` passed.
+- Phase119 full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out'`.
+- SDK/Web verification passed: `rtk bash -lc 'set -euo pipefail; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
