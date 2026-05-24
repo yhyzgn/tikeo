@@ -949,3 +949,20 @@ body {
     flex-direction: column;
   }
 }
+
+.worker-history-layer-switch {
+  margin-bottom: 14px;
+}
+
+.worker-history-list {
+  margin-bottom: 18px;
+}
+
+.worker-history-list__item {
+  width: 100%;
+}
+
+.worker-event-timeline {
+  padding-top: 10px;
+  border-top: 1px solid #e7ecf4;
+}

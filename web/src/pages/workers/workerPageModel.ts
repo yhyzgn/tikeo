@@ -1,4 +1,4 @@
-import type { DispatchQueueSummary, QueueOverview, WorkerSummary } from '../../api/client';
+import type { DispatchQueueSummary, QueueOverview, WorkerSessionHistorySummary, WorkerSummary } from '../../api/client';
 
 export type QueueStatusFilter = 'all' | 'pending' | 'running' | 'done' | 'failed';
 
@@ -15,6 +15,10 @@ export function workerSearchText(worker: WorkerSummary): string {
     worker.app,
     worker.cluster,
     worker.region,
+    worker.logical_instance_id,
+    worker.client_instance_id ?? '',
+    worker.status,
+    worker.status_reason ?? '',
     ...worker.capabilities,
   ].join(' ').toLowerCase();
 }
@@ -56,4 +60,25 @@ export function queueStatusColor(status: string): string {
   if (status === 'done') return 'green';
   if (status === 'failed') return 'red';
   return 'default';
+}
+
+
+export function sessionStatusColor(status: string): string {
+  if (status === 'online' || status === 'active' || status === 'session_registered') return 'green';
+  if (status === 'replaced' || status === 'stopped' || status === 'graceful_shutdown') return 'blue';
+  if (status === 'offline' || status === 'lease_expired_unknown' || status === 'heartbeat_timeout') return 'red';
+  if (status === 'degraded' || status === 'stale_worker_message') return 'orange';
+  return 'default';
+}
+
+export function groupWorkerSessionsByLayer(sessions: WorkerSessionHistorySummary[]): {
+  active: WorkerSessionHistorySummary[];
+  degraded: WorkerSessionHistorySummary[];
+  history: WorkerSessionHistorySummary[];
+} {
+  return {
+    active: sessions.filter((session) => session.status === 'online'),
+    degraded: sessions.filter((session) => session.status === 'offline' || session.status === 'degraded'),
+    history: sessions.filter((session) => !['online', 'offline', 'degraded'].includes(session.status)),
+  };
 }

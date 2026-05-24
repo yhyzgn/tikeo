@@ -31,7 +31,8 @@ use tikee_core::HealthState;
 use tikee_storage::{
     AlertRepository, AuditLogRepository, AuthSessionRepository, JobInstanceAttemptRepository,
     JobInstanceLogRepository, JobInstanceRepository, JobRepository, RaftRepository, RbacRepository,
-    ScriptRepository, UserRepository, WorkflowRepository, connect_and_migrate,
+    ScriptRepository, UserRepository, WorkerLifecycleRepository, WorkflowRepository,
+    connect_and_migrate,
 };
 
 use tokio::{net::TcpListener, signal};
@@ -65,6 +66,7 @@ pub struct AppState {
     sessions: SessionManager,
     pub(crate) rbac: RbacService,
     pub(crate) registry: crate::tunnel::WorkerRegistry,
+    pub(crate) worker_lifecycle: WorkerLifecycleRepository,
     pub(crate) cluster: SharedClusterCoordinator,
     pub(crate) raft_transport_token: Option<String>,
 }
@@ -89,6 +91,7 @@ impl AppState {
         let rbac = RbacService::new(RbacRepository::new(db.clone()));
         let raft = RaftRepository::new(db.clone());
         let alerts = AlertRepository::new(db.clone());
+        let worker_lifecycle = WorkerLifecycleRepository::new(db.clone());
         let sessions = SessionManager::new(DbMokaSessionStore::new(
             AuthSessionRepository::new(db.clone()),
             RbacRepository::new(db),
@@ -111,6 +114,7 @@ impl AppState {
             sessions,
             rbac,
             registry,
+            worker_lifecycle,
             cluster,
             raft_transport_token: None,
         }
@@ -367,6 +371,7 @@ fn api_router() -> Router<Arc<AppState>> {
             get(routes::list_instance_attempts),
         )
         .route("/workers", get(routes::list_workers))
+        .route("/workers/history", get(routes::worker_lifecycle_history))
         .route("/dispatch-queue", get(routes::dispatch_queue))
         .route(
             "/dispatch-queue:claim",

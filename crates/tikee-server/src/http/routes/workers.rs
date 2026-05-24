@@ -9,7 +9,8 @@ use crate::http::{
     AppState, auth,
     dto::{
         ApiResponse, DispatchQueueApiResponse, DispatchQueueClaimApiResponse,
-        WorkerListApiResponse, WorkerListResponse, WorkerSummary,
+        WorkerLifecycleHistoryApiResponse, WorkerLifecycleHistoryResponse, WorkerListApiResponse,
+        WorkerListResponse, WorkerSessionEventDto, WorkerSessionHistorySummary, WorkerSummary,
     },
     error::ApiError,
 };
@@ -60,6 +61,53 @@ pub async fn list_workers(
     Ok(Json(ApiResponse::success(WorkerListResponse {
         online: items.len(),
         items,
+    })))
+}
+
+#[utoipa::path(get, path = "/api/v1/workers/history", tag = "workers")]
+pub async fn worker_lifecycle_history(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<WorkerLifecycleHistoryApiResponse>, ApiError> {
+    auth::require_permission(&headers, &state, "workers", "read").await?;
+    let sessions = state
+        .worker_lifecycle
+        .list_sessions(200)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .into_iter()
+        .map(|session| WorkerSessionHistorySummary {
+            worker_id: session.worker_id,
+            logical_instance_id: session.logical_instance_id,
+            generation: session.generation,
+            status: session.status,
+            status_reason: session.status_reason,
+            status_evidence: session.status_evidence,
+            lease_expires_at: session.lease_expires_at,
+            last_heartbeat_at: session.last_heartbeat_at,
+            last_sequence: session.last_sequence,
+            replaced_by_worker_id: session.replaced_by_worker_id,
+        })
+        .collect();
+    let events = state
+        .worker_lifecycle
+        .list_recent_events(200)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .into_iter()
+        .map(|event| WorkerSessionEventDto {
+            id: event.id,
+            worker_id: event.worker_id,
+            logical_instance_id: event.logical_instance_id,
+            event_type: event.event_type,
+            reason: event.reason,
+            detail_json: event.detail_json,
+            created_at: event.created_at,
+        })
+        .collect();
+    Ok(Json(ApiResponse::success(WorkerLifecycleHistoryResponse {
+        sessions,
+        events,
     })))
 }
 

@@ -2302,7 +2302,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
   - [x] Slice C lease scanner：过期 online session 持久标记为 `offline / lease_expired_unknown`，写入 `lease_expired` 事件，不将 heartbeat timeout 误判为 crash。
   - [x] Slice D graceful unregister：协议新增 `UnregisterWorker`，Server/Rust SDK/Java SDK 支持主动下线并标记 `stopped / graceful_shutdown`。
   - [x] Slice E assignment token 校验：dispatch 下发 assignment token，Rust/Java SDK 回传，Server 拒绝缺失/错误 token 的日志与结果。
-  - [ ] history UI。
+  - [x] Slice F Web lifecycle history UI：`/workers/history` 返回持久 sessions/events，Worker 集群页面按在线/异常/历史分层显示。
 - [ ] 部署与运维 bootstrap：本地/裸机/systemd/Compose 的最小生产模板优先，Helm 在外部 DB、secret、网关和 TLS 参数稳定后落地。
 - [ ] 生产告警投递硬化：SMTP TLS/auth/secret reference、Provider secret 管理、重试/DLQ 可视化与最小 live smoke。
 

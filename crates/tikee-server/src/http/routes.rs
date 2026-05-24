@@ -40,7 +40,7 @@ pub use scripts::{
 pub use security::transport_security_status;
 pub use system::{cluster_diagnostics, cluster_status, system_info};
 pub use users::{create_user, delete_user, list_users, update_user};
-pub use workers::{claim_dispatch_queue, dispatch_queue, list_workers};
+pub use workers::{claim_dispatch_queue, dispatch_queue, list_workers, worker_lifecycle_history};
 pub use workflows::{
     advance_workflow_instance, complete_workflow_shard, create_workflow, dry_run_workflow,
     get_workflow, get_workflow_instance as get_workflow_instance_route, list_workflow_shards,

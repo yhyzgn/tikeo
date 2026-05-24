@@ -1072,3 +1072,16 @@ Verification evidence:
 - `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` passed.
 - `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
 - `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.core.GrpcTikeeWorkerClientTest --warning-mode all --no-daemon'` passed.
+
+
+### 2026-05-25 — P0 Worker lifecycle Slice F: Web layered history UI
+- Added HTTP `/api/v1/workers/history` backed by persistent worker lifecycle sessions/events.
+- Added DTOs and storage list methods for Worker session history and lifecycle events.
+- Worker cluster page now fetches online workers, dispatch queue, and lifecycle history together.
+- Added `WorkerLifecycleHistory` panel with 在线 / 异常/待确认 / 历史 segmentation and recent lifecycle event timeline.
+Verification evidence:
+- `rtk cargo clippy -p tikee-storage --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo clippy -p tikee-server --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test -p tikee-storage worker_lifecycle --all-features` passed.
+- `rtk cargo test -p tikee-server worker --all-features` passed.
+- `rtk bash -lc 'cd web && bun run lint && bun run typecheck && bun test src/pages/__tests__/WorkersPage.test.tsx && bun run build'` passed.

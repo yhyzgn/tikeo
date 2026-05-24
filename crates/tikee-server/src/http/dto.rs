@@ -573,6 +573,7 @@ pub type DispatchQueueApiResponse = ApiResponse<tikee_storage::QueueOverview>;
 pub type DispatchQueueClaimApiResponse = ApiResponse<tikee_storage::DispatchQueueClaim>;
 /// Worker list API envelope.
 pub type WorkerListApiResponse = ApiResponse<WorkerListResponse>;
+pub type WorkerLifecycleHistoryApiResponse = ApiResponse<WorkerLifecycleHistoryResponse>;
 /// Raft `AppendEntries` API envelope.
 pub type RaftAppendEntriesApiResponse = ApiResponse<RaftMessageResult>;
 /// Raft membership proposal API envelope.
@@ -631,6 +632,59 @@ pub struct WorkerListResponse {
     pub online: usize,
     /// Online workers.
     pub items: Vec<WorkerSummary>,
+}
+
+/// Persisted worker session shown in history UI.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct WorkerSessionHistorySummary {
+    /// Worker session id.
+    pub worker_id: String,
+    /// Logical worker key used to group sessions.
+    pub logical_instance_id: String,
+    /// Session generation.
+    pub generation: i64,
+    /// Session status.
+    pub status: String,
+    /// Machine-readable status reason.
+    pub status_reason: Option<String>,
+    /// Evidence string for current status.
+    pub status_evidence: Option<String>,
+    /// Lease expiry timestamp.
+    pub lease_expires_at: String,
+    /// Last heartbeat timestamp.
+    pub last_heartbeat_at: String,
+    /// Last heartbeat sequence.
+    pub last_sequence: i64,
+    /// Replacement worker id when any.
+    pub replaced_by_worker_id: Option<String>,
+}
+
+/// Worker lifecycle event shown in history UI.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct WorkerSessionEventDto {
+    /// Event id.
+    pub id: String,
+    /// Worker session id.
+    pub worker_id: String,
+    /// Logical instance id.
+    pub logical_instance_id: String,
+    /// Event type.
+    pub event_type: String,
+    /// Reason code when present.
+    pub reason: Option<String>,
+    /// Optional JSON detail.
+    pub detail_json: Option<String>,
+    /// Creation timestamp.
+    pub created_at: String,
+}
+
+/// Worker lifecycle history payload.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct WorkerLifecycleHistoryResponse {
+    /// Persisted sessions including stopped/replaced/offline history.
+    pub sessions: Vec<WorkerSessionHistorySummary>,
+    /// Recent lifecycle events across workers.
+    pub events: Vec<WorkerSessionEventDto>,
 }
 
 /// Transport request shape aligned with raft-rs `eraftpb::Message`.

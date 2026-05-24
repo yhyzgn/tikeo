@@ -672,12 +672,46 @@ export interface QueueOverview {
 
 export interface WorkerSummary {
   worker_id: string;
+  logical_instance_id: string;
+  client_instance_id: string | null;
   app: string;
   namespace: string;
   cluster: string;
   region: string;
   capabilities: string[];
+  generation: number;
+  status: string;
+  status_reason: string | null;
+  replaced_by_worker_id: string | null;
   last_sequence: number;
+}
+
+export interface WorkerSessionHistorySummary {
+  worker_id: string;
+  logical_instance_id: string;
+  generation: number;
+  status: string;
+  status_reason: string | null;
+  status_evidence: string | null;
+  lease_expires_at: string;
+  last_heartbeat_at: string;
+  last_sequence: number;
+  replaced_by_worker_id: string | null;
+}
+
+export interface WorkerSessionEventSummary {
+  id: string;
+  worker_id: string;
+  logical_instance_id: string;
+  event_type: string;
+  reason: string | null;
+  detail_json: string | null;
+  created_at: string;
+}
+
+export interface WorkerLifecycleHistoryResponse {
+  sessions: WorkerSessionHistorySummary[];
+  events: WorkerSessionEventSummary[];
 }
 
 export interface WorkerListResponse {
@@ -772,6 +806,10 @@ export async function listWorkflowShards(instanceId: string): Promise<WorkflowSh
 
 export async function listWorkers(): Promise<WorkerListResponse> {
   return request<WorkerListResponse>('/api/v1/workers');
+}
+
+export async function getWorkerLifecycleHistory(): Promise<WorkerLifecycleHistoryResponse> {
+  return request<WorkerLifecycleHistoryResponse>('/api/v1/workers/history');
 }
 
 export async function getDispatchQueue(): Promise<QueueOverview> {

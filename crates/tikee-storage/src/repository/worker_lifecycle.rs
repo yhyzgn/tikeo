@@ -303,6 +303,38 @@ impl WorkerLifecycleRepository {
             .map(|session| WorkerSessionSummary::from_model(session, None)))
     }
 
+    /// List persisted worker sessions ordered by most recently updated first.
+    pub async fn list_sessions(
+        &self,
+        limit: u64,
+    ) -> Result<Vec<WorkerSessionSummary>, sea_orm::DbErr> {
+        let sessions = worker_session::Entity::find()
+            .order_by_desc(worker_session::Column::UpdatedAt)
+            .limit(limit)
+            .all(&self.db)
+            .await?;
+        Ok(sessions
+            .into_iter()
+            .map(|session| WorkerSessionSummary::from_model(session, None))
+            .collect())
+    }
+
+    /// List recent lifecycle events across all worker sessions.
+    pub async fn list_recent_events(
+        &self,
+        limit: u64,
+    ) -> Result<Vec<WorkerSessionEventSummary>, sea_orm::DbErr> {
+        let events = worker_session_event::Entity::find()
+            .order_by_desc(worker_session_event::Column::CreatedAt)
+            .limit(limit)
+            .all(&self.db)
+            .await?;
+        Ok(events
+            .into_iter()
+            .map(WorkerSessionEventSummary::from_model)
+            .collect())
+    }
+
     /// List lifecycle events for one worker session.
     pub async fn list_session_events(
         &self,
