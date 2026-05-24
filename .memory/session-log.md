@@ -1575,3 +1575,10 @@ Verification evidence:
 - `rtk cargo test -p tikee-server http_tls_listener_serves_https_when_configured --all-features` passed.
 - `rtk cargo test -p tikee-server transport_security_status_reports_defaults_and_partial_mtls_config --all-features` passed.
 - Full backend verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out'`.
+
+### 2026-05-25 — P0 Worker lifecycle Slice A: generation/fencing baseline
+- Reviewed `design/worker-identity-lifecycle-design.md` before implementation.
+- Added Worker session generation/fencing to proto, server registry/service, `/workers` summary, Rust SDK, and Java SDK.
+- Same logical worker registrations now replace old generations; stale heartbeat/log/result messages are fenced from writes; `/workers` shows latest online generation only.
+Verification evidence:
+- Server worker tests, Rust SDK tests/clippy, Java SDK tests, and full backend verification passed via RTK.

@@ -1000,3 +1000,15 @@ Verification evidence:
 - `rtk cargo test -p tikee-server http_tls_listener_serves_https_when_configured --all-features` passed.
 - `rtk cargo test -p tikee-server transport_security_status_reports_defaults_and_partial_mtls_config --all-features` passed.
 - Full backend verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out'`.
+
+### 2026-05-25 — P0 Worker lifecycle Slice A: generation/fencing baseline
+- Reviewed `design/worker-identity-lifecycle-design.md` and implemented the first Worker identity lifecycle slice against that design.
+- `WorkerRegistered` now returns `generation` and `fencing_token`; Heartbeat carries both and stale/replaced session heartbeats are rejected.
+- `WorkerRegistry` now derives a logical instance key from namespace/app/cluster/region/client_instance_id, increments generation for repeat registration, marks old sessions `replaced` with `replaced_by_new_generation`, and filters dispatch/worker list to latest schedulable sessions.
+- Rust and Java SDK heartbeats now echo the assigned generation/fencing token.
+Verification evidence:
+- RED registry replacement test failed before implementation, then passed.
+- `rtk cargo test -p tikee-server worker --all-features` passed.
+- `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` and Rust SDK clippy passed.
+- Full backend verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out'`.

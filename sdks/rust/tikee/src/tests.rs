@@ -491,6 +491,8 @@ impl worker_tunnel_service_server::WorkerTunnelService for MockTunnel {
                                 kind: Some(server_message::Kind::Registered(WorkerRegistered {
                                     worker_id: format!("mock-{}", register.client_instance_id),
                                     lease_seconds: 30,
+                                    generation: 1,
+                                    fencing_token: "mock-fencing-token".to_owned(),
                                 })),
                             }))
                             .await;

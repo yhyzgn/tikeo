@@ -61,7 +61,9 @@ class GrpcTikeeWorkerClientTest {
             assertEquals("java-instance-1", register.getClientInstanceId());
             assertTrue(service.messages.stream()
                     .filter(Worker.WorkerMessage::hasHeartbeat)
-                    .anyMatch(message -> "assigned-java-worker".equals(message.getHeartbeat().getWorkerId())));
+                    .anyMatch(message -> "assigned-java-worker".equals(message.getHeartbeat().getWorkerId())
+                            && message.getHeartbeat().getGeneration() == 1
+                            && "java-fencing-token".equals(message.getHeartbeat().getFencingToken())));
             assertTrue(service.messages.stream()
                     .filter(Worker.WorkerMessage::hasTaskLog)
                     .anyMatch(message -> "assigned-java-worker".equals(message.getTaskLog().getWorkerId())));
@@ -259,6 +261,8 @@ class GrpcTikeeWorkerClientTest {
                                 .setRegistered(Worker.WorkerRegistered.newBuilder()
                                         .setWorkerId("assigned-java-worker")
                                         .setLeaseSeconds(30)
+                                        .setGeneration(1)
+                                        .setFencingToken("java-fencing-token")
                                         .build())
                                 .build());
                         if (dispatchTask != null) {
@@ -298,7 +302,7 @@ class GrpcTikeeWorkerClientTest {
                         return;
                     }
                 }
-                assertTrue(messageLatch.await(100, TimeUnit.MILLISECONDS));
+                assertTrue(messageLatch.await(500, TimeUnit.MILLISECONDS));
             }
             synchronized (messages) {
                 assertTrue(messages.size() >= count, "expected at least " + count + " messages but got " + messages.size());

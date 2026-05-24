@@ -21,6 +21,8 @@ use crate::{
 pub struct WorkerSession {
     worker_id: String,
     lease_seconds: u64,
+    generation: u64,
+    fencing_token: String,
     outbound: mpsc::Sender<WorkerMessage>,
     inbound: Streaming<ServerMessage>,
     heartbeat_sequence: u64,
@@ -39,6 +41,12 @@ impl WorkerSession {
         self.lease_seconds
     }
 
+    /// Worker session generation acknowledged by tikee.
+    #[must_use]
+    pub const fn generation(&self) -> u64 {
+        self.generation
+    }
+
     /// Send one heartbeat and wait for the matching ping response.
     ///
     /// # Errors
@@ -53,6 +61,8 @@ impl WorkerSession {
                 kind: Some(worker_message::Kind::Heartbeat(Heartbeat {
                     worker_id: self.worker_id.clone(),
                     sequence,
+                    generation: self.generation,
+                    fencing_token: self.fencing_token.clone(),
                 })),
             })
             .await
@@ -226,6 +236,8 @@ impl WorkerClient {
         Ok(WorkerSession {
             worker_id: registered.worker_id,
             lease_seconds: registered.lease_seconds,
+            generation: registered.generation,
+            fencing_token: registered.fencing_token,
             outbound: tx,
             inbound,
             heartbeat_sequence: 0,

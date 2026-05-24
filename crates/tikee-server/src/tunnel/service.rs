@@ -219,6 +219,8 @@ async fn handle_worker_message(
                     kind: Some(server_message::Kind::Registered(WorkerRegistered {
                         worker_id: worker.worker_id,
                         lease_seconds: DEFAULT_LEASE_SECONDS,
+                        generation: worker.generation,
+                        fencing_token: worker.fencing_token,
                     })),
                 }))
                 .await
@@ -226,14 +228,29 @@ async fn handle_worker_message(
         Some(worker_message::Kind::Heartbeat(Heartbeat {
             worker_id,
             sequence,
+            generation,
+            fencing_token,
         })) => {
-            let _ = context.registry.heartbeat(&worker_id, sequence).await;
-            context
-                .tx
-                .send(Ok(ServerMessage {
-                    kind: Some(server_message::Kind::Ping(Ping { sequence })),
-                }))
+            if context
+                .registry
+                .heartbeat(&worker_id, sequence, generation, &fencing_token)
                 .await
+                .is_some()
+            {
+                context
+                    .tx
+                    .send(Ok(ServerMessage {
+                        kind: Some(server_message::Kind::Ping(Ping { sequence })),
+                    }))
+                    .await
+            } else {
+                context
+                    .tx
+                    .send(Err(Status::failed_precondition(
+                        "stale worker heartbeat rejected",
+                    )))
+                    .await
+            }
         }
         Some(worker_message::Kind::TaskResult(result)) => {
             handle_task_result(context, result).await;
@@ -247,6 +264,11 @@ async fn handle_worker_message(
                 message,
                 sequence,
             } = log;
+            if !context.registry.accepts_worker_message(&worker_id).await {
+                metrics::counter!("tikee_worker_stale_messages_total", "kind" => "task_log")
+                    .increment(1);
+                return Ok(());
+            }
             match context
                 .logs
                 .append(AppendJobInstanceLog {
@@ -284,6 +306,11 @@ async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResu
         success,
         message,
     } = result;
+    if !context.registry.accepts_worker_message(&worker_id).await {
+        metrics::counter!("tikee_worker_stale_messages_total", "kind" => "task_result")
+            .increment(1);
+        return;
+    }
     let status = if success {
         InstanceStatus::Succeeded
     } else {

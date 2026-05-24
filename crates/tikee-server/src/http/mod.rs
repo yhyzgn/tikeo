@@ -3021,6 +3021,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn workers_list_shows_latest_generation_for_replaced_logical_instance() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let registry = crate::tunnel::WorkerRegistry::default();
+        let (tx1, _rx1) = tokio::sync::mpsc::channel(1);
+        let (tx2, _rx2) = tokio::sync::mpsc::channel(1);
+        let first = registry.register(worker("pod-1", "billing"), tx1).await;
+        let second = registry.register(worker("pod-1", "billing"), tx2).await;
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            AuditLogRepository::new(db),
+            registry,
+            StandaloneCoordinator::shared("test-node"),
+        ));
+
+        let response = app
+            .clone()
+            .oneshot(admin_request_builder(app.clone(), "GET", "/api/v1/workers").await)
+            .await
+            .unwrap_or_else(|error| panic!("workers route should respond: {error}"));
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert_eq!(json["data"]["online"], 1);
+        assert_eq!(json["data"]["items"][0]["worker_id"], second.worker_id);
+        assert_eq!(json["data"]["items"][0]["generation"], 2);
+        assert_eq!(json["data"]["items"][0]["status"], "online");
+        assert_eq!(json["data"]["items"][0]["client_instance_id"], "pod-1");
+        assert_ne!(first.worker_id, second.worker_id);
+    }
+
+    #[tokio::test]
     async fn login_failure_uses_unauthorized_envelope() {
         let app = router().await;
         let response = app

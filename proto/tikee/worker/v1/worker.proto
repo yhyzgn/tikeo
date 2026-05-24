@@ -38,11 +38,15 @@ message RegisterWorker {
 message Heartbeat {
   string worker_id = 1;
   uint64 sequence = 2;
+  uint64 generation = 3;
+  string fencing_token = 4;
 }
 
 message WorkerRegistered {
   string worker_id = 1;
   uint64 lease_seconds = 2;
+  uint64 generation = 3;
+  string fencing_token = 4;
 }
 
 message Ping {

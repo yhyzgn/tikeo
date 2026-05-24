@@ -596,8 +596,12 @@ pub struct WorkflowDryRunResponse {
 /// Online worker summary shown by management UI.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct WorkerSummary {
-    /// Worker id.
+    /// Worker session id.
     pub worker_id: String,
+    /// Logical worker key used to group sessions.
+    pub logical_instance_id: String,
+    /// Optional client-side stable instance hint.
+    pub client_instance_id: Option<String>,
     /// Worker app selector.
     pub app: String,
     /// Worker namespace selector.
@@ -608,6 +612,14 @@ pub struct WorkerSummary {
     pub region: String,
     /// Runtime capabilities.
     pub capabilities: Vec<String>,
+    /// Monotonic generation within the logical worker.
+    pub generation: u64,
+    /// Session status.
+    pub status: String,
+    /// Machine-readable status reason.
+    pub status_reason: Option<String>,
+    /// Replacement session id, if this session was superseded.
+    pub replaced_by_worker_id: Option<String>,
     /// Last heartbeat sequence.
     pub last_sequence: u64,
 }

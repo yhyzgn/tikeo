@@ -43,11 +43,17 @@ pub async fn list_workers(
         })
         .map(|worker| WorkerSummary {
             worker_id: worker.worker_id,
+            logical_instance_id: worker.logical_instance_id,
+            client_instance_id: worker.client_instance_id,
             app: worker.app,
             namespace: worker.namespace,
             cluster: worker.cluster,
             region: worker.region,
             capabilities: worker.capabilities,
+            generation: worker.generation,
+            status: worker.status.as_str().to_owned(),
+            status_reason: worker.status_reason,
+            replaced_by_worker_id: worker.replaced_by_worker_id,
             last_sequence: worker.last_sequence,
         })
         .collect::<Vec<_>>();

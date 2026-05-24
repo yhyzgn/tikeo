@@ -36,8 +36,10 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
     private final ScheduledExecutorService tikee;
     private final ExecutorService processorExecutor;
     private final AtomicReference<String> workerId = new AtomicReference<>();
+    private final AtomicReference<String> fencingToken = new AtomicReference<>("");
     private final AtomicReference<StreamObserver<Worker.WorkerMessage>> outbound = new AtomicReference<>();
     private final AtomicReference<Throwable> terminalError = new AtomicReference<>();
+    private final AtomicLong generation = new AtomicLong(0);
     private final AtomicLong heartbeatSequence = new AtomicLong(0);
     private final AtomicLong logSequence = new AtomicLong(0);
     private volatile CountDownLatch registrationLatch = new CountDownLatch(1);
@@ -233,6 +235,8 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                     .setHeartbeat(Worker.Heartbeat.newBuilder()
                             .setWorkerId(assignedWorkerId)
                             .setSequence(heartbeatSequence.incrementAndGet())
+                            .setGeneration(generation.get())
+                            .setFencingToken(fencingToken.get())
                             .build())
                     .build());
         } catch (RuntimeException error) {
@@ -283,7 +287,10 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
         public void onNext(Worker.ServerMessage message) {
             switch (message.getKindCase()) {
                 case REGISTERED -> {
-                    workerId.set(message.getRegistered().getWorkerId());
+                    Worker.WorkerRegistered registered = message.getRegistered();
+                    workerId.set(registered.getWorkerId());
+                    generation.set(registered.getGeneration());
+                    fencingToken.set(registered.getFencingToken());
                     registrationLatch.countDown();
                 }
                 case DISPATCH_TASK -> handleDispatch(message.getDispatchTask());
