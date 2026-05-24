@@ -1085,3 +1085,9 @@ Verification evidence:
 - `rtk cargo test -p tikee-storage worker_lifecycle --all-features` passed.
 - `rtk cargo test -p tikee-server worker --all-features` passed.
 - `rtk bash -lc 'cd web && bun run lint && bun run typecheck && bun test src/pages/__tests__/WorkersPage.test.tsx && bun run build'` passed.
+
+## 2026-05-25 P0 deployment/operations bootstrap
+
+- P0 部署与运维 bootstrap 已补齐 Compose/systemd/裸机模板：`deploy/compose/tikee.env.example`、`deploy/systemd/tikee.service`、`deploy/systemd/tikee.env`、`deploy/bare-metal/check-config.sh`。
+- 根 `docker-compose.yml` 支持镜像、端口和数据卷通过环境变量覆盖，便于本地生产化试跑。
+- 新增 `scripts/verify-deploy-bootstrap.sh` 静态校验；Helm 继续后置到外部 DB、secret、网关和 TLS 生产参数稳定后。

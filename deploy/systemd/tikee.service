@@ -1,0 +1,26 @@
+[Unit]
+Description=tikee scheduler server
+Documentation=https://github.com/yhyzgn/tikee
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tikee
+Group=tikee
+EnvironmentFile=/etc/tikee/tikee.env
+ExecStart=/opt/tikee/bin/tikee serve --config ${TIKEE_CONFIG}
+Restart=on-failure
+RestartSec=5s
+WorkingDirectory=/var/lib/tikee
+StateDirectory=tikee
+RuntimeDirectory=tikee
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/tikee /etc/tikee
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

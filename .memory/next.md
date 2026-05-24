@@ -7,7 +7,7 @@ Rebalance remaining Phase 3 / Phase 4 work around service usability first. Prefe
 1. Worker identity/session lifecycle governance for K8s/Docker and bare metal/VM/systemd: logical worker, session generation, fencing token, lost-reason evidence, history UI.
    - Done: in-memory logical key, generation, heartbeat fencing, replacement reason, latest-online worker list, Rust/Java heartbeat token echo; persistent logical/session/event tables and registry-backed registration/replacement/heartbeat writes; lease scanner marks expired online sessions as `offline / lease_expired_unknown` with events; Rust/Java SDK and server graceful unregister mark `stopped / graceful_shutdown`; assignment token validation for logs/results is wired across server/Rust SDK/Java SDK; Web layered UI/history is wired.
    - Remaining next: complete.
-2. Deployment/operations bootstrap: Compose/systemd/bare-metal templates first; Helm after production parameters for external DB, secrets, gateway, and TLS settle.
+2. Deployment/operations bootstrap: complete. Compose/systemd/bare-metal templates and static verification are in place; Helm remains deferred until production parameters for external DB, secrets, gateway, and TLS settle.
 3. Production alert delivery hardening: SMTP TLS/auth/secret references, provider secrets, retry/DLQ visibility, minimal live smoke.
 
 ## P1 — production hardening / common enterprise use
@@ -28,3 +28,4 @@ Rebalance remaining Phase 3 / Phase 4 work around service usability first. Prefe
 ## Recently completed
 - P0 OIDC external subject -> local user/role/tenant mapping and opaque tikee session issuance is complete; local login state remains opaque `auth_sessions` bearer tokens, not JWT.
 - P0 real HTTP and Worker Tunnel TLS/mTLS listeners are complete; HTTP reloads certificate material per new TLS connection, Worker Tunnel starts with tonic TLS/mTLS, and diagnostics report `tls|mtls|tls_config_error`.
+- P0 deployment/operations bootstrap is complete: Compose env defaults, systemd unit/env, bare-metal config smoke helper, and `scripts/verify-deploy-bootstrap.sh` are in place; Helm remains deferred.

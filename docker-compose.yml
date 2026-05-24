@@ -3,22 +3,22 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: tikee:dev
+    image: ${TIKEE_IMAGE:-tikee:dev}
     command: ["serve", "--config", "/app/config/container.toml"]
     ports:
-      - "9090:9090"
-      - "9998:9998"
+      - "${TIKEE_HTTP_PORT:-9090}:9090"
+      - "${TIKEE_WORKER_TUNNEL_PORT:-9998}:9998"
     volumes:
-      - tikee-data:/data
+      - ${TIKEE_DATA_VOLUME:-tikee-data}:/data
   web:
     build:
       context: ./web
       dockerfile: Dockerfile
-    image: tikee-web:dev
+    image: ${TIKEE_WEB_IMAGE:-tikee-web:dev}
     depends_on:
       - tikee
     ports:
-      - "8080:80"
+      - "${TIKEE_WEB_PORT:-8080}:80"
 
 volumes:
   tikee-data:
