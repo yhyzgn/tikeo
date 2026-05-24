@@ -26,6 +26,8 @@ Spring Boot starter properties:
 ```yaml
 tikee:
   worker:
+    enabled: true
+    auto-startup: true # SmartLifecycle starts/stops the outbound worker client
     dry-run: false # true for local demo without a live tikee
     endpoint: http://0.0.0.0:9998
     client-instance-id: spring-worker
@@ -34,3 +36,5 @@ tikee:
     cluster: local
     region: local
 ```
+
+The Spring Boot starter creates a `TikeeWorkerLifecycle` bean so the worker client follows the application lifecycle. Set `tikee.worker.auto-startup=false` when an application wants to start the client manually, or `tikee.worker.enabled=false` to disable Worker Tunnel beans while keeping processor scanning available.

@@ -16,6 +16,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Setter
 @ConfigurationProperties(prefix = "tikee.worker")
 public class TikeeWorkerProperties {
+    /** Enable tikee worker auto-configuration. */
+    private boolean enabled = true;
+    /** Auto-start the worker client with the Spring application lifecycle. */
+    private boolean autoStartup = true;
     /** Tikee Worker Tunnel endpoint. */
     private String endpoint = "http://0.0.0.0:9998";
     /** Dry-run mode avoids opening a live Worker Tunnel. */

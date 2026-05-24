@@ -9,6 +9,7 @@ import com.yhyzgn.tikee.spring.SpringTikeeTaskProcessor;
 import java.time.Duration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
@@ -20,6 +21,7 @@ import org.springframework.context.annotation.Bean;
 public class TikeeWorkerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "tikee.worker", name = "enabled", havingValue = "true", matchIfMissing = true)
     TikeeWorkerClient tikeeWorkerClient(
             TikeeWorkerProperties properties, TikeeProcessorRegistry processorRegistry) {
         var registration = new WorkerRegistration(
@@ -38,6 +40,13 @@ public class TikeeWorkerAutoConfiguration {
                 registration,
                 new SpringTikeeTaskProcessor(processorRegistry),
                 Duration.ofMillis(properties.getHeartbeatIntervalMillis()));
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "tikee.worker", name = "enabled", havingValue = "true", matchIfMissing = true)
+    TikeeWorkerLifecycle tikeeWorkerLifecycle(TikeeWorkerClient client, TikeeWorkerProperties properties) {
+        return new TikeeWorkerLifecycle(client, properties);
     }
 
     @Bean

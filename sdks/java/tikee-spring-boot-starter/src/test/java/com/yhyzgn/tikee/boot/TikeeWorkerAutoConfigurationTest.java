@@ -28,8 +28,32 @@ class TikeeWorkerAutoConfigurationTest {
             NoopTikeeWorkerClient noop = (NoopTikeeWorkerClient) client;
             assertThat(noop.registration().clientInstanceId()).isEqualTo("test-instance");
             assertThat(noop.registration().app()).isEqualTo("billing");
+            assertThat(noop.running()).isTrue();
             assertThat(context.getBean(TikeeProcessorRegistry.class).handlers()).containsKey("demo.echo");
         });
+    }
+
+    @Test
+    void autoStartupCanBeDisabledWhileKeepingClientBean() {
+        contextRunner
+                .withPropertyValues("tikee.worker.auto-startup=false")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(TikeeWorkerClient.class);
+                    assertThat(context).hasSingleBean(TikeeWorkerLifecycle.class);
+                    NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
+                    assertThat(noop.running()).isFalse();
+                });
+    }
+
+    @Test
+    void disabledWorkerDoesNotCreateClientOrLifecycle() {
+        contextRunner
+                .withPropertyValues("tikee.worker.enabled=false")
+                .run(context -> {
+                    assertThat(context).doesNotHaveBean(TikeeWorkerClient.class);
+                    assertThat(context).doesNotHaveBean(TikeeWorkerLifecycle.class);
+                    assertThat(context).hasSingleBean(TikeeProcessorRegistry.class);
+                });
     }
 
     @Configuration(proxyBeanMethods = false)

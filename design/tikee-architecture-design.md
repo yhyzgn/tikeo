@@ -2271,11 +2271,12 @@ tikee/
   - [x] HTTP Trace ID 传播基础（084：`x-request-id` / `x-trace-id` / W3C `traceparent` 解析，缺失时生成 `trc-*`，响应回写 `x-trace-id`，本地 tracing span 不依赖外部 collector）
   - [x] OTLP exporter 配置与状态基础（090：`observability.tracing` 配置、`GET /api/v1/observability/status` 脱敏显示 exporter/endpoint/header readiness）
   - [x] 真实 OTLP HTTP exporter 初始化与本地 collector smoke（119：server startup 根据配置启用 `tracing-opentelemetry` + OTLP/HTTP protobuf exporter；测试接收非空 `/v1/traces` payload 并验证配置 header 送达）
-- [ ] Java Spring Boot Starter SDK（优先）
-  - [x] Gradle 多模块骨架：java-core / spring-boot-autoconfigure / spring-boot-starter（JDK 21+；已替换 Maven 骨架）
+- [x] Java Spring Boot Starter SDK（优先）
+  - [x] Gradle 多模块骨架：`tikee` / `tikee-spring` / `tikee-spring-boot-starter`（JDK 21+；已替换 Maven 骨架）
   - [x] `@TikeeProcessor` 注解扫描与 auto-configuration 骨架
   - [x] Java gRPC Worker Tunnel 真实连接与心跳
   - [x] Java Spring Worker Demo 可持续运行与本地可见性（101：demo 不再启动后立即 close；支持 `TIKEE_WORKER_DRY_RUN=false` 连接 `127.0.0.1:9998`，可在 Worker 集群页面看到 java/spring-boot capability）
+  - [x] Spring Boot Starter 生命周期闭环（120：`TikeeWorkerLifecycle` SmartLifecycle 自动 start/stop Worker client；支持 `tikee.worker.enabled=false` 与 `auto-startup=false`）
 - [x] Java Core SDK
 - [x] Worker processor binding model（Job 定义与 Workflow job/map 节点支持 `processor_name`，Worker dispatch 按 processor name 路由，legacy 数据回退 `job_id`）
 - [x] SDK 目录规范迁移：Rust SDK -> `sdks/rust/tikee`，Java SDK -> Gradle/JDK21+，新增 `examples/<language>/<demo-name>` demo 骨架，并补齐 Rust / Java 可独立运行 demo 基础

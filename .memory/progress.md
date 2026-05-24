@@ -950,3 +950,14 @@ Verification evidence:
 - Targeted `rtk cargo fmt --all -- --check` and `rtk cargo clippy -p tikee-server --all-targets --all-features -- -D warnings` passed.
 - Phase119 full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out'`.
 - SDK/Web verification passed: `rtk bash -lc 'set -euo pipefail; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
+
+
+### 2026-05-24 — Phase 120 Java Spring Boot Starter lifecycle completion
+- Completed the Java Spring Boot Starter SDK runtime behavior with a `TikeeWorkerLifecycle` SmartLifecycle bridge.
+- Starter now auto-starts and stops the configured `TikeeWorkerClient` with the Spring application lifecycle while preserving processor scanning.
+- Added `tikee.worker.enabled` and `tikee.worker.auto-startup` controls for disabling worker beans or manual startup.
+- Updated the Spring worker demo so lifecycle ownership lives in the starter instead of the demo runner.
+Verification evidence:
+- RED starter test failed before `TikeeWorkerLifecycle` existed, then passed after implementation.
+- `rtk bash -lc 'cd sdks/java && ./gradlew :tikee-spring-boot-starter:test --warning-mode all --no-daemon'` passed.
+- Phase120 Java verification passed: `rtk bash -lc 'set -euo pipefail; cd sdks/java; ./gradlew test --warning-mode all --no-daemon; cd ../../examples/java/spring-worker-demo; ./gradlew build --warning-mode all --no-daemon'`.

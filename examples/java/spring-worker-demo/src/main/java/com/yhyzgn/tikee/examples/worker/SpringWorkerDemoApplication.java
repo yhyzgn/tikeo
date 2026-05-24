@@ -29,7 +29,6 @@ public class SpringWorkerDemoApplication {
 
         @Override
         public void run(String... args) throws InterruptedException {
-            client.start();
             System.out.println("Spring worker demo started with tikee worker client: "
                     + client.getClass().getSimpleName() + ", workerId=" + client.workerId());
             stopSignal.await();
@@ -38,7 +37,6 @@ public class SpringWorkerDemoApplication {
         @PreDestroy
         public void stop() {
             stopSignal.countDown();
-            client.close();
         }
     }
 }
