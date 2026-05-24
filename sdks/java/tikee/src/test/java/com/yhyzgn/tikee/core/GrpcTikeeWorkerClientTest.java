@@ -120,6 +120,7 @@ class GrpcTikeeWorkerClientTest {
                 .setProcessorName("demo.echo")
                 .setInstanceId("instance-1")
                 .setPayload(com.google.protobuf.ByteString.copyFromUtf8("hello"))
+                .setAssignmentToken("java-assign-token")
                 .build());
         Server server = InProcessServerBuilder.forName(serverName)
                 .directExecutor()
@@ -150,6 +151,7 @@ class GrpcTikeeWorkerClientTest {
             Worker.TaskResult result = service.result.get();
             assertTrue(result.getSuccess());
             assertEquals("assigned-java-worker", result.getWorkerId());
+            assertEquals("java-assign-token", result.getAssignmentToken());
         } finally {
             channel.shutdownNow();
             server.shutdownNow();

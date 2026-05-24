@@ -320,8 +320,13 @@ async fn handle_task_log(
         level,
         message,
         sequence,
+        assignment_token,
     } = log;
-    if !context.registry.accepts_worker_message(&worker_id).await {
+    if !context
+        .registry
+        .accepts_worker_assignment(&worker_id, &assignment_token)
+        .await
+    {
         metrics::counter!("tikee_worker_stale_messages_total", "kind" => "task_log").increment(1);
         return Ok(());
     }
@@ -351,8 +356,13 @@ async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResu
         instance_id,
         success,
         message,
+        assignment_token,
     } = result;
-    if !context.registry.accepts_worker_message(&worker_id).await {
+    if !context
+        .registry
+        .accepts_worker_assignment(&worker_id, &assignment_token)
+        .await
+    {
         metrics::counter!("tikee_worker_stale_messages_total", "kind" => "task_result")
             .increment(1);
         return;
@@ -512,11 +522,13 @@ fn task_log_from_summary(value: JobInstanceLogSummary) -> TaskLog {
         level: value.level,
         message: value.message,
         sequence: value.sequence,
+        assignment_token: String::new(),
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use tikee_core::InstanceStatus;
     use tikee_proto::worker::v1::{
         RegisterWorker, SubscribeTaskLogsRequest, TaskLog, WorkerMessage, server_message,
         worker_message,
@@ -528,7 +540,10 @@ mod tests {
     use tokio::sync::mpsc;
     use tokio_stream::StreamExt;
 
-    use super::{TaskLogBroadcaster, WorkerMessageContext, WorkerRegistry, handle_worker_message};
+    use super::{
+        TaskLogBroadcaster, WorkerMessageContext, WorkerRegistry, handle_task_result,
+        handle_worker_message,
+    };
 
     #[tokio::test]
     async fn register_message_updates_registry_and_acknowledges_worker() {
@@ -591,6 +606,92 @@ mod tests {
             .next()
             .unwrap_or_else(|| panic!("registered worker id should exist"));
         assert!(registry.get(&registered_id).await.is_some());
+    }
+
+    #[tokio::test]
+    async fn task_result_with_wrong_assignment_token_is_rejected() {
+        use tikee_core::{ExecutionMode, TriggerType};
+        use tikee_proto::worker::v1::{RegisterWorker, TaskResult};
+        use tikee_storage::{CreateJob, CreateJobInstance, JobRepository};
+
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let logs = JobInstanceLogRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
+        let job = jobs
+            .create_job(CreateJob {
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "assign-token".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                processor_name: None,
+                enabled: true,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should create: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id,
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should create: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        let (outbound, _rx) = mpsc::channel(8);
+        let registry = WorkerRegistry::default();
+        let worker = registry
+            .register(
+                RegisterWorker {
+                    client_instance_id: "assign-worker".to_owned(),
+                    app: "billing".to_owned(),
+                    namespace: "default".to_owned(),
+                    cluster: "local".to_owned(),
+                    region: "local".to_owned(),
+                    capabilities: Vec::new(),
+                    labels: std::collections::HashMap::default(),
+                },
+                outbound,
+            )
+            .await;
+        let (tx, _events) = mpsc::channel(8);
+        let broadcaster = TaskLogBroadcaster::default();
+        let context = WorkerMessageContext {
+            registry: &registry,
+            instances: &instances,
+            logs: &logs,
+            attempts: &attempts,
+            workflows: &workflows,
+            audit: &audit,
+            log_broadcaster: &broadcaster,
+            tx: &tx,
+            outbound: &tx,
+        };
+
+        handle_task_result(
+            &context,
+            TaskResult {
+                worker_id: worker.worker_id,
+                instance_id: instance.id.clone(),
+                success: true,
+                message: "ok".to_owned(),
+                assignment_token: "wrong".to_owned(),
+            },
+        )
+        .await;
+
+        let unchanged = instances
+            .get(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("instance should load: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        assert_eq!(unchanged.status, InstanceStatus::Pending);
     }
 
     #[tokio::test]
@@ -672,6 +773,7 @@ mod tests {
             level: "INFO".to_owned(),
             message: "live".to_owned(),
             sequence: 2,
+            assignment_token: String::new(),
         });
         let live = stream
             .next()

@@ -454,6 +454,7 @@ async fn build_dispatch_task(
         payload: Vec::new(),
         processor_name,
         processor_binding,
+        assignment_token: String::new(),
     }))
 }
 

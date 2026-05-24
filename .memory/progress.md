@@ -1057,3 +1057,18 @@ Verification evidence:
 - `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml worker_session_close_sends_graceful_unregister --features wasm` passed.
 - `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
 - `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.core.GrpcTikeeWorkerClientTest --warning-mode all --no-daemon'` passed.
+
+
+### 2026-05-25 — P0 Worker lifecycle Slice E: assignment token validation
+- Added `assignment_token` to `DispatchTask`, `TaskResult`, and `TaskLog` across root proto, server proto, Rust SDK proto, and Java SDK proto.
+- WorkerRegistry now generates per-dispatch assignment tokens, stores active tokens on current worker sessions, and rejects missing/wrong tokens for task logs/results.
+- Rust SDK echoes dispatch assignment token on task results and keeps logs token-empty unless emitted from a future task context.
+- Java SDK echoes dispatch assignment token on task results.
+- Added server tests for token generation/validation and wrong-token result rejection.
+Verification evidence:
+- RED SDK tests failed before token echo; RED server test failed before `accepts_worker_assignment`; then all passed after implementation.
+- `rtk cargo clippy -p tikee-server --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test -p tikee-server worker --all-features` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` passed.
+- `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
+- `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.core.GrpcTikeeWorkerClientTest --warning-mode all --no-daemon'` passed.

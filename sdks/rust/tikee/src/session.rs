@@ -130,6 +130,7 @@ impl WorkerSession {
                     level: level.into(),
                     message: message.into(),
                     sequence,
+                    assignment_token: String::new(),
                 })),
             })
             .await
@@ -191,7 +192,7 @@ impl WorkerSession {
                 Err(error) => TaskOutcome::Failed(error.to_string()),
             }
         };
-        self.report_task_result(context.instance_id, &outcome)
+        self.report_task_result(context.instance_id, task.assignment_token, &outcome)
             .await?;
 
         Ok(outcome)
@@ -200,6 +201,7 @@ impl WorkerSession {
     async fn report_task_result(
         &self,
         instance_id: String,
+        assignment_token: String,
         outcome: &TaskOutcome,
     ) -> Result<(), WorkerSdkError> {
         self.outbound
@@ -209,6 +211,7 @@ impl WorkerSession {
                     instance_id,
                     success: matches!(outcome, TaskOutcome::Succeeded),
                     message: task_result_message(outcome),
+                    assignment_token,
                 })),
             })
             .await

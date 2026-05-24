@@ -213,6 +213,7 @@ async fn worker_session_executes_script_binding_with_registered_runner() {
     assert_eq!(outcome, TaskOutcome::Succeeded);
     let result = next_task_result(&mut events).await;
     assert!(result.success);
+    assert_eq!(result.assignment_token, "assign-token-1");
     server.abort();
 }
 
@@ -297,6 +298,7 @@ async fn worker_session_processes_dispatched_task_and_reports_result() {
         payload: b"hello".to_vec(),
         processor_name: "demo.echo".to_owned(),
         processor_binding: None,
+        assignment_token: "assign-token-1".to_owned(),
     }))
     .await;
 
@@ -591,6 +593,7 @@ fn script_dispatch_task(instance_id: &str, content: &str) -> DispatchTask {
         job_id: "job-script".to_owned(),
         payload: Vec::new(),
         processor_name: "script:script_shell".to_owned(),
+        assignment_token: "assign-token-1".to_owned(),
         processor_binding: Some(Box::new(TaskProcessorBinding {
             kind: Some(task_processor_binding::Kind::Script(
                 ScriptProcessorBinding {
@@ -622,6 +625,7 @@ fn wasm_dispatch_task(instance_id: &str, module: Vec<u8>, allow_network: bool) -
         job_id: "job-wasm".to_owned(),
         payload: Vec::new(),
         processor_name: "script:script_wasm".to_owned(),
+        assignment_token: String::new(),
         processor_binding: Some(Box::new(TaskProcessorBinding {
             kind: Some(task_processor_binding::Kind::Wasm(WasmProcessorBinding {
                 script_id: "script_wasm".to_owned(),

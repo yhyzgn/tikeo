@@ -292,6 +292,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                             .setInstanceId(task.getInstanceId())
                             .setSuccess(outcome.success())
                             .setMessage(outcome.message())
+                            .setAssignmentToken(task.getAssignmentToken())
                             .build())
                     .build());
         });

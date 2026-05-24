@@ -78,6 +78,7 @@ impl WorkerRegistry {
                 registered_at: now,
                 last_heartbeat_at: now,
                 last_sequence: 0,
+                active_assignment_tokens: Vec::new(),
             };
             replace_previous_generations(&mut workers, &logical_instance_id, &worker_id);
             workers.insert(record.worker_id.clone(), record.clone());
@@ -215,6 +216,7 @@ impl WorkerRegistry {
             worker.status = WorkerSessionStatus::Stopped;
             worker.status_reason = Some("graceful_shutdown".to_owned());
             worker.status_evidence = Some("worker sent graceful unregister".to_owned());
+            worker.active_assignment_tokens.clear();
             let stopped = worker.clone();
             drop(workers);
             stopped
@@ -325,16 +327,49 @@ impl WorkerRegistry {
             .is_some_and(RegisteredWorker::is_schedulable)
     }
 
+    /// Return true when a worker message carries a currently accepted assignment token.
+    pub async fn accepts_worker_assignment(&self, worker_id: &str, assignment_token: &str) -> bool {
+        if assignment_token.is_empty() {
+            return false;
+        }
+        self.workers
+            .read()
+            .await
+            .get(worker_id)
+            .is_some_and(|worker| {
+                worker.is_schedulable()
+                    && worker
+                        .active_assignment_tokens
+                        .iter()
+                        .any(|token| token == assignment_token)
+            })
+    }
+
     /// Dispatch one task to a specific currently registered worker.
     ///
     /// # Errors
     ///
     /// Returns `None` when the worker is not connected or the worker stream is closed.
-    pub async fn dispatch_to_worker(&self, worker_id: &str, task: DispatchTask) -> Option<String> {
-        let worker = self.workers.read().await.get(worker_id).cloned()?;
-        if !worker.is_schedulable() {
-            return None;
-        }
+    pub async fn dispatch_to_worker(
+        &self,
+        worker_id: &str,
+        mut task: DispatchTask,
+    ) -> Option<String> {
+        let assignment_token = format!("asg-{}", Uuid::now_v7());
+        task.assignment_token = assignment_token.clone();
+        let worker = {
+            let mut workers = self.workers.write().await;
+            let worker = workers.get_mut(worker_id)?;
+            if !worker.is_schedulable() {
+                return None;
+            }
+            worker
+                .active_assignment_tokens
+                .push(assignment_token.clone());
+            let worker = worker.clone();
+            drop(workers);
+            worker
+        };
         let worker_id = worker.worker_id.clone();
         if worker
             .outbound
@@ -345,10 +380,25 @@ impl WorkerRegistry {
             .is_ok()
         {
             metrics::counter!("tikee_worker_dispatch_total", "result" => "sent").increment(1);
-            Some(worker_id)
+            Some(assignment_token)
         } else {
             metrics::counter!("tikee_worker_dispatch_total", "result" => "closed").increment(1);
+            self.revoke_assignment_token(&worker_id, &assignment_token)
+                .await;
             None
+        }
+    }
+
+    async fn revoke_assignment_token(&self, worker_id: &str, assignment_token: &str) {
+        {
+            let mut workers = self.workers.write().await;
+            let Some(worker) = workers.get_mut(worker_id) else {
+                return;
+            };
+            worker
+                .active_assignment_tokens
+                .retain(|token| token != assignment_token);
+            drop(workers);
         }
     }
 }
@@ -389,6 +439,7 @@ fn replace_previous_generations(
         worker.status_evidence =
             Some("same logical instance registered a newer generation".to_owned());
         worker.replaced_by_worker_id = Some(replacement_worker_id.to_owned());
+        worker.active_assignment_tokens.clear();
     }
 }
 
@@ -482,6 +533,8 @@ pub struct RegisteredWorker {
     pub last_heartbeat_at: SystemTime,
     /// Last heartbeat sequence.
     pub last_sequence: u64,
+    /// Active assignment tokens currently accepted for task logs/results.
+    pub active_assignment_tokens: Vec<String>,
 }
 
 impl RegisteredWorker {
@@ -500,7 +553,7 @@ impl RegisteredWorker {
 
 #[cfg(test)]
 mod tests {
-    use tikee_proto::worker::v1::RegisterWorker;
+    use tikee_proto::worker::v1::{DispatchTask, RegisterWorker};
     use tokio::sync::mpsc;
 
     use tikee_storage::WorkerLifecycleRepository;
@@ -588,6 +641,39 @@ mod tests {
             .unwrap_or_else(|| panic!("new generation heartbeat should renew"));
         assert_eq!(renewed.last_sequence, 10);
         assert_eq!(registry.worker_ids().await, vec![second.worker_id]);
+    }
+
+    #[tokio::test]
+    async fn registry_dispatch_assignment_token_validates_current_worker_session() {
+        let registry = WorkerRegistry::default();
+        let (outbound, _inbound) = mpsc::channel(8);
+        let worker = registry
+            .register(register_worker("pod-assign"), outbound)
+            .await;
+        let task = DispatchTask {
+            instance_id: "inst-assign".to_owned(),
+            job_id: "job-assign".to_owned(),
+            payload: Vec::new(),
+            processor_name: "demo.echo".to_owned(),
+            processor_binding: None,
+            assignment_token: String::new(),
+        };
+
+        let token = registry
+            .dispatch_to_worker(&worker.worker_id, task)
+            .await
+            .unwrap_or_else(|| panic!("dispatch should assign token"));
+
+        assert!(
+            registry
+                .accepts_worker_assignment(&worker.worker_id, &token)
+                .await
+        );
+        assert!(
+            !registry
+                .accepts_worker_assignment(&worker.worker_id, "wrong-token")
+                .await
+        );
     }
 
     #[tokio::test]

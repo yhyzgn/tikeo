@@ -68,6 +68,8 @@ message DispatchTask {
   string processor_name = 4;
   // Optional dynamic processor metadata. Empty for normal SDK processors.
   TaskProcessorBinding processor_binding = 5;
+  // Server-issued opaque assignment authority bound to worker session generation/fencing.
+  string assignment_token = 6;
 }
 
 message TaskProcessorBinding {
@@ -121,6 +123,7 @@ message TaskResult {
   string instance_id = 2;
   bool success = 3;
   string message = 4;
+  string assignment_token = 5;
 }
 
 message TaskLog {
@@ -129,6 +132,7 @@ message TaskLog {
   string level = 3;
   string message = 4;
   int64 sequence = 5;
+  string assignment_token = 6;
 }
 
 message SubscribeTaskLogsRequest {
