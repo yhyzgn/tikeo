@@ -1,5 +1,11 @@
-# Go Worker Demo
+# Go Worker demo
 
-Planned placeholder for the future Go SDK demo worker.
+Dry-run demo for the first Go SDK slice.
 
-Rule for implementation: once `sdks/go/<sdk-name>/` exists, this directory must become a standalone buildable/runnable demo project under `examples/go/worker-demo/` and must not depend on the server Dockerfile.
+```bash
+cd examples/go/worker-demo
+go test ./...
+go run .
+```
+
+This demo exercises config, registration shape, heartbeat shape, and the SDK's official Go gRPC/protobuf dependency boundary. The SDK can create an official `grpc.ClientConn` and generated Worker Tunnel client; the full ergonomic tunnel run loop is a later slice.

@@ -2318,8 +2318,9 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
   - [x] Worker runtime grant enforcement 闭环：Worker Tunnel `ScriptProcessorBinding` 携带 signed URL/File/Secret grant；Rust SDK policy 显式接收 `allowed_network_hosts`/文件/secret refs，Local runner 对 grant fail-closed，Container runner 仅将文件 grant 转成显式 bind mount，网络/secret grant 无安全 runtime provider 时继续 fail-closed；Java SDK proto/测试同步覆盖 grant-bearing script binding 且仍不执行脚本。
 - [x] OIDC tenant/app/role 绑定策略与高级租户隔离 UI（131：`/api/v1/oidc-identities` 管理 issuer+subject -> local user + namespace/app/worker-pool scope；OIDC callback 未映射 fail-closed；Scopes 页面可管理映射）。
 - [x] Prometheus/Grafana recording-rule 校验、运维 runbook 与真实 scrape 验证（132：本地 Compose Prometheus profile + committed recording rules/config/runbook；CI 覆盖规则/仪表盘引用一致性）。
-- [ ] Go SDK + Python SDK（常见非 Java/Rust 业务接入）。
-- [ ] Node.js SDK（待 Worker 身份语义和 SDK 生命周期稳定后实现）。
+- [ ] Go SDK（常见非 Java/Rust 业务接入；official gRPC/protobuf foundation 已完成，待 ergonomic Worker Tunnel run-loop）。
+- [ ] Python SDK（用户要求先延期）。
+- [ ] Node.js SDK（用户要求先延期）。
 
 
 #### Source file hygiene checkpoint (2026-05-25)
@@ -2346,8 +2347,9 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
 
 **P1 — 常见接入与生产治理**
 
-- [ ] Go SDK + Python SDK（从 Phase 2 后置；待核心分布式/日志能力稳定后实现）
-- [ ] Node.js SDK（从 Phase 3 后置；待 Rust/Java SDK 与 Worker Tunnel/身份生命周期稳定后实现）
+- [ ] Go SDK（official gRPC/protobuf foundation 已完成，待 ergonomic Worker Tunnel run-loop）
+- [ ] Python SDK（用户要求先延期）
+- [ ] Node.js SDK（用户要求先延期）
 - [x] 脚本生产治理增强（完整审批/签名/KMS、URL/File/Secret grant、生产发布门禁；本地 env-secret verifier 闭环，外部 KMS/PKI 后续增强）
 - [x] Prometheus/Grafana recording-rule 与真实 scrape 验证（132：规则、Prometheus scrape config、Grafana recording-query 与 runbook）。
 

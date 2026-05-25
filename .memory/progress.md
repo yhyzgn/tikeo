@@ -1199,3 +1199,11 @@ Verification evidence:
 - Added Prometheus recording rules and scrape config under `observability/prometheus/`.
 - Added optional Compose observability profile for local Prometheus scrape/rule smoke.
 - Updated Grafana dashboard SLO panels to query stable `tikee:*` recording series and added regression coverage for dashboard/rule coherence.
+
+## 2026-05-25 — P1 Go SDK dry-run foundation
+- Added independent Go SDK module under `sdks/go/tikee` with config validation, registration/heartbeat message shapes, processor/outcome interfaces, official Go gRPC/protobuf dependency boundary, vendored Worker Tunnel proto, and dry-run client tests.
+- Added standalone Go worker demo under `examples/go/worker-demo`; no server Dockerfile coupling and no generated protobuf dependency yet.
+
+### 2026-05-25 P1 Go SDK official gRPC/protobuf foundation
+- Added Go SDK foundation under `sdks/go/tikee` with official `google.golang.org/grpc` ClientConn creation, official protobuf/grpc generated Worker Tunnel bindings, endpoint normalization, dry-run registration/heartbeat/task interfaces, and standalone demo tests.
+- User explicitly deferred Python and Node.js SDKs; next SDK slice should stay on Go Worker Tunnel run-loop ergonomics.

@@ -4,9 +4,9 @@
 Continue P1 production governance while preserving the source-size/module-entry rule: every source file must stay <= 1500 lines, and `mod.rs` / `lib.rs` files should remain module entry/re-export surfaces.
 
 ## P1 — production hardening / common enterprise use
-1. Prometheus/Grafana recording-rule validation and operational runbooks.
-2. Go/Python SDKs; Node.js SDK after Worker identity/lifecycle semantics stabilize.
-3. PowerJob/XXL-JOB migration tooling after common SDK coverage.
+1. Continue Go SDK with an ergonomic Worker Tunnel run loop on top of the generated official gRPC bindings.
+2. Python SDK is explicitly deferred until later.
+3. Node.js SDK is explicitly deferred until later.
 
 ## P1 completed
 - Script approval/signature/grants production release gate is locally closed: fail-closed policy/signature gates, blocked audit materialization, release-gate preview API, default-disabled env-secret verification, signed release metadata, explicit URL/File/Secret grant request payloads, persisted/displayed grant evidence, and local signed grants bound into the release signature. Worker-side URL/File/Secret access remains disabled until a separate enforcement slice.
@@ -27,3 +27,4 @@ Continue P1 production governance while preserving the source-size/module-entry 
 - Script release pointers can now persist verified grant evidence (`release_grants`); local env-secret signatures can verify and persist signed grants. Worker runtime now carries signed grants, supports container file bind mounts, and fail-closes network/secret grants until safe providers exist.
 - OIDC subject-to-local-user tenant scope mapping is closed through governed API/UI and fail-closed callback behavior.
 - Prometheus/Grafana recording-rule validation has a committed rules file, Prometheus config, Compose observability profile, Grafana recording-query coverage, and operator runbook.
+- Go SDK foundation now uses official `google.golang.org/grpc` / `google.golang.org/protobuf` and generated Worker Tunnel client bindings; Python/Node.js SDKs are deferred.

@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package tikee.worker.v1;
 
+option go_package = "github.com/yhyzgn/tikee/sdks/go/tikee/internal/workerpb;workerpb";
+
 service WorkerTunnelService {
   rpc OpenTunnel(stream WorkerMessage) returns (stream ServerMessage);
   rpc SubscribeTaskLogs(SubscribeTaskLogsRequest) returns (stream TaskLog);

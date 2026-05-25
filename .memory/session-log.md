@@ -1764,3 +1764,11 @@ Commit/push:
 - User clarified `.prompt` files are next-chapter prompts; updated `.prompt/README.md` and created next prompt `132-p1-prometheus-grafana-recording-rules.md` before closing observability slice.
 - Implemented Prometheus recording rules/config, Compose observability profile, Grafana recording-query updates, and runbook.
 - Verification run: `cargo test -p tikee-server grafana --all-features`; `cargo check -p tikee-server --all-features`; source-size check excluding generated/build artifacts.
+
+## 2026-05-25 17:xx — P1 Go SDK dry-run foundation
+- Started P1 Go/Python SDK work with Go because Go toolchain is present; `protoc` is absent, so this slice uses official `google.golang.org/grpc` / `google.golang.org/protobuf` dependencies and vendors the proto contract while deferring generated bindings.
+- Verification run: `(cd sdks/go/tikee && go test ./...)`; `(cd examples/go/worker-demo && go test ./...)`.
+
+### 2026-05-25 P1 Go SDK official gRPC/protobuf foundation
+- Added Go SDK foundation under `sdks/go/tikee` with official `google.golang.org/grpc` ClientConn creation, official protobuf/grpc generated Worker Tunnel bindings, endpoint normalization, dry-run registration/heartbeat/task interfaces, and standalone demo tests.
+- User explicitly deferred Python and Node.js SDKs; next SDK slice should stay on Go Worker Tunnel run-loop ergonomics.
