@@ -461,3 +461,10 @@ Constraint:
 - Decision: Source files must stay at or below 1500 lines. This applies to Rust, Web, SDK, and example source files in normal development paths.
 - Decision: `mod.rs`, `lib.rs`, and equivalent module-entry files should declare modules and re-export entry points only; they must not accumulate route handlers, tests, storage logic, migrations, or business implementation bodies.
 - Constraint: When a change would push a file near the limit, split by responsibility in the same change before adding more behavior.
+
+## 2026-05-25 — Script release signature local boundary
+
+- Decision: Script release signature verification is default-disabled and enabled only when `script_governance.release_signature_secret_ref` is configured.
+- Decision: The first local verification boundary supports `env:NAME` secret refs and a deterministic `sha256:<hex>` signature over script id, immutable version number, content SHA-256, and approval ticket.
+- Constraint: This is not a replacement for future KMS/PKI/multi-level approval; it is a local, testable boundary that prevents silently accepting approval/signature metadata.
+- Rejected: Accepting arbitrary approval tickets without a matching signature | would create governance theater instead of a real gate.

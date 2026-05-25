@@ -3,7 +3,9 @@
 use std::time::SystemTime;
 
 use crate::cluster::SharedClusterCoordinator;
-use tikee_config::{AuthConfig, ObservabilityConfig, TransportSecurityConfig};
+use tikee_config::{
+    AuthConfig, ObservabilityConfig, ScriptGovernanceConfig, TransportSecurityConfig,
+};
 use tikee_storage::{
     AlertRepository, AuditLogRepository, AuthSessionRepository, JobInstanceAttemptRepository,
     JobInstanceLogRepository, JobInstanceRepository, JobRepository, RaftRepository, RbacRepository,
@@ -31,6 +33,7 @@ pub struct AppState {
     pub(crate) auth_config: AuthConfig,
     pub(crate) transport_security: TransportSecurityConfig,
     pub(crate) observability: ObservabilityConfig,
+    pub(crate) script_governance: ScriptGovernanceConfig,
     pub(crate) raft: RaftRepository,
     pub(crate) sessions: SessionManager,
     pub(crate) rbac: RbacService,
@@ -79,6 +82,7 @@ impl AppState {
             auth_config: AuthConfig::default(),
             transport_security: TransportSecurityConfig::default(),
             observability: ObservabilityConfig::default(),
+            script_governance: ScriptGovernanceConfig::default(),
             raft,
             sessions,
             rbac,
@@ -110,6 +114,16 @@ impl AppState {
     #[must_use]
     pub fn with_observability_config(mut self, observability: ObservabilityConfig) -> Self {
         self.observability = observability;
+        self
+    }
+
+    /// Attach script release governance configuration.
+    #[must_use]
+    pub fn with_script_governance_config(
+        mut self,
+        script_governance: ScriptGovernanceConfig,
+    ) -> Self {
+        self.script_governance = script_governance;
         self
     }
 

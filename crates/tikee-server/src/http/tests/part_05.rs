@@ -373,6 +373,29 @@
         ))
     }
 
+    async fn router_with_script_signature_secret_ref(secret_ref: &str) -> axum::Router {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        router_with_state(
+            AppState::new(
+                JobRepository::new(db.clone()),
+                JobInstanceRepository::new(db.clone()),
+                JobInstanceLogRepository::new(db.clone()),
+                JobInstanceAttemptRepository::new(db.clone()),
+                UserRepository::new(db.clone()),
+                ScriptRepository::new(db.clone()),
+                WorkflowRepository::new(db.clone()),
+                AuditLogRepository::new(db),
+                crate::tunnel::WorkerRegistry::default(),
+                StandaloneCoordinator::shared("test-node"),
+            )
+            .with_script_governance_config(ScriptGovernanceConfig {
+                release_signature_secret_ref: Some(secret_ref.to_owned()),
+            }),
+        )
+    }
+
     async fn router_with_leader_cluster() -> axum::Router {
         let db = connect_and_migrate("sqlite::memory:")
             .await

@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use sha2::{Digest, Sha256};
+
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -241,10 +243,19 @@ pub async fn publish_script(
     Json(request): Json<ScriptReleaseRequest>,
 ) -> Result<Json<crate::http::dto::ScriptApiResponse>, ApiError> {
     let principal = auth::require_permission(&headers, &state, "scripts", "manage").await?;
-    enforce_release_signature_gate(&state, &principal.username, &id, &request, &headers).await?;
     let version_number =
         resolve_release_version_number(&state, &id, request.version_number).await?;
-    enforce_release_policy_gate(&state, &principal.username, &id, version_number, &headers).await?;
+    let version = resolve_release_version(&state, &id, version_number).await?;
+    enforce_release_signature_gate(
+        &state,
+        &principal.username,
+        &id,
+        &request,
+        &version,
+        &headers,
+    )
+    .await?;
+    enforce_release_policy_gate(&state, &principal.username, &id, &version, &headers).await?;
     let published = state
         .scripts
         .publish_version(&id, version_number)
@@ -297,15 +308,7 @@ pub async fn preview_script_release_gate(
 ) -> Result<Json<ScriptReleaseGateApiResponse>, ApiError> {
     auth::require_permission(&headers, &state, "scripts", "read").await?;
     let version_number = resolve_release_version_number(&state, &id, query.version_number).await?;
-    let version = state
-        .scripts
-        .versions()
-        .get_version_by_number(&id, version_number)
-        .await
-        .map_err(|error| ApiError::storage(&error))?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("script version not found: {id}@{version_number}"))
-        })?;
+    let version = resolve_release_version(&state, &id, version_number).await?;
     let blocking_reasons = release_policy_blocking_reasons(&version)
         .map_err(|error| ApiError::bad_request(format!("invalid script policy: {error}")))?;
     let required_actions = release_gate_required_actions(&blocking_reasons);
@@ -318,7 +321,10 @@ pub async fn preview_script_release_gate(
         releasable: blocking_reasons.is_empty(),
         blocking_reasons,
         required_actions,
-        signature_verification_enabled: false,
+        signature_verification_enabled: state
+            .script_governance
+            .release_signature_secret_ref
+            .is_some(),
     })))
 }
 
@@ -327,6 +333,7 @@ async fn enforce_release_signature_gate(
     actor: &str,
     id: &str,
     request: &ScriptReleaseRequest,
+    version: &tikee_storage::ScriptVersionSummary,
     headers: &HeaderMap,
 ) -> Result<(), ApiError> {
     let approval_present = request
@@ -337,7 +344,14 @@ async fn enforce_release_signature_gate(
         .signature
         .as_ref()
         .is_some_and(|value| !value.trim().is_empty());
-    if approval_present || signature_present {
+    if !approval_present && !signature_present {
+        return Ok(());
+    }
+    let Some(secret_ref) = state
+        .script_governance
+        .release_signature_secret_ref
+        .as_deref()
+    else {
         let message = "script approval/signature metadata was provided, but signature verification is not yet enabled";
         append_release_gate_audit(
             state,
@@ -345,6 +359,59 @@ async fn enforce_release_signature_gate(
             id,
             message,
             "script_signature_verification_required",
+            headers,
+        )
+        .await;
+        return Err(ApiError::bad_request(message));
+    };
+    let Some(approval_ticket) = request
+        .approval_ticket
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        let message = "script release signature requires a non-empty approval_ticket";
+        append_release_gate_audit(
+            state,
+            actor,
+            id,
+            message,
+            "script_signature_verification_required",
+            headers,
+        )
+        .await;
+        return Err(ApiError::bad_request(message));
+    };
+    let Some(signature) = request
+        .signature
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        let message = "script release approval_ticket requires a matching signature";
+        append_release_gate_audit(
+            state,
+            actor,
+            id,
+            message,
+            "script_signature_verification_required",
+            headers,
+        )
+        .await;
+        return Err(ApiError::bad_request(message));
+    };
+    let secret = resolve_env_secret_ref(secret_ref).ok_or_else(|| {
+        ApiError::bad_request("script release signature secret_ref is not resolvable")
+    })?;
+    let expected = script_release_signature(&secret, id, version, approval_ticket);
+    if !constant_time_eq(signature.as_bytes(), expected.as_bytes()) {
+        let message = "script release signature verification failed";
+        append_release_gate_audit(
+            state,
+            actor,
+            id,
+            message,
+            "script_signature_verification_failed",
             headers,
         )
         .await;
@@ -357,19 +424,10 @@ async fn enforce_release_policy_gate(
     state: &Arc<AppState>,
     actor: &str,
     id: &str,
-    version_number: i64,
+    version: &tikee_storage::ScriptVersionSummary,
     headers: &HeaderMap,
 ) -> Result<(), ApiError> {
-    let version = state
-        .scripts
-        .versions()
-        .get_version_by_number(id, version_number)
-        .await
-        .map_err(|error| ApiError::storage(&error))?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("script version not found: {id}@{version_number}"))
-        })?;
-    let blocking_reasons = release_policy_blocking_reasons(&version)
+    let blocking_reasons = release_policy_blocking_reasons(version)
         .map_err(|error| ApiError::bad_request(format!("invalid script policy: {error}")))?;
     if let Some(message) = blocking_reasons.first() {
         append_release_gate_audit(
@@ -467,11 +525,20 @@ pub async fn rollback_script(
     Json(request): Json<ScriptReleaseRequest>,
 ) -> Result<Json<crate::http::dto::ScriptApiResponse>, ApiError> {
     let principal = auth::require_permission(&headers, &state, "scripts", "manage").await?;
-    enforce_release_signature_gate(&state, &principal.username, &id, &request, &headers).await?;
     let version_number = request
         .version_number
         .ok_or_else(|| ApiError::bad_request("version_number is required for rollback"))?;
-    enforce_release_policy_gate(&state, &principal.username, &id, version_number, &headers).await?;
+    let version = resolve_release_version(&state, &id, version_number).await?;
+    enforce_release_signature_gate(
+        &state,
+        &principal.username,
+        &id,
+        &request,
+        &version,
+        &headers,
+    )
+    .await?;
+    enforce_release_policy_gate(&state, &principal.username, &id, &version, &headers).await?;
     let rolled_back = state
         .scripts
         .rollback_release(&id, version_number)
@@ -493,6 +560,56 @@ pub async fn rollback_script(
     .await;
 
     Ok(Json(ApiResponse::success(rolled_back)))
+}
+
+async fn resolve_release_version(
+    state: &Arc<AppState>,
+    id: &str,
+    version_number: i64,
+) -> Result<tikee_storage::ScriptVersionSummary, ApiError> {
+    state
+        .scripts
+        .versions()
+        .get_version_by_number(id, version_number)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| {
+            ApiError::not_found(format!("script version not found: {id}@{version_number}"))
+        })
+}
+
+fn resolve_env_secret_ref(secret_ref: &str) -> Option<String> {
+    secret_ref
+        .strip_prefix("env:")
+        .and_then(|name| std::env::var(name).ok())
+        .filter(|value| !value.is_empty())
+}
+
+fn script_release_signature(
+    secret: &str,
+    script_id: &str,
+    version: &tikee_storage::ScriptVersionSummary,
+    approval_ticket: &str,
+) -> String {
+    let payload = format!(
+        "tikee-script-release-v1\nscript_id={script_id}\nversion_number={}\ncontent_sha256={}\napproval_ticket={approval_ticket}",
+        version.version_number, version.content_sha256
+    );
+    let mut hasher = Sha256::new();
+    hasher.update(secret.as_bytes());
+    hasher.update(b"\n");
+    hasher.update(payload.as_bytes());
+    format!("sha256:{}", hex::encode(hasher.finalize()))
+}
+
+fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    left.iter()
+        .zip(right.iter())
+        .fold(0_u8, |acc, (a, b)| acc | (a ^ b))
+        == 0
 }
 
 async fn resolve_release_version_number(

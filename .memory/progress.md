@@ -1115,3 +1115,15 @@ Verification evidence:
 - `cargo build --workspace --all-features` passed.
 - `cargo run -- --help >/tmp/tikee-help.out` passed.
 - Targeted release-gate tests passed: `cargo test -p tikee-server script_release_gate_preview --all-features`; `cargo test -p tikee-server script_publish_blocks_legacy_dangerous_policy_snapshot --all-features`.
+
+### 2026-05-25 — P1 script signature local verification boundary
+- Added `script_governance.release_signature_secret_ref` configuration, disabled by default so approval/signature metadata remains fail-closed unless an operator explicitly configures verification.
+- Script publish/rollback now verifies `approval_ticket` + `signature` when configured with an `env:` secret ref; the signature binds script id, immutable version number, content SHA-256, and approval ticket.
+- Release-gate preview now reports whether signature verification is configured.
+- Preserved the source-size rule; max source file line count remains 1495.
+Verification evidence:
+- `cargo fmt --all -- --check` passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `cargo test --workspace --all-features` passed.
+- `cargo build --workspace --all-features` passed.
+- `cargo run -- --help >/tmp/tikee-help.out` passed.

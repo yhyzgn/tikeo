@@ -368,6 +368,118 @@
         assert_eq!(json["data"]["signature_verification_enabled"], false);
     }
 
+
+    #[tokio::test]
+    async fn script_release_accepts_locally_verified_signature_when_configured() {
+        let app = router_with_script_signature_secret_ref("env:PATH").await;
+        let created = post_json(
+            app.clone(),
+            "/api/v1/scripts",
+            r#"{"name":"signed-local-release","language":"python","version":"1.0.0","content":"print(1)","timeout_seconds":3,"max_memory_bytes":4096,"allow_network":false}"#,
+        )
+        .await;
+        let script_id = created["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("script id should exist"));
+        let content_sha256 = created["data"]["content_sha256"]
+            .as_str()
+            .unwrap_or_else(|| panic!("content digest should exist"));
+        let approval_ticket = "CAB-2026-LOCAL";
+        let signature = local_script_release_signature(
+            &std::env::var("PATH").unwrap_or_else(|error| panic!("PATH should exist: {error}")),
+            script_id,
+            1,
+            content_sha256,
+            approval_ticket,
+        );
+
+        let gate = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app.clone(),
+                    "GET",
+                    format!("/api/v1/scripts/{script_id}/release-gate?version_number=1"),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("release gate route should respond: {error}"));
+        let body = axum::body::to_bytes(gate.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["data"]["signature_verification_enabled"], true);
+
+        let published = post_json(
+            app,
+            &format!("/api/v1/scripts/{script_id}/publish"),
+            &format!(
+                r#"{{"version_number":1,"approval_ticket":"{approval_ticket}","signature":"{signature}"}}"#
+            ),
+        )
+        .await;
+        assert_eq!(published["code"], 0);
+        assert_eq!(published["data"]["released_version_number"], 1);
+    }
+
+    #[tokio::test]
+    async fn script_release_rejects_wrong_local_signature_when_configured() {
+        let app = router_with_script_signature_secret_ref("env:PATH").await;
+        let created = post_json(
+            app.clone(),
+            "/api/v1/scripts",
+            r#"{"name":"bad-local-signature","language":"python","version":"1.0.0","content":"print(1)","timeout_seconds":3,"max_memory_bytes":4096,"allow_network":false}"#,
+        )
+        .await;
+        let script_id = created["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("script id should exist"));
+
+        let response = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app,
+                    "POST",
+                    format!("/api/v1/scripts/{script_id}/publish"),
+                    r#"{"version_number":1,"approval_ticket":"CAB-2026-BAD","signature":"sha256:bad"}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("publish route should respond: {error}"));
+        assert_eq!(response.status(), axum::http::StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert!(json["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("signature verification failed")));
+    }
+
+    fn local_script_release_signature(
+        secret: &str,
+        script_id: &str,
+        version_number: i64,
+        content_sha256: &str,
+        approval_ticket: &str,
+    ) -> String {
+        use sha2::{Digest as _, Sha256};
+
+        let payload = format!(
+            "tikee-script-release-v1\nscript_id={script_id}\nversion_number={version_number}\ncontent_sha256={content_sha256}\napproval_ticket={approval_ticket}"
+        );
+        let mut hasher = Sha256::new();
+        hasher.update(secret.as_bytes());
+        hasher.update(b"\n");
+        hasher.update(payload.as_bytes());
+        format!("sha256:{}", hex::encode(hasher.finalize()))
+    }
+
     #[tokio::test]
     #[allow(clippy::too_many_lines)]
     async fn script_publish_blocks_legacy_dangerous_policy_snapshot() {

@@ -1,7 +1,10 @@
 //! Server process orchestration.
 
 use anyhow::{Context, Result};
-use tikee_config::{AlertRetryConfig, TikeeConfig};
+use tikee_config::{
+    AlertRetryConfig, AuthConfig, ObservabilityConfig, ScriptGovernanceConfig, TikeeConfig,
+    TransportSecurityConfig,
+};
 use tikee_storage::{
     AuditLogRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
     JobInstanceRepository, JobRepository, RaftRepository, ScriptRepository, UserRepository,
@@ -27,6 +30,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
     let transport_security = config.transport_security;
     let observability = config.observability;
     let alert_retry_config = config.alert_retry;
+    let script_governance = config.script_governance;
     let raft_transport_token = cluster_config.transport_token.clone();
     let db = connect_and_migrate(&database_url)
         .await
@@ -46,24 +50,23 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
     let alerts = tikee_storage::AlertRepository::new(db.clone());
     let worker_lifecycle = WorkerLifecycleRepository::new(db.clone());
     let registry = tunnel::WorkerRegistry::with_lifecycle(worker_lifecycle.clone());
-    let http_router = http::router_with_state(
-        http::AppState::new(
-            jobs.clone(),
-            instances.clone(),
-            logs.clone(),
-            attempts.clone(),
-            users,
-            scripts.clone(),
-            workflows.clone(),
-            audit.clone(),
-            registry.clone(),
-            cluster.clone(),
-        )
-        .with_auth_config(auth_config)
-        .with_transport_security_config(transport_security.clone())
-        .with_observability_config(observability)
-        .with_raft_transport_token(raft_transport_token),
-    );
+    let http_router = build_http_router(HttpRouterParts {
+        jobs: jobs.clone(),
+        instances: instances.clone(),
+        logs: logs.clone(),
+        attempts: attempts.clone(),
+        users,
+        scripts: scripts.clone(),
+        workflows: workflows.clone(),
+        audit: audit.clone(),
+        registry: registry.clone(),
+        cluster: cluster.clone(),
+        auth_config,
+        transport_security: transport_security.clone(),
+        observability,
+        script_governance,
+        raft_transport_token,
+    });
     let tunnel_instances = instances.clone();
     let tikee_instances = instances.clone();
     let dispatcher_jobs = jobs.clone();
@@ -119,6 +122,46 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
     .context("tikee listener failed")?;
 
     Ok(())
+}
+
+struct HttpRouterParts {
+    jobs: JobRepository,
+    instances: JobInstanceRepository,
+    logs: JobInstanceLogRepository,
+    attempts: JobInstanceAttemptRepository,
+    users: UserRepository,
+    scripts: ScriptRepository,
+    workflows: WorkflowRepository,
+    audit: AuditLogRepository,
+    registry: tunnel::WorkerRegistry,
+    cluster: crate::cluster::SharedClusterCoordinator,
+    auth_config: AuthConfig,
+    transport_security: TransportSecurityConfig,
+    observability: ObservabilityConfig,
+    script_governance: ScriptGovernanceConfig,
+    raft_transport_token: Option<String>,
+}
+
+fn build_http_router(parts: HttpRouterParts) -> axum::Router {
+    http::router_with_state(
+        http::AppState::new(
+            parts.jobs,
+            parts.instances,
+            parts.logs,
+            parts.attempts,
+            parts.users,
+            parts.scripts,
+            parts.workflows,
+            parts.audit,
+            parts.registry,
+            parts.cluster,
+        )
+        .with_auth_config(parts.auth_config)
+        .with_transport_security_config(parts.transport_security)
+        .with_observability_config(parts.observability)
+        .with_script_governance_config(parts.script_governance)
+        .with_raft_transport_token(parts.raft_transport_token),
+    )
 }
 
 async fn run_worker_lease_scanner(lifecycle: WorkerLifecycleRepository) -> Result<()> {

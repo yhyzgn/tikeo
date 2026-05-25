@@ -1605,3 +1605,24 @@ Commit/push:
 - Pending at time of log entry.
 - Commit: `9405b7d` (Keep module boundaries from hiding oversized implementation)
 - Push: succeeded to `origin/main` (`6925be3..9405b7d`).
+
+## 2026-05-25 — P1 script signature local verification boundary
+
+Task:
+- Continue P1 script production governance after source-size cleanup.
+
+Changes:
+- Added default-disabled `script_governance.release_signature_secret_ref` config.
+- Added local env-secret-backed release signature verification for script publish/rollback; signatures bind script id, immutable version number, content digest, and approval ticket.
+- Release-gate preview now reports whether signature verification is configured.
+
+Verification:
+- Max source line count check: 1495.
+- `cargo fmt --all -- --check` passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `cargo test --workspace --all-features` passed.
+- `cargo build --workspace --all-features` passed.
+- `cargo run -- --help >/tmp/tikee-help.out` passed.
+
+Commit/push:
+- Pending at time of log entry.

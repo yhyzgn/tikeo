@@ -5,7 +5,9 @@ use crate::cluster::{
 use axum::{Router, body::Body, http::Request, routing::get};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use tikee_config::{ClusterConfig, ClusterModeConfig, ClusterPeerConfig, TlsEndpointConfig};
+use tikee_config::{
+    ClusterConfig, ClusterModeConfig, ClusterPeerConfig, ScriptGovernanceConfig, TlsEndpointConfig,
+};
 use tikee_core::{ExecutionMode, TriggerType};
 use tikee_proto::worker::v1::RegisterWorker;
 use tikee_storage::{

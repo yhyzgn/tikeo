@@ -35,6 +35,9 @@ pub struct TikeeConfig {
     /// Alert provider secret management settings.
     #[serde(default)]
     pub alert_secrets: AlertSecretConfig,
+    /// Script release governance settings.
+    #[serde(default)]
+    pub script_governance: ScriptGovernanceConfig,
 }
 
 /// Server listener configuration.
@@ -183,6 +186,14 @@ pub struct OidcConfig {
     /// Requested scopes.
     #[serde(default = "default_oidc_scopes")]
     pub scopes: Vec<String>,
+}
+
+/// Script release governance settings.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScriptGovernanceConfig {
+    /// Optional `env:NAME` secret reference used to verify local release signatures.
+    #[serde(default)]
+    pub release_signature_secret_ref: Option<String>,
 }
 
 /// Alert provider secret reference settings.
@@ -500,6 +511,19 @@ mod tests {
 
         assert!(config.alert_secrets.allow_env_refs);
         assert_eq!(config.alert_secrets.env_prefix, "TIKEE_ALERT_SECRET_");
+    }
+
+    #[test]
+    fn default_script_governance_keeps_signature_verification_disabled() {
+        let config =
+            load_config(None).unwrap_or_else(|error| panic!("default config should load: {error}"));
+
+        assert!(
+            config
+                .script_governance
+                .release_signature_secret_ref
+                .is_none()
+        );
     }
 
     #[test]
