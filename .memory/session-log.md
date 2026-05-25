@@ -1749,3 +1749,8 @@ Verification:
 
 Commit/push:
 - Pending at time of log entry.
+
+## 2026-05-25 16:xx — P1 Worker runtime grant enforcement
+- User flagged missing Worker-side closure and Java SDK omission. Implemented server/Rust/Java SDK protocol and runtime boundary updates.
+- Verification run: `cargo check -p tikee-server --all-features`; targeted server dispatch grant test; Rust SDK container grant tests + `cargo check --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`; Java `./gradlew :tikee:generateProto :tikee:test --tests com.yhyzgn.tikee.core.GrpcTikeeWorkerClientTest`.
+- Constraint check: source files excluding generated/build artifacts remain under 1500 lines; largest touched server dispatcher is 1429 lines.

@@ -65,15 +65,17 @@ pub struct ScriptRunnerPolicy {
     pub max_memory_bytes: u64,
     /// Maximum captured output bytes.
     pub max_output_bytes: u64,
-    /// Whether network egress is allowed. Current SDK abstraction rejects it.
+    /// Whether network egress is allowed. Runners must enforce this explicitly.
     pub allow_network: bool,
+    /// URL hosts or URL-policy refs allowed by the signed release grant.
+    pub allowed_network_hosts: Vec<String>,
     /// Allowed environment variable names.
     pub env_vars: Vec<String>,
-    /// Read-only filesystem paths granted to the runner. Current SDK abstraction rejects them.
+    /// Read-only filesystem paths granted to the runner.
     pub read_only_paths: Vec<String>,
-    /// Writable filesystem paths granted to the runner. Current SDK abstraction rejects them.
+    /// Writable filesystem paths granted to the runner.
     pub writable_paths: Vec<String>,
-    /// Secret references granted to the runner. Current SDK abstraction rejects them.
+    /// Secret references granted to the runner.
     pub secret_refs: Vec<String>,
 }
 
@@ -84,6 +86,7 @@ impl Default for ScriptRunnerPolicy {
             max_memory_bytes: 64 * 1024 * 1024,
             max_output_bytes: 1024 * 1024,
             allow_network: false,
+            allowed_network_hosts: Vec::new(),
             env_vars: Vec::new(),
             read_only_paths: Vec::new(),
             writable_paths: Vec::new(),
@@ -115,19 +118,45 @@ impl ScriptRunnerPolicy {
                 "script output limit must be greater than zero".to_owned(),
             ));
         }
-        if self.allow_network {
+        self.validate_no_capability_grants()
+    }
+
+    /// Validate resource limits and immutable task metadata only; runner-specific
+    /// capability enforcement remains the caller's responsibility.
+    pub fn validate_resource_limits(&self) -> Result<(), WorkerSdkError> {
+        if self.timeout_ms == 0 {
             return Err(WorkerSdkError::UnsupportedScriptRunner(
-                "script network access requires a future URL policy grant".to_owned(),
+                "script timeout must be greater than zero".to_owned(),
+            ));
+        }
+        if self.max_memory_bytes == 0 {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(
+                "script memory limit must be greater than zero".to_owned(),
+            ));
+        }
+        if self.max_output_bytes == 0 {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(
+                "script output limit must be greater than zero".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Fail closed for runners that do not implement URL/File/Secret grants.
+    pub fn validate_no_capability_grants(&self) -> Result<(), WorkerSdkError> {
+        if self.allow_network || !self.allowed_network_hosts.is_empty() {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(
+                "script network access requires a host-filtering sandbox runner".to_owned(),
             ));
         }
         if !self.read_only_paths.is_empty() || !self.writable_paths.is_empty() {
             return Err(WorkerSdkError::UnsupportedScriptRunner(
-                "script filesystem access requires a future filesystem policy grant".to_owned(),
+                "script filesystem access requires a filesystem-grant sandbox runner".to_owned(),
             ));
         }
         if !self.secret_refs.is_empty() {
             return Err(WorkerSdkError::UnsupportedScriptRunner(
-                "script secret access requires a future secret policy grant".to_owned(),
+                "script secret access requires a secret-grant sandbox runner".to_owned(),
             ));
         }
         Ok(())
@@ -207,7 +236,7 @@ pub(super) fn validate_script_runner_task(
     kind: ScriptRunnerKind,
     task: &ScriptRunnerTask,
 ) -> Result<(), WorkerSdkError> {
-    task.policy.validate_default_deny()?;
+    task.policy.validate_resource_limits()?;
     let task_kind = ScriptRunnerKind::from_language(&task.language).ok_or_else(|| {
         WorkerSdkError::UnsupportedScriptRunner(format!(
             "unsupported script language: {}",

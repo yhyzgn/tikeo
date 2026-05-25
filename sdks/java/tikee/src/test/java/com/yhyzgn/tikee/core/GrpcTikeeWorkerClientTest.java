@@ -233,6 +233,11 @@ class GrpcTikeeWorkerClientTest {
                                 .setTimeoutMs(1000)
                                 .setMaxMemoryBytes(1048576)
                                 .setMaxOutputBytes(1048576)
+                                .setAllowNetwork(true)
+                                .addAllowedNetworkHosts("api.example.com")
+                                .addReadOnlyPaths("/data/input")
+                                .addWritablePaths("/data/output")
+                                .addSecretRefs("secret:db-readonly")
                                 .build())
                         .build())
                 .build());

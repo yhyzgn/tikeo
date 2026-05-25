@@ -2315,6 +2315,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
   - [x] URL/File/Secret grant 载荷边界：`ScriptReleaseRequest.grants` 显式建模 `url/file_read/file_write/secret`，当前任何非空 grant 都 fail-closed，直到接入 verified grant enforcement。
   - [x] Verified grant 证据持久化边界：发布指针可保存 verified grant JSON、校验时间与校验人，并通过 `ScriptSummary`/Web 展示。
   - [x] 本地 signed grants 闭环：配置 `script_governance.release_signature_secret_ref` 后，签名 payload 绑定 grants JSON，验证通过才移动发布指针并持久化 `release_grants` 证据；未配置时 grants 仍 fail-closed。
+  - [x] Worker runtime grant enforcement 闭环：Worker Tunnel `ScriptProcessorBinding` 携带 signed URL/File/Secret grant；Rust SDK policy 显式接收 `allowed_network_hosts`/文件/secret refs，Local runner 对 grant fail-closed，Container runner 仅将文件 grant 转成显式 bind mount，网络/secret grant 无安全 runtime provider 时继续 fail-closed；Java SDK proto/测试同步覆盖 grant-bearing script binding 且仍不执行脚本。
 - [ ] OIDC tenant/app/role 绑定策略与高级租户隔离 UI。
 - [ ] Prometheus/Grafana recording-rule 校验、运维 runbook 与真实 scrape 验证。
 - [ ] Go SDK + Python SDK（常见非 Java/Rust 业务接入）。

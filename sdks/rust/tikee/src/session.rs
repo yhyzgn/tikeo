@@ -334,6 +334,7 @@ async fn process_script_binding(
             max_memory_bytes: binding.max_memory_bytes,
             max_output_bytes: binding.max_output_bytes,
             allow_network: binding.allow_network,
+            allowed_network_hosts: binding.allowed_network_hosts.clone(),
             env_vars: binding.allowed_env_vars.clone(),
             read_only_paths: binding.read_only_paths.clone(),
             writable_paths: binding.writable_paths.clone(),

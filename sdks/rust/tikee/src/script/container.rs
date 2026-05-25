@@ -1,6 +1,6 @@
 #![allow(clippy::redundant_pub_crate)]
 
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 
 use async_trait::async_trait;
 use tokio::process::Command;
@@ -15,10 +15,11 @@ use crate::{error::WorkerSdkError, task::TaskOutcome};
 ///
 /// This runner invokes a local container runtime CLI (Docker-compatible by default) from the
 /// Worker process and passes script content through stdin. It is designed as a safer boundary
-/// than direct host subprocess execution: network is disabled, the container root filesystem is
-/// read-only, no host path is mounted, and only explicitly whitelisted env vars are injected into
-/// the container. Workers must still opt in by registering this runner and advertising the
-/// matching `script:<language>` capability.
+/// than direct host subprocess execution: network is disabled unless a future host-filtering
+/// sandbox is supplied, the container root filesystem is read-only, file grants become explicit
+/// bind mounts, and only explicitly whitelisted env vars are injected into the container.
+/// Workers must still opt in by registering this runner and advertising the matching
+/// `script:<language>` capability.
 #[derive(Debug, Clone)]
 pub struct ContainerScriptRunner {
     kind: ScriptRunnerKind,
@@ -55,6 +56,7 @@ impl ContainerScriptRunner {
         task: &ScriptRunnerTask,
     ) -> Result<Vec<String>, WorkerSdkError> {
         validate_script_runner_task(self.kind, task)?;
+        self.validate_supported_capabilities(task)?;
         if self.image.trim().is_empty() {
             return Err(WorkerSdkError::UnsupportedScriptRunner(
                 "container script runner requires an image".to_owned(),
@@ -78,6 +80,8 @@ impl ContainerScriptRunner {
             format!("TIKEE_SCRIPT_VERSION_NUMBER={}", task.version_number),
         ];
         args.extend(self.runtime_args.iter().cloned());
+        add_file_mounts(&mut args, &task.policy.read_only_paths, true)?;
+        add_file_mounts(&mut args, &task.policy.writable_paths, false)?;
         for name in &task.policy.env_vars {
             if let Ok(value) = std::env::var(name) {
                 args.push("--env".to_owned());
@@ -90,6 +94,60 @@ impl ContainerScriptRunner {
         args.extend(script_args.iter().map(|arg| (*arg).to_owned()));
         Ok(args)
     }
+
+    fn validate_supported_capabilities(
+        &self,
+        task: &ScriptRunnerTask,
+    ) -> Result<(), WorkerSdkError> {
+        if task.policy.allow_network || !task.policy.allowed_network_hosts.is_empty() {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(
+                "container script runner cannot safely enforce host-level network grants with Docker CLI alone".to_owned(),
+            ));
+        }
+        if !task.policy.secret_refs.is_empty() {
+            return Err(WorkerSdkError::UnsupportedScriptRunner(
+                "container script runner cannot resolve script secret refs without a worker-local secret provider".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+fn add_file_mounts(
+    args: &mut Vec<String>,
+    paths: &[String],
+    read_only: bool,
+) -> Result<(), WorkerSdkError> {
+    for path in paths {
+        let path = validate_mount_path(path)?;
+        let mode = if read_only { ",readonly" } else { "" };
+        args.push("--mount".to_owned());
+        args.push(format!(
+            "type=bind,src={path},dst={path}{mode}",
+            path = path.display()
+        ));
+    }
+    Ok(())
+}
+
+fn validate_mount_path(path: &str) -> Result<PathBuf, WorkerSdkError> {
+    let trimmed = path.trim();
+    let candidate = Path::new(trimmed);
+    if trimmed.is_empty()
+        || trimmed != path
+        || !candidate.is_absolute()
+        || candidate.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::CurDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err(WorkerSdkError::UnsupportedScriptRunner(format!(
+            "script file grant path must be clean and absolute: {path}"
+        )));
+    }
+    Ok(candidate.to_path_buf())
 }
 
 #[async_trait]

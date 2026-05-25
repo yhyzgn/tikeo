@@ -433,7 +433,9 @@ async fn build_dispatch_task(
                 ScriptGovernanceFailure::UnsupportedLanguage,
             ));
         };
-        if let Err(error) = validate_script_version_dispatchable(&version) {
+        if let Err(error) =
+            validate_script_version_dispatchable(&version, script.release_grants.as_ref())
+        {
             warn!(script_id = %script.id, version_number, language = %version.language, %error, "released script version policy is not dispatchable; dispatch remains pending");
             return Ok(DispatchTaskBuild::Rejected(
                 ScriptGovernanceFailure::PolicyRejected(error.to_string()),
@@ -473,11 +475,12 @@ fn script_is_dispatchable(script: &ScriptSummary) -> bool {
 
 #[cfg(test)]
 fn script_version_is_dispatchable(version: &ScriptVersionSummary) -> bool {
-    validate_script_version_dispatchable(version).is_ok()
+    validate_script_version_dispatchable(version, None).is_ok()
 }
 
 fn validate_script_version_dispatchable(
     version: &ScriptVersionSummary,
+    release_grants: Option<&tikee_storage::ScriptReleaseGrantEvidenceSummary>,
 ) -> Result<(), ScriptDispatchValidationError> {
     match parse_script_language(&version.language) {
         Some(ScriptLanguage::Wasm) => script_version_to_wasm_spec(version)
@@ -489,9 +492,10 @@ fn validate_script_version_dispatchable(
             | ScriptLanguage::Node
             | ScriptLanguage::PowerShell
             | ScriptLanguage::Rhai,
-        ) => script_policy(version.policy.clone())
-            .validate_default_deny()
-            .map_err(ScriptDispatchValidationError::from),
+        ) => validate_script_policy_for_dispatch(
+            &script_policy(version.policy.clone()),
+            release_grants,
+        ),
         None => Err(ScriptDispatchValidationError(
             "script language is unsupported".to_owned(),
         )),
@@ -517,11 +521,39 @@ fn parse_script_language(language: &str) -> Option<ScriptLanguage> {
     language.parse::<ScriptLanguage>().ok()
 }
 
+fn validate_script_policy_for_dispatch(
+    policy: &ScriptExecutionPolicy,
+    release_grants: Option<&tikee_storage::ScriptReleaseGrantEvidenceSummary>,
+) -> Result<(), ScriptDispatchValidationError> {
+    if policy.resources.timeout_ms == 0 {
+        return Err(ScriptDispatchValidationError(
+            "script timeout must be greater than zero".to_owned(),
+        ));
+    }
+    if policy.resources.max_memory_bytes == 0 {
+        return Err(ScriptDispatchValidationError(
+            "script memory limit must be greater than zero".to_owned(),
+        ));
+    }
+    if policy.resources.max_output_bytes == 0 {
+        return Err(ScriptDispatchValidationError(
+            "script output limit must be greater than zero".to_owned(),
+        ));
+    }
+    if release_grants.is_none() {
+        policy
+            .validate_default_deny()
+            .map_err(ScriptDispatchValidationError::from)?;
+    }
+    Ok(())
+}
+
 fn script_processor_binding(
     script: &ScriptSummary,
     version: &ScriptVersionSummary,
 ) -> TaskProcessorBinding {
     let policy = script_policy(version.policy.clone());
+    let release_grants = script.release_grants.as_ref();
     TaskProcessorBinding {
         kind: Some(task_processor_binding::Kind::Script(
             ScriptProcessorBinding {
@@ -535,11 +567,21 @@ fn script_processor_binding(
                 timeout_ms: policy.resources.timeout_ms,
                 max_memory_bytes: policy.resources.max_memory_bytes,
                 max_output_bytes: policy.resources.max_output_bytes,
-                allow_network: policy.network.enabled,
+                allow_network: policy.network.enabled
+                    || release_grants.is_some_and(|grants| !grants.url.is_empty()),
                 allowed_env_vars: policy.env_vars,
-                read_only_paths: policy.filesystem.read_only_paths,
-                writable_paths: policy.filesystem.writable_paths,
-                secret_refs: policy.secrets.refs,
+                read_only_paths: release_grants
+                    .map(|grants| grants.file_read.clone())
+                    .unwrap_or(policy.filesystem.read_only_paths),
+                writable_paths: release_grants
+                    .map(|grants| grants.file_write.clone())
+                    .unwrap_or(policy.filesystem.writable_paths),
+                secret_refs: release_grants
+                    .map(|grants| grants.secret.clone())
+                    .unwrap_or(policy.secrets.refs),
+                allowed_network_hosts: release_grants
+                    .map(|grants| grants.url.clone())
+                    .unwrap_or(policy.network.allowed_hosts),
             },
         )),
     }
@@ -1182,6 +1224,87 @@ mod tests {
                 assert!(script_binding.read_only_paths.is_empty());
                 assert!(script_binding.writable_paths.is_empty());
                 assert!(script_binding.secret_refs.is_empty());
+            }
+            other => panic!("unexpected binding: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatch_copies_verified_release_grants_into_script_binding() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let scripts = ScriptRepository::new(db);
+
+        let script = scripts
+            .create_script(tikee_storage::CreateScript {
+                name: "shell grants".to_owned(),
+                language: "shell".to_owned(),
+                version: "1.0.0".to_owned(),
+                content: "printf ok".to_owned(),
+                created_by: "tester".to_owned(),
+                timeout_seconds: Some(5),
+                max_memory_bytes: Some(1024 * 1024),
+                allow_network: false,
+                allowed_env_vars: None,
+                policy_json: Some(r#"{"resources":{"timeout_ms":7000,"max_memory_bytes":33554432,"max_output_bytes":4096},"network":{"enabled":false,"allowed_hosts":["policy.example.invalid"]},"filesystem":{"read_only_paths":["/policy/read"],"writable_paths":["/policy/write"]},"secrets":{"refs":["secret:policy"]},"env_vars":["SAFE_ENV"]}"#.to_owned()),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("script should be created: {error}"));
+        let version = scripts
+            .versions()
+            .get_version_by_number(&script.id, 1)
+            .await
+            .unwrap_or_else(|error| panic!("script version should load: {error}"))
+            .unwrap_or_else(|| panic!("script version should exist"));
+        let script = scripts
+            .publish_version(
+                &script.id,
+                version.version_number,
+                None,
+                Some(tikee_storage::VerifiedScriptReleaseGrants {
+                    grants: tikee_core::ScriptReleaseGrantSet {
+                        url: vec!["api.example.com".to_owned()],
+                        file_read: vec!["/data/input".to_owned()],
+                        file_write: vec!["/data/output".to_owned()],
+                        secret: vec!["secret:db-readonly".to_owned()],
+                    },
+                    verified_by: "grant-verifier".to_owned(),
+                }),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("script should publish: {error}"))
+            .unwrap_or_else(|| panic!("script should exist"));
+
+        let task = match build_dispatch_task(
+            &scripts,
+            "instance-shell".to_owned(),
+            "job-shell".to_owned(),
+            format!("script:{}", script.id),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("task build should not error: {error}"))
+        {
+            DispatchTaskBuild::Built(task) => task,
+            DispatchTaskBuild::Rejected(failure) => {
+                panic!("released grant script should dispatch: {failure:?}")
+            }
+        };
+
+        let binding = task
+            .processor_binding
+            .unwrap_or_else(|| panic!("script binding expected"));
+        match binding.kind {
+            Some(task_processor_binding::Kind::Script(script_binding)) => {
+                assert!(script_binding.allow_network);
+                assert_eq!(
+                    script_binding.allowed_network_hosts,
+                    vec!["api.example.com"]
+                );
+                assert_eq!(script_binding.read_only_paths, vec!["/data/input"]);
+                assert_eq!(script_binding.writable_paths, vec!["/data/output"]);
+                assert_eq!(script_binding.secret_refs, vec!["secret:db-readonly"]);
+                assert_eq!(script_binding.allowed_env_vars, vec!["SAFE_ENV"]);
             }
             other => panic!("unexpected binding: {other:?}"),
         }

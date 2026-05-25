@@ -1184,3 +1184,8 @@ Verification evidence:
 - `cargo build --workspace --all-features` passed.
 - `cargo run -- --help >/tmp/tikee-help.out` passed.
 - `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.
+
+## 2026-05-25 — P1 Worker runtime grant enforcement
+- Closed the signed grant handoff from release pointer to Worker dispatch binding: Server now includes `allowed_network_hosts`, read-only paths, writable paths, secret refs, and `allow_network` derived from verified `release_grants`.
+- Rust SDK now carries `allowed_network_hosts` through `ScriptRunnerPolicy`; local subprocess remains fail-closed for grants; container runner mounts signed file grants and rejects network/secret grants without safe runtime enforcement.
+- Java SDK proto/test updated so grant-bearing script bindings are understood and still reported unsupported without invoking user processors.

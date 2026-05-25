@@ -43,7 +43,7 @@ async fn unsupported_script_runner_validates_default_deny_policy_before_executio
     assert!(error.to_string().contains("not enabled"));
 
     let dangerous = ScriptRunnerPolicy {
-        allow_network: true,
+        allowed_network_hosts: vec!["api.example.com".to_owned()],
         ..ScriptRunnerPolicy::default()
     };
     let error = match dangerous.validate_default_deny() {
@@ -51,6 +51,65 @@ async fn unsupported_script_runner_validates_default_deny_policy_before_executio
         Err(error) => error,
     };
     assert!(error.to_string().contains("network access"));
+}
+
+#[test]
+fn container_script_runner_builds_file_grant_docker_args() {
+    let runner = ContainerScriptRunner::new(ScriptRunnerKind::Shell, "alpine:3.20");
+    let policy = ScriptRunnerPolicy {
+        read_only_paths: vec!["/data/input".to_owned()],
+        writable_paths: vec!["/data/output".to_owned()],
+        ..ScriptRunnerPolicy::default()
+    };
+    let task = script_task("shell", "echo ok\n", policy);
+
+    let args = runner
+        .docker_args(&task)
+        .unwrap_or_else(|error| panic!("file-grant container args should build: {error}"));
+
+    assert!(args.windows(2).any(|pair| {
+        pair[0] == "--mount"
+            && pair[1] == "type=bind,src=/data/input,dst=/data/input,readonly"
+    }));
+    assert!(args.windows(2).any(|pair| {
+        pair[0] == "--mount" && pair[1] == "type=bind,src=/data/output,dst=/data/output"
+    }));
+}
+
+#[test]
+fn container_script_runner_rejects_network_and_secret_grants_fail_closed() {
+    let runner = ContainerScriptRunner::new(ScriptRunnerKind::Shell, "alpine:3.20");
+    let network_policy = ScriptRunnerPolicy {
+        allow_network: true,
+        allowed_network_hosts: vec!["api.example.com".to_owned()],
+        ..ScriptRunnerPolicy::default()
+    };
+    let error = runner
+        .docker_args(&script_task("shell", "echo ok\n", network_policy))
+        .expect_err("docker args must fail closed for network grants");
+    assert!(error.to_string().contains("network grants"));
+
+    let secret_policy = ScriptRunnerPolicy {
+        secret_refs: vec!["secret:db-readonly".to_owned()],
+        ..ScriptRunnerPolicy::default()
+    };
+    let error = runner
+        .docker_args(&script_task("shell", "echo ok\n", secret_policy))
+        .expect_err("docker args must fail closed for secret grants");
+    assert!(error.to_string().contains("secret refs"));
+}
+
+#[test]
+fn container_script_runner_rejects_malformed_file_grants() {
+    let runner = ContainerScriptRunner::new(ScriptRunnerKind::Shell, "alpine:3.20");
+    let policy = ScriptRunnerPolicy {
+        read_only_paths: vec!["relative/path".to_owned()],
+        ..ScriptRunnerPolicy::default()
+    };
+    let error = runner
+        .docker_args(&script_task("shell", "echo ok\n", policy))
+        .expect_err("relative file grant must be rejected");
+    assert!(error.to_string().contains("clean and absolute"));
 }
 
 #[test]
@@ -97,6 +156,7 @@ async fn container_script_runner_rejects_dangerous_policy_before_runtime() {
     let runner = ContainerScriptRunner::new(ScriptRunnerKind::Shell, "alpine:3.20");
     let policy = ScriptRunnerPolicy {
         allow_network: true,
+        allowed_network_hosts: vec!["api.example.com".to_owned()],
         ..ScriptRunnerPolicy::default()
     };
     let error = match runner.run(script_task("shell", "echo ok\n", policy)).await {
@@ -104,7 +164,7 @@ async fn container_script_runner_rejects_dangerous_policy_before_runtime() {
         Err(error) => error,
     };
     assert!(matches!(error, WorkerSdkError::UnsupportedScriptRunner(_)));
-    assert!(error.to_string().contains("network access"));
+    assert!(error.to_string().contains("network grants"));
 }
 
 #[tokio::test]
@@ -609,6 +669,7 @@ fn script_dispatch_task(instance_id: &str, content: &str) -> DispatchTask {
                     max_output_bytes: 1024 * 1024,
                     allow_network: false,
                     allowed_env_vars: Vec::new(),
+                    allowed_network_hosts: Vec::new(),
                     read_only_paths: Vec::new(),
                     writable_paths: Vec::new(),
                     secret_refs: Vec::new(),
