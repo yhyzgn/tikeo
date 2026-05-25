@@ -29,3 +29,6 @@ examples/java/**/.gradle/
 
 # Local development script logs
 .dev/
+# Java IDE output
+sdks/java/**/bin/
+examples/java/**/bin/

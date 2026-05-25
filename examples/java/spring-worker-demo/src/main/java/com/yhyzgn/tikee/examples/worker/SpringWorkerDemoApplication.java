@@ -1,6 +1,5 @@
 package com.yhyzgn.tikee.examples.worker;
 
-import com.yhyzgn.tikee.core.TikeeProcessor;
 import com.yhyzgn.tikee.core.TikeeWorkerClient;
 import jakarta.annotation.PreDestroy;
 import java.util.concurrent.CountDownLatch;
@@ -8,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 @SpringBootApplication
@@ -16,13 +16,13 @@ public class SpringWorkerDemoApplication {
         SpringApplication.run(SpringWorkerDemoApplication.class, args);
     }
 
-    @TikeeProcessor("demo.echo")
-    public String echo(String payload) {
-        return "echo:" + payload;
-    }
-
     @Component
     @RequiredArgsConstructor
+    @ConditionalOnProperty(
+            prefix = "tikee.worker.demo",
+            name = "block-on-startup",
+            havingValue = "true",
+            matchIfMissing = true)
     static class DemoRunner implements CommandLineRunner {
         private final TikeeWorkerClient client;
         private final CountDownLatch stopSignal = new CountDownLatch(1);
