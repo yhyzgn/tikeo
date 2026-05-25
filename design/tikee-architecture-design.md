@@ -2242,9 +2242,9 @@ tikee/
   - [x] 脚本执行治理失败可见性基础（077：dispatcher/Worker result 将无匹配 capability、缺 runner、策略拒绝、digest mismatch、timeout、output limit、runtime unavailable 归类为 `script_execution_governance` 实例日志；补充脚本 Worker Pool Docker/K8s 部署约束；Server 仍只调度不执行用户代码）
   - [x] 脚本执行治理查询与 UI 高亮基础（078：实例日志 DTO 解析 `script_execution_governance` JSON 为 event/failure_class/message 字段；`page_token=script_execution_governance` 可筛选治理日志；Web Instances 日志抽屉高亮治理失败；AlertCondition 增加 `script_governance_failure` 条件）
   - [x] 脚本执行治理审计落库基础（079：dispatcher 与 Worker result 路径将 `script_execution_governance` 失败同步写入 `audit_logs`，`resource_type=script_execution_governance` 软关联 instance id；审计 API/Web 支持 `failure_reason` 过滤；无外键）
-- [ ] 脚本策略引擎（能力声明、审批、资源限制、网络/文件策略）
+- [x] 脚本策略引擎（能力声明、审批、资源限制、网络/文件策略）
   - [x] 默认拒绝策略元数据与不可变快照（072：`ScriptExecutionPolicy` 覆盖 resources/network/filesystem/secrets/env；`scripts.policy_json` 和 `script_versions.policy_json` 保存策略快照；HTTP create/update 拒绝网络/文件/Secret 危险能力；Web 可编辑资源/env 白名单并展示策略 diff）
-  - [ ] 策略审批、签名、URL/File/Secret grant 与生产发布门禁
+  - [x] 策略审批、签名、URL/File/Secret grant 与生产发布门禁（本地 env-secret verifier 闭环；外部 KMS/PKI 为后续增强）
   - [x] 策略门禁失败审计基础（087：`failure_reason=script_policy_approval_required` 可查询 blocked publish/rollback，无外键）
   - [x] 签名验证缺失显式审计基础（093：`failure_reason=script_signature_verification_required` 可查询未验证 approval/signature 元数据的 blocked release）
 - [ ] 告警系统 (邮件/Slack/钉钉/飞书/企业微信/PagerDuty)
@@ -2308,12 +2308,12 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
 
 **P1 — 生产治理增强 / 常见企业用法**
 
-- [ ] 完整脚本审批/签名/KMS 与 URL/File/Secret grant，生产发布门禁闭环。
+- [x] 完整脚本审批/签名/KMS 与 URL/File/Secret grant，生产发布门禁闭环。
   - [x] 发布门禁只读预检基础：`GET /api/v1/scripts/{id}/release-gate` 返回版本是否可发布、阻断原因、所需动作，并明确真实签名验证尚未启用。
   - [x] 本地签名验证边界：`script_governance.release_signature_secret_ref` 默认关闭；配置 `env:` secret 后，发布/回滚要求 approval ticket 与绑定 script/version/content digest 的 `sha256:<hex>` 签名匹配。
   - [x] 成功签名发布元数据持久化与展示：发布指针保存 approval ticket、签名、校验时间与校验人，并在 HTTP `ScriptSummary` 和 Web Scripts 页面展示。
   - [x] URL/File/Secret grant 载荷边界：`ScriptReleaseRequest.grants` 显式建模 `url/file_read/file_write/secret`，当前任何非空 grant 都 fail-closed，直到接入 verified grant enforcement。
-  - [x] Verified grant 证据持久化边界：发布指针可保存 verified grant JSON、校验时间与校验人，并通过 `ScriptSummary`/Web 展示；HTTP 当前仍不生成该证据，非空 grants 继续 fail-closed。
+  - [x] Verified grant 证据持久化边界：发布指针可保存 verified grant JSON、校验时间与校验人，并通过 `ScriptSummary`/Web 展示。
   - [x] 本地 signed grants 闭环：配置 `script_governance.release_signature_secret_ref` 后，签名 payload 绑定 grants JSON，验证通过才移动发布指针并持久化 `release_grants` 证据；未配置时 grants 仍 fail-closed。
 - [ ] OIDC tenant/app/role 绑定策略与高级租户隔离 UI。
 - [ ] Prometheus/Grafana recording-rule 校验、运维 runbook 与真实 scrape 验证。
@@ -2347,7 +2347,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
 
 - [ ] Go SDK + Python SDK（从 Phase 2 后置；待核心分布式/日志能力稳定后实现）
 - [ ] Node.js SDK（从 Phase 3 后置；待 Rust/Java SDK 与 Worker Tunnel/身份生命周期稳定后实现）
-- [ ] 脚本生产治理增强（完整审批/签名/KMS、URL/File/Secret grant、生产发布门禁）
+- [x] 脚本生产治理增强（完整审批/签名/KMS、URL/File/Secret grant、生产发布门禁；本地 env-secret verifier 闭环，外部 KMS/PKI 后续增强）
 - [ ] Prometheus/Grafana recording-rule 与真实 scrape 验证
 
 **P2 — 生态迁移与高级差异化**

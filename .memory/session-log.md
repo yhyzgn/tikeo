@@ -1730,3 +1730,22 @@ Verification:
 Commit/push:
 - Commit: `6f63564` (Complete local signed script release grants)
 - Push: first attempt failed with TLS EOF; retry succeeded to `origin/main` (`cc3b146..6f63564`).
+
+## 2026-05-25 — Correct P1 script governance roadmap checkboxes
+
+Task:
+- User pointed out the P1 script governance task was not visibly marked complete in the design roadmap and asked what Worker-side URL/File/Secret access disabled meant.
+
+Clarification:
+- The completed P1 item is the release-governance gate: policy/signature/grants are verified before the release pointer moves, and evidence is persisted.
+- “Worker-side URL/File/Secret access remains disabled” means runtime execution still does not open network, mount host paths, or inject secrets into scripts. That is an intentional execution-sandbox safety boundary, not a failure of the release gate.
+
+Changes:
+- Marked the script strategy/governance roadmap entries complete in all matching design sections.
+- Clarified that external KMS/PKI is future enhancement beyond the local env-secret verifier closure.
+
+Verification:
+- Documentation-only correction; `git diff --check` passed.
+
+Commit/push:
+- Pending at time of log entry.
