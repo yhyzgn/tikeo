@@ -413,7 +413,7 @@
         assert_eq!(json["data"]["signature_verification_enabled"], true);
 
         let published = post_json(
-            app,
+            app.clone(),
             &format!("/api/v1/scripts/{script_id}/publish"),
             &format!(
                 r#"{{"version_number":1,"approval_ticket":"{approval_ticket}","signature":"{signature}"}}"#
@@ -422,6 +422,36 @@
         .await;
         assert_eq!(published["code"], 0);
         assert_eq!(published["data"]["released_version_number"], 1);
+        assert_eq!(
+            published["data"]["release_signature"]["approval_ticket"],
+            approval_ticket
+        );
+        assert_eq!(published["data"]["release_signature"]["signature"], signature);
+        assert_eq!(published["data"]["release_signature"]["verified_by"], "tikee_init");
+        assert!(published["data"]["release_signature"]["verified_at"].is_string());
+
+        let reloaded_response = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app.clone(),
+                    "GET",
+                    format!("/api/v1/scripts/{script_id}"),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("get script route should respond: {error}"));
+        assert!(reloaded_response.status().is_success());
+        let reloaded_body = axum::body::to_bytes(reloaded_response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let reloaded: Value = serde_json::from_slice(&reloaded_body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(
+            reloaded["data"]["release_signature"]["approval_ticket"],
+            approval_ticket
+        );
     }
 
     #[tokio::test]

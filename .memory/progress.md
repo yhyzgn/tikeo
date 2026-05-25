@@ -1127,3 +1127,17 @@ Verification evidence:
 - `cargo test --workspace --all-features` passed.
 - `cargo build --workspace --all-features` passed.
 - `cargo run -- --help >/tmp/tikee-help.out` passed.
+
+### 2026-05-25 — P1 script release signature metadata persistence
+- Persisted verified script release signature metadata on the release pointer: approval ticket, signature digest, verification timestamp, and verifier identity.
+- Exposed the metadata through `ScriptSummary` so script list/detail/publish/rollback responses can show signed release evidence.
+- Web Scripts page now shows release signature status in the table and signature details in the drawer.
+- Existing SQLite dev databases gain compatibility columns automatically; unsigned safe releases remain supported, while signed metadata is only stored after configured verification succeeds.
+- Preserved the source-size rule; max checked source file line count remains 1495.
+Verification evidence:
+- `cargo fmt --all -- --check` passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `cargo test --workspace --all-features` passed.
+- `cargo build --workspace --all-features` passed.
+- `cargo run -- --help >/tmp/tikee-help.out` passed.
+- `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.

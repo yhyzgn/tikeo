@@ -321,6 +321,13 @@ export interface ScriptExecutionPolicy {
   env_vars: string[];
 }
 
+export interface ScriptReleaseSignatureSummary {
+  approval_ticket: string;
+  signature: string;
+  verified_at: string;
+  verified_by: string;
+}
+
 export interface ScriptSummary {
   id: string;
   name: string;
@@ -331,6 +338,7 @@ export interface ScriptSummary {
   status: string;
   released_version_id: string | null;
   released_version_number: number | null;
+  release_signature: ScriptReleaseSignatureSummary | null;
   timeout_seconds: number | null;
   max_memory_bytes: number | null;
   allow_network: boolean;

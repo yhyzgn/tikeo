@@ -30,14 +30,15 @@ pub use repository::{
     RaftMembershipProposalSummary, RaftMetadataSummary, RaftRepository, RaftSnapshotSummary,
     RbacRepository, RecordAlertDeliveryAttempt, RecordRaftAppliedCommand,
     RecordRaftMembershipProposal, RecoverWorkflowNodeInput, RecoverWorkflowNodeResult,
-    RegisterWorkerSession, ScopeRepository, ScriptRepository, ScriptSummary,
-    ScriptVersionRepository, ScriptVersionSummary, UpdateScript, UpdateUser, UpdateWorkflow,
-    UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
-    UpsertRaftSnapshot, UserRepository, UserSummary, WorkerHeartbeat, WorkerLifecycleRepository,
-    WorkerPoolSummary, WorkerSessionEventSummary, WorkerSessionSummary, WorkflowDefinition,
-    WorkflowEdgeSpec, WorkflowInstanceSummary, WorkflowJobResultOutcome,
-    WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
-    WorkflowSloSummary, WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
+    RegisterWorkerSession, ScopeRepository, ScriptReleaseSignatureSummary, ScriptRepository,
+    ScriptSummary, ScriptVersionRepository, ScriptVersionSummary, UpdateScript, UpdateUser,
+    UpdateWorkflow, UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
+    UpsertRaftSnapshot, UserRepository, UserSummary, VerifiedScriptReleaseSignature,
+    WorkerHeartbeat, WorkerLifecycleRepository, WorkerPoolSummary, WorkerSessionEventSummary,
+    WorkerSessionSummary, WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary,
+    WorkflowJobResultOutcome, WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository,
+    WorkflowShardSummary, WorkflowSloSummary, WorkflowSummary, WorkflowValidationResult,
+    validate_workflow_definition,
 };
 pub use sea_orm::DbErr;
 
@@ -361,6 +362,10 @@ async fn ensure_scripts_schema_compatibility(
             version varchar NOT NULL,
             content varchar NOT NULL,
             status varchar NOT NULL,
+            release_approval_ticket varchar,
+            release_signature varchar,
+            release_signature_verified_at varchar,
+            release_signature_verified_by varchar,
             timeout_seconds bigint,
             max_memory_bytes bigint,
             allow_network boolean NOT NULL DEFAULT 0,
@@ -393,6 +398,20 @@ async fn ensure_scripts_schema_compatibility(
         ))
         .await?;
     }
+    for column in [
+        "release_approval_ticket",
+        "release_signature",
+        "release_signature_verified_at",
+        "release_signature_verified_by",
+    ] {
+        if !sqlite_column_exists(db, "scripts", column).await? {
+            db.execute(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                format!("ALTER TABLE scripts ADD COLUMN {column} varchar"),
+            ))
+            .await?;
+        }
+    }
     db.execute(Statement::from_string(
         DatabaseBackend::Sqlite,
         "CREATE INDEX IF NOT EXISTS idx_scripts_status ON scripts (status)",
@@ -422,6 +441,10 @@ async fn ensure_script_versions_schema_compatibility(
             content_sha256 varchar NOT NULL DEFAULT '',
             language varchar NOT NULL,
             status varchar NOT NULL,
+            release_approval_ticket varchar,
+            release_signature varchar,
+            release_signature_verified_at varchar,
+            release_signature_verified_by varchar,
             timeout_seconds bigint,
             max_memory_bytes bigint,
             allow_network boolean NOT NULL DEFAULT 0,

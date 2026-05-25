@@ -60,6 +60,30 @@ pub struct UpdateScript {
     pub policy_json: Option<String>,
 }
 
+/// Verified signature metadata for the current script release pointer.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct ScriptReleaseSignatureSummary {
+    /// External approval ticket bound into the verified release signature.
+    pub approval_ticket: String,
+    /// Verified signature digest, for example `sha256:<hex>`.
+    pub signature: String,
+    /// Timestamp when verification succeeded.
+    pub verified_at: String,
+    /// Actor that supplied the verified signature.
+    pub verified_by: String,
+}
+
+/// Verified signature metadata to persist when moving a release pointer.
+#[derive(Debug, Clone)]
+pub struct VerifiedScriptReleaseSignature {
+    /// External approval ticket bound into the verified release signature.
+    pub approval_ticket: String,
+    /// Verified signature digest, for example `sha256:<hex>`.
+    pub signature: String,
+    /// Actor that supplied the verified signature.
+    pub verified_by: String,
+}
+
 /// Script summary returned to management API callers.
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ScriptSummary {
@@ -81,6 +105,8 @@ pub struct ScriptSummary {
     pub released_version_id: Option<String>,
     /// Released immutable script version number.
     pub released_version_number: Option<i64>,
+    /// Verified signature metadata for the current release pointer.
+    pub release_signature: Option<ScriptReleaseSignatureSummary>,
     /// Timeout seconds for execution.
     pub timeout_seconds: Option<i64>,
     /// Max memory bytes for sandbox.
@@ -162,6 +188,10 @@ impl ScriptRepository {
             status: "draft".to_owned(),
             released_version_id: None,
             released_version_number: None,
+            release_approval_ticket: None,
+            release_signature: None,
+            release_signature_verified_at: None,
+            release_signature_verified_by: None,
             timeout_seconds: input.timeout_seconds,
             max_memory_bytes: input.max_memory_bytes,
             allow_network: input.allow_network,
@@ -180,6 +210,10 @@ impl ScriptRepository {
             status: Set(model.status.clone()),
             released_version_id: Set(None),
             released_version_number: Set(None),
+            release_approval_ticket: Set(None),
+            release_signature: Set(None),
+            release_signature_verified_at: Set(None),
+            release_signature_verified_by: Set(None),
             timeout_seconds: Set(model.timeout_seconds),
             max_memory_bytes: Set(model.max_memory_bytes),
             allow_network: Set(model.allow_network),
@@ -264,6 +298,7 @@ impl ScriptRepository {
         &self,
         id: &str,
         version_number: i64,
+        signature: Option<VerifiedScriptReleaseSignature>,
     ) -> Result<Option<ScriptSummary>, sea_orm::DbErr> {
         let Some(version) = self
             .versions
@@ -279,6 +314,12 @@ impl ScriptRepository {
             return Ok(None);
         };
         let now = now_rfc3339();
+        let release_signature = signature.map(|value| ScriptReleaseSignatureSummary {
+            approval_ticket: value.approval_ticket,
+            signature: value.signature,
+            verified_at: now.clone(),
+            verified_by: value.verified_by,
+        });
         script::Entity::update(script::ActiveModel {
             id: Set(existing.id.clone()),
             name: Set(existing.name.clone()),
@@ -288,6 +329,18 @@ impl ScriptRepository {
             status: Set("approved".to_owned()),
             released_version_id: Set(Some(version.id.clone())),
             released_version_number: Set(Some(version.version_number)),
+            release_approval_ticket: Set(release_signature
+                .as_ref()
+                .map(|metadata| metadata.approval_ticket.clone())),
+            release_signature: Set(release_signature
+                .as_ref()
+                .map(|metadata| metadata.signature.clone())),
+            release_signature_verified_at: Set(release_signature
+                .as_ref()
+                .map(|metadata| metadata.verified_at.clone())),
+            release_signature_verified_by: Set(release_signature
+                .as_ref()
+                .map(|metadata| metadata.verified_by.clone())),
             timeout_seconds: Set(existing.timeout_seconds),
             max_memory_bytes: Set(existing.max_memory_bytes),
             allow_network: Set(existing.allow_network),
@@ -310,6 +363,7 @@ impl ScriptRepository {
             status: "approved".to_owned(),
             released_version_id: Some(version.id),
             released_version_number: Some(version.version_number),
+            release_signature,
             timeout_seconds: existing.timeout_seconds,
             max_memory_bytes: existing.max_memory_bytes,
             allow_network: existing.allow_network,
@@ -332,8 +386,9 @@ impl ScriptRepository {
         &self,
         id: &str,
         version_number: i64,
+        signature: Option<VerifiedScriptReleaseSignature>,
     ) -> Result<Option<ScriptSummary>, sea_orm::DbErr> {
-        self.publish_version(id, version_number).await
+        self.publish_version(id, version_number, signature).await
     }
 
     /// Delete a script by id.
@@ -368,6 +423,19 @@ fn script_changed(before: &script::Model, active: &script::ActiveModel) -> bool 
         || changed(
             &active.released_version_number,
             &before.released_version_number,
+        )
+        || changed(
+            &active.release_approval_ticket,
+            &before.release_approval_ticket,
+        )
+        || changed(&active.release_signature, &before.release_signature)
+        || changed(
+            &active.release_signature_verified_at,
+            &before.release_signature_verified_at,
+        )
+        || changed(
+            &active.release_signature_verified_by,
+            &before.release_signature_verified_by,
         )
         || changed(&active.timeout_seconds, &before.timeout_seconds)
         || changed(&active.max_memory_bytes, &before.max_memory_bytes)
@@ -562,6 +630,7 @@ impl From<script_version::Model> for ScriptVersionSummary {
 
 impl From<script::Model> for ScriptSummary {
     fn from(value: script::Model) -> Self {
+        let release_signature = release_signature_summary(&value);
         Self {
             id: value.id,
             name: value.name,
@@ -572,6 +641,7 @@ impl From<script::Model> for ScriptSummary {
             status: value.status,
             released_version_id: value.released_version_id,
             released_version_number: value.released_version_number,
+            release_signature,
             timeout_seconds: value.timeout_seconds,
             max_memory_bytes: value.max_memory_bytes,
             allow_network: value.allow_network,
@@ -584,6 +654,15 @@ impl From<script::Model> for ScriptSummary {
             updated_at: value.updated_at,
         }
     }
+}
+
+fn release_signature_summary(value: &script::Model) -> Option<ScriptReleaseSignatureSummary> {
+    Some(ScriptReleaseSignatureSummary {
+        approval_ticket: value.release_approval_ticket.clone()?,
+        signature: value.release_signature.clone()?,
+        verified_at: value.release_signature_verified_at.clone()?,
+        verified_by: value.release_signature_verified_by.clone()?,
+    })
 }
 
 fn default_policy_json() -> String {

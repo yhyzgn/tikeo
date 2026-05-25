@@ -23,6 +23,14 @@ pub struct Model {
     pub released_version_id: Option<String>,
     /// Released immutable script version number.
     pub released_version_number: Option<i64>,
+    /// Verified approval ticket for the current release pointer.
+    pub release_approval_ticket: Option<String>,
+    /// Verified signature digest for the current release pointer.
+    pub release_signature: Option<String>,
+    /// Timestamp when release signature verification succeeded.
+    pub release_signature_verified_at: Option<String>,
+    /// Actor that supplied the verified release signature.
+    pub release_signature_verified_by: Option<String>,
     /// Optional timeout seconds for execution.
     pub timeout_seconds: Option<i64>,
     /// Optional max memory bytes for sandbox.

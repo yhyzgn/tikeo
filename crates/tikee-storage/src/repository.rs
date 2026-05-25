@@ -51,8 +51,8 @@ pub use raft::{
 };
 pub use scope::{AppSummary, NamespaceSummary, ScopeRepository, WorkerPoolSummary};
 pub use script::{
-    CreateScript, ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary,
-    UpdateScript,
+    CreateScript, ScriptReleaseSignatureSummary, ScriptRepository, ScriptSummary,
+    ScriptVersionRepository, ScriptVersionSummary, UpdateScript, VerifiedScriptReleaseSignature,
 };
 pub use user::{CreateUser, UpdateUser, UserRepository, UserSummary};
 pub use worker_lifecycle::{
@@ -83,6 +83,7 @@ mod tests {
             AppendJobInstanceLog, CreateJob, CreateJobInstance, CreateScript, RaftRepository,
             RecordRaftAppliedCommand, ScriptRepository, UpdateScript, UpsertRaftLogEntry,
             UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot,
+            VerifiedScriptReleaseSignature,
         },
     };
 
@@ -377,7 +378,7 @@ mod tests {
         assert_eq!(versions[1].policy["resources"]["timeout_ms"], 12_000);
 
         let published = scripts
-            .publish_version(&script.id, 2)
+            .publish_version(&script.id, 2, None)
             .await
             .unwrap_or_else(|error| panic!("script should publish: {error}"))
             .unwrap_or_else(|| panic!("script should exist"));
@@ -387,9 +388,10 @@ mod tests {
             Some(versions[0].id.as_str())
         );
         assert_eq!(published.released_version_number, Some(2));
+        assert!(published.release_signature.is_none());
 
         let rolled_back = scripts
-            .rollback_release(&script.id, 1)
+            .rollback_release(&script.id, 1, None)
             .await
             .unwrap_or_else(|error| panic!("script should roll back: {error}"))
             .unwrap_or_else(|| panic!("script should exist"));
@@ -399,6 +401,64 @@ mod tests {
             Some(versions[1].id.as_str())
         );
         assert_eq!(rolled_back.released_version_number, Some(1));
+        assert!(rolled_back.release_signature.is_none());
+    }
+
+    #[tokio::test]
+    async fn script_repository_persists_verified_release_signature_metadata() {
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let scripts = ScriptRepository::new(db);
+
+        let script = scripts
+            .create_script(CreateScript {
+                name: "signed-release".to_owned(),
+                language: "python".to_owned(),
+                version: "1.0.0".to_owned(),
+                content: "print(1)".to_owned(),
+                created_by: "tester".to_owned(),
+                timeout_seconds: Some(3),
+                max_memory_bytes: Some(4096),
+                allow_network: false,
+                allowed_env_vars: None,
+                policy_json: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("script should be created: {error}"));
+
+        let signed = scripts
+            .publish_version(
+                &script.id,
+                1,
+                Some(VerifiedScriptReleaseSignature {
+                    approval_ticket: "CAB-42".to_owned(),
+                    signature: "sha256:verified".to_owned(),
+                    verified_by: "tester".to_owned(),
+                }),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("signed publish should persist: {error}"))
+            .unwrap_or_else(|| panic!("script should exist"));
+        let signature = signed
+            .release_signature
+            .unwrap_or_else(|| panic!("verified signature metadata should be returned"));
+        assert_eq!(signature.approval_ticket, "CAB-42");
+        assert_eq!(signature.signature, "sha256:verified");
+        assert_eq!(signature.verified_by, "tester");
+        assert!(!signature.verified_at.is_empty());
+
+        let reloaded = scripts
+            .get(&script.id)
+            .await
+            .unwrap_or_else(|error| panic!("script should reload: {error}"))
+            .unwrap_or_else(|| panic!("script should exist"));
+        assert_eq!(
+            reloaded
+                .release_signature
+                .map(|metadata| metadata.approval_ticket),
+            Some("CAB-42".to_owned())
+        );
     }
 
     #[tokio::test]

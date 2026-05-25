@@ -386,6 +386,12 @@ export function ScriptsPage() {
     { title: '版本', dataIndex: 'version', key: 'version' },
     { title: '发布版本', dataIndex: 'released_version_number', key: 'released_version_number', render: (v: number | null) => v ? `#${v}` : <Tag color="orange">未发布</Tag> },
     {
+      title: '发布签名',
+      dataIndex: 'release_signature',
+      key: 'release_signature',
+      render: (v: ScriptSummary['release_signature']) => v ? <Tag color="green">已验证</Tag> : <Tag>未配置</Tag>,
+    },
+    {
       title: 'SHA-256',
       dataIndex: 'content_sha256',
       key: 'content_sha256',
@@ -608,6 +614,10 @@ export function ScriptsPage() {
               <Descriptions.Item label="内容 SHA-256"><Typography.Text code copyable>{detailScript.content_sha256}</Typography.Text></Descriptions.Item>
               <Descriptions.Item label="发布版本">{detailScript.released_version_number ? `#${detailScript.released_version_number}` : '未发布'}</Descriptions.Item>
               <Descriptions.Item label="发布版本 ID"><Typography.Text code copyable>{detailScript.released_version_id ?? '-'}</Typography.Text></Descriptions.Item>
+              <Descriptions.Item label="签名审批单">{detailScript.release_signature?.approval_ticket ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="签名校验时间">{detailScript.release_signature?.verified_at ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="签名校验人">{detailScript.release_signature?.verified_by ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="发布签名"><Typography.Text code copyable>{detailScript.release_signature?.signature ?? '-'}</Typography.Text></Descriptions.Item>
               <Descriptions.Item label="状态">
                 <Tag color={STATUS_COLORS[detailScript.status] ?? 'default'}>{STATUS_LABELS[detailScript.status] ?? detailScript.status}</Tag>
               </Descriptions.Item>

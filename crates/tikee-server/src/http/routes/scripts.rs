@@ -9,6 +9,7 @@ use axum::{
 };
 
 use tikee_core::ScriptExecutionPolicy;
+use tikee_storage::VerifiedScriptReleaseSignature;
 
 use crate::http::{
     AppState, auth,
@@ -246,7 +247,7 @@ pub async fn publish_script(
     let version_number =
         resolve_release_version_number(&state, &id, request.version_number).await?;
     let version = resolve_release_version(&state, &id, version_number).await?;
-    enforce_release_signature_gate(
+    let release_signature = enforce_release_signature_gate(
         &state,
         &principal.username,
         &id,
@@ -258,7 +259,7 @@ pub async fn publish_script(
     enforce_release_policy_gate(&state, &principal.username, &id, &version, &headers).await?;
     let published = state
         .scripts
-        .publish_version(&id, version_number)
+        .publish_version(&id, version_number, release_signature)
         .await
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| {
@@ -335,7 +336,7 @@ async fn enforce_release_signature_gate(
     request: &ScriptReleaseRequest,
     version: &tikee_storage::ScriptVersionSummary,
     headers: &HeaderMap,
-) -> Result<(), ApiError> {
+) -> Result<Option<VerifiedScriptReleaseSignature>, ApiError> {
     let approval_present = request
         .approval_ticket
         .as_ref()
@@ -345,7 +346,7 @@ async fn enforce_release_signature_gate(
         .as_ref()
         .is_some_and(|value| !value.trim().is_empty());
     if !approval_present && !signature_present {
-        return Ok(());
+        return Ok(None);
     }
     let Some(secret_ref) = state
         .script_governance
@@ -417,7 +418,11 @@ async fn enforce_release_signature_gate(
         .await;
         return Err(ApiError::bad_request(message));
     }
-    Ok(())
+    Ok(Some(VerifiedScriptReleaseSignature {
+        approval_ticket: approval_ticket.to_owned(),
+        signature: signature.to_owned(),
+        verified_by: actor.to_owned(),
+    }))
 }
 
 async fn enforce_release_policy_gate(
@@ -529,7 +534,7 @@ pub async fn rollback_script(
         .version_number
         .ok_or_else(|| ApiError::bad_request("version_number is required for rollback"))?;
     let version = resolve_release_version(&state, &id, version_number).await?;
-    enforce_release_signature_gate(
+    let release_signature = enforce_release_signature_gate(
         &state,
         &principal.username,
         &id,
@@ -541,7 +546,7 @@ pub async fn rollback_script(
     enforce_release_policy_gate(&state, &principal.username, &id, &version, &headers).await?;
     let rolled_back = state
         .scripts
-        .rollback_release(&id, version_number)
+        .rollback_release(&id, version_number, release_signature)
         .await
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| {

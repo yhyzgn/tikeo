@@ -1632,3 +1632,26 @@ Commit/push:
   - Attempt 2: `Failed to connect to github.com port 443 after 136460 ms`.
 - Next step: retry `git push` when GitHub/network connectivity is available.
 - Push retry: succeeded to `origin/main` (`28d84d1..2fe92b7`).
+
+## 2026-05-25 — P1 script release signature metadata persistence
+
+Task:
+- Continue P1 script production governance by persisting/displaying successful signed release metadata after local signature verification.
+
+Changes:
+- Added nullable script release signature metadata columns and SQLite compatibility migration.
+- `ScriptSummary` now includes verified release signature evidence.
+- Publish/rollback persist approval ticket, signature, verifier, and verification timestamp after configured local verification succeeds.
+- Web Scripts page displays signed/unsigned release state plus signature detail fields.
+
+Verification:
+- Max source line count check excluding `web/node_modules` and `web/dist`: 1495.
+- `cargo fmt --all -- --check` passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `cargo test --workspace --all-features` passed.
+- `cargo build --workspace --all-features` passed.
+- `cargo run -- --help >/tmp/tikee-help.out` passed.
+- `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.
+
+Commit/push:
+- Pending at time of log entry.
