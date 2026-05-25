@@ -1728,4 +1728,5 @@ Verification:
 - `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.
 
 Commit/push:
-- Pending at time of log entry.
+- Commit: `6f63564` (Complete local signed script release grants)
+- Push: first attempt failed with TLS EOF; retry succeeded to `origin/main` (`cc3b146..6f63564`).
