@@ -302,9 +302,50 @@
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_ne!(json["code"], 0);
         assert!(json["message"].as_str().is_some_and(|message| {
-            message.contains("URL/File/Secret grants require verified release grant enforcement")
+            message.contains("signature verification is not yet enabled")
         }));
         assert!(json.get("data").is_some());
+    }
+
+    #[tokio::test]
+    async fn script_release_persists_locally_verified_grants_when_signed() {
+        let app = router_with_script_signature_secret_ref("env:PATH").await;
+        let created = post_json(
+            app.clone(),
+            "/api/v1/scripts",
+            r#"{"name":"signed-grant-release","language":"python","version":"1.0.0","content":"print(1)","timeout_seconds":3,"max_memory_bytes":4096,"allow_network":false}"#,
+        )
+        .await;
+        let script_id = created["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("script id should exist"));
+        let content_sha256 = created["data"]["content_sha256"]
+            .as_str()
+            .unwrap_or_else(|| panic!("content digest should exist"));
+        let approval_ticket = "CAB-2026-GRANTS";
+        let grants_json = r#"{"url":["https://api.example.com"],"file_read":["/data/input"],"file_write":[],"secret":["secret:db-readonly"]}"#;
+        let signature = local_script_release_signature(
+            &std::env::var("PATH").unwrap_or_else(|error| panic!("PATH should exist: {error}")),
+            script_id,
+            1,
+            content_sha256,
+            approval_ticket,
+            Some(grants_json),
+        );
+
+        let published = post_json(
+            app,
+            &format!("/api/v1/scripts/{script_id}/publish"),
+            &format!(
+                r#"{{"version_number":1,"approval_ticket":"{approval_ticket}","signature":"{signature}","grants":{grants_json}}}"#
+            ),
+        )
+        .await;
+        assert_eq!(published["code"], 0);
+        assert_eq!(published["data"]["release_grants"]["url"][0], "https://api.example.com");
+        assert_eq!(published["data"]["release_grants"]["secret"][0], "secret:db-readonly");
+        assert_eq!(published["data"]["release_grants"]["verified_by"], "tikee_init");
+        assert_eq!(published["data"]["release_signature"]["approval_ticket"], approval_ticket);
     }
 
     #[tokio::test]
@@ -430,6 +471,7 @@
             1,
             content_sha256,
             approval_ticket,
+            None,
         );
 
         let gate = app
@@ -536,11 +578,13 @@
         version_number: i64,
         content_sha256: &str,
         approval_ticket: &str,
+        grants: Option<&str>,
     ) -> String {
         use sha2::{Digest as _, Sha256};
 
+        let grants = grants.unwrap_or(r#"{"url":[],"file_read":[],"file_write":[],"secret":[]}"#);
         let payload = format!(
-            "tikee-script-release-v1\nscript_id={script_id}\nversion_number={version_number}\ncontent_sha256={content_sha256}\napproval_ticket={approval_ticket}"
+            "tikee-script-release-v1\nscript_id={script_id}\nversion_number={version_number}\ncontent_sha256={content_sha256}\napproval_ticket={approval_ticket}\ngrants={grants}"
         );
         let mut hasher = Sha256::new();
         hasher.update(secret.as_bytes());

@@ -1705,3 +1705,27 @@ Verification:
 Commit/push:
 - Commit: `66a348a` (Persist script release grant evidence before enforcement)
 - Push: first attempt failed with GitHub connection timeout; retry succeeded to `origin/main` (`df35944..66a348a`).
+
+## 2026-05-25 — P1 local signed release grants
+
+Task:
+- Move faster and complete at least one P1 task item by closing the local script release governance loop for signed URL/File/Secret grants.
+
+Changes:
+- Local env-secret release signatures now bind canonical grants JSON.
+- Publish/rollback persist grant evidence after local signature verification succeeds.
+- Unconfigured deployments remain fail-closed for grants and signature metadata.
+- Worker-side URL/File/Secret access remains disabled; release governance evidence only.
+- Roadmap marks the P1 script approval/signature/grants release-gate item complete.
+
+Verification:
+- Max source line count check excluding `web/node_modules` and `web/dist`: 1495.
+- `cargo fmt --all -- --check` passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `cargo test --workspace --all-features` passed.
+- `cargo build --workspace --all-features` passed.
+- `cargo run -- --help >/tmp/tikee-help.out` passed.
+- `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.
+
+Commit/push:
+- Pending at time of log entry.

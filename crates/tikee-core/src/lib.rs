@@ -443,7 +443,12 @@ impl ScriptReleaseGrantSet {
         }
     }
 
-    fn validate_values(&self) -> Result<(), ScriptReleaseGrantError> {
+    /// Validate grant values without deciding whether they may be enforced.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ScriptReleaseGrantError`] when grant values are malformed.
+    pub fn validate_values(&self) -> Result<(), ScriptReleaseGrantError> {
         for value in self
             .url
             .iter()

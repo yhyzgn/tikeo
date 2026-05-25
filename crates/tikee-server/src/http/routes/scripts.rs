@@ -9,7 +9,7 @@ use axum::{
 };
 
 use tikee_core::{ScriptExecutionPolicy, ScriptReleaseGrantSet};
-use tikee_storage::VerifiedScriptReleaseSignature;
+use tikee_storage::{VerifiedScriptReleaseGrants, VerifiedScriptReleaseSignature};
 
 use crate::http::{
     AppState, auth,
@@ -247,8 +247,7 @@ pub async fn publish_script(
     let version_number =
         resolve_release_version_number(&state, &id, request.version_number).await?;
     let version = resolve_release_version(&state, &id, version_number).await?;
-    enforce_release_grants_fail_closed(&request)?;
-    let release_signature = enforce_release_signature_gate(
+    let release_verification = enforce_release_signature_gate(
         &state,
         &principal.username,
         &id,
@@ -260,7 +259,12 @@ pub async fn publish_script(
     enforce_release_policy_gate(&state, &principal.username, &id, &version, &headers).await?;
     let published = state
         .scripts
-        .publish_version(&id, version_number, release_signature, None)
+        .publish_version(
+            &id,
+            version_number,
+            release_verification.signature,
+            release_verification.grants,
+        )
         .await
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| {
@@ -337,7 +341,9 @@ async fn enforce_release_signature_gate(
     request: &ScriptReleaseRequest,
     version: &tikee_storage::ScriptVersionSummary,
     headers: &HeaderMap,
-) -> Result<Option<VerifiedScriptReleaseSignature>, ApiError> {
+) -> Result<VerifiedScriptReleaseVerification, ApiError> {
+    let grants = release_grants(request)?;
+    let grant_present = grants.as_ref().is_some_and(|value| !value.is_empty());
     let approval_present = request
         .approval_ticket
         .as_ref()
@@ -346,8 +352,8 @@ async fn enforce_release_signature_gate(
         .signature
         .as_ref()
         .is_some_and(|value| !value.trim().is_empty());
-    if !approval_present && !signature_present {
-        return Ok(None);
+    if !approval_present && !signature_present && !grant_present {
+        return Ok(VerifiedScriptReleaseVerification::default());
     }
     let Some(secret_ref) = state
         .script_governance
@@ -405,7 +411,7 @@ async fn enforce_release_signature_gate(
     let secret = resolve_env_secret_ref(secret_ref).ok_or_else(|| {
         ApiError::bad_request("script release signature secret_ref is not resolvable")
     })?;
-    let expected = script_release_signature(&secret, id, version, approval_ticket);
+    let expected = script_release_signature(&secret, id, version, approval_ticket, grants.as_ref());
     if !constant_time_eq(signature.as_bytes(), expected.as_bytes()) {
         let message = "script release signature verification failed";
         append_release_gate_audit(
@@ -419,21 +425,38 @@ async fn enforce_release_signature_gate(
         .await;
         return Err(ApiError::bad_request(message));
     }
-    Ok(Some(VerifiedScriptReleaseSignature {
-        approval_ticket: approval_ticket.to_owned(),
-        signature: signature.to_owned(),
-        verified_by: actor.to_owned(),
-    }))
+    Ok(VerifiedScriptReleaseVerification {
+        signature: Some(VerifiedScriptReleaseSignature {
+            approval_ticket: approval_ticket.to_owned(),
+            signature: signature.to_owned(),
+            verified_by: actor.to_owned(),
+        }),
+        grants: grants
+            .filter(|value| !value.is_empty())
+            .map(|value| VerifiedScriptReleaseGrants {
+                grants: value,
+                verified_by: actor.to_owned(),
+            }),
+    })
 }
 
-fn enforce_release_grants_fail_closed(request: &ScriptReleaseRequest) -> Result<(), ApiError> {
+#[derive(Default)]
+struct VerifiedScriptReleaseVerification {
+    signature: Option<VerifiedScriptReleaseSignature>,
+    grants: Option<VerifiedScriptReleaseGrants>,
+}
+
+fn release_grants(
+    request: &ScriptReleaseRequest,
+) -> Result<Option<ScriptReleaseGrantSet>, ApiError> {
     let Some(grants) = request.grants.clone() else {
-        return Ok(());
+        return Ok(None);
     };
     let grants: ScriptReleaseGrantSet = grants.into();
     grants
-        .validate_fail_closed()
-        .map_err(|error| ApiError::bad_request(error.to_string()))
+        .validate_values()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    Ok(Some(grants))
 }
 
 async fn enforce_release_policy_gate(
@@ -545,8 +568,7 @@ pub async fn rollback_script(
         .version_number
         .ok_or_else(|| ApiError::bad_request("version_number is required for rollback"))?;
     let version = resolve_release_version(&state, &id, version_number).await?;
-    enforce_release_grants_fail_closed(&request)?;
-    let release_signature = enforce_release_signature_gate(
+    let release_verification = enforce_release_signature_gate(
         &state,
         &principal.username,
         &id,
@@ -558,7 +580,12 @@ pub async fn rollback_script(
     enforce_release_policy_gate(&state, &principal.username, &id, &version, &headers).await?;
     let rolled_back = state
         .scripts
-        .rollback_release(&id, version_number, release_signature, None)
+        .rollback_release(
+            &id,
+            version_number,
+            release_verification.signature,
+            release_verification.grants,
+        )
         .await
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| {
@@ -607,9 +634,11 @@ fn script_release_signature(
     script_id: &str,
     version: &tikee_storage::ScriptVersionSummary,
     approval_ticket: &str,
+    grants: Option<&ScriptReleaseGrantSet>,
 ) -> String {
+    let grants_json = canonical_release_grants_json(grants);
     let payload = format!(
-        "tikee-script-release-v1\nscript_id={script_id}\nversion_number={}\ncontent_sha256={}\napproval_ticket={approval_ticket}",
+        "tikee-script-release-v1\nscript_id={script_id}\nversion_number={}\ncontent_sha256={}\napproval_ticket={approval_ticket}\ngrants={grants_json}",
         version.version_number, version.content_sha256
     );
     let mut hasher = Sha256::new();
@@ -617,6 +646,11 @@ fn script_release_signature(
     hasher.update(b"\n");
     hasher.update(payload.as_bytes());
     format!("sha256:{}", hex::encode(hasher.finalize()))
+}
+
+fn canonical_release_grants_json(grants: Option<&ScriptReleaseGrantSet>) -> String {
+    let grants = grants.cloned().unwrap_or_default();
+    serde_json::to_string(&grants).unwrap_or_else(|_| "{}".to_owned())
 }
 
 fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {

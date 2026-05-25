@@ -1169,3 +1169,18 @@ Verification evidence:
 - `cargo build --workspace --all-features` passed.
 - `cargo run -- --help >/tmp/tikee-help.out` passed.
 - `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.
+
+### 2026-05-25 — P1 local signed release grants
+- Completed the local script release governance loop for URL/File/Secret grants: configured env-secret signatures now bind canonical grants JSON in addition to script id, immutable version number, content SHA-256, and approval ticket.
+- Publish/rollback persist `release_grants` evidence only after signature verification succeeds; unconfigured systems still reject non-empty grants and approval/signature metadata.
+- The previous fail-closed behavior remains for deployments without `script_governance.release_signature_secret_ref`.
+- Worker-side URL/File/Secret access remains disabled; this slice only completes release governance verification/evidence.
+- Roadmap now marks the P1 script approval/signature/grants production gate subitem complete and shifts next P1 priority to OIDC tenant/app/role binding and advanced tenant isolation UI.
+- Preserved the source-size rule; max checked source file line count remains 1495.
+Verification evidence:
+- `cargo fmt --all -- --check` passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `cargo test --workspace --all-features` passed.
+- `cargo build --workspace --all-features` passed.
+- `cargo run -- --help >/tmp/tikee-help.out` passed.
+- `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.
