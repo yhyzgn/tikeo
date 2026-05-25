@@ -242,6 +242,32 @@ impl WorkerRegistry {
             .await;
     }
 
+    /// Mark a server-observed stream close/error for a current worker session.
+    pub async fn mark_transport_error(
+        &self,
+        worker_id: &str,
+        evidence: &str,
+    ) -> Option<RegisteredWorker> {
+        let offline = {
+            let mut workers = self.workers.write().await;
+            let worker = workers.get_mut(worker_id)?;
+            if !worker.is_current() {
+                return None;
+            }
+            worker.status = WorkerSessionStatus::Offline;
+            worker.status_reason = Some("transport_error".to_owned());
+            worker.status_evidence = Some(evidence.to_owned());
+            worker.active_assignment_tokens.clear();
+            let offline = worker.clone();
+            drop(workers);
+            offline
+        };
+        if let Some(lifecycle) = self.lifecycle.as_ref() {
+            let _ = lifecycle.mark_transport_error(worker_id, evidence).await;
+        }
+        Some(offline)
+    }
+
     /// Return a worker by id.
     pub async fn get(&self, worker_id: &str) -> Option<RegisteredWorker> {
         self.workers.read().await.get(worker_id).cloned()
@@ -476,6 +502,8 @@ pub enum WorkerSessionStatus {
     Replaced,
     /// Worker sent a graceful unregister before closing the tunnel.
     Stopped,
+    /// Server observed the stream close/error without graceful unregister.
+    Offline,
 }
 
 impl WorkerSessionStatus {
@@ -486,6 +514,7 @@ impl WorkerSessionStatus {
             Self::Online => "online",
             Self::Replaced => "replaced",
             Self::Stopped => "stopped",
+            Self::Offline => "offline",
         }
     }
 }
@@ -674,6 +703,37 @@ mod tests {
                 .accepts_worker_assignment(&worker.worker_id, "wrong-token")
                 .await
         );
+    }
+
+    #[tokio::test]
+    async fn registry_marks_transport_error_offline_and_persists_evidence() {
+        let db = tikee_storage::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let lifecycle = WorkerLifecycleRepository::new(db);
+        let registry = WorkerRegistry::with_lifecycle(lifecycle.clone());
+        let worker = registry
+            .register(register_worker("pod-transport"), mpsc::channel(1).0)
+            .await;
+
+        let offline = registry
+            .mark_transport_error(&worker.worker_id, "worker tunnel stream ended")
+            .await
+            .unwrap_or_else(|| panic!("current worker should be marked offline"));
+
+        assert_eq!(offline.status, WorkerSessionStatus::Offline);
+        assert!(registry.worker_ids().await.is_empty());
+        assert!(
+            !registry.accepts_worker_message(&worker.worker_id).await,
+            "offline transport session must not stay schedulable"
+        );
+        let persisted = lifecycle
+            .get_session(&worker.worker_id)
+            .await
+            .unwrap_or_else(|error| panic!("persisted session should load: {error}"))
+            .unwrap_or_else(|| panic!("persisted session should exist"));
+        assert_eq!(persisted.status, "offline");
+        assert_eq!(persisted.status_reason.as_deref(), Some("transport_error"));
     }
 
     #[tokio::test]

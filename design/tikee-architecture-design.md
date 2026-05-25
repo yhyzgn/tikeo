@@ -2341,7 +2341,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
 
 **P0 — 服务使用 / 运维优先**
 
-- [ ] Worker 身份与会话生命周期治理（Worker Pool / Logical Worker / Worker Session 三层身份；兼容 K8s/Docker 与裸机/VM/systemd；generation + fencing token；graceful/replaced/heartbeat_timeout 证据分级；历史归档与 Worker UI 分层，详见 `design/worker-identity-lifecycle-design.md`）
+- [x] Worker 身份与会话生命周期治理（Worker Pool / Logical Worker / Worker Session 三层身份；兼容 K8s/Docker 与裸机/VM/systemd；generation + fencing token；graceful/replaced/heartbeat_timeout/transport_error 证据分级；历史归档与 Worker UI 分层，详见 `design/worker-identity-lifecycle-design.md`）
 - [ ] 部署与运维 bootstrap（Compose/systemd/裸机模板优先；K8s Helm Chart 随外部 DB、secret、网关、TLS 参数稳定后落地）
 - [x] 多租户隔离增强（tenant/app/worker-pool scope policy 与 OIDC tenant binding 对齐；131：OIDC identity mapping API/UI 复用 scope binding，未映射 external subject 不签发本地 session）
 
@@ -2372,7 +2372,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
 | 能力 | 说明 | 所属阶段 |
 |------|------|----------|
 | Worker 主动连接公共服务 | 无业务入站端口，Server/Worker 可分离部署到不同容器、namespace、集群、VPC；反向调用复用 Worker tunnel 穿透多级网络 | Phase 1-2 |
-| Worker 身份与会话生命周期治理 | 将 Worker Pool、Logical Worker Instance 和 Worker Session 分层；兼容 K8s/Docker 与裸机/VM/systemd；用 generation/fencing token 处理重启、替换、掉线和历史归档，避免高频重启污染在线视图 | Phase 4 |
+| Worker 身份与会话生命周期治理 | 已按 `design/worker-identity-lifecycle-design.md` 将 Worker Pool、Logical Worker Instance 和 Worker Session 分层；用 generation/fencing token 处理重启、替换、掉线、transport error 和历史归档，避免高频重启污染在线视图 | Phase 4 |
 | GitOps/IaC | YAML、K8s CRD、Terraform Provider、PR diff、变更审计 | Phase 4 |
 | 任务版本与灰度 | Job version、canary、按 worker tag 灰度、失败自动回滚 | Phase 4 |
 | 调度仿真 | 变更前模拟未来 N 次触发、misfire 结果、资源占用 | Phase 4 |

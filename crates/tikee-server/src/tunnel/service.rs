@@ -99,6 +99,8 @@ impl WorkerTunnelService for WorkerTunnel {
         let outbound = tx.clone();
 
         tokio::spawn(async move {
+            let mut registered_worker_id: Option<String> = None;
+            let mut graceful_unregister = false;
             while let Some(message) = inbound.message().await.transpose() {
                 match message {
                     Ok(message) => {
@@ -113,15 +115,38 @@ impl WorkerTunnelService for WorkerTunnel {
                             tx: &tx,
                             outbound: &outbound,
                         };
-                        if handle_worker_message(&context, message).await.is_err() {
-                            break;
+                        match handle_worker_message(&context, message).await {
+                            Ok(WorkerMessageOutcome::Registered(worker_id)) => {
+                                registered_worker_id = Some(worker_id);
+                            }
+                            Ok(WorkerMessageOutcome::GracefulUnregister) => {
+                                graceful_unregister = true;
+                            }
+                            Ok(WorkerMessageOutcome::Continue) => {}
+                            Err(_) => break,
                         }
                     }
                     Err(status) => {
+                        if let Some(worker_id) = registered_worker_id.as_deref() {
+                            registry
+                                .mark_transport_error(
+                                    worker_id,
+                                    &format!("worker tunnel stream error: {status}"),
+                                )
+                                .await;
+                        }
                         let _ = tx.send(Err(status)).await;
-                        break;
+                        return;
                     }
                 }
+            }
+            if !graceful_unregister && let Some(worker_id) = registered_worker_id.as_deref() {
+                registry
+                    .mark_transport_error(
+                        worker_id,
+                        "worker tunnel stream ended before graceful unregister",
+                    )
+                    .await;
             }
         });
 
@@ -203,10 +228,17 @@ struct WorkerMessageContext<'a> {
     outbound: &'a mpsc::Sender<Result<ServerMessage, Status>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum WorkerMessageOutcome {
+    Continue,
+    Registered(String),
+    GracefulUnregister,
+}
+
 async fn handle_worker_message(
     context: &WorkerMessageContext<'_>,
     message: WorkerMessage,
-) -> Result<(), mpsc::error::SendError<Result<ServerMessage, Status>>> {
+) -> Result<WorkerMessageOutcome, mpsc::error::SendError<Result<ServerMessage, Status>>> {
     match message.kind {
         Some(worker_message::Kind::Register(register)) => handle_register(context, register).await,
         Some(worker_message::Kind::Heartbeat(heartbeat)) => {
@@ -217,7 +249,7 @@ async fn handle_worker_message(
         }
         Some(worker_message::Kind::TaskResult(result)) => {
             handle_task_result(context, result).await;
-            Ok(())
+            Ok(WorkerMessageOutcome::Continue)
         }
         Some(worker_message::Kind::TaskLog(log)) => handle_task_log(context, log).await,
         None => {
@@ -226,7 +258,8 @@ async fn handle_worker_message(
                 .send(Err(Status::invalid_argument(
                     "worker message kind is required",
                 )))
-                .await
+                .await?;
+            Ok(WorkerMessageOutcome::Continue)
         }
     }
 }
@@ -234,11 +267,12 @@ async fn handle_worker_message(
 async fn handle_register(
     context: &WorkerMessageContext<'_>,
     register: tikee_proto::worker::v1::RegisterWorker,
-) -> Result<(), mpsc::error::SendError<Result<ServerMessage, Status>>> {
+) -> Result<WorkerMessageOutcome, mpsc::error::SendError<Result<ServerMessage, Status>>> {
     let worker = context
         .registry
         .register(register, context.outbound.clone())
         .await;
+    let worker_id = worker.worker_id.clone();
     context
         .tx
         .send(Ok(ServerMessage {
@@ -249,13 +283,14 @@ async fn handle_register(
                 fencing_token: worker.fencing_token,
             })),
         }))
-        .await
+        .await?;
+    Ok(WorkerMessageOutcome::Registered(worker_id))
 }
 
 async fn handle_heartbeat(
     context: &WorkerMessageContext<'_>,
     heartbeat: Heartbeat,
-) -> Result<(), mpsc::error::SendError<Result<ServerMessage, Status>>> {
+) -> Result<WorkerMessageOutcome, mpsc::error::SendError<Result<ServerMessage, Status>>> {
     let Heartbeat {
         worker_id,
         sequence,
@@ -273,21 +308,22 @@ async fn handle_heartbeat(
             .send(Ok(ServerMessage {
                 kind: Some(server_message::Kind::Ping(Ping { sequence })),
             }))
-            .await
+            .await?;
     } else {
         context
             .tx
             .send(Err(Status::failed_precondition(
                 "stale worker heartbeat rejected",
             )))
-            .await
+            .await?;
     }
+    Ok(WorkerMessageOutcome::Continue)
 }
 
 async fn handle_unregister(
     context: &WorkerMessageContext<'_>,
     unregister: UnregisterWorker,
-) -> Result<(), mpsc::error::SendError<Result<ServerMessage, Status>>> {
+) -> Result<WorkerMessageOutcome, mpsc::error::SendError<Result<ServerMessage, Status>>> {
     let UnregisterWorker {
         worker_id,
         generation,
@@ -299,21 +335,22 @@ async fn handle_unregister(
         .await
         .is_some()
     {
-        Ok(())
+        Ok(WorkerMessageOutcome::GracefulUnregister)
     } else {
         context
             .tx
             .send(Err(Status::failed_precondition(
                 "stale worker unregister rejected",
             )))
-            .await
+            .await?;
+        Ok(WorkerMessageOutcome::Continue)
     }
 }
 
 async fn handle_task_log(
     context: &WorkerMessageContext<'_>,
     log: TaskLog,
-) -> Result<(), mpsc::error::SendError<Result<ServerMessage, Status>>> {
+) -> Result<WorkerMessageOutcome, mpsc::error::SendError<Result<ServerMessage, Status>>> {
     let TaskLog {
         worker_id,
         instance_id,
@@ -328,7 +365,7 @@ async fn handle_task_log(
         .await
     {
         metrics::counter!("tikee_worker_stale_messages_total", "kind" => "task_log").increment(1);
-        return Ok(());
+        return Ok(WorkerMessageOutcome::Continue);
     }
     match context
         .logs
@@ -347,7 +384,7 @@ async fn handle_task_log(
         Ok(None) => {}
         Err(error) => tracing::warn!(%error, "failed to persist task log"),
     }
-    Ok(())
+    Ok(WorkerMessageOutcome::Continue)
 }
 
 async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResult) {

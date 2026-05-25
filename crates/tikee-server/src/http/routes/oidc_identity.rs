@@ -65,16 +65,16 @@ pub async fn delete_oidc_identity(
 
 fn normalize_request(request: UpsertOidcIdentityRequest) -> Result<UpsertOidcIdentity, ApiError> {
     Ok(UpsertOidcIdentity {
-        issuer: required(request.issuer, "issuer")?,
-        subject: required(request.subject, "subject")?,
-        username: required(request.username, "username")?,
+        issuer: required(&request.issuer, "issuer")?,
+        subject: required(&request.subject, "subject")?,
+        username: required(&request.username, "username")?,
         namespace: optional_part(request.namespace, "namespace")?,
         app: optional_part(request.app, "app")?,
         worker_pool: optional_part(request.worker_pool, "worker_pool")?,
     })
 }
 
-fn required(value: String, field: &str) -> Result<String, ApiError> {
+fn required(value: &str, field: &str) -> Result<String, ApiError> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
         return Err(ApiError::bad_request(format!("{field} cannot be empty")));

@@ -1772,3 +1772,7 @@ Commit/push:
 ### 2026-05-25 P1 Go SDK official gRPC/protobuf foundation
 - Added Go SDK foundation under `sdks/go/tikee` with official `google.golang.org/grpc` ClientConn creation, official protobuf/grpc generated Worker Tunnel bindings, endpoint normalization, dry-run registration/heartbeat/task interfaces, and standalone demo tests.
 - User explicitly deferred Python and Node.js SDKs; next SDK slice should stay on Go Worker Tunnel run-loop ergonomics.
+
+### 2026-05-25 Phase4 P0 Worker lifecycle transport evidence
+- Continued Worker identity/session lifecycle governance strictly against `design/worker-identity-lifecycle-design.md`. Added transport-error evidence path so gRPC stream errors or non-graceful stream end mark the current session offline/degraded with `transport_error` instead of waiting for lease timeout.
+- Confirmed Python/Node SDK and remaining Go SDK run-loop work are deferred; next Phase4 P0 slice is deployment/operations bootstrap.

@@ -296,6 +296,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn worker_lifecycle_marks_transport_errors_with_evidence() {
+        use crate::repository::{RegisterWorkerSession, WorkerLifecycleRepository};
+
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let repository = WorkerLifecycleRepository::new(db);
+        let registered = repository
+            .register_session(RegisterWorkerSession {
+                worker_id: "wrk-transport".to_owned(),
+                namespace_name: "finance".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "prod".to_owned(),
+                region: "cn".to_owned(),
+                client_instance_id: "host-a#slot-1".to_owned(),
+                connection_id: "conn-transport".to_owned(),
+                fencing_token: "token-transport".to_owned(),
+                lease_seconds: 30,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("transport test session should persist: {error}"));
+
+        let offline = repository
+            .mark_transport_error(&registered.worker_id, "grpc stream returned unavailable")
+            .await
+            .unwrap_or_else(|error| panic!("transport mark should run: {error}"))
+            .unwrap_or_else(|| panic!("online session should be marked offline"));
+
+        assert_eq!(offline.status, "offline");
+        assert_eq!(offline.status_reason.as_deref(), Some("transport_error"));
+        assert_eq!(
+            offline.status_evidence.as_deref(),
+            Some("grpc stream returned unavailable")
+        );
+        let events = repository
+            .list_session_events(&registered.worker_id)
+            .await
+            .unwrap_or_else(|error| panic!("events should load: {error}"));
+        assert!(events.iter().any(|event| {
+            event.event_type == "transport_error"
+                && event.reason.as_deref() == Some("transport_error")
+                && event
+                    .detail_json
+                    .as_deref()
+                    .is_some_and(|detail| detail.contains("grpc stream returned unavailable"))
+        }));
+    }
+
+    #[tokio::test]
     async fn migration_creates_metadata_tables() {
         let db = Database::connect("sqlite::memory:")
             .await
