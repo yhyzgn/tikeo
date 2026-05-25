@@ -7,6 +7,7 @@ pub(crate) mod common;
 pub(crate) mod jobs;
 pub(crate) mod metrics;
 pub(crate) mod observability;
+pub(crate) mod oidc_identity;
 pub(crate) mod raft;
 pub(crate) mod scope;
 pub(crate) mod scripts;
@@ -28,6 +29,7 @@ pub use jobs::{
 };
 pub use metrics::metrics_summary;
 pub use observability::observability_status;
+pub use oidc_identity::{delete_oidc_identity, list_oidc_identities, upsert_oidc_identity};
 pub use raft::{append_entries, propose_member_change};
 pub use scope::{
     create_app, create_namespace, create_worker_pool, delete_app, delete_namespace,

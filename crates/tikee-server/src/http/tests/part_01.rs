@@ -506,6 +506,89 @@
         mock.server.abort();
     }
 
+
+    #[tokio::test]
+    async fn oidc_identity_mapping_api_is_tenant_governed_and_fail_closed() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            AuditLogRepository::new(db),
+            crate::tunnel::WorkerRegistry::default(),
+            StandaloneCoordinator::shared("test-node"),
+        ));
+
+        let created = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/oidc-identities",
+                    &serde_json::json!({
+                        "issuer": "https://idp.example.com/realms/tikee",
+                        "subject": "idp-user-001",
+                        "username": "alice",
+                        "namespace": "tenant-a",
+                        "app": "billing",
+                        "worker_pool": "critical"
+                    })
+                    .to_string(),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("OIDC mapping create should respond: {error}"));
+        assert_eq!(created.status(), axum::http::StatusCode::OK);
+        let body = axum::body::to_bytes(created.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["namespace"], "tenant-a");
+        assert_eq!(json["data"]["worker_pool"], "critical");
+        let mapping_id = json["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("mapping id should be string"))
+            .to_owned();
+
+        let listed = app
+            .clone()
+            .oneshot(
+                admin_request_builder(app.clone(), "GET", "/api/v1/oidc-identities").await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("OIDC mapping list should respond: {error}"));
+        let body = axum::body::to_bytes(listed.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["data"].as_array().map(Vec::len), Some(1));
+
+        let deleted = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app.clone(),
+                    "DELETE",
+                    &format!("/api/v1/oidc-identities/{mapping_id}"),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("OIDC mapping delete should respond: {error}"));
+        assert_eq!(deleted.status(), axum::http::StatusCode::OK);
+    }
+
     #[tokio::test]
     async fn oidc_callback_exchanges_code_and_fetches_userinfo_before_local_session_mapping() {
         let mock = spawn_mock_oidc_provider().await;

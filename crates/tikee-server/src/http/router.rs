@@ -122,6 +122,14 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
         .route("/auth/status", get(auth::status))
         .route("/auth/oidc/authorize", get(auth::oidc_authorize))
         .route("/auth/oidc/callback", get(auth::oidc_callback))
+        .route(
+            "/oidc-identities",
+            get(routes::list_oidc_identities).post(routes::upsert_oidc_identity),
+        )
+        .route(
+            "/oidc-identities/{id}",
+            axum::routing::delete(routes::delete_oidc_identity),
+        )
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", axum::routing::post(auth::logout))
         .route(

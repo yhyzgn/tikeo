@@ -1,6 +1,6 @@
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
-    Set,
+    QueryOrder, Set,
 };
 
 use crate::entities::oidc_identity;
@@ -25,7 +25,7 @@ pub struct UpsertOidcIdentity {
 }
 
 /// Persisted OIDC identity mapping summary.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
 pub struct OidcIdentitySummary {
     /// Mapping row id.
     pub id: String,
@@ -98,6 +98,36 @@ impl OidcIdentityRepository {
         .insert(&self.db)
         .await?;
         Ok(OidcIdentitySummary::from_model(model))
+    }
+
+    /// List all external OIDC identity mappings.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn list_identities(&self) -> Result<Vec<OidcIdentitySummary>, sea_orm::DbErr> {
+        let rows = oidc_identity::Entity::find()
+            .order_by_asc(oidc_identity::Column::Issuer)
+            .order_by_asc(oidc_identity::Column::Subject)
+            .all(&self.db)
+            .await?;
+        Ok(rows
+            .into_iter()
+            .map(OidcIdentitySummary::from_model)
+            .collect())
+    }
+
+    /// Delete one external OIDC subject mapping by id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn delete_identity(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
+        let result = oidc_identity::Entity::delete_many()
+            .filter(oidc_identity::Column::Id.eq(id.to_owned()))
+            .exec(&self.db)
+            .await?;
+        Ok(result.rows_affected > 0)
     }
 
     /// Resolve one external OIDC subject mapping.

@@ -1,4 +1,4 @@
-import { Button, Card, Col, Form, Input, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Col, Form, Input, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -8,15 +8,20 @@ import {
   createWorkerPool,
   deleteAppScope,
   deleteNamespace,
+  deleteOidcIdentity,
   deleteWorkerPool,
+  upsertOidcIdentity,
   listAppScopes,
   listNamespaces,
+  listOidcIdentities,
   listWorkerPools,
   type AppScopeSummary,
   type CreateAppScopeRequest,
   type CreateNamespaceRequest,
   type CreateWorkerPoolRequest,
   type NamespaceSummary,
+  type OidcIdentitySummary,
+  type UpsertOidcIdentityRequest,
   type WorkerPoolSummary,
 } from '../api/client';
 import { GuardedButton, PermissionGate, useCan } from '../components/Permission';
@@ -26,18 +31,26 @@ export function ScopesPage() {
   const [namespaces, setNamespaces] = useState<NamespaceSummary[]>([]);
   const [apps, setApps] = useState<AppScopeSummary[]>([]);
   const [workerPools, setWorkerPools] = useState<WorkerPoolSummary[]>([]);
+  const [oidcIdentities, setOidcIdentities] = useState<OidcIdentitySummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [namespaceForm] = Form.useForm<CreateNamespaceRequest>();
   const [appForm] = Form.useForm<CreateAppScopeRequest>();
   const [poolForm] = Form.useForm<CreateWorkerPoolRequest>();
+  const [oidcForm] = Form.useForm<UpsertOidcIdentityRequest>();
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [namespaceData, appData, poolData] = await Promise.all([listNamespaces(), listAppScopes(), listWorkerPools()]);
+      const [namespaceData, appData, poolData, oidcData] = await Promise.all([
+        listNamespaces(),
+        listAppScopes(),
+        listWorkerPools(),
+        listOidcIdentities(),
+      ]);
       setNamespaces(namespaceData);
       setApps(appData);
       setWorkerPools(poolData);
+      setOidcIdentities(oidcData);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '加载租户范围失败');
     } finally {
@@ -49,6 +62,7 @@ export function ScopesPage() {
 
   const namespaceOptions = useMemo(() => namespaces.map((item) => ({ value: item.name, label: item.name })), [namespaces]);
   const appOptions = useMemo(() => apps.map((item) => ({ value: item.name, label: `${item.namespace}/${item.name}` })), [apps]);
+  const workerPoolOptions = useMemo(() => workerPools.map((item) => ({ value: item.name, label: `${item.namespace}/${item.app}/${item.name}` })), [workerPools]);
 
   const handleNamespaceCreate = async (values: CreateNamespaceRequest) => {
     if (!canManageScopes) { message.error('当前账号无权限管理租户范围'); return; }
@@ -74,6 +88,13 @@ export function ScopesPage() {
     await refresh();
   };
 
+  const handleOidcIdentityUpsert = async (values: UpsertOidcIdentityRequest) => {
+    if (!canManageScopes) { message.error('当前账号无权限管理 OIDC 映射'); return; }
+    await upsertOidcIdentity(values);
+    oidcForm.resetFields(['subject']);
+    message.success('OIDC 映射已保存');
+    await refresh();
+  };
 
   const handleNamespaceDelete = async (id: string) => {
     await deleteNamespace(id);
@@ -90,6 +111,12 @@ export function ScopesPage() {
   const handleWorkerPoolDelete = async (id: string) => {
     await deleteWorkerPool(id);
     message.success('Worker Pool 已删除');
+    await refresh();
+  };
+
+  const handleOidcIdentityDelete = async (id: string) => {
+    await deleteOidcIdentity(id);
+    message.success('OIDC 映射已删除');
     await refresh();
   };
 
@@ -115,13 +142,28 @@ export function ScopesPage() {
     { title: '操作', width: 140, render: (_, record) => <GuardedButton resource="tenants" action="manage" type="link" size="small" danger confirmTitle="删除 Worker Pool" confirmDescription="删除后不会影响在线 Worker，会移除该持久化元数据。" onConfirm={() => void handleWorkerPoolDelete(record.id)}>删除</GuardedButton> },
   ];
 
+  const oidcColumns: ColumnsType<OidcIdentitySummary> = [
+    { title: 'Issuer', dataIndex: 'issuer', ellipsis: true },
+    { title: 'Subject', dataIndex: 'subject', render: (value: string) => <Typography.Text code>{value}</Typography.Text> },
+    { title: '本地用户', dataIndex: 'username', render: (value: string) => <strong>{value}</strong> },
+    { title: 'Scope', render: (_, record) => (
+      <Space size={4} wrap>
+        <Tag color="blue">{record.namespace ?? '*'}</Tag>
+        <Tag color="purple">{record.app ?? '*'}</Tag>
+        <Tag color="geekblue">{record.worker_pool ?? '*'}</Tag>
+      </Space>
+    ) },
+    { title: '更新时间', dataIndex: 'updated_at' },
+    { title: '操作', width: 120, render: (_, record) => <GuardedButton resource="tenants" action="manage" type="link" size="small" danger confirmTitle="删除 OIDC 映射" confirmDescription="删除后该外部 subject 将无法换取本地 tikee session。" onConfirm={() => void handleOidcIdentityDelete(record.id)}>删除</GuardedButton> },
+  ];
+
   return (
     <div className="page-stack scope-management-page">
       <Card className="hero-panel scope-management-hero">
         <Space direction="vertical" size={4}>
           <Typography.Title level={2}>租户范围</Typography.Title>
           <Typography.Paragraph type="secondary">
-            管理 namespace、app 和 Worker Pool 元数据；这些范围会被 API Token scope binding、Worker 可见性和后续 OIDC 映射复用。
+            管理 namespace、app、Worker Pool 与 OIDC subject 映射；未映射的外部身份无法换取本地 session，已映射身份按 scope binding 收窄权限。
           </Typography.Paragraph>
         </Space>
         <Button onClick={() => void refresh()} loading={loading}>刷新</Button>
@@ -162,6 +204,24 @@ export function ScopesPage() {
         <Col xs={24} xl={8}><Card className="clean-card" title="应用"><Table rowKey="id" loading={loading} columns={appColumns} dataSource={apps} pagination={{ pageSize: 6 }} size="small" /></Card></Col>
         <Col xs={24} xl={8}><Card className="clean-card" title="Worker Pool"><Table rowKey="id" loading={loading} columns={poolColumns} dataSource={workerPools} pagination={{ pageSize: 6 }} size="small" /></Card></Col>
       </Row>
+
+      <Card className="clean-card" title="OIDC tenant/app/role 绑定">
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Alert type="info" showIcon message="Fail-closed OIDC 映射" description="只有显式配置 issuer + subject 到本地用户的映射后，OIDC callback 才会签发本地 tikee session；namespace/app/Worker Pool 会进入 scope binding。" />
+          <Form form={oidcForm} layout="vertical" onFinish={(values) => void handleOidcIdentityUpsert(values)}>
+            <Row gutter={[12, 0]}>
+              <Col xs={24} lg={8}><Form.Item name="issuer" label="Issuer" rules={[{ required: true, message: '请输入 issuer' }]}><Input placeholder="https://idp.example.com/realms/tikee" /></Form.Item></Col>
+              <Col xs={24} lg={8}><Form.Item name="subject" label="Subject" rules={[{ required: true, message: '请输入 subject' }]}><Input placeholder="OIDC sub claim" /></Form.Item></Col>
+              <Col xs={24} lg={8}><Form.Item name="username" label="本地用户" rules={[{ required: true, message: '请输入本地用户名' }]}><Input placeholder="oidc.alice" /></Form.Item></Col>
+              <Col xs={24} lg={8}><Form.Item name="namespace" label="Namespace scope"><Select allowClear options={namespaceOptions} placeholder="不选表示任意 namespace" /></Form.Item></Col>
+              <Col xs={24} lg={8}><Form.Item name="app" label="App scope"><Select allowClear options={appOptions} placeholder="不选表示任意 app" /></Form.Item></Col>
+              <Col xs={24} lg={8}><Form.Item name="worker_pool" label="Worker Pool scope"><Select allowClear options={workerPoolOptions} placeholder="不选表示任意 worker pool" /></Form.Item></Col>
+            </Row>
+            <PermissionGate resource="tenants" action="manage"><Button type="primary" htmlType="submit">保存 OIDC 映射</Button></PermissionGate>
+          </Form>
+          <Table rowKey="id" loading={loading} columns={oidcColumns} dataSource={oidcIdentities} pagination={{ pageSize: 6 }} size="small" />
+        </Space>
+      </Card>
     </div>
   );
 }

@@ -23,6 +23,10 @@ describe('tenant scope management page', () => {
     expect(pageSource).toContain('deleteNamespace');
     expect(pageSource).toContain('deleteAppScope');
     expect(pageSource).toContain('deleteWorkerPool');
+    expect(pageSource).toContain('listOidcIdentities');
+    expect(pageSource).toContain('upsertOidcIdentity');
+    expect(pageSource).toContain('deleteOidcIdentity');
+    expect(pageSource).toContain('OIDC tenant/app/role 绑定');
     expect(pageSource).toContain('命名空间');
     expect(pageSource).toContain('应用');
     expect(pageSource).toContain('Worker Pool');

@@ -416,6 +416,12 @@ pub struct AuthSession {
     pub roles: Vec<String>,
     /// Granted permissions.
     pub permissions: Vec<tikee_storage::PermissionSummary>,
+    /// Whether bearer access is narrowed by OIDC/API-token scope bindings.
+    pub scope_limited: bool,
+    /// Active API-token scopes in `resource:action` form, if any.
+    pub token_scopes: Vec<String>,
+    /// Active OIDC/API-token namespace/app/worker-pool bindings, if any.
+    pub scope_bindings: Vec<AccessScopeBinding>,
 }
 
 /// API token creation request.

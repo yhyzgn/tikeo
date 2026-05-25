@@ -1189,3 +1189,8 @@ Verification evidence:
 - Closed the signed grant handoff from release pointer to Worker dispatch binding: Server now includes `allowed_network_hosts`, read-only paths, writable paths, secret refs, and `allow_network` derived from verified `release_grants`.
 - Rust SDK now carries `allowed_network_hosts` through `ScriptRunnerPolicy`; local subprocess remains fail-closed for grants; container runner mounts signed file grants and rejects network/secret grants without safe runtime enforcement.
 - Java SDK proto/test updated so grant-bearing script bindings are understood and still reported unsupported without invoking user processors.
+
+## 2026-05-25 — P1 OIDC tenant scope mapping
+- Added governed OIDC identity mapping APIs (`/api/v1/oidc-identities`) for issuer+subject -> local user plus namespace/app/worker-pool scope bindings.
+- OIDC session responses now include scope metadata, matching `/auth/me`, so UI can show tenant-limited sessions immediately after callback.
+- Scopes page now manages OIDC mappings with fail-closed copy: unmapped external subjects cannot obtain local tikee sessions.

@@ -129,12 +129,45 @@ export interface AuthSession {
   username: string;
   roles: string[];
   permissions: PermissionSummary[];
+  scope_limited: boolean;
+  token_scopes: string[];
+  scope_bindings: AccessScopeBinding[];
+}
+
+export interface AccessScopeBinding {
+  namespace?: string | null;
+  app?: string | null;
+  worker_pool?: string | null;
 }
 
 export interface MeResponse {
   username: string;
   roles: string[];
   permissions: PermissionSummary[];
+  scope_limited: boolean;
+  token_scopes: string[];
+  scope_bindings: AccessScopeBinding[];
+}
+
+export interface OidcIdentitySummary {
+  id: string;
+  issuer: string;
+  subject: string;
+  username: string;
+  namespace: string | null;
+  app: string | null;
+  worker_pool: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpsertOidcIdentityRequest {
+  issuer: string;
+  subject: string;
+  username: string;
+  namespace?: string | null;
+  app?: string | null;
+  worker_pool?: string | null;
 }
 
 const API_BASE = import.meta.env.VITE_TIKEE_API_BASE ?? '';
@@ -197,6 +230,21 @@ export async function me(): Promise<MeResponse> {
 export async function logout(): Promise<void> {
   await request<null>('/api/v1/auth/logout', { method: 'POST', allowNullData: true });
   setAuthToken(null);
+}
+
+export async function listOidcIdentities(): Promise<OidcIdentitySummary[]> {
+  return request<OidcIdentitySummary[]>('/api/v1/oidc-identities');
+}
+
+export async function upsertOidcIdentity(payload: UpsertOidcIdentityRequest): Promise<OidcIdentitySummary> {
+  return request<OidcIdentitySummary>('/api/v1/oidc-identities', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteOidcIdentity(id: string): Promise<void> {
+  await request<void>(`/api/v1/oidc-identities/${encodeURIComponent(id)}`, { method: 'DELETE', allowNullData: true });
 }
 
 export async function listJobs(): Promise<Page<JobSummary>> {

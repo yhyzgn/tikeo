@@ -1754,3 +1754,8 @@ Commit/push:
 - User flagged missing Worker-side closure and Java SDK omission. Implemented server/Rust/Java SDK protocol and runtime boundary updates.
 - Verification run: `cargo check -p tikee-server --all-features`; targeted server dispatch grant test; Rust SDK container grant tests + `cargo check --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`; Java `./gradlew :tikee:generateProto :tikee:test --tests com.yhyzgn.tikee.core.GrpcTikeeWorkerClientTest`.
 - Constraint check: source files excluding generated/build artifacts remain under 1500 lines; largest touched server dispatcher is 1429 lines.
+
+## 2026-05-25 16:xx — P1 OIDC tenant scope mapping
+- Implemented list/upsert/delete OIDC identity mapping API guarded by `tenants:read/manage`, storage list/delete helpers, OpenAPI/router wiring, AuthSession scope metadata, and Scopes page OIDC mapping card.
+- Verification run: `cargo check -p tikee-server --all-features`; `cargo test -p tikee-server oidc --all-features`; `cd web && bun run typecheck && bun test src/pages/__tests__/ScopesPage.test.tsx`.
+- Source-size check remains under 1500 lines; largest source is `crates/tikee-storage/src/repository/workflow.rs` at 1495 lines.

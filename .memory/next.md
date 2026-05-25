@@ -24,4 +24,4 @@ Continue P1 production governance while preserving the source-size/module-entry 
 - Script release signatures can be verified locally when `script_governance.release_signature_secret_ref` points at an env secret.
 - Verified script releases now persist and display approval ticket, signature, verification time, and verifier identity.
 - Script release requests now have explicit `grants.url/file_read/file_write/secret` payloads; non-empty grants fail closed until verified grant enforcement exists.
-- Script release pointers can now persist verified grant evidence (`release_grants`); local env-secret signatures can verify and persist signed grants while Worker access remains disabled.
+- Script release pointers can now persist verified grant evidence (`release_grants`); local env-secret signatures can verify and persist signed grants. Worker runtime now carries signed grants, supports container file bind mounts, and fail-closes network/secret grants until safe providers exist.

@@ -236,6 +236,9 @@ impl SessionStore for DbMokaSessionStore {
             username: principal.username,
             roles: principal.roles,
             permissions: principal.permissions,
+            scope_limited: principal.scope_limited,
+            token_scopes: principal.token_scopes,
+            scope_bindings: principal.scope_bindings,
         })
     }
 

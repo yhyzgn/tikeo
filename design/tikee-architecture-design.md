@@ -2316,7 +2316,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
   - [x] Verified grant 证据持久化边界：发布指针可保存 verified grant JSON、校验时间与校验人，并通过 `ScriptSummary`/Web 展示。
   - [x] 本地 signed grants 闭环：配置 `script_governance.release_signature_secret_ref` 后，签名 payload 绑定 grants JSON，验证通过才移动发布指针并持久化 `release_grants` 证据；未配置时 grants 仍 fail-closed。
   - [x] Worker runtime grant enforcement 闭环：Worker Tunnel `ScriptProcessorBinding` 携带 signed URL/File/Secret grant；Rust SDK policy 显式接收 `allowed_network_hosts`/文件/secret refs，Local runner 对 grant fail-closed，Container runner 仅将文件 grant 转成显式 bind mount，网络/secret grant 无安全 runtime provider 时继续 fail-closed；Java SDK proto/测试同步覆盖 grant-bearing script binding 且仍不执行脚本。
-- [ ] OIDC tenant/app/role 绑定策略与高级租户隔离 UI。
+- [x] OIDC tenant/app/role 绑定策略与高级租户隔离 UI（131：`/api/v1/oidc-identities` 管理 issuer+subject -> local user + namespace/app/worker-pool scope；OIDC callback 未映射 fail-closed；Scopes 页面可管理映射）。
 - [ ] Prometheus/Grafana recording-rule 校验、运维 runbook 与真实 scrape 验证。
 - [ ] Go SDK + Python SDK（常见非 Java/Rust 业务接入）。
 - [ ] Node.js SDK（待 Worker 身份语义和 SDK 生命周期稳定后实现）。
@@ -2342,7 +2342,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
 
 - [ ] Worker 身份与会话生命周期治理（Worker Pool / Logical Worker / Worker Session 三层身份；兼容 K8s/Docker 与裸机/VM/systemd；generation + fencing token；graceful/replaced/heartbeat_timeout 证据分级；历史归档与 Worker UI 分层，详见 `design/worker-identity-lifecycle-design.md`）
 - [ ] 部署与运维 bootstrap（Compose/systemd/裸机模板优先；K8s Helm Chart 随外部 DB、secret、网关、TLS 参数稳定后落地）
-- [ ] 多租户隔离增强（tenant/app/worker-pool scope policy 与 OIDC tenant binding 对齐）
+- [x] 多租户隔离增强（tenant/app/worker-pool scope policy 与 OIDC tenant binding 对齐；131：OIDC identity mapping API/UI 复用 scope binding，未映射 external subject 不签发本地 session）
 
 **P1 — 常见接入与生产治理**
 
