@@ -1603,3 +1603,5 @@ Verification:
 
 Commit/push:
 - Pending at time of log entry.
+- Commit: `9405b7d` (Keep module boundaries from hiding oversized implementation)
+- Push: succeeded to `origin/main` (`6925be3..9405b7d`).
