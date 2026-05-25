@@ -4,7 +4,7 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tikee_core::ScriptExecutionPolicy;
+use tikee_core::{ScriptExecutionPolicy, ScriptReleaseGrantSet};
 use uuid::Uuid;
 
 use crate::entities::{script, script_version};
@@ -73,6 +73,32 @@ pub struct ScriptReleaseSignatureSummary {
     pub verified_by: String,
 }
 
+/// Verified URL/File/Secret grant evidence for the current script release pointer.
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+pub struct ScriptReleaseGrantEvidenceSummary {
+    /// URL hosts or URL policy references approved for this release.
+    pub url: Vec<String>,
+    /// Read-only file paths or file policy references approved for this release.
+    pub file_read: Vec<String>,
+    /// Writable file paths or file policy references approved for this release.
+    pub file_write: Vec<String>,
+    /// Secret references approved for this release.
+    pub secret: Vec<String>,
+    /// Timestamp when grant verification succeeded.
+    pub verified_at: String,
+    /// Actor or verifier that supplied the verified grant evidence.
+    pub verified_by: String,
+}
+
+/// Verified URL/File/Secret grant evidence to persist when moving a release pointer.
+#[derive(Debug, Clone)]
+pub struct VerifiedScriptReleaseGrants {
+    /// Verified grant set bound to this release pointer.
+    pub grants: ScriptReleaseGrantSet,
+    /// Actor or verifier that supplied the verified grant evidence.
+    pub verified_by: String,
+}
+
 /// Verified signature metadata to persist when moving a release pointer.
 #[derive(Debug, Clone)]
 pub struct VerifiedScriptReleaseSignature {
@@ -107,6 +133,8 @@ pub struct ScriptSummary {
     pub released_version_number: Option<i64>,
     /// Verified signature metadata for the current release pointer.
     pub release_signature: Option<ScriptReleaseSignatureSummary>,
+    /// Verified URL/File/Secret grant evidence for the current release pointer.
+    pub release_grants: Option<ScriptReleaseGrantEvidenceSummary>,
     /// Timeout seconds for execution.
     pub timeout_seconds: Option<i64>,
     /// Max memory bytes for sandbox.
@@ -192,6 +220,9 @@ impl ScriptRepository {
             release_signature: None,
             release_signature_verified_at: None,
             release_signature_verified_by: None,
+            release_grants_json: None,
+            release_grants_verified_at: None,
+            release_grants_verified_by: None,
             timeout_seconds: input.timeout_seconds,
             max_memory_bytes: input.max_memory_bytes,
             allow_network: input.allow_network,
@@ -214,6 +245,9 @@ impl ScriptRepository {
             release_signature: Set(None),
             release_signature_verified_at: Set(None),
             release_signature_verified_by: Set(None),
+            release_grants_json: Set(None),
+            release_grants_verified_at: Set(None),
+            release_grants_verified_by: Set(None),
             timeout_seconds: Set(model.timeout_seconds),
             max_memory_bytes: Set(model.max_memory_bytes),
             allow_network: Set(model.allow_network),
@@ -299,6 +333,7 @@ impl ScriptRepository {
         id: &str,
         version_number: i64,
         signature: Option<VerifiedScriptReleaseSignature>,
+        grants: Option<VerifiedScriptReleaseGrants>,
     ) -> Result<Option<ScriptSummary>, sea_orm::DbErr> {
         let Some(version) = self
             .versions
@@ -320,6 +355,8 @@ impl ScriptRepository {
             verified_at: now.clone(),
             verified_by: value.verified_by,
         });
+        let release_grants = grants.map(|value| release_grant_evidence_summary(value, now.clone()));
+        let release_grants_json = release_grants.as_ref().and_then(grants_to_json);
         script::Entity::update(script::ActiveModel {
             id: Set(existing.id.clone()),
             name: Set(existing.name.clone()),
@@ -339,6 +376,13 @@ impl ScriptRepository {
                 .as_ref()
                 .map(|metadata| metadata.verified_at.clone())),
             release_signature_verified_by: Set(release_signature
+                .as_ref()
+                .map(|metadata| metadata.verified_by.clone())),
+            release_grants_json: Set(release_grants_json),
+            release_grants_verified_at: Set(release_grants
+                .as_ref()
+                .map(|metadata| metadata.verified_at.clone())),
+            release_grants_verified_by: Set(release_grants
                 .as_ref()
                 .map(|metadata| metadata.verified_by.clone())),
             timeout_seconds: Set(existing.timeout_seconds),
@@ -364,6 +408,7 @@ impl ScriptRepository {
             released_version_id: Some(version.id),
             released_version_number: Some(version.version_number),
             release_signature,
+            release_grants,
             timeout_seconds: existing.timeout_seconds,
             max_memory_bytes: existing.max_memory_bytes,
             allow_network: existing.allow_network,
@@ -387,8 +432,10 @@ impl ScriptRepository {
         id: &str,
         version_number: i64,
         signature: Option<VerifiedScriptReleaseSignature>,
+        grants: Option<VerifiedScriptReleaseGrants>,
     ) -> Result<Option<ScriptSummary>, sea_orm::DbErr> {
-        self.publish_version(id, version_number, signature).await
+        self.publish_version(id, version_number, signature, grants)
+            .await
     }
 
     /// Delete a script by id.
@@ -436,6 +483,15 @@ fn script_changed(before: &script::Model, active: &script::ActiveModel) -> bool 
         || changed(
             &active.release_signature_verified_by,
             &before.release_signature_verified_by,
+        )
+        || changed(&active.release_grants_json, &before.release_grants_json)
+        || changed(
+            &active.release_grants_verified_at,
+            &before.release_grants_verified_at,
+        )
+        || changed(
+            &active.release_grants_verified_by,
+            &before.release_grants_verified_by,
         )
         || changed(&active.timeout_seconds, &before.timeout_seconds)
         || changed(&active.max_memory_bytes, &before.max_memory_bytes)
@@ -631,6 +687,7 @@ impl From<script_version::Model> for ScriptVersionSummary {
 impl From<script::Model> for ScriptSummary {
     fn from(value: script::Model) -> Self {
         let release_signature = release_signature_summary(&value);
+        let release_grants = release_grants_summary(&value);
         Self {
             id: value.id,
             name: value.name,
@@ -642,6 +699,7 @@ impl From<script::Model> for ScriptSummary {
             released_version_id: value.released_version_id,
             released_version_number: value.released_version_number,
             release_signature,
+            release_grants,
             timeout_seconds: value.timeout_seconds,
             max_memory_bytes: value.max_memory_bytes,
             allow_network: value.allow_network,
@@ -654,6 +712,43 @@ impl From<script::Model> for ScriptSummary {
             updated_at: value.updated_at,
         }
     }
+}
+
+fn release_grants_summary(value: &script::Model) -> Option<ScriptReleaseGrantEvidenceSummary> {
+    let grants: ScriptReleaseGrantSet =
+        serde_json::from_str(value.release_grants_json.as_deref()?).ok()?;
+    Some(ScriptReleaseGrantEvidenceSummary {
+        url: grants.url,
+        file_read: grants.file_read,
+        file_write: grants.file_write,
+        secret: grants.secret,
+        verified_at: value.release_grants_verified_at.clone()?,
+        verified_by: value.release_grants_verified_by.clone()?,
+    })
+}
+
+fn release_grant_evidence_summary(
+    value: VerifiedScriptReleaseGrants,
+    verified_at: String,
+) -> ScriptReleaseGrantEvidenceSummary {
+    ScriptReleaseGrantEvidenceSummary {
+        url: value.grants.url,
+        file_read: value.grants.file_read,
+        file_write: value.grants.file_write,
+        secret: value.grants.secret,
+        verified_at,
+        verified_by: value.verified_by,
+    }
+}
+
+fn grants_to_json(value: &ScriptReleaseGrantEvidenceSummary) -> Option<String> {
+    serde_json::to_string(&ScriptReleaseGrantSet {
+        url: value.url.clone(),
+        file_read: value.file_read.clone(),
+        file_write: value.file_write.clone(),
+        secret: value.secret.clone(),
+    })
+    .ok()
 }
 
 fn release_signature_summary(value: &script::Model) -> Option<ScriptReleaseSignatureSummary> {

@@ -392,6 +392,12 @@ export function ScriptsPage() {
       render: (v: ScriptSummary['release_signature']) => v ? <Tag color="green">已验证</Tag> : <Tag>未配置</Tag>,
     },
     {
+      title: '发布 Grants',
+      dataIndex: 'release_grants',
+      key: 'release_grants',
+      render: (v: ScriptSummary['release_grants']) => v ? <Tag color="purple">已验证</Tag> : <Tag>未启用</Tag>,
+    },
+    {
       title: 'SHA-256',
       dataIndex: 'content_sha256',
       key: 'content_sha256',
@@ -618,6 +624,10 @@ export function ScriptsPage() {
               <Descriptions.Item label="签名校验时间">{detailScript.release_signature?.verified_at ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="签名校验人">{detailScript.release_signature?.verified_by ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="发布签名"><Typography.Text code copyable>{detailScript.release_signature?.signature ?? '-'}</Typography.Text></Descriptions.Item>
+              <Descriptions.Item label="Grant 校验人">{detailScript.release_grants?.verified_by ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="Grant 校验时间">{detailScript.release_grants?.verified_at ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="Grant URL">{detailScript.release_grants?.url.join(', ') || '-'}</Descriptions.Item>
+              <Descriptions.Item label="Grant Secret">{detailScript.release_grants?.secret.join(', ') || '-'}</Descriptions.Item>
               <Descriptions.Item label="状态">
                 <Tag color={STATUS_COLORS[detailScript.status] ?? 'default'}>{STATUS_LABELS[detailScript.status] ?? detailScript.status}</Tag>
               </Descriptions.Item>

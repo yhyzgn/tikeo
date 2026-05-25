@@ -328,6 +328,15 @@ export interface ScriptReleaseSignatureSummary {
   verified_by: string;
 }
 
+export interface ScriptReleaseGrantEvidenceSummary {
+  url: string[];
+  file_read: string[];
+  file_write: string[];
+  secret: string[];
+  verified_at: string;
+  verified_by: string;
+}
+
 export interface ScriptSummary {
   id: string;
   name: string;
@@ -339,6 +348,7 @@ export interface ScriptSummary {
   released_version_id: string | null;
   released_version_number: number | null;
   release_signature: ScriptReleaseSignatureSummary | null;
+  release_grants: ScriptReleaseGrantEvidenceSummary | null;
   timeout_seconds: number | null;
   max_memory_bytes: number | null;
   allow_network: boolean;

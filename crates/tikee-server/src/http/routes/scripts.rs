@@ -260,7 +260,7 @@ pub async fn publish_script(
     enforce_release_policy_gate(&state, &principal.username, &id, &version, &headers).await?;
     let published = state
         .scripts
-        .publish_version(&id, version_number, release_signature)
+        .publish_version(&id, version_number, release_signature, None)
         .await
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| {
@@ -558,7 +558,7 @@ pub async fn rollback_script(
     enforce_release_policy_gate(&state, &principal.username, &id, &version, &headers).await?;
     let rolled_back = state
         .scripts
-        .rollback_release(&id, version_number, release_signature)
+        .rollback_release(&id, version_number, release_signature, None)
         .await
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| {

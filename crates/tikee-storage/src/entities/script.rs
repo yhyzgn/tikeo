@@ -31,6 +31,12 @@ pub struct Model {
     pub release_signature_verified_at: Option<String>,
     /// Actor that supplied the verified release signature.
     pub release_signature_verified_by: Option<String>,
+    /// Verified URL/File/Secret grant evidence JSON for the current release pointer.
+    pub release_grants_json: Option<String>,
+    /// Timestamp when release grant verification succeeded.
+    pub release_grants_verified_at: Option<String>,
+    /// Actor or verifier that supplied the verified release grants.
+    pub release_grants_verified_by: Option<String>,
     /// Optional timeout seconds for execution.
     pub timeout_seconds: Option<i64>,
     /// Optional max memory bytes for sandbox.

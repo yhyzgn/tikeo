@@ -1155,3 +1155,17 @@ Verification evidence:
 - `cargo build --workspace --all-features` passed.
 - `cargo run -- --help >/tmp/tikee-help.out` passed.
 - `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.
+
+### 2026-05-25 — P1 script release grant evidence persistence
+- Added release-pointer storage for verified URL/File/Secret grant evidence (`release_grants_json`, `release_grants_verified_at`, `release_grants_verified_by`) with SQLite compatibility migration.
+- `ScriptSummary` now exposes optional `release_grants` evidence; Web Scripts detail can display verifier, verification time, URL grants, and Secret grants when present.
+- Repository tests now cover persisting and reloading verified grant evidence.
+- HTTP publish/rollback still pass no verified grant evidence and non-empty `grants` remain fail-closed; no Worker-side URL/File/Secret access is enabled.
+- Preserved the source-size rule; max checked source file line count remains 1495.
+Verification evidence:
+- `cargo fmt --all -- --check` passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `cargo test --workspace --all-features` passed.
+- `cargo build --workspace --all-features` passed.
+- `cargo run -- --help >/tmp/tikee-help.out` passed.
+- `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.

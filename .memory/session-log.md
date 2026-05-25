@@ -1681,3 +1681,26 @@ Verification:
 Commit/push:
 - Commit: `11633a0` (Make script release grants explicit and fail closed)
 - Push: succeeded to `origin/main` (`472b34d..11633a0`).
+
+## 2026-05-25 — P1 script release grant evidence persistence
+
+Task:
+- Continue P1 script production governance by adding persistence/display boundaries for verified URL/File/Secret grant evidence without enabling execution access.
+
+Changes:
+- Added release-pointer grant evidence columns and SQLite compatibility migration.
+- Added storage DTO and repository plumbing for verified grant evidence.
+- Web Scripts detail displays grant evidence if a future verifier produces it.
+- HTTP publish/rollback still do not produce verified grant evidence; non-empty grants remain fail-closed.
+
+Verification:
+- Max source line count check excluding `web/node_modules` and `web/dist`: 1495.
+- `cargo fmt --all -- --check` passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `cargo test --workspace --all-features` passed.
+- `cargo build --workspace --all-features` passed.
+- `cargo run -- --help >/tmp/tikee-help.out` passed.
+- `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.
+
+Commit/push:
+- Pending at time of log entry.

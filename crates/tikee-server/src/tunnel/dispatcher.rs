@@ -1013,7 +1013,7 @@ mod tests {
             .unwrap_or_else(|error| panic!("script version should load: {error}"))
             .unwrap_or_else(|| panic!("script version should exist"));
         let script = scripts
-            .publish_version(&script.id, version.version_number, None)
+            .publish_version(&script.id, version.version_number, None, None)
             .await
             .unwrap_or_else(|error| panic!("script should publish: {error}"))
             .unwrap_or_else(|| panic!("script should exist"));
@@ -1144,7 +1144,7 @@ mod tests {
             .unwrap_or_else(|error| panic!("script version should load: {error}"))
             .unwrap_or_else(|| panic!("script version should exist"));
         let script = scripts
-            .publish_version(&script.id, version.version_number, None)
+            .publish_version(&script.id, version.version_number, None, None)
             .await
             .unwrap_or_else(|error| panic!("script should publish: {error}"))
             .unwrap_or_else(|| panic!("script should exist"));
@@ -1258,6 +1258,7 @@ mod tests {
             released_version_id: None,
             released_version_number: None,
             release_signature: None,
+            release_grants: None,
             timeout_seconds: Some(1),
             max_memory_bytes: Some(1024),
             allow_network: false,

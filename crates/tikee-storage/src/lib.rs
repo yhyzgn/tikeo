@@ -30,15 +30,15 @@ pub use repository::{
     RaftMembershipProposalSummary, RaftMetadataSummary, RaftRepository, RaftSnapshotSummary,
     RbacRepository, RecordAlertDeliveryAttempt, RecordRaftAppliedCommand,
     RecordRaftMembershipProposal, RecoverWorkflowNodeInput, RecoverWorkflowNodeResult,
-    RegisterWorkerSession, ScopeRepository, ScriptReleaseSignatureSummary, ScriptRepository,
-    ScriptSummary, ScriptVersionRepository, ScriptVersionSummary, UpdateScript, UpdateUser,
-    UpdateWorkflow, UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
-    UpsertRaftSnapshot, UserRepository, UserSummary, VerifiedScriptReleaseSignature,
-    WorkerHeartbeat, WorkerLifecycleRepository, WorkerPoolSummary, WorkerSessionEventSummary,
-    WorkerSessionSummary, WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary,
-    WorkflowJobResultOutcome, WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository,
-    WorkflowShardSummary, WorkflowSloSummary, WorkflowSummary, WorkflowValidationResult,
-    validate_workflow_definition,
+    RegisterWorkerSession, ScopeRepository, ScriptReleaseGrantEvidenceSummary,
+    ScriptReleaseSignatureSummary, ScriptRepository, ScriptSummary, ScriptVersionRepository,
+    ScriptVersionSummary, UpdateScript, UpdateUser, UpdateWorkflow, UpsertOidcIdentity,
+    UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot, UserRepository,
+    UserSummary, VerifiedScriptReleaseGrants, VerifiedScriptReleaseSignature, WorkerHeartbeat,
+    WorkerLifecycleRepository, WorkerPoolSummary, WorkerSessionEventSummary, WorkerSessionSummary,
+    WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary, WorkflowJobResultOutcome,
+    WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
+    WorkflowSloSummary, WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
 };
 pub use sea_orm::DbErr;
 
@@ -366,6 +366,9 @@ async fn ensure_scripts_schema_compatibility(
             release_signature varchar,
             release_signature_verified_at varchar,
             release_signature_verified_by varchar,
+            release_grants_json text,
+            release_grants_verified_at varchar,
+            release_grants_verified_by varchar,
             timeout_seconds bigint,
             max_memory_bytes bigint,
             allow_network boolean NOT NULL DEFAULT 0,
@@ -403,6 +406,8 @@ async fn ensure_scripts_schema_compatibility(
         "release_signature",
         "release_signature_verified_at",
         "release_signature_verified_by",
+        "release_grants_verified_at",
+        "release_grants_verified_by",
     ] {
         if !sqlite_column_exists(db, "scripts", column).await? {
             db.execute(Statement::from_string(
@@ -411,6 +416,13 @@ async fn ensure_scripts_schema_compatibility(
             ))
             .await?;
         }
+    }
+    if !sqlite_column_exists(db, "scripts", "release_grants_json").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE scripts ADD COLUMN release_grants_json text",
+        ))
+        .await?;
     }
     db.execute(Statement::from_string(
         DatabaseBackend::Sqlite,
@@ -445,6 +457,9 @@ async fn ensure_script_versions_schema_compatibility(
             release_signature varchar,
             release_signature_verified_at varchar,
             release_signature_verified_by varchar,
+            release_grants_json text,
+            release_grants_verified_at varchar,
+            release_grants_verified_by varchar,
             timeout_seconds bigint,
             max_memory_bytes bigint,
             allow_network boolean NOT NULL DEFAULT 0,
