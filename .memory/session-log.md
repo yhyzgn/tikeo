@@ -1759,3 +1759,8 @@ Commit/push:
 - Implemented list/upsert/delete OIDC identity mapping API guarded by `tenants:read/manage`, storage list/delete helpers, OpenAPI/router wiring, AuthSession scope metadata, and Scopes page OIDC mapping card.
 - Verification run: `cargo check -p tikee-server --all-features`; `cargo test -p tikee-server oidc --all-features`; `cd web && bun run typecheck && bun test src/pages/__tests__/ScopesPage.test.tsx`.
 - Source-size check remains under 1500 lines; largest source is `crates/tikee-storage/src/repository/workflow.rs` at 1495 lines.
+
+## 2026-05-25 17:xx — P1 Prometheus/Grafana recording-rule validation
+- User clarified `.prompt` files are next-chapter prompts; updated `.prompt/README.md` and created next prompt `132-p1-prometheus-grafana-recording-rules.md` before closing observability slice.
+- Implemented Prometheus recording rules/config, Compose observability profile, Grafana recording-query updates, and runbook.
+- Verification run: `cargo test -p tikee-server grafana --all-features`; `cargo check -p tikee-server --all-features`; source-size check excluding generated/build artifacts.

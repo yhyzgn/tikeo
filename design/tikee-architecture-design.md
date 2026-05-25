@@ -2269,7 +2269,7 @@ tikee/
   - [x] 实例/告警/治理 SLO Prometheus snapshot 基础（097：`/api/v1/metrics/summary` 同步写入 worker online、job instance status、success ratio、alert status、script governance failure gauges）
   - [x] Workflow / Map shard SLA Prometheus snapshot 基础（106：metrics summary 返回 workflow instance/shard status、success ratio、duration；`/metrics` 暴露 `tikee_workflow_instance_duration_seconds` 与 `tikee_workflow_shard_duration_seconds` histogram；Grafana 模板引用真实查询）
   - [x] 端到端 dispatch latency Prometheus snapshot 基础（109：`DispatchQueueSloSummary` 返回 completed_dispatches/average/longest dispatch latency；`/metrics` 暴露 `tikee_dispatch_queue_dispatch_latency_seconds` histogram 与 completed gauge；Grafana 模板引用真实查询）
-  - [ ] 完整业务 SLO 指标（真实 scrape/recording-rule 校验等）
+  - [x] 完整业务 SLO 指标（132：Prometheus recording rules、scrape config、Compose observability profile、Grafana recording-series 查询与 runbook；真实外部 Prometheus 仍按部署环境执行）
 - [x] OpenTelemetry 分布式追踪
   - [x] HTTP Trace ID 传播基础（084：`x-request-id` / `x-trace-id` / W3C `traceparent` 解析，缺失时生成 `trc-*`，响应回写 `x-trace-id`，本地 tracing span 不依赖外部 collector）
   - [x] OTLP exporter 配置与状态基础（090：`observability.tracing` 配置、`GET /api/v1/observability/status` 脱敏显示 exporter/endpoint/header readiness）
@@ -2317,7 +2317,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
   - [x] 本地 signed grants 闭环：配置 `script_governance.release_signature_secret_ref` 后，签名 payload 绑定 grants JSON，验证通过才移动发布指针并持久化 `release_grants` 证据；未配置时 grants 仍 fail-closed。
   - [x] Worker runtime grant enforcement 闭环：Worker Tunnel `ScriptProcessorBinding` 携带 signed URL/File/Secret grant；Rust SDK policy 显式接收 `allowed_network_hosts`/文件/secret refs，Local runner 对 grant fail-closed，Container runner 仅将文件 grant 转成显式 bind mount，网络/secret grant 无安全 runtime provider 时继续 fail-closed；Java SDK proto/测试同步覆盖 grant-bearing script binding 且仍不执行脚本。
 - [x] OIDC tenant/app/role 绑定策略与高级租户隔离 UI（131：`/api/v1/oidc-identities` 管理 issuer+subject -> local user + namespace/app/worker-pool scope；OIDC callback 未映射 fail-closed；Scopes 页面可管理映射）。
-- [ ] Prometheus/Grafana recording-rule 校验、运维 runbook 与真实 scrape 验证。
+- [x] Prometheus/Grafana recording-rule 校验、运维 runbook 与真实 scrape 验证（132：本地 Compose Prometheus profile + committed recording rules/config/runbook；CI 覆盖规则/仪表盘引用一致性）。
 - [ ] Go SDK + Python SDK（常见非 Java/Rust 业务接入）。
 - [ ] Node.js SDK（待 Worker 身份语义和 SDK 生命周期稳定后实现）。
 
@@ -2349,7 +2349,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
 - [ ] Go SDK + Python SDK（从 Phase 2 后置；待核心分布式/日志能力稳定后实现）
 - [ ] Node.js SDK（从 Phase 3 后置；待 Rust/Java SDK 与 Worker Tunnel/身份生命周期稳定后实现）
 - [x] 脚本生产治理增强（完整审批/签名/KMS、URL/File/Secret grant、生产发布门禁；本地 env-secret verifier 闭环，外部 KMS/PKI 后续增强）
-- [ ] Prometheus/Grafana recording-rule 与真实 scrape 验证
+- [x] Prometheus/Grafana recording-rule 与真实 scrape 验证（132：规则、Prometheus scrape config、Grafana recording-query 与 runbook）。
 
 **P2 — 生态迁移与高级差异化**
 

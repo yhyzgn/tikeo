@@ -2,7 +2,7 @@
   "uid": "tikee-phase3-ops",
   "title": "tikee Phase 3 Operations",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "15s",
   "time": {
     "from": "now-6h",
@@ -35,7 +35,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(tikee_http_requests_total[5m]))"
+          "expr": "tikee:http_requests:rate5m"
         }
       ],
       "gridPos": {
@@ -53,7 +53,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum(rate(tikee_http_request_duration_seconds_bucket[5m])) by (le, path, method))"
+          "expr": "tikee:http_latency:p95_5m"
         }
       ],
       "gridPos": {
@@ -108,7 +108,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(tikee_http_requests_total{status=~\"5..\"}[5m])) / clamp_min(sum(rate(tikee_http_requests_total[5m])), 1)"
+          "expr": "tikee:http_errors:ratio5m"
         }
       ],
       "gridPos": {
@@ -127,11 +127,11 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum(rate(tikee_dispatch_queue_pending_age_seconds_bucket[5m])) by (le))"
+          "expr": "tikee:dispatch_pending_age:p95_5m"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.95, sum(rate(tikee_dispatch_queue_dispatch_latency_seconds_bucket[5m])) by (le))"
+          "expr": "tikee:dispatch_latency:p95_5m"
         }
       ],
       "gridPos": {
@@ -150,19 +150,19 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum(rate(tikee_workflow_instance_duration_seconds_bucket[5m])) by (le))"
+          "expr": "tikee:workflow_instance_duration:p95_5m"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.95, sum(rate(tikee_workflow_shard_duration_seconds_bucket[5m])) by (le))"
+          "expr": "tikee:workflow_shard_duration:p95_5m"
         },
         {
           "refId": "C",
-          "expr": "tikee_workflow_instance_success_ratio"
+          "expr": "tikee:workflow_instance_success:ratio"
         },
         {
           "refId": "D",
-          "expr": "tikee_workflow_shard_success_ratio"
+          "expr": "tikee:workflow_shard_success:ratio"
         }
       ],
       "gridPos": {

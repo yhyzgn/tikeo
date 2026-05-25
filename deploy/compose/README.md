@@ -5,7 +5,11 @@ The root `docker-compose.yml` is the canonical Compose entrypoint. This director
 ```bash
 cp deploy/compose/tikee.env.example .env
 DOCKER_BUILDKIT=1 docker compose --env-file .env up -d --build
-curl -fsS http://127.0.0.1:${TIKEE_HTTP_PORT:-9090}/api/v1/health
+curl -fsS http://127.0.0.1:${TIKEE_HTTP_PORT:-9090}/readyz
+
+# Optional Prometheus scrape + recording-rule smoke
+DOCKER_BUILDKIT=1 docker compose --profile observability --env-file .env up -d --build
+curl -fsS http://127.0.0.1:${TIKEE_PROMETHEUS_PORT:-9091}/-/ready
 ```
 
 Notes:

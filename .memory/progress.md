@@ -1194,3 +1194,8 @@ Verification evidence:
 - Added governed OIDC identity mapping APIs (`/api/v1/oidc-identities`) for issuer+subject -> local user plus namespace/app/worker-pool scope bindings.
 - OIDC session responses now include scope metadata, matching `/auth/me`, so UI can show tenant-limited sessions immediately after callback.
 - Scopes page now manages OIDC mappings with fail-closed copy: unmapped external subjects cannot obtain local tikee sessions.
+
+## 2026-05-25 — P1 Prometheus/Grafana recording-rule validation
+- Added Prometheus recording rules and scrape config under `observability/prometheus/`.
+- Added optional Compose observability profile for local Prometheus scrape/rule smoke.
+- Updated Grafana dashboard SLO panels to query stable `tikee:*` recording series and added regression coverage for dashboard/rule coherence.

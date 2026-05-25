@@ -19,6 +19,19 @@ services:
       - tikee
     ports:
       - "${TIKEE_WEB_PORT:-8080}:80"
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    profiles: ["observability"]
+    depends_on:
+      - tikee
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/tikee-recording-rules.yml:/etc/prometheus/tikee-recording-rules.yml:ro
+    ports:
+      - "${TIKEE_PROMETHEUS_PORT:-9091}:9090"
 
 volumes:
   tikee-data:
