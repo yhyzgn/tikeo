@@ -2202,13 +2202,13 @@ tikee/
   - [x] API Token 细粒度 scope 基础（099：创建时可传 `scopes=["resource:action"]`；scope 会收窄 effective permissions，`admin` role 不再绕过 scoped token 限制；列表返回 scopes，scope 校验不得超过当前 principal 权限）
   - [x] API Token 过期/轮换策略基础（102：`auth.api_tokens` 配置 default/min/max TTL；创建可传受策略约束的 `expires_in_seconds`；`POST /api/v1/auth/api-tokens/{id}/rotate` 保留 scopes、签发新 token 并立即撤销旧 token）
   - [x] API Token namespace/app/worker-pool scope binding 基础（104：创建 token 可传 `scope_bindings`；token metadata 与 `/auth/me` 返回绑定；jobs list/create/trigger 按 namespace/app 过滤或拒绝；workers list 按 namespace/app/worker_pool label 过滤）
-- [ ] OIDC/SSO 集成
+- [x] OIDC/SSO 集成
   - [x] OIDC/SSO 配置与状态基础（085：`auth.oidc` 配置、`GET /api/v1/auth/status` 暴露本地/oidc 模式与脱敏 provider 元数据）
   - [x] OIDC 授权/回调骨架（092：`GET /api/v1/auth/oidc/authorize` 生成授权 URL 且不暴露 secret；`/callback` 校验 code/state 形状但明确拒绝未验证 token，不创建 session）
   - [x] OIDC token exchange 边界（116：callback 使用配置的 client credentials 调用 provider token endpoint，要求返回 `access_token`，但在 UserInfo/signature/claims 验证和用户映射前仍 fail-closed 不创建 session）
   - [x] OIDC UserInfo 获取边界（117 修正：callback token exchange 后读取 provider discovery 的 `userinfo_endpoint` 并获取外部 subject；在本地 user/role/tenant 映射前仍 fail-closed，不创建 tikee opaque session）
   - [x] OIDC 外部身份映射与 opaque session 签发（122：`oidc_identities` 以 `(issuer, subject)` 软链接本地 username 和 namespace/app/worker_pool scope；callback 只用 provider access token 读取 UserInfo，映射命中后签发本地 `auth_sessions` opaque bearer token，继续严禁 JWT 作为本地登录态）
-- [ ] mTLS 传输加密
+- [x] mTLS 传输加密
   - [x] TLS/mTLS 配置与诊断基础（086：`transport_security` 配置、`GET /api/v1/security/transport` 脱敏显示 HTTP/Worker Tunnel TLS/mTLS readiness）
   - [x] TLS listener 边界 fail-closed（094：状态返回 `listener_mode=plaintext|tls_pending_listener`；TLS/mTLS 开启时即使证书路径齐全也标记 not ready，直到真实监听器 TLS wiring 完成）
   - [x] 真实 HTTP 与 Worker Tunnel TLS/mTLS listener（123：HTTP 使用 rustls 实际 HTTPS listener，按新连接重载证书文件以支持轮换；Worker Tunnel 使用 tonic TLS/mTLS listener；诊断从 `tls_pending_listener` 更新为 `tls|mtls|tls_config_error` 并校验证书文件可读）
@@ -2225,13 +2225,13 @@ tikee/
   - [x] WASM 脚本绑定与分发元数据基础（068：`DispatchTask.processor_binding` / `WasmProcessorBinding`；仅 `script:<id>` 且已审批、策略安全的 `language=wasm` 脚本下发模块与资源策略；Server 仅传递元数据不执行用户代码）
   - [x] WASM SDK 执行适配（069：Rust Worker SDK 在显式 `wasm` feature 下用独立 Wasmtime 适配器执行 `processor_binding.wasm`，未启用 feature 时返回清晰失败；Java SDK 对暂不支持的 WASM binding 显式失败且不调用普通处理器）
   - [x] WASM 分发完整性与策略可视化基础（070：`WasmProcessorBinding` 增加 version_id/version_number/module_sha256/module_signature；脚本版本快照保存 SHA-256；Rust SDK 校验模块摘要；Web 脚本页展示摘要与默认沙箱策略；Java Gradle protobuf plugin 升级并清除 Gradle 10 multi-string deprecation）
-- [ ] 多语言动态脚本处理器（Python/Node/Shell/PowerShell/Rhai）
+- [x] 多语言动态脚本处理器（Python/Node/Shell/PowerShell/Rhai）
   - [x] 脚本定义 Storage / Migration / Repository / HTTP CRUD API / OpenAPI
   - [x] Web 脚本管理页面（列表、创建、审批、启用/禁用、删除）
   - [x] 脚本版本历史表（`script_versions`），创建和更新时产生不可变版本快照
   - [x] 版本 diff 对比 API（`GET /api/v1/scripts/{id}/diff?v1=&v2=`）与 Web 侧 diff 视图
   - [x] 发布指针、回滚 API 与 Worker 侧执行版本绑定（071：`scripts.released_version_id/released_version_number` 软关联不可变 `script_versions`；`POST /api/v1/scripts/{id}/publish|rollback` 更新发布指针并审计；WASM dispatch fail-closed，必须使用 released snapshot bytes/SHA-256/version metadata）
-  - [ ] 完整审批流状态机（多级审批、签名、生产发布门禁）
+  - [x] 完整审批流状态机（多级审批、签名、生产发布门禁；127-130/Phase4 P1：release gate、本地签名 verifier、verified grants 与 Worker runtime grant enforcement 已闭环；外部 KMS/PKI 为后续增强）
   - [x] 发布/回滚策略门禁基础（087：publish/rollback 对历史危险 policy snapshot 再执行默认拒绝校验，阻断需要 URL/File/Secret grant 的版本并写入失败审计）
   - [x] 审批/签名元数据 fail-closed 基础（093：`ScriptReleaseRequest.approval_ticket/signature` 显式建模；未接真实签名验证前提供即拒绝并写入 `script_signature_verification_required` 审计）
   - [x] 脚本编辑器语法高亮（CodeMirror 6 Shell/Python/Node）
@@ -2247,7 +2247,7 @@ tikee/
   - [x] 策略审批、签名、URL/File/Secret grant 与生产发布门禁（本地 env-secret verifier 闭环；外部 KMS/PKI 为后续增强）
   - [x] 策略门禁失败审计基础（087：`failure_reason=script_policy_approval_required` 可查询 blocked publish/rollback，无外键）
   - [x] 签名验证缺失显式审计基础（093：`failure_reason=script_signature_verification_required` 可查询未验证 approval/signature 元数据的 blocked release）
-- [ ] 告警系统 (邮件/Slack/钉钉/飞书/企业微信/PagerDuty)
+- [x] 告警系统 (邮件/Slack/钉钉/飞书/企业微信/PagerDuty)
   - [x] AlertRule / AlertCondition / AlertDispatcher 安全 Webhook 通知骨架
   - [x] 告警规则 API、事件接入、去重静默、通知历史、恢复通知（080-082：alert_rules / alert_events 存储、HTTP API、script governance 事件历史 materialization、recovery 事件 append、alert-events:summary 运维汇总）
   - [x] 通知通道投递状态基础（091：`GET /api/v1/alert-rules/{id}/delivery-status` 本地解析 webhook/email/Slack/钉钉/飞书/企微/PagerDuty channel readiness，脱敏 target/secret）
@@ -2260,7 +2260,7 @@ tikee/
   - [x] 租户 namespace/app/worker-pool 管理 API 基础（113：新增 `worker_pools` 软链接元数据；`/api/v1/namespaces`、`/api/v1/apps`、`/api/v1/worker-pools` 支持鉴权 create/list；RBAC seed 增加 `tenants` read/manage；OpenAPI 覆盖）
   - [x] 租户 namespace/app/worker-pool Web 管理 UI（114：新增 `/scopes` 菜单与路由；支持 namespace/app/Worker Pool create/list；创建入口按 `tenants:manage` 守卫）
   - [x] 租户 scope 删除生命周期策略（115：namespace/app/Worker Pool DELETE 路由与 UI 删除入口；namespace/app 非空时拒绝删除，避免无外键软关联误级联；Worker Pool 元数据删除不影响在线 Worker）
-- [ ] Prometheus 指标 + Grafana Dashboard 模板
+- [x] Prometheus 指标 + Grafana Dashboard 模板
   - [x] Prometheus 指标端点（`/metrics`）与 HTTP/Worker 最小指标
   - [x] Metrics Summary API 基础（083：`GET /api/v1/metrics/summary` 汇总 worker online、实例状态、告警事件与脚本治理失败计数）
   - [x] Grafana Dashboard 模板基础（088：`observability/grafana/tikee-phase3-dashboard.json` 覆盖 HTTP request/rate/latency、worker connected/dispatch 与错误率 SLO 占位查询，含本地 JSON 结构/指标引用测试）
@@ -2286,7 +2286,7 @@ tikee/
 
 #### Phase 3 closeout notes (2026-05-23)
 
-Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确后续”的标准收敛：RBAC、审计、WASM/脚本治理、Worker Tunnel 分发绑定、告警历史、Prometheus/Grafana 基础（含 dispatch queue pending-age histogram、实例成功率与治理失败 gauges）、trace-id/OTLP 配置、OIDC 授权骨架、TLS/mTLS 诊断边界均有测试覆盖；仍保持未勾选的是需要外部系统或更大架构闭环的生产能力：真实 OIDC UserInfo subject 到本地用户/角色/租户映射与 opaque session 签发、真实 TLS/mTLS listener、完整多级审批/签名/KMS/URL/File/Secret grant、生产 SMTP TLS/auth、后台 retry worker 调度、真实 recording-rule 校验、完整租户/app/worker-pool 管理 UI 与 OIDC 身份映射。Node.js SDK、K8s Helm、PowerJob/XXL-JOB 迁移工具按用户要求留在 Phase 4。
+Phase 3 closeout 状态已在 2026-05-25 复核：原先保留未勾选的 OIDC opaque session、真实 TLS/mTLS listener、脚本发布门禁/签名/grant、生产告警投递硬化、Prometheus/Grafana recording-rule 校验等均已在后续 Phase 3 closeout / Phase 4 P0-P1 服务可用性切片中闭环，并按“本地可验证 foundation + 外部系统增强后置”的标准标记完成。外部 KMS/PKI、Helm/K8s、Go ergonomic run-loop、Python/Node SDK、PowerJob/XXL-JOB 迁移工具仍保留在 Phase 4 对应 P1/P2，不再算 Phase 3 未完成项。
 
 #### Phase 3/4 service-usage priority rebalance (2026-05-24)
 
