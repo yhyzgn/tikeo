@@ -1679,4 +1679,5 @@ Verification:
 - `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.
 
 Commit/push:
-- Pending at time of log entry.
+- Commit: `11633a0` (Make script release grants explicit and fail closed)
+- Push: succeeded to `origin/main` (`472b34d..11633a0`).
