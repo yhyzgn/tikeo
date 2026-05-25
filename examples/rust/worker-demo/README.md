@@ -10,7 +10,9 @@ cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
 
 Environment variables:
 
-- `TIKEE_WORKER_ENDPOINT` defaults to `http://0.0.0.0:9998`
-- `TIKEE_WORKER_INSTANCE_ID` defaults to `rust-demo-worker`
+- `TIKEE_WORKER_ENDPOINT` defaults to `http://127.0.0.1:9998`
+- `TIKEE_WORKER_INSTANCE_ID` defaults to `rust-demo-instance`
 
 The demo is a dry-run configuration smoke test by default. Replace it with `WorkerClient::connect()` when testing against a live tikee Worker Tunnel.
+
+For deployment bootstrap, source `deploy/worker/identity.env.example` before running this demo to verify stable logical-worker identity metadata.

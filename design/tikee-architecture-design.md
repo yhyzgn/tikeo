@@ -2303,7 +2303,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
   - [x] Slice D graceful unregister：协议新增 `UnregisterWorker`，Server/Rust SDK/Java SDK 支持主动下线并标记 `stopped / graceful_shutdown`。
   - [x] Slice E assignment token 校验：dispatch 下发 assignment token，Rust/Java SDK 回传，Server 拒绝缺失/错误 token 的日志与结果。
   - [x] Slice F Web lifecycle history UI：`/workers/history` 返回持久 sessions/events，Worker 集群页面按在线/异常/历史分层显示。
-- [x] 部署与运维 bootstrap：本地/裸机/systemd/Compose 的最小生产模板优先（125：Compose env defaults、systemd unit/env、裸机 config smoke helper 与静态验证脚本已落地；Helm 在外部 DB、secret、网关和 TLS 参数稳定后落地）。
+- [x] 部署与运维 bootstrap：本地/裸机/systemd/Compose 的最小生产模板优先（125/135：Compose env defaults、systemd server/worker unit/env、Worker identity env、裸机 config smoke helper、readyz + worker dry-run smoke 已落地；Helm 在外部 DB、secret、网关和 TLS 参数稳定后落地）。
 - [x] 生产告警投递硬化：SMTP TLS/auth/secret reference、Provider secret 管理、重试/DLQ 可视化与最小 live smoke（126：Email 支持 smtps/smtp+starttls、AUTH LOGIN、env secret refs；新增 retry/DLQ queue-status API 与 Web 告警投递页；保留 loopback SMTP smoke）。
 
 **P1 — 生产治理增强 / 常见企业用法**
@@ -2342,7 +2342,7 @@ Phase 3 closeout 按“本地可验证 foundation 完成、生产级闭环明确
 **P0 — 服务使用 / 运维优先**
 
 - [x] Worker 身份与会话生命周期治理（Worker Pool / Logical Worker / Worker Session 三层身份；兼容 K8s/Docker 与裸机/VM/systemd；generation + fencing token；graceful/replaced/heartbeat_timeout/transport_error 证据分级；历史归档与 Worker UI 分层，详见 `design/worker-identity-lifecycle-design.md`）
-- [ ] 部署与运维 bootstrap（Compose/systemd/裸机模板优先；K8s Helm Chart 随外部 DB、secret、网关、TLS 参数稳定后落地）
+- [x] 部署与运维 bootstrap（Compose/systemd/裸机模板优先；包含 Worker identity env、systemd worker 模板、readyz/Worker dry-run smoke；K8s Helm Chart 随外部 DB、secret、网关、TLS 参数稳定后落地）
 - [x] 多租户隔离增强（tenant/app/worker-pool scope policy 与 OIDC tenant binding 对齐；131：OIDC identity mapping API/UI 复用 scope binding，未映射 external subject 不签发本地 session）
 
 **P1 — 常见接入与生产治理**

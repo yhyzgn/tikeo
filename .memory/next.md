@@ -5,7 +5,7 @@ Continue Phase4 P0 service/operations work while preserving the source-size/modu
 
 ## Phase4 P0 — service usage / operations first
 1. Worker identity/session lifecycle governance is now aligned to `design/worker-identity-lifecycle-design.md`.
-2. Next: deployment and operations bootstrap with Compose/systemd/bare-metal templates before Helm.
+2. Deployment and operations bootstrap is locally closed for Compose/systemd/bare-metal; next Phase4 P0 gap is production packaging/Helm only after external DB/secret/gateway/TLS params stabilize.
 3. Go SDK run-loop, Python SDK, and Node.js SDK are explicitly deferred until later.
 
 ## P1 completed
@@ -29,3 +29,4 @@ Continue Phase4 P0 service/operations work while preserving the source-size/modu
 - Prometheus/Grafana recording-rule validation has a committed rules file, Prometheus config, Compose observability profile, Grafana recording-query coverage, and operator runbook.
 - Go SDK foundation now uses official `google.golang.org/grpc` / `google.golang.org/protobuf` and generated Worker Tunnel client bindings; Go run-loop/Python/Node.js SDKs are deferred.
 - Worker identity/session lifecycle now follows `design/worker-identity-lifecycle-design.md`, including transport-error evidence when gRPC streams end without graceful unregister.
+- Deployment bootstrap now includes Compose/systemd/bare-metal docs, Worker identity env templates, a systemd Rust worker demo unit, and a readyz/worker dry-run smoke script.

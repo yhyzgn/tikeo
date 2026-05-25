@@ -1,5 +1,7 @@
 # systemd bootstrap
 
+## Server
+
 1. Build or install the `tikee` binary to `/opt/tikee/bin/tikee`.
 2. Create a dedicated `tikee` user and writable state directory.
 3. Copy `deploy/systemd/tikee.env` to `/etc/tikee/tikee.env`.
@@ -16,3 +18,18 @@ sudo install -m 0644 deploy/systemd/tikee.service /etc/systemd/system/tikee.serv
 sudo systemctl daemon-reload
 sudo systemctl enable --now tikee
 ```
+
+## Worker template
+
+The Rust demo worker unit shows the identity pattern for real workers:
+
+```bash
+cargo build --release --manifest-path examples/rust/worker-demo/Cargo.toml
+sudo install -m 0755 examples/rust/worker-demo/target/release/tikee-rust-worker-demo /opt/tikee/bin/tikee-rust-worker-demo
+sudo install -m 0644 deploy/systemd/tikee-worker-rust-demo.env /etc/tikee/tikee-worker-rust-demo.env
+sudo install -m 0644 deploy/systemd/tikee-worker-rust-demo@.service /etc/systemd/system/tikee-worker-rust-demo@.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now tikee-worker-rust-demo@slot-1
+```
+
+Use `%H` plus `%i` to build stable `client_instance_id` values like `rust-demo-worker@host-a#slot-1`.

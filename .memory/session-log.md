@@ -1776,3 +1776,7 @@ Commit/push:
 ### 2026-05-25 Phase4 P0 Worker lifecycle transport evidence
 - Continued Worker identity/session lifecycle governance strictly against `design/worker-identity-lifecycle-design.md`. Added transport-error evidence path so gRPC stream errors or non-graceful stream end mark the current session offline/degraded with `transport_error` instead of waiting for lease timeout.
 - Confirmed Python/Node SDK and remaining Go SDK run-loop work are deferred; next Phase4 P0 slice is deployment/operations bootstrap.
+
+### 2026-05-25 Phase4 P0 deployment bootstrap
+- Completed Compose/systemd/bare-metal deployment bootstrap docs and templates, including stable Worker identity env guidance, systemd Rust worker demo unit/env, and `deploy/smoke/worker-bootstrap-smoke.sh` readiness + dry-run worker check.
+- Go run-loop/Python/Node SDK work remains deferred; Helm stays deferred until external DB, secrets, gateway, and TLS parameters stabilize.
