@@ -1602,7 +1602,8 @@ Verification:
 - `cargo run -- --help >/tmp/tikee-help.out` passed.
 
 Commit/push:
-- Pending at time of log entry.
+- Commit: `4395b77` (Make signed script releases auditable)
+- Push: succeeded to `origin/main` (`8c2ae07..4395b77`).
 - Commit: `9405b7d` (Keep module boundaries from hiding oversized implementation)
 - Push: succeeded to `origin/main` (`6925be3..9405b7d`).
 
@@ -1625,7 +1626,8 @@ Verification:
 - `cargo run -- --help >/tmp/tikee-help.out` passed.
 
 Commit/push:
-- Pending at time of log entry.
+- Commit: `4395b77` (Make signed script releases auditable)
+- Push: succeeded to `origin/main` (`8c2ae07..4395b77`).
 - Commit: `00a895e` (Make script release approvals verify a local signature)
 - Push: failed after two attempts.
   - Attempt 1: `OpenSSL SSL_read: unexpected eof while reading`.
@@ -1654,4 +1656,5 @@ Verification:
 - `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.
 
 Commit/push:
-- Pending at time of log entry.
+- Commit: `4395b77` (Make signed script releases auditable)
+- Push: succeeded to `origin/main` (`8c2ae07..4395b77`).
