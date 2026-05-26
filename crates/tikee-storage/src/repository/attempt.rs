@@ -1,6 +1,6 @@
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    QuerySelect, Set, sea_query::Expr,
 };
 use tikee_core::InstanceStatus;
 
@@ -124,6 +124,35 @@ impl JobInstanceAttemptRepository {
             .into_iter()
             .map(JobInstanceAttemptSummary::from)
             .collect())
+    }
+
+    /// Atomically update an attempt only when it is still in the expected status.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn update_status_if_current(
+        &self,
+        instance_id: &str,
+        worker_id: &str,
+        expected: InstanceStatus,
+        status: InstanceStatus,
+    ) -> Result<bool, sea_orm::DbErr> {
+        let result = job_instance_attempt::Entity::update_many()
+            .col_expr(
+                job_instance_attempt::Column::Status,
+                Expr::value(status.to_string()),
+            )
+            .col_expr(
+                job_instance_attempt::Column::UpdatedAt,
+                Expr::value(now_rfc3339()),
+            )
+            .filter(job_instance_attempt::Column::InstanceId.eq(instance_id.to_owned()))
+            .filter(job_instance_attempt::Column::WorkerId.eq(worker_id.to_owned()))
+            .filter(job_instance_attempt::Column::Status.eq(expected.to_string()))
+            .exec(&self.db)
+            .await?;
+        Ok(result.rows_affected > 0)
     }
 
     /// Update one attempt status.

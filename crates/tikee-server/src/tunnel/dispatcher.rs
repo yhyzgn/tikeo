@@ -219,7 +219,11 @@ async fn dispatch_single_instances(
             && let Some(worker_id) = registry.dispatch_to_worker(worker_id, task).await
         {
             instances
-                .update_status(&instance.id, InstanceStatus::Running)
+                .update_status_if_current(
+                    &instance.id,
+                    InstanceStatus::Dispatching,
+                    InstanceStatus::Running,
+                )
                 .await?;
             let _ = workflows
                 .mark_dispatch_queue_running(&claim.item.id, DISPATCHER_LEASE_OWNER)
@@ -328,14 +332,19 @@ async fn dispatch_broadcast_attempts(
 
         if let Some(worker_id) = registry.dispatch_to_worker(&attempt.worker_id, task).await {
             attempts
-                .update_status(
+                .update_status_if_current(
                     &attempt.instance_id,
                     &attempt.worker_id,
+                    InstanceStatus::Pending,
                     InstanceStatus::Running,
                 )
                 .await?;
             instances
-                .update_status(&attempt.instance_id, InstanceStatus::Running)
+                .update_status_if_current(
+                    &attempt.instance_id,
+                    InstanceStatus::Pending,
+                    InstanceStatus::Running,
+                )
                 .await?;
             debug!(%worker_id, instance_id = %attempt.instance_id, "dispatched broadcast attempt to worker");
         }

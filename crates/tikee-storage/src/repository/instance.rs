@@ -204,6 +204,30 @@ impl JobInstanceRepository {
         Ok(result.rows_affected > 0)
     }
 
+    /// Atomically update an instance only when it is still in the expected status.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn update_status_if_current(
+        &self,
+        instance_id: &str,
+        expected: InstanceStatus,
+        status: InstanceStatus,
+    ) -> Result<bool, sea_orm::DbErr> {
+        let result = job_instance::Entity::update_many()
+            .col_expr(
+                job_instance::Column::Status,
+                Expr::value(status.to_string()),
+            )
+            .col_expr(job_instance::Column::UpdatedAt, Expr::value(now_rfc3339()))
+            .filter(job_instance::Column::Id.eq(instance_id.to_owned()))
+            .filter(job_instance::Column::Status.eq(expected.to_string()))
+            .exec(&self.db)
+            .await?;
+        Ok(result.rows_affected > 0)
+    }
+
     /// Update one instance status.
     ///
     /// # Errors
