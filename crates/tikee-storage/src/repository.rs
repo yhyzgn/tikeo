@@ -20,7 +20,7 @@ mod raft;
 mod scope;
 mod script;
 mod user;
-mod util;
+pub mod util;
 mod worker_lifecycle;
 mod workflow;
 
@@ -1137,6 +1137,58 @@ mod tests {
         assert_eq!(refreshed.status, "running");
         assert_eq!(refreshed.nodes[0].status, "succeeded");
         assert_eq!(refreshed.nodes[1].status, "queued");
+    }
+
+    #[tokio::test]
+    async fn dispatch_queue_can_close_by_terminal_job_instance() {
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = super::JobInstanceRepository::new(db.clone());
+        let workflows = super::WorkflowRepository::new(db);
+        let job = jobs
+            .create_job(CreateJob {
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "terminal-close".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                processor_name: None,
+                enabled: true,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should be created: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id,
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should be created: {error}"))
+            .unwrap_or_else(|| panic!("job should exist"));
+
+        instances
+            .update_status(&instance.id, InstanceStatus::Succeeded)
+            .await
+            .unwrap_or_else(|error| panic!("instance should become terminal: {error}"));
+        assert!(
+            workflows
+                .mark_dispatch_queue_done_by_instance(&instance.id)
+                .await
+                .unwrap_or_else(|error| panic!("queue should close: {error}"))
+        );
+
+        let overview = workflows
+            .queue_overview(10)
+            .await
+            .unwrap_or_else(|error| panic!("queue overview should load: {error}"));
+        assert_eq!(overview.pending, 0);
+        assert_eq!(overview.running, 0);
+        assert_eq!(overview.done, 1);
+        assert_eq!(overview.items[0].status, "done");
+        assert!(overview.items[0].lease_owner.is_none());
     }
 
     #[tokio::test]

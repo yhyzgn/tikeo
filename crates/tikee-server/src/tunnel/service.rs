@@ -494,6 +494,13 @@ async fn handle_single_task_result(
     if let Err(error) = context.instances.update_status(instance_id, status).await {
         tracing::warn!(%error, %instance_id, "failed to persist task result");
     }
+    if let Err(error) = context
+        .workflows
+        .mark_dispatch_queue_done_by_instance(instance_id)
+        .await
+    {
+        tracing::warn!(%error, %instance_id, "failed to close dispatch queue item after task result");
+    }
     match context
         .workflows
         .complete_job_node_from_result(

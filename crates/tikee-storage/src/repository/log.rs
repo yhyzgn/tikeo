@@ -1,5 +1,6 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 
@@ -83,6 +84,36 @@ impl JobInstanceLogRepository {
         .await?;
 
         Ok(Some(JobInstanceLogSummary::from(model)))
+    }
+
+    /// Return the number of log rows for an instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn count_by_instance(&self, instance_id: &str) -> Result<u64, sea_orm::DbErr> {
+        job_instance_log::Entity::find()
+            .filter(job_instance_log::Column::InstanceId.eq(instance_id))
+            .count(&self.db)
+            .await
+    }
+
+    /// Return the latest log row for an instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn latest_by_instance(
+        &self,
+        instance_id: &str,
+    ) -> Result<Option<JobInstanceLogSummary>, sea_orm::DbErr> {
+        let row = job_instance_log::Entity::find()
+            .filter(job_instance_log::Column::InstanceId.eq(instance_id))
+            .order_by_desc(job_instance_log::Column::Sequence)
+            .order_by_desc(job_instance_log::Column::CreatedAt)
+            .one(&self.db)
+            .await?;
+        Ok(row.map(JobInstanceLogSummary::from))
     }
 
     /// List logs for an instance in sequence order.

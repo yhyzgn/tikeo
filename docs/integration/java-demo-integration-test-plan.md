@@ -1,0 +1,57 @@
+# Java demo integration test plan
+
+## Goal
+
+Verify that the tikee server, Java SDK, and Java Spring worker demo can run together as one service framework:
+
+1. The Java worker registers through the outbound Worker Tunnel and appears in server worker APIs.
+2. API-triggered, broadcast-triggered, fixed-rate, cron, and workflow-materialized job dispatches reach Java processors by `processor_name`.
+3. Java processor success and failure outcomes are persisted back to server instance status/log APIs.
+4. The demo remains unit-testable without a live server.
+
+## Scope
+
+In scope:
+
+- Local tikee server with `config/dev.toml` or an equivalent temporary config.
+- Java SDK modules under `sdks/java`.
+- Java Spring demo under `examples/java/spring-worker-demo`.
+- HTTP API automation for auth, workers, jobs, instances, logs, and workflow materialization.
+
+Out of scope for this plan:
+
+- Python/Node SDKs.
+- Go SDK run-loop.
+- Helm/K8s production deployment.
+- External OIDC, TLS/mTLS, external DB, and external observability stacks.
+
+## Test matrix
+
+| Case | Server feature | Java demo processor | Expected result |
+| --- | --- | --- | --- |
+| Worker registration | Worker Tunnel register/heartbeat | demo app startup | `/api/v1/workers` shows `spring-demo-worker` online with `java` and `spring-boot` capabilities. |
+| API single job | `POST /jobs`, `POST /jobs/{id}:trigger` | `demo.echo` | Instance becomes `succeeded`; log contains echo payload handling. |
+| API failure job | same as above | `demo.fail` | Instance becomes `failed`; result message is persisted through status/log evidence. |
+| Broadcast job | `execution_mode=broadcast` | `demo.context` | Parent instance and per-worker attempt become `succeeded`. |
+| Fixed-rate job | scheduler tick loop | `demo.heartbeat` | At least one fixed-rate instance is created and succeeds. |
+| Cron job | scheduler tick loop | `demo.report` | At least one cron instance is created and succeeds. |
+| Workflow job node | workflow create/run/materialize + dispatcher | `demo.workflow.step` | Materialized workflow node dispatches to Java worker and workflow instance reaches `succeeded`. |
+
+## Automation strategy
+
+Use `deploy/smoke/java-demo-integration-smoke.sh` as the executable verifier. The script should:
+
+1. Start or reuse a local server.
+2. Start the Java Spring demo with `TIKEE_WORKER_DRY_RUN=false`.
+3. Login with the development init account.
+4. Create uniquely named integration jobs and one workflow.
+5. Trigger/materialize dispatch paths.
+6. Poll server APIs until statuses reach expected terminal states.
+7. Write a timestamped JSON report under `.dev/reports/`.
+
+## Exit criteria
+
+- Java demo unit tests pass.
+- Java SDK tests pass.
+- Smoke script exits 0 and emits a report with all cases passed.
+- No source file exceeds 1500 lines.

@@ -4,6 +4,7 @@ worker_tunnel_addr = "0.0.0.0:9998"
 
 [storage]
 database_url = "sqlite://tikee-dev.db?mode=rwc"
+timestamp_offset = "+08:00"
 
 [cluster]
 mode = "standalone"

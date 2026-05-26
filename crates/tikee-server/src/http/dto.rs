@@ -886,6 +886,10 @@ pub struct JobInstanceSummary {
     pub created_at: String,
     /// Last update timestamp in RFC3339 format.
     pub updated_at: String,
+    /// Number of persisted task log rows for this instance.
+    pub log_count: u64,
+    /// Latest persisted task log row, when available.
+    pub latest_log: Option<JobInstanceLogSummary>,
 }
 
 /// Job instance attempt page response.

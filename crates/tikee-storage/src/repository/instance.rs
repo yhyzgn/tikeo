@@ -114,7 +114,7 @@ impl JobInstanceRepository {
         Ok(Some(JobInstanceSummary::from(model)))
     }
 
-    /// List instances for a job ordered by creation timestamp.
+    /// List instances for a job ordered by newest creation timestamp first.
     ///
     /// # Errors
     ///
@@ -125,7 +125,7 @@ impl JobInstanceRepository {
     ) -> Result<Vec<JobInstanceSummary>, sea_orm::DbErr> {
         let rows = job_instance::Entity::find()
             .filter(job_instance::Column::JobId.eq(job_id))
-            .order_by_asc(job_instance::Column::CreatedAt)
+            .order_by_desc(job_instance::Column::CreatedAt)
             .all(&self.db)
             .await?;
 

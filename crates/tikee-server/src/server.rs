@@ -24,6 +24,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
     let log_broadcaster = tunnel::TaskLogBroadcaster::default();
     let http_addr = config.server.listen_addr;
     let tunnel_addr = config.server.worker_tunnel_addr;
+    let timestamp_offset = config.storage.timestamp_offset.clone();
     let database_url = config.storage.database_url;
     let cluster_config = config.cluster;
     let auth_config = config.auth;
@@ -32,6 +33,9 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
     let alert_retry_config = config.alert_retry;
     let script_governance = config.script_governance;
     let raft_transport_token = cluster_config.transport_token.clone();
+    let offset = tikee_storage::parse_timestamp_offset(&timestamp_offset)
+        .with_context(|| format!("invalid storage.timestamp_offset: {timestamp_offset}"))?;
+    tikee_storage::set_timestamp_offset(offset);
     let db = connect_and_migrate(&database_url)
         .await
         .with_context(|| format!("failed to initialize storage at {database_url}"))?;

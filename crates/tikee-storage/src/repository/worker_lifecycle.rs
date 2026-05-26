@@ -1,6 +1,6 @@
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    QueryOrder, QuerySelect, Set, sea_query::OnConflict,
 };
 use sha2::{Digest, Sha256};
 
@@ -128,7 +128,7 @@ impl WorkerLifecycleRepository {
         self.replace_current_session(&logical, &input.worker_id, &now)
             .await?;
         let session = self
-            .insert_session(&input, &logical.id, generation, &now)
+            .upsert_session(&input, &logical.id, generation, &now)
             .await?;
         self.promote_logical_current(logical, &input.worker_id, generation, &now)
             .await?;
@@ -467,14 +467,14 @@ impl WorkerLifecycleRepository {
         .await
     }
 
-    async fn insert_session(
+    async fn upsert_session(
         &self,
         input: &RegisterWorkerSession,
         logical_instance_id: &str,
         generation: i64,
         now: &str,
     ) -> Result<worker_session::Model, sea_orm::DbErr> {
-        worker_session::ActiveModel {
+        let model = worker_session::ActiveModel {
             worker_id: Set(input.worker_id.clone()),
             logical_instance_id: Set(logical_instance_id.to_owned()),
             connection_id: Set(input.connection_id.clone()),
@@ -492,9 +492,34 @@ impl WorkerLifecycleRepository {
             drain_requested_at: Set(None),
             created_at: Set(now.to_owned()),
             updated_at: Set(now.to_owned()),
-        }
-        .insert(&self.db)
-        .await
+        };
+        worker_session::Entity::insert(model)
+            .on_conflict(
+                OnConflict::column(worker_session::Column::WorkerId)
+                    .update_columns([
+                        worker_session::Column::LogicalInstanceId,
+                        worker_session::Column::ConnectionId,
+                        worker_session::Column::Generation,
+                        worker_session::Column::FencingTokenHash,
+                        worker_session::Column::Status,
+                        worker_session::Column::StatusReason,
+                        worker_session::Column::StatusEvidence,
+                        worker_session::Column::LeaseExpiresAt,
+                        worker_session::Column::LastHeartbeatAt,
+                        worker_session::Column::LastSequence,
+                        worker_session::Column::ConnectedAt,
+                        worker_session::Column::DisconnectedAt,
+                        worker_session::Column::ReplacedByWorkerId,
+                        worker_session::Column::DrainRequestedAt,
+                        worker_session::Column::UpdatedAt,
+                    ])
+                    .to_owned(),
+            )
+            .exec(&self.db)
+            .await?;
+        self.get_session_model(&input.worker_id)
+            .await?
+            .ok_or_else(|| sea_orm::DbErr::RecordNotFound(input.worker_id.clone()))
     }
 
     async fn promote_logical_current(

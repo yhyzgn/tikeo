@@ -71,6 +71,18 @@ export function InstancesPage() {
     { title: 'Mode', dataIndex: 'execution_mode', render: (value: string) => <Tag color={value === 'broadcast' ? 'purple' : 'default'} className="soft-tag">{value}</Tag> },
     { title: 'Created At', dataIndex: 'created_at', width: 180 },
     {
+      title: 'Latest Log',
+      width: 280,
+      render: (_, instance) => (
+        <Space direction="vertical" size={2}>
+          <Typography.Text ellipsis style={{ maxWidth: 260 }}>
+            {instance.latest_log?.message ?? '暂无日志'}
+          </Typography.Text>
+          <Typography.Text type="secondary">{instance.log_count ?? 0} 条日志</Typography.Text>
+        </Space>
+      ),
+    },
+    {
       title: 'Logs',
       width: 100,
       render: (_, instance) => <Button type="link" onClick={() => void openLogs(instance)}>查看日志</Button>,

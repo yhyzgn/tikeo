@@ -43,6 +43,8 @@ export interface JobInstanceSummary {
   execution_mode: string;
   created_at: string;
   updated_at: string;
+  log_count: number;
+  latest_log?: JobInstanceLogSummary | null;
 }
 
 export interface JobInstanceAttemptSummary {

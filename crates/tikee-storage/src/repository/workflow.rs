@@ -1239,6 +1239,65 @@ impl WorkflowRepository {
         Ok(result.rows_affected)
     }
 
+    pub async fn mark_dispatch_queue_done_by_instance(
+        &self,
+        instance_id: &str,
+    ) -> Result<bool, sea_orm::DbErr> {
+        let result = dispatch_queue::Entity::update_many()
+            .col_expr(dispatch_queue::Column::Status, Expr::value("done"))
+            .col_expr(
+                dispatch_queue::Column::LeaseOwner,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                dispatch_queue::Column::LeaseUntil,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                dispatch_queue::Column::FencingToken,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                dispatch_queue::Column::UpdatedAt,
+                Expr::value(now_rfc3339()),
+            )
+            .filter(dispatch_queue::Column::JobInstanceId.eq(instance_id.to_owned()))
+            .filter(dispatch_queue::Column::Status.is_in(["pending", "running"]))
+            .exec(&self.db)
+            .await?;
+        Ok(result.rows_affected > 0)
+    }
+
+    pub async fn mark_dispatch_queue_failed(
+        &self,
+        queue_id: &str,
+        lease_owner: &str,
+    ) -> Result<bool, sea_orm::DbErr> {
+        let result = dispatch_queue::Entity::update_many()
+            .col_expr(dispatch_queue::Column::Status, Expr::value("failed"))
+            .col_expr(
+                dispatch_queue::Column::LeaseOwner,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                dispatch_queue::Column::LeaseUntil,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                dispatch_queue::Column::FencingToken,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                dispatch_queue::Column::UpdatedAt,
+                Expr::value(now_rfc3339()),
+            )
+            .filter(dispatch_queue::Column::Id.eq(queue_id.to_owned()))
+            .filter(dispatch_queue::Column::LeaseOwner.eq(lease_owner.to_owned()))
+            .exec(&self.db)
+            .await?;
+        Ok(result.rows_affected > 0)
+    }
+
     pub async fn release_dispatch_queue_item(
         &self,
         queue_id: &str,

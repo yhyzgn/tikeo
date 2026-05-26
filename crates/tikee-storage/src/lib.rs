@@ -10,9 +10,11 @@ use sea_orm::{
     ConnectOptions, ConnectionTrait, Database, DatabaseBackend, DatabaseConnection, Statement,
 };
 use sea_orm_migration::MigratorTrait;
+use sqlx::sqlite::{SqliteJournalMode, SqliteSynchronous};
 use std::time::Duration;
 use thiserror::Error;
 
+pub use repository::util::{parse_timestamp_offset, set_timestamp_offset};
 pub use repository::{
     AdvanceWorkflowInput, AdvanceWorkflowResult, AlertDeliveryAttemptFilters,
     AlertDeliveryAttemptSummary, AlertEventFilters, AlertEventSummary, AlertRepository,
@@ -61,12 +63,27 @@ pub async fn connect_and_migrate(database_url: &str) -> Result<DatabaseConnectio
         .max_connections(16)
         .min_connections(1)
         .connect_timeout(Duration::from_secs(8))
+        .sqlx_logging(false)
         .idle_timeout(Duration::from_mins(1));
+    configure_sqlite_connect_options(database_url, &mut options);
 
     let db = Database::connect(options).await?;
     migration::Migrator::up(&db, None).await?;
     ensure_sqlite_schema_compatibility(&db).await?;
     Ok(db)
+}
+
+fn configure_sqlite_connect_options(database_url: &str, options: &mut ConnectOptions) {
+    if !database_url.starts_with("sqlite:") {
+        return;
+    }
+    options.map_sqlx_sqlite_opts(|sqlite_options| {
+        sqlite_options
+            .busy_timeout(Duration::from_secs(5))
+            .journal_mode(SqliteJournalMode::Wal)
+            .synchronous(SqliteSynchronous::Normal)
+            .pragma("foreign_keys", "ON")
+    });
 }
 
 async fn ensure_sqlite_schema_compatibility(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {

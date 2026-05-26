@@ -63,12 +63,15 @@ impl Default for ServerConfig {
 pub struct StorageConfig {
     /// Database URL consumed by SeaORM/sqlx.
     pub database_url: String,
+    /// RFC3339 offset used when the application writes DB timestamps.
+    pub timestamp_offset: String,
 }
 
 impl Default for StorageConfig {
     fn default() -> Self {
         Self {
             database_url: "sqlite://tikee-dev.db?mode=rwc".to_owned(),
+            timestamp_offset: "+00:00".to_owned(),
         }
     }
 }
@@ -386,6 +389,10 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeeConfig, ConfigError> {
         .set_default(
             "storage.database_url",
             TikeeConfig::default().storage.database_url,
+        )?
+        .set_default(
+            "storage.timestamp_offset",
+            TikeeConfig::default().storage.timestamp_offset,
         )?
         .set_default("cluster.mode", "standalone")?
         .set_default("cluster.node_id", TikeeConfig::default().cluster.node_id)?

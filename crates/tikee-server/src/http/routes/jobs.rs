@@ -230,9 +230,9 @@ pub async fn trigger_job(
     )
     .await;
 
-    Ok(Json(ApiResponse::success(JobInstanceSummary::from(
-        instance,
-    ))))
+    Ok(Json(ApiResponse::success(
+        instance_summary_with_latest_log(&state, instance).await?,
+    )))
 }
 
 fn has_auth_header(headers: &HeaderMap) -> bool {
@@ -262,14 +262,15 @@ pub async fn list_job_instances(
     Path(job): Path<String>,
     Query(_query): Query<PageQuery>,
 ) -> Result<Json<JobInstancePageApiResponse>, ApiError> {
-    let items = state
+    let mut items = Vec::new();
+    for instance in state
         .instances
         .list_by_job(&job)
         .await
         .map_err(|error| ApiError::storage(&error))?
-        .into_iter()
-        .map(JobInstanceSummary::from)
-        .collect();
+    {
+        items.push(instance_summary_with_latest_log(&state, instance).await?);
+    }
 
     Ok(Json(ApiResponse::success(JobInstancePage {
         items,
@@ -304,9 +305,9 @@ pub async fn get_job_instance(
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| ApiError::not_found(format!("instance not found: {instance}")))?;
 
-    Ok(Json(ApiResponse::success(JobInstanceSummary::from(
-        summary,
-    ))))
+    Ok(Json(ApiResponse::success(
+        instance_summary_with_latest_log(&state, summary).await?,
+    )))
 }
 
 /// List broadcast attempts for one job instance.
@@ -404,18 +405,32 @@ impl From<tikee_storage::JobSummary> for JobSummary {
     }
 }
 
-impl From<tikee_storage::JobInstanceSummary> for JobInstanceSummary {
-    fn from(value: tikee_storage::JobInstanceSummary) -> Self {
-        Self {
-            id: value.id,
-            job_id: value.job_id,
-            status: value.status.to_string(),
-            trigger_type: value.trigger_type.to_string(),
-            execution_mode: value.execution_mode.to_string(),
-            created_at: value.created_at,
-            updated_at: value.updated_at,
-        }
-    }
+async fn instance_summary_with_latest_log(
+    state: &AppState,
+    value: tikee_storage::JobInstanceSummary,
+) -> Result<JobInstanceSummary, ApiError> {
+    let log_count = state
+        .logs
+        .count_by_instance(&value.id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    let latest_log = state
+        .logs
+        .latest_by_instance(&value.id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .map(JobInstanceLogSummary::from);
+    Ok(JobInstanceSummary {
+        id: value.id,
+        job_id: value.job_id,
+        status: value.status.to_string(),
+        trigger_type: value.trigger_type.to_string(),
+        execution_mode: value.execution_mode.to_string(),
+        created_at: value.created_at,
+        updated_at: value.updated_at,
+        log_count,
+        latest_log,
+    })
 }
 
 impl From<tikee_storage::JobInstanceAttemptSummary> for JobInstanceAttemptSummary {

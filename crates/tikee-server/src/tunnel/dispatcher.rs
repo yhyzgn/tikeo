@@ -155,10 +155,18 @@ async fn dispatch_single_instances(
         };
         let Some(instance) = instances.get(&instance_id).await? else {
             let _ = workflows
-                .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                .mark_dispatch_queue_failed(&claim.item.id, DISPATCHER_LEASE_OWNER)
                 .await?;
+            warn!(queue_id = %claim.item.id, %instance_id, "closed dispatch queue item for missing job instance");
             continue;
         };
+        if instance.status != InstanceStatus::Pending {
+            let _ = workflows
+                .mark_dispatch_queue_done_by_instance(&instance.id)
+                .await?;
+            debug!(instance_id = %instance.id, status = %instance.status, "closed dispatch queue item for non-pending instance");
+            continue;
+        }
         if !instances.claim_pending_for_dispatch(&instance.id).await? {
             let _ = workflows
                 .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
@@ -862,6 +870,72 @@ mod tests {
             .unwrap_or_else(|error| panic!("instance should load: {error}"))
             .unwrap_or_else(|| panic!("instance should exist"));
         assert_eq!(updated.status, InstanceStatus::Running);
+    }
+
+    #[tokio::test]
+    async fn dispatch_once_closes_terminal_instance_queue_item() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db.clone());
+        let logs = tikee_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
+        let scripts = ScriptRepository::new(db);
+        let job = jobs
+            .create_job(CreateJob {
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "already-done".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                processor_name: None,
+                enabled: true,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should be created: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id,
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should be created: {error}"))
+            .unwrap_or_else(|| panic!("job should exist"));
+        instances
+            .update_status(&instance.id, InstanceStatus::Succeeded)
+            .await
+            .unwrap_or_else(|error| panic!("instance should be terminal: {error}"));
+        let registry = WorkerRegistry::default();
+
+        dispatch_once(
+            &jobs,
+            &instances,
+            &attempts,
+            &workflows,
+            &scripts,
+            &logs,
+            &audit,
+            &registry,
+            "test-fence",
+        )
+        .await
+        .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
+
+        let overview = workflows
+            .queue_overview(10)
+            .await
+            .unwrap_or_else(|error| panic!("queue should load: {error}"));
+        assert_eq!(overview.pending, 0);
+        assert_eq!(overview.running, 0);
+        assert_eq!(overview.done, 1);
+        assert_eq!(
+            overview.items[0].job_instance_id.as_deref(),
+            Some(instance.id.as_str())
+        );
     }
 
     #[tokio::test]

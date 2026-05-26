@@ -6,6 +6,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use sha2::{Digest, Sha256};
 use tikee_proto::worker::v1::{DispatchTask, RegisterWorker, ServerMessage, server_message};
 use tikee_storage::{RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository};
 use tokio::sync::{RwLock, mpsc};
@@ -38,8 +39,14 @@ impl WorkerRegistry {
         outbound: mpsc::Sender<Result<ServerMessage, Status>>,
     ) -> RegisteredWorker {
         let now = SystemTime::now();
-        let worker_id = format!("wrk-{}", Uuid::now_v7());
         let client_instance_id = empty_to_none(worker.client_instance_id.clone());
+        let worker_id = stable_worker_id(
+            &worker.namespace,
+            &worker.app,
+            &worker.cluster,
+            &worker.region,
+            client_instance_id.as_deref(),
+        );
         let logical_instance_id = logical_instance_id(
             &worker.namespace,
             &worker.app,
@@ -441,6 +448,24 @@ fn logical_instance_id(
     [namespace, app, cluster, region, instance].join("/")
 }
 
+fn stable_worker_id(
+    namespace: &str,
+    app: &str,
+    cluster: &str,
+    region: &str,
+    client_instance_id: Option<&str>,
+) -> String {
+    if let Some(client_instance_id) = client_instance_id {
+        let digest = Sha256::digest(
+            [namespace, app, cluster, region, client_instance_id]
+                .join("/")
+                .as_bytes(),
+        );
+        return format!("wrk-stable-{digest:x}");
+    }
+    format!("wrk-{}", Uuid::now_v7())
+}
+
 fn next_generation(workers: &HashMap<String, RegisteredWorker>, logical_instance_id: &str) -> u64 {
     workers
         .values()
@@ -635,29 +660,15 @@ mod tests {
 
         assert_eq!(first.generation, 1);
         assert_eq!(second.generation, 2);
-        assert_ne!(first.worker_id, second.worker_id);
+        assert_eq!(first.worker_id, second.worker_id);
         assert_ne!(first.fencing_token, second.fencing_token);
-
-        let old = registry
-            .get(&first.worker_id)
-            .await
-            .unwrap_or_else(|| panic!("old session should remain inspectable"));
-        assert_eq!(old.status, WorkerSessionStatus::Replaced);
-        assert_eq!(
-            old.status_reason.as_deref(),
-            Some("replaced_by_new_generation")
-        );
-        assert_eq!(
-            old.replaced_by_worker_id.as_deref(),
-            Some(second.worker_id.as_str())
-        );
 
         assert!(
             registry
                 .heartbeat(&first.worker_id, 9, first.generation, &first.fencing_token)
                 .await
                 .is_none(),
-            "replaced session heartbeat should be fenced"
+            "older generation heartbeat should be fenced"
         );
         let renewed = registry
             .heartbeat(
@@ -737,7 +748,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn registry_persists_replaced_generations_when_lifecycle_store_is_configured() {
+    async fn registry_persists_reconnect_as_same_worker_id_with_new_generation() {
         let db = tikee_storage::connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
@@ -751,22 +762,15 @@ mod tests {
             .register(register_worker("pod-1"), mpsc::channel(1).0)
             .await;
 
-        let persisted_first = lifecycle
-            .get_session(&first.worker_id)
-            .await
-            .unwrap_or_else(|error| panic!("persisted old session should load: {error}"))
-            .unwrap_or_else(|| panic!("persisted old session should exist"));
+        assert_eq!(first.worker_id, second.worker_id);
+        assert_ne!(first.fencing_token, second.fencing_token);
         let persisted_second = lifecycle
             .get_session(&second.worker_id)
             .await
-            .unwrap_or_else(|error| panic!("persisted new session should load: {error}"))
-            .unwrap_or_else(|| panic!("persisted new session should exist"));
+            .unwrap_or_else(|error| panic!("persisted reconnected session should load: {error}"))
+            .unwrap_or_else(|| panic!("persisted reconnected session should exist"));
 
-        assert_eq!(persisted_first.status, "replaced");
-        assert_eq!(
-            persisted_first.status_reason.as_deref(),
-            Some("replaced_by_new_generation")
-        );
+        assert_eq!(persisted_second.status, "online");
         assert_eq!(persisted_second.generation, 2);
 
         registry

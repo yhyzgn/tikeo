@@ -2,17 +2,21 @@ package com.yhyzgn.tikee.examples.worker;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.yhyzgn.tikee.core.NoopTikeeWorkerClient;
-import com.yhyzgn.tikee.core.TikeeWorkerClient;
-import com.yhyzgn.tikee.core.TaskContext;
-import com.yhyzgn.tikee.spring.TikeeProcessorRegistry;
+import com.yhyzgn.tikee.worker.client.NoopTikeeWorkerClient;
+import com.yhyzgn.tikee.worker.client.TikeeWorkerClient;
+import com.yhyzgn.tikee.processor.TaskContext;
+import com.yhyzgn.tikee.spring.processor.TikeeProcessorRegistry;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
 
-@SpringBootTest(properties = {
-        "tikee.worker.demo.block-on-startup=false",
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "tikee.worker.dry-run=true",
         "tikee.worker.client-instance-id=test-spring-demo-worker",
         "tikee.worker.namespace=demo-ns",
@@ -30,6 +34,9 @@ class SpringWorkerDemoApplicationTest {
 
     @Autowired
     private TikeeProcessorRegistry registry;
+
+    @LocalServerPort
+    private int port;
 
     @Test
     void dryRunClientUsesConfiguredIdentityAndStartsWithLifecycle() {
@@ -49,8 +56,20 @@ class SpringWorkerDemoApplicationTest {
     }
 
     @Test
+    void exposesStandardSpringBootWebDemoEndpoints() throws Exception {
+        var health = httpGet("/demo/health");
+        var processors = httpGet("/demo/processors");
+
+        assertThat(health).contains("\"status\":\"ok\"");
+        assertThat(health).contains("\"connected\":true");
+        assertThat(health).contains("\"workerId\":\"dry-run-test-spring-demo-worker\"");
+        assertThat(health).contains("demo.echo", "demo.fail", "demo.workflow.step");
+        assertThat(processors).contains("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail");
+    }
+
+    @Test
     void springRegistersEchoProcessorAndInvokesItThroughRegistry() {
-        assertThat(registry.handlers()).containsKey("demo.echo");
+        assertThat(registry.handlers()).containsKeys("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail");
 
         var outcome = registry.invoke("demo.echo", new TaskContext(
                 "job-1",
@@ -60,5 +79,12 @@ class SpringWorkerDemoApplicationTest {
 
         assertThat(outcome.success()).isTrue();
         assertThat(outcome.message()).isEqualTo("echo:hello");
+    }
+
+    private String httpGet(String path) throws Exception {
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).GET().build();
+        var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(200);
+        return response.body();
     }
 }
