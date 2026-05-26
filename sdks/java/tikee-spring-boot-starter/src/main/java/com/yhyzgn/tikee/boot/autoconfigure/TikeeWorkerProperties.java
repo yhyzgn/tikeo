@@ -26,8 +26,10 @@ public class TikeeWorkerProperties {
     private boolean dryRun = false;
     /** Heartbeat interval in milliseconds. */
     private long heartbeatIntervalMillis = 10_000;
-    /** Stable client-side instance hint; tikee assigns the authoritative worker id. */
-    private String clientInstanceId = "spring-worker";
+    /** Optional stable client-side instance hint; when blank, the SDK generates and persists one per scope. */
+    private String clientInstanceId;
+    /** Directory used to persist generated client instance ids. Blank uses ~/.tikee/workers. */
+    private String stateDir;
     /** Namespace reported during registration. */
     private String namespace = "default";
     /** App reported during registration. */

@@ -10,7 +10,7 @@ Current packages:
 
 Java SDK uses Gradle and requires JDK 21+. Maven `pom.xml` is intentionally not used. SDK/demo code may use Lombok to reduce boilerplate; Spring beans should prefer constructor injection.
 
-Registration model: Java workers treat tikee-assigned `worker_id` as authoritative. Starter configuration exposes `tikee.worker.client-instance-id` only as an optional stable hint; `GrpcTikeeWorkerClient` reads `WorkerRegistered.worker_id` and uses it for heartbeat/log/result calls.
+Registration model: Java workers treat tikee-assigned `worker_id` as authoritative. The SDK auto-generates and persists a stable `client_instance_id` per namespace/app/cluster/region so reconnects correlate to the same worker identity. `tikee.worker.client-instance-id` remains an advanced optional override only; normal applications and demos should not set it. `GrpcTikeeWorkerClient` reads `WorkerRegistered.worker_id` and uses it for heartbeat/log/result calls.
 
 Validation from repository root:
 
@@ -30,7 +30,8 @@ tikee:
     auto-startup: true # SmartLifecycle starts/stops the outbound worker client
     dry-run: false # true for local demo without a live tikee
     endpoint: http://0.0.0.0:9998
-    client-instance-id: spring-worker
+    # client-instance-id: optional advanced override; leave blank to let the SDK persist one
+    # state-dir: ~/.tikee/workers
     namespace: default
     app: default
     cluster: local

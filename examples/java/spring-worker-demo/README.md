@@ -17,7 +17,7 @@ The demo test suite covers:
 
 The demo is a normal embedded-web Spring Boot application. `bootRun` stays online through the web server, not a custom blocking runner. It exposes `GET /demo/health` and `GET /demo/processors` on `TIKEE_DEMO_SERVER_PORT` (default `18080`).
 
-The demo defaults to `tikee.worker.dry-run=true` so it can run as a local Spring Boot web app without a live tikee server. To make it appear in the Worker cluster page, start tikee with `config/dev.toml`, then run:
+The demo does not configure `client-instance-id`; the SDK creates and reuses a stable local instance id under `~/.tikee/workers` for the configured namespace/app/cluster/region. The demo defaults to `tikee.worker.dry-run=true` so it can run as a local Spring Boot web app without a live tikee server. To make it appear in the Worker cluster page, start tikee with `config/dev.toml`, then run:
 
 ```bash
 (cd examples/java/spring-worker-demo && TIKEE_WORKER_DRY_RUN=false TIKEE_WORKER_ENDPOINT=http://127.0.0.1:9998 TIKEE_DEMO_SERVER_PORT=18080 ./gradlew bootRun)

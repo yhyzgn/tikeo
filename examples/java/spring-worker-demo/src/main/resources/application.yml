@@ -12,7 +12,6 @@ tikee:
   worker:
     dry-run: false
     endpoint: http://127.0.0.1:9998
-    client-instance-id: spring-demo-worker
     namespace: default
     app: default
     cluster: local

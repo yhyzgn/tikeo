@@ -1,6 +1,7 @@
 package com.yhyzgn.tikee.boot.autoconfigure;
 
 import com.yhyzgn.tikee.boot.lifecycle.TikeeWorkerLifecycle;
+import com.yhyzgn.tikee.worker.identity.ClientInstanceIds;
 import com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClient;
 import com.yhyzgn.tikee.worker.client.NoopTikeeWorkerClient;
 import com.yhyzgn.tikee.worker.client.TikeeWorkerClient;
@@ -25,8 +26,22 @@ public class TikeeWorkerAutoConfiguration {
     @ConditionalOnProperty(prefix = "tikee.worker", name = "enabled", havingValue = "true", matchIfMissing = true)
     TikeeWorkerClient tikeeWorkerClient(
             TikeeWorkerProperties properties, TikeeProcessorRegistry processorRegistry) {
+        String clientInstanceId = properties.getStateDir() == null || properties.getStateDir().isBlank()
+                ? ClientInstanceIds.resolve(
+                        properties.getClientInstanceId(),
+                        properties.getNamespace(),
+                        properties.getApp(),
+                        properties.getCluster(),
+                        properties.getRegion())
+                : ClientInstanceIds.resolve(
+                        properties.getClientInstanceId(),
+                        properties.getNamespace(),
+                        properties.getApp(),
+                        properties.getCluster(),
+                        properties.getRegion(),
+                        java.nio.file.Path.of(properties.getStateDir()));
         var registration = new WorkerRegistration(
-                properties.getClientInstanceId(),
+                clientInstanceId,
                 properties.getNamespace(),
                 properties.getApp(),
                 properties.getCluster(),

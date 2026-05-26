@@ -18,7 +18,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "tikee.worker.dry-run=true",
-        "tikee.worker.client-instance-id=test-spring-demo-worker",
+        "tikee.worker.state-dir=${java.io.tmpdir}/tikee-spring-worker-demo-test",
         "tikee.worker.namespace=demo-ns",
         "tikee.worker.app=demo-app",
         "tikee.worker.cluster=demo-cluster",
@@ -39,13 +39,13 @@ class SpringWorkerDemoApplicationTest {
     private int port;
 
     @Test
-    void dryRunClientUsesConfiguredIdentityAndStartsWithLifecycle() {
+    void dryRunClientUsesGeneratedIdentityAndStartsWithLifecycle() {
         assertThat(client).isInstanceOf(NoopTikeeWorkerClient.class);
         NoopTikeeWorkerClient noop = (NoopTikeeWorkerClient) client;
 
         assertThat(noop.running()).isTrue();
-        assertThat(noop.workerId()).isEqualTo("dry-run-test-spring-demo-worker");
-        assertThat(noop.registration().clientInstanceId()).isEqualTo("test-spring-demo-worker");
+        assertThat(noop.workerId()).startsWith("dry-run-java-");
+        assertThat(noop.registration().clientInstanceId()).startsWith("java-");
         assertThat(noop.registration().namespace()).isEqualTo("demo-ns");
         assertThat(noop.registration().app()).isEqualTo("demo-app");
         assertThat(noop.registration().cluster()).isEqualTo("demo-cluster");
@@ -62,7 +62,7 @@ class SpringWorkerDemoApplicationTest {
 
         assertThat(health).contains("\"status\":\"ok\"");
         assertThat(health).contains("\"connected\":true");
-        assertThat(health).contains("\"workerId\":\"dry-run-test-spring-demo-worker\"");
+        assertThat(health).contains("\"workerId\":\"dry-run-java-");
         assertThat(health).contains("demo.echo", "demo.fail", "demo.workflow.step");
         assertThat(processors).contains("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail");
     }
