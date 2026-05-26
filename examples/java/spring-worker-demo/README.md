@@ -17,16 +17,17 @@ The demo test suite covers:
 
 The demo is a normal embedded-web Spring Boot application. `bootRun` stays online through the web server, not a custom blocking runner. It exposes `GET /demo/health` and `GET /demo/processors` on `TIKEE_DEMO_SERVER_PORT` (default `18080`).
 
-The demo does not configure `client-instance-id`; the SDK creates and reuses a stable local instance id under `~/.tikee/workers` for the configured namespace/app/cluster/region. The demo defaults to `tikee.worker.dry-run=true` so it can run as a local Spring Boot web app without a live tikee server. To make it appear in the Worker cluster page, start tikee with `config/dev.toml`, then run:
+The demo does not configure `client-instance-id`; the SDK creates and reuses a stable local instance id under `~/.tikee/workers` for the configured namespace/app/cluster/region. The demo defaults to `tikee.worker.dry-run=false`, so `bootRun` connects to the live Worker Tunnel at `TIKEE_WORKER_ENDPOINT` and should appear in the Worker cluster page after registration. Start tikee with `config/dev.toml`, then run:
 
 ```bash
-(cd examples/java/spring-worker-demo && TIKEE_WORKER_DRY_RUN=false TIKEE_WORKER_ENDPOINT=http://127.0.0.1:9998 TIKEE_DEMO_SERVER_PORT=18080 ./gradlew bootRun)
+(cd examples/java/spring-worker-demo && TIKEE_WORKER_ENDPOINT=http://127.0.0.1:9998 TIKEE_DEMO_SERVER_PORT=18080 ./gradlew bootRun)
 ```
 
+For local UI-only startup without a tikee server, explicitly set `TIKEE_WORKER_DRY_RUN=true`; dry-run workers do not register with the server and will not appear in the Worker cluster page.
 
 ## API-type task management example
 
-In tikee, `schedule_type: api` means the job is created as an explicit API/SDK/UI-triggered task. It does **not** mean the worker executes an HTTP API call. The Java SDK management client can create, enable/disable, and manually trigger these jobs.
+In tikee, `scheduleType: api` means the job is created as an explicit API/SDK/UI-triggered task. It does **not** mean the worker executes an HTTP API call. The Java SDK management client can create, enable/disable, and manually trigger these jobs.
 
 When the demo has a management token, enable the optional control-plane endpoints:
 

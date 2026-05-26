@@ -116,6 +116,24 @@ impl JobInstanceLogRepository {
         Ok(row.map(JobInstanceLogSummary::from))
     }
 
+    /// Return the worker id from the latest persisted log row for an instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn latest_worker_by_instance(
+        &self,
+        instance_id: &str,
+    ) -> Result<Option<String>, sea_orm::DbErr> {
+        let row = job_instance_log::Entity::find()
+            .filter(job_instance_log::Column::InstanceId.eq(instance_id))
+            .order_by_desc(job_instance_log::Column::CreatedAt)
+            .order_by_desc(job_instance_log::Column::Sequence)
+            .one(&self.db)
+            .await?;
+        Ok(row.map(|value| value.worker_id))
+    }
+
     /// List logs for an instance in sequence order.
     ///
     /// # Errors

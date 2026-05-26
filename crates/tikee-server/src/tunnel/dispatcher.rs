@@ -23,6 +23,7 @@ use crate::cluster::SharedClusterCoordinator;
 const DISPATCH_INTERVAL: Duration = Duration::from_millis(500);
 const DISPATCH_BATCH_SIZE: u64 = 16;
 const DISPATCH_LEASE_SECONDS: i64 = 30;
+const DISPATCH_RETRY_BACKOFF_SECONDS: i64 = 2;
 const DISPATCHER_LEASE_OWNER: &str = "tikee-dispatcher";
 
 fn dispatcher_fencing_token(node_id: &str, leader_fencing_token: Option<&str>) -> String {
@@ -175,11 +176,12 @@ async fn dispatch_single_instances(
         }
         let Some(job) = jobs.get(&instance.job_id).await? else {
             let _ = workflows
-                .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                .mark_dispatch_queue_failed(&claim.item.id, DISPATCHER_LEASE_OWNER)
                 .await?;
             instances
-                .update_status(&instance.id, InstanceStatus::Pending)
+                .update_status(&instance.id, InstanceStatus::Failed)
                 .await?;
+            warn!(queue_id = %claim.item.id, instance_id = %instance.id, job_id = %instance.job_id, "closed dispatch queue item for missing job");
             continue;
         };
 
@@ -196,7 +198,11 @@ async fn dispatch_single_instances(
             DispatchTaskBuild::Rejected(failure) => {
                 append_script_governance_log(logs, audit, &instance.id, &failure).await?;
                 let _ = workflows
-                    .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                    .release_dispatch_queue_item_after(
+                        &claim.item.id,
+                        DISPATCHER_LEASE_OWNER,
+                        DISPATCH_RETRY_BACKOFF_SECONDS,
+                    )
                     .await?;
                 instances
                     .update_status(&instance.id, InstanceStatus::Pending)
@@ -234,7 +240,11 @@ async fn dispatch_single_instances(
                 .await?;
             }
             let _ = workflows
-                .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                .release_dispatch_queue_item_after(
+                    &claim.item.id,
+                    DISPATCHER_LEASE_OWNER,
+                    DISPATCH_RETRY_BACKOFF_SECONDS,
+                )
                 .await?;
             instances
                 .update_status(&instance.id, InstanceStatus::Pending)
@@ -766,6 +776,133 @@ mod tests {
             .unwrap_or_else(|error| panic!("instance should load: {error}"))
             .unwrap_or_else(|| panic!("instance should exist"));
         assert_eq!(updated.status, InstanceStatus::Running);
+    }
+
+    #[tokio::test]
+    async fn dispatch_once_backoffs_unmatched_queue_item_without_starving_later_work() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db.clone());
+        let logs = tikee_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
+        let scripts = ScriptRepository::new(db);
+
+        let blocked_job = jobs
+            .create_job(CreateJob {
+                namespace: "default".to_owned(),
+                app: "offline".to_owned(),
+                name: "blocked".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                processor_name: Some("demo.blocked".to_owned()),
+                enabled: true,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("blocked job should be created: {error}"));
+        let blocked_instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: blocked_job.id.clone(),
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("blocked instance should be created: {error}"))
+            .unwrap_or_else(|| panic!("blocked job should exist"));
+
+        let valid_job = jobs
+            .create_job(CreateJob {
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "manual".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                processor_name: Some("demo.echo".to_owned()),
+                enabled: true,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("valid job should be created: {error}"));
+        let valid_instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: valid_job.id.clone(),
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("valid instance should be created: {error}"))
+            .unwrap_or_else(|| panic!("valid job should exist"));
+
+        let registry = WorkerRegistry::default();
+        let (tx, mut rx) = mpsc::channel(1);
+        registry
+            .register(
+                RegisterWorker {
+                    client_instance_id: "worker-1".to_owned(),
+                    app: "billing".to_owned(),
+                    namespace: "default".to_owned(),
+                    cluster: "local".to_owned(),
+                    region: "local".to_owned(),
+                    capabilities: Vec::new(),
+                    labels: HashMap::default(),
+                },
+                tx,
+            )
+            .await;
+
+        dispatch_once(
+            &jobs,
+            &instances,
+            &attempts,
+            &workflows,
+            &scripts,
+            &logs,
+            &audit,
+            &registry,
+            "test-fence",
+        )
+        .await
+        .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
+
+        let message = rx
+            .recv()
+            .await
+            .unwrap_or_else(|| panic!("matched worker should receive later valid dispatch"))
+            .unwrap_or_else(|error| panic!("dispatch should be ok: {error}"));
+        match message.kind {
+            Some(server_message::Kind::DispatchTask(task)) => {
+                assert_eq!(task.instance_id, valid_instance.id);
+                assert_eq!(task.processor_name, "demo.echo");
+            }
+            other => panic!("unexpected server message: {other:?}"),
+        }
+
+        let blocked = instances
+            .get(&blocked_instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("blocked instance should load: {error}"))
+            .unwrap_or_else(|| panic!("blocked instance should exist"));
+        assert_eq!(blocked.status, InstanceStatus::Pending);
+        let valid = instances
+            .get(&valid_instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("valid instance should load: {error}"))
+            .unwrap_or_else(|| panic!("valid instance should exist"));
+        assert_eq!(valid.status, InstanceStatus::Running);
+
+        let overview = workflows
+            .queue_overview(10)
+            .await
+            .unwrap_or_else(|error| panic!("queue should load: {error}"));
+        let blocked_queue = overview
+            .items
+            .iter()
+            .find(|item| item.job_instance_id.as_deref() == Some(blocked_instance.id.as_str()))
+            .unwrap_or_else(|| panic!("blocked queue item should exist"));
+        assert_eq!(blocked_queue.status, "pending");
+        assert!(blocked_queue.run_after > blocked_queue.created_at);
     }
 
     #[tokio::test]

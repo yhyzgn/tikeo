@@ -43,7 +43,7 @@
                     app,
                     "POST",
                     "/api/v1/raft/append-entries",
-                    r#"{"from":1,"to":2,"term":1,"message_type":"MsgHeartbeat","index":0,"log_term":0,"commit":0,"snapshot_index":null,"snapshot_term":null,"entries":[],"context":null,"reject":false,"reject_hint":null,"leader_fencing_token":null}"#,
+                    r#"{"from":1,"to":2,"term":1,"message_type":"MsgHeartbeat","index":0,"log_term":0,"commit":0,"snapshot_index":null,"snapshot_term":null,"entries":[],"context":null,"reject":false,"reject_hint":null,"leaderFencingToken":null}"#,
                 )
                 .await,
             )
@@ -65,7 +65,7 @@
         );
         assert_eq!(json["data"]["local_role"], "follower");
         assert_eq!(
-            json["data"]["leader_fencing_token"],
+            json["data"]["leaderFencingToken"],
             serde_json::Value::Null
         );
     }
@@ -110,7 +110,7 @@
             )
             .with_raft_transport_token(Some("secret-raft-token".to_owned())),
         );
-        let body = r#"{"from":1,"to":2,"term":1,"message_type":"MsgHeartbeat","index":0,"log_term":0,"commit":0,"snapshot_index":null,"snapshot_term":null,"entries":[],"context":null,"reject":false,"reject_hint":null,"leader_fencing_token":null}"#;
+        let body = r#"{"from":1,"to":2,"term":1,"message_type":"MsgHeartbeat","index":0,"log_term":0,"commit":0,"snapshot_index":null,"snapshot_term":null,"entries":[],"context":null,"reject":false,"reject_hint":null,"leaderFencingToken":null}"#;
 
         let accepted = app
             .clone()
@@ -134,7 +134,7 @@
         assert_eq!(accepted_json["code"], 0);
         assert_eq!(accepted_json["data"]["accepted"], true);
         assert_eq!(accepted_json["data"]["local_role"], "follower");
-        assert_eq!(accepted_json["data"]["leader_fencing_token"], Value::Null);
+        assert_eq!(accepted_json["data"]["leaderFencingToken"], Value::Null);
 
         let rejected = app
             .clone()

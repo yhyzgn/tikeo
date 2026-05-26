@@ -213,8 +213,8 @@ export function ScriptsPage() {
   const [scripts, setScripts] = useState<ScriptSummary[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Create modal
-  const [modalOpen, setModalOpen] = useState(false);
+  // Create drawer
+  const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [form] = Form.useForm();
   const currentLanguage = Form.useWatch('language', form) ?? 'shell';
 
@@ -260,7 +260,7 @@ export function ScriptsPage() {
         policy: policyFromForm(values),
       });
       message.success('脚本创建成功');
-      setModalOpen(false);
+      setCreateDrawerOpen(false);
       form.resetFields();
       void load();
     } catch (err) {
@@ -367,14 +367,14 @@ export function ScriptsPage() {
 
   const versionOptions = versions.map((v) => ({
     value: v.version_number,
-    label: `v${v.version_number} - ${v.created_by} (${new Date(v.created_at).toLocaleString()})`,
+    label: `v${v.version_number} - ${v.createdBy} (${new Date(v.createdAt).toLocaleString()})`,
   }));
 
   const filteredScripts = useMemo(() => scripts.filter((script) => {
     const keyword = String(query.keyword ?? '').trim().toLowerCase();
     const language = String(query.language ?? '').trim();
     const status = String(query.status ?? '').trim();
-    const matchesKeyword = keyword === '' || [script.name, script.id, script.created_by].some((value) => value.toLowerCase().includes(keyword));
+    const matchesKeyword = keyword === '' || [script.name, script.id, script.createdBy].some((value) => value.toLowerCase().includes(keyword));
     const matchesLanguage = language === '' || script.language === language;
     const matchesStatus = status === '' || script.status === status;
     return matchesKeyword && matchesLanguage && matchesStatus;
@@ -525,8 +525,8 @@ export function ScriptsPage() {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <PermissionGate resource="scripts" action="manage"><Button type="primary" onClick={() => { form.setFieldsValue(policyToForm()); setModalOpen(true); }}>新建脚本</Button></PermissionGate>
+        <Space wrap className="card-toolbar">
+          <PermissionGate resource="scripts" action="manage"><Button type="primary" onClick={() => { form.setFieldsValue(policyToForm()); setCreateDrawerOpen(true); }}>新建脚本</Button></PermissionGate>
           <Input allowClear placeholder="搜索脚本/创建人" value={String(query.keyword ?? '')} onChange={(event) => setQuery({ keyword: event.target.value, page: 1 })} style={{ width: 220 }} />
           <Select allowClear placeholder="语言" value={query.language || undefined} onChange={(value) => setQuery({ language: value ?? '', page: 1 })} style={{ width: 150 }} options={LANGUAGE_OPTIONS} />
           <Select allowClear placeholder="状态" value={query.status || undefined} onChange={(value) => setQuery({ status: value ?? '', page: 1 })} style={{ width: 130 }} options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
@@ -534,13 +534,14 @@ export function ScriptsPage() {
       </div>
       <Table rowKey="id" dataSource={filteredScripts} columns={columns} loading={loading} pagination={{ pageSize: Number(query.page_size) || 10, current: Number(query.page) || 1, onChange: (page, pageSize) => setQuery({ page, page_size: pageSize }) }} />
 
-      {/* Create Modal */}
-      <Modal
+      {/* Create Drawer */}
+      <Drawer
         title="新建脚本"
-        open={modalOpen}
-        onOk={handleCreate}
-        onCancel={() => { setModalOpen(false); form.resetFields(); }}
-        width={700}
+        open={createDrawerOpen}
+        onClose={() => { setCreateDrawerOpen(false); form.resetFields(); }}
+        width={760}
+        destroyOnClose
+        extra={<Space wrap className="card-toolbar"><Button onClick={() => { setCreateDrawerOpen(false); form.resetFields(); }}>取消</Button><Button type="primary" onClick={() => void handleCreate()}>创建脚本</Button></Space>}
       >
         <Form form={form} layout="vertical">
           <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}>
@@ -600,7 +601,7 @@ export function ScriptsPage() {
             <Select mode="tags" placeholder="输入变量名后回车" />
           </Form.Item>
         </Form>
-      </Modal>
+      </Drawer>
 
       {/* View Detail Drawer */}
       <Drawer
@@ -648,9 +649,9 @@ export function ScriptsPage() {
                   ? detailScript.allowed_env_vars.join(', ')
                   : '-'}
               </Descriptions.Item>
-              <Descriptions.Item label="创建者">{detailScript.created_by}</Descriptions.Item>
-              <Descriptions.Item label="创建时间">{new Date(detailScript.created_at).toLocaleString()}</Descriptions.Item>
-              <Descriptions.Item label="更新时间" span={2}>{new Date(detailScript.updated_at).toLocaleString()}</Descriptions.Item>
+              <Descriptions.Item label="创建者">{detailScript.createdBy}</Descriptions.Item>
+              <Descriptions.Item label="创建时间">{new Date(detailScript.createdAt).toLocaleString()}</Descriptions.Item>
+              <Descriptions.Item label="更新时间" span={2}>{new Date(detailScript.updatedAt).toLocaleString()}</Descriptions.Item>
             </Descriptions>
             <h4 style={{ marginTop: 24 }}>脚本内容</h4>
             <CodeEditor
@@ -706,11 +707,11 @@ export function ScriptsPage() {
                   width: 80,
                   render: (v: string) => <Tag color={STATUS_COLORS[v] ?? 'default'}>{STATUS_LABELS[v] ?? v}</Tag>,
                 },
-                { title: '创建者', dataIndex: 'created_by', key: 'created_by', width: 120 },
+                { title: '创建者', dataIndex: 'createdBy', key: 'createdBy', width: 120 },
                 {
                   title: '创建时间',
-                  dataIndex: 'created_at',
-                  key: 'created_at',
+                  dataIndex: 'createdAt',
+                  key: 'createdAt',
                   render: (v: string) => new Date(v).toLocaleString(),
                 },
               ]}
@@ -872,7 +873,7 @@ export function ScriptEditorPage() {
           <Card
             className="script-editor-page__main"
             title={<Space><span>{editingScript?.name ?? '脚本'}</span>{editingScript ? <Tag color={STATUS_COLORS[editingScript.status] ?? 'default'}>{STATUS_LABELS[editingScript.status] ?? editingScript.status}</Tag> : null}</Space>}
-            extra={<Space><Button onClick={() => navigate('/scripts')}>取消</Button><Button type="primary" loading={saving} onClick={() => void handleEditPreview()}>预览变更</Button></Space>}
+            extra={<Space wrap className="card-toolbar"><Button onClick={() => navigate('/scripts')}>取消</Button><Button type="primary" loading={saving} onClick={() => void handleEditPreview()}>预览变更</Button></Space>}
           >
             {hasVersions ? (
               <Alert type="warning" showIcon style={{ marginBottom: 16 }} message="此脚本存在历史版本，更新后将生成新版本记录。" />

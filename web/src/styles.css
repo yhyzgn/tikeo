@@ -1,4 +1,6 @@
 :root {
+  --app-primary-color: var(--app-primary-color);
+  --app-info-color: #0ea5e9;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #172033;
   background: #f6f8fc;
@@ -13,7 +15,7 @@ body,
 
 body {
   background:
-    radial-gradient(circle at 10% 0%, rgba(37, 99, 235, 0.08), transparent 30%),
+    radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--app-primary-color) 8%, transparent), transparent 30%),
     radial-gradient(circle at 90% 8%, rgba(14, 165, 233, 0.09), transparent 26%),
     #f6f8fc;
 }
@@ -47,8 +49,8 @@ body {
   border-radius: 14px;
   color: #ffffff;
   font-weight: 800;
-  background: linear-gradient(135deg, #2563eb, #0ea5e9);
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22);
+  background: linear-gradient(135deg, var(--app-primary-color), var(--app-info-color));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--app-primary-color) 22%, transparent);
 }
 
 .app-shell__brand-title {
@@ -104,8 +106,8 @@ body {
 }
 
 .app-shell__menu .ant-menu-item-selected {
-  color: #1d4ed8 !important;
-  background: #eff6ff !important;
+  color: var(--app-primary-color) !important;
+  background: color-mix(in srgb, var(--app-primary-color) 10%, white) !important;
   font-weight: 700;
 }
 
@@ -215,7 +217,7 @@ body {
 
 .hero-panel__summary strong {
   display: block;
-  color: #2563eb;
+  color: var(--app-primary-color);
   font-size: 48px;
   font-weight: 800;
   line-height: 1;
@@ -285,7 +287,7 @@ body {
   justify-content: center;
   padding: 24px;
   background:
-    radial-gradient(circle at 20% 10%, rgba(37, 99, 235, 0.12), transparent 30%),
+    radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--app-primary-color) 12%, transparent), transparent 30%),
     linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%);
 }
 
@@ -301,7 +303,7 @@ body {
   height: 5px;
   margin-bottom: 18px;
   border-radius: 999px;
-  background: linear-gradient(90deg, #2563eb, #0ea5e9);
+  background: linear-gradient(90deg, var(--app-primary-color), var(--app-info-color));
 }
 
 @media (max-width: 991px) {
@@ -531,8 +533,8 @@ body {
   padding: 0;
   border: 3px solid #ffffff;
   border-radius: 999px;
-  background: #2563eb;
-  box-shadow: 0 0 0 1px #93c5fd, 0 4px 10px rgba(37, 99, 235, 0.25);
+  background: var(--app-primary-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-primary-color) 35%, white), 0 4px 10px color-mix(in srgb, var(--app-primary-color) 25%, transparent);
   cursor: crosshair;
   opacity: 0;
   pointer-events: none;
@@ -551,17 +553,17 @@ body {
 
 .workflow-node-port--input {
   left: -10px;
-  background: #0ea5e9;
+  background: var(--app-info-color);
 }
 
 .workflow-node-port--output {
   right: -10px;
-  background: #2563eb;
+  background: var(--app-primary-color);
 }
 
 .workflow-node-port:hover {
   transform: scale(1.18);
-  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.18), 0 8px 16px rgba(37, 99, 235, 0.28);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-info-color) 18%, transparent), 0 8px 16px color-mix(in srgb, var(--app-primary-color) 28%, transparent);
 }
 
 .workflow-node-canvas__temp-edge {
@@ -587,8 +589,8 @@ body {
 }
 
 .workflow-node-card--linking {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16), 0 18px 38px rgba(30, 64, 175, 0.14);
+  border-color: var(--app-primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-primary-color) 16%, transparent), 0 18px 38px color-mix(in srgb, var(--app-primary-color) 14%, transparent);
 }
 
 .workflow-node-port::after {
@@ -617,7 +619,7 @@ body {
 
 .workflow-edge__handle {
   fill: #ffffff;
-  stroke: #0ea5e9;
+  stroke: var(--app-info-color);
   stroke-width: 3px;
   cursor: grab;
   pointer-events: all;
@@ -660,7 +662,7 @@ body {
 
 .workflow-edge__handle-ghost {
   fill: #ffffff;
-  stroke: #0ea5e9;
+  stroke: var(--app-info-color);
   stroke-width: 3px;
   pointer-events: none;
   filter: drop-shadow(0 4px 8px rgba(14, 165, 233, 0.22));
@@ -674,14 +676,14 @@ body {
   padding: 0;
   border: 3px solid #ffffff;
   border-radius: 999px;
-  background: #0ea5e9;
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.45), 0 8px 16px rgba(14, 165, 233, 0.28);
+  background: var(--app-info-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-info-color) 45%, transparent), 0 8px 16px color-mix(in srgb, var(--app-info-color) 28%, transparent);
   cursor: grab;
   transform: translate(-50%, -50%);
 }
 
 .workflow-edge-rehandle--from {
-  background: #2563eb;
+  background: var(--app-primary-color);
 }
 
 .workflow-edge-rehandle:active {
@@ -943,12 +945,6 @@ body {
   min-height: 238px;
 }
 
-@media (max-width: 767px) {
-  .scope-management-hero.hero-panel {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
 
 .worker-history-layer-switch {
   margin-bottom: 14px;
@@ -965,4 +961,180 @@ body {
 .worker-event-timeline {
   padding-top: 10px;
   border-top: 1px solid #e7ecf4;
+}
+
+.table-action-strip .ant-btn {
+  padding-inline: 4px;
+}
+
+.table-action-strip .ant-btn + .ant-btn,
+.table-action-strip .ant-space-item + .ant-space-item {
+  margin-left: 2px;
+}
+
+.theme-color-picker-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.theme-color-picker-panel .ant-color-picker-presets {
+  margin-top: 4px;
+}
+
+/* Keep Ant Design primary buttons bound to the runtime site theme color. */
+.ant-btn-primary,
+.ant-btn-color-primary.ant-btn-variant-solid {
+  background: var(--app-primary-color) !important;
+  border-color: var(--app-primary-color) !important;
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--app-primary-color) 22%, transparent);
+}
+
+.ant-btn-primary:not(:disabled):not(.ant-btn-disabled):hover,
+.ant-btn-color-primary.ant-btn-variant-solid:not(:disabled):not(.ant-btn-disabled):hover {
+  background: color-mix(in srgb, var(--app-primary-color) 88%, white) !important;
+  border-color: color-mix(in srgb, var(--app-primary-color) 88%, white) !important;
+}
+
+.ant-btn-primary:not(:disabled):not(.ant-btn-disabled):active,
+.ant-btn-color-primary.ant-btn-variant-solid:not(:disabled):not(.ant-btn-disabled):active {
+  background: color-mix(in srgb, var(--app-primary-color) 82%, black) !important;
+  border-color: color-mix(in srgb, var(--app-primary-color) 82%, black) !important;
+}
+
+/* Theme operational actions, not only solid primary buttons. */
+.ant-btn-link:not(.ant-btn-dangerous),
+.ant-btn-color-link:not(.ant-btn-dangerous) {
+  color: var(--app-primary-color) !important;
+}
+
+.ant-btn-link:not(.ant-btn-dangerous):hover,
+.ant-btn-color-link:not(.ant-btn-dangerous):hover,
+.ant-btn-variant-link:not(.ant-btn-dangerous):hover {
+  color: color-mix(in srgb, var(--app-primary-color) 82%, black) !important;
+  background: color-mix(in srgb, var(--app-primary-color) 8%, transparent) !important;
+}
+
+.ant-btn-default:not(.ant-btn-dangerous):not(:disabled):hover,
+.ant-btn-variant-outlined:not(.ant-btn-dangerous):not(:disabled):hover {
+  color: var(--app-primary-color) !important;
+  border-color: var(--app-primary-color) !important;
+}
+
+.table-action-strip .ant-btn-link:not(.ant-btn-dangerous) {
+  color: var(--app-primary-color) !important;
+  font-weight: 600;
+}
+
+.hero-panel__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.card-toolbar {
+  justify-content: flex-end;
+  max-width: min(100%, 760px);
+}
+
+.clean-card .ant-card-head,
+.ant-card.clean-card .ant-card-head {
+  align-items: flex-start;
+  gap: 12px;
+  padding-block: 12px;
+}
+
+.clean-card .ant-card-head-title,
+.ant-card.clean-card .ant-card-head-title {
+  min-width: 140px;
+  padding-block: 4px;
+}
+
+.clean-card .ant-card-extra,
+.ant-card.clean-card .ant-card-extra {
+  min-width: 0;
+  white-space: normal;
+}
+
+@media (max-width: 991px) {
+  .hero-panel {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .hero-panel__actions,
+  .card-toolbar {
+    justify-content: flex-start;
+    width: 100%;
+  }
+}
+
+.scope-management-hero .hero-panel__header h3.ant-typography {
+  margin: 0;
+  color: #0f172a;
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.scope-management-hero__desc.ant-typography {
+  display: block;
+  max-width: min(960px, 72vw);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.scope-management-hero.hero-panel {
+  padding-block: 24px;
+}
+
+/* Compact page header standard: all page-level hero titles use a secondary-title scale. */
+.hero-panel {
+  padding-block: 24px;
+}
+
+.hero-panel__header h1.ant-typography,
+.hero-panel__header h2.ant-typography,
+.hero-panel__header h3.ant-typography,
+.hero-panel__content > h1.ant-typography,
+.hero-panel__content > h2.ant-typography,
+.hero-panel__content > h3.ant-typography {
+  margin: 0;
+  color: #0f172a;
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.hero-panel__desc.ant-typography {
+  display: block;
+  max-width: min(960px, 72vw);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.hero-panel__content {
+  min-width: 0;
+}
+
+.hero-panel__summary {
+  padding: 18px 22px;
+}
+
+.hero-panel__summary strong {
+  font-size: 36px;
+}
+
+@media (max-width: 991px) {
+  .hero-panel__desc.ant-typography {
+    max-width: 100%;
+  }
 }

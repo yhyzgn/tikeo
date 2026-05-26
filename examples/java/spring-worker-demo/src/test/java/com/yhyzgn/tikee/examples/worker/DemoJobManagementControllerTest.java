@@ -32,13 +32,13 @@ class DemoJobManagementControllerTest {
     @Test
     void exposesApiTypeTaskManagementExample() throws Exception {
         String list = httpGet("/demo/jobs");
-        assertThat(list).contains("demo.echo").contains("\"schedule_type\":\"api\"");
+        assertThat(list).contains("demo.echo").contains("\"scheduleType\":\"api\"");
 
         String example = httpPost("/demo/jobs/echo");
         assertThat(example)
                 .contains("demo managed echo")
-                .contains("\"schedule_type\":\"api\"")
-                .contains("\"trigger_type\":\"api\"")
+                .contains("\"scheduleType\":\"api\"")
+                .contains("\"triggerType\":\"api\"")
                 .contains("inst-demo");
     }
 

@@ -6,7 +6,7 @@ export interface ApiResponse<T> {
 
 export interface Page<T> {
   items: T[];
-  next_page_token: string | null;
+  nextPageToken: string | null;
 }
 
 export interface JobSummary {
@@ -14,9 +14,9 @@ export interface JobSummary {
   namespace: string;
   app: string;
   name: string;
-  schedule_type: string;
-  schedule_expr: string | null;
-  processor_name: string | null;
+  scheduleType: string;
+  scheduleExpr: string | null;
+  processorName: string | null;
   enabled: boolean;
 }
 
@@ -24,65 +24,74 @@ export interface CreateJobRequest {
   namespace?: string;
   app?: string;
   name: string;
-  schedule_type?: string;
-  schedule_expr?: string | null;
-  processor_name?: string | null;
+  scheduleType?: string;
+  scheduleExpr?: string | null;
+  processorName?: string | null;
+  enabled?: boolean;
+}
+
+export interface UpdateJobRequest {
+  name?: string;
+  scheduleType?: string;
+  scheduleExpr?: string | null;
+  processorName?: string | null;
   enabled?: boolean;
 }
 
 export interface TriggerJobRequest {
-  trigger_type?: string;
-  execution_mode?: 'single' | 'broadcast';
+  triggerType?: string;
+  executionMode?: 'single' | 'broadcast';
 }
 
 export interface JobInstanceSummary {
   id: string;
-  job_id: string;
+  jobId: string;
   status: string;
-  trigger_type: string;
-  execution_mode: string;
-  created_at: string;
-  updated_at: string;
-  log_count: number;
-  latest_log?: JobInstanceLogSummary | null;
+  triggerType: string;
+  executionMode: string;
+  createdAt: string;
+  updatedAt: string;
+  logCount: number;
+  latestLog?: JobInstanceLogSummary | null;
+  workerId?: string | null;
 }
 
 export interface JobInstanceAttemptSummary {
   id: string;
-  instance_id: string;
-  worker_id: string;
+  instanceId: string;
+  workerId: string;
   status: string;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface JobInstanceLogSummary {
   id: string;
-  instance_id: string;
-  worker_id: string;
+  instanceId: string;
+  workerId: string;
   level: string;
   message: string;
-  governance_event?: string | null;
-  governance_failure_class?: string | null;
-  governance_message?: string | null;
+  governanceEvent?: string | null;
+  governanceFailureClass?: string | null;
+  governanceMessage?: string | null;
   sequence: number;
-  created_at: string;
+  createdAt: string;
 }
 
 
 export interface NamespaceSummary {
   id: string;
   name: string;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AppScopeSummary {
   id: string;
   namespace: string;
   name: string;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WorkerPoolSummary {
@@ -90,8 +99,8 @@ export interface WorkerPoolSummary {
   namespace: string;
   app: string;
   name: string;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateNamespaceRequest { name: string }
@@ -102,7 +111,7 @@ export interface UserSummary {
   id: string;
   username: string;
   role: string;
-  created_at: string;
+  createdAt: string;
 }
 
 export interface CreateUserRequest {
@@ -159,8 +168,8 @@ export interface OidcIdentitySummary {
   namespace: string | null;
   app: string | null;
   worker_pool: string | null;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface UpsertOidcIdentityRequest {
@@ -258,6 +267,17 @@ export async function createJob(payload: CreateJobRequest): Promise<JobSummary> 
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export async function updateJob(jobId: string, payload: UpdateJobRequest): Promise<JobSummary> {
+  return request<JobSummary>(`/api/v1/jobs/${encodeURIComponent(jobId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteJob(jobId: string): Promise<void> {
+  await request<void>(`/api/v1/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE', allowNullData: true });
 }
 
 export async function triggerJob(jobId: string, payload: TriggerJobRequest = {}): Promise<JobInstanceSummary> {
@@ -404,9 +424,9 @@ export interface ScriptSummary {
   allow_network: boolean;
   allowed_env_vars: string[] | null;
   policy: ScriptExecutionPolicy;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateScriptRequest {
@@ -505,8 +525,8 @@ export interface ScriptVersionSummary {
   allow_network: boolean;
   allowed_env_vars: string[] | null;
   policy: ScriptExecutionPolicy;
-  created_by: string;
-  created_at: string;
+  createdBy: string;
+  createdAt: string;
 }
 
 export interface FieldChange {
@@ -548,7 +568,7 @@ export interface AlertDeliveryAttemptSummary {
   attempt: number;
   retry_state: string;
   next_retry_at: string | null;
-  created_at: string;
+  createdAt: string;
 }
 
 export interface AlertDeliveryQueueStatus {
@@ -585,7 +605,7 @@ export interface AuditLogSummary {
   result: 'success' | 'failed' | string;
   failure_reason: string | null;
   ip_address: string | null;
-  created_at: string;
+  createdAt: string;
 }
 
 export interface AuditLogQuery {
@@ -683,10 +703,10 @@ export interface WorkflowNodeSpec {
   key: string;
   name?: string | null;
   kind?: 'job' | 'map' | 'map_reduce' | 'sub_workflow' | string | null;
-  job_id?: string | null;
-  processor_name?: string | null;
-  child_workflow_id?: string | null;
-  map_items?: unknown[] | null;
+  jobId?: string | null;
+  processorName?: string | null;
+  childWorkflowId?: string | null;
+  mapItems?: unknown[] | null;
   config?: unknown;
 }
 
@@ -708,9 +728,9 @@ export interface WorkflowSummary {
   name: string;
   definition: WorkflowDefinition;
   status: string;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WorkflowValidationResult {
@@ -720,49 +740,49 @@ export interface WorkflowValidationResult {
 
 export interface WorkflowDryRunResponse {
   validation: WorkflowValidationResult;
-  start_nodes: string[];
-  node_count: number;
-  edge_count: number;
+  startNodes: string[];
+  nodeCount: number;
+  edgeCount: number;
 }
 
 export interface WorkflowNodeInstanceSummary {
   id: string;
-  workflow_instance_id: string;
-  node_key: string;
+  workflowInstanceId: string;
+  nodeKey: string;
   status: string;
-  job_instance_id: string | null;
-  child_workflow_instance_id: string | null;
-  created_at: string;
-  updated_at: string;
+  jobInstanceId: string | null;
+  childWorkflowInstanceId: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WorkflowInstanceSummary {
   id: string;
-  workflow_id: string;
+  workflowId: string;
   status: string;
-  trigger_type: string;
+  triggerType: string;
   nodes: WorkflowNodeInstanceSummary[];
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WorkflowAdvanceResult {
   instance: WorkflowInstanceSummary;
-  queued_nodes: string[];
+  queuedNodes: string[];
   completed: boolean;
 }
 
 export interface WorkflowShardSummary {
   id: string;
-  workflow_instance_id: string;
-  workflow_node_instance_id: string;
-  node_key: string;
-  shard_index: number;
+  workflowInstanceId: string;
+  workflowNodeInstanceId: string;
+  nodeKey: string;
+  shardIndex: number;
   status: string;
   input: unknown;
   output: unknown | null;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MaterializeWorkflowNodeResult {
@@ -773,20 +793,20 @@ export interface MaterializeWorkflowNodeResult {
 
 export interface RecoverWorkflowNodeResult {
   instance: WorkflowInstanceSummary;
-  queued_nodes: string[];
+  queuedNodes: string[];
 }
 
 export interface DispatchQueueSummary {
   id: string;
-  job_instance_id: string | null;
-  workflow_node_instance_id: string | null;
+  jobInstanceId: string | null;
+  workflowNodeInstanceId: string | null;
   priority: number;
-  run_after: string;
+  runAfter: string;
   status: string;
   attempt: number;
-  worker_selector: string | null;
-  created_at: string;
-  updated_at: string;
+  workerSelector: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface QueueOverview {
@@ -798,9 +818,9 @@ export interface QueueOverview {
 }
 
 export interface WorkerSummary {
-  worker_id: string;
-  logical_instance_id: string;
-  client_instance_id: string | null;
+  workerId: string;
+  logicalInstanceId: string;
+  clientInstanceId: string | null;
   app: string;
   namespace: string;
   cluster: string;
@@ -808,32 +828,32 @@ export interface WorkerSummary {
   capabilities: string[];
   generation: number;
   status: string;
-  status_reason: string | null;
-  replaced_by_worker_id: string | null;
-  last_sequence: number;
+  statusReason: string | null;
+  replacedByWorkerId: string | null;
+  lastSequence: number;
 }
 
 export interface WorkerSessionHistorySummary {
-  worker_id: string;
-  logical_instance_id: string;
+  workerId: string;
+  logicalInstanceId: string;
   generation: number;
   status: string;
-  status_reason: string | null;
-  status_evidence: string | null;
-  lease_expires_at: string;
-  last_heartbeat_at: string;
-  last_sequence: number;
-  replaced_by_worker_id: string | null;
+  statusReason: string | null;
+  statusEvidence: string | null;
+  leaseExpiresAt: string;
+  lastHeartbeatAt: string;
+  lastSequence: number;
+  replacedByWorkerId: string | null;
 }
 
 export interface WorkerSessionEventSummary {
   id: string;
-  worker_id: string;
-  logical_instance_id: string;
-  event_type: string;
+  workerId: string;
+  logicalInstanceId: string;
+  eventType: string;
   reason: string | null;
-  detail_json: string | null;
-  created_at: string;
+  detailJson: string | null;
+  createdAt: string;
 }
 
 export interface WorkerLifecycleHistoryResponse {
@@ -848,12 +868,12 @@ export interface WorkerListResponse {
 
 export interface InstanceEventSummary {
   id: string;
-  instance_id: string;
+  instanceId: string;
   instance_type: string;
-  event_type: string;
+  eventType: string;
   message: string;
   payload: string | null;
-  created_at: string;
+  createdAt: string;
 }
 
 function normalizeWorkflowEdgeCondition(condition: unknown): WorkflowEdgeSpec['condition'] {
@@ -912,10 +932,14 @@ export async function dryRunWorkflow(definition: WorkflowDefinition): Promise<Wo
 }
 
 export async function runWorkflow(id: string): Promise<WorkflowInstanceSummary> {
-  return request<WorkflowInstanceSummary>(`/api/v1/workflows/${encodeURIComponent(id)}/run`, { method: 'POST', body: JSON.stringify({ trigger_type: 'api' }) });
+  return request<WorkflowInstanceSummary>(`/api/v1/workflows/${encodeURIComponent(id)}/run`, { method: 'POST', body: JSON.stringify({ triggerType: 'api' }) });
 }
 
-export async function advanceWorkflowInstance(instanceId: string, payload: { node_key: string; status: string; message?: string }): Promise<WorkflowAdvanceResult> {
+export async function getWorkflowInstance(instanceId: string): Promise<WorkflowInstanceSummary> {
+  return request<WorkflowInstanceSummary>(`/api/v1/workflow-instances/${encodeURIComponent(instanceId)}`);
+}
+
+export async function advanceWorkflowInstance(instanceId: string, payload: { nodeKey: string; status: string; message?: string }): Promise<WorkflowAdvanceResult> {
   return request<WorkflowAdvanceResult>(`/api/v1/workflow-instances/${encodeURIComponent(instanceId)}/advance`, { method: 'POST', body: JSON.stringify(payload) });
 }
 
@@ -923,7 +947,7 @@ export async function materializeNextWorkflowNode(): Promise<MaterializeWorkflow
   return request<MaterializeWorkflowNodeResult>('/api/v1/workflow-instances/materialize-next', { method: 'POST', body: JSON.stringify({}) });
 }
 
-export async function recoverWorkflowNode(instanceId: string, payload: { node_key: string; action: 'retry' | 'skip' | 'fail'; message?: string }): Promise<RecoverWorkflowNodeResult> {
+export async function recoverWorkflowNode(instanceId: string, payload: { nodeKey: string; action: 'retry' | 'skip' | 'fail'; message?: string }): Promise<RecoverWorkflowNodeResult> {
   return request<RecoverWorkflowNodeResult>(`/api/v1/workflow-instances/${encodeURIComponent(instanceId)}/recover`, { method: 'POST', body: JSON.stringify(payload) });
 }
 

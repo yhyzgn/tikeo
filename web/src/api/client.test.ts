@@ -19,11 +19,11 @@ describe('api client envelope handling', () => {
     const body = {
       code: 0,
       message: 'success',
-      data: { items: [], next_page_token: null },
+      data: { items: [], nextPageToken: null },
     };
     globalThis.fetch = mock(async () => new Response(JSON.stringify(body))) as unknown as typeof fetch;
 
-    await expect(listJobs()).resolves.toEqual({ items: [], next_page_token: null });
+    await expect(listJobs()).resolves.toEqual({ items: [], nextPageToken: null });
   });
 
   test('throws when business code is non-zero', async () => {
@@ -76,8 +76,8 @@ describe('api client envelope handling', () => {
       code: 0,
       message: 'success',
       data: {
-        items: [{ id: 'log_1', instance_id: 'inst_1', worker_id: 'worker_1', level: 'warn', message: 'runtime missing', governance_event: 'script_execution_governance', governance_failure_class: 'script_runtime_unavailable', governance_message: 'runtime missing', sequence: 1, created_at: '2026-05-19T00:00:00Z' }],
-        next_page_token: null,
+        items: [{ id: 'log_1', instanceId: 'inst_1', workerId: 'worker_1', level: 'warn', message: 'runtime missing', governanceEvent: 'script_execution_governance', governanceFailureClass: 'script_runtime_unavailable', governanceMessage: 'runtime missing', sequence: 1, createdAt: '2026-05-19T00:00:00Z' }],
+        nextPageToken: null,
       },
     };
     globalThis.fetch = mock(async () => new Response(JSON.stringify(body))) as unknown as typeof fetch;
@@ -98,9 +98,9 @@ describe('api client envelope handling', () => {
           name: 'legacy-flow',
           definition: { nodes: [], edges: [] },
           status: 'active',
-          created_by: 'usr-admin',
-          created_at: 'now',
-          updated_at: 'now',
+          createdBy: 'usr-admin',
+          createdAt: 'now',
+          updatedAt: 'now',
         },
       }));
     }) as unknown as typeof fetch;
@@ -128,7 +128,7 @@ describe('api client envelope handling', () => {
       return new Response(JSON.stringify({
         code: 0,
         message: 'success',
-        data: { validation: { valid: true, errors: [] }, start_nodes: ['hello'], node_count: 2, edge_count: 1 },
+        data: { validation: { valid: true, errors: [] }, startNodes: ['hello'], nodeCount: 2, edgeCount: 1 },
       }));
     }) as unknown as typeof fetch;
 
@@ -161,7 +161,7 @@ describe('api client envelope handling', () => {
       return new Response(JSON.stringify({
         code: 0,
         message: 'success',
-        data: { id: 'job_1', namespace: 'default', app: 'default', name: 'demo', schedule_type: 'api', schedule_expr: null, enabled: true },
+        data: { id: 'job_1', namespace: 'default', app: 'default', name: 'demo', scheduleType: 'api', scheduleExpr: null, enabled: true },
       }));
     }) as unknown as typeof fetch;
 
@@ -181,22 +181,22 @@ describe('api client envelope handling', () => {
         return new Response(JSON.stringify({
           code: 0,
           message: 'success',
-          data: [{ id: 'wp_1', namespace: 'default', app: 'billing', name: 'critical', created_at: 'now', updated_at: 'now' }],
+          data: [{ id: 'wp_1', namespace: 'default', app: 'billing', name: 'critical', createdAt: 'now', updatedAt: 'now' }],
         }));
       }
       return new Response(JSON.stringify({
         code: 0,
         message: 'success',
-        data: [{ id: 'ns_1', name: 'default', created_at: 'now', updated_at: 'now' }],
+        data: [{ id: 'ns_1', name: 'default', createdAt: 'now', updatedAt: 'now' }],
       }));
     }) as unknown as typeof fetch;
 
-    await expect(listNamespaces()).resolves.toEqual([{ id: 'ns_1', name: 'default', created_at: 'now', updated_at: 'now' }]);
-    await expect(listWorkerPools({ namespace: 'default', app: 'billing' })).resolves.toEqual([{ id: 'wp_1', namespace: 'default', app: 'billing', name: 'critical', created_at: 'now', updated_at: 'now' }]);
+    await expect(listNamespaces()).resolves.toEqual([{ id: 'ns_1', name: 'default', createdAt: 'now', updatedAt: 'now' }]);
+    await expect(listWorkerPools({ namespace: 'default', app: 'billing' })).resolves.toEqual([{ id: 'wp_1', namespace: 'default', app: 'billing', name: 'critical', createdAt: 'now', updatedAt: 'now' }]);
 
     globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
       calls.push({ url: String(url), body: init?.body ? JSON.parse(String(init.body)) : undefined });
-      return new Response(JSON.stringify({ code: 0, message: 'success', data: { id: 'ok', name: 'ok', namespace: 'default', app: 'billing', created_at: 'now', updated_at: 'now' } }));
+      return new Response(JSON.stringify({ code: 0, message: 'success', data: { id: 'ok', name: 'ok', namespace: 'default', app: 'billing', createdAt: 'now', updatedAt: 'now' } }));
     }) as unknown as typeof fetch;
 
     await createNamespace({ name: 'payments' });
@@ -216,7 +216,7 @@ describe('api client envelope handling', () => {
       return new Response(JSON.stringify({
         code: 0,
         message: 'success',
-        data: { id: 'inst_1', job_id: 'job_1', status: 'pending', trigger_type: 'api', execution_mode: 'single', created_at: 'now', updated_at: 'now' },
+        data: { id: 'inst_1', jobId: 'job_1', status: 'pending', triggerType: 'api', executionMode: 'single', createdAt: 'now', updatedAt: 'now' },
       }));
     }) as unknown as typeof fetch;
 

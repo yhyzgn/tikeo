@@ -65,20 +65,20 @@ export function InstancesPage() {
 
   const columns: ColumnsType<JobInstanceSummary> = [
     { title: 'Instance', dataIndex: 'id', ellipsis: true, width: 140 },
-    { title: 'Job', dataIndex: 'job_id', render: (value: string) => <strong>{jobName.get(value) ?? value}</strong> },
+    { title: 'Job', dataIndex: 'jobId', render: (value: string) => <strong>{jobName.get(value) ?? value}</strong> },
     { title: 'Status', dataIndex: 'status', render: (value: string) => <Tag color={getStatusColor(value)} className="instance-status-tag">{value}</Tag> },
-    { title: 'Trigger', dataIndex: 'trigger_type', render: (value: string) => <Tag>{value}</Tag> },
-    { title: 'Mode', dataIndex: 'execution_mode', render: (value: string) => <Tag color={value === 'broadcast' ? 'purple' : 'default'} className="soft-tag">{value}</Tag> },
-    { title: 'Created At', dataIndex: 'created_at', width: 180 },
+    { title: 'Trigger', dataIndex: 'triggerType', render: (value: string) => <Tag>{value}</Tag> },
+    { title: 'Mode', dataIndex: 'executionMode', render: (value: string) => <Tag color={value === 'broadcast' ? 'purple' : 'default'} className="soft-tag">{value}</Tag> },
+    { title: 'Created At', dataIndex: 'createdAt', width: 180 },
     {
       title: 'Latest Log',
       width: 280,
       render: (_, instance) => (
         <Space direction="vertical" size={2}>
           <Typography.Text ellipsis style={{ maxWidth: 260 }}>
-            {instance.latest_log?.message ?? '暂无日志'}
+            {instance.latestLog?.message ?? '暂无日志'}
           </Typography.Text>
-          <Typography.Text type="secondary">{instance.log_count ?? 0} 条日志</Typography.Text>
+          <Typography.Text type="secondary">{instance.logCount ?? 0} 条日志</Typography.Text>
         </Space>
       ),
     },
@@ -90,25 +90,25 @@ export function InstancesPage() {
   ];
 
   const attemptColumns: ColumnsType<JobInstanceAttemptSummary> = [
-    { title: 'Worker', dataIndex: 'worker_id', ellipsis: true },
+    { title: 'Worker', dataIndex: 'workerId', ellipsis: true },
     { title: 'Status', dataIndex: 'status', render: (value: string) => <Tag color={getStatusColor(value)} className="instance-status-tag">{value}</Tag> },
-    { title: 'Updated At', dataIndex: 'updated_at', width: 180 },
+    { title: 'Updated At', dataIndex: 'updatedAt', width: 180 },
   ];
 
 
-  const governanceLogs = logs.filter((log) => log.governance_event === 'script_execution_governance');
+  const governanceLogs = logs.filter((log) => log.governanceEvent === 'script_execution_governance');
 
   const renderLogMessage = (log: JobInstanceLogSummary) => {
-    if (log.governance_event !== 'script_execution_governance') {
+    if (log.governanceEvent !== 'script_execution_governance') {
       return log.message;
     }
     return (
       <Space direction="vertical" size={2}>
         <Space wrap>
           <Tag color="volcano">script governance</Tag>
-          {log.governance_failure_class ? <Tag color="red">{log.governance_failure_class}</Tag> : null}
+          {log.governanceFailureClass ? <Tag color="red">{log.governanceFailureClass}</Tag> : null}
         </Space>
-        <Typography.Text>{log.governance_message ?? log.message}</Typography.Text>
+        <Typography.Text>{log.governanceMessage ?? log.message}</Typography.Text>
       </Space>
     );
   };
@@ -116,7 +116,7 @@ export function InstancesPage() {
   const logColumns: ColumnsType<JobInstanceLogSummary> = [
     { title: '#', dataIndex: 'sequence', width: 60 },
     { title: 'Level', dataIndex: 'level', width: 90, render: (value: string) => <Tag color={value === 'error' ? 'red' : value === 'warn' ? 'orange' : 'blue'}>{value}</Tag> },
-    { title: 'Worker', dataIndex: 'worker_id', ellipsis: true, width: 120 },
+    { title: 'Worker', dataIndex: 'workerId', ellipsis: true, width: 120 },
     { title: 'Message', dataIndex: 'message', render: (_: string, log) => renderLogMessage(log) },
   ];
 
@@ -136,13 +136,20 @@ export function InstancesPage() {
         open={logDrawerOpen}
         onClose={() => setLogDrawerOpen(false)}
       >
-        <Typography.Title level={5}>广播子执行</Typography.Title>
+        <Typography.Title level={5}>{selectedInstance?.executionMode === 'single' ? '执行器' : '广播子执行'}</Typography.Title>
         <Table
           rowKey="id"
           columns={attemptColumns}
-          dataSource={attempts}
+          dataSource={selectedInstance?.executionMode === 'single' ? [{
+            id: `${selectedInstance.id}-executor`,
+            instanceId: selectedInstance.id,
+            workerId: selectedInstance.workerId ?? selectedInstance.latestLog?.workerId ?? '暂无 worker 日志',
+            status: selectedInstance.status,
+            createdAt: selectedInstance.createdAt,
+            updatedAt: selectedInstance.updatedAt,
+          }] : attempts}
           pagination={false}
-          locale={{ emptyText: '非广播实例或暂无子执行' }}
+          locale={{ emptyText: selectedInstance?.executionMode === 'single' ? '暂无执行器信息' : '暂无广播子执行' }}
         />
         <Typography.Title level={5} style={{ marginTop: 24 }}>执行日志</Typography.Title>
         {governanceLogs.length > 0 ? (

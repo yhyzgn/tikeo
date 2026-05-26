@@ -13,8 +13,8 @@ use tikee_storage::{
     AdvanceWorkflowInput, CompleteWorkflowShardInput, CreateWorkflow, RecoverWorkflowNodeInput,
     UpdateWorkflow, WorkflowDefinition, validate_workflow_definition,
 };
-use tokio_stream::Stream;
-use tokio_stream::iter;
+use tokio::{sync::mpsc, time};
+use tokio_stream::{Stream, wrappers::ReceiverStream};
 
 use super::common::audit;
 
@@ -31,12 +31,14 @@ use crate::http::{
 };
 
 #[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateWorkflowRequest {
     pub name: String,
     pub definition: WorkflowDefinition,
 }
 
 #[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateWorkflowRequest {
     pub name: String,
     pub definition: WorkflowDefinition,
@@ -444,16 +446,51 @@ pub async fn stream_instance_events(
         headers.insert(axum::http::header::AUTHORIZATION, value);
     }
     auth::require_permission(&headers, &state, "workflows", "read").await?;
-    let events = state
-        .workflows
-        .list_instance_events(&id)
-        .await
-        .map_err(|error| ApiError::storage(&error))?;
-    let stream = iter(events.into_iter().map(|event| {
-        Ok(Event::default()
-            .event(event.event_type.clone())
-            .data(serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_owned())))
-    }));
-    Ok(Sse::new(stream)
+    let last_event_id = headers
+        .get("last-event-id")
+        .and_then(|value| value.to_str().ok())
+        .map(ToOwned::to_owned);
+    let workflows = state.workflows.clone();
+    let (tx, rx) = mpsc::channel(32);
+    tokio::spawn(async move {
+        let mut seen = std::collections::HashSet::<String>::new();
+        let mut after_last_event = last_event_id.is_none();
+        if let Ok(events) = workflows.list_instance_events(&id).await {
+            for event in events {
+                seen.insert(event.id.clone());
+                if !after_last_event {
+                    after_last_event = last_event_id.as_deref() == Some(event.id.as_str());
+                    continue;
+                }
+                let sse = Event::default()
+                    .id(event.id.clone())
+                    .event(event.event_type.clone())
+                    .data(serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_owned()));
+                if tx.send(Ok::<_, Infallible>(sse)).await.is_err() {
+                    return;
+                }
+            }
+        }
+        let mut interval = time::interval(Duration::from_secs(1));
+        loop {
+            interval.tick().await;
+            let Ok(events) = workflows.list_instance_events(&id).await else {
+                continue;
+            };
+            for event in events {
+                if !seen.insert(event.id.clone()) {
+                    continue;
+                }
+                let sse = Event::default()
+                    .id(event.id.clone())
+                    .event(event.event_type.clone())
+                    .data(serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_owned()));
+                if tx.send(Ok::<_, Infallible>(sse)).await.is_err() {
+                    return;
+                }
+            }
+        }
+    });
+    Ok(Sse::new(ReceiverStream::new(rx))
         .keep_alive(axum::response::sse::KeepAlive::new().interval(Duration::from_secs(15))))
 }

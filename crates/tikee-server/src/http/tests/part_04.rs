@@ -814,13 +814,13 @@
         let triggered = post_json(
             app.clone(),
             &format!("/api/v1/jobs/{job_id}:trigger"),
-            r#"{"trigger_type":"api","execution_mode":"broadcast"}"#,
+            r#"{"triggerType":"api","executionMode":"broadcast"}"#,
         )
         .await;
         let instance_id = triggered["data"]["id"]
             .as_str()
             .unwrap_or_else(|| panic!("triggered instance should contain id"));
-        assert_eq!(triggered["data"]["execution_mode"], "broadcast");
+        assert_eq!(triggered["data"]["executionMode"], "broadcast");
 
         let attempts =
             request_with(app, &format!("/api/v1/instances/{instance_id}/attempts")).await;
@@ -849,7 +849,7 @@
         let triggered = post_json(
             app.clone(),
             &format!("/api/v1/jobs/{job_id}:trigger"),
-            r#"{"trigger_type":"api"}"#,
+            r#"{"triggerType":"api"}"#,
         )
         .await;
 
@@ -904,7 +904,7 @@
         let triggered = post_json(
             app.clone(),
             &format!("/api/v1/jobs/{job_id}:trigger"),
-            r#"{"trigger_type":"api"}"#,
+            r#"{"triggerType":"api"}"#,
         )
         .await;
         let instance_id = triggered["data"]["id"]
@@ -954,7 +954,7 @@
             "script_execution_governance"
         );
         assert_eq!(
-            json["data"]["items"][1]["governance_failure_class"],
+            json["data"]["items"][1]["governanceFailureClass"],
             "script_runtime_unavailable"
         );
         assert_eq!(json["data"]["items"][1]["message"], "runtime missing");
@@ -971,7 +971,7 @@
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["data"]["items"].as_array().map(Vec::len), Some(1));
         assert_eq!(
-            json["data"]["items"][0]["governance_failure_class"],
+            json["data"]["items"][0]["governanceFailureClass"],
             "script_runtime_unavailable"
         );
     }
@@ -982,12 +982,12 @@
         let json = post_json(
             app,
             "/api/v1/jobs",
-            r#"{"namespace":"default","app":"billing","name":"invoice-sync","schedule_type":"api","processor_name":"billing.invoice-sync"}"#,
+            r#"{"namespace":"default","app":"billing","name":"invoice-sync","scheduleType":"api","processorName":"billing.invoice-sync"}"#,
         )
         .await;
 
         assert_eq!(json["code"], 0);
-        assert_eq!(json["data"]["processor_name"], "billing.invoice-sync");
+        assert_eq!(json["data"]["processorName"], "billing.invoice-sync");
     }
 
 
@@ -997,13 +997,13 @@
         let created = post_json(
             app.clone(),
             "/api/v1/jobs",
-            r#"{"namespace":"default","app":"billing","name":"manage-me","schedule_type":"api","processor_name":"demo.echo"}"#,
+            r#"{"namespace":"default","app":"billing","name":"manage-me","scheduleType":"api","processorName":"demo.echo"}"#,
         )
         .await;
         let job_id = created["data"]["id"]
             .as_str()
             .unwrap_or_else(|| panic!("created job should contain id"));
-        assert_eq!(created["data"]["schedule_type"], "api");
+        assert_eq!(created["data"]["scheduleType"], "api");
 
         let update = app
             .clone()
@@ -1012,7 +1012,7 @@
                     app.clone(),
                     "PATCH",
                     format!("/api/v1/jobs/{job_id}"),
-                    r#"{"name":"managed","enabled":false,"schedule_type":"api","processor_name":"demo.report"}"#,
+                    r#"{"name":"managed","enabled":false,"scheduleType":"api","processorName":"demo.report"}"#,
                 )
                 .await,
             )
@@ -1026,7 +1026,7 @@
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["data"]["name"], "managed");
         assert_eq!(json["data"]["enabled"], false);
-        assert_eq!(json["data"]["processor_name"], "demo.report");
+        assert_eq!(json["data"]["processorName"], "demo.report");
 
         let delete = app
             .clone()

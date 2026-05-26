@@ -34,7 +34,7 @@ export function WorkerTable({ workers, loading }: WorkerTableProps) {
         <Select allowClear placeholder="Capability" value={capability || undefined} onChange={(value) => setCapability(value ?? '')} options={capabilities.map((value) => ({ label: value, value }))} />
       </div>
       <Table<WorkerSummary>
-        rowKey="worker_id"
+        rowKey="workerId"
         size="middle"
         loading={loading}
         dataSource={filteredWorkers}
@@ -42,12 +42,12 @@ export function WorkerTable({ workers, loading }: WorkerTableProps) {
         columns={[
           {
             title: 'Worker',
-            dataIndex: 'worker_id',
+            dataIndex: 'workerId',
             ellipsis: true,
             render: (value: string, worker) => (
               <Space direction="vertical" size={2}>
                 <Typography.Text strong copyable>{value}</Typography.Text>
-                <Typography.Text type="secondary">seq={worker.last_sequence}</Typography.Text>
+                <Typography.Text type="secondary">seq={worker.lastSequence}</Typography.Text>
               </Space>
             ),
           },

@@ -21,7 +21,7 @@ export function Dashboard() {
 
   const enabledJobs = jobs.filter((job) => job.enabled).length;
   const pendingInstances = instances.filter((instance) => instance.status === 'pending').length;
-  const broadcastInstances = instances.filter((instance) => instance.execution_mode === 'broadcast').length;
+  const broadcastInstances = instances.filter((instance) => instance.executionMode === 'broadcast').length;
 
   return (
     <div className="page-stack">

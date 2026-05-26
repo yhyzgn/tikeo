@@ -129,6 +129,7 @@ pub type JobInstanceAttemptPageApiResponse = ApiResponse<JobInstanceAttemptPage>
 
 /// Generic page response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Page {
     /// Page items.
     pub items: Vec<JobSummary>,
@@ -606,6 +607,7 @@ pub type WorkflowDryRunApiResponse = ApiResponse<WorkflowDryRunResponse>;
 
 /// Workflow dry-run response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowDryRunResponse {
     /// DAG validation result.
     pub validation: tikee_storage::WorkflowValidationResult,
@@ -619,6 +621,7 @@ pub struct WorkflowDryRunResponse {
 
 /// Online worker summary shown by management UI.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkerSummary {
     /// Worker session id.
     pub worker_id: String,
@@ -650,6 +653,7 @@ pub struct WorkerSummary {
 
 /// Online worker list payload.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkerListResponse {
     /// Online worker count.
     pub online: usize,
@@ -659,6 +663,7 @@ pub struct WorkerListResponse {
 
 /// Persisted worker session shown in history UI.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkerSessionHistorySummary {
     /// Worker session id.
     pub worker_id: String,
@@ -684,6 +689,7 @@ pub struct WorkerSessionHistorySummary {
 
 /// Worker lifecycle event shown in history UI.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkerSessionEventDto {
     /// Event id.
     pub id: String,
@@ -703,6 +709,7 @@ pub struct WorkerSessionEventDto {
 
 /// Worker lifecycle history payload.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkerLifecycleHistoryResponse {
     /// Persisted sessions including stopped/replaced/offline history.
     pub sessions: Vec<WorkerSessionHistorySummary>,
@@ -816,6 +823,7 @@ pub struct WorkflowRunRequest {
 
 /// Job summary DTO.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct JobSummary {
     /// Job identifier.
     pub id: String,
@@ -837,6 +845,7 @@ pub struct JobSummary {
 
 /// Create job request.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateJobRequest {
     /// Namespace name. Defaults to `default` when omitted.
     pub namespace: Option<String>,
@@ -856,6 +865,7 @@ pub struct CreateJobRequest {
 
 /// Update job request. Omitted fields remain unchanged.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateJobRequest {
     /// Optional display name update.
     pub name: Option<String>,
@@ -871,6 +881,7 @@ pub struct UpdateJobRequest {
 
 /// Trigger job request.
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct TriggerJobRequest {
     /// Optional trigger source. Defaults to `api`; `api` means explicit API/SDK/UI trigger.
     pub trigger_type: Option<String>,
@@ -880,6 +891,7 @@ pub struct TriggerJobRequest {
 
 /// Job instance page response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct JobInstancePage {
     /// Page items.
     pub items: Vec<JobInstanceSummary>,
@@ -889,6 +901,7 @@ pub struct JobInstancePage {
 
 /// Job instance summary DTO.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct JobInstanceSummary {
     /// Instance identifier.
     pub id: String,
@@ -908,10 +921,13 @@ pub struct JobInstanceSummary {
     pub log_count: u64,
     /// Latest persisted task log row, when available.
     pub latest_log: Option<JobInstanceLogSummary>,
+    /// Best-effort worker id observed from persisted logs for single-mode tasks.
+    pub worker_id: Option<String>,
 }
 
 /// Job instance attempt page response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct JobInstanceAttemptPage {
     /// Page items.
     pub items: Vec<JobInstanceAttemptSummary>,
@@ -921,6 +937,7 @@ pub struct JobInstanceAttemptPage {
 
 /// Per-worker job instance attempt summary.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct JobInstanceAttemptSummary {
     /// Attempt identifier.
     pub id: String,
@@ -938,6 +955,7 @@ pub struct JobInstanceAttemptSummary {
 
 /// Job instance log page response.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct JobInstanceLogPage {
     /// Page items.
     pub items: Vec<JobInstanceLogSummary>,
@@ -1082,6 +1100,7 @@ pub type ScriptReleaseGateApiResponse = ApiResponse<ScriptReleaseGateResponse>;
 
 /// Job instance log summary DTO.
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct JobInstanceLogSummary {
     /// Log identifier.
     pub id: String,

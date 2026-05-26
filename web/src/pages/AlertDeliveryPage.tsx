@@ -55,7 +55,7 @@ export function AlertDeliveryPage() {
             { title: 'Attempt', dataIndex: 'attempt', width: 96 },
             { title: 'State', dataIndex: 'retry_state', render: (value: string) => <Tag color={stateColor[value] ?? 'default'}>{value}</Tag> },
             { title: 'Error', dataIndex: 'error', ellipsis: true },
-            { title: 'Created', dataIndex: 'created_at' },
+            { title: 'Created', dataIndex: 'createdAt' },
           ]}
         />
       </Card>

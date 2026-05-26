@@ -10,7 +10,7 @@ spring:
 
 tikee:
   worker:
-    dry-run: ${TIKEE_WORKER_DRY_RUN:true}
+    dry-run: ${TIKEE_WORKER_DRY_RUN:false}
     endpoint: ${TIKEE_WORKER_ENDPOINT:http://127.0.0.1:9998}
     namespace: default
     app: default

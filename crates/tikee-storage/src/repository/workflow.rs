@@ -1303,6 +1303,16 @@ impl WorkflowRepository {
         queue_id: &str,
         lease_owner: &str,
     ) -> Result<bool, sea_orm::DbErr> {
+        self.release_dispatch_queue_item_after(queue_id, lease_owner, 0)
+            .await
+    }
+
+    pub async fn release_dispatch_queue_item_after(
+        &self,
+        queue_id: &str,
+        lease_owner: &str,
+        delay_seconds: i64,
+    ) -> Result<bool, sea_orm::DbErr> {
         let Some(row) = dispatch_queue::Entity::find_by_id(queue_id.to_owned())
             .one(&self.db)
             .await?
@@ -1314,6 +1324,11 @@ impl WorkflowRepository {
         active.lease_owner = Set(None);
         active.lease_until = Set(None);
         active.fencing_token = Set(None);
+        active.run_after = Set(if delay_seconds > 0 {
+            rfc3339_after_seconds(delay_seconds)
+        } else {
+            now_rfc3339()
+        });
         active.updated_at = Set(now_rfc3339());
         active.update(&self.db).await?;
         Ok(true)

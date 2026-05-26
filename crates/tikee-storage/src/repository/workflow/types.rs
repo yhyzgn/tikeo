@@ -3,12 +3,14 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowDefinition {
     pub nodes: Vec<WorkflowNodeSpec>,
     pub edges: Vec<WorkflowEdgeSpec>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowNodeSpec {
     pub key: String,
     pub name: Option<String>,
@@ -21,6 +23,7 @@ pub struct WorkflowNodeSpec {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowEdgeSpec {
     pub from: String,
     pub to: String,
@@ -41,6 +44,7 @@ pub struct UpdateWorkflow {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowSummary {
     pub id: String,
     pub name: String,
@@ -52,12 +56,14 @@ pub struct WorkflowSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowValidationResult {
     pub valid: bool,
     pub errors: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct AdvanceWorkflowInput {
     pub node_key: String,
     pub status: String,
@@ -65,6 +71,7 @@ pub struct AdvanceWorkflowInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct AdvanceWorkflowResult {
     pub instance: WorkflowInstanceSummary,
     pub queued_nodes: Vec<String>,
@@ -72,6 +79,7 @@ pub struct AdvanceWorkflowResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowInstanceSummary {
     pub id: String,
     pub workflow_id: String,
@@ -83,6 +91,7 @@ pub struct WorkflowInstanceSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowNodeInstanceSummary {
     pub id: String,
     pub workflow_instance_id: String,
@@ -95,6 +104,7 @@ pub struct WorkflowNodeInstanceSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowShardSummary {
     pub id: String,
     pub workflow_instance_id: String,
@@ -110,6 +120,7 @@ pub struct WorkflowShardSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CompleteWorkflowShardInput {
     pub status: String,
     pub output: Option<serde_json::Value>,
@@ -117,6 +128,7 @@ pub struct CompleteWorkflowShardInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CompleteWorkflowShardResult {
     pub shard: WorkflowShardSummary,
     pub node_completed: bool,
@@ -125,6 +137,7 @@ pub struct CompleteWorkflowShardResult {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct DispatchQueueSloSummary {
     pub total: u64,
     pub by_status: BTreeMap<String, u64>,
@@ -138,6 +151,7 @@ pub struct DispatchQueueSloSummary {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowSloSummary {
     pub instances_total: u64,
     pub instances_by_status: BTreeMap<String, u64>,
@@ -154,6 +168,7 @@ pub struct WorkflowSloSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct DispatchQueueSummary {
     pub id: String,
     pub job_instance_id: Option<String>,
@@ -171,6 +186,7 @@ pub struct DispatchQueueSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct DispatchQueueClaim {
     pub item: DispatchQueueSummary,
     pub lease_owner: String,
@@ -179,6 +195,7 @@ pub struct DispatchQueueClaim {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct QueueOverview {
     pub pending: usize,
     pub running: usize,
@@ -188,6 +205,7 @@ pub struct QueueOverview {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct RecoverWorkflowNodeInput {
     pub node_key: String,
     pub action: String,
@@ -195,6 +213,7 @@ pub struct RecoverWorkflowNodeInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct MaterializeWorkflowNodeResult {
     pub instance: WorkflowInstanceSummary,
     pub node: WorkflowNodeInstanceSummary,
@@ -212,12 +231,14 @@ pub struct WorkflowJobResultOutcome {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct RecoverWorkflowNodeResult {
     pub instance: WorkflowInstanceSummary,
     pub queued_nodes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct InstanceEventSummary {
     pub id: String,
     pub instance_id: String,

@@ -159,23 +159,23 @@
         assert_eq!(json["data"]["queue"]["pending"], 2);
         assert_eq!(json["data"]["queue"]["running"], 0);
         assert!(
-            json["data"]["queue"]["completed_dispatches"]
+            json["data"]["queue"]["completedDispatches"]
                 .as_u64()
                 .is_some_and(|value| value >= 1),
             "queue summary should count completed dispatch rows"
         );
         assert!(
-            json["data"]["queue"]["longest_dispatch_latency_seconds"]
+            json["data"]["queue"]["longestDispatchLatencySeconds"]
                 .as_u64()
                 .is_some(),
             "queue summary should include completed dispatch latency rollups"
         );
         assert_eq!(
-            json["data"]["queue"]["oldest_pending_age_seconds"].as_u64(),
+            json["data"]["queue"]["oldestPendingAgeSeconds"].as_u64(),
             Some(0)
         );
         assert_eq!(
-            json["data"]["queue"]["average_pending_age_seconds"].as_u64(),
+            json["data"]["queue"]["averagePendingAgeSeconds"].as_u64(),
             Some(0)
         );
         assert_eq!(json["data"]["alerts"]["total_events"], 1);
@@ -185,22 +185,22 @@
             json["data"]["governance"]["by_failure_class"]["script_runtime_unavailable"],
             1
         );
-        assert_eq!(json["data"]["workflows"]["instances_total"], 1);
+        assert_eq!(json["data"]["workflows"]["instancesTotal"], 1);
         assert_eq!(
-            json["data"]["workflows"]["instances_by_status"]["succeeded"],
+            json["data"]["workflows"]["instancesByStatus"]["succeeded"],
             1
         );
-        assert_eq!(json["data"]["workflows"]["shards_total"], 2);
+        assert_eq!(json["data"]["workflows"]["shardsTotal"], 2);
         assert_eq!(
-            json["data"]["workflows"]["shards_by_status"]["succeeded"],
+            json["data"]["workflows"]["shardsByStatus"]["succeeded"],
             2
         );
         assert_eq!(
-            json["data"]["workflows"]["instance_success_ratio"].as_f64(),
+            json["data"]["workflows"]["instanceSuccessRatio"].as_f64(),
             Some(1.0)
         );
         assert_eq!(
-            json["data"]["workflows"]["shard_success_ratio"].as_f64(),
+            json["data"]["workflows"]["shardSuccessRatio"].as_f64(),
             Some(1.0)
         );
 
@@ -795,7 +795,7 @@
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["data"]["online"], 1);
         assert_eq!(
-            json["data"]["items"][0]["worker_id"],
+            json["data"]["items"][0]["workerId"],
             registered_a.worker_id
         );
     }
@@ -835,7 +835,7 @@
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
 
         assert_eq!(json["data"]["online"], 1);
-        assert_eq!(json["data"]["items"][0]["worker_id"], second.worker_id);
+        assert_eq!(json["data"]["items"][0]["workerId"], second.worker_id);
         assert_eq!(json["data"]["items"][0]["generation"], 2);
         assert_eq!(json["data"]["items"][0]["status"], "online");
         assert_eq!(json["data"]["items"][0]["client_instance_id"], "pod-1");

@@ -36,13 +36,13 @@
         let triggered = post_json(
             app.clone(),
             &format!("/api/v1/jobs/{job_id}:trigger"),
-            r#"{"trigger_type":"api","execution_mode":"broadcast"}"#,
+            r#"{"triggerType":"api","executionMode":"broadcast"}"#,
         )
         .await;
         let instance_id = triggered["data"]["id"]
             .as_str()
             .unwrap_or_else(|| panic!("triggered instance should contain id"));
-        assert_eq!(triggered["data"]["execution_mode"], "broadcast");
+        assert_eq!(triggered["data"]["executionMode"], "broadcast");
 
         let attempts =
             request_with(app, &format!("/api/v1/instances/{instance_id}/attempts")).await;
@@ -52,7 +52,7 @@
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["data"]["items"].as_array().map(Vec::len), Some(1));
-        assert_eq!(json["data"]["items"][0]["worker_id"], worker_a.worker_id);
+        assert_eq!(json["data"]["items"][0]["workerId"], worker_a.worker_id);
     }
 
     #[tokio::test]
@@ -62,7 +62,7 @@
         let create = post_json(
             app.clone(),
             "/api/v1/workflows",
-            r#"{"name":"demo-flow","definition":{"nodes":[{"key":"start","name":"Start","kind":"job","job_id":"job-demo"},{"key":"fanout","name":"Fanout","kind":"map","map_items":[{"shard":1},{"shard":2}]},{"key":"child","name":"Child","kind":"sub_workflow","child_workflow_id":"wf_child"}],"edges":[{"from":"start","to":"fanout","condition":"on_success"},{"from":"fanout","to":"child","condition":"always"}]}}"#,
+            r#"{"name":"demo-flow","definition":{"nodes":[{"key":"start","name":"Start","kind":"job","jobId":"job-demo"},{"key":"fanout","name":"Fanout","kind":"map","mapItems":[{"shard":1},{"shard":2}]},{"key":"child","name":"Child","kind":"sub_workflow","childWorkflowId":"wf_child"}],"edges":[{"from":"start","to":"fanout","condition":"on_success"},{"from":"fanout","to":"child","condition":"always"}]}}"#,
         )
         .await;
         assert_eq!(create["code"], 0);
@@ -81,16 +81,16 @@
         let dry_run = post_json(
             app.clone(),
             "/api/v1/workflows/dry-run",
-            r#"{"nodes":[{"key":"start","kind":"job","job_id":"job-demo"}],"edges":[]}"#,
+            r#"{"nodes":[{"key":"start","kind":"job","jobId":"job-demo"}],"edges":[]}"#,
         )
         .await;
         assert_eq!(dry_run["data"]["validation"]["valid"], true);
-        assert_eq!(dry_run["data"]["start_nodes"][0], "start");
+        assert_eq!(dry_run["data"]["startNodes"][0], "start");
 
         let run = post_json(
             app.clone(),
             &format!("/api/v1/workflows/{workflow_id}/run"),
-            r#"{"trigger_type":"api"}"#,
+            r#"{"triggerType":"api"}"#,
         )
         .await;
         assert_eq!(run["code"], 0);
@@ -107,17 +107,17 @@
         )
         .await;
         assert_eq!(materialized_job["code"], 0);
-        assert_eq!(materialized_job["data"]["node"]["node_key"], "start");
-        assert!(materialized_job["data"]["node"]["job_instance_id"].is_string());
+        assert_eq!(materialized_job["data"]["node"]["nodeKey"], "start");
+        assert!(materialized_job["data"]["node"]["jobInstanceId"].is_string());
 
         let advanced = post_json(
             app.clone(),
             &format!("/api/v1/workflow-instances/{instance_id}/advance"),
-            r#"{"node_key":"start","status":"succeeded","message":"ok"}"#,
+            r#"{"nodeKey":"start","status":"succeeded","message":"ok"}"#,
         )
         .await;
         assert_eq!(advanced["code"], 0);
-        assert_eq!(advanced["data"]["queued_nodes"][0], "fanout");
+        assert_eq!(advanced["data"]["queuedNodes"][0], "fanout");
         assert_eq!(advanced["data"]["instance"]["status"], "running");
 
         let materialized_map = post_json(
@@ -126,7 +126,7 @@
             "{}",
         )
         .await;
-        assert_eq!(materialized_map["data"]["node"]["node_key"], "fanout");
+        assert_eq!(materialized_map["data"]["node"]["nodeKey"], "fanout");
         assert_eq!(
             materialized_map["data"]["shards"].as_array().map(Vec::len),
             Some(2)

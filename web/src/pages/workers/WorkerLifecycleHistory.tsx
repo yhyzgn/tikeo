@@ -44,13 +44,13 @@ export function WorkerLifecycleHistory({ history, loading }: WorkerLifecycleHist
           <List.Item>
             <Space direction="vertical" size={4} className="worker-history-list__item">
               <Space wrap>
-                <Typography.Text strong copyable>{session.worker_id}</Typography.Text>
+                <Typography.Text strong copyable>{session.workerId}</Typography.Text>
                 <Tag color={sessionStatusColor(session.status)}>{session.status}</Tag>
                 <Tag>gen {session.generation}</Tag>
               </Space>
-              <Typography.Text type="secondary">{session.logical_instance_id}</Typography.Text>
-              <Typography.Text type="secondary">reason={session.status_reason ?? '-'} · seq={session.last_sequence}</Typography.Text>
-              {session.status_evidence ? <Typography.Text type="secondary">{session.status_evidence}</Typography.Text> : null}
+              <Typography.Text type="secondary">{session.logicalInstanceId}</Typography.Text>
+              <Typography.Text type="secondary">reason={session.statusReason ?? '-'} · seq={session.lastSequence}</Typography.Text>
+              {session.statusEvidence ? <Typography.Text type="secondary">{session.statusEvidence}</Typography.Text> : null}
             </Space>
           </List.Item>
         )}
@@ -58,12 +58,12 @@ export function WorkerLifecycleHistory({ history, loading }: WorkerLifecycleHist
       <Timeline
         className="worker-event-timeline"
         items={history.events.slice(0, 8).map((event) => ({
-          color: sessionStatusColor(event.reason ?? event.event_type),
+          color: sessionStatusColor(event.reason ?? event.eventType),
           children: (
             <Space direction="vertical" size={0}>
-              <Typography.Text strong>{event.event_type}</Typography.Text>
-              <Typography.Text type="secondary">{event.worker_id} · {event.reason ?? 'no reason'}</Typography.Text>
-              <Typography.Text type="secondary">{event.created_at}</Typography.Text>
+              <Typography.Text strong>{event.eventType}</Typography.Text>
+              <Typography.Text type="secondary">{event.workerId} · {event.reason ?? 'no reason'}</Typography.Text>
+              <Typography.Text type="secondary">{event.createdAt}</Typography.Text>
             </Space>
           ),
         }))}

@@ -1,5 +1,5 @@
 import { ConfigProvider, theme } from 'antd';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 
 import { getAuthToken, logout, setAuthErrorHandler, setAuthToken } from './api/client';
@@ -8,6 +8,7 @@ import { AuthGuard, RequirePermission } from './components/AuthGuard';
 import { ForbiddenPage } from './components/ForbiddenPage';
 import { RouteFallback } from './components/RouteFallback';
 import { ROUTE_META } from './routes';
+import { DEFAULT_INFO_COLOR, DEFAULT_PRIMARY_COLOR, PRIMARY_COLOR_STORAGE_KEY, ThemeSettingsContext, normalizeHexColor } from './theme';
 
 const Dashboard = lazy(() => import('./pages/Dashboard').then((module) => ({ default: module.Dashboard })));
 const InstancesPage = lazy(() => import('./pages/InstancesPage').then((module) => ({ default: module.InstancesPage })));
@@ -79,32 +80,57 @@ function AppLayout() {
 }
 
 export function App() {
+  const [primaryColor, setPrimaryColorState] = useState(() => {
+    if (typeof window === 'undefined') return DEFAULT_PRIMARY_COLOR;
+    return normalizeHexColor(window.localStorage.getItem(PRIMARY_COLOR_STORAGE_KEY)) ?? DEFAULT_PRIMARY_COLOR;
+  });
+
+  const setPrimaryColor = (color: string) => {
+    const normalized = normalizeHexColor(color) ?? DEFAULT_PRIMARY_COLOR;
+    setPrimaryColorState(normalized);
+    window.localStorage.setItem(PRIMARY_COLOR_STORAGE_KEY, normalized);
+  };
+
+  const resetPrimaryColor = () => {
+    setPrimaryColorState(DEFAULT_PRIMARY_COLOR);
+    window.localStorage.removeItem(PRIMARY_COLOR_STORAGE_KEY);
+  };
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--app-primary-color', primaryColor);
+    document.documentElement.style.setProperty('--app-info-color', DEFAULT_INFO_COLOR);
+  }, [primaryColor]);
+
+  const themeSettings = useMemo(() => ({ primaryColor, setPrimaryColor, resetPrimaryColor }), [primaryColor]);
+
   return (
-    <ConfigProvider
-      theme={{
-        algorithm: theme.defaultAlgorithm,
-        token: {
-          colorPrimary: '#2563eb',
-          colorInfo: '#0ea5e9',
-          colorBgBase: '#f6f8fc',
-          colorTextBase: '#172033',
-          borderRadius: 12,
-          fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        },
-      }}
-    >
-      <Suspense fallback={<RouteFallback />}>
-        <Routes>
-          <Route path="/" element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
-          <Route path="/login" element={<LoginRoute />} />
-          <Route element={<AuthGuard />}>
-            <Route element={<AppLayout />}>
-              <Route index element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
-              <Route path="*" element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
+    <ThemeSettingsContext.Provider value={themeSettings}>
+      <ConfigProvider
+        theme={{
+          algorithm: theme.defaultAlgorithm,
+          token: {
+            colorPrimary: primaryColor,
+            colorInfo: DEFAULT_INFO_COLOR,
+            colorBgBase: '#f6f8fc',
+            colorTextBase: '#172033',
+            borderRadius: 12,
+            fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          },
+        }}
+      >
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/" element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
+            <Route path="/login" element={<LoginRoute />} />
+            <Route element={<AuthGuard />}>
+              <Route element={<AppLayout />}>
+                <Route index element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
+                <Route path="*" element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
+              </Route>
             </Route>
-          </Route>
-        </Routes>
-      </Suspense>
-    </ConfigProvider>
+          </Routes>
+        </Suspense>
+      </ConfigProvider>
+    </ThemeSettingsContext.Provider>
   );
 }

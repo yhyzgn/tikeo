@@ -66,7 +66,7 @@ export function AuditLogsPage() {
   );
 
   const columns = [
-    { title: 'Time', dataIndex: 'created_at', key: 'time', width: 200, render: (v: string) => new Date(v).toLocaleString() },
+    { title: 'Time', dataIndex: 'createdAt', key: 'time', width: 200, render: (v: string) => new Date(v).toLocaleString() },
     { title: 'Actor', dataIndex: 'actor', key: 'actor', width: 140 },
     {
       title: 'Action',

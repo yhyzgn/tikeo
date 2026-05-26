@@ -52,10 +52,10 @@ function DispatchQueueItem({ item }: { item: DispatchQueueSummary }) {
           <Tag color="blue">priority={item.priority}</Tag>
         </Space>
         <div className="dispatch-queue-item__meta">
-          <span>job={item.job_instance_id ?? '-'}</span>
-          <span>workflow_node={item.workflow_node_instance_id ?? '-'}</span>
-          <span>selector={item.worker_selector ?? 'any'}</span>
-          <span>run_after={new Date(item.run_after).toLocaleString()}</span>
+          <span>job={item.jobInstanceId ?? '-'}</span>
+          <span>workflow_node={item.workflowNodeInstanceId ?? '-'}</span>
+          <span>selector={item.workerSelector ?? 'any'}</span>
+          <span>runAfter={new Date(item.runAfter).toLocaleString()}</span>
         </div>
       </Space>
     </List.Item>

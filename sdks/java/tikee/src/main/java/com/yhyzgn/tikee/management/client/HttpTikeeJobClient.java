@@ -147,8 +147,8 @@ public final class HttpTikeeJobClient implements TikeeJobClient {
             String namespace,
             String app,
             String name,
-            @com.fasterxml.jackson.annotation.JsonProperty("schedule_type") String scheduleType,
-            @com.fasterxml.jackson.annotation.JsonProperty("schedule_expr") String scheduleExpr,
-            @com.fasterxml.jackson.annotation.JsonProperty("processor_name") String processorName,
+            String scheduleType,
+            String scheduleExpr,
+            String processorName,
             Boolean enabled) {}
 }

@@ -10,15 +10,15 @@ export interface WorkerFilters {
 
 export function workerSearchText(worker: WorkerSummary): string {
   return [
-    worker.worker_id,
+    worker.workerId,
     worker.namespace,
     worker.app,
     worker.cluster,
     worker.region,
-    worker.logical_instance_id,
-    worker.client_instance_id ?? '',
+    worker.logicalInstanceId,
+    worker.clientInstanceId ?? '',
     worker.status,
-    worker.status_reason ?? '',
+    worker.statusReason ?? '',
     ...worker.capabilities,
   ].join(' ').toLowerCase();
 }

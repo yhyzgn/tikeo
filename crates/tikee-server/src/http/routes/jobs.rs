@@ -559,6 +559,11 @@ async fn instance_summary_with_latest_log(
         .await
         .map_err(|error| ApiError::storage(&error))?
         .map(JobInstanceLogSummary::from);
+    let worker_id = state
+        .logs
+        .latest_worker_by_instance(&value.id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
     Ok(JobInstanceSummary {
         id: value.id,
         job_id: value.job_id,
@@ -569,6 +574,7 @@ async fn instance_summary_with_latest_log(
         updated_at: value.updated_at,
         log_count,
         latest_log,
+        worker_id,
     })
 }
 

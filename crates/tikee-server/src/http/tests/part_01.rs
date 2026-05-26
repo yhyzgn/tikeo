@@ -844,7 +844,7 @@
         assert_eq!(json["data"]["nodes"], 1);
         assert_eq!(json["data"]["can_schedule"], true);
         assert_eq!(
-            json["data"]["leader_fencing_token"],
+            json["data"]["leaderFencingToken"],
             serde_json::Value::Null
         );
     }
@@ -899,7 +899,7 @@
                     app,
                     "POST",
                     "/api/v1/raft/append-entries",
-                    r#"{"from":1,"to":2,"term":1,"message_type":"MsgAppend","index":0,"log_term":0,"commit":0,"snapshot_index":null,"snapshot_term":null,"entries":[],"context":null,"reject":false,"reject_hint":null,"leader_fencing_token":"candidate"}"#,
+                    r#"{"from":1,"to":2,"term":1,"message_type":"MsgAppend","index":0,"log_term":0,"commit":0,"snapshot_index":null,"snapshot_term":null,"entries":[],"context":null,"reject":false,"reject_hint":null,"leaderFencingToken":"candidate"}"#,
                 )
                 .await,
             )
@@ -921,7 +921,7 @@
         );
         assert_eq!(json["data"]["local_role"], "standalone");
         assert_eq!(
-            json["data"]["leader_fencing_token"],
+            json["data"]["leaderFencingToken"],
             serde_json::Value::Null
         );
         assert_eq!(json["data"]["received_term"], 1);
@@ -937,7 +937,7 @@
                     app,
                     "POST",
                     "/api/v1/raft/append-entries",
-                    r#"{"from":1,"to":2,"term":-1,"message_type":"MsgAppend","index":0,"log_term":0,"commit":0,"snapshot_index":null,"snapshot_term":null,"entries":[],"context":null,"reject":false,"reject_hint":null,"leader_fencing_token":null}"#,
+                    r#"{"from":1,"to":2,"term":-1,"message_type":"MsgAppend","index":0,"log_term":0,"commit":0,"snapshot_index":null,"snapshot_term":null,"entries":[],"context":null,"reject":false,"reject_hint":null,"leaderFencingToken":null}"#,
                 )
                 .await,
             )

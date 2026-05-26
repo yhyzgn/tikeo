@@ -62,7 +62,7 @@ class HttpTikeeJobClientTest {
         assertEquals("Bearer token-1", create.authorization());
         assertEquals(true, create.body().contains("\"namespace\":\"default\""));
         assertEquals(true, create.body().contains("\"app\":\"demo-app\""));
-        assertEquals(true, create.body().contains("\"schedule_type\":\"api\""));
+        assertEquals(true, create.body().contains("\"scheduleType\":\"api\""));
     }
 
     @Test
@@ -96,21 +96,21 @@ class HttpTikeeJobClientTest {
             return;
         }
         if (method.equals("GET")) {
-            respond(exchange, 200, "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[{\"id\":\"job-1\",\"namespace\":\"default\",\"app\":\"demo-app\",\"name\":\"echo\",\"schedule_type\":\"api\",\"schedule_expr\":null,\"processor_name\":\"demo.echo\",\"enabled\":true},{\"id\":\"job-2\",\"namespace\":\"default\",\"app\":\"other\",\"name\":\"other\",\"schedule_type\":\"api\",\"schedule_expr\":null,\"processor_name\":\"demo.echo\",\"enabled\":true}],\"next_page_token\":null}}");
+            respond(exchange, 200, "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[{\"id\":\"job-1\",\"namespace\":\"default\",\"app\":\"demo-app\",\"name\":\"echo\",\"scheduleType\":\"api\",\"scheduleExpr\":null,\"processorName\":\"demo.echo\",\"enabled\":true},{\"id\":\"job-2\",\"namespace\":\"default\",\"app\":\"other\",\"name\":\"other\",\"scheduleType\":\"api\",\"scheduleExpr\":null,\"processorName\":\"demo.echo\",\"enabled\":true}],\"nextPageToken\":null}}");
             return;
         }
         if (method.equals("POST") && path.endsWith(":trigger")) {
-            respond(exchange, 200, "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":\"inst-1\",\"job_id\":\"job-1\",\"status\":\"pending\",\"trigger_type\":\"api\",\"execution_mode\":\"single\",\"created_at\":\"now\",\"updated_at\":\"now\"}}");
+            respond(exchange, 200, "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":\"inst-1\",\"jobId\":\"job-1\",\"status\":\"pending\",\"triggerType\":\"api\",\"executionMode\":\"single\",\"createdAt\":\"now\",\"updatedAt\":\"now\"}}");
             return;
         }
         if (method.equals("POST")) {
-            respond(exchange, 200, "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":\"job-1\",\"namespace\":\"default\",\"app\":\"demo-app\",\"name\":\"echo\",\"schedule_type\":\"api\",\"schedule_expr\":null,\"processor_name\":\"demo.echo\",\"enabled\":true}}");
+            respond(exchange, 200, "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":\"job-1\",\"namespace\":\"default\",\"app\":\"demo-app\",\"name\":\"echo\",\"scheduleType\":\"api\",\"scheduleExpr\":null,\"processorName\":\"demo.echo\",\"enabled\":true}}");
             return;
         }
         if (method.equals("PATCH")) {
             boolean enabled = !body.contains("\"enabled\":false");
             String processor = body.contains("demo.report") ? "demo.report" : "demo.echo";
-            respond(exchange, 200, "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":\"job-1\",\"namespace\":\"default\",\"app\":\"demo-app\",\"name\":\"echo\",\"schedule_type\":\"api\",\"schedule_expr\":null,\"processor_name\":\"" + processor + "\",\"enabled\":" + enabled + "}}");
+            respond(exchange, 200, "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":\"job-1\",\"namespace\":\"default\",\"app\":\"demo-app\",\"name\":\"echo\",\"scheduleType\":\"api\",\"scheduleExpr\":null,\"processorName\":\"" + processor + "\",\"enabled\":" + enabled + "}}");
             return;
         }
         if (method.equals("DELETE")) {
