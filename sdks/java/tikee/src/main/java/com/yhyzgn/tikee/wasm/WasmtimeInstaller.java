@@ -27,6 +27,7 @@ public final class WasmtimeInstaller {
             builder.environment().put("WASMTIME_HOME", options.installDir().toString());
             builder.environment().put("PROFILE", "/dev/null");
             builder.redirectErrorStream(true);
+            builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
             Process process = builder.start();
             if (!process.waitFor(options.installTimeoutMillis(), TimeUnit.MILLISECONDS)) {
                 process.destroyForcibly();
