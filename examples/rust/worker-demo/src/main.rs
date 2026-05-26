@@ -1,11 +1,15 @@
 #![forbid(unsafe_code)]
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
-use tikee::WorkerConfig;
+use async_trait::async_trait;
+use tikee::{
+    ContainerScriptRunner, ScriptRunnerKind, ScriptRunnerRegistry, TaskContext, TaskOutcome,
+    TaskProcessor, WorkerClient, WorkerConfig, WorkerSdkError,
+};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), WorkerSdkError> {
     let endpoint = std::env::var("TIKEE_WORKER_ENDPOINT")
         .unwrap_or_else(|_| "http://127.0.0.1:9998".to_owned());
     let client_instance_id = std::env::var("TIKEE_WORKER_INSTANCE_ID")
@@ -20,6 +24,37 @@ async fn main() {
     if let Ok(worker_pool) = std::env::var("TIKEE_WORKER_POOL") {
         config.labels.insert("worker_pool".to_owned(), worker_pool);
     }
+
+    let mut runners = ScriptRunnerRegistry::new();
+    configure_script_runner(
+        &mut config,
+        &mut runners,
+        ScriptRunnerKind::Shell,
+        "TIKEE_SHELL_IMAGE",
+        "alpine:3.20",
+    );
+    configure_script_runner(
+        &mut config,
+        &mut runners,
+        ScriptRunnerKind::Python,
+        "TIKEE_PYTHON_IMAGE",
+        "python:3.13-alpine",
+    );
+    configure_script_runner(
+        &mut config,
+        &mut runners,
+        ScriptRunnerKind::Node,
+        "TIKEE_NODE_IMAGE",
+        "node:24-alpine",
+    );
+    configure_script_runner(
+        &mut config,
+        &mut runners,
+        ScriptRunnerKind::PowerShell,
+        "TIKEE_POWERSHELL_IMAGE",
+        "mcr.microsoft.com/powershell:latest",
+    );
+
     println!(
         "Rust worker demo configured: client_instance_id={}, endpoint={}, namespace={}, app={}, cluster={}, region={}, capabilities={:?}, labels={:?}",
         config.client_instance_id,
@@ -31,13 +66,94 @@ async fn main() {
         config.capabilities,
         config.labels
     );
+
+    if !enabled_env("TIKEE_WORKER_CONNECT") {
+        println!(
+            "Dry run only. Set TIKEE_WORKER_CONNECT=1 and TIKEE_ENABLE_SCRIPT_<LANG>=1 to open a live Worker Tunnel."
+        );
+        return Ok(());
+    }
+
+    let oneshot = enabled_env("TIKEE_WORKER_ONESHOT");
+    let mut session = WorkerClient::new(config).connect().await?;
     println!(
-        "Start tikee server and replace this dry run with WorkerClient::connect() when needed."
+        "Rust worker connected: worker_id={}, generation={}, lease_seconds={}",
+        session.worker_id(),
+        session.generation(),
+        session.lease_seconds()
     );
+
+    if enabled_env("TIKEE_WORKER_HEARTBEAT_ON_START") {
+        let ping = session.heartbeat().await?;
+        println!("heartbeat ack sequence={}", ping.sequence);
+    }
+
+    loop {
+        let outcome = session
+            .process_next_with_script_runners(&NoopProcessor, &runners)
+            .await?;
+        println!("processed task outcome={outcome:?}");
+        if oneshot {
+            session.close().await?;
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+fn configure_script_runner(
+    config: &mut WorkerConfig,
+    runners: &mut ScriptRunnerRegistry,
+    kind: ScriptRunnerKind,
+    image_env: &str,
+    default_image: &str,
+) {
+    let enable_key = format!("TIKEE_ENABLE_SCRIPT_{}", kind.as_str().to_ascii_uppercase());
+    if !enabled_env(&enable_key) {
+        return;
+    }
+    let image = env_or(image_env, default_image);
+    runners.register(ContainerScriptRunner::new(kind, image));
+    push_unique(
+        &mut config.capabilities,
+        format!("script:{}", kind.as_str()),
+    );
+    config.labels.insert(
+        format!("script_{}_sandbox", kind.as_str()),
+        "container".to_owned(),
+    );
+}
+
+fn push_unique(values: &mut Vec<String>, value: String) {
+    if !values.iter().any(|item| item == &value) {
+        values.push(value);
+    }
+}
+
+struct NoopProcessor;
+
+#[async_trait]
+impl TaskProcessor for NoopProcessor {
+    async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError> {
+        Ok(TaskOutcome::Failed(format!(
+            "rust script worker only accepts dynamic script bindings; unsupported SDK processor {}",
+            task.processor_name
+        )))
+    }
 }
 
 fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_owned())
+}
+
+fn enabled_env(key: &str) -> bool {
+    matches!(
+        std::env::var(key)
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
+        "1" | "true" | "yes" | "on"
+    )
 }
 
 fn csv_env(key: &str) -> Vec<String> {

@@ -55,6 +55,19 @@ impl WorkerSession {
     /// Returns an error when the tunnel is closed, the tikee returns a gRPC error,
     /// or the response type is unexpected.
     pub async fn heartbeat(&mut self) -> Result<Ping, WorkerSdkError> {
+        let sequence = self.send_heartbeat_message().await?;
+
+        loop {
+            let message = self.next_server_message().await?;
+            if let Some(server_message::Kind::Ping(ping)) = message.kind
+                && ping.sequence == sequence
+            {
+                return Ok(ping);
+            }
+        }
+    }
+
+    async fn send_heartbeat_message(&mut self) -> Result<u64, WorkerSdkError> {
         self.heartbeat_sequence = self.heartbeat_sequence.saturating_add(1);
         let sequence = self.heartbeat_sequence;
         self.outbound
@@ -68,15 +81,7 @@ impl WorkerSession {
             })
             .await
             .map_err(|_| WorkerSdkError::TunnelClosed)?;
-
-        loop {
-            let message = self.next_server_message().await?;
-            if let Some(server_message::Kind::Ping(ping)) = message.kind
-                && ping.sequence == sequence
-            {
-                return Ok(ping);
-            }
-        }
+        Ok(sequence)
     }
 
     /// Send heartbeats forever at the provided interval.
@@ -166,10 +171,19 @@ impl WorkerSession {
     where
         P: TaskProcessor,
     {
+        let heartbeat_interval = heartbeat_interval(self.lease_seconds);
+        let mut ticker = tokio::time::interval(heartbeat_interval);
         loop {
-            let message = self.next_server_message().await?;
-            if let Some(server_message::Kind::DispatchTask(task)) = message.kind {
-                return self.process_task(processor, script_runners, task).await;
+            tokio::select! {
+                _ = ticker.tick() => {
+                    self.send_heartbeat_message().await?;
+                }
+                message = self.next_server_message() => {
+                    if let Some(server_message::Kind::DispatchTask(task)) = message?.kind {
+                        self.send_heartbeat_message().await?;
+                        return self.process_task(processor, script_runners, task).await;
+                    }
+                }
             }
         }
     }
@@ -265,6 +279,10 @@ impl WorkerClient {
             heartbeat_sequence: 0,
         })
     }
+}
+
+fn heartbeat_interval(lease_seconds: u64) -> Duration {
+    Duration::from_secs((lease_seconds / 3).clamp(1, 10))
 }
 
 fn task_result_message(outcome: &TaskOutcome) -> String {
