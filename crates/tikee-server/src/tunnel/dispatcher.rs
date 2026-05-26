@@ -185,12 +185,12 @@ async fn dispatch_single_instances(
             continue;
         };
 
-        let processor_name = resolve_processor_name(workflows, &instance.id, &job).await?;
+        let executor = resolve_job_executor(workflows, &instance.id, &job).await?;
         let task = match build_dispatch_task(
             scripts,
             instance.id.clone(),
             instance.job_id.clone(),
-            processor_name,
+            executor,
         )
         .await?
         {
@@ -272,16 +272,16 @@ async fn dispatch_broadcast_attempts(
         let Some(instance) = instances.get(&attempt.instance_id).await? else {
             continue;
         };
-        let processor_name = if let Some(job) = jobs.get(&instance.job_id).await? {
-            resolve_processor_name(workflows, &instance.id, &job).await?
+        let executor = if let Some(job) = jobs.get(&instance.job_id).await? {
+            resolve_job_executor(workflows, &instance.id, &job).await?
         } else {
-            instance.job_id.clone()
+            JobExecutor::SdkProcessor(instance.job_id.clone())
         };
         let task = match build_dispatch_task(
             scripts,
             attempt.instance_id.clone(),
             instance.job_id.clone(),
-            processor_name,
+            executor,
         )
         .await?
         {
@@ -410,62 +410,73 @@ async fn append_script_governance_log(
     Ok(())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum JobExecutor {
+    SdkProcessor(String),
+    Script { script_id: String },
+}
+
 async fn build_dispatch_task(
     scripts: &ScriptRepository,
     instance_id: String,
     job_id: String,
-    processor_name: String,
+    executor: JobExecutor,
 ) -> Result<DispatchTaskBuild, tikee_storage::DbErr> {
-    let processor_binding = if let Some(script_id) = processor_name.strip_prefix("script:") {
-        let Some(script) = scripts.get(script_id).await? else {
-            warn!(%script_id, "script processor binding references missing script; dispatch remains pending");
-            return Ok(DispatchTaskBuild::Rejected(
-                ScriptGovernanceFailure::MissingScript,
-            ));
-        };
-        if !script_is_dispatchable(&script) {
-            warn!(script_id = %script.id, language = %script.language, status = %script.status, "script is not dispatchable; dispatch remains pending");
-            return Ok(DispatchTaskBuild::Rejected(
-                ScriptGovernanceFailure::NotApproved,
-            ));
+    let (processor_name, processor_binding) = match executor {
+        JobExecutor::Script { script_id } => {
+            let Some(script) = scripts.get(&script_id).await? else {
+                warn!(%script_id, "script processor binding references missing script; dispatch remains pending");
+                return Ok(DispatchTaskBuild::Rejected(
+                    ScriptGovernanceFailure::MissingScript,
+                ));
+            };
+            if !script_is_dispatchable(&script) {
+                warn!(script_id = %script.id, language = %script.language, status = %script.status, "script is not dispatchable; dispatch remains pending");
+                return Ok(DispatchTaskBuild::Rejected(
+                    ScriptGovernanceFailure::NotApproved,
+                ));
+            }
+            let Some(version_number) = script.released_version_number else {
+                warn!(script_id = %script.id, "approved script has no released version pointer; dispatch remains pending");
+                return Ok(DispatchTaskBuild::Rejected(
+                    ScriptGovernanceFailure::MissingReleasePointer,
+                ));
+            };
+            let Some(version) = scripts
+                .versions()
+                .get_version_by_number(&script.id, version_number)
+                .await?
+            else {
+                warn!(script_id = %script.id, version_number, "released script version is missing; dispatch remains pending");
+                return Ok(DispatchTaskBuild::Rejected(
+                    ScriptGovernanceFailure::MissingReleasedVersion,
+                ));
+            };
+            let Some(language) = parse_script_language(&version.language) else {
+                warn!(script_id = %script.id, language = %version.language, "released script version has unsupported language; dispatch remains pending");
+                return Ok(DispatchTaskBuild::Rejected(
+                    ScriptGovernanceFailure::UnsupportedLanguage,
+                ));
+            };
+            if let Err(error) =
+                validate_script_version_dispatchable(&version, script.release_grants.as_ref())
+            {
+                warn!(script_id = %script.id, version_number, language = %version.language, %error, "released script version policy is not dispatchable; dispatch remains pending");
+                return Ok(DispatchTaskBuild::Rejected(
+                    ScriptGovernanceFailure::PolicyRejected(error.to_string()),
+                ));
+            }
+
+            (
+                script.id.clone(),
+                if language == ScriptLanguage::Wasm {
+                    Some(Box::new(wasm_processor_binding(&script, &version)))
+                } else {
+                    Some(Box::new(script_processor_binding(&script, &version)))
+                },
+            )
         }
-        let Some(version_number) = script.released_version_number else {
-            warn!(script_id = %script.id, "approved script has no released version pointer; dispatch remains pending");
-            return Ok(DispatchTaskBuild::Rejected(
-                ScriptGovernanceFailure::MissingReleasePointer,
-            ));
-        };
-        let Some(version) = scripts
-            .versions()
-            .get_version_by_number(&script.id, version_number)
-            .await?
-        else {
-            warn!(script_id = %script.id, version_number, "released script version is missing; dispatch remains pending");
-            return Ok(DispatchTaskBuild::Rejected(
-                ScriptGovernanceFailure::MissingReleasedVersion,
-            ));
-        };
-        let Some(language) = parse_script_language(&version.language) else {
-            warn!(script_id = %script.id, language = %version.language, "released script version has unsupported language; dispatch remains pending");
-            return Ok(DispatchTaskBuild::Rejected(
-                ScriptGovernanceFailure::UnsupportedLanguage,
-            ));
-        };
-        if let Err(error) =
-            validate_script_version_dispatchable(&version, script.release_grants.as_ref())
-        {
-            warn!(script_id = %script.id, version_number, language = %version.language, %error, "released script version policy is not dispatchable; dispatch remains pending");
-            return Ok(DispatchTaskBuild::Rejected(
-                ScriptGovernanceFailure::PolicyRejected(error.to_string()),
-            ));
-        }
-        if language == ScriptLanguage::Wasm {
-            Some(Box::new(wasm_processor_binding(&script, &version)))
-        } else {
-            Some(Box::new(script_processor_binding(&script, &version)))
-        }
-    } else {
-        None
+        JobExecutor::SdkProcessor(processor_name) => (processor_name, None),
     };
 
     Ok(DispatchTaskBuild::Built(DispatchTask {
@@ -653,24 +664,35 @@ fn script_version_to_wasm_spec(version: &ScriptVersionSummary) -> WasmProcessorS
     spec
 }
 
-async fn resolve_processor_name(
+async fn resolve_job_executor(
     workflows: &WorkflowRepository,
     instance_id: &str,
     job: &tikee_storage::JobSummary,
-) -> Result<String, tikee_storage::DbErr> {
+) -> Result<JobExecutor, tikee_storage::DbErr> {
     if let Some(processor_name) = workflows
         .processor_name_for_job_instance(instance_id)
         .await?
     {
-        return Ok(processor_name);
+        return Ok(JobExecutor::SdkProcessor(processor_name));
     }
-    Ok(job
-        .processor_name
+    if let Some(script_id) = job
+        .script_id
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .unwrap_or(&job.name)
-        .to_owned())
+    {
+        return Ok(JobExecutor::Script {
+            script_id: script_id.to_owned(),
+        });
+    }
+    Ok(JobExecutor::SdkProcessor(
+        job.processor_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(&job.name)
+            .to_owned(),
+    ))
 }
 
 #[cfg(test)]
@@ -688,8 +710,8 @@ mod tests {
     use tokio::sync::mpsc;
 
     use super::{
-        DispatchTaskBuild, ScriptGovernanceFailure, WorkerRegistry, build_dispatch_task,
-        dispatch_once, dispatch_once_if_owner, script_is_dispatchable,
+        DispatchTaskBuild, JobExecutor, ScriptGovernanceFailure, WorkerRegistry,
+        build_dispatch_task, dispatch_once, dispatch_once_if_owner, script_is_dispatchable,
         script_version_is_dispatchable,
     };
 
@@ -713,6 +735,7 @@ mod tests {
                 schedule_type: "api".to_owned(),
                 schedule_expr: None,
                 processor_name: Some("billing.manual".to_owned()),
+                script_id: None,
                 enabled: true,
             })
             .await
@@ -799,6 +822,7 @@ mod tests {
                 schedule_type: "api".to_owned(),
                 schedule_expr: None,
                 processor_name: Some("demo.blocked".to_owned()),
+                script_id: None,
                 enabled: true,
             })
             .await
@@ -821,6 +845,7 @@ mod tests {
                 schedule_type: "api".to_owned(),
                 schedule_expr: None,
                 processor_name: Some("demo.echo".to_owned()),
+                script_id: None,
                 enabled: true,
             })
             .await
@@ -925,6 +950,7 @@ mod tests {
                 schedule_type: "api".to_owned(),
                 schedule_expr: None,
                 processor_name: None,
+                script_id: None,
                 enabled: true,
             })
             .await
@@ -1029,6 +1055,7 @@ mod tests {
                 schedule_type: "api".to_owned(),
                 schedule_expr: None,
                 processor_name: None,
+                script_id: None,
                 enabled: true,
             })
             .await
@@ -1095,6 +1122,7 @@ mod tests {
                 schedule_type: "api".to_owned(),
                 schedule_expr: None,
                 processor_name: None,
+                script_id: None,
                 enabled: true,
             })
             .await
@@ -1154,6 +1182,7 @@ mod tests {
                 schedule_type: "api".to_owned(),
                 schedule_expr: None,
                 processor_name: Some("job.default".to_owned()),
+                script_id: None,
                 enabled: true,
             })
             .await
@@ -1284,7 +1313,8 @@ mod tests {
                 name: "wasm job".to_owned(),
                 schedule_type: "api".to_owned(),
                 schedule_expr: None,
-                processor_name: Some(format!("script:{}", script.id)),
+                processor_name: None,
+                script_id: Some(script.id.clone()),
                 enabled: true,
             })
             .await
@@ -1337,7 +1367,7 @@ mod tests {
         match message.kind {
             Some(server_message::Kind::DispatchTask(task)) => {
                 assert_eq!(task.instance_id, instance.id);
-                assert_eq!(task.processor_name, format!("script:{}", script.id));
+                assert_eq!(task.processor_name, script.id);
                 let binding = task
                     .processor_binding
                     .unwrap_or_else(|| panic!("wasm binding expected"));
@@ -1406,7 +1436,9 @@ mod tests {
             &scripts,
             "instance-shell".to_owned(),
             "job-shell".to_owned(),
-            format!("script:{}", script.id),
+            JobExecutor::Script {
+                script_id: script.id.clone(),
+            },
         )
         .await
         .unwrap_or_else(|error| panic!("task build should not error: {error}"))
@@ -1491,7 +1523,9 @@ mod tests {
             &scripts,
             "instance-shell".to_owned(),
             "job-shell".to_owned(),
-            format!("script:{}", script.id),
+            JobExecutor::Script {
+                script_id: script.id.clone(),
+            },
         )
         .await
         .unwrap_or_else(|error| panic!("task build should not error: {error}"))
@@ -1568,7 +1602,9 @@ mod tests {
             &scripts,
             "instance-1".to_owned(),
             "job-1".to_owned(),
-            format!("script:{}", script.id),
+            JobExecutor::Script {
+                script_id: script.id.clone(),
+            },
         )
         .await
         .unwrap_or_else(|error| panic!("task build should not error: {error}"));

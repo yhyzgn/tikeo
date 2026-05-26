@@ -9,12 +9,13 @@ public record UpdateJobRequest(
         String scheduleType,
         String scheduleExpr,
         String processorName,
+        String scriptId,
         Boolean enabled) {
     public static UpdateJobRequest disable() {
-        return new UpdateJobRequest(null, null, null, null, false);
+        return new UpdateJobRequest(null, null, null, null, null, false);
     }
 
     public static UpdateJobRequest enable() {
-        return new UpdateJobRequest(null, null, null, null, true);
+        return new UpdateJobRequest(null, null, null, null, null, true);
     }
 }

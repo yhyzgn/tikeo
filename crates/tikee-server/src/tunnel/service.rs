@@ -675,6 +675,7 @@ mod tests {
                 schedule_type: "api".to_owned(),
                 schedule_expr: None,
                 processor_name: None,
+                script_id: None,
                 enabled: true,
             })
             .await
@@ -761,6 +762,7 @@ mod tests {
                 schedule_type: "api".to_owned(),
                 schedule_expr: None,
                 processor_name: None,
+                script_id: None,
                 enabled: true,
             })
             .await

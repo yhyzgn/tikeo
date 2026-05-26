@@ -94,6 +94,7 @@ public final class HttpTikeeJobClient implements TikeeJobClient {
                 request.scheduleType(),
                 request.scheduleExpr(),
                 request.processorName(),
+                request.scriptId(),
                 request.enabled());
     }
 
@@ -150,5 +151,6 @@ public final class HttpTikeeJobClient implements TikeeJobClient {
             String scheduleType,
             String scheduleExpr,
             String processorName,
+            String scriptId,
             Boolean enabled) {}
 }

@@ -68,6 +68,12 @@ impl JobRepository {
         let namespace = self.ensure_namespace(&input.namespace, &now).await?;
         let app = self.ensure_app(&namespace.id, &input.app, &now).await?;
         let id = new_id("job");
+        let script_id = normalize_processor_name(input.script_id);
+        let processor_name = if script_id.is_some() {
+            None
+        } else {
+            normalize_processor_name(input.processor_name)
+        };
 
         let model = job::ActiveModel {
             id: Set(id.clone()),
@@ -76,7 +82,8 @@ impl JobRepository {
             name: Set(input.name),
             schedule_type: Set(input.schedule_type),
             schedule_expr: Set(input.schedule_expr),
-            processor_name: Set(normalize_processor_name(input.processor_name)),
+            processor_name: Set(processor_name),
+            script_id: Set(script_id),
             enabled: Set(input.enabled),
             created_at: Set(now.clone()),
             updated_at: Set(now),
@@ -92,6 +99,7 @@ impl JobRepository {
             schedule_type: model.schedule_type,
             schedule_expr: model.schedule_expr,
             processor_name: model.processor_name,
+            script_id: model.script_id,
             enabled: model.enabled,
         })
     }
@@ -124,6 +132,15 @@ impl JobRepository {
         }
         if let Some(processor_name) = input.processor_name {
             active.processor_name = Set(normalize_processor_name(processor_name));
+            if matches!(active.processor_name, sea_orm::ActiveValue::Set(Some(_))) {
+                active.script_id = Set(None);
+            }
+        }
+        if let Some(script_id) = input.script_id {
+            active.script_id = Set(normalize_processor_name(script_id));
+            if matches!(active.script_id, sea_orm::ActiveValue::Set(Some(_))) {
+                active.processor_name = Set(None);
+            }
         }
         if let Some(enabled) = input.enabled {
             active.enabled = Set(enabled);
@@ -170,6 +187,7 @@ impl JobRepository {
                 schedule_type: job.schedule_type,
                 schedule_expr: job.schedule_expr,
                 processor_name: job.processor_name,
+                script_id: job.script_id,
                 enabled: job.enabled,
             });
         }

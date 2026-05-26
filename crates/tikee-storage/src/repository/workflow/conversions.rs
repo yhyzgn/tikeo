@@ -100,6 +100,7 @@ where
         schedule_type: Set("api".to_owned()),
         schedule_expr: Set(None),
         processor_name: Set(Some(job_id.to_owned())),
+        script_id: Set(None),
         enabled: Set(true),
         created_at: Set(now.to_owned()),
         updated_at: Set(now.to_owned()),

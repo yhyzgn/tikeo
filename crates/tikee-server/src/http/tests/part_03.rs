@@ -14,6 +14,7 @@
                 schedule_type: "api".to_owned(),
                 schedule_expr: None,
                 processor_name: None,
+                script_id: None,
                 enabled: true,
             })
             .await
@@ -268,7 +269,8 @@
                 name: "governed-script".to_owned(),
                 schedule_type: "api".to_owned(),
                 schedule_expr: None,
-                processor_name: Some("script:script-missing-runtime".to_owned()),
+                processor_name: None,
+                script_id: Some("script-missing-runtime".to_owned()),
                 enabled: true,
             })
             .await
@@ -801,7 +803,7 @@
     }
 
     #[tokio::test]
-    async fn workers_list_shows_latest_generation_for_replaced_logical_instance() {
+    async fn workers_list_shows_latest_generation_for_reconnected_logical_instance() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
@@ -838,8 +840,8 @@
         assert_eq!(json["data"]["items"][0]["workerId"], second.worker_id);
         assert_eq!(json["data"]["items"][0]["generation"], 2);
         assert_eq!(json["data"]["items"][0]["status"], "online");
-        assert_eq!(json["data"]["items"][0]["client_instance_id"], "pod-1");
-        assert_ne!(first.worker_id, second.worker_id);
+        assert_eq!(json["data"]["items"][0]["clientInstanceId"], "pod-1");
+        assert_eq!(first.worker_id, second.worker_id);
     }
 
     #[tokio::test]
@@ -867,4 +869,3 @@
         assert_eq!(json["code"], 40101);
         assert!(json.get("data").is_some());
     }
-

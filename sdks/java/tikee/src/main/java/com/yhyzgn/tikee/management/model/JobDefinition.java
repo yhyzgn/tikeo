@@ -12,4 +12,5 @@ public record JobDefinition(
         String scheduleType,
         String scheduleExpr,
         String processorName,
+        String scriptId,
         boolean enabled) {}

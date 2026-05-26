@@ -11,8 +11,10 @@ pub struct CreateJob {
     pub schedule_type: String,
     /// Optional schedule expression.
     pub schedule_expr: Option<String>,
-    /// Optional worker processor binding. When absent, dispatch falls back to job name.
+    /// Optional SDK worker processor binding. When absent, dispatch falls back to job name.
     pub processor_name: Option<String>,
+    /// Optional managed script binding. Mutually exclusive with `processor_name`.
+    pub script_id: Option<String>,
     /// Whether the job is enabled.
     pub enabled: bool,
 }
@@ -26,8 +28,10 @@ pub struct UpdateJob {
     pub schedule_type: Option<String>,
     /// Optional schedule expression. Outer `None` leaves unchanged; inner `None` clears it.
     pub schedule_expr: Option<Option<String>>,
-    /// Optional worker processor binding. Outer `None` leaves unchanged; inner `None` clears it.
+    /// Optional SDK worker processor binding. Outer `None` leaves unchanged; inner `None` clears it.
     pub processor_name: Option<Option<String>>,
+    /// Optional managed script binding. Outer `None` leaves unchanged; inner `None` clears it.
+    pub script_id: Option<Option<String>>,
     /// Optional enabled flag.
     pub enabled: Option<bool>,
 }
@@ -47,8 +51,10 @@ pub struct JobSummary {
     pub schedule_type: String,
     /// Optional schedule expression.
     pub schedule_expr: Option<String>,
-    /// Optional worker processor binding.
+    /// Optional SDK worker processor binding.
     pub processor_name: Option<String>,
+    /// Optional managed script binding.
+    pub script_id: Option<String>,
     /// Enabled flag.
     pub enabled: bool,
 }

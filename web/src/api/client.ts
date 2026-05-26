@@ -17,6 +17,7 @@ export interface JobSummary {
   scheduleType: string;
   scheduleExpr: string | null;
   processorName: string | null;
+  scriptId: string | null;
   enabled: boolean;
 }
 
@@ -27,6 +28,7 @@ export interface CreateJobRequest {
   scheduleType?: string;
   scheduleExpr?: string | null;
   processorName?: string | null;
+  scriptId?: string | null;
   enabled?: boolean;
 }
 
@@ -35,6 +37,7 @@ export interface UpdateJobRequest {
   scheduleType?: string;
   scheduleExpr?: string | null;
   processorName?: string | null;
+  scriptId?: string | null;
   enabled?: boolean;
 }
 

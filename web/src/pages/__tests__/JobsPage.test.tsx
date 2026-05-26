@@ -14,12 +14,13 @@ describe('job schedule form governance', () => {
   });
 
   test('distinguishes SDK processors from sandbox script workers', () => {
-    expect(source).toContain('SDK Processor（Java demo / Spring Bean）');
-    expect(source).toContain('具体脚本（沙箱自动执行）');
-    expect(source).toContain('选择具体脚本或输入 SDK Processor');
-    expect(source).toContain('脚本 ·');
+    expect(source).toContain('SDK Processor');
+    expect(source).toContain('脚本执行器（沙箱自动执行）');
+    expect(source).toContain('具体脚本');
+    expect(source).toContain('选择已审批脚本');
     expect(source).toContain('shell.test');
     expect(source).not.toContain('执行器类型');
+    expect(source).not.toContain('script:');
     expect(source).not.toContain("label: 'Script'");
   });
 });

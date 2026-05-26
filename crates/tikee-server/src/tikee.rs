@@ -171,6 +171,7 @@ mod tests {
                 schedule_type: "fixed_rate".to_owned(),
                 schedule_expr: Some("1s".to_owned()),
                 processor_name: None,
+                script_id: None,
                 enabled: true,
             })
             .await
@@ -208,6 +209,7 @@ mod tests {
                 schedule_type: "cron".to_owned(),
                 schedule_expr: Some("0/1 * * * * * *".to_owned()),
                 processor_name: None,
+                script_id: None,
                 enabled: true,
             })
             .await
@@ -241,6 +243,7 @@ mod tests {
                 schedule_type: "fixed_rate".to_owned(),
                 schedule_expr: Some("1s".to_owned()),
                 processor_name: None,
+                script_id: None,
                 enabled: false,
             })
             .await
@@ -273,6 +276,7 @@ mod tests {
                 schedule_type: "fixed_rate".to_owned(),
                 schedule_expr: Some("1s".to_owned()),
                 processor_name: None,
+                script_id: None,
                 enabled: true,
             })
             .await

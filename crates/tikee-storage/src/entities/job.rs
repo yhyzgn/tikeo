@@ -19,8 +19,10 @@ pub struct Model {
     pub schedule_type: String,
     /// Optional schedule expression.
     pub schedule_expr: Option<String>,
-    /// Optional worker processor binding.
+    /// Optional SDK worker processor binding.
     pub processor_name: Option<String>,
+    /// Optional managed script binding.
+    pub script_id: Option<String>,
     /// Enabled flag.
     pub enabled: bool,
     /// Creation timestamp in RFC3339 format.

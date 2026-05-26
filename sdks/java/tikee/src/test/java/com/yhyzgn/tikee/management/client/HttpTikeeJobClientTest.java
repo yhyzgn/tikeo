@@ -70,7 +70,7 @@ class HttpTikeeJobClientTest {
         var disabled = client.disableJob("job-1");
         assertFalse(disabled.enabled());
 
-        var updated = client.updateJob("job-1", new UpdateJobRequest("report", JobScheduleType.API.value(), null, "demo.report", true));
+        var updated = client.updateJob("job-1", new UpdateJobRequest("report", JobScheduleType.API.value(), null, "demo.report", null, true));
         assertEquals("demo.report", updated.processorName());
 
         var instance = client.triggerJob("job-1", TriggerJobRequest.api());

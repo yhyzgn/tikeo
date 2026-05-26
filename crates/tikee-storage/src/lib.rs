@@ -211,6 +211,13 @@ async fn ensure_job_schema_compatibility(db: &DatabaseConnection) -> Result<(), 
         ))
         .await?;
     }
+    if !sqlite_column_exists(db, "jobs", "script_id").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE jobs ADD COLUMN script_id varchar",
+        ))
+        .await?;
+    }
     Ok(())
 }
 
@@ -986,6 +993,7 @@ async fn remove_sqlite_foreign_keys(db: &DatabaseConnection) -> Result<(), sea_o
             schedule_type varchar NOT NULL,
             schedule_expr varchar,
             processor_name varchar,
+            script_id varchar,
             enabled boolean NOT NULL,
             created_at varchar NOT NULL,
             updated_at varchar NOT NULL
@@ -998,6 +1006,7 @@ async fn remove_sqlite_foreign_keys(db: &DatabaseConnection) -> Result<(), sea_o
             "schedule_type",
             "schedule_expr",
             "processor_name",
+            "script_id",
             "enabled",
             "created_at",
             "updated_at",
@@ -1251,6 +1260,7 @@ mod tests {
                 schedule_type varchar NOT NULL,
                 schedule_expr varchar,
                 processor_name varchar,
+                script_id varchar,
                 enabled boolean NOT NULL,
                 created_at varchar NOT NULL,
                 updated_at varchar NOT NULL

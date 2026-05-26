@@ -22,7 +22,8 @@ describe('workflow editor avoids user-facing internal bindings', () => {
     expect(source).toContain('脚本不再作为独立工作流节点配置');
     expect(source).toContain('选择已创建工作流');
     expect(source).not.toContain('子工作流 ID');
-    expect(source).toContain('Processor 由所选调度任务绑定决定');
+    expect(source).toContain('执行器由所选调度任务绑定决定');
+    expect(source).toContain('脚本沙箱绑定都不能在工作流节点里手动覆盖');
     expect(source).not.toContain('processorName: key');
   });
 });

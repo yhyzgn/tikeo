@@ -4,7 +4,7 @@
 
 #![allow(clippy::option_if_let_else)]
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeMap;
 use utoipa::ToSchema;
 
@@ -837,8 +837,10 @@ pub struct JobSummary {
     pub schedule_type: String,
     /// Optional schedule expression.
     pub schedule_expr: Option<String>,
-    /// Optional worker processor binding.
+    /// Optional SDK worker processor binding.
     pub processor_name: Option<String>,
+    /// Optional managed script binding.
+    pub script_id: Option<String>,
     /// Job enabled flag.
     pub enabled: bool,
 }
@@ -857,8 +859,10 @@ pub struct CreateJobRequest {
     pub schedule_type: Option<String>,
     /// Optional schedule expression for CRON/fixed-rate modes.
     pub schedule_expr: Option<String>,
-    /// Optional worker processor binding.
+    /// Optional SDK worker processor binding.
     pub processor_name: Option<String>,
+    /// Optional managed script binding.
+    pub script_id: Option<String>,
     /// Enabled flag. Defaults to `true` when omitted.
     pub enabled: Option<bool>,
 }
@@ -872,11 +876,24 @@ pub struct UpdateJobRequest {
     /// Optional schedule type update. `api` means explicit API/SDK/UI trigger.
     pub schedule_type: Option<String>,
     /// Optional schedule expression update. Use null to clear it.
+    #[serde(default, deserialize_with = "deserialize_nullable_update")]
     pub schedule_expr: Option<Option<String>>,
-    /// Optional worker processor binding update. Use null to clear it.
+    /// Optional SDK worker processor binding update. Use null to clear it.
+    #[serde(default, deserialize_with = "deserialize_nullable_update")]
     pub processor_name: Option<Option<String>>,
+    /// Optional managed script binding update. Use null to clear it.
+    #[serde(default, deserialize_with = "deserialize_nullable_update")]
+    pub script_id: Option<Option<String>>,
     /// Optional enabled flag update.
     pub enabled: Option<bool>,
+}
+
+fn deserialize_nullable_update<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
 }
 
 /// Trigger job request.

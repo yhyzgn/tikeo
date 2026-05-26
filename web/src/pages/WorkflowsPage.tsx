@@ -226,7 +226,11 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], currentWo
     if (!from || !to) return null;
     return { from: { x: from.x + 218, y: from.y + 70 }, to: { x: to.x, y: to.y + 70 } };
   })() : null;
-  const jobOptions = jobs.map((job) => ({ label: `${job.name} · ${job.namespace}/${job.app}${job.processorName ? ` · ${job.processorName}` : ''}`, value: job.id }));
+  const jobExecutionLabel = (job?: JobSummary | null) => {
+    if (!job) return '请选择调度任务';
+    return job.scriptId ? `脚本 · ${job.scriptId}` : `SDK · ${job.processorName || job.name}`;
+  };
+  const jobOptions = jobs.map((job) => ({ label: `${job.name} · ${job.namespace}/${job.app} · ${jobExecutionLabel(job)}`, value: job.id }));
   const jobById = new Map(jobs.map((job) => [job.id, job]));
   const workflowOptions = workflows
     .filter((workflow) => workflow.id !== currentWorkflowId)
@@ -539,8 +543,8 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], currentWo
                   style={{ width: '100%' }}
                   onChange={(value) => updateNode(selectedNode.key, { jobId: value, processorName: undefined })}
                 />
-                <Typography.Text>Processor：<Typography.Text code>{selectedNode.jobId ? (jobById.get(selectedNode.jobId)?.processorName ?? jobById.get(selectedNode.jobId)?.id ?? selectedNode.jobId) : '请选择调度任务'}</Typography.Text></Typography.Text>
-                <Typography.Text type="secondary">Processor 由所选调度任务绑定决定，工作流节点不可手动覆盖，避免节点配置与任务定义不一致。</Typography.Text>
+                <Typography.Text>执行器：<Typography.Text code>{selectedNode.jobId ? jobExecutionLabel(jobById.get(selectedNode.jobId)) : '请选择调度任务'}</Typography.Text></Typography.Text>
+                <Typography.Text type="secondary">执行器由所选调度任务绑定决定；SDK Processor 或脚本沙箱绑定都不能在工作流节点里手动覆盖，避免节点配置与任务定义不一致。</Typography.Text>
               </Space>
             ) : null}
 
@@ -622,7 +626,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], currentWo
                   style={{ width: '100%' }}
                   onChange={(value) => updateNode(selectedNode.key, { jobId: value, processorName: undefined })}
                 />
-                <Typography.Text>Processor：<Typography.Text code>{selectedNode.jobId ? (jobById.get(selectedNode.jobId)?.processorName ?? jobById.get(selectedNode.jobId)?.id ?? selectedNode.jobId) : '请选择调度任务'}</Typography.Text></Typography.Text>
+                <Typography.Text>执行器：<Typography.Text code>{selectedNode.jobId ? jobExecutionLabel(jobById.get(selectedNode.jobId)) : '请选择调度任务'}</Typography.Text></Typography.Text>
                 <Input.TextArea key={`map-items-${selectedNode.key}`} rows={4} defaultValue={JSON.stringify(selectedNode.mapItems ?? [], null, 2)} onBlur={(event) => updateMapItems(selectedNode.key, event.target.value)} />
               </Space>
             ) : null}

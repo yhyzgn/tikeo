@@ -93,7 +93,7 @@ class DemoJobManagementControllerTest {
         }
 
         private static JobDefinition job(String id, String name, String processorName, boolean enabled) {
-            return new JobDefinition(id, "default", "default", name, "api", null, processorName, enabled);
+            return new JobDefinition(id, "default", "default", name, "api", null, processorName, null, enabled);
         }
     }
 }

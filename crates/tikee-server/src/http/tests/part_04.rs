@@ -854,7 +854,7 @@
         .await;
 
         assert_eq!(triggered["code"], 0);
-        assert_eq!(triggered["data"]["job_id"], job_id);
+        assert_eq!(triggered["data"]["jobId"], job_id);
         assert_eq!(triggered["data"]["status"], "pending");
 
         let listed = request_with(app.clone(), &format!("/api/v1/jobs/{job_id}/instances")).await;
@@ -950,7 +950,7 @@
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["data"]["items"][0]["message"], "hello");
         assert_eq!(
-            json["data"]["items"][1]["governance_event"],
+            json["data"]["items"][1]["governanceEvent"],
             "script_execution_governance"
         );
         assert_eq!(
@@ -988,6 +988,44 @@
 
         assert_eq!(json["code"], 0);
         assert_eq!(json["data"]["processorName"], "billing.invoice-sync");
+    }
+
+    #[tokio::test]
+    async fn job_binding_switches_between_script_and_sdk_structurally() {
+        let app = router().await;
+        let created = post_json(
+            app.clone(),
+            "/api/v1/jobs",
+            r#"{"namespace":"default","app":"billing","name":"script-job","scheduleType":"api","scriptId":"script-safe"}"#,
+        )
+        .await;
+        let job_id = created["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("created job should contain id"));
+        assert_eq!(created["data"]["scriptId"], "script-safe");
+        assert_eq!(created["data"]["processorName"], Value::Null);
+
+        let update = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "PATCH",
+                    format!("/api/v1/jobs/{job_id}"),
+                    r#"{"processorName":"demo.echo","scriptId":null}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(update.status().is_success());
+        let body = axum::body::to_bytes(update.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["data"]["processorName"], "demo.echo");
+        assert_eq!(json["data"]["scriptId"], Value::Null);
     }
 
 

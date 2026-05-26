@@ -111,6 +111,13 @@ pub async fn create_job(
         ));
     }
     let schedule_type = parse_schedule_type(request.schedule_type.as_deref().unwrap_or("api"))?;
+    if has_concrete_binding(request.processor_name.as_ref())
+        && has_concrete_binding(request.script_id.as_ref())
+    {
+        return Err(ApiError::bad_request(
+            "processorName and scriptId are mutually exclusive",
+        ));
+    }
     let created = state
         .jobs
         .create_job(CreateJob {
@@ -120,6 +127,7 @@ pub async fn create_job(
             schedule_type: schedule_type.to_string(),
             schedule_expr: request.schedule_expr.clone(),
             processor_name: request.processor_name.clone(),
+            script_id: request.script_id.clone(),
             enabled: request.enabled.unwrap_or(true),
         })
         .await
@@ -283,6 +291,21 @@ pub async fn update_job(
         .map(parse_schedule_type)
         .transpose()?
         .map(|value| value.to_string());
+    if request
+        .processor_name
+        .as_ref()
+        .and_then(std::option::Option::as_ref)
+        .is_some_and(|value| has_concrete_binding(Some(value)))
+        && request
+            .script_id
+            .as_ref()
+            .and_then(std::option::Option::as_ref)
+            .is_some_and(|value| has_concrete_binding(Some(value)))
+    {
+        return Err(ApiError::bad_request(
+            "processorName and scriptId are mutually exclusive",
+        ));
+    }
     let updated = state
         .jobs
         .update_job(
@@ -292,6 +315,7 @@ pub async fn update_job(
                 schedule_type,
                 schedule_expr: request.schedule_expr.clone(),
                 processor_name: request.processor_name.clone(),
+                script_id: request.script_id.clone(),
                 enabled: request.enabled,
             },
         )
@@ -376,6 +400,10 @@ pub async fn delete_job(
 
 fn has_auth_header(headers: &HeaderMap) -> bool {
     headers.contains_key(axum::http::header::AUTHORIZATION) || headers.contains_key("x-tikee-token")
+}
+
+fn has_concrete_binding(value: Option<&String>) -> bool {
+    value.is_some_and(|value| !value.trim().is_empty())
 }
 
 /// List instances for a job.
@@ -539,6 +567,7 @@ impl From<tikee_storage::JobSummary> for JobSummary {
             schedule_type: value.schedule_type,
             schedule_expr: value.schedule_expr,
             processor_name: value.processor_name,
+            script_id: value.script_id,
             enabled: value.enabled,
         }
     }

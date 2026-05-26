@@ -9,8 +9,9 @@ public record CreateJobRequest(
         String scheduleType,
         String scheduleExpr,
         String processorName,
+        String scriptId,
         Boolean enabled) {
     public static CreateJobRequest api(String name, String processorName) {
-        return new CreateJobRequest(name, JobScheduleType.API.value(), null, processorName, true);
+        return new CreateJobRequest(name, JobScheduleType.API.value(), null, processorName, null, true);
     }
 }
