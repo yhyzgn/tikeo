@@ -9,13 +9,13 @@ use super::{
 };
 use crate::{error::WorkerSdkError, task::TaskOutcome};
 
-/// Opt-in local subprocess runner for non-WASM dynamic scripts.
+/// Development-only local subprocess runner for non-WASM dynamic scripts.
 ///
-/// This runner is intentionally small and default-deny: it validates immutable released
-/// version metadata, verifies the content SHA-256 digest, denies network/filesystem/secret
-/// grants, writes no host files, feeds script content through stdin, enforces wall-clock
-/// timeout, and caps captured output. Workers must opt in by constructing this runner;
-/// tikee Server never executes user scripts.
+/// This runner is intentionally small and default-deny, but it is not a production sandbox
+/// boundary: the child process still runs on the Worker host. Use it only in SDK tests or
+/// isolated development diagnostics. Production script-capable Workers must register a
+/// sandbox runner such as [`ContainerScriptRunner`](super::ContainerScriptRunner) or a
+/// stronger runtime.
 #[derive(Debug, Clone)]
 pub struct LocalSubprocessScriptRunner {
     kind: ScriptRunnerKind,

@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{error::WorkerSdkError, task::TaskOutcome};
 
-/// Opt-in containerized runner for non-WASM dynamic scripts.
+/// Opt-in sandboxed container runner for non-WASM dynamic scripts.
 ///
 /// This runner invokes a local container runtime CLI (Docker-compatible by default) from the
 /// Worker process and passes script content through stdin. It is designed as a safer boundary

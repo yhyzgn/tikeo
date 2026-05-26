@@ -81,7 +81,7 @@ function scriptCapabilitySummary(script?: ScriptSummary): string {
   if (script.language === 'wasm') {
     return 'Worker 需声明 script:wasm 能力并启用 Rust SDK wasm feature';
   }
-  return `Worker 需声明 script:${script.language} 能力，并显式注册对应 Rust SDK LocalSubprocessScriptRunner`;
+  return `Worker 需声明 script:${script.language} 能力，并显式注册沙箱化脚本执行器（例如 Rust SDK ContainerScriptRunner）；禁止直接裸本地命令执行`;
 }
 
 function shortDigest(value?: string | null): string {

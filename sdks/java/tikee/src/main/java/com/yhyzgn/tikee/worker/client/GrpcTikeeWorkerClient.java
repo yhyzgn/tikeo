@@ -13,6 +13,8 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -29,6 +31,7 @@ import java.util.function.Consumer;
  * gRPC implementation of the active outbound Worker Tunnel client.
  */
 public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
+    private static final Logger log = LoggerFactory.getLogger(GrpcTikeeWorkerClient.class);
     private static final Duration DEFAULT_START_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration DEFAULT_RECONNECT_INITIAL_DELAY = Duration.ofSeconds(1);
     private static final Duration DEFAULT_RECONNECT_MAX_DELAY = Duration.ofSeconds(30);
@@ -396,6 +399,8 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
         dispatchObserver.accept(task);
         processorExecutor.submit(() -> {
             String assignedWorkerId = requireConnectedWorkerId();
+            log.info("[tikee.worker] received task instanceId={} jobId={} processor={}",
+                    task.getInstanceId(), task.getJobId(), task.getProcessorName());
             emitTaskLog(task, assignedWorkerId, "info", "received task " + task.getInstanceId()
                     + " processor=" + task.getProcessorName());
             TaskOutcome outcome;
@@ -415,6 +420,8 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                 }
             }
             String level = outcome.success() ? "info" : "error";
+            log.info("[tikee.worker] completed task instanceId={} processor={} success={} message={}",
+                    task.getInstanceId(), task.getProcessorName(), outcome.success(), outcome.message());
             emitTaskLog(task, assignedWorkerId, level, "completed task " + task.getInstanceId()
                     + " success=" + outcome.success() + " message=" + outcome.message());
             send(Worker.WorkerMessage.newBuilder()

@@ -8,6 +8,7 @@ import com.yhyzgn.tikee.examples.worker.processor.EchoTaskProcessor;
 import com.yhyzgn.tikee.examples.worker.processor.FailingTaskProcessor;
 import com.yhyzgn.tikee.examples.worker.processor.HeartbeatTaskProcessor;
 import com.yhyzgn.tikee.examples.worker.processor.ReportTaskProcessor;
+import com.yhyzgn.tikee.examples.worker.processor.ShellTestTaskProcessor;
 import com.yhyzgn.tikee.examples.worker.processor.WorkflowStepTaskProcessor;
 import com.yhyzgn.tikee.processor.TaskContext;
 import java.nio.charset.StandardCharsets;
@@ -38,6 +39,8 @@ class EchoProcessorTest {
         assertThat(new ReportTaskProcessor().report(context("demo.report", "")).message()).isEqualTo("report:demo.report");
         assertThat(new WorkflowStepTaskProcessor().workflowStep(context("demo.workflow.step", "")).message())
                 .startsWith("workflow-step:");
+        assertThat(new ShellTestTaskProcessor().shellTest(context("shell.test", "echo hi")).message())
+                .startsWith("shell-test:");
     }
 
     @Test

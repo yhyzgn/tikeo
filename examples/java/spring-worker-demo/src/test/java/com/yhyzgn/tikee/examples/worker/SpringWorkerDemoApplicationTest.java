@@ -64,12 +64,12 @@ class SpringWorkerDemoApplicationTest {
         assertThat(health).contains("\"connected\":true");
         assertThat(health).contains("\"workerId\":\"dry-run-java-");
         assertThat(health).contains("demo.echo", "demo.fail", "demo.workflow.step");
-        assertThat(processors).contains("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail");
+        assertThat(processors).contains("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail", "shell.test");
     }
 
     @Test
     void springRegistersEchoProcessorAndInvokesItThroughRegistry() {
-        assertThat(registry.handlers()).containsKeys("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail");
+        assertThat(registry.handlers()).containsKeys("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail", "shell.test");
 
         var outcome = registry.invoke("demo.echo", new TaskContext(
                 "job-1",

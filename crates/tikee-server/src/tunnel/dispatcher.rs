@@ -669,7 +669,7 @@ async fn resolve_processor_name(
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .unwrap_or(&job.id)
+        .unwrap_or(&job.name)
         .to_owned())
 }
 
@@ -996,7 +996,7 @@ mod tests {
         match message.kind {
             Some(server_message::Kind::DispatchTask(task)) => {
                 assert_eq!(task.instance_id, instance.id);
-                assert_eq!(task.processor_name, job.id);
+                assert_eq!(task.processor_name, job.name);
             }
             other => panic!("unexpected server message: {other:?}"),
         }

@@ -1,4 +1,4 @@
-import { Button, Card, Drawer, Form, Input, InputNumber, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Drawer, Form, Input, InputNumber, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -34,6 +34,10 @@ export function JobsPage() {
   useEffect(() => { void load(); }, [load]);
 
   const scriptOptions = scripts.map((script) => ({ label: `${script.name} · ${script.language} · ${script.status}`, value: script.id }));
+  const executorOptions = [
+    { value: 'sdk', label: 'SDK Processor（Java demo / Spring Bean）' },
+    { value: 'script', label: '沙箱脚本执行器（需专用 Worker）' },
+  ];
   const scriptProcessor = (scriptId?: string) => scriptId ? `script:${scriptId}` : undefined;
   const fixedRateExpr = (value?: number | null, unit?: string | null) => value ? `${value}${unit || 's'}` : null;
   const parseFixedRate = (expr?: string | null) => {
@@ -112,7 +116,7 @@ export function JobsPage() {
     { title: 'Name', dataIndex: 'name' },
     { title: 'Namespace / App', render: (_, job) => <Space direction="vertical" size={0}><strong>{job.namespace}</strong><Typography.Text type="secondary" style={{ fontSize: 12 }}>{job.app}</Typography.Text></Space> },
     { title: 'Schedule', dataIndex: 'scheduleType', render: (value: string) => <Tag color="blue" className="soft-tag">{value}</Tag> },
-    { title: 'Processor', dataIndex: 'processorName', render: (value: string | null, job) => <Typography.Text code>{value || job.id}</Typography.Text> },
+    { title: 'Processor', dataIndex: 'processorName', render: (value: string | null, job) => <Typography.Text code>{value || job.name}</Typography.Text> },
     {
       title: 'Enabled',
       dataIndex: 'enabled',
@@ -218,12 +222,20 @@ export function JobsPage() {
           <Form.Item name="namespace" label="Namespace" rules={[{ required: true }]}><Input placeholder="default" /></Form.Item>
           <Form.Item name="app" label="App" rules={[{ required: true }]}><Input placeholder="default" /></Form.Item>
           <Form.Item name="name" label="任务名称" rules={[{ required: true }]}><Input placeholder="demo.echo" /></Form.Item>
-          <Form.Item name="executorType" label="执行器类型"><Select options={[{ value: 'sdk', label: 'SDK Processor' }, { value: 'script', label: 'Script' }]} /></Form.Item>
+          <Form.Item name="executorType" label="执行器类型"><Select options={executorOptions} /></Form.Item>
           <Form.Item noStyle shouldUpdate={(prev, next) => prev.executorType !== next.executorType}>
             {({ getFieldValue }) => getFieldValue('executorType') === 'script' ? (
-              <Form.Item name="scriptId" label="脚本" rules={[{ required: true, message: '请选择脚本' }]}><Select showSearch options={scriptOptions} optionFilterProp="label" placeholder="选择已创建脚本" /></Form.Item>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="脚本任务只会下发给沙箱脚本 Worker"
+                  description="Java demo 不执行 Script binding；Shell/Python/Node/Rhai 等脚本必须由声明 script:<language> 能力并注册沙箱 runner 的专用 Worker 执行。普通 Java/Spring 用例请选择 SDK Processor 并填写例如 shell.test。"
+                />
+                <Form.Item name="scriptId" label="脚本" rules={[{ required: true, message: '请选择脚本' }]}><Select showSearch options={scriptOptions} optionFilterProp="label" placeholder="选择已创建脚本" /></Form.Item>
+              </Space>
             ) : (
-              <Form.Item name="processorName" label="SDK Processor"><Input placeholder="demo.echo" /></Form.Item>
+              <Form.Item name="processorName" label="SDK Processor" extra="Java demo/Spring Worker 通过 @TikeeProcessor 注册，例如 demo.echo 或 shell.test；不填时默认使用任务名称作为 processor。"><Input placeholder="demo.echo / shell.test" /></Form.Item>
             )}
           </Form.Item>
           <Form.Item name="scheduleType" label="调度类型"><Select options={[{ value: 'api', label: 'API 手动触发' }, { value: 'cron', label: 'Cron 定时' }, { value: 'fixed_rate', label: '固定频率' }]} /></Form.Item>
@@ -251,12 +263,20 @@ export function JobsPage() {
         <Form form={editForm} layout="vertical" onFinish={(values) => void handleEditSubmit(values)}>
           <Form.Item label="Namespace / App"><Typography.Text code>{editingJob ? `${editingJob.namespace}/${editingJob.app}` : '-'}</Typography.Text></Form.Item>
           <Form.Item name="name" label="任务名称" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="executorType" label="执行器类型"><Select options={[{ value: 'sdk', label: 'SDK Processor' }, { value: 'script', label: 'Script' }]} /></Form.Item>
+          <Form.Item name="executorType" label="执行器类型"><Select options={executorOptions} /></Form.Item>
           <Form.Item noStyle shouldUpdate={(prev, next) => prev.executorType !== next.executorType}>
             {({ getFieldValue }) => getFieldValue('executorType') === 'script' ? (
-              <Form.Item name="scriptId" label="脚本" rules={[{ required: true, message: '请选择脚本' }]}><Select showSearch options={scriptOptions} optionFilterProp="label" placeholder="选择已创建脚本" /></Form.Item>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="脚本任务只会下发给沙箱脚本 Worker"
+                  description="Java demo 不执行 Script binding；Shell/Python/Node/Rhai 等脚本必须由声明 script:<language> 能力并注册沙箱 runner 的专用 Worker 执行。普通 Java/Spring 用例请选择 SDK Processor 并填写例如 shell.test。"
+                />
+                <Form.Item name="scriptId" label="脚本" rules={[{ required: true, message: '请选择脚本' }]}><Select showSearch options={scriptOptions} optionFilterProp="label" placeholder="选择已创建脚本" /></Form.Item>
+              </Space>
             ) : (
-              <Form.Item name="processorName" label="SDK Processor"><Input placeholder="demo.echo" /></Form.Item>
+              <Form.Item name="processorName" label="SDK Processor" extra="Java demo/Spring Worker 通过 @TikeeProcessor 注册，例如 demo.echo 或 shell.test；不填时默认使用任务名称作为 processor。"><Input placeholder="demo.echo / shell.test" /></Form.Item>
             )}
           </Form.Item>
           <Form.Item name="scheduleType" label="调度类型"><Select options={[{ value: 'api', label: 'API 手动触发' }, { value: 'cron', label: 'Cron 定时' }, { value: 'fixed_rate', label: '固定频率' }]} /></Form.Item>

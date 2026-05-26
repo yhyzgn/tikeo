@@ -12,4 +12,12 @@ describe('job schedule form governance', () => {
     expect(source).toContain('Cron 表达式');
     expect(source).not.toContain('cron 或 fixed_rate 表达式，可留空');
   });
+
+  test('distinguishes SDK processors from sandbox script workers', () => {
+    expect(source).toContain('SDK Processor（Java demo / Spring Bean）');
+    expect(source).toContain('沙箱脚本执行器（需专用 Worker）');
+    expect(source).toContain('Java demo 不执行 Script binding');
+    expect(source).toContain('shell.test');
+    expect(source).not.toContain("label: 'Script'");
+  });
 });

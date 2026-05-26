@@ -14,9 +14,9 @@ Registration model: the client may provide `client_instance_id` only as a stable
 
 ## Dynamic script runners
 
-Dynamic script bindings are executed only when a Worker explicitly registers a matching runner and advertises the matching capability to tikee. The Server never executes script content.
+Dynamic script bindings are executed only when a Worker explicitly registers a matching sandbox runner and advertises the matching capability to tikee. The Server never executes script content, and production Workers must not execute scripts as bare host subprocesses.
 
-- Shell: advertise `script:shell`, register `ContainerScriptRunner::new(ScriptRunnerKind::Shell, "alpine:3.20")` or another approved runner.
+- Shell: advertise `script:shell`, register `ContainerScriptRunner::new(ScriptRunnerKind::Shell, "alpine:3.20")` or another approved sandbox runner.
 - Python: advertise `script:python`, use a Python image/runner.
 - Node.js: advertise `script:node`, use a Node image/runner.
 - PowerShell: advertise `script:powershell`, use a PowerShell image/runner.
@@ -34,4 +34,6 @@ let mut runners = ScriptRunnerRegistry::new();
 runners.register(ContainerScriptRunner::new(ScriptRunnerKind::Shell, "alpine:3.20"));
 ```
 
-Then call `WorkerSession::process_next_with_script_runners(&processor, &runners)` from a Worker that registered the corresponding `script:shell` capability.
+Then call `WorkerSession::process_next_with_script_runners(&processor, &runners)` from a dedicated sandbox-capable Worker that registered the corresponding `script:shell` capability.
+
+Sandbox rule: non-WASM scripts must run in a sandbox boundary. Prefer `ContainerScriptRunner` or a stronger runtime such as Firecracker/gVisor/Kata. `LocalSubprocessScriptRunner` exists only for SDK tests and isolated development diagnostics; do not register it in production workers.
