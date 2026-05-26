@@ -22,7 +22,7 @@ describe('job schedule form governance', () => {
     expect(source).toContain('SDK Processor 不能选择 script:* 执行器');
     expect(source).toContain('只展示与所选脚本执行器语言匹配的已审批脚本');
     expect(source).toContain('选择已审批脚本');
-    expect(source).toContain('shell.test');
+    expect(source).toContain('demo.echo');
     expect(source).not.toContain('执行器类型');
     expect(source).not.toContain('script:${script.id}');
     expect(source).not.toContain("label: 'Script'");
