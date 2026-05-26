@@ -60,7 +60,6 @@ const NODE_CATALOG = [
   { kind: 'start', label: 'Start', limits: { in: 0, out: 4 } },
   { kind: 'end', label: 'End', limits: { in: 8, out: 0 } },
   { kind: 'job', label: 'Job', limits: { in: 8, out: 8 } },
-  { kind: 'script', label: 'Script', limits: { in: 8, out: 8 } },
   { kind: 'http', label: 'HTTP', limits: { in: 8, out: 8 } },
   { kind: 'condition', label: 'Condition', limits: { in: 8, out: 2 } },
   { kind: 'parallel', label: 'Parallel', limits: { in: 8, out: 16 } },
@@ -117,16 +116,15 @@ function makeNode(kind: string, index: number): WorkflowNodeSpec {
   const key = `${kind.replace('_', '-')}-${index}`;
   const ui = { x: 90 + index * 44, y: 100 + index * 34 };
   if (kind === 'map' || kind === 'map_reduce') {
-    return { key, name: key, kind, processorName: key, mapItems: [{ shard: 1 }, { shard: 2 }], config: { ui, mode: kind === 'map' ? 'fan-out' : 'fan-out-reduce' } };
+    return { key, name: key, kind, jobId: '', mapItems: [{ shard: 1 }, { shard: 2 }], config: { ui, mode: kind === 'map' ? 'fan-out' : 'fan-out-reduce' } };
   }
   if (kind === 'sub_workflow') {
-    return { key, name: key, kind, childWorkflowId: 'wf_child', config: { ui } };
+    return { key, name: key, kind, childWorkflowId: '', config: { ui } };
   }
   if (kind === 'job') {
-    return { key, name: key, kind, jobId: '', processorName: key, config: { ui } };
+    return { key, name: key, kind, jobId: '', config: { ui } };
   }
   const configByKind: Record<string, Record<string, unknown>> = {
-    script: { language: 'rhai', sandbox: 'isolated', source: '' },
     http: { method: 'GET', url: '', timeout_ms: 30000 },
     condition: { expression: 'context.success == true', true_edge: 'on_success', false_edge: 'on_failure' },
     parallel: { strategy: 'fan-out' },
@@ -203,7 +201,7 @@ function edgeConditionMeta(condition: string | null | undefined, fromNode?: Work
     ?? { label: value, value, color: '#2563eb' };
 }
 
-function DagPreview({ definition, instance, jobs = [], editable = false, onChange }: { definition: WorkflowDefinition; instance?: WorkflowInstanceSummary | null; jobs?: JobSummary[]; editable?: boolean; onChange?: (definition: WorkflowDefinition) => void }) {
+function DagPreview({ definition, instance, jobs = [], workflows = [], currentWorkflowId, editable = false, onChange }: { definition: WorkflowDefinition; instance?: WorkflowInstanceSummary | null; jobs?: JobSummary[]; workflows?: WorkflowSummary[]; currentWorkflowId?: string | null; editable?: boolean; onChange?: (definition: WorkflowDefinition) => void }) {
   const [dragging, setDragging] = useState<{ key: string; offsetX: number; offsetY: number } | null>(null);
   const [linkDrag, setLinkDrag] = useState<{ from: string; x: number; y: number } | null>(null);
   const [edgeDrag, setEdgeDrag] = useState<{ index: number; side: 'from' | 'to'; anchorKey: string; x: number; y: number } | null>(null);
@@ -230,6 +228,9 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
   })() : null;
   const jobOptions = jobs.map((job) => ({ label: `${job.name} · ${job.namespace}/${job.app}${job.processorName ? ` · ${job.processorName}` : ''}`, value: job.id }));
   const jobById = new Map(jobs.map((job) => [job.id, job]));
+  const workflowOptions = workflows
+    .filter((workflow) => workflow.id !== currentWorkflowId)
+    .map((workflow) => ({ label: `${workflow.name} · ${workflow.status} · ${workflow.id}`, value: workflow.id }));
 
   const update = (next: WorkflowDefinition) => onChange?.(next);
   const toCanvasPoint = (event: PointerEvent<Element>) => {
@@ -544,14 +545,12 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
             ) : null}
 
             {nodeKind(selectedNode) === 'script' ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Typography.Text strong>动态脚本节点</Typography.Text>
-                <Space wrap>
-                  <Select value={(selectedNode.config as { language?: string } | undefined)?.language ?? 'rhai'} style={{ width: 160 }} options={['rhai', 'python', 'javascript', 'shell'].map((value) => ({ value, label: value }))} onChange={(value) => updateNodeConfig(selectedNode.key, { language: value })} />
-                  <Input addonBefore="Sandbox" value={(selectedNode.config as { sandbox?: string } | undefined)?.sandbox ?? 'isolated'} style={{ width: 260 }} onChange={(event) => updateNodeConfig(selectedNode.key, { sandbox: event.target.value })} />
-                </Space>
-                <Input.TextArea rows={4} placeholder="脚本内容或脚本版本引用" value={(selectedNode.config as { source?: string } | undefined)?.source ?? ''} onChange={(event) => updateNodeConfig(selectedNode.key, { source: event.target.value })} />
-              </Space>
+              <Alert
+                type="warning"
+                showIcon
+                message="脚本不再作为独立工作流节点配置"
+                description="请在任务列表中新建任务并选择执行器类型为 Script，然后在工作流中添加 Job 节点绑定该任务；这样脚本版本、沙箱策略和 Worker 绑定都由任务定义统一治理。"
+              />
             ) : null}
 
             {nodeKind(selectedNode) === 'http' ? (
@@ -629,7 +628,19 @@ function DagPreview({ definition, instance, jobs = [], editable = false, onChang
             ) : null}
 
             {nodeKind(selectedNode) === 'sub_workflow' ? (
-              <Input addonBefore="子工作流 ID" value={selectedNode.childWorkflowId ?? ''} onChange={(event) => updateNode(selectedNode.key, { childWorkflowId: event.target.value })} />
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Typography.Text strong>绑定子工作流</Typography.Text>
+                <Select
+                  showSearch
+                  placeholder="选择已创建工作流"
+                  value={selectedNode.childWorkflowId || undefined}
+                  options={workflowOptions}
+                  optionFilterProp="label"
+                  style={{ width: '100%' }}
+                  onChange={(value) => updateNode(selectedNode.key, { childWorkflowId: value })}
+                />
+                <Typography.Text type="secondary">子工作流必须从已有工作流中选择，避免手填 ID 导致绑定失效。</Typography.Text>
+              </Space>
             ) : null}
           </Space>
         </Card>
@@ -825,6 +836,7 @@ export function WorkflowsPage() {
 
 export function WorkflowEditorPage() {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
+  const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [previewMode, setPreviewMode] = useState<'visual' | 'json' | 'yaml'>('visual');
   const [draft, setDraft] = useState(DEFAULT_DEFINITION);
@@ -838,8 +850,9 @@ export function WorkflowEditorPage() {
   const fetchEditorData = async () => {
     setLoading(true);
     try {
-      const jobPage = await listJobs();
+      const [jobPage, workflowItems] = await Promise.all([listJobs(), listWorkflows()]);
       setJobs(jobPage.items);
+      setWorkflows(workflowItems);
       if (workflowId) {
         const workflow = await getWorkflow(workflowId);
         form.setFieldsValue({ name: workflow.name });
@@ -908,7 +921,7 @@ export function WorkflowEditorPage() {
           <Form.Item><Button type="primary" htmlType="submit">{isEdit ? '保存工作流' : '创建工作流'}</Button></Form.Item>
           {dryRun ? <Alert type={dryRun.validation.valid ? 'success' : 'error'} message={dryRun.validation.valid ? 'Dry-run 通过' : 'Dry-run 失败'} description={`start: ${dryRun.startNodes.join(', ') || '-'} · nodes: ${dryRun.nodeCount} · edges: ${dryRun.edgeCount}${dryRun.validation.errors.length ? ` · ${dryRun.validation.errors.join('; ')}` : ''}`} /> : null}
         </Form>
-        {previewDefinition && previewMode === 'visual' ? <DagPreview definition={previewDefinition} jobs={jobs} editable onChange={updateDefinition} /> : null}
+        {previewDefinition && previewMode === 'visual' ? <DagPreview definition={previewDefinition} jobs={jobs} workflows={workflows} currentWorkflowId={workflowId ?? null} editable onChange={updateDefinition} /> : null}
         {previewMode === 'json' ? <Input.TextArea className="workflow-definition-preview" rows={18} spellCheck={false} value={draft} onChange={(event) => { setDraft(event.target.value); setDryRun(null); }} /> : null}
         {previewMode === 'yaml' ? <Input.TextArea className="workflow-definition-preview" rows={18} spellCheck={false} value={yamlPreview || 'JSON 解析失败，无法生成 YAML'} readOnly /> : null}
         {!previewDefinition && previewMode === 'visual' ? <Alert type="warning" message="JSON 解析失败，无法预览画布" /> : null}

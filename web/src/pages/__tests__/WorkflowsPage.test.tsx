@@ -14,3 +14,15 @@ describe('workflow canvas fullscreen affordance', () => {
     expect(styles).toContain('position: fixed');
   });
 });
+
+
+describe('workflow editor avoids user-facing internal bindings', () => {
+  test('uses selected jobs and workflows instead of manual processor or child ids', () => {
+    expect(source).not.toContain("{ kind: 'script', label: 'Script'");
+    expect(source).toContain('脚本不再作为独立工作流节点配置');
+    expect(source).toContain('选择已创建工作流');
+    expect(source).not.toContain('子工作流 ID');
+    expect(source).toContain('Processor 由所选调度任务绑定决定');
+    expect(source).not.toContain('processorName: key');
+  });
+});

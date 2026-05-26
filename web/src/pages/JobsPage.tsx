@@ -1,4 +1,4 @@
-import { Button, Card, Drawer, Form, Input, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message } from 'antd';
+import { Button, Card, Drawer, Form, Input, InputNumber, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -13,8 +13,8 @@ export function JobsPage() {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [scripts, setScripts] = useState<ScriptSummary[]>([]);
   const [loading, setLoading] = useState(false);
-  const [form] = Form.useForm<CreateJobRequest & { executorType?: 'sdk' | 'script'; scriptId?: string }>();
-  const [editForm] = Form.useForm<UpdateJobRequest & { executorType?: 'sdk' | 'script'; scriptId?: string }>();
+  const [form] = Form.useForm<CreateJobRequest & { executorType?: 'sdk' | 'script'; scriptId?: string; fixedRateValue?: number; fixedRateUnit?: string }>();
+  const [editForm] = Form.useForm<UpdateJobRequest & { executorType?: 'sdk' | 'script'; scriptId?: string; fixedRateValue?: number; fixedRateUnit?: string }>();
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<JobSummary | null>(null);
 
@@ -35,6 +35,16 @@ export function JobsPage() {
 
   const scriptOptions = scripts.map((script) => ({ label: `${script.name} · ${script.language} · ${script.status}`, value: script.id }));
   const scriptProcessor = (scriptId?: string) => scriptId ? `script:${scriptId}` : undefined;
+  const fixedRateExpr = (value?: number | null, unit?: string | null) => value ? `${value}${unit || 's'}` : null;
+  const parseFixedRate = (expr?: string | null) => {
+    const match = String(expr ?? '').trim().match(/^(\d+(?:\.\d+)?)(ns|us|ms|s|m|h|d|w|month|year)$/);
+    return match ? { fixedRateValue: Number(match[1]), fixedRateUnit: match[2] } : { fixedRateValue: undefined, fixedRateUnit: 's' };
+  };
+  const normalizeSchedule = <T extends { scheduleType?: string; scheduleExpr?: string | null; fixedRateValue?: number; fixedRateUnit?: string }>(values: T) => {
+    if (values.scheduleType === 'api') return { ...values, scheduleExpr: null };
+    if (values.scheduleType === 'fixed_rate') return { ...values, scheduleExpr: fixedRateExpr(values.fixedRateValue, values.fixedRateUnit) };
+    return values;
+  };
   const parseProcessor = (processorName?: string | null) => processorName?.startsWith('script:')
     ? { executorType: 'script' as const, scriptId: processorName.slice('script:'.length), processorName }
     : { executorType: 'sdk' as const, scriptId: undefined, processorName: processorName ?? undefined };
@@ -42,17 +52,19 @@ export function JobsPage() {
 
   const openCreateDrawer = () => {
     form.resetFields();
-    form.setFieldsValue({ namespace: 'default', app: 'default', scheduleType: 'api', enabled: true, executorType: 'sdk' });
+    form.setFieldsValue({ namespace: 'default', app: 'default', scheduleType: 'api', enabled: true, executorType: 'sdk', fixedRateUnit: 's' });
     setCreateDrawerOpen(true);
   };
 
   const openEditDrawer = (job: JobSummary) => {
     setEditingJob(job);
     const processor = parseProcessor(job.processorName);
+    const fixedRate = parseFixedRate(job.scheduleExpr);
     editForm.setFieldsValue({
       name: job.name,
       scheduleType: job.scheduleType,
-      scheduleExpr: job.scheduleExpr,
+      scheduleExpr: job.scheduleType === 'cron' ? job.scheduleExpr : undefined,
+      ...fixedRate,
       processorName: processor.executorType === 'sdk' ? processor.processorName : undefined,
       executorType: processor.executorType,
       scriptId: processor.scriptId,
@@ -60,12 +72,13 @@ export function JobsPage() {
     });
   };
 
-  const handleEditSubmit = async (values: UpdateJobRequest & { executorType?: 'sdk' | 'script'; scriptId?: string }) => {
+  const handleEditSubmit = async (values: UpdateJobRequest & { executorType?: 'sdk' | 'script'; scriptId?: string; fixedRateValue?: number; fixedRateUnit?: string }) => {
     if (!editingJob) return;
     if (!canWriteJobs) { message.error('当前账号无权限编辑任务'); return; }
     try {
       const processorName = values.executorType === 'script' ? scriptProcessor(values.scriptId) : values.processorName;
-      const updated = await updateJob(editingJob.id, { ...values, processorName });
+      const { executorType: _executorType, scriptId: _scriptId, fixedRateValue: _fixedRateValue, fixedRateUnit: _fixedRateUnit, ...payload } = normalizeSchedule({ ...values, processorName });
+      const updated = await updateJob(editingJob.id, payload);
       setJobs((current) => current.map((item) => item.id === updated.id ? updated : item));
       setEditingJob(null);
       editForm.resetFields();
@@ -191,7 +204,8 @@ export function JobsPage() {
             if (!canWriteJobs) { message.error('当前账号无权限创建任务'); return; }
             try {
               const processorName = values.executorType === 'script' ? scriptProcessor(values.scriptId) : values.processorName;
-              await createJob({ ...values, processorName });
+              const { executorType: _executorType, scriptId: _scriptId, fixedRateValue: _fixedRateValue, fixedRateUnit: _fixedRateUnit, ...payload } = normalizeSchedule({ ...values, processorName });
+              await createJob(payload);
               message.success('任务已创建');
               form.resetFields();
               setCreateDrawerOpen(false);
@@ -212,7 +226,15 @@ export function JobsPage() {
               <Form.Item name="processorName" label="SDK Processor"><Input placeholder="demo.echo" /></Form.Item>
             )}
           </Form.Item>
-          <Form.Item name="scheduleType" label="调度类型"><Select options={[{ value: 'api' }, { value: 'cron' }, { value: 'fixed_rate' }]} /></Form.Item>
+          <Form.Item name="scheduleType" label="调度类型"><Select options={[{ value: 'api', label: 'API 手动触发' }, { value: 'cron', label: 'Cron 定时' }, { value: 'fixed_rate', label: '固定频率' }]} /></Form.Item>
+          <Form.Item noStyle shouldUpdate={(prev, next) => prev.scheduleType !== next.scheduleType}>
+            {({ getFieldValue }) => {
+              const scheduleType = getFieldValue('scheduleType');
+              if (scheduleType === 'cron') return <Form.Item name="scheduleExpr" label="Cron 表达式" rules={[{ required: true, message: '请输入 Cron 表达式' }]}><Input placeholder="0/30 * * * * * *" /></Form.Item>;
+              if (scheduleType === 'fixed_rate') return <Space.Compact block><Form.Item name="fixedRateValue" label="固定频率" rules={[{ required: true, message: '请输入频率' }]} style={{ flex: 1 }}><InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="30" /></Form.Item><Form.Item name="fixedRateUnit" label="单位" rules={[{ required: true }]}><Select style={{ width: 120 }} options={[{ value: 's', label: '秒' }, { value: 'm', label: '分钟' }, { value: 'h', label: '小时' }, { value: 'd', label: '天' }]} /></Form.Item></Space.Compact>;
+              return <Typography.Paragraph type="secondary">API 手动触发任务不会配置调度表达式，可通过 UI、SDK 或 HTTP API 显式触发。</Typography.Paragraph>;
+            }}
+          </Form.Item>
           <Form.Item name="enabled" label="启用" valuePropName="checked"><Switch /></Form.Item>
           <PermissionGate resource="jobs" action="write"><Button type="primary" htmlType="submit" block>创建任务</Button></PermissionGate>
         </Form>
@@ -237,8 +259,15 @@ export function JobsPage() {
               <Form.Item name="processorName" label="SDK Processor"><Input placeholder="demo.echo" /></Form.Item>
             )}
           </Form.Item>
-          <Form.Item name="scheduleType" label="调度类型"><Select options={[{ value: 'api' }, { value: 'cron' }, { value: 'fixed_rate' }]} /></Form.Item>
-          <Form.Item name="scheduleExpr" label="调度表达式"><Input placeholder="cron 或 fixed_rate 表达式，可留空" /></Form.Item>
+          <Form.Item name="scheduleType" label="调度类型"><Select options={[{ value: 'api', label: 'API 手动触发' }, { value: 'cron', label: 'Cron 定时' }, { value: 'fixed_rate', label: '固定频率' }]} /></Form.Item>
+          <Form.Item noStyle shouldUpdate={(prev, next) => prev.scheduleType !== next.scheduleType}>
+            {({ getFieldValue }) => {
+              const scheduleType = getFieldValue('scheduleType');
+              if (scheduleType === 'cron') return <Form.Item name="scheduleExpr" label="Cron 表达式" rules={[{ required: true, message: '请输入 Cron 表达式' }]}><Input placeholder="0/30 * * * * * *" /></Form.Item>;
+              if (scheduleType === 'fixed_rate') return <Space.Compact block><Form.Item name="fixedRateValue" label="固定频率" rules={[{ required: true, message: '请输入频率' }]} style={{ flex: 1 }}><InputNumber min={1} precision={0} style={{ width: '100%' }} placeholder="30" /></Form.Item><Form.Item name="fixedRateUnit" label="单位" rules={[{ required: true }]}><Select style={{ width: 120 }} options={[{ value: 's', label: '秒' }, { value: 'm', label: '分钟' }, { value: 'h', label: '小时' }, { value: 'd', label: '天' }]} /></Form.Item></Space.Compact>;
+              return <Typography.Paragraph type="secondary">API 手动触发任务不会配置调度表达式，可通过 UI、SDK 或 HTTP API 显式触发。</Typography.Paragraph>;
+            }}
+          </Form.Item>
           <Form.Item name="enabled" label="启用" valuePropName="checked"><Switch /></Form.Item>
           <PermissionGate resource="jobs" action="write"><Button type="primary" htmlType="submit" block>保存任务</Button></PermissionGate>
         </Form>
