@@ -3,6 +3,10 @@ package com.yhyzgn.tikee.worker.client;
 import com.yhyzgn.tikee.processor.ProcessorCapabilityProvider;
 import com.yhyzgn.tikee.processor.TaskContext;
 import com.yhyzgn.tikee.processor.TaskOutcome;
+import com.yhyzgn.tikee.script.ScriptRunnerKind;
+import com.yhyzgn.tikee.script.ScriptRunnerPolicy;
+import com.yhyzgn.tikee.script.ScriptRunnerRegistry;
+import com.yhyzgn.tikee.script.ScriptRunnerTask;
 import com.yhyzgn.tikee.processor.TaskProcessor;
 import com.yhyzgn.tikee.worker.WorkerRegistration;
 import tikee.worker.v1.Worker;
@@ -42,6 +46,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
     private final ManagedChannel channel;
     private final boolean ownsChannel;
     private final TaskProcessor processor;
+    private final ScriptRunnerRegistry scriptRunners;
     private final Duration heartbeatInterval;
     private final Duration startTimeout;
     private final Duration reconnectInitialDelay;
@@ -87,6 +92,22 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
     }
 
     /**
+     * Create a Worker Tunnel client with a task processor and script runners.
+     *
+     * @param endpoint tikee Worker Tunnel endpoint, e.g. {@code http://127.0.0.1:9998}
+     * @param registration worker registration metadata
+     * @param processor task processor
+     * @param scriptRunners sandboxed script runner registry
+     */
+    public GrpcTikeeWorkerClient(
+            String endpoint,
+            WorkerRegistration registration,
+            TaskProcessor processor,
+            ScriptRunnerRegistry scriptRunners) {
+        this(endpoint, registration, processor, scriptRunners, Duration.ofSeconds(10));
+    }
+
+    /**
      * Create a Worker Tunnel client with custom heartbeat interval.
      *
      * @param endpoint tikee Worker Tunnel endpoint, e.g. {@code http://127.0.0.1:9998}
@@ -104,6 +125,26 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                 true,
                 registration,
                 processor,
+                new ScriptRunnerRegistry(),
+                heartbeatInterval,
+                DEFAULT_START_TIMEOUT,
+                DEFAULT_RECONNECT_INITIAL_DELAY,
+                DEFAULT_RECONNECT_MAX_DELAY,
+                ignored -> {});
+    }
+
+    public GrpcTikeeWorkerClient(
+            String endpoint,
+            WorkerRegistration registration,
+            TaskProcessor processor,
+            ScriptRunnerRegistry scriptRunners,
+            Duration heartbeatInterval) {
+        this(
+                channelForEndpoint(endpoint),
+                true,
+                registration,
+                processor,
+                scriptRunners,
                 heartbeatInterval,
                 DEFAULT_START_TIMEOUT,
                 DEFAULT_RECONNECT_INITIAL_DELAY,
@@ -124,6 +165,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                 ownsChannel,
                 registration,
                 processor,
+                new ScriptRunnerRegistry(),
                 heartbeatInterval,
                 startTimeout,
                 DEFAULT_RECONNECT_INITIAL_DELAY,
@@ -141,10 +183,26 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
             Duration reconnectInitialDelay,
             Duration reconnectMaxDelay,
             Consumer<Worker.DispatchTask> dispatchObserver) {
+        this(channel, ownsChannel, registration, processor, new ScriptRunnerRegistry(), heartbeatInterval, startTimeout,
+                reconnectInitialDelay, reconnectMaxDelay, dispatchObserver);
+    }
+
+    GrpcTikeeWorkerClient(
+            ManagedChannel channel,
+            boolean ownsChannel,
+            WorkerRegistration registration,
+            TaskProcessor processor,
+            ScriptRunnerRegistry scriptRunners,
+            Duration heartbeatInterval,
+            Duration startTimeout,
+            Duration reconnectInitialDelay,
+            Duration reconnectMaxDelay,
+            Consumer<Worker.DispatchTask> dispatchObserver) {
         this.registration = Objects.requireNonNull(registration, "registration");
         this.channel = Objects.requireNonNull(channel, "channel");
         this.ownsChannel = ownsChannel;
         this.processor = Objects.requireNonNull(processor, "processor");
+        this.scriptRunners = Objects.requireNonNull(scriptRunners, "scriptRunners");
         this.heartbeatInterval = positiveDuration(heartbeatInterval, "heartbeatInterval");
         this.startTimeout = positiveDuration(startTimeout, "startTimeout");
         this.reconnectInitialDelay = positiveDuration(reconnectInitialDelay, "reconnectInitialDelay");
@@ -300,6 +358,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
         if (processor instanceof ProcessorCapabilityProvider provider) {
             capabilities.addAll(provider.capabilities());
         }
+        capabilities.addAll(scriptRunners.capabilities());
         return java.util.List.copyOf(capabilities);
     }
 
@@ -418,7 +477,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
             if (task.hasProcessorBinding() && task.getProcessorBinding().hasWasm()) {
                 outcome = TaskOutcome.failed("wasm processor binding is not supported by Java SDK yet");
             } else if (task.hasProcessorBinding() && task.getProcessorBinding().hasScript()) {
-                outcome = TaskOutcome.failed("script processor binding is not supported by Java SDK yet");
+                outcome = processScriptBinding(task);
             } else {
                 try {
                     outcome = processor.process(new TaskContext(
@@ -445,6 +504,36 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                             .build())
                     .build());
         });
+    }
+
+    private TaskOutcome processScriptBinding(Worker.DispatchTask task) {
+        Worker.ScriptProcessorBinding binding = task.getProcessorBinding().getScript();
+        try {
+            ScriptRunnerKind kind = ScriptRunnerKind.fromLanguage(binding.getLanguage())
+                    .orElseThrow(() -> new WorkerClientException("unsupported script language: " + binding.getLanguage()));
+            return scriptRunners.find(kind)
+                    .orElseThrow(() -> new WorkerClientException("script runner is not registered for language: "
+                            + binding.getLanguage()))
+                    .run(new ScriptRunnerTask(
+                            binding.getScriptId(),
+                            binding.getVersionId(),
+                            binding.getVersionNumber(),
+                            binding.getLanguage(),
+                            binding.getContent().toStringUtf8(),
+                            binding.getContentSha256(),
+                            new ScriptRunnerPolicy(
+                                    binding.getTimeoutMs(),
+                                    binding.getMaxMemoryBytes(),
+                                    binding.getMaxOutputBytes(),
+                                    binding.getAllowNetwork(),
+                                    binding.getAllowedNetworkHostsList(),
+                                    binding.getAllowedEnvVarsList(),
+                                    binding.getReadOnlyPathsList(),
+                                    binding.getWritablePathsList(),
+                                    binding.getSecretRefsList())));
+        } catch (Exception error) {
+            return TaskOutcome.failed(error.getMessage());
+        }
     }
 
     private void emitTaskLog(Worker.DispatchTask task, String assignedWorkerId, String level, String message) {

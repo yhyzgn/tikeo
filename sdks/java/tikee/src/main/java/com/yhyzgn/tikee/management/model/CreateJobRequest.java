@@ -14,4 +14,8 @@ public record CreateJobRequest(
     public static CreateJobRequest api(String name, String processorName) {
         return new CreateJobRequest(name, JobScheduleType.API.value(), null, processorName, null, true);
     }
+
+    public static CreateJobRequest apiScript(String name, String scriptId) {
+        return new CreateJobRequest(name, JobScheduleType.API.value(), null, null, scriptId, true);
+    }
 }

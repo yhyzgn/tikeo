@@ -42,4 +42,40 @@ public class TikeeWorkerProperties {
     private List<String> capabilities = new ArrayList<>();
     /** Labels reported during registration. */
     private Map<String, String> labels = new LinkedHashMap<>();
+    /** Sandboxed script runner configuration. */
+    private ScriptRunnerProperties scripts = new ScriptRunnerProperties();
+
+    /** Container-backed sandbox script runners. */
+    @Getter
+    @Setter
+    public static class ScriptRunnerProperties {
+        /** POSIX shell sandbox runner. */
+        private ContainerScriptRunnerProperties shell = new ContainerScriptRunnerProperties("alpine:3.20");
+        /** Python sandbox runner. */
+        private ContainerScriptRunnerProperties python = new ContainerScriptRunnerProperties("python:3.13-alpine");
+        /** Node.js sandbox runner. */
+        private ContainerScriptRunnerProperties node = new ContainerScriptRunnerProperties("node:24-alpine");
+        /** PowerShell sandbox runner. */
+        private ContainerScriptRunnerProperties powershell = new ContainerScriptRunnerProperties("mcr.microsoft.com/powershell:7.5-alpine-3.20");
+    }
+
+    /** Per-language container sandbox settings. */
+    @Getter
+    @Setter
+    public static class ContainerScriptRunnerProperties {
+        /** Enable this sandbox runner and advertise the matching script:<language> capability. */
+        private boolean enabled = false;
+        /** Docker-compatible container runtime command. */
+        private String runtimeCommand = "docker";
+        /** Container image containing the language runtime. */
+        private String image;
+        /** Extra runtime arguments appended before image. */
+        private List<String> runtimeArgs = new ArrayList<>();
+
+        public ContainerScriptRunnerProperties() {}
+
+        public ContainerScriptRunnerProperties(String image) {
+            this.image = image;
+        }
+    }
 }

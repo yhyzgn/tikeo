@@ -40,6 +40,12 @@ class DemoJobManagementControllerTest {
                 .contains("\"scheduleType\":\"api\"")
                 .contains("\"triggerType\":\"api\"")
                 .contains("inst-demo");
+
+        String scriptExample = httpPost("/demo/jobs/script/script-demo");
+        assertThat(scriptExample)
+                .contains("demo managed script")
+                .contains("\"scriptId\":\"script-demo\"")
+                .contains("\"triggerType\":\"api\"");
     }
 
     private String httpGet(String path) throws Exception {
@@ -74,8 +80,14 @@ class DemoJobManagementControllerTest {
         @Override
         public JobDefinition createJob(CreateJobRequest request) {
             assertThat(request.scheduleType()).isEqualTo("api");
-            assertThat(request.processorName()).isEqualTo("demo.echo");
-            return job("job-created", request.name(), request.processorName(), true);
+            if (request.scriptId() == null) {
+                assertThat(request.processorName()).isEqualTo("demo.echo");
+            } else {
+                assertThat(request.processorName()).isNull();
+                assertThat(request.scriptId()).isEqualTo("script-demo");
+            }
+            return new JobDefinition("job-created", "default", "default", request.name(), "api", null,
+                    request.processorName(), request.scriptId(), true);
         }
 
         @Override

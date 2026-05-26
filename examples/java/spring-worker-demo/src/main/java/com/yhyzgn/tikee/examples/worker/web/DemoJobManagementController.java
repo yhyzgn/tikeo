@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,6 +42,16 @@ public final class DemoJobManagementController {
         JobInstance instance = jobClient.triggerJob(created.id(), TriggerJobRequest.api());
         log.info("[demo.management] triggered job id={} instance={}", created.id(), instance.id());
         return new ManagedJobExample(enabled, instance);
+    }
+
+
+    @PostMapping("/script/{scriptId}")
+    public ManagedJobExample createAndTriggerScriptJob(@PathVariable String scriptId) {
+        JobDefinition created = jobClient.createJob(CreateJobRequest.apiScript("demo managed script", scriptId));
+        log.info("[demo.management] created script job id={} scriptId={}", created.id(), created.scriptId());
+        JobInstance instance = jobClient.triggerJob(created.id(), TriggerJobRequest.api());
+        log.info("[demo.management] triggered script job id={} instance={}", created.id(), instance.id());
+        return new ManagedJobExample(created, instance);
     }
 
     public record ManagedJobExample(JobDefinition job, JobInstance instance) {}

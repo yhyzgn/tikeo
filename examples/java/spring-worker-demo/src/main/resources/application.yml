@@ -22,6 +22,11 @@ tikee:
     labels:
       runtime: java
       demo: spring-worker
+    scripts:
+      shell:
+        enabled: ${TIKEE_WORKER_SCRIPT_SHELL_ENABLED:true}
+        image: ${TIKEE_WORKER_SCRIPT_SHELL_IMAGE:alpine:3.20}
+        runtime-command: ${TIKEE_WORKER_CONTAINER_RUNTIME:docker}
 
   management:
     enabled: ${TIKEE_MANAGEMENT_ENABLED:false}

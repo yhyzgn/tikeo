@@ -34,6 +34,7 @@ class TikeeWorkerAutoConfigurationTest {
             NoopTikeeWorkerClient noop = (NoopTikeeWorkerClient) client;
             assertThat(noop.registration().clientInstanceId()).startsWith("java-");
             assertThat(noop.registration().app()).isEqualTo("billing");
+            assertThat(noop.registration().capabilities()).doesNotContain("script:shell");
             assertThat(noop.running()).isTrue();
             assertThat(context.getBean(TikeeProcessorRegistry.class).handlers()).containsKey("demo.echo");
         });
@@ -47,6 +48,19 @@ class TikeeWorkerAutoConfigurationTest {
             NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
             assertThat(noop.registration().clientInstanceId()).isEqualTo("test-instance");
         });
+    }
+
+
+    @Test
+    void enablingShellScriptRunnerAdvertisesScriptCapability() {
+        contextRunner.withPropertyValues(
+                "tikee.worker.state-dir=" + stateDir,
+                "tikee.worker.scripts.shell.enabled=true",
+                "tikee.worker.scripts.shell.image=alpine:3.20")
+                .run(context -> {
+                    NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
+                    assertThat(noop.registration().capabilities()).contains("script:shell");
+                });
     }
 
 

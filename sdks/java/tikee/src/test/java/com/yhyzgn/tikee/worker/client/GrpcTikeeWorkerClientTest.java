@@ -9,6 +9,10 @@ import com.yhyzgn.tikee.processor.TaskContext;
 import com.yhyzgn.tikee.processor.TaskOutcome;
 import com.yhyzgn.tikee.processor.TaskProcessor;
 import com.yhyzgn.tikee.worker.WorkerRegistration;
+import com.yhyzgn.tikee.script.ScriptRunner;
+import com.yhyzgn.tikee.script.ScriptRunnerKind;
+import com.yhyzgn.tikee.script.ScriptRunnerRegistry;
+import com.yhyzgn.tikee.script.ScriptRunnerTask;
 
 import tikee.worker.v1.Worker;
 import tikee.worker.v1.WorkerTunnelServiceGrpc;
@@ -17,7 +21,10 @@ import io.grpc.Server;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.HexFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -312,7 +319,7 @@ class GrpcTikeeWorkerClientTest {
     }
 
     @Test
-    void scriptBoundDispatchReportsUnsupportedWithoutInvokingProcessor() throws Exception {
+    void scriptBoundDispatchReportsUnregisteredRunnerWithoutInvokingProcessor() throws Exception {
         String serverName = "tikee-worker-test-" + UUID.randomUUID();
         RecordingTunnelService service = new RecordingTunnelService(Worker.DispatchTask.newBuilder()
                 .setJobId("job-script")
@@ -326,7 +333,7 @@ class GrpcTikeeWorkerClientTest {
                                 .setContent(com.google.protobuf.ByteString.copyFromUtf8("exit 0"))
                                 .setVersionId("sv_1")
                                 .setVersionNumber(1)
-                                .setContentSha256("digest")
+                                .setContentSha256(sha256("exit 0"))
                                 .setTimeoutMs(1000)
                                 .setMaxMemoryBytes(1048576)
                                 .setMaxOutputBytes(1048576)
@@ -367,12 +374,92 @@ class GrpcTikeeWorkerClientTest {
             assertEquals("assigned-java-worker", result.getWorkerId());
             assertEquals("instance-script", result.getInstanceId());
             assertTrue(!result.getSuccess());
-            assertTrue(result.getMessage().contains("script"));
-            assertTrue(result.getMessage().contains("not supported"));
+            assertTrue(result.getMessage().contains("script runner is not registered"));
         } finally {
             channel.shutdownNow();
             server.shutdownNow();
         }
+    }
+
+
+    @Test
+    void scriptBoundDispatchUsesRegisteredSandboxRunner() throws Exception {
+        String serverName = "tikee-worker-test-" + UUID.randomUUID();
+        String script = "echo hello";
+        RecordingTunnelService service = new RecordingTunnelService(Worker.DispatchTask.newBuilder()
+                .setJobId("job-script")
+                .setProcessorName("script:shell")
+                .setInstanceId("instance-script")
+                .setProcessorBinding(Worker.TaskProcessorBinding.newBuilder()
+                        .setScript(Worker.ScriptProcessorBinding.newBuilder()
+                                .setScriptId("script_shell")
+                                .setVersion("1.0.0")
+                                .setLanguage("shell")
+                                .setContent(com.google.protobuf.ByteString.copyFromUtf8(script))
+                                .setVersionId("sv_1")
+                                .setVersionNumber(1)
+                                .setContentSha256(sha256(script))
+                                .setTimeoutMs(1000)
+                                .setMaxMemoryBytes(1048576)
+                                .setMaxOutputBytes(1048576)
+                                .build())
+                        .build())
+                .build());
+        Server server = InProcessServerBuilder.forName(serverName)
+                .directExecutor()
+                .addService(service)
+                .build()
+                .start();
+        ManagedChannel channel = InProcessChannelBuilder.forName(serverName).directExecutor().build();
+        try {
+            AtomicReference<TaskContext> observedProcessor = new AtomicReference<>();
+            AtomicReference<ScriptRunnerTask> observedScript = new AtomicReference<>();
+            ScriptRunnerRegistry registry = new ScriptRunnerRegistry().register(new ScriptRunner() {
+                @Override
+                public ScriptRunnerKind kind() {
+                    return ScriptRunnerKind.SHELL;
+                }
+
+                @Override
+                public TaskOutcome run(ScriptRunnerTask task) {
+                    observedScript.set(task);
+                    return new TaskOutcome(true, "script ok");
+                }
+            });
+            GrpcTikeeWorkerClient client = new GrpcTikeeWorkerClient(
+                    channel,
+                    false,
+                    new WorkerRegistration("java-instance-script", "default", "billing", "local", "local", List.of(), Map.of()),
+                    context -> {
+                        observedProcessor.set(context);
+                        return TaskOutcome.succeeded();
+                    },
+                    registry,
+                    Duration.ofSeconds(60),
+                    Duration.ofSeconds(2),
+                    Duration.ofMillis(10),
+                    Duration.ofMillis(20),
+                    ignored -> {});
+
+            client.start();
+            service.awaitResult();
+            client.close();
+
+            assertNull(observedProcessor.get(), "script binding must not invoke SDK processor handlers");
+            assertEquals("script_shell", observedScript.get().scriptId());
+            assertEquals("shell", observedScript.get().language());
+            Worker.TaskResult result = service.result.get();
+            assertTrue(result.getSuccess());
+            assertEquals("script ok", result.getMessage());
+        } finally {
+            channel.shutdownNow();
+            server.shutdownNow();
+        }
+    }
+
+    private static String sha256(String content) throws Exception {
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest(content.getBytes(StandardCharsets.UTF_8)));
     }
 
     private static final class RecordingTunnelService extends WorkerTunnelServiceGrpc.WorkerTunnelServiceImplBase {
