@@ -22,7 +22,9 @@ export function InstancesPage() {
       const jobPage = await listJobs();
       setJobs(jobPage.items);
       const instancePages = await Promise.all(jobPage.items.map((job) => listJobInstances(job.id)));
-      setInstances(instancePages.flatMap((page) => page.items));
+      setInstances(instancePages
+        .flatMap((page) => page.items)
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt)));
     } catch { /* silent */ }
   }, []);
 
