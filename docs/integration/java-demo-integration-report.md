@@ -36,5 +36,5 @@ The automated integration smoke verified that the tikee server, Java SDK, and Ja
 ## Known boundaries
 
 - This report covers local plaintext dev server integration, not TLS/mTLS or external DB deployment.
-- Java SDK still intentionally rejects WASM/script processor bindings; this smoke covers Java annotation processors for normal Worker Tunnel tasks.
+- Java SDK supports WASM processor bindings when a Wasmtime-compatible sandbox runner is available; non-WASM shell/python/node/powershell scripts still require explicit container runner opt-in.
 - Python/Node SDKs and Go run-loop remain deferred.

@@ -22,8 +22,12 @@ tikee:
     labels:
       runtime: java
       demo: spring-worker
+    wasm:
+      enabled: ${TIKEE_WORKER_WASM_ENABLED:true}
+      runtime-command: ${TIKEE_WORKER_WASM_RUNTIME:wasmtime}
+      availability-check: ${TIKEE_WORKER_WASM_RUNTIME_CHECK:true}
     scripts:
-      enabled: ${TIKEE_WORKER_SCRIPTS_ENABLED:true}
+      enabled: ${TIKEE_WORKER_SCRIPTS_ENABLED:false}
       runtime-command: ${TIKEE_WORKER_CONTAINER_RUNTIME:docker}
       availability-check: ${TIKEE_WORKER_SCRIPT_RUNTIME_CHECK:true}
       images:

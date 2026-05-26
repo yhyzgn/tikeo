@@ -52,6 +52,31 @@ class TikeeWorkerAutoConfigurationTest {
 
 
     @Test
+    void wasmSandboxAdvertisesScriptWasmWhenRuntimeCheckIsDisabled() {
+        contextRunner.withPropertyValues(
+                "tikee.worker.state-dir=" + stateDir,
+                "tikee.worker.wasm.enabled=true",
+                "tikee.worker.wasm.availability-check=false")
+                .run(context -> {
+                    NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
+                    assertThat(noop.registration().capabilities()).contains("script:wasm");
+                });
+    }
+
+    @Test
+    void wasmSandboxIsNotAdvertisedWhenRuntimeIsUnavailable() {
+        contextRunner.withPropertyValues(
+                "tikee.worker.state-dir=" + stateDir,
+                "tikee.worker.wasm.enabled=true",
+                "tikee.worker.wasm.availability-check=true",
+                "tikee.worker.wasm.runtime-command=tikee-missing-wasmtime")
+                .run(context -> {
+                    NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
+                    assertThat(noop.registration().capabilities()).doesNotContain("script:wasm");
+                });
+    }
+
+    @Test
     void enablingSandboxScriptsAdvertisesScriptCapabilitiesWhenRuntimeCheckIsDisabled() {
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,

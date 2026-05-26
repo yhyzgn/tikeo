@@ -9,6 +9,8 @@ import com.yhyzgn.tikee.processor.TaskContext;
 import com.yhyzgn.tikee.processor.TaskOutcome;
 import com.yhyzgn.tikee.processor.TaskProcessor;
 import com.yhyzgn.tikee.worker.WorkerRegistration;
+import com.yhyzgn.tikee.wasm.WasmRunnerRegistry;
+import com.yhyzgn.tikee.wasm.WasmRunnerTask;
 import com.yhyzgn.tikee.script.ScriptRunner;
 import com.yhyzgn.tikee.script.ScriptRunnerKind;
 import com.yhyzgn.tikee.script.ScriptRunnerLogSink;
@@ -264,7 +266,7 @@ class GrpcTikeeWorkerClientTest {
     }
 
     @Test
-    void wasmBoundDispatchReportsUnsupportedWithoutInvokingProcessor() throws Exception {
+    void wasmBoundDispatchReportsUnregisteredRunnerWithoutInvokingProcessor() throws Exception {
         String serverName = "tikee-worker-test-" + UUID.randomUUID();
         RecordingTunnelService service = new RecordingTunnelService(Worker.DispatchTask.newBuilder()
                 .setJobId("job-wasm")
@@ -306,13 +308,84 @@ class GrpcTikeeWorkerClientTest {
             service.awaitResult();
             client.close();
 
-            assertNull(observed.get(), "unsupported wasm binding must not invoke the Java processor");
+            assertNull(observed.get(), "unregistered wasm binding must not invoke the Java processor");
             Worker.TaskResult result = service.result.get();
             assertEquals("assigned-java-worker", result.getWorkerId());
             assertEquals("instance-wasm", result.getInstanceId());
             assertTrue(!result.getSuccess());
-            assertTrue(result.getMessage().contains("wasm"));
-            assertTrue(result.getMessage().contains("not supported"));
+            assertTrue(result.getMessage().contains("wasm runner is not registered"));
+        } finally {
+            channel.shutdownNow();
+            server.shutdownNow();
+        }
+    }
+
+    @Test
+    void wasmBoundDispatchUsesRegisteredSandboxRunner() throws Exception {
+        String serverName = "tikee-worker-test-" + UUID.randomUUID();
+        byte[] module = "wasm-module".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        RecordingTunnelService service = new RecordingTunnelService(Worker.DispatchTask.newBuilder()
+                .setJobId("job-wasm")
+                .setProcessorName("script:wasm")
+                .setInstanceId("instance-wasm")
+                .setProcessorBinding(Worker.TaskProcessorBinding.newBuilder()
+                        .setWasm(Worker.WasmProcessorBinding.newBuilder()
+                                .setScriptId("script_wasm")
+                                .setVersion("1.0.0")
+                                .setModule(com.google.protobuf.ByteString.copyFrom(module))
+                                .setRuntime("wasmtime")
+                                .setEntrypoint("_start")
+                                .setTimeoutMs(1000)
+                                .setMaxMemoryBytes(1048576)
+                                .setFuel(1000000)
+                                .setVersionId("sv_wasm")
+                                .setVersionNumber(1)
+                                .setModuleSha256(sha256(module))
+                                .build())
+                        .build())
+                .build());
+        Server server = InProcessServerBuilder.forName(serverName)
+                .directExecutor()
+                .addService(service)
+                .build()
+                .start();
+        ManagedChannel channel = InProcessChannelBuilder.forName(serverName).directExecutor().build();
+        try {
+            AtomicReference<TaskContext> observedProcessor = new AtomicReference<>();
+            AtomicReference<WasmRunnerTask> observedWasm = new AtomicReference<>();
+            WasmRunnerRegistry registry = new WasmRunnerRegistry().register((task, logSink) -> {
+                observedWasm.set(task);
+                logSink.log("info", "[wasm] hello from sandbox");
+                return new TaskOutcome(true, "wasm ok");
+            });
+            GrpcTikeeWorkerClient client = new GrpcTikeeWorkerClient(
+                    channel,
+                    false,
+                    new WorkerRegistration("java-instance-wasm", "default", "billing", "local", "local", List.of(), Map.of()),
+                    context -> {
+                        observedProcessor.set(context);
+                        return TaskOutcome.succeeded();
+                    },
+                    new ScriptRunnerRegistry(),
+                    registry,
+                    Duration.ofSeconds(60),
+                    Duration.ofSeconds(2),
+                    Duration.ofMillis(10),
+                    Duration.ofMillis(20),
+                    ignored -> {});
+
+            client.start();
+            service.awaitResult();
+            service.awaitTaskLogs(3);
+            client.close();
+
+            assertNull(observedProcessor.get(), "wasm binding must not invoke SDK processor handlers");
+            assertEquals("script_wasm", observedWasm.get().scriptId());
+            Worker.TaskResult result = service.result.get();
+            assertTrue(result.getSuccess());
+            assertEquals("wasm ok", result.getMessage());
+            assertTrue(service.taskLogs.stream()
+                    .anyMatch(log -> log.getMessage().contains("[wasm] hello from sandbox")));
         } finally {
             channel.shutdownNow();
             server.shutdownNow();
@@ -469,8 +542,11 @@ class GrpcTikeeWorkerClientTest {
     }
 
     private static String sha256(String content) throws Exception {
-        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                .digest(content.getBytes(StandardCharsets.UTF_8)));
+        return sha256(content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String sha256(byte[] content) throws Exception {
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
     }
 
     private static final class RecordingTunnelService extends WorkerTunnelServiceGrpc.WorkerTunnelServiceImplBase {

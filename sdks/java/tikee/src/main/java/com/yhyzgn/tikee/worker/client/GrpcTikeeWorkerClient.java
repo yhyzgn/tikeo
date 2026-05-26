@@ -9,6 +9,9 @@ import com.yhyzgn.tikee.script.ScriptRunnerRegistry;
 import com.yhyzgn.tikee.script.ScriptRunnerTask;
 import com.yhyzgn.tikee.processor.TaskProcessor;
 import com.yhyzgn.tikee.worker.WorkerRegistration;
+import com.yhyzgn.tikee.wasm.WasmRunnerPolicy;
+import com.yhyzgn.tikee.wasm.WasmRunnerRegistry;
+import com.yhyzgn.tikee.wasm.WasmRunnerTask;
 import tikee.worker.v1.Worker;
 import tikee.worker.v1.WorkerTunnelServiceGrpc;
 import io.grpc.ManagedChannel;
@@ -47,6 +50,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
     private final boolean ownsChannel;
     private final TaskProcessor processor;
     private final ScriptRunnerRegistry scriptRunners;
+    private final WasmRunnerRegistry wasmRunners;
     private final Duration heartbeatInterval;
     private final Duration startTimeout;
     private final Duration reconnectInitialDelay;
@@ -126,6 +130,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                 registration,
                 processor,
                 new ScriptRunnerRegistry(),
+                new WasmRunnerRegistry(),
                 heartbeatInterval,
                 DEFAULT_START_TIMEOUT,
                 DEFAULT_RECONNECT_INITIAL_DELAY,
@@ -145,6 +150,28 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                 registration,
                 processor,
                 scriptRunners,
+                new WasmRunnerRegistry(),
+                heartbeatInterval,
+                DEFAULT_START_TIMEOUT,
+                DEFAULT_RECONNECT_INITIAL_DELAY,
+                DEFAULT_RECONNECT_MAX_DELAY,
+                ignored -> {});
+    }
+
+    public GrpcTikeeWorkerClient(
+            String endpoint,
+            WorkerRegistration registration,
+            TaskProcessor processor,
+            ScriptRunnerRegistry scriptRunners,
+            WasmRunnerRegistry wasmRunners,
+            Duration heartbeatInterval) {
+        this(
+                channelForEndpoint(endpoint),
+                true,
+                registration,
+                processor,
+                scriptRunners,
+                wasmRunners,
                 heartbeatInterval,
                 DEFAULT_START_TIMEOUT,
                 DEFAULT_RECONNECT_INITIAL_DELAY,
@@ -166,6 +193,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                 registration,
                 processor,
                 new ScriptRunnerRegistry(),
+                new WasmRunnerRegistry(),
                 heartbeatInterval,
                 startTimeout,
                 DEFAULT_RECONNECT_INITIAL_DELAY,
@@ -183,8 +211,18 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
             Duration reconnectInitialDelay,
             Duration reconnectMaxDelay,
             Consumer<Worker.DispatchTask> dispatchObserver) {
-        this(channel, ownsChannel, registration, processor, new ScriptRunnerRegistry(), heartbeatInterval, startTimeout,
-                reconnectInitialDelay, reconnectMaxDelay, dispatchObserver);
+        this(
+                channel,
+                ownsChannel,
+                registration,
+                processor,
+                new ScriptRunnerRegistry(),
+                new WasmRunnerRegistry(),
+                heartbeatInterval,
+                startTimeout,
+                reconnectInitialDelay,
+                reconnectMaxDelay,
+                dispatchObserver);
     }
 
     GrpcTikeeWorkerClient(
@@ -198,11 +236,38 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
             Duration reconnectInitialDelay,
             Duration reconnectMaxDelay,
             Consumer<Worker.DispatchTask> dispatchObserver) {
+        this(
+                channel,
+                ownsChannel,
+                registration,
+                processor,
+                scriptRunners,
+                new WasmRunnerRegistry(),
+                heartbeatInterval,
+                startTimeout,
+                reconnectInitialDelay,
+                reconnectMaxDelay,
+                dispatchObserver);
+    }
+
+    GrpcTikeeWorkerClient(
+            ManagedChannel channel,
+            boolean ownsChannel,
+            WorkerRegistration registration,
+            TaskProcessor processor,
+            ScriptRunnerRegistry scriptRunners,
+            WasmRunnerRegistry wasmRunners,
+            Duration heartbeatInterval,
+            Duration startTimeout,
+            Duration reconnectInitialDelay,
+            Duration reconnectMaxDelay,
+            Consumer<Worker.DispatchTask> dispatchObserver) {
         this.registration = Objects.requireNonNull(registration, "registration");
         this.channel = Objects.requireNonNull(channel, "channel");
         this.ownsChannel = ownsChannel;
         this.processor = Objects.requireNonNull(processor, "processor");
         this.scriptRunners = Objects.requireNonNull(scriptRunners, "scriptRunners");
+        this.wasmRunners = Objects.requireNonNull(wasmRunners, "wasmRunners");
         this.heartbeatInterval = positiveDuration(heartbeatInterval, "heartbeatInterval");
         this.startTimeout = positiveDuration(startTimeout, "startTimeout");
         this.reconnectInitialDelay = positiveDuration(reconnectInitialDelay, "reconnectInitialDelay");
@@ -475,7 +540,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                     + " processor=" + task.getProcessorName());
             TaskOutcome outcome;
             if (task.hasProcessorBinding() && task.getProcessorBinding().hasWasm()) {
-                outcome = TaskOutcome.failed("wasm processor binding is not supported by Java SDK yet");
+                outcome = processWasmBinding(task, assignedWorkerId);
             } else if (task.hasProcessorBinding() && task.getProcessorBinding().hasScript()) {
                 outcome = processScriptBinding(task, assignedWorkerId);
             } else {
@@ -504,6 +569,31 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                             .build())
                     .build());
         });
+    }
+
+    private TaskOutcome processWasmBinding(Worker.DispatchTask task, String assignedWorkerId) {
+        Worker.WasmProcessorBinding binding = task.getProcessorBinding().getWasm();
+        try {
+            return wasmRunners.runner()
+                    .orElseThrow(() -> new WorkerClientException("wasm runner is not registered"))
+                    .run(new WasmRunnerTask(
+                            binding.getScriptId(),
+                            binding.getVersionId(),
+                            binding.getVersionNumber(),
+                            binding.getModule().toByteArray(),
+                            binding.getModuleSha256(),
+                            binding.getRuntime(),
+                            binding.getEntrypoint(),
+                            new WasmRunnerPolicy(
+                                    binding.getTimeoutMs(),
+                                    binding.getMaxMemoryBytes(),
+                                    binding.getFuel(),
+                                    binding.getAllowNetwork(),
+                                    binding.getAllowedEnvVarsList())),
+                            (level, message) -> emitTaskLog(task, assignedWorkerId, level, message));
+        } catch (Exception error) {
+            return TaskOutcome.failed(error.getMessage());
+        }
     }
 
     private TaskOutcome processScriptBinding(Worker.DispatchTask task, String assignedWorkerId) {

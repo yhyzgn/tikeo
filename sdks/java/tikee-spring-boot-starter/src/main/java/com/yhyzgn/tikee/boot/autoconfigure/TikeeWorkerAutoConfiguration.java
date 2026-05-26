@@ -11,6 +11,8 @@ import com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClient;
 import com.yhyzgn.tikee.worker.client.NoopTikeeWorkerClient;
 import com.yhyzgn.tikee.worker.client.TikeeWorkerClient;
 import com.yhyzgn.tikee.worker.WorkerRegistration;
+import com.yhyzgn.tikee.wasm.CliWasmtimeRunner;
+import com.yhyzgn.tikee.wasm.WasmRunnerRegistry;
 import com.yhyzgn.tikee.spring.processor.TikeeProcessorRegistry;
 import com.yhyzgn.tikee.spring.worker.SpringTikeeTaskProcessor;
 import java.time.Duration;
@@ -39,7 +41,8 @@ public class TikeeWorkerAutoConfiguration {
     TikeeWorkerClient tikeeWorkerClient(
             TikeeWorkerProperties properties,
             TikeeProcessorRegistry processorRegistry,
-            ScriptRunnerRegistry scriptRunnerRegistry) {
+            ScriptRunnerRegistry scriptRunnerRegistry,
+            WasmRunnerRegistry wasmRunnerRegistry) {
         String clientInstanceId = properties.getStateDir() == null || properties.getStateDir().isBlank()
                 ? ClientInstanceIds.resolve(
                         properties.getClientInstanceId(),
@@ -60,7 +63,7 @@ public class TikeeWorkerAutoConfiguration {
                 properties.getApp(),
                 properties.getCluster(),
                 properties.getRegion(),
-                workerCapabilities(properties, processorRegistry, scriptRunnerRegistry),
+                workerCapabilities(properties, processorRegistry, scriptRunnerRegistry, wasmRunnerRegistry),
                 properties.getLabels());
         if (properties.isDryRun()) {
             return new NoopTikeeWorkerClient(registration);
@@ -70,6 +73,7 @@ public class TikeeWorkerAutoConfiguration {
                 registration,
                 new SpringTikeeTaskProcessor(processorRegistry),
                 scriptRunnerRegistry,
+                wasmRunnerRegistry,
                 Duration.ofMillis(properties.getHeartbeatIntervalMillis()));
     }
 
@@ -83,12 +87,34 @@ public class TikeeWorkerAutoConfiguration {
     private static List<String> workerCapabilities(
             TikeeWorkerProperties properties,
             TikeeProcessorRegistry processorRegistry,
-            ScriptRunnerRegistry scriptRunnerRegistry) {
+            ScriptRunnerRegistry scriptRunnerRegistry,
+            WasmRunnerRegistry wasmRunnerRegistry) {
         var capabilities = new LinkedHashSet<String>();
         capabilities.addAll(properties.getCapabilities());
         capabilities.addAll(processorRegistry.processorCapabilities());
         capabilities.addAll(scriptRunnerRegistry.capabilities());
+        capabilities.addAll(wasmRunnerRegistry.capabilities());
         return new ArrayList<>(capabilities);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "tikee.worker", name = "enabled", havingValue = "true", matchIfMissing = true)
+    WasmRunnerRegistry tikeeWasmRunnerRegistry(TikeeWorkerProperties properties) {
+        WasmRunnerRegistry registry = new WasmRunnerRegistry();
+        TikeeWorkerProperties.WasmProperties wasm = properties.getWasm();
+        if (!wasm.isEnabled()) {
+            return registry;
+        }
+        if (!wasm.isAvailabilityCheck() || runtimeAvailable(wasm.getRuntimeCommand(), "--version")) {
+            registry.register(new CliWasmtimeRunner(wasm.getRuntimeCommand(), wasm.getRuntimeArgs()));
+        } else {
+            log.warn(
+                    "tikee WASM sandbox is enabled but runtime '{}' is unavailable; "
+                            + "script:wasm capability will not be advertised",
+                    wasm.getRuntimeCommand());
+        }
+        return registry;
     }
 
     @Bean
@@ -98,7 +124,7 @@ public class TikeeWorkerAutoConfiguration {
         ScriptRunnerRegistry registry = new ScriptRunnerRegistry();
         TikeeWorkerProperties.ScriptRunnerProperties scripts = properties.getScripts();
         if (scripts.isEnabled()) {
-            if (!scripts.isAvailabilityCheck() || containerRuntimeAvailable(scripts.getRuntimeCommand())) {
+            if (!scripts.isAvailabilityCheck() || runtimeAvailable(scripts.getRuntimeCommand(), "info", "--format", "{{.ServerVersion}}")) {
                 registerContainerRunner(
                         registry,
                         ScriptRunnerKind.SHELL,
@@ -145,9 +171,12 @@ public class TikeeWorkerAutoConfiguration {
         registry.register(new ContainerScriptRunner(kind, runtimeCommand, image, runtimeArgs));
     }
 
-    static boolean containerRuntimeAvailable(String runtimeCommand) {
+    static boolean runtimeAvailable(String runtimeCommand, String... args) {
         try {
-            Process process = new ProcessBuilder(runtimeCommand, "info", "--format", "{{.ServerVersion}}")
+            List<String> command = new ArrayList<>();
+            command.add(runtimeCommand);
+            command.addAll(List.of(args));
+            Process process = new ProcessBuilder(command)
                     .redirectErrorStream(true)
                     .start();
             if (!process.waitFor(2, TimeUnit.SECONDS)) {

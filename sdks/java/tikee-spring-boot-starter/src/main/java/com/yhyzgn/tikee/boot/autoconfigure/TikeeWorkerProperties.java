@@ -42,8 +42,24 @@ public class TikeeWorkerProperties {
     private List<String> capabilities = new ArrayList<>();
     /** Labels reported during registration. */
     private Map<String, String> labels = new LinkedHashMap<>();
-    /** Sandboxed script runner configuration. */
+    /** WASM sandbox runner configuration. */
+    private WasmProperties wasm = new WasmProperties();
+    /** Container-backed non-WASM script runner configuration. */
     private ScriptRunnerProperties scripts = new ScriptRunnerProperties();
+
+    /** Wasmtime-backed WASM sandbox settings. */
+    @Getter
+    @Setter
+    public static class WasmProperties {
+        /** Enable WASM sandbox execution for this worker. */
+        private boolean enabled = true;
+        /** Probe Wasmtime before advertising script:wasm. */
+        private boolean availabilityCheck = true;
+        /** Wasmtime-compatible runtime command. */
+        private String runtimeCommand = "wasmtime";
+        /** Extra runtime arguments appended before module path. */
+        private List<String> runtimeArgs = new ArrayList<>();
+    }
 
     /** Container-backed sandbox script runners. */
     @Getter
