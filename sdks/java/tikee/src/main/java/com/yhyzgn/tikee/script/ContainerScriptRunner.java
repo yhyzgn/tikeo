@@ -31,8 +31,13 @@ public final class ContainerScriptRunner implements ScriptRunner {
 
     @Override
     public TaskOutcome run(ScriptRunnerTask task) {
+        return run(task, ScriptRunnerLogSink.NOOP);
+    }
+
+    @Override
+    public TaskOutcome run(ScriptRunnerTask task, ScriptRunnerLogSink logSink) {
         ProcessBuilder builder = new ProcessBuilder(command(task));
-        return ScriptRunnerSupport.runProcess(builder, kind, task);
+        return ScriptRunnerSupport.runProcess(builder, kind, task, logSink);
     }
 
     List<String> command(ScriptRunnerTask task) {

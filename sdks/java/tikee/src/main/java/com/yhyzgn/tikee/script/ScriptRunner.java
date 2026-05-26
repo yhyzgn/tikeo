@@ -7,4 +7,8 @@ public interface ScriptRunner {
     ScriptRunnerKind kind();
 
     TaskOutcome run(ScriptRunnerTask task) throws Exception;
+
+    default TaskOutcome run(ScriptRunnerTask task, ScriptRunnerLogSink logSink) throws Exception {
+        return run(task);
+    }
 }

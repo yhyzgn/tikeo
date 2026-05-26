@@ -11,6 +11,7 @@ import com.yhyzgn.tikee.processor.TaskProcessor;
 import com.yhyzgn.tikee.worker.WorkerRegistration;
 import com.yhyzgn.tikee.script.ScriptRunner;
 import com.yhyzgn.tikee.script.ScriptRunnerKind;
+import com.yhyzgn.tikee.script.ScriptRunnerLogSink;
 import com.yhyzgn.tikee.script.ScriptRunnerRegistry;
 import com.yhyzgn.tikee.script.ScriptRunnerTask;
 
@@ -425,6 +426,13 @@ class GrpcTikeeWorkerClientTest {
                     observedScript.set(task);
                     return new TaskOutcome(true, "script ok");
                 }
+
+                @Override
+                public TaskOutcome run(ScriptRunnerTask task, ScriptRunnerLogSink logSink) {
+                    observedScript.set(task);
+                    logSink.log("info", "[script] hello from sandbox");
+                    return new TaskOutcome(true, "script ok");
+                }
             });
             GrpcTikeeWorkerClient client = new GrpcTikeeWorkerClient(
                     channel,
@@ -443,6 +451,7 @@ class GrpcTikeeWorkerClientTest {
 
             client.start();
             service.awaitResult();
+            service.awaitTaskLogs(3);
             client.close();
 
             assertNull(observedProcessor.get(), "script binding must not invoke SDK processor handlers");
@@ -451,6 +460,8 @@ class GrpcTikeeWorkerClientTest {
             Worker.TaskResult result = service.result.get();
             assertTrue(result.getSuccess());
             assertEquals("script ok", result.getMessage());
+            assertTrue(service.taskLogs.stream()
+                    .anyMatch(log -> log.getMessage().contains("[script] hello from sandbox")));
         } finally {
             channel.shutdownNow();
             server.shutdownNow();

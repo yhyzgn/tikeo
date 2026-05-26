@@ -477,7 +477,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
             if (task.hasProcessorBinding() && task.getProcessorBinding().hasWasm()) {
                 outcome = TaskOutcome.failed("wasm processor binding is not supported by Java SDK yet");
             } else if (task.hasProcessorBinding() && task.getProcessorBinding().hasScript()) {
-                outcome = processScriptBinding(task);
+                outcome = processScriptBinding(task, assignedWorkerId);
             } else {
                 try {
                     outcome = processor.process(new TaskContext(
@@ -506,7 +506,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
         });
     }
 
-    private TaskOutcome processScriptBinding(Worker.DispatchTask task) {
+    private TaskOutcome processScriptBinding(Worker.DispatchTask task, String assignedWorkerId) {
         Worker.ScriptProcessorBinding binding = task.getProcessorBinding().getScript();
         try {
             ScriptRunnerKind kind = ScriptRunnerKind.fromLanguage(binding.getLanguage())
@@ -530,7 +530,8 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                                     binding.getAllowedEnvVarsList(),
                                     binding.getReadOnlyPathsList(),
                                     binding.getWritablePathsList(),
-                                    binding.getSecretRefsList())));
+                                    binding.getSecretRefsList())),
+                            (level, message) -> emitTaskLog(task, assignedWorkerId, level, message));
         } catch (Exception error) {
             return TaskOutcome.failed(error.getMessage());
         }

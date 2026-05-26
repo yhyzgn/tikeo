@@ -32,7 +32,12 @@ final class ScriptRunnerSupport {
         }
     }
 
-    static TaskOutcome runProcess(ProcessBuilder processBuilder, ScriptRunnerKind kind, ScriptRunnerTask task) {
+    static TaskOutcome runProcess(
+            ProcessBuilder processBuilder,
+            ScriptRunnerKind kind,
+            ScriptRunnerTask task,
+            ScriptRunnerLogSink logSink) {
+        ScriptRunnerLogSink sink = logSink == null ? ScriptRunnerLogSink.NOOP : logSink;
         try {
             Process process = processBuilder.start();
             Thread stdoutReader = streamReader(process.getInputStream());
@@ -54,6 +59,8 @@ final class ScriptRunnerSupport {
                 throw new ScriptRunnerException("script output exceeded " + task.policy().maxOutputBytes()
                         + " bytes: " + outputBytes);
             }
+            emitCapturedOutput(sink, "info", stdout);
+            emitCapturedOutput(sink, process.exitValue() == 0 ? "warn" : "error", stderr);
             if (process.exitValue() == 0) {
                 return TaskOutcome.succeeded();
             }
@@ -66,6 +73,18 @@ final class ScriptRunnerSupport {
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
             throw new ScriptRunnerException("script runner interrupted", error);
+        }
+    }
+
+    private static void emitCapturedOutput(ScriptRunnerLogSink logSink, String level, byte[] bytes) {
+        if (bytes.length == 0) {
+            return;
+        }
+        String text = new String(bytes, StandardCharsets.UTF_8).replace("\r\n", "\n");
+        for (String line : text.split("\n", -1)) {
+            if (!line.isBlank()) {
+                logSink.log(level, "[script] " + line);
+            }
         }
     }
 
