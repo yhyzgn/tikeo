@@ -18,6 +18,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "tikee.worker.dry-run=true",
+        "tikee.worker.wasm.auto-install=false",
         "tikee.worker.state-dir=${java.io.tmpdir}/tikee-spring-worker-demo-test",
         "tikee.worker.namespace=demo-ns",
         "tikee.worker.app=demo-app",

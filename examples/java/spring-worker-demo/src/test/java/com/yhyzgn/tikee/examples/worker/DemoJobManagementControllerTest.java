@@ -22,6 +22,7 @@ import org.springframework.context.annotation.Primary;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "tikee.worker.dry-run=true",
+        "tikee.worker.wasm.auto-install=false",
         "tikee.worker.state-dir=${java.io.tmpdir}/tikee-spring-worker-demo-management-test",
         "tikee.management.enabled=true"
 })

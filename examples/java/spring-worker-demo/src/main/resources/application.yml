@@ -26,6 +26,9 @@ tikee:
       enabled: ${TIKEE_WORKER_WASM_ENABLED:true}
       runtime-command: ${TIKEE_WORKER_WASM_RUNTIME:wasmtime}
       availability-check: ${TIKEE_WORKER_WASM_RUNTIME_CHECK:true}
+      auto-install: ${TIKEE_WORKER_WASM_AUTO_INSTALL:true}
+      install-version: ${TIKEE_WORKER_WASM_VERSION:latest}
+      install-dir: ${TIKEE_WORKER_WASM_INSTALL_DIR:}
     scripts:
       enabled: ${TIKEE_WORKER_SCRIPTS_ENABLED:false}
       runtime-command: ${TIKEE_WORKER_CONTAINER_RUNTIME:docker}

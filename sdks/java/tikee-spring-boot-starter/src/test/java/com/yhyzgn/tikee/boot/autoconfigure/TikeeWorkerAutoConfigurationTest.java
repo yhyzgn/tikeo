@@ -23,7 +23,8 @@ class TikeeWorkerAutoConfigurationTest {
             .withUserConfiguration(TikeeWorkerAutoConfiguration.class, ProcessorConfig.class)
             .withPropertyValues(
                     "tikee.worker.dry-run=true",
-                    "tikee.worker.app=billing");
+                    "tikee.worker.app=billing",
+                    "tikee.worker.wasm.auto-install=false");
 
     @Test
     void dryRunCreatesNoopClientWithGeneratedRegistrationHint() {
@@ -69,6 +70,7 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.wasm.enabled=true",
                 "tikee.worker.wasm.availability-check=true",
+                "tikee.worker.wasm.auto-install=false",
                 "tikee.worker.wasm.runtime-command=tikee-missing-wasmtime")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);

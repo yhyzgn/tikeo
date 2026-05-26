@@ -57,6 +57,16 @@ public class TikeeWorkerProperties {
         private boolean availabilityCheck = true;
         /** Wasmtime-compatible runtime command. */
         private String runtimeCommand = "wasmtime";
+        /** Automatically install Wasmtime when the runtime command is unavailable. */
+        private boolean autoInstall = true;
+        /** Version passed to the official installer, for example latest or v45.0.0. */
+        private String installVersion = "latest";
+        /** Optional local install directory. Blank uses state-dir/wasmtime or ~/.tikee/wasmtime. */
+        private String installDir;
+        /** Official installer URL. */
+        private String installerUrl = "https://wasmtime.dev/install.sh";
+        /** Installer timeout in milliseconds. */
+        private long installTimeoutMillis = 120_000;
         /** Extra runtime arguments appended before module path. */
         private List<String> runtimeArgs = new ArrayList<>();
     }

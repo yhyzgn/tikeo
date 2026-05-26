@@ -13,6 +13,8 @@ import com.yhyzgn.tikee.worker.client.TikeeWorkerClient;
 import com.yhyzgn.tikee.worker.WorkerRegistration;
 import com.yhyzgn.tikee.wasm.CliWasmtimeRunner;
 import com.yhyzgn.tikee.wasm.WasmRunnerRegistry;
+import com.yhyzgn.tikee.wasm.WasmtimeInstaller;
+import java.nio.file.Path;
 import com.yhyzgn.tikee.spring.processor.TikeeProcessorRegistry;
 import com.yhyzgn.tikee.spring.worker.SpringTikeeTaskProcessor;
 import java.time.Duration;
@@ -106,8 +108,12 @@ public class TikeeWorkerAutoConfiguration {
         if (!wasm.isEnabled()) {
             return registry;
         }
-        if (!wasm.isAvailabilityCheck() || runtimeAvailable(wasm.getRuntimeCommand(), "--version")) {
-            registry.register(new CliWasmtimeRunner(wasm.getRuntimeCommand(), wasm.getRuntimeArgs()));
+        String runtimeCommand = wasm.getRuntimeCommand();
+        if (wasm.isAvailabilityCheck() && !runtimeAvailable(runtimeCommand, "--version")) {
+            runtimeCommand = installWasmtimeIfAllowed(properties);
+        }
+        if (!wasm.isAvailabilityCheck() || runtimeAvailable(runtimeCommand, "--version")) {
+            registry.register(new CliWasmtimeRunner(runtimeCommand, wasm.getRuntimeArgs()));
         } else {
             log.warn(
                     "tikee WASM sandbox is enabled but runtime '{}' is unavailable; "
@@ -186,6 +192,52 @@ public class TikeeWorkerAutoConfiguration {
             return process.exitValue() == 0;
         } catch (Exception error) {
             return false;
+        }
+    }
+
+    private static WasmtimeInstaller.Options wasmtimeInstallOptions(TikeeWorkerProperties properties) {
+        TikeeWorkerProperties.WasmProperties wasm = properties.getWasm();
+        return new WasmtimeInstaller.Options(
+                wasm.getInstallVersion(),
+                wasmtimeInstallDir(properties),
+                wasm.getInstallerUrl(),
+                wasm.getInstallTimeoutMillis());
+    }
+
+    private static Path wasmtimeInstallDir(TikeeWorkerProperties properties) {
+        String configured = properties.getWasm().getInstallDir();
+        if (configured != null && !configured.isBlank()) {
+            return Path.of(configured);
+        }
+        if (properties.getStateDir() != null && !properties.getStateDir().isBlank()) {
+            return Path.of(properties.getStateDir(), "wasmtime");
+        }
+        return WasmtimeInstaller.defaultInstallDir();
+    }
+
+    private static String installWasmtimeIfAllowed(TikeeWorkerProperties properties) {
+        TikeeWorkerProperties.WasmProperties wasm = properties.getWasm();
+        if (!wasm.isAutoInstall()) {
+            return wasm.getRuntimeCommand();
+        }
+        if (!WasmtimeInstaller.canUseOfficialInstaller()) {
+            log.warn(
+                    "tikee WASM sandbox runtime '{}' is unavailable and the official installer cannot run on {}; "
+                            + "script:wasm capability will not be advertised",
+                    wasm.getRuntimeCommand(),
+                    WasmtimeInstaller.runtimePlatform());
+            return wasm.getRuntimeCommand();
+        }
+        try {
+            log.info(
+                    "tikee WASM sandbox runtime '{}' is unavailable; installing Wasmtime {} for {}",
+                    wasm.getRuntimeCommand(),
+                    wasm.getInstallVersion(),
+                    WasmtimeInstaller.runtimePlatform());
+            return WasmtimeInstaller.install(wasmtimeInstallOptions(properties)).toString();
+        } catch (IllegalStateException error) {
+            log.warn("failed to auto-install Wasmtime; script:wasm capability will not be advertised", error);
+            return wasm.getRuntimeCommand();
         }
     }
 
