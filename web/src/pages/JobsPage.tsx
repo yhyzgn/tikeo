@@ -51,10 +51,10 @@ export function JobsPage() {
         options: Array.from(sdkValues).sort().map((value) => ({ value, label: `SDK Processor · ${value}` })),
       },
       {
-        label: '沙箱脚本执行器（自动沙箱执行）',
+        label: '具体脚本（沙箱自动执行）',
         options: scripts
           .filter((script) => script.status === 'approved')
-          .map((script) => ({ value: `script:${script.id}`, label: `沙箱脚本 · ${script.name} · ${script.language}` })),
+          .map((script) => ({ value: `script:${script.id}`, label: `脚本 · ${script.name} · ${script.language} · ${script.id}` })),
       },
     ];
   };
@@ -233,11 +233,11 @@ export function JobsPage() {
           <Form.Item name="namespace" label="Namespace" rules={[{ required: true }]}><Input placeholder="default" /></Form.Item>
           <Form.Item name="app" label="App" rules={[{ required: true }]}><Input placeholder="default" /></Form.Item>
           <Form.Item name="name" label="任务名称" rules={[{ required: true }]}><Input placeholder="demo.echo" /></Form.Item>
-          <Form.Item name="processorName" label="执行器" extra="直接选择脚本执行器时，系统只会下发给声明 script:<language> 能力的沙箱脚本 Worker；Java demo/Spring 用例请选择或输入 SDK Processor，例如 shell.test。不填时默认使用任务名称作为 SDK Processor。">
+          <Form.Item name="processorName" label="执行器" extra="选择具体脚本后会生成内部脚本绑定并只下发给声明 script:<language> 能力的沙箱脚本 Worker；Java demo/Spring 用例请选择或输入 SDK Processor，例如 shell.test。不填时默认使用任务名称作为 SDK Processor。">
             <Select
               allowClear
               showSearch
-              placeholder="选择沙箱脚本执行器或输入 SDK Processor"
+              placeholder="选择具体脚本或输入 SDK Processor"
               options={processorOptions(editProcessorSearch, editForm.getFieldValue('processorName'))}
               filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
               onSearch={setEditProcessorSearch}
@@ -269,11 +269,11 @@ export function JobsPage() {
         <Form form={editForm} layout="vertical" onFinish={(values) => void handleEditSubmit(values)}>
           <Form.Item label="Namespace / App"><Typography.Text code>{editingJob ? `${editingJob.namespace}/${editingJob.app}` : '-'}</Typography.Text></Form.Item>
           <Form.Item name="name" label="任务名称" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="processorName" label="执行器" extra="直接选择脚本执行器时，系统只会下发给声明 script:<language> 能力的沙箱脚本 Worker；Java demo/Spring 用例请选择或输入 SDK Processor，例如 shell.test。不填时默认使用任务名称作为 SDK Processor。">
+          <Form.Item name="processorName" label="执行器" extra="选择具体脚本后会生成内部脚本绑定并只下发给声明 script:<language> 能力的沙箱脚本 Worker；Java demo/Spring 用例请选择或输入 SDK Processor，例如 shell.test。不填时默认使用任务名称作为 SDK Processor。">
             <Select
               allowClear
               showSearch
-              placeholder="选择沙箱脚本执行器或输入 SDK Processor"
+              placeholder="选择具体脚本或输入 SDK Processor"
               options={processorOptions(createProcessorSearch, form.getFieldValue('processorName'))}
               filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
               onSearch={setCreateProcessorSearch}
