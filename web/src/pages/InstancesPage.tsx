@@ -34,10 +34,10 @@ export function InstancesPage() {
   const [attempts, setAttempts] = useState<JobInstanceAttemptSummary[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
 
-  const openLogs = async (instance: JobInstanceSummary) => {
-    setSelectedInstance(instance);
-    setLogDrawerOpen(true);
-    setLogsLoading(true);
+  const loadLogs = useCallback(async (instance: JobInstanceSummary, showLoading = true) => {
+    if (showLoading) {
+      setLogsLoading(true);
+    }
     try {
       const [logPage, attemptPage] = await Promise.all([
         listInstanceLogs(instance.id),
@@ -46,11 +46,31 @@ export function InstancesPage() {
       setLogs(logPage.items);
       setAttempts(attemptPage.items);
     } catch (cause) {
-      message.error(cause instanceof Error ? cause.message : '日志加载失败');
+      if (showLoading) {
+        message.error(cause instanceof Error ? cause.message : '日志加载失败');
+      }
     } finally {
-      setLogsLoading(false);
+      if (showLoading) {
+        setLogsLoading(false);
+      }
     }
+  }, []);
+
+  const openLogs = async (instance: JobInstanceSummary) => {
+    setSelectedInstance(instance);
+    setLogDrawerOpen(true);
+    await loadLogs(instance);
   };
+
+  useEffect(() => {
+    if (!logDrawerOpen || !selectedInstance) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      void loadLogs(selectedInstance, false);
+    }, 2_000);
+    return () => window.clearInterval(timer);
+  }, [loadLogs, logDrawerOpen, selectedInstance]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -151,7 +171,12 @@ export function InstancesPage() {
           pagination={false}
           locale={{ emptyText: selectedInstance?.executionMode === 'single' ? '暂无执行器信息' : '暂无广播子执行' }}
         />
-        <Typography.Title level={5} style={{ marginTop: 24 }}>执行日志</Typography.Title>
+        <Space align="center" style={{ marginTop: 24, marginBottom: 8 }}>
+          <Typography.Title level={5} style={{ margin: 0 }}>执行日志</Typography.Title>
+          {selectedInstance ? (
+            <Button size="small" onClick={() => void loadLogs(selectedInstance)}>刷新</Button>
+          ) : null}
+        </Space>
         {governanceLogs.length > 0 ? (
           <Alert
             type="warning"
