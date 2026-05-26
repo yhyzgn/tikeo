@@ -52,17 +52,32 @@ class TikeeWorkerAutoConfigurationTest {
 
 
     @Test
-    void enablingShellScriptRunnerAdvertisesScriptCapability() {
+    void enablingSandboxScriptsAdvertisesScriptCapabilitiesWhenRuntimeCheckIsDisabled() {
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
-                "tikee.worker.scripts.shell.enabled=true",
-                "tikee.worker.scripts.shell.image=alpine:3.20")
+                "tikee.worker.scripts.enabled=true",
+                "tikee.worker.scripts.availability-check=false",
+                "tikee.worker.scripts.images.shell=alpine:3.20")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(noop.registration().capabilities()).contains("script:shell");
+                    assertThat(noop.registration().capabilities())
+                            .contains("script:shell", "script:python", "script:node", "script:powershell");
                 });
     }
 
+    @Test
+    void sandboxScriptsAreNotAdvertisedWhenRuntimeIsUnavailable() {
+        contextRunner.withPropertyValues(
+                "tikee.worker.state-dir=" + stateDir,
+                "tikee.worker.scripts.enabled=true",
+                "tikee.worker.scripts.availability-check=true",
+                "tikee.worker.scripts.runtime-command=tikee-missing-container-runtime")
+                .run(context -> {
+                    NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
+                    assertThat(noop.registration().capabilities())
+                            .doesNotContain("script:shell", "script:python", "script:node", "script:powershell");
+                });
+    }
 
     @Test
     void managementClientIsConditionalOnManagementFlag() {

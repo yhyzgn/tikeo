@@ -49,33 +49,29 @@ public class TikeeWorkerProperties {
     @Getter
     @Setter
     public static class ScriptRunnerProperties {
-        /** POSIX shell sandbox runner. */
-        private ContainerScriptRunnerProperties shell = new ContainerScriptRunnerProperties("alpine:3.20");
-        /** Python sandbox runner. */
-        private ContainerScriptRunnerProperties python = new ContainerScriptRunnerProperties("python:3.13-alpine");
-        /** Node.js sandbox runner. */
-        private ContainerScriptRunnerProperties node = new ContainerScriptRunnerProperties("node:24-alpine");
-        /** PowerShell sandbox runner. */
-        private ContainerScriptRunnerProperties powershell = new ContainerScriptRunnerProperties("mcr.microsoft.com/powershell:7.5-alpine-3.20");
-    }
-
-    /** Per-language container sandbox settings. */
-    @Getter
-    @Setter
-    public static class ContainerScriptRunnerProperties {
-        /** Enable this sandbox runner and advertise the matching script:<language> capability. */
+        /** Enable sandboxed script execution for this worker. */
         private boolean enabled = false;
+        /** Probe the container runtime before advertising script capabilities. */
+        private boolean availabilityCheck = true;
         /** Docker-compatible container runtime command. */
         private String runtimeCommand = "docker";
-        /** Container image containing the language runtime. */
-        private String image;
         /** Extra runtime arguments appended before image. */
         private List<String> runtimeArgs = new ArrayList<>();
+        /** Per-language runtime images used inside the sandbox. */
+        private ScriptRunnerImages images = new ScriptRunnerImages();
+    }
 
-        public ContainerScriptRunnerProperties() {}
-
-        public ContainerScriptRunnerProperties(String image) {
-            this.image = image;
-        }
+    /** Per-language images for the container sandbox. */
+    @Getter
+    @Setter
+    public static class ScriptRunnerImages {
+        /** POSIX shell image. */
+        private String shell = "alpine:3.20";
+        /** Python image. */
+        private String python = "python:3.13-alpine";
+        /** Node.js image. */
+        private String node = "node:24-alpine";
+        /** PowerShell image. */
+        private String powershell = "mcr.microsoft.com/powershell:7.5-alpine-3.20";
     }
 }

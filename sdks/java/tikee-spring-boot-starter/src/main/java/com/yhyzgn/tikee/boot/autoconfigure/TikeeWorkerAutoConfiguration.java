@@ -17,6 +17,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -29,6 +32,7 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 @EnableConfigurationProperties({TikeeWorkerProperties.class, TikeeManagementProperties.class})
 public class TikeeWorkerAutoConfiguration {
+    private static final Logger log = LoggerFactory.getLogger(TikeeWorkerAutoConfiguration.class);
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "tikee.worker", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -87,32 +91,73 @@ public class TikeeWorkerAutoConfiguration {
         return new ArrayList<>(capabilities);
     }
 
-
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "tikee.worker", name = "enabled", havingValue = "true", matchIfMissing = true)
     ScriptRunnerRegistry tikeeScriptRunnerRegistry(TikeeWorkerProperties properties) {
         ScriptRunnerRegistry registry = new ScriptRunnerRegistry();
         TikeeWorkerProperties.ScriptRunnerProperties scripts = properties.getScripts();
-        registerContainerRunner(registry, ScriptRunnerKind.SHELL, scripts.getShell());
-        registerContainerRunner(registry, ScriptRunnerKind.PYTHON, scripts.getPython());
-        registerContainerRunner(registry, ScriptRunnerKind.NODE, scripts.getNode());
-        registerContainerRunner(registry, ScriptRunnerKind.POWERSHELL, scripts.getPowershell());
+        if (scripts.isEnabled()) {
+            if (!scripts.isAvailabilityCheck() || containerRuntimeAvailable(scripts.getRuntimeCommand())) {
+                registerContainerRunner(
+                        registry,
+                        ScriptRunnerKind.SHELL,
+                        scripts.getRuntimeCommand(),
+                        scripts.getImages().getShell(),
+                        scripts.getRuntimeArgs());
+                registerContainerRunner(
+                        registry,
+                        ScriptRunnerKind.PYTHON,
+                        scripts.getRuntimeCommand(),
+                        scripts.getImages().getPython(),
+                        scripts.getRuntimeArgs());
+                registerContainerRunner(
+                        registry,
+                        ScriptRunnerKind.NODE,
+                        scripts.getRuntimeCommand(),
+                        scripts.getImages().getNode(),
+                        scripts.getRuntimeArgs());
+                registerContainerRunner(
+                        registry,
+                        ScriptRunnerKind.POWERSHELL,
+                        scripts.getRuntimeCommand(),
+                        scripts.getImages().getPowershell(),
+                        scripts.getRuntimeArgs());
+            } else {
+                log.warn(
+                        "tikee script sandbox is enabled but container runtime '{}' is unavailable; "
+                                + "script capabilities will not be advertised",
+                        scripts.getRuntimeCommand());
+            }
+        }
         return registry;
     }
 
     private static void registerContainerRunner(
             ScriptRunnerRegistry registry,
             ScriptRunnerKind kind,
-            TikeeWorkerProperties.ContainerScriptRunnerProperties properties) {
-        if (!properties.isEnabled()) {
+            String runtimeCommand,
+            String image,
+            List<String> runtimeArgs) {
+        if (image == null || image.isBlank()) {
             return;
         }
-        registry.register(new ContainerScriptRunner(
-                kind,
-                properties.getRuntimeCommand(),
-                properties.getImage(),
-                properties.getRuntimeArgs()));
+        registry.register(new ContainerScriptRunner(kind, runtimeCommand, image, runtimeArgs));
+    }
+
+    static boolean containerRuntimeAvailable(String runtimeCommand) {
+        try {
+            Process process = new ProcessBuilder(runtimeCommand, "info", "--format", "{{.ServerVersion}}")
+                    .redirectErrorStream(true)
+                    .start();
+            if (!process.waitFor(2, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return false;
+            }
+            return process.exitValue() == 0;
+        } catch (Exception error) {
+            return false;
+        }
     }
 
     @Bean

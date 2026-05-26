@@ -23,10 +23,14 @@ tikee:
       runtime: java
       demo: spring-worker
     scripts:
-      shell:
-        enabled: ${TIKEE_WORKER_SCRIPT_SHELL_ENABLED:true}
-        image: ${TIKEE_WORKER_SCRIPT_SHELL_IMAGE:alpine:3.20}
-        runtime-command: ${TIKEE_WORKER_CONTAINER_RUNTIME:docker}
+      enabled: ${TIKEE_WORKER_SCRIPTS_ENABLED:true}
+      runtime-command: ${TIKEE_WORKER_CONTAINER_RUNTIME:docker}
+      availability-check: ${TIKEE_WORKER_SCRIPT_RUNTIME_CHECK:true}
+      images:
+        shell: ${TIKEE_WORKER_SCRIPT_SHELL_IMAGE:alpine:3.20}
+        python: ${TIKEE_WORKER_SCRIPT_PYTHON_IMAGE:python:3.13-alpine}
+        node: ${TIKEE_WORKER_SCRIPT_NODE_IMAGE:node:24-alpine}
+        powershell: ${TIKEE_WORKER_SCRIPT_POWERSHELL_IMAGE:mcr.microsoft.com/powershell:7.5-alpine-3.20}
 
   management:
     enabled: ${TIKEE_MANAGEMENT_ENABLED:false}
