@@ -27,6 +27,8 @@ class ScriptSandboxBackendTest {
         assertEquals(ScriptSandboxBackend.SRT,
                 ScriptSandboxBackend.AUTO.resolve(ScriptRunnerKind.PYTHON));
         assertEquals(ScriptSandboxBackend.SRT,
+                ScriptSandboxBackend.AUTO.resolve(ScriptRunnerKind.RHAI));
+        assertEquals(ScriptSandboxBackend.SRT,
                 ScriptSandboxBackend.SRT.resolve(ScriptRunnerKind.SHELL));
     }
 }

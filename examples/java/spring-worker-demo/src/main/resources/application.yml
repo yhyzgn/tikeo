@@ -37,6 +37,7 @@ tikee:
         js: ${TIKEE_WORKER_SCRIPT_JAVASCRIPT_IMAGE:}
         ts: ${TIKEE_WORKER_SCRIPT_TYPESCRIPT_IMAGE:}
         powershell: ${TIKEE_WORKER_SCRIPT_POWERSHELL_IMAGE:}
+        rhai: ${TIKEE_WORKER_SCRIPT_RHAI_IMAGE:}
 
   management:
     enabled: ${TIKEE_MANAGEMENT_ENABLED:false}

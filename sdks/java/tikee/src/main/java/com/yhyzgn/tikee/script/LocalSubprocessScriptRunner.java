@@ -59,9 +59,11 @@ public final class LocalSubprocessScriptRunner implements ScriptRunner {
 
     private void validateDevelopmentOnlyPolicy(ScriptRunnerTask task) {
         ScriptSandboxBackend resolvedBackend = task.sandboxBackend().resolve(kind);
-        if (resolvedBackend != ScriptSandboxBackend.SRT && resolvedBackend != ScriptSandboxBackend.CUSTOM) {
+        if (!supportsBackend(resolvedBackend)) {
             throw new ScriptRunnerException(
-                    "local script runner supports development srt/custom backend only, requested: "
+                    "local script runner does not support backend for "
+                            + kind.value()
+                            + ": "
                             + resolvedBackend.value());
         }
         if (task.policy().allowNetwork() || !task.policy().allowedNetworkHosts().isEmpty()) {
@@ -75,13 +77,23 @@ public final class LocalSubprocessScriptRunner implements ScriptRunner {
         }
     }
 
+    private boolean supportsBackend(ScriptSandboxBackend backend) {
+        return switch (kind) {
+            case JS, TS -> backend == ScriptSandboxBackend.DENO
+                    || backend == ScriptSandboxBackend.V8
+                    || backend == ScriptSandboxBackend.CUSTOM;
+            case SHELL, PYTHON, POWERSHELL, RHAI -> backend == ScriptSandboxBackend.SRT
+                    || backend == ScriptSandboxBackend.CUSTOM;
+        };
+    }
+
     private static List<String> defaultScriptCommand(ScriptRunnerKind kind) {
         return switch (kind) {
             case SHELL -> List.of("sh", "-s");
             case PYTHON -> List.of("python3", "-");
-            case JS -> List.of("node", "-");
-            case TS -> List.of("node", "-");
+            case JS, TS -> List.of("deno", "run", "--no-prompt", "-");
             case POWERSHELL -> List.of("pwsh", "-NoProfile", "-NonInteractive", "-Command", "-");
+            case RHAI -> List.of("rhai");
         };
     }
 }

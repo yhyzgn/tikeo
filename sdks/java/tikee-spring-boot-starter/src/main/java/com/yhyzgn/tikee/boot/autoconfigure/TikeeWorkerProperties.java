@@ -95,5 +95,7 @@ public class TikeeWorkerProperties {
         private String ts = "";
         /** PowerShell image. Blank disables PowerShell scripts. */
         private String powershell = "";
+        /** Rhai image. Blank disables Rhai scripts. */
+        private String rhai = "";
     }
 }

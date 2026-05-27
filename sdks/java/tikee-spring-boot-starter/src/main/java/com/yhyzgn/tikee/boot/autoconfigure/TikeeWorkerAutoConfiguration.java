@@ -125,12 +125,12 @@ public class TikeeWorkerAutoConfiguration {
         if (!scripts.isEnabled()) {
             return registry;
         }
-        registerLocalDevelopmentShellRunner(registry);
+        registerLocalDevelopmentRunners(registry);
         if (scripts.isContainerEnabled()) {
             if (scripts.getRuntimeCommand() == null || scripts.getRuntimeCommand().isBlank()) {
                 log.warn(
                         "tikee non-WASM script runners are enabled but no container runtime command is configured; "
-                                + "script:shell/python/node/powershell capabilities will not be advertised");
+                                + "script:shell/python/javascript/typescript/powershell/rhai capabilities will not be advertised");
             } else if (!scripts.isAvailabilityCheck()
                     || runtimeAvailable(scripts.getRuntimeCommand(), "info", "--format", "{{.ServerVersion}}")) {
                 registerContainerRunner(
@@ -163,6 +163,12 @@ public class TikeeWorkerAutoConfiguration {
                         scripts.getRuntimeCommand(),
                         scripts.getImages().getPowershell(),
                         scripts.getRuntimeArgs());
+                registerContainerRunner(
+                        registry,
+                        ScriptRunnerKind.RHAI,
+                        scripts.getRuntimeCommand(),
+                        scripts.getImages().getRhai(),
+                        scripts.getRuntimeArgs());
             } else {
                 log.warn(
                         "tikee script sandbox is enabled but container runtime '{}' is unavailable; "
@@ -173,12 +179,10 @@ public class TikeeWorkerAutoConfiguration {
         return registry;
     }
 
-    private static void registerLocalDevelopmentShellRunner(ScriptRunnerRegistry registry) {
-        if (!runtimeAvailable("sh", "-c", "true")) {
-            log.warn("tikee local development shell runtime is unavailable; script:shell capability will not be advertised");
-            return;
+    private static void registerLocalDevelopmentRunners(ScriptRunnerRegistry registry) {
+        for (ScriptRunnerKind kind : ScriptRunnerKind.values()) {
+            registry.register(new LocalSubprocessScriptRunner(kind));
         }
-        registry.register(new LocalSubprocessScriptRunner(ScriptRunnerKind.SHELL));
     }
 
     private static void registerContainerRunner(

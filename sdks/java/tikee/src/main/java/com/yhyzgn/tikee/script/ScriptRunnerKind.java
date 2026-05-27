@@ -14,7 +14,9 @@ public enum ScriptRunnerKind {
     /** TypeScript scripts. */
     TS("typescript"),
     /** PowerShell scripts. */
-    POWERSHELL("powershell");
+    POWERSHELL("powershell"),
+    /** Rhai scripts. */
+    RHAI("rhai");
 
     private final String value;
 
@@ -38,6 +40,7 @@ public enum ScriptRunnerKind {
             case "node", "nodejs", "javascript", "js" -> Optional.of(JS);
             case "typescript", "ts" -> Optional.of(TS);
             case "powershell", "pwsh" -> Optional.of(POWERSHELL);
+            case "rhai" -> Optional.of(RHAI);
             default -> Optional.empty();
         };
     }

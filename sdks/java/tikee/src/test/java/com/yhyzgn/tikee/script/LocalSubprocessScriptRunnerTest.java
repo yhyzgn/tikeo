@@ -30,27 +30,55 @@ class LocalSubprocessScriptRunnerTest {
         LocalSubprocessScriptRunner runner = new LocalSubprocessScriptRunner(ScriptRunnerKind.SHELL);
 
         ScriptRunnerException error = assertThrows(ScriptRunnerException.class,
-                () -> runner.command(task("echo hello", policy(), ScriptSandboxBackend.WASMTIME)));
+                () -> runner.command(task(ScriptRunnerKind.SHELL, "shell", "echo hello", policy(), ScriptSandboxBackend.WASMTIME)));
 
-        assertTrue(error.getMessage().contains("requested: wasmtime"));
+        assertTrue(error.getMessage().contains("wasmtime"));
     }
 
     @Test
-    void buildsDefaultShellCommand() throws Exception {
-        LocalSubprocessScriptRunner runner = new LocalSubprocessScriptRunner(ScriptRunnerKind.SHELL);
-
-        assertEquals(List.of("sh", "-s"), runner.command(task("echo hello", policy())));
+    void buildsDefaultCommandsForAllDevelopmentLanguages() throws Exception {
+        assertEquals(List.of("sh", "-s"),
+                new LocalSubprocessScriptRunner(ScriptRunnerKind.SHELL)
+                        .command(task(ScriptRunnerKind.SHELL, "shell", "echo hello", policy())));
+        assertEquals(List.of("python3", "-"),
+                new LocalSubprocessScriptRunner(ScriptRunnerKind.PYTHON)
+                        .command(task(ScriptRunnerKind.PYTHON, "python", "print('hello')", policy())));
+        assertEquals(List.of("deno", "run", "--no-prompt", "-"),
+                new LocalSubprocessScriptRunner(ScriptRunnerKind.JS)
+                        .command(task(ScriptRunnerKind.JS, "javascript", "console.log('hello')", policy())));
+        assertEquals(List.of("deno", "run", "--no-prompt", "-"),
+                new LocalSubprocessScriptRunner(ScriptRunnerKind.TS)
+                        .command(task(ScriptRunnerKind.TS, "typescript", "console.log('hello')", policy())));
+        assertEquals(List.of("pwsh", "-NoProfile", "-NonInteractive", "-Command", "-"),
+                new LocalSubprocessScriptRunner(ScriptRunnerKind.POWERSHELL)
+                        .command(task(ScriptRunnerKind.POWERSHELL, "powershell", "Write-Output hello", policy())));
+        assertEquals(List.of("rhai"),
+                new LocalSubprocessScriptRunner(ScriptRunnerKind.RHAI)
+                        .command(task(ScriptRunnerKind.RHAI, "rhai", "print(\"hello\");", policy())));
     }
 
     private static ScriptRunnerTask task(String content, ScriptRunnerPolicy policy) throws Exception {
-        return task(content, policy, ScriptSandboxBackend.AUTO);
+        return task(ScriptRunnerKind.SHELL, "shell", content, policy, ScriptSandboxBackend.AUTO);
     }
 
     private static ScriptRunnerTask task(
+            ScriptRunnerKind kind,
+            String language,
+            String content,
+            ScriptRunnerPolicy policy) throws Exception {
+        return task(kind, language, content, policy, ScriptSandboxBackend.AUTO);
+    }
+
+    private static ScriptRunnerTask task(
+            ScriptRunnerKind kind,
+            String language,
             String content,
             ScriptRunnerPolicy policy,
             ScriptSandboxBackend backend) throws Exception {
-        return new ScriptRunnerTask("script-1", "sv-1", 1, "shell", content, sha256(content), policy, backend);
+        if (ScriptRunnerKind.fromLanguage(language).orElseThrow() != kind) {
+            throw new IllegalArgumentException("test language does not match runner kind");
+        }
+        return new ScriptRunnerTask("script-1", "sv-1", 1, language, content, sha256(content), policy, backend);
     }
 
     private static ScriptRunnerPolicy policy() {

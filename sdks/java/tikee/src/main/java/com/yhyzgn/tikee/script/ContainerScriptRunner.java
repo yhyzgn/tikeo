@@ -116,6 +116,7 @@ public final class ContainerScriptRunner implements ScriptRunner {
             case JS -> List.of("node", "-");
             case TS -> List.of("node", "-");
             case POWERSHELL -> List.of("pwsh", "-NoProfile", "-NonInteractive", "-Command", "-");
+            case RHAI -> List.of("rhai");
         };
     }
 }
