@@ -195,6 +195,7 @@ export interface CreatedSdkApiKey {
 }
 
 export interface UpdateSdkApiKeyRequest {
+  name: string;
   scopes: string[];
   expires_at?: string | null;
 }

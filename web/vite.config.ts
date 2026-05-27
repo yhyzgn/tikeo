@@ -49,8 +49,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://0.0.0.0:9090',
-      '/api-docs': 'http://0.0.0.0:9090',
+      '^/api(?:/|$)': 'http://0.0.0.0:9090',
+      '^/api-docs(?:/|$)': 'http://0.0.0.0:9090',
     },
   },
 });

@@ -223,10 +223,10 @@ describe('api client envelope handling', () => {
       }));
     }) as unknown as typeof fetch;
 
-    await expect(updateSdkApiKey('sk_old', { scopes: ['jobs:read'], expires_at: null })).resolves.toMatchObject({ id: 'sk_old' });
+    await expect(updateSdkApiKey('sk_old', { name: 'demo-renamed', scopes: ['jobs:read'], expires_at: null })).resolves.toMatchObject({ id: 'sk_old' });
 
     expect(capturedUrl).toBe('/api/v1/management/api-keys/sk_old');
-    expect(capturedBody).toEqual({ scopes: ['jobs:read'], expires_at: null });
+    expect(capturedBody).toEqual({ name: 'demo-renamed', scopes: ['jobs:read'], expires_at: null });
   });
 
   test('sends authorization when triggering a job', async () => {

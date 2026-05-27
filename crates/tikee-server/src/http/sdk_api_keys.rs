@@ -54,6 +54,8 @@ pub struct CreatedSdkApiKey {
 /// SDK API key metadata update request.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct UpdateSdkApiKeyRequest {
+    /// Human-readable key name.
+    pub name: String,
     /// Replacement permission scopes in `resource:action` form.
     pub scopes: Vec<String>,
     /// Optional RFC3339 expiration timestamp. `null` means permanent.
@@ -149,6 +151,7 @@ pub async fn update_sdk_api_key(
         .update_key(
             &id,
             UpdateSdkApiKey {
+                name: request.name,
                 scopes: request.scopes,
                 expires_at: request.expires_at,
             },
@@ -246,8 +249,12 @@ fn validate_create_request(
 fn validate_update_request(
     mut request: UpdateSdkApiKeyRequest,
 ) -> Result<UpdateSdkApiKeyRequest, ApiError> {
+    request.name = request.name.trim().to_owned();
     request.scopes = validate_scopes(request.scopes)?;
     request.expires_at = validate_expires_at(request.expires_at)?;
+    if request.name.is_empty() {
+        return Err(ApiError::bad_request("sdk api key name is required"));
+    }
     Ok(request)
 }
 

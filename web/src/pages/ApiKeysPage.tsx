@@ -1,4 +1,4 @@
-import { CopyOutlined, DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, DatePicker, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useEffect, useState } from 'react';
@@ -16,6 +16,7 @@ interface ApiKeyFormValues {
 }
 
 interface EditFormValues {
+  name: string;
   scopes: string[];
   expiresAt?: Dayjs | null;
 }
@@ -65,6 +66,7 @@ export function ApiKeysPage() {
   const openEditModal = (item: SdkApiKeySummary) => {
     setEditingKey(item);
     editForm.setFieldsValue({
+      name: item.name,
       scopes: item.scopes,
       expiresAt: item.expires_at ? dayjs(item.expires_at) : null,
     });
@@ -74,6 +76,7 @@ export function ApiKeysPage() {
     if (!editingKey) return;
     const values = await editForm.validateFields();
     await updateSdkApiKey(editingKey.id, {
+      name: values.name,
       scopes: values.scopes,
       expires_at: values.expiresAt?.toISOString() ?? null,
     });
@@ -89,9 +92,10 @@ export function ApiKeysPage() {
     await reload();
   };
 
-  const copyText = async (value: string, label: string) => {
-    await navigator.clipboard.writeText(value);
-    message.success(`已复制${label}`);
+  const copyCreatedKey = async () => {
+    if (!createdKey) return;
+    await navigator.clipboard.writeText(createdKey);
+    message.success('完整 API-Key 已复制');
   };
 
   return (
@@ -117,7 +121,7 @@ export function ApiKeysPage() {
               title: 'API-Key',
               dataIndex: 'key_prefix',
               width: 260,
-              render: (value: string) => <Typography.Text code copyable={{ text: value }}>{value}</Typography.Text>,
+              render: (value: string) => <Typography.Text className="api-key-masked-text">{value}</Typography.Text>,
             },
             { title: '范围', width: 180, render: (_, item) => `${item.namespace}/${item.app}` },
             { title: 'Scopes', width: 260, render: (_, item) => <Space wrap>{item.scopes.map((scope) => <Tag key={scope}>{scope}</Tag>)}</Space> },
@@ -160,9 +164,12 @@ export function ApiKeysPage() {
       </Modal>
 
       <Modal title="编辑 API-Key" width={760} open={editingKey !== null} onOk={() => void handleEdit()} onCancel={() => setEditingKey(null)} okText="保存">
-        <Alert type="info" showIcon message="这里只更新权限 scopes 和有效期，不会重新生成 Key，现有 SDK 配置无需替换。" style={{ marginBottom: 16 }} />
+        <Alert type="info" showIcon message="这里只更新名称、权限 scopes 和有效期，不会重新生成 Key，现有 SDK 配置无需替换。" style={{ marginBottom: 16 }} />
         <Typography.Paragraph type="secondary">{editingKey ? `${editingKey.name} · ${editingKey.namespace}/${editingKey.app}` : ''}</Typography.Paragraph>
         <Form form={editForm} layout="vertical">
+          <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}>
+            <Input placeholder="java-demo-management" />
+          </Form.Item>
           <Form.Item name="scopes" label="权限 scopes" rules={[{ required: true }]}>
             <Select mode="tags" options={DEFAULT_SCOPES.map((scope) => ({ value: scope }))} />
           </Form.Item>
@@ -172,10 +179,39 @@ export function ApiKeysPage() {
         </Form>
       </Modal>
 
-      <Modal title="API-Key 只显示一次" width={860} open={createdKey !== null} onCancel={() => setCreatedKey(null)} footer={<Button onClick={() => setCreatedKey(null)}>我已保存</Button>}>
-        <Alert type="warning" showIcon message="请立即复制保存，服务端不会保存明文；关闭后只能在列表看到脱敏值。" style={{ marginBottom: 12 }} />
-        <Input.TextArea readOnly autoSize={{ minRows: 3, maxRows: 5 }} value={createdKey ?? ''} />
-        <Button style={{ marginTop: 12 }} type="primary" icon={<CopyOutlined />} onClick={() => void copyText(createdKey ?? '', 'API-Key')}>复制完整 API-Key</Button>
+      <Modal
+        title="API-Key 只显示一次"
+        width={860}
+        open={createdKey !== null}
+        closable={false}
+        maskClosable={false}
+        keyboard={false}
+        footer={<Button type="primary" onClick={() => setCreatedKey(null)}>我已复制并保存</Button>}
+      >
+        <Alert
+          className="api-key-once-alert"
+          type="warning"
+          showIcon
+          message={<strong>请现在手动复制并保存完整 API-Key</strong>}
+          description="这是唯一一次展示明文。关闭弹窗后服务端无法找回明文，列表也只会显示脱敏值；丢失后只能吊销并重新签发。"
+        />
+        <div
+          className="api-key-secret-box"
+          aria-label="点击复制新签发的完整 API-Key"
+          role="button"
+          tabIndex={0}
+          title="点击复制完整 API-Key"
+          onClick={() => void copyCreatedKey()}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              void copyCreatedKey();
+            }
+          }}
+        >
+          <Typography.Text className="api-key-secret-text">{createdKey ?? ''}</Typography.Text>
+        </div>
+        <Typography.Paragraph className="api-key-copy-hint">点击上方完整 Key 可一键复制；保存到安全位置后，再关闭此弹窗。</Typography.Paragraph>
       </Modal>
     </Space>
   );

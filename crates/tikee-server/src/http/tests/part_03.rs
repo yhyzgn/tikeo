@@ -533,7 +533,7 @@
                     .header("authorization", format!("Bearer {admin}"))
                     .header("content-type", "application/json")
                     .body(Body::from(
-                        r#"{"scopes":["jobs:read"],"expires_at":null}"#,
+                        r#"{"name":"updated-management-key","scopes":["jobs:read"],"expires_at":null}"#,
                     ))
                     .unwrap_or_else(|error| panic!("request should build: {error}")),
             )
@@ -546,6 +546,7 @@
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["data"]["id"], key_id);
+        assert_eq!(json["data"]["name"], "updated-management-key");
         assert_eq!(json["data"]["scopes"][0], "jobs:read");
         assert_eq!(json["data"]["expires_at"], serde_json::Value::Null);
     }

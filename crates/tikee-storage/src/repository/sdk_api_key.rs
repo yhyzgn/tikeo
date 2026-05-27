@@ -22,6 +22,7 @@ pub struct CreateSdkApiKey {
 /// Persisted SDK API key metadata update input.
 #[derive(Debug, Clone)]
 pub struct UpdateSdkApiKey {
+    pub name: String,
     pub scopes: Vec<String>,
     pub expires_at: Option<String>,
 }
@@ -125,6 +126,7 @@ impl SdkApiKeyRepository {
             return Ok(None);
         }
         let mut active: sdk_api_key::ActiveModel = model.into();
+        active.name = Set(input.name);
         active.scopes = Set(encode_scopes(&input.scopes));
         active.expires_at = Set(input.expires_at);
         active.updated_at = Set(now_rfc3339());
