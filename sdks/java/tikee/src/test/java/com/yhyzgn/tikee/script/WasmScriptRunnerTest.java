@@ -70,7 +70,15 @@ class WasmScriptRunnerTest {
     }
 
     private static ScriptRunnerTask task(String content, ScriptRunnerPolicy policy) throws Exception {
-        return new ScriptRunnerTask("script-1", "sv-1", 1, "shell", content, sha256(content), policy);
+        return new ScriptRunnerTask(
+                "script-1",
+                "sv-1",
+                1,
+                "shell",
+                content,
+                sha256(content),
+                policy,
+                ScriptSandboxBackend.WASMTIME);
     }
 
     private static ScriptRunnerPolicy policy(List<String> allowedEnvVars) {

@@ -30,7 +30,7 @@ public enum ScriptSandboxBackend {
         }
         return switch (kind) {
             case JS, TS -> DENO;
-            case SHELL, PYTHON, POWERSHELL -> WASMTIME;
+            case SHELL, PYTHON, POWERSHELL -> SRT;
         };
     }
 

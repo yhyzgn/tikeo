@@ -34,7 +34,8 @@ tikee:
       images:
         shell: ${TIKEE_WORKER_SCRIPT_SHELL_IMAGE:}
         python: ${TIKEE_WORKER_SCRIPT_PYTHON_IMAGE:}
-        node: ${TIKEE_WORKER_SCRIPT_NODE_IMAGE:}
+        js: ${TIKEE_WORKER_SCRIPT_JAVASCRIPT_IMAGE:}
+        ts: ${TIKEE_WORKER_SCRIPT_TYPESCRIPT_IMAGE:}
         powershell: ${TIKEE_WORKER_SCRIPT_POWERSHELL_IMAGE:}
 
   management:

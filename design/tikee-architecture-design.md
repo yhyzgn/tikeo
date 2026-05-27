@@ -2242,7 +2242,7 @@ tikee/
   - [x] 脚本执行治理失败可见性基础（077：dispatcher/Worker result 将无匹配 capability、缺 runner、策略拒绝、digest mismatch、timeout、output limit、runtime unavailable 归类为 `script_execution_governance` 实例日志；补充脚本 Worker Pool Docker/K8s 部署约束；Server 仍只调度不执行用户代码）
   - [x] 脚本执行治理查询与 UI 高亮基础（078：实例日志 DTO 解析 `script_execution_governance` JSON 为 event/failure_class/message 字段；`page_token=script_execution_governance` 可筛选治理日志；Web Instances 日志抽屉高亮治理失败；AlertCondition 增加 `script_governance_failure` 条件）
   - [x] 脚本执行治理审计落库基础（079：dispatcher 与 Worker result 路径将 `script_execution_governance` 失败同步写入 `audit_logs`，`resource_type=script_execution_governance` 软关联 instance id；审计 API/Web 支持 `failure_reason` 过滤；无外键）
-  - [x] WASM 通用默认脚本沙箱（124：Java SDK/Spring Starter 启动时自动检查 Wasmtime，允许自动安装；默认注册 `script:shell` 语言能力并通过 bundled WASI shell runner 在 Wasmtime 中执行，继续默认拒绝网络、宿主文件系统和 Secret；新增 `sandbox.backend=auto|wasmtime|wasmedge|srt|deno|v8|docker|podman|custom` 策略模型，容器 runner 作为 Docker/Podman/custom 显式覆盖后端。Python/JavaScript/TypeScript/PowerShell 后续按同一模型补充 runtime module 后再广告对应语言能力）
+  - [x] Java Worker 本地开发脚本 runner 修正（125：`sandbox.backend=auto` 对 Shell/Python/PowerShell 解析为 srt/native-script 语义，Spring demo 默认注册 development-only shell subprocess runner，避免真实 shell 脚本误走受限 bundled WASI shell runner；Wasmtime 继续用于直接 WASM `script:wasm` 与显式 `sandbox.backend=wasmtime` 兼容测试，生产多语言脚本应使用 srt/Deno/V8/Container/Podman/custom 等显式沙箱边界）
 - [x] 脚本策略引擎（能力声明、审批、资源限制、网络/文件策略）
   - [x] 默认拒绝策略元数据与不可变快照（072：`ScriptExecutionPolicy` 覆盖 resources/network/filesystem/secrets/env；`scripts.policy_json` 和 `script_versions.policy_json` 保存策略快照；HTTP create/update 拒绝网络/文件/Secret 危险能力；Web 可编辑资源/env 白名单并展示策略 diff）
   - [x] 策略审批、签名、URL/File/Secret grant 与生产发布门禁（本地 env-secret verifier 闭环；外部 KMS/PKI 为后续增强）
@@ -2446,7 +2446,7 @@ Phase 3 closeout 状态已在 2026-05-25 复核：原先保留未勾选的 OIDC 
 | 风险 | 影响 | 应对策略 |
 |------|------|----------|
 | Rust 开发者招聘难 | 开发速度 | 核心用 Rust，SDK 层可用各语言原生开发；文档驱动社区贡献 |
-| WASM 生态不够成熟 | 处理器灵活性 | sandbox=auto 以 Wasmtime 作为兜底与高安全插件方案；先以 Shell WASI runner 闭环，Python/JavaScript/TypeScript/PowerShell 按 runtime module 渐进补齐；srt/Deno/V8/Docker/Podman/custom 作为场景化显式或自动后端 |
+| WASM 生态不够成熟 | 处理器灵活性 | sandbox=auto 以 Wasmtime 作为可编译 WASM/直接 WASM 的高安全插件方案；原生 Shell/Python/PowerShell 脚本默认走 srt/native-script 语义，JavaScript/TypeScript 默认走 Deno；未部署 srt/Deno/V8/Docker/Podman/custom 时只允许 development-only 本地 runner 或明确失败，不再把真实 shell 脚本伪装进受限 WASI shell 微运行时 |
 | Raft 实现复杂度 | 集群稳定性 | 使用 TiKV raft-rs (`raft`) 作为共识核心，项目只实现存储、transport、membership 和调度 fencing glue，避免自研共识 |
 | 前端开发资源 | UI 体验 | 前端固定在 `./web`，使用 React + Ant Design + Bun，保持独立工程边界 |
 | 与 PowerJob 功能差距 | 用户迁移意愿 | 严格对照表 + 迁移工具 + 兼容 API |

@@ -85,12 +85,14 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.wasm.install-dir=" + stateDir.resolve("missing-wasmtime"))
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(noop.registration().capabilities()).doesNotContain("script:wasm", "script:shell");
+                    assertThat(noop.registration().capabilities())
+                            .contains("script", "script:shell")
+                            .doesNotContain("script:wasm");
                 });
     }
 
     @Test
-    void enablingScriptsDefaultsToWasmShellSandboxWithoutContainerRuntime() throws Exception {
+    void enablingScriptsDefaultsToLocalDevelopmentShellWithoutContainerRuntime() throws Exception {
         installFakeWasmtime(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
@@ -125,7 +127,7 @@ class TikeeWorkerAutoConfigurationTest {
     }
 
     @Test
-    void sandboxScriptsUseWasmShellWhenContainerRuntimeCommandIsMissing() throws Exception {
+    void sandboxScriptsUseLocalDevelopmentShellWhenContainerRuntimeCommandIsMissing() throws Exception {
         installFakeWasmtime(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
@@ -142,7 +144,7 @@ class TikeeWorkerAutoConfigurationTest {
     }
 
     @Test
-    void unavailableContainerRuntimeKeepsDefaultWasmShellOnly() throws Exception {
+    void unavailableContainerRuntimeKeepsDefaultLocalDevelopmentShellOnly() throws Exception {
         installFakeWasmtime(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,

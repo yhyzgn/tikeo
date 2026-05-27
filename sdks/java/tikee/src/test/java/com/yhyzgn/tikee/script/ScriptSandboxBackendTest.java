@@ -17,13 +17,15 @@ class ScriptSandboxBackendTest {
     }
 
     @Test
-    void autoSelectsDenoForJsTsAndWasmtimeAsFallback() {
+    void autoSelectsDenoForJsTsAndSrtForNativeScripts() {
         assertEquals(ScriptSandboxBackend.DENO,
                 ScriptSandboxBackend.AUTO.resolve(ScriptRunnerKind.JS));
         assertEquals(ScriptSandboxBackend.DENO,
                 ScriptSandboxBackend.AUTO.resolve(ScriptRunnerKind.TS));
-        assertEquals(ScriptSandboxBackend.WASMTIME,
+        assertEquals(ScriptSandboxBackend.SRT,
                 ScriptSandboxBackend.AUTO.resolve(ScriptRunnerKind.SHELL));
+        assertEquals(ScriptSandboxBackend.SRT,
+                ScriptSandboxBackend.AUTO.resolve(ScriptRunnerKind.PYTHON));
         assertEquals(ScriptSandboxBackend.SRT,
                 ScriptSandboxBackend.SRT.resolve(ScriptRunnerKind.SHELL));
     }

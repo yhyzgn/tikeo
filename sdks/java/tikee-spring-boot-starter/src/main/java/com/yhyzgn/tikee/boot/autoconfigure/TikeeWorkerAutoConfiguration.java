@@ -4,9 +4,9 @@ import com.yhyzgn.tikee.boot.lifecycle.TikeeWorkerLifecycle;
 import com.yhyzgn.tikee.management.client.HttpTikeeJobClient;
 import com.yhyzgn.tikee.management.client.TikeeJobClient;
 import com.yhyzgn.tikee.script.ContainerScriptRunner;
+import com.yhyzgn.tikee.script.LocalSubprocessScriptRunner;
 import com.yhyzgn.tikee.script.ScriptRunnerKind;
 import com.yhyzgn.tikee.script.ScriptRunnerRegistry;
-import com.yhyzgn.tikee.script.WasmScriptRunner;
 import com.yhyzgn.tikee.worker.identity.ClientInstanceIds;
 import com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClient;
 import com.yhyzgn.tikee.worker.client.NoopTikeeWorkerClient;
@@ -125,11 +125,7 @@ public class TikeeWorkerAutoConfiguration {
         if (!scripts.isEnabled()) {
             return registry;
         }
-        resolveWasmtimeCommand(properties).ifPresentOrElse(
-                runtimeCommand -> registry.register(new WasmScriptRunner(ScriptRunnerKind.SHELL, runtimeCommand, List.of())),
-                () -> log.warn(
-                        "tikee default WASM script sandbox runtime is unavailable; "
-                                + "script:shell capability will not be advertised"));
+        registerLocalDevelopmentShellRunner(registry);
         if (scripts.isContainerEnabled()) {
             if (scripts.getRuntimeCommand() == null || scripts.getRuntimeCommand().isBlank()) {
                 log.warn(
@@ -175,6 +171,14 @@ public class TikeeWorkerAutoConfiguration {
             }
         }
         return registry;
+    }
+
+    private static void registerLocalDevelopmentShellRunner(ScriptRunnerRegistry registry) {
+        if (!runtimeAvailable("sh", "-c", "true")) {
+            log.warn("tikee local development shell runtime is unavailable; script:shell capability will not be advertised");
+            return;
+        }
+        registry.register(new LocalSubprocessScriptRunner(ScriptRunnerKind.SHELL));
     }
 
     private static void registerContainerRunner(
