@@ -100,7 +100,7 @@ class TikeeWorkerAutoConfigurationTest {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(noop.registration().capabilities())
                             .contains("script:wasm", "script:shell")
-                            .doesNotContain("script:python", "script:node", "script:powershell");
+                            .doesNotContain("script:python", "script:js", "script:ts", "script:powershell");
                 });
     }
 
@@ -114,12 +114,13 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.runtime-command=test-container-runtime",
                 "tikee.worker.scripts.images.shell=alpine:3.20",
                 "tikee.worker.scripts.images.python=python:3.13-alpine",
-                "tikee.worker.scripts.images.node=node:24-alpine",
+                "tikee.worker.scripts.images.js=denoland/deno:alpine",
+                "tikee.worker.scripts.images.ts=denoland/deno:alpine",
                 "tikee.worker.scripts.images.powershell=mcr.microsoft.com/powershell:7.5-alpine-3.20")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(noop.registration().capabilities())
-                            .contains("script:shell", "script:python", "script:node", "script:powershell");
+                            .contains("script:shell", "script:python", "script:js", "script:ts", "script:powershell");
                 });
     }
 
@@ -136,7 +137,7 @@ class TikeeWorkerAutoConfigurationTest {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(noop.registration().capabilities())
                             .contains("script:shell")
-                            .doesNotContain("script:python", "script:node", "script:powershell");
+                            .doesNotContain("script:python", "script:js", "script:ts", "script:powershell");
                 });
     }
 
@@ -153,7 +154,7 @@ class TikeeWorkerAutoConfigurationTest {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(noop.registration().capabilities())
                             .contains("script:shell")
-                            .doesNotContain("script:python", "script:node", "script:powershell");
+                            .doesNotContain("script:python", "script:js", "script:ts", "script:powershell");
                 });
     }
 

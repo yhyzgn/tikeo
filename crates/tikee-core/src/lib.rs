@@ -243,8 +243,10 @@ pub enum ScriptLanguage {
     Shell,
     /// Python script.
     Python,
-    /// Node.js / JavaScript / TypeScript script.
-    Node,
+    /// JavaScript script.
+    Js,
+    /// TypeScript script.
+    Ts,
     /// PowerShell script.
     PowerShell,
     /// Rhai embedded script.
@@ -260,7 +262,8 @@ impl ScriptLanguage {
         match self {
             Self::Shell => "shell",
             Self::Python => "python",
-            Self::Node => "node",
+            Self::Js => "js",
+            Self::Ts => "ts",
             Self::PowerShell => "powershell",
             Self::Rhai => "rhai",
             Self::Wasm => "wasm",
@@ -281,7 +284,8 @@ impl FromStr for ScriptLanguage {
         match value.trim().to_ascii_lowercase().as_str() {
             "shell" | "bash" | "sh" => Ok(Self::Shell),
             "python" | "py" => Ok(Self::Python),
-            "node" | "nodejs" | "javascript" | "js" | "typescript" | "ts" => Ok(Self::Node),
+            "node" | "nodejs" | "javascript" | "js" => Ok(Self::Js),
+            "typescript" | "ts" => Ok(Self::Ts),
             "powershell" | "ps1" | "pwsh" => Ok(Self::PowerShell),
             "rhai" => Ok(Self::Rhai),
             "wasm" | "webassembly" => Ok(Self::Wasm),
@@ -339,6 +343,8 @@ impl FromStr for ScriptStatus {
 pub enum WasmRuntimeKind {
     /// Wasmtime runtime.
     Wasmtime,
+    /// WasmEdge runtime.
+    WasmEdge,
 }
 
 impl WasmRuntimeKind {
@@ -347,6 +353,7 @@ impl WasmRuntimeKind {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Wasmtime => "wasmtime",
+            Self::WasmEdge => "wasmedge",
         }
     }
 }
@@ -363,9 +370,93 @@ impl FromStr for WasmRuntimeKind {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value.trim().to_ascii_lowercase().as_str() {
             "wasmtime" => Ok(Self::Wasmtime),
+            "wasmedge" | "wasm_edge" | "wasm-edge" => Ok(Self::WasmEdge),
             _ => Err(ParseEnumError::new("wasm_runtime", value)),
         }
     }
+}
+
+/// Sandbox backend selected for dynamic script execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScriptSandboxBackend {
+    /// Let the worker choose the safest available backend for the language and content.
+    Auto,
+    /// Execute through Wasmtime.
+    Wasmtime,
+    /// Execute through WasmEdge.
+    WasmEdge,
+    /// Execute through Anthropic Sandbox Runtime.
+    Srt,
+    /// Execute JavaScript or TypeScript through Deno.
+    Deno,
+    /// Execute JavaScript or TypeScript through a V8 isolate.
+    V8,
+    /// Execute through Docker.
+    Docker,
+    /// Execute through Podman.
+    Podman,
+    /// Execute through a worker-local custom backend.
+    Custom,
+}
+
+impl Default for ScriptSandboxBackend {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+impl ScriptSandboxBackend {
+    /// Returns the stable wire representation.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Wasmtime => "wasmtime",
+            Self::WasmEdge => "wasmedge",
+            Self::Srt => "srt",
+            Self::Deno => "deno",
+            Self::V8 => "v8",
+            Self::Docker => "docker",
+            Self::Podman => "podman",
+            Self::Custom => "custom",
+        }
+    }
+}
+
+impl fmt::Display for ScriptSandboxBackend {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for ScriptSandboxBackend {
+    type Err = ParseEnumError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "" | "auto" => Ok(Self::Auto),
+            "wasmtime" => Ok(Self::Wasmtime),
+            "wasmedge" | "wasm_edge" | "wasm-edge" => Ok(Self::WasmEdge),
+            "srt" | "anthropic_srt" | "anthropic-srt" | "sandbox_runtime" | "sandbox-runtime" => {
+                Ok(Self::Srt)
+            }
+            "deno" => Ok(Self::Deno),
+            "v8" | "v8_isolate" | "v8-isolate" => Ok(Self::V8),
+            "docker" => Ok(Self::Docker),
+            "podman" => Ok(Self::Podman),
+            "custom" => Ok(Self::Custom),
+            _ => Err(ParseEnumError::new("script_sandbox_backend", value)),
+        }
+    }
+}
+
+/// Sandbox backend policy for dynamic script execution.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScriptSandboxPolicy {
+    /// Preferred backend. Auto lets worker choose according to language/content.
+    #[serde(default)]
+    pub backend: ScriptSandboxBackend,
 }
 
 /// Filesystem capability policy for dynamic script execution.
@@ -529,6 +620,9 @@ pub struct ScriptExecutionPolicy {
     pub secrets: ScriptSecretPolicy,
     /// Allowed environment variable names.
     pub env_vars: Vec<String>,
+    /// Sandbox backend selection. Defaults to auto.
+    #[serde(default)]
+    pub sandbox: ScriptSandboxPolicy,
 }
 
 impl ScriptExecutionPolicy {
@@ -756,8 +850,9 @@ mod tests {
     use super::{
         ExecutionMode, HealthState, InstanceStatus, ScheduleType, ScriptExecutionPolicy,
         ScriptFilesystemPolicy, ScriptLanguage, ScriptNetworkPolicy, ScriptPolicyError,
-        ScriptReleaseGrantError, ScriptReleaseGrantSet, ScriptSecretPolicy, ScriptStatus,
-        TriggerType, WasmCapabilities, WasmProcessorSpec, WasmRuntimeKind, WasmSpecError,
+        ScriptReleaseGrantError, ScriptReleaseGrantSet, ScriptSandboxBackend, ScriptSecretPolicy,
+        ScriptStatus, TriggerType, WasmCapabilities, WasmProcessorSpec, WasmRuntimeKind,
+        WasmSpecError,
     };
 
     #[test]
@@ -780,7 +875,13 @@ mod tests {
             ScriptLanguage::from_str("python"),
             Ok(ScriptLanguage::Python)
         );
-        assert_eq!(ScriptLanguage::from_str("js"), Ok(ScriptLanguage::Node));
+        assert_eq!(ScriptLanguage::from_str("js"), Ok(ScriptLanguage::Js));
+        assert_eq!(
+            ScriptLanguage::from_str("typescript"),
+            Ok(ScriptLanguage::Ts)
+        );
+        assert_eq!(ScriptLanguage::Js.as_str(), "js");
+        assert_eq!(ScriptLanguage::Ts.as_str(), "ts");
         assert_eq!(ScriptLanguage::Wasm.as_str(), "wasm");
         assert_eq!(
             ScriptStatus::from_str("approved"),
@@ -788,6 +889,33 @@ mod tests {
         );
         assert_eq!(ScriptStatus::from_str("active"), Ok(ScriptStatus::Approved));
         assert_eq!(ScriptStatus::Disabled.as_str(), "disabled");
+    }
+
+    #[test]
+    fn script_sandbox_policy_defaults_to_auto_and_accepts_explicit_backends() {
+        let policy = ScriptExecutionPolicy::default();
+        assert_eq!(policy.sandbox.backend, ScriptSandboxBackend::Auto);
+        assert_eq!(policy.sandbox.backend.as_str(), "auto");
+        assert_eq!(
+            ScriptSandboxBackend::from_str("wasmtime"),
+            Ok(ScriptSandboxBackend::Wasmtime)
+        );
+        assert_eq!(
+            ScriptSandboxBackend::from_str("wasmedge"),
+            Ok(ScriptSandboxBackend::WasmEdge)
+        );
+        assert_eq!(
+            ScriptSandboxBackend::from_str("srt"),
+            Ok(ScriptSandboxBackend::Srt)
+        );
+        assert_eq!(
+            ScriptSandboxBackend::from_str("v8"),
+            Ok(ScriptSandboxBackend::V8)
+        );
+        assert_eq!(
+            ScriptSandboxBackend::from_str("deno"),
+            Ok(ScriptSandboxBackend::Deno)
+        );
     }
 
     #[test]
@@ -800,6 +928,7 @@ mod tests {
         assert!(!policy.network.enabled);
         assert!(policy.filesystem.read_only_paths.is_empty());
         assert!(policy.secrets.refs.is_empty());
+        assert_eq!(policy.sandbox.backend, ScriptSandboxBackend::Auto);
 
         let with_network = ScriptExecutionPolicy {
             network: ScriptNetworkPolicy {
@@ -871,6 +1000,10 @@ mod tests {
         assert_eq!(
             WasmRuntimeKind::from_str("wasmtime"),
             Ok(WasmRuntimeKind::Wasmtime)
+        );
+        assert_eq!(
+            WasmRuntimeKind::from_str("wasmedge"),
+            Ok(WasmRuntimeKind::WasmEdge)
         );
         let spec = WasmProcessorSpec::default();
         assert_eq!(spec.runtime.as_str(), "wasmtime");

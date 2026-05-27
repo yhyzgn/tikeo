@@ -22,10 +22,23 @@ import { TABLE_PAGE_SIZE_OPTIONS, usePersistentTablePageSize } from '../utils/pa
 const LANGUAGE_OPTIONS = [
   { value: 'shell', label: 'Shell' },
   { value: 'python', label: 'Python' },
-  { value: 'node', label: 'Node.js' },
+  { value: 'js', label: 'JavaScript' },
+  { value: 'ts', label: 'TypeScript' },
   { value: 'powershell', label: 'PowerShell' },
   { value: 'rhai', label: 'Rhai' },
   { value: 'wasm', label: 'WASM' },
+];
+
+const SANDBOX_OPTIONS = [
+  { value: 'auto', label: 'Auto（自适应，默认）' },
+  { value: 'wasmtime', label: 'Wasmtime' },
+  { value: 'wasmedge', label: 'WasmEdge' },
+  { value: 'srt', label: 'Anthropic Sandbox Runtime (srt)' },
+  { value: 'deno', label: 'Deno' },
+  { value: 'v8', label: 'V8 isolate' },
+  { value: 'docker', label: 'Docker' },
+  { value: 'podman', label: 'Podman' },
+  { value: 'custom', label: 'Custom' },
 ];
 
 const STATUS_COLORS: Record<string, string> = {
@@ -46,6 +59,7 @@ const DEFAULT_SCRIPT_POLICY: ScriptExecutionPolicy = {
   filesystem: { read_only_paths: [], writable_paths: [] },
   secrets: { refs: [] },
   env_vars: [],
+  sandbox: { backend: 'auto' },
 };
 
 function policyFromForm(values: Record<string, unknown>): ScriptExecutionPolicy {
@@ -59,6 +73,7 @@ function policyFromForm(values: Record<string, unknown>): ScriptExecutionPolicy 
     filesystem: { read_only_paths: [], writable_paths: [] },
     secrets: { refs: [] },
     env_vars: Array.isArray(values.policy_env_vars) ? values.policy_env_vars as string[] : [],
+    sandbox: { backend: String(values.policy_sandbox_backend ?? 'auto') },
   };
 }
 
@@ -69,12 +84,13 @@ function policyToForm(policy?: ScriptExecutionPolicy) {
     policy_max_memory_bytes: p.resources.max_memory_bytes,
     policy_max_output_bytes: p.resources.max_output_bytes,
     policy_env_vars: p.env_vars,
+    policy_sandbox_backend: p.sandbox?.backend ?? 'auto',
   };
 }
 
 function policySummary(policy?: ScriptExecutionPolicy): string {
   const p = policy ?? DEFAULT_SCRIPT_POLICY;
-  return `timeout=${p.resources.timeout_ms}ms, memory=${p.resources.max_memory_bytes}B, output=${p.resources.max_output_bytes}B, network=${p.network.enabled ? 'allow' : 'deny'}, fs=${p.filesystem.read_only_paths.length + p.filesystem.writable_paths.length}, secrets=${p.secrets.refs.length}`;
+  return `timeout=${p.resources.timeout_ms}ms, memory=${p.resources.max_memory_bytes}B, output=${p.resources.max_output_bytes}B, network=${p.network.enabled ? 'allow' : 'deny'}, fs=${p.filesystem.read_only_paths.length + p.filesystem.writable_paths.length}, secrets=${p.secrets.refs.length}, sandbox=${p.sandbox?.backend ?? 'auto'}`;
 }
 
 function scriptCapabilitySummary(script?: ScriptSummary): string {
@@ -82,7 +98,7 @@ function scriptCapabilitySummary(script?: ScriptSummary): string {
   if (script.language === 'wasm') {
     return '直接 WASM 模块模式：Worker 需声明 script:wasm 能力并启用 Wasmtime 沙箱执行器；此模式用于原生 WASI/WASM 插件';
   }
-  return `Worker 需声明 script:${script.language} 语言能力；默认通过 Wasmtime/WASM 通用沙箱执行，运维可显式切换 Docker、Podman 或自定义后端，禁止裸宿主命令执行`;
+  return `Worker 需声明 script:${script.language} 语言能力；默认 sandbox=auto：可编译到 WASM 时优先 Wasmtime，原生命令/二进制优先 srt，JS/TS 逻辑优先 Deno，未匹配时回退 Wasmtime；也可手动指定 wasmtime/wasmedge/srt/deno/v8/docker/podman/custom`;
 }
 
 function shortDigest(value?: string | null): string {
@@ -559,7 +575,7 @@ export function ScriptsPage() {
               showIcon
               style={{ marginBottom: 16 }}
               message="直接 WASM 模块策略"
-              description="language=wasm 用于原生 WASI/WASM 插件；Shell/Python/Node/PowerShell 等脚本语言默认同样通过 Worker 的 Wasmtime 通用沙箱后端执行。模块会携带 SHA-256 摘要；默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
+              description="language=wasm 用于原生 WASI/WASM 插件；Shell/Python/JS/TS/PowerShell 等脚本语言默认使用 sandbox=auto 自适应后端。模块会携带 SHA-256 摘要；默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
             />
           )}
           <Form.Item name="version" label="版本" initialValue="1.0.0">
@@ -603,6 +619,9 @@ export function ScriptsPage() {
           <Form.Item name="policy_env_vars" label="策略环境变量白名单">
             <Select mode="tags" placeholder="输入变量名后回车" />
           </Form.Item>
+          <Form.Item name="policy_sandbox_backend" label="沙箱后端" initialValue="auto">
+            <Select options={SANDBOX_OPTIONS} />
+          </Form.Item>
         </Form>
       </Drawer>
 
@@ -638,7 +657,7 @@ export function ScriptsPage() {
               <Descriptions.Item label="超时(秒)">{detailScript.timeout_seconds ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="内存限制(字节)">{detailScript.max_memory_bytes ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="允许网络">{detailScript.allow_network ? '允许' : '禁止'}</Descriptions.Item>
-              <Descriptions.Item label="默认沙箱后端">{detailScript.language === 'wasm' ? 'wasmtime / direct WASM module' : 'wasmtime / universal script sandbox'}</Descriptions.Item>
+              <Descriptions.Item label="默认沙箱后端">{detailScript.language === 'wasm' ? 'wasmtime / direct WASM module' : 'auto / adaptive script sandbox'}</Descriptions.Item>
               <Descriptions.Item label="WASM Entrypoint">{detailScript.language === 'wasm' ? '_start' : '-'}</Descriptions.Item>
               <Descriptions.Item label="WASM Fuel">{defaultFuel(detailScript)}</Descriptions.Item>
               <Descriptions.Item label="模块签名">{detailScript.language === 'wasm' ? '预留，当前未启用' : '-'}</Descriptions.Item>
@@ -887,7 +906,7 @@ export function ScriptEditorPage() {
                 showIcon
                 style={{ marginBottom: 16 }}
                 message="直接 WASM 模块策略"
-                description="language=wasm 用于原生 WASI/WASM 插件；普通脚本语言默认也经由 Worker 的 Wasmtime 通用沙箱后端执行。更新后将生成新的不可变版本快照与 SHA-256 摘要；默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
+                description="language=wasm 用于原生 WASI/WASM 插件；普通脚本语言默认使用 sandbox=auto 自适应后端。更新后将生成新的不可变版本快照与 SHA-256 摘要；默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
               />
             ) : null}
             <div className="script-editor-page__grid">
@@ -915,6 +934,7 @@ export function ScriptEditorPage() {
                   <Form.Item name="policy_max_memory_bytes" label="策略内存限制(字节)"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
                   <Form.Item name="policy_max_output_bytes" label="策略输出限制(字节)"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
                   <Form.Item name="policy_env_vars" label="策略环境变量白名单"><Select mode="tags" placeholder="输入变量名后回车" /></Form.Item>
+                  <Form.Item name="policy_sandbox_backend" label="沙箱后端"><Select options={SANDBOX_OPTIONS} /></Form.Item>
                 </Card>
               </div>
             </div>

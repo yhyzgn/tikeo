@@ -9,8 +9,10 @@ public enum ScriptRunnerKind {
     SHELL("shell"),
     /** Python scripts. */
     PYTHON("python"),
-    /** Node.js scripts. */
-    NODE("node"),
+    /** JavaScript scripts. */
+    JS("js"),
+    /** TypeScript scripts. */
+    TS("ts"),
     /** PowerShell scripts. */
     POWERSHELL("powershell");
 
@@ -33,7 +35,8 @@ public enum ScriptRunnerKind {
         return switch (normalized) {
             case "shell", "sh", "bash" -> Optional.of(SHELL);
             case "python", "py" -> Optional.of(PYTHON);
-            case "node", "nodejs", "javascript", "js", "typescript", "ts" -> Optional.of(NODE);
+            case "node", "nodejs", "javascript", "js" -> Optional.of(JS);
+            case "typescript", "ts" -> Optional.of(TS);
             case "powershell", "pwsh" -> Optional.of(POWERSHELL);
             default -> Optional.empty();
         };

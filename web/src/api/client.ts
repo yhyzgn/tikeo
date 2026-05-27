@@ -392,6 +392,7 @@ export interface ScriptExecutionPolicy {
   filesystem: { read_only_paths: string[]; writable_paths: string[] };
   secrets: { refs: string[] };
   env_vars: string[];
+  sandbox: { backend: string };
 }
 
 export interface ScriptReleaseSignatureSummary {

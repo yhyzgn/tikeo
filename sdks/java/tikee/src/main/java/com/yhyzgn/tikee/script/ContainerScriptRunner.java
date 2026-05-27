@@ -113,7 +113,8 @@ public final class ContainerScriptRunner implements ScriptRunner {
         return switch (kind) {
             case SHELL -> List.of("sh", "-s");
             case PYTHON -> List.of("python3", "-");
-            case NODE -> List.of("node", "-");
+            case JS -> List.of("node", "-");
+            case TS -> List.of("node", "-");
             case POWERSHELL -> List.of("pwsh", "-NoProfile", "-NonInteractive", "-Command", "-");
         };
     }

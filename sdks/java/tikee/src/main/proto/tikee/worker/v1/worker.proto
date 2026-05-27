@@ -96,6 +96,7 @@ message ScriptProcessorBinding {
   repeated string writable_paths = 14;
   repeated string secret_refs = 15;
   repeated string allowed_network_hosts = 16;
+  string sandbox_backend = 17;
 }
 
 message WasmProcessorBinding {

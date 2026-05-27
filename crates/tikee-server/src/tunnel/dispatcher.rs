@@ -551,7 +551,8 @@ fn validate_script_version_dispatchable(
         Some(
             ScriptLanguage::Shell
             | ScriptLanguage::Python
-            | ScriptLanguage::Node
+            | ScriptLanguage::Js
+            | ScriptLanguage::Ts
             | ScriptLanguage::PowerShell
             | ScriptLanguage::Rhai,
         ) => validate_script_policy_for_dispatch(
@@ -644,6 +645,7 @@ fn script_processor_binding(
                 allowed_network_hosts: release_grants
                     .map(|grants| grants.url.clone())
                     .unwrap_or(policy.network.allowed_hosts),
+                sandbox_backend: policy.sandbox.backend.as_str().to_owned(),
             },
         )),
     }
@@ -1603,6 +1605,7 @@ mod tests {
                 assert!(script_binding.read_only_paths.is_empty());
                 assert!(script_binding.writable_paths.is_empty());
                 assert!(script_binding.secret_refs.is_empty());
+                assert_eq!(script_binding.sandbox_backend, "auto");
             }
             other => panic!("unexpected binding: {other:?}"),
         }

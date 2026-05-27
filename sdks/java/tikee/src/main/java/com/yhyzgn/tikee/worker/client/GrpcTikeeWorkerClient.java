@@ -6,6 +6,7 @@ import com.yhyzgn.tikee.processor.TaskOutcome;
 import com.yhyzgn.tikee.script.ScriptRunnerKind;
 import com.yhyzgn.tikee.script.ScriptRunnerPolicy;
 import com.yhyzgn.tikee.script.ScriptRunnerRegistry;
+import com.yhyzgn.tikee.script.ScriptSandboxBackend;
 import com.yhyzgn.tikee.script.ScriptRunnerTask;
 import com.yhyzgn.tikee.processor.TaskProcessor;
 import com.yhyzgn.tikee.worker.WorkerRegistration;
@@ -621,7 +622,8 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                                     binding.getAllowedEnvVarsList(),
                                     binding.getReadOnlyPathsList(),
                                     binding.getWritablePathsList(),
-                                    binding.getSecretRefsList())),
+                                    binding.getSecretRefsList()),
+                            ScriptSandboxBackend.fromValue(binding.getSandboxBackend())),
                             (level, message) -> emitTaskLog(task, assignedWorkerId, level, message));
         } catch (Exception error) {
             return TaskOutcome.failed(error.getMessage());

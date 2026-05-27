@@ -91,7 +91,11 @@ function getExtension(lang: string) {
       return [python(), parseErrorLinter()];
     case 'node':
     case 'javascript':
+    case 'js':
       return [javascript(), parseErrorLinter()];
+    case 'typescript':
+    case 'ts':
+      return [javascript({ typescript: true }), parseErrorLinter()];
     case 'shell':
       return [StreamLanguage.define(shell), shellLinter()];
     default:

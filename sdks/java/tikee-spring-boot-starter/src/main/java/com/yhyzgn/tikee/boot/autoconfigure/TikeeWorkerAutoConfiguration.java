@@ -151,9 +151,15 @@ public class TikeeWorkerAutoConfiguration {
                         scripts.getRuntimeArgs());
                 registerContainerRunner(
                         registry,
-                        ScriptRunnerKind.NODE,
+                        ScriptRunnerKind.JS,
                         scripts.getRuntimeCommand(),
-                        scripts.getImages().getNode(),
+                        scripts.getImages().getJs(),
+                        scripts.getRuntimeArgs());
+                registerContainerRunner(
+                        registry,
+                        ScriptRunnerKind.TS,
+                        scripts.getRuntimeCommand(),
+                        scripts.getImages().getTs(),
                         scripts.getRuntimeArgs());
                 registerContainerRunner(
                         registry,

@@ -58,6 +58,11 @@ public final class WasmScriptRunner implements ScriptRunner {
         if (runtimeModule == null) {
             throw new ScriptRunnerException("WASM script runner requires a runtime module");
         }
+        ScriptSandboxBackend resolvedBackend = task.sandboxBackend().resolve(kind);
+        if (resolvedBackend != ScriptSandboxBackend.WASMTIME) {
+            throw new ScriptRunnerException(
+                    "WASM script runner supports wasmtime backend only, requested: " + resolvedBackend.value());
+        }
         List<String> command = new ArrayList<>();
         command.add(runtimeCommand);
         command.add("run");

@@ -89,8 +89,10 @@ public class TikeeWorkerProperties {
         private String shell = "";
         /** Python image. Blank disables Python scripts. */
         private String python = "";
-        /** Node.js image. Blank disables Node.js scripts. */
-        private String node = "";
+        /** JavaScript image. Blank disables JS scripts. */
+        private String js = "";
+        /** TypeScript image. Blank disables TS scripts. */
+        private String ts = "";
         /** PowerShell image. Blank disables PowerShell scripts. */
         private String powershell = "";
     }
