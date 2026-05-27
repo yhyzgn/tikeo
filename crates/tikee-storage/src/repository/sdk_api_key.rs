@@ -19,6 +19,16 @@ pub struct CreateSdkApiKey {
     pub rotated_from: Option<String>,
 }
 
+/// Persisted SDK API key rotation input.
+#[derive(Debug, Clone)]
+pub struct RotateSdkApiKey {
+    pub key_hash: String,
+    pub key_prefix: String,
+    pub scopes: Vec<String>,
+    pub expires_at: Option<String>,
+    pub actor: String,
+}
+
 /// SDK API key metadata returned by repositories and HTTP APIs.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SdkApiKeySummary {
@@ -78,7 +88,10 @@ impl SdkApiKeyRepository {
     }
 
     pub async fn list_keys(&self) -> Result<Vec<SdkApiKeySummary>, sea_orm::DbErr> {
-        let rows = sdk_api_key::Entity::find().all(&self.db).await?;
+        let rows = sdk_api_key::Entity::find()
+            .filter(sdk_api_key::Column::Status.eq("active"))
+            .all(&self.db)
+            .await?;
         Ok(rows.into_iter().map(SdkApiKeySummary::from).collect())
     }
 
@@ -98,6 +111,49 @@ impl SdkApiKeyRepository {
             return Ok(None);
         }
         Ok(Some(summary))
+    }
+
+    pub async fn rotate_key(
+        &self,
+        id: &str,
+        input: RotateSdkApiKey,
+    ) -> Result<Option<SdkApiKeySummary>, sea_orm::DbErr> {
+        let Some(model) = sdk_api_key::Entity::find_by_id(id.to_owned())
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        if model.status != "active" {
+            return Ok(None);
+        }
+        let now = now_rfc3339();
+        let mut old: sdk_api_key::ActiveModel = model.clone().into();
+        old.status = Set("revoked".to_owned());
+        old.revoked_by = Set(Some(input.actor.clone()));
+        old.updated_at = Set(now.clone());
+        old.update(&self.db).await?;
+
+        let rotated = sdk_api_key::ActiveModel {
+            id: Set(new_id("sk")),
+            name: Set(model.name),
+            key_hash: Set(input.key_hash),
+            key_prefix: Set(input.key_prefix),
+            namespace: Set(model.namespace),
+            app: Set(model.app),
+            scopes: Set(encode_scopes(&input.scopes)),
+            status: Set("active".to_owned()),
+            expires_at: Set(input.expires_at),
+            last_used_at: Set(None),
+            created_by: Set(input.actor),
+            revoked_by: Set(None),
+            rotated_from: Set(Some(id.to_owned())),
+            created_at: Set(now.clone()),
+            updated_at: Set(now),
+        }
+        .insert(&self.db)
+        .await?;
+        Ok(Some(SdkApiKeySummary::from(rotated)))
     }
 
     pub async fn mark_used(&self, id: &str) -> Result<(), sea_orm::DbErr> {

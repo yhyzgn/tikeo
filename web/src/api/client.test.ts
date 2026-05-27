@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
-import { ApiClientError, createAppScope, createJob, createNamespace, createWorkerPool, dryRunWorkflow, getAuthToken, listInstanceLogs, listJobs, listNamespaces, listWorkerPools, login, setAuthErrorHandler, setAuthToken, triggerJob, updateWorkflow } from './client';
+import { ApiClientError, createAppScope, createJob, createNamespace, createWorkerPool, dryRunWorkflow, getAuthToken, listInstanceLogs, listJobs, listNamespaces, listWorkerPools, login, rotateSdkApiKey, setAuthErrorHandler, setAuthToken, triggerJob, updateWorkflow } from './client';
 
 const originalFetch = globalThis.fetch;
 
@@ -206,6 +206,28 @@ describe('api client envelope handling', () => {
     expect(calls.map((call) => call.url)).toContain('/api/v1/namespaces');
     expect(calls.map((call) => call.url)).toContain('/api/v1/worker-pools?namespace=default&app=billing');
     expect(calls.at(-1)?.body).toEqual({ namespace: 'payments', app: 'settlement', name: 'critical' });
+  });
+
+  test('rotates sdk api key through rotate endpoint', async () => {
+    let capturedUrl = '';
+    let capturedBody: unknown = null;
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      capturedUrl = String(url);
+      capturedBody = init?.body ? JSON.parse(String(init.body)) : null;
+      return new Response(JSON.stringify({
+        code: 0,
+        message: 'success',
+        data: {
+          api_key: 'tk-rotated',
+          key: { id: 'sk_new', name: 'demo', key_prefix: 'tk-rot••••new', namespace: 'default', app: 'billing', scopes: ['jobs:read'], status: 'active', expires_at: null, last_used_at: null, created_by: 'admin', revoked_by: null, rotated_from: 'sk_old', created_at: 'now', updated_at: 'now' },
+        },
+      }));
+    }) as unknown as typeof fetch;
+
+    await expect(rotateSdkApiKey('sk_old', { scopes: ['jobs:read'], expires_at: null })).resolves.toMatchObject({ api_key: 'tk-rotated' });
+
+    expect(capturedUrl).toBe('/api/v1/management/api-keys/sk_old/rotate');
+    expect(capturedBody).toEqual({ scopes: ['jobs:read'], expires_at: null });
   });
 
   test('sends authorization when triggering a job', async () => {

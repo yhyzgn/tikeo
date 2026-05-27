@@ -194,6 +194,11 @@ export interface CreatedSdkApiKey {
   api_key: string;
 }
 
+export interface RotateSdkApiKeyRequest {
+  scopes: string[];
+  expires_at?: string | null;
+}
+
 export interface OidcIdentitySummary {
   id: string;
   issuer: string;
@@ -284,6 +289,13 @@ export async function listSdkApiKeys(): Promise<SdkApiKeySummary[]> {
 
 export async function createSdkApiKey(payload: CreateSdkApiKeyRequest): Promise<CreatedSdkApiKey> {
   return request<CreatedSdkApiKey>('/api/v1/management/api-keys', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function rotateSdkApiKey(id: string, payload: RotateSdkApiKeyRequest): Promise<CreatedSdkApiKey> {
+  return request<CreatedSdkApiKey>(`/api/v1/management/api-keys/${encodeURIComponent(id)}/rotate`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });

@@ -10,7 +10,9 @@ use axum::{
 use rand::{TryRngCore, rngs::OsRng};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tikee_storage::{CreateSdkApiKey, PermissionSummary, SdkApiKeyRepository, SdkApiKeySummary};
+use tikee_storage::{
+    CreateSdkApiKey, PermissionSummary, RotateSdkApiKey, SdkApiKeyRepository, SdkApiKeySummary,
+};
 use utoipa::ToSchema;
 
 use super::{
@@ -47,6 +49,15 @@ pub struct CreatedSdkApiKey {
     pub key: SdkApiKeySummary,
     /// Plaintext API key. Copy immediately; only the hash is persisted.
     pub api_key: String,
+}
+
+/// SDK API key rotation request.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct RotateSdkApiKeyRequest {
+    /// Replacement permission scopes in `resource:action` form.
+    pub scopes: Vec<String>,
+    /// Optional RFC3339 expiration timestamp. `null` means permanent.
+    pub expires_at: Option<String>,
 }
 
 /// Create an app-scoped SDK management API key.
@@ -115,6 +126,56 @@ pub async fn list_sdk_api_keys(
     Ok(Json(ApiResponse::success(keys)))
 }
 
+/// Rotate one SDK API key and immediately revoke the old plaintext.
+///
+/// # Errors
+///
+/// Returns unauthorized/forbidden for non-admin callers, not found, bad request, or storage errors.
+#[utoipa::path(
+    post,
+    path = "/api/v1/management/api-keys/{id}/rotate",
+    tag = "management",
+    request_body = RotateSdkApiKeyRequest
+)]
+pub async fn rotate_sdk_api_key(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<RotateSdkApiKeyRequest>,
+) -> Result<Json<ApiResponse<CreatedSdkApiKey>>, ApiError> {
+    let principal = auth::require_permission(&headers, &state, "tenants", "manage").await?;
+    let request = validate_rotate_request(request)?;
+    let plaintext = generate_api_key()?;
+    let Some(key) = SdkApiKeyRepository::new(state.users.db())
+        .rotate_key(
+            &id,
+            RotateSdkApiKey {
+                key_hash: hash_api_key(&plaintext),
+                key_prefix: display_prefix(&plaintext),
+                scopes: request.scopes,
+                expires_at: request.expires_at,
+                actor: principal.username.clone(),
+            },
+        )
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+    else {
+        return Err(ApiError::not_found("active sdk api key not found"));
+    };
+    audit_sdk_api_key(
+        &state,
+        &principal.username,
+        "sdk_api_key_rotate",
+        &id,
+        &headers,
+    )
+    .await;
+    Ok(Json(ApiResponse::success(CreatedSdkApiKey {
+        key,
+        api_key: plaintext,
+    })))
+}
+
 /// Revoke one SDK API key.
 ///
 /// # Errors
@@ -176,12 +237,8 @@ fn validate_create_request(
     request.name = request.name.trim().to_owned();
     request.namespace = request.namespace.trim().to_owned();
     request.app = request.app.trim().to_owned();
-    request.scopes = request
-        .scopes
-        .into_iter()
-        .map(|scope| scope.trim().to_owned())
-        .filter(|scope| !scope.is_empty())
-        .collect();
+    request.scopes = validate_scopes(request.scopes)?;
+    request.expires_at = validate_expires_at(request.expires_at)?;
     if request.name.is_empty() {
         return Err(ApiError::bad_request("sdk api key name is required"));
     }
@@ -190,14 +247,39 @@ fn validate_create_request(
             "sdk api key namespace and app are required",
         ));
     }
-    if request.scopes.is_empty() {
+    Ok(request)
+}
+
+fn validate_rotate_request(
+    mut request: RotateSdkApiKeyRequest,
+) -> Result<RotateSdkApiKeyRequest, ApiError> {
+    request.scopes = validate_scopes(request.scopes)?;
+    request.expires_at = validate_expires_at(request.expires_at)?;
+    Ok(request)
+}
+
+fn validate_scopes(scopes: Vec<String>) -> Result<Vec<String>, ApiError> {
+    let scopes = scopes
+        .into_iter()
+        .map(|scope| scope.trim().to_owned())
+        .filter(|scope| !scope.is_empty())
+        .collect::<Vec<_>>();
+    if scopes.is_empty() {
         return Err(ApiError::bad_request("sdk api key scopes are required"));
     }
-    if let Some(expires_at) = request.expires_at.as_deref() {
-        time::OffsetDateTime::parse(expires_at, &time::format_description::well_known::Rfc3339)
-            .map_err(|_| ApiError::bad_request("expires_at must be RFC3339"))?;
-    }
-    Ok(request)
+    Ok(scopes)
+}
+
+fn validate_expires_at(expires_at: Option<String>) -> Result<Option<String>, ApiError> {
+    let Some(expires_at) = expires_at
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(None);
+    };
+    time::OffsetDateTime::parse(&expires_at, &time::format_description::well_known::Rfc3339)
+        .map_err(|_| ApiError::bad_request("expires_at must be RFC3339"))?;
+    Ok(Some(expires_at))
 }
 
 fn sdk_api_key_header(headers: &HeaderMap) -> Result<Option<String>, ApiError> {
@@ -257,8 +339,16 @@ fn generate_api_key() -> Result<String, ApiError> {
 }
 
 fn display_prefix(api_key: &str) -> String {
-    let prefix: String = api_key.chars().take(8).collect();
-    format!("{prefix}…")
+    let prefix: String = api_key.chars().take(12).collect();
+    let suffix = api_key
+        .chars()
+        .rev()
+        .take(8)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<String>();
+    format!("{prefix}••••••••••••{suffix}")
 }
 
 fn hash_api_key(api_key: &str) -> String {
@@ -295,7 +385,7 @@ async fn audit_sdk_api_key(
 
 #[cfg(test)]
 mod tests {
-    use super::generate_api_key;
+    use super::{display_prefix, generate_api_key};
 
     #[test]
     fn generated_api_key_uses_tk_base62_shape() {
@@ -308,5 +398,12 @@ mod tests {
                 .chars()
                 .all(|character| character.is_ascii_alphanumeric())
         );
+    }
+
+    #[test]
+    fn display_prefix_masks_middle_and_keeps_both_ends() {
+        let display =
+            display_prefix("tk-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789AB");
+        assert_eq!(display, "tk-ABCDEFGHI••••••••••••456789AB");
     }
 }

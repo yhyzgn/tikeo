@@ -32,7 +32,7 @@ pub use repository::{
     RaftMembershipProposalSummary, RaftMetadataSummary, RaftRepository, RaftSnapshotSummary,
     RbacRepository, RecordAlertDeliveryAttempt, RecordRaftAppliedCommand,
     RecordRaftMembershipProposal, RecoverWorkflowNodeInput, RecoverWorkflowNodeResult,
-    RegisterWorkerSession, ScopeRepository, ScriptReleaseGrantEvidenceSummary,
+    RegisterWorkerSession, RotateSdkApiKey, ScopeRepository, ScriptReleaseGrantEvidenceSummary,
     ScriptReleaseSignatureSummary, ScriptRepository, ScriptSummary, ScriptVersionRepository,
     ScriptVersionSummary, SdkApiKeyRepository, SdkApiKeySummary, UpdateJob, UpdateScript,
     UpdateUser, UpdateWorkflow, UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember,

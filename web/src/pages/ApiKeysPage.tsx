@@ -1,8 +1,9 @@
 import { CopyOutlined, DeleteOutlined, KeyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, DatePicker, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
+import dayjs, { type Dayjs } from 'dayjs';
 import { useEffect, useState } from 'react';
 
-import { createSdkApiKey, deleteSdkApiKey, listAppScopes, listNamespaces, listSdkApiKeys, type AppScopeSummary, type NamespaceSummary, type SdkApiKeySummary } from '../api/client';
+import { createSdkApiKey, deleteSdkApiKey, listAppScopes, listNamespaces, listSdkApiKeys, rotateSdkApiKey, type AppScopeSummary, type NamespaceSummary, type SdkApiKeySummary } from '../api/client';
 
 const DEFAULT_SCOPES = ['jobs:read', 'jobs:write', 'instances:execute'];
 
@@ -11,7 +12,12 @@ interface ApiKeyFormValues {
   namespace: string;
   app: string;
   scopes: string[];
-  expiresAt?: { toISOString: () => string } | null;
+  expiresAt?: Dayjs | null;
+}
+
+interface RotateFormValues {
+  scopes: string[];
+  expiresAt?: Dayjs | null;
 }
 
 export function ApiKeysPage() {
@@ -20,8 +26,10 @@ export function ApiKeysPage() {
   const [apps, setApps] = useState<AppScopeSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [rotatingKey, setRotatingKey] = useState<SdkApiKeySummary | null>(null);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [form] = Form.useForm<ApiKeyFormValues>();
+  const [rotateForm] = Form.useForm<RotateFormValues>();
 
   const reload = async () => {
     setLoading(true);
@@ -54,6 +62,28 @@ export function ApiKeysPage() {
     await reload();
   };
 
+  const openRotateModal = (item: SdkApiKeySummary) => {
+    setRotatingKey(item);
+    rotateForm.setFieldsValue({
+      scopes: item.scopes,
+      expiresAt: item.expires_at ? dayjs(item.expires_at) : null,
+    });
+  };
+
+  const handleRotate = async () => {
+    if (!rotatingKey) return;
+    const values = await rotateForm.validateFields();
+    const rotated = await rotateSdkApiKey(rotatingKey.id, {
+      scopes: values.scopes,
+      expires_at: values.expiresAt?.toISOString() ?? null,
+    });
+    setCreatedKey(rotated.api_key);
+    setRotatingKey(null);
+    rotateForm.resetFields();
+    message.success('API-Key 已刷新，旧 Key 已作废');
+    await reload();
+  };
+
   const handleRevoke = async (id: string) => {
     await deleteSdkApiKey(id);
     message.success('API-Key 已吊销');
@@ -69,25 +99,25 @@ export function ApiKeysPage() {
     <Space direction="vertical" size={20} style={{ width: '100%' }}>
       <Card
         title={<Space><KeyOutlined />SDK Management API-Key</Space>}
-        extra={<Space><Button icon={<ReloadOutlined />} onClick={reload}>刷新</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>签发 API-Key</Button></Space>}
+        extra={<Space><Button icon={<ReloadOutlined />} onClick={reload}>刷新列表</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>签发 API-Key</Button></Space>}
       >
         <Alert
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="API-Key 是后台手动签发给 SDK 的 app 作用域凭证，请使用 X-Tikee-API-Key 请求头；明文只在创建后显示一次，列表只能复制脱敏后的展示值。"
+          message="API-Key 是后台手动签发给 SDK 的 app 作用域凭证；列表只展示两端明文、中间脱敏的值。操作栏刷新会生成新 Key 并立即作废旧 Key。"
         />
         <Table<SdkApiKeySummary>
           rowKey="id"
           loading={loading}
           dataSource={keys}
-          scroll={{ x: 1100 }}
+          scroll={{ x: 1160 }}
           columns={[
             { title: '名称', dataIndex: 'name', width: 180 },
             {
-              title: 'Key 前缀',
+              title: 'API-Key',
               dataIndex: 'key_prefix',
-              width: 180,
+              width: 260,
               render: (value: string) => <Typography.Text code copyable={{ text: value }}>{value}</Typography.Text>,
             },
             { title: '范围', width: 180, render: (_, item) => `${item.namespace}/${item.app}` },
@@ -99,10 +129,10 @@ export function ApiKeysPage() {
             {
               title: '操作',
               fixed: 'right',
-              width: 160,
+              width: 170,
               render: (_, item) => (
                 <Space>
-                  <Button size="small" icon={<CopyOutlined />} onClick={() => void copyText(item.key_prefix, '脱敏 Key')}>复制</Button>
+                  <Button size="small" icon={<ReloadOutlined />} disabled={item.status !== 'active'} onClick={() => openRotateModal(item)}>刷新</Button>
                   <Button danger size="small" icon={<DeleteOutlined />} disabled={item.status !== 'active'} onClick={() => void handleRevoke(item.id)}>吊销</Button>
                 </Space>
               ),
@@ -130,8 +160,21 @@ export function ApiKeysPage() {
         </Form>
       </Modal>
 
+      <Modal title="刷新 API-Key" width={760} open={rotatingKey !== null} onOk={() => void handleRotate()} onCancel={() => setRotatingKey(null)} okText="生成新 Key">
+        <Alert type="warning" showIcon message="刷新会生成新的完整 API-Key，并立即作废旧 Key；旧 Key 会从列表消失。" style={{ marginBottom: 16 }} />
+        <Typography.Paragraph type="secondary">{rotatingKey ? `${rotatingKey.name} · ${rotatingKey.namespace}/${rotatingKey.app}` : ''}</Typography.Paragraph>
+        <Form form={rotateForm} layout="vertical">
+          <Form.Item name="scopes" label="权限 scopes" rules={[{ required: true }]}>
+            <Select mode="tags" options={DEFAULT_SCOPES.map((scope) => ({ value: scope }))} />
+          </Form.Item>
+          <Form.Item name="expiresAt" label="有效期">
+            <DatePicker showTime style={{ width: '100%' }} placeholder="留空则永久有效" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
       <Modal title="API-Key 只显示一次" width={860} open={createdKey !== null} onCancel={() => setCreatedKey(null)} footer={<Button onClick={() => setCreatedKey(null)}>我已保存</Button>}>
-        <Alert type="warning" showIcon message="请立即复制保存，服务端不会保存明文；关闭后只能在列表看到脱敏前缀。" style={{ marginBottom: 12 }} />
+        <Alert type="warning" showIcon message="请立即复制保存，服务端不会保存明文；关闭后只能在列表看到脱敏值。" style={{ marginBottom: 12 }} />
         <Input.TextArea readOnly autoSize={{ minRows: 3, maxRows: 5 }} value={createdKey ?? ''} />
         <Button style={{ marginTop: 12 }} type="primary" icon={<CopyOutlined />} onClick={() => void copyText(createdKey ?? '', 'API-Key')}>复制完整 API-Key</Button>
       </Modal>
