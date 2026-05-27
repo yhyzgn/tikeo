@@ -19,6 +19,7 @@ mod oidc_identity;
 mod raft;
 mod scope;
 mod script;
+mod sdk_api_key;
 mod user;
 pub mod util;
 mod worker_lifecycle;
@@ -55,6 +56,7 @@ pub use script::{
     ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary, UpdateScript,
     VerifiedScriptReleaseGrants, VerifiedScriptReleaseSignature,
 };
+pub use sdk_api_key::{CreateSdkApiKey, SdkApiKeyRepository, SdkApiKeySummary};
 pub use user::{CreateUser, UpdateUser, UserRepository, UserSummary};
 pub use worker_lifecycle::{
     RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository, WorkerSessionEventSummary,

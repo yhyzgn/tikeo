@@ -29,25 +29,25 @@ public final class HttpTikeeJobClient implements TikeeJobClient {
     private final HttpClient http;
     private final ObjectMapper mapper;
     private final URI endpoint;
-    private final String bearerToken;
+    private final String apiKey;
     private final String namespace;
     private final String app;
 
-    public HttpTikeeJobClient(String endpoint, String bearerToken, String namespace, String app) {
-        this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(), new ObjectMapper(), endpoint, bearerToken, namespace, app);
+    public HttpTikeeJobClient(String endpoint, String apiKey, String namespace, String app) {
+        this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(), new ObjectMapper(), endpoint, apiKey, namespace, app);
     }
 
     HttpTikeeJobClient(
             HttpClient http,
             ObjectMapper mapper,
             String endpoint,
-            String bearerToken,
+            String apiKey,
             String namespace,
             String app) {
         this.http = Objects.requireNonNull(http, "http");
         this.mapper = Objects.requireNonNull(mapper, "mapper");
         this.endpoint = URI.create(trimTrailingSlash(Objects.requireNonNull(endpoint, "endpoint")) + "/");
-        this.bearerToken = Objects.requireNonNull(bearerToken, "bearerToken");
+        this.apiKey = Objects.requireNonNull(apiKey, "apiKey");
         this.namespace = namespace == null || namespace.isBlank() ? "default" : namespace;
         this.app = app == null || app.isBlank() ? "default" : app;
     }
@@ -107,7 +107,7 @@ public final class HttpTikeeJobClient implements TikeeJobClient {
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint.resolve("api/v1" + path))
                     .timeout(Duration.ofSeconds(30))
-                    .header("authorization", "Bearer " + bearerToken)
+                    .header("x-tikee-api-key", apiKey)
                     .header("accept", "application/json");
             if (body == null) {
                 builder.method(method, HttpRequest.BodyPublishers.noBody());

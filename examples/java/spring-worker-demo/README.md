@@ -29,10 +29,10 @@ For local UI-only startup without a tikee server, explicitly set `TIKEE_WORKER_D
 
 In tikee, `scheduleType: api` means the job is created as an explicit API/SDK/UI-triggered task. It does **not** mean the worker executes an HTTP API call. The Java SDK management client can create, enable/disable, and manually trigger these jobs.
 
-When the demo has a management token, enable the optional control-plane endpoints:
+When the demo has a management API key, enable the optional control-plane endpoints:
 
 ```bash
-(cd examples/java/spring-worker-demo &&   TIKEE_MANAGEMENT_ENABLED=true   TIKEE_MANAGEMENT_ENDPOINT=http://127.0.0.1:9999   TIKEE_MANAGEMENT_TOKEN=<bearer-token>   ./gradlew bootRun)
+(cd examples/java/spring-worker-demo &&   TIKEE_MANAGEMENT_ENABLED=true   TIKEE_MANAGEMENT_ENDPOINT=http://127.0.0.1:9999   TIKEE_MANAGEMENT_API_KEY=<tk-api-key>   ./gradlew bootRun)
 ```
 
 Then call:

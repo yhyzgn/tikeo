@@ -29,6 +29,9 @@ use super::{
 ///
 /// Returns unauthorized for missing/invalid bearer tokens or storage errors from the session store.
 pub async fn authenticate(headers: &HeaderMap, state: &AppState) -> Result<MeResponse, ApiError> {
+    if let Some(principal) = super::sdk_api_keys::authenticate_sdk_api_key(headers, state).await? {
+        return Ok(principal);
+    }
     let token = bearer_token(headers)?;
 
     state
@@ -54,7 +57,9 @@ fn bearer_token(headers: &HeaderMap) -> Result<String, ApiError> {
             .map(str::to_owned)
             .map_err(|_| ApiError::unauthorized("invalid x-tikee-token header"));
     }
-    Err(ApiError::unauthorized("missing bearer token"))
+    Err(ApiError::unauthorized(
+        "missing bearer token or sdk api key",
+    ))
 }
 
 /// Require the requester to have one of the required roles.

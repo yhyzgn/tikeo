@@ -168,7 +168,7 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.management.enabled=true",
                 "tikee.management.endpoint=http://127.0.0.1:19999",
-                "tikee.management.token=test-token",
+                "tikee.management.api-key=tk-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCdEfGhIjKlMnOpQrStUv",
                 "tikee.management.namespace=demo-ns",
                 "tikee.management.app=demo-app").run(context -> {
             assertThat(context).hasSingleBean(TikeeJobClient.class);

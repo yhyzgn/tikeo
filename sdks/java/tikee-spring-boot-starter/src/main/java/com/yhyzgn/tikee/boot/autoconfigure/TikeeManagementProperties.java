@@ -13,8 +13,8 @@ public class TikeeManagementProperties {
     private boolean enabled = false;
     /** Tikee HTTP management endpoint. */
     private String endpoint = "http://127.0.0.1:9999";
-    /** Bearer token used by management SDK clients. */
-    private String token = "";
+    /** App-scoped API key used by management SDK clients. */
+    private String apiKey = "";
     /** Namespace scope for management operations. */
     private String namespace = "default";
     /** App scope for management operations. */

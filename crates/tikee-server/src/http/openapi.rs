@@ -2,7 +2,7 @@
 
 use utoipa::OpenApi;
 
-use super::{auth, dto, routes};
+use super::{auth, dto, routes, sdk_api_keys};
 
 /// tikee management `OpenAPI` document.
 #[derive(OpenApi)]
@@ -34,6 +34,9 @@ use super::{auth, dto, routes};
         auth::list_api_tokens,
         auth::rotate_api_token,
         auth::revoke_api_token,
+        sdk_api_keys::create_sdk_api_key,
+        sdk_api_keys::list_sdk_api_keys,
+        sdk_api_keys::revoke_sdk_api_key,
         routes::users::list_users,
         routes::users::create_user,
         routes::users::update_user,
@@ -107,6 +110,8 @@ use super::{auth, dto, routes};
         dto::ApiResponse<dto::OidcAuthorizeResponse>,
         dto::ApiResponse<dto::CreatedApiToken>,
         dto::ApiResponse<Vec<dto::ApiTokenSummary>>,
+        dto::ApiResponse<sdk_api_keys::CreatedSdkApiKey>,
+        dto::ApiResponse<Vec<tikee_storage::SdkApiKeySummary>>,
         dto::ApiResponse<dto::MeResponse>,
         dto::ApiResponse<Vec<tikee_storage::OidcIdentitySummary>>,
         dto::ApiResponse<tikee_storage::OidcIdentitySummary>,
@@ -132,6 +137,9 @@ use super::{auth, dto, routes};
         dto::ApiResponse<dto::ErrorData>,
         dto::CreateUserRequest,
         dto::UpdateUserRequest,
+        sdk_api_keys::CreateSdkApiKeyRequest,
+        sdk_api_keys::CreatedSdkApiKey,
+        tikee_storage::SdkApiKeySummary,
         dto::CreateScriptRequest,
         dto::UpdateScriptRequest,
         dto::ScriptReleaseRequest,

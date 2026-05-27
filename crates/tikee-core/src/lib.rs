@@ -343,7 +343,7 @@ impl FromStr for ScriptStatus {
 pub enum WasmRuntimeKind {
     /// Wasmtime runtime.
     Wasmtime,
-    /// WasmEdge runtime.
+    /// `WasmEdge` runtime.
     WasmEdge,
 }
 
@@ -377,14 +377,15 @@ impl FromStr for WasmRuntimeKind {
 }
 
 /// Sandbox backend selected for dynamic script execution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ScriptSandboxBackend {
     /// Let the worker choose the safest available backend for the language and content.
+    #[default]
     Auto,
     /// Execute through Wasmtime.
     Wasmtime,
-    /// Execute through WasmEdge.
+    /// Execute through `WasmEdge`.
     WasmEdge,
     /// Execute through Anthropic Sandbox Runtime.
     Srt,
@@ -398,12 +399,6 @@ pub enum ScriptSandboxBackend {
     Podman,
     /// Execute through a worker-local custom backend.
     Custom,
-}
-
-impl Default for ScriptSandboxBackend {
-    fn default() -> Self {
-        Self::Auto
-    }
 }
 
 impl ScriptSandboxBackend {

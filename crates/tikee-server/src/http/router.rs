@@ -24,7 +24,7 @@ use super::{
     AppState, auth,
     health::{healthz, readyz},
     openapi::ApiDoc,
-    routes, trace,
+    routes, sdk_api_keys, trace,
 };
 
 /// Construct the HTTP router with an explicit application state.
@@ -143,6 +143,14 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
         .route(
             "/auth/api-tokens/{id}/rotate",
             axum::routing::post(auth::rotate_api_token),
+        )
+        .route(
+            "/management/api-keys",
+            get(sdk_api_keys::list_sdk_api_keys).post(sdk_api_keys::create_sdk_api_key),
+        )
+        .route(
+            "/management/api-keys/{id}",
+            axum::routing::delete(sdk_api_keys::revoke_sdk_api_key),
         )
         .route(
             "/users",

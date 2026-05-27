@@ -104,7 +104,8 @@ export function JobsPage() {
   };
 
   const normalizeExecutor = <T extends { executorKind?: 'sdk' | 'script'; processorName?: string | null; scriptId?: string | null }>(values: T) => {
-    const { executorKind: _executorKind, ...rest } = values;
+    const { executorKind: _ignoredExecutorKind, ...rest } = values;
+    void _ignoredExecutorKind;
     return values.executorKind === 'script'
       ? { ...rest, processorName: null }
       : { ...rest, scriptId: null };
@@ -114,7 +115,9 @@ export function JobsPage() {
     if (!editingJob) return;
     if (!canWriteJobs) { message.error('当前账号无权限编辑任务'); return; }
     try {
-      const { fixedRateValue: _fixedRateValue, fixedRateUnit: _fixedRateUnit, ...scheduled } = normalizeSchedule(values);
+      const { fixedRateValue: _ignoredFixedRateValue, fixedRateUnit: _ignoredFixedRateUnit, ...scheduled } = normalizeSchedule(values);
+      void _ignoredFixedRateValue;
+      void _ignoredFixedRateUnit;
       const payload = normalizeExecutor(scheduled);
       const updated = await updateJob(editingJob.id, payload);
       setJobs((current) => current.map((item) => item.id === updated.id ? updated : item));
@@ -241,7 +244,9 @@ export function JobsPage() {
           onFinish={async (values) => {
             if (!canWriteJobs) { message.error('当前账号无权限创建任务'); return; }
             try {
-              const { fixedRateValue: _fixedRateValue, fixedRateUnit: _fixedRateUnit, ...scheduled } = normalizeSchedule(values);
+              const { fixedRateValue: _ignoredFixedRateValue, fixedRateUnit: _ignoredFixedRateUnit, ...scheduled } = normalizeSchedule(values);
+              void _ignoredFixedRateValue;
+              void _ignoredFixedRateUnit;
               const payload = normalizeExecutor(scheduled);
               await createJob(payload);
               message.success('任务已创建');

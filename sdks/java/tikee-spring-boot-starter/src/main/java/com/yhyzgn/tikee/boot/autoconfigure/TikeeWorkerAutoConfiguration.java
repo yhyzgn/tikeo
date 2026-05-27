@@ -250,7 +250,7 @@ public class TikeeWorkerAutoConfiguration {
     TikeeJobClient tikeeJobClient(TikeeManagementProperties properties) {
         return new HttpTikeeJobClient(
                 properties.getEndpoint(),
-                properties.getToken(),
+                properties.getApiKey(),
                 properties.getNamespace(),
                 properties.getApp());
     }

@@ -197,6 +197,26 @@ pub(super) enum RaftMembershipProposals {
 }
 
 #[derive(DeriveIden)]
+pub(super) enum SdkApiKeys {
+    Table,
+    Id,
+    Name,
+    KeyHash,
+    KeyPrefix,
+    Namespace,
+    App,
+    Scopes,
+    Status,
+    ExpiresAt,
+    LastUsedAt,
+    CreatedBy,
+    RevokedBy,
+    RotatedFrom,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
 pub(super) enum AuthSessions {
     Table,
     Id,
@@ -477,6 +497,7 @@ pub(super) enum Jobs {
     ScheduleType,
     ScheduleExpr,
     ProcessorName,
+    ScriptId,
     Enabled,
     CreatedAt,
     UpdatedAt,

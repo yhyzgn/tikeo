@@ -163,6 +163,37 @@ export interface MeResponse {
   scope_bindings: AccessScopeBinding[];
 }
 
+
+export interface SdkApiKeySummary {
+  id: string;
+  name: string;
+  key_prefix: string;
+  namespace: string;
+  app: string;
+  scopes: string[];
+  status: string;
+  expires_at: string | null;
+  last_used_at: string | null;
+  created_by: string;
+  revoked_by: string | null;
+  rotated_from: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSdkApiKeyRequest {
+  name: string;
+  namespace: string;
+  app: string;
+  scopes: string[];
+  expires_at?: string | null;
+}
+
+export interface CreatedSdkApiKey {
+  key: SdkApiKeySummary;
+  api_key: string;
+}
+
 export interface OidcIdentitySummary {
   id: string;
   issuer: string;
@@ -244,6 +275,22 @@ export async function me(): Promise<MeResponse> {
 export async function logout(): Promise<void> {
   await request<null>('/api/v1/auth/logout', { method: 'POST', allowNullData: true });
   setAuthToken(null);
+}
+
+
+export async function listSdkApiKeys(): Promise<SdkApiKeySummary[]> {
+  return request<SdkApiKeySummary[]>('/api/v1/management/api-keys');
+}
+
+export async function createSdkApiKey(payload: CreateSdkApiKeyRequest): Promise<CreatedSdkApiKey> {
+  return request<CreatedSdkApiKey>('/api/v1/management/api-keys', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteSdkApiKey(id: string): Promise<void> {
+  await request<void>(`/api/v1/management/api-keys/${encodeURIComponent(id)}`, { method: 'DELETE', allowNullData: true });
 }
 
 export async function listOidcIdentities(): Promise<OidcIdentitySummary[]> {

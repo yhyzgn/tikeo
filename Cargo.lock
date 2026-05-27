@@ -4370,6 +4370,7 @@ dependencies = [
  "opentelemetry_sdk",
  "protobuf",
  "raft",
+ "rand 0.9.4",
  "reqwest",
  "rustls",
  "rustls-native-certs",

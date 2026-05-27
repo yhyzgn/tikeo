@@ -42,6 +42,6 @@ tikee:
   management:
     enabled: ${TIKEE_MANAGEMENT_ENABLED:false}
     endpoint: ${TIKEE_MANAGEMENT_ENDPOINT:http://127.0.0.1:9999}
-    token: ${TIKEE_MANAGEMENT_TOKEN:}
+    api-key: ${TIKEE_MANAGEMENT_API_KEY:}
     namespace: ${TIKEE_MANAGEMENT_NAMESPACE:default}
     app: ${TIKEE_MANAGEMENT_APP:default}

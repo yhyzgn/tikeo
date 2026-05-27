@@ -39,4 +39,7 @@ pub enum WorkerSdkError {
     /// A dynamic script runner was requested before a safe sandbox implementation exists.
     #[error("unsupported script runner: {0}")]
     UnsupportedScriptRunner(String),
+    /// HTTP management API request failed.
+    #[error("management request failed: {0}")]
+    ManagementRequestFailed(String),
 }

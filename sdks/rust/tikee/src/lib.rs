@@ -6,6 +6,7 @@ pub mod proto;
 
 mod config;
 mod error;
+pub mod management;
 mod script;
 mod session;
 mod task;
@@ -13,6 +14,7 @@ mod wasm;
 
 pub use config::WorkerConfig;
 pub use error::WorkerSdkError;
+pub use management::{CreateJobRequest as ManagementCreateJobRequest, JobDefinition, ManagementClient};
 pub use script::{
     ContainerScriptRunner, LocalSubprocessScriptRunner, ScriptRunner, ScriptRunnerKind,
     ScriptRunnerPolicy, ScriptRunnerRegistry, ScriptRunnerTask, UnsupportedScriptRunner,

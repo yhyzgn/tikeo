@@ -4,9 +4,9 @@ use super::iden::{
     Apps, AuditLogs, AuthSessions, DispatchQueue, InstanceEvents, JobInstanceAttempts,
     JobInstanceLogs, JobInstances, Jobs, Namespaces, OidcAuthStates, OidcIdentities, Permissions,
     RaftAppliedCommands, RaftLogEntries, RaftMembers, RaftMembershipProposals, RaftMetadata,
-    RaftSnapshots, RolePermissions, Roles, ScriptVersions, Scripts, Users, WorkerLogicalInstances,
-    WorkerPools, WorkerSessionEvents, WorkerSessions, WorkflowEdges, WorkflowInstances,
-    WorkflowNodeInstances, WorkflowNodes, WorkflowShards, Workflows,
+    RaftSnapshots, RolePermissions, Roles, ScriptVersions, Scripts, SdkApiKeys, Users,
+    WorkerLogicalInstances, WorkerPools, WorkerSessionEvents, WorkerSessions, WorkflowEdges,
+    WorkflowInstances, WorkflowNodeInstances, WorkflowNodes, WorkflowShards, Workflows,
 };
 
 pub(super) async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
@@ -159,6 +159,27 @@ async fn create_auth_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             .name("idx_auth_sessions_user")
             .table(AuthSessions::Table)
             .col(AuthSessions::UserId)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_sdk_api_keys_hash")
+            .table(SdkApiKeys::Table)
+            .col(SdkApiKeys::KeyHash)
+            .unique()
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_sdk_api_keys_scope")
+            .table(SdkApiKeys::Table)
+            .col(SdkApiKeys::Namespace)
+            .col(SdkApiKeys::App)
+            .col(SdkApiKeys::Status)
             .to_owned(),
     )
     .await?;

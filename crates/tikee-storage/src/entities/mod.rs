@@ -26,6 +26,7 @@ pub mod role;
 pub mod role_permission;
 pub mod script;
 pub mod script_version;
+pub mod sdk_api_key;
 pub mod user;
 pub mod worker_logical_instance;
 pub mod worker_pool;

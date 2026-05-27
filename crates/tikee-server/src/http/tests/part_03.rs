@@ -384,6 +384,170 @@
         assert_eq!(me["data"]["username"], "tikee_init");
     }
 
+
+    #[tokio::test]
+    async fn sdk_api_key_lifecycle_uses_header_and_app_scope() {
+        let app = router().await;
+        let admin = admin_token(app.clone()).await;
+        let (api_key, key_id) = create_billing_sdk_api_key(app.clone(), &admin).await;
+
+        assert_sdk_api_key_list_redacted(app.clone(), &admin, &api_key, &key_id).await;
+        seed_sdk_key_scope_jobs(app.clone(), &admin).await;
+        assert_sdk_key_lists_only_bound_app(app.clone(), &api_key).await;
+        assert_sdk_key_cannot_write_other_app(app.clone(), &api_key).await;
+        revoke_sdk_api_key(app.clone(), &admin, &key_id).await;
+        assert_revoked_sdk_key_rejected(app, &api_key).await;
+    }
+
+    async fn create_billing_sdk_api_key(app: axum::Router, admin: &str) -> (String, String) {
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/management/api-keys")
+                    .header("authorization", format!("Bearer {admin}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"java demo","namespace":"default","app":"billing","scopes":["jobs:read","jobs:write","instances:execute"]}"#))
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        let status = response.status();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let created: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|_| serde_json::json!({"raw": String::from_utf8_lossy(&body)}));
+        assert!(status.is_success(), "unexpected status {status}: {created}");
+        assert_eq!(created["code"], 0);
+        let api_key = created["data"]["api_key"]
+            .as_str()
+            .unwrap_or_else(|| panic!("api key should be returned once"))
+            .to_owned();
+        assert!(api_key.starts_with("tk-"));
+        assert_eq!(api_key.len(), 67);
+        assert!(api_key[3..].chars().all(|ch| ch.is_ascii_alphanumeric()));
+        assert_eq!(created["data"]["key"]["namespace"], "default");
+        assert_eq!(created["data"]["key"]["app"], "billing");
+        let key_id = created["data"]["key"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("key id should be present"))
+            .to_owned();
+        (api_key, key_id)
+    }
+
+    async fn assert_sdk_api_key_list_redacted(app: axum::Router, admin: &str, api_key: &str, key_id: &str) {
+        let list = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/management/api-keys")
+                    .header("authorization", format!("Bearer {admin}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(list.status().is_success());
+        let list_body = axum::body::to_bytes(list.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let list_text = String::from_utf8(list_body.to_vec())
+            .unwrap_or_else(|error| panic!("body should be utf8: {error}"));
+        assert!(!list_text.contains(api_key));
+        assert!(!list_text.contains("key_hash"));
+        let list_json: Value = serde_json::from_str(&list_text)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(list_json["data"][0]["id"], key_id);
+    }
+
+    async fn seed_sdk_key_scope_jobs(app: axum::Router, admin: &str) {
+        let _billing = post_json_raw(
+            app.clone(),
+            "/api/v1/jobs",
+            r#"{"namespace":"default","app":"billing","name":"sdk-visible"}"#,
+            Some(admin),
+        )
+        .await;
+        let _other = post_json_raw(
+            app,
+            "/api/v1/jobs",
+            r#"{"namespace":"default","app":"other","name":"sdk-hidden"}"#,
+            Some(admin),
+        )
+        .await;
+    }
+
+    async fn assert_sdk_key_lists_only_bound_app(app: axum::Router, api_key: &str) {
+        let visible = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/jobs")
+                    .header("x-tikee-api-key", api_key)
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(visible.status().is_success());
+        let visible_body = axum::body::to_bytes(visible.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let visible_json: Value = serde_json::from_slice(&visible_body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        let visible_items = visible_json["data"]["items"]
+            .as_array()
+            .unwrap_or_else(|| panic!("items should be an array"));
+        assert!(visible_items.iter().any(|item| item["name"] == "sdk-visible"));
+        assert!(visible_items.iter().all(|item| item["name"] != "sdk-hidden"));
+    }
+
+    async fn assert_sdk_key_cannot_write_other_app(app: axum::Router, api_key: &str) {
+        let denied = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/jobs")
+                    .header("x-tikee-api-key", api_key)
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"namespace":"default","app":"other","name":"blocked"}"#,
+                    ))
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(denied.status(), axum::http::StatusCode::FORBIDDEN);
+    }
+
+    async fn revoke_sdk_api_key(app: axum::Router, admin: &str, key_id: &str) {
+        let revoked = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/v1/management/api-keys/{key_id}"))
+                    .header("authorization", format!("Bearer {admin}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(revoked.status().is_success());
+    }
+
+    async fn assert_revoked_sdk_key_rejected(app: axum::Router, api_key: &str) {
+        let rejected = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/jobs")
+                    .header("x-tikee-api-key", api_key)
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(rejected.status(), axum::http::StatusCode::UNAUTHORIZED);
+    }
+
     #[tokio::test]
     async fn api_token_lifecycle_creates_lists_authenticates_and_revokes() {
         let app = router().await;

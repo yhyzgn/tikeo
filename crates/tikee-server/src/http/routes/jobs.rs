@@ -399,7 +399,9 @@ pub async fn delete_job(
 }
 
 fn has_auth_header(headers: &HeaderMap) -> bool {
-    headers.contains_key(axum::http::header::AUTHORIZATION) || headers.contains_key("x-tikee-token")
+    headers.contains_key(axum::http::header::AUTHORIZATION)
+        || headers.contains_key("x-tikee-token")
+        || headers.contains_key("x-tikee-api-key")
 }
 
 fn has_concrete_binding(value: Option<&String>) -> bool {

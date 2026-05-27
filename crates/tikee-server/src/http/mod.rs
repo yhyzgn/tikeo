@@ -10,6 +10,7 @@ mod oidc_session;
 pub mod openapi;
 mod router;
 pub mod routes;
+mod sdk_api_keys;
 mod server;
 pub mod services;
 pub mod session;

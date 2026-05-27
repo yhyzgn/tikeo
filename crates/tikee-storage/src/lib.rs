@@ -22,10 +22,10 @@ pub use repository::{
     AuditLogRepository, AuditLogSummary, AuthSessionRepository, AuthSessionSummary,
     CompleteWorkflowShardInput, CompleteWorkflowShardResult, CreateAlertRule, CreateAuditLog,
     CreateAuthSession, CreateJob, CreateJobInstance, CreateJobInstanceAttempt, CreateOidcAuthState,
-    CreateScript, CreateUser, CreateWorkflow, DispatchQueueClaim, DispatchQueueSloSummary,
-    DispatchQueueSummary, InstanceEventSummary, JobInstanceAttemptRepository,
-    JobInstanceAttemptSummary, JobInstanceLogRepository, JobInstanceLogSummary,
-    JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
+    CreateScript, CreateSdkApiKey, CreateUser, CreateWorkflow, DispatchQueueClaim,
+    DispatchQueueSloSummary, DispatchQueueSummary, InstanceEventSummary,
+    JobInstanceAttemptRepository, JobInstanceAttemptSummary, JobInstanceLogRepository,
+    JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
     MaterializeWorkflowNodeResult, NamespaceSummary, OidcAuthStateRepository, OidcAuthStateSummary,
     OidcIdentityRepository, OidcIdentitySummary, PermissionSummary, QueueOverview,
     RaftAppliedCommandSummary, RaftLogEntrySummary, RaftMemberSummary,
@@ -34,9 +34,10 @@ pub use repository::{
     RecordRaftMembershipProposal, RecoverWorkflowNodeInput, RecoverWorkflowNodeResult,
     RegisterWorkerSession, ScopeRepository, ScriptReleaseGrantEvidenceSummary,
     ScriptReleaseSignatureSummary, ScriptRepository, ScriptSummary, ScriptVersionRepository,
-    ScriptVersionSummary, UpdateJob, UpdateScript, UpdateUser, UpdateWorkflow, UpsertOidcIdentity,
-    UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot, UserRepository,
-    UserSummary, VerifiedScriptReleaseGrants, VerifiedScriptReleaseSignature, WorkerHeartbeat,
+    ScriptVersionSummary, SdkApiKeyRepository, SdkApiKeySummary, UpdateJob, UpdateScript,
+    UpdateUser, UpdateWorkflow, UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember,
+    UpsertRaftMetadata, UpsertRaftSnapshot, UserRepository, UserSummary,
+    VerifiedScriptReleaseGrants, VerifiedScriptReleaseSignature, WorkerHeartbeat,
     WorkerLifecycleRepository, WorkerPoolSummary, WorkerSessionEventSummary, WorkerSessionSummary,
     WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary, WorkflowJobResultOutcome,
     WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
@@ -89,6 +90,7 @@ fn configure_sqlite_connect_options(database_url: &str, options: &mut ConnectOpt
 async fn ensure_sqlite_schema_compatibility(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {
     ensure_broadcast_schema_compatibility(db).await?;
     ensure_auth_schema_compatibility(db).await?;
+    ensure_sdk_api_key_schema_compatibility(db).await?;
     ensure_oidc_auth_state_schema_compatibility(db).await?;
     ensure_oidc_identity_schema_compatibility(db).await?;
     ensure_rbac_schema_compatibility(db).await?;
@@ -869,6 +871,46 @@ async fn ensure_oidc_identity_schema_compatibility(
     db.execute(Statement::from_string(
         DatabaseBackend::Sqlite,
         "CREATE INDEX IF NOT EXISTS idx_oidc_identities_username ON oidc_identities (username)",
+    ))
+    .await?;
+    Ok(())
+}
+
+async fn ensure_sdk_api_key_schema_compatibility(
+    db: &DatabaseConnection,
+) -> Result<(), sea_orm::DbErr> {
+    if db.get_database_backend() != DatabaseBackend::Sqlite {
+        return Ok(());
+    }
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        r"CREATE TABLE IF NOT EXISTS sdk_api_keys (
+            id varchar NOT NULL PRIMARY KEY,
+            name varchar NOT NULL,
+            key_hash varchar NOT NULL,
+            key_prefix varchar NOT NULL,
+            namespace varchar NOT NULL,
+            app varchar NOT NULL,
+            scopes text NOT NULL,
+            status varchar NOT NULL,
+            expires_at varchar,
+            last_used_at varchar,
+            created_by varchar NOT NULL,
+            revoked_by varchar,
+            rotated_from varchar,
+            created_at varchar NOT NULL,
+            updated_at varchar NOT NULL
+        )",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_sdk_api_keys_hash ON sdk_api_keys (key_hash)",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE INDEX IF NOT EXISTS idx_sdk_api_keys_scope ON sdk_api_keys (namespace, app, status)",
     ))
     .await?;
     Ok(())

@@ -36,7 +36,7 @@ class HttpTikeeJobClientTest {
                 HttpClient.newHttpClient(),
                 new ObjectMapper(),
                 "http://127.0.0.1:" + server.getAddress().getPort(),
-                "token-1",
+                "tk-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCdEfGhIjKlMnOpQrStUv",
                 "default",
                 "demo-app");
     }
@@ -59,7 +59,7 @@ class HttpTikeeJobClientTest {
                 .filter(request -> request.method().equals("POST") && request.path().equals("/api/v1/jobs"))
                 .findFirst()
                 .orElseThrow();
-        assertEquals("Bearer token-1", create.authorization());
+        assertEquals("tk-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCdEfGhIjKlMnOpQrStUv", create.apiKey());
         assertEquals(true, create.body().contains("\"namespace\":\"default\""));
         assertEquals(true, create.body().contains("\"app\":\"demo-app\""));
         assertEquals(true, create.body().contains("\"scheduleType\":\"api\""));
@@ -89,7 +89,7 @@ class HttpTikeeJobClientTest {
         String path = exchange.getRequestURI().getPath();
         String method = exchange.getRequestMethod();
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-        requests.add(new RecordedRequest(method, path, exchange.getRequestHeaders().getFirst("authorization"), body));
+        requests.add(new RecordedRequest(method, path, exchange.getRequestHeaders().getFirst("x-tikee-api-key"), body));
 
         if (path.endsWith("/missing")) {
             respond(exchange, 404, "{\"code\":404,\"message\":\"not found\",\"data\":null}");
@@ -128,5 +128,5 @@ class HttpTikeeJobClientTest {
         exchange.close();
     }
 
-    private record RecordedRequest(String method, String path, String authorization, String body) {}
+    private record RecordedRequest(String method, String path, String apiKey, String body) {}
 }

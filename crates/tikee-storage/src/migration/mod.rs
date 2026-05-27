@@ -16,7 +16,7 @@ use self::{
         DispatchQueue, InstanceEvents, JobInstanceAttempts, JobInstanceLogs, JobInstances, Jobs,
         Namespaces, OidcAuthStates, OidcIdentities, Permissions, RaftAppliedCommands,
         RaftLogEntries, RaftMembers, RaftMembershipProposals, RaftMetadata, RaftSnapshots,
-        RolePermissions, Roles, ScriptVersions, Scripts, Users, WorkerLogicalInstances,
+        RolePermissions, Roles, ScriptVersions, Scripts, SdkApiKeys, Users, WorkerLogicalInstances,
         WorkerPools, WorkerSessionEvents, WorkerSessions, WorkflowEdges, WorkflowInstances,
         WorkflowNodeInstances, WorkflowNodes, WorkflowShards, Workflows,
     },
@@ -50,6 +50,7 @@ impl MigrationTrait for CreateMetadataTables {
         create_users(manager).await?;
         create_rbac_tables(manager).await?;
         create_auth_sessions(manager).await?;
+        create_sdk_api_keys(manager).await?;
         create_oidc_auth_states(manager).await?;
         create_oidc_identities(manager).await?;
         create_scripts(manager).await?;
@@ -99,6 +100,7 @@ async fn drop_metadata_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> 
             Workflows::Table.into_iden(),
             ScriptVersions::Table.into_iden(),
             Scripts::Table.into_iden(),
+            SdkApiKeys::Table.into_iden(),
         ],
     )
     .await?;
@@ -240,6 +242,32 @@ async fn create_rbac_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(string_col(RolePermissions::RoleId))
                 .col(string_col(RolePermissions::PermissionId))
                 .col(string_col(RolePermissions::CreatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_sdk_api_keys(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(SdkApiKeys::Table)
+                .if_not_exists()
+                .col(string_pk(SdkApiKeys::Id))
+                .col(string_col(SdkApiKeys::Name))
+                .col(string_col(SdkApiKeys::KeyHash))
+                .col(string_col(SdkApiKeys::KeyPrefix))
+                .col(string_col(SdkApiKeys::Namespace))
+                .col(string_col(SdkApiKeys::App))
+                .col(text_col(SdkApiKeys::Scopes))
+                .col(string_col(SdkApiKeys::Status))
+                .col(string_null(SdkApiKeys::ExpiresAt))
+                .col(string_null(SdkApiKeys::LastUsedAt))
+                .col(string_col(SdkApiKeys::CreatedBy))
+                .col(string_null(SdkApiKeys::RevokedBy))
+                .col(string_null(SdkApiKeys::RotatedFrom))
+                .col(string_col(SdkApiKeys::CreatedAt))
+                .col(string_col(SdkApiKeys::UpdatedAt))
                 .to_owned(),
         )
         .await
@@ -1020,6 +1048,7 @@ async fn create_jobs(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(string_col(Jobs::ScheduleType))
                 .col(string_null(Jobs::ScheduleExpr))
                 .col(string_null(Jobs::ProcessorName))
+                .col(string_null(Jobs::ScriptId))
                 .col(boolean_col(Jobs::Enabled))
                 .col(string_col(Jobs::CreatedAt))
                 .col(string_col(Jobs::UpdatedAt))

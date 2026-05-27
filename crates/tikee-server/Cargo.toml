@@ -27,6 +27,7 @@ base64 = "0.22"
 rustls-native-certs = "0.8"
 bcrypt = "0.15"
 uuid = { version = "1", features = ["v4"] }
+rand = "0.9"
 hyper-util = { version = "0.1", features = ["server-auto", "service", "tokio"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rustls-pemfile = "2"
