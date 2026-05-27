@@ -1,7 +1,6 @@
 package com.yhyzgn.tikee.sandbox;
 
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -11,7 +10,10 @@ import org.slf4j.LoggerFactory;
 
 /** Resolves sandbox/runtime tool commands and optionally installs missing tools. */
 public final class SandboxToolResolver {
-    private static final Logger log = LoggerFactory.getLogger(SandboxToolResolver.class);
+
+    private static final Logger log = LoggerFactory.getLogger(
+        SandboxToolResolver.class
+    );
 
     private final Options options;
 
@@ -20,44 +22,80 @@ public final class SandboxToolResolver {
     }
 
     public String resolveCommand(SandboxToolInstaller.Tool tool) {
-        log.info("[tikee.sandbox] resolving tool={} platform={} installDir={}", tool.binaryName(), SandboxToolInstaller.runtimePlatform(), installDir(tool));
+        log.info(
+            "[tikee.sandbox] resolving tool={} platform={} installDir={}",
+            tool.binaryName(),
+            SandboxToolInstaller.runtimePlatform(),
+            installDir(tool)
+        );
         String command = tool.binaryName();
-        if (explicitInstallDir(tool).isEmpty() && toolAvailable(tool, command)) {
-            log.info("[tikee.sandbox] tool={} found on PATH command={}", tool.binaryName(), command);
+        if (
+            explicitInstallDir(tool).isEmpty() && toolAvailable(tool, command)
+        ) {
+            log.info(
+                "[tikee.sandbox] tool={} found on PATH command={}",
+                tool.binaryName(),
+                command
+            );
             return command;
         }
         if (explicitInstallDir(tool).isEmpty()) {
             command = localCommand(tool);
             if (toolAvailable(tool, command)) {
-                log.info("[tikee.sandbox] tool={} found in managed install command={}", tool.binaryName(), command);
+                log.info(
+                    "[tikee.sandbox] tool={} found in managed install command={}",
+                    tool.binaryName(),
+                    command
+                );
                 return command;
             }
         }
         command = installIfAllowed(tool);
         if (explicitInstallDir(tool).isPresent()) {
             if (toolAvailable(tool, command)) {
-                log.info("[tikee.sandbox] tool={} installed/resolved command={}", tool.binaryName(), command);
+                log.info(
+                    "[tikee.sandbox] tool={} installed/resolved command={}",
+                    tool.binaryName(),
+                    command
+                );
                 return command;
             }
-            log.info("[tikee.sandbox] tool={} unavailable after explicit-dir resolution; returning local command={}", tool.binaryName(), localCommand(tool));
+            log.info(
+                "[tikee.sandbox] tool={} unavailable after explicit-dir resolution; returning local command={}",
+                tool.binaryName(),
+                localCommand(tool)
+            );
             return localCommand(tool);
         }
         if (toolAvailable(tool, command)) {
-            log.info("[tikee.sandbox] tool={} installed/resolved command={}", tool.binaryName(), command);
+            log.info(
+                "[tikee.sandbox] tool={} installed/resolved command={}",
+                tool.binaryName(),
+                command
+            );
             return command;
         }
-        log.info("[tikee.sandbox] tool={} unavailable after environment check; returning fallback command={}", tool.binaryName(), tool.binaryName());
+        log.info(
+            "[tikee.sandbox] tool={} unavailable after environment check; returning fallback command={}",
+            tool.binaryName(),
+            tool.binaryName()
+        );
         return tool.binaryName();
     }
 
     public Optional<String> resolveWasmtimeCommand() {
         SandboxToolInstaller.Tool tool = SandboxToolInstaller.Tool.WASMTIME;
         String command = resolveCommand(tool);
-        return toolAvailable(tool, command) ? Optional.of(command) : Optional.empty();
+        return toolAvailable(tool, command)
+            ? Optional.of(command)
+            : Optional.empty();
     }
 
     public String localCommand(SandboxToolInstaller.Tool tool) {
-        return SandboxToolInstaller.binaryPath(tool, installDir(tool)).toString();
+        return SandboxToolInstaller.binaryPath(
+            tool,
+            installDir(tool)
+        ).toString();
     }
 
     public Path installDir(SandboxToolInstaller.Tool tool) {
@@ -66,7 +104,11 @@ public final class SandboxToolResolver {
             return explicit.get();
         }
         if (options.stateDir() != null && !options.stateDir().isBlank()) {
-            return Path.of(options.stateDir(), "sandbox-tools", tool.name().toLowerCase(Locale.ROOT));
+            return Path.of(
+                options.stateDir(),
+                "sandbox-tools",
+                tool.name().toLowerCase(Locale.ROOT)
+            );
         }
         return SandboxToolInstaller.defaultInstallDir(tool);
     }
@@ -79,29 +121,52 @@ public final class SandboxToolResolver {
             case V8 -> options.v8InstallDir();
             case RHAI -> options.rhaiInstallDir();
         };
-        return configured == null || configured.isBlank() ? Optional.empty() : Optional.of(Path.of(configured));
+        return configured == null || configured.isBlank()
+            ? Optional.empty()
+            : Optional.of(Path.of(configured));
     }
 
-    public SandboxToolInstaller.Options installOptions(SandboxToolInstaller.Tool tool) {
+    public SandboxToolInstaller.Options installOptions(
+        SandboxToolInstaller.Tool tool
+    ) {
         return new SandboxToolInstaller.Options(
-                tool,
-                installVersion(tool),
-                installDir(tool),
-                installerUrl(tool),
-                options.installTimeoutMillis());
+            tool,
+            installVersion(tool),
+            installDir(tool),
+            installerUrl(tool),
+            options.installTimeoutMillis()
+        );
     }
 
-    public List<String> localDevelopmentCommand(com.yhyzgn.tikee.script.ScriptRunnerKind kind) {
+    public List<String> localDevelopmentCommand(
+        com.yhyzgn.tikee.script.ScriptRunnerKind kind
+    ) {
         return switch (kind) {
             case SHELL -> List.of("sh", "-s");
             case PYTHON -> List.of("python3", "-");
-            case JS, TS -> List.of(resolveCommand(SandboxToolInstaller.Tool.DENO), "run", "--no-prompt", "-");
-            case POWERSHELL -> List.of("pwsh", "-NoProfile", "-NonInteractive", "-Command", "-");
-            case RHAI -> List.of(resolveCommand(SandboxToolInstaller.Tool.RHAI));
+            case JS, TS -> List.of(
+                resolveCommand(SandboxToolInstaller.Tool.DENO),
+                "run",
+                "--no-prompt",
+                "-"
+            );
+            case POWERSHELL -> List.of(
+                "pwsh",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "-"
+            );
+            case RHAI -> List.of(
+                resolveCommand(SandboxToolInstaller.Tool.RHAI)
+            );
         };
     }
 
-    public static boolean toolAvailable(SandboxToolInstaller.Tool tool, String command) {
+    public static boolean toolAvailable(
+        SandboxToolInstaller.Tool tool,
+        String command
+    ) {
         return switch (tool) {
             case RHAI -> rhaiAvailable(command);
             default -> runtimeAvailable(command, "--version");
@@ -111,7 +176,10 @@ public final class SandboxToolResolver {
     private static boolean rhaiAvailable(String command) {
         java.nio.file.Path script = null;
         try {
-            script = java.nio.file.Files.createTempFile("tikee-rhai-smoke-", ".rhai");
+            script = java.nio.file.Files.createTempFile(
+                "tikee-rhai-smoke-",
+                ".rhai"
+            );
             java.nio.file.Files.writeString(script, "print(\"ok\");");
             return runtimeAvailable(command, script.toString());
         } catch (Exception error) {
@@ -127,14 +195,17 @@ public final class SandboxToolResolver {
         }
     }
 
-    public static boolean runtimeAvailable(String runtimeCommand, String... args) {
+    public static boolean runtimeAvailable(
+        String runtimeCommand,
+        String... args
+    ) {
         try {
             java.util.ArrayList<String> command = new java.util.ArrayList<>();
             command.add(runtimeCommand);
             command.addAll(List.of(args));
             Process process = new ProcessBuilder(command)
-                    .redirectErrorStream(true)
-                    .start();
+                .redirectErrorStream(true)
+                .start();
             if (!process.waitFor(2, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
                 return false;
@@ -147,17 +218,29 @@ public final class SandboxToolResolver {
 
     private String installIfAllowed(SandboxToolInstaller.Tool tool) {
         if (!autoInstallEnabled(tool)) {
-            log.info("[tikee.sandbox] auto-install disabled tool={}", tool.binaryName());
+            log.info(
+                "[tikee.sandbox] auto-install disabled tool={}",
+                tool.binaryName()
+            );
             return tool.binaryName();
         }
         if (!SandboxToolInstaller.canInstall(tool)) {
-            log.info("[tikee.sandbox] auto-install prerequisites missing tool={}", tool.binaryName());
+            log.info(
+                "[tikee.sandbox] auto-install prerequisites missing tool={}",
+                tool.binaryName()
+            );
             return tool.binaryName();
         }
         try {
-            return SandboxToolInstaller.install(installOptions(tool)).toString();
+            return SandboxToolInstaller.install(
+                installOptions(tool)
+            ).toString();
         } catch (IllegalStateException error) {
-            log.info("[tikee.sandbox] auto-install failed tool={} error={}", tool.binaryName(), error.getMessage());
+            log.info(
+                "[tikee.sandbox] auto-install failed tool={} error={}",
+                tool.binaryName(),
+                error.getMessage()
+            );
             return tool.binaryName();
         }
     }
@@ -190,44 +273,46 @@ public final class SandboxToolResolver {
     }
 
     public record Options(
-            String stateDir,
-            boolean autoInstallWasmtime,
-            String wasmtimeInstallVersion,
-            String wasmtimeInstallDir,
-            String wasmtimeInstallerUrl,
-            boolean autoInstallWasmedge,
-            String wasmedgeInstallVersion,
-            String wasmedgeInstallDir,
-            String wasmedgeInstallerUrl,
-            boolean autoInstallScriptTools,
-            String denoInstallVersion,
-            String denoInstallDir,
-            String denoInstallerUrl,
-            String v8InstallVersion,
-            String v8InstallDir,
-            String rhaiInstallVersion,
-            String rhaiInstallDir,
-            long installTimeoutMillis) {
+        String stateDir,
+        boolean autoInstallWasmtime,
+        String wasmtimeInstallVersion,
+        String wasmtimeInstallDir,
+        String wasmtimeInstallerUrl,
+        boolean autoInstallWasmedge,
+        String wasmedgeInstallVersion,
+        String wasmedgeInstallDir,
+        String wasmedgeInstallerUrl,
+        boolean autoInstallScriptTools,
+        String denoInstallVersion,
+        String denoInstallDir,
+        String denoInstallerUrl,
+        String v8InstallVersion,
+        String v8InstallDir,
+        String rhaiInstallVersion,
+        String rhaiInstallDir,
+        long installTimeoutMillis
+    ) {
         public static Options defaults() {
             return new Options(
-                    "",
-                    true,
-                    "latest",
-                    "",
-                    "https://wasmtime.dev/install.sh",
-                    false,
-                    "latest",
-                    "",
-                    "https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh",
-                    true,
-                    "latest",
-                    "",
-                    "https://deno.land/install.sh",
-                    "latest",
-                    "",
-                    "",
-                    "",
-                    120_000);
+                "",
+                true,
+                "latest",
+                "",
+                "https://wasmtime.dev/install.sh",
+                false,
+                "latest",
+                "",
+                "https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh",
+                true,
+                "latest",
+                "",
+                "https://deno.land/install.sh",
+                "latest",
+                "",
+                "",
+                "",
+                120_000
+            );
         }
     }
 }
