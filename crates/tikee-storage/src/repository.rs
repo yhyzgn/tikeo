@@ -56,7 +56,7 @@ pub use script::{
     ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary, UpdateScript,
     VerifiedScriptReleaseGrants, VerifiedScriptReleaseSignature,
 };
-pub use sdk_api_key::{CreateSdkApiKey, RotateSdkApiKey, SdkApiKeyRepository, SdkApiKeySummary};
+pub use sdk_api_key::{CreateSdkApiKey, SdkApiKeyRepository, SdkApiKeySummary, UpdateSdkApiKey};
 pub use user::{CreateUser, UpdateUser, UserRepository, UserSummary};
 pub use worker_lifecycle::{
     RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository, WorkerSessionEventSummary,

@@ -194,7 +194,7 @@ export interface CreatedSdkApiKey {
   api_key: string;
 }
 
-export interface RotateSdkApiKeyRequest {
+export interface UpdateSdkApiKeyRequest {
   scopes: string[];
   expires_at?: string | null;
 }
@@ -294,9 +294,9 @@ export async function createSdkApiKey(payload: CreateSdkApiKeyRequest): Promise<
   });
 }
 
-export async function rotateSdkApiKey(id: string, payload: RotateSdkApiKeyRequest): Promise<CreatedSdkApiKey> {
-  return request<CreatedSdkApiKey>(`/api/v1/management/api-keys/${encodeURIComponent(id)}/rotate`, {
-    method: 'POST',
+export async function updateSdkApiKey(id: string, payload: UpdateSdkApiKeyRequest): Promise<SdkApiKeySummary> {
+  return request<SdkApiKeySummary>(`/api/v1/management/api-keys/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
     body: JSON.stringify(payload),
   });
 }

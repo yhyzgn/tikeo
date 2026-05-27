@@ -19,14 +19,11 @@ pub struct CreateSdkApiKey {
     pub rotated_from: Option<String>,
 }
 
-/// Persisted SDK API key rotation input.
+/// Persisted SDK API key metadata update input.
 #[derive(Debug, Clone)]
-pub struct RotateSdkApiKey {
-    pub key_hash: String,
-    pub key_prefix: String,
+pub struct UpdateSdkApiKey {
     pub scopes: Vec<String>,
     pub expires_at: Option<String>,
-    pub actor: String,
 }
 
 /// SDK API key metadata returned by repositories and HTTP APIs.
@@ -113,10 +110,10 @@ impl SdkApiKeyRepository {
         Ok(Some(summary))
     }
 
-    pub async fn rotate_key(
+    pub async fn update_key(
         &self,
         id: &str,
-        input: RotateSdkApiKey,
+        input: UpdateSdkApiKey,
     ) -> Result<Option<SdkApiKeySummary>, sea_orm::DbErr> {
         let Some(model) = sdk_api_key::Entity::find_by_id(id.to_owned())
             .one(&self.db)
@@ -127,33 +124,12 @@ impl SdkApiKeyRepository {
         if model.status != "active" {
             return Ok(None);
         }
-        let now = now_rfc3339();
-        let mut old: sdk_api_key::ActiveModel = model.clone().into();
-        old.status = Set("revoked".to_owned());
-        old.revoked_by = Set(Some(input.actor.clone()));
-        old.updated_at = Set(now.clone());
-        old.update(&self.db).await?;
-
-        let rotated = sdk_api_key::ActiveModel {
-            id: Set(new_id("sk")),
-            name: Set(model.name),
-            key_hash: Set(input.key_hash),
-            key_prefix: Set(input.key_prefix),
-            namespace: Set(model.namespace),
-            app: Set(model.app),
-            scopes: Set(encode_scopes(&input.scopes)),
-            status: Set("active".to_owned()),
-            expires_at: Set(input.expires_at),
-            last_used_at: Set(None),
-            created_by: Set(input.actor),
-            revoked_by: Set(None),
-            rotated_from: Set(Some(id.to_owned())),
-            created_at: Set(now.clone()),
-            updated_at: Set(now),
-        }
-        .insert(&self.db)
-        .await?;
-        Ok(Some(SdkApiKeySummary::from(rotated)))
+        let mut active: sdk_api_key::ActiveModel = model.into();
+        active.scopes = Set(encode_scopes(&input.scopes));
+        active.expires_at = Set(input.expires_at);
+        active.updated_at = Set(now_rfc3339());
+        let updated = active.update(&self.db).await?;
+        Ok(Some(SdkApiKeySummary::from(updated)))
     }
 
     pub async fn mark_used(&self, id: &str) -> Result<(), sea_orm::DbErr> {

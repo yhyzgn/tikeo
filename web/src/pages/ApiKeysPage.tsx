@@ -1,9 +1,9 @@
-import { CopyOutlined, DeleteOutlined, KeyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CopyOutlined, DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, DatePicker, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useEffect, useState } from 'react';
 
-import { createSdkApiKey, deleteSdkApiKey, listAppScopes, listNamespaces, listSdkApiKeys, rotateSdkApiKey, type AppScopeSummary, type NamespaceSummary, type SdkApiKeySummary } from '../api/client';
+import { createSdkApiKey, deleteSdkApiKey, listAppScopes, listNamespaces, listSdkApiKeys, updateSdkApiKey, type AppScopeSummary, type NamespaceSummary, type SdkApiKeySummary } from '../api/client';
 
 const DEFAULT_SCOPES = ['jobs:read', 'jobs:write', 'instances:execute'];
 
@@ -15,7 +15,7 @@ interface ApiKeyFormValues {
   expiresAt?: Dayjs | null;
 }
 
-interface RotateFormValues {
+interface EditFormValues {
   scopes: string[];
   expiresAt?: Dayjs | null;
 }
@@ -26,10 +26,10 @@ export function ApiKeysPage() {
   const [apps, setApps] = useState<AppScopeSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const [rotatingKey, setRotatingKey] = useState<SdkApiKeySummary | null>(null);
+  const [editingKey, setEditingKey] = useState<SdkApiKeySummary | null>(null);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [form] = Form.useForm<ApiKeyFormValues>();
-  const [rotateForm] = Form.useForm<RotateFormValues>();
+  const [editForm] = Form.useForm<EditFormValues>();
 
   const reload = async () => {
     setLoading(true);
@@ -62,25 +62,24 @@ export function ApiKeysPage() {
     await reload();
   };
 
-  const openRotateModal = (item: SdkApiKeySummary) => {
-    setRotatingKey(item);
-    rotateForm.setFieldsValue({
+  const openEditModal = (item: SdkApiKeySummary) => {
+    setEditingKey(item);
+    editForm.setFieldsValue({
       scopes: item.scopes,
       expiresAt: item.expires_at ? dayjs(item.expires_at) : null,
     });
   };
 
-  const handleRotate = async () => {
-    if (!rotatingKey) return;
-    const values = await rotateForm.validateFields();
-    const rotated = await rotateSdkApiKey(rotatingKey.id, {
+  const handleEdit = async () => {
+    if (!editingKey) return;
+    const values = await editForm.validateFields();
+    await updateSdkApiKey(editingKey.id, {
       scopes: values.scopes,
       expires_at: values.expiresAt?.toISOString() ?? null,
     });
-    setCreatedKey(rotated.api_key);
-    setRotatingKey(null);
-    rotateForm.resetFields();
-    message.success('API-Key 已刷新，旧 Key 已作废');
+    setEditingKey(null);
+    editForm.resetFields();
+    message.success('API-Key 已更新');
     await reload();
   };
 
@@ -105,7 +104,7 @@ export function ApiKeysPage() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="API-Key 是后台手动签发给 SDK 的 app 作用域凭证；列表只展示两端明文、中间脱敏的值。操作栏刷新会生成新 Key 并立即作废旧 Key。"
+          message="API-Key 是后台手动签发给 SDK 的 app 作用域凭证；列表只展示两端明文、中间脱敏的值。操作栏编辑可调整作用域和有效期，不会改变 Key 值。"
         />
         <Table<SdkApiKeySummary>
           rowKey="id"
@@ -132,7 +131,7 @@ export function ApiKeysPage() {
               width: 170,
               render: (_, item) => (
                 <Space>
-                  <Button size="small" icon={<ReloadOutlined />} disabled={item.status !== 'active'} onClick={() => openRotateModal(item)}>刷新</Button>
+                  <Button size="small" icon={<EditOutlined />} disabled={item.status !== 'active'} onClick={() => openEditModal(item)}>编辑</Button>
                   <Button danger size="small" icon={<DeleteOutlined />} disabled={item.status !== 'active'} onClick={() => void handleRevoke(item.id)}>吊销</Button>
                 </Space>
               ),
@@ -160,10 +159,10 @@ export function ApiKeysPage() {
         </Form>
       </Modal>
 
-      <Modal title="刷新 API-Key" width={760} open={rotatingKey !== null} onOk={() => void handleRotate()} onCancel={() => setRotatingKey(null)} okText="生成新 Key">
-        <Alert type="warning" showIcon message="刷新会生成新的完整 API-Key，并立即作废旧 Key；旧 Key 会从列表消失。" style={{ marginBottom: 16 }} />
-        <Typography.Paragraph type="secondary">{rotatingKey ? `${rotatingKey.name} · ${rotatingKey.namespace}/${rotatingKey.app}` : ''}</Typography.Paragraph>
-        <Form form={rotateForm} layout="vertical">
+      <Modal title="编辑 API-Key" width={760} open={editingKey !== null} onOk={() => void handleEdit()} onCancel={() => setEditingKey(null)} okText="保存">
+        <Alert type="info" showIcon message="这里只更新权限 scopes 和有效期，不会重新生成 Key，现有 SDK 配置无需替换。" style={{ marginBottom: 16 }} />
+        <Typography.Paragraph type="secondary">{editingKey ? `${editingKey.name} · ${editingKey.namespace}/${editingKey.app}` : ''}</Typography.Paragraph>
+        <Form form={editForm} layout="vertical">
           <Form.Item name="scopes" label="权限 scopes" rules={[{ required: true }]}>
             <Select mode="tags" options={DEFAULT_SCOPES.map((scope) => ({ value: scope }))} />
           </Form.Item>

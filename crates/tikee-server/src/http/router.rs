@@ -150,11 +150,8 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
         )
         .route(
             "/management/api-keys/{id}",
-            axum::routing::delete(sdk_api_keys::revoke_sdk_api_key),
-        )
-        .route(
-            "/management/api-keys/{id}/rotate",
-            axum::routing::post(sdk_api_keys::rotate_sdk_api_key),
+            axum::routing::patch(sdk_api_keys::update_sdk_api_key)
+                .delete(sdk_api_keys::revoke_sdk_api_key),
         )
         .route(
             "/users",

@@ -395,13 +395,12 @@
         seed_sdk_key_scope_jobs(app.clone(), &admin).await;
         assert_sdk_key_lists_only_bound_app(app.clone(), &api_key).await;
         assert_sdk_key_cannot_write_other_app(app.clone(), &api_key).await;
-        let (rotated_api_key, rotated_key_id) = rotate_sdk_api_key(app.clone(), &admin, &key_id).await;
-        assert_ne!(rotated_api_key, api_key);
-        assert_revoked_sdk_key_rejected(app.clone(), &api_key).await;
-        assert_sdk_key_lists_only_bound_app(app.clone(), &rotated_api_key).await;
-        assert_sdk_api_key_list_rotated(app.clone(), &admin, &key_id, &rotated_key_id).await;
-        revoke_sdk_api_key(app.clone(), &admin, &rotated_key_id).await;
-        assert_revoked_sdk_key_rejected(app, &rotated_api_key).await;
+        update_sdk_api_key(app.clone(), &admin, &key_id).await;
+        assert_sdk_key_lists_only_bound_app(app.clone(), &api_key).await;
+        assert_sdk_key_cannot_write_bound_app_after_scope_edit(app.clone(), &api_key).await;
+        assert_sdk_api_key_list_still_contains_updated_key(app.clone(), &admin, &key_id).await;
+        revoke_sdk_api_key(app.clone(), &admin, &key_id).await;
+        assert_revoked_sdk_key_rejected(app, &api_key).await;
     }
 
     async fn create_billing_sdk_api_key(app: axum::Router, admin: &str) -> (String, String) {
@@ -525,45 +524,54 @@
     }
 
 
-    async fn rotate_sdk_api_key(app: axum::Router, admin: &str, key_id: &str) -> (String, String) {
-        let rotated = app
+    async fn update_sdk_api_key(app: axum::Router, admin: &str, key_id: &str) {
+        let updated = app
             .oneshot(
                 Request::builder()
-                    .method("POST")
-                    .uri(format!("/api/v1/management/api-keys/{key_id}/rotate"))
+                    .method("PATCH")
+                    .uri(format!("/api/v1/management/api-keys/{key_id}"))
                     .header("authorization", format!("Bearer {admin}"))
                     .header("content-type", "application/json")
                     .body(Body::from(
-                        r#"{"scopes":["jobs:read","jobs:write"],"expires_at":null}"#,
+                        r#"{"scopes":["jobs:read"],"expires_at":null}"#,
                     ))
                     .unwrap_or_else(|error| panic!("request should build: {error}")),
             )
             .await
             .unwrap_or_else(|error| panic!("router should respond: {error}"));
-        assert!(rotated.status().is_success());
-        let body = axum::body::to_bytes(rotated.into_body(), usize::MAX)
+        assert!(updated.status().is_success());
+        let body = axum::body::to_bytes(updated.into_body(), usize::MAX)
             .await
             .unwrap_or_else(|error| panic!("body should collect: {error}"));
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
-        let api_key = json["data"]["api_key"]
-            .as_str()
-            .unwrap_or_else(|| panic!("rotated api key should be returned once"))
-            .to_owned();
-        let rotated_id = json["data"]["key"]["id"]
-            .as_str()
-            .unwrap_or_else(|| panic!("rotated key id should be present"))
-            .to_owned();
-        assert_eq!(json["data"]["key"]["rotated_from"], key_id);
-        assert_eq!(json["data"]["key"]["expires_at"], serde_json::Value::Null);
-        (api_key, rotated_id)
+        assert_eq!(json["data"]["id"], key_id);
+        assert_eq!(json["data"]["scopes"][0], "jobs:read");
+        assert_eq!(json["data"]["expires_at"], serde_json::Value::Null);
     }
 
-    async fn assert_sdk_api_key_list_rotated(
+    async fn assert_sdk_key_cannot_write_bound_app_after_scope_edit(app: axum::Router, api_key: &str) {
+        let denied = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/jobs")
+                    .header("x-tikee-api-key", api_key)
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"namespace":"default","app":"billing","name":"blocked-by-scope"}"#,
+                    ))
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(denied.status(), axum::http::StatusCode::FORBIDDEN);
+    }
+
+    async fn assert_sdk_api_key_list_still_contains_updated_key(
         app: axum::Router,
         admin: &str,
-        old_key_id: &str,
-        rotated_key_id: &str,
+        key_id: &str,
     ) {
         let list = app
             .oneshot(
@@ -581,14 +589,13 @@
             .unwrap_or_else(|error| panic!("body should collect: {error}"));
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
-        let ids = json["data"]
+        let item = json["data"]
             .as_array()
             .unwrap_or_else(|| panic!("api key list should be an array"))
             .iter()
-            .map(|item| item["id"].as_str().unwrap_or_default())
-            .collect::<Vec<_>>();
-        assert!(ids.contains(&rotated_key_id));
-        assert!(!ids.contains(&old_key_id));
+            .find(|item| item["id"] == key_id)
+            .unwrap_or_else(|| panic!("updated api key should remain listed"));
+        assert_eq!(item["scopes"][0], "jobs:read");
     }
 
     async fn revoke_sdk_api_key(app: axum::Router, admin: &str, key_id: &str) {

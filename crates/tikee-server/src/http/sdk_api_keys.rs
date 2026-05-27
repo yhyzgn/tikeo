@@ -11,7 +11,7 @@ use rand::{TryRngCore, rngs::OsRng};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tikee_storage::{
-    CreateSdkApiKey, PermissionSummary, RotateSdkApiKey, SdkApiKeyRepository, SdkApiKeySummary,
+    CreateSdkApiKey, PermissionSummary, SdkApiKeyRepository, SdkApiKeySummary, UpdateSdkApiKey,
 };
 use utoipa::ToSchema;
 
@@ -51,9 +51,9 @@ pub struct CreatedSdkApiKey {
     pub api_key: String,
 }
 
-/// SDK API key rotation request.
+/// SDK API key metadata update request.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct RotateSdkApiKeyRequest {
+pub struct UpdateSdkApiKeyRequest {
     /// Replacement permission scopes in `resource:action` form.
     pub scopes: Vec<String>,
     /// Optional RFC3339 expiration timestamp. `null` means permanent.
@@ -126,35 +126,31 @@ pub async fn list_sdk_api_keys(
     Ok(Json(ApiResponse::success(keys)))
 }
 
-/// Rotate one SDK API key and immediately revoke the old plaintext.
+/// Update SDK API key permissions and expiration without changing the key value.
 ///
 /// # Errors
 ///
 /// Returns unauthorized/forbidden for non-admin callers, not found, bad request, or storage errors.
 #[utoipa::path(
-    post,
-    path = "/api/v1/management/api-keys/{id}/rotate",
+    patch,
+    path = "/api/v1/management/api-keys/{id}",
     tag = "management",
-    request_body = RotateSdkApiKeyRequest
+    request_body = UpdateSdkApiKeyRequest
 )]
-pub async fn rotate_sdk_api_key(
+pub async fn update_sdk_api_key(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(id): Path<String>,
-    Json(request): Json<RotateSdkApiKeyRequest>,
-) -> Result<Json<ApiResponse<CreatedSdkApiKey>>, ApiError> {
+    Json(request): Json<UpdateSdkApiKeyRequest>,
+) -> Result<Json<ApiResponse<SdkApiKeySummary>>, ApiError> {
     let principal = auth::require_permission(&headers, &state, "tenants", "manage").await?;
-    let request = validate_rotate_request(request)?;
-    let plaintext = generate_api_key()?;
-    let Some(key) = SdkApiKeyRepository::new(state.users.db())
-        .rotate_key(
+    let request = validate_update_request(request)?;
+    let Some(updated) = SdkApiKeyRepository::new(state.users.db())
+        .update_key(
             &id,
-            RotateSdkApiKey {
-                key_hash: hash_api_key(&plaintext),
-                key_prefix: display_prefix(&plaintext),
+            UpdateSdkApiKey {
                 scopes: request.scopes,
                 expires_at: request.expires_at,
-                actor: principal.username.clone(),
             },
         )
         .await
@@ -165,15 +161,12 @@ pub async fn rotate_sdk_api_key(
     audit_sdk_api_key(
         &state,
         &principal.username,
-        "sdk_api_key_rotate",
+        "sdk_api_key_update",
         &id,
         &headers,
     )
     .await;
-    Ok(Json(ApiResponse::success(CreatedSdkApiKey {
-        key,
-        api_key: plaintext,
-    })))
+    Ok(Json(ApiResponse::success(updated)))
 }
 
 /// Revoke one SDK API key.
@@ -250,9 +243,9 @@ fn validate_create_request(
     Ok(request)
 }
 
-fn validate_rotate_request(
-    mut request: RotateSdkApiKeyRequest,
-) -> Result<RotateSdkApiKeyRequest, ApiError> {
+fn validate_update_request(
+    mut request: UpdateSdkApiKeyRequest,
+) -> Result<UpdateSdkApiKeyRequest, ApiError> {
     request.scopes = validate_scopes(request.scopes)?;
     request.expires_at = validate_expires_at(request.expires_at)?;
     Ok(request)
