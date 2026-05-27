@@ -10,9 +10,9 @@ public enum ScriptRunnerKind {
     /** Python scripts. */
     PYTHON("python"),
     /** JavaScript scripts. */
-    JS("js"),
+    JS("javascript"),
     /** TypeScript scripts. */
-    TS("ts"),
+    TS("typescript"),
     /** PowerShell scripts. */
     POWERSHELL("powershell");
 

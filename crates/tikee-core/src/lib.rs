@@ -262,8 +262,8 @@ impl ScriptLanguage {
         match self {
             Self::Shell => "shell",
             Self::Python => "python",
-            Self::Js => "js",
-            Self::Ts => "ts",
+            Self::Js => "javascript",
+            Self::Ts => "typescript",
             Self::PowerShell => "powershell",
             Self::Rhai => "rhai",
             Self::Wasm => "wasm",
@@ -880,8 +880,8 @@ mod tests {
             ScriptLanguage::from_str("typescript"),
             Ok(ScriptLanguage::Ts)
         );
-        assert_eq!(ScriptLanguage::Js.as_str(), "js");
-        assert_eq!(ScriptLanguage::Ts.as_str(), "ts");
+        assert_eq!(ScriptLanguage::Js.as_str(), "javascript");
+        assert_eq!(ScriptLanguage::Ts.as_str(), "typescript");
         assert_eq!(ScriptLanguage::Wasm.as_str(), "wasm");
         assert_eq!(
             ScriptStatus::from_str("approved"),

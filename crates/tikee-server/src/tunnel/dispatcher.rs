@@ -617,12 +617,16 @@ fn script_processor_binding(
 ) -> TaskProcessorBinding {
     let policy = script_policy(version.policy.clone());
     let release_grants = script.release_grants.as_ref();
+    let language = parse_script_language(&version.language).map_or_else(
+        || version.language.clone(),
+        |language| language.as_str().to_owned(),
+    );
     TaskProcessorBinding {
         kind: Some(task_processor_binding::Kind::Script(
             ScriptProcessorBinding {
                 script_id: script.id.clone(),
                 version: script.version.clone(),
-                language: version.language.clone(),
+                language,
                 content: version.content.as_bytes().to_vec(),
                 version_id: version.id.clone(),
                 version_number: u64::try_from(version.version_number).unwrap_or_default(),

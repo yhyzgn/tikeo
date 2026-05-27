@@ -22,8 +22,8 @@ import { TABLE_PAGE_SIZE_OPTIONS, usePersistentTablePageSize } from '../utils/pa
 const LANGUAGE_OPTIONS = [
   { value: 'shell', label: 'Shell' },
   { value: 'python', label: 'Python' },
-  { value: 'js', label: 'JavaScript' },
-  { value: 'ts', label: 'TypeScript' },
+  { value: 'javascript', label: 'JavaScript' },
+  { value: 'typescript', label: 'TypeScript' },
   { value: 'powershell', label: 'PowerShell' },
   { value: 'rhai', label: 'Rhai' },
   { value: 'wasm', label: 'WASM' },
@@ -98,7 +98,7 @@ function scriptCapabilitySummary(script?: ScriptSummary): string {
   if (script.language === 'wasm') {
     return '直接 WASM 模块模式：Worker 需声明 script:wasm 能力并启用 Wasmtime 沙箱执行器；此模式用于原生 WASI/WASM 插件';
   }
-  return `Worker 需声明 script:${script.language} 语言能力；默认 sandbox=auto：可编译到 WASM 时优先 Wasmtime，原生命令/二进制优先 srt，JS/TS 逻辑优先 Deno，未匹配时回退 Wasmtime；也可手动指定 wasmtime/wasmedge/srt/deno/v8/docker/podman/custom`;
+  return `Worker 需声明 script:${script.language} 语言能力；默认 sandbox=auto：可编译到 WASM 时优先 Wasmtime，原生命令/二进制优先 srt，JavaScript/TypeScript 逻辑优先 Deno，未匹配时回退 Wasmtime；也可手动指定 wasmtime/wasmedge/srt/deno/v8/docker/podman/custom`;
 }
 
 function shortDigest(value?: string | null): string {
@@ -575,7 +575,7 @@ export function ScriptsPage() {
               showIcon
               style={{ marginBottom: 16 }}
               message="直接 WASM 模块策略"
-              description="language=wasm 用于原生 WASI/WASM 插件；Shell/Python/JS/TS/PowerShell 等脚本语言默认使用 sandbox=auto 自适应后端。模块会携带 SHA-256 摘要；默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
+              description="language=wasm 用于原生 WASI/WASM 插件；Shell/Python/JavaScript/TypeScript/PowerShell 等脚本语言默认使用 sandbox=auto 自适应后端。模块会携带 SHA-256 摘要；默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
             />
           )}
           <Form.Item name="version" label="版本" initialValue="1.0.0">

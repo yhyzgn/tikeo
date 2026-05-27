@@ -100,7 +100,7 @@ class TikeeWorkerAutoConfigurationTest {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(noop.registration().capabilities())
                             .contains("script:wasm", "script:shell")
-                            .doesNotContain("script:python", "script:js", "script:ts", "script:powershell");
+                            .doesNotContain("script:python", "script:javascript", "script:typescript", "script:powershell");
                 });
     }
 
@@ -120,7 +120,7 @@ class TikeeWorkerAutoConfigurationTest {
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(noop.registration().capabilities())
-                            .contains("script:shell", "script:python", "script:js", "script:ts", "script:powershell");
+                            .contains("script:shell", "script:python", "script:javascript", "script:typescript", "script:powershell");
                 });
     }
 
@@ -137,7 +137,7 @@ class TikeeWorkerAutoConfigurationTest {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(noop.registration().capabilities())
                             .contains("script:shell")
-                            .doesNotContain("script:python", "script:js", "script:ts", "script:powershell");
+                            .doesNotContain("script:python", "script:javascript", "script:typescript", "script:powershell");
                 });
     }
 
@@ -154,7 +154,7 @@ class TikeeWorkerAutoConfigurationTest {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(noop.registration().capabilities())
                             .contains("script:shell")
-                            .doesNotContain("script:python", "script:js", "script:ts", "script:powershell");
+                            .doesNotContain("script:python", "script:javascript", "script:typescript", "script:powershell");
                 });
     }
 

@@ -1780,3 +1780,5 @@ Commit/push:
 ### 2026-05-25 Phase4 P0 deployment bootstrap
 - Completed Compose/systemd/bare-metal deployment bootstrap docs and templates, including stable Worker identity env guidance, systemd Rust worker demo unit/env, and `deploy/smoke/worker-bootstrap-smoke.sh` readiness + dry-run worker check.
 - Go run-loop/Python/Node SDK work remains deferred; Helm stays deferred until external DB, secrets, gateway, and TLS parameters stabilize.
+
+- 2026-05-27 09:38: Locked script language identifiers to full JavaScript / TypeScript values so the web script editor can select explicit CodeMirror JavaScript vs TypeScript linting modes. Legacy js / ts aliases remain parse-compatible; dispatch and Java worker capabilities now canonicalize to script:javascript / script:typescript. Verified with targeted Rust, Web, and Java tests.
