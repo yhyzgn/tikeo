@@ -27,7 +27,8 @@ class TikeeWorkerAutoConfigurationTest {
                     "tikee.worker.wasm.auto-install=false");
 
     @Test
-    void dryRunCreatesNoopClientWithGeneratedRegistrationHint() {
+    void dryRunCreatesNoopClientWithGeneratedRegistrationHint() throws Exception {
+        installFakeWasmtime(stateDir);
         contextRunner.withPropertyValues("tikee.worker.state-dir=" + stateDir).run(context -> {
             assertThat(context).hasSingleBean(TikeeWorkerClient.class);
             TikeeWorkerClient client = context.getBean(TikeeWorkerClient.class);
@@ -35,7 +36,7 @@ class TikeeWorkerAutoConfigurationTest {
             NoopTikeeWorkerClient noop = (NoopTikeeWorkerClient) client;
             assertThat(noop.registration().clientInstanceId()).startsWith("java-");
             assertThat(noop.registration().app()).isEqualTo("billing");
-            assertThat(noop.registration().capabilities()).doesNotContain("script:shell");
+            assertThat(noop.registration().capabilities()).contains("script:shell");
             assertThat(noop.running()).isTrue();
             assertThat(context.getBean(TikeeProcessorRegistry.class).handlers()).containsKey("demo.echo");
         });
@@ -77,19 +78,19 @@ class TikeeWorkerAutoConfigurationTest {
     }
 
     @Test
-    void wasmSandboxIsNotAdvertisedWhenRuntimeIsUnavailable() {
+    void wasmSandboxIsNotAdvertisedWhenConfiguredRuntimeIsUnavailable() {
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.wasm.auto-install=false",
                 "tikee.worker.wasm.install-dir=" + stateDir.resolve("missing-wasmtime"))
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(noop.registration().capabilities()).doesNotContain("script:wasm");
+                    assertThat(noop.registration().capabilities()).doesNotContain("script:wasm", "script:shell");
                 });
     }
 
     @Test
-    void enablingScriptsDefaultsToWasmSandboxWithoutContainerRuntime() throws Exception {
+    void enablingScriptsDefaultsToWasmShellSandboxWithoutContainerRuntime() throws Exception {
         installFakeWasmtime(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
@@ -98,8 +99,8 @@ class TikeeWorkerAutoConfigurationTest {
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(noop.registration().capabilities())
-                            .contains("script:wasm")
-                            .doesNotContain("script:shell", "script:python", "script:node", "script:powershell");
+                            .contains("script:wasm", "script:shell")
+                            .doesNotContain("script:python", "script:node", "script:powershell");
                 });
     }
 
@@ -123,7 +124,8 @@ class TikeeWorkerAutoConfigurationTest {
     }
 
     @Test
-    void sandboxScriptsRequireExplicitContainerRuntimeCommand() {
+    void sandboxScriptsUseWasmShellWhenContainerRuntimeCommandIsMissing() throws Exception {
+        installFakeWasmtime(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.scripts.enabled=true",
@@ -132,12 +134,15 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.images.shell=alpine:3.20")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(noop.registration().capabilities()).doesNotContain("script:shell");
+                    assertThat(noop.registration().capabilities())
+                            .contains("script:shell")
+                            .doesNotContain("script:python", "script:node", "script:powershell");
                 });
     }
 
     @Test
-    void sandboxScriptsAreNotAdvertisedWhenRuntimeIsUnavailable() {
+    void unavailableContainerRuntimeKeepsDefaultWasmShellOnly() throws Exception {
+        installFakeWasmtime(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.scripts.enabled=true",
@@ -147,7 +152,8 @@ class TikeeWorkerAutoConfigurationTest {
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(noop.registration().capabilities())
-                            .doesNotContain("script:shell", "script:python", "script:node", "script:powershell");
+                            .contains("script:shell")
+                            .doesNotContain("script:python", "script:node", "script:powershell");
                 });
     }
 

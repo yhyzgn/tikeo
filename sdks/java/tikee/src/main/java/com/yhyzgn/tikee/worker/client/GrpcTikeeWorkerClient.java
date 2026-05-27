@@ -424,6 +424,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
             capabilities.addAll(provider.capabilities());
         }
         capabilities.addAll(scriptRunners.capabilities());
+        capabilities.addAll(wasmRunners.capabilities());
         return java.util.List.copyOf(capabilities);
     }
 

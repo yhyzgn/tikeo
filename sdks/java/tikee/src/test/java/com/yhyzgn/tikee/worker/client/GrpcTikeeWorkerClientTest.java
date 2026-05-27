@@ -266,6 +266,45 @@ class GrpcTikeeWorkerClientTest {
     }
 
     @Test
+    void directClientRegistrationIncludesWasmRunnerCapability() throws Exception {
+        String serverName = "tikee-worker-test-" + UUID.randomUUID();
+        RecordingTunnelService service = new RecordingTunnelService();
+        Server server = InProcessServerBuilder.forName(serverName)
+                .directExecutor()
+                .addService(service)
+                .build()
+                .start();
+        ManagedChannel channel = InProcessChannelBuilder.forName(serverName).directExecutor().build();
+        try {
+            WasmRunnerRegistry wasmRunners = new WasmRunnerRegistry()
+                    .register((task, logSink) -> TaskOutcome.succeeded());
+            GrpcTikeeWorkerClient client = new GrpcTikeeWorkerClient(
+                    channel,
+                    false,
+                    new WorkerRegistration(
+                            "java-instance-wasm-cap", "default", "billing", "local", "local", List.of(), Map.of()),
+                    context -> TaskOutcome.succeeded(),
+                    new ScriptRunnerRegistry(),
+                    wasmRunners,
+                    Duration.ofSeconds(60),
+                    Duration.ofSeconds(2),
+                    Duration.ofMillis(10),
+                    Duration.ofMillis(20),
+                    ignored -> {});
+
+            client.start();
+            service.awaitRegisterCount(1);
+            client.close();
+
+            Worker.RegisterWorker register = service.messages.get(0).getRegister();
+            assertTrue(register.getCapabilitiesList().contains("script:wasm"));
+        } finally {
+            channel.shutdownNow();
+            server.shutdownNow();
+        }
+    }
+
+    @Test
     void wasmBoundDispatchReportsUnregisteredRunnerWithoutInvokingProcessor() throws Exception {
         String serverName = "tikee-worker-test-" + UUID.randomUUID();
         RecordingTunnelService service = new RecordingTunnelService(Worker.DispatchTask.newBuilder()

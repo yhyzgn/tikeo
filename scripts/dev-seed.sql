@@ -24,6 +24,13 @@ ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
   updated_at = excluded.updated_at;
 
+INSERT INTO apps (id, namespace_id, name, created_at, updated_at)
+VALUES ('app-dev-default', 'ns-dev-default', 'default', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+ON CONFLICT(id) DO UPDATE SET
+  namespace_id = excluded.namespace_id,
+  name = excluded.name,
+  updated_at = excluded.updated_at;
+
 INSERT INTO users (id, username, password, role, created_at)
 VALUES
   ('usr-dev-operator', 'dev_operator', '$2b$10$vslUa5GAP.Mk3s4PPclu..miTj/beUTaSCR/HSZdfPVXmhA/7lmpm', 'operator', '2026-01-01T00:00:00Z'),
@@ -35,9 +42,9 @@ ON CONFLICT(id) DO UPDATE SET
 
 INSERT INTO jobs (id, namespace_id, app_id, name, schedule_type, schedule_expr, processor_name, enabled, created_at, updated_at)
 VALUES
-  ('job-dev-api-hello', 'ns-dev-default', 'app-dev-observability', 'api-hello', 'api', NULL, 'demo.hello', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
-  ('job-dev-fixed-rate-heartbeat', 'ns-dev-default', 'app-dev-observability', 'fixed-rate-heartbeat', 'fixed_rate', '30s', 'demo.heartbeat', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
-  ('job-dev-cron-minute-report', 'ns-dev-default', 'app-dev-observability', 'cron-minute-report', 'cron', '0/30 * * * * * *', 'demo.report', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+  ('job-dev-api-hello', 'ns-dev-default', 'app-dev-default', 'api-hello', 'api', NULL, 'demo.echo', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+  ('job-dev-fixed-rate-heartbeat', 'ns-dev-default', 'app-dev-default', 'fixed-rate-heartbeat', 'fixed_rate', '30s', 'demo.heartbeat', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+  ('job-dev-cron-minute-report', 'ns-dev-default', 'app-dev-default', 'cron-minute-report', 'cron', '0/30 * * * * * *', 'demo.report', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
 ON CONFLICT(id) DO UPDATE SET
   namespace_id = excluded.namespace_id,
   app_id = excluded.app_id,
@@ -60,7 +67,7 @@ ON CONFLICT(id) DO UPDATE SET
   updated_at = excluded.updated_at;
 
 INSERT INTO dispatch_queue (id, job_instance_id, workflow_node_instance_id, priority, run_after, status, attempt, lease_owner, lease_until, fencing_token, worker_selector, created_at, updated_at)
-VALUES ('queue-dev-api-hello', 'inst-dev-api-hello-pending', NULL, 100, '2026-01-01T00:00:00Z', 'pending', 0, NULL, NULL, NULL, 'demo.hello', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+VALUES ('queue-dev-api-hello', 'inst-dev-api-hello-pending', NULL, 100, '2026-01-01T00:00:00Z', 'pending', 0, NULL, NULL, NULL, 'demo.echo', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
 ON CONFLICT(id) DO UPDATE SET
   job_instance_id = excluded.job_instance_id,
   workflow_node_instance_id = excluded.workflow_node_instance_id,
@@ -149,6 +156,17 @@ ON CONFLICT(id) DO UPDATE SET
   status = excluded.status,
   created_by = excluded.created_by,
   updated_at = excluded.updated_at;
+
+DELETE FROM workflow_nodes
+WHERE workflow_id = 'wf-dev-basic-pipeline'
+  AND node_key IN ('hello', 'report')
+  AND id NOT IN ('wfn-dev-basic-hello', 'wfn-dev-basic-report');
+
+DELETE FROM workflow_edges
+WHERE workflow_id = 'wf-dev-basic-pipeline'
+  AND from_node_key = 'hello'
+  AND to_node_key = 'report'
+  AND id <> 'wfe-dev-basic-hello-report';
 
 INSERT INTO workflow_nodes (id, workflow_id, node_key, name, kind, job_id, processor_name, config, created_at)
 VALUES

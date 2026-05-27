@@ -80,9 +80,9 @@ function policySummary(policy?: ScriptExecutionPolicy): string {
 function scriptCapabilitySummary(script?: ScriptSummary): string {
   if (!script) return '-';
   if (script.language === 'wasm') {
-    return 'Worker 需声明 script:wasm 能力并启用 Rust SDK wasm feature';
+    return '直接 WASM 模块模式：Worker 需声明 script:wasm 能力并启用 Wasmtime 沙箱执行器；此模式用于原生 WASI/WASM 插件';
   }
-  return `Worker 需声明 script:${script.language} 能力，并显式注册沙箱化脚本执行器（例如 Rust SDK ContainerScriptRunner）；禁止直接裸本地命令执行`;
+  return `Worker 需声明 script:${script.language} 语言能力；默认通过 Wasmtime/WASM 通用沙箱执行，运维可显式切换 Docker、Podman 或自定义后端，禁止裸宿主命令执行`;
 }
 
 function shortDigest(value?: string | null): string {
@@ -558,8 +558,8 @@ export function ScriptsPage() {
               type="info"
               showIcon
               style={{ marginBottom: 16 }}
-              message="WASM 沙箱策略"
-              description="审批后下发到 Worker 的模块会携带 SHA-256 摘要；Worker 必须校验摘要。默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
+              message="直接 WASM 模块策略"
+              description="language=wasm 用于原生 WASI/WASM 插件；Shell/Python/Node/PowerShell 等脚本语言默认同样通过 Worker 的 Wasmtime 通用沙箱后端执行。模块会携带 SHA-256 摘要；默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
             />
           )}
           <Form.Item name="version" label="版本" initialValue="1.0.0">
@@ -638,7 +638,7 @@ export function ScriptsPage() {
               <Descriptions.Item label="超时(秒)">{detailScript.timeout_seconds ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="内存限制(字节)">{detailScript.max_memory_bytes ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="允许网络">{detailScript.allow_network ? '允许' : '禁止'}</Descriptions.Item>
-              <Descriptions.Item label="WASM Runtime">{detailScript.language === 'wasm' ? 'wasmtime' : '-'}</Descriptions.Item>
+              <Descriptions.Item label="默认沙箱后端">{detailScript.language === 'wasm' ? 'wasmtime / direct WASM module' : 'wasmtime / universal script sandbox'}</Descriptions.Item>
               <Descriptions.Item label="WASM Entrypoint">{detailScript.language === 'wasm' ? '_start' : '-'}</Descriptions.Item>
               <Descriptions.Item label="WASM Fuel">{defaultFuel(detailScript)}</Descriptions.Item>
               <Descriptions.Item label="模块签名">{detailScript.language === 'wasm' ? '预留，当前未启用' : '-'}</Descriptions.Item>
@@ -886,8 +886,8 @@ export function ScriptEditorPage() {
                 type="info"
                 showIcon
                 style={{ marginBottom: 16 }}
-                message="WASM 沙箱策略"
-                description="更新后将生成新的不可变版本快照与 SHA-256 摘要；默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
+                message="直接 WASM 模块策略"
+                description="language=wasm 用于原生 WASI/WASM 插件；普通脚本语言默认也经由 Worker 的 Wasmtime 通用沙箱后端执行。更新后将生成新的不可变版本快照与 SHA-256 摘要；默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
               />
             ) : null}
             <div className="script-editor-page__grid">

@@ -589,16 +589,16 @@ Starter 需要提供：
 
 | 级别 | 语言/运行时 | 适用场景 | 安全策略 |
 |------|-------------|----------|----------|
-| 默认支持 | Shell、Python、Node.js/TypeScript、PowerShell | 运维脚本、数据处理、API 编排 | 子进程沙箱，默认无网络/只读文件系统/资源限额 |
+| 默认支持 | Shell、Python、Node.js/TypeScript、PowerShell | 运维脚本、数据处理、API 编排 | **WASM/Wasmtime 通用脚本沙箱为默认后端**，默认无网络、无宿主文件系统、资源限额；Worker 运维可显式切换 Docker/Podman/custom 后端 |
 | 安全表达式 | Rhai / CEL / JSONLogic | 工作流条件、参数转换、轻量计算 | 嵌入式解释器，禁用反射、IO、网络、进程启动 |
-| 高安全插件 | WASM/WASI | 可复用处理器、跨语言插件、强隔离任务 | Wasmtime 45.x（当前 crates.io 45.0.0）作为 worker 侧运行时；fuel/epoch interruption + ResourceLimiter/memory cap + capability-based WASI + 签名校验；默认无网络、无预打开目录、仅允许显式 env |
+| 直接 WASM 插件 | WASM/WASI | 可复用处理器、跨语言插件、强隔离任务 | `language=wasm` 仍表示原生 WASI/WASM 模块模式；Wasmtime 45.x 作为 worker 侧运行时；fuel/epoch interruption + ResourceLimiter/memory cap + capability-based WASI + 签名校验；默认无网络、无预打开目录、仅允许显式 env |
 | 企业扩展 | 容器化脚本运行器 | 需要系统依赖或复杂运行时的脚本 | 独立 Pod/容器，seccomp/AppArmor、NetworkPolicy、只读 rootfs |
 
 **执行安全边界**：
 
 1. **Server 不执行用户代码**：Server 只保存脚本定义、版本、审批状态和策略，实际执行由匹配 Worker Pool 完成。
 2. **脚本版本化、发布指针与签名**：脚本内容按 content hash 存储；每次更新自动产生新版本记录（content、policy 变更均产生版本）；`scripts.released_version_id/released_version_number` 只作为软关联发布指针指向不可变 `script_versions` 快照，发布/回滚只移动指针不改历史；Worker 调度必须绑定发布快照的 bytes + SHA-256，禁止从可变 draft/current content 执行。支持任意两个版本间的 diff 对比（content diff、policy diff）；生产环境脚本必须经过审批、签名或可信发布流水线。
-3. **最小权限 capability**：脚本声明所需能力，例如 `network.egress`、`fs.read:/data/input`、`secret:db-readonly`；未声明能力默认不可用。Worker 注册时必须声明可执行语言能力，WASM 使用 `script:wasm`，非 WASM 脚本使用 `script:<language>`（例如 `script:shell`、`script:python`、`script:node`、`script:powershell`、`script:rhai`）；仅受控 Worker Pool 可使用 `script:*` 或 `*` 作为显式兜底能力。
+3. **最小权限 capability**：脚本声明所需能力，例如 `network.egress`、`fs.read:/data/input`、`secret:db-readonly`；未声明能力默认不可用。Worker 注册时必须声明**语言能力**：普通脚本使用 `script:<language>`（例如 `script:shell`、`script:python`、`script:node`、`script:powershell`、`script:rhai`），直接 WASM 模块使用 `script:wasm`。能力不等同于后端类型：`script:shell` 默认可由 Wasmtime/WASM 通用沙箱后端实现，也可由运维显式切换到 Docker、Podman 或自定义后端；仅受控 Worker Pool 可使用 `script:*` 或 `*` 作为显式兜底能力。
 4. **资源限制**：每次执行强制 timeout、CPU quota、内存上限、输出大小、日志速率、最大并发和重试预算。
 5. **文件系统隔离**：默认临时工作目录；只读挂载输入；输出通过受控 artifact API 写入；禁止访问宿主敏感路径。
 6. **网络隔离**：默认禁止出站网络；允许时必须经过 URL policy、DNS pinning、内网/metadata 地址阻断、TLS 校验和请求审计。
@@ -612,10 +612,10 @@ Starter 需要提供：
 ```text
 Job Definition
   -> Script Processor(language, code_ref, runtime_policy)
-  -> Tikee 选择具备对应 runtime capability 的 Worker Pool（script:<language>/script:wasm）
+  -> Tikee 选择具备对应语言 capability 的 Worker Pool（script:<language>/script:wasm）
   -> Server 将 released script_version 快照 bytes + SHA-256 + version metadata 绑定到 Worker Tunnel 任务
   -> Worker 校验签名/hash 后选择显式注册的 Runner
-  -> Sandbox Runner 创建隔离环境
+  -> 默认 Runner 使用 Wasmtime/WASM 通用沙箱；可按 Worker 配置切换 Docker/Podman/custom 后端
   -> 执行脚本并流式上报日志/指标/artifact
   -> 清理临时目录并提交审计事件
 ```
@@ -2235,13 +2235,14 @@ tikee/
   - [x] 发布/回滚策略门禁基础（087：publish/rollback 对历史危险 policy snapshot 再执行默认拒绝校验，阻断需要 URL/File/Secret grant 的版本并写入失败审计）
   - [x] 审批/签名元数据 fail-closed 基础（093：`ScriptReleaseRequest.approval_ticket/signature` 显式建模；未接真实签名验证前提供即拒绝并写入 `script_signature_verification_required` 审计）
   - [x] 脚本编辑器语法高亮（CodeMirror 6 Shell/Python/Node）
-  - [x] Worker 侧非 WASM Runner 抽象（072：Rust SDK `ScriptRunner` / `ScriptRunnerTask` / `ScriptRunnerPolicy`，Shell/Python/Node/PowerShell/Rhai 类型识别；默认 Unsupported runner 只验证策略并拒绝执行，等待具体沙箱实现）
-  - [x] Worker 侧沙箱执行器首个实现（073：Rust SDK `LocalSubprocessScriptRunner`，显式 opt-in，本地 stdin 子进程边界；校验 released version_id/version_number、content SHA-256、默认拒绝网络/文件/Secret，支持 timeout/output cap/runtime missing 测试；容器 runner 后续继续）
-  - [x] 非 WASM 脚本 Worker Tunnel 协议绑定与能力路由（074：`ScriptProcessorBinding` 传递 released `script_versions` 快照 bytes/SHA-256/version/policy；dispatcher fail-closed 并按 `script:<language>`、`script:*`、`*` 过滤 worker；Rust SDK 仅在显式注册对应 `ScriptRunner` 后执行，Java SDK 明确拒绝暂不支持的脚本绑定；Web 展示语言所需 worker capability）
+  - [x] Worker 侧语言 Runner 抽象（072：Rust SDK `ScriptRunner` / `ScriptRunnerTask` / `ScriptRunnerPolicy`，Shell/Python/Node/PowerShell/Rhai 类型识别；`script:<language>` 表示语言能力而非后端类型，默认后端规划为 WASM 通用沙箱）
+  - [x] Worker 侧沙箱执行器首个实现（073：Rust SDK `LocalSubprocessScriptRunner`，显式 opt-in，本地 stdin 子进程边界；校验 released version_id/version_number、content SHA-256、默认拒绝网络/文件/Secret，支持 timeout/output cap/runtime missing 测试；作为非默认兼容后端保留）
+  - [x] 普通脚本 Worker Tunnel 协议绑定与语言能力路由（074：`ScriptProcessorBinding` 传递 released `script_versions` 快照 bytes/SHA-256/version/policy；dispatcher fail-closed 并按 `script:<language>`、`script:*`、`*` 过滤 worker；Worker 必须显式注册对应语言 Runner；Web 展示语言能力与默认 WASM 后端语义）
   - [x] Worker 侧容器化脚本 Runner 基础（075：Rust SDK `ContainerScriptRunner`，显式 opt-in，通过 Docker-compatible CLI `run --rm -i` 以 stdin 传入 released snapshot；默认 `--network=none`、`--read-only`、无宿主路径挂载，仅注入白名单 env 和 tikee 元数据；单元测试覆盖命令边界与危险策略预检，真实 Docker/K8s 执行治理后续增强）
   - [x] 脚本执行治理失败可见性基础（077：dispatcher/Worker result 将无匹配 capability、缺 runner、策略拒绝、digest mismatch、timeout、output limit、runtime unavailable 归类为 `script_execution_governance` 实例日志；补充脚本 Worker Pool Docker/K8s 部署约束；Server 仍只调度不执行用户代码）
   - [x] 脚本执行治理查询与 UI 高亮基础（078：实例日志 DTO 解析 `script_execution_governance` JSON 为 event/failure_class/message 字段；`page_token=script_execution_governance` 可筛选治理日志；Web Instances 日志抽屉高亮治理失败；AlertCondition 增加 `script_governance_failure` 条件）
   - [x] 脚本执行治理审计落库基础（079：dispatcher 与 Worker result 路径将 `script_execution_governance` 失败同步写入 `audit_logs`，`resource_type=script_execution_governance` 软关联 instance id；审计 API/Web 支持 `failure_reason` 过滤；无外键）
+  - [x] WASM 通用默认脚本沙箱（124：Java SDK/Spring Starter 启动时自动检查 Wasmtime，允许自动安装；默认注册 `script:shell` 语言能力并通过 bundled WASI shell runner 在 Wasmtime 中执行，继续默认拒绝网络、宿主文件系统和 Secret；容器 runner 作为 Docker/Podman/custom 显式覆盖后端。Python/Node/PowerShell 后续按同一模型补充 WASI runtime module 后再广告对应语言能力）
 - [x] 脚本策略引擎（能力声明、审批、资源限制、网络/文件策略）
   - [x] 默认拒绝策略元数据与不可变快照（072：`ScriptExecutionPolicy` 覆盖 resources/network/filesystem/secrets/env；`scripts.policy_json` 和 `script_versions.policy_json` 保存策略快照；HTTP create/update 拒绝网络/文件/Secret 危险能力；Web 可编辑资源/env 白名单并展示策略 diff）
   - [x] 策略审批、签名、URL/File/Secret grant 与生产发布门禁（本地 env-secret verifier 闭环；外部 KMS/PKI 为后续增强）
@@ -2380,8 +2381,8 @@ Phase 3 closeout 状态已在 2026-05-25 复核：原先保留未勾选的 OIDC 
 | 工作流回放 | 基于 workflow_event 重放实例，支持事故复盘 bundle | Phase 4 |
 | 智能调度 | 基于历史耗时、Worker 负载、失败率进行资源预测和调度推荐 | Phase 4 |
 | 策略引擎 | OPA/Rego 或内置 DSL，控制 Shell/SQL/HTTP/生产变更审批 | Phase 3-4 |
-| WASM 插件 | 语言无关、安全沙箱、插件签名与版本管理 | Phase 3-4 |
-| 多语言动态脚本 | Python/Node/Shell/PowerShell/Rhai 等受控运行，统一沙箱、能力声明、资源限制、审批和审计 | Phase 3-4 |
+| WASM 插件 | 语言无关、安全沙箱、插件签名与版本管理；同时作为普通脚本默认通用沙箱后端 | Phase 3-4 |
+| 多语言动态脚本 | Python/Node/Shell/PowerShell/Rhai 等受控运行；`script:<language>` 为语言能力，默认后端为 WASM/Wasmtime，Docker/Podman/custom 为显式覆盖 | Phase 3-4 |
 | 事件驱动 | Webhook、Kafka/NATS/Redis Stream 触发源，出站 HMAC 回调 | Phase 4 |
 | 多租户配额 | namespace/app/worker pool 级并发、QPS、日志量、存储 TTL | Phase 3 |
 
@@ -2445,7 +2446,7 @@ Phase 3 closeout 状态已在 2026-05-25 复核：原先保留未勾选的 OIDC 
 | 风险 | 影响 | 应对策略 |
 |------|------|----------|
 | Rust 开发者招聘难 | 开发速度 | 核心用 Rust，SDK 层可用各语言原生开发；文档驱动社区贡献 |
-| WASM 生态不够成熟 | 处理器灵活性 | WASM 作为高安全插件方案；动态脚本优先走成熟语言运行时 + 子进程/容器沙箱，二者共享策略与审计模型 |
+| WASM 生态不够成熟 | 处理器灵活性 | WASM/Wasmtime 作为默认通用脚本沙箱与高安全插件方案；先以 Shell WASI runner 闭环，Python/Node/PowerShell 按 runtime module 渐进补齐；Docker/Podman/custom 作为复杂依赖场景的显式后端覆盖 |
 | Raft 实现复杂度 | 集群稳定性 | 使用 TiKV raft-rs (`raft`) 作为共识核心，项目只实现存储、transport、membership 和调度 fencing glue，避免自研共识 |
 | 前端开发资源 | UI 体验 | 前端固定在 `./web`，使用 React + Ant Design + Bun，保持独立工程边界 |
 | 与 PowerJob 功能差距 | 用户迁移意愿 | 严格对照表 + 迁移工具 + 兼容 API |

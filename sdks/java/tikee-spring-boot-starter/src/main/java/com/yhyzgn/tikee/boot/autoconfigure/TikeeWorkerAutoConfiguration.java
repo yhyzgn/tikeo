@@ -6,6 +6,7 @@ import com.yhyzgn.tikee.management.client.TikeeJobClient;
 import com.yhyzgn.tikee.script.ContainerScriptRunner;
 import com.yhyzgn.tikee.script.ScriptRunnerKind;
 import com.yhyzgn.tikee.script.ScriptRunnerRegistry;
+import com.yhyzgn.tikee.script.WasmScriptRunner;
 import com.yhyzgn.tikee.worker.identity.ClientInstanceIds;
 import com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClient;
 import com.yhyzgn.tikee.worker.client.NoopTikeeWorkerClient;
@@ -107,20 +108,11 @@ public class TikeeWorkerAutoConfiguration {
         if (!properties.getScripts().isEnabled()) {
             return registry;
         }
-        String runtimeCommand = "wasmtime";
-        if (!runtimeAvailable(runtimeCommand, "--version")) {
-            runtimeCommand = localWasmtimeCommand(properties);
-        }
-        if (!runtimeAvailable(runtimeCommand, "--version")) {
-            runtimeCommand = installWasmtimeIfAllowed(properties);
-        }
-        if (runtimeAvailable(runtimeCommand, "--version")) {
-            registry.register(new CliWasmtimeRunner(runtimeCommand, List.of()));
-        } else {
-            log.warn(
-                    "tikee default WASM sandbox runtime is unavailable; "
-                            + "script:wasm capability will not be advertised");
-        }
+        resolveWasmtimeCommand(properties).ifPresentOrElse(
+                runtimeCommand -> registry.register(new CliWasmtimeRunner(runtimeCommand, List.of())),
+                () -> log.warn(
+                        "tikee default WASM sandbox runtime is unavailable; "
+                                + "script:wasm capability will not be advertised"));
         return registry;
     }
 
@@ -130,7 +122,15 @@ public class TikeeWorkerAutoConfiguration {
     ScriptRunnerRegistry tikeeScriptRunnerRegistry(TikeeWorkerProperties properties) {
         ScriptRunnerRegistry registry = new ScriptRunnerRegistry();
         TikeeWorkerProperties.ScriptRunnerProperties scripts = properties.getScripts();
-        if (scripts.isEnabled() && scripts.isContainerEnabled()) {
+        if (!scripts.isEnabled()) {
+            return registry;
+        }
+        resolveWasmtimeCommand(properties).ifPresentOrElse(
+                runtimeCommand -> registry.register(new WasmScriptRunner(ScriptRunnerKind.SHELL, runtimeCommand, List.of())),
+                () -> log.warn(
+                        "tikee default WASM script sandbox runtime is unavailable; "
+                                + "script:shell capability will not be advertised"));
+        if (scripts.isContainerEnabled()) {
             if (scripts.getRuntimeCommand() == null || scripts.getRuntimeCommand().isBlank()) {
                 log.warn(
                         "tikee non-WASM script runners are enabled but no container runtime command is configured; "
@@ -199,6 +199,25 @@ public class TikeeWorkerAutoConfiguration {
         } catch (Exception error) {
             return false;
         }
+    }
+
+    private static java.util.Optional<String> resolveWasmtimeCommand(TikeeWorkerProperties properties) {
+        if (properties.getWasm().getInstallDir() != null && !properties.getWasm().getInstallDir().isBlank()) {
+            String configuredCommand = localWasmtimeCommand(properties);
+            return runtimeAvailable(configuredCommand, "--version")
+                    ? java.util.Optional.of(configuredCommand)
+                    : java.util.Optional.empty();
+        }
+        String runtimeCommand = "wasmtime";
+        if (!runtimeAvailable(runtimeCommand, "--version")) {
+            runtimeCommand = localWasmtimeCommand(properties);
+        }
+        if (!runtimeAvailable(runtimeCommand, "--version")) {
+            runtimeCommand = installWasmtimeIfAllowed(properties);
+        }
+        return runtimeAvailable(runtimeCommand, "--version")
+                ? java.util.Optional.of(runtimeCommand)
+                : java.util.Optional.empty();
     }
 
     private static String localWasmtimeCommand(TikeeWorkerProperties properties) {
