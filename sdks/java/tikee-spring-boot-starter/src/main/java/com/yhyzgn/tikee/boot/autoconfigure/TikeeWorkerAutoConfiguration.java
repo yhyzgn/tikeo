@@ -232,6 +232,8 @@ public class TikeeWorkerAutoConfiguration {
                 scripts.getWasmedgeInstallDir(),
                 scripts.getWasmedgeInstallerUrl(),
                 scripts.isAutoInstallTools(),
+                scripts.getSrtInstallVersion(),
+                scripts.getSrtInstallDir(),
                 scripts.getDenoInstallVersion(),
                 scripts.getDenoInstallDir(),
                 scripts.getDenoInstallerUrl(),

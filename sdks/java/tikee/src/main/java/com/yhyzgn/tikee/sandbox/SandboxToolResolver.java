@@ -117,6 +117,7 @@ public final class SandboxToolResolver {
         String configured = switch (tool) {
             case WASMTIME -> options.wasmtimeInstallDir();
             case WASMEDGE -> options.wasmedgeInstallDir();
+            case SRT -> options.srtInstallDir();
             case DENO -> options.denoInstallDir();
             case V8 -> options.v8InstallDir();
             case RHAI -> options.rhaiInstallDir();
@@ -168,9 +169,15 @@ public final class SandboxToolResolver {
         String command
     ) {
         return switch (tool) {
+            case SRT -> srtAvailable(command);
             case RHAI -> rhaiAvailable(command);
             default -> runtimeAvailable(command, "--version");
         };
+    }
+
+    private static boolean srtAvailable(String command) {
+        return runtimeAvailable(command, "--version") ||
+            runtimeAvailable(command, "--help");
     }
 
     private static boolean rhaiAvailable(String command) {
@@ -249,7 +256,7 @@ public final class SandboxToolResolver {
         return switch (tool) {
             case WASMTIME -> options.autoInstallWasmtime();
             case WASMEDGE -> options.autoInstallWasmedge();
-            case DENO, V8, RHAI -> options.autoInstallScriptTools();
+            case SRT, DENO, V8, RHAI -> options.autoInstallScriptTools();
         };
     }
 
@@ -257,6 +264,7 @@ public final class SandboxToolResolver {
         return switch (tool) {
             case WASMTIME -> options.wasmtimeInstallVersion();
             case WASMEDGE -> options.wasmedgeInstallVersion();
+            case SRT -> options.srtInstallVersion();
             case DENO -> options.denoInstallVersion();
             case V8 -> options.v8InstallVersion();
             case RHAI -> options.rhaiInstallVersion();
@@ -267,6 +275,7 @@ public final class SandboxToolResolver {
         return switch (tool) {
             case WASMTIME -> options.wasmtimeInstallerUrl();
             case WASMEDGE -> options.wasmedgeInstallerUrl();
+            case SRT -> "";
             case DENO, V8 -> options.denoInstallerUrl();
             case RHAI -> "";
         };
@@ -283,6 +292,8 @@ public final class SandboxToolResolver {
         String wasmedgeInstallDir,
         String wasmedgeInstallerUrl,
         boolean autoInstallScriptTools,
+        String srtInstallVersion,
+        String srtInstallDir,
         String denoInstallVersion,
         String denoInstallDir,
         String denoInstallerUrl,
@@ -304,6 +315,8 @@ public final class SandboxToolResolver {
                 "",
                 "https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh",
                 true,
+                "latest",
+                "",
                 "latest",
                 "",
                 "https://deno.land/install.sh",

@@ -23,6 +23,8 @@ class SandboxToolResolverTest {
                 false,
                 "latest",
                 "",
+                "latest",
+                "",
                 "https://deno.land/install.sh",
                 "latest",
                 "",
@@ -30,6 +32,8 @@ class SandboxToolResolverTest {
                 "",
                 1000));
 
+        assertEquals(Path.of("/tmp/tikee-state", "sandbox-tools", "srt"),
+                resolver.installDir(SandboxToolInstaller.Tool.SRT));
         assertEquals(Path.of("/tmp/tikee-state", "sandbox-tools", "deno"),
                 resolver.installDir(SandboxToolInstaller.Tool.DENO));
         assertEquals(Path.of("/tmp/tikee-state", "sandbox-tools", "wasmedge"),
@@ -49,6 +53,8 @@ class SandboxToolResolverTest {
                 "",
                 "https://wasmedge.example/install.sh",
                 false,
+                "latest",
+                "",
                 "latest",
                 "/opt/tikee/deno",
                 "https://deno.land/install.sh",

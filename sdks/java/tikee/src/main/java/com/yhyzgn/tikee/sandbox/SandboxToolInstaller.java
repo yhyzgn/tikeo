@@ -20,6 +20,7 @@ public final class SandboxToolInstaller {
     public enum Tool {
         WASMTIME("wasmtime"),
         WASMEDGE("wasmedge"),
+        SRT("srt"),
         DENO("deno"),
         V8("v8"),
         RHAI("rhai-run");
@@ -55,6 +56,7 @@ public final class SandboxToolInstaller {
         Path binary = switch (options.tool()) {
             case WASMTIME -> installWasmtime(options);
             case WASMEDGE -> installWasmEdge(options);
+            case SRT -> installSrt(options);
             case DENO -> installDeno(options);
             case V8 -> installV8(options);
             case RHAI -> installRhai(options);
@@ -90,6 +92,7 @@ public final class SandboxToolInstaller {
         boolean canInstall = switch (tool) {
             case WASMTIME -> canInstallWasmtime();
             case WASMEDGE -> canInstallWasmEdge();
+            case SRT -> canInstallSrt();
             case DENO -> canInstallDeno();
             case V8 -> canInstallV8();
             case RHAI -> canInstallRhai();
@@ -121,6 +124,10 @@ public final class SandboxToolInstaller {
             canRunUnixInstaller() ||
             commandAvailable("powershell", Duration.ofSeconds(2))
         );
+    }
+
+    private static boolean canInstallSrt() {
+        return commandAvailable("npm", Duration.ofSeconds(2));
     }
 
     private static boolean canInstallV8() {
@@ -199,6 +206,38 @@ public final class SandboxToolInstaller {
             "Deno"
         );
         return Path.of("deno");
+    }
+
+    private static Path installSrt(Options options) {
+        String packageName = "@anthropic-ai/sandbox-runtime";
+        if (
+            options.installVersion() != null &&
+            !options.installVersion().isBlank() &&
+            !"latest".equalsIgnoreCase(options.installVersion())
+        ) {
+            packageName += "@" + options.installVersion();
+        }
+        try {
+            Files.createDirectories(options.installDir());
+            runCommand(
+                new ProcessBuilder(
+                    "npm",
+                    "install",
+                    "-g",
+                    "--prefix",
+                    options.installDir().toString(),
+                    packageName
+                ),
+                options.installTimeoutMillis(),
+                "Anthropic Sandbox Runtime"
+            );
+            return binaryPath(options.tool(), options.installDir());
+        } catch (Exception error) {
+            throw new IllegalStateException(
+                "failed to install Anthropic Sandbox Runtime for " + runtimePlatform(),
+                error
+            );
+        }
     }
 
     private static Path installV8(Options options) {

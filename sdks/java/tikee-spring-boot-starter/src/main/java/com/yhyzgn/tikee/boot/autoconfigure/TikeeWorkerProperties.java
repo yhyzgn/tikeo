@@ -79,6 +79,10 @@ public class TikeeWorkerProperties {
         private List<String> runtimeArgs = new ArrayList<>();
         /** Automatically install local development script runtime tools when absent. */
         private boolean autoInstallTools = true;
+        /** Anthropic Sandbox Runtime npm package version. Blank/latest follows npm latest. */
+        private String srtInstallVersion = "latest";
+        /** Optional Anthropic Sandbox Runtime install directory. Blank uses state-dir/sandbox-tools/srt. */
+        private String srtInstallDir = "";
         /** Deno version passed to the official installer; use latest by default. */
         private String denoInstallVersion = "latest";
         /** Optional Deno install directory. Blank uses state-dir/script-tools/deno or ~/.tikee/script-tools/deno. */
