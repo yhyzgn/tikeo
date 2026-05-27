@@ -589,7 +589,7 @@ Starter 需要提供：
 
 | 级别 | 语言/运行时 | 适用场景 | 安全策略 |
 |------|-------------|----------|----------|
-| 默认支持 | Shell、Python、JavaScript、TypeScript、PowerShell | 运维脚本、数据处理、API 编排 | **sandbox=auto 为默认后端选择**：可编译到 WASM 时优先 Wasmtime；原生命令/现成二进制优先 Anthropic Sandbox Runtime (srt)；JavaScript/TypeScript 逻辑优先 Deno；未匹配时回退 Wasmtime。可手动指定 wasmtime、wasmedge、srt、deno、v8、docker、podman 或 custom |
+| 默认支持 | Shell、Python、JavaScript、TypeScript、PowerShell | 运维脚本、数据处理、API 编排 | **sandbox=auto 为默认后端选择**：可编译到 WASM/WASI 时优先 Wasmtime/WasmEdge；Python 源码若要走 WASM 需配套 Pyodide/CPython-WASI 等 runtime；原生命令/现成二进制优先 Anthropic Sandbox Runtime (srt)；JavaScript/TypeScript 优先 Deno/V8；未匹配时明确 runtime unavailable。可手动指定 wasmtime、wasmedge、srt、deno、v8、docker、podman 或 custom |
 | 安全表达式 | Rhai / CEL / JSONLogic | 工作流条件、参数转换、轻量计算 | 嵌入式解释器，禁用反射、IO、网络、进程启动 |
 | 直接 WASM 插件 | WASM/WASI | 可复用处理器、跨语言插件、强隔离任务 | `language=wasm` 仅作为历史/底层直接 WASM 模块兼容模式，不再出现在脚本创建/编辑语言枚举中；Wasmtime 45.x 作为 worker 侧运行时；fuel/epoch interruption + ResourceLimiter/memory cap + capability-based WASI + 签名校验；默认无网络、无预打开目录、仅允许显式 env |
 | 企业扩展 | 容器化脚本运行器 | 需要系统依赖或复杂运行时的脚本 | 独立 Pod/容器，seccomp/AppArmor、NetworkPolicy、只读 rootfs |
@@ -615,7 +615,7 @@ Job Definition
   -> Tikee 选择具备统一脚本 capability 的 Worker Pool（优先 `script`，兼容 `script:<language>` / `script:wasm` / `script:*`）
   -> Server 将 released script_version 快照 bytes + SHA-256 + version metadata 绑定到 Worker Tunnel 任务
   -> Worker 校验签名/hash 后选择显式注册的 Runner
-  -> 默认 Runner 使用 `sandbox=auto` 自适应：WASM 编译路径优先 Wasmtime，原生命令/二进制优先 srt，JavaScript/TypeScript 优先 Deno，未匹配回退 Wasmtime；可按策略显式选择 wasmtime/wasmedge/srt/deno/v8/docker/podman/custom
+  -> 默认 Runner 使用 `sandbox=auto` 自适应：WASM 编译路径优先 Wasmtime/WasmEdge，Python 源码走 WASM 时必须配套 Pyodide/CPython-WASI runtime，原生命令/二进制优先 srt，JavaScript/TypeScript 优先 Deno/V8，未匹配则明确 runtime unavailable；可按策略显式选择 wasmtime/wasmedge/srt/deno/v8/docker/podman/custom
   -> 执行脚本并流式上报日志/指标/artifact
   -> 清理临时目录并提交审计事件
 ```
@@ -2242,7 +2242,7 @@ tikee/
   - [x] 脚本执行治理失败可见性基础（077：dispatcher/Worker result 将无匹配 capability、缺 runner、策略拒绝、digest mismatch、timeout、output limit、runtime unavailable 归类为 `script_execution_governance` 实例日志；补充脚本 Worker Pool Docker/K8s 部署约束；Server 仍只调度不执行用户代码）
   - [x] 脚本执行治理查询与 UI 高亮基础（078：实例日志 DTO 解析 `script_execution_governance` JSON 为 event/failure_class/message 字段；`page_token=script_execution_governance` 可筛选治理日志；Web Instances 日志抽屉高亮治理失败；AlertCondition 增加 `script_governance_failure` 条件）
   - [x] 脚本执行治理审计落库基础（079：dispatcher 与 Worker result 路径将 `script_execution_governance` 失败同步写入 `audit_logs`，`resource_type=script_execution_governance` 软关联 instance id；审计 API/Web 支持 `failure_reason` 过滤；无外键）
-  - [x] Java Worker 本地开发脚本 runner 修正（125：`sandbox.backend=auto` 对 Shell/Python/PowerShell 解析为 srt/native-script 语义，Spring demo 默认注册 development-only shell subprocess runner，避免真实 shell 脚本误走受限 bundled WASI shell runner；Wasmtime 继续用于直接 WASM `script:wasm` 与显式 `sandbox.backend=wasmtime` 兼容测试，生产多语言脚本应使用 srt/Deno/V8/Container/Podman/custom 等显式沙箱边界）
+  - [x] Java Worker 本地开发脚本 runner 修正与 SDK 侧沙箱工具管理（125：`sandbox.backend=auto` 对 Shell/Python/PowerShell/Rhai 解析为 srt/native-script 语义，对 JavaScript/TypeScript 解析为 Deno/V8 语义；Java 原生 SDK 提供 `com.yhyzgn.tikee.sandbox` 统一管理 Wasmtime/WasmEdge/Deno/V8/Rhai 工具解析与安装，Spring Starter 仅映射配置；避免真实脚本误走受限 bundled WASI shell runner。Python 源码若要走 WASM 需 Pyodide/CPython-WASI runtime，不等同于 Wasmtime 直接执行 `.py`）
 - [x] 脚本策略引擎（能力声明、审批、资源限制、网络/文件策略）
   - [x] 默认拒绝策略元数据与不可变快照（072：`ScriptExecutionPolicy` 覆盖 resources/network/filesystem/secrets/env；`scripts.policy_json` 和 `script_versions.policy_json` 保存策略快照；HTTP create/update 拒绝网络/文件/Secret 危险能力；Web 可编辑资源/env 白名单并展示策略 diff）
   - [x] 策略审批、签名、URL/File/Secret grant 与生产发布门禁（本地 env-secret verifier 闭环；外部 KMS/PKI 为后续增强）

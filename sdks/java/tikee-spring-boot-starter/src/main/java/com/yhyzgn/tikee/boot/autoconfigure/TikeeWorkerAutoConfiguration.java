@@ -7,6 +7,7 @@ import com.yhyzgn.tikee.script.ContainerScriptRunner;
 import com.yhyzgn.tikee.script.LocalSubprocessScriptRunner;
 import com.yhyzgn.tikee.script.ScriptRunnerKind;
 import com.yhyzgn.tikee.script.ScriptRunnerRegistry;
+import com.yhyzgn.tikee.sandbox.SandboxToolResolver;
 import com.yhyzgn.tikee.worker.identity.ClientInstanceIds;
 import com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClient;
 import com.yhyzgn.tikee.worker.client.NoopTikeeWorkerClient;
@@ -14,7 +15,6 @@ import com.yhyzgn.tikee.worker.client.TikeeWorkerClient;
 import com.yhyzgn.tikee.worker.WorkerRegistration;
 import com.yhyzgn.tikee.wasm.CliWasmtimeRunner;
 import com.yhyzgn.tikee.wasm.WasmRunnerRegistry;
-import com.yhyzgn.tikee.wasm.WasmtimeInstaller;
 import java.nio.file.Path;
 import com.yhyzgn.tikee.spring.processor.TikeeProcessorRegistry;
 import com.yhyzgn.tikee.spring.worker.SpringTikeeTaskProcessor;
@@ -108,7 +108,7 @@ public class TikeeWorkerAutoConfiguration {
         if (!properties.getScripts().isEnabled()) {
             return registry;
         }
-        resolveWasmtimeCommand(properties).ifPresentOrElse(
+        sandboxToolResolver(properties).resolveWasmtimeCommand().ifPresentOrElse(
                 runtimeCommand -> registry.register(new CliWasmtimeRunner(runtimeCommand, List.of())),
                 () -> log.warn(
                         "tikee default WASM sandbox runtime is unavailable; "
@@ -125,7 +125,7 @@ public class TikeeWorkerAutoConfiguration {
         if (!scripts.isEnabled()) {
             return registry;
         }
-        registerLocalDevelopmentRunners(registry);
+        registerLocalDevelopmentRunners(registry, properties);
         if (scripts.isContainerEnabled()) {
             if (scripts.getRuntimeCommand() == null || scripts.getRuntimeCommand().isBlank()) {
                 log.warn(
@@ -179,9 +179,12 @@ public class TikeeWorkerAutoConfiguration {
         return registry;
     }
 
-    private static void registerLocalDevelopmentRunners(ScriptRunnerRegistry registry) {
+    private static void registerLocalDevelopmentRunners(
+            ScriptRunnerRegistry registry,
+            TikeeWorkerProperties properties) {
+        SandboxToolResolver resolver = sandboxToolResolver(properties);
         for (ScriptRunnerKind kind : ScriptRunnerKind.values()) {
-            registry.register(new LocalSubprocessScriptRunner(kind));
+            registry.register(new LocalSubprocessScriptRunner(kind, resolver.localDevelopmentCommand(kind)));
         }
     }
 
@@ -215,72 +218,28 @@ public class TikeeWorkerAutoConfiguration {
         }
     }
 
-    private static java.util.Optional<String> resolveWasmtimeCommand(TikeeWorkerProperties properties) {
-        if (properties.getWasm().getInstallDir() != null && !properties.getWasm().getInstallDir().isBlank()) {
-            String configuredCommand = localWasmtimeCommand(properties);
-            return runtimeAvailable(configuredCommand, "--version")
-                    ? java.util.Optional.of(configuredCommand)
-                    : java.util.Optional.empty();
-        }
-        String runtimeCommand = "wasmtime";
-        if (!runtimeAvailable(runtimeCommand, "--version")) {
-            runtimeCommand = localWasmtimeCommand(properties);
-        }
-        if (!runtimeAvailable(runtimeCommand, "--version")) {
-            runtimeCommand = installWasmtimeIfAllowed(properties);
-        }
-        return runtimeAvailable(runtimeCommand, "--version")
-                ? java.util.Optional.of(runtimeCommand)
-                : java.util.Optional.empty();
-    }
-
-    private static String localWasmtimeCommand(TikeeWorkerProperties properties) {
-        Path binary = WasmtimeInstaller.binaryPath(wasmtimeInstallDir(properties));
-        return binary.toString();
-    }
-
-    private static WasmtimeInstaller.Options wasmtimeInstallOptions(TikeeWorkerProperties properties) {
+    private static SandboxToolResolver sandboxToolResolver(TikeeWorkerProperties properties) {
+        TikeeWorkerProperties.ScriptRunnerProperties scripts = properties.getScripts();
         TikeeWorkerProperties.WasmProperties wasm = properties.getWasm();
-        return new WasmtimeInstaller.Options(
+        return new SandboxToolResolver(new SandboxToolResolver.Options(
+                properties.getStateDir(),
+                wasm.isAutoInstall(),
                 wasm.getInstallVersion(),
-                wasmtimeInstallDir(properties),
+                wasm.getInstallDir(),
                 wasm.getInstallerUrl(),
-                wasm.getInstallTimeoutMillis());
-    }
-
-    private static Path wasmtimeInstallDir(TikeeWorkerProperties properties) {
-        String configured = properties.getWasm().getInstallDir();
-        if (configured != null && !configured.isBlank()) {
-            return Path.of(configured);
-        }
-        if (properties.getStateDir() != null && !properties.getStateDir().isBlank()) {
-            return Path.of(properties.getStateDir(), "wasmtime");
-        }
-        return WasmtimeInstaller.defaultInstallDir();
-    }
-
-    private static String installWasmtimeIfAllowed(TikeeWorkerProperties properties) {
-        TikeeWorkerProperties.WasmProperties wasm = properties.getWasm();
-        if (!wasm.isAutoInstall()) {
-            return "wasmtime";
-        }
-        if (!WasmtimeInstaller.canUseOfficialInstaller()) {
-            log.warn(
-                    "tikee default WASM sandbox runtime is unavailable and the official installer cannot run on {}; "
-                            + "script:wasm capability will not be advertised",
-                    WasmtimeInstaller.runtimePlatform());
-            return "wasmtime";
-        }
-        try {
-            log.info(
-                    "tikee default WASM sandbox runtime is unavailable; installing Wasmtime {} for {}",
-                    wasm.getInstallVersion(),
-                    WasmtimeInstaller.runtimePlatform());
-            return WasmtimeInstaller.install(wasmtimeInstallOptions(properties)).toString();
-        } catch (IllegalStateException error) {
-            log.warn("failed to auto-install Wasmtime; script:wasm capability will not be advertised", error);
-            return "wasmtime";
-        }
+                scripts.isWasmedgeAutoInstall(),
+                scripts.getWasmedgeInstallVersion(),
+                scripts.getWasmedgeInstallDir(),
+                scripts.getWasmedgeInstallerUrl(),
+                scripts.isAutoInstallTools(),
+                scripts.getDenoInstallVersion(),
+                scripts.getDenoInstallDir(),
+                scripts.getDenoInstallerUrl(),
+                scripts.getV8InstallVersion(),
+                scripts.getV8InstallDir(),
+                scripts.getRhaiInstallVersion(),
+                scripts.getRhaiInstallDir(),
+                Math.max(wasm.getInstallTimeoutMillis(), scripts.getToolInstallTimeoutMillis())));
     }
 
     @Bean

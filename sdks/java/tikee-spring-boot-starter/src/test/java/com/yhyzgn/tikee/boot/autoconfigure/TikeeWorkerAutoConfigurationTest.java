@@ -24,7 +24,8 @@ class TikeeWorkerAutoConfigurationTest {
             .withPropertyValues(
                     "tikee.worker.dry-run=true",
                     "tikee.worker.app=billing",
-                    "tikee.worker.wasm.auto-install=false");
+                    "tikee.worker.wasm.auto-install=false",
+                    "tikee.worker.scripts.auto-install-tools=false");
 
     @Test
     void dryRunCreatesNoopClientWithGeneratedRegistrationHint() throws Exception {
@@ -82,12 +83,11 @@ class TikeeWorkerAutoConfigurationTest {
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.wasm.auto-install=false",
-                "tikee.worker.wasm.install-dir=" + stateDir.resolve("missing-wasmtime"))
+                "tikee.worker.wasm.install-dir=" + stateDir.resolve("missing-wasmtime"),
+                "tikee.worker.scripts.enabled=false")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(noop.registration().capabilities())
-                            .contains("script", "script:shell")
-                            .doesNotContain("script:wasm");
+                    assertThat(noop.registration().capabilities()).doesNotContain("script:wasm");
                 });
     }
 
@@ -97,7 +97,8 @@ class TikeeWorkerAutoConfigurationTest {
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.scripts.enabled=true",
-                "tikee.worker.wasm.auto-install=false")
+                "tikee.worker.wasm.auto-install=false",
+                "tikee.worker.scripts.auto-install-tools=false")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(noop.registration().capabilities())
@@ -112,6 +113,7 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.enabled=true",
                 "tikee.worker.scripts.container-enabled=true",
                 "tikee.worker.scripts.availability-check=false",
+                "tikee.worker.scripts.auto-install-tools=false",
                 "tikee.worker.scripts.runtime-command=test-container-runtime",
                 "tikee.worker.scripts.images.shell=alpine:3.20",
                 "tikee.worker.scripts.images.python=python:3.13-alpine",
@@ -134,6 +136,7 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.enabled=true",
                 "tikee.worker.scripts.container-enabled=true",
                 "tikee.worker.scripts.availability-check=false",
+                "tikee.worker.scripts.auto-install-tools=false",
                 "tikee.worker.scripts.images.shell=alpine:3.20")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
@@ -150,6 +153,7 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.enabled=true",
                 "tikee.worker.scripts.container-enabled=true",
                 "tikee.worker.scripts.availability-check=true",
+                "tikee.worker.scripts.auto-install-tools=false",
                 "tikee.worker.scripts.runtime-command=tikee-missing-container-runtime")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);

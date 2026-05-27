@@ -1,0 +1,186 @@
+package com.yhyzgn.tikee.sandbox;
+
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+
+/** Resolves sandbox/runtime tool commands and optionally installs missing tools. */
+public final class SandboxToolResolver {
+    private final Options options;
+
+    public SandboxToolResolver(Options options) {
+        this.options = options == null ? Options.defaults() : options;
+    }
+
+    public String resolveCommand(SandboxToolInstaller.Tool tool) {
+        String command = tool.binaryName();
+        if (explicitInstallDir(tool).isEmpty() && runtimeAvailable(command, "--version")) {
+            return command;
+        }
+        if (explicitInstallDir(tool).isEmpty()) {
+            command = localCommand(tool);
+            if (runtimeAvailable(command, "--version")) {
+                return command;
+            }
+        }
+        command = installIfAllowed(tool);
+        if (explicitInstallDir(tool).isPresent()) {
+            return runtimeAvailable(command, "--version") ? command : localCommand(tool);
+        }
+        return runtimeAvailable(command, "--version") ? command : tool.binaryName();
+    }
+
+    public Optional<String> resolveWasmtimeCommand() {
+        String command = resolveCommand(SandboxToolInstaller.Tool.WASMTIME);
+        return runtimeAvailable(command, "--version") ? Optional.of(command) : Optional.empty();
+    }
+
+    public String localCommand(SandboxToolInstaller.Tool tool) {
+        return SandboxToolInstaller.binaryPath(tool, installDir(tool)).toString();
+    }
+
+    public Path installDir(SandboxToolInstaller.Tool tool) {
+        Optional<Path> explicit = explicitInstallDir(tool);
+        if (explicit.isPresent()) {
+            return explicit.get();
+        }
+        if (options.stateDir() != null && !options.stateDir().isBlank()) {
+            return Path.of(options.stateDir(), "sandbox-tools", tool.name().toLowerCase(Locale.ROOT));
+        }
+        return SandboxToolInstaller.defaultInstallDir(tool);
+    }
+
+    private Optional<Path> explicitInstallDir(SandboxToolInstaller.Tool tool) {
+        String configured = switch (tool) {
+            case WASMTIME -> options.wasmtimeInstallDir();
+            case WASMEDGE -> options.wasmedgeInstallDir();
+            case DENO -> options.denoInstallDir();
+            case V8 -> options.v8InstallDir();
+            case RHAI -> options.rhaiInstallDir();
+        };
+        return configured == null || configured.isBlank() ? Optional.empty() : Optional.of(Path.of(configured));
+    }
+
+    public SandboxToolInstaller.Options installOptions(SandboxToolInstaller.Tool tool) {
+        return new SandboxToolInstaller.Options(
+                tool,
+                installVersion(tool),
+                installDir(tool),
+                installerUrl(tool),
+                options.installTimeoutMillis());
+    }
+
+    public List<String> localDevelopmentCommand(com.yhyzgn.tikee.script.ScriptRunnerKind kind) {
+        return switch (kind) {
+            case SHELL -> List.of("sh", "-s");
+            case PYTHON -> List.of("python3", "-");
+            case JS, TS -> List.of(resolveCommand(SandboxToolInstaller.Tool.DENO), "run", "--no-prompt", "-");
+            case POWERSHELL -> List.of("pwsh", "-NoProfile", "-NonInteractive", "-Command", "-");
+            case RHAI -> List.of(resolveCommand(SandboxToolInstaller.Tool.RHAI));
+        };
+    }
+
+    public static boolean runtimeAvailable(String runtimeCommand, String... args) {
+        try {
+            java.util.ArrayList<String> command = new java.util.ArrayList<>();
+            command.add(runtimeCommand);
+            command.addAll(List.of(args));
+            Process process = new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .start();
+            if (!process.waitFor(2, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return false;
+            }
+            return process.exitValue() == 0;
+        } catch (Exception error) {
+            return false;
+        }
+    }
+
+    private String installIfAllowed(SandboxToolInstaller.Tool tool) {
+        if (!autoInstallEnabled(tool)) {
+            return tool.binaryName();
+        }
+        if (!SandboxToolInstaller.canInstall(tool)) {
+            return tool.binaryName();
+        }
+        try {
+            return SandboxToolInstaller.install(installOptions(tool)).toString();
+        } catch (IllegalStateException error) {
+            return tool.binaryName();
+        }
+    }
+
+    private boolean autoInstallEnabled(SandboxToolInstaller.Tool tool) {
+        return switch (tool) {
+            case WASMTIME -> options.autoInstallWasmtime();
+            case WASMEDGE -> options.autoInstallWasmedge();
+            case DENO, V8, RHAI -> options.autoInstallScriptTools();
+        };
+    }
+
+    private String installVersion(SandboxToolInstaller.Tool tool) {
+        return switch (tool) {
+            case WASMTIME -> options.wasmtimeInstallVersion();
+            case WASMEDGE -> options.wasmedgeInstallVersion();
+            case DENO -> options.denoInstallVersion();
+            case V8 -> options.v8InstallVersion();
+            case RHAI -> options.rhaiInstallVersion();
+        };
+    }
+
+    private String installerUrl(SandboxToolInstaller.Tool tool) {
+        return switch (tool) {
+            case WASMTIME -> options.wasmtimeInstallerUrl();
+            case WASMEDGE -> options.wasmedgeInstallerUrl();
+            case DENO, V8 -> options.denoInstallerUrl();
+            case RHAI -> "";
+        };
+    }
+
+    public record Options(
+            String stateDir,
+            boolean autoInstallWasmtime,
+            String wasmtimeInstallVersion,
+            String wasmtimeInstallDir,
+            String wasmtimeInstallerUrl,
+            boolean autoInstallWasmedge,
+            String wasmedgeInstallVersion,
+            String wasmedgeInstallDir,
+            String wasmedgeInstallerUrl,
+            boolean autoInstallScriptTools,
+            String denoInstallVersion,
+            String denoInstallDir,
+            String denoInstallerUrl,
+            String v8InstallVersion,
+            String v8InstallDir,
+            String rhaiInstallVersion,
+            String rhaiInstallDir,
+            long installTimeoutMillis) {
+        public static Options defaults() {
+            return new Options(
+                    "",
+                    true,
+                    "latest",
+                    "",
+                    "https://wasmtime.dev/install.sh",
+                    false,
+                    "latest",
+                    "",
+                    "https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh",
+                    true,
+                    "latest",
+                    "",
+                    "https://deno.land/install.sh",
+                    "latest",
+                    "",
+                    "",
+                    "",
+                    120_000);
+        }
+    }
+}

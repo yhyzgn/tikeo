@@ -77,6 +77,32 @@ public class TikeeWorkerProperties {
         private String runtimeCommand = "";
         /** Extra runtime arguments appended before image. */
         private List<String> runtimeArgs = new ArrayList<>();
+        /** Automatically install local development script runtime tools when absent. */
+        private boolean autoInstallTools = true;
+        /** Deno version passed to the official installer; use latest by default. */
+        private String denoInstallVersion = "latest";
+        /** Optional Deno install directory. Blank uses state-dir/script-tools/deno or ~/.tikee/script-tools/deno. */
+        private String denoInstallDir = "";
+        /** Official Deno installer URL. */
+        private String denoInstallerUrl = "https://deno.land/install.sh";
+        /** Rhai crate version for cargo install. Blank uses latest. */
+        private String rhaiInstallVersion = "";
+        /** Optional Rhai install directory. Blank uses state-dir/script-tools/rhai or ~/.tikee/script-tools/rhai. */
+        private String rhaiInstallDir = "";
+        /** Automatically install WasmEdge when absent. Disabled by default until explicitly selected. */
+        private boolean wasmedgeAutoInstall = false;
+        /** WasmEdge version passed to the installer; latest by default. */
+        private String wasmedgeInstallVersion = "latest";
+        /** Optional WasmEdge install directory. Blank uses state-dir/sandbox-tools/wasmedge. */
+        private String wasmedgeInstallDir = "";
+        /** WasmEdge installer URL. */
+        private String wasmedgeInstallerUrl = "https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh";
+        /** V8 runtime version. Blank/latest follows the installer default. */
+        private String v8InstallVersion = "latest";
+        /** Optional V8 runtime install directory. Blank uses state-dir/sandbox-tools/v8. */
+        private String v8InstallDir = "";
+        /** Script tool installer timeout in milliseconds. */
+        private long toolInstallTimeoutMillis = 120_000;
         /** Per-language runtime images used inside the sandbox. */
         private ScriptRunnerImages images = new ScriptRunnerImages();
     }
