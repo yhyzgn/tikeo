@@ -5,14 +5,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.yhyzgn.tikee.processor.TaskOutcome;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.Test;
 
 class LocalSubprocessScriptRunnerTest {
+    @TempDir
+    Path tempDir;
+
     @Test
     void executesRealShellSyntaxForDevelopmentWorkers() throws Exception {
         LocalSubprocessScriptRunner runner = new LocalSubprocessScriptRunner(ScriptRunnerKind.SHELL);
@@ -23,6 +29,28 @@ class LocalSubprocessScriptRunnerTest {
 
         assertTrue(outcome.success());
         assertTrue(logs.stream().anyMatch(log -> log.equals("info:[script] shell-ok")));
+    }
+
+    @Test
+    void runsRhaiThroughScriptFileAndCapturesPrintOutput() throws Exception {
+        Path fakeRhai = tempDir.resolve("fake-rhai-run");
+        Files.writeString(fakeRhai, """
+                #!/usr/bin/env sh
+                test -f "$1" || exit 42
+                grep -q 'print("rhai-ok");' "$1" || exit 43
+                echo rhai-ok
+                """);
+        fakeRhai.toFile().setExecutable(true);
+        LocalSubprocessScriptRunner runner = new LocalSubprocessScriptRunner(
+                ScriptRunnerKind.RHAI,
+                List.of(fakeRhai.toString()));
+        List<String> logs = new ArrayList<>();
+
+        TaskOutcome outcome = runner.run(task(ScriptRunnerKind.RHAI, "rhai", "print(\"rhai-ok\");", policy()),
+                (level, message) -> logs.add(level + ":" + message));
+
+        assertTrue(outcome.success());
+        assertTrue(logs.stream().anyMatch(log -> log.equals("info:[script] rhai-ok")));
     }
 
     @Test

@@ -37,12 +37,31 @@ final class ScriptRunnerSupport {
             ScriptRunnerKind kind,
             ScriptRunnerTask task,
             ScriptRunnerLogSink logSink) {
+        return runProcess(processBuilder, kind, task, logSink, task.content());
+    }
+
+    static TaskOutcome runProcessWithoutStdin(
+            ProcessBuilder processBuilder,
+            ScriptRunnerKind kind,
+            ScriptRunnerTask task,
+            ScriptRunnerLogSink logSink) {
+        return runProcess(processBuilder, kind, task, logSink, null);
+    }
+
+    private static TaskOutcome runProcess(
+            ProcessBuilder processBuilder,
+            ScriptRunnerKind kind,
+            ScriptRunnerTask task,
+            ScriptRunnerLogSink logSink,
+            String stdin) {
         ScriptRunnerLogSink sink = logSink == null ? ScriptRunnerLogSink.NOOP : logSink;
         try {
             Process process = processBuilder.start();
             Thread stdoutReader = streamReader(process.getInputStream());
             Thread stderrReader = streamReader(process.getErrorStream());
-            process.getOutputStream().write(task.content().getBytes(StandardCharsets.UTF_8));
+            if (stdin != null) {
+                process.getOutputStream().write(stdin.getBytes(StandardCharsets.UTF_8));
+            }
             process.getOutputStream().close();
 
             boolean completed = process.waitFor(task.policy().timeoutMillis(), TimeUnit.MILLISECONDS);

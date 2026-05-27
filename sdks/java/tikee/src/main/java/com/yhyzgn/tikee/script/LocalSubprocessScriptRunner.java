@@ -1,6 +1,9 @@
 package com.yhyzgn.tikee.script;
 
 import com.yhyzgn.tikee.processor.TaskOutcome;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 /** Development-only local subprocess runner for dynamic scripts. */
@@ -34,7 +37,38 @@ public final class LocalSubprocessScriptRunner implements ScriptRunner {
 
     @Override
     public TaskOutcome run(ScriptRunnerTask task, ScriptRunnerLogSink logSink) {
+        if (kind == ScriptRunnerKind.RHAI) {
+            return runRhaiFile(task, logSink);
+        }
         ProcessBuilder builder = new ProcessBuilder(command(task));
+        configureEnvironment(builder, task);
+        return ScriptRunnerSupport.runProcess(builder, kind, task, logSink);
+    }
+
+    private TaskOutcome runRhaiFile(ScriptRunnerTask task, ScriptRunnerLogSink logSink) {
+        Path script = null;
+        try {
+            script = Files.createTempFile("tikee-rhai-script-", ".rhai");
+            Files.writeString(script, task.content());
+            java.util.ArrayList<String> command = new java.util.ArrayList<>(command(task));
+            command.add(script.toString());
+            ProcessBuilder builder = new ProcessBuilder(command);
+            configureEnvironment(builder, task);
+            return ScriptRunnerSupport.runProcessWithoutStdin(builder, kind, task, logSink);
+        } catch (IOException error) {
+            throw new ScriptRunnerException("failed to prepare rhai script file: " + error.getMessage(), error);
+        } finally {
+            if (script != null) {
+                try {
+                    Files.deleteIfExists(script);
+                } catch (IOException ignored) {
+                    // Best-effort cleanup only.
+                }
+            }
+        }
+    }
+
+    private void configureEnvironment(ProcessBuilder builder, ScriptRunnerTask task) {
         builder.environment().clear();
         builder.environment().put("TIKEE_SCRIPT_ID", task.scriptId());
         builder.environment().put("TIKEE_SCRIPT_VERSION_ID", task.versionId());
@@ -45,7 +79,6 @@ public final class LocalSubprocessScriptRunner implements ScriptRunner {
                 builder.environment().put(name, value);
             }
         }
-        return ScriptRunnerSupport.runProcess(builder, kind, task, logSink);
     }
 
     List<String> command(ScriptRunnerTask task) {
