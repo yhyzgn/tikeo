@@ -18,8 +18,9 @@ build/
 *.swp
 
 # Local development databases
-*.db
-*.db*
+# *.db
+*.db-*
+*.db.*
 
 # Java/Gradle build output
 sdks/java/**/build/

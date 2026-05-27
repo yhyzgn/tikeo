@@ -40,8 +40,8 @@ tikee:
         rhai: ${TIKEE_WORKER_SCRIPT_RHAI_IMAGE:}
 
   management:
-    enabled: ${TIKEE_MANAGEMENT_ENABLED:false}
+    enabled: ${TIKEE_MANAGEMENT_ENABLED:true}
     endpoint: ${TIKEE_MANAGEMENT_ENDPOINT:http://127.0.0.1:9999}
-    api-key: ${TIKEE_MANAGEMENT_API_KEY:}
+    api-key: ${TIKEE_MANAGEMENT_API_KEY:tk-TBP5qDyzqkagXI8Rbr5e3tMayvL6Y3ppk7WLZae1hqgwVhD1eRWLHZzzV7ToOh73}
     namespace: ${TIKEE_MANAGEMENT_NAMESPACE:default}
     app: ${TIKEE_MANAGEMENT_APP:default}
