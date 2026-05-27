@@ -5,9 +5,13 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Unified installer for worker-side sandbox/runtime tools. */
 public final class SandboxToolInstaller {
+    private static final Logger log = LoggerFactory.getLogger(SandboxToolInstaller.class);
+
     private SandboxToolInstaller() {}
 
     public enum Tool {
@@ -36,13 +40,22 @@ public final class SandboxToolInstaller {
             long installTimeoutMillis) {}
 
     public static Path install(Options options) {
-        return switch (options.tool()) {
+        log.info(
+                "[tikee.sandbox] installing tool={} version={} installDir={} platform={} timeoutMs={}",
+                options.tool().binaryName(),
+                cleanVersion(options.installVersion()),
+                options.installDir(),
+                runtimePlatform(),
+                options.installTimeoutMillis());
+        Path binary = switch (options.tool()) {
             case WASMTIME -> installWasmtime(options);
             case WASMEDGE -> installWasmEdge(options);
             case DENO -> installDeno(options);
             case V8 -> installV8(options);
             case RHAI -> installRhai(options);
         };
+        log.info("[tikee.sandbox] installed tool={} binary={}", options.tool().binaryName(), binary);
+        return binary;
     }
 
     public static Path defaultInstallDir(Tool tool) {
@@ -58,13 +71,15 @@ public final class SandboxToolInstaller {
     }
 
     public static boolean canInstall(Tool tool) {
-        return switch (tool) {
+        boolean canInstall = switch (tool) {
             case WASMTIME -> canInstallWasmtime();
             case WASMEDGE -> canInstallWasmEdge();
             case DENO -> canInstallDeno();
             case V8 -> canInstallV8();
             case RHAI -> canInstallRhai();
         };
+        log.info("[tikee.sandbox] installer prerequisites tool={} available={}", tool.binaryName(), canInstall);
+        return canInstall;
     }
 
     private static boolean canInstallWasmtime() {
@@ -194,6 +209,7 @@ public final class SandboxToolInstaller {
 
     private static void runCommand(ProcessBuilder builder, long timeoutMillis, String label) {
         try {
+            log.info("[tikee.sandbox] starting installer label={} command={}", label, sanitizedCommand(builder.command()));
             builder.redirectErrorStream(true);
             builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
             Process process = builder.start();
@@ -204,6 +220,7 @@ public final class SandboxToolInstaller {
             if (process.exitValue() != 0) {
                 throw new IllegalStateException(label + " installer exited with code " + process.exitValue());
             }
+            log.info("[tikee.sandbox] installer finished label={} exitCode={}", label, process.exitValue());
         } catch (Exception error) {
             throw new IllegalStateException(label + " installer failed", error);
         }
@@ -238,6 +255,16 @@ public final class SandboxToolInstaller {
 
     private static String versionArg(String version) {
         return version == null || version.isBlank() || "latest".equalsIgnoreCase(version) ? "" : " " + shellQuote(version);
+    }
+
+    private static java.util.List<String> sanitizedCommand(java.util.List<String> command) {
+        return command.stream()
+                .map(part -> part == null ? "" : part.replaceAll("(?i)(token|password|secret)=\\S+", "$1=<redacted>"))
+                .toList();
+    }
+
+    private static String cleanVersion(String version) {
+        return version == null || version.isBlank() ? "latest" : version;
     }
 
     private static String shellQuote(String value) {

@@ -6,9 +6,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Resolves sandbox/runtime tool commands and optionally installs missing tools. */
 public final class SandboxToolResolver {
+    private static final Logger log = LoggerFactory.getLogger(SandboxToolResolver.class);
+
     private final Options options;
 
     public SandboxToolResolver(Options options) {
@@ -16,21 +20,34 @@ public final class SandboxToolResolver {
     }
 
     public String resolveCommand(SandboxToolInstaller.Tool tool) {
+        log.info("[tikee.sandbox] resolving tool={} platform={} installDir={}", tool.binaryName(), SandboxToolInstaller.runtimePlatform(), installDir(tool));
         String command = tool.binaryName();
         if (explicitInstallDir(tool).isEmpty() && runtimeAvailable(command, "--version")) {
+            log.info("[tikee.sandbox] tool={} found on PATH command={}", tool.binaryName(), command);
             return command;
         }
         if (explicitInstallDir(tool).isEmpty()) {
             command = localCommand(tool);
             if (runtimeAvailable(command, "--version")) {
+                log.info("[tikee.sandbox] tool={} found in managed install command={}", tool.binaryName(), command);
                 return command;
             }
         }
         command = installIfAllowed(tool);
         if (explicitInstallDir(tool).isPresent()) {
-            return runtimeAvailable(command, "--version") ? command : localCommand(tool);
+            if (runtimeAvailable(command, "--version")) {
+                log.info("[tikee.sandbox] tool={} installed/resolved command={}", tool.binaryName(), command);
+                return command;
+            }
+            log.info("[tikee.sandbox] tool={} unavailable after explicit-dir resolution; returning local command={}", tool.binaryName(), localCommand(tool));
+            return localCommand(tool);
         }
-        return runtimeAvailable(command, "--version") ? command : tool.binaryName();
+        if (runtimeAvailable(command, "--version")) {
+            log.info("[tikee.sandbox] tool={} installed/resolved command={}", tool.binaryName(), command);
+            return command;
+        }
+        log.info("[tikee.sandbox] tool={} unavailable after environment check; returning fallback command={}", tool.binaryName(), tool.binaryName());
+        return tool.binaryName();
     }
 
     public Optional<String> resolveWasmtimeCommand() {
@@ -103,14 +120,17 @@ public final class SandboxToolResolver {
 
     private String installIfAllowed(SandboxToolInstaller.Tool tool) {
         if (!autoInstallEnabled(tool)) {
+            log.info("[tikee.sandbox] auto-install disabled tool={}", tool.binaryName());
             return tool.binaryName();
         }
         if (!SandboxToolInstaller.canInstall(tool)) {
+            log.info("[tikee.sandbox] auto-install prerequisites missing tool={}", tool.binaryName());
             return tool.binaryName();
         }
         try {
             return SandboxToolInstaller.install(installOptions(tool)).toString();
         } catch (IllegalStateException error) {
+            log.info("[tikee.sandbox] auto-install failed tool={} error={}", tool.binaryName(), error.getMessage());
             return tool.binaryName();
         }
     }
