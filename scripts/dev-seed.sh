@@ -31,6 +31,8 @@ SELECT 'namespaces' AS table_name, COUNT(*) AS rows FROM namespaces WHERE id LIK
 UNION ALL SELECT 'apps', COUNT(*) FROM apps WHERE id LIKE 'app-dev-%'
 UNION ALL SELECT 'jobs', COUNT(*) FROM jobs WHERE id LIKE 'job-dev-%'
 UNION ALL SELECT 'scripts', COUNT(*) FROM scripts WHERE id LIKE 'script-dev-%'
+UNION ALL SELECT 'script_language_examples', COUNT(*) FROM scripts WHERE id LIKE 'script-dev-%-example'
+UNION ALL SELECT 'script_jobs', COUNT(*) FROM jobs WHERE id LIKE 'job-dev-script-%-example'
 UNION ALL SELECT 'workflows', COUNT(*) FROM workflows WHERE id LIKE 'wf-dev-%'
 UNION ALL SELECT 'queue', COUNT(*) FROM dispatch_queue WHERE id LIKE 'queue-dev-%';
 SQL

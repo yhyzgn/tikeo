@@ -591,7 +591,7 @@ Starter 需要提供：
 |------|-------------|----------|----------|
 | 默认支持 | Shell、Python、JavaScript、TypeScript、PowerShell | 运维脚本、数据处理、API 编排 | **sandbox=auto 为默认后端选择**：可编译到 WASM 时优先 Wasmtime；原生命令/现成二进制优先 Anthropic Sandbox Runtime (srt)；JavaScript/TypeScript 逻辑优先 Deno；未匹配时回退 Wasmtime。可手动指定 wasmtime、wasmedge、srt、deno、v8、docker、podman 或 custom |
 | 安全表达式 | Rhai / CEL / JSONLogic | 工作流条件、参数转换、轻量计算 | 嵌入式解释器，禁用反射、IO、网络、进程启动 |
-| 直接 WASM 插件 | WASM/WASI | 可复用处理器、跨语言插件、强隔离任务 | `language=wasm` 仍表示原生 WASI/WASM 模块模式；Wasmtime 45.x 作为 worker 侧运行时；fuel/epoch interruption + ResourceLimiter/memory cap + capability-based WASI + 签名校验；默认无网络、无预打开目录、仅允许显式 env |
+| 直接 WASM 插件 | WASM/WASI | 可复用处理器、跨语言插件、强隔离任务 | `language=wasm` 仅作为历史/底层直接 WASM 模块兼容模式，不再出现在脚本创建/编辑语言枚举中；Wasmtime 45.x 作为 worker 侧运行时；fuel/epoch interruption + ResourceLimiter/memory cap + capability-based WASI + 签名校验；默认无网络、无预打开目录、仅允许显式 env |
 | 企业扩展 | 容器化脚本运行器 | 需要系统依赖或复杂运行时的脚本 | 独立 Pod/容器，seccomp/AppArmor、NetworkPolicy、只读 rootfs |
 
 **执行安全边界**：
@@ -2237,7 +2237,7 @@ tikee/
   - [x] 脚本编辑器语法高亮（CodeMirror 6 Shell/Python/Node）
   - [x] Worker 侧语言 Runner 抽象（072：Rust SDK `ScriptRunner` / `ScriptRunnerTask` / `ScriptRunnerPolicy`，Shell/Python/JavaScript/TypeScript/PowerShell/Rhai 类型识别；`script:<language>` 表示语言能力而非后端类型，默认后端为 sandbox=auto 自适应）
   - [x] Worker 侧沙箱执行器首个实现（073：Rust SDK `LocalSubprocessScriptRunner`，显式 opt-in，本地 stdin 子进程边界；校验 released version_id/version_number、content SHA-256、默认拒绝网络/文件/Secret，支持 timeout/output cap/runtime missing 测试；作为非默认兼容后端保留）
-  - [x] 普通脚本 Worker Tunnel 协议绑定与语言能力路由（074：`ScriptProcessorBinding` 传递 released `script_versions` 快照 bytes/SHA-256/version/policy；dispatcher fail-closed 并按 `script:<language>`、`script:*`、`*` 过滤 worker；Worker 必须显式注册对应语言 Runner；Web 展示语言能力与默认 WASM 后端语义）
+  - [x] 普通脚本 Worker Tunnel 协议绑定与语言能力路由（074：`ScriptProcessorBinding` 传递 released `script_versions` 快照 bytes/SHA-256/version/policy；dispatcher fail-closed 并按 `script:<language>`、`script:*`、`*` 过滤 worker；Worker 必须显式注册对应语言 Runner；Web 展示语言能力与默认 WASM 后端语义，创建/编辑脚本语言仅提供普通脚本语言而不提供原始 WASM）
   - [x] Worker 侧容器化脚本 Runner 基础（075：Rust SDK `ContainerScriptRunner`，显式 opt-in，通过 Docker-compatible CLI `run --rm -i` 以 stdin 传入 released snapshot；默认 `--network=none`、`--read-only`、无宿主路径挂载，仅注入白名单 env 和 tikee 元数据；单元测试覆盖命令边界与危险策略预检，真实 Docker/K8s 执行治理后续增强）
   - [x] 脚本执行治理失败可见性基础（077：dispatcher/Worker result 将无匹配 capability、缺 runner、策略拒绝、digest mismatch、timeout、output limit、runtime unavailable 归类为 `script_execution_governance` 实例日志；补充脚本 Worker Pool Docker/K8s 部署约束；Server 仍只调度不执行用户代码）
   - [x] 脚本执行治理查询与 UI 高亮基础（078：实例日志 DTO 解析 `script_execution_governance` JSON 为 event/failure_class/message 字段；`page_token=script_execution_governance` 可筛选治理日志；Web Instances 日志抽屉高亮治理失败；AlertCondition 增加 `script_governance_failure` 条件）

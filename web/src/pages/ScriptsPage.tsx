@@ -26,7 +26,6 @@ const LANGUAGE_OPTIONS = [
   { value: 'typescript', label: 'TypeScript' },
   { value: 'powershell', label: 'PowerShell' },
   { value: 'rhai', label: 'Rhai' },
-  { value: 'wasm', label: 'WASM' },
 ];
 
 const SANDBOX_OPTIONS = [
@@ -569,15 +568,6 @@ export function ScriptsPage() {
           <Form.Item name="language" label="语言" rules={[{ required: true, message: '请选择语言' }]} initialValue="shell">
             <Select options={LANGUAGE_OPTIONS} />
           </Form.Item>
-          {currentLanguage === 'wasm' && (
-            <Alert
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message="直接 WASM 模块策略"
-              description="language=wasm 用于原生 WASI/WASM 插件；Shell/Python/JavaScript/TypeScript/PowerShell 等脚本语言默认使用 sandbox=auto 自适应后端。模块会携带 SHA-256 摘要；默认 runtime=wasmtime、entrypoint=_start、fuel=10000000、禁止网络，签名字段预留。"
-            />
-          )}
           <Form.Item name="version" label="版本" initialValue="1.0.0">
             <Input />
           </Form.Item>

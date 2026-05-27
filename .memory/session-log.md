@@ -1782,3 +1782,7 @@ Commit/push:
 - Go run-loop/Python/Node SDK work remains deferred; Helm stays deferred until external DB, secrets, gateway, and TLS parameters stabilize.
 
 - 2026-05-27 09:38: Locked script language identifiers to full JavaScript / TypeScript values so the web script editor can select explicit CodeMirror JavaScript vs TypeScript linting modes. Legacy js / ts aliases remain parse-compatible; dispatch and Java worker capabilities now canonicalize to script:javascript / script:typescript. Verified with targeted Rust, Web, and Java tests.
+
+- 2026-05-27 09:51: Removed raw WASM from Web script create/edit language options. Direct language=wasm remains documented as a historical/low-level compatibility path, while normal scripts use sandbox.backend auto/wasmtime/wasmedge/srt/deno/v8/docker/podman/custom instead of WASM as a script type.
+
+- 2026-05-27 09:54: Added local dev seed script examples and API jobs for every Web script language enum: shell, python, javascript, typescript, powershell, and rhai. Applied scripts/dev-seed.sh to tikee-dev.db and verified six script_language_examples plus six script_jobs.

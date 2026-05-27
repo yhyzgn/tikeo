@@ -39,4 +39,9 @@ describe('scripts language options', () => {
     expect(codeEditorSource).toContain("case 'typescript':");
     expect(codeEditorSource).toContain('javascript({ typescript: true })');
   });
+
+  test('does not offer raw WASM as a create or edit script language', () => {
+    expect(scriptsSource).not.toContain("{ value: 'wasm', label: 'WASM' }");
+    expect(scriptsSource).toContain('普通脚本语言默认使用 sandbox=auto');
+  });
 });

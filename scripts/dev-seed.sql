@@ -148,6 +148,102 @@ ON CONFLICT(id) DO UPDATE SET
   created_by = excluded.created_by,
   created_at = excluded.created_at;
 
+
+-- Script language examples for local UI/API validation. These mirror the Web create/edit language enum.
+INSERT INTO scripts (id, name, language, version, content, status, released_version_id, released_version_number, timeout_seconds, max_memory_bytes, allow_network, allowed_env_vars, policy_json, created_by, created_at, updated_at)
+VALUES
+  ('script-dev-shell-example', 'dev-shell-script-example', 'shell', '1.0.0', '#!/usr/bin/env sh
+set -eu
+echo "tikee shell script example ok"
+', 'approved', 'script-version-dev-shell-example-1', 1, 10, 67108864, 0, '[]', '{"resources":{"timeout_ms":10000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[],"sandbox":{"backend":"auto"}}', 'usr-admin', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+  ('script-dev-python-example', 'dev-python-script-example', 'python', '1.0.0', 'import json
+print(json.dumps({"language": "python", "status": "ok"}))
+', 'approved', 'script-version-dev-python-example-1', 1, 10, 67108864, 0, '[]', '{"resources":{"timeout_ms":10000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[],"sandbox":{"backend":"auto"}}', 'usr-admin', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+  ('script-dev-javascript-example', 'dev-javascript-script-example', 'javascript', '1.0.0', 'const result = { language: "javascript", status: "ok" };
+console.log(JSON.stringify(result));
+', 'approved', 'script-version-dev-javascript-example-1', 1, 10, 67108864, 0, '[]', '{"resources":{"timeout_ms":10000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[],"sandbox":{"backend":"auto"}}', 'usr-admin', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+  ('script-dev-typescript-example', 'dev-typescript-script-example', 'typescript', '1.0.0', 'type Result = { language: string; status: string };
+const result: Result = { language: "typescript", status: "ok" };
+console.log(JSON.stringify(result));
+', 'approved', 'script-version-dev-typescript-example-1', 1, 10, 67108864, 0, '[]', '{"resources":{"timeout_ms":10000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[],"sandbox":{"backend":"auto"}}', 'usr-admin', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+  ('script-dev-powershell-example', 'dev-powershell-script-example', 'powershell', '1.0.0', '$result = @{ language = "powershell"; status = "ok" } | ConvertTo-Json -Compress
+Write-Output $result
+', 'approved', 'script-version-dev-powershell-example-1', 1, 10, 67108864, 0, '[]', '{"resources":{"timeout_ms":10000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[],"sandbox":{"backend":"auto"}}', 'usr-admin', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+  ('script-dev-rhai-example', 'dev-rhai-script-example', 'rhai', '1.0.0', 'let result = "rhai script example ok";
+print(result);
+', 'approved', 'script-version-dev-rhai-example-1', 1, 10, 67108864, 0, '[]', '{"resources":{"timeout_ms":10000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[],"sandbox":{"backend":"auto"}}', 'usr-admin', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+ON CONFLICT(id) DO UPDATE SET
+  name = excluded.name,
+  language = excluded.language,
+  version = excluded.version,
+  content = excluded.content,
+  status = excluded.status,
+  released_version_id = excluded.released_version_id,
+  released_version_number = excluded.released_version_number,
+  timeout_seconds = excluded.timeout_seconds,
+  max_memory_bytes = excluded.max_memory_bytes,
+  allow_network = excluded.allow_network,
+  allowed_env_vars = excluded.allowed_env_vars,
+  policy_json = excluded.policy_json,
+  created_by = excluded.created_by,
+  updated_at = excluded.updated_at;
+
+INSERT INTO script_versions (id, script_id, version_number, content, content_sha256, language, status, timeout_seconds, max_memory_bytes, allow_network, allowed_env_vars, policy_json, created_by, created_at)
+VALUES
+  ('script-version-dev-shell-example-1', 'script-dev-shell-example', 1, '#!/usr/bin/env sh
+set -eu
+echo "tikee shell script example ok"
+', '127d5da7417c18bf3d9567da168de6718bef6c78edbe00c6c50efafd4e27f845', 'shell', 'approved', 10, 67108864, 0, '[]', '{"resources":{"timeout_ms":10000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[],"sandbox":{"backend":"auto"}}', 'usr-admin', '2026-01-01T00:00:00Z'),
+  ('script-version-dev-python-example-1', 'script-dev-python-example', 1, 'import json
+print(json.dumps({"language": "python", "status": "ok"}))
+', '0c528eb311f36c396eb445a4cb5bd6a2f9266d706498d128c5a08eba03995b68', 'python', 'approved', 10, 67108864, 0, '[]', '{"resources":{"timeout_ms":10000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[],"sandbox":{"backend":"auto"}}', 'usr-admin', '2026-01-01T00:00:00Z'),
+  ('script-version-dev-javascript-example-1', 'script-dev-javascript-example', 1, 'const result = { language: "javascript", status: "ok" };
+console.log(JSON.stringify(result));
+', '128b0ec123c1626fa72e31aa0f2f6b3b59163070005e8a191e5033cbfe30393f', 'javascript', 'approved', 10, 67108864, 0, '[]', '{"resources":{"timeout_ms":10000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[],"sandbox":{"backend":"auto"}}', 'usr-admin', '2026-01-01T00:00:00Z'),
+  ('script-version-dev-typescript-example-1', 'script-dev-typescript-example', 1, 'type Result = { language: string; status: string };
+const result: Result = { language: "typescript", status: "ok" };
+console.log(JSON.stringify(result));
+', '3bc42bcfb49053fb4004bb655d17ce7854c3b83ecb016f790f368ade5567f8ea', 'typescript', 'approved', 10, 67108864, 0, '[]', '{"resources":{"timeout_ms":10000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[],"sandbox":{"backend":"auto"}}', 'usr-admin', '2026-01-01T00:00:00Z'),
+  ('script-version-dev-powershell-example-1', 'script-dev-powershell-example', 1, '$result = @{ language = "powershell"; status = "ok" } | ConvertTo-Json -Compress
+Write-Output $result
+', '737738c0056b58812b5f2849766b0d00f526d35a1c07f5c5fc6b802f56c06097', 'powershell', 'approved', 10, 67108864, 0, '[]', '{"resources":{"timeout_ms":10000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[],"sandbox":{"backend":"auto"}}', 'usr-admin', '2026-01-01T00:00:00Z'),
+  ('script-version-dev-rhai-example-1', 'script-dev-rhai-example', 1, 'let result = "rhai script example ok";
+print(result);
+', 'c5fbea054ea991344bda993da92f06498e28822e57f8e6c51c77d694f1d4b6c9', 'rhai', 'approved', 10, 67108864, 0, '[]', '{"resources":{"timeout_ms":10000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[],"sandbox":{"backend":"auto"}}', 'usr-admin', '2026-01-01T00:00:00Z')
+ON CONFLICT(id) DO UPDATE SET
+  script_id = excluded.script_id,
+  version_number = excluded.version_number,
+  content = excluded.content,
+  content_sha256 = excluded.content_sha256,
+  language = excluded.language,
+  status = excluded.status,
+  timeout_seconds = excluded.timeout_seconds,
+  max_memory_bytes = excluded.max_memory_bytes,
+  allow_network = excluded.allow_network,
+  allowed_env_vars = excluded.allowed_env_vars,
+  policy_json = excluded.policy_json,
+  created_by = excluded.created_by,
+  created_at = excluded.created_at;
+
+INSERT INTO jobs (id, namespace_id, app_id, name, schedule_type, schedule_expr, processor_name, enabled, created_at, updated_at, script_id)
+VALUES
+  ('job-dev-script-shell-example', 'ns-dev-default', 'app-dev-default', 'dev-shell-script-job', 'api', NULL, NULL, 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-shell-example'),
+  ('job-dev-script-python-example', 'ns-dev-default', 'app-dev-default', 'dev-python-script-job', 'api', NULL, NULL, 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-python-example'),
+  ('job-dev-script-javascript-example', 'ns-dev-default', 'app-dev-default', 'dev-javascript-script-job', 'api', NULL, NULL, 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-javascript-example'),
+  ('job-dev-script-typescript-example', 'ns-dev-default', 'app-dev-default', 'dev-typescript-script-job', 'api', NULL, NULL, 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-typescript-example'),
+  ('job-dev-script-powershell-example', 'ns-dev-default', 'app-dev-default', 'dev-powershell-script-job', 'api', NULL, NULL, 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-powershell-example'),
+  ('job-dev-script-rhai-example', 'ns-dev-default', 'app-dev-default', 'dev-rhai-script-job', 'api', NULL, NULL, 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-rhai-example')
+ON CONFLICT(id) DO UPDATE SET
+  namespace_id = excluded.namespace_id,
+  app_id = excluded.app_id,
+  name = excluded.name,
+  schedule_type = excluded.schedule_type,
+  schedule_expr = excluded.schedule_expr,
+  processor_name = excluded.processor_name,
+  enabled = excluded.enabled,
+  script_id = excluded.script_id,
+  updated_at = excluded.updated_at;
+
 INSERT INTO workflows (id, name, definition, status, created_by, created_at, updated_at)
 VALUES ('wf-dev-basic-pipeline', 'dev-basic-pipeline', '{"nodes":[{"key":"hello","name":"API hello","kind":"job","job_id":"job-dev-api-hello","processor_name":null,"child_workflow_id":null,"map_items":null,"config":null},{"key":"report","name":"Minute report","kind":"job","job_id":"job-dev-cron-minute-report","processor_name":null,"child_workflow_id":null,"map_items":null,"config":null}],"edges":[{"from":"hello","to":"report","condition":"on_success"}]}', 'active', 'usr-admin', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
 ON CONFLICT(id) DO UPDATE SET
