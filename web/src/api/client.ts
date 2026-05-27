@@ -177,8 +177,8 @@ export interface SdkApiKeySummary {
   created_by: string;
   revoked_by: string | null;
   rotated_from: string | null;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CreateSdkApiKeyRequest {
