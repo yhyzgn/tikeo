@@ -24,6 +24,8 @@ import io.grpc.Server;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -227,14 +229,23 @@ class GrpcTikeeWorkerClientTest {
                     Duration.ofSeconds(2),
                     ignored -> {});
 
-            client.start();
-            service.awaitResult();
-            service.awaitTaskLogs(3);
-            client.close();
+            PrintStream originalOut = System.out;
+            ByteArrayOutputStream console = new ByteArrayOutputStream();
+            try (PrintStream capture = new PrintStream(console, true, StandardCharsets.UTF_8)) {
+                System.setOut(capture);
+                client.start();
+                service.awaitResult();
+                service.awaitTaskLogs(3);
+                client.close();
+            } finally {
+                System.setOut(originalOut);
+            }
 
+            String processorLog = "[billing.sql-sync] plugin SQL processor received payload='{}'";
             assertTrue(service.taskLogs.stream()
-                    .anyMatch(log -> log.getMessage().contains("[billing.sql-sync] plugin SQL processor received payload='{}'")
+                    .anyMatch(log -> log.getMessage().contains(processorLog)
                             && log.getAssignmentToken().equals("java-assign-token")));
+            assertEquals(1, countOccurrences(console.toString(StandardCharsets.UTF_8), processorLog));
         } finally {
             channel.shutdownNow();
             server.shutdownNow();
@@ -605,10 +616,17 @@ class GrpcTikeeWorkerClientTest {
                     Duration.ofMillis(20),
                     ignored -> {});
 
-            client.start();
-            service.awaitResult();
-            service.awaitTaskLogs(3);
-            client.close();
+            PrintStream originalOut = System.out;
+            ByteArrayOutputStream console = new ByteArrayOutputStream();
+            try (PrintStream capture = new PrintStream(console, true, StandardCharsets.UTF_8)) {
+                System.setOut(capture);
+                client.start();
+                service.awaitResult();
+                service.awaitTaskLogs(3);
+                client.close();
+            } finally {
+                System.setOut(originalOut);
+            }
 
             assertNull(observedProcessor.get(), "script binding must not invoke SDK processor handlers");
             assertEquals("script_shell", observedScript.get().scriptId());
@@ -616,12 +634,25 @@ class GrpcTikeeWorkerClientTest {
             Worker.TaskResult result = service.result.get();
             assertTrue(result.getSuccess());
             assertEquals("script ok", result.getMessage());
-            assertTrue(service.taskLogs.stream()
-                    .anyMatch(log -> log.getMessage().contains("[script] hello from sandbox")));
+            String scriptLog = "[script] hello from sandbox";
+            assertEquals(1, service.taskLogs.stream()
+                    .filter(log -> log.getMessage().contains(scriptLog))
+                    .count());
+            assertTrue(console.toString(StandardCharsets.UTF_8).contains("[tikee-worker] " + scriptLog));
         } finally {
             channel.shutdownNow();
             server.shutdownNow();
         }
+    }
+
+    private static int countOccurrences(String value, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = value.indexOf(needle, index)) >= 0) {
+            count += 1;
+            index += needle.length();
+        }
+        return count;
     }
 
     private static String sha256(String content) throws Exception {

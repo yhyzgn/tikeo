@@ -657,44 +657,21 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                 task.getJobId(),
                 task.getProcessorName()
             );
-            emitTaskLog(
+            emitTaskLogSafely(
                 task,
                 assignedWorkerId,
                 "info",
                 "received task " +
                     task.getInstanceId() +
                     " processor=" +
-                    task.getProcessorName()
+                    task.getProcessorName(),
+                true
             );
             TaskOutcome outcome;
-            if (
-                task.hasProcessorBinding() &&
-                task.getProcessorBinding().hasWasm()
-            ) {
-                outcome = processWasmBinding(task, assignedWorkerId);
-            } else if (
-                task.hasProcessorBinding() &&
-                task.getProcessorBinding().hasScript()
-            ) {
-                outcome = processScriptBinding(task, assignedWorkerId);
-            } else {
-                try {
-                    outcome = captureProcessorStdout(
-                        task,
-                        assignedWorkerId,
-                        () ->
-                            processor.process(
-                                new TaskContext(
-                                    task.getJobId(),
-                                    task.getProcessorName(),
-                                    task.getInstanceId(),
-                                    task.getPayload().toByteArray()
-                                )
-                            )
-                    );
-                } catch (Exception error) {
-                    outcome = TaskOutcome.failed(error.getMessage());
-                }
+            try {
+                outcome = captureTaskConsole(task, assignedWorkerId, () -> processDispatchedTask(task, assignedWorkerId));
+            } catch (Exception error) {
+                outcome = TaskOutcome.failed(error.getMessage());
             }
             String level = outcome.success() ? "info" : "error";
             log.info(
@@ -704,7 +681,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                 outcome.success(),
                 outcome.message()
             );
-            emitTaskLog(
+            emitTaskLogSafely(
                 task,
                 assignedWorkerId,
                 level,
@@ -713,7 +690,8 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                     " success=" +
                     outcome.success() +
                     " message=" +
-                    outcome.message()
+                    outcome.message(),
+                true
             );
             send(
                 Worker.WorkerMessage.newBuilder()
@@ -731,45 +709,86 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
         });
     }
 
-    private TaskOutcome captureProcessorStdout(
+    private TaskOutcome processDispatchedTask(
+        Worker.DispatchTask task,
+        String assignedWorkerId
+    ) throws Exception {
+        if (task.hasProcessorBinding() && task.getProcessorBinding().hasWasm()) {
+            return processWasmBinding(task, assignedWorkerId);
+        }
+        if (task.hasProcessorBinding() && task.getProcessorBinding().hasScript()) {
+            return processScriptBinding(task, assignedWorkerId);
+        }
+        return processor.process(
+            new TaskContext(
+                task.getJobId(),
+                task.getProcessorName(),
+                task.getInstanceId(),
+                task.getPayload().toByteArray()
+            )
+        );
+    }
+
+    private TaskOutcome captureTaskConsole(
         Worker.DispatchTask task,
         String assignedWorkerId,
         Callable<TaskOutcome> processorCall
     ) throws Exception {
         PrintStream originalOut = System.out;
-        ByteArrayOutputStream captured = new ByteArrayOutputStream();
-        TaskStdoutCaptureStream tee = new TaskStdoutCaptureStream(
+        PrintStream originalErr = System.err;
+        ByteArrayOutputStream capturedOut = new ByteArrayOutputStream();
+        ByteArrayOutputStream capturedErr = new ByteArrayOutputStream();
+        TaskStdoutCaptureStream outTee = new TaskStdoutCaptureStream(
             originalOut,
-            captured
+            capturedOut
+        );
+        TaskStdoutCaptureStream errTee = new TaskStdoutCaptureStream(
+            originalErr,
+            capturedErr
         );
         try (
             PrintStream captureOut = new PrintStream(
-                tee,
+                outTee,
+                true,
+                java.nio.charset.StandardCharsets.UTF_8
+            );
+            PrintStream captureErr = new PrintStream(
+                errTee,
                 true,
                 java.nio.charset.StandardCharsets.UTF_8
             )
         ) {
             System.setOut(captureOut);
+            System.setErr(captureErr);
             return processorCall.call();
         } finally {
             System.setOut(originalOut);
-            emitCapturedProcessorStdout(
+            System.setErr(originalErr);
+            emitCapturedTaskConsole(
                 task,
                 assignedWorkerId,
-                captured.toString(java.nio.charset.StandardCharsets.UTF_8)
+                "info",
+                capturedOut.toString(java.nio.charset.StandardCharsets.UTF_8)
+            );
+            emitCapturedTaskConsole(
+                task,
+                assignedWorkerId,
+                "error",
+                capturedErr.toString(java.nio.charset.StandardCharsets.UTF_8)
             );
         }
     }
 
-    private void emitCapturedProcessorStdout(
+    private void emitCapturedTaskConsole(
         Worker.DispatchTask task,
         String assignedWorkerId,
+        String level,
         String output
     ) {
         for (String line : output.split("\\R")) {
             String trimmed = line.trim();
             if (!trimmed.isEmpty()) {
-                emitTaskLog(task, assignedWorkerId, "info", trimmed);
+                emitTaskLogSafely(task, assignedWorkerId, level, trimmed, false);
             }
         }
     }
@@ -804,8 +823,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                             binding.getAllowedEnvVarsList()
                         )
                     ),
-                    (level, message) ->
-                        emitTaskLog(task, assignedWorkerId, level, message)
+                    (level, message) -> printTaskLogLocally(level, message)
                 );
         } catch (Exception error) {
             return TaskOutcome.failed(error.getMessage());
@@ -858,11 +876,30 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                             binding.getSandboxBackend()
                         )
                     ),
-                    (level, message) ->
-                        emitTaskLog(task, assignedWorkerId, level, message)
+                    (level, message) -> printTaskLogLocally(level, message)
                 );
         } catch (Exception error) {
             return TaskOutcome.failed(error.getMessage());
+        }
+    }
+
+    private void emitTaskLogSafely(
+        Worker.DispatchTask task,
+        String assignedWorkerId,
+        String level,
+        String message,
+        boolean printLocally
+    ) {
+        try {
+            emitTaskLog(task, assignedWorkerId, level, message, printLocally);
+        } catch (RuntimeException error) {
+            log.warn(
+                "failed to emit task log instanceId={} level={} message={}",
+                task.getInstanceId(),
+                level,
+                message,
+                error
+            );
         }
     }
 
@@ -870,8 +907,12 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
         Worker.DispatchTask task,
         String assignedWorkerId,
         String level,
-        String message
+        String message,
+        boolean printLocally
     ) {
+        if (printLocally) {
+            printTaskLogLocally(level, message);
+        }
         send(
             Worker.WorkerMessage.newBuilder()
                 .setTaskLog(
@@ -886,6 +927,15 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                 )
                 .build()
         );
+    }
+
+    private static void printTaskLogLocally(String level, String message) {
+        String line = "[tikee-worker] " + message;
+        if ("error".equalsIgnoreCase(level)) {
+            System.err.println(line);
+        } else {
+            System.out.println(line);
+        }
     }
 
     private final class ServerObserver
