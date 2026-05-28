@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.yhyzgn.tikee.boot.lifecycle.TikeeWorkerLifecycle;
 import com.yhyzgn.tikee.management.client.TikeeJobClient;
 import com.yhyzgn.tikee.processor.TikeeProcessor;
+import com.yhyzgn.tikee.processor.TikeeProcessorKind;
 import com.yhyzgn.tikee.spring.processor.TikeeProcessorRegistry;
 import com.yhyzgn.tikee.worker.client.NoopTikeeWorkerClient;
 import com.yhyzgn.tikee.worker.client.TikeeWorkerClient;
@@ -29,6 +30,12 @@ class TikeeWorkerAutoConfigurationTest {
                     "tikee.worker.wasm.auto-install=false",
                     "tikee.worker.scripts.auto-install-tools=false");
 
+    private static java.util.List<String> scriptLanguages(NoopTikeeWorkerClient noop) {
+        return noop.registration().structuredCapabilities().scriptRunners().stream()
+                .map(runner -> runner.language())
+                .toList();
+    }
+
     @Test
     void dryRunCreatesNoopClientWithGeneratedRegistrationHint() throws Exception {
         installFakeWasmtime(stateDir);
@@ -39,7 +46,7 @@ class TikeeWorkerAutoConfigurationTest {
             NoopTikeeWorkerClient noop = (NoopTikeeWorkerClient) client;
             assertThat(noop.registration().clientInstanceId()).startsWith("java-");
             assertThat(noop.registration().app()).isEqualTo("billing");
-            assertThat(noop.registration().capabilities()).contains("script", "script:shell");
+            assertThat(scriptLanguages(noop)).contains("shell");
             assertThat(noop.running()).isTrue();
             assertThat(context.getBean(TikeeProcessorRegistry.class).handlers()).containsKey("demo.echo");
         });
@@ -64,7 +71,7 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.wasm.auto-install=false")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(noop.registration().capabilities()).contains("script:wasm");
+                    assertThat(scriptLanguages(noop)).contains("wasm");
                 });
     }
 
@@ -76,7 +83,7 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.wasm.auto-install=false")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(noop.registration().capabilities()).doesNotContain("script:wasm");
+                    assertThat(scriptLanguages(noop)).doesNotContain("wasm");
                 });
     }
 
@@ -89,7 +96,7 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.enabled=false")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(noop.registration().capabilities()).doesNotContain("script:wasm");
+                    assertThat(scriptLanguages(noop)).doesNotContain("wasm");
                 });
     }
 
@@ -103,8 +110,8 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.auto-install-tools=false")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(noop.registration().capabilities())
-                            .contains("script", "script:wasm", "script:shell", "script:python", "script:javascript", "script:typescript", "script:powershell", "script:rhai");
+                    assertThat(scriptLanguages(noop))
+                            .contains("wasm", "shell", "python", "javascript", "typescript", "powershell", "rhai");
                 });
     }
 
@@ -125,8 +132,8 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.images.rhai=rhaiscript/rhai:latest")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(noop.registration().capabilities())
-                            .contains("script", "script:shell", "script:python", "script:javascript", "script:typescript", "script:powershell", "script:rhai");
+                    assertThat(scriptLanguages(noop))
+                            .contains("shell", "python", "javascript", "typescript", "powershell", "rhai");
                 });
     }
 
@@ -142,8 +149,8 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.images.shell=alpine:3.20")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(noop.registration().capabilities())
-                            .contains("script", "script:shell", "script:python", "script:javascript", "script:typescript", "script:powershell", "script:rhai");
+                    assertThat(scriptLanguages(noop))
+                            .contains("shell", "python", "javascript", "typescript", "powershell", "rhai");
                 });
     }
 
@@ -159,8 +166,8 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.runtime-command=tikee-missing-container-runtime")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(noop.registration().capabilities())
-                            .contains("script", "script:shell", "script:python", "script:javascript", "script:typescript", "script:powershell", "script:rhai");
+                    assertThat(scriptLanguages(noop))
+                            .contains("shell", "python", "javascript", "typescript", "powershell", "rhai");
                 });
     }
 
@@ -185,24 +192,30 @@ class TikeeWorkerAutoConfigurationTest {
     }
 
     @Test
-    void customPluginProcessorCapabilityIsAdvertisedFromWorkerProperties() throws Exception {
+    void pluginProcessorCapabilityIsAdvertisedFromAnnotationMetadata() throws Exception {
         installFakeWasmtime(stateDir);
-        log.info(() -> "[java-sdk-plugin-test] verifying worker registration advertises plugin processor capability from properties");
+        log.info(() -> "[java-sdk-plugin-test] verifying worker registration advertises structured plugin processor metadata");
 
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.capabilities[0]=java",
                 "tikee.worker.capabilities[1]=spring-boot",
-                "tikee.worker.capabilities[2]=plugin-processor:sql",
                 "tikee.worker.labels.plugin.sql=enabled")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     log.info(() -> "[java-sdk-plugin-test] registration capabilities="
                             + noop.registration().capabilities());
+                    log.info(() -> "[java-sdk-plugin-test] structured capabilities="
+                            + noop.registration().structuredCapabilities());
                     log.info(() -> "[java-sdk-plugin-test] registration labels="
                             + noop.registration().labels());
                     assertThat(noop.registration().capabilities())
-                            .contains("java", "spring-boot", "plugin-processor:sql");
+                            .containsExactly("java", "spring-boot");
+                    assertThat(noop.registration().structuredCapabilities().pluginProcessors())
+                            .anySatisfy(plugin -> {
+                                assertThat(plugin.type()).isEqualTo("sql");
+                                assertThat(plugin.processorNames()).contains("billing.sql-sync");
+                            });
                     assertThat(noop.registration().labels()).containsEntry("plugin.sql", "enabled");
                 });
     }
@@ -243,11 +256,23 @@ class TikeeWorkerAutoConfigurationTest {
         DemoProcessor demoProcessor() {
             return new DemoProcessor();
         }
+
+        @Bean
+        DemoPluginProcessor demoPluginProcessor() {
+            return new DemoPluginProcessor();
+        }
     }
 
     static class DemoProcessor {
         @TikeeProcessor("demo.echo")
         public String echo(String payload) {
+            return payload;
+        }
+    }
+
+    static class DemoPluginProcessor {
+        @TikeeProcessor(value = "billing.sql-sync", kind = TikeeProcessorKind.PLUGIN, pluginType = "sql")
+        public String sync(String payload) {
             return payload;
         }
     }

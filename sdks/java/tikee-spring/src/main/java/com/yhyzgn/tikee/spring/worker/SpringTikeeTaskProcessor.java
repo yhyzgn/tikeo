@@ -5,6 +5,8 @@ import com.yhyzgn.tikee.processor.TaskContext;
 import com.yhyzgn.tikee.processor.TaskOutcome;
 import com.yhyzgn.tikee.processor.TaskProcessor;
 import com.yhyzgn.tikee.spring.processor.TikeeProcessorRegistry;
+import com.yhyzgn.tikee.worker.StructuredWorkerCapabilityProvider;
+import com.yhyzgn.tikee.worker.WorkerCapabilitySet;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 
@@ -14,7 +16,7 @@ import lombok.RequiredArgsConstructor;
  * <p>Routes by explicit {@link TaskContext#processorName()}, falling back to job id in older clients.
  */
 @RequiredArgsConstructor
-public final class SpringTikeeTaskProcessor implements TaskProcessor, ProcessorCapabilityProvider {
+public final class SpringTikeeTaskProcessor implements TaskProcessor, ProcessorCapabilityProvider, StructuredWorkerCapabilityProvider {
     private final TikeeProcessorRegistry registry;
 
     @Override
@@ -25,5 +27,10 @@ public final class SpringTikeeTaskProcessor implements TaskProcessor, ProcessorC
     @Override
     public List<String> capabilities() {
         return registry.processorCapabilities();
+    }
+
+    @Override
+    public WorkerCapabilitySet workerCapabilities() {
+        return registry.workerCapabilities();
     }
 }

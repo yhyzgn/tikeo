@@ -1141,11 +1141,29 @@ export interface WorkerSummary {
   cluster: string;
   region: string;
   capabilities: string[];
+  structuredCapabilities?: WorkerCapabilitiesSummary;
   generation: number;
   status: string;
   statusReason: string | null;
   replacedByWorkerId: string | null;
   lastSequence: number;
+}
+
+export interface WorkerCapabilitiesSummary {
+  tags: string[];
+  sdkProcessors: string[];
+  scriptRunners: WorkerScriptRunnerSummary[];
+  pluginProcessors: WorkerPluginProcessorSummary[];
+}
+
+export interface WorkerScriptRunnerSummary {
+  language: string;
+  sandboxBackend: string;
+}
+
+export interface WorkerPluginProcessorSummary {
+  type: string;
+  processorNames: string[];
 }
 
 export interface WorkerSessionHistorySummary {

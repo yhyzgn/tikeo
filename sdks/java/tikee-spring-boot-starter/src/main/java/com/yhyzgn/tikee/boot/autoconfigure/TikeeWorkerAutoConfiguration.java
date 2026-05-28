@@ -12,6 +12,7 @@ import com.yhyzgn.tikee.spring.processor.TikeeProcessorRegistry;
 import com.yhyzgn.tikee.spring.worker.SpringTikeeTaskProcessor;
 import com.yhyzgn.tikee.wasm.CliWasmtimeRunner;
 import com.yhyzgn.tikee.wasm.WasmRunnerRegistry;
+import com.yhyzgn.tikee.worker.WorkerCapabilitySet;
 import com.yhyzgn.tikee.worker.WorkerRegistration;
 import com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClient;
 import com.yhyzgn.tikee.worker.client.NoopTikeeWorkerClient;
@@ -29,6 +30,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 
 /**
@@ -57,8 +59,10 @@ public class TikeeWorkerAutoConfiguration {
         TikeeWorkerProperties properties,
         TikeeProcessorRegistry processorRegistry,
         ScriptRunnerRegistry scriptRunnerRegistry,
-        WasmRunnerRegistry wasmRunnerRegistry
+        WasmRunnerRegistry wasmRunnerRegistry,
+        ApplicationContext applicationContext
     ) {
+        processorRegistry.scanExistingBeans(applicationContext);
         String clientInstanceId =
             properties.getStateDir() == null ||
             properties.getStateDir().isBlank()
@@ -83,7 +87,8 @@ public class TikeeWorkerAutoConfiguration {
             properties.getApp(),
             properties.getCluster(),
             properties.getRegion(),
-            workerCapabilities(
+            workerTags(properties),
+            workerStructuredCapabilities(
                 properties,
                 processorRegistry,
                 scriptRunnerRegistry,
@@ -119,18 +124,30 @@ public class TikeeWorkerAutoConfiguration {
         return new TikeeWorkerLifecycle(client, properties);
     }
 
-    private static List<String> workerCapabilities(
+    private static List<String> workerTags(TikeeWorkerProperties properties) {
+        return new ArrayList<>(new LinkedHashSet<>(properties.getCapabilities()));
+    }
+
+    private static WorkerCapabilitySet workerStructuredCapabilities(
         TikeeWorkerProperties properties,
         TikeeProcessorRegistry processorRegistry,
         ScriptRunnerRegistry scriptRunnerRegistry,
         WasmRunnerRegistry wasmRunnerRegistry
     ) {
-        var capabilities = new LinkedHashSet<String>();
-        capabilities.addAll(properties.getCapabilities());
-        capabilities.addAll(processorRegistry.processorCapabilities());
-        capabilities.addAll(scriptRunnerRegistry.capabilities());
-        capabilities.addAll(wasmRunnerRegistry.capabilities());
-        return new ArrayList<>(capabilities);
+        return WorkerCapabilitySet.tags(properties.getCapabilities())
+            .merge(processorRegistry.workerCapabilities())
+            .merge(new WorkerCapabilitySet(
+                List.of(),
+                List.of(),
+                scriptRunnerRegistry.structuredCapabilities(),
+                List.of()
+            ))
+            .merge(new WorkerCapabilitySet(
+                List.of(),
+                List.of(),
+                wasmRunnerRegistry.structuredCapabilities(),
+                List.of()
+            ));
     }
 
     @Bean

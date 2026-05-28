@@ -23,6 +23,8 @@ describe('Worker cluster page redesign', () => {
     expect(tableSource).toContain('搜索 worker / app / region / capability');
     expect(tableSource).toContain('Namespace');
     expect(tableSource).toContain('Capability');
+    expect(tableSource).toContain("title: 'Capabilities'");
+    expect(tableSource).toContain('worker.structuredCapabilities?.tags');
     expect(queueSource).toContain('Segmented');
     expect(queueSource).toContain('Pending');
     expect(modelSource).toContain('filterWorkers');

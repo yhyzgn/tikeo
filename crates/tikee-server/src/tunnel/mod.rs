@@ -1,5 +1,6 @@
 //! Worker tunnel server implementation.
 
+pub mod capability;
 pub mod dispatcher;
 pub mod governance;
 pub mod lifecycle;

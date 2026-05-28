@@ -9,8 +9,10 @@ use crate::http::{
     AppState, auth,
     dto::{
         ApiResponse, DispatchQueueApiResponse, DispatchQueueClaimApiResponse,
-        WorkerLifecycleHistoryApiResponse, WorkerLifecycleHistoryResponse, WorkerListApiResponse,
-        WorkerListResponse, WorkerSessionEventDto, WorkerSessionHistorySummary, WorkerSummary,
+        WorkerCapabilitiesSummary, WorkerLifecycleHistoryApiResponse,
+        WorkerLifecycleHistoryResponse, WorkerListApiResponse, WorkerListResponse,
+        WorkerPluginProcessorSummary, WorkerScriptRunnerSummary, WorkerSessionEventDto,
+        WorkerSessionHistorySummary, WorkerSummary,
     },
     error::ApiError,
 };
@@ -51,6 +53,7 @@ pub async fn list_workers(
             cluster: worker.cluster,
             region: worker.region,
             capabilities: worker.capabilities,
+            structured_capabilities: worker_capabilities_summary(&worker.structured_capabilities),
             generation: worker.generation,
             status: worker.status.as_str().to_owned(),
             status_reason: worker.status_reason,
@@ -109,6 +112,36 @@ pub async fn worker_lifecycle_history(
         sessions,
         events,
     })))
+}
+
+fn worker_capabilities_summary(
+    capabilities: &tikee_proto::worker::v1::WorkerCapabilities,
+) -> WorkerCapabilitiesSummary {
+    WorkerCapabilitiesSummary {
+        tags: capabilities.tags.clone(),
+        sdk_processors: capabilities
+            .sdk_processors
+            .iter()
+            .map(|processor| processor.name.clone())
+            .filter(|name| !name.trim().is_empty())
+            .collect(),
+        script_runners: capabilities
+            .script_runners
+            .iter()
+            .map(|runner| WorkerScriptRunnerSummary {
+                language: runner.language.clone(),
+                sandbox_backend: runner.sandbox_backend.clone(),
+            })
+            .collect(),
+        plugin_processors: capabilities
+            .plugin_processors
+            .iter()
+            .map(|processor| WorkerPluginProcessorSummary {
+                r#type: processor.r#type.clone(),
+                processor_names: processor.processor_names.clone(),
+            })
+            .collect(),
+    }
 }
 
 fn worker_pool_label(worker: &crate::tunnel::RegisteredWorker) -> Option<String> {

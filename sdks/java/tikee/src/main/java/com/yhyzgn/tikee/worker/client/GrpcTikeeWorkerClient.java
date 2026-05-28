@@ -12,6 +12,8 @@ import com.yhyzgn.tikee.script.ScriptSandboxBackend;
 import com.yhyzgn.tikee.wasm.WasmRunnerPolicy;
 import com.yhyzgn.tikee.wasm.WasmRunnerRegistry;
 import com.yhyzgn.tikee.wasm.WasmRunnerTask;
+import com.yhyzgn.tikee.worker.StructuredWorkerCapabilityProvider;
+import com.yhyzgn.tikee.worker.WorkerCapabilitySet;
 import com.yhyzgn.tikee.worker.WorkerRegistration;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -506,6 +508,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                 .setCluster(registration.cluster())
                 .setRegion(registration.region())
                 .addAllCapabilities(registrationCapabilities())
+                .setStructuredCapabilities(structuredRegistrationCapabilities())
                 .putAllLabels(registration.labels());
         return Worker.WorkerMessage.newBuilder().setRegister(builder).build();
     }
@@ -513,12 +516,66 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
     private java.util.List<String> registrationCapabilities() {
         var capabilities = new LinkedHashSet<String>();
         capabilities.addAll(registration.capabilities());
-        if (processor instanceof ProcessorCapabilityProvider provider) {
-            capabilities.addAll(provider.capabilities());
-        }
-        capabilities.addAll(scriptRunners.capabilities());
-        capabilities.addAll(wasmRunners.capabilities());
         return java.util.List.copyOf(capabilities);
+    }
+
+    private Worker.WorkerCapabilities structuredRegistrationCapabilities() {
+        WorkerCapabilitySet capabilities = registration.structuredCapabilities();
+        if (processor instanceof StructuredWorkerCapabilityProvider provider) {
+            capabilities = capabilities.merge(provider.workerCapabilities());
+        } else if (processor instanceof ProcessorCapabilityProvider provider) {
+            capabilities = capabilities.merge(legacyProcessorCapabilities(provider.capabilities()));
+        }
+        capabilities = capabilities.merge(new WorkerCapabilitySet(
+            java.util.List.of(),
+            java.util.List.of(),
+            scriptRunners.structuredCapabilities(),
+            java.util.List.of()
+        ));
+        capabilities = capabilities.merge(new WorkerCapabilitySet(
+            java.util.List.of(),
+            java.util.List.of(),
+            wasmRunners.structuredCapabilities(),
+            java.util.List.of()
+        ));
+        return toProto(capabilities);
+    }
+
+    private static WorkerCapabilitySet legacyProcessorCapabilities(java.util.List<String> capabilities) {
+        var sdkProcessors = new java.util.ArrayList<String>();
+        for (String capability : capabilities) {
+            if (capability != null && capability.startsWith("processor:")) {
+                String name = capability.substring("processor:".length()).trim();
+                if (!name.isEmpty()) {
+                    sdkProcessors.add(name);
+                }
+            }
+        }
+        return new WorkerCapabilitySet(
+            java.util.List.of(),
+            sdkProcessors,
+            java.util.List.of(),
+            java.util.List.of()
+        );
+    }
+
+    private static Worker.WorkerCapabilities toProto(WorkerCapabilitySet capabilities) {
+        Worker.WorkerCapabilities.Builder builder = Worker.WorkerCapabilities.newBuilder()
+            .addAllTags(capabilities.tags());
+        for (String name : capabilities.sdkProcessors()) {
+            builder.addSdkProcessors(Worker.SdkProcessorCapability.newBuilder().setName(name));
+        }
+        for (WorkerCapabilitySet.ScriptRunner runner : capabilities.scriptRunners()) {
+            builder.addScriptRunners(Worker.ScriptRunnerCapability.newBuilder()
+                .setLanguage(runner.language())
+                .setSandboxBackend(runner.sandboxBackend()));
+        }
+        for (WorkerCapabilitySet.PluginProcessor plugin : capabilities.pluginProcessors()) {
+            builder.addPluginProcessors(Worker.PluginProcessorCapability.newBuilder()
+                .setType(plugin.type())
+                .addAllProcessorNames(plugin.processorNames()));
+        }
+        return builder.build();
     }
 
     private void awaitRegistration() {

@@ -15,6 +15,7 @@ use crate::http::{
     },
     error::ApiError,
 };
+use crate::tunnel::capability::WorkerRequirement;
 
 /// Return operator-facing scheduling readiness advice for one job.
 ///
@@ -54,13 +55,13 @@ pub async fn job_scheduling_advice(
             "api token scope binding does not allow this namespace/app",
         ));
     }
-    let required_capability = required_capability_for_job(&job_summary);
+    let requirement = required_requirement_for_job(&job_summary);
     let eligible_workers = state
         .registry
-        .find_eligible_workers_with_capability(
+        .find_eligible_workers_with_requirement(
             &job_summary.namespace,
             &job_summary.app,
-            required_capability.as_deref(),
+            requirement.as_ref(),
         )
         .await;
     let worker_capacity = worker_capacity(&state, &eligible_workers).await;
@@ -88,7 +89,7 @@ pub async fn job_scheduling_advice(
         ready,
         severity,
         reason,
-        required_capability,
+        required_capability: requirement.as_ref().map(WorkerRequirement::display_label),
         eligible_workers,
         recent_instances: u64::try_from(recent_instances).unwrap_or(u64::MAX),
         recent_failures: u64::try_from(recent_failures).unwrap_or(u64::MAX),
@@ -97,13 +98,15 @@ pub async fn job_scheduling_advice(
     })))
 }
 
-fn required_capability_for_job(job: &tikee_storage::JobSummary) -> Option<String> {
+fn required_requirement_for_job(job: &tikee_storage::JobSummary) -> Option<WorkerRequirement> {
     if job
         .script_id
         .as_deref()
         .is_some_and(|value| !value.trim().is_empty())
     {
-        return Some("script".to_owned());
+        return Some(WorkerRequirement::ScriptRunner {
+            language: "*".to_owned(),
+        });
     }
     if let Some(processor_type) = job
         .processor_type
@@ -111,7 +114,16 @@ fn required_capability_for_job(job: &tikee_storage::JobSummary) -> Option<String
         .map(str::trim)
         .filter(|value| !value.is_empty() && *value != "sdk")
     {
-        return Some(format!("plugin-processor:{processor_type}"));
+        let processor_name = job
+            .processor_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(&job.name);
+        return Some(WorkerRequirement::PluginProcessor {
+            processor_type: processor_type.to_owned(),
+            processor_name: processor_name.to_owned(),
+        });
     }
     let processor = job
         .processor_name
@@ -119,7 +131,9 @@ fn required_capability_for_job(job: &tikee_storage::JobSummary) -> Option<String
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .unwrap_or(&job.name);
-    Some(format!("processor:{processor}"))
+    Some(WorkerRequirement::SdkProcessor {
+        name: processor.to_owned(),
+    })
 }
 
 async fn worker_capacity(

@@ -9,6 +9,7 @@ export interface WorkerFilters {
 }
 
 export function workerSearchText(worker: WorkerSummary): string {
+  const structured = worker.structuredCapabilities;
   return [
     worker.workerId,
     worker.namespace,
@@ -20,6 +21,10 @@ export function workerSearchText(worker: WorkerSummary): string {
     worker.status,
     worker.statusReason ?? '',
     ...worker.capabilities,
+    ...(structured?.tags ?? []),
+    ...(structured?.sdkProcessors ?? []),
+    ...(structured?.scriptRunners.map((runner) => `${runner.language} ${runner.sandboxBackend}`) ?? []),
+    ...(structured?.pluginProcessors.flatMap((plugin) => [plugin.type, ...plugin.processorNames]) ?? []),
   ].join(' ').toLowerCase();
 }
 
@@ -28,7 +33,15 @@ export function filterWorkers(workers: WorkerSummary[], filters: WorkerFilters):
   return workers.filter((worker) => {
     const matchesQuery = !query || workerSearchText(worker).includes(query);
     const matchesNamespace = !filters.namespace || worker.namespace === filters.namespace;
-    const matchesCapability = !filters.capability || worker.capabilities.includes(filters.capability);
+    const workerFilterValues = [
+      ...(worker.structuredCapabilities?.tags ?? worker.capabilities),
+      ...(worker.structuredCapabilities?.sdkProcessors.map((name) => `SDK:${name}`) ?? []),
+      ...(worker.structuredCapabilities?.scriptRunners.map((runner) => `Script:${runner.language}`) ?? []),
+      ...(worker.structuredCapabilities?.pluginProcessors.flatMap((plugin) =>
+        plugin.processorNames.map((name) => `Plugin:${plugin.type}:${name}`)
+      ) ?? []),
+    ];
+    const matchesCapability = !filters.capability || workerFilterValues.includes(filters.capability);
     return matchesQuery && matchesNamespace && matchesCapability;
   });
 }

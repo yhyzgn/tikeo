@@ -20,7 +20,8 @@ describe('plugin system management page', () => {
   test('exposes custom processor and alert channel management copy', () => {
     expect(pageSource).toContain('自定义处理器类型');
     expect(pageSource).toContain('自定义告警通道');
-    expect(pageSource).toContain('plugin-processor:');
+    expect(pageSource).toContain('pluginProcessors.type');
+    expect(pageSource).not.toContain('plugin-processor:');
     expect(pageSource).toContain('targetKind');
   });
 
@@ -28,7 +29,7 @@ describe('plugin system management page', () => {
     expect(pageSource).toContain('PROCESSOR_TYPE_OPTIONS');
     expect(pageSource).toContain('ALERT_CHANNEL_OPTIONS');
     expect(pageSource).toContain('ALERT_TEMPLATE_OPTIONS');
-    expect(pageSource).toContain('自动生成');
+    expect(pageSource).toContain('结构化匹配字段');
     expect(pageSource).toContain('任务处理器名候选');
     expect(pageSource).toContain('billing.sql-sync');
     expect(pageSource).not.toContain('name="processorCapability" label="Worker 能力"><Input');

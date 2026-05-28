@@ -18,7 +18,27 @@ public record WorkerRegistration(
         String cluster,
         String region,
         List<String> capabilities,
+        WorkerCapabilitySet structuredCapabilities,
         Map<String, String> labels) {
+
+    public WorkerRegistration(
+            String clientInstanceId,
+            String namespace,
+            String app,
+            String cluster,
+            String region,
+            List<String> capabilities,
+            Map<String, String> labels) {
+        this(
+                clientInstanceId,
+                namespace,
+                app,
+                cluster,
+                region,
+                capabilities,
+                WorkerCapabilitySet.tags(capabilities),
+                labels);
+    }
 
     public WorkerRegistration {
         Objects.requireNonNull(clientInstanceId, "clientInstanceId");
@@ -27,6 +47,7 @@ public record WorkerRegistration(
         Objects.requireNonNull(cluster, "cluster");
         Objects.requireNonNull(region, "region");
         capabilities = List.copyOf(capabilities == null ? List.of() : capabilities);
+        structuredCapabilities = structuredCapabilities == null ? WorkerCapabilitySet.tags(capabilities) : structuredCapabilities;
         labels = Map.copyOf(labels == null ? Map.of() : labels);
     }
 }

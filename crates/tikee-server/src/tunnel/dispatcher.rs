@@ -17,7 +17,7 @@ use tikee_storage::{
 use tokio::time;
 use tracing::{debug, warn};
 
-use super::{WorkerRegistry, governance};
+use super::{WorkerRegistry, capability::WorkerRequirement, governance};
 use crate::cluster::SharedClusterCoordinator;
 
 const DISPATCH_INTERVAL: Duration = Duration::from_millis(500);
@@ -214,13 +214,9 @@ async fn dispatch_single_instances(
             }
         };
 
-        let required_capability = required_task_capability_for_executor(&task, &executor);
+        let requirement = required_task_requirement_for_executor(&task, &executor);
         let eligible_workers = registry
-            .find_eligible_workers_with_capability(
-                &job.namespace,
-                &job.app,
-                required_capability.as_deref(),
-            )
+            .find_eligible_workers_with_requirement(&job.namespace, &job.app, requirement.as_ref())
             .await;
         if let Some(worker_id) = eligible_workers.first()
             && let Some(worker_id) = registry.dispatch_to_worker(worker_id, task).await
@@ -237,12 +233,14 @@ async fn dispatch_single_instances(
                 .await?;
             debug!(%worker_id, instance_id = %instance.id, "dispatched instance to worker");
         } else {
-            if let Some(capability) = required_capability.as_deref() {
+            if let Some(requirement) = requirement.as_ref() {
                 append_script_governance_log(
                     logs,
                     audit,
                     &instance.id,
-                    &ScriptGovernanceFailure::NoEligibleWorkerCapability(capability.to_owned()),
+                    &ScriptGovernanceFailure::NoEligibleWorkerCapability(
+                        requirement.display_label(),
+                    ),
                 )
                 .await?;
                 let _ = workflows
@@ -316,17 +314,19 @@ async fn dispatch_broadcast_attempts(
             }
         };
 
-        let required_capability = required_task_capability_for_executor(&task, &executor);
+        let requirement = required_task_requirement_for_executor(&task, &executor);
         if !registry
-            .worker_supports_capability(&attempt.worker_id, required_capability.as_deref())
+            .worker_supports_requirement(&attempt.worker_id, requirement.as_ref())
             .await
         {
-            if let Some(capability) = required_capability.as_deref() {
+            if let Some(requirement) = requirement.as_ref() {
                 append_script_governance_log(
                     logs,
                     audit,
                     &attempt.instance_id,
-                    &ScriptGovernanceFailure::NoEligibleWorkerCapability(capability.to_owned()),
+                    &ScriptGovernanceFailure::NoEligibleWorkerCapability(
+                        requirement.display_label(),
+                    ),
                 )
                 .await?;
                 attempts
@@ -530,26 +530,36 @@ async fn build_dispatch_task(
     }))
 }
 
-fn required_task_capability_for_executor(
+fn required_task_requirement_for_executor(
     task: &DispatchTask,
     executor: &JobExecutor,
-) -> Option<String> {
+) -> Option<WorkerRequirement> {
     match executor {
         JobExecutor::SdkProcessor {
+            processor_name,
             processor_type: Some(processor_type),
-            ..
         } if !processor_type.trim().is_empty() && processor_type != "sdk" => {
-            Some(format!("plugin-processor:{}", processor_type.trim()))
+            Some(WorkerRequirement::PluginProcessor {
+                processor_type: processor_type.trim().to_owned(),
+                processor_name: processor_name.trim().to_owned(),
+            })
         }
-        _ => required_task_capability(task),
+        JobExecutor::SdkProcessor { processor_name, .. } => Some(WorkerRequirement::SdkProcessor {
+            name: processor_name.trim().to_owned(),
+        }),
+        JobExecutor::Script { .. } => required_task_requirement(task),
     }
 }
 
-fn required_task_capability(task: &DispatchTask) -> Option<String> {
+fn required_task_requirement(task: &DispatchTask) -> Option<WorkerRequirement> {
     let binding = task.processor_binding.as_ref()?;
     match binding.kind.as_ref()? {
-        task_processor_binding::Kind::Wasm(_) => Some("script:wasm".to_owned()),
-        task_processor_binding::Kind::Script(_) => Some("script".to_owned()),
+        task_processor_binding::Kind::Wasm(_) => Some(WorkerRequirement::ScriptRunner {
+            language: "wasm".to_owned(),
+        }),
+        task_processor_binding::Kind::Script(script) => Some(WorkerRequirement::ScriptRunner {
+            language: script.language.trim().to_owned(),
+        }),
     }
 }
 
@@ -768,7 +778,10 @@ mod tests {
 
     use crate::cluster::{ClusterMode, ClusterRole, ClusterStatus, StaticCoordinator};
     use tikee_core::{ExecutionMode, InstanceStatus, TriggerType};
-    use tikee_proto::worker::v1::{RegisterWorker, server_message, task_processor_binding};
+    use tikee_proto::worker::v1::{
+        RegisterWorker, ScriptRunnerCapability, SdkProcessorCapability, WorkerCapabilities,
+        server_message, task_processor_binding,
+    };
     use tikee_storage::{
         AuditLogRepository, CreateJob, CreateJobInstance, JobInstanceAttemptRepository,
         JobInstanceRepository, JobRepository, ScriptRepository, ScriptSummary,
@@ -781,6 +794,25 @@ mod tests {
         build_dispatch_task, dispatch_once, dispatch_once_if_owner, script_is_dispatchable,
         script_version_is_dispatchable,
     };
+
+    fn sdk_capabilities(processor_name: &str) -> Option<WorkerCapabilities> {
+        Some(WorkerCapabilities {
+            sdk_processors: vec![SdkProcessorCapability {
+                name: processor_name.to_owned(),
+            }],
+            ..WorkerCapabilities::default()
+        })
+    }
+
+    fn script_capabilities(language: &str) -> Option<WorkerCapabilities> {
+        Some(WorkerCapabilities {
+            script_runners: vec![ScriptRunnerCapability {
+                language: language.to_owned(),
+                sandbox_backend: "auto".to_owned(),
+            }],
+            ..WorkerCapabilities::default()
+        })
+    }
 
     #[tokio::test]
     async fn dispatch_once_sends_pending_instance_to_registered_worker() {
@@ -831,6 +863,7 @@ mod tests {
                     cluster: "local".to_owned(),
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
+                    structured_capabilities: sdk_capabilities("billing.manual"),
                     labels: HashMap::default(),
                 },
                 tx,
@@ -950,6 +983,7 @@ mod tests {
                     cluster: "local".to_owned(),
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
+                    structured_capabilities: sdk_capabilities("demo.echo"),
                     labels: HashMap::default(),
                 },
                 tx,
@@ -1191,7 +1225,8 @@ mod tests {
                     namespace: "default".to_owned(),
                     cluster: "local".to_owned(),
                     region: "local".to_owned(),
-                    capabilities: vec!["script".to_owned()],
+                    capabilities: Vec::new(),
+                    structured_capabilities: script_capabilities("python"),
                     labels: HashMap::default(),
                 },
                 tx,
@@ -1292,6 +1327,7 @@ mod tests {
                     cluster: "local".to_owned(),
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
+                    structured_capabilities: sdk_capabilities("manual"),
                     labels: HashMap::default(),
                 },
                 tx1,
@@ -1308,6 +1344,7 @@ mod tests {
                     cluster: "local".to_owned(),
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
+                    structured_capabilities: sdk_capabilities("manual"),
                     labels: HashMap::default(),
                 },
                 tx2,
@@ -1553,6 +1590,7 @@ mod tests {
                     cluster: "local".to_owned(),
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
+                    structured_capabilities: sdk_capabilities("workflow.override"),
                     labels: HashMap::default(),
                 },
                 tx,
@@ -1668,7 +1706,8 @@ mod tests {
                     namespace: "default".to_owned(),
                     cluster: "local".to_owned(),
                     region: "local".to_owned(),
-                    capabilities: vec!["script:wasm".to_owned()],
+                    capabilities: Vec::new(),
+                    structured_capabilities: script_capabilities("wasm"),
                     labels: HashMap::default(),
                 },
                 tx,

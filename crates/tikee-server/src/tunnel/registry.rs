@@ -7,11 +7,15 @@ use std::{
 };
 
 use sha2::{Digest, Sha256};
-use tikee_proto::worker::v1::{DispatchTask, RegisterWorker, ServerMessage, server_message};
+use tikee_proto::worker::v1::{
+    DispatchTask, RegisterWorker, ServerMessage, WorkerCapabilities, server_message,
+};
 use tikee_storage::{RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository};
 use tokio::sync::{RwLock, mpsc};
 use tonic::Status;
 use uuid::Uuid;
+
+use super::capability::{WorkerRequirement, structured_capabilities_match};
 
 const DEFAULT_LEASE_SECONDS: u64 = 30;
 
@@ -73,6 +77,7 @@ impl WorkerRegistry {
                 cluster: worker.cluster,
                 region: worker.region,
                 capabilities: worker.capabilities,
+                structured_capabilities: worker.structured_capabilities.unwrap_or_default(),
                 labels: worker.labels,
                 outbound,
                 generation,
@@ -318,6 +323,18 @@ impl WorkerRegistry {
         app: &str,
         required_capability: Option<&str>,
     ) -> Vec<String> {
+        let requirement = required_capability.and_then(WorkerRequirement::from_legacy);
+        self.find_eligible_workers_with_requirement(namespace, app, requirement.as_ref())
+            .await
+    }
+
+    /// Return worker ids matching namespace/app and an optional structured requirement.
+    pub async fn find_eligible_workers_with_requirement(
+        &self,
+        namespace: &str,
+        app: &str,
+        requirement: Option<&WorkerRequirement>,
+    ) -> Vec<String> {
         self.workers
             .read()
             .await
@@ -326,8 +343,7 @@ impl WorkerRegistry {
                 w.is_schedulable()
                     && is_match(&w.namespace, namespace)
                     && is_match(&w.app, app)
-                    && required_capability
-                        .is_none_or(|capability| worker_has_capability(w, capability))
+                    && requirement.is_none_or(|requirement| worker_satisfies(w, requirement))
             })
             .map(|w| w.worker_id.clone())
             .collect()
@@ -339,16 +355,25 @@ impl WorkerRegistry {
         worker_id: &str,
         required_capability: Option<&str>,
     ) -> bool {
-        let Some(required_capability) = required_capability else {
+        let requirement = required_capability.and_then(WorkerRequirement::from_legacy);
+        self.worker_supports_requirement(worker_id, requirement.as_ref())
+            .await
+    }
+
+    /// Return true when a connected worker satisfies the structured requirement.
+    pub async fn worker_supports_requirement(
+        &self,
+        worker_id: &str,
+        requirement: Option<&WorkerRequirement>,
+    ) -> bool {
+        let Some(requirement) = requirement else {
             return true;
         };
         self.workers
             .read()
             .await
             .get(worker_id)
-            .is_some_and(|worker| {
-                worker.is_schedulable() && worker_has_capability(worker, required_capability)
-            })
+            .is_some_and(|worker| worker.is_schedulable() && worker_satisfies(worker, requirement))
     }
 
     /// Return true when a worker session is still current and can write task messages.
@@ -510,14 +535,12 @@ fn is_match(worker_val: &str, job_val: &str) -> bool {
         || job_val.is_empty()
 }
 
-fn worker_has_capability(worker: &RegisteredWorker, required: &str) -> bool {
-    worker.capabilities.iter().any(|capability| {
-        capability == required
-            || capability == "*"
-            || capability == "script" && required.starts_with("script:")
-            || capability == "script:*" && (required == "script" || required.starts_with("script:"))
-            || capability.starts_with("script:") && required == "script"
-    })
+fn worker_satisfies(worker: &RegisteredWorker, requirement: &WorkerRequirement) -> bool {
+    structured_capabilities_match(&worker.structured_capabilities, requirement)
+        || worker
+            .capabilities
+            .iter()
+            .any(|capability| requirement.matches_legacy_capability(capability))
 }
 
 /// Worker session status used by scheduling and UI grouping.
@@ -565,6 +588,8 @@ pub struct RegisteredWorker {
     pub region: String,
     /// Runtime capabilities.
     pub capabilities: Vec<String>,
+    /// Structured runtime capabilities used by new dispatch routing.
+    pub structured_capabilities: WorkerCapabilities,
     /// Worker labels.
     pub labels: HashMap<String, String>,
     /// Outbound stream sender for server-to-worker commands.
@@ -609,12 +634,16 @@ impl RegisteredWorker {
 
 #[cfg(test)]
 mod tests {
-    use tikee_proto::worker::v1::{DispatchTask, RegisterWorker};
+    use tikee_proto::worker::v1::{
+        DispatchTask, PluginProcessorCapability, RegisterWorker, ScriptRunnerCapability,
+        SdkProcessorCapability, WorkerCapabilities,
+    };
     use tokio::sync::mpsc;
 
     use tikee_storage::WorkerLifecycleRepository;
 
     use super::{WorkerRegistry, WorkerSessionStatus};
+    use crate::tunnel::capability::WorkerRequirement;
 
     #[tokio::test]
     async fn registry_tracks_registration_and_heartbeat() {
@@ -628,6 +657,7 @@ mod tests {
                     cluster: "prod".to_owned(),
                     region: "cn".to_owned(),
                     capabilities: vec!["http".to_owned()],
+                    structured_capabilities: None,
                     labels: [("runtime".to_owned(), "rust".to_owned())].into(),
                 },
                 mpsc::channel(1).0,
@@ -751,6 +781,74 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn registry_matches_structured_sdk_script_and_plugin_capabilities() {
+        let registry = WorkerRegistry::default();
+        registry
+            .register(
+                RegisterWorker {
+                    structured_capabilities: Some(WorkerCapabilities {
+                        tags: vec!["java".to_owned()],
+                        sdk_processors: vec![SdkProcessorCapability {
+                            name: "demo.echo".to_owned(),
+                        }],
+                        script_runners: vec![ScriptRunnerCapability {
+                            language: "python".to_owned(),
+                            sandbox_backend: "srt".to_owned(),
+                        }],
+                        plugin_processors: vec![PluginProcessorCapability {
+                            r#type: "sql".to_owned(),
+                            processor_names: vec!["billing.sql-sync".to_owned()],
+                        }],
+                    }),
+                    ..register_worker("pod-structured")
+                },
+                mpsc::channel(1).0,
+            )
+            .await;
+
+        assert_eq!(
+            registry
+                .find_eligible_workers_with_requirement(
+                    "finance",
+                    "billing",
+                    Some(&WorkerRequirement::SdkProcessor {
+                        name: "demo.echo".to_owned()
+                    })
+                )
+                .await
+                .len(),
+            1
+        );
+        assert_eq!(
+            registry
+                .find_eligible_workers_with_requirement(
+                    "finance",
+                    "billing",
+                    Some(&WorkerRequirement::ScriptRunner {
+                        language: "python".to_owned()
+                    })
+                )
+                .await
+                .len(),
+            1
+        );
+        assert_eq!(
+            registry
+                .find_eligible_workers_with_requirement(
+                    "finance",
+                    "billing",
+                    Some(&WorkerRequirement::PluginProcessor {
+                        processor_type: "sql".to_owned(),
+                        processor_name: "billing.sql-sync".to_owned()
+                    })
+                )
+                .await
+                .len(),
+            1
+        );
+    }
+
+    #[tokio::test]
     async fn registry_marks_transport_error_offline_and_persists_evidence() {
         let db = tikee_storage::connect_and_migrate("sqlite::memory:")
             .await
@@ -832,6 +930,7 @@ mod tests {
             cluster: "prod".to_owned(),
             region: "cn".to_owned(),
             capabilities: vec!["http".to_owned()],
+            structured_capabilities: None,
             labels: [("runtime".to_owned(), "rust".to_owned())].into(),
         }
     }

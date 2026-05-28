@@ -1,5 +1,6 @@
 package com.yhyzgn.tikee.wasm;
 
+import com.yhyzgn.tikee.worker.WorkerCapabilitySet;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,6 +19,10 @@ public final class WasmRunnerRegistry {
 
     public List<String> capabilities() {
         return runner == null ? List.of() : List.of("script:wasm");
+    }
+
+    public List<WorkerCapabilitySet.ScriptRunner> structuredCapabilities() {
+        return runner == null ? List.of() : List.of(new WorkerCapabilitySet.ScriptRunner("wasm", "wasmtime"));
     }
 
     public boolean isEmpty() {

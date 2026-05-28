@@ -460,11 +460,35 @@ pub struct WorkerSummary {
     pub cluster: String,
     pub region: String,
     pub capabilities: Vec<String>,
+    pub structured_capabilities: WorkerCapabilitiesSummary,
     pub generation: u64,
     pub status: String,
     pub status_reason: Option<String>,
     pub replaced_by_worker_id: Option<String>,
     pub last_sequence: u64,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerCapabilitiesSummary {
+    pub tags: Vec<String>,
+    pub sdk_processors: Vec<String>,
+    pub script_runners: Vec<WorkerScriptRunnerSummary>,
+    pub plugin_processors: Vec<WorkerPluginProcessorSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerScriptRunnerSummary {
+    pub language: String,
+    pub sandbox_backend: String,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerPluginProcessorSummary {
+    pub r#type: String,
+    pub processor_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

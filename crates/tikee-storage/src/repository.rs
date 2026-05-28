@@ -114,7 +114,7 @@ mod tests {
                 processor_types: vec![crate::repository::PluginProcessorTypeSummary {
                     r#type: "sql".to_owned(),
                     label: "SQL Processor".to_owned(),
-                    capability: "plugin-processor:sql".to_owned(),
+                    capability: "sql".to_owned(),
                     processor_names: vec!["billing.sql-sync".to_owned()],
                     description: Some("custom SQL handler".to_owned()),
                 }],
@@ -130,10 +130,7 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("plugin should create: {error}"));
 
-        assert_eq!(
-            created.processor_types[0].capability,
-            "plugin-processor:sql"
-        );
+        assert_eq!(created.processor_types[0].capability, "sql");
         assert!(
             repository
                 .resolve_processor_type("sql")

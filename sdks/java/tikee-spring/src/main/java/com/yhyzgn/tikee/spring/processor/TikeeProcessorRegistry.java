@@ -1,22 +1,30 @@
 package com.yhyzgn.tikee.spring.processor;
 
 import com.yhyzgn.tikee.processor.TikeeProcessor;
+import com.yhyzgn.tikee.processor.TikeeProcessorKind;
 import com.yhyzgn.tikee.processor.TaskContext;
 import com.yhyzgn.tikee.processor.TaskOutcome;
+import com.yhyzgn.tikee.worker.StructuredWorkerCapabilityProvider;
+import com.yhyzgn.tikee.worker.WorkerCapabilitySet;
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.context.ApplicationContext;
 import org.springframework.core.annotation.AnnotationUtils;
 
 /**
  * Discovers {@link TikeeProcessor} annotations from Spring beans.
  */
-public class TikeeProcessorRegistry implements BeanPostProcessor {
+public class TikeeProcessorRegistry implements BeanPostProcessor, StructuredWorkerCapabilityProvider {
     private final Map<String, TikeeProcessorHandler> handlers = new LinkedHashMap<>();
+    private final Map<String, ProcessorDeclaration> declarations = new LinkedHashMap<>();
+    private final Set<String> processedBeans = new HashSet<>();
 
     /**
      * Registered processor handlers keyed by processor name.
@@ -37,14 +45,48 @@ public class TikeeProcessorRegistry implements BeanPostProcessor {
     }
 
     /**
-     * Registered SDK processor capabilities for Worker registration.
+     * Legacy registered SDK processor capabilities for Worker registration.
      *
      * @return immutable capability list using the processor:&lt;name&gt; convention
      */
     public List<String> processorCapabilities() {
-        return handlers.keySet().stream()
+        return sdkProcessorNames().stream()
                 .map(name -> "processor:" + name)
                 .toList();
+    }
+
+    /**
+     * Registered normal SDK processor names.
+     *
+     * @return immutable SDK processor name list
+     */
+    public List<String> sdkProcessorNames() {
+        return declarations.values().stream()
+                .filter(declaration -> declaration.kind() == TikeeProcessorKind.SDK)
+                .map(ProcessorDeclaration::name)
+                .toList();
+    }
+
+    /**
+     * Registered plugin processors grouped by explicit plugin type.
+     *
+     * @return immutable plugin processor declaration list
+     */
+    public List<WorkerCapabilitySet.PluginProcessor> pluginProcessors() {
+        Map<String, List<String>> byType = new LinkedHashMap<>();
+        declarations.values().stream()
+                .filter(declaration -> declaration.kind() == TikeeProcessorKind.PLUGIN)
+                .forEach(declaration -> byType
+                        .computeIfAbsent(declaration.pluginType(), ignored -> new java.util.ArrayList<>())
+                        .add(declaration.name()));
+        return byType.entrySet().stream()
+                .map(entry -> new WorkerCapabilitySet.PluginProcessor(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    @Override
+    public WorkerCapabilitySet workerCapabilities() {
+        return new WorkerCapabilitySet(List.of(), sdkProcessorNames(), List.of(), pluginProcessors());
     }
 
     /**
@@ -62,40 +104,73 @@ public class TikeeProcessorRegistry implements BeanPostProcessor {
         return handler.invoke(context);
     }
 
+    /**
+     * Eagerly discover already-instantiated beans before worker registration is built.
+     *
+     * @param context Spring application context
+     */
+    public void scanExistingBeans(ApplicationContext context) {
+        for (String beanName : context.getBeanDefinitionNames()) {
+            Object bean;
+            try {
+                bean = context.getBean(beanName);
+            } catch (BeansException ignored) {
+                continue;
+            }
+            postProcessAfterInitialization(bean, beanName);
+        }
+    }
+
     @Override
     public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
+        if (!processedBeans.add(beanName)) {
+            return bean;
+        }
         var typeAnnotation = AnnotationUtils.findAnnotation(bean.getClass(), TikeeProcessor.class);
         if (typeAnnotation != null) {
-            registerTypeHandler(typeAnnotation.value(), bean);
+            registerTypeHandler(typeAnnotation, bean);
         }
         for (Method method : bean.getClass().getMethods()) {
             var methodAnnotation = AnnotationUtils.findAnnotation(method, TikeeProcessor.class);
             if (methodAnnotation != null) {
-                register(methodAnnotation.value(), TikeeProcessorAdapter.forMethod(bean, method));
+                register(methodAnnotation, TikeeProcessorAdapter.forMethod(bean, method));
             }
         }
         return bean;
     }
 
-    private void registerTypeHandler(String processorName, Object bean) {
+    private void registerTypeHandler(TikeeProcessor annotation, Object bean) {
         if (bean instanceof TikeeProcessorHandler handler) {
-            register(processorName, handler);
+            register(annotation, handler);
             return;
         }
         throw new IllegalArgumentException("type-level @TikeeProcessor beans must implement TikeeProcessorHandler: "
                 + bean.getClass().getName());
     }
 
-    private void register(String processorName, TikeeProcessorHandler handler) {
+    private void register(TikeeProcessor annotation, TikeeProcessorHandler handler) {
+        String processorName = annotation.value();
         if (processorName == null || processorName.isBlank()) {
             throw new IllegalArgumentException("tikee processor name must not be blank");
         }
         if (processorName.startsWith("script:")) {
             throw new IllegalArgumentException("@TikeeProcessor is reserved for SDK processors; use script runner capabilities for script executors");
         }
+        String pluginType = annotation.pluginType() == null ? "" : annotation.pluginType().trim();
+        if (annotation.kind() == TikeeProcessorKind.PLUGIN && pluginType.isBlank()) {
+            throw new IllegalArgumentException("plugin @TikeeProcessor requires non-blank pluginType: " + processorName);
+        }
+        if (annotation.kind() == TikeeProcessorKind.SDK && !pluginType.isBlank()) {
+            throw new IllegalArgumentException("SDK @TikeeProcessor must not declare pluginType: " + processorName);
+        }
         TikeeProcessorHandler existing = handlers.putIfAbsent(processorName, handler);
         if (existing != null) {
             throw new IllegalArgumentException("duplicate tikee processor name: " + processorName);
         }
+        declarations.put(
+                processorName,
+                new ProcessorDeclaration(processorName.trim(), annotation.kind(), pluginType));
     }
+
+    private record ProcessorDeclaration(String name, TikeeProcessorKind kind, String pluginType) {}
 }

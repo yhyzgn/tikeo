@@ -80,7 +80,8 @@ class GrpcTikeeWorkerClientTest {
             Worker.RegisterWorker register = service.messages.get(0).getRegister();
             assertEquals("java-instance-1", register.getClientInstanceId());
             assertTrue(register.getCapabilitiesList().contains("java"));
-            assertTrue(register.getCapabilitiesList().contains("processor:demo.echo"));
+            assertTrue(register.getStructuredCapabilities().getSdkProcessorsList().stream()
+                    .anyMatch(item -> "demo.echo".equals(item.getName())));
             assertTrue(service.messages.stream()
                     .filter(Worker.WorkerMessage::hasHeartbeat)
                     .anyMatch(message -> "assigned-java-worker".equals(message.getHeartbeat().getWorkerId())
@@ -352,7 +353,8 @@ class GrpcTikeeWorkerClientTest {
             client.close();
 
             Worker.RegisterWorker register = service.messages.get(0).getRegister();
-            assertTrue(register.getCapabilitiesList().contains("script:wasm"));
+            assertTrue(register.getStructuredCapabilities().getScriptRunnersList().stream()
+                    .anyMatch(runner -> "wasm".equals(runner.getLanguage())));
         } finally {
             channel.shutdownNow();
             server.shutdownNow();

@@ -22,10 +22,10 @@ describe('job schedule form governance', () => {
     expect(source).toContain('SDK Processor');
     expect(source).toContain('脚本（沙箱自动执行）');
     expect(source).toContain('具体脚本');
-    expect(source).toContain("capabilityValues('processor:')");
-    expect(source).toContain('SDK Processor 不能选择 script:* 执行器');
+    expect(source).toContain('workerSdkProcessorNames');
+    expect(source).toContain('SDK Processor 不能选择脚本执行器');
     expect(source).toContain('选择已审批脚本');
-    expect(source).toContain('Server 会按脚本语言匹配具备 script:<language> 或 script:* 能力的沙箱 Worker');
+    expect(source).toContain('Server 会按脚本语言匹配 Worker 注册的结构化 scriptRunners');
     expect(source).toContain('demo.echo');
     expect(source).not.toContain('scriptExecutor');
     expect(source).not.toContain('选择脚本执行器能力');

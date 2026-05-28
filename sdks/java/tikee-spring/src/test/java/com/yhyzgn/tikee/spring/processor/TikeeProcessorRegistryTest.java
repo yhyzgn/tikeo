@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.yhyzgn.tikee.processor.TikeeProcessor;
+import com.yhyzgn.tikee.processor.TikeeProcessorKind;
 import com.yhyzgn.tikee.processor.TaskContext;
 import com.yhyzgn.tikee.processor.TaskOutcome;
 import com.yhyzgn.tikee.spring.worker.SpringTikeeTaskProcessor;
@@ -58,8 +59,24 @@ class TikeeProcessorRegistryTest {
     void exposesOnlySdkProcessorCapabilities() {
         TikeeProcessorRegistry registry = new TikeeProcessorRegistry();
         registry.postProcessAfterInitialization(new StringBean(), "stringBean");
+        registry.postProcessAfterInitialization(new PluginBean(), "pluginBean");
 
         assertThat(registry.processorCapabilities()).containsExactly("processor:demo.string");
+        assertThat(registry.workerCapabilities().sdkProcessors()).containsExactly("demo.string");
+        assertThat(registry.workerCapabilities().pluginProcessors())
+                .anySatisfy(plugin -> {
+                    assertThat(plugin.type()).isEqualTo("sql");
+                    assertThat(plugin.processorNames()).containsExactly("billing.sql-sync");
+                });
+    }
+
+    @Test
+    void rejectsPluginProcessorWithoutPluginType() {
+        TikeeProcessorRegistry registry = new TikeeProcessorRegistry();
+
+        assertThatThrownBy(() -> registry.postProcessAfterInitialization(new MissingPluginTypeBean(), "pluginBean"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("requires non-blank pluginType");
     }
 
     @Test
@@ -111,6 +128,16 @@ class TikeeProcessorRegistryTest {
 
     static final class ScriptPrefixedBean {
         @TikeeProcessor("script:shell")
+        public void run(String payload) {}
+    }
+
+    static final class PluginBean {
+        @TikeeProcessor(value = "billing.sql-sync", kind = TikeeProcessorKind.PLUGIN, pluginType = "sql")
+        public void run(String payload) {}
+    }
+
+    static final class MissingPluginTypeBean {
+        @TikeeProcessor(value = "billing.missing", kind = TikeeProcessorKind.PLUGIN)
         public void run(String payload) {}
     }
 }

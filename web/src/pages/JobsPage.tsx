@@ -56,18 +56,17 @@ export function JobsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const capabilityValues = (prefix: string) => Array.from(new Set(
-    workers.flatMap((worker) => worker.capabilities)
-      .map((capability) => capability.trim())
-      .filter((capability) => capability.startsWith(prefix))
-  )).sort();
   const isScriptCapability = (value?: string | null) => String(value ?? '').trim().startsWith('script:');
-  const processorNameFromCapability = (capability: string) => capability.slice('processor:'.length).trim();
+  const workerSdkProcessorNames = () => Array.from(new Set(
+    workers.flatMap((worker) => worker.structuredCapabilities?.sdkProcessors ?? [])
+      .map((processor) => processor.trim())
+      .filter(Boolean)
+  )).sort();
   const pluginProcessorOptions = plugins
     .filter((plugin) => plugin.enabled)
     .flatMap((plugin) => plugin.processorTypes.map((processor) => ({
       value: processor.type,
-      label: `${plugin.name} · ${processor.label} · ${processor.capability}`,
+      label: `${plugin.name} · ${processor.label} · ${processor.type}`,
       processor,
       plugin,
     })));
@@ -87,10 +86,7 @@ export function JobsPage() {
 
   const sdkProcessorOptions = (search: string, currentValue?: string | null) => {
     const sdkValues = new Set<string>();
-    for (const capability of capabilityValues('processor:')) {
-      const value = processorNameFromCapability(capability);
-      if (value && !isScriptCapability(value)) sdkValues.add(value);
-    }
+    for (const value of workerSdkProcessorNames()) sdkValues.add(value);
     for (const job of jobs) {
       const value = job.processorName?.trim() || (!job.scriptId ? job.name.trim() : '');
       if (value && !isScriptCapability(value)) sdkValues.add(value);
@@ -367,11 +363,11 @@ export function JobsPage() {
           <Form.Item name="executorKind" label="执行方式" rules={[{ required: true }]}><Select options={[{ value: 'sdk', label: 'SDK Processor' }, { value: 'plugin', label: '插件处理器' }, { value: 'script', label: '脚本（沙箱自动执行）' }]} /></Form.Item>
           <Form.Item noStyle shouldUpdate={(prev, next) => prev.executorKind !== next.executorKind}>
             {({ getFieldValue }) => getFieldValue('executorKind') === 'script' ? (
-              <Form.Item name="scriptId" label="具体脚本" extra="选择已审批脚本即可；Server 会按脚本语言匹配具备 script:<language> 或 script:* 能力的沙箱 Worker。" rules={[{ required: true, message: '请选择具体脚本' }]}><Select showSearch optionFilterProp="label" placeholder="选择已审批脚本" options={scriptOptions} /></Form.Item>
+              <Form.Item name="scriptId" label="具体脚本" extra="选择已审批脚本即可；Server 会按脚本语言匹配 Worker 注册的结构化 scriptRunners。" rules={[{ required: true, message: '请选择具体脚本' }]}><Select showSearch optionFilterProp="label" placeholder="选择已审批脚本" options={scriptOptions} /></Form.Item>
             ) : getFieldValue('executorKind') === 'plugin' ? (
               <><Form.Item name="processorType" label="插件处理器类型" rules={[{ required: true, message: '请选择插件处理器类型' }]}><Select placeholder="选择插件处理器类型" options={pluginProcessorOptions} onChange={(value) => applyPluginProcessorSelection(form, value)} /></Form.Item><Form.Item noStyle shouldUpdate={(prev, next) => prev.processorType !== next.processorType || prev.processorName !== next.processorName}>{({ getFieldValue }) => <Form.Item name="processorName" label="任务处理器名" extra="来自插件管理中声明的“任务处理器名候选”；未声明时需要先回到插件管理补齐。" rules={[{ required: true, message: '请选择任务处理器名候选' }]}><Select placeholder="自动选择任务处理器名" options={pluginProcessorNameOptions(getFieldValue('processorType'))} /></Form.Item>}</Form.Item></>
             ) : (
-              <Form.Item name="processorName" label="SDK Processor" extra="只能选择普通 SDK processor；script:* 能力不会出现在这里。Java demo/Spring Worker 通过 @TikeeProcessor 注册，例如 demo.echo。" rules={[{ validator: (_, value) => isScriptCapability(value) ? Promise.reject(new Error('SDK Processor 不能选择 script:* 执行器')) : Promise.resolve() }]}><Select allowClear showSearch placeholder="输入或选择 SDK Processor" options={sdkProcessorOptions(createProcessorSearch, form.getFieldValue('processorName'))} filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())} onSearch={setCreateProcessorSearch} onChange={(value) => setCreateProcessorSearch(String(value ?? ''))} /></Form.Item>
+              <Form.Item name="processorName" label="SDK Processor" extra="只能选择普通 SDK processor；候选来自 Worker 注册的结构化 sdkProcessors。Java demo/Spring Worker 通过 @TikeeProcessor 注册，例如 demo.echo。" rules={[{ validator: (_, value) => isScriptCapability(value) ? Promise.reject(new Error('SDK Processor 不能选择脚本执行器')) : Promise.resolve() }]}><Select allowClear showSearch placeholder="输入或选择 SDK Processor" options={sdkProcessorOptions(createProcessorSearch, form.getFieldValue('processorName'))} filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())} onSearch={setCreateProcessorSearch} onChange={(value) => setCreateProcessorSearch(String(value ?? ''))} /></Form.Item>
             )}
           </Form.Item>
           <Form.Item name="scheduleType" label="调度类型"><Select options={[{ value: 'api', label: 'API 手动触发' }, { value: 'cron', label: 'Cron 定时' }, { value: 'fixed_rate', label: '固定频率' }]} /></Form.Item>
@@ -404,11 +400,11 @@ export function JobsPage() {
           <Form.Item name="executorKind" label="执行方式" rules={[{ required: true }]}><Select options={[{ value: 'sdk', label: 'SDK Processor' }, { value: 'plugin', label: '插件处理器' }, { value: 'script', label: '脚本（沙箱自动执行）' }]} /></Form.Item>
           <Form.Item noStyle shouldUpdate={(prev, next) => prev.executorKind !== next.executorKind}>
             {({ getFieldValue }) => getFieldValue('executorKind') === 'script' ? (
-              <Form.Item name="scriptId" label="具体脚本" extra="选择已审批脚本即可；Server 会按脚本语言匹配具备 script:<language> 或 script:* 能力的沙箱 Worker。" rules={[{ required: true, message: '请选择具体脚本' }]}><Select showSearch optionFilterProp="label" placeholder="选择已审批脚本" options={scriptOptions} /></Form.Item>
+              <Form.Item name="scriptId" label="具体脚本" extra="选择已审批脚本即可；Server 会按脚本语言匹配 Worker 注册的结构化 scriptRunners。" rules={[{ required: true, message: '请选择具体脚本' }]}><Select showSearch optionFilterProp="label" placeholder="选择已审批脚本" options={scriptOptions} /></Form.Item>
             ) : getFieldValue('executorKind') === 'plugin' ? (
               <><Form.Item name="processorType" label="插件处理器类型" rules={[{ required: true, message: '请选择插件处理器类型' }]}><Select placeholder="选择插件处理器类型" options={pluginProcessorOptions} onChange={(value) => applyPluginProcessorSelection(editForm, value)} /></Form.Item><Form.Item noStyle shouldUpdate={(prev, next) => prev.processorType !== next.processorType || prev.processorName !== next.processorName}>{({ getFieldValue }) => <Form.Item name="processorName" label="任务处理器名" extra="来自插件管理中声明的“任务处理器名候选”；未声明时需要先回到插件管理补齐。" rules={[{ required: true, message: '请选择任务处理器名候选' }]}><Select placeholder="自动选择任务处理器名" options={pluginProcessorNameOptions(getFieldValue('processorType'))} /></Form.Item>}</Form.Item></>
             ) : (
-              <Form.Item name="processorName" label="SDK Processor" extra="只能选择普通 SDK processor；script:* 能力不会出现在这里。Java demo/Spring Worker 通过 @TikeeProcessor 注册，例如 demo.echo。" rules={[{ validator: (_, value) => isScriptCapability(value) ? Promise.reject(new Error('SDK Processor 不能选择 script:* 执行器')) : Promise.resolve() }]}><Select allowClear showSearch placeholder="输入或选择 SDK Processor" options={sdkProcessorOptions(editProcessorSearch, editForm.getFieldValue('processorName'))} filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())} onSearch={setEditProcessorSearch} onChange={(value) => setEditProcessorSearch(String(value ?? ''))} /></Form.Item>
+              <Form.Item name="processorName" label="SDK Processor" extra="只能选择普通 SDK processor；候选来自 Worker 注册的结构化 sdkProcessors。Java demo/Spring Worker 通过 @TikeeProcessor 注册，例如 demo.echo。" rules={[{ validator: (_, value) => isScriptCapability(value) ? Promise.reject(new Error('SDK Processor 不能选择脚本执行器')) : Promise.resolve() }]}><Select allowClear showSearch placeholder="输入或选择 SDK Processor" options={sdkProcessorOptions(editProcessorSearch, editForm.getFieldValue('processorName'))} filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())} onSearch={setEditProcessorSearch} onChange={(value) => setEditProcessorSearch(String(value ?? ''))} /></Form.Item>
             )}
           </Form.Item>
           <Form.Item name="scheduleType" label="调度类型"><Select options={[{ value: 'api', label: 'API 手动触发' }, { value: 'cron', label: 'Cron 定时' }, { value: 'fixed_rate', label: '固定频率' }]} /></Form.Item>

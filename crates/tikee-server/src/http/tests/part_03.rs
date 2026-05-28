@@ -558,11 +558,16 @@
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["data"]["ready"], false);
         assert_eq!(json["data"]["severity"], "error");
-        assert_eq!(json["data"]["requiredCapability"], "processor:billing.advice");
+        assert_eq!(json["data"]["requiredCapability"], "SDK processor 'billing.advice'");
 
         let (tx, _rx) = tokio::sync::mpsc::channel(1);
         let mut worker = worker("advice-worker", "billing");
-        worker.capabilities = vec!["processor:billing.advice".to_owned()];
+        worker.structured_capabilities = Some(tikee_proto::worker::v1::WorkerCapabilities {
+            sdk_processors: vec![tikee_proto::worker::v1::SdkProcessorCapability {
+                name: "billing.advice".to_owned(),
+            }],
+            ..tikee_proto::worker::v1::WorkerCapabilities::default()
+        });
         registry.register(worker, tx).await;
 
         let ready = app
@@ -732,7 +737,13 @@
             namespace: "default".to_owned(),
             cluster: "local".to_owned(),
             region: "local".to_owned(),
-            capabilities: vec!["processor:demo.predict".to_owned()],
+            capabilities: Vec::new(),
+            structured_capabilities: Some(tikee_proto::worker::v1::WorkerCapabilities {
+                sdk_processors: vec![tikee_proto::worker::v1::SdkProcessorCapability {
+                    name: "demo.predict".to_owned(),
+                }],
+                ..tikee_proto::worker::v1::WorkerCapabilities::default()
+            }),
             labels: std::collections::HashMap::default(),
         };
         worker.labels.insert("cpu".to_owned(), "4".to_owned());
@@ -1123,7 +1134,7 @@
                     app.clone(),
                     "POST",
                     "/api/v1/plugins",
-                    r#"{"name":"Ops Plugin","kind":"processor","processorTypes":[{"type":"sql","label":"SQL Processor","capability":"plugin-processor:sql","processorNames":["billing.sql-sync"],"description":"Runs governed SQL processor tasks"}],"alertChannelTypes":[{"type":"ops_webhook","label":"Ops Webhook","targetKind":"webhook","description":"Routes alerts to the ops bridge","template":{"headers":{"X-Tikee-Plugin":"ops"},"body":{"text":"{{message}}","resource":"{{resource_id}}"}}}],"enabled":true}"#,
+                    r#"{"name":"Ops Plugin","kind":"processor","processorTypes":[{"type":"sql","label":"SQL Processor","capability":"sql","processorNames":["billing.sql-sync"],"description":"Runs governed SQL processor tasks"}],"alertChannelTypes":[{"type":"ops_webhook","label":"Ops Webhook","targetKind":"webhook","description":"Routes alerts to the ops bridge","template":{"headers":{"X-Tikee-Plugin":"ops"},"body":{"text":"{{message}}","resource":"{{resource_id}}"}}}],"enabled":true}"#,
                 )
                 .await,
             )
@@ -1136,7 +1147,7 @@
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["code"], 0);
-        assert_eq!(json["data"]["processorTypes"][0]["capability"], "plugin-processor:sql");
+        assert_eq!(json["data"]["processorTypes"][0]["capability"], "sql");
         assert_eq!(json["data"]["processorTypes"][0]["processorNames"][0], "billing.sql-sync");
         assert_eq!(json["data"]["alertChannelTypes"][0]["type"], "ops_webhook");
 
@@ -1218,7 +1229,10 @@
             .unwrap_or_else(|error| panic!("body should collect: {error}"));
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
-        assert_eq!(json["data"]["requiredCapability"], "plugin-processor:sql");
+        assert_eq!(
+            json["data"]["requiredCapability"],
+            "plugin processor type 'sql' name 'billing.sql-sync'"
+        );
 
         let status = app
             .clone()

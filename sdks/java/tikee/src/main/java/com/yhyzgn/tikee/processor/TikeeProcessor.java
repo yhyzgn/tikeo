@@ -17,4 +17,18 @@ public @interface TikeeProcessor {
      * @return processor name
      */
     String value();
+
+    /**
+     * Structured processor category. The {@link #value()} remains the executor name.
+     *
+     * @return processor kind
+     */
+    TikeeProcessorKind kind() default TikeeProcessorKind.SDK;
+
+    /**
+     * Plugin processor type when {@link #kind()} is {@link TikeeProcessorKind#PLUGIN}.
+     *
+     * @return plugin processor type
+     */
+    String pluginType() default "";
 }

@@ -187,7 +187,7 @@ describe('api client envelope handling', () => {
             id: 'plugin_ops',
             name: 'Ops Plugin',
             kind: 'mixed',
-            processorTypes: [{ type: 'sql', label: 'SQL Processor', capability: 'plugin-processor:sql', processorNames: ['billing.sql-sync'], description: null }],
+            processorTypes: [{ type: 'sql', label: 'SQL Processor', capability: 'sql', processorNames: ['billing.sql-sync'], description: null }],
             alertChannelTypes: [{ type: 'ops_webhook', label: 'Ops Webhook', targetKind: 'webhook', description: null, template: { body: { text: '{{message}}' } } }],
             enabled: true,
             createdAt: 'now',
@@ -205,7 +205,7 @@ describe('api client envelope handling', () => {
           id: 'plugin_ops',
           name: 'Ops Plugin',
           kind: 'mixed',
-          processorTypes: [{ type: 'sql', label: 'SQL Processor', capability: 'plugin-processor:sql', processorNames: ['billing.sql-sync'], description: null }],
+          processorTypes: [{ type: 'sql', label: 'SQL Processor', capability: 'sql', processorNames: ['billing.sql-sync'], description: null }],
           alertChannelTypes: [{ type: 'ops_webhook', label: 'Ops Webhook', targetKind: 'webhook', description: null, template: { body: { text: '{{message}}' } } }],
           enabled: true,
           createdAt: 'now',
@@ -218,7 +218,7 @@ describe('api client envelope handling', () => {
       name: 'Ops Plugin',
       kind: 'mixed',
       enabled: true,
-      processorTypes: [{ type: 'sql', label: 'SQL Processor', capability: 'plugin-processor:sql', processorNames: ['billing.sql-sync'], description: null }],
+      processorTypes: [{ type: 'sql', label: 'SQL Processor', capability: 'sql', processorNames: ['billing.sql-sync'], description: null }],
       alertChannelTypes: [{ type: 'ops_webhook', label: 'Ops Webhook', targetKind: 'webhook', description: null, template: { body: { text: '{{message}}' } } }],
     };
 
@@ -363,10 +363,10 @@ describe('api client envelope handling', () => {
     globalThis.fetch = mock(async () => new Response(JSON.stringify({
       code: 0,
       message: 'success',
-      data: { ready: true, severity: 'ok', reason: '1 eligible worker online', requiredCapability: 'processor:demo.echo', eligibleWorkers: ['worker-1'], recentInstances: 3, recentFailures: 0, history: { inspectedInstances: 3, completedInstances: 2, failedInstances: 0, averageDurationSeconds: 20, p50DurationSeconds: 10, p95DurationSeconds: 30, maxDurationSeconds: 30 }, prediction: { estimatedDurationSeconds: 30, recommendedConcurrency: 1, workerCapacity: { eligibleWorkerCount: 1, advertisedCpuCores: 4, advertisedMemoryMb: 8192 }, reasons: ['history uses 2 completed instance(s)'] } },
+      data: { ready: true, severity: 'ok', reason: '1 eligible worker online', requiredCapability: "SDK processor 'demo.echo'", eligibleWorkers: ['worker-1'], recentInstances: 3, recentFailures: 0, history: { inspectedInstances: 3, completedInstances: 2, failedInstances: 0, averageDurationSeconds: 20, p50DurationSeconds: 10, p95DurationSeconds: 30, maxDurationSeconds: 30 }, prediction: { estimatedDurationSeconds: 30, recommendedConcurrency: 1, workerCapacity: { eligibleWorkerCount: 1, advertisedCpuCores: 4, advertisedMemoryMb: 8192 }, reasons: ['history uses 2 completed instance(s)'] } },
     }))) as unknown as typeof fetch;
 
-    await expect(getJobSchedulingAdvice('job_advice')).resolves.toMatchObject({ ready: true, requiredCapability: 'processor:demo.echo', history: { p95DurationSeconds: 30 }, prediction: { estimatedDurationSeconds: 30 } });
+    await expect(getJobSchedulingAdvice('job_advice')).resolves.toMatchObject({ ready: true, requiredCapability: "SDK processor 'demo.echo'", history: { p95DurationSeconds: 30 }, prediction: { estimatedDurationSeconds: 30 } });
     expect(fetch).toHaveBeenCalledWith('/api/v1/jobs/job_advice/scheduling-advice', expect.any(Object));
   });
 

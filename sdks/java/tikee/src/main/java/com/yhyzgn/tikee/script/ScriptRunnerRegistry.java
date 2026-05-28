@@ -1,5 +1,6 @@
 package com.yhyzgn.tikee.script;
 
+import com.yhyzgn.tikee.worker.WorkerCapabilitySet;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,12 @@ public final class ScriptRunnerRegistry {
                         runners.keySet().stream().map(ScriptRunnerKind::capability))
                 .distinct()
                 .sorted()
+                .toList();
+    }
+
+    public List<WorkerCapabilitySet.ScriptRunner> structuredCapabilities() {
+        return runners.keySet().stream()
+                .map(kind -> new WorkerCapabilitySet.ScriptRunner(kind.value(), "auto"))
                 .toList();
     }
 

@@ -28,7 +28,6 @@ import org.springframework.boot.test.web.server.LocalServerPort;
         "tikee.worker.region=demo-region",
         "tikee.worker.capabilities[0]=java",
         "tikee.worker.capabilities[1]=spring-boot",
-        "tikee.worker.capabilities[2]=plugin-processor:sql",
         "tikee.worker.labels.runtime=java",
         "tikee.worker.labels.demo=spring-worker"
 })
@@ -55,11 +54,16 @@ class SpringWorkerDemoApplicationTest {
         assertThat(noop.registration().app()).isEqualTo("demo-app");
         assertThat(noop.registration().cluster()).isEqualTo("demo-cluster");
         assertThat(noop.registration().region()).isEqualTo("demo-region");
-        assertThat(noop.registration().capabilities()).contains("java", "spring-boot");
-        assertThat(noop.registration().capabilities()).contains("plugin-processor:sql");
+        assertThat(noop.registration().capabilities()).containsExactly("java", "spring-boot");
+        assertThat(noop.registration().structuredCapabilities().pluginProcessors())
+                .anySatisfy(plugin -> {
+                    assertThat(plugin.type()).isEqualTo("sql");
+                    assertThat(plugin.processorNames()).contains("billing.sql-sync");
+                });
         assertThat(noop.registration().labels()).containsEntry("runtime", "java")
                 .containsEntry("demo", "spring-worker");
         log.info("[java-demo-plugin-test] dry-run registration capabilities={}", noop.registration().capabilities());
+        log.info("[java-demo-plugin-test] dry-run structured capabilities={}", noop.registration().structuredCapabilities());
         log.info("[java-demo-plugin-test] dry-run registration labels={}", noop.registration().labels());
     }
 

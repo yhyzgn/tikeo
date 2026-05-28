@@ -32,8 +32,32 @@ message RegisterWorker {
   string namespace = 3;
   string cluster = 4;
   string region = 5;
+  // Legacy free-form labels/capabilities. New routing must use structured_capabilities.
   repeated string capabilities = 6;
   map<string, string> labels = 7;
+  WorkerCapabilities structured_capabilities = 8;
+}
+
+message WorkerCapabilities {
+  // Human/operator tags such as java or spring-boot. Not used for dispatch routing.
+  repeated string tags = 1;
+  repeated SdkProcessorCapability sdk_processors = 2;
+  repeated ScriptRunnerCapability script_runners = 3;
+  repeated PluginProcessorCapability plugin_processors = 4;
+}
+
+message SdkProcessorCapability {
+  string name = 1;
+}
+
+message ScriptRunnerCapability {
+  string language = 1;
+  string sandbox_backend = 2;
+}
+
+message PluginProcessorCapability {
+  string type = 1;
+  repeated string processor_names = 2;
 }
 
 message Heartbeat {
