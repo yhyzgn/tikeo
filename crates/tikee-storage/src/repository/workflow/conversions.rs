@@ -102,6 +102,7 @@ where
         misfire_policy: Set("fire_once".to_owned()),
         schedule_start_at: Set(None),
         schedule_end_at: Set(None),
+        schedule_calendar_json: Set(None),
         processor_name: Set(Some(job_id.to_owned())),
         processor_type: Set(None),
         script_id: Set(None),

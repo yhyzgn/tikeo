@@ -142,6 +142,7 @@ pub async fn create_job(
                 .unwrap_or_else(|| "fire_once".to_owned()),
             schedule_start_at: request.schedule_start_at.clone(),
             schedule_end_at: request.schedule_end_at.clone(),
+            schedule_calendar_json: serialize_schedule_calendar(request.schedule_calendar.as_ref()),
             processor_name: request.processor_name.clone(),
             processor_type: request.processor_type.clone(),
             script_id: request.script_id.clone(),
@@ -389,6 +390,10 @@ pub async fn update_job(
                 misfire_policy: request.misfire_policy.clone(),
                 schedule_start_at: request.schedule_start_at.clone(),
                 schedule_end_at: request.schedule_end_at.clone(),
+                schedule_calendar_json: request
+                    .schedule_calendar
+                    .as_ref()
+                    .map(|value| serialize_schedule_calendar(value.as_ref())),
                 processor_name: request.processor_name.clone(),
                 processor_type: request.processor_type.clone(),
                 script_id: request.script_id.clone(),
@@ -912,6 +917,16 @@ pub async fn list_instance_logs(
     })))
 }
 
+fn serialize_schedule_calendar(value: Option<&serde_json::Value>) -> Option<String> {
+    value.and_then(|value| {
+        if value.is_null() {
+            None
+        } else {
+            serde_json::to_string(value).ok()
+        }
+    })
+}
+
 impl From<tikee_storage::JobSummary> for JobSummary {
     fn from(value: tikee_storage::JobSummary) -> Self {
         Self {
@@ -924,6 +939,10 @@ impl From<tikee_storage::JobSummary> for JobSummary {
             misfire_policy: value.misfire_policy,
             schedule_start_at: value.schedule_start_at,
             schedule_end_at: value.schedule_end_at,
+            schedule_calendar: value
+                .schedule_calendar_json
+                .as_deref()
+                .and_then(|value| serde_json::from_str(value).ok()),
             processor_name: value.processor_name,
             processor_type: value.processor_type,
             script_id: value.script_id,

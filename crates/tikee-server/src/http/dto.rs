@@ -608,6 +608,7 @@ pub struct JobSummary {
     pub misfire_policy: String,
     pub schedule_start_at: Option<String>,
     pub schedule_end_at: Option<String>,
+    pub schedule_calendar: Option<serde_json::Value>,
     pub processor_name: Option<String>,
     pub processor_type: Option<String>,
     pub script_id: Option<String>,
@@ -770,6 +771,7 @@ pub struct CreateJobRequest {
     pub misfire_policy: Option<String>,
     pub schedule_start_at: Option<String>,
     pub schedule_end_at: Option<String>,
+    pub schedule_calendar: Option<serde_json::Value>,
     pub processor_name: Option<String>,
     pub processor_type: Option<String>,
     pub script_id: Option<String>,
@@ -790,6 +792,8 @@ pub struct UpdateJobRequest {
     pub schedule_start_at: Option<Option<String>>,
     #[serde(default, deserialize_with = "deserialize_nullable_update")]
     pub schedule_end_at: Option<Option<String>>,
+    #[serde(default)]
+    pub schedule_calendar: Option<Option<serde_json::Value>>,
     #[serde(default, deserialize_with = "deserialize_nullable_update")]
     pub processor_name: Option<Option<String>>,
     #[serde(default, deserialize_with = "deserialize_nullable_update")]

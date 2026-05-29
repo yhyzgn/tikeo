@@ -102,6 +102,7 @@ impl JobRepository {
             misfire_policy: Set(normalize_misfire_policy(Some(input.misfire_policy))),
             schedule_start_at: Set(normalize_processor_name(input.schedule_start_at)),
             schedule_end_at: Set(normalize_processor_name(input.schedule_end_at)),
+            schedule_calendar_json: Set(normalize_processor_name(input.schedule_calendar_json)),
             processor_name: Set(processor_name),
             processor_type: Set(processor_type),
             script_id: Set(script_id),
@@ -130,6 +131,7 @@ impl JobRepository {
             misfire_policy: model.misfire_policy,
             schedule_start_at: model.schedule_start_at,
             schedule_end_at: model.schedule_end_at,
+            schedule_calendar_json: model.schedule_calendar_json,
             processor_name: model.processor_name,
             processor_type: model.processor_type,
             script_id: model.script_id,
@@ -174,6 +176,9 @@ impl JobRepository {
         }
         if let Some(schedule_end_at) = input.schedule_end_at {
             active.schedule_end_at = Set(normalize_processor_name(schedule_end_at));
+        }
+        if let Some(schedule_calendar_json) = input.schedule_calendar_json {
+            active.schedule_calendar_json = Set(normalize_processor_name(schedule_calendar_json));
         }
         if let Some(processor_name) = input.processor_name {
             active.processor_name = Set(normalize_processor_name(processor_name));
@@ -252,6 +257,7 @@ impl JobRepository {
         active.misfire_policy = Set(version.misfire_policy);
         active.schedule_start_at = Set(version.schedule_start_at);
         active.schedule_end_at = Set(version.schedule_end_at);
+        active.schedule_calendar_json = Set(version.schedule_calendar_json);
         active.processor_name = Set(version.processor_name);
         active.processor_type = Set(version.processor_type);
         active.script_id = Set(version.script_id);
@@ -313,6 +319,7 @@ impl JobRepository {
                 misfire_policy: job.misfire_policy,
                 schedule_start_at: job.schedule_start_at,
                 schedule_end_at: job.schedule_end_at,
+                schedule_calendar_json: job.schedule_calendar_json,
                 processor_name: job.processor_name,
                 processor_type: job.processor_type,
                 script_id: job.script_id,
@@ -393,6 +400,7 @@ fn job_changed(before: &job::Model, active: &job::ActiveModel) -> bool {
         || active.misfire_policy.as_ref() != &before.misfire_policy
         || active.schedule_start_at.as_ref() != &before.schedule_start_at
         || active.schedule_end_at.as_ref() != &before.schedule_end_at
+        || active.schedule_calendar_json.as_ref() != &before.schedule_calendar_json
         || active.processor_name.as_ref() != &before.processor_name
         || active.processor_type.as_ref() != &before.processor_type
         || active.script_id.as_ref() != &before.script_id

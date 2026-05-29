@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, hash::{Hash, Hasher}, str::FromStr, time::Duration};
 
-use chrono::{DateTime, TimeZone, Timelike, Utc};
+use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
 use chrono_tz::Tz;
 use cron::Schedule;
 use tikee_core::{ExecutionMode, MisfirePolicy, ScheduleType, TriggerType};
@@ -482,7 +482,68 @@ fn within_lifecycle_window(
             return Ok(false);
         }
     }
+    if schedule_calendar_blocks(job.schedule_calendar_json.as_deref(), now)? {
+        return Ok(false);
+    }
     Ok(true)
+}
+
+fn schedule_calendar_blocks(
+    schedule_calendar_json: Option<&str>,
+    now: DateTime<Utc>,
+) -> Result<bool, ScheduleDecisionError> {
+    let Some(calendar) = schedule_calendar_json
+        .filter(|value| !value.trim().is_empty())
+        .and_then(|value| serde_json::from_str::<serde_json::Value>(value).ok())
+    else {
+        return Ok(false);
+    };
+    if date_list_contains(&calendar, "excludedDates", now)
+        || date_list_contains(&calendar, "holidays", now)
+    {
+        return Ok(true);
+    }
+    for key in ["maintenanceWindows", "freezeWindows"] {
+        if time_windows_contain(&calendar, key, now)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn date_list_contains(calendar: &serde_json::Value, key: &str, now: DateTime<Utc>) -> bool {
+    let today = format!("{:04}-{:02}-{:02}", now.year(), now.month(), now.day());
+    calendar
+        .get(key)
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|dates| {
+            dates
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .any(|date| date == today)
+        })
+}
+
+fn time_windows_contain(
+    calendar: &serde_json::Value,
+    key: &str,
+    now: DateTime<Utc>,
+) -> Result<bool, ScheduleDecisionError> {
+    let Some(windows) = calendar.get(key).and_then(serde_json::Value::as_array) else {
+        return Ok(false);
+    };
+    for window in windows {
+        let Some(start) = window.get("start").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        let Some(end) = window.get("end").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        if now >= parse_rfc3339_utc(start)? && now < parse_rfc3339_utc(end)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn parse_chrono_duration(expression: &str) -> Result<chrono::Duration, ScheduleDecisionError> {
@@ -538,6 +599,7 @@ mod tests {
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
                 script_id: None,
@@ -571,6 +633,56 @@ mod tests {
 
 
 
+
+    #[tokio::test]
+    async fn lifecycle_window_blocks_calendar_windows() {
+        let (jobs, instances) = repositories().await;
+        let now = Utc
+            .with_ymd_and_hms(2026, 5, 29, 10, 0, 0)
+            .single()
+            .unwrap_or_else(|| panic!("valid time"));
+        let calendar = serde_json::json!({
+            "maintenanceWindows": [{
+                "start": "2026-05-29T09:00:00Z",
+                "end": "2026-05-29T11:00:00Z"
+            }],
+            "freezeWindows": [{
+                "start": "2026-12-24T00:00:00Z",
+                "end": "2026-12-26T00:00:00Z"
+            }],
+            "excludedDates": ["2026-06-01"]
+        });
+        let job = jobs.create_job(CreateJob {
+            created_by: None,
+            namespace: "default".to_owned(),
+            app: "billing".to_owned(),
+            name: "calendar-blocked".to_owned(),
+            schedule_type: "fixed_rate".to_owned(),
+            schedule_expr: Some("1s".to_owned()),
+            misfire_policy: "fire_once".to_owned(),
+            schedule_start_at: None,
+            schedule_end_at: None,
+            schedule_calendar_json: Some(calendar.to_string()),
+            processor_name: None,
+            processor_type: None,
+            script_id: None,
+            enabled: true,
+            canary_job_id: None,
+            canary_percent: 0,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("job should create: {error}"));
+
+        tick_once(&jobs, &instances, &ScheduleState::default(), now)
+            .await
+            .unwrap_or_else(|error| panic!("tick should run: {error}"));
+        let listed = instances
+            .list_by_job(&job.id)
+            .await
+            .unwrap_or_else(|error| panic!("instances should list: {error}"));
+        assert!(listed.is_empty());
+    }
+
     #[test]
     fn fixed_rate_expression_supports_jitter_option() {
         let spec = super::parse_fixed_rate_expression("30s;jitter=5s")
@@ -603,6 +715,7 @@ mod tests {
                 misfire_policy: "latest_only".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
                 script_id: None,
@@ -651,6 +764,7 @@ mod tests {
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
                 script_id: None,
@@ -693,6 +807,7 @@ mod tests {
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
                 script_id: None,
@@ -734,6 +849,7 @@ mod tests {
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
                 script_id: None,
@@ -774,6 +890,7 @@ mod tests {
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
                 script_id: None,
@@ -814,6 +931,7 @@ mod tests {
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
                 script_id: None,
@@ -864,6 +982,7 @@ mod tests {
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
                 script_id: None,
@@ -905,6 +1024,7 @@ mod tests {
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
                 script_id: None,
@@ -945,6 +1065,7 @@ mod tests {
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
                 script_id: None,

@@ -14,11 +14,11 @@
 
 | 分类 | 条目数 | ✅ 已覆盖 | 🟡 部分覆盖 | ❌ 未覆盖 | 主要风险 |
 |---|---:|---:|---:|---:|---|
-| 2.1 调度能力 | 9 | 8 | 1 | 0 | 调度主干已覆盖；剩余维护窗口/冻结窗口等生命周期增强 |
+| 2.1 调度能力 | 9 | 9 | 0 | 0 | 调度主干已覆盖；生命周期维护/冻结窗口和节假日排除已进入正式 Job schema/API/tick 路径 |
 | 2.2 执行模式 | 8 | 8 | 0 | 0 | 广播策略、队列治理、分片恢复、MapReduce reduce 分片、长任务取消/checkpoint、补偿节点、安全表达式和审批 SLA 已补齐主干 |
 | 2.3 处理器类型 | 11 | 6 | 5 | 0 | Java/Rust/脚本基础较强；内置 HTTP/gRPC/SQL/文件清理/Webhook 主路径已补齐 |
 | 2.4 管理与平台能力 | 10 | 5 | 4 | 1 | 平台能力框架齐全，多租户配额、Secret Store、告警去重/静默已接入，GitOps 等仍部分缺口 |
-| **合计** | **38** | **23** | **9** | **6** | **整体为“核心可用、竞品对照仍有高级语义缺口”** |
+| **合计** | **38** | **24** | **8** | **6** | **整体为“核心可用、竞品对照仍有高级语义缺口”** |
 
 ## 2. 状态定义
 
@@ -43,7 +43,7 @@
 | 一次性未来任务 | ✅ 已覆盖 | `ScheduleType::Once` / `TriggerType::Once`；`once_due`；Jobs UI `once` + RFC3339 触发时间 | 已提供一等 `once` 调度类型，到点后只触发一次；支持 RFC3339 时间（含时区） | 取消与重排通过编辑/禁用任务完成，未另设专用 once API | P2 |
 | Daily Time Interval | ✅ 已覆盖 | `ScheduleType::DailyTimeInterval` / `TriggerType::DailyTimeInterval`；`daily_time_interval_due`；`JobRepository::list_enabled_scheduled_jobs`；Jobs UI `daily_time_interval` 表单；`daily_time_interval_tick_*` 单测 | 支持 `HH:MM-HH:MM[/interval]@TZ` 表达式，例如 `09:00-18:00/30m@Asia/Shanghai`；tick 只在每日窗口内、按间隔对齐触发，并避免同一 interval 内重复触发 | 当前支持固定 UTC offset 和 `Asia/Shanghai` 等明确映射；完整 IANA TZ/DST/节假日排除仍归入 Cron/Calendar 增强 | P2 |
 | Misfire 策略 | ✅ 已覆盖 | `MisfirePolicy`；jobs/job_versions `misfire_policy`；`misfire_decision`；Jobs UI Misfire 策略选择 | 已支持 `do_nothing`、`fire_once`、`catch_up_limited`、`reschedule`、`latest_only` 并接入 Cron/FixedRate tick | 后续可把 misfire 阈值与 catch-up 上限配置化 | P2 |
-| 生命周期窗口 | 🟡 部分覆盖 | jobs/job_versions `schedule_start_at` / `schedule_end_at`；`within_lifecycle_window`；Jobs UI 生命周期开始/结束 | 已支持任务级 start/end 调度窗口，时间按 RFC3339 解析 | 维护窗口、冻结窗口、节假日策略仍未覆盖 | P1 |
+| 生命周期窗口 | ✅ 已覆盖 | jobs/job_versions `schedule_start_at` / `schedule_end_at` / `schedule_calendar_json`；HTTP `scheduleCalendar`；`within_lifecycle_window`；`lifecycle_window_blocks_calendar_windows`；Jobs UI 生命周期开始/结束 | 已支持任务级 start/end 调度窗口，时间按 RFC3339 解析；新增正式 `scheduleCalendar` 模型，支持 `maintenanceWindows`、`freezeWindows`、`excludedDates`/`holidays`，tick 决策会在窗口内阻断自动触发 | 更复杂的集中式节假日 Provider 可后续增强 | P2 |
 
 ### 调度能力结论
 
@@ -121,8 +121,7 @@ Java/Rust SDK 是当前最成熟部分。脚本/wasm 已有大量基础设施，
 
 ### P1：重要但可排期补强
 
-1. FixedRate jitter/防惊群。
-3. 审计覆盖率检查：密钥读取使用、审批通过/拒绝等剩余关键路径。
+1. 审计覆盖率检查：密钥读取使用、审批通过/拒绝等剩余关键路径。
 
 ### P2：可后续完善
 

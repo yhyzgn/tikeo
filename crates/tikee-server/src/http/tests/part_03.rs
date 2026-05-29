@@ -17,6 +17,7 @@
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
                 script_id: None,
@@ -280,6 +281,7 @@
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: Some("billing.extract".to_owned()),
                 processor_type: None,
                 script_id: None,
@@ -300,6 +302,7 @@
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: Some("billing.load".to_owned()),
                 processor_type: None,
                 script_id: None,
@@ -547,6 +550,7 @@
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: Some("billing.webhook".to_owned()),
                 processor_type: None,
                 script_id: None,
@@ -635,6 +639,7 @@
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: Some("billing.webhook".to_owned()),
                 processor_type: None,
                 script_id: None,
@@ -745,6 +750,7 @@
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: Some("billing.advice".to_owned()),
                 processor_type: None,
                 script_id: None,
@@ -839,6 +845,7 @@
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: Some("billing.canary".to_owned()),
                 processor_type: None,
                 script_id: None,
@@ -859,6 +866,7 @@
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: Some("billing.main".to_owned()),
                 processor_type: None,
                 script_id: None,
@@ -932,6 +940,7 @@
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: Some("demo.predict".to_owned()),
                 processor_type: None,
                 script_id: None,
@@ -1029,15 +1038,15 @@
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         let jobs = JobRepository::new(db.clone());
         let extract = jobs
-            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "extract".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, processor_name: Some("billing.extract".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0 })
+            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "extract".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, schedule_calendar_json: None, processor_name: Some("billing.extract".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0 })
             .await
             .unwrap_or_else(|error| panic!("extract job should create: {error}"));
         let normalize = jobs
-            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "normalize".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, processor_name: Some("billing.normalize".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0 })
+            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "normalize".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, schedule_calendar_json: None, processor_name: Some("billing.normalize".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0 })
             .await
             .unwrap_or_else(|error| panic!("normalize job should create: {error}"));
         let publish = jobs
-            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "publish".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, processor_name: Some("billing.publish".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0 })
+            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "publish".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, schedule_calendar_json: None, processor_name: Some("billing.publish".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0 })
             .await
             .unwrap_or_else(|error| panic!("publish job should create: {error}"));
         let workflows = WorkflowRepository::new(db.clone());
@@ -1104,7 +1113,7 @@
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         let jobs = JobRepository::new(db.clone());
         let job = jobs
-            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "replay-job".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, processor_name: Some("billing.replay".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0 })
+            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "replay-job".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, schedule_calendar_json: None, processor_name: Some("billing.replay".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0 })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
         let workflows = WorkflowRepository::new(db.clone());
@@ -1185,6 +1194,7 @@
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
+                schedule_calendar_json: None,
                 processor_name: None,
                 processor_type: None,
                 script_id: Some("script-missing-runtime".to_owned()),

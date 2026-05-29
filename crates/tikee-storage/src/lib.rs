@@ -259,6 +259,13 @@ async fn ensure_job_schema_compatibility(db: &DatabaseConnection) -> Result<(), 
         ))
         .await?;
     }
+    if !sqlite_column_exists(db, "jobs", "schedule_calendar_json").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE jobs ADD COLUMN schedule_calendar_json varchar",
+        ))
+        .await?;
+    }
     if !sqlite_column_exists(db, "jobs", "canary_job_id").await? {
         db.execute(Statement::from_string(
             DatabaseBackend::Sqlite,
@@ -285,6 +292,7 @@ async fn ensure_job_schema_compatibility(db: &DatabaseConnection) -> Result<(), 
             misfire_policy varchar NOT NULL DEFAULT 'fire_once',
             schedule_start_at varchar,
             schedule_end_at varchar,
+            schedule_calendar_json varchar,
             processor_name varchar,
             processor_type varchar,
             script_id varchar,
@@ -296,6 +304,13 @@ async fn ensure_job_schema_compatibility(db: &DatabaseConnection) -> Result<(), 
         )",
     ))
     .await?;
+    if !sqlite_column_exists(db, "job_versions", "schedule_calendar_json").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE job_versions ADD COLUMN schedule_calendar_json varchar",
+        ))
+        .await?;
+    }
     if !sqlite_column_exists(db, "job_versions", "processor_type").await? {
         db.execute(Statement::from_string(
             DatabaseBackend::Sqlite,
@@ -1139,6 +1154,7 @@ async fn remove_sqlite_foreign_keys(db: &DatabaseConnection) -> Result<(), sea_o
             misfire_policy varchar NOT NULL DEFAULT 'fire_once',
             schedule_start_at varchar,
             schedule_end_at varchar,
+            schedule_calendar_json varchar,
             processor_name varchar,
             processor_type varchar,
             script_id varchar,

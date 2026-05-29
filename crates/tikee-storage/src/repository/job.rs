@@ -19,6 +19,8 @@ pub struct CreateJob {
     pub schedule_start_at: Option<String>,
     /// Optional exclusive schedule end timestamp.
     pub schedule_end_at: Option<String>,
+    /// Optional lifecycle calendar JSON with maintenance/freeze windows and excluded dates.
+    pub schedule_calendar_json: Option<String>,
     /// Optional SDK worker processor binding. When absent, dispatch falls back to job name.
     pub processor_name: Option<String>,
     /// Optional custom plugin processor type.
@@ -50,6 +52,8 @@ pub struct UpdateJob {
     pub schedule_start_at: Option<Option<String>>,
     /// Optional end timestamp update. Outer `None` leaves unchanged; inner `None` clears it.
     pub schedule_end_at: Option<Option<String>>,
+    /// Optional lifecycle calendar update. Outer `None` leaves unchanged; inner `None` clears it.
+    pub schedule_calendar_json: Option<Option<String>>,
     /// Optional SDK worker processor binding. Outer `None` leaves unchanged; inner `None` clears it.
     pub processor_name: Option<Option<String>>,
     /// Optional custom plugin processor type.
@@ -87,6 +91,8 @@ pub struct JobSummary {
     pub schedule_start_at: Option<String>,
     /// Optional exclusive schedule end timestamp.
     pub schedule_end_at: Option<String>,
+    /// Optional lifecycle calendar JSON with maintenance/freeze windows and excluded dates.
+    pub schedule_calendar_json: Option<String>,
     /// Optional SDK worker processor binding.
     pub processor_name: Option<String>,
     /// Optional custom plugin processor type.
