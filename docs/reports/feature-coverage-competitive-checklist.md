@@ -88,7 +88,7 @@
 
 ### 处理器类型结论
 
-Java/Rust SDK 是当前最成熟部分。脚本/wasm 已有大量基础设施，但“默认强沙箱 + 多语言 + 日志 + 安全策略”的生产闭环仍需严格验证。HTTP/gRPC/文件清理这类设计里列为 ✅ 的处理器，目前不应标记为完成。
+Java/Rust SDK 是当前最成熟部分。脚本/wasm、HTTP/gRPC/SQL/文件清理、外部 JAR/容器和 Webhook 均已进入正式模型/API/运行路径；后续重点是非 Java SDK parity 与运行时压测/安全回归。
 
 ---
 
@@ -127,7 +127,6 @@ Java/Rust SDK 是当前最成熟部分。脚本/wasm 已有大量基础设施，
 
 1. Calendar Schedule 的集中式节假日/维护日历管理增强。
 2. Go SDK 完整 parity；Python/Node SDK 实现。
-3. 暗色模式/移动端验收。
 
 ---
 
