@@ -214,6 +214,69 @@
         }
     }
 
+
+    #[tokio::test]
+    async fn workflow_approval_advance_records_audit_log() {
+        let app = router().await;
+        let create = post_json(
+            app.clone(),
+            "/api/v1/workflows",
+            r#"{"name":"approval-audit","definition":{"nodes":[{"key":"approve","kind":"approval","config":{"approvers":"ops"}},{"key":"done","kind":"end"}],"edges":[{"from":"approve","to":"done","condition":"on_success"}]}}"#,
+        )
+        .await;
+        assert_eq!(create["code"], 0);
+        let workflow_id = create["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("workflow id should exist"));
+        let run = post_json(
+            app.clone(),
+            &format!("/api/v1/workflows/{workflow_id}/run"),
+            r#"{"triggerType":"api"}"#,
+        )
+        .await;
+        let instance_id = run["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("workflow instance id should exist"));
+        let materialized = post_json(app.clone(), "/api/v1/workflow-instances/materialize-next", "{}")
+            .await;
+        assert_eq!(materialized["data"]["node"]["nodeKey"], "approve");
+        assert_eq!(materialized["data"]["node"]["status"], "running");
+
+        let advanced = post_json(
+            app.clone(),
+            &format!("/api/v1/workflow-instances/{instance_id}/advance"),
+            r#"{"nodeKey":"approve","status":"succeeded","message":"approved by ops"}"#,
+        )
+        .await;
+        assert_eq!(advanced["code"], 0);
+        assert_eq!(advanced["data"]["queuedNodes"][0], "done");
+
+        let audit = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app,
+                    "GET",
+                    format!("/api/v1/audit-logs?action=advance&resource_type=workflow_instance&resource_id={instance_id}&page_size=1"),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("approval advance audit should respond: {error}"));
+        assert!(audit.status().is_success());
+        let body = axum::body::to_bytes(audit.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("audit body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("audit body should be JSON: {error}"));
+        assert_eq!(json["data"]["items"][0]["action"], "advance");
+        assert_eq!(json["data"]["items"][0]["resource_type"], "workflow_instance");
+        assert_eq!(json["data"]["items"][0]["resource_id"], instance_id);
+        assert!(json["data"]["items"][0]["detail"]
+            .as_str()
+            .is_some_and(|detail| detail.contains("node=approve status=succeeded")));
+    }
+
     #[tokio::test]
     #[allow(clippy::too_many_lines)]
     async fn user_management_and_rbac_integration() {

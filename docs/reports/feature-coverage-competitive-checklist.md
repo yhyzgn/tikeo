@@ -104,7 +104,7 @@ Java/Rust SDK 是当前最成熟部分。脚本/wasm 已有大量基础设施，
 | 多租户 | ✅ 已覆盖 | `namespaces/apps/worker_pools/sdk_api_keys/secrets` scope；`worker_pools.max_queue_depth/max_concurrency`；`dispatch_queue.namespace/app/worker_pool`；`routes/scope.rs`；`ScopesPage.tsx`；`tenant_secret_store_creates_lists_and_deletes_scoped_secret_refs` | namespace/app/worker pool 基础 CRUD、token scope binding、WorkerPool 队列/并发配额和背压已接入；Secret Store 按 namespace/app 隔离，只存 valueRef，不存明文，创建/删除审计 | 租户级权重/公平调度可后续增强 | P2 |
 | 告警通知 | ✅ 已覆盖 | `crates/tikee-server/src/alert.rs`、`alert/email.rs`、`alert/retry.rs`、`routes/alerts.rs`；Web `AlertDeliveryPage`；`alert_rules_apply_threshold_dedupe_window_and_silence` | 邮件、飞书、钉钉、企微、Slack、PagerDuty、Webhook、插件告警、重试/DLQ 基础存在；`dedupe_seconds` 已接入实际窗口化去重/阈值计数，`silenced_until` 会生成 silenced 历史事件且不投递 | 复杂告警表达式、分组聚合和升级策略可后续增强 | P2 |
 | 指标监控 | ✅ 已覆盖 | `/metrics` router；`routes/metrics.rs`；`observability/prometheus/*`；`observability/grafana/*`；`observability/tracing.rs` | Prometheus 指标、业务 SLO 汇总、Grafana/Prometheus 配套、OTLP tracing 基础存在 | 指标命名稳定性和 Dashboard 完整性需运维回归 | P2 |
-| 审计日志 | 🟡 部分覆盖 | `audit_logs` schema；`routes/audit_logs.rs`；多处 CRUD/trigger/login/script gate 写审计；`AuditLogsPage`；`tenant_secret_store_creates_lists_and_deletes_scoped_secret_refs` 验证 secret create/read/delete 审计 | 审计日志表、查询/导出、多个关键操作审计已存在；Secret Store 创建/读取/删除已写入并测试审计记录；实例 cancel 已通过 `cancel_instance_route_records_audit_log` 固化；Job rollback 已通过 `job_version_api_lists_and_rolls_back_snapshots` 的审计断言固化；脚本 publish/rollback 已通过 `script_publish_and_rollback_return_release_pointer_envelopes` 的审计断言固化 | 仍需系统性扫描所有 CRUD/审批路径是否 100% 覆盖 | P1 |
+| 审计日志 | 🟡 部分覆盖 | `audit_logs` schema；`routes/audit_logs.rs`；多处 CRUD/trigger/login/script gate 写审计；`AuditLogsPage`；`tenant_secret_store_creates_lists_and_deletes_scoped_secret_refs` 验证 secret create/read/delete 审计；`workflow_approval_advance_records_audit_log` 验证审批推进审计 | 审计日志表、查询/导出、多个关键操作审计已存在；Secret Store 创建/读取/删除已写入并测试审计记录；实例 cancel 已通过 `cancel_instance_route_records_audit_log` 固化；Job rollback 已通过 `job_version_api_lists_and_rolls_back_snapshots` 的审计断言固化；脚本 publish/rollback 已通过 `script_publish_and_rollback_return_release_pointer_envelopes` 的审计断言固化；工作流审批/advance 已通过 audit API 固化 | 仍需系统性扫描剩余 CRUD 矩阵是否 100% 覆盖 | P1 |
 | GitOps/IaC | ❌ 未覆盖 | `Dockerfile`、`docker-compose.yml`、`deploy/compose`、`deploy/systemd`、`deploy/k8s/tikee.yaml` | 有 Compose/Systemd/K8s baseline 部署材料 | 未见 CRD、Terraform Provider、GitOps diff/import-export 等平台能力；不能按设计标记完成 | P2 |
 
 ### 管理与平台能力结论
@@ -121,7 +121,7 @@ Java/Rust SDK 是当前最成熟部分。脚本/wasm 已有大量基础设施，
 
 ### P1：重要但可排期补强
 
-1. 审计覆盖率检查：审批通过/拒绝和剩余 CRUD 矩阵。
+1. 审计覆盖率检查：剩余 CRUD 矩阵。
 
 ### P2：可后续完善
 
