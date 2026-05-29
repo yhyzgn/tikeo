@@ -99,7 +99,7 @@ Java/Rust SDK 是当前最成熟部分。脚本/wasm 已有大量基础设施，
 | Web 控制台 | ✅ 已覆盖 | `web/src/pages/*` 覆盖 Jobs/Instances/Workers/Workflows/Scripts/Plugins/Scopes/Alerts/Audit 等；`web/src/theme` 和 AppShell；`ThemeMode.test.ts`；`ResponsiveConsole.test.ts` | 内置 React 控制台、主要管理页面、主题色、分页等已实现；新增可持久化 light/dark 模式，接入 Ant Design `darkAlgorithm`、`data-theme` CSS 和顶栏开关；移动端基础规则覆盖 shell/header/toolbars/table 横向滚动/drawer 全宽 | 仍建议做完整视觉 QA/设备截图验收 | P2 |
 | OpenAPI | ✅ 已覆盖 | `crates/tikee-server/src/http/openapi.rs` 使用 `utoipa::OpenApi` 汇总 routes/schema | REST OpenAPI 已生成，覆盖 jobs/workflows/scripts/auth/alerts/metrics 等 | gRPC reflection 未确认 | P2 |
 | 实时日志 | ✅ 已覆盖 | `worker.proto` 有 `TaskLog` 和 `SubscribeTaskLogs`；`jobs.rs` 有 instance logs API；Java/Rust SDK 有 task log 上报；UI 实例日志展示；`tunnel::service::tests::subscribe_task_logs_replays_existing_and_streams_live_logs` | gRPC 流式日志、日志持久化查询、历史 replay 与 live stream 已有服务端测试固化；脚本/SDK 日志可进入实例日志 | 对象存储归档属于长期日志归档增强，可后续作为运维扩展；背压压测仍可补充 | P2 |
-| 工作流可视化 | 🟡 部分覆盖 | `web/src/pages/WorkflowsPage.tsx` 可视化节点编辑、dry-run/validate/run/SSE；`workflow.rs` 支持定义/运行/恢复 | 拖拽/节点配置、JSON-ish/YAML-ish 文本展示、SSE 事件和恢复入口存在 | YAML/JSON 双模式、diff、仿真、回放不完整；Runtime 节点覆盖不足 | P1 |
+| 工作流可视化 | ✅ 已覆盖 | `web/src/pages/WorkflowsPage.tsx` 可视化节点编辑、JSON/YAML/定义 Diff、dry-run/validate/run/SSE、server-side replay；`web/src/pages/__tests__/WorkflowsPage.test.tsx` 固化回放与 Diff 入口；`workflow.rs` 支持定义/运行/恢复/回放查询 | 拖拽/端口连线/节点属性、JSON/YAML 双视图、定义 Diff、Dry-run 仿真、SSE 事件流、运行快照回放和 Runtime 状态叠加均已在 Web 控制台闭环 | 复杂历史版本之间的图形化三方合并可作为后续增强，不影响当前设计条目覆盖 | P2 |
 | 用户权限 | 🟡 部分覆盖 | `crates/tikee-server/src/http/auth.rs`；OpenAPI 有 OIDC/API token/sdk api keys；RBAC 权限种子在 storage | RBAC、OIDC identity、API token 创建/轮换/撤销、SDK API Key 均存在 | Service Account 是否一等模型不明确；密钥使用审计需补充验证 | P1 |
 | 多租户 | ✅ 已覆盖 | `namespaces/apps/worker_pools/sdk_api_keys/secrets` scope；`worker_pools.max_queue_depth/max_concurrency`；`dispatch_queue.namespace/app/worker_pool`；`routes/scope.rs`；`ScopesPage.tsx`；`tenant_secret_store_creates_lists_and_deletes_scoped_secret_refs` | namespace/app/worker pool 基础 CRUD、token scope binding、WorkerPool 队列/并发配额和背压已接入；Secret Store 按 namespace/app 隔离，只存 valueRef，不存明文，创建/删除审计 | 租户级权重/公平调度可后续增强 | P2 |
 | 告警通知 | ✅ 已覆盖 | `crates/tikee-server/src/alert.rs`、`alert/email.rs`、`alert/retry.rs`、`routes/alerts.rs`；Web `AlertDeliveryPage`；`alert_rules_apply_threshold_dedupe_window_and_silence` | 邮件、飞书、钉钉、企微、Slack、PagerDuty、Webhook、插件告警、重试/DLQ 基础存在；`dedupe_seconds` 已接入实际窗口化去重/阈值计数，`silenced_until` 会生成 silenced 历史事件且不投递 | 复杂告警表达式、分组聚合和升级策略可后续增强 | P2 |
@@ -109,7 +109,7 @@ Java/Rust SDK 是当前最成熟部分。脚本/wasm 已有大量基础设施，
 
 ### 管理与平台能力结论
 
-平台管理能力已具雏形，Web/OpenAPI/Metrics 较完整；但设计中面向企业级治理的“全链路隔离、全量审计、GitOps/IaC、对象存储日志归档”等仍未闭环。
+平台管理能力已具雏形，Web/OpenAPI/Metrics/工作流可视化较完整；但设计中面向企业级治理的“全链路隔离、全量审计、GitOps/IaC、对象存储日志归档”等仍未闭环。
 
 ---
 

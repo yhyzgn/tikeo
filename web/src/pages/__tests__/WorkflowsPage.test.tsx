@@ -38,3 +38,24 @@ describe('workflow editor avoids user-facing internal bindings', () => {
     expect(source).not.toContain('processorName: key');
   });
 });
+
+
+describe('workflow replay and definition diff affordances', () => {
+  test('workflow list can load server-side replay snapshots', () => {
+    expect(source).toContain('getWorkflowReplay');
+    expect(source).toContain('WorkflowReplayResponse');
+    expect(source).toContain('回放实例');
+    expect(source).toContain('workflow replay');
+    expect(source).toContain('workflow-replay-panel');
+  });
+
+  test('workflow editor exposes a first-class definition diff view', () => {
+    expect(source).toContain('buildLineDiff');
+    expect(source).toContain('WorkflowDefinitionDiff');
+    expect(source).toContain('定义 Diff');
+    expect(source).toContain('workflow definition diff');
+    expect(styles).toContain('.workflow-definition-diff');
+    expect(styles).toContain('workflow-definition-diff__line--added');
+    expect(styles).toContain('workflow-definition-diff__line--removed');
+  });
+});

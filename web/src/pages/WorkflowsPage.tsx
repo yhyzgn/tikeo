@@ -5,6 +5,7 @@ import {
   createWorkflow,
   getWorkflow,
   getWorkflowInstance,
+  getWorkflowReplay,
   listWorkflowShards,
   materializeNextWorkflowNode,
   ApiClientError,
@@ -24,6 +25,7 @@ import {
   type WorkflowDryRunResponse,
   type WorkflowEdgeSpec,
   type WorkflowInstanceSummary,
+  type WorkflowReplayResponse,
   type WorkflowNodeSpec,
   type WorkflowShardSummary,
   type WorkflowSummary,
@@ -107,6 +109,65 @@ function definitionToYaml(definition: WorkflowDefinition): string {
     lines.push(`    condition: ${edge.condition ?? 'always'}`);
   }
   return lines.join('\n');
+}
+
+
+function buildLineDiff(before: string, after: string): Array<{ kind: 'same' | 'added' | 'removed'; line: string }> {
+  const beforeLines = before.split('\n');
+  const afterLines = after.split('\n');
+  const rows = beforeLines.length + 1;
+  const columns = afterLines.length + 1;
+  const lengths = Array.from({ length: rows }, () => Array<number>(columns).fill(0));
+  for (let i = beforeLines.length - 1; i >= 0; i -= 1) {
+    for (let j = afterLines.length - 1; j >= 0; j -= 1) {
+      lengths[i][j] = beforeLines[i] === afterLines[j]
+        ? lengths[i + 1][j + 1] + 1
+        : Math.max(lengths[i + 1][j], lengths[i][j + 1]);
+    }
+  }
+  const diff: Array<{ kind: 'same' | 'added' | 'removed'; line: string }> = [];
+  let i = 0;
+  let j = 0;
+  while (i < beforeLines.length && j < afterLines.length) {
+    if (beforeLines[i] === afterLines[j]) {
+      diff.push({ kind: 'same', line: beforeLines[i] });
+      i += 1;
+      j += 1;
+    } else if (lengths[i + 1][j] >= lengths[i][j + 1]) {
+      diff.push({ kind: 'removed', line: beforeLines[i] });
+      i += 1;
+    } else {
+      diff.push({ kind: 'added', line: afterLines[j] });
+      j += 1;
+    }
+  }
+  while (i < beforeLines.length) {
+    diff.push({ kind: 'removed', line: beforeLines[i] });
+    i += 1;
+  }
+  while (j < afterLines.length) {
+    diff.push({ kind: 'added', line: afterLines[j] });
+    j += 1;
+  }
+  return diff;
+}
+
+function WorkflowDefinitionDiff({ baseline, draft }: { baseline: string; draft: string }) {
+  const diff = useMemo(() => buildLineDiff(baseline, draft), [baseline, draft]);
+  const changed = diff.some((line) => line.kind !== 'same');
+  return (
+    <div className="workflow-definition-diff" aria-label="workflow definition diff">
+      {!changed ? <Alert type="success" showIcon message="定义 Diff：当前草稿与已加载版本一致" /> : null}
+      <pre>
+        {diff.map((line, index) => (
+          <div key={`${line.kind}-${index}`} className={`workflow-definition-diff__line workflow-definition-diff__line--${line.kind}`}>
+            <span className="workflow-definition-diff__prefix">{line.kind === 'added' ? '+' : line.kind === 'removed' ? '-' : ' '}</span>
+            <code>{line.line || ' '}</code>
+          </div>
+        ))}
+      </pre>
+    </div>
+  );
 }
 
 function nodeKind(node: WorkflowNodeSpec): string {
@@ -749,6 +810,8 @@ export function WorkflowsPage() {
   const [activeInstance, setActiveInstance] = useState<WorkflowInstanceSummary | null>(null);
   const [events, setEvents] = useState<InstanceEventSummary[]>([]);
   const [shards, setShards] = useState<WorkflowShardSummary[]>([]);
+  const [replay, setReplay] = useState<WorkflowReplayResponse | null>(null);
+  const [replayLoading, setReplayLoading] = useState(false);
   const [expandedWorkflowId, setExpandedWorkflowId] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -816,6 +879,7 @@ export function WorkflowsPage() {
         setActiveInstance(null);
         setEvents([]);
         setShards([]);
+        setReplay(null);
       }
       return item;
     });
@@ -869,6 +933,22 @@ export function WorkflowsPage() {
     setShards(await listWorkflowShards(activeInstance.id));
   };
 
+
+  const loadReplay = async () => {
+    if (!activeInstance) return;
+    setReplayLoading(true);
+    try {
+      const result = await getWorkflowReplay(activeInstance.id);
+      setReplay(result);
+      setActiveInstance(result.instance);
+      setActiveWorkflow(result.workflow);
+      setEvents(result.events);
+      message.success('Workflow replay 已加载');
+    } finally {
+      setReplayLoading(false);
+    }
+  };
+
   return (
     <Space direction="vertical" size={18} style={{ width: '100%' }}>
       <div className="hero-panel workflow-hero">
@@ -904,7 +984,7 @@ export function WorkflowsPage() {
               {expandedWorkflowId === item.id ? (
                 <div className="workflow-inline-run-panel">
                   <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                    <Card size="small" title="运行视图" extra={<Space wrap className="card-toolbar">{canExecuteWorkflows ? <Popconfirm title="准备下一节点执行？" description="将把 queued 工作流节点物化为实际执行项。" onConfirm={materializeNext}><Button>准备下一节点执行</Button></Popconfirm> : null}{canExecuteWorkflows ? <Popconfirm title="标记当前节点成功？" description="该人工推进会改变工作流实例状态。" onConfirm={completeFirstQueued}><Button disabled={!activeInstance}>标记当前节点成功</Button></Popconfirm> : null}{canExecuteWorkflows ? <Popconfirm title="重试失败节点？" description="将对第一个失败节点执行 retry 恢复操作。" onConfirm={recoverFirstFailed}><Button disabled={!activeInstance}>重试失败节点</Button></Popconfirm> : null}<Button onClick={refreshShards} disabled={!activeInstance}>刷新 Shards</Button></Space>}>
+                    <Card size="small" title="运行视图" extra={<Space wrap className="card-toolbar">{canExecuteWorkflows ? <Popconfirm title="准备下一节点执行？" description="将把 queued 工作流节点物化为实际执行项。" onConfirm={materializeNext}><Button>准备下一节点执行</Button></Popconfirm> : null}{canExecuteWorkflows ? <Popconfirm title="标记当前节点成功？" description="该人工推进会改变工作流实例状态。" onConfirm={completeFirstQueued}><Button disabled={!activeInstance}>标记当前节点成功</Button></Popconfirm> : null}{canExecuteWorkflows ? <Popconfirm title="重试失败节点？" description="将对第一个失败节点执行 retry 恢复操作。" onConfirm={recoverFirstFailed}><Button disabled={!activeInstance}>重试失败节点</Button></Popconfirm> : null}<Button onClick={refreshShards} disabled={!activeInstance}>刷新 Shards</Button><Button onClick={loadReplay} loading={replayLoading} disabled={!activeInstance}>回放实例</Button></Space>}>
                       <DagPreview definition={item.definition} instance={activeWorkflow?.id === item.id ? activeInstance : null} />
                       {activeWorkflow?.id === item.id && shards.length > 0 ? <List size="small" style={{ marginTop: 16 }} dataSource={shards} renderItem={(shard) => <List.Item><Typography.Text>{shard.nodeKey}#{shard.shardIndex} · {shard.status} · {JSON.stringify(shard.input)}</Typography.Text></List.Item>} /> : null}
                     </Card>
@@ -912,6 +992,15 @@ export function WorkflowsPage() {
                       {activeWorkflow?.id === item.id && activeInstance ? <Typography.Text type="secondary">{activeInstance.id} · {activeInstance.status}</Typography.Text> : <Typography.Text type="secondary">运行工作流后展示 SSE 事件</Typography.Text>}
                       <Timeline style={{ marginTop: 18 }} items={(activeWorkflow?.id === item.id ? events : []).map((event) => ({ color: event.eventType.includes('failed') ? 'red' : 'blue', children: <span>{event.createdAt} · {event.eventType} · {event.message}</span> }))} />
                     </Card>
+                    {activeWorkflow?.id === item.id && replay ? (
+                      <Card size="small" title="回放快照" className="workflow-replay-panel">
+                        <Space direction="vertical" size={10} style={{ width: '100%' }}>
+                          <Typography.Text type="secondary">workflow replay · {replay.instance.id} · {replay.instance.status} · events: {replay.events.length}</Typography.Text>
+                          <DagPreview definition={replay.workflow.definition} instance={replay.instance} />
+                          <List size="small" dataSource={replay.events} renderItem={(event) => <List.Item><Typography.Text>{event.createdAt} · {event.eventType} · {event.message}</Typography.Text></List.Item>} />
+                        </Space>
+                      </Card>
+                    ) : null}
                   </Space>
                 </div>
               ) : null}
@@ -927,8 +1016,9 @@ export function WorkflowEditorPage() {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
   const [loading, setLoading] = useState(false);
-  const [previewMode, setPreviewMode] = useState<'visual' | 'json' | 'yaml'>('visual');
+  const [previewMode, setPreviewMode] = useState<'visual' | 'json' | 'yaml' | 'diff'>('visual');
   const [draft, setDraft] = useState(DEFAULT_DEFINITION);
+  const [baselineDraft, setBaselineDraft] = useState(DEFAULT_DEFINITION);
   const [dryRun, setDryRun] = useState<WorkflowDryRunResponse | null>(null);
   const [form] = Form.useForm<{ name: string }>();
   const navigate = useNavigate();
@@ -945,7 +1035,9 @@ export function WorkflowEditorPage() {
       if (workflowId) {
         const workflow = await getWorkflow(workflowId);
         form.setFieldsValue({ name: workflow.name });
-        setDraft(stringifyDefinition(normalizeWorkflowDefinition(workflow.definition)));
+        const nextDraft = stringifyDefinition(normalizeWorkflowDefinition(workflow.definition));
+        setDraft(nextDraft);
+        setBaselineDraft(nextDraft);
       }
     } finally { setLoading(false); }
   };
@@ -968,9 +1060,11 @@ export function WorkflowEditorPage() {
     catch { message.error('Workflow definition 必须是合法 JSON'); return; }
     if (workflowId) {
       await updateWorkflow(workflowId, { name: values.name, definition });
+      setBaselineDraft(stringifyDefinition(normalizeWorkflowDefinition(definition)));
       message.success('Workflow 已更新');
     } else {
       await createWorkflow({ name: values.name, definition });
+      setBaselineDraft(stringifyDefinition(normalizeWorkflowDefinition(definition)));
       message.success('Workflow 已创建');
     }
     navigate('/workflows');
@@ -1003,7 +1097,7 @@ export function WorkflowEditorPage() {
       <Card
         title="可视化节点画布"
         loading={loading}
-        extra={<Space wrap className="card-toolbar"><Segmented value={previewMode} onChange={(value) => setPreviewMode(value as 'visual' | 'json' | 'yaml')} options={[{ label: '画布', value: 'visual' }, { label: 'JSON', value: 'json' }, { label: 'YAML', value: 'yaml' }]} /><Button onClick={dryRunDraft}>Dry-run</Button></Space>}
+        extra={<Space wrap className="card-toolbar"><Segmented value={previewMode} onChange={(value) => setPreviewMode(value as 'visual' | 'json' | 'yaml' | 'diff')} options={[{ label: '画布', value: 'visual' }, { label: 'JSON', value: 'json' }, { label: 'YAML', value: 'yaml' }, { label: '定义 Diff', value: 'diff' }]} /><Button onClick={dryRunDraft}>Dry-run</Button></Space>}
       >
         <Form form={form} layout="inline" onFinish={submit} className="workflow-create-inline" initialValues={{ name: '' }}>
           <Form.Item name="name" label="名称" rules={[{ required: true }]}><Input placeholder="daily-pipeline" style={{ width: 260 }} /></Form.Item>
@@ -1013,6 +1107,7 @@ export function WorkflowEditorPage() {
         {previewDefinition && previewMode === 'visual' ? <DagPreview definition={previewDefinition} jobs={jobs} workflows={workflows} currentWorkflowId={workflowId ?? null} editable onChange={updateDefinition} /> : null}
         {previewMode === 'json' ? <Input.TextArea className="workflow-definition-preview" rows={18} spellCheck={false} value={draft} onChange={(event) => { setDraft(event.target.value); setDryRun(null); }} /> : null}
         {previewMode === 'yaml' ? <Input.TextArea className="workflow-definition-preview" rows={18} spellCheck={false} value={yamlPreview || 'JSON 解析失败，无法生成 YAML'} readOnly /> : null}
+        {previewMode === 'diff' ? <WorkflowDefinitionDiff baseline={baselineDraft} draft={draft} /> : null}
         {!previewDefinition && previewMode === 'visual' ? <Alert type="warning" message="JSON 解析失败，无法预览画布" /> : null}
       </Card>
     </Space>
