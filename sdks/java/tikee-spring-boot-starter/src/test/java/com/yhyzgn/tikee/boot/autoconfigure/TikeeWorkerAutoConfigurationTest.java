@@ -129,11 +129,13 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.images.js=denoland/deno:alpine",
                 "tikee.worker.scripts.images.ts=denoland/deno:alpine",
                 "tikee.worker.scripts.images.powershell=mcr.microsoft.com/powershell:7.5-alpine-3.20",
+                "tikee.worker.scripts.images.php=php:8.4-cli-alpine",
+                "tikee.worker.scripts.images.groovy=groovy:4.0-jdk21",
                 "tikee.worker.scripts.images.rhai=rhaiscript/rhai:latest")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(scriptLanguages(noop))
-                            .contains("wasm", "shell", "python", "javascript", "typescript", "powershell", "rhai");
+                            .contains("wasm", "shell", "python", "javascript", "typescript", "powershell", "php", "groovy", "rhai");
                 });
     }
 

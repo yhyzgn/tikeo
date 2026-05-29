@@ -206,7 +206,7 @@ public class TikeeWorkerAutoConfiguration {
             ) {
                 log.warn(
                     "tikee non-WASM script runners are enabled but no container runtime command is configured; " +
-                        "script:shell/python/javascript/typescript/powershell/rhai capabilities will not be advertised"
+                        "script:shell/python/javascript/typescript/powershell/php/groovy/rhai capabilities will not be advertised"
                 );
             } else if (
                 !scripts.isAvailabilityCheck() ||
@@ -250,6 +250,20 @@ public class TikeeWorkerAutoConfiguration {
                     ScriptRunnerKind.POWERSHELL,
                     scripts.getRuntimeCommand(),
                     scripts.getImages().getPowershell(),
+                    scripts.getRuntimeArgs()
+                );
+                registerContainerRunner(
+                    registry,
+                    ScriptRunnerKind.PHP,
+                    scripts.getRuntimeCommand(),
+                    scripts.getImages().getPhp(),
+                    scripts.getRuntimeArgs()
+                );
+                registerContainerRunner(
+                    registry,
+                    ScriptRunnerKind.GROOVY,
+                    scripts.getRuntimeCommand(),
+                    scripts.getImages().getGroovy(),
                     scripts.getRuntimeArgs()
                 );
                 registerContainerRunner(

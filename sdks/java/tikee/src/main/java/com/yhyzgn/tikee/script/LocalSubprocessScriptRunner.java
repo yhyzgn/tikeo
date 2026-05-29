@@ -115,7 +115,7 @@ public final class LocalSubprocessScriptRunner implements ScriptRunner {
             case JS, TS -> backend == ScriptSandboxBackend.DENO
                     || backend == ScriptSandboxBackend.V8
                     || backend == ScriptSandboxBackend.CUSTOM;
-            case SHELL, PYTHON, POWERSHELL, RHAI -> backend == ScriptSandboxBackend.SRT
+            case SHELL, PYTHON, POWERSHELL, PHP, GROOVY, RHAI -> backend == ScriptSandboxBackend.SRT
                     || backend == ScriptSandboxBackend.CUSTOM;
         };
     }
@@ -126,6 +126,8 @@ public final class LocalSubprocessScriptRunner implements ScriptRunner {
             case PYTHON -> List.of("python3", "-");
             case JS, TS -> List.of("deno", "run", "--no-prompt", "-");
             case POWERSHELL -> List.of("pwsh", "-NoProfile", "-NonInteractive", "-Command", "-");
+            case PHP -> List.of("php");
+            case GROOVY -> List.of("groovy");
             case RHAI -> List.of("rhai");
         };
     }

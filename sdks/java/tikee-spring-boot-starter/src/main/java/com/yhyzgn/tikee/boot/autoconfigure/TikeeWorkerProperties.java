@@ -125,6 +125,10 @@ public class TikeeWorkerProperties {
         private String ts = "";
         /** PowerShell image. Blank disables PowerShell scripts. */
         private String powershell = "";
+        /** PHP image. Blank disables PHP scripts. */
+        private String php = "";
+        /** Groovy image. Blank disables Groovy scripts. */
+        private String groovy = "";
         /** Rhai image. Blank disables Rhai scripts. */
         private String rhai = "";
     }

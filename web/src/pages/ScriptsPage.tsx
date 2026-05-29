@@ -25,6 +25,8 @@ const LANGUAGE_OPTIONS = [
   { value: 'javascript', label: 'JavaScript' },
   { value: 'typescript', label: 'TypeScript' },
   { value: 'powershell', label: 'PowerShell' },
+  { value: 'php', label: 'PHP' },
+  { value: 'groovy', label: 'Groovy' },
   { value: 'rhai', label: 'Rhai' },
 ];
 

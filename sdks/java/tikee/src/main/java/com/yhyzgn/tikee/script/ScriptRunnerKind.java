@@ -15,6 +15,10 @@ public enum ScriptRunnerKind {
     TS("typescript"),
     /** PowerShell scripts. */
     POWERSHELL("powershell"),
+    /** PHP scripts. */
+    PHP("php"),
+    /** Groovy scripts. */
+    GROOVY("groovy"),
     /** Rhai scripts. */
     RHAI("rhai");
 
@@ -40,6 +44,8 @@ public enum ScriptRunnerKind {
             case "node", "nodejs", "javascript", "js" -> Optional.of(JS);
             case "typescript", "ts" -> Optional.of(TS);
             case "powershell", "pwsh" -> Optional.of(POWERSHELL);
+            case "php" -> Optional.of(PHP);
+            case "groovy" -> Optional.of(GROOVY);
             case "rhai" -> Optional.of(RHAI);
             default -> Optional.empty();
         };

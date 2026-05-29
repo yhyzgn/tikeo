@@ -332,6 +332,10 @@ pub enum ScriptLanguage {
     Ts,
     /// PowerShell script.
     PowerShell,
+    /// PHP script.
+    Php,
+    /// Groovy script.
+    Groovy,
     /// Rhai embedded script.
     Rhai,
     /// WebAssembly module.
@@ -348,6 +352,8 @@ impl ScriptLanguage {
             Self::Js => "javascript",
             Self::Ts => "typescript",
             Self::PowerShell => "powershell",
+            Self::Php => "php",
+            Self::Groovy => "groovy",
             Self::Rhai => "rhai",
             Self::Wasm => "wasm",
         }
@@ -370,6 +376,8 @@ impl FromStr for ScriptLanguage {
             "node" | "nodejs" | "javascript" | "js" => Ok(Self::Js),
             "typescript" | "ts" => Ok(Self::Ts),
             "powershell" | "ps1" | "pwsh" => Ok(Self::PowerShell),
+            "php" => Ok(Self::Php),
+            "groovy" => Ok(Self::Groovy),
             "rhai" => Ok(Self::Rhai),
             "wasm" | "webassembly" => Ok(Self::Wasm),
             _ => Err(ParseEnumError::new("script_language", value)),

@@ -711,6 +711,8 @@ fn validate_script_version_dispatchable(
             | ScriptLanguage::Js
             | ScriptLanguage::Ts
             | ScriptLanguage::PowerShell
+            | ScriptLanguage::Php
+            | ScriptLanguage::Groovy
             | ScriptLanguage::Rhai,
         ) => validate_script_policy_for_dispatch(
             &script_policy(version.policy.clone()),

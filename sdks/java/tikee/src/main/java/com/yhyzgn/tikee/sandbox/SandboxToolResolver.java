@@ -158,6 +158,8 @@ public final class SandboxToolResolver {
                 "-Command",
                 "-"
             );
+            case PHP -> List.of("php");
+            case GROOVY -> List.of("groovy");
             case RHAI -> List.of(
                 resolveCommand(SandboxToolInstaller.Tool.RHAI)
             );
