@@ -129,7 +129,7 @@
             .clone()
             .oneshot(
                 admin_request_builder(
-                    app,
+                    app.clone(),
                     "GET",
                     "/api/v1/worker-pools?namespace=payments&app=settlement",
                 )
@@ -149,6 +149,53 @@
                 .as_array()
                 .is_some_and(|items| items.iter().any(|item| item["name"] == "critical"))
         );
+
+        let pool_id = pool["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("worker pool id should exist"));
+        let quota = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "PATCH",
+                    format!("/api/v1/worker-pools/{pool_id}/quota"),
+                    r#"{"max_queue_depth":42,"max_concurrency":7}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("quota update should respond: {error}"));
+        assert!(quota.status().is_success());
+
+        for (action, resource_type, resource_id) in [
+            ("create", "namespace", namespace["data"]["id"].as_str().unwrap_or_default()),
+            ("create", "app", app_scope["data"]["id"].as_str().unwrap_or_default()),
+            ("create", "worker_pool", pool_id),
+            ("update", "worker_pool", pool_id),
+        ] {
+            let audit = app
+                .clone()
+                .oneshot(
+                    admin_request_builder(
+                        app.clone(),
+                        "GET",
+                        format!("/api/v1/audit-logs?action={action}&resource_type={resource_type}&resource_id={resource_id}&page_size=1"),
+                    )
+                    .await,
+                )
+                .await
+                .unwrap_or_else(|error| panic!("scope audit should respond: {error}"));
+            assert!(audit.status().is_success());
+            let body = axum::body::to_bytes(audit.into_body(), usize::MAX)
+                .await
+                .unwrap_or_else(|error| panic!("audit body should collect: {error}"));
+            let json: Value = serde_json::from_slice(&body)
+                .unwrap_or_else(|error| panic!("audit body should be JSON: {error}"));
+            assert_eq!(json["data"]["items"][0]["action"], action);
+            assert_eq!(json["data"]["items"][0]["resource_type"], resource_type);
+            assert_eq!(json["data"]["items"][0]["resource_id"], resource_id);
+        }
     }
 
     #[tokio::test]
