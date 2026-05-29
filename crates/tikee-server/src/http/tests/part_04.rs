@@ -69,12 +69,40 @@
         let deleted_namespace = app
             .clone()
             .oneshot(
-                admin_request_builder(app, "DELETE", format!("/api/v1/namespaces/{namespace_id}"))
+                admin_request_builder(app.clone(), "DELETE", format!("/api/v1/namespaces/{namespace_id}"))
                     .await,
             )
             .await
             .unwrap_or_else(|error| panic!("router should respond: {error}"));
         assert_eq!(deleted_namespace.status(), axum::http::StatusCode::OK);
+
+        for (resource_type, resource_id) in [
+            ("worker_pool", pool_id),
+            ("app", app_id),
+            ("namespace", namespace_id),
+        ] {
+            let audit = app
+                .clone()
+                .oneshot(
+                    admin_request_builder(
+                        app.clone(),
+                        "GET",
+                        format!("/api/v1/audit-logs?action=delete&resource_type={resource_type}&resource_id={resource_id}&page_size=1"),
+                    )
+                    .await,
+                )
+                .await
+                .unwrap_or_else(|error| panic!("delete audit should respond: {error}"));
+            assert!(audit.status().is_success());
+            let body = axum::body::to_bytes(audit.into_body(), usize::MAX)
+                .await
+                .unwrap_or_else(|error| panic!("audit body should collect: {error}"));
+            let json: Value = serde_json::from_slice(&body)
+                .unwrap_or_else(|error| panic!("audit body should be JSON: {error}"));
+            assert_eq!(json["data"]["items"][0]["action"], "delete");
+            assert_eq!(json["data"]["items"][0]["resource_type"], resource_type);
+            assert_eq!(json["data"]["items"][0]["resource_id"], resource_id);
+        }
     }
 
     #[tokio::test]
