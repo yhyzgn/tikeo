@@ -16,6 +16,7 @@ use tikee_storage::{
     AppendJobInstanceLog, AuditLogRepository, JobInstanceAttemptRepository, JobInstanceRepository,
     JobRepository, ScriptRepository, ScriptSummary, ScriptVersionSummary, WorkflowRepository,
 };
+use sha2::{Digest, Sha256};
 use tokio::time;
 use tracing::{debug, warn};
 
@@ -1218,7 +1219,11 @@ async fn execute_http_processor(config: &serde_json::Value) -> HttpProcessorOutc
             message: "http node url must include host".to_owned(),
         };
     };
-    if is_private_or_loopback_host(host) {
+    let allow_insecure_loopback = config
+        .get("allowInsecureLoopback")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    if is_private_or_loopback_host(host) && !allow_insecure_loopback {
         return HttpProcessorOutcome {
             success: false,
             message: "http node rejects loopback/private IP hosts by default".to_owned(),
@@ -1247,23 +1252,93 @@ async fn execute_http_processor(config: &serde_json::Value) -> HttpProcessorOutc
         }
     };
     let req_method = method.parse().unwrap_or(reqwest::Method::GET);
-    let mut request = client.request(req_method, parsed);
-    if let Some(body) = config.get("body") {
-        request = request.json(body);
-    }
-    match request.send().await {
-        Ok(response) => {
-            let status = response.status();
-            HttpProcessorOutcome {
-                success: status.is_success(),
-                message: format!("http {} {url} -> {}", method, status.as_u16()),
+    let retries = config
+        .get("maxRetries")
+        .or_else(|| config.get("retries"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0)
+        .min(5);
+    let retry_backoff_ms = config
+        .get("retryBackoffMs")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(100)
+        .min(5_000);
+    let body = config.get("body").cloned();
+    let signature = http_signature_header(config, body.as_ref());
+    let mut last_message = String::new();
+    for attempt in 0..=retries {
+        let mut request = client.request(req_method.clone(), parsed.clone());
+        if let Some(body) = body.as_ref() {
+            request = request.json(body);
+        }
+        if let Some((header, value)) = signature.as_ref() {
+            request = request.header(header, value);
+        }
+        match request.send().await {
+            Ok(response) => {
+                let status = response.status();
+                if status.is_success() || attempt == retries {
+                    return HttpProcessorOutcome {
+                        success: status.is_success(),
+                        message: format!(
+                            "http {} {url} -> {} attempts={}",
+                            method,
+                            status.as_u16(),
+                            attempt + 1
+                        ),
+                    };
+                }
+                last_message = format!("http {} {url} -> {}", method, status.as_u16());
+            }
+            Err(error) => {
+                last_message = format!("http request failed: {error}");
+                if attempt == retries {
+                    return HttpProcessorOutcome {
+                        success: false,
+                        message: format!("{last_message} attempts={}", attempt + 1),
+                    };
+                }
             }
         }
-        Err(error) => HttpProcessorOutcome {
-            success: false,
-            message: format!("http request failed: {error}"),
-        },
+        time::sleep(Duration::from_millis(retry_backoff_ms)).await;
     }
+    HttpProcessorOutcome {
+        success: false,
+        message: last_message,
+    }
+}
+
+fn http_signature_header(
+    config: &serde_json::Value,
+    body: Option<&serde_json::Value>,
+) -> Option<(String, String)> {
+    let signature = config.get("signature")?;
+    let algorithm = signature
+        .get("type")
+        .or_else(|| signature.get("algorithm"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("sha256");
+    if algorithm != "sha256" {
+        return None;
+    }
+    let secret = signature
+        .get("secret")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())?;
+    let header = signature
+        .get("header")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("X-Tikee-Signature")
+        .to_owned();
+    let body = body
+        .map(serde_json::Value::to_string)
+        .unwrap_or_default();
+    let mut hasher = Sha256::new();
+    hasher.update(secret.as_bytes());
+    hasher.update(b"\n");
+    hasher.update(body.as_bytes());
+    Some((header, format!("sha256:{}", hex::encode(hasher.finalize()))))
 }
 
 fn string_array(value: Option<&serde_json::Value>) -> Vec<String> {
@@ -1300,6 +1375,8 @@ fn is_private_or_loopback_host(host: &str) -> bool {
 mod tests {
     use std::collections::HashMap;
 
+    use sha2::{Digest, Sha256};
+
     use crate::cluster::{ClusterMode, ClusterRole, ClusterStatus, StaticCoordinator};
     use tikee_core::{ExecutionMode, InstanceStatus, TriggerType};
     use tikee_proto::worker::v1::{
@@ -1316,7 +1393,7 @@ mod tests {
     use super::{
         DispatchTaskBuild, JobExecutor, ScriptGovernanceFailure, WorkerRegistry,
         build_dispatch_task, dispatch_once, dispatch_once_if_owner, execute_file_cleanup_processor,
-        execute_grpc_processor, execute_sql_processor, script_is_dispatchable,
+        execute_grpc_processor, execute_http_processor, execute_sql_processor, script_is_dispatchable,
         script_version_is_dispatchable,
     };
 
@@ -1337,6 +1414,78 @@ mod tests {
             }],
             ..WorkerCapabilities::default()
         })
+    }
+
+
+    #[tokio::test]
+    async fn http_processor_retries_and_signs_requests() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .unwrap_or_else(|error| panic!("http listener should bind: {error}"));
+        let address = listener
+            .local_addr()
+            .unwrap_or_else(|error| panic!("http listener should expose addr: {error}"));
+        let captured = std::sync::Arc::new(tokio::sync::Mutex::new(Vec::<String>::new()));
+        let captured_server = captured.clone();
+        let server = tokio::spawn(async move {
+            for attempt in 0..2 {
+                let (mut stream, _) = listener
+                    .accept()
+                    .await
+                    .unwrap_or_else(|error| panic!("http client should connect: {error}"));
+                let mut buffer = [0_u8; 4096];
+                let read = stream
+                    .read(&mut buffer)
+                    .await
+                    .unwrap_or_else(|error| panic!("http request should read: {error}"));
+                let request = String::from_utf8_lossy(&buffer[..read]).to_string();
+                captured_server.lock().await.push(request);
+                let response = if attempt == 0 {
+                    "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n"
+                } else {
+                    "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"
+                };
+                stream
+                    .write_all(response.as_bytes())
+                    .await
+                    .unwrap_or_else(|error| panic!("http response should write: {error}"));
+            }
+        });
+
+        let body = serde_json::json!({"hello":"world"});
+        let mut hasher = Sha256::new();
+        hasher.update(b"test-secret");
+        hasher.update(b"\n");
+        hasher.update(body.to_string().as_bytes());
+        let expected_signature = format!("sha256:{}", hex::encode(hasher.finalize()));
+        let outcome = execute_http_processor(&serde_json::json!({
+            "url": format!("http://{address}/hook"),
+            "method": "POST",
+            "allowedHosts": ["127.0.0.1"],
+            "allowInsecureLoopback": true,
+            "maxRetries": 1,
+            "retryBackoffMs": 1,
+            "signature": {
+                "type": "sha256",
+                "secret": "test-secret",
+                "header": "X-Tikee-Signature"
+            },
+            "body": body,
+        }))
+        .await;
+        server
+            .await
+            .unwrap_or_else(|error| panic!("http test server should finish: {error}"));
+
+        assert!(outcome.success, "unexpected outcome: {outcome:?}");
+        assert!(outcome.message.contains("attempts=2"));
+        let captured = captured.lock().await;
+        assert_eq!(captured.len(), 2);
+        assert!(captured[0].contains("POST /hook HTTP/1.1"));
+        assert!(captured[0].contains(&format!("x-tikee-signature: {expected_signature}")));
+        assert!(captured[1].contains(&format!("x-tikee-signature: {expected_signature}")));
     }
 
     #[tokio::test]
