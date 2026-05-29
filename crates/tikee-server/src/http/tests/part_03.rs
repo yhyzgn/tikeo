@@ -1384,7 +1384,7 @@
         assert_eq!(items[1]["version_number"], 1);
 
         let rolled_back = post_json_raw(
-            app,
+            app.clone(),
             &format!("/api/v1/jobs/{job_id}/rollback"),
             r#"{"versionNumber":1}"#,
             Some(&admin),
@@ -1393,6 +1393,16 @@
         assert_eq!(rolled_back["data"]["versionNumber"], 3);
         assert_eq!(rolled_back["data"]["name"], "versioned-job");
         assert_eq!(rolled_back["data"]["enabled"], true);
+
+        let audit = get_json_with_auth(
+            app,
+            "/api/v1/audit-logs?action=rollback&resource_type=job&page_size=1",
+            &admin,
+        )
+        .await;
+        assert_eq!(audit["data"]["items"][0]["action"], "rollback");
+        assert_eq!(audit["data"]["items"][0]["resource_type"], "job");
+        assert_eq!(audit["data"]["items"][0]["resource_id"], job_id);
     }
 
     #[tokio::test]
