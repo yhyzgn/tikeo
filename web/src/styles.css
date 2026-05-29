@@ -1434,3 +1434,46 @@ html[data-theme='dark'] .ant-table,
 html[data-theme='dark'] .ant-form-item-label > label {
   color: #e2e8f0;
 }
+
+@media (max-width: 767px) {
+  .app-shell__header {
+    align-items: stretch;
+    padding: 12px 14px;
+  }
+
+  .app-shell__header > div:first-child,
+  .app-shell__user,
+  .card-toolbar,
+  .hero-panel__actions {
+    width: 100%;
+  }
+
+  .app-shell__user,
+  .card-toolbar {
+    justify-content: flex-start;
+    row-gap: 8px;
+  }
+
+  .app-shell__title.ant-typography {
+    font-size: 18px;
+    line-height: 1.25;
+  }
+
+  .app-shell__content {
+    padding: 12px;
+  }
+
+  .ant-card,
+  .clean-card {
+    border-radius: 14px;
+  }
+
+  .ant-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .ant-drawer-content-wrapper {
+    width: 100% !important;
+    max-width: 100vw;
+  }
+}
