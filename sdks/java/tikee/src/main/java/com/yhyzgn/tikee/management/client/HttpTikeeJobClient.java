@@ -23,6 +23,7 @@ import java.util.Objects;
 
 /** HTTP implementation of {@link TikeeJobClient}. */
 public final class HttpTikeeJobClient implements TikeeJobClient {
+
     private static final TypeReference<ApiEnvelope<JobDefinition>> JOB_ENVELOPE = new TypeReference<>() {};
     private static final TypeReference<ApiEnvelope<JobInstance>> INSTANCE_ENVELOPE = new TypeReference<>() {};
 
@@ -37,13 +38,7 @@ public final class HttpTikeeJobClient implements TikeeJobClient {
         this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(), new ObjectMapper(), endpoint, apiKey, namespace, app);
     }
 
-    HttpTikeeJobClient(
-            HttpClient http,
-            ObjectMapper mapper,
-            String endpoint,
-            String apiKey,
-            String namespace,
-            String app) {
+    HttpTikeeJobClient(HttpClient http, ObjectMapper mapper, String endpoint, String apiKey, String namespace, String app) {
         this.http = Objects.requireNonNull(http, "http");
         this.mapper = Objects.requireNonNull(mapper, "mapper");
         this.endpoint = URI.create(trimTrailingSlash(Objects.requireNonNull(endpoint, "endpoint")) + "/");
@@ -54,15 +49,13 @@ public final class HttpTikeeJobClient implements TikeeJobClient {
 
     @Override
     public List<JobDefinition> listJobs() {
-        ApiEnvelope<Page<JobDefinition>> envelope = send(
-                "GET",
-                "/jobs",
-                null,
-                mapper.getTypeFactory().constructParametricType(ApiEnvelope.class,
-                        mapper.getTypeFactory().constructParametricType(Page.class, JobDefinition.class)));
-        return envelope.data().items().stream()
-                .filter(job -> namespace.equals(job.namespace()) && app.equals(job.app()))
-                .toList();
+        ApiEnvelope<Page<JobDefinition>> envelope = send("GET", "/jobs", null, mapper.getTypeFactory().constructParametricType(ApiEnvelope.class, mapper.getTypeFactory().constructParametricType(Page.class, JobDefinition.class)));
+        return envelope
+            .data()
+            .items()
+            .stream()
+            .filter(job -> namespace.equals(job.namespace()) && app.equals(job.app()))
+            .toList();
     }
 
     @Override
@@ -87,16 +80,7 @@ public final class HttpTikeeJobClient implements TikeeJobClient {
 
     private CreateJobPayload scopedCreate(CreateJobRequest request) {
         Objects.requireNonNull(request, "request");
-        return new CreateJobPayload(
-                namespace,
-                app,
-                request.name(),
-                request.scheduleType(),
-                request.scheduleExpr(),
-                request.processorType(),
-                request.processorName(),
-                request.scriptId(),
-                request.enabled());
+        return new CreateJobPayload(namespace, app, request.name(), request.scheduleType(), request.scheduleExpr(), request.processorType(), request.processorName(), request.scriptId(), request.enabled());
     }
 
     private <T> T send(String method, String path, Object body, TypeReference<T> type) {
@@ -107,14 +91,13 @@ public final class HttpTikeeJobClient implements TikeeJobClient {
     private <T> T send(String method, String path, Object body, JavaType type) {
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint.resolve("api/v1" + path))
-                    .timeout(Duration.ofSeconds(30))
-                    .header("x-tikee-api-key", apiKey)
-                    .header("accept", "application/json");
+                .timeout(Duration.ofSeconds(30))
+                .header("x-tikee-api-key", apiKey)
+                .header("accept", "application/json");
             if (body == null) {
                 builder.method(method, HttpRequest.BodyPublishers.noBody());
             } else {
-                builder.header("content-type", "application/json")
-                        .method(method, HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)));
+                builder.header("content-type", "application/json").method(method, HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)));
             }
             HttpResponse<String> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() / 100 != 2) {
@@ -145,14 +128,5 @@ public final class HttpTikeeJobClient implements TikeeJobClient {
         return trimmed;
     }
 
-    private record CreateJobPayload(
-            String namespace,
-            String app,
-            String name,
-            String scheduleType,
-            String scheduleExpr,
-            String processorType,
-            String processorName,
-            String scriptId,
-            Boolean enabled) {}
+    private record CreateJobPayload(String namespace, String app, String name, String scheduleType, String scheduleExpr, String processorType, String processorName, String scriptId, Boolean enabled) {}
 }

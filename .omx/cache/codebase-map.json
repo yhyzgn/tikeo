@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "worktreeRoot": "/home/neo/Projects/recycloud/pub/scheduler",
-  "gitDir": "/home/neo/Projects/recycloud/pub/scheduler/.git",
-  "indexMtimeMs": 1779440400386.4287,
-  "indexSize": 33969,
+  "worktreeRoot": "/home/neo/Projects/neo/pub/tikee",
+  "gitDir": "/home/neo/Projects/neo/pub/tikee/.git",
+  "indexMtimeMs": 1780040829405.108,
+  "indexSize": 77333,
   "map": "  web/: eslint.config, App, client.test, client, AppShell, AuthGuard, CodeEditor, ForbiddenPage, Permission, RouteFallback",
-  "createdAt": "2026-05-22T09:11:21.002Z"
+  "createdAt": "2026-05-29T07:52:20.681Z"
 }

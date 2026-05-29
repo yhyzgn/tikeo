@@ -1,10 +1,10 @@
 {
-  "session_id": "omx-1779441080965-5o41id",
-  "native_session_id": "019e3df0-5dc9-7332-be50-10ac684f1fe7",
-  "started_at": "2026-05-22T09:11:21.009Z",
-  "cwd": "/home/neo/Projects/recycloud/pub/scheduler",
-  "pid": 1161225,
+  "session_id": "omx-1780041167639-abk2td",
+  "native_session_id": "019e5cda-a8bd-7cd2-b122-17eedc5d3f60",
+  "started_at": "2026-05-29T07:52:47.677Z",
+  "cwd": "/home/neo/Projects/neo/pub/tikee",
+  "pid": 1357366,
   "platform": "linux",
-  "pid_start_ticks": 2776106,
-  "pid_cmdline": "/home/neo/.bun/install/global/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex resume --dangerously-bypass-approvals-and-sandbox -c model_instructions_file=\"/home/neo/Projects/recycloud/pub/scheduler/.omx/state/sessions/omx-1779441080965-5o41id/AGENTS.md\""
+  "pid_start_ticks": 2385008,
+  "pid_cmdline": "/home/neo/.bun/install/global/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex resume --dangerously-bypass-approvals-and-sandbox -c model_instructions_file=\"/home/neo/Projects/neo/pub/tikee/.omx/state/sessions/omx-1780041167639-abk2td/AGENTS.md\""
 }

@@ -3,10 +3,10 @@
   "tasks": [
     {
       "branch_name": "main",
-      "worktree_path": "/home/neo/Projects/recycloud/pub/scheduler",
+      "worktree_path": "/home/neo/Projects/neo/pub/tikee",
       "status": "active",
       "created_at": "2026-05-20T02:21:47.472Z",
-      "updated_at": "2026-05-22T09:54:44.478Z"
+      "updated_at": "2026-05-29T08:25:11.680Z"
     }
   ]
 }
