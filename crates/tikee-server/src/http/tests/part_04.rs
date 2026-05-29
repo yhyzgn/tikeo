@@ -223,7 +223,7 @@
         assert_eq!(published["data"]["policy"]["network"]["enabled"], false);
 
         let rolled_back = post_json(
-            app,
+            app.clone(),
             &format!("/api/v1/scripts/{script_id}/rollback"),
             r#"{"version_number":1}"#,
         )
@@ -235,6 +235,48 @@
             rolled_back["data"]["released_version_id"],
             published["data"]["released_version_id"]
         );
+
+        let publish_audit = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app.clone(),
+                    "GET",
+                    format!("/api/v1/audit-logs?action=publish&resource_type=script&resource_id={script_id}&page_size=1"),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("publish audit route should respond: {error}"));
+        let body = axum::body::to_bytes(publish_audit.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("publish audit body should collect: {error}"));
+        let publish_audit: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("publish audit body should be JSON: {error}"));
+        assert_eq!(publish_audit["data"]["items"][0]["action"], "publish");
+        assert_eq!(publish_audit["data"]["items"][0]["resource_type"], "script");
+        assert_eq!(publish_audit["data"]["items"][0]["resource_id"], script_id);
+
+        let rollback_audit = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app,
+                    "GET",
+                    format!("/api/v1/audit-logs?action=rollback&resource_type=script&resource_id={script_id}&page_size=1"),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("rollback audit route should respond: {error}"));
+        let body = axum::body::to_bytes(rollback_audit.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("rollback audit body should collect: {error}"));
+        let rollback_audit: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("rollback audit body should be JSON: {error}"));
+        assert_eq!(rollback_audit["data"]["items"][0]["action"], "rollback");
+        assert_eq!(rollback_audit["data"]["items"][0]["resource_type"], "script");
+        assert_eq!(rollback_audit["data"]["items"][0]["resource_id"], script_id);
     }
 
     #[tokio::test]
