@@ -16,6 +16,10 @@ export interface PluginProcessorTypeSummary {
   capability: string;
   processorNames: string[];
   description: string | null;
+  artifactRef?: string | null;
+  containerImage?: string | null;
+  entrypoint?: string[] | null;
+  checksum?: string | null;
 }
 
 export interface PluginAlertChannelTypeSummary {

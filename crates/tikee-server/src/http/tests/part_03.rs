@@ -1454,7 +1454,7 @@
                     app.clone(),
                     "POST",
                     "/api/v1/plugins",
-                    r#"{"name":"Ops Plugin","kind":"processor","processorTypes":[{"type":"sql","label":"SQL Processor","capability":"sql","processorNames":["billing.sql-sync"],"description":"Runs governed SQL processor tasks"}],"alertChannelTypes":[{"type":"ops_webhook","label":"Ops Webhook","targetKind":"webhook","description":"Routes alerts to the ops bridge","template":{"headers":{"X-Tikee-Plugin":"ops"},"body":{"text":"{{message}}","resource":"{{resource_id}}"}}}],"enabled":true}"#,
+                    r#"{"name":"Ops Plugin","kind":"processor","processorTypes":[{"type":"sql","label":"SQL Processor","capability":"sql","processorNames":["billing.sql-sync"],"description":"Runs governed SQL processor tasks"},{"type":"external_jar","label":"External JAR Processor","capability":"external_jar","processorNames":["billing.jar-sync"],"description":"Runs versioned JAR in container sandbox","artifactRef":"s3://plugins/billing-jar-sync-1.0.0.jar","containerImage":"registry.example.com/tikee/jar-runner:1.0.0","entrypoint":["java","-jar","/plugins/billing-jar-sync.jar"],"checksum":"sha256:abc123"}],"alertChannelTypes":[{"type":"ops_webhook","label":"Ops Webhook","targetKind":"webhook","description":"Routes alerts to the ops bridge","template":{"headers":{"X-Tikee-Plugin":"ops"},"body":{"text":"{{message}}","resource":"{{resource_id}}"}}}],"enabled":true}"#,
                 )
                 .await,
             )
@@ -1469,6 +1469,9 @@
         assert_eq!(json["code"], 0);
         assert_eq!(json["data"]["processorTypes"][0]["capability"], "sql");
         assert_eq!(json["data"]["processorTypes"][0]["processorNames"][0], "billing.sql-sync");
+        assert_eq!(json["data"]["processorTypes"][1]["type"], "external_jar");
+        assert_eq!(json["data"]["processorTypes"][1]["artifactRef"], "s3://plugins/billing-jar-sync-1.0.0.jar");
+        assert_eq!(json["data"]["processorTypes"][1]["containerImage"], "registry.example.com/tikee/jar-runner:1.0.0");
         assert_eq!(json["data"]["alertChannelTypes"][0]["type"], "ops_webhook");
 
         let plugins = app
@@ -1504,6 +1507,21 @@
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["data"]["processorType"], "sql");
+
+        let jar_job = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/jobs",
+                    r#"{"namespace":"default","app":"billing","name":"jar-sync","scheduleType":"api","processorType":"external_jar","processorName":"billing.jar-sync"}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("external jar job create should respond: {error}"));
+        assert!(jar_job.status().is_success());
 
         let invalid_job = app
             .clone()

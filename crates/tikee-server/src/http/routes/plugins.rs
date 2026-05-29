@@ -195,6 +195,30 @@ fn validate_processor_types(
                 "sdk/script processor types are built in",
             ));
         }
+        if processor.r#type == "external_jar" {
+            if processor
+                .artifact_ref
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .is_none()
+            {
+                return Err(ApiError::bad_request(
+                    "external_jar processor type requires artifactRef",
+                ));
+            }
+            if processor
+                .container_image
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .is_none()
+            {
+                return Err(ApiError::bad_request(
+                    "external_jar processor type requires containerImage",
+                ));
+            }
+        }
     }
     Ok(())
 }

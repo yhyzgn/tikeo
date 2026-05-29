@@ -57,6 +57,11 @@ const PROCESSOR_TYPE_OPTIONS = [
     label: "运维动作处理器",
     description: "用于发布、巡检、变更动作任务",
   },
+  {
+    value: "external_jar",
+    label: "外部 JAR/容器处理器",
+    description: "用于版本化外部 JAR，由容器镜像在沙箱中承载执行",
+  },
 ];
 
 const ALERT_CHANNEL_OPTIONS = [
@@ -112,6 +117,10 @@ interface PluginFormValues {
   processorLabel?: string;
   processorNames?: string[];
   processorDescription?: string;
+  artifactRef?: string;
+  containerImage?: string;
+  entrypoint?: string[];
+  checksum?: string;
   alertType?: string;
   alertLabel?: string;
   alertTargetKind?: string;
@@ -168,6 +177,10 @@ export function PluginsPage() {
         ? processor.processorNames
         : undefined,
       processorDescription: processor?.description ?? undefined,
+      artifactRef: processor?.artifactRef ?? undefined,
+      containerImage: processor?.containerImage ?? undefined,
+      entrypoint: processor?.entrypoint ?? undefined,
+      checksum: processor?.checksum ?? undefined,
       alertType: channel?.type,
       alertLabel: channel?.label,
       alertTargetKind: channel?.targetKind ?? "webhook",
@@ -192,6 +205,10 @@ export function PluginsPage() {
             processorNames:
               values.processorNames?.filter((item) => item.trim()) ?? [],
             description: values.processorDescription || null,
+            artifactRef: values.processorType === "external_jar" ? values.artifactRef || null : null,
+            containerImage: values.processorType === "external_jar" ? values.containerImage || null : null,
+            entrypoint: values.processorType === "external_jar" ? values.entrypoint?.filter((item) => item.trim()) ?? [] : null,
+            checksum: values.processorType === "external_jar" ? values.checksum || null : null,
           },
         ]
       : [];
@@ -307,8 +324,8 @@ export function PluginsPage() {
               render: (_, plugin) => (
                 <Space wrap>
                   {plugin.processorTypes.map((item) => (
-                    <Tag color="blue" key={item.type}>
-                      {item.type} · {item.label}
+                    <Tag color={item.type === "external_jar" ? "volcano" : "blue"} key={item.type}>
+                      {item.type} · {item.label}{item.artifactRef ? ` · ${item.artifactRef}` : ""}
                     </Tag>
                   ))}
                 </Space>
@@ -444,6 +461,23 @@ export function PluginsPage() {
                 ]}
               />
             </Form.Item>
+            {selectedProcessorType === "external_jar" ? (
+              <>
+                <Alert type="warning" showIcon message="外部 JAR 必须通过容器沙箱执行" description="artifactRef 记录版本化 JAR 坐标或对象存储引用，containerImage 指定实际执行镜像；Worker 仍按 pluginProcessors.type=external_jar + processorNames 匹配。" />
+                <Form.Item name="artifactRef" label="JAR Artifact Ref" rules={[{ required: true, message: "请输入 JAR artifactRef" }]}>
+                  <Input placeholder="s3://tikee-plugins/billing-sync-1.0.0.jar 或 maven:group:artifact:version" />
+                </Form.Item>
+                <Form.Item name="containerImage" label="Container Image" rules={[{ required: true, message: "请输入容器镜像" }]}>
+                  <Input placeholder="registry.example.com/tikee/jar-runner:1.0.0" />
+                </Form.Item>
+                <Form.Item name="entrypoint" label="Entrypoint">
+                  <Select mode="tags" placeholder="java,-jar,/plugins/billing-sync.jar" />
+                </Form.Item>
+                <Form.Item name="checksum" label="Checksum">
+                  <Input placeholder="sha256:..." />
+                </Form.Item>
+              </>
+            ) : null}
             <Form.Item name="processorDescription" label="说明">
               <Input.TextArea rows={2} />
             </Form.Item>

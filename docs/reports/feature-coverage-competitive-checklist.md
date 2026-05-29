@@ -8,7 +8,7 @@
 
 当前实现已经覆盖了 tikee 的核心骨架和本轮 P1 功能闭环：任务 CRUD/API 触发、Cron/FixedRate/Daily/Calendar tick、单机/广播派发、Worker Tunnel、Java/Rust SDK、脚本/wasm/动态语言治理、工作流 DAG 执行与可视化回放、Web 控制台、OpenAPI、RBAC/OIDC/API Token/Service Account、多租户基础模型、告警、Prometheus/OTLP、审计日志和基础部署材料。
 
-严格按设计文档中 `tikee` 列全部为 ✅ 的目标评估，当前仍有少量 P2 缺口：非 Java SDK parity（Go/Python/Node 已明确后续）、外部 JAR/容器一等模型、GitOps/IaC 深度能力。迁移工具与非 Java SDK/Demo 按当前任务边界不在本轮实现范围。
+严格按设计文档中 `tikee` 列全部为 ✅ 的目标评估，当前仍有少量 P2 缺口：非 Java SDK parity（Go/Python/Node 已明确后续）与 GitOps/IaC 深度能力。迁移工具与非 Java SDK/Demo 按当前任务边界不在本轮实现范围。
 
 ### 总览统计
 
@@ -16,9 +16,9 @@
 |---|---:|---:|---:|---:|---|
 | 2.1 调度能力 | 9 | 9 | 0 | 0 | 调度主干已覆盖；生命周期维护/冻结窗口和节假日排除已进入正式 Job schema/API/tick 路径 |
 | 2.2 执行模式 | 8 | 8 | 0 | 0 | 广播策略、队列治理、分片恢复、MapReduce reduce 分片、长任务取消/checkpoint、补偿节点、安全表达式和审批 SLA 已补齐主干 |
-| 2.3 处理器类型 | 11 | 9 | 2 | 0 | Java/Rust/脚本/动态语言和内置 HTTP/gRPC/SQL/文件清理/Webhook 主路径已补齐；非 Java SDK parity 与外部 JAR/容器为 P2 |
+| 2.3 处理器类型 | 11 | 10 | 1 | 0 | Java/Rust/脚本/动态语言、外部 JAR/容器和内置 HTTP/gRPC/SQL/文件清理/Webhook 主路径已补齐；非 Java SDK parity 为 P2 |
 | 2.4 管理与平台能力 | 10 | 9 | 0 | 1 | 平台能力框架齐全，Web 暗色/移动端基础、租户配额、Secret Store、Service Account、审计、告警去重/静默已接入；GitOps/IaC 仍为 P2 |
-| **合计** | **38** | **35** | **2** | **1** | **P1 已清空；剩余为非 Java SDK parity、外部 JAR/容器和 GitOps/IaC 等 P2 范围** |
+| **合计** | **38** | **36** | **1** | **1** | **P1 已清空；剩余为非 Java SDK parity 与 GitOps/IaC 等 P2 范围** |
 
 ## 2. 状态定义
 
@@ -82,7 +82,7 @@
 | SQL 执行 | ✅ 已覆盖 | `workflow/validation.rs` 支持 `sql`；`workflow.rs` 物化内置执行任务；`tunnel/dispatcher.rs` 的 `execute_sql_processor`；`WorkflowsPage.tsx` SQL 节点；`sql_processor_*` 单测 | 工作流 SQL 节点支持 databaseUrl/sql/allowedDatabaseUrls/dryRun/readOnly；默认 dry-run + readOnly；服务端强制 DSN 白名单和 SELECT/EXPLAIN/WITH 只读限制；SQLite SELECT 可真实执行并写实例日志 | Postgres/MySQL 真实执行、参数模板和审批策略可后续增强 | P2 |
 | 文件清理 | ✅ 已覆盖 | `workflow/validation.rs` 支持 `file_cleanup`；`workflow.rs` 物化内置执行任务；`tunnel/dispatcher.rs` 的 `execute_file_cleanup_processor`；`WorkflowsPage.tsx` FileClean 节点；`file_cleanup_processor_*` 单测 | 工作流 FileClean 节点支持 paths/allowedRoots/dryRun/recursive；服务端强制 allowedRoots、绝对路径、拒绝 `..`，默认 dry-run，目录删除必须 recursive=true | 可后续补定时清理模板和更细审计字段 | P2 |
 | Groovy/动态脚本 | ✅ 已覆盖 | `ScriptLanguage::Groovy`；Java `ScriptRunnerKind.GROOVY`；Starter `tikee.worker.scripts.images.groovy`；`ScriptsPage.tsx` 语言选项；脚本版本/审批/签名元数据 UI | 动态脚本体系已存在；Groovy 已是一等语言枚举和 Java Worker 容器沙箱能力，Rhai/WASM/JS/TS 等动态脚本也可用，脚本版本、审批、签名治理在服务端/UI 保持统一 | Groovy 本地裸执行不作为默认路径；必须显式容器沙箱镜像，避免非沙箱执行 | P2 |
-| 外部 JAR/容器 | 🟡 部分覆盖 | Java/Rust `ContainerScriptRunner`；plugin registry；script version/wasm binding | 容器 runner 与插件注册具备基础；WASM 优先策略在模型上存在 | 外部 JAR Container 不是一等任务类型；版本化/签名校验对 JAR/容器未完整 | P2 |
+| 外部 JAR/容器 | ✅ 已覆盖 | `PluginProcessorTypeSummary` 的 `artifactRef/containerImage/entrypoint/checksum`；`routes/plugins.rs` external_jar 校验；`PluginsPage.tsx` 外部 JAR/容器注册表单；`plugin_registry_supports_custom_processor_types_and_alert_channels` | 外部 JAR/容器已作为 `external_jar` 插件处理器类型建模，可声明版本化 artifactRef、执行镜像、entrypoint、checksum，并通过任务 `processorType=external_jar` + processorName 绑定 Worker pluginProcessors 能力 | 后续可增强真实镜像拉取/签名验证策略，但调度与治理模型已闭环 | P2 |
 | gRPC 调用 | ✅ 已覆盖 | `workflow/validation.rs` 支持 `grpc`；`workflow.rs` 物化内置执行任务；`tunnel/dispatcher.rs` 的 `execute_grpc_processor`；`WorkflowsPage.tsx` gRPC 节点；`grpc_processor_fails_closed_*` 单测 | 工作流 gRPC 节点支持 endpoint/service/method/payload/metadata/allowedHosts；使用 tonic 发起 unary 调用，默认拒绝私网/回环 endpoint，执行结果写实例日志并推进工作流 | 流式 gRPC、服务描述导入、重试/鉴权模板可后续增强 | P2 |
 | Webhook | ✅ 已覆盖 | `routes/event_sources.rs` 入站 webhook trigger + HMAC/timestamp/nonce 校验；`alert.rs` 出站 webhook/slack/dingtalk/feishu/wechat_work/pagerduty/email；`inbound_webhook_rejects_replayed_signed_nonce`；`webhook_signature_is_stable` | 入站 webhook 支持签名触发、防 5 分钟外 timestamp、nonce 重放拒绝、payload 日志；出站告警 webhook 有安全 URL 策略和渠道支持 | 可后续补 per-job secret store 与更多 provider 签名模板 | P2 |
 
@@ -127,9 +127,8 @@ Java/Rust SDK 是当前最成熟部分。脚本/wasm 已有大量基础设施，
 
 1. Calendar Schedule 的集中式节假日/维护日历管理增强。
 2. Go SDK 完整 parity；Python/Node SDK 实现。
-4. 外部 JAR Container 一等模型。
-5. 暗色模式/移动端验收。
-6. CRD/Terraform Provider/GitOps diff。
+3. 暗色模式/移动端验收。
+4. CRD/Terraform Provider/GitOps diff。
 
 ---
 
@@ -205,4 +204,4 @@ Java/Rust SDK 是当前最成熟部分。脚本/wasm 已有大量基础设施，
 
 按当前代码实际功能，tikee 已经具备“核心调度平台 + Java/Rust Worker SDK + Web 管理台 + 工作流 DAG/回放 + 脚本/wasm/动态语言治理 + Service Account/RBAC + 可观测性/审计”的可联调基础。
 
-本轮 P1 缺口已清空。仍未完全覆盖设计表全部 ✅ 的部分集中在 P2：非 Java SDK parity（Go/Python/Node 已明确后续）、外部 JAR/容器一等模型、GitOps/IaC 深度能力；这些应继续保留在路线图/Phase 清单中。
+本轮 P1 缺口已清空。仍未完全覆盖设计表全部 ✅ 的部分集中在 P2：非 Java SDK parity（Go/Python/Node 已明确后续）与 GitOps/IaC 深度能力；这些应继续保留在路线图/Phase 清单中。

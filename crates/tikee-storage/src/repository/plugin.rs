@@ -16,6 +16,10 @@ pub struct PluginProcessorTypeSummary {
     #[serde(default)]
     pub processor_names: Vec<String>,
     pub description: Option<String>,
+    pub artifact_ref: Option<String>,
+    pub container_image: Option<String>,
+    pub entrypoint: Option<Vec<String>>,
+    pub checksum: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, utoipa::ToSchema)]
