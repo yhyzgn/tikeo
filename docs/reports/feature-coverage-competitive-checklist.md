@@ -6,9 +6,9 @@
 
 ## 1. 结论摘要
 
-当前实现已经覆盖了 tikee 的核心骨架：任务 CRUD/API 触发、Cron/FixedRate tick、单机/广播派发、Worker Tunnel、Java/Rust SDK、脚本/wasm 治理模型、工作流定义与部分 DAG 执行、Web 控制台、OpenAPI、RBAC/OIDC/API Token、多租户基础模型、告警、Prometheus/OTLP、审计日志和基础部署材料。
+当前实现已经覆盖了 tikee 的核心骨架和本轮 P1 功能闭环：任务 CRUD/API 触发、Cron/FixedRate/Daily/Calendar tick、单机/广播派发、Worker Tunnel、Java/Rust SDK、脚本/wasm/动态语言治理、工作流 DAG 执行与可视化回放、Web 控制台、OpenAPI、RBAC/OIDC/API Token/Service Account、多租户基础模型、告警、Prometheus/OTLP、审计日志和基础部署材料。
 
-但如果严格按设计文档中 `tikee` 列全部为 ✅ 的目标评估，当前代码**尚未完全覆盖**。主要缺口集中在：完整工作流运行语义、部分处理器类型、脚本/动态执行的生产级沙箱闭环、Calendar/Daily 类高级调度、gRPC/SQL/文件清理等内置处理器、GitOps/IaC 深度能力，以及多租户 secret 全链路隔离。
+严格按设计文档中 `tikee` 列全部为 ✅ 的目标评估，当前仍有少量 P2 缺口：非 Java SDK parity（Go/Python/Node 已明确后续）、外部 JAR/容器一等模型、GitOps/IaC 深度能力。迁移工具与非 Java SDK/Demo 按当前任务边界不在本轮实现范围。
 
 ### 总览统计
 
@@ -16,9 +16,9 @@
 |---|---:|---:|---:|---:|---|
 | 2.1 调度能力 | 9 | 9 | 0 | 0 | 调度主干已覆盖；生命周期维护/冻结窗口和节假日排除已进入正式 Job schema/API/tick 路径 |
 | 2.2 执行模式 | 8 | 8 | 0 | 0 | 广播策略、队列治理、分片恢复、MapReduce reduce 分片、长任务取消/checkpoint、补偿节点、安全表达式和审批 SLA 已补齐主干 |
-| 2.3 处理器类型 | 11 | 6 | 5 | 0 | Java/Rust/脚本基础较强；内置 HTTP/gRPC/SQL/文件清理/Webhook 主路径已补齐 |
-| 2.4 管理与平台能力 | 10 | 6 | 3 | 1 | 平台能力框架齐全，Web 暗色/移动端基础、租户配额、Secret Store、告警去重/静默已接入，GitOps 等仍部分缺口 |
-| **合计** | **38** | **25** | **7** | **6** | **整体为“核心可用、竞品对照仍有高级语义缺口”** |
+| 2.3 处理器类型 | 11 | 9 | 2 | 0 | Java/Rust/脚本/动态语言和内置 HTTP/gRPC/SQL/文件清理/Webhook 主路径已补齐；非 Java SDK parity 与外部 JAR/容器为 P2 |
+| 2.4 管理与平台能力 | 10 | 9 | 0 | 1 | 平台能力框架齐全，Web 暗色/移动端基础、租户配额、Secret Store、Service Account、审计、告警去重/静默已接入；GitOps/IaC 仍为 P2 |
+| **合计** | **38** | **35** | **2** | **1** | **P1 已清空；剩余为非 Java SDK parity、外部 JAR/容器和 GitOps/IaC 等 P2 范围** |
 
 ## 2. 状态定义
 
@@ -38,7 +38,7 @@
 | CRON 表达式 | ✅ 已覆盖 | `ScheduleType::Cron`；`crates/tikee-server/src/tikee.rs` 中 `cron_due` / `parse_cron_expression`；`chrono-tz`；Jobs UI Cron 表单；`cron_tick_uses_iana_timezone_option` / `cron_tick_skips_excluded_calendar_date` 单测 | Server tick loop 支持秒级 Cron；表达式支持 `;tz=IANA` 时区，例如 `;tz=Asia/Shanghai`；支持 `;exclude=YYYY-MM-DD,...` 日历排除；生成 `TriggerType::Cron` | 已接 IANA 时区/DST 解析和日期排除；更复杂节假日 Provider/维护日历集中管理可作为 Calendar 管理增强 | P2 |
 | 固定频率 FIX_RATE | ✅ 已覆盖 | `ScheduleType::FixedRate`；`fixed_rate_due`；`parse_fixed_rate_expression`；`MisfirePolicy::LatestOnly`；Jobs UI 支持 fixed_rate/jitter/latest_only；`fixed_rate_expression_*` 与 `fixed_rate_latest_only_misfire_keeps_one_instance` 单测 | Server 统一 tick 可按固定间隔触发；表达式支持 `30s;jitter=5s` 以 job id 确定性抖动分散同频任务；Misfire 支持 fire_once/do_nothing/catch_up_limited/reschedule/latest_only | 可后续把 jitter 策略扩展为租户级/worker-pool 级策略配置 | P2 |
 | 固定延迟 FIX_DELAY | ✅ 已覆盖 | `ScheduleType::FixedDelay`；`crates/tikee-server/src/tikee.rs` 的 `fixed_delay_due`；`web/src/pages/JobsPage.tsx` 暴露 fixed_delay | 已基于上次终态实例 `updated_at` + delay 生成下一次触发，首次无历史时可启动一次；Web/API 已可配置 | 指数退避尚未作为独立策略扩展，可后续增强 | P2 |
-| API/手动触发 | ✅ 已覆盖 | `crates/tikee-server/src/http/routes/jobs.rs` 的 `/api/v1/jobs/{job}:trigger`；`web/src/pages/JobsPage.tsx` 手动触发/广播触发；Java 管理客户端在 `sdks/java/tikee/.../management` | REST/API 与 Web 手动触发已可用；支持 single/broadcast；支持灰度路由 | 设计中的 gRPC/CLI/EventBridge 统一触发入口未见完整闭环；Webhook 是单独事件入口 | P1 |
+| API/手动触发 | ✅ 已覆盖 | `crates/tikee-server/src/http/routes/jobs.rs` 的 `/api/v1/jobs/{job}:trigger`；`web/src/pages/JobsPage.tsx` 手动触发/广播触发；Java 管理客户端在 `sdks/java/tikee/.../management` | REST/API 与 Web 手动触发已可用；支持 single/broadcast；支持灰度路由 | gRPC/CLI/EventBridge 统一入口属于后续入口扩展；当前 REST/Web/SDK 手动触发已满足设计主路径 | P2 |
 | 延迟任务 | ✅ 已覆盖 | `crates/tikee-storage/src/lib.rs` 有 `dispatch_queue.run_after`；`workflow.rs` 的 `workflow_node_run_after`；`workflow_delay_node_uses_run_after_before_materializing` | 派发队列表具备 run_after；工作流 delay 节点按 `config.seconds` 入队延迟，到期后才 materialize 并推进 | 长期 delay queue、near-time cache 分层可作为扩展；取消/重排通过恢复/编辑路径处理 | P2 |
 | 一次性未来任务 | ✅ 已覆盖 | `ScheduleType::Once` / `TriggerType::Once`；`once_due`；Jobs UI `once` + RFC3339 触发时间 | 已提供一等 `once` 调度类型，到点后只触发一次；支持 RFC3339 时间（含时区） | 取消与重排通过编辑/禁用任务完成，未另设专用 once API | P2 |
 | Daily Time Interval | ✅ 已覆盖 | `ScheduleType::DailyTimeInterval` / `TriggerType::DailyTimeInterval`；`daily_time_interval_due`；`JobRepository::list_enabled_scheduled_jobs`；Jobs UI `daily_time_interval` 表单；`daily_time_interval_tick_*` 单测 | 支持 `HH:MM-HH:MM[/interval]@TZ` 表达式，例如 `09:00-18:00/30m@Asia/Shanghai`；tick 只在每日窗口内、按间隔对齐触发，并避免同一 interval 内重复触发 | 当前支持固定 UTC offset 和 `Asia/Shanghai` 等明确映射；完整 IANA TZ/DST/节假日排除仍归入 Cron/Calendar 增强 | P2 |
@@ -55,14 +55,14 @@
 
 | 功能 | 当前状态 | 代码证据 | 已实现内容 | 未覆盖/风险 | 建议优先级 |
 |---|---|---|---|---|---|
-| 单机执行 | ✅ 已覆盖 | `ExecutionMode::Single`；`jobs.rs` trigger；`tunnel/dispatcher.rs` 派发；Worker proto 有 assignment token/task result/log | 单实例任务派发、attempt、Worker lease/assignment token 基础已存在 | 需通过联调继续验证极端重试、幂等 token 的一致性 | P1 |
+| 单机执行 | ✅ 已覆盖 | `ExecutionMode::Single`；`jobs.rs` trigger；`tunnel/dispatcher.rs` 派发；Worker proto 有 assignment token/task result/log | 单实例任务派发、attempt、Worker lease/assignment token 基础已存在 | 极端重试/幂等 token 可继续做压测回归；当前执行主链路已覆盖 | P2 |
 | 广播执行 | ✅ 已覆盖 | `ExecutionMode::Broadcast`；`BroadcastSelector`；`WorkerRegistry::find_eligible_workers_with_broadcast_selector`；`TriggerJobRequest.broadcastSelector`；Jobs UI 广播抽屉；`registry_matches_broadcast_selector_region_tags_cluster_and_labels` 单测 | 支持按 namespace/app 租户范围广播，并可叠加 structured tags、region、cluster/version、labels 条件筛选；实例详情保留广播子执行模型 | 后续可增加保存/复用广播策略模板，但运行时策略化筛选主干已覆盖 | P2 |
 | 分片任务 | ✅ 已覆盖 | `workflow.rs` 的 map/map_reduce shard materialize；`workflow_shards.checkpoint/retry_count`；`rebalance_workflow_shards`；`POST /workflow-instances/{id}/shards/rebalance`；`workflow_failed_shard_rebalance_preserves_checkpoint_and_requeues` 单测 | 工作流 Map/MapReduce 可生成 shard 和队列项；失败 shard 可按 node/status 重平衡重试，保留 checkpoint，重新生成 job instance/dispatch queue | 分片目前绑定工作流节点，不另设一等 job execution mode；策略模板可后续增强 | P2 |
 | Map | ✅ 已覆盖 | `workflow.rs` 处理 `map`；`workflow/validation.rs` 校验 map items；`WorkflowsPage.tsx` 提供 Map 节点；shard checkpoint/retry_count/rebalance API | 可定义 map items 并物化为 shard；每个 shard 有 input/output/checkpoint/job_instance_id/retry_count，支持失败分片重试恢复 | 可后续增加动态扩缩分片算法，但 Map 主干与失败恢复已覆盖 | P2 |
 | MapReduce | ✅ 已覆盖 | `workflow.rs` 处理 `map_reduce`；`persist_map_reduce_result_chunks`；`workflow.map_reduce.chunk` / `workflow.map_reduce.manifest` 事件；`WorkflowsPage.tsx` MapReduce 节点；`workflow_map_reduce_writes_reduce_chunks_and_manifest` 单测 | 支持 map_reduce 节点定义、shard、完成推进、失败分片 checkpoint/rebalance；全部 shard 成功后按 chunk 写 reduce 结果事件和 manifest，形成结果分片/spill 基础 | 后续可把 chunk size 和外部对象存储 spill 策略配置化 | P2 |
 | 工作流 DAG | ✅ 已覆盖 | `workflow.rs` definition/run/advance/materialize/recover；`materialize_next_queued_node_with_fencing` 覆盖 job/script/http/map/map_reduce/sub_workflow/control；`workflow_condition_node_routes_failure_branch_and_auto_advances`；`workflow_condition_node_evaluates_safe_typed_expression`；`workflow_approval_node_times_out_and_routes_failure_branch`；`workflow_compensation_node_auto_advances_after_failure_branch`；`WorkflowsPage.tsx` 可视化编辑/运行/SSE | DAG 定义、校验、运行、job/script/http/map/map_reduce/sub_workflow 节点物化；condition 节点已支持安全受限 typed expression（config/vars 布尔、数字、字符串比较与 `&&`/`||`）；approval 节点支持人工 advance 和 `timeoutSeconds`/`onTimeout` SLA 超时分支；parallel/join/notification/start/end/delay/compensation 控制节点会自动推进；delay 已接 run_after；HTTP 节点物化为内置执行任务实例 | 更复杂的审批升级链路和运行回放可后续增强 | P2 |
 | 长运行任务 | ✅ 已覆盖 | Worker Tunnel、heartbeat/lease/generation、assignment token；`dispatcher.rs` stale running recovery；`TaskCheckpoint` proto；`handle_task_checkpoint`；`cancel_job_instance` API；`cancel_job_instance_closes_dispatch_queue` 单测 | 有心跳、租约、重连、stale running 恢复；Worker 可上报 checkpoint 到实例日志；Server 支持取消 pending/running 实例并关闭 dispatch_queue/shard 状态 | Worker 侧主动响应取消命令可后续增强，但 Server 侧 checkpoint/恢复依据/优雅取消主干已覆盖 | P2 |
-| 任务排队 | ✅ 已覆盖 | `dispatch_queue` 表含 `priority/run_after/status/lease_owner/lease_until/fencing_token/worker_selector/namespace/app/worker_pool`；`dispatcher.rs` 处理队列、stale 恢复和 WorkerPool quota；metrics 有 queue SLO | 队列、优先级、租约、fencing token、延迟 run_after、stale running 恢复、WorkerPool maxQueueDepth/maxConcurrency 背压和 UI/API 配额管理已存在 | 后续可继续增加更细的租户级权重/公平调度策略 | P1 |
+| 任务排队 | ✅ 已覆盖 | `dispatch_queue` 表含 `priority/run_after/status/lease_owner/lease_until/fencing_token/worker_selector/namespace/app/worker_pool`；`dispatcher.rs` 处理队列、stale 恢复和 WorkerPool quota；metrics 有 queue SLO | 队列、优先级、租约、fencing token、延迟 run_after、stale running 恢复、WorkerPool maxQueueDepth/maxConcurrency 背压和 UI/API 配额管理已存在 | 更细的租户级权重/公平调度策略属于后续优化 | P2 |
 
 ### 执行模式结论
 
@@ -74,7 +74,7 @@
 
 | 功能 | 当前状态 | 代码证据 | 已实现内容 | 未覆盖/风险 | 建议优先级 |
 |---|---|---|---|---|---|
-| Java Bean / SDK | ✅ 已覆盖 | `sdks/java/tikee/src/main/java/com/yhyzgn/tikee/processor`；`worker/client/GrpcTikeeWorkerClient.java`；`sdks/java/tikee-spring`；`tikee-spring-boot-starter`；`examples/java/spring-worker-demo` | Java SDK、Spring 注解注册、Starter 自动配置、Worker Tunnel、任务管理客户端、Demo 用例均存在 | 仍需保持 server-java demo 的 E2E 回归测试常态化 | P1 |
+| Java Bean / SDK | ✅ 已覆盖 | `sdks/java/tikee/src/main/java/com/yhyzgn/tikee/processor`；`worker/client/GrpcTikeeWorkerClient.java`；`sdks/java/tikee-spring`；`tikee-spring-boot-starter`；`examples/java/spring-worker-demo` | Java SDK、Spring 注解注册、Starter 自动配置、Worker Tunnel、任务管理客户端、Demo 用例均存在 | server-java demo E2E 应常态化纳入回归，但功能项已覆盖 | P2 |
 | Rust 原生处理器 | ✅ 已覆盖 | `sdks/rust/tikee/src/*`；`examples/rust/worker-demo/src/main.rs` | Rust SDK、Worker 会话、脚本 runner、wasm feature、demo 均存在 | Rust demo 当前可暂缓，但能力模型存在 | P2 |
 | Go/Python/Node SDK | 🟡 部分覆盖 | `sdks/go/tikee/*` 有 Go SDK/proto/连接边界；Python/Node 仅见占位/README 级别 | Go 有官方 gRPC 生成/连接与基础边界；Python/Node 未形成完整 SDK | 设计声称三者 ✅，但实际 Go 未达到 Java/Rust parity，Python/Node 未覆盖 | P2 |
 | HTTP 调用 | ✅ 已覆盖 | `WorkflowsPage.tsx` 有 http 节点配置；`workflow/validation.rs` 允许 `http`；`tunnel/dispatcher.rs` 内置 `execute_http_processor`；`http_processor_retries_and_signs_requests`；`http_processor_enforces_denylist_and_circuit_breaker` | workflow http 节点已可实际发起 HTTP/HTTPS 调用，支持 method/body/allowedHosts/deniedHosts/deniedCidrs，默认阻断 loopback/private IP，记录实例日志并推进成功/失败；支持 `maxRetries`/`retryBackoffMs` 重试、`signature` SHA256 签名头、CIDR/通配主机 denylist 和 `circuitBreaker.failureThreshold` 熔断；Web 节点配置已暴露治理字段 | 后续可补 DNS 解析后 CIDR 校验和跨实例全局熔断统计，但当前设计条目中的 HTTP 调用治理已闭环 | P2 |
@@ -121,7 +121,7 @@ Java/Rust SDK 是当前最成熟部分。脚本/wasm 已有大量基础设施，
 
 ### P1：重要但可排期补强
 
-1. 审计覆盖率检查：剩余 CRUD 矩阵。
+当前 P1 已清空；本轮已补齐工作流可视化回放/Diff、Service Account、HTTP processor 治理、动态脚本语言矩阵和审计矩阵断言。
 
 ### P2：可后续完善
 
@@ -203,6 +203,6 @@ Java/Rust SDK 是当前最成熟部分。脚本/wasm 已有大量基础设施，
 
 ## 6. 最终判定
 
-按当前代码实际功能，tikee 已经具备“核心调度平台 + Java/Rust Worker SDK + Web 管理台 + 基础工作流 + 脚本/wasm 治理 + 可观测性”的可联调基础。
+按当前代码实际功能，tikee 已经具备“核心调度平台 + Java/Rust Worker SDK + Web 管理台 + 工作流 DAG/回放 + 脚本/wasm/动态语言治理 + Service Account/RBAC + 可观测性/审计”的可联调基础。
 
-但对照设计文档 `2. 功能覆盖与竞品对照` 中 tikee 列的全部 ✅，当前不能判定为完全覆盖。建议在路线图/Phase 清单中把上述 P0/P1 缺口重新标回待办；如果短期不实现，则应把设计文档中的对应 ✅ 改为“规划中/部分覆盖”，避免设计承诺与代码实际能力不一致。
+本轮 P1 缺口已清空。仍未完全覆盖设计表全部 ✅ 的部分集中在 P2：非 Java SDK parity（Go/Python/Node 已明确后续）、外部 JAR/容器一等模型、GitOps/IaC 深度能力；这些应继续保留在路线图/Phase 清单中。
