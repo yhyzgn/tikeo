@@ -1605,15 +1605,18 @@
         let (api_key, key_id) = create_billing_sdk_api_key(app.clone(), &admin).await;
 
         assert_sdk_api_key_list_redacted(app.clone(), &admin, &api_key, &key_id).await;
+        assert_sdk_key_audit_action(app.clone(), &admin, &key_id, "sdk_api_key_create").await;
         seed_sdk_key_scope_jobs(app.clone(), &admin).await;
         assert_sdk_key_lists_only_bound_app(app.clone(), &api_key).await;
         assert_sdk_key_authentication_is_audited(app.clone(), &admin, &key_id).await;
         assert_sdk_key_cannot_write_other_app(app.clone(), &api_key).await;
         update_sdk_api_key(app.clone(), &admin, &key_id).await;
+        assert_sdk_key_audit_action(app.clone(), &admin, &key_id, "sdk_api_key_update").await;
         assert_sdk_key_lists_only_bound_app(app.clone(), &api_key).await;
         assert_sdk_key_cannot_write_bound_app_after_scope_edit(app.clone(), &api_key).await;
         assert_sdk_api_key_list_still_contains_updated_key(app.clone(), &admin, &key_id).await;
         revoke_sdk_api_key(app.clone(), &admin, &key_id).await;
+        assert_sdk_key_audit_action(app.clone(), &admin, &key_id, "sdk_api_key_revoke").await;
         assert_revoked_sdk_key_rejected(app, &api_key).await;
     }
 
@@ -1768,6 +1771,27 @@
         assert!(visible_items.iter().all(|item| item["name"] != "sdk-hidden"));
     }
 
+
+
+    async fn assert_sdk_key_audit_action(
+        app: axum::Router,
+        admin: &str,
+        key_id: &str,
+        action: &str,
+    ) {
+        let audit = get_json_with_auth(
+            app,
+            &format!("/api/v1/audit-logs?action={action}&resource_type=sdk_api_key&resource_id={key_id}&page_size=1"),
+            admin,
+        )
+        .await;
+        assert_eq!(audit["data"]["items"][0]["resource_type"], "sdk_api_key");
+        assert_eq!(audit["data"]["items"][0]["resource_id"], key_id);
+        assert!(!audit["data"]["items"][0]["actor"]
+            .as_str()
+            .unwrap_or_default()
+            .is_empty());
+    }
 
     async fn assert_sdk_key_authentication_is_audited(app: axum::Router, admin: &str, key_id: &str) {
         let audit = get_json_with_auth(
