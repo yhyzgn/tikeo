@@ -1,7 +1,7 @@
 {
-  "pid": 1357269,
-  "parent_pid": 1357254,
-  "started_at": "2026-05-29T07:52:47.729Z",
+  "pid": 1707830,
+  "parent_pid": 1707815,
+  "started_at": "2026-05-29T10:35:44.920Z",
   "cwd": "/home/neo/Projects/neo/pub/tikee",
   "notify_script": "/home/neo/.bun/install/global/node_modules/oh-my-codex/dist/scripts/notify-hook.js",
   "authority_only": false,
@@ -15,9 +15,9 @@
   "dispatch_drain": {
     "enabled": true,
     "max_per_tick": 5,
-    "run_count": 9642,
+    "run_count": 1644,
     "leader_only": true,
-    "last_tick_at": "2026-05-29T08:34:43.138Z",
+    "last_tick_at": "2026-05-29T10:42:39.387Z",
     "last_result": {
       "processed": 0,
       "skipped": 0,
@@ -30,16 +30,16 @@
     "leader_only": true,
     "stale_threshold_ms": 180000,
     "precomputed_leader_stale": true,
-    "last_tick_at": "2026-05-29T08:34:43.138Z",
+    "last_tick_at": "2026-05-29T10:42:39.387Z",
     "last_error": null,
-    "run_count": 9642
+    "run_count": 1644
   },
   "ralph_continue_steer": {
     "enabled": true,
     "cadence_ms": 60000,
     "message": "Ralph loop active continue",
     "active": false,
-    "last_state_check_at": "2026-05-29T08:34:43.155Z",
+    "last_state_check_at": "2026-05-29T10:42:39.388Z",
     "last_sent_at": "",
     "cooldown_anchor_at": "",
     "last_reason": "blocked_by_current_session",
@@ -57,11 +57,11 @@
   "fallback_auto_nudge": {
     "enabled": true,
     "stall_ms": 5000,
-    "last_tick_at": "2026-05-29T08:34:43.139Z",
-    "last_turn_at": "2026-05-29T08:25:11.650Z",
-    "last_turn_count": 4,
-    "last_message": "### 1. 关于 Auto 模式下 `srt` 和 `wasmtime` 的概念梳理\n\n在 `tikee` 的设计原则中，对于非 Java/Rust 的**动态语言脚本**（如 `Shell`、`P",
-    "last_reason": "eligible_but_not_sent",
+    "last_tick_at": "2026-05-29T10:42:39.388Z",
+    "last_turn_at": "2026-05-29T10:35:44.868Z",
+    "last_turn_count": 0,
+    "last_message": "",
+    "last_reason": "hud_state_incomplete",
     "last_error": null,
     "last_nudged_signature": "",
     "last_nudged_at": ""
@@ -80,8 +80,8 @@
     "max_ms": 1000,
     "current_ms": 250,
     "idle_streak": 0,
-    "last_tick_at": "2026-05-29T08:34:43.155Z",
-    "last_activity_at": "2026-05-29T08:34:43.155Z",
+    "last_tick_at": "2026-05-29T10:42:39.388Z",
+    "last_activity_at": "2026-05-29T10:42:39.388Z",
     "last_activity_reason": "leader_nudge"
   },
   "last_cycle_activity": "leader_nudge"

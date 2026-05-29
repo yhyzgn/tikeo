@@ -1,4 +1,5 @@
-import { Alert, Button, Card, Drawer, Form, Input, InputNumber, Popconfirm, Select, Space, Switch, Table, Tag, Timeline, Typography, message } from 'antd';
+import dayjs from 'dayjs';
+import { Alert, Button, Card, DatePicker, Drawer, Form, Input, InputNumber, Popconfirm, Select, Space, Switch, Table, Tag, Timeline, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -393,7 +394,7 @@ export function JobsPage() {
         title="创建任务"
         open={createDrawerOpen}
         onClose={() => { setCreateDrawerOpen(false); form.resetFields(); }}
-        width={520}
+        width={760}
         destroyOnClose
       >
         <Typography.Paragraph type="secondary">配置任务所属 namespace/app、调度类型和 Worker processor 绑定；创建后在列表统一启停和触发。</Typography.Paragraph>
@@ -443,10 +444,10 @@ export function JobsPage() {
             }}
           </Form.Item>
           <Form.Item name="misfirePolicy" label="Misfire 策略"><Select options={[{ value: 'fire_once', label: '补触发一次' }, { value: 'do_nothing', label: '跳过错过触发' }, { value: 'catch_up_limited', label: '有限追赶' }, { value: 'reschedule', label: '重排到当前' }, { value: 'latest_only', label: '仅保留最近一次' }]} /></Form.Item>
-          <Space.Compact block><Form.Item name="scheduleStartAt" label="生命周期开始" style={{ flex: 1 }}><Input allowClear placeholder="可选 RFC3339" /></Form.Item><Form.Item name="scheduleEndAt" label="生命周期结束" style={{ flex: 1 }}><Input allowClear placeholder="可选 RFC3339" /></Form.Item></Space.Compact>
-          <Form.Item name="scheduleCalendarRef" label="调度日历" extra="可选：引用集中式 Calendar，自动排除节假日/维护窗口/冻结窗口。"><Select allowClear showSearch optionFilterProp="label" placeholder="选择 Calendar" options={calendarOptions} /></Form.Item>
-          <Form.Item name="misfirePolicy" label="Misfire 策略"><Select options={[{ value: 'fire_once', label: '补触发一次' }, { value: 'do_nothing', label: '跳过错过触发' }, { value: 'catch_up_limited', label: '有限追赶' }, { value: 'reschedule', label: '重排到当前' }, { value: 'latest_only', label: '仅保留最近一次' }]} /></Form.Item>
-          <Space.Compact block><Form.Item name="scheduleStartAt" label="生命周期开始" style={{ flex: 1 }}><Input allowClear placeholder="可选 RFC3339" /></Form.Item><Form.Item name="scheduleEndAt" label="生命周期结束" style={{ flex: 1 }}><Input allowClear placeholder="可选 RFC3339" /></Form.Item></Space.Compact>
+          <Space.Compact block>
+            <Form.Item name="scheduleStartAt" label="生命周期开始" style={{ flex: 1 }}><DatePicker showTime style={{ width: '100%' }} placeholder="选择开始时间" /></Form.Item>
+            <Form.Item name="scheduleEndAt" label="生命周期结束" style={{ flex: 1 }}><DatePicker showTime style={{ width: '100%' }} placeholder="选择结束时间" /></Form.Item>
+          </Space.Compact>
           <Form.Item name="scheduleCalendarRef" label="调度日历" extra="可选：引用集中式 Calendar，自动排除节假日/维护窗口/冻结窗口。"><Select allowClear showSearch optionFilterProp="label" placeholder="选择 Calendar" options={calendarOptions} /></Form.Item>
           <Form.Item name="canaryJobId" label="灰度目标任务" extra="可选：显式触发当前任务时，按灰度比例路由到目标任务。"><Select allowClear showSearch optionFilterProp="label" placeholder="选择同 App 下的 canary 任务" options={jobs.map((item) => ({ value: item.id, label: `${item.name} · ${item.id}` }))} /></Form.Item>
           <Form.Item name="canaryPercent" label="灰度比例"><InputNumber min={0} max={100} precision={0} addonAfter="%" style={{ width: '100%' }} /></Form.Item>
@@ -459,7 +460,7 @@ export function JobsPage() {
         title={editingJob ? `编辑任务 - ${editingJob.name}` : '编辑任务'}
         open={editingJob !== null}
         onClose={() => { setEditingJob(null); editForm.resetFields(); }}
-        width={520}
+        width={760}
         destroyOnClose
       >
         <Typography.Paragraph type="secondary">编辑任务基础信息、调度配置、Processor 绑定和启用状态；namespace/app 暂不支持变更，避免历史实例归属漂移。</Typography.Paragraph>
@@ -489,6 +490,12 @@ export function JobsPage() {
           </Form.Item>
           <Form.Item name="canaryJobId" label="灰度目标任务" extra="可选：显式触发当前任务时，按灰度比例路由到目标任务。"><Select allowClear showSearch optionFilterProp="label" placeholder="选择同 App 下的 canary 任务" options={jobs.map((item) => ({ value: item.id, label: `${item.name} · ${item.id}` }))} /></Form.Item>
           <Form.Item name="canaryPercent" label="灰度比例"><InputNumber min={0} max={100} precision={0} addonAfter="%" style={{ width: '100%' }} /></Form.Item>
+          <Form.Item name="misfirePolicy" label="Misfire 策略"><Select options={[{ value: 'fire_once', label: '补触发一次' }, { value: 'do_nothing', label: '跳过错过触发' }, { value: 'catch_up_limited', label: '有限追赶' }, { value: 'reschedule', label: '重排到当前' }, { value: 'latest_only', label: '仅保留最近一次' }]} /></Form.Item>
+          <Space.Compact block>
+            <Form.Item name="scheduleStartAt" label="生命周期开始" style={{ flex: 1 }}><DatePicker showTime style={{ width: '100%' }} placeholder="选择开始时间" /></Form.Item>
+            <Form.Item name="scheduleEndAt" label="生命周期结束" style={{ flex: 1 }}><DatePicker showTime style={{ width: '100%' }} placeholder="选择结束时间" /></Form.Item>
+          </Space.Compact>
+          <Form.Item name="scheduleCalendarRef" label="调度日历" extra="可选：引用集中式 Calendar，自动排除节假日/维护窗口/冻结窗口。"><Select allowClear showSearch optionFilterProp="label" placeholder="选择 Calendar" options={calendarOptions} /></Form.Item>
           <Form.Item name="enabled" label="启用" valuePropName="checked"><Switch /></Form.Item>
           <PermissionGate resource="jobs" action="write"><Button type="primary" htmlType="submit" block>保存任务</Button></PermissionGate>
         </Form>
@@ -500,7 +507,7 @@ export function JobsPage() {
         title={broadcastJob ? `广播触发 - ${broadcastJob.name}` : '广播触发'}
         open={broadcastJob !== null}
         onClose={() => { setBroadcastJob(null); broadcastForm.resetFields(); }}
-        width={520}
+        width={760}
         destroyOnClose
       >
         <Typography.Paragraph type="secondary">可选填写 Worker 筛选条件；不填写时广播到当前 Namespace/App 下全部在线可调度 Worker。</Typography.Paragraph>

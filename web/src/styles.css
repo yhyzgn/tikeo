@@ -982,8 +982,8 @@ body {
 }
 
 /* Keep Ant Design primary buttons bound to the runtime site theme color. */
-.ant-btn-primary,
-.ant-btn-color-primary.ant-btn-variant-solid {
+.ant-btn-primary:not(:disabled),
+.ant-btn-color-primary.ant-btn-variant-solid:not(:disabled) {
   background: var(--app-primary-color) !important;
   border-color: var(--app-primary-color) !important;
   box-shadow: 0 6px 14px color-mix(in srgb, var(--app-primary-color) 22%, transparent);
@@ -1532,4 +1532,22 @@ html[data-theme='dark'] .ant-form-item-label > label {
 .workflow-definition-diff__line--removed {
   color: #fecaca;
   background: rgba(220, 38, 38, 0.2);
+}
+
+/* DatePicker / RangePicker overlay panels primary/now buttons theme sync */
+.ant-picker-dropdown .ant-picker-now-btn {
+  color: var(--app-primary-color) !important;
+}
+.ant-picker-dropdown .ant-picker-now-btn:hover {
+  color: color-mix(in srgb, var(--app-primary-color) 82%, black) !important;
+}
+.ant-picker-dropdown .ant-picker-ok button.ant-btn-primary:disabled {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: #d9d9d9 !important;
+  color: rgba(0, 0, 0, 0.25) !important;
+}
+html[data-theme='dark'] .ant-picker-dropdown .ant-picker-ok button.ant-btn-primary:disabled {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: #424242 !important;
+  color: rgba(255, 255, 255, 0.3) !important;
 }

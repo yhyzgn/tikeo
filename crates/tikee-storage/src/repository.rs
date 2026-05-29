@@ -9,8 +9,8 @@
 mod alert;
 mod attempt;
 mod audit;
-mod calendar;
 mod auth;
+mod calendar;
 mod instance;
 mod job;
 mod job_repo;
@@ -39,10 +39,10 @@ pub use attempt::{
 pub use audit::{
     AuditLogFilters, AuditLogPageSummary, AuditLogRepository, AuditLogSummary, CreateAuditLog,
 };
-pub use calendar::{CalendarRepository, CalendarSummary, CalendarWindowSummary, UpsertCalendar};
 pub use auth::{
     AuthSessionRepository, AuthSessionSummary, CreateAuthSession, PermissionSummary, RbacRepository,
 };
+pub use calendar::{CalendarRepository, CalendarSummary, CalendarWindowSummary, UpsertCalendar};
 pub use instance::{
     CreateJobInstance, JobDurationHistory, JobInstanceRepository, JobInstanceSummary,
 };
@@ -216,6 +216,10 @@ mod tests {
                     capability: "sql".to_owned(),
                     processor_names: vec!["billing.sql-sync".to_owned()],
                     description: Some("custom SQL handler".to_owned()),
+                    artifact_ref: None,
+                    container_image: None,
+                    entrypoint: None,
+                    checksum: None,
                 }],
                 alert_channel_types: vec![crate::repository::PluginAlertChannelTypeSummary {
                     r#type: "ops_webhook".to_owned(),
@@ -2177,7 +2181,6 @@ mod tests {
         assert_eq!(refreshed.nodes[0].status, "succeeded");
         assert_eq!(refreshed.nodes[1].status, "queued");
     }
-
 
     #[tokio::test]
     async fn workflow_approval_node_times_out_and_routes_failure_branch() {

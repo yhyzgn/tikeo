@@ -259,15 +259,15 @@
     "omx-1780041167639-abk2td": {
       "session_id": "omx-1780041167639-abk2td",
       "leader_thread_id": "019e5cda-a8bd-7cd2-b122-17eedc5d3f60",
-      "updated_at": "2026-05-29T08:25:11.635Z",
+      "updated_at": "2026-05-29T09:44:37.335Z",
       "threads": {
         "019e5cda-a8bd-7cd2-b122-17eedc5d3f60": {
           "thread_id": "019e5cda-a8bd-7cd2-b122-17eedc5d3f60",
           "kind": "leader",
           "first_seen_at": "2026-05-29T07:55:21.805Z",
-          "last_seen_at": "2026-05-29T08:25:11.635Z",
-          "last_turn_id": "019e72d5-4546-7403-9ac6-9dcfbf01577a",
-          "turn_count": 4
+          "last_seen_at": "2026-05-29T09:44:37.335Z",
+          "last_turn_id": "019e731e-b064-7fd0-a75b-4729e791634a",
+          "turn_count": 13
         }
       }
     }

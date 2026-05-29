@@ -622,7 +622,7 @@ export function ScriptsPage() {
         title={`脚本详情 - ${detailScript?.name ?? ''}`}
         open={detailDrawerOpen}
         onClose={() => { setDetailDrawerOpen(false); setDetailScript(null); }}
-        width={720}
+        width={840}
       >
         {detailLoading ? (
           <Spin />
@@ -683,7 +683,7 @@ export function ScriptsPage() {
         title={`版本历史 - ${activeScript?.name ?? ''}`}
         open={versionDrawerOpen}
         onClose={() => setVersionDrawerOpen(false)}
-        width={720}
+        width={840}
       >
         {versionsLoading ? (
           <Spin />

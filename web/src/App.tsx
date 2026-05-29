@@ -64,6 +64,7 @@ function AppLayout() {
     <AppShell onLogout={handleLogout}>
       <Suspense fallback={<RouteFallback />}>
         <Routes>
+          <Route path="/" element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
           <Route path={ROUTE_META.dashboard.path} element={<Dashboard />} />
           <Route path={ROUTE_META.jobs.path} element={<JobsPage />} />
           <Route path={ROUTE_META.jobTopology.path} element={<JobTopologyPage />} />

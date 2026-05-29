@@ -2331,7 +2331,8 @@ Phase 3 closeout 状态已在 2026-05-28 复核：原先保留未勾选的 OIDC 
 **P2 — 生态接入 / 高级差异化（不阻塞服务先跑起来）**
 
 - [x] SDK Management API-Key 签发与鉴权方案（2026-05-28 已落地验证）：SDK 端 management client 不走人工 session token，也不收敛到某个用户账号的 RBAC 权限；Server 提供 `POST/GET/PATCH/DELETE /api/v1/management/api-keys`，`tk-` + 64 位大小写字母数字 CSPRNG/rejection sampling 生成，服务端只存 hash 与两端明文脱敏值；`X-Tikee-API-Key` 鉴权映射为 `sdk_api_key/app_service` principal 并强制 namespace/app scope；Web `/api-keys` 支持创建一次性明文展示、编辑名称/权限/有效期、吊销与 last-used 观测；Java 原生 SDK、Spring Boot Starter、Rust SDK management client 与 Java demo 均已接入 API-Key。验证：`cargo test -p tikee-server sdk_api_key -- --nocapture`、`cargo test -p tikee-storage sdk_api_key -- --nocapture`、`cd web && bun run lint && bun run build && bun test src/api/client.test.ts`、Java SDK/starter/demo 相关测试。
-- [ ] Terraform Provider、GitOps/IaC、K8s CRD。
+- [x] GitOps/IaC Manifest 导出与 drift diff（2026-05-29：`GET /api/v1/gitops/manifest`、`POST /api/v1/gitops/diff`、Web GitOps/IaC 页面、manifest/CRD/Terraform contract 样例已落地）。
+- [ ] Terraform Provider 与 K8s CRD controller/operator（当前仅有 contract/CRD YAML 样例，不算完整 Provider/Operator 实现）。
 - [x] 任务版本管理与回滚（2026-05-28：`job_versions` 不可变快照表、创建/编辑/回滚自动追加版本、`GET /api/v1/jobs/{job}/versions`、`POST /api/v1/jobs/{job}/rollback`、Jobs 页面版本历史抽屉与回滚入口已落地；回滚生成新的最新版本，不覆盖历史）。
 - [x] 任务依赖自动发现、拓扑图形画布、跨工作流影响分析与回放基础（2026-05-28：已从 Job + Workflow definition 自动推导 job/workflow 节点、workflow_job_ref / workflow_job_dependency 边与 unresolved 缺失引用；`GET /api/v1/jobs/topology` 返回 layer/position 供画布渲染；新增 `GET /api/v1/jobs/{job}/impact` 汇总引用工作流、上游/下游 Job 与风险摘要；新增 `GET /api/v1/workflow-instances/{id}/replay` 返回 instance + definition + events + graph replay bundle；Jobs 页面“任务拓扑”入口跳转到 `/jobs/topology` 二级页面，二级页面承载 SVG 图形画布并可点击 Job 查看跨工作流影响分析）。
 - [x] 高级 Webhook/事件源基础（2026-05-28：入站事件源 `POST /api/v1/events/webhooks/{job}:trigger` 已落地，复用 `instances:execute` 与 namespace/app scope 鉴权，创建 `webhook` trigger instance 并记录 `webhook_event_source` payload 日志；GitHub/GitLab/Alertmanager 等 provider 适配器保留后续增强）。
@@ -2370,7 +2371,8 @@ Phase 3 closeout 状态已在 2026-05-28 复核：原先保留未勾选的 OIDC 
   - 后台已提供管理员 API/UI：创建、列表（两端明文中间脱敏）、编辑名称/授权 scope/有效期、吊销、last-used 观测与审计日志；所有签发/编辑/吊销操作仍由后台人工 session + RBAC 保护。轮换曾评估但按当前产品决策改为“编辑不改 key”，需要换 key 时新建后吊销旧 key。
   - 与已有 API Token/OIDC session 明确分层：API Token 是用户权限收窄后的 bearer；OIDC 只换本地 opaque session；SDK Management API-Key 是 app 级服务凭据，不能被用户 token/RBAC 自动推导生成。
 
-- [ ] Terraform Provider、GitOps/IaC、K8s CRD
+- [x] GitOps/IaC Manifest 导出与 drift diff
+- [ ] Terraform Provider 与 K8s CRD controller/operator（当前仅 contract/CRD YAML 样例）
 - [x] 任务依赖自动发现、拓扑图形画布、跨工作流影响分析与回放基础（2026-05-28：`GET /api/v1/jobs/topology`、`GET /api/v1/jobs/{job}/impact`、`GET /api/v1/workflow-instances/{id}/replay` 已落地；Jobs 页面拓扑入口已改为 `/jobs/topology` 二级页面，二级页面承载 SVG 图形画布、全屏/退出全屏切换、依赖边/引用边/unresolved 引用列表，并支持选中 Job 查看跨工作流影响分析；Replay API 先作为事故复盘 bundle 暴露，后续可接入 Workflow 实例详情页做时间轴播放）。
 - [x] 智能调度建议基础（2026-05-28：新增 `GET /api/v1/jobs/{job}/scheduling-advice`，基于 Job processor/script 绑定推导 required capability，结合在线 Worker 能力与最近实例失败数返回 ready/severity/reason/eligibleWorkers；Jobs 页面增加“调度建议”抽屉。完整历史耗时/资源预测仍保留后续增强）
 - [x] 插件系统 (自定义处理器类型、告警通道)（2026-05-28：新增 `plugins` 注册表与 `GET/POST/PATCH/DELETE /api/v1/plugins`；插件声明 `processorTypes` 与 `alertChannelTypes`，Job 增加 `processorType` 并按 `plugin-processor:<type>` 能力匹配 Worker；告警规则支持插件 channel type readiness 与 webhook 模板投递；Web 增加 `/plugins` 插件系统页面，Jobs 创建/编辑可选择插件处理器；Java demo 与 Rust demo 可广告 `plugin-processor:sql`，本地 `tikee-dev.db` 已注入 Ops Plugin 联调用例）。

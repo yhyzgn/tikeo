@@ -1,5 +1,6 @@
-import { DeleteOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
-import { Button, Card, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Button, Card, DatePicker, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
+import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
 
 import { createCalendar, deleteCalendar, listAppScopes, listCalendars, listNamespaces, type AppScopeSummary, type CalendarSummary, type NamespaceSummary } from '../api/client';
@@ -9,18 +10,10 @@ interface CalendarFormValues {
   app: string;
   name: string;
   timezone: string;
-  excludedDates?: string[];
-  holidays?: string[];
-  maintenanceWindowsText?: string;
-  freezeWindowsText?: string;
-}
-
-function parseWindows(text?: string) {
-  return String(text ?? '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
-    const [start, end] = line.split(',').map((item) => item.trim());
-    if (!start || !end) throw new Error(`窗口格式应为 start,end：${line}`);
-    return { start, end };
-  });
+  excludedDates?: any[];
+  holidays?: any[];
+  maintenanceWindows?: Array<{ range: [any, any] }>;
+  freezeWindows?: Array<{ range: [any, any] }>;
 }
 
 export function CalendarsPage() {
@@ -29,6 +22,7 @@ export function CalendarsPage() {
   const [apps, setApps] = useState<AppScopeSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<CalendarSummary | null>(null);
   const [form] = Form.useForm<CalendarFormValues>();
 
   const reload = async () => {
@@ -47,20 +41,65 @@ export function CalendarsPage() {
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
+    
+    const excludedDates = (values.excludedDates || []).map((d: any) => d.format('YYYY-MM-DD'));
+    const holidays = (values.holidays || []).map((d: any) => d.format('YYYY-MM-DD'));
+    
+    const maintenanceWindows = (values.maintenanceWindows || []).map((item) => {
+      if (item && item.range && item.range[0] && item.range[1]) {
+        return {
+          start: item.range[0].toISOString(),
+          end: item.range[1].toISOString(),
+        };
+      }
+      return null;
+    }).filter(Boolean);
+
+    const freezeWindows = (values.freezeWindows || []).map((item) => {
+      if (item && item.range && item.range[0] && item.range[1]) {
+        return {
+          start: item.range[0].toISOString(),
+          end: item.range[1].toISOString(),
+        };
+      }
+      return null;
+    }).filter(Boolean);
+
     await createCalendar({
       namespace: values.namespace,
       app: values.app,
       name: values.name,
       timezone: values.timezone || 'UTC',
-      excludedDates: values.excludedDates ?? [],
-      holidays: values.holidays ?? [],
-      maintenanceWindows: parseWindows(values.maintenanceWindowsText),
-      freezeWindows: parseWindows(values.freezeWindowsText),
+      excludedDates,
+      holidays,
+      maintenanceWindows: maintenanceWindows as any[],
+      freezeWindows: freezeWindows as any[],
     });
+
     setOpen(false);
+    setEditingItem(null);
     form.resetFields();
     message.success('Calendar 已保存');
     await reload();
+  };
+
+  const handleEdit = (item: CalendarSummary) => {
+    setEditingItem(item);
+    form.setFieldsValue({
+      namespace: item.namespace,
+      app: item.app,
+      name: item.name,
+      timezone: item.timezone,
+      excludedDates: item.excludedDates.map((d) => dayjs(d)),
+      holidays: item.holidays.map((d) => dayjs(d)),
+      maintenanceWindows: item.maintenanceWindows.map((w) => ({
+        range: [dayjs(w.start), dayjs(w.end)],
+      })),
+      freezeWindows: item.freezeWindows.map((w) => ({
+        range: [dayjs(w.start), dayjs(w.end)],
+      })),
+    });
+    setOpen(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -75,7 +114,7 @@ export function CalendarsPage() {
         <Typography.Title level={2}>调度日历</Typography.Title>
         <Typography.Text type="secondary">集中维护 namespace/app 作用域下的节假日、维护窗口和冻结窗口；任务可通过 Calendar 引用绑定。</Typography.Text>
       </div>
-      <Card extra={<Space><Button icon={<ReloadOutlined />} onClick={() => void reload()}>刷新</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => { form.setFieldsValue({ namespace: 'default', app: 'default', timezone: 'Asia/Shanghai' }); setOpen(true); }}>新建 Calendar</Button></Space>}>
+      <Card extra={<Space><Button icon={<ReloadOutlined />} onClick={() => void reload()}>刷新</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingItem(null); form.resetFields(); form.setFieldsValue({ namespace: 'default', app: 'default', timezone: 'Asia/Shanghai' }); setOpen(true); }}>新建 Calendar</Button></Space>}>
         <Table<CalendarSummary>
           rowKey="id"
           loading={loading}
@@ -86,20 +125,69 @@ export function CalendarsPage() {
             { title: '时区', dataIndex: 'timezone' },
             { title: '排除日期', render: (_, item) => <Space wrap>{[...item.excludedDates, ...item.holidays].map((date) => <Tag key={date}>{date}</Tag>)}</Space> },
             { title: '维护/冻结窗口', render: (_, item) => `${item.maintenanceWindows.length}/${item.freezeWindows.length}` },
-            { title: '操作', width: 120, render: (_, item) => <Button danger size="small" icon={<DeleteOutlined />} onClick={() => void handleDelete(item.id)}>删除</Button> },
+            { title: '操作', width: 180, render: (_, item) => (
+              <Space>
+                <Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(item)}>编辑</Button>
+                <Button danger size="small" icon={<DeleteOutlined />} onClick={() => void handleDelete(item.id)}>删除</Button>
+              </Space>
+            ) },
           ]}
         />
       </Card>
-      <Modal title="新建/更新 Calendar" open={open} width={760} onOk={() => void handleSubmit()} onCancel={() => setOpen(false)} okText="保存">
+      <Modal title={editingItem ? "更新 Calendar" : "新建 Calendar"} open={open} width={760} onOk={() => void handleSubmit()} onCancel={() => setOpen(false)} okText="保存">
         <Form form={form} layout="vertical">
-          <Form.Item name="namespace" label="Namespace" rules={[{ required: true }]}><Select showSearch options={namespaces.map((item) => ({ value: item.name, label: item.name }))} /></Form.Item>
-          <Form.Item name="app" label="App" rules={[{ required: true }]}><Select showSearch options={apps.map((item) => ({ value: item.name, label: `${item.namespace}/${item.name}` }))} /></Form.Item>
-          <Form.Item name="name" label="名称" rules={[{ required: true }]}><Input placeholder="cn-maintenance" /></Form.Item>
+          <Form.Item name="namespace" label="Namespace" rules={[{ required: true }]}><Select disabled={!!editingItem} showSearch options={namespaces.map((item) => ({ value: item.name, label: item.name }))} /></Form.Item>
+          <Form.Item name="app" label="App" rules={[{ required: true }]}><Select disabled={!!editingItem} showSearch options={apps.map((item) => ({ value: item.name, label: `${item.namespace}/${item.name}` }))} /></Form.Item>
+          <Form.Item name="name" label="名称" rules={[{ required: true }]}><Input disabled={!!editingItem} placeholder="cn-maintenance" /></Form.Item>
           <Form.Item name="timezone" label="时区"><Input placeholder="Asia/Shanghai" /></Form.Item>
-          <Form.Item name="excludedDates" label="排除日期"><Select mode="tags" placeholder="YYYY-MM-DD" /></Form.Item>
-          <Form.Item name="holidays" label="节假日"><Select mode="tags" placeholder="YYYY-MM-DD" /></Form.Item>
-          <Form.Item name="maintenanceWindowsText" label="维护窗口" extra="每行一个窗口：start,end；时间必须为 RFC3339。"><Input.TextArea rows={3} placeholder="2026-05-29T01:00:00Z,2026-05-29T02:00:00Z" /></Form.Item>
-          <Form.Item name="freezeWindowsText" label="冻结窗口" extra="每行一个窗口：start,end；时间必须为 RFC3339。"><Input.TextArea rows={3} /></Form.Item>
+          <Form.Item name="excludedDates" label="排除日期"><DatePicker multiple style={{ width: '100%' }} placeholder="选择排除日期" /></Form.Item>
+          <Form.Item name="holidays" label="节假日"><DatePicker multiple style={{ width: '100%' }} placeholder="选择节假日" /></Form.Item>
+          
+          <Typography.Paragraph strong style={{ marginTop: 16 }}>维护窗口</Typography.Paragraph>
+          <Form.List name="maintenanceWindows">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map(({ key, name, ...restField }) => (
+                  <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'range']}
+                      rules={[{ required: true, message: '请选择时间范围' }]}
+                    >
+                      <DatePicker.RangePicker showTime />
+                    </Form.Item>
+                    <Button danger onClick={() => remove(name)} icon={<DeleteOutlined />}>删除</Button>
+                  </Space>
+                ))}
+                <Form.Item>
+                  <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>添加维护窗口</Button>
+                </Form.Item>
+              </>
+            )}
+          </Form.List>
+
+          <Typography.Paragraph strong style={{ marginTop: 16 }}>冻结窗口</Typography.Paragraph>
+          <Form.List name="freezeWindows">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map(({ key, name, ...restField }) => (
+                  <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'range']}
+                      rules={[{ required: true, message: '请选择时间范围' }]}
+                    >
+                      <DatePicker.RangePicker showTime />
+                    </Form.Item>
+                    <Button danger onClick={() => remove(name)} icon={<DeleteOutlined />}>删除</Button>
+                  </Space>
+                ))}
+                <Form.Item>
+                  <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>添加冻结窗口</Button>
+                </Form.Item>
+              </>
+            )}
+          </Form.List>
         </Form>
       </Modal>
     </Space>

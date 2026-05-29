@@ -388,7 +388,7 @@ export function PluginsPage() {
       <Drawer
         title={editing ? `编辑插件 - ${editing.name}` : "注册插件"}
         open={drawerOpen}
-        width={620}
+        width={760}
         destroyOnClose
         onClose={() => {
           setDrawerOpen(false);
