@@ -15,10 +15,10 @@
 | 分类 | 条目数 | ✅ 已覆盖 | 🟡 部分覆盖 | ❌ 未覆盖 | 主要风险 |
 |---|---:|---:|---:|---:|---|
 | 2.1 调度能力 | 9 | 8 | 1 | 0 | 调度主干已覆盖；剩余维护窗口/冻结窗口等生命周期增强 |
-| 2.2 执行模式 | 8 | 7 | 1 | 0 | 广播策略、队列治理、分片恢复、MapReduce reduce 分片、长任务取消/checkpoint、补偿节点已补齐主干 |
+| 2.2 执行模式 | 8 | 8 | 0 | 0 | 广播策略、队列治理、分片恢复、MapReduce reduce 分片、长任务取消/checkpoint、补偿节点、安全表达式和审批 SLA 已补齐主干 |
 | 2.3 处理器类型 | 11 | 6 | 5 | 0 | Java/Rust/脚本基础较强；内置 HTTP/gRPC/SQL/文件清理/Webhook 主路径已补齐 |
 | 2.4 管理与平台能力 | 10 | 5 | 4 | 1 | 平台能力框架齐全，多租户配额、Secret Store、告警去重/静默已接入，GitOps 等仍部分缺口 |
-| **合计** | **38** | **22** | **10** | **6** | **整体为“核心可用、竞品对照仍有高级语义缺口”** |
+| **合计** | **38** | **23** | **9** | **6** | **整体为“核心可用、竞品对照仍有高级语义缺口”** |
 
 ## 2. 状态定义
 
@@ -60,7 +60,7 @@
 | 分片任务 | ✅ 已覆盖 | `workflow.rs` 的 map/map_reduce shard materialize；`workflow_shards.checkpoint/retry_count`；`rebalance_workflow_shards`；`POST /workflow-instances/{id}/shards/rebalance`；`workflow_failed_shard_rebalance_preserves_checkpoint_and_requeues` 单测 | 工作流 Map/MapReduce 可生成 shard 和队列项；失败 shard 可按 node/status 重平衡重试，保留 checkpoint，重新生成 job instance/dispatch queue | 分片目前绑定工作流节点，不另设一等 job execution mode；策略模板可后续增强 | P2 |
 | Map | ✅ 已覆盖 | `workflow.rs` 处理 `map`；`workflow/validation.rs` 校验 map items；`WorkflowsPage.tsx` 提供 Map 节点；shard checkpoint/retry_count/rebalance API | 可定义 map items 并物化为 shard；每个 shard 有 input/output/checkpoint/job_instance_id/retry_count，支持失败分片重试恢复 | 可后续增加动态扩缩分片算法，但 Map 主干与失败恢复已覆盖 | P2 |
 | MapReduce | ✅ 已覆盖 | `workflow.rs` 处理 `map_reduce`；`persist_map_reduce_result_chunks`；`workflow.map_reduce.chunk` / `workflow.map_reduce.manifest` 事件；`WorkflowsPage.tsx` MapReduce 节点；`workflow_map_reduce_writes_reduce_chunks_and_manifest` 单测 | 支持 map_reduce 节点定义、shard、完成推进、失败分片 checkpoint/rebalance；全部 shard 成功后按 chunk 写 reduce 结果事件和 manifest，形成结果分片/spill 基础 | 后续可把 chunk size 和外部对象存储 spill 策略配置化 | P2 |
-| 工作流 DAG | 🟡 部分覆盖 | `workflow.rs` definition/run/advance/materialize/recover；`materialize_next_queued_node_with_fencing` 覆盖 job/script/http/map/map_reduce/sub_workflow/control；`workflow_condition_node_routes_failure_branch_and_auto_advances`；`workflow_condition_node_evaluates_safe_typed_expression`；`workflow_compensation_node_auto_advances_after_failure_branch`；`WorkflowsPage.tsx` 可视化编辑/运行/SSE | DAG 定义、校验、运行、job/script/http/map/map_reduce/sub_workflow 节点物化；condition 节点已支持安全受限 typed expression（config/vars 布尔、数字、字符串比较与 `&&`/`||`）；parallel/join/notification/start/end/delay/compensation 控制节点会自动推进；approval 节点进入 running 并可由人工 advance 审批；delay 已接 run_after；HTTP 节点物化为内置执行任务实例 | 审批 SLA/超时升级可后续增强 | P1 |
+| 工作流 DAG | ✅ 已覆盖 | `workflow.rs` definition/run/advance/materialize/recover；`materialize_next_queued_node_with_fencing` 覆盖 job/script/http/map/map_reduce/sub_workflow/control；`workflow_condition_node_routes_failure_branch_and_auto_advances`；`workflow_condition_node_evaluates_safe_typed_expression`；`workflow_approval_node_times_out_and_routes_failure_branch`；`workflow_compensation_node_auto_advances_after_failure_branch`；`WorkflowsPage.tsx` 可视化编辑/运行/SSE | DAG 定义、校验、运行、job/script/http/map/map_reduce/sub_workflow 节点物化；condition 节点已支持安全受限 typed expression（config/vars 布尔、数字、字符串比较与 `&&`/`||`）；approval 节点支持人工 advance 和 `timeoutSeconds`/`onTimeout` SLA 超时分支；parallel/join/notification/start/end/delay/compensation 控制节点会自动推进；delay 已接 run_after；HTTP 节点物化为内置执行任务实例 | 更复杂的审批升级链路和运行回放可后续增强 | P2 |
 | 长运行任务 | ✅ 已覆盖 | Worker Tunnel、heartbeat/lease/generation、assignment token；`dispatcher.rs` stale running recovery；`TaskCheckpoint` proto；`handle_task_checkpoint`；`cancel_job_instance` API；`cancel_job_instance_closes_dispatch_queue` 单测 | 有心跳、租约、重连、stale running 恢复；Worker 可上报 checkpoint 到实例日志；Server 支持取消 pending/running 实例并关闭 dispatch_queue/shard 状态 | Worker 侧主动响应取消命令可后续增强，但 Server 侧 checkpoint/恢复依据/优雅取消主干已覆盖 | P2 |
 | 任务排队 | ✅ 已覆盖 | `dispatch_queue` 表含 `priority/run_after/status/lease_owner/lease_until/fencing_token/worker_selector/namespace/app/worker_pool`；`dispatcher.rs` 处理队列、stale 恢复和 WorkerPool quota；metrics 有 queue SLO | 队列、优先级、租约、fencing token、延迟 run_after、stale running 恢复、WorkerPool maxQueueDepth/maxConcurrency 背压和 UI/API 配额管理已存在 | 后续可继续增加更细的租户级权重/公平调度策略 | P1 |
 
@@ -117,9 +117,7 @@ Java/Rust SDK 是当前最成熟部分。脚本/wasm 已有大量基础设施，
 
 ### P0：建议优先补齐或降级设计承诺
 
-1. **工作流 Runtime 高级语义仍需补强**  
-   - 当前已覆盖 job/script/http/map/map_reduce/sub_workflow，condition/parallel/join/notification/start/end/delay/compensation 控制节点自动推进，approval 节点可人工推进，delay 已按 run_after 延迟。
-   - 安全表达式引擎已补入 condition 节点；建议继续补强审批 SLA/超时升级。
+当前 P0 工作流 Runtime 主干已补齐：condition 安全 typed expression、approval timeout SLA、补偿节点、delay run_after、MapReduce manifest/chunks、shard checkpoint/rebalance 均已有回归测试。
 
 ### P1：重要但可排期补强
 

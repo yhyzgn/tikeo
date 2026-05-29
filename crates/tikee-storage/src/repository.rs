@@ -2164,6 +2164,93 @@ mod tests {
         assert_eq!(refreshed.nodes[1].status, "queued");
     }
 
+
+    #[tokio::test]
+    async fn workflow_approval_node_times_out_and_routes_failure_branch() {
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let workflows = super::WorkflowRepository::new(db.clone());
+        let workflow = workflows
+            .create_workflow(super::CreateWorkflow {
+                name: "approval-timeout-routing".to_owned(),
+                created_by: "test".to_owned(),
+                definition: super::WorkflowDefinition {
+                    nodes: vec![
+                        super::WorkflowNodeSpec {
+                            key: "approve".to_owned(),
+                            name: None,
+                            kind: Some("approval".to_owned()),
+                            job_id: None,
+                            processor_name: None,
+                            child_workflow_id: None,
+                            map_items: None,
+                            config: Some(serde_json::json!({
+                                "approvers": "ops",
+                                "timeoutSeconds": 1,
+                                "onTimeout": "failed"
+                            })),
+                        },
+                        super::WorkflowNodeSpec {
+                            key: "timeout-branch".to_owned(),
+                            name: None,
+                            kind: Some("end".to_owned()),
+                            job_id: None,
+                            processor_name: None,
+                            child_workflow_id: None,
+                            map_items: None,
+                            config: None,
+                        },
+                    ],
+                    edges: vec![super::WorkflowEdgeSpec {
+                        from: "approve".to_owned(),
+                        to: "timeout-branch".to_owned(),
+                        condition: Some("on_failure".to_owned()),
+                    }],
+                },
+            })
+            .await
+            .unwrap_or_else(|error| panic!("workflow should be created: {error}"));
+        let instance = workflows
+            .run_workflow(&workflow.id, "api")
+            .await
+            .unwrap_or_else(|error| panic!("workflow should run: {error}"))
+            .unwrap_or_else(|| panic!("workflow should exist"));
+
+        let materialized = workflows
+            .materialize_next_queued_node()
+            .await
+            .unwrap_or_else(|error| panic!("approval should materialize: {error}"))
+            .unwrap_or_else(|| panic!("queued approval should exist"));
+        assert_eq!(materialized.node.node_key, "approve");
+        assert_eq!(materialized.node.status, "running");
+
+        let row = crate::entities::workflow_node_instance::Entity::find_by_id(materialized.node.id)
+            .one(&db)
+            .await
+            .unwrap_or_else(|error| panic!("approval row should load: {error}"))
+            .unwrap_or_else(|| panic!("approval row should exist"));
+        let mut active: crate::entities::workflow_node_instance::ActiveModel = row.into();
+        active.updated_at = Set("1970-01-01T00:00:00Z".to_owned());
+        active
+            .update(&db)
+            .await
+            .unwrap_or_else(|error| panic!("approval row should age out: {error}"));
+
+        let expired = workflows
+            .expire_timed_out_approval_nodes()
+            .await
+            .unwrap_or_else(|error| panic!("approval timeout scan should run: {error}"));
+        assert_eq!(expired, 1);
+        let refreshed = workflows
+            .get_workflow_instance(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("workflow instance should load: {error}"))
+            .unwrap_or_else(|| panic!("workflow instance should exist"));
+        assert_eq!(refreshed.nodes[0].status, "failed");
+        assert_eq!(refreshed.nodes[1].status, "queued");
+    }
+
     #[tokio::test]
     async fn workflow_compensation_node_auto_advances_after_failure_branch() {
         let db = crate::connect_and_migrate("sqlite::memory:")

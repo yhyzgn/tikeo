@@ -625,6 +625,7 @@ impl WorkflowRepository {
         lease_seconds: i64,
         fencing_token: &str,
     ) -> Result<Option<MaterializeWorkflowNodeResult>, sea_orm::DbErr> {
+        let _expired_approval_nodes = self.expire_timed_out_approval_nodes().await?;
         let Some(claim) = self
             .claim_next_workflow_node_queue_item_with_fencing(
                 lease_owner,
@@ -1007,6 +1008,62 @@ impl WorkflowRepository {
             shards,
             queue_item: updated_queue_summary,
         }))
+    }
+
+    pub async fn expire_timed_out_approval_nodes(&self) -> Result<u64, sea_orm::DbErr> {
+        let now = now_rfc3339();
+        let running = workflow_node_instance::Entity::find()
+            .filter(workflow_node_instance::Column::Status.eq("running"))
+            .all(&self.db)
+            .await?;
+        let mut expired = 0_u64;
+        for node in running {
+            let Some(instance) = workflow_instance::Entity::find_by_id(node.workflow_instance_id.clone())
+                .one(&self.db)
+                .await?
+            else {
+                continue;
+            };
+            let Some(workflow) = self.get_workflow(&instance.workflow_id).await? else {
+                continue;
+            };
+            let Some(node_spec) = workflow
+                .definition
+                .nodes
+                .iter()
+                .find(|candidate| candidate.key == node.node_key && node_kind(candidate) == "approval")
+                .cloned()
+            else {
+                continue;
+            };
+            let timeout_seconds = workflow_config_i64(&node_spec, "timeoutSeconds")
+                .or_else(|| workflow_config_i64(&node_spec, "timeout_seconds"))
+                .filter(|value| *value >= 0)
+                .unwrap_or(0);
+            if timeout_seconds == 0 || elapsed_seconds(&node.updated_at, &now) < timeout_seconds as u64 {
+                continue;
+            }
+            let status = workflow_config_string(&node_spec, "onTimeout")
+                .or_else(|| workflow_config_string(&node_spec, "on_timeout"))
+                .filter(|value| matches!(*value, "succeeded" | "failed" | "skipped"))
+                .unwrap_or("failed")
+                .to_owned();
+            if self
+                .advance_workflow(
+                    &instance.id,
+                    AdvanceWorkflowInput {
+                        node_key: node.node_key.clone(),
+                        status,
+                        message: Some("approval SLA timed out".to_owned()),
+                    },
+                )
+                .await?
+                .is_some()
+            {
+                expired = expired.saturating_add(1);
+            }
+        }
+        Ok(expired)
     }
 
     pub async fn job_binding_for_instance(
