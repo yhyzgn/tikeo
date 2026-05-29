@@ -1198,6 +1198,8 @@ async fn execute_http_processor(config: &serde_json::Value) -> HttpProcessorOutc
         .unwrap_or("GET")
         .to_ascii_uppercase();
     let allowed_hosts = string_array(config.get("allowedHosts"));
+    let denied_hosts = string_array(config.get("deniedHosts"));
+    let denied_cidrs = string_array(config.get("deniedCidrs"));
     let parsed = match url::Url::parse(url) {
         Ok(parsed) => parsed,
         Err(error) => {
@@ -1223,6 +1225,12 @@ async fn execute_http_processor(config: &serde_json::Value) -> HttpProcessorOutc
         .get("allowInsecureLoopback")
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
+    if host_is_denied(host, &denied_hosts, &denied_cidrs) {
+        return HttpProcessorOutcome {
+            success: false,
+            message: format!("http host {host} is denied by deniedHosts/deniedCidrs"),
+        };
+    }
     if is_private_or_loopback_host(host) && !allow_insecure_loopback {
         return HttpProcessorOutcome {
             success: false,
@@ -1265,6 +1273,8 @@ async fn execute_http_processor(config: &serde_json::Value) -> HttpProcessorOutc
         .min(5_000);
     let body = config.get("body").cloned();
     let signature = http_signature_header(config, body.as_ref());
+    let failure_threshold = http_circuit_failure_threshold(config);
+    let mut consecutive_failures = 0_u64;
     let mut last_message = String::new();
     for attempt in 0..=retries {
         let mut request = client.request(req_method.clone(), parsed.clone());
@@ -1289,9 +1299,11 @@ async fn execute_http_processor(config: &serde_json::Value) -> HttpProcessorOutc
                     };
                 }
                 last_message = format!("http {} {url} -> {}", method, status.as_u16());
+                consecutive_failures += 1;
             }
             Err(error) => {
                 last_message = format!("http request failed: {error}");
+                consecutive_failures += 1;
                 if attempt == retries {
                     return HttpProcessorOutcome {
                         success: false,
@@ -1300,11 +1312,55 @@ async fn execute_http_processor(config: &serde_json::Value) -> HttpProcessorOutc
                 }
             }
         }
+        if failure_threshold > 0 && consecutive_failures >= failure_threshold {
+            return HttpProcessorOutcome {
+                success: false,
+                message: format!("http circuit breaker open after {consecutive_failures} failures: {last_message}"),
+            };
+        }
         time::sleep(Duration::from_millis(retry_backoff_ms)).await;
     }
     HttpProcessorOutcome {
         success: false,
         message: last_message,
+    }
+}
+
+
+fn http_circuit_failure_threshold(config: &serde_json::Value) -> u64 {
+    config
+        .get("circuitBreaker")
+        .and_then(|value| value.get("failureThreshold"))
+        .or_else(|| config.get("circuitBreakerFailureThreshold"))
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0)
+        .min(10)
+}
+
+fn host_is_denied(host: &str, denied_hosts: &[String], denied_cidrs: &[String]) -> bool {
+    denied_hosts.iter().any(|denied| host_matches(host, denied))
+        || host
+            .parse::<IpAddr>()
+            .is_ok_and(|ip| denied_cidrs.iter().any(|cidr| ip_in_cidr(ip, cidr)))
+}
+
+fn ip_in_cidr(ip: IpAddr, cidr: &str) -> bool {
+    let Some((network, prefix)) = cidr.split_once('/') else {
+        return ip.to_string() == cidr;
+    };
+    let Ok(prefix) = prefix.parse::<u32>() else {
+        return false;
+    };
+    match (ip, network.parse::<IpAddr>()) {
+        (IpAddr::V4(ip), Ok(IpAddr::V4(network))) if prefix <= 32 => {
+            let mask = if prefix == 0 { 0 } else { u32::MAX << (32 - prefix) };
+            (u32::from(ip) & mask) == (u32::from(network) & mask)
+        }
+        (IpAddr::V6(ip), Ok(IpAddr::V6(network))) if prefix <= 128 => {
+            let mask = if prefix == 0 { 0 } else { u128::MAX << (128 - prefix) };
+            (u128::from(ip) & mask) == (u128::from(network) & mask)
+        }
+        _ => false,
     }
 }
 
@@ -1486,6 +1542,31 @@ mod tests {
         assert!(captured[0].contains("POST /hook HTTP/1.1"));
         assert!(captured[0].contains(&format!("x-tikee-signature: {expected_signature}")));
         assert!(captured[1].contains(&format!("x-tikee-signature: {expected_signature}")));
+    }
+
+    #[tokio::test]
+    async fn http_processor_enforces_denylist_and_circuit_breaker() {
+        let denied = execute_http_processor(&serde_json::json!({
+            "url": "https://203.0.113.10/hook",
+            "allowedHosts": ["203.0.113.10"],
+            "deniedCidrs": ["203.0.113.0/24"],
+        }))
+        .await;
+        assert!(!denied.success);
+        assert!(denied.message.contains("deniedCidrs"));
+
+        let tripped = execute_http_processor(&serde_json::json!({
+            "url": "http://127.0.0.1:9/hook",
+            "allowedHosts": ["127.0.0.1"],
+            "allowInsecureLoopback": true,
+            "maxRetries": 3,
+            "retryBackoffMs": 1,
+            "circuitBreaker": { "failureThreshold": 1 },
+        }))
+        .await;
+        assert!(!tripped.success);
+        assert!(tripped.message.contains("circuit breaker open"));
+        assert!(tripped.message.contains("after 1 failures"));
     }
 
     #[tokio::test]

@@ -191,7 +191,7 @@ function makeNode(kind: string, index: number): WorkflowNodeSpec {
     return { key, name: key, kind, jobId: '', config: { ui } };
   }
   const configByKind: Record<string, Record<string, unknown>> = {
-    http: { method: 'GET', url: '', timeout_ms: 30000 },
+    http: { method: 'GET', url: '', timeout_ms: 30000, allowedHosts: [], deniedHosts: [], deniedCidrs: [], circuitBreaker: { failureThreshold: 3 }, maxRetries: 0, retryBackoffMs: 100 },
     grpc: { endpoint: 'https://grpc.example.com', service: '', method: '', allowedHosts: [] },
     sql: { databaseUrl: '', allowedDatabaseUrls: [], sql: 'SELECT 1', dryRun: true, readOnly: true },
     condition: { expression: 'context.success == true', true_edge: 'on_success', false_edge: 'on_failure' },
@@ -659,6 +659,15 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], currentWo
                   <Select value={(selectedNode.config as { method?: string } | undefined)?.method ?? 'GET'} style={{ width: 120 }} options={['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => ({ value, label: value }))} onChange={(value) => updateNodeConfig(selectedNode.key, { method: value })} />
                   <Input placeholder="https://service.internal/api" value={(selectedNode.config as { url?: string } | undefined)?.url ?? ''} style={{ width: 420 }} onChange={(event) => updateNodeConfig(selectedNode.key, { url: event.target.value })} />
                 </Space>
+                <Input.TextArea rows={2} placeholder="allowedHosts，每行一个主机名；留空仅依赖默认私网/回环拒绝" value={Array.isArray((selectedNode.config as { allowedHosts?: string[] } | undefined)?.allowedHosts) ? ((selectedNode.config as { allowedHosts?: string[] }).allowedHosts ?? []).join('\n') : ''} onChange={(event) => updateNodeConfig(selectedNode.key, { allowedHosts: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) })} />
+                <Input.TextArea rows={2} placeholder="deniedHosts，每行一个主机名或 *.example.com" value={Array.isArray((selectedNode.config as { deniedHosts?: string[] } | undefined)?.deniedHosts) ? ((selectedNode.config as { deniedHosts?: string[] }).deniedHosts ?? []).join('\n') : ''} onChange={(event) => updateNodeConfig(selectedNode.key, { deniedHosts: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) })} />
+                <Input.TextArea rows={2} placeholder="deniedCidrs，每行一个 CIDR，例如 10.0.0.0/8" value={Array.isArray((selectedNode.config as { deniedCidrs?: string[] } | undefined)?.deniedCidrs) ? ((selectedNode.config as { deniedCidrs?: string[] }).deniedCidrs ?? []).join('\n') : ''} onChange={(event) => updateNodeConfig(selectedNode.key, { deniedCidrs: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) })} />
+                <Space wrap>
+                  <Input addonBefore="最大重试" value={String((selectedNode.config as { maxRetries?: number } | undefined)?.maxRetries ?? 0)} style={{ width: 160 }} onChange={(event) => updateNodeConfig(selectedNode.key, { maxRetries: Number(event.target.value) || 0 })} />
+                  <Input addonBefore="退避 ms" value={String((selectedNode.config as { retryBackoffMs?: number } | undefined)?.retryBackoffMs ?? 100)} style={{ width: 180 }} onChange={(event) => updateNodeConfig(selectedNode.key, { retryBackoffMs: Number(event.target.value) || 100 })} />
+                  <Input addonBefore="熔断阈值" value={String(((selectedNode.config as { circuitBreaker?: { failureThreshold?: number } } | undefined)?.circuitBreaker?.failureThreshold) ?? 0)} style={{ width: 180 }} onChange={(event) => updateNodeConfig(selectedNode.key, { circuitBreaker: { failureThreshold: Number(event.target.value) || 0 } })} />
+                </Space>
+                <Typography.Text type="secondary">服务端默认拒绝私网/回环 IP；deniedHosts/deniedCidrs 优先于 allowedHosts，熔断阈值达到后会停止后续重试。</Typography.Text>
               </Space>
             ) : null}
 

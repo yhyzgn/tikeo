@@ -59,3 +59,16 @@ describe('workflow replay and definition diff affordances', () => {
     expect(styles).toContain('workflow-definition-diff__line--removed');
   });
 });
+
+
+describe('workflow HTTP node governance controls', () => {
+  test('exposes allowlist denylist retry and circuit breaker fields', () => {
+    expect(source).toContain('deniedHosts');
+    expect(source).toContain('deniedCidrs');
+    expect(source).toContain('allowedHosts');
+    expect(source).toContain('maxRetries');
+    expect(source).toContain('retryBackoffMs');
+    expect(source).toContain('circuitBreaker');
+    expect(source).toContain('熔断阈值');
+  });
+});
