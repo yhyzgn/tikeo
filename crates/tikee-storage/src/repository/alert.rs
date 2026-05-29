@@ -448,26 +448,35 @@ impl AlertRepository {
             let threshold = condition
                 .get("threshold")
                 .and_then(serde_json::Value::as_u64)
-                .unwrap_or(1);
-            let firing_count = alert_event::Entity::find()
+                .unwrap_or(1)
+                .max(1);
+            let dedupe_window_start = rfc3339_seconds_ago(rule.dedupe_seconds.max(1));
+            let recent_matching_count = alert_event::Entity::find()
+                .filter(alert_event::Column::RuleId.eq(rule.id.clone()))
+                .filter(alert_event::Column::FailureClass.eq(Some(failure_class.to_owned())))
+                .filter(alert_event::Column::CreatedAt.gte(dedupe_window_start.clone()))
+                .count(&self.db)
+                .await?;
+            let recent_firing_count = alert_event::Entity::find()
                 .filter(alert_event::Column::RuleId.eq(rule.id.clone()))
                 .filter(alert_event::Column::Status.eq("firing"))
                 .filter(alert_event::Column::FailureClass.eq(Some(failure_class.to_owned())))
+                .filter(alert_event::Column::CreatedAt.gte(dedupe_window_start))
                 .count(&self.db)
                 .await?;
             let status = if let Some(silenced_until) = &rule.silenced_until {
                 if silenced_until > &now {
                     "silenced"
-                } else if firing_count.saturating_add(1) < threshold {
-                    continue;
-                } else if firing_count > 0 {
+                } else if recent_matching_count.saturating_add(1) < threshold {
+                    "suppressed"
+                } else if recent_firing_count > 0 {
                     "suppressed"
                 } else {
                     "firing"
                 }
-            } else if firing_count.saturating_add(1) < threshold {
-                continue;
-            } else if firing_count > 0 {
+            } else if recent_matching_count.saturating_add(1) < threshold {
+                "suppressed"
+            } else if recent_firing_count > 0 {
                 "suppressed"
             } else {
                 "firing"
@@ -492,6 +501,13 @@ impl AlertRepository {
         }
         Ok(created_events)
     }
+}
+
+fn rfc3339_seconds_ago(seconds: i64) -> String {
+    time::OffsetDateTime::now_utc()
+        .saturating_sub(time::Duration::seconds(seconds.max(1)))
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned())
 }
 
 impl From<alert_rule::Model> for AlertRuleSummary {

@@ -17,8 +17,8 @@
 | 2.1 调度能力 | 9 | 8 | 1 | 0 | 调度主干已覆盖；剩余维护窗口/冻结窗口等生命周期增强 |
 | 2.2 执行模式 | 8 | 7 | 1 | 0 | 广播策略、队列治理、分片恢复、MapReduce reduce 分片、长任务取消/checkpoint、补偿节点已补齐主干 |
 | 2.3 处理器类型 | 11 | 6 | 5 | 0 | Java/Rust/脚本基础较强；内置 HTTP/gRPC/SQL/文件清理/Webhook 主路径已补齐 |
-| 2.4 管理与平台能力 | 10 | 4 | 5 | 1 | 平台能力框架齐全，多租户配额与 Secret Store 已接入，GitOps 等仍部分缺口 |
-| **合计** | **38** | **21** | **11** | **6** | **整体为“核心可用、竞品对照仍有高级语义缺口”** |
+| 2.4 管理与平台能力 | 10 | 5 | 4 | 1 | 平台能力框架齐全，多租户配额、Secret Store、告警去重/静默已接入，GitOps 等仍部分缺口 |
+| **合计** | **38** | **22** | **10** | **6** | **整体为“核心可用、竞品对照仍有高级语义缺口”** |
 
 ## 2. 状态定义
 
@@ -102,7 +102,7 @@ Java/Rust SDK 是当前最成熟部分。脚本/wasm 已有大量基础设施，
 | 工作流可视化 | 🟡 部分覆盖 | `web/src/pages/WorkflowsPage.tsx` 可视化节点编辑、dry-run/validate/run/SSE；`workflow.rs` 支持定义/运行/恢复 | 拖拽/节点配置、JSON-ish/YAML-ish 文本展示、SSE 事件和恢复入口存在 | YAML/JSON 双模式、diff、仿真、回放不完整；Runtime 节点覆盖不足 | P1 |
 | 用户权限 | 🟡 部分覆盖 | `crates/tikee-server/src/http/auth.rs`；OpenAPI 有 OIDC/API token/sdk api keys；RBAC 权限种子在 storage | RBAC、OIDC identity、API token 创建/轮换/撤销、SDK API Key 均存在 | Service Account 是否一等模型不明确；密钥使用审计需补充验证 | P1 |
 | 多租户 | ✅ 已覆盖 | `namespaces/apps/worker_pools/sdk_api_keys/secrets` scope；`worker_pools.max_queue_depth/max_concurrency`；`dispatch_queue.namespace/app/worker_pool`；`routes/scope.rs`；`ScopesPage.tsx`；`tenant_secret_store_creates_lists_and_deletes_scoped_secret_refs` | namespace/app/worker pool 基础 CRUD、token scope binding、WorkerPool 队列/并发配额和背压已接入；Secret Store 按 namespace/app 隔离，只存 valueRef，不存明文，创建/删除审计 | 租户级权重/公平调度可后续增强 | P2 |
-| 告警通知 | 🟡 部分覆盖 | `crates/tikee-server/src/alert.rs`、`alert/email.rs`、`alert/retry.rs`、`routes/alerts.rs`；Web `AlertsPage` | 邮件、飞书、钉钉、企微、Slack、PagerDuty、Webhook、插件告警、重试/DLQ 基础存在 | 去重和静默是否完整执行需进一步验证；告警规则表达式能力有限 | P1 |
+| 告警通知 | ✅ 已覆盖 | `crates/tikee-server/src/alert.rs`、`alert/email.rs`、`alert/retry.rs`、`routes/alerts.rs`；Web `AlertDeliveryPage`；`alert_rules_apply_threshold_dedupe_window_and_silence` | 邮件、飞书、钉钉、企微、Slack、PagerDuty、Webhook、插件告警、重试/DLQ 基础存在；`dedupe_seconds` 已接入实际窗口化去重/阈值计数，`silenced_until` 会生成 silenced 历史事件且不投递 | 复杂告警表达式、分组聚合和升级策略可后续增强 | P2 |
 | 指标监控 | ✅ 已覆盖 | `/metrics` router；`routes/metrics.rs`；`observability/prometheus/*`；`observability/grafana/*`；`observability/tracing.rs` | Prometheus 指标、业务 SLO 汇总、Grafana/Prometheus 配套、OTLP tracing 基础存在 | 指标命名稳定性和 Dashboard 完整性需运维回归 | P2 |
 | 审计日志 | 🟡 部分覆盖 | `audit_logs` schema；`routes/audit_logs.rs`；多处 CRUD/trigger/login/script gate 写审计；`AuditLogsPage`；`tenant_secret_store_creates_lists_and_deletes_scoped_secret_refs` 验证 secret create/delete 审计 | 审计日志表、查询/导出、多个关键操作审计已存在；Secret Store 创建/删除已写入并测试审计记录；实例 cancel 已通过 `cancel_instance_route_records_audit_log` 固化；Job rollback 已通过 `job_version_api_lists_and_rolls_back_snapshots` 的审计断言固化；脚本 release/rollback 等关键路径已有 audit 调用 | 仍需系统性扫描所有 CRUD/审批/密钥读取使用路径是否 100% 覆盖 | P1 |
 | GitOps/IaC | ❌ 未覆盖 | `Dockerfile`、`docker-compose.yml`、`deploy/compose`、`deploy/systemd`、`deploy/k8s/tikee.yaml` | 有 Compose/Systemd/K8s baseline 部署材料 | 未见 CRD、Terraform Provider、GitOps diff/import-export 等平台能力；不能按设计标记完成 | P2 |
@@ -124,7 +124,7 @@ Java/Rust SDK 是当前最成熟部分。脚本/wasm 已有大量基础设施，
 ### P1：重要但可排期补强
 
 1. FixedRate jitter/防惊群。
-3. 审计覆盖率检查：密钥使用、审批、取消、回滚等。
+3. 审计覆盖率检查：密钥使用、审批、脚本 release/rollback 等剩余关键路径。
 
 ### P2：可后续完善
 

@@ -21,8 +21,8 @@ mod plugin;
 mod raft;
 mod scope;
 mod script;
-mod secret;
 mod sdk_api_key;
+mod secret;
 mod user;
 pub mod util;
 mod worker_lifecycle;
@@ -63,13 +63,13 @@ pub use raft::{
 pub use scope::{
     AppSummary, NamespaceSummary, ScopeRepository, UpdateWorkerPoolQuota, WorkerPoolSummary,
 };
-pub use secret::{CreateSecret, SecretRepository, SecretSummary};
 pub use script::{
     CreateScript, ScriptReleaseGrantEvidenceSummary, ScriptReleaseSignatureSummary,
     ScriptRepository, ScriptSummary, ScriptVersionRepository, ScriptVersionSummary, UpdateScript,
     VerifiedScriptReleaseGrants, VerifiedScriptReleaseSignature,
 };
 pub use sdk_api_key::{CreateSdkApiKey, SdkApiKeyRepository, SdkApiKeySummary, UpdateSdkApiKey};
+pub use secret::{CreateSecret, SecretRepository, SecretSummary};
 pub use user::{CreateUser, UpdateUser, UserRepository, UserSummary};
 pub use worker_lifecycle::{
     RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository, WorkerSessionEventSummary,
@@ -77,18 +77,21 @@ pub use worker_lifecycle::{
 };
 pub use workflow::{
     AdvanceWorkflowInput, AdvanceWorkflowResult, CompleteWorkflowShardInput,
-    CompleteWorkflowShardResult, CreateWorkflow, RebalanceWorkflowShardsInput,
-    RebalanceWorkflowShardsResult, DispatchQueueClaim, DispatchQueueSloSummary,
+    CompleteWorkflowShardResult, CreateWorkflow, DispatchQueueClaim, DispatchQueueSloSummary,
     DispatchQueueSummary, InstanceEventSummary, MaterializeWorkflowNodeResult, QueueOverview,
-    RecoverWorkflowNodeInput, RecoverWorkflowNodeResult, UpdateWorkflow, WorkflowDefinition,
-    WorkflowEdgeSpec, WorkflowInstanceSummary, WorkflowJobResultOutcome,
-    WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
-    WorkflowSloSummary, WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
+    RebalanceWorkflowShardsInput, RebalanceWorkflowShardsResult, RecoverWorkflowNodeInput,
+    RecoverWorkflowNodeResult, UpdateWorkflow, WorkflowDefinition, WorkflowEdgeSpec,
+    WorkflowInstanceSummary, WorkflowJobResultOutcome, WorkflowNodeInstanceSummary,
+    WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary, WorkflowSloSummary,
+    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
 };
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, Database, EntityTrait, QueryFilter, Set, Statement};
+    use sea_orm::{
+        ActiveModelTrait, ColumnTrait, ConnectionTrait, Database, EntityTrait, QueryFilter, Set,
+        Statement,
+    };
     use sea_orm_migration::MigratorTrait;
 
     use tikee_core::{ExecutionMode, InstanceStatus, TriggerType};
@@ -105,6 +108,95 @@ mod tests {
     };
 
     use super::{JobInstanceRepository, JobRepository};
+
+    #[tokio::test]
+    async fn alert_rules_apply_threshold_dedupe_window_and_silence() {
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let repository = crate::repository::AlertRepository::new(db.clone());
+        let threshold_rule = repository
+            .create_rule(crate::repository::CreateAlertRule {
+                name: "Windowed script failures".to_owned(),
+                severity: "warning".to_owned(),
+                condition_json: serde_json::json!({
+                    "type": "script_governance_failure",
+                    "failure_class": "runtime_missing",
+                    "threshold": 2,
+                })
+                .to_string(),
+                channels_json: "[]".to_owned(),
+                enabled: true,
+                dedupe_seconds: 300,
+                silenced_until: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("threshold rule should create: {error}"));
+
+        let first = repository
+            .record_script_governance_failure("inst-a", "runtime_missing", "first miss")
+            .await
+            .unwrap_or_else(|error| panic!("first event should record: {error}"));
+        assert_eq!(first[0].status, "suppressed");
+
+        let second = repository
+            .record_script_governance_failure("inst-b", "runtime_missing", "second miss")
+            .await
+            .unwrap_or_else(|error| panic!("second event should record: {error}"));
+        assert_eq!(second[0].status, "firing");
+
+        let duplicate = repository
+            .record_script_governance_failure("inst-c", "runtime_missing", "duplicate miss")
+            .await
+            .unwrap_or_else(|error| panic!("duplicate event should record: {error}"));
+        assert_eq!(duplicate[0].status, "suppressed");
+
+        let firing_row = crate::entities::alert_event::Entity::find_by_id(second[0].id.clone())
+            .one(&db)
+            .await
+            .unwrap_or_else(|error| panic!("firing row should load: {error}"))
+            .unwrap_or_else(|| panic!("firing row should exist"));
+        let mut active: crate::entities::alert_event::ActiveModel = firing_row.into();
+        active.created_at = Set("1970-01-01T00:00:00Z".to_owned());
+        active
+            .update(&db)
+            .await
+            .unwrap_or_else(|error| panic!("firing row should age out: {error}"));
+
+        let after_window = repository
+            .record_script_governance_failure("inst-d", "runtime_missing", "new window miss")
+            .await
+            .unwrap_or_else(|error| panic!("new window event should record: {error}"));
+        assert_eq!(after_window[0].rule_id, threshold_rule.id);
+        assert_eq!(after_window[0].status, "firing");
+
+        let silenced_until = time::OffsetDateTime::now_utc()
+            .saturating_add(time::Duration::hours(1))
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap_or_else(|_| "2999-01-01T00:00:00Z".to_owned());
+        repository
+            .create_rule(crate::repository::CreateAlertRule {
+                name: "Silenced script failures".to_owned(),
+                severity: "critical".to_owned(),
+                condition_json: serde_json::json!({
+                    "type": "script_governance_failure",
+                    "failure_class": "policy_denied",
+                    "threshold": 1,
+                })
+                .to_string(),
+                channels_json: "[]".to_owned(),
+                enabled: true,
+                dedupe_seconds: 300,
+                silenced_until: Some(silenced_until),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("silenced rule should create: {error}"));
+        let silenced = repository
+            .record_script_governance_failure("inst-s", "policy_denied", "policy denied")
+            .await
+            .unwrap_or_else(|error| panic!("silenced event should record: {error}"));
+        assert_eq!(silenced[0].status, "silenced");
+    }
 
     #[tokio::test]
     async fn plugin_repository_resolves_custom_processor_and_alert_channel_types() {
@@ -1596,8 +1688,6 @@ mod tests {
         assert_eq!(refreshed.nodes[1].status, "queued");
     }
 
-
-
     #[tokio::test]
     async fn cancel_job_instance_closes_dispatch_queue() {
         let db = crate::connect_and_migrate("sqlite::memory:")
@@ -1636,17 +1726,24 @@ mod tests {
             .unwrap_or_else(|error| panic!("instance should create: {error}"))
             .unwrap_or_else(|| panic!("job should exist"));
 
-        assert!(workflows.cancel_job_instance(&instance.id).await.unwrap_or_else(|error| panic!("cancel should persist: {error}")));
+        assert!(
+            workflows
+                .cancel_job_instance(&instance.id)
+                .await
+                .unwrap_or_else(|error| panic!("cancel should persist: {error}"))
+        );
         let reloaded = instances
             .get(&instance.id)
             .await
             .unwrap_or_else(|error| panic!("instance should reload: {error}"))
             .unwrap_or_else(|| panic!("instance should exist"));
         assert_eq!(reloaded.status, InstanceStatus::Cancelled);
-        let queue = workflows.queue_overview(10).await.unwrap_or_else(|error| panic!("queue overview should load: {error}"));
+        let queue = workflows
+            .queue_overview(10)
+            .await
+            .unwrap_or_else(|error| panic!("queue overview should load: {error}"));
         assert_eq!(queue.items[0].status, "cancelled");
     }
-
 
     #[tokio::test]
     #[allow(clippy::too_many_lines)]
@@ -1667,7 +1764,11 @@ mod tests {
                         job_id: None,
                         processor_name: None,
                         child_workflow_id: None,
-                        map_items: Some(vec![serde_json::json!({"n": 1}), serde_json::json!({"n": 2}), serde_json::json!({"n": 3})]),
+                        map_items: Some(vec![
+                            serde_json::json!({"n": 1}),
+                            serde_json::json!({"n": 2}),
+                            serde_json::json!({"n": 3}),
+                        ]),
                         config: None,
                     }],
                     edges: vec![],
@@ -1704,13 +1805,18 @@ mod tests {
             .all(&db)
             .await
             .unwrap_or_else(|error| panic!("events should load: {error}"));
-        assert!(events.iter().any(|event| event.event_type == "workflow.map_reduce.chunk"));
+        assert!(
+            events
+                .iter()
+                .any(|event| event.event_type == "workflow.map_reduce.chunk")
+        );
         let manifest = events
             .iter()
             .find(|event| event.event_type == "workflow.map_reduce.manifest")
             .unwrap_or_else(|| panic!("manifest event should exist"));
-        let payload: serde_json::Value = serde_json::from_str(manifest.payload.as_deref().unwrap_or("{}"))
-            .unwrap_or_else(|error| panic!("manifest payload should parse: {error}"));
+        let payload: serde_json::Value =
+            serde_json::from_str(manifest.payload.as_deref().unwrap_or("{}"))
+                .unwrap_or_else(|error| panic!("manifest payload should parse: {error}"));
         assert_eq!(payload["totalShards"], 3);
         assert_eq!(payload["spilled"], true);
     }
@@ -1765,7 +1871,10 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("shard should fail: {error}"))
             .unwrap_or_else(|| panic!("shard should exist"));
-        assert_eq!(failed.shard.checkpoint, Some(serde_json::json!({"offset": 42})));
+        assert_eq!(
+            failed.shard.checkpoint,
+            Some(serde_json::json!({"offset": 42}))
+        );
 
         let rebalanced = workflows
             .rebalance_workflow_shards(
@@ -1783,7 +1892,10 @@ mod tests {
         assert_eq!(rebalanced.requeued_shards.len(), 1);
         assert_eq!(rebalanced.requeued_shards[0].status, "pending");
         assert_eq!(rebalanced.requeued_shards[0].retry_count, 1);
-        assert_eq!(rebalanced.requeued_shards[0].checkpoint, Some(serde_json::json!({"offset": 42})));
+        assert_eq!(
+            rebalanced.requeued_shards[0].checkpoint,
+            Some(serde_json::json!({"offset": 42}))
+        );
         assert!(rebalanced.requeued_shards[0].job_instance_id.is_some());
     }
 
@@ -1980,7 +2092,6 @@ mod tests {
         assert_eq!(refreshed.nodes[1].status, "queued");
     }
 
-
     #[tokio::test]
     async fn workflow_compensation_node_auto_advances_after_failure_branch() {
         let db = crate::connect_and_migrate("sqlite::memory:")
@@ -2011,7 +2122,9 @@ mod tests {
                             processor_name: None,
                             child_workflow_id: None,
                             map_items: None,
-                            config: Some(serde_json::json!({"compensates": "gate", "strategy": "saga"})),
+                            config: Some(
+                                serde_json::json!({"compensates": "gate", "strategy": "saga"}),
+                            ),
                         },
                         super::WorkflowNodeSpec {
                             key: "end".to_owned(),
@@ -2025,8 +2138,16 @@ mod tests {
                         },
                     ],
                     edges: vec![
-                        super::WorkflowEdgeSpec { from: "gate".to_owned(), to: "rollback".to_owned(), condition: Some("on_failure".to_owned()) },
-                        super::WorkflowEdgeSpec { from: "rollback".to_owned(), to: "end".to_owned(), condition: Some("on_success".to_owned()) },
+                        super::WorkflowEdgeSpec {
+                            from: "gate".to_owned(),
+                            to: "rollback".to_owned(),
+                            condition: Some("on_failure".to_owned()),
+                        },
+                        super::WorkflowEdgeSpec {
+                            from: "rollback".to_owned(),
+                            to: "end".to_owned(),
+                            condition: Some("on_success".to_owned()),
+                        },
                     ],
                 },
             })
@@ -2096,7 +2217,9 @@ mod tests {
             .materialize_next_queued_node()
             .await
             .unwrap_or_else(|error| panic!("delay claim should not fail: {error}"));
-        assert!(materialized.is_none(), "delay node must wait until run_after");
+        assert!(
+            materialized.is_none(),
+            "delay node must wait until run_after"
+        );
     }
-
 }
