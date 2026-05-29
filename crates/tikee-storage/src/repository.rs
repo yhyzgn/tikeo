@@ -2093,6 +2093,78 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn workflow_condition_node_evaluates_safe_typed_expression() {
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let workflows = super::WorkflowRepository::new(db);
+        let workflow = workflows
+            .create_workflow(super::CreateWorkflow {
+                name: "typed-condition-routing".to_owned(),
+                created_by: "test".to_owned(),
+                definition: super::WorkflowDefinition {
+                    nodes: vec![
+                        super::WorkflowNodeSpec {
+                            key: "gate".to_owned(),
+                            name: None,
+                            kind: Some("condition".to_owned()),
+                            job_id: None,
+                            processor_name: None,
+                            child_workflow_id: None,
+                            map_items: None,
+                            config: Some(serde_json::json!({
+                                "expression": "vars.env == 'prod' && vars.progress >= 90 && vars.approved == true",
+                                "vars": {
+                                    "env": "prod",
+                                    "progress": 95,
+                                    "approved": true
+                                }
+                            })),
+                        },
+                        super::WorkflowNodeSpec {
+                            key: "end".to_owned(),
+                            name: None,
+                            kind: Some("end".to_owned()),
+                            job_id: None,
+                            processor_name: None,
+                            child_workflow_id: None,
+                            map_items: None,
+                            config: None,
+                        },
+                    ],
+                    edges: vec![super::WorkflowEdgeSpec {
+                        from: "gate".to_owned(),
+                        to: "end".to_owned(),
+                        condition: Some("on_success".to_owned()),
+                    }],
+                },
+            })
+            .await
+            .unwrap_or_else(|error| panic!("workflow should be created: {error}"));
+        let instance = workflows
+            .run_workflow(&workflow.id, "api")
+            .await
+            .unwrap_or_else(|error| panic!("workflow should run: {error}"))
+            .unwrap_or_else(|| panic!("workflow should exist"));
+
+        let materialized = workflows
+            .materialize_next_queued_node()
+            .await
+            .unwrap_or_else(|error| panic!("condition should materialize: {error}"))
+            .unwrap_or_else(|| panic!("queued condition should exist"));
+        assert_eq!(materialized.node.node_key, "gate");
+        assert_eq!(materialized.node.status, "succeeded");
+
+        let refreshed = workflows
+            .get_workflow_instance(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("workflow instance should load: {error}"))
+            .unwrap_or_else(|| panic!("workflow instance should exist"));
+        assert_eq!(refreshed.nodes[0].status, "succeeded");
+        assert_eq!(refreshed.nodes[1].status, "queued");
+    }
+
+    #[tokio::test]
     async fn workflow_compensation_node_auto_advances_after_failure_branch() {
         let db = crate::connect_and_migrate("sqlite::memory:")
             .await

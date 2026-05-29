@@ -34,15 +34,127 @@ fn evaluate_condition_node(node: &WorkflowNodeSpec) -> bool {
     }
     workflow_config_string(node, "expression")
         .map(str::trim)
-        .map(|expression| {
-            matches!(
-                expression.to_ascii_lowercase().as_str(),
-                "true" | "1" | "yes" | "success" | "succeeded" | "context.success == true"
-            )
-        })
+        .map(|expression| evaluate_safe_condition_expression(node, expression))
         .unwrap_or(false)
 }
 
+fn evaluate_safe_condition_expression(node: &WorkflowNodeSpec, expression: &str) -> bool {
+    let expression = expression.trim();
+    if expression.is_empty() {
+        return false;
+    }
+    expression.split("||").any(|branch| {
+        branch
+            .split("&&")
+            .all(|atom| evaluate_condition_atom(node, atom.trim()))
+    })
+}
+
+fn evaluate_condition_atom(node: &WorkflowNodeSpec, atom: &str) -> bool {
+    if atom.is_empty() {
+        return false;
+    }
+    match atom.to_ascii_lowercase().as_str() {
+        "true" | "1" | "yes" | "success" | "succeeded" => return true,
+        "false" | "0" | "no" | "failure" | "failed" => return false,
+        _ => {}
+    }
+    for operator in [">=", "<=", "==", "!=", ">", "<"] {
+        if let Some((left, right)) = atom.split_once(operator) {
+            let Some(left) = condition_value(node, left.trim()) else {
+                return false;
+            };
+            let right = parse_condition_literal(right.trim());
+            return compare_condition_values(&left, &right, operator);
+        }
+    }
+    condition_value(node, atom)
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+}
+
+fn condition_value(node: &WorkflowNodeSpec, path: &str) -> Option<serde_json::Value> {
+    let mut path = path.trim();
+    path = path.strip_prefix("context.").unwrap_or(path);
+    path = path.strip_prefix("config.").unwrap_or(path);
+    path = path.strip_prefix("vars.").unwrap_or(path);
+    let config = node.config.as_ref()?;
+    let root = config.get("vars").unwrap_or(config);
+    let mut current = root;
+    for segment in path.split('.') {
+        if segment.is_empty() {
+            return None;
+        }
+        current = current.get(segment)?;
+    }
+    Some(current.clone())
+}
+
+fn parse_condition_literal(value: &str) -> serde_json::Value {
+    let value = value.trim();
+    if let Some(stripped) = value
+        .strip_prefix('"')
+        .and_then(|item| item.strip_suffix('"'))
+        .or_else(|| {
+            value
+                .strip_prefix('\'')
+                .and_then(|item| item.strip_suffix('\''))
+        })
+    {
+        return serde_json::Value::String(stripped.to_owned());
+    }
+    match value.to_ascii_lowercase().as_str() {
+        "true" => serde_json::Value::Bool(true),
+        "false" => serde_json::Value::Bool(false),
+        "null" => serde_json::Value::Null,
+        _ => value
+            .parse::<f64>()
+            .ok()
+            .and_then(serde_json::Number::from_f64)
+            .map_or_else(
+                || serde_json::Value::String(value.to_owned()),
+                serde_json::Value::Number,
+            ),
+    }
+}
+
+fn compare_condition_values(
+    left: &serde_json::Value,
+    right: &serde_json::Value,
+    operator: &str,
+) -> bool {
+    if let (Some(left), Some(right)) = (left.as_f64(), right.as_f64()) {
+        return match operator {
+            "==" => (left - right).abs() < f64::EPSILON,
+            "!=" => (left - right).abs() >= f64::EPSILON,
+            ">" => left > right,
+            ">=" => left >= right,
+            "<" => left < right,
+            "<=" => left <= right,
+            _ => false,
+        };
+    }
+    if matches!(operator, "==" | "!=") {
+        return if operator == "==" {
+            left == right
+        } else {
+            left != right
+        };
+    }
+    let Some(left) = left.as_str() else {
+        return false;
+    };
+    let Some(right) = right.as_str() else {
+        return false;
+    };
+    match operator {
+        ">" => left > right,
+        ">=" => left >= right,
+        "<" => left < right,
+        "<=" => left <= right,
+        _ => false,
+    }
+}
 
 fn workflow_node_run_after(definition: &WorkflowDefinition, node_key: &str, now: &str) -> String {
     definition
