@@ -503,6 +503,20 @@
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert!(!listed_after_delete["data"].as_array().unwrap_or(&Vec::new()).iter().any(|item| item["id"] == id));
 
+        let read_audit = app
+            .clone()
+            .oneshot(admin_request_builder(app.clone(), "GET", "/api/v1/audit-logs?action=read&resource_type=secret&page_size=1").await)
+            .await
+            .unwrap_or_else(|error| panic!("read audit should respond: {error}"));
+        assert!(read_audit.status().is_success());
+        let read_body = axum::body::to_bytes(read_audit.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("audit body should collect: {error}"));
+        let read_json: Value = serde_json::from_slice(&read_body)
+            .unwrap_or_else(|error| panic!("audit body should be JSON: {error}"));
+        assert_eq!(read_json["data"]["items"][0]["resource_type"], "secret");
+        assert_eq!(read_json["data"]["items"][0]["action"], "read");
+
         let create_audit = app
             .clone()
             .oneshot(admin_request_builder(app.clone(), "GET", "/api/v1/audit-logs?action=create&resource_type=secret&page_size=1").await)

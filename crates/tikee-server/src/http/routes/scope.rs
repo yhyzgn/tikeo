@@ -248,7 +248,29 @@ pub async fn list_secrets(
         .list(query.namespace.as_deref(), query.app.as_deref())
         .await
         .map_err(|error| ApiError::storage(&error))?;
-    items.retain(|secret| crate::http::access_scope::allows_resource(&principal.scope_bindings, &secret.namespace, &secret.app, None));
+    items.retain(|secret| {
+        crate::http::access_scope::allows_resource(
+            &principal.scope_bindings,
+            &secret.namespace,
+            &secret.app,
+            None,
+        )
+    });
+    super::common::audit(
+        &state,
+        &principal.username,
+        "read",
+        "secret",
+        query.namespace.as_deref().unwrap_or("*"),
+        Some(format!(
+            "namespace={} app={} count={}",
+            query.namespace.as_deref().unwrap_or("*"),
+            query.app.as_deref().unwrap_or("*"),
+            items.len()
+        )),
+        &headers,
+    )
+    .await;
     Ok(Json(ApiResponse::success(items)))
 }
 
