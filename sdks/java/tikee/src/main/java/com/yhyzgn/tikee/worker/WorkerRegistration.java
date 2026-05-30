@@ -19,6 +19,7 @@ public record WorkerRegistration(
         String region,
         List<String> capabilities,
         WorkerCapabilitySet structuredCapabilities,
+        WorkerClusterElection election,
         Map<String, String> labels) {
 
     public WorkerRegistration(
@@ -37,6 +38,7 @@ public record WorkerRegistration(
                 region,
                 capabilities,
                 WorkerCapabilitySet.tags(capabilities),
+                WorkerClusterElection.enabledByDefault(),
                 labels);
     }
 
@@ -48,6 +50,7 @@ public record WorkerRegistration(
         Objects.requireNonNull(region, "region");
         capabilities = List.copyOf(capabilities == null ? List.of() : capabilities);
         structuredCapabilities = structuredCapabilities == null ? WorkerCapabilitySet.tags(capabilities) : structuredCapabilities;
+        election = election == null ? WorkerClusterElection.enabledByDefault() : election;
         labels = Map.copyOf(labels == null ? Map.of() : labels);
     }
 }

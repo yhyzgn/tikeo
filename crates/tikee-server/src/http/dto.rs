@@ -431,7 +431,8 @@ pub type WorkflowInstanceApiResponse = ApiResponse<tikee_storage::WorkflowInstan
 pub type WorkflowAdvanceApiResponse = ApiResponse<tikee_storage::AdvanceWorkflowResult>;
 pub type WorkflowMaterializeApiResponse = ApiResponse<tikee_storage::MaterializeWorkflowNodeResult>;
 pub type WorkflowRecoverApiResponse = ApiResponse<tikee_storage::RecoverWorkflowNodeResult>;
-pub type WorkflowShardRebalanceApiResponse = ApiResponse<tikee_storage::RebalanceWorkflowShardsResult>;
+pub type WorkflowShardRebalanceApiResponse =
+    ApiResponse<tikee_storage::RebalanceWorkflowShardsResult>;
 pub type WorkflowShardListApiResponse = ApiResponse<Vec<tikee_storage::WorkflowShardSummary>>;
 pub type WorkflowShardCompleteApiResponse = ApiResponse<tikee_storage::CompleteWorkflowShardResult>;
 pub type DispatchQueueApiResponse = ApiResponse<tikee_storage::QueueOverview>;
@@ -463,11 +464,22 @@ pub struct WorkerSummary {
     pub region: String,
     pub capabilities: Vec<String>,
     pub structured_capabilities: WorkerCapabilitiesSummary,
+    pub master: WorkerMasterSummary,
     pub generation: u64,
     pub status: String,
     pub status_reason: Option<String>,
     pub replaced_by_worker_id: Option<String>,
     pub last_sequence: u64,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerMasterSummary {
+    pub domain: String,
+    pub is_master: bool,
+    pub master_worker_id: Option<String>,
+    pub term: u64,
+    pub fencing_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema, Default)]
@@ -828,7 +840,6 @@ pub struct JobVersionPage {
 pub struct RollbackJobRequest {
     pub version_number: i64,
 }
-
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]

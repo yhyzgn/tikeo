@@ -320,7 +320,7 @@ async fn dispatch_single_instances(
 
         let requirement = required_task_requirement_for_executor(&task, &executor);
         let eligible_workers = registry
-            .find_eligible_workers_with_requirement(&job.namespace, &job.app, requirement.as_ref())
+            .find_ordered_dispatch_workers(&job.namespace, &job.app, requirement.as_ref())
             .await;
         if let Some(worker_id) = eligible_workers.first()
             && let Some(worker_id) = registry.dispatch_to_worker(worker_id, task).await
@@ -1625,6 +1625,7 @@ mod tests {
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
                     structured_capabilities: sdk_capabilities("billing.manual"),
+                    election: None,
                     labels: HashMap::default(),
                 },
                 tx,
@@ -1753,6 +1754,7 @@ mod tests {
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
                     structured_capabilities: sdk_capabilities("demo.echo"),
+                    election: None,
                     labels: HashMap::default(),
                 },
                 tx,
@@ -2004,6 +2006,7 @@ mod tests {
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
                     structured_capabilities: script_capabilities("python"),
+                    election: None,
                     labels: HashMap::default(),
                 },
                 tx,
@@ -2109,6 +2112,7 @@ mod tests {
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
                     structured_capabilities: sdk_capabilities("manual"),
+                    election: None,
                     labels: HashMap::default(),
                 },
                 tx1,
@@ -2126,6 +2130,7 @@ mod tests {
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
                     structured_capabilities: sdk_capabilities("manual"),
+                    election: None,
                     labels: HashMap::default(),
                 },
                 tx2,
@@ -2384,6 +2389,7 @@ mod tests {
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
                     structured_capabilities: sdk_capabilities("workflow.override"),
+                    election: None,
                     labels: HashMap::default(),
                 },
                 tx,
@@ -2505,6 +2511,7 @@ mod tests {
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
                     structured_capabilities: script_capabilities("wasm"),
+                    election: None,
                     labels: HashMap::default(),
                 },
                 tx,

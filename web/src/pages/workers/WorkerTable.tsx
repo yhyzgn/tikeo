@@ -79,6 +79,7 @@ export function WorkerTable({ workers, loading }: WorkerTableProps) {
               <Space direction="vertical" size={2}>
                 <Typography.Text strong copyable>{value}</Typography.Text>
                 <Typography.Text type="secondary">seq={worker.lastSequence}</Typography.Text>
+                {worker.master?.isMaster ? <Tag color="gold">Master</Tag> : <Tag>Follower</Tag>}
               </Space>
             ),
           },
@@ -90,7 +91,12 @@ export function WorkerTable({ workers, loading }: WorkerTableProps) {
           {
             title: 'Placement',
             width: 190,
-            render: (_, worker) => <Typography.Text>{worker.cluster} · {worker.region}</Typography.Text>,
+            render: (_, worker) => (
+              <Space direction="vertical" size={2}>
+                <Typography.Text>{worker.cluster} · {worker.region}</Typography.Text>
+                <Typography.Text type="secondary">{worker.master?.domain ?? '未启用选举'}</Typography.Text>
+              </Space>
+            ),
           },
           {
             title: 'Capabilities',

@@ -2,7 +2,9 @@
 
 use std::collections::HashMap;
 
-use crate::proto::worker::v1::{RegisterWorker, WorkerMessage, worker_message};
+use crate::proto::worker::v1::{
+    RegisterWorker, WorkerCapabilities, WorkerClusterElection, WorkerMessage, worker_message,
+};
 
 /// Worker runtime configuration used during registration.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,6 +55,12 @@ impl WorkerConfig {
                 region: self.region.clone(),
                 capabilities: self.capabilities.clone(),
                 labels: self.labels.clone(),
+                structured_capabilities: Some(WorkerCapabilities::default()),
+                election: Some(WorkerClusterElection {
+                    enabled: true,
+                    domain: String::new(),
+                    priority: 100,
+                }),
             })),
         }
     }

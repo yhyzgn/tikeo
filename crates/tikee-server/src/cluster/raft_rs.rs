@@ -1,8 +1,8 @@
 //! `TiKV` raft-rs bootstrap and runtime integration.
 //!
 //! This module validates the crate/config/storage boundary and hosts the first runtime
-//! ticker. It deliberately does not campaign or grant tikee ownership until real
-//! consensus leadership and fencing are implemented.
+//! ticker. Tikee ownership is granted only after raft-rs observes real leadership
+//! and persists a leader fencing token.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -13,7 +13,7 @@ use std::{
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use protobuf::Message as PbMessage;
 use raft::{
-    Config, StateRole,
+    Config, StateRole, Storage,
     eraftpb::{
         ConfChange, ConfChangeType, ConfChangeV2, ConfState, Entry, EntryType, HardState, Message,
         Snapshot,
@@ -218,7 +218,7 @@ impl RaftRuntimeCoordinator {
             Ok((node, bootstrap, transport)) => (
                 ClusterRole::Follower,
                 format!(
-                    "{RAFT_RS_LIBRARY} runtime ticker started: raft_node_id={}, voters={}, initial_role={}, has_ready={}, restored_entries={}; no campaign, stale leader fencing cleared until role is re-observed",
+                    "{RAFT_RS_LIBRARY} runtime ticker started: raft_node_id={}, voters={}, initial_role={}, has_ready={}, restored_entries={}; autonomous election enabled, stale leader fencing cleared until role is re-observed",
                     bootstrap.raft_node_id,
                     bootstrap.voter_ids.len(),
                     bootstrap.initial_role,
@@ -509,6 +509,7 @@ async fn run_runtime_loop(
             _ = ticker.tick() => {
                 let mut guard = node.lock().await;
                 guard.tick();
+                trigger_autonomous_campaign(&mut guard);
                 if let Err(error) = process_ready(&node_id, &repository, &mut guard, &status, &transport).await {
                     warn!(%error, "raft-rs Ready processing failed");
                 }
@@ -542,6 +543,34 @@ async fn run_runtime_loop(
             }
         }
     }
+}
+
+fn trigger_autonomous_campaign(node: &mut RawNode<MemStorage>) {
+    if node.raft.state != StateRole::Follower || node.raft.leader_id != 0 {
+        return;
+    }
+    if !is_lowest_known_voter(node) {
+        return;
+    }
+    if let Err(error) = node.campaign() {
+        warn!(%error, "raft-rs autonomous campaign trigger failed");
+    }
+}
+
+fn is_lowest_known_voter(node: &RawNode<MemStorage>) -> bool {
+    node.store()
+        .initial_state()
+        .ok()
+        .map(|state| {
+            state
+                .conf_state
+                .voters
+                .iter()
+                .copied()
+                .min()
+                .is_none_or(|lowest| node.raft.id == lowest)
+        })
+        .unwrap_or(true)
 }
 
 async fn process_ready(

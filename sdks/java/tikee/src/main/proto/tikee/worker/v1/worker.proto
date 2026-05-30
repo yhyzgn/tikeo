@@ -37,6 +37,7 @@ message RegisterWorker {
   repeated string capabilities = 6;
   map<string, string> labels = 7;
   WorkerCapabilities structured_capabilities = 8;
+  WorkerClusterElection election = 9;
 }
 
 message WorkerCapabilities {
@@ -59,6 +60,14 @@ message ScriptRunnerCapability {
 message PluginProcessorCapability {
   string type = 1;
   repeated string processor_names = 2;
+}
+
+message WorkerClusterElection {
+  bool enabled = 1;
+  // Stable election domain. Empty means namespace/app/cluster/region.
+  string domain = 2;
+  // Optional deterministic priority. Lower values win ties after health checks.
+  uint32 priority = 3;
 }
 
 message Heartbeat {

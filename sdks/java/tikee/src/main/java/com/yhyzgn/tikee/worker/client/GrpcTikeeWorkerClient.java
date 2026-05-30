@@ -509,6 +509,10 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                 .setRegion(registration.region())
                 .addAllCapabilities(registrationCapabilities())
                 .setStructuredCapabilities(structuredRegistrationCapabilities())
+                .setElection(Worker.WorkerClusterElection.newBuilder()
+                    .setEnabled(registration.election().enabled())
+                    .setDomain(registration.election().domain())
+                    .setPriority(registration.election().priority()))
                 .putAllLabels(registration.labels());
         return Worker.WorkerMessage.newBuilder().setRegister(builder).build();
     }

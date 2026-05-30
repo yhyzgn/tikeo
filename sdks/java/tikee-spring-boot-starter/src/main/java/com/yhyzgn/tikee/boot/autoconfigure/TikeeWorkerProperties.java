@@ -42,10 +42,24 @@ public class TikeeWorkerProperties {
     private List<String> capabilities = new ArrayList<>();
     /** Labels reported during registration. */
     private Map<String, String> labels = new LinkedHashMap<>();
+    /** Worker-cluster master election settings. */
+    private ElectionProperties election = new ElectionProperties();
     /** WASM sandbox runtime installation configuration. */
     private WasmProperties wasm = new WasmProperties();
     /** Dynamic script execution configuration. */
     private ScriptRunnerProperties scripts = new ScriptRunnerProperties();
+
+    /** Worker cluster master election settings. */
+    @Getter
+    @Setter
+    public static class ElectionProperties {
+        /** Enable autonomous worker-cluster master election. */
+        private boolean enabled = true;
+        /** Optional explicit domain. Blank uses namespace/app/cluster/region. */
+        private String domain = "";
+        /** Deterministic priority; lower values win. */
+        private int priority = 100;
+    }
 
     /** Wasmtime installation settings for the default WASM sandbox. */
     @Getter

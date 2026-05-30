@@ -8,7 +8,8 @@ use std::{
 
 use sha2::{Digest, Sha256};
 use tikee_proto::worker::v1::{
-    DispatchTask, RegisterWorker, ServerMessage, WorkerCapabilities, server_message,
+    DispatchTask, RegisterWorker, ServerMessage, WorkerCapabilities, WorkerClusterElection,
+    server_message,
 };
 use tikee_storage::{RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository};
 use tokio::sync::{RwLock, mpsc};
@@ -26,7 +27,6 @@ pub struct WorkerRegistry {
     lifecycle: Option<WorkerLifecycleRepository>,
 }
 
-
 /// Broadcast fan-out selector over connected worker metadata.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BroadcastSelector {
@@ -38,6 +38,40 @@ pub struct BroadcastSelector {
     pub cluster: Option<String>,
     /// Optional worker labels that must all match.
     pub labels: HashMap<String, String>,
+}
+
+/// Worker-side master election outcome for a namespace/app/cluster/region domain.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkerMasterState {
+    /// Deterministic election domain.
+    pub domain: String,
+    /// Whether this worker is the elected master for the domain.
+    pub is_master: bool,
+    /// Current elected master worker id, when one exists.
+    pub master_worker_id: Option<String>,
+    /// Monotonic-ish term derived from domain membership generations.
+    pub term: u64,
+    /// Fencing token bound to domain, term, and elected master.
+    pub fencing_token: Option<String>,
+}
+
+impl WorkerMasterState {
+    fn follower(domain: String) -> Self {
+        Self {
+            domain,
+            is_master: false,
+            master_worker_id: None,
+            term: 0,
+            fencing_token: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct WorkerElectionRegistration {
+    enabled: bool,
+    domain: String,
+    priority: u32,
 }
 
 impl WorkerRegistry {
@@ -78,6 +112,8 @@ impl WorkerRegistry {
         let persisted_generation = self
             .persist_registration(&worker, &worker_id, &connection_id, &fencing_token)
             .await;
+        let election = worker_election_registration(&worker);
+        let master = WorkerMasterState::follower(election.domain.clone());
         let (record, worker_count) = {
             let mut workers = self.workers.write().await;
             let generation = persisted_generation
@@ -91,7 +127,9 @@ impl WorkerRegistry {
                 cluster: worker.cluster,
                 region: worker.region,
                 capabilities: worker.capabilities,
-                structured_capabilities: worker.structured_capabilities.unwrap_or_default(),
+                structured_capabilities: worker.structured_capabilities.clone().unwrap_or_default(),
+                election,
+                master,
                 labels: worker.labels,
                 outbound,
                 generation,
@@ -108,6 +146,7 @@ impl WorkerRegistry {
             };
             replace_previous_generations(&mut workers, &logical_instance_id, &worker_id);
             workers.insert(record.worker_id.clone(), record.clone());
+            recompute_worker_master_states(&mut workers);
             let worker_count = workers
                 .values()
                 .filter(|worker| worker.is_schedulable())
@@ -182,7 +221,8 @@ impl WorkerRegistry {
             worker.last_heartbeat_at = now;
             worker.lease_expires_at = now + Duration::from_secs(DEFAULT_LEASE_SECONDS);
             worker.last_sequence = sequence;
-            let updated = worker.clone();
+            recompute_worker_master_states(&mut workers);
+            let updated = workers.get(worker_id).cloned()?;
             drop(workers);
             updated
         };
@@ -243,7 +283,8 @@ impl WorkerRegistry {
             worker.status_reason = Some("graceful_shutdown".to_owned());
             worker.status_evidence = Some("worker sent graceful unregister".to_owned());
             worker.active_assignment_tokens.clear();
-            let stopped = worker.clone();
+            recompute_worker_master_states(&mut workers);
+            let stopped = workers.get(worker_id).cloned()?;
             drop(workers);
             stopped
         };
@@ -284,7 +325,8 @@ impl WorkerRegistry {
             worker.status_reason = Some("transport_error".to_owned());
             worker.status_evidence = Some(evidence.to_owned());
             worker.active_assignment_tokens.clear();
-            let offline = worker.clone();
+            recompute_worker_master_states(&mut workers);
+            let offline = workers.get(worker_id).cloned()?;
             drop(workers);
             offline
         };
@@ -383,6 +425,38 @@ impl WorkerRegistry {
             })
             .map(|w| w.worker_id.clone())
             .collect()
+    }
+
+    /// Return worker ids matching namespace/app/requirement, preferring each domain master for ordered single dispatch.
+    pub async fn find_ordered_dispatch_workers(
+        &self,
+        namespace: &str,
+        app: &str,
+        requirement: Option<&WorkerRequirement>,
+    ) -> Vec<String> {
+        let mut workers = self
+            .workers
+            .read()
+            .await
+            .values()
+            .filter(|worker| {
+                worker.is_schedulable()
+                    && is_match(&worker.namespace, namespace)
+                    && is_match(&worker.app, app)
+                    && requirement.is_none_or(|requirement| worker_satisfies(worker, requirement))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        workers.sort_by(|left, right| {
+            right
+                .master
+                .is_master
+                .cmp(&left.master.is_master)
+                .then_with(|| left.master.domain.cmp(&right.master.domain))
+                .then_with(|| left.election.priority.cmp(&right.election.priority))
+                .then_with(|| left.worker_id.cmp(&right.worker_id))
+        });
+        workers.into_iter().map(|worker| worker.worker_id).collect()
     }
 
     /// Return true when a connected worker advertises the required capability.
@@ -527,6 +601,100 @@ fn stable_worker_id(
     format!("wrk-{}", Uuid::now_v7())
 }
 
+fn worker_election_registration(worker: &RegisterWorker) -> WorkerElectionRegistration {
+    let election = worker.election.as_ref().cloned().unwrap_or_default();
+    WorkerElectionRegistration {
+        enabled: election.enabled,
+        domain: normalized_election_domain(worker, &election),
+        priority: election.priority,
+    }
+}
+
+fn normalized_election_domain(worker: &RegisterWorker, election: &WorkerClusterElection) -> String {
+    let configured = election.domain.trim();
+    if configured.is_empty() {
+        worker_domain(
+            &worker.namespace,
+            &worker.app,
+            &worker.cluster,
+            &worker.region,
+        )
+    } else {
+        configured.to_owned()
+    }
+}
+
+fn worker_domain(namespace: &str, app: &str, cluster: &str, region: &str) -> String {
+    format!("{namespace}/{app}/{cluster}/{region}")
+}
+
+fn recompute_worker_master_states(workers: &mut HashMap<String, RegisteredWorker>) {
+    let now = SystemTime::now();
+    let mut winners = HashMap::<String, (String, u64, String)>::new();
+    for worker in workers.values() {
+        if !worker.election.enabled || !worker.is_current() || worker.lease_expires_at <= now {
+            continue;
+        }
+        let term = workers
+            .values()
+            .filter(|candidate| candidate.election.domain == worker.election.domain)
+            .map(|candidate| candidate.generation)
+            .max()
+            .unwrap_or(worker.generation);
+        let candidate = (
+            worker.worker_id.clone(),
+            term,
+            worker_master_fencing_token(&worker.election.domain, term, &worker.worker_id),
+        );
+        let replace = winners
+            .get(&worker.election.domain)
+            .is_none_or(|(winner_id, _, _)| {
+                let winner = workers.get(winner_id);
+                winner.is_none_or(|winner| {
+                    worker.election.priority < winner.election.priority
+                        || (worker.election.priority == winner.election.priority
+                            && worker.worker_id < winner.worker_id)
+                })
+            });
+        if replace {
+            winners.insert(worker.election.domain.clone(), candidate);
+        }
+    }
+
+    for worker in workers.values_mut() {
+        if !worker.election.enabled {
+            worker.master = WorkerMasterState::follower(worker.election.domain.clone());
+            continue;
+        }
+        if let Some((master_worker_id, term, fencing_token)) = winners.get(&worker.election.domain)
+        {
+            worker.master = WorkerMasterState {
+                domain: worker.election.domain.clone(),
+                is_master: master_worker_id == &worker.worker_id,
+                master_worker_id: Some(master_worker_id.clone()),
+                term: *term,
+                fencing_token: Some(fencing_token.clone()),
+            };
+        } else {
+            worker.master = WorkerMasterState::follower(worker.election.domain.clone());
+        }
+    }
+}
+
+fn worker_master_fencing_token(domain: &str, term: u64, worker_id: &str) -> String {
+    let digest = Sha256::digest(format!("{domain}:{term}:{worker_id}").as_bytes());
+    format!("wmf-{term}-{}", hex_prefix(&digest, 16))
+}
+
+fn hex_prefix(bytes: &[u8], len: usize) -> String {
+    bytes
+        .iter()
+        .flat_map(|byte| [byte >> 4, byte & 0x0f])
+        .take(len)
+        .map(|nibble| char::from_digit(u32::from(nibble), 16).unwrap_or('0'))
+        .collect()
+}
+
 fn next_generation(workers: &HashMap<String, RegisteredWorker>, logical_instance_id: &str) -> u64 {
     workers
         .values()
@@ -570,7 +738,6 @@ fn is_match(worker_val: &str, job_val: &str) -> bool {
         || job_val == "*"
         || job_val.is_empty()
 }
-
 
 fn broadcast_selector_matches(worker: &RegisteredWorker, selector: &BroadcastSelector) -> bool {
     if selector
@@ -661,6 +828,10 @@ pub struct RegisteredWorker {
     pub capabilities: Vec<String>,
     /// Structured runtime capabilities used by new dispatch routing.
     pub structured_capabilities: WorkerCapabilities,
+    /// Worker cluster election registration.
+    election: WorkerElectionRegistration,
+    /// Current worker-side master election state.
+    pub master: WorkerMasterState,
     /// Worker labels.
     pub labels: HashMap<String, String>,
     /// Outbound stream sender for server-to-worker commands.
@@ -707,7 +878,7 @@ impl RegisteredWorker {
 mod tests {
     use tikee_proto::worker::v1::{
         DispatchTask, PluginProcessorCapability, RegisterWorker, ScriptRunnerCapability,
-        SdkProcessorCapability, WorkerCapabilities,
+        SdkProcessorCapability, WorkerCapabilities, WorkerClusterElection,
     };
     use tokio::sync::mpsc;
 
@@ -715,6 +886,73 @@ mod tests {
 
     use super::{BroadcastSelector, WorkerRegistry, WorkerSessionStatus};
     use crate::tunnel::capability::WorkerRequirement;
+
+    #[tokio::test]
+    async fn registry_elects_single_master_per_worker_domain_and_fails_over() {
+        let registry = WorkerRegistry::default();
+        let first = registry
+            .register(election_worker("pod-a", 10), mpsc::channel(1).0)
+            .await;
+        let second = registry
+            .register(election_worker("pod-b", 1), mpsc::channel(1).0)
+            .await;
+
+        let first_after_election = registry
+            .get(&first.worker_id)
+            .await
+            .unwrap_or_else(|| panic!("first worker should exist"));
+        let second_after_election = registry
+            .get(&second.worker_id)
+            .await
+            .unwrap_or_else(|| panic!("second worker should exist"));
+
+        assert!(!first_after_election.master.is_master);
+        assert!(second_after_election.master.is_master);
+        assert_eq!(
+            first_after_election.master.master_worker_id.as_deref(),
+            Some(second.worker_id.as_str())
+        );
+        assert_eq!(
+            second_after_election.master.fencing_token,
+            first_after_election.master.fencing_token
+        );
+
+        registry
+            .mark_transport_error(&second.worker_id, "test disconnect")
+            .await
+            .unwrap_or_else(|| panic!("second worker should be marked offline"));
+        let promoted = registry
+            .get(&first.worker_id)
+            .await
+            .unwrap_or_else(|| panic!("first worker should remain"));
+
+        assert!(promoted.master.is_master);
+        assert_eq!(
+            promoted.master.master_worker_id.as_deref(),
+            Some(first.worker_id.as_str())
+        );
+    }
+
+    #[tokio::test]
+    async fn registry_orders_dispatch_candidates_by_domain_master_first() {
+        let registry = WorkerRegistry::default();
+        let follower = registry
+            .register(election_worker("pod-a", 10), mpsc::channel(1).0)
+            .await;
+        let master = registry
+            .register(election_worker("pod-b", 1), mpsc::channel(1).0)
+            .await;
+
+        let candidates = registry
+            .find_ordered_dispatch_workers("finance", "billing", None)
+            .await;
+
+        assert_eq!(
+            candidates.first().map(String::as_str),
+            Some(master.worker_id.as_str())
+        );
+        assert!(candidates.contains(&follower.worker_id));
+    }
 
     #[tokio::test]
     async fn registry_tracks_registration_and_heartbeat() {
@@ -729,6 +967,7 @@ mod tests {
                     region: "cn".to_owned(),
                     capabilities: vec!["http".to_owned()],
                     structured_capabilities: None,
+                    election: None,
                     labels: [("runtime".to_owned(), "rust".to_owned())].into(),
                 },
                 mpsc::channel(1).0,
@@ -818,7 +1057,6 @@ mod tests {
                 .await
         );
     }
-
 
     #[tokio::test]
     async fn registry_matches_broadcast_selector_region_tags_cluster_and_labels() {
@@ -1046,6 +1284,17 @@ mod tests {
         assert_eq!(renewed.last_sequence, 11);
     }
 
+    fn election_worker(client_instance_id: &str, priority: u32) -> RegisterWorker {
+        RegisterWorker {
+            election: Some(WorkerClusterElection {
+                enabled: true,
+                domain: String::new(),
+                priority,
+            }),
+            ..register_worker(client_instance_id)
+        }
+    }
+
     fn register_worker(client_instance_id: &str) -> RegisterWorker {
         RegisterWorker {
             client_instance_id: client_instance_id.to_owned(),
@@ -1055,6 +1304,7 @@ mod tests {
             region: "cn".to_owned(),
             capabilities: vec!["http".to_owned()],
             structured_capabilities: None,
+            election: None,
             labels: [("runtime".to_owned(), "rust".to_owned())].into(),
         }
     }

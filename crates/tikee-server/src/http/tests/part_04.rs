@@ -1315,6 +1315,7 @@
             region: "local".to_owned(),
             capabilities: Vec::new(),
             structured_capabilities: None,
+            election: None,
             labels: std::collections::HashMap::default(),
         }
     }

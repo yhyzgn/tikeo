@@ -1005,6 +1005,7 @@
                 }],
                 ..tikee_proto::worker::v1::WorkerCapabilities::default()
             }),
+            election: None,
             labels: std::collections::HashMap::default(),
         };
         worker.labels.insert("cpu".to_owned(), "4".to_owned());

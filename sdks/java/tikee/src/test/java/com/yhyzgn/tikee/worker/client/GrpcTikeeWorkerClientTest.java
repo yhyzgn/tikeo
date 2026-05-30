@@ -80,6 +80,9 @@ class GrpcTikeeWorkerClientTest {
             Worker.RegisterWorker register = service.messages.get(0).getRegister();
             assertEquals("java-instance-1", register.getClientInstanceId());
             assertTrue(register.getCapabilitiesList().contains("java"));
+            assertTrue(register.getElection().getEnabled());
+            assertEquals("", register.getElection().getDomain());
+            assertEquals(100, register.getElection().getPriority());
             assertTrue(register.getStructuredCapabilities().getSdkProcessorsList().stream()
                     .anyMatch(item -> "demo.echo".equals(item.getName())));
             assertTrue(service.messages.stream()

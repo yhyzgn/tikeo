@@ -13,6 +13,7 @@ import com.yhyzgn.tikee.spring.worker.SpringTikeeTaskProcessor;
 import com.yhyzgn.tikee.wasm.CliWasmtimeRunner;
 import com.yhyzgn.tikee.wasm.WasmRunnerRegistry;
 import com.yhyzgn.tikee.worker.WorkerCapabilitySet;
+import com.yhyzgn.tikee.worker.WorkerClusterElection;
 import com.yhyzgn.tikee.worker.WorkerRegistration;
 import com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClient;
 import com.yhyzgn.tikee.worker.client.NoopTikeeWorkerClient;
@@ -93,6 +94,11 @@ public class TikeeWorkerAutoConfiguration {
                 processorRegistry,
                 scriptRunnerRegistry,
                 wasmRunnerRegistry
+            ),
+            new WorkerClusterElection(
+                properties.getElection().isEnabled(),
+                properties.getElection().getDomain(),
+                properties.getElection().getPriority()
             ),
             properties.getLabels()
         );

@@ -11,8 +11,8 @@ use super::{
     CLUSTER_ID, RaftMembershipProposalContext, RaftRuntimeCoordinator, STANDARD, StateRole,
     apply_committed_entries, build_membership_conf_change, build_runtime_from_repository,
     leader_fencing_token_for_role, persist_entry, persist_hard_state, raft_append_entries_url,
-    raft_message_to_wire_request, raft_numeric_id, update_runtime_status,
-    validate_raft_rs_bootstrap,
+    raft_message_to_wire_request, raft_numeric_id, trigger_autonomous_campaign,
+    update_runtime_status, validate_raft_rs_bootstrap,
 };
 use crate::cluster::{ClusterMode, ClusterRole, ClusterStatus, RaftMembershipProposal};
 
@@ -522,6 +522,37 @@ async fn raft_runtime_accepts_inbound_messages_into_inbox_only() {
 }
 
 #[tokio::test]
+async fn raft_inprocess_harness_autonomously_elects_unique_leader_after_ticks() {
+    let mut cluster = TestRaftCluster::new(&["tikee-0", "tikee-1", "tikee-2"]).await;
+
+    cluster.tick_all(12).await;
+    cluster.drain().await;
+
+    let leaders = cluster.leader_ids();
+    assert_eq!(
+        leaders.len(),
+        1,
+        "exactly one raft leader should be elected autonomously"
+    );
+    let leader_id = leaders[0].clone();
+    let status = cluster.nodes[&leader_id].status.read().await.clone();
+    let metadata = cluster.nodes[&leader_id]
+        .repository
+        .get_metadata(&leader_id)
+        .await
+        .unwrap_or_else(|error| panic!("metadata should load: {error}"))
+        .unwrap_or_else(|| panic!("metadata should exist"));
+
+    assert_eq!(status.role, ClusterRole::Leader);
+    assert!(status.can_schedule);
+    assert_eq!(
+        status.leader_fencing_token.as_deref(),
+        Some(format!("raft:term:1:node:{leader_id}").as_str())
+    );
+    assert_eq!(metadata.leader_fencing_token, status.leader_fencing_token);
+}
+
+#[tokio::test]
 async fn raft_inprocess_harness_elects_real_leader_and_persists_fencing() {
     let mut cluster = TestRaftCluster::new(&["tikee-0", "tikee-1", "tikee-2"]).await;
     cluster
@@ -689,6 +720,16 @@ impl TestRaftCluster {
             );
         }
         Self { nodes }
+    }
+
+    async fn tick_all(&mut self, ticks: usize) {
+        for _ in 0..ticks {
+            for node in self.nodes.values_mut() {
+                node.raw.tick();
+                trigger_autonomous_campaign(&mut node.raw);
+            }
+            self.drain().await;
+        }
     }
 
     async fn drain(&mut self) {

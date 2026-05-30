@@ -1333,11 +1333,20 @@ export interface WorkerSummary {
   region: string;
   capabilities: string[];
   structuredCapabilities?: WorkerCapabilitiesSummary;
+  master?: WorkerMasterSummary;
   generation: number;
   status: string;
   statusReason: string | null;
   replacedByWorkerId: string | null;
   lastSequence: number;
+}
+
+export interface WorkerMasterSummary {
+  domain: string;
+  isMaster: boolean;
+  masterWorkerId: string | null;
+  term: number;
+  fencingToken: string | null;
 }
 
 export interface WorkerCapabilitiesSummary {

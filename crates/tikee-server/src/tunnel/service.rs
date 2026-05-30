@@ -255,7 +255,7 @@ async fn handle_worker_message(
         Some(worker_message::Kind::TaskCheckpoint(checkpoint)) => {
             handle_task_checkpoint(context, checkpoint).await;
             Ok(WorkerMessageOutcome::Continue)
-        },
+        }
         None => {
             context
                 .tx
@@ -391,7 +391,6 @@ async fn handle_task_log(
     Ok(WorkerMessageOutcome::Continue)
 }
 
-
 async fn handle_task_checkpoint(context: &WorkerMessageContext<'_>, checkpoint: TaskCheckpoint) {
     let TaskCheckpoint {
         worker_id,
@@ -405,7 +404,8 @@ async fn handle_task_checkpoint(context: &WorkerMessageContext<'_>, checkpoint: 
         .accepts_worker_assignment(&worker_id, &assignment_token)
         .await
     {
-        metrics::counter!("tikee_worker_stale_messages_total", "kind" => "task_checkpoint").increment(1);
+        metrics::counter!("tikee_worker_stale_messages_total", "kind" => "task_checkpoint")
+            .increment(1);
         return;
     }
     if let Err(error) = context
@@ -660,6 +660,7 @@ mod tests {
                     region: "cn".to_owned(),
                     capabilities: Vec::new(),
                     structured_capabilities: None,
+                    election: None,
                     labels: std::collections::HashMap::default(),
                 })),
             },
@@ -746,6 +747,7 @@ mod tests {
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
                     structured_capabilities: None,
+                    election: None,
                     labels: std::collections::HashMap::default(),
                 },
                 outbound,
