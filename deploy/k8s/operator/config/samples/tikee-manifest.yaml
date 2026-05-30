@@ -1,0 +1,13 @@
+apiVersion: tikee.io/v1alpha1
+kind: TikeeManifest
+metadata:
+  name: default-billing-review
+spec:
+  applyMode: diffOnly
+  manifest:
+    apiVersion: tikee.io/v1alpha1
+    kind: TikeeManifest
+    scope:
+      namespace: default
+      app: billing
+    resources: []

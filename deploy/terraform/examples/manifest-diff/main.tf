@@ -7,28 +7,27 @@ terraform {
   }
 }
 
-variable "tikee_api_base" { type = string }
+provider "tikee" {
+  endpoint  = var.tikee_endpoint
+  api_token = var.tikee_api_token
+}
+
+variable "tikee_endpoint" { type = string }
 variable "tikee_api_token" {
   type      = string
   sensitive = true
 }
 
-provider "tikee" {
-  endpoint  = var.tikee_api_base
-  api_token = var.tikee_api_token
-}
-
 data "tikee_manifest" "current" {
-  format = "yaml"
+  namespace = "default"
+  app       = "billing"
+  format    = "yaml"
 }
 
 resource "tikee_manifest_diff" "review" {
   manifest_json = data.tikee_manifest.current.manifest_json
 }
 
-output "gitops_contract" {
-  value = {
-    checksum = data.tikee_manifest.current.checksum
-    summary  = tikee_manifest_diff.review.summary_json
-  }
+output "gitops_diff_summary" {
+  value = tikee_manifest_diff.review.summary_json
 }

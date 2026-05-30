@@ -14,6 +14,18 @@ spec:
     - name: v1alpha1
       served: true
       storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Mode
+          type: string
+          jsonPath: .spec.applyMode
+        - name: Ready
+          type: string
+          jsonPath: .status.conditions[?(@.type=="Ready")].status
+        - name: Checksum
+          type: string
+          jsonPath: .status.checksum
       schema:
         openAPIV3Schema:
           type: object
@@ -30,3 +42,59 @@ spec:
                   type: string
                   enum: [diffOnly, apply]
                   default: diffOnly
+                tikeeEndpointRef:
+                  type: object
+                  properties:
+                    configMapName:
+                      type: string
+                    key:
+                      type: string
+                      default: endpoint
+                apiTokenSecretRef:
+                  type: object
+                  properties:
+                    secretName:
+                      type: string
+                    key:
+                      type: string
+                      default: token
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                  format: int64
+                checksum:
+                  type: string
+                currentChecksum:
+                  type: string
+                desiredChecksum:
+                  type: string
+                summary:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                lastDiff:
+                  type: array
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                conditions:
+                  type: array
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys: [type]
+                  items:
+                    type: object
+                    required: [type, status]
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum: ["True", "False", Unknown]
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
