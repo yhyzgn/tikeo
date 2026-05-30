@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=deploy/smoke/lib/tikee-smoke-lib.sh
+source "$ROOT_DIR/deploy/smoke/lib/tikee-smoke-lib.sh"
 API_URL="${TIKEE_HTTP_URL:-http://127.0.0.1:19090}"
 WORKER_ENDPOINT="${TIKEE_WORKER_ENDPOINT:-http://127.0.0.1:19998}"
 DEMO_URL="${TIKEE_DEMO_URL:-http://127.0.0.1:18080}"
 REPORT_DIR="${TIKEE_INTEGRATION_REPORT_DIR:-$ROOT_DIR/.dev/reports}"
 RUN_ID="${TIKEE_INTEGRATION_RUN_ID:-java-demo-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 REPORT_FILE="$REPORT_DIR/${RUN_ID}.json"
+WORKERS_FILE="$REPORT_DIR/${RUN_ID}-workers.json"
 SERVER_LOG="$REPORT_DIR/${RUN_ID}-server.log"
 JAVA_LOG="$REPORT_DIR/${RUN_ID}-java-demo.log"
 SERVER_PID=""
@@ -41,6 +45,7 @@ trap cleanup EXIT INT TERM
 need_cmd cargo
 need_cmd curl
 need_cmd python3
+need_cmd tee
 
 api_path() {
   local path="$1"
@@ -99,27 +104,12 @@ wait_for_ready() {
 
 wait_for_worker() {
   local deadline=$((SECONDS + 90))
-  until python3 - "$API_URL" "$AUTH_TOKEN" <<'PY'
-import json, sys, urllib.request
-api_url, token = sys.argv[1:3]
-request = urllib.request.Request(f"{api_url}/api/v1/workers", headers={"authorization": f"Bearer {token}"})
-try:
-    with urllib.request.urlopen(request, timeout=5) as response:
-        payload = json.load(response)
-except Exception:
-    sys.exit(1)
-items = payload.get('data', {}).get('items', [])
-for worker in items:
-    if worker.get('client_instance_id') == 'spring-demo-worker' and worker.get('status') == 'online':
-        caps = set(worker.get('capabilities') or [])
-        if {'java', 'spring-boot'} <= caps:
-            sys.exit(0)
-sys.exit(1)
-PY
+  until api GET /api/v1/workers > "$WORKERS_FILE" && tikee_smoke_assert workers "$WORKERS_FILE" --client-instance spring-demo-worker --require-capability java --require-capability spring-boot --require-sdk-processor demo.echo --require-plugin-processor sql:billing.sql-sync >/dev/null
   do
     if (( SECONDS >= deadline )); then
       echo "timed out waiting for spring-demo-worker online" >&2
       api GET /api/v1/workers >&2 || true
+      [[ -f "$WORKERS_FILE" ]] && cat "$WORKERS_FILE" >&2 || true
       tail -n 120 "$JAVA_LOG" >&2 || true
       return 1
     fi
@@ -270,6 +260,8 @@ login() {
   AUTH_TOKEN="$(curl -fsS -X POST "$(api_path /api/v1/auth/login)" \
     -H 'content-type: application/json' \
     -d '{"username":"tikee_init","password":"Tikee@2026!"}' | json_get data.token)"
+  TIKEE_SMOKE_AUTH_TOKEN="$AUTH_TOKEN"
+  export TIKEE_SMOKE_AUTH_TOKEN
 }
 
 start_java_demo() {
@@ -306,6 +298,27 @@ main() {
   wait_instance_status "$fail_instance" failed
   wait_instance_status "$broadcast_instance" succeeded
 
+  local echo_file echo_logs fail_file fail_logs broadcast_file broadcast_attempts
+  echo_file="$REPORT_DIR/${RUN_ID}-${echo_instance}.json"
+  echo_logs="$REPORT_DIR/${RUN_ID}-${echo_instance}-logs.json"
+  fail_file="$REPORT_DIR/${RUN_ID}-${fail_instance}.json"
+  fail_logs="$REPORT_DIR/${RUN_ID}-${fail_instance}-logs.json"
+  broadcast_file="$REPORT_DIR/${RUN_ID}-${broadcast_instance}.json"
+  broadcast_attempts="$REPORT_DIR/${RUN_ID}-${broadcast_instance}-attempts.json"
+  api GET "/api/v1/instances/$echo_instance" > "$echo_file"
+  api GET "/api/v1/instances/$echo_instance/logs" > "$echo_logs"
+  api GET "/api/v1/instances/$fail_instance" > "$fail_file"
+  api GET "/api/v1/instances/$fail_instance/logs" > "$fail_logs"
+  api GET "/api/v1/instances/$broadcast_instance" > "$broadcast_file"
+  api GET "/api/v1/instances/$broadcast_instance/attempts" > "$broadcast_attempts"
+  tikee_smoke_assert instance "$echo_file" --expected-status succeeded --require-worker --min-log-count 1 --logs-file "$echo_logs" --require-log-text demo.echo --forbid-duplicate-logs >/dev/null
+  tikee_smoke_assert instance "$fail_file" --expected-status failed --min-log-count 1 --logs-file "$fail_logs" --require-log-text demo.fail --forbid-duplicate-logs >/dev/null
+  tikee_smoke_assert attempts "$broadcast_attempts" --min-attempts 1 --expected-status succeeded >/dev/null
+  tikee_smoke_record_case worker-registration passed "$WORKERS_FILE" "spring demo worker registered with structured capabilities"
+  tikee_smoke_record_case api-single-success passed "$echo_file $echo_logs" "demo.echo reached succeeded and emitted logs"
+  tikee_smoke_record_case api-single-failure passed "$fail_file $fail_logs" "demo.fail reached failed with logs"
+  tikee_smoke_record_case api-broadcast-success passed "$broadcast_file $broadcast_attempts" "broadcast attempt succeeded"
+
   fixed_instance="$(wait_job_instance_status "$fixed_job" succeeded fixed_rate)"
   cron_instance="$(wait_job_instance_status "$cron_job" succeeded cron)"
 
@@ -335,6 +348,13 @@ PY
   workflow_instance="$(api_json_get POST "/api/v1/workflows/$workflow_id/run" data.id '{"trigger_type":"api"}')"
   materialized_job_instance="$(api_json_get POST /api/v1/workflow-instances/materialize-next data.node.job_instance_id '{}')"
   wait_instance_status "$materialized_job_instance" succeeded
+  local workflow_job_file workflow_job_logs
+  workflow_job_file="$REPORT_DIR/${RUN_ID}-${materialized_job_instance}.json"
+  workflow_job_logs="$REPORT_DIR/${RUN_ID}-${materialized_job_instance}-logs.json"
+  api GET "/api/v1/instances/$materialized_job_instance" > "$workflow_job_file"
+  api GET "/api/v1/instances/$materialized_job_instance/logs" > "$workflow_job_logs"
+  tikee_smoke_assert instance "$workflow_job_file" --expected-status succeeded --require-worker --min-log-count 1 --logs-file "$workflow_job_logs" --require-log-text demo.workflow.step --forbid-duplicate-logs >/dev/null
+  tikee_smoke_record_case workflow-job-success passed "$workflow_job_file $workflow_job_logs" "workflow materialized Java job succeeded with logs"
 
   local workflow_status=""
   local deadline=$((SECONDS + 90))
@@ -377,6 +397,14 @@ report = {
         {'name': 'workflow-job-success', 'status': 'passed', 'workflow_id': workflow_id, 'workflow_instance_id': workflow_instance, 'job_instance_id': workflow_job_instance},
     ],
 }
+extra_cases = []
+case_file = report_file.rsplit("/", 1)[0] + "/" + run_id + "-cases.jsonl"
+try:
+    with open(case_file, encoding="utf-8") as fh:
+        extra_cases = [json.loads(line) for line in fh if line.strip()]
+except FileNotFoundError:
+    pass
+report["functional_cases"] = extra_cases
 with open(report_file, 'w', encoding='utf-8') as fh:
     json.dump(report, fh, ensure_ascii=False, indent=2)
 print(json.dumps(report, ensure_ascii=False, indent=2))

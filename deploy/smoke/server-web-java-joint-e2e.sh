@@ -1,0 +1,309 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=deploy/smoke/lib/tikee-smoke-lib.sh
+source "$ROOT_DIR/deploy/smoke/lib/tikee-smoke-lib.sh"
+
+API_URL="${TIKEE_HTTP_URL:-http://127.0.0.1:19090}"
+WORKER_ENDPOINT="${TIKEE_WORKER_ENDPOINT:-http://127.0.0.1:19998}"
+WEB_URL="${TIKEE_WEB_URL:-http://127.0.0.1:15173}"
+WEB_PORT="${WEB_URL##*:}"
+WEB_PORT="${WEB_PORT%%/*}"
+REPORT_DIR="${TIKEE_JOINT_REPORT_DIR:-$TIKEE_SMOKE_REPORT_DIR}"
+RUN_ID="${TIKEE_JOINT_RUN_ID:-joint-e2e-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+SERVER_LOG="$REPORT_DIR/${RUN_ID}-server.log"
+WEB_LOG="$REPORT_DIR/${RUN_ID}-web.log"
+JAVA_A_LOG="$REPORT_DIR/${RUN_ID}-java-a.log"
+JAVA_B_LOG="$REPORT_DIR/${RUN_ID}-java-b.log"
+SERVER_PID=""
+WEB_PID=""
+JAVA_A_PID=""
+JAVA_B_PID=""
+OWN_SERVER=0
+OWN_WEB=0
+mkdir -p "$REPORT_DIR"
+
+cleanup() {
+  local code=$?
+  for pid in "$JAVA_A_PID" "$JAVA_B_PID"; do
+    if [[ -n "$pid" ]] && kill -0 "$pid" >/dev/null 2>&1; then
+      kill "$pid" >/dev/null 2>&1 || true
+      wait "$pid" 2>/dev/null || true
+    fi
+  done
+  if [[ "$OWN_WEB" == "1" && -n "$WEB_PID" ]] && kill -0 "$WEB_PID" >/dev/null 2>&1; then
+    kill "$WEB_PID" >/dev/null 2>&1 || true
+    wait "$WEB_PID" 2>/dev/null || true
+  fi
+  if [[ "$OWN_SERVER" == "1" && -n "$SERVER_PID" ]] && kill -0 "$SERVER_PID" >/dev/null 2>&1; then
+    kill "$SERVER_PID" >/dev/null 2>&1 || true
+    wait "$SERVER_PID" 2>/dev/null || true
+  fi
+  exit "$code"
+}
+trap cleanup EXIT INT TERM
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || { echo "missing command: $1" >&2; exit 127; }
+}
+need_cmd cargo
+need_cmd curl
+need_cmd python3
+need_cmd bun
+
+api() {
+  tikee_smoke_api "$API_URL" "$@"
+}
+
+api_json_get() {
+  tikee_smoke_api_json_get "$API_URL" "$@"
+}
+
+start_server_if_needed() {
+  if curl -fsS "$API_URL/readyz" >/dev/null 2>&1; then
+    return
+  fi
+  OWN_SERVER=1
+  local config="$REPORT_DIR/${RUN_ID}-config.toml"
+  cat > "$config" <<CFG
+[server]
+listen_addr = "127.0.0.1:19090"
+worker_tunnel_addr = "127.0.0.1:19998"
+
+[storage]
+database_url = "sqlite://$REPORT_DIR/${RUN_ID}.db?mode=rwc"
+
+[cluster]
+mode = "standalone"
+node_id = "standalone"
+peers = []
+
+[auth]
+local_login_enabled = true
+
+[auth.api_tokens]
+default_ttl_seconds = 43200
+min_ttl_seconds = 300
+max_ttl_seconds = 2592000
+
+[auth.oidc]
+enabled = false
+scopes = ["openid", "profile", "email"]
+
+[transport_security.http]
+tls_enabled = false
+mtls_required = false
+
+[transport_security.worker_tunnel]
+tls_enabled = false
+mtls_required = false
+
+[observability.tracing]
+enabled = false
+headers = []
+
+[alert_retry]
+enabled = false
+interval_seconds = 60
+batch_size = 50
+max_attempts = 3
+backoff_seconds = 300
+
+[script_governance]
+CFG
+  (cd "$ROOT_DIR" && cargo run --bin tikee -- serve --config "$config" >"$SERVER_LOG" 2>&1) &
+  SERVER_PID=$!
+  tikee_smoke_wait_for_http server "$API_URL/readyz" 120 || {
+    tail -n 160 "$SERVER_LOG" >&2 || true
+    return 1
+  }
+}
+
+start_web_if_needed() {
+  if curl -fsS "$WEB_URL" >/dev/null 2>&1; then
+    return
+  fi
+  OWN_WEB=1
+  (cd "$ROOT_DIR/web" && bun run dev -- --host 127.0.0.1 --port "$WEB_PORT" >"$WEB_LOG" 2>&1) &
+  WEB_PID=$!
+  tikee_smoke_wait_for_http web "$WEB_URL" 120 || {
+    tail -n 160 "$WEB_LOG" >&2 || true
+    return 1
+  }
+}
+
+start_java_demo() {
+  local name="$1"
+  local port="$2"
+  local priority="$3"
+  local log_file="$4"
+  (
+    cd "$ROOT_DIR/examples/java/spring-worker-demo"
+    TIKEE_WORKER_DRY_RUN=false \
+    TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
+    TIKEE_DEMO_SERVER_PORT="$port" \
+    TIKEE_WORKER_CLIENT_INSTANCE_ID="$name" \
+    TIKEE_WORKER_STATE_DIR="$REPORT_DIR/$name-state" \
+    TIKEE_WORKER_ELECTION_DOMAIN="joint-default-domain" \
+    TIKEE_WORKER_ELECTION_PRIORITY="$priority" \
+    TIKEE_WORKER_SCRIPTS_ENABLED=false \
+    ./gradlew bootRun --no-daemon >"$log_file" 2>&1
+  ) &
+  local pid=$!
+  tikee_smoke_wait_for_http "java-$name" "http://127.0.0.1:$port/demo/health" 120 || {
+    tail -n 160 "$log_file" >&2 || true
+    return 1
+  }
+  printf '%s' "$pid"
+}
+
+wait_workers_asserted() {
+  local output="$1"
+  local min_online="$2"
+  local deadline=$((SECONDS + 120))
+  until api GET /api/v1/workers > "$output" \
+    && tikee_smoke_assert workers "$output" --min-online "$min_online" --require-sdk-processor demo.echo --require-plugin-processor sql:billing.sql-sync >/dev/null; do
+    if (( SECONDS >= deadline )); then
+      echo "timed out waiting for workers assertion min_online=$min_online" >&2
+      cat "$output" >&2 || true
+      tail -n 120 "$JAVA_A_LOG" >&2 || true
+      tail -n 120 "$JAVA_B_LOG" >&2 || true
+      return 1
+    fi
+    sleep 1
+  done
+}
+
+worker_field() {
+  local workers_file="$1"
+  local selector="$2"
+  python3 - "$workers_file" "$selector" <<'PY'
+import json, sys
+path, selector = sys.argv[1:3]
+items = json.load(open(path, encoding='utf-8')).get('data', {}).get('items', [])
+online = [w for w in items if w.get('status') == 'online']
+masters = [w for w in online if (w.get('master') or {}).get('isMaster') is True]
+if not masters:
+    raise SystemExit('no online master')
+master = masters[0]
+if selector == 'master_worker_id':
+    print(master.get('workerId') or master.get('worker_id'))
+elif selector == 'master_client_instance_id':
+    print(master.get('clientInstanceId') or master.get('client_instance_id'))
+else:
+    raise SystemExit(f'unknown selector {selector}')
+PY
+}
+
+create_job() {
+  local name="$1"
+  local processor="$2"
+  local body
+  body="$(python3 - "$RUN_ID" "$name" "$processor" <<'PY'
+import json, sys
+run_id, name, processor = sys.argv[1:]
+print(json.dumps({
+  'namespace': 'default',
+  'app': 'default',
+  'name': f'{run_id}-{name}',
+  'schedule_type': 'api',
+  'processor_name': processor,
+  'enabled': True,
+}))
+PY
+)"
+  api_json_get POST /api/v1/jobs data.id "$body"
+}
+
+trigger_job() {
+  local job_id="$1"
+  local mode="$2"
+  api_json_get POST "/api/v1/jobs/$job_id:trigger" data.id "{\"trigger_type\":\"api\",\"execution_mode\":\"$mode\"}"
+}
+
+main() {
+  start_server_if_needed
+  tikee_smoke_login "$API_URL"
+  AUTH_TOKEN="$TIKEE_SMOKE_AUTH_TOKEN"
+  export AUTH_TOKEN
+  start_web_if_needed
+
+  JAVA_A_PID="$(start_java_demo spring-demo-worker-a 18080 10 "$JAVA_A_LOG")"
+  JAVA_B_PID="$(start_java_demo spring-demo-worker-b 18081 20 "$JAVA_B_LOG")"
+
+  local workers_before master_worker master_client echo_job echo_instance echo_file echo_logs
+  workers_before="$REPORT_DIR/${RUN_ID}-workers-before.json"
+  wait_workers_asserted "$workers_before" 2
+  tikee_smoke_assert workers "$workers_before" --client-instance spring-demo-worker-a --client-instance spring-demo-worker-b --min-online 2 --require-sdk-processor demo.echo --require-plugin-processor sql:billing.sql-sync >/dev/null
+  master_worker="$(worker_field "$workers_before" master_worker_id)"
+  master_client="$(worker_field "$workers_before" master_client_instance_id)"
+  tikee_smoke_record_case joint-worker-election passed "$workers_before" "two Java workers online with exactly one master: $master_client/$master_worker"
+
+  echo_job="$(create_job echo demo.echo)"
+  echo_instance="$(trigger_job "$echo_job" single)"
+  echo_file="$REPORT_DIR/${RUN_ID}-${echo_instance}.json"
+  echo_logs="$REPORT_DIR/${RUN_ID}-${echo_instance}-logs.json"
+  tikee_smoke_wait_instance_status "$API_URL" "$echo_instance" succeeded "$echo_file" 120
+  api GET "/api/v1/instances/$echo_instance/logs" > "$echo_logs"
+  tikee_smoke_assert instance "$echo_file" --expected-status succeeded --expected-worker "$master_worker" --min-log-count 1 --logs-file "$echo_logs" --require-log-text demo.echo --forbid-duplicate-logs >/dev/null
+  tikee_smoke_record_case joint-single-master-dispatch passed "$echo_file $echo_logs" "single dispatch executed by current master $master_worker"
+
+  local broadcast_job broadcast_instance broadcast_file broadcast_attempts
+  broadcast_job="$(create_job broadcast demo.context)"
+  broadcast_instance="$(trigger_job "$broadcast_job" broadcast)"
+  broadcast_file="$REPORT_DIR/${RUN_ID}-${broadcast_instance}.json"
+  broadcast_attempts="$REPORT_DIR/${RUN_ID}-${broadcast_instance}-attempts.json"
+  tikee_smoke_wait_instance_status "$API_URL" "$broadcast_instance" succeeded "$broadcast_file" 120
+  api GET "/api/v1/instances/$broadcast_instance/attempts" > "$broadcast_attempts"
+  tikee_smoke_assert attempts "$broadcast_attempts" --min-attempts 2 --expected-status succeeded >/dev/null
+  tikee_smoke_record_case joint-broadcast-all-workers passed "$broadcast_attempts" "broadcast created successful attempts for both workers"
+
+  if [[ "$master_client" == "spring-demo-worker-a" ]]; then
+    kill "$JAVA_A_PID" >/dev/null 2>&1 || true
+    wait "$JAVA_A_PID" 2>/dev/null || true
+    JAVA_A_PID=""
+  else
+    kill "$JAVA_B_PID" >/dev/null 2>&1 || true
+    wait "$JAVA_B_PID" 2>/dev/null || true
+    JAVA_B_PID=""
+  fi
+
+  local workers_after new_master_worker new_master_client failover_job failover_instance failover_file failover_logs
+  workers_after="$REPORT_DIR/${RUN_ID}-workers-after-failover.json"
+  wait_workers_asserted "$workers_after" 1
+  new_master_worker="$(worker_field "$workers_after" master_worker_id)"
+  new_master_client="$(worker_field "$workers_after" master_client_instance_id)"
+  if [[ "$new_master_worker" == "$master_worker" ]]; then
+    echo "expected a different master after killing $master_client, still got $new_master_worker" >&2
+    cat "$workers_after" >&2 || true
+    return 1
+  fi
+  tikee_smoke_record_case joint-worker-failover passed "$workers_after" "follower promoted to master: $new_master_client/$new_master_worker"
+
+  failover_job="$(create_job failover-echo demo.echo)"
+  failover_instance="$(trigger_job "$failover_job" single)"
+  failover_file="$REPORT_DIR/${RUN_ID}-${failover_instance}.json"
+  failover_logs="$REPORT_DIR/${RUN_ID}-${failover_instance}-logs.json"
+  tikee_smoke_wait_instance_status "$API_URL" "$failover_instance" succeeded "$failover_file" 120
+  api GET "/api/v1/instances/$failover_instance/logs" > "$failover_logs"
+  tikee_smoke_assert instance "$failover_file" --expected-status succeeded --expected-worker "$new_master_worker" --min-log-count 1 --logs-file "$failover_logs" --require-log-text demo.echo --forbid-duplicate-logs >/dev/null
+  tikee_smoke_record_case joint-failover-dispatch passed "$failover_file $failover_logs" "single dispatch after failover executed by new master $new_master_worker"
+
+  local workers_html api_keys_html
+  workers_html="$REPORT_DIR/${RUN_ID}-workers.html"
+  api_keys_html="$REPORT_DIR/${RUN_ID}-api-keys.html"
+  curl -fsS "$WEB_URL/workers" -o "$workers_html"
+  curl -fsS "$WEB_URL/api-keys" -o "$api_keys_html"
+  tikee_smoke_assert web "$workers_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
+  tikee_smoke_assert web "$api_keys_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
+  tikee_smoke_record_case joint-web-routes passed "$workers_html $api_keys_html" "web secondary routes returned SPA shell"
+
+  local report="$REPORT_DIR/${RUN_ID}.json"
+  tikee_smoke_finalize_report "$report" passed >/dev/null
+  python3 "$ROOT_DIR/deploy/smoke/collect-joint-report.py" "$REPORT_DIR" --run-id "$RUN_ID" --json-output "$REPORT_DIR/${RUN_ID}-joint-report.json" --markdown-output "$REPORT_DIR/${RUN_ID}-joint-report.md" >/dev/null
+  echo "report: $report"
+  echo "joint report: $REPORT_DIR/${RUN_ID}-joint-report.md"
+}
+
+main "$@"
