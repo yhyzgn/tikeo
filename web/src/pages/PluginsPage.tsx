@@ -440,7 +440,7 @@ export function PluginsPage() {
               />
             </Form.Item>
             <Form.Item label="Worker 结构化声明">
-              <Typography.Text code>
+              <Typography.Text className="form-hint-pill">
                 {selectedProcessorType
                   ? `pluginProcessors.type=${selectedProcessorType}`
                   : "选择 Processor Type 后生成结构化匹配字段"}

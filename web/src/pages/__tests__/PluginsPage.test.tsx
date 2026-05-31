@@ -30,6 +30,7 @@ describe('plugin system management page', () => {
     expect(pageSource).toContain('ALERT_CHANNEL_OPTIONS');
     expect(pageSource).toContain('ALERT_TEMPLATE_OPTIONS');
     expect(pageSource).toContain('结构化匹配字段');
+    expect(pageSource).toContain('form-hint-pill');
     expect(pageSource).toContain('任务处理器名候选');
     expect(pageSource).toContain('billing.sql-sync');
     expect(pageSource).not.toContain('name="processorCapability" label="Worker 能力"><Input');

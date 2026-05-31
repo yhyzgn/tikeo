@@ -24,4 +24,6 @@ test('runtime theme mode > keeps form controls one step taller across the app', 
   expect(appSource).toContain('controlHeightSM: 28');
   expect(appSource).toContain('controlHeightLG: 44');
   expect(stylesSource).toContain('--app-control-horizontal-padding: 16px');
+  expect(stylesSource).toContain('--app-tag-min-height: 26px');
+  expect(stylesSource).toContain('.form-hint-pill');
 });
