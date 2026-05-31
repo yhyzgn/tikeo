@@ -138,6 +138,27 @@ pub struct CompleteWorkflowShardInput {
     pub message: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub(super) struct CompletedShardContext {
+    pub workflow_instance_id: String,
+    pub job_instance_id: Option<String>,
+    pub node_key: String,
+    pub updated: WorkflowShardSummary,
+    pub has_failed: bool,
+    pub all_succeeded: bool,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct ShardCompletionEventInput {
+    pub workflow_instance_id: String,
+    pub node_key: String,
+    pub shard_index: i32,
+    pub status: String,
+    pub message: Option<String>,
+    pub output: Option<String>,
+    pub now: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CompleteWorkflowShardResult {
@@ -223,7 +244,6 @@ pub struct RecoverWorkflowNodeInput {
     pub action: String,
     pub message: Option<String>,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]

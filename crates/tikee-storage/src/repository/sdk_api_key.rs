@@ -155,6 +155,53 @@ impl SdkApiKeyRepository {
         Ok(())
     }
 
+    pub async fn sync_keys_for_service_account(
+        &self,
+        service_account_id: &str,
+        namespace: &str,
+        app: &str,
+        service_account_name: &str,
+    ) -> Result<u64, sea_orm::DbErr> {
+        let rows = sdk_api_key::Entity::find()
+            .filter(sdk_api_key::Column::ServiceAccountId.eq(service_account_id.to_owned()))
+            .filter(sdk_api_key::Column::Status.eq("active"))
+            .all(&self.db)
+            .await?;
+        let mut updated = 0;
+        for model in rows {
+            let mut active: sdk_api_key::ActiveModel = model.into();
+            active.namespace = Set(namespace.to_owned());
+            active.app = Set(app.to_owned());
+            active.service_account_name = Set(service_account_name.to_owned());
+            active.updated_at = Set(now_rfc3339());
+            active.update(&self.db).await?;
+            updated += 1;
+        }
+        Ok(updated)
+    }
+
+    pub async fn revoke_keys_for_service_account(
+        &self,
+        service_account_id: &str,
+        actor: &str,
+    ) -> Result<u64, sea_orm::DbErr> {
+        let rows = sdk_api_key::Entity::find()
+            .filter(sdk_api_key::Column::ServiceAccountId.eq(service_account_id.to_owned()))
+            .filter(sdk_api_key::Column::Status.eq("active"))
+            .all(&self.db)
+            .await?;
+        let mut revoked = 0;
+        for model in rows {
+            let mut active: sdk_api_key::ActiveModel = model.into();
+            active.status = Set("revoked".to_owned());
+            active.revoked_by = Set(Some(actor.to_owned()));
+            active.updated_at = Set(now_rfc3339());
+            active.update(&self.db).await?;
+            revoked += 1;
+        }
+        Ok(revoked)
+    }
+
     pub async fn revoke_key(&self, id: &str, actor: &str) -> Result<bool, sea_orm::DbErr> {
         let Some(model) = sdk_api_key::Entity::find_by_id(id.to_owned())
             .one(&self.db)

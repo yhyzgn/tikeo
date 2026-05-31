@@ -114,40 +114,118 @@ async fn verify_webhook_signature(
         return Ok(());
     }
     let Some(secret_ref) = secret_ref else {
-        append_webhook_audit(state, actor, job_id, "failed", Some("webhook_signature_secret_ref_required"), headers).await;
-        return Err(ApiError::bad_request("webhook signature requires secretRef"));
+        append_webhook_audit(
+            state,
+            actor,
+            job_id,
+            "failed",
+            Some("webhook_signature_secret_ref_required"),
+            headers,
+        )
+        .await;
+        return Err(ApiError::bad_request(
+            "webhook signature requires secretRef",
+        ));
     };
     let Some(signature) = signature.map(str::trim).filter(|value| !value.is_empty()) else {
-        append_webhook_audit(state, actor, job_id, "failed", Some("webhook_signature_required"), headers).await;
+        append_webhook_audit(
+            state,
+            actor,
+            job_id,
+            "failed",
+            Some("webhook_signature_required"),
+            headers,
+        )
+        .await;
         return Err(ApiError::bad_request("webhook signature is required"));
     };
     let Some(timestamp) = timestamp else {
-        append_webhook_audit(state, actor, job_id, "failed", Some("webhook_timestamp_required"), headers).await;
+        append_webhook_audit(
+            state,
+            actor,
+            job_id,
+            "failed",
+            Some("webhook_timestamp_required"),
+            headers,
+        )
+        .await;
         return Err(ApiError::bad_request("webhook timestamp is required"));
     };
     let now = time::OffsetDateTime::now_utc().unix_timestamp();
     if (now - timestamp).abs() > 300 {
-        append_webhook_audit(state, actor, job_id, "failed", Some("webhook_timestamp_out_of_window"), headers).await;
-        return Err(ApiError::bad_request("webhook timestamp is outside replay window"));
+        append_webhook_audit(
+            state,
+            actor,
+            job_id,
+            "failed",
+            Some("webhook_timestamp_out_of_window"),
+            headers,
+        )
+        .await;
+        return Err(ApiError::bad_request(
+            "webhook timestamp is outside replay window",
+        ));
     }
     let Some(nonce) = nonce.map(str::trim).filter(|value| !value.is_empty()) else {
-        append_webhook_audit(state, actor, job_id, "failed", Some("webhook_nonce_required"), headers).await;
+        append_webhook_audit(
+            state,
+            actor,
+            job_id,
+            "failed",
+            Some("webhook_nonce_required"),
+            headers,
+        )
+        .await;
         return Err(ApiError::bad_request("webhook nonce is required"));
     };
     if nonce_was_used(state, job_id, nonce).await? {
-        append_webhook_audit(state, actor, job_id, "failed", Some("webhook_replay_detected"), headers).await;
+        append_webhook_audit(
+            state,
+            actor,
+            job_id,
+            "failed",
+            Some("webhook_replay_detected"),
+            headers,
+        )
+        .await;
         return Err(ApiError::bad_request("webhook nonce was already used"));
     }
     let Some(secret) = resolve_env_secret_ref(secret_ref) else {
-        append_webhook_audit(state, actor, job_id, "failed", Some("webhook_signature_secret_unresolved"), headers).await;
+        append_webhook_audit(
+            state,
+            actor,
+            job_id,
+            "failed",
+            Some("webhook_signature_secret_unresolved"),
+            headers,
+        )
+        .await;
         return Err(ApiError::bad_request("webhook secretRef is not resolvable"));
     };
     let expected = webhook_signature(&secret, job_id, timestamp, nonce, request.payload.as_ref());
     if !constant_time_eq(signature.as_bytes(), expected.as_bytes()) {
-        append_webhook_audit(state, actor, job_id, "failed", Some("webhook_signature_verification_failed"), headers).await;
-        return Err(ApiError::bad_request("webhook signature verification failed"));
+        append_webhook_audit(
+            state,
+            actor,
+            job_id,
+            "failed",
+            Some("webhook_signature_verification_failed"),
+            headers,
+        )
+        .await;
+        return Err(ApiError::bad_request(
+            "webhook signature verification failed",
+        ));
     }
-    append_webhook_audit(state, actor, job_id, "success", Some(&format!("webhook_nonce={nonce}")), headers).await;
+    append_webhook_audit(
+        state,
+        actor,
+        job_id,
+        "success",
+        Some(&format!("webhook_nonce={nonce}")),
+        headers,
+    )
+    .await;
     Ok(())
 }
 
@@ -162,9 +240,13 @@ async fn nonce_was_used(state: &AppState, job_id: &str, nonce: &str) -> Result<b
         })
         .await
         .map_err(|error| ApiError::storage(&error))?;
-    Ok(page
-        .iter()
-        .any(|item| item.result == "success" && item.detail.as_deref().is_some_and(|detail| detail.contains(&format!("webhook_nonce={nonce}")))))
+    Ok(page.iter().any(|item| {
+        item.result == "success"
+            && item
+                .detail
+                .as_deref()
+                .is_some_and(|detail| detail.contains(&format!("webhook_nonce={nonce}")))
+    }))
 }
 
 async fn append_webhook_audit(
@@ -187,7 +269,11 @@ async fn append_webhook_audit(
             after: None,
             trace_id: header_str(headers, "x-request-id").map(ToOwned::to_owned),
             result: result.to_owned(),
-            failure_reason: if result == "failed" { reason_or_detail.map(ToOwned::to_owned) } else { None },
+            failure_reason: if result == "failed" {
+                reason_or_detail.map(ToOwned::to_owned)
+            } else {
+                None
+            },
             ip_address: header_str(headers, "x-forwarded-for").map(ToOwned::to_owned),
         })
         .await;
@@ -214,7 +300,9 @@ fn webhook_signature(
     let payload = payload
         .map(canonical_json)
         .unwrap_or_else(|| "null".to_owned());
-    let canonical = format!("tikee-webhook-v1\njob_id={job_id}\ntimestamp={timestamp}\nnonce={nonce}\npayload={payload}");
+    let canonical = format!(
+        "tikee-webhook-v1\njob_id={job_id}\ntimestamp={timestamp}\nnonce={nonce}\npayload={payload}"
+    );
     let mut hasher = Sha256::new();
     hasher.update(secret.as_bytes());
     hasher.update(b"\n");
@@ -282,7 +370,8 @@ mod tests {
     #[test]
     fn webhook_signature_is_stable() {
         let payload = serde_json::json!({"sha":"abc123"});
-        let signature = webhook_signature("secret", "job-1", 1_700_000_000, "nonce-1", Some(&payload));
+        let signature =
+            webhook_signature("secret", "job-1", 1_700_000_000, "nonce-1", Some(&payload));
         assert_eq!(
             signature,
             "sha256:c7ed68481e552835d570c3ea02f434bb1b4e4a0076e94d8e704ab4bc46e475b2"

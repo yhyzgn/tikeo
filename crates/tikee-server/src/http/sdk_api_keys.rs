@@ -11,7 +11,8 @@ use rand::{TryRngCore, rngs::OsRng};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tikee_storage::{
-    CreateSdkApiKey, PermissionSummary, SdkApiKeyRepository, SdkApiKeySummary, UpdateSdkApiKey,
+    CreateSdkApiKey, PermissionSummary, SdkApiKeyRepository, SdkApiKeySummary,
+    ServiceAccountRepository, UpdateSdkApiKey,
 };
 use utoipa::ToSchema;
 
@@ -36,8 +37,8 @@ pub struct CreateSdkApiKeyRequest {
     pub namespace: String,
     /// App scope granted to this SDK key.
     pub app: String,
-    /// Human-readable service account name represented by this SDK key.
-    pub service_account_name: String,
+    /// Existing service account id represented by this SDK key.
+    pub service_account_id: String,
     /// Permission scopes in `resource:action` form.
     pub scopes: Vec<String>,
     /// Optional RFC3339 expiration timestamp.
@@ -82,6 +83,19 @@ pub async fn create_sdk_api_key(
 ) -> Result<Json<ApiResponse<CreatedSdkApiKey>>, ApiError> {
     let principal = auth::require_permission(&headers, &state, "tenants", "manage").await?;
     let request = validate_create_request(request)?;
+    let service_account = ServiceAccountRepository::new(state.users.db())
+        .get(&request.service_account_id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::bad_request("service account not found"))?;
+    if service_account.status != "active" {
+        return Err(ApiError::bad_request("service account is disabled"));
+    }
+    if service_account.namespace != request.namespace || service_account.app != request.app {
+        return Err(ApiError::bad_request(
+            "sdk api key scope must match the selected service account",
+        ));
+    }
     let plaintext = generate_api_key()?;
     let repository = SdkApiKeyRepository::new(state.users.db());
     let key = repository
@@ -89,10 +103,10 @@ pub async fn create_sdk_api_key(
             name: request.name,
             key_hash: hash_api_key(&plaintext),
             key_prefix: display_prefix(&plaintext),
-            namespace: request.namespace,
-            app: request.app,
-            service_account_id: new_service_account_id(),
-            service_account_name: request.service_account_name,
+            namespace: service_account.namespace,
+            app: service_account.app,
+            service_account_id: service_account.id,
+            service_account_name: service_account.name,
             scopes: request.scopes,
             expires_at: request.expires_at,
             created_by: principal.username.clone(),
@@ -224,6 +238,12 @@ pub(super) async fn authenticate_sdk_api_key(
     else {
         return Err(ApiError::unauthorized("invalid sdk api key"));
     };
+    let service_account = ServiceAccountRepository::new(state.users.db())
+        .get(&summary.service_account_id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .filter(|account| account.status == "active")
+        .ok_or_else(|| ApiError::unauthorized("invalid sdk api key"))?;
     repository
         .mark_used(&summary.id)
         .await
@@ -236,7 +256,7 @@ pub(super) async fn authenticate_sdk_api_key(
         headers,
     )
     .await;
-    Ok(Some(sdk_principal(summary)))
+    Ok(Some(sdk_principal(summary, service_account)))
 }
 
 fn validate_create_request(
@@ -245,7 +265,7 @@ fn validate_create_request(
     request.name = request.name.trim().to_owned();
     request.namespace = request.namespace.trim().to_owned();
     request.app = request.app.trim().to_owned();
-    request.service_account_name = request.service_account_name.trim().to_owned();
+    request.service_account_id = request.service_account_id.trim().to_owned();
     request.scopes = validate_scopes(request.scopes)?;
     request.expires_at = validate_expires_at(request.expires_at)?;
     if request.name.is_empty() {
@@ -256,9 +276,9 @@ fn validate_create_request(
             "sdk api key namespace and app are required",
         ));
     }
-    if request.service_account_name.is_empty() {
+    if request.service_account_id.is_empty() {
         return Err(ApiError::bad_request(
-            "sdk api key service_account_name is required",
+            "sdk api key service_account_id is required",
         ));
     }
     Ok(request)
@@ -312,7 +332,10 @@ fn sdk_api_key_header(headers: &HeaderMap) -> Result<Option<String>, ApiError> {
         .transpose()
 }
 
-fn sdk_principal(summary: SdkApiKeySummary) -> MeResponse {
+fn sdk_principal(
+    summary: SdkApiKeySummary,
+    service_account: tikee_storage::ServiceAccountSummary,
+) -> MeResponse {
     let permissions = permissions_from_scopes(&summary.scopes);
     MeResponse {
         username: format!("service_account:{}", summary.service_account_id),
@@ -325,8 +348,8 @@ fn sdk_principal(summary: SdkApiKeySummary) -> MeResponse {
         scope_limited: true,
         token_scopes: summary.scopes,
         scope_bindings: vec![AccessScopeBinding {
-            namespace: Some(summary.namespace),
-            app: Some(summary.app),
+            namespace: Some(service_account.namespace),
+            app: Some(service_account.app),
             worker_pool: None,
         }],
     }
@@ -343,10 +366,6 @@ fn permissions_from_scopes(scopes: &[String]) -> Vec<PermissionSummary> {
             })
         })
         .collect()
-}
-
-fn new_service_account_id() -> String {
-    format!("sa-{}", uuid::Uuid::now_v7())
 }
 
 fn generate_api_key() -> Result<String, ApiError> {

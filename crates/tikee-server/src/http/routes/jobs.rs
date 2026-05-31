@@ -14,10 +14,9 @@ use crate::http::{
     AppState, auth,
     dto::{
         ApiResponse, CanaryRoutingSummary, CreateJobRequest, DeleteJobApiResponse, EmptyData,
-        ErrorResponse, JobApiResponse, JobInstanceApiResponse, JobInstanceCancelApiResponse,
-        JobInstanceAttemptPage,
-        JobInstanceAttemptPageApiResponse, JobInstanceAttemptSummary, JobInstanceLogPage,
-        JobInstanceLogPageApiResponse, JobInstanceLogSummary, JobInstancePage,
+        ErrorResponse, JobApiResponse, JobInstanceApiResponse, JobInstanceAttemptPage,
+        JobInstanceAttemptPageApiResponse, JobInstanceAttemptSummary, JobInstanceCancelApiResponse,
+        JobInstanceLogPage, JobInstanceLogPageApiResponse, JobInstanceLogSummary, JobInstancePage,
         JobInstancePageApiResponse, JobInstanceSummary, JobPageApiResponse, JobSummary,
         JobVersionPage, JobVersionPageApiResponse, Page, PageQuery, RollbackJobRequest,
         TriggerJobRequest, UpdateJobRequest,
@@ -230,19 +229,31 @@ pub async fn trigger_job(
             .map_err(|error| ApiError::storage(&error))?
             .ok_or_else(|| ApiError::not_found(format!("job not found: {target_job}")))?
     };
-    let broadcast_selector = request.broadcast_selector.as_ref().map(|selector| BroadcastSelector {
-        tags: selector
-            .tags
-            .clone()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|tag| tag.trim().to_owned())
-            .filter(|tag| !tag.is_empty())
-            .collect(),
-        region: selector.region.as_ref().map(|value| value.trim().to_owned()).filter(|value| !value.is_empty()),
-        cluster: selector.cluster.as_ref().map(|value| value.trim().to_owned()).filter(|value| !value.is_empty()),
-        labels: selector.labels.clone().unwrap_or_default(),
-    });
+    let broadcast_selector =
+        request
+            .broadcast_selector
+            .as_ref()
+            .map(|selector| BroadcastSelector {
+                tags: selector
+                    .tags
+                    .clone()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|tag| tag.trim().to_owned())
+                    .filter(|tag| !tag.is_empty())
+                    .collect(),
+                region: selector
+                    .region
+                    .as_ref()
+                    .map(|value| value.trim().to_owned())
+                    .filter(|value| !value.is_empty()),
+                cluster: selector
+                    .cluster
+                    .as_ref()
+                    .map(|value| value.trim().to_owned())
+                    .filter(|value| !value.is_empty()),
+                labels: selector.labels.clone().unwrap_or_default(),
+            });
     let broadcast_worker_ids = if execution_mode == ExecutionMode::Broadcast {
         let worker_ids = state
             .registry
@@ -781,7 +792,6 @@ pub async fn get_job_instance(
     )))
 }
 
-
 /// Cancel a pending/running job instance and close its dispatch queue item.
 #[utoipa::path(
     post,
@@ -813,7 +823,9 @@ pub async fn cancel_job_instance(
             .map_err(|error| ApiError::storage(&error))?
             .is_some();
         if !exists {
-            return Err(ApiError::not_found(format!("instance not found: {instance}")));
+            return Err(ApiError::not_found(format!(
+                "instance not found: {instance}"
+            )));
         }
     }
     let summary = state

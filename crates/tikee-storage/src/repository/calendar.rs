@@ -1,4 +1,6 @@
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::entities::calendar;
@@ -48,17 +50,32 @@ pub struct CalendarRepository {
 }
 
 impl CalendarRepository {
-    pub const fn new(db: DatabaseConnection) -> Self { Self { db } }
+    pub const fn new(db: DatabaseConnection) -> Self {
+        Self { db }
+    }
 
-    pub async fn list(&self, namespace: Option<&str>, app: Option<&str>) -> Result<Vec<CalendarSummary>, sea_orm::DbErr> {
+    pub async fn list(
+        &self,
+        namespace: Option<&str>,
+        app: Option<&str>,
+    ) -> Result<Vec<CalendarSummary>, sea_orm::DbErr> {
         let mut query = calendar::Entity::find().order_by_asc(calendar::Column::Name);
-        if let Some(namespace) = namespace { query = query.filter(calendar::Column::Namespace.eq(namespace)); }
-        if let Some(app) = app { query = query.filter(calendar::Column::App.eq(app)); }
+        if let Some(namespace) = namespace {
+            query = query.filter(calendar::Column::Namespace.eq(namespace));
+        }
+        if let Some(app) = app {
+            query = query.filter(calendar::Column::App.eq(app));
+        }
         let rows = query.all(&self.db).await?;
         Ok(rows.into_iter().map(CalendarSummary::from).collect())
     }
 
-    pub async fn get_by_name(&self, namespace: &str, app: &str, name: &str) -> Result<Option<CalendarSummary>, sea_orm::DbErr> {
+    pub async fn get_by_name(
+        &self,
+        namespace: &str,
+        app: &str,
+        name: &str,
+    ) -> Result<Option<CalendarSummary>, sea_orm::DbErr> {
         calendar::Entity::find()
             .filter(calendar::Column::Namespace.eq(namespace))
             .filter(calendar::Column::App.eq(app))
@@ -103,11 +120,16 @@ impl CalendarRepository {
             created_by: Set(input.created_by),
             created_at: Set(now.clone()),
             updated_at: Set(now),
-        }.insert(&self.db).await.map(CalendarSummary::from)
+        }
+        .insert(&self.db)
+        .await
+        .map(CalendarSummary::from)
     }
 
     pub async fn delete(&self, id: &str) -> Result<bool, sea_orm::DbErr> {
-        let result = calendar::Entity::delete_by_id(id.to_owned()).exec(&self.db).await?;
+        let result = calendar::Entity::delete_by_id(id.to_owned())
+            .exec(&self.db)
+            .await?;
         Ok(result.rows_affected > 0)
     }
 }
@@ -116,9 +138,9 @@ fn to_json<T: Serialize>(value: &T) -> Result<String, sea_orm::DbErr> {
     serde_json::to_string(value).map_err(|error| sea_orm::DbErr::Custom(error.to_string()))
 }
 
-fn from_json<T: for<'de> Deserialize<'de>>(value: &str) -> T
+fn from_json<T>(value: &str) -> T
 where
-    T: Default,
+    T: for<'de> Deserialize<'de> + Default,
 {
     serde_json::from_str(value).unwrap_or_default()
 }

@@ -3,7 +3,7 @@ import { Alert, Button, Card, DatePicker, Form, Input, Modal, Select, Space, Tab
 import dayjs, { type Dayjs } from 'dayjs';
 import { useEffect, useState } from 'react';
 
-import { createSdkApiKey, deleteSdkApiKey, listAppScopes, listNamespaces, listSdkApiKeys, updateSdkApiKey, type AppScopeSummary, type NamespaceSummary, type SdkApiKeySummary } from '../api/client';
+import { createSdkApiKey, createServiceAccount, deleteSdkApiKey, disableServiceAccount, listAppScopes, listNamespaces, listSdkApiKeys, listServiceAccounts, updateSdkApiKey, updateServiceAccount, type AppScopeSummary, type NamespaceSummary, type SdkApiKeySummary, type ServiceAccountSummary } from '../api/client';
 
 const DEFAULT_SCOPES = ['jobs:read', 'jobs:write', 'instances:execute'];
 
@@ -11,7 +11,7 @@ interface ApiKeyFormValues {
   name: string;
   namespace: string;
   app: string;
-  serviceAccountName: string;
+  serviceAccountId: string;
   scopes: string[];
   expiresAt?: Dayjs | null;
 }
@@ -24,6 +24,9 @@ interface EditFormValues {
 
 export function ApiKeysPage() {
   const [keys, setKeys] = useState<SdkApiKeySummary[]>([]);
+  const [serviceAccounts, setServiceAccounts] = useState<ServiceAccountSummary[]>([]);
+  const [editingServiceAccount, setEditingServiceAccount] = useState<ServiceAccountSummary | null>(null);
+  const [serviceAccountOpen, setServiceAccountOpen] = useState(false);
   const [namespaces, setNamespaces] = useState<NamespaceSummary[]>([]);
   const [apps, setApps] = useState<AppScopeSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,12 +35,14 @@ export function ApiKeysPage() {
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [form] = Form.useForm<ApiKeyFormValues>();
   const [editForm] = Form.useForm<EditFormValues>();
+  const [serviceAccountForm] = Form.useForm<{ name: string; description?: string; namespace: string; app: string; workerPool?: string; status?: string }>();
 
   const reload = async () => {
     setLoading(true);
     try {
-      const [nextKeys, nextNamespaces, nextApps] = await Promise.all([listSdkApiKeys(), listNamespaces(), listAppScopes()]);
+      const [nextKeys, nextServiceAccounts, nextNamespaces, nextApps] = await Promise.all([listSdkApiKeys(), listServiceAccounts(), listNamespaces(), listAppScopes()]);
       setKeys(nextKeys);
+      setServiceAccounts(nextServiceAccounts);
       setNamespaces(nextNamespaces);
       setApps(nextApps);
     } finally {
@@ -55,7 +60,7 @@ export function ApiKeysPage() {
       name: values.name,
       namespace: values.namespace,
       app: values.app,
-      service_account_name: values.serviceAccountName,
+      service_account_id: values.serviceAccountId,
       scopes: values.scopes,
       expires_at: values.expiresAt?.toISOString() ?? null,
     });
@@ -94,6 +99,54 @@ export function ApiKeysPage() {
     await reload();
   };
 
+  const openCreateServiceAccount = () => {
+    setEditingServiceAccount(null);
+    serviceAccountForm.resetFields();
+    serviceAccountForm.setFieldsValue({ namespace: 'default', app: 'default', status: 'active' });
+    setServiceAccountOpen(true);
+  };
+
+  const openEditServiceAccount = (item: ServiceAccountSummary) => {
+    setEditingServiceAccount(item);
+    serviceAccountForm.setFieldsValue({
+      name: item.name,
+      description: item.description ?? undefined,
+      namespace: item.namespace,
+      app: item.app,
+      workerPool: item.workerPool ?? undefined,
+      status: item.status,
+    });
+    setServiceAccountOpen(true);
+  };
+
+  const handleSaveServiceAccount = async () => {
+    const values = await serviceAccountForm.validateFields();
+    const payload = {
+      name: values.name,
+      description: values.description ?? null,
+      namespace: values.namespace,
+      app: values.app,
+      workerPool: values.workerPool ?? null,
+    };
+    if (editingServiceAccount) {
+      await updateServiceAccount(editingServiceAccount.id, { ...payload, status: values.status ?? 'active' });
+      message.success('Service Account 已更新');
+    } else {
+      await createServiceAccount(payload);
+      message.success('Service Account 已创建');
+    }
+    setServiceAccountOpen(false);
+    setEditingServiceAccount(null);
+    serviceAccountForm.resetFields();
+    await reload();
+  };
+
+  const handleDisableServiceAccount = async (id: string) => {
+    await disableServiceAccount(id);
+    message.success('Service Account 已禁用，关联 API-Key 已吊销');
+    await reload();
+  };
+
   const copyCreatedKey = async () => {
     if (!createdKey) return;
     await navigator.clipboard.writeText(createdKey);
@@ -104,14 +157,40 @@ export function ApiKeysPage() {
     <Space direction="vertical" size={20} style={{ width: '100%' }}>
       <Card
         title={<Space><KeyOutlined />SDK Management API-Key</Space>}
-        extra={<Space><Button icon={<ReloadOutlined />} onClick={reload}>刷新列表</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>签发 API-Key</Button></Space>}
+        extra={<Space><Button icon={<ReloadOutlined />} onClick={reload}>刷新列表</Button><Button icon={<PlusOutlined />} onClick={openCreateServiceAccount}>新建 Service Account</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>签发 API-Key</Button></Space>}
       >
         <Alert
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="API-Key 是后台手动签发给 Service Account 的 app 作用域凭证；鉴权主体显示为 service_account:<id>，列表只展示两端明文、中间脱敏的值。操作栏编辑可调整作用域和有效期，不会改变 Key 值。"
+          message="Service Account 是 app 作用域机器身份；API-Key 只是它的凭证。先维护 Service Account，再给它签发一个或多个 API-Key。禁用 Service Account 会吊销其关联 Key。"
         />
+
+        <Table<ServiceAccountSummary>
+          rowKey="id"
+          loading={loading}
+          dataSource={serviceAccounts}
+          pagination={false}
+          style={{ marginBottom: 20 }}
+          columns={[
+            { title: 'Service Account', width: 260, render: (_, item) => <Space direction="vertical" size={0}><Typography.Text strong>{item.name}</Typography.Text><Typography.Text type="secondary">{item.id}</Typography.Text></Space> },
+            { title: '范围', width: 180, render: (_, item) => `${item.namespace}/${item.app}` },
+            { title: 'Worker Pool', dataIndex: 'workerPool', width: 140, render: (value) => value ?? '*' },
+            { title: '状态', dataIndex: 'status', width: 100, render: (status) => <Tag color={status === 'active' ? 'green' : 'default'}>{status}</Tag> },
+            { title: '描述', dataIndex: 'description', render: (value) => value ?? '-' },
+            {
+              title: '操作',
+              width: 180,
+              render: (_, item) => (
+                <Space>
+                  <Button size="small" icon={<EditOutlined />} onClick={() => openEditServiceAccount(item)}>编辑</Button>
+                  <Button danger size="small" icon={<DeleteOutlined />} disabled={item.status !== 'active'} onClick={() => void handleDisableServiceAccount(item.id)}>禁用</Button>
+                </Space>
+              ),
+            },
+          ]}
+        />
+
         <Table<SdkApiKeySummary>
           rowKey="id"
           loading={loading}
@@ -147,6 +226,23 @@ export function ApiKeysPage() {
         />
       </Card>
 
+
+      <Modal title={editingServiceAccount ? '编辑 Service Account' : '新建 Service Account'} width={760} open={serviceAccountOpen} onOk={() => void handleSaveServiceAccount()} onCancel={() => setServiceAccountOpen(false)} okText="保存">
+        <Alert type="info" showIcon message="Service Account 是机器身份；禁用后会吊销其关联 API-Key。" style={{ marginBottom: 16 }} />
+        <Form form={serviceAccountForm} layout="vertical" initialValues={{ namespace: 'default', app: 'default', status: 'active' }}>
+          <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入 Service Account 名称' }]}><Input placeholder="java-demo-service-account" /></Form.Item>
+          <Form.Item name="description" label="描述"><Input.TextArea rows={2} placeholder="用途说明，例如 Java demo 管理接口调用" /></Form.Item>
+          <Form.Item name="namespace" label="Namespace" rules={[{ required: true }]}>
+            <Select options={namespaces.map((item) => ({ value: item.name, label: item.name }))} showSearch />
+          </Form.Item>
+          <Form.Item name="app" label="App" rules={[{ required: true }]}>
+            <Select options={apps.map((item) => ({ value: item.name, label: `${item.namespace}/${item.name}` }))} showSearch />
+          </Form.Item>
+          <Form.Item name="workerPool" label="Worker Pool"><Input placeholder="可选，留空代表不限 Worker Pool" /></Form.Item>
+          {editingServiceAccount ? <Form.Item name="status" label="状态" rules={[{ required: true }]}><Select options={[{ value: 'active', label: 'active' }, { value: 'disabled', label: 'disabled' }]} /></Form.Item> : null}
+        </Form>
+      </Modal>
+
       <Modal title="签发 SDK API-Key" width={760} open={open} onOk={() => void handleCreate()} onCancel={() => setOpen(false)} okText="签发">
         <Alert type="warning" showIcon message="明文 API-Key 创建后只显示一次；有效期留空则永久有效。" style={{ marginBottom: 16 }} />
         <Form form={form} layout="vertical" initialValues={{ namespace: 'default', app: 'default', scopes: DEFAULT_SCOPES }}>
@@ -157,8 +253,12 @@ export function ApiKeysPage() {
           <Form.Item name="app" label="App" rules={[{ required: true }]}>
             <Select options={apps.map((item) => ({ value: item.name, label: `${item.namespace}/${item.name}` }))} showSearch />
           </Form.Item>
-          <Form.Item name="serviceAccountName" label="Service Account" rules={[{ required: true, message: '请输入 Service Account 名称' }]}>
-            <Input placeholder="java-demo-service-account" />
+          <Form.Item name="serviceAccountId" label="Service Account" rules={[{ required: true, message: '请选择 Service Account' }]}>
+            <Select
+              showSearch
+              placeholder="选择已有 Service Account"
+              options={serviceAccounts.filter((item) => item.status === 'active').map((item) => ({ value: item.id, label: `${item.namespace}/${item.app} · ${item.name}` }))}
+            />
           </Form.Item>
           <Form.Item name="scopes" label="权限 scopes" rules={[{ required: true }]}>
             <Select mode="tags" options={DEFAULT_SCOPES.map((scope) => ({ value: scope }))} />

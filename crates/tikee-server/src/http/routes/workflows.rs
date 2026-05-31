@@ -25,8 +25,7 @@ use crate::http::{
         WorkflowDryRunResponse, WorkflowInstanceApiResponse, WorkflowListApiResponse,
         WorkflowMaterializeApiResponse, WorkflowRecoverApiResponse, WorkflowRunRequest,
         WorkflowShardCompleteApiResponse, WorkflowShardListApiResponse,
-        WorkflowShardRebalanceApiResponse,
-        WorkflowValidationApiResponse,
+        WorkflowShardRebalanceApiResponse, WorkflowValidationApiResponse,
     },
     error::ApiError,
 };
@@ -367,7 +366,6 @@ pub async fn recover_workflow_node(
     .await;
     Ok(Json(ApiResponse::success(item)))
 }
-
 
 #[utoipa::path(post, path = "/api/v1/workflow-instances/{id}/shards/rebalance", tag = "workflows", request_body = RebalanceWorkflowShardsInput)]
 pub async fn rebalance_workflow_shards(

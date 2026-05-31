@@ -16,7 +16,7 @@ pub struct Model {
     pub app: String,
     /// Secret logical name unique within namespace/app.
     pub name: String,
-    /// External value reference such as env:APP_SECRET.
+    /// External value reference such as `env:APP_SECRET`.
     pub value_ref: String,
     /// Secret status: active or deleted.
     pub status: String,

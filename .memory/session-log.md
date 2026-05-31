@@ -1790,3 +1790,9 @@ Commit/push:
 - 2026-05-27 12:55: Changed script dispatch matching to unified worker capability `script` so Python/JavaScript/TypeScript/etc. are dispatched to script-capable workers instead of being blocked by missing `script:<language>` capability. Legacy `script:<language>`, `script:*`, and `*` remain compatible for normal scripts; direct WASM modules still require `script:wasm`. Worker-side sandbox selection remains based on binding language plus sandbox.backend.
 
 - 2026-05-27 14:10: Fixed Java demo shell script execution path: sandbox=auto now resolves native scripts to srt/native-script semantics, Spring starter registers a development-only local shell subprocess runner instead of sending real shell scripts through the limited bundled WASI shell micro-runtime, and the demo image config now uses JavaScript/TypeScript keys. Verification: Java SDK script tests, Spring starter auto-configuration tests, and spring-worker-demo tests passed.
+
+### 2026-05-31 — Service Account upgraded to first-class SDK identity
+- Upgraded SDK Management API-Key identity model from implicit service_account_name input to managed Service Account resources. Admins can create/list/update/disable Service Accounts, API-Key creation must choose an existing active Service Account, and disabling a Service Account revokes bound active keys.
+- API-Key authentication now checks the bound Service Account remains active and uses the current Service Account namespace/app as the authorization boundary.
+- Web `/api-keys` now loads/manages Service Accounts and signs API keys against selected identities; smoke and API client tests use the new flow.
+- Verification: `cargo check -p tikee-server`, `cargo test -p tikee-server sdk_api_key -- --nocapture`, `cargo test -p tikee-server disabling_service_account_revokes_bound_sdk_keys -- --nocapture`, `cd web && bun run typecheck`, `cd web && bun test --run client.test.ts`.

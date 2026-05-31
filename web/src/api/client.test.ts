@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
-import { ApiClientError, createAppScope, createJob, createNamespace, createPlugin, createWorkerPool, deletePlugin, dryRunWorkflow, getAuthToken, listInstanceLogs, getJobImpact, getJobSchedulingAdvice, getJobTopology, getWorkflowReplay, listJobVersions, listJobs, listNamespaces, listPlugins, listWorkerPools, login, rollbackJob, setAuthErrorHandler, setAuthToken, triggerJob, triggerJobWebhookEvent, updatePlugin, updateSdkApiKey, updateWorkflow } from './client';
+import { ApiClientError, createAppScope, createJob, createNamespace, createPlugin, createSdkApiKey, createServiceAccount, createWorkerPool, deletePlugin, disableServiceAccount, dryRunWorkflow, getAuthToken, listInstanceLogs, getJobImpact, getJobSchedulingAdvice, getJobTopology, getWorkflowReplay, listJobVersions, listJobs, listNamespaces, listPlugins, listServiceAccounts, listWorkerPools, login, rollbackJob, setAuthErrorHandler, setAuthToken, triggerJob, triggerJobWebhookEvent, updatePlugin, updateSdkApiKey, updateServiceAccount, updateWorkflow } from './client';
 
 const originalFetch = globalThis.fetch;
 
@@ -272,6 +272,57 @@ describe('api client envelope handling', () => {
     expect(calls.map((call) => call.url)).toContain('/api/v1/namespaces');
     expect(calls.map((call) => call.url)).toContain('/api/v1/worker-pools?namespace=default&app=billing');
     expect(calls.at(-1)?.body).toEqual({ namespace: 'payments', app: 'settlement', name: 'critical' });
+  });
+
+  test('manages service accounts and binds sdk api keys by existing id', async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({
+        method: init?.method ?? 'GET',
+        url: String(url),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      });
+      if ((init?.method ?? 'GET') === 'GET') {
+        return new Response(JSON.stringify({
+          code: 0,
+          message: 'success',
+          data: [{ id: 'sa_1', name: 'java-demo-sa', description: null, namespace: 'default', app: 'billing', workerPool: null, status: 'active', createdBy: 'admin', updatedBy: null, createdAt: 'now', updatedAt: 'now' }],
+        }));
+      }
+      if (init?.method === 'DELETE') {
+        return new Response(JSON.stringify({ code: 0, message: 'success', data: {} }));
+      }
+      if (String(url).endsWith('/api-keys')) {
+        return new Response(JSON.stringify({
+          code: 0,
+          message: 'success',
+          data: {
+            api_key: 'tk-AbCdEf0123456789AbCdEf0123456789AbCdEf0123456789AbCdEf0123456789',
+            key: { id: 'sk_1', name: 'demo-key', key_prefix: 'tk-AbCd••••6789', namespace: 'default', app: 'billing', service_account_id: 'sa_1', service_account_name: 'java-demo-sa', scopes: ['jobs:read'], status: 'active', expires_at: null, last_used_at: null, created_by: 'admin', revoked_by: null, rotated_from: null, created_at: 'now', updated_at: 'now' },
+          },
+        }));
+      }
+      return new Response(JSON.stringify({
+        code: 0,
+        message: 'success',
+        data: { id: 'sa_1', name: 'java-demo-sa', description: 'demo', namespace: 'default', app: 'billing', workerPool: null, status: 'active', createdBy: 'admin', updatedBy: null, createdAt: 'now', updatedAt: 'now' },
+      }));
+    }) as unknown as typeof fetch;
+
+    await expect(listServiceAccounts()).resolves.toHaveLength(1);
+    await expect(createServiceAccount({ name: 'java-demo-sa', description: 'demo', namespace: 'default', app: 'billing' })).resolves.toMatchObject({ id: 'sa_1' });
+    await expect(updateServiceAccount('sa_1', { name: 'java-demo-sa', description: 'demo', namespace: 'default', app: 'billing', status: 'active' })).resolves.toMatchObject({ id: 'sa_1' });
+    await expect(createSdkApiKey({ name: 'demo-key', namespace: 'default', app: 'billing', service_account_id: 'sa_1', scopes: ['jobs:read'], expires_at: null })).resolves.toMatchObject({ key: { service_account_id: 'sa_1' } });
+    await expect(disableServiceAccount('sa_1')).resolves.toBeUndefined();
+
+    expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual([
+      'GET /api/v1/management/service-accounts',
+      'POST /api/v1/management/service-accounts',
+      'PATCH /api/v1/management/service-accounts/sa_1',
+      'POST /api/v1/management/api-keys',
+      'DELETE /api/v1/management/service-accounts/sa_1',
+    ]);
+    expect(calls[3].body).toMatchObject({ service_account_id: 'sa_1' });
   });
 
   test('updates sdk api key metadata through patch endpoint', async () => {

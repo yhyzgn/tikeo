@@ -73,19 +73,22 @@ impl FromStr for ScheduleType {
             "fixed_rate" | "fixed-rate" | "fixedrate" => Ok(Self::FixedRate),
             "fixed_delay" | "fixed-delay" | "fixeddelay" => Ok(Self::FixedDelay),
             "once" | "one_time" | "one-time" | "once_at" | "once-at" => Ok(Self::Once),
-            "daily_time_interval" | "daily-time-interval" | "daily" | "calendar_daily" => Ok(Self::DailyTimeInterval),
+            "daily_time_interval" | "daily-time-interval" | "daily" | "calendar_daily" => {
+                Ok(Self::DailyTimeInterval)
+            }
             _ => Err(ParseEnumError::new("schedule_type", value)),
         }
     }
 }
 
 /// Misfire policy for automatic schedules when one or more fire times were missed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MisfirePolicy {
     /// Skip missed fire times and wait for the next regular schedule.
     DoNothing,
     /// Fire at most once for missed fire times.
+    #[default]
     FireOnce,
     /// Catch up missed fire times up to the configured scheduler cap.
     CatchUpLimited,
@@ -106,12 +109,6 @@ impl MisfirePolicy {
             Self::Reschedule => "reschedule",
             Self::LatestOnly => "latest_only",
         }
-    }
-}
-
-impl Default for MisfirePolicy {
-    fn default() -> Self {
-        Self::FireOnce
     }
 }
 
@@ -235,7 +232,9 @@ impl FromStr for TriggerType {
             "fixed_rate" | "fixed-rate" | "fixedrate" => Ok(Self::FixedRate),
             "fixed_delay" | "fixed-delay" | "fixeddelay" => Ok(Self::FixedDelay),
             "once" | "one_time" | "one-time" | "once_at" | "once-at" => Ok(Self::Once),
-            "daily_time_interval" | "daily-time-interval" | "daily" | "calendar_daily" => Ok(Self::DailyTimeInterval),
+            "daily_time_interval" | "daily-time-interval" | "daily" | "calendar_daily" => {
+                Ok(Self::DailyTimeInterval)
+            }
             "manual" => Ok(Self::Manual),
             "workflow_shard" | "workflow-shard" | "workflowshard" => Ok(Self::WorkflowShard),
             "webhook" | "event_webhook" | "event-webhook" => Ok(Self::Webhook),
@@ -958,7 +957,10 @@ mod tests {
             MisfirePolicy::from_str("catch-up-limited"),
             Ok(MisfirePolicy::CatchUpLimited)
         );
-        assert_eq!(MisfirePolicy::from_str("latest-only"), Ok(MisfirePolicy::LatestOnly));
+        assert_eq!(
+            MisfirePolicy::from_str("latest-only"),
+            Ok(MisfirePolicy::LatestOnly)
+        );
         assert_eq!(MisfirePolicy::LatestOnly.as_str(), "latest_only");
     }
 

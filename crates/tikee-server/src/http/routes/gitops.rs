@@ -1,15 +1,22 @@
 #![allow(missing_docs)]
 
-use std::{collections::{BTreeMap, BTreeSet}, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
-use axum::{Json, extract::{Query, State}, http::HeaderMap};
+use axum::{
+    Json,
+    extract::{Query, State},
+    http::HeaderMap,
+};
 use sha2::{Digest, Sha256};
 
 use crate::http::{
     AppState, auth,
     dto::{
-        AlertRuleSummary, ApiResponse, GitOpsDiffChange, GitOpsDiffRequest, GitOpsDiffResponse,
-        GitOpsDiffApiResponse, GitOpsExportQuery, GitOpsManifest, GitOpsManifestApiResponse,
+        AlertRuleSummary, ApiResponse, GitOpsDiffApiResponse, GitOpsDiffChange, GitOpsDiffRequest,
+        GitOpsDiffResponse, GitOpsExportQuery, GitOpsManifest, GitOpsManifestApiResponse,
         GitOpsManifestResponse, GitOpsMetadata, GitOpsResource, GitOpsScope,
     },
     error::ApiError,
@@ -31,11 +38,16 @@ pub async fn export_gitops_manifest(
     let manifest = build_manifest(&state, query.namespace.clone(), query.app.clone()).await?;
     let format = query.format.unwrap_or_else(|| "json".to_owned());
     if !matches!(format.as_str(), "json" | "yaml") {
-        return Err(ApiError::bad_request("gitops manifest format must be json or yaml"));
+        return Err(ApiError::bad_request(
+            "gitops manifest format must be json or yaml",
+        ));
     }
     let canonical_json = canonical_manifest_json(&manifest)?;
     let manifest_yaml = if format == "yaml" {
-        Some(json_to_yaml(&serde_json::to_value(&manifest).map_err(|error| ApiError::bad_request(error.to_string()))?))
+        Some(json_to_yaml(
+            &serde_json::to_value(&manifest)
+                .map_err(|error| ApiError::bad_request(error.to_string()))?,
+        ))
     } else {
         None
     };
@@ -80,8 +92,16 @@ async fn build_manifest(
     let scope = GitOpsScope { namespace, app };
     let mut resources = Vec::new();
 
-    for job in state.jobs.list_jobs().await.map_err(|error| ApiError::storage(&error))? {
-        if scope.namespace.as_ref().is_some_and(|value| value != &job.namespace)
+    for job in state
+        .jobs
+        .list_jobs()
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+    {
+        if scope
+            .namespace
+            .as_ref()
+            .is_some_and(|value| value != &job.namespace)
             || scope.app.as_ref().is_some_and(|value| value != &job.app)
         {
             continue;
@@ -111,18 +131,38 @@ async fn build_manifest(
         ));
     }
 
-    for workflow in state.workflows.list_workflows().await.map_err(|error| ApiError::storage(&error))? {
+    for workflow in state
+        .workflows
+        .list_workflows()
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+    {
         resources.push(resource(
             "Workflow",
-            GitOpsMetadata { id: Some(workflow.id), name: workflow.name, namespace: None, app: None },
+            GitOpsMetadata {
+                id: Some(workflow.id),
+                name: workflow.name,
+                namespace: None,
+                app: None,
+            },
             serde_json::json!({ "definition": workflow.definition, "status": workflow.status }),
         ));
     }
 
-    for script in state.scripts.list_scripts().await.map_err(|error| ApiError::storage(&error))? {
+    for script in state
+        .scripts
+        .list_scripts()
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+    {
         resources.push(resource(
             "Script",
-            GitOpsMetadata { id: Some(script.id), name: script.name, namespace: None, app: None },
+            GitOpsMetadata {
+                id: Some(script.id),
+                name: script.name,
+                namespace: None,
+                app: None,
+            },
             serde_json::json!({
                 "language": script.language,
                 "version": script.version,
@@ -139,10 +179,20 @@ async fn build_manifest(
         ));
     }
 
-    for plugin in state.plugins.list_plugins().await.map_err(|error| ApiError::storage(&error))? {
+    for plugin in state
+        .plugins
+        .list_plugins()
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+    {
         resources.push(resource(
             "Plugin",
-            GitOpsMetadata { id: Some(plugin.id), name: plugin.name, namespace: None, app: None },
+            GitOpsMetadata {
+                id: Some(plugin.id),
+                name: plugin.name,
+                namespace: None,
+                app: None,
+            },
             serde_json::json!({
                 "kind": plugin.kind,
                 "processorTypes": plugin.processor_types,
@@ -152,22 +202,34 @@ async fn build_manifest(
         ));
     }
 
-    for alert in state.alerts.list_rules().await.map_err(|error| ApiError::storage(&error))? {
+    for alert in state
+        .alerts
+        .list_rules()
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+    {
         resources.push(resource(
             "AlertRule",
-            GitOpsMetadata { id: Some(alert.id.clone()), name: alert.name.clone(), namespace: None, app: None },
+            GitOpsMetadata {
+                id: Some(alert.id.clone()),
+                name: alert.name.clone(),
+                namespace: None,
+                app: None,
+            },
             serde_json::to_value(AlertRuleSummary {
                 id: alert.id,
                 name: alert.name,
                 severity: alert.severity,
-                condition: serde_json::from_str(&alert.condition_json).unwrap_or(serde_json::Value::Null),
+                condition: serde_json::from_str(&alert.condition_json)
+                    .unwrap_or(serde_json::Value::Null),
                 channels: serde_json::from_str(&alert.channels_json).unwrap_or_default(),
                 enabled: alert.enabled,
                 dedupe_seconds: u64::try_from(alert.dedupe_seconds).unwrap_or(0),
                 silenced_until: alert.silenced_until,
                 created_at: alert.created_at,
                 updated_at: alert.updated_at,
-            }).map_err(|error| ApiError::bad_request(error.to_string()))?,
+            })
+            .map_err(|error| ApiError::bad_request(error.to_string()))?,
         ));
     }
 
@@ -181,10 +243,17 @@ async fn build_manifest(
 }
 
 fn resource(kind: &str, metadata: GitOpsMetadata, spec: serde_json::Value) -> GitOpsResource {
-    GitOpsResource { kind: kind.to_owned(), metadata, spec }
+    GitOpsResource {
+        kind: kind.to_owned(),
+        metadata,
+        spec,
+    }
 }
 
-fn diff_resources(current: &[GitOpsResource], desired: &[GitOpsResource]) -> Result<Vec<GitOpsDiffChange>, ApiError> {
+fn diff_resources(
+    current: &[GitOpsResource],
+    desired: &[GitOpsResource],
+) -> Result<Vec<GitOpsDiffChange>, ApiError> {
     let current_map = resource_map(current)?;
     let desired_map = resource_map(desired)?;
     let mut keys = BTreeSet::new();
@@ -195,22 +264,30 @@ fn diff_resources(current: &[GitOpsResource], desired: &[GitOpsResource]) -> Res
         match (current_map.get(&key), desired_map.get(&key)) {
             (None, Some(after)) => changes.push(change("create", &key, None, Some(after))?),
             (Some(before), None) => changes.push(change("delete", &key, Some(before), None)?),
-            (Some(before), Some(after)) if canonical_resource_json(before)? == canonical_resource_json(after)? => {
+            (Some(before), Some(after))
+                if canonical_resource_json(before)? == canonical_resource_json(after)? =>
+            {
                 changes.push(change("unchanged", &key, Some(before), Some(after))?);
             }
-            (Some(before), Some(after)) => changes.push(change("update", &key, Some(before), Some(after))?),
+            (Some(before), Some(after)) => {
+                changes.push(change("update", &key, Some(before), Some(after))?)
+            }
             (None, None) => {}
         }
     }
     Ok(changes)
 }
 
-fn resource_map(resources: &[GitOpsResource]) -> Result<BTreeMap<String, GitOpsResource>, ApiError> {
+fn resource_map(
+    resources: &[GitOpsResource],
+) -> Result<BTreeMap<String, GitOpsResource>, ApiError> {
     let mut map = BTreeMap::new();
     for resource in resources {
         let key = resource_key(resource);
         if map.insert(key.clone(), resource.clone()).is_some() {
-            return Err(ApiError::bad_request(format!("duplicate gitops resource key: {key}")));
+            return Err(ApiError::bad_request(format!(
+                "duplicate gitops resource key: {key}"
+            )));
         }
     }
     Ok(map)
@@ -227,11 +304,18 @@ fn change(
     Ok(GitOpsDiffChange {
         action: action.to_owned(),
         key: key.to_owned(),
-        kind: before.or(after).map_or_else(String::new, |resource| resource.kind.clone()),
-        name: before.or(after).map_or_else(String::new, |resource| resource.metadata.name.clone()),
+        kind: before
+            .or(after)
+            .map_or_else(String::new, |resource| resource.kind.clone()),
+        name: before
+            .or(after)
+            .map_or_else(String::new, |resource| resource.metadata.name.clone()),
         before: before.cloned(),
         after: after.cloned(),
-        diff: unified_line_diff(before_json.as_deref().unwrap_or(""), after_json.as_deref().unwrap_or("")),
+        diff: unified_line_diff(
+            before_json.as_deref().unwrap_or(""),
+            after_json.as_deref().unwrap_or(""),
+        ),
     })
 }
 

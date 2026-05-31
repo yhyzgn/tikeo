@@ -11,14 +11,38 @@ mkdir -p "$REPORT_DIR"
 tikee_smoke_wait_for_http server "$API_URL/readyz" 30
 tikee_smoke_login "$API_URL"
 
-create_body="$(python3 - "$RUN_ID" <<'PY'
+service_account_body="$(python3 - "$RUN_ID" <<'PY'
 import json, sys
 run_id = sys.argv[1]
+print(json.dumps({
+  'name': f'{run_id}-sa',
+  'description': 'Smoke-test SDK machine identity',
+  'namespace': 'default',
+  'app': 'default',
+}))
+PY
+)"
+service_account_file="$REPORT_DIR/${RUN_ID}-service-account.json"
+tikee_smoke_api "$API_URL" POST /api/v1/management/service-accounts "$service_account_body" > "$service_account_file"
+service_account_id="$(tikee_smoke_json_get data.id < "$service_account_file")"
+python3 - "$service_account_file" <<'PY'
+import json, sys
+summary=json.load(open(sys.argv[1], encoding='utf-8'))['data']
+assert summary['name'].endswith('-sa')
+assert summary['status']=='active'
+assert summary['namespace']=='default'
+assert summary['app']=='default'
+print('service account creation expectation passed')
+PY
+
+create_body="$(python3 - "$RUN_ID" "$service_account_id" <<'PY'
+import json, sys
+run_id, service_account_id = sys.argv[1:3]
 print(json.dumps({
   'name': f'{run_id}-management-key',
   'namespace': 'default',
   'app': 'default',
-  'service_account_name': f'{run_id}-sa',
+  'service_account_id': service_account_id,
   'scopes': ['jobs:read', 'jobs:manage', 'jobs:execute'],
   'expires_at': None,
 }))
@@ -36,6 +60,7 @@ assert re.fullmatch(r'tk-[A-Za-z0-9]{64}', key), key
 summary=payload['data']['key']
 assert summary['namespace']=='default'
 assert summary['app']=='default'
+assert summary['service_account_id']
 assert 'jobs:manage' in summary['scopes']
 print('api key creation expectation passed')
 PY
@@ -68,7 +93,8 @@ assert summary['scopes']==['jobs:read','jobs:execute']
 print('api key metadata update expectation passed')
 PY
 
-tikee_smoke_record_case sdk-api-key-create passed "$create_file" "created tk-* key and verified app scope"
+tikee_smoke_record_case service-account-create passed "$service_account_file" "created managed service account identity"
+tikee_smoke_record_case sdk-api-key-create passed "$create_file" "created tk-* key bound to existing service account and verified app scope"
 tikee_smoke_record_case sdk-api-key-use passed "$job_file" "created job using x-tikee-api-key"
 tikee_smoke_record_case sdk-api-key-update passed "$update_file" "updated metadata without rotating key"
 report="$REPORT_DIR/${RUN_ID}.json"

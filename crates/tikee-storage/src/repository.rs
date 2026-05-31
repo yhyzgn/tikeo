@@ -24,6 +24,7 @@ mod scope;
 mod script;
 mod sdk_api_key;
 mod secret;
+mod service_account;
 mod user;
 pub mod util;
 mod worker_lifecycle;
@@ -72,6 +73,9 @@ pub use script::{
 };
 pub use sdk_api_key::{CreateSdkApiKey, SdkApiKeyRepository, SdkApiKeySummary, UpdateSdkApiKey};
 pub use secret::{CreateSecret, SecretRepository, SecretSummary};
+pub use service_account::{
+    CreateServiceAccount, ServiceAccountRepository, ServiceAccountSummary, UpdateServiceAccount,
+};
 pub use user::{CreateUser, UpdateUser, UserRepository, UserSummary};
 pub use worker_lifecycle::{
     RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository, WorkerSessionEventSummary,

@@ -2,7 +2,11 @@
 
 use std::sync::Arc;
 
-use axum::{Json, extract::{Path, Query, State}, http::HeaderMap};
+use axum::{
+    Json,
+    extract::{Path, Query, State},
+    http::HeaderMap,
+};
 use serde::Deserialize;
 use tikee_storage::{CalendarRepository, CalendarWindowSummary, UpsertCalendar};
 
@@ -32,7 +36,12 @@ pub struct UpsertCalendarRequest {
     pub freeze_windows: Vec<CalendarWindowSummary>,
 }
 
-#[utoipa::path(get, path = "/api/v1/calendars", tag = "tenancy", params(CalendarQuery))]
+#[utoipa::path(
+    get,
+    path = "/api/v1/calendars",
+    tag = "tenancy",
+    params(CalendarQuery)
+)]
 pub async fn list_calendars(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -68,7 +77,16 @@ pub async fn upsert_calendar(
         })
         .await
         .map_err(|error| ApiError::storage(&error))?;
-    super::common::audit(&state, &principal.username, "upsert", "calendar", &item.id, Some(format!("{}/{}/{}", item.namespace, item.app, item.name)), &headers).await;
+    super::common::audit(
+        &state,
+        &principal.username,
+        "upsert",
+        "calendar",
+        &item.id,
+        Some(format!("{}/{}/{}", item.namespace, item.app, item.name)),
+        &headers,
+    )
+    .await;
     Ok(Json(ApiResponse::success(item)))
 }
 
@@ -83,24 +101,57 @@ pub async fn delete_calendar(
         .delete(&id)
         .await
         .map_err(|error| ApiError::storage(&error))?;
-    if !deleted { return Err(ApiError::not_found("calendar not found")); }
-    super::common::audit(&state, &principal.username, "delete", "calendar", &id, None, &headers).await;
+    if !deleted {
+        return Err(ApiError::not_found("calendar not found"));
+    }
+    super::common::audit(
+        &state,
+        &principal.username,
+        "delete",
+        "calendar",
+        &id,
+        None,
+        &headers,
+    )
+    .await;
     Ok(Json(ApiResponse::success(crate::http::dto::EmptyData {})))
 }
 
 fn validate_calendar_request(request: &UpsertCalendarRequest) -> Result<(), ApiError> {
-    for (label, value) in [("namespace", &request.namespace), ("app", &request.app), ("name", &request.name)] {
-        if value.trim().is_empty() { return Err(ApiError::bad_request(format!("calendar {label} cannot be empty"))); }
+    for (label, value) in [
+        ("namespace", &request.namespace),
+        ("app", &request.app),
+        ("name", &request.name),
+    ] {
+        if value.trim().is_empty() {
+            return Err(ApiError::bad_request(format!(
+                "calendar {label} cannot be empty"
+            )));
+        }
     }
     for date in request.excluded_dates.iter().chain(request.holidays.iter()) {
         if chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").is_err() {
-            return Err(ApiError::bad_request(format!("invalid calendar date: {date}")));
+            return Err(ApiError::bad_request(format!(
+                "invalid calendar date: {date}"
+            )));
         }
     }
-    for window in request.maintenance_windows.iter().chain(request.freeze_windows.iter()) {
-        let start = chrono::DateTime::parse_from_rfc3339(&window.start).map_err(|_| ApiError::bad_request(format!("invalid calendar window start: {}", window.start)))?;
-        let end = chrono::DateTime::parse_from_rfc3339(&window.end).map_err(|_| ApiError::bad_request(format!("invalid calendar window end: {}", window.end)))?;
-        if end <= start { return Err(ApiError::bad_request("calendar window end must be after start")); }
+    for window in request
+        .maintenance_windows
+        .iter()
+        .chain(request.freeze_windows.iter())
+    {
+        let start = chrono::DateTime::parse_from_rfc3339(&window.start).map_err(|_| {
+            ApiError::bad_request(format!("invalid calendar window start: {}", window.start))
+        })?;
+        let end = chrono::DateTime::parse_from_rfc3339(&window.end).map_err(|_| {
+            ApiError::bad_request(format!("invalid calendar window end: {}", window.end))
+        })?;
+        if end <= start {
+            return Err(ApiError::bad_request(
+                "calendar window end must be after start",
+            ));
+        }
     }
     Ok(())
 }

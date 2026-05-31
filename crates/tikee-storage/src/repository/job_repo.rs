@@ -68,7 +68,13 @@ impl JobRepository {
     pub async fn list_enabled_scheduled_jobs(&self) -> Result<Vec<JobSummary>, sea_orm::DbErr> {
         let rows = job::Entity::find()
             .filter(job::Column::Enabled.eq(true))
-            .filter(job::Column::ScheduleType.is_in(["cron", "fixed_rate", "fixed_delay", "once", "daily_time_interval"]))
+            .filter(job::Column::ScheduleType.is_in([
+                "cron",
+                "fixed_rate",
+                "fixed_delay",
+                "once",
+                "daily_time_interval",
+            ]))
             .all(&self.db)
             .await?;
 

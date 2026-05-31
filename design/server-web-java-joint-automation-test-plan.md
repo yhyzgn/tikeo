@@ -197,12 +197,13 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 
 | ID | 功能/测试项 | 覆盖组件 | 执行方式 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| E-KEY-001 | 后台创建 SDK API-Key | server + web | Web/API 创建 key | key 格式 `tk-` + 64 位大小写字母数字 | API response screenshot | 📝 执行时回填 | 只在创建弹窗显示明文 |
+| E-KEY-001 | 后台维护 Service Account 并创建 SDK API-Key | server + web | Web/API 先创建/选择 Service Account，再创建 key | key 格式 `tk-` + 64 位大小写字母数字，且绑定已有 active Service Account | API response screenshot | 📝 执行时回填 | 只在创建弹窗显示明文 |
 | E-KEY-002 | 创建时复制提醒 | web | 点击 key 文本 | hover primary、cursor pointer、复制成功提示 | screenshot/video | 📝 执行时回填 | 弹窗必须手动确认关闭 |
 | E-KEY-003 | 列表脱敏显示 | web | 打开 API-Key 列表 | 中间脱敏，两端明文，无复制按钮 | screenshot | 📝 执行时回填 | 防止复制脱敏值误用 |
 | E-KEY-004 | 编辑名称/作用域/有效期 | server + web | 编辑 API-Key | key 值不变，元数据更新 | API response / audit | 📝 执行时回填 | 不再“刷新生成新 key” |
 | E-KEY-005 | Java management client 使用 key | Java SDK + server | Java SDK management 测试 | 可按 app scope 调用允许接口，越权失败 | Gradle report | 📝 执行时回填 | SDK 端不走用户 token |
-| E-KEY-006 | 审计记录 | server | 查 audit logs | create/update/revoke/use 有审计 | audit JSON | 📝 执行时回填 | 权限链路闭环 |
+| E-KEY-006 | 审计记录 | server | 查 audit logs | service account create/update/disable 与 key create/update/revoke/use 有审计 | audit JSON | 📝 执行时回填 | 权限链路闭环 |
+| E-KEY-007 | 禁用 Service Account | server + web | 禁用已有 Service Account | 关联 active API-Key 被吊销，旧 key 再调用失败 | API response / audit | 📝 执行时回填 | 机器身份生命周期闭环 |
 
 ### 6.6 P1 阶段 F：脚本沙箱与插件任务联合验证
 
@@ -423,10 +424,10 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 | UT-SRV-001 | server dispatcher | single dispatch 结果中记录的 worker 必须等于排序后的 master candidate | 支撑 D-DISP-001 自动断言 | ✅ 已覆盖 |
 | UT-SRV-002 | server workers API | `/api/v1/workers` 返回 structured capabilities、plugin processors、processor names、master summary 字段稳定 | Web 和 smoke 都依赖字段级断言 | ✅ 已覆盖 |
 | UT-SRV-003 | server logs API | processor stdout/script output 不重复、不丢失、sequence 单调 | 支撑实例日志预期测试 | ✅ 已覆盖 |
-| UT-SRV-004 | server SDK API-Key | create/update/revoke/use 审计完整，scope 越权失败 | 支撑 SDK management live smoke | ✅ 已覆盖 |
+| UT-SRV-004 | server SDK API-Key / Service Account | service account create/update/disable、key create/update/revoke/use 审计完整，禁用身份吊销 key，scope 越权失败 | 支撑 SDK management live smoke | ✅ 已覆盖 |
 | UT-WEB-001 | web API client | workers structured fields 类型映射完整 | 防止 capabilities 栏再次丢字段 | ✅ 已覆盖 |
 | UT-WEB-002 | web route/auth | SPA fallback、登录态 `/login` bypass、根路径总览 | 支撑无人工刷新验收 | ✅ 已覆盖；live 证据由 smoke/e2e 产物补充 |
-| UT-WEB-003 | web API-Key page | 创建明文只在弹窗出现、列表脱敏、编辑不换 key | 涉及安全预期，不能只靠人工看 | ✅ 已覆盖 |
+| UT-WEB-003 | web API-Key page | Service Account 管理、创建明文只在弹窗出现、列表脱敏、编辑不换 key | 涉及安全预期，不能只靠人工看 | ✅ 已覆盖 |
 | UT-WEB-004 | web topology/workflow canvas | 全屏按钮、节点/边渲染、动画 class/source 数据存在 | 视觉交互需要自动截图补充 | ✅ 已覆盖 |
 | UT-JAVA-001 | Java SDK worker registration | registration request 包含 processorNames/pluginProcessors/scriptRunners/election | 支撑 worker 结构化能力验收 | ✅ 已覆盖；字段全量由新增 workers 断言工具校验 |
 | UT-JAVA-002 | Java SDK stdout/log capture | processor 输出进入 worker 控制台且上报实例日志策略可控 | 避免日志重复或缺失 | ✅ 已覆盖 |

@@ -69,7 +69,16 @@ pub async fn create_namespace(
         .create_namespace(&name)
         .await
         .map_err(|error| ApiError::storage(&error))?;
-    super::common::audit(&state, &principal.username, "create", "namespace", &item.id, Some(format!("name={}", item.name)), &headers).await;
+    super::common::audit(
+        &state,
+        &principal.username,
+        "create",
+        "namespace",
+        &item.id,
+        Some(format!("name={}", item.name)),
+        &headers,
+    )
+    .await;
     Ok(Json(ApiResponse::success(item)))
 }
 
@@ -102,7 +111,16 @@ pub async fn create_app(
         .create_app(&namespace, &name)
         .await
         .map_err(|error| ApiError::storage(&error))?;
-    super::common::audit(&state, &principal.username, "create", "app", &item.id, Some(format!("{}/{}", item.namespace, item.name)), &headers).await;
+    super::common::audit(
+        &state,
+        &principal.username,
+        "create",
+        "app",
+        &item.id,
+        Some(format!("{}/{}", item.namespace, item.name)),
+        &headers,
+    )
+    .await;
     Ok(Json(ApiResponse::success(item)))
 }
 
@@ -141,7 +159,16 @@ pub async fn create_worker_pool(
         .create_worker_pool(&namespace, &app, &name)
         .await
         .map_err(|error| ApiError::storage(&error))?;
-    super::common::audit(&state, &principal.username, "create", "worker_pool", &item.id, Some(format!("{}/{}/{}", item.namespace, item.app, item.name)), &headers).await;
+    super::common::audit(
+        &state,
+        &principal.username,
+        "create",
+        "worker_pool",
+        &item.id,
+        Some(format!("{}/{}/{}", item.namespace, item.app, item.name)),
+        &headers,
+    )
+    .await;
     Ok(Json(ApiResponse::success(item)))
 }
 
@@ -165,7 +192,19 @@ pub async fn update_worker_pool_quota(
         .await
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| ApiError::not_found("worker pool not found"))?;
-    super::common::audit(&state, &principal.username, "update", "worker_pool", &item.id, Some(format!("maxQueueDepth={:?} maxConcurrency={:?}", item.max_queue_depth, item.max_concurrency)), &headers).await;
+    super::common::audit(
+        &state,
+        &principal.username,
+        "update",
+        "worker_pool",
+        &item.id,
+        Some(format!(
+            "maxQueueDepth={:?} maxConcurrency={:?}",
+            item.max_queue_depth, item.max_concurrency
+        )),
+        &headers,
+    )
+    .await;
     Ok(Json(ApiResponse::success(item)))
 }
 
@@ -179,9 +218,18 @@ pub async fn delete_namespace(
     let repo = ScopeRepository::new(state.users.db());
     match repo.delete_namespace_if_empty(&id).await {
         Ok(true) => {
-            super::common::audit(&state, &principal.username, "delete", "namespace", &id, None, &headers).await;
+            super::common::audit(
+                &state,
+                &principal.username,
+                "delete",
+                "namespace",
+                &id,
+                None,
+                &headers,
+            )
+            .await;
             Ok(Json(ApiResponse::success(crate::http::dto::EmptyData {})))
-        },
+        }
         Ok(false) => Err(ApiError::not_found("namespace not found")),
         Err(error) if error.to_string().contains("not empty") => {
             Err(ApiError::bad_request("namespace is not empty"))
@@ -200,9 +248,18 @@ pub async fn delete_app(
     let repo = ScopeRepository::new(state.users.db());
     match repo.delete_app_if_empty(&id).await {
         Ok(true) => {
-            super::common::audit(&state, &principal.username, "delete", "app", &id, None, &headers).await;
+            super::common::audit(
+                &state,
+                &principal.username,
+                "delete",
+                "app",
+                &id,
+                None,
+                &headers,
+            )
+            .await;
             Ok(Json(ApiResponse::success(crate::http::dto::EmptyData {})))
-        },
+        }
         Ok(false) => Err(ApiError::not_found("app not found")),
         Err(error) if error.to_string().contains("not empty") => {
             Err(ApiError::bad_request("app is not empty"))
@@ -226,7 +283,16 @@ pub async fn delete_worker_pool(
     if !deleted {
         return Err(ApiError::not_found("worker pool not found"));
     }
-    super::common::audit(&state, &principal.username, "delete", "worker_pool", &id, None, &headers).await;
+    super::common::audit(
+        &state,
+        &principal.username,
+        "delete",
+        "worker_pool",
+        &id,
+        None,
+        &headers,
+    )
+    .await;
     Ok(Json(ApiResponse::success(crate::http::dto::EmptyData {})))
 }
 
@@ -296,15 +362,37 @@ pub async fn create_secret(
     let app = normalize_name(&request.app, "app")?;
     let name = normalize_name(&request.name, "secret")?;
     let value_ref = normalize_value_ref(&request.value_ref)?;
-    if !crate::http::access_scope::allows_resource(&principal.scope_bindings, &namespace, &app, None) {
-        return Err(ApiError::forbidden("scope binding does not allow this namespace/app"));
+    if !crate::http::access_scope::allows_resource(
+        &principal.scope_bindings,
+        &namespace,
+        &app,
+        None,
+    ) {
+        return Err(ApiError::forbidden(
+            "scope binding does not allow this namespace/app",
+        ));
     }
     let repo = tikee_storage::SecretRepository::new(state.users.db());
     let item = repo
-        .create(tikee_storage::CreateSecret { namespace, app, name, value_ref, created_by: principal.username.clone() })
+        .create(tikee_storage::CreateSecret {
+            namespace,
+            app,
+            name,
+            value_ref,
+            created_by: principal.username.clone(),
+        })
         .await
         .map_err(|error| ApiError::storage(&error))?;
-    super::common::audit(&state, &principal.username, "create", "secret", &item.id, Some(format!("{}/{}:{}", item.namespace, item.app, item.name)), &headers).await;
+    super::common::audit(
+        &state,
+        &principal.username,
+        "create",
+        "secret",
+        &item.id,
+        Some(format!("{}/{}:{}", item.namespace, item.app, item.name)),
+        &headers,
+    )
+    .await;
     Ok(Json(ApiResponse::success(item)))
 }
 
@@ -316,17 +404,38 @@ pub async fn delete_secret(
 ) -> Result<Json<ApiResponse<crate::http::dto::EmptyData>>, ApiError> {
     let principal = auth::require_permission(&headers, &state, "tenants", "manage").await?;
     let repo = tikee_storage::SecretRepository::new(state.users.db());
-    let deleted = repo.delete(&id).await.map_err(|error| ApiError::storage(&error))?;
-    if !deleted { return Err(ApiError::not_found("secret not found")); }
-    super::common::audit(&state, &principal.username, "delete", "secret", &id, None, &headers).await;
+    let deleted = repo
+        .delete(&id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    if !deleted {
+        return Err(ApiError::not_found("secret not found"));
+    }
+    super::common::audit(
+        &state,
+        &principal.username,
+        "delete",
+        "secret",
+        &id,
+        None,
+        &headers,
+    )
+    .await;
     Ok(Json(ApiResponse::success(crate::http::dto::EmptyData {})))
 }
 
 fn normalize_value_ref(value: &str) -> Result<String, ApiError> {
     let trimmed = value.trim();
-    if trimmed.is_empty() { return Err(ApiError::bad_request("secret valueRef cannot be empty")); }
-    if !trimmed.starts_with("env:") && !trimmed.starts_with("vault:") && !trimmed.starts_with("secret:") {
-        return Err(ApiError::bad_request("secret valueRef must start with env:, vault:, or secret:"));
+    if trimmed.is_empty() {
+        return Err(ApiError::bad_request("secret valueRef cannot be empty"));
+    }
+    if !trimmed.starts_with("env:")
+        && !trimmed.starts_with("vault:")
+        && !trimmed.starts_with("secret:")
+    {
+        return Err(ApiError::bad_request(
+            "secret valueRef must start with env:, vault:, or secret:",
+        ));
     }
     Ok(trimmed.to_owned())
 }

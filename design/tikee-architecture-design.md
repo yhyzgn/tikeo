@@ -2330,7 +2330,7 @@ Phase 3 closeout 状态已在 2026-05-28 复核：原先保留未勾选的 OIDC 
 
 **P2 — 生态接入 / 高级差异化（不阻塞服务先跑起来）**
 
-- [x] SDK Management API-Key 签发与鉴权方案（2026-05-28 已落地验证）：SDK 端 management client 不走人工 session token，也不收敛到某个用户账号的 RBAC 权限；Server 提供 `POST/GET/PATCH/DELETE /api/v1/management/api-keys`，`tk-` + 64 位大小写字母数字 CSPRNG/rejection sampling 生成，服务端只存 hash 与两端明文脱敏值；`X-Tikee-API-Key` 鉴权映射为 `sdk_api_key/app_service` principal 并强制 namespace/app scope；Web `/api-keys` 支持创建一次性明文展示、编辑名称/权限/有效期、吊销与 last-used 观测；Java 原生 SDK、Spring Boot Starter、Rust SDK management client 与 Java demo 均已接入 API-Key。验证：`cargo test -p tikee-server sdk_api_key -- --nocapture`、`cargo test -p tikee-storage sdk_api_key -- --nocapture`、`cd web && bun run lint && bun run build && bun test src/api/client.test.ts`、Java SDK/starter/demo 相关测试。
+- [x] SDK Management API-Key 签发与鉴权方案（2026-05-31 已升级为长期 Service Account 方案）：SDK 端 management client 不走人工 session token，也不收敛到某个用户账号的 RBAC 权限；Server 提供 `POST/GET/PATCH/DELETE /api/v1/management/service-accounts` 独立维护 app-scoped 机器身份，API-Key 创建时只能选择已有 active Service Account，禁用 Service Account 会吊销其 active API-Key；`POST/GET/PATCH/DELETE /api/v1/management/api-keys` 继续负责凭证签发/元数据编辑/吊销，`tk-` + 64 位大小写字母数字 CSPRNG/rejection sampling 生成，服务端只存 hash 与两端明文脱敏值；`X-Tikee-API-Key` 鉴权映射为 `sdk_api_key/app_service` principal，并以 Service Account 当前 active 状态与 namespace/app scope 作为最终授权边界；Web `/api-keys` 支持 Service Account 管理、选择已有身份签发 Key、一次性明文展示、编辑名称/权限/有效期、吊销与 last-used 观测；Java 原生 SDK、Spring Boot Starter、Rust SDK management client 与 Java demo 均已接入 API-Key。验证：`cargo test -p tikee-server sdk_api_key -- --nocapture`、`cargo test -p tikee-server disabling_service_account_revokes_bound_sdk_keys -- --nocapture`、`cd web && bun run typecheck && bun test --run src/api/client.test.ts`、Java SDK/starter/demo 相关测试。
 - [x] GitOps/IaC Manifest 导出与 drift diff（2026-05-29：`GET /api/v1/gitops/manifest`、`POST /api/v1/gitops/diff`、Web GitOps/IaC 页面、manifest/CRD/Terraform contract 样例已落地）。
 - [x] Terraform Provider 与 K8s CRD controller/operator 已补齐（2026-05-30：`deploy/terraform/provider` 提供真实 Terraform Plugin Framework provider，含 `tikee_manifest` data source 与 `tikee_manifest_diff` resource；`deploy/k8s/operator` 提供 `TikeeManifest` CRD reconciler/operator CLI，按 `/api/v1/gitops/diff` 写入 status evidence；CRD 增加 status subresource、conditions、checksum、summary/lastDiff）。
 - [x] 任务版本管理与回滚（2026-05-28：`job_versions` 不可变快照表、创建/编辑/回滚自动追加版本、`GET /api/v1/jobs/{job}/versions`、`POST /api/v1/jobs/{job}/rollback`、Jobs 页面版本历史抽屉与回滚入口已落地；回滚生成新的最新版本，不覆盖历史）。
@@ -2364,16 +2364,17 @@ Worker 集群与 tikee server 集群都必须具备 master 选举能力。Server
 
 **P2 — 生态接入与高级差异化**
 
-- [x] SDK Management API-Key 签发与鉴权方案（2026-05-28 已落地验证）：SDK management client 使用 app-scoped API-Key，不使用人工 session token，不绑定某个用户账号的 RBAC 权限；后台管理员手动签发、编辑元数据、吊销授权，供 Java/Rust SDK 管理任务、触发任务和读取实例状态。
+- [x] SDK Management API-Key 签发与鉴权方案（2026-05-31 已升级为长期 Service Account 方案）：SDK management client 使用 app-scoped API-Key，不使用人工 session token，不绑定某个用户账号的 RBAC 权限；后台管理员先维护 Service Account 机器身份，再针对已有 active Service Account 手动签发、编辑元数据、吊销授权，供 Java/Rust SDK 管理任务、触发任务和读取实例状态。
 
   **已实现约束 / 后续增强边界**：
   - Key 明文格式固定为 `tk-${64位大小写字母数字}`，即前缀 `tk-` + 64 个 `[A-Za-z0-9]` 字符；全局唯一，只在创建/轮换时返回一次明文。
   - 生成算法采用业界通用 CSPRNG API-key 方案：使用 OS 级密码学安全随机源（Rust `OsRng` / Java `SecureRandom` / WebCrypto 等同等级来源），对 62 字符 alphabet 做 rejection sampling/无模偏采样，生成 64 位 base62 随机串；约 330 bit 熵，不使用 UUID、时间戳、递增序列或可预测 PRNG。
-  - 存储只保存 `key_id`、`prefix`、HMAC-SHA256/SHA-256 hash（建议带 server pepper）、app scope、授权 scope、状态、过期时间、last_used_at、created_by/revoked_by/rotated_from 与审计证据；禁止持久化明文 key。
-  - 鉴权边界是 app-scoped service credential：请求通过 `X-Tikee-API-Key: tk-...`（或 SDK 内部等价 header）进入 management API；认证后 principal 类型标记为 `sdk_api_key` / `app_service`，不能伪装成人类用户 session，也不能复用用户 RBAC role expansion。
+  - Service Account 是一等资源：`service_accounts` 存储稳定机器身份 id、名称、description、namespace/app、可选 worker_pool、active/disabled 状态与创建/更新人；API-Key 只保存绑定的 `service_account_id` 与名称快照，创建时必须选择已有 active Service Account，禁用 Service Account 必须吊销其关联 active Key。
+  - API-Key 存储只保存 `key_id`、`prefix`、HMAC-SHA256/SHA-256 hash（建议带 server pepper）、app scope、授权 scope、状态、过期时间、last_used_at、created_by/revoked_by/rotated_from 与审计证据；禁止持久化明文 key。
+  - 鉴权边界是 app-scoped service credential + 当前 Service Account 状态：请求通过 `X-Tikee-API-Key: tk-...`（或 SDK 内部等价 header）进入 management API；认证后 principal 类型标记为 `sdk_api_key` / `app_service`，不能伪装成人类用户 session，也不能复用用户 RBAC role expansion；若绑定 Service Account 被禁用、迁移 scope 或不存在，鉴权/授权必须 fail-closed。
   - 授权模型为后台针对 namespace/app 手动签发的 allow-list：可细分 `jobs:read/create/update/trigger`、`instances:read/logs:read`、`workflows:*` 等 SDK management scopes，并强制落在签发时绑定的 namespace/app 内；越权访问其它 app 必须 fail-closed。
   - SDK 侧配置应从 `tikee.management.api-key` / `TIKEE_MANAGEMENT_API_KEY` 读取，替换当前 `token` 语义；Java/Rust SDK 都要同等支持，Spring Boot Starter 只做配置映射，不拥有鉴权逻辑。
-  - 后台已提供管理员 API/UI：创建、列表（两端明文中间脱敏）、编辑名称/授权 scope/有效期、吊销、last-used 观测与审计日志；所有签发/编辑/吊销操作仍由后台人工 session + RBAC 保护。轮换曾评估但按当前产品决策改为“编辑不改 key”，需要换 key 时新建后吊销旧 key。
+  - 后台已提供管理员 API/UI：Service Account 创建/列表/编辑/禁用；API-Key 创建、列表（两端明文中间脱敏）、编辑名称/授权 scope/有效期、吊销、last-used 观测与审计日志；所有身份维护与凭证签发/编辑/吊销操作仍由后台人工 session + RBAC 保护。轮换曾评估但按当前产品决策改为“编辑不改 key”，需要换 key 时新建后吊销旧 key。
   - 与已有 API Token/OIDC session 明确分层：API Token 是用户权限收窄后的 bearer；OIDC 只换本地 opaque session；SDK Management API-Key 是 app 级服务凭据，不能被用户 token/RBAC 自动推导生成。
 
 - [x] GitOps/IaC Manifest 导出与 drift diff

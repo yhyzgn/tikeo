@@ -431,6 +431,22 @@ pub(super) enum RolePermissions {
 }
 
 #[derive(DeriveIden)]
+pub(super) enum ServiceAccounts {
+    Table,
+    Id,
+    Name,
+    Description,
+    Namespace,
+    App,
+    WorkerPool,
+    Status,
+    CreatedBy,
+    UpdatedBy,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
 pub(super) enum Users {
     Table,
     Id,

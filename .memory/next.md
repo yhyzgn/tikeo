@@ -1,7 +1,7 @@
 # Next Work
 
 ## Current priority direction
-Continue Phase4 P0 service/operations work while preserving the source-size/module-entry rule: every source file must stay <= 1500 lines, and `mod.rs` / `lib.rs` files should remain module entry/re-export surfaces.
+Continue hardening remaining Phase4 service-governance edges while preserving the source-size/module-entry rule: every source file must stay <= 1500 lines, and `mod.rs` / `lib.rs` files should remain module entry/re-export surfaces.
 
 ## Phase4 P0 — service usage / operations first
 1. Worker identity/session lifecycle governance is now aligned to `design/worker-identity-lifecycle-design.md`.
@@ -30,3 +30,6 @@ Continue Phase4 P0 service/operations work while preserving the source-size/modu
 - Go SDK foundation now uses official `google.golang.org/grpc` / `google.golang.org/protobuf` and generated Worker Tunnel client bindings; Go run-loop/Python/Node.js SDKs are deferred.
 - Worker identity/session lifecycle now follows `design/worker-identity-lifecycle-design.md`, including transport-error evidence when gRPC streams end without graceful unregister.
 - Deployment bootstrap now includes Compose/systemd/bare-metal docs, Worker identity env templates, a systemd Rust worker demo unit, and a readyz/worker dry-run smoke script.
+
+## Recently completed — 2026-05-31
+- SDK API-Key Service Account lifecycle is upgraded to the long-term model: Service Account is independently managed, API-Key creation selects existing active identity, disable revokes bound keys, and Web/API/smoke tests follow the new flow.

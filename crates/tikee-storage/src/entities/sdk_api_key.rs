@@ -23,7 +23,7 @@ pub struct Model {
     pub app: String,
     /// Stable service account id represented by this key.
     pub service_account_id: String,
-    /// Human-readable service account name.
+    /// Human-readable service account name snapshot.
     pub service_account_name: String,
     /// Comma-separated scope allow-list.
     pub scopes: String,

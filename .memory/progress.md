@@ -1225,3 +1225,7 @@ Verification evidence:
 - 2026-05-27 12:55: Changed script dispatch matching to unified worker capability `script` so Python/JavaScript/TypeScript/etc. are dispatched to script-capable workers instead of being blocked by missing `script:<language>` capability. Legacy `script:<language>`, `script:*`, and `*` remain compatible for normal scripts; direct WASM modules still require `script:wasm`. Worker-side sandbox selection remains based on binding language plus sandbox.backend.
 
 - 2026-05-27 14:10: Fixed Java demo shell script execution path: sandbox=auto now resolves native scripts to srt/native-script semantics, Spring starter registers a development-only local shell subprocess runner instead of sending real shell scripts through the limited bundled WASI shell micro-runtime, and the demo image config now uses JavaScript/TypeScript keys. Verification: Java SDK script tests, Spring starter auto-configuration tests, and spring-worker-demo tests passed.
+
+### 2026-05-31 — SDK API-Key Service Account lifecycle closed
+- Service Account is now a first-class app-scoped machine identity with HTTP management routes, storage entity/repository, SQLite migration compatibility, Web management table, and API client helpers.
+- API-Key creation no longer accepts an implicit service account name; it requires `service_account_id` for an existing active identity. Disabled identities revoke active keys and fail SDK-key authentication.

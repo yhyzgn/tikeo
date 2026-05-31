@@ -524,11 +524,37 @@ export interface SdkApiKeySummary {
   updated_at: string;
 }
 
+export interface ServiceAccountSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  namespace: string;
+  app: string;
+  workerPool: string | null;
+  status: string;
+  createdBy: string;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateServiceAccountRequest {
+  name: string;
+  description?: string | null;
+  namespace: string;
+  app: string;
+  workerPool?: string | null;
+}
+
+export interface UpdateServiceAccountRequest extends CreateServiceAccountRequest {
+  status: string;
+}
+
 export interface CreateSdkApiKeyRequest {
   name: string;
   namespace: string;
   app: string;
-  service_account_name: string;
+  service_account_id: string;
   scopes: string[];
   expires_at?: string | null;
 }
@@ -695,6 +721,32 @@ export async function diffGitOpsManifest(manifest: GitOpsManifest): Promise<GitO
   return request<GitOpsDiffResponse>('/api/v1/gitops/diff', {
     method: 'POST',
     body: JSON.stringify({ manifest }),
+  });
+}
+
+
+export async function listServiceAccounts(): Promise<ServiceAccountSummary[]> {
+  return request<ServiceAccountSummary[]>('/api/v1/management/service-accounts');
+}
+
+export async function createServiceAccount(payload: CreateServiceAccountRequest): Promise<ServiceAccountSummary> {
+  return request<ServiceAccountSummary>('/api/v1/management/service-accounts', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateServiceAccount(id: string, payload: UpdateServiceAccountRequest): Promise<ServiceAccountSummary> {
+  return request<ServiceAccountSummary>(`/api/v1/management/service-accounts/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function disableServiceAccount(id: string): Promise<void> {
+  await request<void>(`/api/v1/management/service-accounts/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    allowNullData: true,
   });
 }
 

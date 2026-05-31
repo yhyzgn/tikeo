@@ -16,9 +16,10 @@ use self::{
         DispatchQueue, InstanceEvents, JobInstanceAttempts, JobInstanceLogs, JobInstances,
         JobVersions, Jobs, Namespaces, OidcAuthStates, OidcIdentities, Permissions, Plugins,
         RaftAppliedCommands, RaftLogEntries, RaftMembers, RaftMembershipProposals, RaftMetadata,
-        RaftSnapshots, RolePermissions, Roles, ScriptVersions, Scripts, SdkApiKeys, Secrets, Users,
-        WorkerLogicalInstances, WorkerPools, WorkerSessionEvents, WorkerSessions, WorkflowEdges,
-        WorkflowInstances, WorkflowNodeInstances, WorkflowNodes, WorkflowShards, Workflows,
+        RaftSnapshots, RolePermissions, Roles, ScriptVersions, Scripts, SdkApiKeys, Secrets,
+        ServiceAccounts, Users, WorkerLogicalInstances, WorkerPools, WorkerSessionEvents,
+        WorkerSessions, WorkflowEdges, WorkflowInstances, WorkflowNodeInstances, WorkflowNodes,
+        WorkflowShards, Workflows,
     },
     indexes::create_indexes,
 };
@@ -51,6 +52,7 @@ impl MigrationTrait for CreateMetadataTables {
         create_users(manager).await?;
         create_rbac_tables(manager).await?;
         create_auth_sessions(manager).await?;
+        create_service_accounts(manager).await?;
         create_sdk_api_keys(manager).await?;
         create_secrets(manager).await?;
         create_oidc_auth_states(manager).await?;
@@ -103,6 +105,7 @@ async fn drop_metadata_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> 
             Scripts::Table.into_iden(),
             Secrets::Table.into_iden(),
             SdkApiKeys::Table.into_iden(),
+            ServiceAccounts::Table.into_iden(),
             Plugins::Table.into_iden(),
         ],
     )
@@ -248,6 +251,28 @@ async fn create_rbac_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(string_col(RolePermissions::RoleId))
                 .col(string_col(RolePermissions::PermissionId))
                 .col(string_col(RolePermissions::CreatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_service_accounts(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(ServiceAccounts::Table)
+                .if_not_exists()
+                .col(string_pk(ServiceAccounts::Id))
+                .col(string_col(ServiceAccounts::Name))
+                .col(string_null(ServiceAccounts::Description))
+                .col(string_col(ServiceAccounts::Namespace))
+                .col(string_col(ServiceAccounts::App))
+                .col(string_null(ServiceAccounts::WorkerPool))
+                .col(string_col(ServiceAccounts::Status))
+                .col(string_col(ServiceAccounts::CreatedBy))
+                .col(string_null(ServiceAccounts::UpdatedBy))
+                .col(string_col(ServiceAccounts::CreatedAt))
+                .col(string_col(ServiceAccounts::UpdatedAt))
                 .to_owned(),
         )
         .await

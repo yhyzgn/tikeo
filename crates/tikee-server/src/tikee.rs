@@ -1,6 +1,11 @@
 //! Automatic schedule tick loop for CRON, fixed-rate, fixed-delay, one-shot, and daily-window jobs.
 
-use std::{collections::HashMap, hash::{Hash, Hasher}, str::FromStr, time::Duration};
+use std::{
+    collections::HashMap,
+    hash::{Hash, Hasher},
+    str::FromStr,
+    time::Duration,
+};
 
 use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
 use chrono_tz::Tz;
@@ -8,7 +13,10 @@ use cron::Schedule;
 use tikee_core::{ExecutionMode, MisfirePolicy, ScheduleType, TriggerType};
 
 use crate::cluster::SharedClusterCoordinator;
-use tikee_storage::{CalendarRepository, CalendarSummary, CreateJobInstance, JobInstanceRepository, JobRepository, JobSummary};
+use tikee_storage::{
+    CalendarRepository, CalendarSummary, CreateJobInstance, JobInstanceRepository, JobRepository,
+    JobSummary,
+};
 use tokio::sync::Mutex;
 use tracing::{debug, warn};
 
@@ -126,7 +134,10 @@ async fn cron_due(
         return Ok(ScheduleDecision::default());
     };
     let cron_spec = parse_cron_expression(expression)?;
-    if cron_spec.excluded_dates.contains(&now.format("%Y-%m-%d").to_string()) {
+    if cron_spec
+        .excluded_dates
+        .contains(&now.format("%Y-%m-%d").to_string())
+    {
         return Ok(ScheduleDecision::default());
     }
     let schedule = Schedule::from_str(&cron_spec.expression)
@@ -158,7 +169,6 @@ async fn cron_due(
     };
     Ok(misfire_decision(job, due_times, TriggerType::Cron, now))
 }
-
 
 #[derive(Debug, Clone)]
 struct CronExpressionSpec {
@@ -237,7 +247,10 @@ async fn fixed_rate_due(
     let previous = state.last_triggered_at.lock().await.get(&job.id).copied();
     let Some(last) = previous else {
         if jitter > chrono::Duration::zero()
-            && now.timestamp_millis().rem_euclid(rate.num_milliseconds().max(1)) < jitter.num_milliseconds()
+            && now
+                .timestamp_millis()
+                .rem_euclid(rate.num_milliseconds().max(1))
+                < jitter.num_milliseconds()
         {
             return Ok(ScheduleDecision::default());
         }
@@ -260,7 +273,6 @@ async fn fixed_rate_due(
         now,
     ))
 }
-
 
 #[derive(Debug, Clone, Copy)]
 struct FixedRateSpec {
@@ -358,8 +370,12 @@ async fn daily_time_interval_due(
         return Ok(ScheduleDecision::default());
     };
     let spec = parse_daily_time_interval(expression)?;
-    let local_now = now.with_timezone(&chrono::FixedOffset::east_opt(spec.utc_offset_seconds).unwrap_or_else(|| chrono::FixedOffset::east_opt(0).expect("zero offset is valid")));
-    let minute_of_day = i64::from(local_now.time().hour()) * 60 + i64::from(local_now.time().minute());
+    let local_now = now.with_timezone(
+        &chrono::FixedOffset::east_opt(spec.utc_offset_seconds)
+            .unwrap_or_else(|| chrono::FixedOffset::east_opt(0).expect("zero offset is valid")),
+    );
+    let minute_of_day =
+        i64::from(local_now.time().hour()) * 60 + i64::from(local_now.time().minute());
     if minute_of_day < spec.start_minute || minute_of_day > spec.end_minute {
         return Ok(ScheduleDecision::default());
     }
@@ -368,7 +384,9 @@ async fn daily_time_interval_due(
         return Ok(ScheduleDecision::default());
     }
     let previous = state.last_triggered_at.lock().await.get(&job.id).copied();
-    if previous.is_some_and(|last| now.signed_duration_since(last).num_minutes() < spec.interval_minutes) {
+    if previous
+        .is_some_and(|last| now.signed_duration_since(last).num_minutes() < spec.interval_minutes)
+    {
         return Ok(ScheduleDecision::default());
     }
     Ok(one_trigger(TriggerType::DailyTimeInterval))
@@ -382,14 +400,24 @@ struct DailyTimeIntervalSpec {
     utc_offset_seconds: i32,
 }
 
-fn parse_daily_time_interval(expression: &str) -> Result<DailyTimeIntervalSpec, ScheduleDecisionError> {
+fn parse_daily_time_interval(
+    expression: &str,
+) -> Result<DailyTimeIntervalSpec, ScheduleDecisionError> {
     let (window_and_interval, tz) = expression.split_once('@').unwrap_or((expression, "+00:00"));
-    let (window, interval) = window_and_interval.split_once('/').unwrap_or((window_and_interval, "1m"));
-    let (start, end) = window.split_once('-').ok_or_else(|| ScheduleDecisionError::InvalidExpression("daily_time_interval must use HH:MM-HH:MM[/interval]@TZ".to_owned()))?;
+    let (window, interval) = window_and_interval
+        .split_once('/')
+        .unwrap_or((window_and_interval, "1m"));
+    let (start, end) = window.split_once('-').ok_or_else(|| {
+        ScheduleDecisionError::InvalidExpression(
+            "daily_time_interval must use HH:MM-HH:MM[/interval]@TZ".to_owned(),
+        )
+    })?;
     let start_minute = parse_hhmm(start)?;
     let end_minute = parse_hhmm(end)?;
     if end_minute < start_minute {
-        return Err(ScheduleDecisionError::InvalidExpression("daily_time_interval end must be after start on the same day".to_owned()));
+        return Err(ScheduleDecisionError::InvalidExpression(
+            "daily_time_interval end must be after start on the same day".to_owned(),
+        ));
     }
     let interval = parse_chrono_duration(interval)?.num_minutes().max(1);
     Ok(DailyTimeIntervalSpec {
@@ -401,11 +429,19 @@ fn parse_daily_time_interval(expression: &str) -> Result<DailyTimeIntervalSpec, 
 }
 
 fn parse_hhmm(value: &str) -> Result<i64, ScheduleDecisionError> {
-    let (hour, minute) = value.trim().split_once(':').ok_or_else(|| ScheduleDecisionError::InvalidExpression(format!("invalid daily time: {value}")))?;
-    let hour: i64 = hour.parse().map_err(|_| ScheduleDecisionError::InvalidExpression(format!("invalid daily hour: {value}")))?;
-    let minute: i64 = minute.parse().map_err(|_| ScheduleDecisionError::InvalidExpression(format!("invalid daily minute: {value}")))?;
+    let (hour, minute) = value.trim().split_once(':').ok_or_else(|| {
+        ScheduleDecisionError::InvalidExpression(format!("invalid daily time: {value}"))
+    })?;
+    let hour: i64 = hour.parse().map_err(|_| {
+        ScheduleDecisionError::InvalidExpression(format!("invalid daily hour: {value}"))
+    })?;
+    let minute: i64 = minute.parse().map_err(|_| {
+        ScheduleDecisionError::InvalidExpression(format!("invalid daily minute: {value}"))
+    })?;
     if !(0..=23).contains(&hour) || !(0..=59).contains(&minute) {
-        return Err(ScheduleDecisionError::InvalidExpression(format!("invalid daily time range: {value}")));
+        return Err(ScheduleDecisionError::InvalidExpression(format!(
+            "invalid daily time range: {value}"
+        )));
     }
     Ok(hour * 60 + minute)
 }
@@ -417,10 +453,24 @@ fn parse_timezone_offset_seconds(value: &str) -> Result<i32, ScheduleDecisionErr
         "Asia/Shanghai" | "PRC" => "+08:00",
         other => other,
     };
-    let sign = if let Some(rest) = value.strip_prefix('+') { (1, rest) } else if let Some(rest) = value.strip_prefix('-') { (-1, rest) } else { return Err(ScheduleDecisionError::InvalidExpression(format!("unsupported timezone offset: {value}"))); };
-    let (hours, minutes) = sign.1.split_once(':').ok_or_else(|| ScheduleDecisionError::InvalidExpression(format!("invalid timezone offset: {value}")))?;
-    let hours: i32 = hours.parse().map_err(|_| ScheduleDecisionError::InvalidExpression(format!("invalid timezone hour: {value}")))?;
-    let minutes: i32 = minutes.parse().map_err(|_| ScheduleDecisionError::InvalidExpression(format!("invalid timezone minute: {value}")))?;
+    let sign = if let Some(rest) = value.strip_prefix('+') {
+        (1, rest)
+    } else if let Some(rest) = value.strip_prefix('-') {
+        (-1, rest)
+    } else {
+        return Err(ScheduleDecisionError::InvalidExpression(format!(
+            "unsupported timezone offset: {value}"
+        )));
+    };
+    let (hours, minutes) = sign.1.split_once(':').ok_or_else(|| {
+        ScheduleDecisionError::InvalidExpression(format!("invalid timezone offset: {value}"))
+    })?;
+    let hours: i32 = hours.parse().map_err(|_| {
+        ScheduleDecisionError::InvalidExpression(format!("invalid timezone hour: {value}"))
+    })?;
+    let minutes: i32 = minutes.parse().map_err(|_| {
+        ScheduleDecisionError::InvalidExpression(format!("invalid timezone minute: {value}"))
+    })?;
     Ok(sign.0 * (hours * 3600 + minutes * 60))
 }
 
@@ -515,12 +565,21 @@ async fn resolve_schedule_calendar(
     jobs: &JobRepository,
     job: &JobSummary,
 ) -> Result<Option<serde_json::Value>, ScheduleDecisionError> {
-    let Some(raw) = job.schedule_calendar_json.as_deref().filter(|value| !value.trim().is_empty()) else {
+    let Some(raw) = job
+        .schedule_calendar_json
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+    else {
         return Ok(None);
     };
     let calendar = serde_json::from_str::<serde_json::Value>(raw)
         .map_err(|error| ScheduleDecisionError::InvalidExpression(error.to_string()))?;
-    let Some(name) = calendar.get("calendarRef").and_then(serde_json::Value::as_str).map(str::trim).filter(|value| !value.is_empty()) else {
+    let Some(name) = calendar
+        .get("calendarRef")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
         return Ok(Some(calendar));
     };
     let Some(stored) = CalendarRepository::new(jobs.db())
@@ -528,7 +587,8 @@ async fn resolve_schedule_calendar(
         .await?
     else {
         return Err(ScheduleDecisionError::InvalidExpression(format!(
-            "calendarRef not found: {}/{}/{}", job.namespace, job.app, name
+            "calendarRef not found: {}/{}/{}",
+            job.namespace, job.app, name
         )));
     };
     Ok(Some(calendar_summary_to_value(stored)))
@@ -664,9 +724,6 @@ mod tests {
         assert_eq!(listed[0].trigger_type, TriggerType::FixedRate);
     }
 
-
-
-
     #[tokio::test]
     async fn lifecycle_window_blocks_calendar_windows() {
         let (jobs, instances) = repositories().await;
@@ -685,26 +742,27 @@ mod tests {
             }],
             "excludedDates": ["2026-06-01"]
         });
-        let job = jobs.create_job(CreateJob {
-            created_by: None,
-            namespace: "default".to_owned(),
-            app: "billing".to_owned(),
-            name: "calendar-blocked".to_owned(),
-            schedule_type: "fixed_rate".to_owned(),
-            schedule_expr: Some("1s".to_owned()),
-            misfire_policy: "fire_once".to_owned(),
-            schedule_start_at: None,
-            schedule_end_at: None,
-            schedule_calendar_json: Some(calendar.to_string()),
-            processor_name: None,
-            processor_type: None,
-            script_id: None,
-            enabled: true,
-            canary_job_id: None,
-            canary_percent: 0,
-        })
-        .await
-        .unwrap_or_else(|error| panic!("job should create: {error}"));
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "calendar-blocked".to_owned(),
+                schedule_type: "fixed_rate".to_owned(),
+                schedule_expr: Some("1s".to_owned()),
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: Some(calendar.to_string()),
+                processor_name: None,
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should create: {error}"));
 
         tick_once(&jobs, &instances, &ScheduleState::default(), now)
             .await
@@ -715,7 +773,6 @@ mod tests {
             .unwrap_or_else(|error| panic!("instances should list: {error}"));
         assert!(listed.is_empty());
     }
-
 
     #[tokio::test]
     async fn lifecycle_window_resolves_centralized_calendar_ref() {
@@ -738,26 +795,29 @@ mod tests {
             .with_ymd_and_hms(2026, 5, 29, 10, 0, 0)
             .single()
             .unwrap_or_else(|| panic!("valid time"));
-        let job = jobs.create_job(CreateJob {
-            created_by: None,
-            namespace: "default".to_owned(),
-            app: "billing".to_owned(),
-            name: "calendar-ref-blocked".to_owned(),
-            schedule_type: "fixed_rate".to_owned(),
-            schedule_expr: Some("1s".to_owned()),
-            misfire_policy: "fire_once".to_owned(),
-            schedule_start_at: None,
-            schedule_end_at: None,
-            schedule_calendar_json: Some(serde_json::json!({"calendarRef":"cn-maintenance"}).to_string()),
-            processor_name: None,
-            processor_type: None,
-            script_id: None,
-            enabled: true,
-            canary_job_id: None,
-            canary_percent: 0,
-        })
-        .await
-        .unwrap_or_else(|error| panic!("job should create: {error}"));
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "calendar-ref-blocked".to_owned(),
+                schedule_type: "fixed_rate".to_owned(),
+                schedule_expr: Some("1s".to_owned()),
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: Some(
+                    serde_json::json!({"calendarRef":"cn-maintenance"}).to_string(),
+                ),
+                processor_name: None,
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should create: {error}"));
 
         tick_once(&jobs, &instances, &ScheduleState::default(), now)
             .await
@@ -833,7 +893,11 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("instances should list: {error}"));
         assert_eq!(listed.len(), 2);
-        assert!(listed.iter().all(|item| item.trigger_type == TriggerType::FixedRate));
+        assert!(
+            listed
+                .iter()
+                .all(|item| item.trigger_type == TriggerType::FixedRate)
+        );
     }
 
     #[tokio::test]
@@ -877,7 +941,6 @@ mod tests {
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].trigger_type, TriggerType::Cron);
     }
-
 
     #[tokio::test]
     async fn cron_tick_uses_iana_timezone_option() {
@@ -931,7 +994,9 @@ mod tests {
                 app: "billing".to_owned(),
                 name: "cron-exclude".to_owned(),
                 schedule_type: "cron".to_owned(),
-                schedule_expr: Some("0 30 9 * * * *;tz=Asia/Shanghai;exclude=2026-05-29".to_owned()),
+                schedule_expr: Some(
+                    "0 30 9 * * * *;tz=Asia/Shanghai;exclude=2026-05-29".to_owned(),
+                ),
                 misfire_policy: "fire_once".to_owned(),
                 schedule_start_at: None,
                 schedule_end_at: None,
@@ -1052,7 +1117,6 @@ mod tests {
             .unwrap_or_else(|error| panic!("instances should list: {error}"));
         assert!(listed.is_empty());
     }
-
 
     #[tokio::test]
     async fn daily_time_interval_tick_creates_instance_inside_aligned_window() {

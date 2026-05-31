@@ -163,6 +163,15 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
             axum::routing::post(routes::diff_gitops_manifest),
         )
         .route(
+            "/management/service-accounts",
+            get(routes::list_service_accounts).post(routes::create_service_account),
+        )
+        .route(
+            "/management/service-accounts/{id}",
+            axum::routing::patch(routes::update_service_account)
+                .delete(routes::disable_service_account),
+        )
+        .route(
             "/management/api-keys",
             get(sdk_api_keys::list_sdk_api_keys).post(sdk_api_keys::create_sdk_api_key),
         )

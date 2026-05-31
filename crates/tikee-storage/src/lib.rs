@@ -23,29 +23,31 @@ pub use repository::{
     CalendarRepository, CalendarSummary, CalendarWindowSummary, CompleteWorkflowShardInput,
     CompleteWorkflowShardResult, CreateAlertRule, CreateAuditLog, CreateAuthSession, CreateJob,
     CreateJobInstance, CreateJobInstanceAttempt, CreateOidcAuthState, CreatePlugin, CreateScript,
-    CreateSdkApiKey, CreateSecret, CreateUser, CreateWorkflow, DispatchQueueClaim,
-    DispatchQueueSloSummary, DispatchQueueSummary, InstanceEventSummary, JobDurationHistory,
-    JobInstanceAttemptRepository, JobInstanceAttemptSummary, JobInstanceLogRepository,
-    JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
-    JobVersionRepository, JobVersionSummary, MaterializeWorkflowNodeResult, NamespaceSummary,
-    OidcAuthStateRepository, OidcAuthStateSummary, OidcIdentityRepository, OidcIdentitySummary,
-    PermissionSummary, PluginAlertChannelTypeSummary, PluginProcessorTypeSummary, PluginRepository,
-    PluginSummary, QueueOverview, RaftAppliedCommandSummary, RaftLogEntrySummary,
-    RaftMemberSummary, RaftMembershipProposalSummary, RaftMetadataSummary, RaftRepository,
-    RaftSnapshotSummary, RbacRepository, RebalanceWorkflowShardsInput,
-    RebalanceWorkflowShardsResult, RecordAlertDeliveryAttempt, RecordRaftAppliedCommand,
-    RecordRaftMembershipProposal, RecoverWorkflowNodeInput, RecoverWorkflowNodeResult,
-    RegisterWorkerSession, ScopeRepository, ScriptReleaseGrantEvidenceSummary,
-    ScriptReleaseSignatureSummary, ScriptRepository, ScriptSummary, ScriptVersionRepository,
-    ScriptVersionSummary, SdkApiKeyRepository, SdkApiKeySummary, SecretRepository, SecretSummary,
-    UpdateJob, UpdatePlugin, UpdateScript, UpdateSdkApiKey, UpdateUser, UpdateWorkerPoolQuota,
-    UpdateWorkflow, UpsertCalendar, UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember,
-    UpsertRaftMetadata, UpsertRaftSnapshot, UserRepository, UserSummary,
-    VerifiedScriptReleaseGrants, VerifiedScriptReleaseSignature, WorkerHeartbeat,
-    WorkerLifecycleRepository, WorkerPoolSummary, WorkerSessionEventSummary, WorkerSessionSummary,
-    WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary, WorkflowJobResultOutcome,
-    WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
-    WorkflowSloSummary, WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
+    CreateSdkApiKey, CreateSecret, CreateServiceAccount, CreateUser, CreateWorkflow,
+    DispatchQueueClaim, DispatchQueueSloSummary, DispatchQueueSummary, InstanceEventSummary,
+    JobDurationHistory, JobInstanceAttemptRepository, JobInstanceAttemptSummary,
+    JobInstanceLogRepository, JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary,
+    JobRepository, JobSummary, JobVersionRepository, JobVersionSummary,
+    MaterializeWorkflowNodeResult, NamespaceSummary, OidcAuthStateRepository, OidcAuthStateSummary,
+    OidcIdentityRepository, OidcIdentitySummary, PermissionSummary, PluginAlertChannelTypeSummary,
+    PluginProcessorTypeSummary, PluginRepository, PluginSummary, QueueOverview,
+    RaftAppliedCommandSummary, RaftLogEntrySummary, RaftMemberSummary,
+    RaftMembershipProposalSummary, RaftMetadataSummary, RaftRepository, RaftSnapshotSummary,
+    RbacRepository, RebalanceWorkflowShardsInput, RebalanceWorkflowShardsResult,
+    RecordAlertDeliveryAttempt, RecordRaftAppliedCommand, RecordRaftMembershipProposal,
+    RecoverWorkflowNodeInput, RecoverWorkflowNodeResult, RegisterWorkerSession, ScopeRepository,
+    ScriptReleaseGrantEvidenceSummary, ScriptReleaseSignatureSummary, ScriptRepository,
+    ScriptSummary, ScriptVersionRepository, ScriptVersionSummary, SdkApiKeyRepository,
+    SdkApiKeySummary, SecretRepository, SecretSummary, ServiceAccountRepository,
+    ServiceAccountSummary, UpdateJob, UpdatePlugin, UpdateScript, UpdateSdkApiKey,
+    UpdateServiceAccount, UpdateUser, UpdateWorkerPoolQuota, UpdateWorkflow, UpsertCalendar,
+    UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
+    UpsertRaftSnapshot, UserRepository, UserSummary, VerifiedScriptReleaseGrants,
+    VerifiedScriptReleaseSignature, WorkerHeartbeat, WorkerLifecycleRepository, WorkerPoolSummary,
+    WorkerSessionEventSummary, WorkerSessionSummary, WorkflowDefinition, WorkflowEdgeSpec,
+    WorkflowInstanceSummary, WorkflowJobResultOutcome, WorkflowNodeInstanceSummary,
+    WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary, WorkflowSloSummary,
+    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
 };
 pub use sea_orm::DbErr;
 
@@ -94,6 +96,7 @@ fn configure_sqlite_connect_options(database_url: &str, options: &mut ConnectOpt
 async fn ensure_sqlite_schema_compatibility(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {
     ensure_broadcast_schema_compatibility(db).await?;
     ensure_auth_schema_compatibility(db).await?;
+    ensure_service_account_schema_compatibility(db).await?;
     ensure_sdk_api_key_schema_compatibility(db).await?;
     ensure_oidc_auth_state_schema_compatibility(db).await?;
     ensure_oidc_identity_schema_compatibility(db).await?;
@@ -1027,6 +1030,42 @@ async fn ensure_oidc_identity_schema_compatibility(
     Ok(())
 }
 
+async fn ensure_service_account_schema_compatibility(
+    db: &DatabaseConnection,
+) -> Result<(), sea_orm::DbErr> {
+    if db.get_database_backend() != DatabaseBackend::Sqlite {
+        return Ok(());
+    }
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        r"CREATE TABLE IF NOT EXISTS service_accounts (
+            id varchar NOT NULL PRIMARY KEY,
+            name varchar NOT NULL,
+            description varchar,
+            namespace varchar NOT NULL,
+            app varchar NOT NULL,
+            worker_pool varchar,
+            status varchar NOT NULL,
+            created_by varchar NOT NULL,
+            updated_by varchar,
+            created_at varchar NOT NULL,
+            updated_at varchar NOT NULL
+        )",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_service_accounts_scope_name ON service_accounts (namespace, app, name)",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE INDEX IF NOT EXISTS idx_service_accounts_status ON service_accounts (status)",
+    ))
+    .await?;
+    Ok(())
+}
+
 async fn ensure_sdk_api_key_schema_compatibility(
     db: &DatabaseConnection,
 ) -> Result<(), sea_orm::DbErr> {
@@ -1070,6 +1109,7 @@ async fn ensure_sdk_api_key_schema_compatibility(
         ))
         .await?;
     }
+    backfill_service_accounts_from_sdk_keys(db).await?;
     db.execute(Statement::from_string(
         DatabaseBackend::Sqlite,
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_sdk_api_keys_hash ON sdk_api_keys (key_hash)",
@@ -1156,12 +1196,56 @@ async fn ensure_auth_schema_compatibility(db: &DatabaseConnection) -> Result<(),
     Ok(())
 }
 
-#[allow(clippy::too_many_lines)]
+async fn backfill_service_accounts_from_sdk_keys(
+    db: &DatabaseConnection,
+) -> Result<(), sea_orm::DbErr> {
+    let rows = db
+        .query_all(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            r"SELECT service_account_id, service_account_name, namespace, app, created_by, MIN(created_at) AS created_at
+              FROM sdk_api_keys
+              WHERE service_account_id IS NOT NULL AND service_account_id != ''
+              GROUP BY service_account_id, service_account_name, namespace, app, created_by",
+        ))
+        .await?;
+    for row in rows {
+        let id: String = row.try_get("", "service_account_id")?;
+        let name: String = row.try_get("", "service_account_name")?;
+        let namespace: String = row.try_get("", "namespace")?;
+        let app: String = row.try_get("", "app")?;
+        let created_by: String = row.try_get("", "created_by")?;
+        let created_at: String = row.try_get("", "created_at")?;
+        db.execute(Statement::from_sql_and_values(
+            DatabaseBackend::Sqlite,
+            r"INSERT OR IGNORE INTO service_accounts
+              (id, name, description, namespace, app, worker_pool, status, created_by, updated_by, created_at, updated_at)
+              VALUES (?, ?, NULL, ?, ?, NULL, 'active', ?, NULL, ?, ?)",
+            vec![
+                id.into(),
+                name.into(),
+                namespace.into(),
+                app.into(),
+                created_by.into(),
+                created_at.clone().into(),
+                created_at.into(),
+            ],
+        ))
+        .await?;
+    }
+    Ok(())
+}
+
 async fn remove_sqlite_foreign_keys(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {
     if db.get_database_backend() != DatabaseBackend::Sqlite {
         return Ok(());
     }
+    remove_sqlite_scope_foreign_keys(db).await?;
+    remove_sqlite_job_foreign_keys(db).await?;
+    remove_sqlite_auth_foreign_keys(db).await?;
+    ensure_sqlite_indexes(db).await
+}
 
+async fn remove_sqlite_scope_foreign_keys(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {
     rebuild_sqlite_table_without_foreign_keys(
         db,
         "apps",
@@ -1195,7 +1279,10 @@ async fn remove_sqlite_foreign_keys(db: &DatabaseConnection) -> Result<(), sea_o
             "updated_at",
         ],
     )
-    .await?;
+    .await
+}
+
+async fn remove_sqlite_job_foreign_keys(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {
     rebuild_sqlite_table_without_foreign_keys(
         db,
         "jobs",
@@ -1256,6 +1343,12 @@ async fn remove_sqlite_foreign_keys(db: &DatabaseConnection) -> Result<(), sea_o
         ],
     )
     .await?;
+    remove_sqlite_job_observability_foreign_keys(db).await
+}
+
+async fn remove_sqlite_job_observability_foreign_keys(
+    db: &DatabaseConnection,
+) -> Result<(), sea_orm::DbErr> {
     rebuild_sqlite_table_without_foreign_keys(
         db,
         "job_instance_attempts",
@@ -1299,7 +1392,10 @@ async fn remove_sqlite_foreign_keys(db: &DatabaseConnection) -> Result<(), sea_o
             "created_at",
         ],
     )
-    .await?;
+    .await
+}
+
+async fn remove_sqlite_auth_foreign_keys(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {
     rebuild_sqlite_table_without_foreign_keys(
         db,
         "auth_sessions",
@@ -1324,8 +1420,7 @@ async fn remove_sqlite_foreign_keys(db: &DatabaseConnection) -> Result<(), sea_o
             "updated_at",
         ],
     )
-    .await?;
-    ensure_sqlite_indexes(db).await
+    .await
 }
 
 async fn rebuild_sqlite_table_without_foreign_keys(

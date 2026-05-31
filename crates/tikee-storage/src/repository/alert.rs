@@ -464,23 +464,18 @@ impl AlertRepository {
                 .filter(alert_event::Column::CreatedAt.gte(dedupe_window_start))
                 .count(&self.db)
                 .await?;
-            let status = if let Some(silenced_until) = &rule.silenced_until {
-                if silenced_until > &now {
-                    "silenced"
-                } else if recent_matching_count.saturating_add(1) < threshold {
-                    "suppressed"
-                } else if recent_firing_count > 0 {
-                    "suppressed"
-                } else {
-                    "firing"
-                }
-            } else if recent_matching_count.saturating_add(1) < threshold {
-                "suppressed"
-            } else if recent_firing_count > 0 {
-                "suppressed"
-            } else {
-                "firing"
-            };
+            let threshold_not_met = recent_matching_count.saturating_add(1) < threshold;
+            let duplicate_firing = recent_firing_count > 0;
+            let status = rule.silenced_until.as_ref().map_or_else(
+                || firing_status(threshold_not_met, duplicate_firing),
+                |silenced_until| {
+                    if silenced_until > &now {
+                        "silenced"
+                    } else {
+                        firing_status(threshold_not_met, duplicate_firing)
+                    }
+                },
+            );
             let model = alert_event::ActiveModel {
                 id: Set(new_id("alert-event")),
                 rule_id: Set(rule.id.clone()),
@@ -508,6 +503,14 @@ fn rfc3339_seconds_ago(seconds: i64) -> String {
         .saturating_sub(time::Duration::seconds(seconds.max(1)))
         .format(&time::format_description::well_known::Rfc3339)
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned())
+}
+
+fn firing_status(threshold_not_met: bool, duplicate_firing: bool) -> &'static str {
+    if threshold_not_met || duplicate_firing {
+        "suppressed"
+    } else {
+        "firing"
+    }
 }
 
 impl From<alert_rule::Model> for AlertRuleSummary {

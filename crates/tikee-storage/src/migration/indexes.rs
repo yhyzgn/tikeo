@@ -5,9 +5,9 @@ use super::iden::{
     JobInstanceLogs, JobInstances, JobVersions, Jobs, Namespaces, OidcAuthStates, OidcIdentities,
     Permissions, Plugins, RaftAppliedCommands, RaftLogEntries, RaftMembers,
     RaftMembershipProposals, RaftMetadata, RaftSnapshots, RolePermissions, Roles, ScriptVersions,
-    Scripts, SdkApiKeys, Users, WorkerLogicalInstances, WorkerPools, WorkerSessionEvents,
-    WorkerSessions, WorkflowEdges, WorkflowInstances, WorkflowNodeInstances, WorkflowNodes,
-    WorkflowShards, Workflows,
+    Scripts, SdkApiKeys, ServiceAccounts, Users, WorkerLogicalInstances, WorkerPools,
+    WorkerSessionEvents, WorkerSessions, WorkflowEdges, WorkflowInstances, WorkflowNodeInstances,
+    WorkflowNodes, WorkflowShards, Workflows,
 };
 
 pub(super) async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
@@ -175,6 +175,34 @@ async fn create_auth_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             .to_owned(),
     )
     .await?;
+
+    create_service_credential_indexes(manager).await?;
+    create_oidc_auth_state_indexes(manager).await?;
+    create_oidc_identity_indexes(manager).await
+}
+
+async fn create_service_credential_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_service_accounts_scope_name")
+            .table(ServiceAccounts::Table)
+            .col(ServiceAccounts::Namespace)
+            .col(ServiceAccounts::App)
+            .col(ServiceAccounts::Name)
+            .unique()
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_service_accounts_status")
+            .table(ServiceAccounts::Table)
+            .col(ServiceAccounts::Status)
+            .to_owned(),
+    )
+    .await?;
     create_index(
         manager,
         Index::create()
@@ -195,9 +223,7 @@ async fn create_auth_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             .col(SdkApiKeys::Status)
             .to_owned(),
     )
-    .await?;
-    create_oidc_auth_state_indexes(manager).await?;
-    create_oidc_identity_indexes(manager).await
+    .await
 }
 
 async fn create_plugin_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {

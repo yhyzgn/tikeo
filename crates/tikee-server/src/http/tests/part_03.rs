@@ -1640,6 +1640,53 @@
         assert_revoked_sdk_key_rejected(app, &api_key).await;
     }
 
+    #[tokio::test]
+    async fn disabling_service_account_revokes_bound_sdk_keys() {
+        let app = router().await;
+        let admin = admin_token(app.clone()).await;
+        let (api_key, key_id) = create_billing_sdk_api_key(app.clone(), &admin).await;
+        let list = get_json_with_auth(app.clone(), "/api/v1/management/api-keys", &admin).await;
+        let service_account_id = list["data"]
+            .as_array()
+            .unwrap_or_else(|| panic!("api key list should be an array"))
+            .iter()
+            .find(|item| item["id"] == key_id)
+            .and_then(|item| item["service_account_id"].as_str())
+            .unwrap_or_else(|| panic!("bound service account should be listed"))
+            .to_owned();
+
+        let disabled = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/v1/management/service-accounts/{service_account_id}"))
+                    .header("authorization", format!("Bearer {admin}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(disabled.status().is_success());
+
+        let service_accounts = get_json_with_auth(app.clone(), "/api/v1/management/service-accounts", &admin).await;
+        let disabled_account = service_accounts["data"]
+            .as_array()
+            .unwrap_or_else(|| panic!("service account list should be an array"))
+            .iter()
+            .find(|item| item["id"] == service_account_id)
+            .unwrap_or_else(|| panic!("disabled service account should remain visible"));
+        assert_eq!(disabled_account["status"], "disabled");
+
+        let keys = get_json_with_auth(app.clone(), "/api/v1/management/api-keys", &admin).await;
+        assert!(keys["data"]
+            .as_array()
+            .unwrap_or_else(|| panic!("api key list should be an array"))
+            .iter()
+            .all(|item| item["id"] != key_id));
+        assert_revoked_sdk_key_rejected(app, &api_key).await;
+    }
+
 
     async fn patch_json_raw(app: axum::Router, uri: &str, body: &str, token: &str) -> Value {
         let response = app
@@ -1684,6 +1731,10 @@
     }
 
     async fn create_billing_sdk_api_key(app: axum::Router, admin: &str) -> (String, String) {
+        let service_account = create_billing_service_account(app.clone(), admin).await;
+        let service_account_id = service_account["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("service account id should be present"));
         let response = app
             .oneshot(
                 Request::builder()
@@ -1691,7 +1742,9 @@
                     .uri("/api/v1/management/api-keys")
                     .header("authorization", format!("Bearer {admin}"))
                     .header("content-type", "application/json")
-                    .body(Body::from(r#"{"name":"java demo","namespace":"default","app":"billing","service_account_name":"java-demo-sa","scopes":["jobs:read","jobs:write","instances:execute"]}"#))
+                    .body(Body::from(format!(
+                        r#"{{"name":"java demo","namespace":"default","app":"billing","service_account_id":"{service_account_id}","scopes":["jobs:read","jobs:write","instances:execute"]}}"#
+                    )))
                     .unwrap_or_else(|error| panic!("request should build: {error}")),
             )
             .await
@@ -1714,15 +1767,32 @@
         assert_eq!(created["data"]["key"]["namespace"], "default");
         assert_eq!(created["data"]["key"]["app"], "billing");
         assert_eq!(created["data"]["key"]["service_account_name"], "java-demo-sa");
-        let service_account_id = created["data"]["key"]["service_account_id"]
-            .as_str()
-            .unwrap_or_else(|| panic!("service account id should be present"));
-        assert!(service_account_id.starts_with("sa-"));
+        assert_eq!(created["data"]["key"]["service_account_id"], service_account_id);
         let key_id = created["data"]["key"]["id"]
             .as_str()
             .unwrap_or_else(|| panic!("key id should be present"))
             .to_owned();
         (api_key, key_id)
+    }
+
+    async fn create_billing_service_account(app: axum::Router, admin: &str) -> Value {
+        let created = post_json_raw(
+            app.clone(),
+            "/api/v1/management/service-accounts",
+            r#"{"name":"java-demo-sa","description":"Java demo SDK identity","namespace":"default","app":"billing"}"#,
+            Some(admin),
+        )
+        .await;
+        assert_eq!(created["data"]["name"], "java-demo-sa");
+        assert_eq!(created["data"]["namespace"], "default");
+        assert_eq!(created["data"]["app"], "billing");
+        let list = get_json_with_auth(app, "/api/v1/management/service-accounts", admin).await;
+        assert!(list["data"]
+            .as_array()
+            .unwrap_or_else(|| panic!("service account list should be an array"))
+            .iter()
+            .any(|item| item["id"] == created["data"]["id"]));
+        created["data"].clone()
     }
 
     async fn assert_sdk_api_key_list_redacted(app: axum::Router, admin: &str, api_key: &str, key_id: &str) {
@@ -1816,16 +1886,22 @@
     async fn assert_sdk_key_authentication_is_audited(app: axum::Router, admin: &str, key_id: &str) {
         let audit = get_json_with_auth(
             app,
-            &format!("/api/v1/audit-logs?action=sdk_api_key_authenticate&resource_type=sdk_api_key&resource_id={key_id}&page_size=1"),
+            &format!("/api/v1/audit-logs?action=sdk_api_key_authenticate&resource_type=sdk_api_key&resource_id={key_id}&pageSize=20"),
             admin,
         )
         .await;
         assert_eq!(audit["data"]["items"][0]["resource_type"], "sdk_api_key");
         assert_eq!(audit["data"]["items"][0]["resource_id"], key_id);
-        assert!(audit["data"]["items"][0]["actor"]
-            .as_str()
-            .unwrap_or_default()
-            .starts_with("service_account:sa-"));
+        assert!(
+            audit["data"]["items"]
+                .as_array()
+                .unwrap_or_else(|| panic!("audit items should be an array"))
+                .iter()
+                .any(|item| item["actor"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .starts_with("service_account:sa_"))
+        );
     }
 
     async fn assert_sdk_key_cannot_write_other_app(app: axum::Router, api_key: &str) {

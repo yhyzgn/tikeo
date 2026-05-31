@@ -4,6 +4,7 @@ use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use sha2::{Digest, Sha256};
 use tikee_core::{
     InstanceStatus, ScriptExecutionPolicy, ScriptLanguage, ScriptPolicyError, ScriptStatus,
     WasmProcessorSpec,
@@ -16,7 +17,6 @@ use tikee_storage::{
     AppendJobInstanceLog, AuditLogRepository, JobInstanceAttemptRepository, JobInstanceRepository,
     JobRepository, ScriptRepository, ScriptSummary, ScriptVersionSummary, WorkflowRepository,
 };
-use sha2::{Digest, Sha256};
 use tokio::time;
 use tracing::{debug, warn};
 
@@ -238,7 +238,11 @@ async fn dispatch_single_instances(
             logs.append(AppendJobInstanceLog {
                 instance_id: instance.id.clone(),
                 worker_id: "builtin.grpc".to_owned(),
-                level: if outcome.success { "info".to_owned() } else { "error".to_owned() },
+                level: if outcome.success {
+                    "info".to_owned()
+                } else {
+                    "error".to_owned()
+                },
                 message: outcome.message.clone(),
                 sequence: 1,
             })
@@ -262,7 +266,11 @@ async fn dispatch_single_instances(
             logs.append(AppendJobInstanceLog {
                 instance_id: instance.id.clone(),
                 worker_id: "builtin.sql".to_owned(),
-                level: if outcome.success { "info".to_owned() } else { "error".to_owned() },
+                level: if outcome.success {
+                    "info".to_owned()
+                } else {
+                    "error".to_owned()
+                },
                 message: outcome.message.clone(),
                 sequence: 1,
             })
@@ -287,7 +295,11 @@ async fn dispatch_single_instances(
             logs.append(AppendJobInstanceLog {
                 instance_id: instance.id.clone(),
                 worker_id: "builtin.file_cleanup".to_owned(),
-                level: if outcome.success { "info".to_owned() } else { "error".to_owned() },
+                level: if outcome.success {
+                    "info".to_owned()
+                } else {
+                    "error".to_owned()
+                },
                 message: outcome.message.clone(),
                 sequence: 1,
             })
@@ -930,7 +942,10 @@ async fn execute_sql_processor(config: &serde_json::Value) -> SqlProcessorOutcom
         .map(str::trim)
         .filter(|value| !value.is_empty())
     else {
-        return SqlProcessorOutcome { success: false, message: "sql node requires config.databaseUrl".to_owned() };
+        return SqlProcessorOutcome {
+            success: false,
+            message: "sql node requires config.databaseUrl".to_owned(),
+        };
     };
     let Some(sql) = config
         .get("sql")
@@ -938,11 +953,17 @@ async fn execute_sql_processor(config: &serde_json::Value) -> SqlProcessorOutcom
         .map(str::trim)
         .filter(|value| !value.is_empty())
     else {
-        return SqlProcessorOutcome { success: false, message: "sql node requires config.sql".to_owned() };
+        return SqlProcessorOutcome {
+            success: false,
+            message: "sql node requires config.sql".to_owned(),
+        };
     };
     let allowed = string_array(config.get("allowedDatabaseUrls"));
     if allowed.is_empty() || !allowed.iter().any(|candidate| candidate == database_url) {
-        return SqlProcessorOutcome { success: false, message: "sql databaseUrl is not in allowedDatabaseUrls".to_owned() };
+        return SqlProcessorOutcome {
+            success: false,
+            message: "sql databaseUrl is not in allowedDatabaseUrls".to_owned(),
+        };
     }
     let read_only = config
         .get("readOnly")
@@ -953,13 +974,23 @@ async fn execute_sql_processor(config: &serde_json::Value) -> SqlProcessorOutcom
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(true);
     if read_only && !is_read_only_sql(sql) {
-        return SqlProcessorOutcome { success: false, message: "sql readOnly mode only allows SELECT/EXPLAIN/WITH statements".to_owned() };
+        return SqlProcessorOutcome {
+            success: false,
+            message: "sql readOnly mode only allows SELECT/EXPLAIN/WITH statements".to_owned(),
+        };
     }
     if dry_run {
-        return SqlProcessorOutcome { success: true, message: "sql dry-run validated statement and datasource allowlist".to_owned() };
+        return SqlProcessorOutcome {
+            success: true,
+            message: "sql dry-run validated statement and datasource allowlist".to_owned(),
+        };
     }
     if !database_url.starts_with("sqlite:") {
-        return SqlProcessorOutcome { success: false, message: "sql executor currently supports sqlite databaseUrl for direct execution".to_owned() };
+        return SqlProcessorOutcome {
+            success: false,
+            message: "sql executor currently supports sqlite databaseUrl for direct execution"
+                .to_owned(),
+        };
     }
     let pool = match sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(1)
@@ -967,17 +998,37 @@ async fn execute_sql_processor(config: &serde_json::Value) -> SqlProcessorOutcom
         .await
     {
         Ok(pool) => pool,
-        Err(error) => return SqlProcessorOutcome { success: false, message: format!("sql connect failed: {error}") },
+        Err(error) => {
+            return SqlProcessorOutcome {
+                success: false,
+                message: format!("sql connect failed: {error}"),
+            };
+        }
     };
     let result = if read_only {
-        sqlx::query(sql).fetch_all(&pool).await.map(|rows| rows.len().to_string())
+        sqlx::query(sql)
+            .fetch_all(&pool)
+            .await
+            .map(|rows| rows.len().to_string())
     } else {
-        sqlx::query(sql).execute(&pool).await.map(|result| result.rows_affected().to_string())
+        sqlx::query(sql)
+            .execute(&pool)
+            .await
+            .map(|result| result.rows_affected().to_string())
     };
     match result {
-        Ok(count) if read_only => SqlProcessorOutcome { success: true, message: format!("sql query returned {count} row(s)") },
-        Ok(count) => SqlProcessorOutcome { success: true, message: format!("sql statement affected {count} row(s)") },
-        Err(error) => SqlProcessorOutcome { success: false, message: format!("sql execution failed: {error}") },
+        Ok(count) if read_only => SqlProcessorOutcome {
+            success: true,
+            message: format!("sql query returned {count} row(s)"),
+        },
+        Ok(count) => SqlProcessorOutcome {
+            success: true,
+            message: format!("sql statement affected {count} row(s)"),
+        },
+        Err(error) => SqlProcessorOutcome {
+            success: false,
+            message: format!("sql execution failed: {error}"),
+        },
     }
 }
 
@@ -1005,7 +1056,10 @@ async fn execute_grpc_processor(config: &serde_json::Value) -> GrpcProcessorOutc
         .map(str::trim)
         .filter(|value| !value.is_empty())
     else {
-        return GrpcProcessorOutcome { success: false, message: "grpc node requires config.endpoint".to_owned() };
+        return GrpcProcessorOutcome {
+            success: false,
+            message: "grpc node requires config.endpoint".to_owned(),
+        };
     };
     let Some(service) = config
         .get("service")
@@ -1013,7 +1067,10 @@ async fn execute_grpc_processor(config: &serde_json::Value) -> GrpcProcessorOutc
         .map(str::trim)
         .filter(|value| !value.is_empty())
     else {
-        return GrpcProcessorOutcome { success: false, message: "grpc node requires config.service".to_owned() };
+        return GrpcProcessorOutcome {
+            success: false,
+            message: "grpc node requires config.service".to_owned(),
+        };
     };
     let Some(method) = config
         .get("method")
@@ -1021,29 +1078,67 @@ async fn execute_grpc_processor(config: &serde_json::Value) -> GrpcProcessorOutc
         .map(str::trim)
         .filter(|value| !value.is_empty())
     else {
-        return GrpcProcessorOutcome { success: false, message: "grpc node requires config.method".to_owned() };
+        return GrpcProcessorOutcome {
+            success: false,
+            message: "grpc node requires config.method".to_owned(),
+        };
     };
     let allowed_hosts = string_array(config.get("allowedHosts"));
     let url = match url::Url::parse(endpoint) {
         Ok(url) => url,
-        Err(error) => return GrpcProcessorOutcome { success: false, message: format!("invalid grpc endpoint: {error}") },
+        Err(error) => {
+            return GrpcProcessorOutcome {
+                success: false,
+                message: format!("invalid grpc endpoint: {error}"),
+            };
+        }
     };
     if url.scheme() != "http" && url.scheme() != "https" {
-        return GrpcProcessorOutcome { success: false, message: "grpc endpoint only allows http/https schemes".to_owned() };
+        return GrpcProcessorOutcome {
+            success: false,
+            message: "grpc endpoint only allows http/https schemes".to_owned(),
+        };
     }
     let Some(host) = url.host_str() else {
-        return GrpcProcessorOutcome { success: false, message: "grpc endpoint must include host".to_owned() };
+        return GrpcProcessorOutcome {
+            success: false,
+            message: "grpc endpoint must include host".to_owned(),
+        };
     };
-    if is_private_or_loopback_host(host) && !config.get("allowPrivateHost").and_then(serde_json::Value::as_bool).unwrap_or(false) {
-        return GrpcProcessorOutcome { success: false, message: "grpc node rejects loopback/private IP hosts by default".to_owned() };
+    if is_private_or_loopback_host(host)
+        && !config
+            .get("allowPrivateHost")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
+    {
+        return GrpcProcessorOutcome {
+            success: false,
+            message: "grpc node rejects loopback/private IP hosts by default".to_owned(),
+        };
     }
-    if !allowed_hosts.is_empty() && !allowed_hosts.iter().any(|allowed| host_matches(host, allowed)) {
-        return GrpcProcessorOutcome { success: false, message: format!("grpc host {host} is not in allowedHosts") };
+    if !allowed_hosts.is_empty()
+        && !allowed_hosts
+            .iter()
+            .any(|allowed| host_matches(host, allowed))
+    {
+        return GrpcProcessorOutcome {
+            success: false,
+            message: format!("grpc host {host} is not in allowedHosts"),
+        };
     }
-    let path = format!("/{}/{}", service.trim_matches('/'), method.trim_matches('/'));
+    let path = format!(
+        "/{}/{}",
+        service.trim_matches('/'),
+        method.trim_matches('/')
+    );
     let uri = match tonic::codegen::http::uri::PathAndQuery::from_maybe_shared(path.clone()) {
         Ok(uri) => uri,
-        Err(error) => return GrpcProcessorOutcome { success: false, message: format!("invalid grpc method path {path}: {error}") },
+        Err(error) => {
+            return GrpcProcessorOutcome {
+                success: false,
+                message: format!("invalid grpc method path {path}: {error}"),
+            };
+        }
     };
     let payload = config
         .get("payload")
@@ -1057,19 +1152,38 @@ async fn execute_grpc_processor(config: &serde_json::Value) -> GrpcProcessorOutc
     let value = payload
         .get("valueBase64")
         .and_then(serde_json::Value::as_str)
-        .and_then(|value| base64::Engine::decode(&base64::engine::general_purpose::STANDARD, value).ok())
-        .unwrap_or_else(|| payload.get("json").map_or_else(Vec::new, |json| serde_json::to_vec(json).unwrap_or_default()));
+        .and_then(|value| {
+            base64::Engine::decode(&base64::engine::general_purpose::STANDARD, value).ok()
+        })
+        .unwrap_or_else(|| {
+            payload.get("json").map_or_else(Vec::new, |json| {
+                serde_json::to_vec(json).unwrap_or_default()
+            })
+        });
     let any = prost_types::Any { type_url, value };
     let channel = match tonic::transport::Endpoint::from_shared(endpoint.to_owned()) {
         Ok(endpoint) => match endpoint.timeout(Duration::from_secs(15)).connect().await {
             Ok(channel) => channel,
-            Err(error) => return GrpcProcessorOutcome { success: false, message: format!("grpc connect failed: {error}") },
+            Err(error) => {
+                return GrpcProcessorOutcome {
+                    success: false,
+                    message: format!("grpc connect failed: {error}"),
+                };
+            }
         },
-        Err(error) => return GrpcProcessorOutcome { success: false, message: format!("invalid grpc endpoint: {error}") },
+        Err(error) => {
+            return GrpcProcessorOutcome {
+                success: false,
+                message: format!("invalid grpc endpoint: {error}"),
+            };
+        }
     };
     let mut client = tonic::client::Grpc::new(channel);
     let mut request = tonic::Request::new(any);
-    if let Some(metadata) = config.get("metadata").and_then(serde_json::Value::as_object) {
+    if let Some(metadata) = config
+        .get("metadata")
+        .and_then(serde_json::Value::as_object)
+    {
         for (key, value) in metadata {
             if let Some(value) = value.as_str()
                 && let Ok(name) = tonic::metadata::MetadataKey::from_bytes(key.as_bytes())
@@ -1080,11 +1194,21 @@ async fn execute_grpc_processor(config: &serde_json::Value) -> GrpcProcessorOutc
         }
     }
     match client
-        .unary(request, uri, tonic_prost::ProstCodec::<prost_types::Any, prost_types::Any>::default())
+        .unary(
+            request,
+            uri,
+            tonic_prost::ProstCodec::<prost_types::Any, prost_types::Any>::default(),
+        )
         .await
     {
-        Ok(_) => GrpcProcessorOutcome { success: true, message: format!("grpc {service}/{method} succeeded") },
-        Err(status) => GrpcProcessorOutcome { success: false, message: format!("grpc {service}/{method} failed: {}", status.message()) },
+        Ok(_) => GrpcProcessorOutcome {
+            success: true,
+            message: format!("grpc {service}/{method} succeeded"),
+        },
+        Err(status) => GrpcProcessorOutcome {
+            success: false,
+            message: format!("grpc {service}/{method} failed: {}", status.message()),
+        },
     }
 }
 
@@ -1127,11 +1251,27 @@ async fn execute_file_cleanup_processor(config: &serde_json::Value) -> FileClean
     let mut planned = 0_usize;
     for raw in paths {
         let path = PathBuf::from(raw.trim());
-        if !path.is_absolute() || path.components().any(|component| matches!(component, std::path::Component::ParentDir)) {
-            return FileCleanupOutcome { success: false, message: format!("file_cleanup path must be clean absolute path: {}", path.display()) };
+        if !path.is_absolute()
+            || path
+                .components()
+                .any(|component| matches!(component, std::path::Component::ParentDir))
+        {
+            return FileCleanupOutcome {
+                success: false,
+                message: format!(
+                    "file_cleanup path must be clean absolute path: {}",
+                    path.display()
+                ),
+            };
         }
         if !is_under_allowed_root(&path, &allowed_roots) {
-            return FileCleanupOutcome { success: false, message: format!("file_cleanup path is outside allowedRoots: {}", path.display()) };
+            return FileCleanupOutcome {
+                success: false,
+                message: format!(
+                    "file_cleanup path is outside allowedRoots: {}",
+                    path.display()
+                ),
+            };
         }
         planned = planned.saturating_add(1);
         if dry_run {
@@ -1140,25 +1280,52 @@ async fn execute_file_cleanup_processor(config: &serde_json::Value) -> FileClean
         match tokio::fs::metadata(&path).await {
             Ok(metadata) if metadata.is_dir() && recursive => {
                 if let Err(error) = tokio::fs::remove_dir_all(&path).await {
-                    return FileCleanupOutcome { success: false, message: format!("file_cleanup failed to remove directory {}: {error}", path.display()) };
+                    return FileCleanupOutcome {
+                        success: false,
+                        message: format!(
+                            "file_cleanup failed to remove directory {}: {error}",
+                            path.display()
+                        ),
+                    };
                 }
                 cleaned = cleaned.saturating_add(1);
             }
             Ok(metadata) if metadata.is_file() => {
                 if let Err(error) = tokio::fs::remove_file(&path).await {
-                    return FileCleanupOutcome { success: false, message: format!("file_cleanup failed to remove file {}: {error}", path.display()) };
+                    return FileCleanupOutcome {
+                        success: false,
+                        message: format!(
+                            "file_cleanup failed to remove file {}: {error}",
+                            path.display()
+                        ),
+                    };
                 }
                 cleaned = cleaned.saturating_add(1);
             }
             Ok(metadata) if metadata.is_dir() => {
-                return FileCleanupOutcome { success: false, message: format!("file_cleanup refusing directory without recursive=true: {}", path.display()) };
+                return FileCleanupOutcome {
+                    success: false,
+                    message: format!(
+                        "file_cleanup refusing directory without recursive=true: {}",
+                        path.display()
+                    ),
+                };
             }
             Ok(_) => {
-                return FileCleanupOutcome { success: false, message: format!("file_cleanup only supports regular files/directories: {}", path.display()) };
+                return FileCleanupOutcome {
+                    success: false,
+                    message: format!(
+                        "file_cleanup only supports regular files/directories: {}",
+                        path.display()
+                    ),
+                };
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => {
-                return FileCleanupOutcome { success: false, message: format!("file_cleanup cannot inspect {}: {error}", path.display()) };
+                return FileCleanupOutcome {
+                    success: false,
+                    message: format!("file_cleanup cannot inspect {}: {error}", path.display()),
+                };
             }
         }
     }
@@ -1317,7 +1484,9 @@ async fn execute_http_processor(config: &serde_json::Value) -> HttpProcessorOutc
         if failure_threshold > 0 && consecutive_failures >= failure_threshold {
             return HttpProcessorOutcome {
                 success: false,
-                message: format!("http circuit breaker open after {consecutive_failures} failures: {last_message}"),
+                message: format!(
+                    "http circuit breaker open after {consecutive_failures} failures: {last_message}"
+                ),
             };
         }
         time::sleep(Duration::from_millis(retry_backoff_ms)).await;
@@ -1327,7 +1496,6 @@ async fn execute_http_processor(config: &serde_json::Value) -> HttpProcessorOutc
         message: last_message,
     }
 }
-
 
 fn http_circuit_failure_threshold(config: &serde_json::Value) -> u64 {
     config
@@ -1355,11 +1523,19 @@ fn ip_in_cidr(ip: IpAddr, cidr: &str) -> bool {
     };
     match (ip, network.parse::<IpAddr>()) {
         (IpAddr::V4(ip), Ok(IpAddr::V4(network))) if prefix <= 32 => {
-            let mask = if prefix == 0 { 0 } else { u32::MAX << (32 - prefix) };
+            let mask = if prefix == 0 {
+                0
+            } else {
+                u32::MAX << (32 - prefix)
+            };
             (u32::from(ip) & mask) == (u32::from(network) & mask)
         }
         (IpAddr::V6(ip), Ok(IpAddr::V6(network))) if prefix <= 128 => {
-            let mask = if prefix == 0 { 0 } else { u128::MAX << (128 - prefix) };
+            let mask = if prefix == 0 {
+                0
+            } else {
+                u128::MAX << (128 - prefix)
+            };
             (u128::from(ip) & mask) == (u128::from(network) & mask)
         }
         _ => false,
@@ -1389,9 +1565,7 @@ fn http_signature_header(
         .filter(|value| !value.trim().is_empty())
         .unwrap_or("X-Tikee-Signature")
         .to_owned();
-    let body = body
-        .map(serde_json::Value::to_string)
-        .unwrap_or_default();
+    let body = body.map(serde_json::Value::to_string).unwrap_or_default();
     let mut hasher = Sha256::new();
     hasher.update(secret.as_bytes());
     hasher.update(b"\n");
@@ -1451,8 +1625,8 @@ mod tests {
     use super::{
         DispatchTaskBuild, JobExecutor, ScriptGovernanceFailure, WorkerRegistry,
         build_dispatch_task, dispatch_once, dispatch_once_if_owner, execute_file_cleanup_processor,
-        execute_grpc_processor, execute_http_processor, execute_sql_processor, script_is_dispatchable,
-        script_version_is_dispatchable,
+        execute_grpc_processor, execute_http_processor, execute_sql_processor,
+        script_is_dispatchable, script_version_is_dispatchable,
     };
 
     fn sdk_capabilities(processor_name: &str) -> Option<WorkerCapabilities> {
@@ -1473,7 +1647,6 @@ mod tests {
             ..WorkerCapabilities::default()
         })
     }
-
 
     #[tokio::test]
     async fn http_processor_retries_and_signs_requests() {
@@ -2867,7 +3040,8 @@ mod tests {
 
     #[tokio::test]
     async fn file_cleanup_processor_deletes_only_under_allowed_roots() {
-        let temp_root = std::env::temp_dir().join(format!("tikee-cleanup-test-{}", uuid::Uuid::new_v4()));
+        let temp_root =
+            std::env::temp_dir().join(format!("tikee-cleanup-test-{}", uuid::Uuid::new_v4()));
         tokio::fs::create_dir_all(&temp_root)
             .await
             .unwrap_or_else(|error| panic!("temp root should be created: {error}"));
@@ -2954,5 +3128,4 @@ mod tests {
         assert!(outcome.success, "{}", outcome.message);
         assert!(outcome.message.contains("1 row"));
     }
-
 }
