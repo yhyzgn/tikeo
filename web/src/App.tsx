@@ -166,6 +166,9 @@ export function App() {
             colorBgBase: mode === 'dark' ? '#0f172a' : '#f6f8fc',
             colorTextBase: mode === 'dark' ? '#e2e8f0' : '#172033',
             borderRadius: 12,
+            controlHeight: 36,
+            controlHeightSM: 28,
+            controlHeightLG: 44,
             fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
           },
         }}

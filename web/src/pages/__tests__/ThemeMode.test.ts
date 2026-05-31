@@ -17,3 +17,11 @@ describe('runtime theme mode', () => {
     expect(stylesSource).toContain("html[data-theme='dark']");
   });
 });
+
+
+test('runtime theme mode > keeps form controls one step taller across the app', () => {
+  expect(appSource).toContain('controlHeight: 36');
+  expect(appSource).toContain('controlHeightSM: 28');
+  expect(appSource).toContain('controlHeightLG: 44');
+  expect(stylesSource).toContain('--app-control-horizontal-padding: 16px');
+});
