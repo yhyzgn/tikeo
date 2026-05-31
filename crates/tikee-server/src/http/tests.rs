@@ -19,7 +19,7 @@ use tikee_storage::{
 };
 use url::Url;
 
-const ADMIN_LOGIN: &str = r#"{"username":"tikee_init","password":"Tikee@2026!"}"#;
+const ADMIN_LOGIN: &str = r#"{"username":"bootstrap_admin","password":"Tikee@2026!"}"#;
 use tower::ServiceExt;
 
 use crate::http::{AppState, router_with_state, serve_listener_with_state};

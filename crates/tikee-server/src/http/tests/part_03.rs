@@ -1292,10 +1292,11 @@
     #[tokio::test]
     async fn login_succeeds_and_me_returns_principal() {
         let app = router().await;
+        ensure_bootstrap_admin(app.clone()).await;
         let login = post_json_without_auth(
             app.clone(),
             "/api/v1/auth/login",
-            r#"{"username":"tikee_init","password":"Tikee@2026!"}"#,
+            ADMIN_LOGIN,
         )
         .await;
 
@@ -1323,7 +1324,7 @@
         let me: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(me["code"], 0);
-        assert_eq!(me["data"]["username"], "tikee_init");
+        assert_eq!(me["data"]["username"], "bootstrap_admin");
     }
 
 
@@ -2419,7 +2420,7 @@
                     .uri("/api/v1/auth/login")
                     .header("content-type", "application/json")
                     .body(Body::from(
-                        r#"{"username":"tikee_init","password":"wrong"}"#,
+                        r#"{"username":"bootstrap_admin","password":"wrong"}"#,
                     ))
                     .unwrap_or_else(|error| panic!("request should build: {error}")),
             )

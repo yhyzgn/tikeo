@@ -2,7 +2,7 @@ import { ConfigProvider, theme } from 'antd';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 
-import { getAuthToken, logout, setAuthErrorHandler, setAuthToken } from './api/client';
+import { getAuthToken, getBootstrapStatus, logout, setAuthErrorHandler, setAuthToken, type BootstrapStatusResponse } from './api/client';
 import { AppShell } from './components/AppShell';
 import { AuthGuard, RequirePermission } from './components/AuthGuard';
 import { ForbiddenPage } from './components/ForbiddenPage';
@@ -17,6 +17,7 @@ const JobTopologyPage = lazy(() => import('./pages/JobTopologyPage').then((modul
 const WorkflowEditorPage = lazy(() => import('./pages/WorkflowsPage').then((module) => ({ default: module.WorkflowEditorPage })));
 const WorkflowsPage = lazy(() => import('./pages/WorkflowsPage').then((module) => ({ default: module.WorkflowsPage })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })));
+const SuperAdminSetupPage = lazy(() => import('./pages/SuperAdminSetupPage').then((module) => ({ default: module.SuperAdminSetupPage })));
 const AlertDeliveryPage = lazy(() => import('./pages/AlertDeliveryPage').then((module) => ({ default: module.AlertDeliveryPage })));
 const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage').then((module) => ({ default: module.AuditLogsPage })));
 const ScriptsPage = lazy(() => import('./pages/ScriptsPage').then((module) => ({ default: module.ScriptsPage })));
@@ -34,11 +35,21 @@ function GuardedRoute({ route, children }: { route: { permission?: { resource: s
   return <RequirePermission resource={route.permission.resource} action={route.permission.action}>{children}</RequirePermission>;
 }
 
-function LoginRoute() {
+function LoginRoute({ bootstrap }: { bootstrap: BootstrapStatusResponse }) {
+  if (bootstrap.registrationOpen) {
+    return <Navigate to="/setup" replace />;
+  }
   if (getAuthToken() !== null) {
     return <Navigate to={ROUTE_META.dashboard.path} replace />;
   }
   return <LoginPage />;
+}
+
+function SetupRoute({ bootstrap, onRegistered }: { bootstrap: BootstrapStatusResponse; onRegistered: () => void }) {
+  if (!bootstrap.registrationOpen) {
+    return <Navigate to={getAuthToken() ? ROUTE_META.dashboard.path : '/login'} replace />;
+  }
+  return <SuperAdminSetupPage onRegistered={onRegistered} />;
 }
 
 function AppLayout() {
@@ -99,6 +110,8 @@ export function App() {
     if (typeof window === 'undefined') return 'light';
     return normalizeThemeMode(window.localStorage.getItem(THEME_MODE_STORAGE_KEY));
   });
+  const [bootstrap, setBootstrap] = useState<BootstrapStatusResponse | null>(null);
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
 
   const setPrimaryColor = (color: string) => {
     const normalized = normalizeHexColor(color) ?? DEFAULT_PRIMARY_COLOR;
@@ -120,12 +133,27 @@ export function App() {
   const toggleMode = () => setMode(mode === 'dark' ? 'light' : 'dark');
 
   useEffect(() => {
+    let cancelled = false;
+    getBootstrapStatus()
+      .then((status) => {
+        if (!cancelled) setBootstrap(status);
+      })
+      .catch((cause) => {
+        if (!cancelled) setBootstrapError(cause instanceof Error ? cause.message : '初始化状态检查失败');
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     document.documentElement.style.setProperty('--app-primary-color', primaryColor);
     document.documentElement.style.setProperty('--app-info-color', DEFAULT_INFO_COLOR);
     document.documentElement.dataset.theme = mode;
   }, [primaryColor, mode]);
 
   const themeSettings = useMemo(() => ({ primaryColor, mode, setPrimaryColor, resetPrimaryColor, setMode, toggleMode }), [primaryColor, mode]);
+  const refreshBootstrap = () => {
+    setBootstrap({ initialized: true, registrationOpen: false, bootstrapAdminUsername: null });
+  };
 
   return (
     <ThemeSettingsContext.Provider value={themeSettings}>
@@ -143,16 +171,21 @@ export function App() {
         }}
       >
         <Suspense fallback={<RouteFallback />}>
-          <Routes>
-            <Route path="/" element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
-            <Route path="/login" element={<LoginRoute />} />
+          {bootstrapError ? <div className="route-fallback">{bootstrapError}</div> : null}
+          {!bootstrap && !bootstrapError ? <RouteFallback /> : null}
+          {bootstrap ? (
+            <Routes>
+            <Route path="/" element={<Navigate to={bootstrap.registrationOpen ? '/setup' : ROUTE_META.dashboard.path} replace />} />
+            <Route path="/setup" element={<SetupRoute bootstrap={bootstrap} onRegistered={refreshBootstrap} />} />
+            <Route path="/login" element={<LoginRoute bootstrap={bootstrap} />} />
             <Route element={<AuthGuard />}>
               <Route element={<AppLayout />}>
                 <Route index element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
                 <Route path="*" element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
               </Route>
             </Route>
-          </Routes>
+            </Routes>
+          ) : null}
         </Suspense>
       </ConfigProvider>
     </ThemeSettingsContext.Provider>

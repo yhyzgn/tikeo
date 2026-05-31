@@ -1,4 +1,7 @@
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -8,15 +11,21 @@ use super::util::now_rfc3339;
 pub struct CreateUser {
     /// Unique username.
     pub username: String,
+    /// Contact email address.
+    pub email: String,
     /// `BCrypt` password hash stored in the `password` column.
     pub password: String,
     /// System role (e.g. "admin", "operator", "viewer").
     pub role: String,
+    /// Whether this account was created by the one-time deployment bootstrap flow.
+    pub bootstrap_admin: bool,
 }
 
 /// DTO for user updates.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateUser {
+    /// Contact email address to update, if provided.
+    pub email: Option<String>,
     /// `BCrypt` password hash to update, if provided.
     pub password: Option<String>,
     /// Role to update, if provided.
@@ -25,13 +34,18 @@ pub struct UpdateUser {
 
 /// Lightweight platform user summary representation.
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct UserSummary {
     /// Unique user identifier.
     pub id: String,
     /// Unique username.
     pub username: String,
+    /// Contact email address.
+    pub email: String,
     /// System role.
     pub role: String,
+    /// Whether this account was created by the one-time deployment bootstrap flow.
+    pub bootstrap_admin: bool,
     /// RFC3339 formatted creation timestamp.
     pub created_at: String,
 }
@@ -66,8 +80,10 @@ impl UserRepository {
         let active = user::ActiveModel {
             id: Set(format!("usr-{}", Uuid::now_v7())),
             username: Set(params.username),
+            email: Set(params.email),
             password: Set(params.password),
             role: Set(params.role),
+            bootstrap_admin: Set(params.bootstrap_admin),
             created_at: Set(now_rfc3339()),
         };
 
@@ -75,7 +91,9 @@ impl UserRepository {
         Ok(UserSummary {
             id: inserted.id,
             username: inserted.username,
+            email: inserted.email,
             role: inserted.role,
+            bootstrap_admin: inserted.bootstrap_admin,
             created_at: inserted.created_at,
         })
     }
@@ -94,7 +112,9 @@ impl UserRepository {
             .map(|r| UserSummary {
                 id: r.id,
                 username: r.username,
+                email: r.email,
                 role: r.role,
+                bootstrap_admin: r.bootstrap_admin,
                 created_at: r.created_at,
             })
             .collect())
@@ -114,6 +134,31 @@ impl UserRepository {
         user::Entity::find()
             .filter(user::Column::Username.eq(username.to_owned()))
             .one(&self.db)
+            .await
+    }
+
+    /// Count platform users.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn count_users(&self) -> Result<u64, sea_orm::DbErr> {
+        use crate::entities::user;
+
+        user::Entity::find().count(&self.db).await
+    }
+
+    /// Count users by role.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn count_by_role(&self, role: &str) -> Result<u64, sea_orm::DbErr> {
+        use crate::entities::user;
+
+        user::Entity::find()
+            .filter(user::Column::Role.eq(role.to_owned()))
+            .count(&self.db)
             .await
     }
 
@@ -165,6 +210,9 @@ impl UserRepository {
         };
 
         let mut active: user::ActiveModel = existing.into();
+        if let Some(email) = params.email {
+            active.email = Set(email);
+        }
         if let Some(hash) = params.password {
             active.password = Set(hash);
         }
@@ -176,7 +224,9 @@ impl UserRepository {
         Ok(Some(UserSummary {
             id: updated.id,
             username: updated.username,
+            email: updated.email,
             role: updated.role,
+            bootstrap_admin: updated.bootstrap_admin,
             created_at: updated.created_at,
         }))
     }

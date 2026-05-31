@@ -41,7 +41,7 @@ export function UsersPage() {
   const openCreateDrawer = () => {
     setEditingId(null);
     form.resetFields();
-    form.setFieldsValue({ role: 'viewer' });
+    form.setFieldsValue({ role: 'viewer', email: '' });
     setDrawerOpen(true);
   };
 
@@ -49,6 +49,7 @@ export function UsersPage() {
     setEditingId(user.id);
     form.setFieldsValue({
       username: user.username,
+      email: user.email,
       role: user.role,
       password: undefined,
     });
@@ -76,6 +77,7 @@ export function UsersPage() {
       if (editingId) {
         // Update user
         await updateUser(editingId, {
+          email: values.email,
           password: values.password || undefined,
           role: values.role,
         });
@@ -97,7 +99,17 @@ export function UsersPage() {
   };
 
   const columns: ColumnsType<UserSummary> = [
-    { title: 'Username', dataIndex: 'username', render: (val: string) => <strong>{val}</strong> },
+    {
+      title: 'Username',
+      dataIndex: 'username',
+      render: (val: string, record) => (
+        <Space>
+          <strong>{val}</strong>
+          {record.bootstrapAdmin ? <Tag color="purple">BOOTSTRAP</Tag> : null}
+        </Space>
+      ),
+    },
+    { title: 'Email', dataIndex: 'email' },
     {
       title: 'Role',
       dataIndex: 'role',
@@ -150,6 +162,9 @@ export function UsersPage() {
         >
           <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
             <Input placeholder="用户名" disabled={editingId !== null} />
+          </Form.Item>
+          <Form.Item name="email" label="邮箱" rules={[{ required: true, message: '请输入邮箱' }, { type: 'email', message: '请输入有效邮箱' }]}>
+            <Input placeholder="user@example.com" />
           </Form.Item>
           <Form.Item name="password" label="密码" rules={editingId ? [] : [{ required: true, message: '请输入密码' }]}>
             <Input.Password placeholder={editingId ? '新密码（留空则不修改）' : '密码'} />

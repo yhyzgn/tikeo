@@ -12,10 +12,14 @@ pub struct Model {
     pub id: String,
     /// Unique username.
     pub username: String,
+    /// Contact email address.
+    pub email: String,
     /// `BCrypt` password hash stored in the `password` column.
     pub password: String,
     /// System role (e.g. "admin", "operator", "viewer").
     pub role: String,
+    /// Whether this account was created by the one-time deployment bootstrap flow.
+    pub bootstrap_admin: bool,
     /// Timestamp when the user was created.
     pub created_at: String,
 }

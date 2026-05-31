@@ -150,11 +150,11 @@ describe('api client envelope handling', () => {
       return new Response(JSON.stringify({
         code: 0,
         message: 'success',
-        data: { token: 'atk_test_token', username: 'tikee_init', roles: ['admin'], permissions: [{ resource: 'users', action: 'manage' }] },
+        data: { token: 'atk_test_token', username: 'bootstrap_admin', roles: ['admin'], permissions: [{ resource: 'users', action: 'manage' }] },
       }));
     }) as unknown as typeof fetch;
 
-    await login({ username: 'tikee_init', password: 'Tikee@2026!' });
+    await login({ username: 'bootstrap_admin', password: 'Tikee@2026!' });
 
     globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
       calls.push(init ?? {});

@@ -409,8 +409,10 @@
         UserRepository::new(db.clone())
             .create_user(tikee_storage::CreateUser {
                 username: "oidc.alice".to_owned(),
+                email: "oidc.alice@example.com".to_owned(),
                 password: "external-oidc-login-disabled".to_owned(),
                 role: "viewer".to_owned(),
+                bootstrap_admin: false,
             })
             .await
             .unwrap_or_else(|error| panic!("mapped user should be created: {error}"));

@@ -31,14 +31,16 @@ ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
   updated_at = excluded.updated_at;
 
-INSERT INTO users (id, username, password, role, created_at)
+INSERT INTO users (id, username, email, password, role, bootstrap_admin, created_at)
 VALUES
-  ('usr-dev-operator', 'dev_operator', '$2b$10$vslUa5GAP.Mk3s4PPclu..miTj/beUTaSCR/HSZdfPVXmhA/7lmpm', 'operator', '2026-01-01T00:00:00Z'),
-  ('usr-dev-viewer', 'dev_viewer', '$2b$10$vslUa5GAP.Mk3s4PPclu..miTj/beUTaSCR/HSZdfPVXmhA/7lmpm', 'viewer', '2026-01-01T00:00:00Z')
+  ('usr-dev-operator', 'dev_operator', 'dev.operator@example.com', '$2b$10$vslUa5GAP.Mk3s4PPclu..miTj/beUTaSCR/HSZdfPVXmhA/7lmpm', 'operator', 0, '2026-01-01T00:00:00Z'),
+  ('usr-dev-viewer', 'dev_viewer', 'dev.viewer@example.com', '$2b$10$vslUa5GAP.Mk3s4PPclu..miTj/beUTaSCR/HSZdfPVXmhA/7lmpm', 'viewer', 0, '2026-01-01T00:00:00Z')
 ON CONFLICT(id) DO UPDATE SET
   username = excluded.username,
+  email = excluded.email,
   password = excluded.password,
-  role = excluded.role;
+  role = excluded.role,
+  bootstrap_admin = excluded.bootstrap_admin;
 
 INSERT INTO jobs (id, namespace_id, app_id, name, schedule_type, schedule_expr, processor_name, enabled, created_at, updated_at)
 VALUES

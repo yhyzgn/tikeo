@@ -435,8 +435,10 @@ pub(super) enum Users {
     Table,
     Id,
     Username,
+    Email,
     Password,
     Role,
+    BootstrapAdmin,
     CreatedAt,
 }
 

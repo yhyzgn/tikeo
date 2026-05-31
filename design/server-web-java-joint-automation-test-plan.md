@@ -119,7 +119,7 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 | ID | 功能/测试项 | 覆盖组件 | 执行方式 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | B-BOOT-001 | 临时 server 启动 | server | `rtk bash deploy/smoke/java-demo-integration-smoke.sh` 自动启动 | `GET /readyz` 成功 | `.dev/reports/*-server.log` | 📝 执行时回填 | 默认端口 19090/19998 |
-| B-AUTH-001 | 开发账号登录 | server auth | smoke 内 `POST /api/v1/auth/login` | 返回 `data.token` | smoke JSON / log | 📝 执行时回填 | 用户 `tikee_init` |
+| B-AUTH-001 | 初始化管理员注册/登录 | server auth | smoke 先查 `GET /auth/bootstrap`，未初始化时 `POST /auth/bootstrap/register`，已初始化时 `POST /auth/login` | 返回 `data.token`，且注册入口关闭 | smoke JSON / log | 📝 执行时回填 | 用户由 smoke 环境变量指定，默认 `smoke_admin` |
 | B-WORKER-001 | Java demo 启动 | Java demo | smoke 自动 `./gradlew bootRun` | `GET /demo/health` 成功 | `.dev/reports/*-java-demo.log` | 📝 执行时回填 | 默认端口 18080 |
 | B-WORKER-002 | Worker 注册在线 | server + Java SDK/demo | smoke 查询 `/api/v1/workers` | `spring-demo-worker` online，且 namespace/app/cluster/region、processorNames、pluginProcessors、script runtimes 与 demo 配置一致 | smoke JSON / API 响应 | 📝 执行时回填 | 需验证结构化能力而非只看 online |
 | B-WORKER-003 | Worker 结构化 election | server + Java SDK | 扩展 smoke 查询 `/api/v1/workers` | 返回 `master.domain/isMaster/masterWorkerId/term/fencingToken` | workers JSON | 📝 执行时回填 | 不接受字符串约定替代 |
@@ -237,9 +237,9 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 
 ```bash
 export API_URL=http://127.0.0.1:19090
-export AUTH_TOKEN="$(curl -fsS -X POST "$API_URL/api/v1/auth/login" \
+export AUTH_TOKEN="$(curl -fsS -X POST "$API_URL/api/v1/auth/bootstrap/register" \
   -H 'content-type: application/json' \
-  -d '{"username":"tikee_init","password":"Tikee@2026!"}' \
+  -d '{"username":"smoke_admin","email":"smoke.admin@example.com","password":"Tikee@2026!","confirmPassword":"Tikee@2026!"}' \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["token"])')"
 ```
 

@@ -437,19 +437,36 @@ export interface UpdateWorkerPoolQuotaRequest { maxQueueDepth: number; maxConcur
 export interface UserSummary {
   id: string;
   username: string;
+  email: string;
   role: string;
+  bootstrapAdmin: boolean;
   createdAt: string;
 }
 
 export interface CreateUserRequest {
   username: string;
+  email: string;
   password?: string;
   role: string;
 }
 
 export interface UpdateUserRequest {
+  email?: string;
   password?: string;
   role?: string;
+}
+
+export interface BootstrapStatusResponse {
+  initialized: boolean;
+  registrationOpen: boolean;
+  bootstrapAdminUsername: string | null;
+}
+
+export interface BootstrapRegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
 }
 
 export interface LoginRequest {
@@ -589,6 +606,20 @@ export function setAuthToken(token: string | null): void {
   } else {
     localStorage.setItem(TOKEN_STORAGE_KEY, token);
   }
+}
+
+export async function getBootstrapStatus(): Promise<BootstrapStatusResponse> {
+  return request<BootstrapStatusResponse>('/api/v1/auth/bootstrap', { auth: false });
+}
+
+export async function registerBootstrapAdmin(payload: BootstrapRegisterRequest): Promise<AuthSession> {
+  const session = await request<AuthSession>('/api/v1/auth/bootstrap/register', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    auth: false,
+  });
+  setAuthToken(session.token);
+  return session;
 }
 
 export async function login(payload: LoginRequest): Promise<AuthSession> {

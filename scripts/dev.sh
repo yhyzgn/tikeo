@@ -9,10 +9,6 @@ API_URL="${TIKEE_API_URL:-http://localhost:$API_PORT}"
 WEB_URL="${TIKEE_WEB_URL:-http://localhost:$WEB_PORT}"
 LOG_DIR="$ROOT_DIR/.dev"
 
-export TIKEE_DEV_ADMIN_USERNAME="${TIKEE_DEV_ADMIN_USERNAME:-tikee_init}"
-export TIKEE_DEV_ADMIN_PASSWORD="${TIKEE_DEV_ADMIN_PASSWORD:-Tikee@2026!}"
-export TIKEE_DEV_ADMIN_TOKEN="${TIKEE_DEV_ADMIN_TOKEN:-tikee-init-token}"
-
 mkdir -p "$LOG_DIR"
 
 need_cmd() {
@@ -67,18 +63,48 @@ backup_malformed_sqlite_db() {
   fi
 }
 
+start_log_console() {
+  local label="$1"
+  local log_file="$2"
+  tail -n +1 -F "$log_file" 2>/dev/null | sed -u "s/^/[$label] /"
+}
+
+terminate_process_tree() {
+  local pid="${1:-}"
+  [[ -n "$pid" ]] || return 0
+  if ! kill -0 "$pid" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  # Prefer killing the process group so cargo/bun children and log pipelines cannot survive Ctrl+C.
+  kill -TERM -- "-$pid" >/dev/null 2>&1 || kill -TERM "$pid" >/dev/null 2>&1 || true
+}
+
 cleanup() {
   local code=$?
+  trap - INT TERM EXIT
+  if [[ "${TIKEE_DEV_CLEANING_UP:-0}" == "1" ]]; then
+    exit "$code"
+  fi
+  TIKEE_DEV_CLEANING_UP=1
   echo
   echo "正在停止 tikee 开发进程..."
-  if [[ -n "${SERVER_PID:-}" ]] && kill -0 "$SERVER_PID" >/dev/null 2>&1; then
-    kill "$SERVER_PID" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "${WEB_PID:-}" ]] && kill -0 "$WEB_PID" >/dev/null 2>&1; then
-    kill "$WEB_PID" >/dev/null 2>&1 || true
-  fi
+  terminate_process_tree "${SERVER_PID:-}"
+  terminate_process_tree "${WEB_PID:-}"
+  terminate_process_tree "${SERVER_LOG_CONSOLE_PID:-}"
+  terminate_process_tree "${WEB_LOG_CONSOLE_PID:-}"
+
+  sleep 1
+  kill -KILL -- "-${SERVER_PID:-0}" >/dev/null 2>&1 || true
+  kill -KILL -- "-${WEB_PID:-0}" >/dev/null 2>&1 || true
+  kill -KILL -- "-${SERVER_LOG_CONSOLE_PID:-0}" >/dev/null 2>&1 || true
+  kill -KILL -- "-${WEB_LOG_CONSOLE_PID:-0}" >/dev/null 2>&1 || true
+
   wait "${SERVER_PID:-0}" 2>/dev/null || true
   wait "${WEB_PID:-0}" 2>/dev/null || true
+  wait "${SERVER_LOG_CONSOLE_PID:-0}" 2>/dev/null || true
+  wait "${WEB_LOG_CONSOLE_PID:-0}" 2>/dev/null || true
+  echo "已停止。"
   exit "$code"
 }
 trap cleanup INT TERM EXIT
@@ -99,11 +125,15 @@ if [[ ! -d "$ROOT_DIR/web/node_modules" ]]; then
   (cd "$ROOT_DIR/web" && bun install)
 fi
 
+SERVER_LOG="$LOG_DIR/server.log"
+WEB_LOG="$LOG_DIR/web.log"
+: >"$SERVER_LOG"
+: >"$WEB_LOG"
+
 echo "启动后端：$API_URL"
-(
-  cd "$ROOT_DIR"
-  cargo run --bin tikee -- serve --config "$CONFIG_FILE"
-) >"$LOG_DIR/server.log" 2>&1 &
+setsid bash -c 'tail -n +1 -F "$1" 2>/dev/null | sed -u "s/^/[$2] /"' _ "$SERVER_LOG" server &
+SERVER_LOG_CONSOLE_PID=$!
+setsid bash -c 'cd "$1" && exec cargo run --bin tikee -- serve --config "$2"' _ "$ROOT_DIR" "$CONFIG_FILE" >"$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 
 echo -n "等待后端健康检查"
@@ -115,7 +145,7 @@ for _ in $(seq 1 60); do
   if ! kill -0 "$SERVER_PID" >/dev/null 2>&1; then
     echo
     echo "后端启动失败，最近日志：" >&2
-    tail -n 80 "$LOG_DIR/server.log" >&2 || true
+    tail -n 80 "$SERVER_LOG" >&2 || true
     exit 1
   fi
   echo -n "."
@@ -125,15 +155,14 @@ done
 if ! curl -fsS "$API_URL/healthz" >/dev/null 2>&1; then
   echo
   echo "后端健康检查超时，最近日志：" >&2
-  tail -n 80 "$LOG_DIR/server.log" >&2 || true
+  tail -n 80 "$SERVER_LOG" >&2 || true
   exit 1
 fi
 
 echo "启动 Web：$WEB_URL"
-(
-  cd "$ROOT_DIR/web"
-  bun run dev -- --port "$WEB_PORT"
-) >"$LOG_DIR/web.log" 2>&1 &
+setsid bash -c 'tail -n +1 -F "$1" 2>/dev/null | sed -u "s/^/[$2] /"' _ "$WEB_LOG" web &
+WEB_LOG_CONSOLE_PID=$!
+setsid bash -c 'cd "$1/web" && exec bun run dev -- --port "$2"' _ "$ROOT_DIR" "$WEB_PORT" >"$WEB_LOG" 2>&1 &
 WEB_PID=$!
 
 echo -n "等待 Web dev server"
@@ -145,7 +174,7 @@ for _ in $(seq 1 60); do
   if ! kill -0 "$WEB_PID" >/dev/null 2>&1; then
     echo
     echo "Web 启动失败，最近日志：" >&2
-    tail -n 80 "$LOG_DIR/web.log" >&2 || true
+    tail -n 80 "$WEB_LOG" >&2 || true
     exit 1
   fi
   echo -n "."
@@ -155,7 +184,7 @@ done
 if ! curl -fsS "$WEB_URL" >/dev/null 2>&1; then
   echo
   echo "Web 健康检查超时，最近日志：" >&2
-  tail -n 80 "$LOG_DIR/web.log" >&2 || true
+  tail -n 80 "$WEB_LOG" >&2 || true
   exit 1
 fi
 
@@ -164,10 +193,9 @@ echo "开发环境已启动："
 echo "  Web UI:       $WEB_URL"
 echo "  Backend API:  $API_URL"
 echo "  OpenAPI JSON: $API_URL/api-docs/openapi.json"
-echo "  初始化账号:  $TIKEE_DEV_ADMIN_USERNAME"
-echo "  初始化密码:  $TIKEE_DEV_ADMIN_PASSWORD"
-echo "  后端日志:    $LOG_DIR/server.log"
-echo "  前端日志:    $LOG_DIR/web.log"
+echo "  首次访问:    打开 Web UI 后注册初始化管理员（注册成功后入口自动关闭）"
+echo "  后端日志:    $SERVER_LOG（同时输出到当前控制台，前缀 [server]）"
+echo "  前端日志:    $WEB_LOG（同时输出到当前控制台，前缀 [web]）"
 echo
 echo "按 Ctrl+C 停止全部进程。"
 

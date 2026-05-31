@@ -5,7 +5,7 @@ use axum::{
     extract::{Path, Query, State},
     http::HeaderMap,
 };
-use bcrypt::verify;
+use bcrypt::{hash, verify};
 use std::sync::Arc;
 use tikee_storage::{CreateOidcAuthState, OidcAuthStateRepository};
 use tracing::warn;
@@ -14,9 +14,9 @@ use super::{
     AppState,
     access_scope::validate_scope_bindings,
     dto::{
-        ApiResponse, ApiTokenSummary, AuthSession, AuthStatusResponse, CreateApiTokenRequest,
-        CreatedApiToken, LoginRequest, MeResponse, OidcAuthorizeResponse, OidcStatus,
-        RotateApiTokenRequest,
+        ApiResponse, ApiTokenSummary, AuthSession, AuthStatusResponse, BootstrapRegisterRequest,
+        BootstrapStatusResponse, CreateApiTokenRequest, CreatedApiToken, LoginRequest, MeResponse,
+        OidcAuthorizeResponse, OidcStatus, RotateApiTokenRequest,
     },
     error::ApiError,
     routes::{client_ip, trace_id},
@@ -116,6 +116,147 @@ pub async fn require_permission(
 /// Returns unauthorized or forbidden when the requester is not an admin.
 pub async fn require_admin(headers: &HeaderMap, state: &AppState) -> Result<MeResponse, ApiError> {
     require_permission(headers, state, "users", "manage").await
+}
+
+/// Return one-time deployment bootstrap registration state.
+///
+/// # Errors
+///
+/// Returns a storage error when user lookup fails.
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/bootstrap",
+    tag = "auth",
+    responses((status = 200, description = "Bootstrap registration state", body = super::dto::BootstrapStatusApiResponse))
+)]
+pub async fn bootstrap_status(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ApiResponse<BootstrapStatusResponse>>, ApiError> {
+    let users = state
+        .users
+        .list_users()
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    let bootstrap_admin_username = users
+        .iter()
+        .find(|user| user.bootstrap_admin)
+        .map(|user| user.username.clone());
+    Ok(Json(ApiResponse::success(BootstrapStatusResponse {
+        initialized: !users.is_empty(),
+        registration_open: users.is_empty(),
+        bootstrap_admin_username,
+    })))
+}
+
+/// Register the first deployment administrator and create a persisted login session.
+///
+/// # Errors
+///
+/// Returns validation, conflict, or storage errors when bootstrap registration cannot proceed.
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/bootstrap/register",
+    tag = "auth",
+    request_body = BootstrapRegisterRequest,
+    responses(
+        (status = 200, description = "Bootstrap admin session", body = super::dto::LoginApiResponse),
+        (status = 400, description = "Invalid bootstrap registration", body = super::dto::ErrorResponse),
+        (status = 403, description = "Registration already closed", body = super::dto::ErrorResponse)
+    )
+)]
+pub async fn register_bootstrap_admin(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<BootstrapRegisterRequest>,
+) -> Result<Json<ApiResponse<AuthSession>>, ApiError> {
+    let username = request.username.trim();
+    let email = request.email.trim();
+    if username.is_empty() {
+        return Err(ApiError::bad_request("username is required"));
+    }
+    if !is_valid_email(email) {
+        return Err(ApiError::bad_request("valid email is required"));
+    }
+    if request.password.trim().is_empty() {
+        return Err(ApiError::bad_request("password is required"));
+    }
+    if request.password != request.confirm_password {
+        return Err(ApiError::bad_request(
+            "password confirmation does not match",
+        ));
+    }
+    if state
+        .users
+        .count_users()
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        > 0
+    {
+        return Err(ApiError::forbidden("bootstrap registration is closed"));
+    }
+
+    let password_hash =
+        hash(request.password, 10).map_err(|_| ApiError::bad_request("failed to hash password"))?;
+    let created = state
+        .users
+        .create_user(tikee_storage::CreateUser {
+            username: username.to_owned(),
+            email: email.to_owned(),
+            password: password_hash,
+            role: "admin".to_owned(),
+            bootstrap_admin: true,
+        })
+        .await
+        .map_err(|error| {
+            if error.to_string().contains("UNIQUE") {
+                ApiError::forbidden("bootstrap registration is closed")
+            } else {
+                ApiError::storage(&error)
+            }
+        })?;
+
+    let session = state
+        .sessions
+        .create_session(SessionCreate {
+            user_id: created.id.clone(),
+            username: created.username.clone(),
+            role: created.role.clone(),
+            device_id: None,
+            device_name: None,
+            token_scopes: Vec::new(),
+            scope_bindings: Vec::new(),
+            expires_in_seconds: None,
+        })
+        .await?;
+
+    if let Err(error) = state
+        .audit
+        .append(tikee_storage::CreateAuditLog {
+            actor: created.username,
+            action: "bootstrap_admin_register".to_owned(),
+            resource_type: "user".to_owned(),
+            resource_id: created.id,
+            detail: Some("one_time_bootstrap=true;role=admin".to_owned()),
+            before: None,
+            after: None,
+            trace_id: Some(trace_id(&headers)),
+            result: "success".to_owned(),
+            failure_reason: None,
+            ip_address: client_ip(&headers),
+        })
+        .await
+    {
+        warn!(%error, "failed to append bootstrap registration audit log");
+    }
+
+    Ok(Json(ApiResponse::success(session)))
+}
+
+fn is_valid_email(email: &str) -> bool {
+    let Some((local, domain)) = email.split_once('@') else {
+        return false;
+    };
+    !local.trim().is_empty() && domain.contains('.') && !domain.trim().is_empty()
 }
 
 /// Login with secure DB credentials and create a persisted session.
@@ -393,9 +534,12 @@ pub async fn status(State(state): State<Arc<AppState>>) -> Json<ApiResponse<Auth
             .client_id
             .as_ref()
             .is_some_and(|value| !value.trim().is_empty());
+    let initialized = state.users.count_users().await.unwrap_or(0) > 0;
     Json(ApiResponse::success(AuthStatusResponse {
         mode: if oidc_ready { "oidc" } else { "local" }.to_owned(),
         local_login_enabled: state.auth_config.local_login_enabled,
+        bootstrap_required: !initialized,
+        registration_open: !initialized,
         oidc: OidcStatus {
             enabled: oidc.enabled,
             issuer_url: oidc

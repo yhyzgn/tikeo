@@ -20,9 +20,10 @@ pub use repository::{
     AlertDeliveryAttemptSummary, AlertEventFilters, AlertEventSummary, AlertRepository,
     AlertRuleSummary, AppSummary, AppendJobInstanceLog, AuditLogFilters, AuditLogPageSummary,
     AuditLogRepository, AuditLogSummary, AuthSessionRepository, AuthSessionSummary,
-    CalendarRepository, CalendarSummary, CalendarWindowSummary, CompleteWorkflowShardInput, CompleteWorkflowShardResult, CreateAlertRule, CreateAuditLog,
-    CreateAuthSession, CreateJob, CreateJobInstance, CreateJobInstanceAttempt, CreateOidcAuthState,
-    CreatePlugin, CreateScript, CreateSdkApiKey, CreateSecret, CreateUser, CreateWorkflow, DispatchQueueClaim,
+    CalendarRepository, CalendarSummary, CalendarWindowSummary, CompleteWorkflowShardInput,
+    CompleteWorkflowShardResult, CreateAlertRule, CreateAuditLog, CreateAuthSession, CreateJob,
+    CreateJobInstance, CreateJobInstanceAttempt, CreateOidcAuthState, CreatePlugin, CreateScript,
+    CreateSdkApiKey, CreateSecret, CreateUser, CreateWorkflow, DispatchQueueClaim,
     DispatchQueueSloSummary, DispatchQueueSummary, InstanceEventSummary, JobDurationHistory,
     JobInstanceAttemptRepository, JobInstanceAttemptSummary, JobInstanceLogRepository,
     JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary, JobRepository, JobSummary,
@@ -31,20 +32,20 @@ pub use repository::{
     PermissionSummary, PluginAlertChannelTypeSummary, PluginProcessorTypeSummary, PluginRepository,
     PluginSummary, QueueOverview, RaftAppliedCommandSummary, RaftLogEntrySummary,
     RaftMemberSummary, RaftMembershipProposalSummary, RaftMetadataSummary, RaftRepository,
-    RaftSnapshotSummary, RbacRepository, RecordAlertDeliveryAttempt, RecordRaftAppliedCommand,
-    RecordRaftMembershipProposal, RebalanceWorkflowShardsInput, RebalanceWorkflowShardsResult,
-    RecoverWorkflowNodeInput, RecoverWorkflowNodeResult,
-    RegisterWorkerSession, ScopeRepository, SecretRepository, SecretSummary, ScriptReleaseGrantEvidenceSummary,
+    RaftSnapshotSummary, RbacRepository, RebalanceWorkflowShardsInput,
+    RebalanceWorkflowShardsResult, RecordAlertDeliveryAttempt, RecordRaftAppliedCommand,
+    RecordRaftMembershipProposal, RecoverWorkflowNodeInput, RecoverWorkflowNodeResult,
+    RegisterWorkerSession, ScopeRepository, ScriptReleaseGrantEvidenceSummary,
     ScriptReleaseSignatureSummary, ScriptRepository, ScriptSummary, ScriptVersionRepository,
-    ScriptVersionSummary, SdkApiKeyRepository, SdkApiKeySummary, UpdateJob, UpdatePlugin,
-    UpdateScript, UpdateSdkApiKey, UpdateUser, UpdateWorkerPoolQuota, UpdateWorkflow,
-    UpsertCalendar, UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
-    UpsertRaftSnapshot, UserRepository, UserSummary, VerifiedScriptReleaseGrants,
-    VerifiedScriptReleaseSignature, WorkerHeartbeat, WorkerLifecycleRepository, WorkerPoolSummary,
-    WorkerSessionEventSummary, WorkerSessionSummary, WorkflowDefinition, WorkflowEdgeSpec,
-    WorkflowInstanceSummary, WorkflowJobResultOutcome, WorkflowNodeInstanceSummary,
-    WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary, WorkflowSloSummary,
-    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
+    ScriptVersionSummary, SdkApiKeyRepository, SdkApiKeySummary, SecretRepository, SecretSummary,
+    UpdateJob, UpdatePlugin, UpdateScript, UpdateSdkApiKey, UpdateUser, UpdateWorkerPoolQuota,
+    UpdateWorkflow, UpsertCalendar, UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember,
+    UpsertRaftMetadata, UpsertRaftSnapshot, UserRepository, UserSummary,
+    VerifiedScriptReleaseGrants, VerifiedScriptReleaseSignature, WorkerHeartbeat,
+    WorkerLifecycleRepository, WorkerPoolSummary, WorkerSessionEventSummary, WorkerSessionSummary,
+    WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary, WorkflowJobResultOutcome,
+    WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
+    WorkflowSloSummary, WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
 };
 pub use sea_orm::DbErr;
 
@@ -111,7 +112,9 @@ async fn ensure_sqlite_schema_compatibility(db: &DatabaseConnection) -> Result<(
     remove_sqlite_foreign_keys(db).await
 }
 
-async fn ensure_calendar_schema_compatibility(db: &DatabaseConnection) -> Result<(), sea_orm::DbErr> {
+async fn ensure_calendar_schema_compatibility(
+    db: &DatabaseConnection,
+) -> Result<(), sea_orm::DbErr> {
     if db.get_database_backend() != DatabaseBackend::Sqlite {
         return Ok(());
     }
@@ -1090,12 +1093,28 @@ async fn ensure_auth_schema_compatibility(db: &DatabaseConnection) -> Result<(),
         r"CREATE TABLE IF NOT EXISTS users (
             id varchar NOT NULL PRIMARY KEY,
             username varchar NOT NULL,
+            email varchar NOT NULL DEFAULT '',
             password varchar NOT NULL,
             role varchar NOT NULL,
+            bootstrap_admin boolean NOT NULL DEFAULT FALSE,
             created_at varchar NOT NULL
         )",
     ))
     .await?;
+    if !sqlite_column_exists(db, "users", "email").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE users ADD COLUMN email varchar NOT NULL DEFAULT ''",
+        ))
+        .await?;
+    }
+    if !sqlite_column_exists(db, "users", "bootstrap_admin").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE users ADD COLUMN bootstrap_admin boolean NOT NULL DEFAULT FALSE",
+        ))
+        .await?;
+    }
     if sqlite_column_exists(db, "users", "password_hash").await?
         && !sqlite_column_exists(db, "users", "password").await?
     {
@@ -1134,17 +1153,6 @@ async fn ensure_auth_schema_compatibility(db: &DatabaseConnection) -> Result<(),
         "CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions (user_id)",
     ))
     .await?;
-    db.execute(Statement::from_string(
-        DatabaseBackend::Sqlite,
-        format!(
-            "INSERT OR IGNORE INTO users (id, username, password, role, created_at) VALUES ('usr-admin', 'tikee_init', '$2b$10$vslUa5GAP.Mk3s4PPclu..miTj/beUTaSCR/HSZdfPVXmhA/7lmpm', 'admin', '{}')",
-            time::OffsetDateTime::now_utc()
-                .format(&time::format_description::well_known::Rfc3339)
-                .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned())
-        ),
-    ))
-    .await?;
-
     Ok(())
 }
 

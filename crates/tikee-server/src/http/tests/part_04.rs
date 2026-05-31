@@ -461,7 +461,7 @@
         assert_eq!(published["code"], 0);
         assert_eq!(published["data"]["release_grants"]["url"][0], "https://api.example.com");
         assert_eq!(published["data"]["release_grants"]["secret"][0], "secret:db-readonly");
-        assert_eq!(published["data"]["release_grants"]["verified_by"], "tikee_init");
+        assert_eq!(published["data"]["release_grants"]["verified_by"], "bootstrap_admin");
         assert_eq!(published["data"]["release_signature"]["approval_ticket"], approval_ticket);
     }
 
@@ -625,7 +625,7 @@
             approval_ticket
         );
         assert_eq!(published["data"]["release_signature"]["signature"], signature);
-        assert_eq!(published["data"]["release_signature"]["verified_by"], "tikee_init");
+        assert_eq!(published["data"]["release_signature"]["verified_by"], "bootstrap_admin");
         assert!(published["data"]["release_signature"]["verified_at"].is_string());
 
         let reloaded_response = app
@@ -1269,11 +1269,28 @@
     }
 
     async fn admin_token(app: axum::Router) -> String {
+        ensure_bootstrap_admin(app.clone()).await;
         let login = post_json_raw(app, "/api/v1/auth/login", ADMIN_LOGIN, None).await;
         login["data"]["token"]
             .as_str()
             .unwrap_or_else(|| panic!("admin login should return token"))
             .to_owned()
+    }
+
+
+    async fn ensure_bootstrap_admin(app: axum::Router) {
+        let status = request_with(app.clone(), "/api/v1/auth/bootstrap").await;
+        let status_body = axum::body::to_bytes(status.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("bootstrap status body should collect: {error}"));
+        let status_json: Value = serde_json::from_slice(&status_body)
+            .unwrap_or_else(|error| panic!("bootstrap status body should be JSON: {error}"));
+        if status_json["data"]["registrationOpen"].as_bool() != Some(true) {
+            return;
+        }
+        let payload = r#"{"username":"bootstrap_admin","email":"bootstrap.admin@example.com","password":"Tikee@2026!","confirmPassword":"Tikee@2026!"}"#;
+        let created = post_json_raw(app, "/api/v1/auth/bootstrap/register", payload, None).await;
+        assert_eq!(created["data"]["roles"][0], "admin");
     }
 
     async fn admin_request_builder(

@@ -23,24 +23,11 @@
 
 > 项目不提供浏览器 API 文档 UI；仅保留机器可读的 OpenAPI JSON。
 
-## 初始化专用账号
+## 初始化管理员
 
-开发周期内置一组初始化专用账号，便于直接登录 Web UI 调试：
+系统不再内置默认管理员账号。首次部署后打开 Web UI，会强制进入初始化管理员注册页；需填写用户名、邮箱、密码和确认密码。注册成功后会自动登录，并在 `users.bootstrap_admin` 中记录该账号来自一次性部署初始化流程。
 
-| 字段 | 默认值 |
-| --- | --- |
-| 用户名 | `tikee_init` |
-| 密码 | `Tikee@2026!` |
-
-可通过环境变量覆盖：
-
-```bash
-export TIKEE_DEV_ADMIN_USERNAME="tikee_init"
-export TIKEE_DEV_ADMIN_PASSWORD="Tikee@2026!"
-./scripts/dev.sh
-```
-
-当前账号仅用于开发初始化登录调试；系统不再内置静态 Bearer 后门，所有受保护 API 都必须先通过登录接口获取 `atk_` 会话 token。生产阶段必须接入正式 RBAC / OIDC / API Token 生命周期管理。
+初始化注册入口只在用户表为空时开放；创建首个管理员后立即关闭。后续管理员、操作员、查看者等账号只能由站内管理员在“用户管理”中手动创建。所有受保护 API 都必须先通过登录接口获取 `atk_` 会话 token。
 
 
 ## 开发联调数据
@@ -55,7 +42,7 @@ export TIKEE_DEV_ADMIN_PASSWORD="Tikee@2026!"
 脚本会执行 `scripts/dev-seed.sql`，内容包括：
 
 - `default` namespace 与 `observability-demo` app。
-- `dev_operator` / `dev_viewer` 两个开发账号，密码同初始化账号：`Tikee@2026!`。
+- `dev_operator` / `dev_viewer` 两个开发账号，密码为 `Tikee@2026!`；它们不会替代首次初始化管理员。
 - API、fixed-rate、cron 三类任务样例。
 - 一个 pending dispatch queue 样例、一个 succeeded instance 与日志样例。
 - shell / python 两个 approved script 及 released version。

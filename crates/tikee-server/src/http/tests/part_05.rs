@@ -277,6 +277,69 @@
             .is_some_and(|detail| detail.contains("node=approve status=succeeded")));
     }
 
+
+    #[tokio::test]
+    async fn bootstrap_registers_first_admin_once_and_auto_logs_in() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            AuditLogRepository::new(db.clone()),
+            crate::tunnel::WorkerRegistry::default(),
+            StandaloneCoordinator::shared("test-node"),
+        ));
+
+        let status = request_with(app.clone(), "/api/v1/auth/bootstrap").await;
+        assert_eq!(status.status(), axum::http::StatusCode::OK);
+        let status_body = axum::body::to_bytes(status.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("bootstrap status body should collect: {error}"));
+        let status_json: Value = serde_json::from_slice(&status_body)
+            .unwrap_or_else(|error| panic!("bootstrap status should be JSON: {error}"));
+        assert_eq!(status_json["data"]["initialized"], false);
+        assert_eq!(status_json["data"]["registrationOpen"], true);
+
+        let payload = r#"{"username":"bootstrap_admin","email":"bootstrap.admin@example.com","password":"Tikee@2026!","confirmPassword":"Tikee@2026!"}"#;
+        let registered = post_json_without_auth(app.clone(), "/api/v1/auth/bootstrap/register", payload).await;
+        assert_eq!(registered["data"]["username"], "bootstrap_admin");
+        assert_eq!(registered["data"]["roles"][0], "admin");
+        assert!(registered["data"]["token"].as_str().is_some_and(|token| !token.is_empty()));
+
+        let closed = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/auth/bootstrap/register")
+                    .header("content-type", "application/json")
+                    .body(Body::from(payload.to_owned()))
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert_eq!(closed.status(), axum::http::StatusCode::FORBIDDEN);
+
+        let users_response = app
+            .clone()
+            .oneshot(admin_request_builder(app.clone(), "GET", "/api/v1/users").await)
+            .await
+            .unwrap_or_else(|error| panic!("users route should respond: {error}"));
+        let users_body = axum::body::to_bytes(users_response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("users body should collect: {error}"));
+        let users_json: Value = serde_json::from_slice(&users_body)
+            .unwrap_or_else(|error| panic!("users body should be JSON: {error}"));
+        assert_eq!(users_json["data"][0]["bootstrap_admin"], true);
+        assert_eq!(users_json["data"][0]["email"], "bootstrap.admin@example.com");
+    }
+
     #[tokio::test]
     #[allow(clippy::too_many_lines)]
     async fn user_management_and_rbac_integration() {
@@ -296,7 +359,7 @@
             StandaloneCoordinator::shared("test-node"),
         ));
 
-        // 1. Get users list (should only contain seeded admin)
+        // 1. Get users list (should only contain the bootstrapped admin)
         let response = app
             .clone()
             .oneshot(admin_request_builder(app.clone(), "GET", "/api/v1/users").await)
@@ -309,7 +372,7 @@
         let json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("test operation should succeed: {error}"));
         assert_eq!(json["data"].as_array().map(Vec::len), Some(1));
-        assert_eq!(json["data"][0]["username"], "tikee_init");
+        assert_eq!(json["data"][0]["username"], "bootstrap_admin");
 
         // 2. Create an operator user
         let response = app
@@ -319,7 +382,7 @@
                     app.clone(),
                     "POST",
                     "/api/v1/users",
-                    r#"{"username":"test_operator","password":"Password@123","role":"operator"}"#,
+                    r#"{"username":"test_operator","email":"operator@example.com","password":"Password@123","role":"operator"}"#,
                 )
                 .await,
             )

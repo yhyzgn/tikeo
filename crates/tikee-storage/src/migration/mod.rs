@@ -69,8 +69,6 @@ impl MigrationTrait for CreateMetadataTables {
         create_alert_delivery_attempts(manager).await?;
         create_indexes(manager).await?;
 
-        // Seed default admin
-        seed_admin_user(manager).await?;
         seed_rbac_defaults(manager).await?;
         Ok(())
     }
@@ -205,8 +203,10 @@ async fn create_users(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .if_not_exists()
                 .col(string_pk(Users::Id))
                 .col(string_col(Users::Username))
+                .col(string_col(Users::Email))
                 .col(string_col(Users::Password))
                 .col(string_col(Users::Role))
+                .col(boolean_col(Users::BootstrapAdmin).default(false))
                 .col(string_col(Users::CreatedAt))
                 .to_owned(),
         )
@@ -774,33 +774,6 @@ async fn create_raft_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .to_owned(),
         )
         .await
-}
-
-async fn seed_admin_user(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
-    // Seed initial admin user using credentials documented in README: tikee_init / Tikee@2026!
-    let insert = sea_query::Query::insert()
-        .into_table(Users::Table)
-        .columns([
-            Users::Id,
-            Users::Username,
-            Users::Password,
-            Users::Role,
-            Users::CreatedAt,
-        ])
-        .values_panic([
-            "usr-admin".into(),
-            "tikee_init".into(),
-            "$2b$10$vslUa5GAP.Mk3s4PPclu..miTj/beUTaSCR/HSZdfPVXmhA/7lmpm".into(), // hash for "Tikee@2026!"
-            "admin".into(),
-            now_rfc3339().into(),
-        ])
-        .to_owned();
-
-    match manager.exec_stmt(insert).await {
-        Ok(()) => Ok(()),
-        Err(DbErr::Exec(error)) if error.to_string().contains("UNIQUE") => Ok(()),
-        Err(error) => Err(error),
-    }
 }
 
 async fn seed_rbac_defaults(manager: &SchemaManager<'_>) -> Result<(), DbErr> {

@@ -118,6 +118,11 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
             "/raft/members:propose",
             axum::routing::post(routes::propose_member_change),
         )
+        .route("/auth/bootstrap", get(auth::bootstrap_status))
+        .route(
+            "/auth/bootstrap/register",
+            axum::routing::post(auth::register_bootstrap_admin),
+        )
         .route("/auth/login", axum::routing::post(auth::login))
         .route("/auth/status", get(auth::status))
         .route("/auth/oidc/authorize", get(auth::oidc_authorize))
@@ -266,12 +271,24 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
             "/namespaces/{id}",
             axum::routing::delete(routes::delete_namespace),
         )
-         .route("/apps", get(routes::list_apps).post(routes::create_app))
+        .route("/apps", get(routes::list_apps).post(routes::create_app))
         .route("/apps/{id}", axum::routing::delete(routes::delete_app))
-        .route("/secrets", get(routes::list_secrets).post(routes::create_secret))
-        .route("/secrets/{id}", axum::routing::delete(routes::delete_secret))
-        .route("/calendars", get(routes::list_calendars).post(routes::upsert_calendar))
-        .route("/calendars/{id}", axum::routing::delete(routes::delete_calendar))
+        .route(
+            "/secrets",
+            get(routes::list_secrets).post(routes::create_secret),
+        )
+        .route(
+            "/secrets/{id}",
+            axum::routing::delete(routes::delete_secret),
+        )
+        .route(
+            "/calendars",
+            get(routes::list_calendars).post(routes::upsert_calendar),
+        )
+        .route(
+            "/calendars/{id}",
+            axum::routing::delete(routes::delete_calendar),
+        )
         .route(
             "/worker-pools",
             get(routes::list_worker_pools).post(routes::create_worker_pool),

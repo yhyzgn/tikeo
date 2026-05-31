@@ -47,6 +47,7 @@ pub type ErrorResponse = ApiResponse<ErrorData>;
 pub type LoginApiResponse = ApiResponse<AuthSession>;
 
 pub type AuthStatusApiResponse = ApiResponse<AuthStatusResponse>;
+pub type BootstrapStatusApiResponse = ApiResponse<BootstrapStatusResponse>;
 pub type OidcAuthorizeApiResponse = ApiResponse<OidcAuthorizeResponse>;
 
 pub type MeApiResponse = ApiResponse<MeResponse>;
@@ -69,14 +70,33 @@ pub type DeleteJobApiResponse = ApiResponse<EmptyData>;
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateUserRequest {
     pub username: String,
+    pub email: String,
     pub password: String,
     pub role: String,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct UpdateUserRequest {
+    pub email: Option<String>,
     pub password: Option<String>,
     pub role: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BootstrapRegisterRequest {
+    pub username: String,
+    pub email: String,
+    pub password: String,
+    pub confirm_password: String,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BootstrapStatusResponse {
+    pub initialized: bool,
+    pub registration_open: bool,
+    pub bootstrap_admin_username: Option<String>,
 }
 
 pub type UserApiResponse = ApiResponse<tikee_storage::UserSummary>;
@@ -368,6 +388,8 @@ pub struct OidcAuthorizeResponse {
 pub struct AuthStatusResponse {
     pub mode: String,
     pub local_login_enabled: bool,
+    pub bootstrap_required: bool,
+    pub registration_open: bool,
     pub oidc: OidcStatus,
 }
 

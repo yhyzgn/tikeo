@@ -39,12 +39,11 @@ export function LoginPage() {
       <Card className="login-card">
         <Typography.Title level={2}>登录 tikee</Typography.Title>
         <Typography.Paragraph type="secondary">
-          当前阶段提供开发管理员登录；后续会替换为正式 RBAC / OIDC 集成。
+          使用管理员分配的账号登录。首次部署时请先完成初始化管理员注册。
         </Typography.Paragraph>
         {error ? <Alert type="error" showIcon message="登录失败" description={error} /> : null}
         <Form<LoginRequest>
           layout="vertical"
-          initialValues={{ username: 'tikee_init', password: 'Tikee@2026!' }}
           onFinish={async (values) => {
             setLoading(true);
             setError(null);

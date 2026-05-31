@@ -67,11 +67,16 @@ pub async fn create_user(
 ) -> Result<Json<crate::http::dto::UserApiResponse>, ApiError> {
     let principal = auth::require_permission(&headers, &state, "users", "manage").await?;
 
-    if request.username.trim().is_empty() || request.password.trim().is_empty() {
+    validate_role(&request.role)?;
+    if request.username.trim().is_empty()
+        || request.email.trim().is_empty()
+        || request.password.trim().is_empty()
+    {
         return Err(ApiError::bad_request(
-            "username and password cannot be empty",
+            "username, email and password cannot be empty",
         ));
     }
+    validate_email(&request.email)?;
 
     // Hash password with BCrypt
     let hash = bcrypt::hash(request.password, 10)
@@ -80,9 +85,11 @@ pub async fn create_user(
     let created = state
         .users
         .create_user(tikee_storage::CreateUser {
-            username: request.username,
+            username: request.username.trim().to_owned(),
+            email: request.email.trim().to_owned(),
             password: hash,
             role: request.role,
+            bootstrap_admin: false,
         })
         .await
         .map_err(|error| ApiError::storage(&error))?;
@@ -134,6 +141,12 @@ pub async fn update_user(
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| ApiError::not_found(format!("user not found: {id}")))?;
 
+    if let Some(role) = request.role.as_deref() {
+        validate_role(role)?;
+    }
+    if let Some(email) = request.email.as_deref() {
+        validate_email(email)?;
+    }
     let password_changed = request.password.is_some();
     let role_changed = request.role.is_some();
     let password = if let Some(plain) = request.password {
@@ -152,6 +165,7 @@ pub async fn update_user(
         .update_user(
             &id,
             tikee_storage::UpdateUser {
+                email: request.email.as_deref().map(str::trim).map(str::to_owned),
                 password,
                 role: request.role.clone(),
             },
@@ -211,6 +225,19 @@ pub async fn delete_user(
         .await
         .map_err(|error| ApiError::storage(&error))?;
 
+    if let Some(user) = existing.as_ref() {
+        if user.role == "admin"
+            && state
+                .users
+                .count_by_role("admin")
+                .await
+                .map_err(|error| ApiError::storage(&error))?
+                <= 1
+        {
+            return Err(ApiError::bad_request("cannot delete the last admin user"));
+        }
+    }
+
     let success = state
         .users
         .delete_user(&id)
@@ -235,4 +262,23 @@ pub async fn delete_user(
     } else {
         Err(ApiError::not_found(format!("user not found: {id}")))
     }
+}
+
+fn validate_role(role: &str) -> Result<(), ApiError> {
+    if matches!(role, "admin" | "operator" | "viewer") {
+        Ok(())
+    } else {
+        Err(ApiError::bad_request(format!("unsupported role: {role}")))
+    }
+}
+
+fn validate_email(email: &str) -> Result<(), ApiError> {
+    let email = email.trim();
+    let Some((local, domain)) = email.split_once('@') else {
+        return Err(ApiError::bad_request("valid email is required"));
+    };
+    if local.is_empty() || domain.is_empty() || !domain.contains('.') {
+        return Err(ApiError::bad_request("valid email is required"));
+    }
+    Ok(())
 }

@@ -1171,10 +1171,15 @@ mod tests {
 
         let users = super::UserRepository::new(db.clone());
         let admin = users
-            .get_by_username("tikee_init")
+            .create_user(super::CreateUser {
+                username: "bootstrap-admin".to_owned(),
+                email: "bootstrap-admin@example.com".to_owned(),
+                password: "$2b$10$adminhash".to_owned(),
+                role: "admin".to_owned(),
+                bootstrap_admin: true,
+            })
             .await
-            .unwrap_or_else(|error| panic!("admin lookup should work: {error}"))
-            .unwrap_or_else(|| panic!("seeded admin should exist"));
+            .unwrap_or_else(|error| panic!("admin should insert: {error}"));
         let sessions = super::AuthSessionRepository::new(db.clone());
         auth_session::ActiveModel {
             id: Set("expired-session".to_owned()),
@@ -1213,20 +1218,20 @@ mod tests {
 
         let users = super::UserRepository::new(db);
 
-        // Seeding checked
-        let admin = users
-            .get_by_username("tikee_init")
+        let listed_empty = users
+            .list_users()
             .await
-            .unwrap_or_else(|error| panic!("should load admin user: {error}"));
-        let admin = admin.unwrap_or_else(|| panic!("seeded admin should exist"));
-        assert_eq!(admin.role, "admin");
+            .unwrap_or_else(|error| panic!("should list users: {error}"));
+        assert!(listed_empty.is_empty());
 
         // Create user
         let user = users
             .create_user(super::CreateUser {
                 username: "operator-1".to_owned(),
+                email: "operator-1@example.com".to_owned(),
                 password: "$2b$10$operatorhash".to_owned(),
                 role: "operator".to_owned(),
+                bootstrap_admin: false,
             })
             .await
             .unwrap_or_else(|error| panic!("should create user: {error}"));
@@ -1238,13 +1243,14 @@ mod tests {
             .list_users()
             .await
             .unwrap_or_else(|error| panic!("should list users: {error}"));
-        assert_eq!(listed.len(), 2); // admin + operator-1
+        assert_eq!(listed.len(), 1);
 
         // Update user
         let updated = users
             .update_user(
                 &user.id,
                 super::UpdateUser {
+                    email: Some("operator-updated@example.com".to_owned()),
                     password: None,
                     role: Some("viewer".to_owned()),
                 },
@@ -1253,6 +1259,7 @@ mod tests {
             .unwrap_or_else(|error| panic!("should update user: {error}"))
             .unwrap_or_else(|| panic!("user should exist"));
         assert_eq!(updated.role, "viewer");
+        assert_eq!(updated.email, "operator-updated@example.com");
 
         // Delete user
         let deleted = users
@@ -1266,7 +1273,7 @@ mod tests {
             .list_users()
             .await
             .unwrap_or_else(|error| panic!("should list users: {error}"));
-        assert_eq!(listed_again.len(), 1); // just admin
+        assert!(listed_again.is_empty());
     }
     #[tokio::test]
     #[allow(clippy::too_many_lines)]

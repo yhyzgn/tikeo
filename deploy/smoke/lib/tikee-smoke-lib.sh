@@ -98,11 +98,20 @@ tikee_smoke_wait_for_http() {
 
 tikee_smoke_login() {
   local api_url="$1"
-  local username="${2:-tikee_init}"
+  local username="${2:-smoke_admin}"
   local password="${3:-Tikee@2026!}"
-  TIKEE_SMOKE_AUTH_TOKEN="$(curl -fsS -X POST "$(tikee_smoke_api_path "$api_url" /api/v1/auth/login)" \
-    -H 'content-type: application/json' \
-    -d "{\"username\":\"$username\",\"password\":\"$password\"}" | tikee_smoke_json_get data.token)"
+  local email="${TIKEE_SMOKE_ADMIN_EMAIL:-smoke.admin@example.com}"
+  local registration_open
+  registration_open="$(curl -fsS "$(tikee_smoke_api_path "$api_url" /api/v1/auth/bootstrap)" | tikee_smoke_json_get data.registrationOpen)"
+  if [[ "$registration_open" == "True" || "$registration_open" == "true" ]]; then
+    TIKEE_SMOKE_AUTH_TOKEN="$(curl -fsS -X POST "$(tikee_smoke_api_path "$api_url" /api/v1/auth/bootstrap/register)" \
+      -H 'content-type: application/json' \
+      -d "{\"username\":\"$username\",\"email\":\"$email\",\"password\":\"$password\",\"confirmPassword\":\"$password\"}" | tikee_smoke_json_get data.token)"
+  else
+    TIKEE_SMOKE_AUTH_TOKEN="$(curl -fsS -X POST "$(tikee_smoke_api_path "$api_url" /api/v1/auth/login)" \
+      -H 'content-type: application/json' \
+      -d "{\"username\":\"$username\",\"password\":\"$password\"}" | tikee_smoke_json_get data.token)"
+  fi
   export TIKEE_SMOKE_AUTH_TOKEN
 }
 

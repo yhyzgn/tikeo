@@ -1551,3 +1551,7 @@ html[data-theme='dark'] .ant-picker-dropdown .ant-picker-ok button.ant-btn-prima
   border-color: #424242 !important;
   color: rgba(255, 255, 255, 0.3) !important;
 }
+
+.setup-card {
+  width: min(520px, 100%);
+}

@@ -257,9 +257,20 @@ CFG
 }
 
 login() {
-  AUTH_TOKEN="$(curl -fsS -X POST "$(api_path /api/v1/auth/login)" \
-    -H 'content-type: application/json' \
-    -d '{"username":"tikee_init","password":"Tikee@2026!"}' | json_get data.token)"
+  local username="${TIKEE_SMOKE_ADMIN_USERNAME:-smoke_admin}"
+  local email="${TIKEE_SMOKE_ADMIN_EMAIL:-smoke.admin@example.com}"
+  local password="${TIKEE_SMOKE_ADMIN_PASSWORD:-Tikee@2026!}"
+  local registration_open
+  registration_open="$(curl -fsS "$(api_path /api/v1/auth/bootstrap)" | json_get data.registrationOpen)"
+  if [[ "$registration_open" == "True" || "$registration_open" == "true" ]]; then
+    AUTH_TOKEN="$(curl -fsS -X POST "$(api_path /api/v1/auth/bootstrap/register)" \
+      -H 'content-type: application/json' \
+      -d "{\"username\":\"$username\",\"email\":\"$email\",\"password\":\"$password\",\"confirmPassword\":\"$password\"}" | json_get data.token)"
+  else
+    AUTH_TOKEN="$(curl -fsS -X POST "$(api_path /api/v1/auth/login)" \
+      -H 'content-type: application/json' \
+      -d "{\"username\":\"$username\",\"password\":\"$password\"}" | json_get data.token)"
+  fi
   TIKEE_SMOKE_AUTH_TOKEN="$AUTH_TOKEN"
   export TIKEE_SMOKE_AUTH_TOKEN
 }
