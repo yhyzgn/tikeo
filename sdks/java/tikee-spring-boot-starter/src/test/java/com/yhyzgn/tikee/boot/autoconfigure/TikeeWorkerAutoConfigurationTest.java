@@ -253,7 +253,7 @@ class TikeeWorkerAutoConfigurationTest {
     }
 
     private static void installFakeWasmtime(Path stateDir) throws Exception {
-        Path binary = stateDir.resolve("wasmtime").resolve("bin").resolve("wasmtime");
+        Path binary = stateDir.resolve("sandbox-tools").resolve("wasmtime").resolve("bin").resolve("wasmtime");
         java.nio.file.Files.createDirectories(binary.getParent());
         java.nio.file.Files.writeString(binary, "#!/usr/bin/env sh\necho wasmtime 0.0.0-test\n");
         binary.toFile().setExecutable(true);
