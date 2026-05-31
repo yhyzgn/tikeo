@@ -48,7 +48,8 @@ class TikeeWorkerAutoConfigurationTest {
             NoopTikeeWorkerClient noop = (NoopTikeeWorkerClient) client;
             assertThat(noop.registration().clientInstanceId()).startsWith("java-");
             assertThat(noop.registration().app()).isEqualTo("billing");
-            assertThat(scriptLanguages(noop)).contains("shell");
+            assertThat(scriptLanguages(noop)).contains("wasm", "shell");
+            assertThat(scriptLanguages(noop)).doesNotContain("python", "javascript", "typescript", "powershell", "php", "groovy", "rhai");
             assertThat(noop.running()).isTrue();
             assertThat(context.getBean(TikeeProcessorRegistry.class).handlers()).containsKey("demo.echo");
         });
