@@ -1,0 +1,54 @@
+name: Publish / Java SDK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to attach Java SDK package to, for example v0.1.0'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: java-sdk-${{ github.ref_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Package and upload Java SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Test and build Java SDK
+        working-directory: sdks/java
+        run: ./gradlew test jar sourcesJar
+      - name: Package Java SDK jars
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
+          VERSION="${RELEASE_TAG#v}"
+          PKG="java-sdk-${VERSION}"
+          mkdir -p "dist/$PKG"
+          cp -R sdks/java/README.md sdks/java/settings.gradle.kts sdks/java/build.gradle.kts sdks/java/gradle.properties "dist/$PKG/"
+          find sdks/java -path '*/build/libs/*.jar' -type f -print -exec cp {} "dist/$PKG/" \;
+          tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
+      - name: Upload Java SDK package to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name || inputs.tag }}
+          name: ${{ github.ref_name || inputs.tag }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name || inputs.tag, '-') }}
+          files: dist/*.tar.gz

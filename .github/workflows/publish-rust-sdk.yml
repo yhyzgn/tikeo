@@ -1,0 +1,56 @@
+name: Publish / Rust SDK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to attach Rust SDK package to, for example v0.1.0'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rust-sdk-${{ github.ref_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Package and upload Rust SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sdks/rust/tikee -> target
+      - name: Test Rust SDK
+        run: cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features
+      - name: Package Rust SDK crate
+        run: cargo package --manifest-path sdks/rust/tikee/Cargo.toml --allow-dirty
+      - name: Stage Rust SDK release payload
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
+          VERSION="${RELEASE_TAG#v}"
+          PKG="rust-sdk-${VERSION}"
+          mkdir -p "dist/$PKG"
+          cp sdks/rust/tikee/target/package/*.crate "dist/$PKG/"
+          cp -R sdks/rust/README.md sdks/rust/tikee/README.md "dist/$PKG/"
+          tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
+      - name: Upload Rust SDK package to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name || inputs.tag }}
+          name: ${{ github.ref_name || inputs.tag }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name || inputs.tag, '-') }}
+          files: dist/*.tar.gz
