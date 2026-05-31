@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "worktreeRoot": "/home/neo/Projects/neo/pub/tikee",
-  "gitDir": "/home/neo/Projects/neo/pub/tikee/.git",
-  "indexMtimeMs": 1780049386434.306,
-  "indexSize": 77252,
-  "map": "  web/: eslint.config, App, client.test, client, AppShell, AuthGuard, CodeEditor, ForbiddenPage, Permission, RouteFallback",
-  "createdAt": "2026-05-29T10:13:55.219Z"
-}
