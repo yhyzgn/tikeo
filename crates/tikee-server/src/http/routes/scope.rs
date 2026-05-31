@@ -7,7 +7,7 @@ use axum::{
     extract::{Query, State},
     http::HeaderMap,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tikee_storage::ScopeRepository;
 
 use crate::http::{AppState, auth, dto::ApiResponse, error::ApiError};
@@ -310,7 +310,24 @@ pub struct CreateSecretRequest {
     pub namespace: String,
     pub app: String,
     pub name: String,
-    pub value_ref: String,
+    pub reference: SecretReferenceRequest,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, utoipa::ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SecretReferenceRequest {
+    Env {
+        name: String,
+    },
+    Vault {
+        path: String,
+        key: String,
+    },
+    Secret {
+        provider: String,
+        id: String,
+        key: Option<String>,
+    },
 }
 
 #[utoipa::path(get, path = "/api/v1/secrets", tag = "tenancy", params(ScopeQuery))]
@@ -361,7 +378,7 @@ pub async fn create_secret(
     let namespace = normalize_name(&request.namespace, "namespace")?;
     let app = normalize_name(&request.app, "app")?;
     let name = normalize_name(&request.name, "secret")?;
-    let value_ref = normalize_value_ref(&request.value_ref)?;
+    let value_ref = normalize_secret_reference(request.reference)?;
     if !crate::http::access_scope::allows_resource(
         &principal.scope_bindings,
         &namespace,
@@ -424,18 +441,49 @@ pub async fn delete_secret(
     Ok(Json(ApiResponse::success(crate::http::dto::EmptyData {})))
 }
 
-fn normalize_value_ref(value: &str) -> Result<String, ApiError> {
+fn normalize_secret_reference(reference: SecretReferenceRequest) -> Result<String, ApiError> {
+    let value = serde_json::to_string(&normalize_secret_reference_value(reference)?)
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    Ok(value)
+}
+
+fn normalize_secret_reference_value(
+    reference: SecretReferenceRequest,
+) -> Result<serde_json::Value, ApiError> {
+    match reference {
+        SecretReferenceRequest::Env { name } => Ok(serde_json::json!({
+            "kind": "env",
+            "name": normalize_name(&name, "env secret name")?,
+        })),
+        SecretReferenceRequest::Vault { path, key } => Ok(serde_json::json!({
+            "kind": "vault",
+            "path": normalize_non_empty(&path, "vault path")?,
+            "key": normalize_name(&key, "vault key")?,
+        })),
+        SecretReferenceRequest::Secret { provider, id, key } => {
+            let mut value = serde_json::json!({
+                "kind": "secret",
+                "provider": normalize_name(&provider, "secret provider")?,
+                "id": normalize_non_empty(&id, "secret id")?,
+            });
+            if let Some(key) = normalize_optional(key) {
+                value["key"] = serde_json::Value::String(key);
+            }
+            Ok(value)
+        }
+    }
+}
+
+fn normalize_non_empty(value: &str, field: &str) -> Result<String, ApiError> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
-        return Err(ApiError::bad_request("secret valueRef cannot be empty"));
-    }
-    if !trimmed.starts_with("env:")
-        && !trimmed.starts_with("vault:")
-        && !trimmed.starts_with("secret:")
-    {
-        return Err(ApiError::bad_request(
-            "secret valueRef must start with env:, vault:, or secret:",
-        ));
+        return Err(ApiError::bad_request(format!("{field} cannot be empty")));
     }
     Ok(trimmed.to_owned())
+}
+
+fn normalize_optional(value: Option<String>) -> Option<String> {
+    value
+        .map(|item| item.trim().to_owned())
+        .filter(|item| !item.is_empty())
 }

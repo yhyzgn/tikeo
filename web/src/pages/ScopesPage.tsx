@@ -1,5 +1,6 @@
 import { Alert, Button, Card, Col, Drawer, Form, Input, InputNumber, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
@@ -27,12 +28,65 @@ import {
   type UpdateWorkerPoolQuotaRequest,
   type NamespaceSummary,
   type OidcIdentitySummary,
+  type SecretReferenceRequest,
   type SecretSummary,
   type UpsertOidcIdentityRequest,
   type WorkerPoolSummary,
 } from '../api/client';
 import { GuardedButton, PermissionGate, useCan } from '../components/Permission';
 import { persistentPagination, usePersistentTablePageSize } from '../utils/pagination';
+
+
+interface CreateSecretFormValues {
+  namespace: string;
+  app: string;
+  name: string;
+  referenceKind: 'env' | 'vault' | 'secret';
+  envName?: string;
+  vaultPath?: string;
+  vaultKey?: string;
+  secretProvider?: string;
+  secretId?: string;
+  secretKey?: string;
+}
+
+
+function parseSecretReference(value: string): SecretReferenceRequest | null {
+  try {
+    const parsed = JSON.parse(value) as SecretReferenceRequest;
+    if (parsed.kind === 'env' && 'name' in parsed) return parsed;
+    if (parsed.kind === 'vault' && 'path' in parsed && 'key' in parsed) return parsed;
+    if (parsed.kind === 'secret' && 'provider' in parsed && 'id' in parsed) return parsed;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function renderSecretReference(value: string): ReactNode {
+  const reference = parseSecretReference(value);
+  if (!reference) {
+    return <Typography.Text type="danger">引用格式无效</Typography.Text>;
+  }
+  if (reference.kind === 'env') {
+    return <Space size={6} wrap><Tag color="green">环境变量</Tag><Typography.Text code>{reference.name}</Typography.Text></Space>;
+  }
+  if (reference.kind === 'vault') {
+    return <Space size={6} wrap><Tag color="gold">Vault</Tag><Typography.Text code>{reference.path}</Typography.Text><Tag>{reference.key}</Tag></Space>;
+  }
+  return <Space size={6} wrap><Tag color="geekblue">外部 Secret</Tag><Typography.Text code>{reference.provider}</Typography.Text><Typography.Text code>{reference.id}</Typography.Text>{reference.key ? <Tag>{reference.key}</Tag> : null}</Space>;
+}
+
+function toCreateSecretRequest(values: CreateSecretFormValues): CreateSecretRequest {
+  const base = { namespace: values.namespace, app: values.app, name: values.name };
+  if (values.referenceKind === 'vault') {
+    return { ...base, reference: { kind: 'vault', path: values.vaultPath ?? '', key: values.vaultKey ?? '' } };
+  }
+  if (values.referenceKind === 'secret') {
+    return { ...base, reference: { kind: 'secret', provider: values.secretProvider ?? '', id: values.secretId ?? '', key: values.secretKey ?? null } };
+  }
+  return { ...base, reference: { kind: 'env', name: values.envName ?? '' } };
+}
 
 export function ScopesPage() {
   const canManageScopes = useCan('tenants', 'manage');
@@ -46,8 +100,9 @@ export function ScopesPage() {
   const [namespaceForm] = Form.useForm<CreateNamespaceRequest>();
   const [appForm] = Form.useForm<CreateAppScopeRequest>();
   const [poolForm] = Form.useForm<CreateWorkerPoolRequest>();
-  const [secretForm] = Form.useForm<CreateSecretRequest>();
+  const [secretForm] = Form.useForm<CreateSecretFormValues>();
   const [oidcForm] = Form.useForm<UpsertOidcIdentityRequest>();
+  const secretReferenceKind = Form.useWatch('referenceKind', secretForm) ?? 'env';
   const [drawer, setDrawer] = useState<'namespace' | 'app' | 'pool' | 'secret' | 'oidc' | null>(null);
   const [quotaForm] = Form.useForm<UpdateWorkerPoolQuotaRequest>();
   const [quotaPool, setQuotaPool] = useState<WorkerPoolSummary | null>(null);
@@ -107,9 +162,9 @@ export function ScopesPage() {
     await refresh();
   };
 
-  const handleSecretCreate = async (values: CreateSecretRequest) => {
+  const handleSecretCreate = async (values: CreateSecretFormValues) => {
     if (!canManageScopes) { message.error('当前账号无权限管理 Secret 引用'); return; }
-    await createSecret(values);
+    await createSecret(toCreateSecretRequest(values));
     secretForm.resetFields();
     setDrawer(null);
     message.success('Secret 已创建');
@@ -180,7 +235,7 @@ export function ScopesPage() {
   const secretColumns: ColumnsType<SecretSummary> = [
     { title: '范围', render: (_, item) => <Space><Tag color="blue">{item.namespace}</Tag><Tag color="purple">{item.app}</Tag></Space> },
     { title: '名称', dataIndex: 'name' },
-    { title: 'Value Ref', dataIndex: 'valueRef', render: (value: string) => <Typography.Text code>{value}</Typography.Text> },
+    { title: '引用', dataIndex: 'valueRef', render: renderSecretReference },
     { title: '创建人', dataIndex: 'createdBy' },
     { title: '操作', width: 100, render: (_, record) => <GuardedButton danger size="small" resource="tenants" action="manage" onClick={async () => { await deleteSecret(record.id); message.success('Secret 已删除'); await refresh(); }}>删除</GuardedButton> },
   ];
@@ -253,12 +308,15 @@ export function ScopesPage() {
       </Drawer>
 
       <Drawer title="新建 Secret 引用" open={drawer === 'secret'} onClose={() => { setDrawer(null); secretForm.resetFields(); }} width={640} destroyOnClose>
-        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="这里只保存 Secret 引用，不保存明文" description="valueRef 必须以 env:、vault: 或 secret: 开头，例如 env:BILLING_DB_PASSWORD。" />
-        <Form form={secretForm} layout="vertical" onFinish={(values) => void handleSecretCreate(values)}>
+        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="这里只保存结构化 Secret 引用，不保存明文" description="请选择引用类型并填写对应字段，系统会保存规范化结构化引用。" />
+        <Form form={secretForm} layout="vertical" initialValues={{ referenceKind: 'env' }} onFinish={(values) => void handleSecretCreate(values)}>
           <Form.Item name="namespace" label="命名空间" rules={[{ required: true, message: '请选择命名空间' }]}><Select options={namespaceOptions} placeholder="选择 namespace" /></Form.Item>
           <Form.Item name="app" label="应用" rules={[{ required: true, message: '请选择应用' }]}><Select options={appOptions} placeholder="选择 app" /></Form.Item>
           <Form.Item name="name" label="Secret 名称" rules={[{ required: true, message: '请输入 Secret 名称' }]}><Input placeholder="billing-db-password" /></Form.Item>
-          <Form.Item name="valueRef" label="Secret 引用" rules={[{ required: true, message: '请输入 Secret 引用' }, { pattern: /^(env|vault|secret):.+/, message: '必须以 env:、vault: 或 secret: 开头' }]}><Input placeholder="env:BILLING_DB_PASSWORD" /></Form.Item>
+          <Form.Item name="referenceKind" label="引用类型" rules={[{ required: true, message: '请选择引用类型' }]}><Select options={[{ value: 'env', label: '环境变量' }, { value: 'vault', label: 'Vault 路径' }, { value: 'secret', label: '外部 Secret Provider' }]} /></Form.Item>
+          {secretReferenceKind === 'env' ? <Form.Item name="envName" label="环境变量名" rules={[{ required: true, message: '请输入环境变量名' }]}><Input placeholder="BILLING_DB_PASSWORD" /></Form.Item> : null}
+          {secretReferenceKind === 'vault' ? <><Form.Item name="vaultPath" label="Vault 路径" rules={[{ required: true, message: '请输入 Vault 路径' }]}><Input placeholder="kv/data/tikee/billing" /></Form.Item><Form.Item name="vaultKey" label="Vault Key" rules={[{ required: true, message: '请输入 Vault Key' }]}><Input placeholder="db_password" /></Form.Item></> : null}
+          {secretReferenceKind === 'secret' ? <><Form.Item name="secretProvider" label="Provider" rules={[{ required: true, message: '请输入 Provider' }]}><Input placeholder="aws-secrets-manager / k8s" /></Form.Item><Form.Item name="secretId" label="Secret ID" rules={[{ required: true, message: '请输入 Secret ID' }]}><Input placeholder="prod/billing/db" /></Form.Item><Form.Item name="secretKey" label="Secret Key"><Input placeholder="可选，例如 password" /></Form.Item></> : null}
           <PermissionGate resource="tenants" action="manage"><Button type="primary" htmlType="submit" block>创建 Secret</Button></PermissionGate>
         </Form>
       </Drawer>
@@ -278,7 +336,7 @@ export function ScopesPage() {
       </Row>
 
       <Card className="clean-card" title="Secret 引用" style={{ marginTop: 16 }} extra={<PermissionGate resource="tenants" action="manage"><Button onClick={() => setDrawer('secret')}>新建 Secret</Button></PermissionGate>}>
-        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="Secret 按 namespace/app 隔离" description="这里只保存 env:/vault:/secret: 引用，不保存明文；创建、删除和使用会进入审计日志。" />
+        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="Secret 按 namespace/app 隔离" description="这里只保存结构化引用，不保存明文；创建、删除和使用会进入审计日志。" />
         <Table rowKey="id" loading={loading} columns={secretColumns} dataSource={secrets} pagination={persistentPagination(pageSize, setPageSize)} size="small" />
       </Card>
 

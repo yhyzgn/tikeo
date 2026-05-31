@@ -431,7 +431,11 @@ export interface SecretSummary {
 export interface CreateNamespaceRequest { name: string }
 export interface CreateAppScopeRequest { namespace: string; name: string }
 export interface CreateWorkerPoolRequest { namespace: string; app: string; name: string }
-export interface CreateSecretRequest { namespace: string; app: string; name: string; valueRef: string }
+export type SecretReferenceRequest =
+  | { kind: 'env'; name: string }
+  | { kind: 'vault'; path: string; key: string }
+  | { kind: 'secret'; provider: string; id: string; key?: string | null };
+export interface CreateSecretRequest { namespace: string; app: string; name: string; reference: SecretReferenceRequest }
 export interface UpdateWorkerPoolQuotaRequest { maxQueueDepth: number; maxConcurrency: number }
 
 export interface UserSummary {

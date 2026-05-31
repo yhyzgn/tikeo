@@ -1801,3 +1801,8 @@ Commit/push:
 - Fixed Scopes/Tenant page "新建 Secret" buttons: they now open a Secret drawer, submit `createSecret`, reset the form, close the drawer, show success, and refresh the list.
 - Added source regression assertions so the tenant page must keep `handleSecretCreate` and `drawer === 'secret'` rendering.
 - Verification: `cd web && rtk bun test --run src/pages/__tests__/ScopesPage.test.tsx`; `cd web && rtk bun run typecheck`; `rtk git diff --check -- web/src/pages/ScopesPage.tsx web/src/pages/__tests__/ScopesPage.test.tsx`.
+
+### 2026-05-31 — Tenant Secret references made structured
+- Replaced Secret creation `valueRef` prefix-string input with typed `reference` payload variants: env, vault, and external secret provider. Server now validates per-kind fields and stores normalized JSON in the existing `value_ref` storage column instead of `env:/vault:/secret:` protocol strings.
+- Web tenant Secret drawer now uses reference type selection plus scoped fields, and the list renders parsed structured references as tags/fields rather than exposing a raw "Value Ref" string contract.
+- Verification: `rtk cargo test -p tikee-server tenant_secret -- --nocapture`; `rtk cargo check -p tikee-server`; `cd web && rtk bun run typecheck`; `cd web && rtk bun test --run src/pages/__tests__/ScopesPage.test.tsx`; `rtk git diff --check -- . ':!.omx'`.

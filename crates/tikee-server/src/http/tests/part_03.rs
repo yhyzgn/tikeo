@@ -453,7 +453,7 @@
                     app.clone(),
                     "POST",
                     "/api/v1/secrets",
-                    r#"{"namespace":"default","app":"billing","name":"db.password","valueRef":"env:APP_DB_PASSWORD"}"#,
+                    r#"{"namespace":"default","app":"billing","name":"db.password","reference":{"kind":"env","name":"APP_DB_PASSWORD"}}"#,
                 )
                 .await,
             )
@@ -468,7 +468,14 @@
         let id = created["data"]["id"].as_str().unwrap_or_else(|| panic!("secret id should exist")).to_owned();
         assert_eq!(created["data"]["namespace"], "default");
         assert_eq!(created["data"]["app"], "billing");
-        assert_eq!(created["data"]["valueRef"], "env:APP_DB_PASSWORD");
+        let secret_reference: Value = serde_json::from_str(
+            created["data"]["valueRef"]
+                .as_str()
+                .unwrap_or_else(|| panic!("secret valueRef should be a structured JSON string")),
+        )
+        .unwrap_or_else(|error| panic!("secret valueRef should contain structured JSON: {error}"));
+        assert_eq!(secret_reference["kind"], "env");
+        assert_eq!(secret_reference["name"], "APP_DB_PASSWORD");
 
         let list_response = app
             .clone()
