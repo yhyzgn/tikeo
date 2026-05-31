@@ -107,6 +107,15 @@ export function ScopesPage() {
     await refresh();
   };
 
+  const handleSecretCreate = async (values: CreateSecretRequest) => {
+    if (!canManageScopes) { message.error('当前账号无权限管理 Secret 引用'); return; }
+    await createSecret(values);
+    secretForm.resetFields();
+    setDrawer(null);
+    message.success('Secret 已创建');
+    await refresh();
+  };
+
   const handleOidcIdentityUpsert = async (values: UpsertOidcIdentityRequest) => {
     if (!canManageScopes) { message.error('当前账号无权限管理 OIDC 映射'); return; }
     await upsertOidcIdentity(values);
@@ -240,6 +249,17 @@ export function ScopesPage() {
           <Form.Item name="name" label="Worker Pool" rules={[{ required: true, message: '请输入 Worker Pool' }]}><Input placeholder="critical / batch" /></Form.Item>
           <Typography.Paragraph type="secondary">创建后可在列表操作中配置队列上限与并发上限；0 表示不限。</Typography.Paragraph>
           <PermissionGate resource="tenants" action="manage"><Button type="primary" htmlType="submit" block>创建 Worker Pool</Button></PermissionGate>
+        </Form>
+      </Drawer>
+
+      <Drawer title="新建 Secret 引用" open={drawer === 'secret'} onClose={() => { setDrawer(null); secretForm.resetFields(); }} width={640} destroyOnClose>
+        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="这里只保存 Secret 引用，不保存明文" description="valueRef 必须以 env:、vault: 或 secret: 开头，例如 env:BILLING_DB_PASSWORD。" />
+        <Form form={secretForm} layout="vertical" onFinish={(values) => void handleSecretCreate(values)}>
+          <Form.Item name="namespace" label="命名空间" rules={[{ required: true, message: '请选择命名空间' }]}><Select options={namespaceOptions} placeholder="选择 namespace" /></Form.Item>
+          <Form.Item name="app" label="应用" rules={[{ required: true, message: '请选择应用' }]}><Select options={appOptions} placeholder="选择 app" /></Form.Item>
+          <Form.Item name="name" label="Secret 名称" rules={[{ required: true, message: '请输入 Secret 名称' }]}><Input placeholder="billing-db-password" /></Form.Item>
+          <Form.Item name="valueRef" label="Secret 引用" rules={[{ required: true, message: '请输入 Secret 引用' }, { pattern: /^(env|vault|secret):.+/, message: '必须以 env:、vault: 或 secret: 开头' }]}><Input placeholder="env:BILLING_DB_PASSWORD" /></Form.Item>
+          <PermissionGate resource="tenants" action="manage"><Button type="primary" htmlType="submit" block>创建 Secret</Button></PermissionGate>
         </Form>
       </Drawer>
 

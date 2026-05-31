@@ -1796,3 +1796,8 @@ Commit/push:
 - API-Key authentication now checks the bound Service Account remains active and uses the current Service Account namespace/app as the authorization boundary.
 - Web `/api-keys` now loads/manages Service Accounts and signs API keys against selected identities; smoke and API client tests use the new flow.
 - Verification: `cargo check -p tikee-server`, `cargo test -p tikee-server sdk_api_key -- --nocapture`, `cargo test -p tikee-server disabling_service_account_revokes_bound_sdk_keys -- --nocapture`, `cd web && bun run typecheck`, `cd web && bun test --run client.test.ts`.
+
+### 2026-05-31 — Fix tenant Secret creation drawer
+- Fixed Scopes/Tenant page "新建 Secret" buttons: they now open a Secret drawer, submit `createSecret`, reset the form, close the drawer, show success, and refresh the list.
+- Added source regression assertions so the tenant page must keep `handleSecretCreate` and `drawer === 'secret'` rendering.
+- Verification: `cd web && rtk bun test --run src/pages/__tests__/ScopesPage.test.tsx`; `cd web && rtk bun run typecheck`; `rtk git diff --check -- web/src/pages/ScopesPage.tsx web/src/pages/__tests__/ScopesPage.test.tsx`.

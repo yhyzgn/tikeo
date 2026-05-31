@@ -26,6 +26,10 @@ describe('tenant scope management page', () => {
     expect(pageSource).toContain('listOidcIdentities');
     expect(pageSource).toContain('upsertOidcIdentity');
     expect(pageSource).toContain('deleteOidcIdentity');
+    expect(pageSource).toContain('createSecret');
+    expect(pageSource).toContain('handleSecretCreate');
+    expect(pageSource).toContain("drawer === 'secret'");
+    expect(pageSource).toContain('新建 Secret 引用');
     expect(pageSource).toContain('OIDC tenant/app/role 绑定');
     expect(pageSource).toContain('命名空间');
     expect(pageSource).toContain('应用');
