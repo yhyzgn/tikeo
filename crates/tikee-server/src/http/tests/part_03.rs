@@ -2166,7 +2166,7 @@
                     .header("authorization", format!("Bearer {api_token}"))
                     .header("content-type", "application/json")
                     .body(Body::from(
-                        r#"{"username":"scoped-denied","password":"Secret123!","role":"viewer"}"#,
+                        r#"{"username":"scoped-denied","email":"scoped-denied@example.com","password":"Secret123!","role":"viewer"}"#,
                     ))
                     .unwrap_or_else(|error| panic!("request should build: {error}")),
             )

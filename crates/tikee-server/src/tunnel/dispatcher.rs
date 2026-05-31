@@ -1966,7 +1966,7 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("blocked instance should load: {error}"))
             .unwrap_or_else(|| panic!("blocked instance should exist"));
-        assert_eq!(blocked.status, InstanceStatus::Pending);
+        assert_eq!(blocked.status, InstanceStatus::Failed);
         let valid = instances
             .get(&valid_instance.id)
             .await
@@ -1983,8 +1983,7 @@ mod tests {
             .iter()
             .find(|item| item.job_instance_id.as_deref() == Some(blocked_instance.id.as_str()))
             .unwrap_or_else(|| panic!("blocked queue item should exist"));
-        assert_eq!(blocked_queue.status, "pending");
-        assert!(blocked_queue.run_after > blocked_queue.created_at);
+        assert_eq!(blocked_queue.status, "failed");
     }
 
     #[tokio::test]

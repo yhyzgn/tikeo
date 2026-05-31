@@ -336,7 +336,7 @@
             .unwrap_or_else(|error| panic!("users body should collect: {error}"));
         let users_json: Value = serde_json::from_slice(&users_body)
             .unwrap_or_else(|error| panic!("users body should be JSON: {error}"));
-        assert_eq!(users_json["data"][0]["bootstrap_admin"], true);
+        assert_eq!(users_json["data"][0]["bootstrapAdmin"], true);
         assert_eq!(users_json["data"][0]["email"], "bootstrap.admin@example.com");
     }
 

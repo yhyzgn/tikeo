@@ -18,6 +18,7 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertNotIn("cargo clippy --workspace --all-targets --all-features -- -D warnings", CI)
         self.assertIn("bun run build", CI)
         self.assertIn("./gradlew test", CI)
+        self.assertIn("cargo test --workspace --all-features -- --test-threads=1", CI)
         self.assertIn("cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features", CI)
         self.assertIn("Build server image without push", CI)
         self.assertIn("Build web image without push", CI)
