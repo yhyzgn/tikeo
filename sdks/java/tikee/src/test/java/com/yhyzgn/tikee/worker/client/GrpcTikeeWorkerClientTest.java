@@ -72,11 +72,12 @@ class GrpcTikeeWorkerClientTest {
             client.start();
             service.awaitMessages(2);
             client.emitLog("instance-1", "info", "hello");
-            service.awaitMessages(3);
+            service.awaitTaskLogs(1);
 
             assertEquals("assigned-java-worker", client.workerId());
             assertTrue(client.connected());
             client.close();
+            service.awaitUnregister();
             Worker.RegisterWorker register = service.messages.get(0).getRegister();
             assertEquals("java-instance-1", register.getClientInstanceId());
             assertTrue(register.getCapabilitiesList().contains("java"));

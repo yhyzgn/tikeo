@@ -15,6 +15,7 @@ class WorkflowContractTest(unittest.TestCase):
     def test_ci_validates_server_web_sdks_and_docker_without_publish(self):
         self.assertIn("cargo fmt --all -- --check", CI)
         self.assertIn("cargo clippy --workspace --all-targets --all-features", CI)
+        self.assertNotIn("cargo clippy --workspace --all-targets --all-features -- -D warnings", CI)
         self.assertIn("bun run build", CI)
         self.assertIn("./gradlew test", CI)
         self.assertIn("cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features", CI)
