@@ -56,7 +56,7 @@ impl ContainerScriptRunner {
         task: &ScriptRunnerTask,
     ) -> Result<Vec<String>, WorkerSdkError> {
         validate_script_runner_task(self.kind, task)?;
-        self.validate_supported_capabilities(task)?;
+        Self::validate_supported_capabilities(task)?;
         if self.image.trim().is_empty() {
             return Err(WorkerSdkError::UnsupportedScriptRunner(
                 "container script runner requires an image".to_owned(),
@@ -95,10 +95,7 @@ impl ContainerScriptRunner {
         Ok(args)
     }
 
-    fn validate_supported_capabilities(
-        &self,
-        task: &ScriptRunnerTask,
-    ) -> Result<(), WorkerSdkError> {
+    fn validate_supported_capabilities(task: &ScriptRunnerTask) -> Result<(), WorkerSdkError> {
         if task.policy.allow_network || !task.policy.allowed_network_hosts.is_empty() {
             return Err(WorkerSdkError::UnsupportedScriptRunner(
                 "container script runner cannot safely enforce host-level network grants with Docker CLI alone".to_owned(),

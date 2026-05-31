@@ -10,8 +10,7 @@ use crate::{
     proto::worker::v1::{
         DispatchTask, Heartbeat, Ping, ScriptProcessorBinding, ServerMessage, TaskLog, TaskResult,
         UnregisterWorker, WorkerMessage, WorkerRegistered, server_message, task_processor_binding,
-        worker_message,
-        worker_tunnel_service_client::WorkerTunnelServiceClient,
+        worker_message, worker_tunnel_service_client::WorkerTunnelServiceClient,
     },
     script::{ScriptRunnerKind, ScriptRunnerPolicy, ScriptRunnerRegistry, ScriptRunnerTask},
     task::{TaskOutcome, TaskProcessor, task_context},

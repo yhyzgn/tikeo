@@ -1838,3 +1838,10 @@ Commit/push:
 - App now resolves the active theme from `prefers-color-scheme`, listens for browser/OS theme changes, writes `data-theme` from the resolved mode, and keeps `data-theme-preference` for diagnostics.
 - Replaced the binary theme switch with a three-option selector: 跟随系统 / 亮色 / 暗色.
 - Verification: `cd web && rtk bun test --run src/pages/__tests__/ThemeMode.test.ts`; `cd web && rtk bun run typecheck`; `cd web && rtk bun run lint`; `cd web && rtk bun test`; `rtk git diff --check -- . ':!.omx'`.
+
+### 2026-05-31 — GitHub Actions CI and tag-only release pipelines
+- Expanded `.github/workflows/ci.yml` so push/PR validates server Rust workspace, Web lint/typecheck/test/build, Java SDK test/jar/source jar, Rust SDK fmt/clippy/test/package, and Docker server/web image builds without pushing.
+- Added `.github/workflows/release.yml` for `v*` tags only: cross-platform server archives, Web dist archive, Java SDK archive, Rust SDK crate archive, GitHub Release upload, and Docker Hub image push for `tikee-server` and `tikee-web`.
+- Added `.github/RELEASE_SETUP.md` with required placeholders/secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, and Docker Hub repositories.
+- Fixed Rust SDK test/proto drift and clippy blockers so the new SDK CI lane is actually green.
+- Verification: workflow contract unittest; `cargo check --workspace --all-features`; `cd web && rtk bun run build`; `(cd sdks/java && ./gradlew test jar sourcesJar)`; Rust SDK clippy/test; `rtk git diff --check -- . ':!.omx'`.

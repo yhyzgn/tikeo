@@ -33,10 +33,10 @@ impl ManagementClient {
                 .timeout(Duration::from_secs(30))
                 .build()
                 .unwrap_or_else(|_| reqwest::Client::new()),
-            endpoint: trim_trailing_slash(endpoint.into()),
+            endpoint: trim_trailing_slash(&endpoint.into()),
             api_key: api_key.into(),
-            namespace: defaulted(namespace.into(), "default"),
-            app: defaulted(app.into(), "default"),
+            namespace: defaulted(&namespace.into(), "default"),
+            app: defaulted(&app.into(), "default"),
         }
     }
 
@@ -46,7 +46,9 @@ impl ManagementClient {
     ///
     /// Returns an SDK error for transport, server, or decoding failures.
     pub async fn list_jobs(&self) -> Result<Vec<JobDefinition>, WorkerSdkError> {
-        let page: Page<JobDefinition> = self.send(reqwest::Method::GET, "/jobs", Option::<&()>::None).await?;
+        let page: Page<JobDefinition> = self
+            .send(reqwest::Method::GET, "/jobs", Option::<&()>::None)
+            .await?;
         Ok(page
             .items
             .into_iter()
@@ -59,7 +61,10 @@ impl ManagementClient {
     /// # Errors
     ///
     /// Returns an SDK error for transport, server, or decoding failures.
-    pub async fn create_job(&self, request: CreateJobRequest) -> Result<JobDefinition, WorkerSdkError> {
+    pub async fn create_job(
+        &self,
+        request: CreateJobRequest,
+    ) -> Result<JobDefinition, WorkerSdkError> {
         let payload = ScopedCreateJobRequest {
             namespace: &self.namespace,
             app: &self.app,
@@ -70,42 +75,49 @@ impl ManagementClient {
             script_id: request.script_id.as_deref(),
             enabled: request.enabled,
         };
-        self.send(reqwest::Method::POST, "/jobs", Some(&payload)).await
+        self.send(reqwest::Method::POST, "/jobs", Some(&payload))
+            .await
     }
 
-    async fn send<T, B>(&self, method: reqwest::Method, path: &str, body: Option<&B>) -> Result<T, WorkerSdkError>
+    async fn send<T, B>(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&B>,
+    ) -> Result<T, WorkerSdkError>
     where
         T: DeserializeOwned,
-        B: Serialize + ?Sized,
+        B: Serialize + Sync + ?Sized,
     {
         let url = format!("{}/api/v1{}", self.endpoint, path);
         let mut headers = HeaderMap::new();
         headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
         headers.insert(
             API_KEY_HEADER,
-            HeaderValue::from_str(&self.api_key)
-                .map_err(|error| WorkerSdkError::ManagementRequestFailed(format!("invalid api key header: {error}")))?,
+            HeaderValue::from_str(&self.api_key).map_err(|error| {
+                WorkerSdkError::ManagementRequestFailed(format!("invalid api key header: {error}"))
+            })?,
         );
         let mut request = self.http.request(method, url).headers(headers);
         if let Some(body) = body {
             request = request.header(CONTENT_TYPE, "application/json").json(body);
         }
-        let response = request
-            .send()
-            .await
-            .map_err(|error| WorkerSdkError::ManagementRequestFailed(format!("request failed: {error}")))?;
+        let response = request.send().await.map_err(|error| {
+            WorkerSdkError::ManagementRequestFailed(format!("request failed: {error}"))
+        })?;
         let status = response.status();
-        let envelope: ApiEnvelope<T> = response
-            .json()
-            .await
-            .map_err(|error| WorkerSdkError::ManagementRequestFailed(format!("response decode failed: {error}")))?;
+        let envelope: ApiEnvelope<T> = response.json().await.map_err(|error| {
+            WorkerSdkError::ManagementRequestFailed(format!("response decode failed: {error}"))
+        })?;
         if !status.is_success() || envelope.code != 0 {
             return Err(WorkerSdkError::ManagementRequestFailed(format!(
                 "management request failed: status={status} message={}",
                 envelope.message
             )));
         }
-        envelope.data.ok_or_else(|| WorkerSdkError::ManagementRequestFailed("management response data was null".to_owned()))
+        envelope.data.ok_or_else(|| {
+            WorkerSdkError::ManagementRequestFailed("management response data was null".to_owned())
+        })
     }
 }
 
@@ -196,11 +208,15 @@ struct ScopedCreateJobRequest<'a> {
     enabled: Option<bool>,
 }
 
-fn trim_trailing_slash(value: String) -> String {
+fn trim_trailing_slash(value: &str) -> String {
     value.trim_end_matches('/').to_owned()
 }
 
-fn defaulted(value: String, fallback: &str) -> String {
+fn defaulted(value: &str, fallback: &str) -> String {
     let trimmed = value.trim();
-    if trimmed.is_empty() { fallback.to_owned() } else { trimmed.to_owned() }
+    if trimmed.is_empty() {
+        fallback.to_owned()
+    } else {
+        trimmed.to_owned()
+    }
 }

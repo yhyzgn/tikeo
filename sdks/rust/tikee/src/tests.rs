@@ -68,8 +68,7 @@ fn container_script_runner_builds_file_grant_docker_args() {
         .unwrap_or_else(|error| panic!("file-grant container args should build: {error}"));
 
     assert!(args.windows(2).any(|pair| {
-        pair[0] == "--mount"
-            && pair[1] == "type=bind,src=/data/input,dst=/data/input,readonly"
+        pair[0] == "--mount" && pair[1] == "type=bind,src=/data/input,dst=/data/input,readonly"
     }));
     assert!(args.windows(2).any(|pair| {
         pair[0] == "--mount" && pair[1] == "type=bind,src=/data/output,dst=/data/output"
@@ -84,18 +83,20 @@ fn container_script_runner_rejects_network_and_secret_grants_fail_closed() {
         allowed_network_hosts: vec!["api.example.com".to_owned()],
         ..ScriptRunnerPolicy::default()
     };
-    let error = runner
-        .docker_args(&script_task("shell", "echo ok\n", network_policy))
-        .expect_err("docker args must fail closed for network grants");
+    let error = match runner.docker_args(&script_task("shell", "echo ok\n", network_policy)) {
+        Ok(args) => panic!("docker args must fail closed for network grants: {args:?}"),
+        Err(error) => error,
+    };
     assert!(error.to_string().contains("network grants"));
 
     let secret_policy = ScriptRunnerPolicy {
         secret_refs: vec!["secret:db-readonly".to_owned()],
         ..ScriptRunnerPolicy::default()
     };
-    let error = runner
-        .docker_args(&script_task("shell", "echo ok\n", secret_policy))
-        .expect_err("docker args must fail closed for secret grants");
+    let error = match runner.docker_args(&script_task("shell", "echo ok\n", secret_policy)) {
+        Ok(args) => panic!("docker args must fail closed for secret grants: {args:?}"),
+        Err(error) => error,
+    };
     assert!(error.to_string().contains("secret refs"));
 }
 
@@ -106,9 +107,10 @@ fn container_script_runner_rejects_malformed_file_grants() {
         read_only_paths: vec!["relative/path".to_owned()],
         ..ScriptRunnerPolicy::default()
     };
-    let error = runner
-        .docker_args(&script_task("shell", "echo ok\n", policy))
-        .expect_err("relative file grant must be rejected");
+    let error = match runner.docker_args(&script_task("shell", "echo ok\n", policy)) {
+        Ok(args) => panic!("relative file grant must be rejected: {args:?}"),
+        Err(error) => error,
+    };
     assert!(error.to_string().contains("clean and absolute"));
 }
 
@@ -322,7 +324,6 @@ async fn worker_client_registers_and_sends_heartbeat() {
 
     server.abort();
 }
-
 
 #[tokio::test]
 async fn worker_session_close_sends_graceful_unregister() {
@@ -605,6 +606,7 @@ impl worker_tunnel_service_server::WorkerTunnelService for MockTunnel {
                     Some(
                         worker_message::Kind::TaskResult(_)
                         | worker_message::Kind::TaskLog(_)
+                        | worker_message::Kind::TaskCheckpoint(_)
                         | worker_message::Kind::Unregister(_),
                     )
                     | None => {}
@@ -673,6 +675,7 @@ fn script_dispatch_task(instance_id: &str, content: &str) -> DispatchTask {
                     read_only_paths: Vec::new(),
                     writable_paths: Vec::new(),
                     secret_refs: Vec::new(),
+                    sandbox_backend: "auto".to_owned(),
                 },
             )),
         })),

@@ -123,6 +123,10 @@ impl ScriptRunnerPolicy {
 
     /// Validate resource limits and immutable task metadata only; runner-specific
     /// capability enforcement remains the caller's responsibility.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when timeout, memory, or output limits are zero.
     pub fn validate_resource_limits(&self) -> Result<(), WorkerSdkError> {
         if self.timeout_ms == 0 {
             return Err(WorkerSdkError::UnsupportedScriptRunner(
@@ -143,6 +147,10 @@ impl ScriptRunnerPolicy {
     }
 
     /// Fail closed for runners that do not implement URL/File/Secret grants.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when network, filesystem, or secret grants are requested.
     pub fn validate_no_capability_grants(&self) -> Result<(), WorkerSdkError> {
         if self.allow_network || !self.allowed_network_hosts.is_empty() {
             return Err(WorkerSdkError::UnsupportedScriptRunner(
