@@ -159,39 +159,39 @@ jobs:
             ASSETS="- No release assets were generated."
           fi
 
-          cat > release-notes.md <<EOF_NOTES
-# Tikee ${RELEASE_TAG}
-
-## English
-
-### Version range
-
-- Current version: ${RELEASE_TAG}
-- Change range: ${RANGE_EN}
-
-### Release assets
-
-${ASSETS}
-
-### Complete changelog
-
-${CHANGELOG}
-
-## 中文
-
-### 版本范围
-
-- 当前版本：${RELEASE_TAG}
-- 变更范围：${RANGE_ZH}
-
-### 发布产物
-
-${ASSETS}
-
-### 完整变更日志
-
-${CHANGELOG}
-EOF_NOTES
+          {
+            echo "# Tikee ${RELEASE_TAG}"
+            echo
+            echo "## English"
+            echo
+            echo "### Version range"
+            echo
+            echo "- Current version: ${RELEASE_TAG}"
+            echo "- Change range: ${RANGE_EN}"
+            echo
+            echo "### Release assets"
+            echo
+            printf '%s\n' "${ASSETS}"
+            echo
+            echo "### Complete changelog"
+            echo
+            printf '%s\n' "${CHANGELOG}"
+            echo
+            echo "## 中文"
+            echo
+            echo "### 版本范围"
+            echo
+            echo "- 当前版本：${RELEASE_TAG}"
+            echo "- 变更范围：${RANGE_ZH}"
+            echo
+            echo "### 发布产物"
+            echo
+            printf '%s\n' "${ASSETS}"
+            echo
+            echo "### 完整变更日志"
+            echo
+            printf '%s\n' "${CHANGELOG}"
+          } > release-notes.md
       - name: Upload assets to GitHub Release
         uses: softprops/action-gh-release@v2
         with:

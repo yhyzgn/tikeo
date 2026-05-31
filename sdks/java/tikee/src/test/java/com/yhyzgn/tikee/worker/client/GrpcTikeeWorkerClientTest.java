@@ -91,14 +91,8 @@ class GrpcTikeeWorkerClientTest {
                     .anyMatch(message -> "assigned-java-worker".equals(message.getHeartbeat().getWorkerId())
                             && message.getHeartbeat().getGeneration() == 1
                             && "java-fencing-token".equals(message.getHeartbeat().getFencingToken())));
-            assertTrue(service.messages.stream()
-                    .filter(Worker.WorkerMessage::hasTaskLog)
-                    .anyMatch(message -> "assigned-java-worker".equals(message.getTaskLog().getWorkerId())));
-            assertTrue(service.messages.stream()
-                    .filter(Worker.WorkerMessage::hasUnregister)
-                    .anyMatch(message -> "assigned-java-worker".equals(message.getUnregister().getWorkerId())
-                            && message.getUnregister().getGeneration() == 1
-                            && "java-fencing-token".equals(message.getUnregister().getFencingToken())));
+            assertTrue(service.hasTaskLogFrom("assigned-java-worker"));
+            assertTrue(service.hasUnregister("assigned-java-worker", 1, "java-fencing-token"));
         } finally {
             channel.shutdownNow();
             server.shutdownNow();
@@ -812,6 +806,24 @@ class GrpcTikeeWorkerClientTest {
             }
             synchronized (messages) {
                 assertTrue(registerCount >= count, "expected at least " + count + " registrations but got " + registerCount);
+            }
+        }
+
+        private boolean hasTaskLogFrom(String workerId) {
+            synchronized (messages) {
+                return messages.stream()
+                        .filter(Worker.WorkerMessage::hasTaskLog)
+                        .anyMatch(message -> workerId.equals(message.getTaskLog().getWorkerId()));
+            }
+        }
+
+        private boolean hasUnregister(String workerId, long generation, String fencingToken) {
+            synchronized (messages) {
+                return messages.stream()
+                        .filter(Worker.WorkerMessage::hasUnregister)
+                        .anyMatch(message -> workerId.equals(message.getUnregister().getWorkerId())
+                                && message.getUnregister().getGeneration() == generation
+                                && fencingToken.equals(message.getUnregister().getFencingToken()));
             }
         }
     }

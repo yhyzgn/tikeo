@@ -40,9 +40,9 @@ class WorkflowContractTest(unittest.TestCase):
     def test_github_release_has_bilingual_changelog_body(self):
         self.assertIn("Generate bilingual changelog", GITHUB_RELEASE)
         self.assertIn("release-notes.md", GITHUB_RELEASE)
-        self.assertIn("## English", GITHUB_RELEASE)
-        self.assertIn("## 中文", GITHUB_RELEASE)
-        self.assertLess(GITHUB_RELEASE.index("## English"), GITHUB_RELEASE.index("## 中文"))
+        self.assertIn("echo \"## English\"", GITHUB_RELEASE)
+        self.assertIn("echo \"## 中文\"", GITHUB_RELEASE)
+        self.assertLess(GITHUB_RELEASE.index("echo \"## English\""), GITHUB_RELEASE.index("echo \"## 中文\""))
         self.assertIn("git log", GITHUB_RELEASE)
         self.assertIn("body_path: release-notes.md", GITHUB_RELEASE)
 
