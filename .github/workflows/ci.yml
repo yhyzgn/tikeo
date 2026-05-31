@@ -96,9 +96,9 @@ jobs:
     needs: [server, web, java-sdk, rust-sdk]
     steps:
       - uses: actions/checkout@v6
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build server image without push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile
@@ -106,7 +106,7 @@ jobs:
           load: false
           platforms: linux/amd64
       - name: Build web image without push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: web
           file: web/Dockerfile
