@@ -86,11 +86,7 @@ class GrpcTikeeWorkerClientTest {
             assertEquals(100, register.getElection().getPriority());
             assertTrue(register.getStructuredCapabilities().getSdkProcessorsList().stream()
                     .anyMatch(item -> "demo.echo".equals(item.getName())));
-            assertTrue(service.messages.stream()
-                    .filter(Worker.WorkerMessage::hasHeartbeat)
-                    .anyMatch(message -> "assigned-java-worker".equals(message.getHeartbeat().getWorkerId())
-                            && message.getHeartbeat().getGeneration() == 1
-                            && "java-fencing-token".equals(message.getHeartbeat().getFencingToken())));
+            assertTrue(service.hasHeartbeat("assigned-java-worker", 1, "java-fencing-token"));
             assertTrue(service.hasTaskLogFrom("assigned-java-worker"));
             assertTrue(service.hasUnregister("assigned-java-worker", 1, "java-fencing-token"));
         } finally {
@@ -806,6 +802,16 @@ class GrpcTikeeWorkerClientTest {
             }
             synchronized (messages) {
                 assertTrue(registerCount >= count, "expected at least " + count + " registrations but got " + registerCount);
+            }
+        }
+
+        private boolean hasHeartbeat(String workerId, long generation, String fencingToken) {
+            synchronized (messages) {
+                return messages.stream()
+                        .filter(Worker.WorkerMessage::hasHeartbeat)
+                        .anyMatch(message -> workerId.equals(message.getHeartbeat().getWorkerId())
+                                && message.getHeartbeat().getGeneration() == generation
+                                && fencingToken.equals(message.getHeartbeat().getFencingToken()));
             }
         }
 
