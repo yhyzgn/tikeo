@@ -1817,3 +1817,8 @@ Commit/push:
 - Added a repo-native `TikeeLogo` SVG React component with task-flow track, three orchestration nodes, arrow/tick motion, pulse animation, and dark-mode-compatible styling.
 - Replaced the sidebar placeholder brand mark and added wordmark logo treatment to login and bootstrap setup pages.
 - Verification: `cd web && rtk bun test --run src/pages/__tests__/TikeeLogo.test.tsx`; `cd web && rtk bun run typecheck`; `cd web && rtk bun run lint`; `cd web && rtk bun test`; `rtk git diff --check -- . ':!.omx'`.
+
+### 2026-05-31 — Refine tikee logo away from worm-like curve
+- Reworked the animated logo from a curved route into a harder-edged hexagonal control-plane mark with T-shaped dispatch trunk, three task nodes, and forward arrow motion.
+- Added `web/src/assets/tikee-logo.svg` as a static README-friendly logo asset and embedded it at the top of `README.md`.
+- Verification: `cd web && rtk bun test --run src/pages/__tests__/TikeeLogo.test.tsx`; `cd web && rtk bun run typecheck`; `cd web && rtk bun run lint`; `cd web && rtk bun test`; `rtk git diff --check -- . ':!.omx'`.

@@ -1,0 +1,29 @@
+<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="tikee logo">
+  <defs>
+    <linearGradient id="tikeeLogoBg" x1="30" y1="22" x2="132" y2="138" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563eb"/>
+      <stop offset="0.55" stop-color="#0ea5e9"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="tikeeLogoLine" x1="43" y1="80" x2="121" y2="80" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#dbeafe"/>
+      <stop offset="0.5" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e0f2fe"/>
+    </linearGradient>
+    <filter id="tikeeLogoShadow" x="0" y="0" width="160" height="160" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#2563eb" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  <path d="M80 12L135.4 44V116L80 148L24.6 116V44L80 12Z" fill="url(#tikeeLogoBg)" filter="url(#tikeeLogoShadow)"/>
+  <path d="M80 31L118 53V107L80 129L42 107V53L80 31Z" fill="rgba(255,255,255,0.11)" stroke="rgba(255,255,255,0.28)" stroke-width="4"/>
+  <path d="M49 64H111" stroke="url(#tikeeLogoLine)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M80 64V111" stroke="url(#tikeeLogoLine)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M80 88H115" stroke="url(#tikeeLogoLine)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M104 77L119 88L104 99" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="49" cy="64" r="12" fill="#ffffff"/>
+  <circle cx="80" cy="64" r="12" fill="#ffffff"/>
+  <circle cx="80" cy="111" r="12" fill="#ffffff"/>
+  <circle cx="49" cy="64" r="5" fill="#2563eb"/>
+  <circle cx="80" cy="64" r="5" fill="#0ea5e9"/>
+  <circle cx="80" cy="111" r="5" fill="#7c3aed"/>
+</svg>

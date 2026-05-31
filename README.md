@@ -1,3 +1,9 @@
+<p align="center">
+  <img src="web/src/assets/tikee-logo.svg" alt="tikee logo" width="112" height="112" />
+</p>
+
+<p align="center"><strong>tikee · Distributed Task Orchestration Platform</strong></p>
+
 # tikee
 
 `tikee` 是一个 Rust workspace 模式开发的分布式任务调度平台。后端主入口在根目录 `src/main.rs`，核心模块拆分在 `crates/*`；Web 管理端在 `web/`，使用 React + Ant Design + Bun。

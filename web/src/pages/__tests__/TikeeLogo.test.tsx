@@ -11,6 +11,7 @@ describe('tikee animated logo', () => {
   test('defines a modern task-flow logo component', () => {
     expect(logoSource).toContain('export function TikeeLogo');
     expect(logoSource).toContain('tikee-logo__flow');
+    expect(logoSource).toContain('tikee-logo__arrow');
     expect(logoSource).toContain('tikee-logo__node');
     expect(logoSource).toContain('aria-label="tikee task orchestration logo"');
   });
@@ -24,6 +25,7 @@ describe('tikee animated logo', () => {
   test('styles logo motion and dark-mode compatibility', () => {
     expect(styles).toContain('@keyframes tikee-logo-flow');
     expect(styles).toContain('@keyframes tikee-logo-node-pulse');
+    expect(styles).toContain('@keyframes tikee-logo-arrow');
     expect(styles).toContain('.tikee-logo__flow');
     expect(styles).toContain('html[data-theme="dark"] .tikee-logo');
   });

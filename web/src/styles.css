@@ -1709,8 +1709,8 @@ html[data-theme="dark"] .ant-table-thead > tr > th {
   background: var(--app-surface-muted) !important;
 }
 
+
 .tikee-logo {
-  --tikee-logo-size: 44px;
   display: inline-flex;
   align-items: center;
   gap: 12px;
@@ -1723,49 +1723,47 @@ html[data-theme="dark"] .ant-table-thead > tr > th {
   overflow: visible;
 }
 
-.tikee-logo__shell {
+.tikee-logo__shell,
+.tikee-logo__inner {
   transform-origin: center;
-}
-
-.tikee-logo__orbit {
-  opacity: 0.7;
 }
 
 .tikee-logo__track {
-  filter: drop-shadow(0 4px 8px color-mix(in srgb, var(--app-primary-color) 24%, transparent));
+  filter: drop-shadow(0 4px 8px color-mix(in srgb, var(--app-primary-color) 20%, transparent));
 }
 
 .tikee-logo__flow {
-  opacity: 0.92;
-  stroke-dasharray: 18 82;
+  opacity: 0.9;
+  stroke-dasharray: 24 76;
   stroke-dashoffset: 0;
-  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.72));
-  animation: tikee-logo-flow 2.35s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+  filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.7));
+  animation: tikee-logo-flow 2s cubic-bezier(0.45, 0, 0.2, 1) infinite;
 }
 
-.tikee-logo__tick {
-  transform-origin: 48px 21px;
-  animation: tikee-logo-tick 2.35s cubic-bezier(0.45, 0, 0.2, 1) infinite;
-}
-
-.tikee-logo__node {
-  transform-origin: center;
-  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
-  animation: tikee-logo-node-pulse 2.35s ease-in-out infinite;
-}
-
-.tikee-logo__node--two {
+.tikee-logo__flow--right {
   animation-delay: 0.28s;
 }
 
-.tikee-logo__node--three,
-.tikee-logo__spark {
-  animation-delay: 0.56s;
+.tikee-logo__arrow {
+  transform-origin: 47px 35.5px;
+  animation: tikee-logo-arrow 2s cubic-bezier(0.45, 0, 0.2, 1) infinite;
 }
 
-.tikee-logo__spark {
+.tikee-logo__node,
+.tikee-logo__core {
   transform-origin: center;
-  animation: tikee-logo-spark 2.35s ease-in-out infinite;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
+  animation: tikee-logo-node-pulse 2s ease-in-out infinite;
+}
+
+.tikee-logo__node--two,
+.tikee-logo__core--two {
+  animation-delay: 0.2s;
+}
+
+.tikee-logo__node--three,
+.tikee-logo__core--three {
+  animation-delay: 0.4s;
 }
 
 .tikee-logo__wordmark {
@@ -1789,28 +1787,21 @@ html[data-theme="dark"] .tikee-logo {
   color: var(--app-text-strong);
 }
 
-html[data-theme="dark"] .tikee-logo__orbit {
-  opacity: 0.46;
-}
-
 html[data-theme="dark"] .tikee-logo__flow {
   filter: drop-shadow(0 0 10px color-mix(in srgb, var(--app-info-color) 62%, transparent));
 }
 
 @keyframes tikee-logo-flow {
   0% {
-    stroke-dashoffset: 42;
-    opacity: 0.18;
+    stroke-dashoffset: 38;
+    opacity: 0.12;
   }
-  18% {
-    opacity: 0.96;
-  }
-  72% {
+  20%, 72% {
     opacity: 0.96;
   }
   100% {
-    stroke-dashoffset: -58;
-    opacity: 0.18;
+    stroke-dashoffset: -62;
+    opacity: 0.12;
   }
 }
 
@@ -1819,29 +1810,18 @@ html[data-theme="dark"] .tikee-logo__flow {
     transform: scale(1);
   }
   42% {
-    transform: scale(1.18);
+    transform: scale(1.13);
   }
   64% {
     transform: scale(1);
   }
 }
 
-@keyframes tikee-logo-tick {
+@keyframes tikee-logo-arrow {
   0%, 70%, 100% {
     transform: translate3d(0, 0, 0) scale(1);
   }
   82% {
-    transform: translate3d(1px, -1px, 0) scale(1.08);
-  }
-}
-
-@keyframes tikee-logo-spark {
-  0%, 100% {
-    opacity: 0.55;
-    transform: scale(0.85);
-  }
-  58% {
-    opacity: 1;
-    transform: scale(1.35);
+    transform: translate3d(1.2px, 0, 0) scale(1.08);
   }
 }
