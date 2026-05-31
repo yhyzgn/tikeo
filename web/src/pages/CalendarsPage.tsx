@@ -1,19 +1,35 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Button, Card, DatePicker, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
-import dayjs from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
 import { useEffect, useState } from 'react';
 
 import { createCalendar, deleteCalendar, listAppScopes, listCalendars, listNamespaces, type AppScopeSummary, type CalendarSummary, type NamespaceSummary } from '../api/client';
+
+interface CalendarWindowFormValue {
+  range?: [Dayjs, Dayjs];
+}
+
+interface CalendarWindowPayload {
+  start: string;
+  end: string;
+}
 
 interface CalendarFormValues {
   namespace: string;
   app: string;
   name: string;
   timezone: string;
-  excludedDates?: any[];
-  holidays?: any[];
-  maintenanceWindows?: Array<{ range: [any, any] }>;
-  freezeWindows?: Array<{ range: [any, any] }>;
+  excludedDates?: Dayjs[];
+  holidays?: Dayjs[];
+  maintenanceWindows?: CalendarWindowFormValue[];
+  freezeWindows?: CalendarWindowFormValue[];
+}
+
+function toWindowPayloads(items?: CalendarWindowFormValue[]): CalendarWindowPayload[] {
+  return (items || []).flatMap((item) => {
+    const [start, end] = item.range ?? [];
+    return start && end ? [{ start: start.toISOString(), end: end.toISOString() }] : [];
+  });
 }
 
 export function CalendarsPage() {
@@ -42,28 +58,10 @@ export function CalendarsPage() {
   const handleSubmit = async () => {
     const values = await form.validateFields();
     
-    const excludedDates = (values.excludedDates || []).map((d: any) => d.format('YYYY-MM-DD'));
-    const holidays = (values.holidays || []).map((d: any) => d.format('YYYY-MM-DD'));
-    
-    const maintenanceWindows = (values.maintenanceWindows || []).map((item) => {
-      if (item && item.range && item.range[0] && item.range[1]) {
-        return {
-          start: item.range[0].toISOString(),
-          end: item.range[1].toISOString(),
-        };
-      }
-      return null;
-    }).filter(Boolean);
-
-    const freezeWindows = (values.freezeWindows || []).map((item) => {
-      if (item && item.range && item.range[0] && item.range[1]) {
-        return {
-          start: item.range[0].toISOString(),
-          end: item.range[1].toISOString(),
-        };
-      }
-      return null;
-    }).filter(Boolean);
+    const excludedDates = (values.excludedDates || []).map((date) => date.format('YYYY-MM-DD'));
+    const holidays = (values.holidays || []).map((date) => date.format('YYYY-MM-DD'));
+    const maintenanceWindows = toWindowPayloads(values.maintenanceWindows);
+    const freezeWindows = toWindowPayloads(values.freezeWindows);
 
     await createCalendar({
       namespace: values.namespace,
@@ -72,8 +70,8 @@ export function CalendarsPage() {
       timezone: values.timezone || 'UTC',
       excludedDates,
       holidays,
-      maintenanceWindows: maintenanceWindows as any[],
-      freezeWindows: freezeWindows as any[],
+      maintenanceWindows,
+      freezeWindows,
     });
 
     setOpen(false);

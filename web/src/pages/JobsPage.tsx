@@ -1,4 +1,3 @@
-import dayjs from 'dayjs';
 import { Alert, Button, Card, DatePicker, Drawer, Form, Input, InputNumber, Popconfirm, Select, Space, Switch, Table, Tag, Timeline, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -124,7 +123,6 @@ export function JobsPage() {
     .filter((script) => script.status === 'approved')
     .map((script) => ({ value: script.id, label: `${script.name} · ${script.language} · ${script.id}` }));
   const durationExpr = (value?: number | null, unit?: string | null) => value ? `${value}${unit || 's'}` : null;
-  const fixedRateExpr = durationExpr;
   const parseFixedRate = (expr?: string | null) => {
     const [interval, ...options] = String(expr ?? '').trim().split(';').map((item) => item.trim()).filter(Boolean);
     const match = interval.match(/^(\d+(?:\.\d+)?)(ns|us|ms|s|m|h|d|w|month|year)$/);

@@ -1806,3 +1806,9 @@ Commit/push:
 - Replaced Secret creation `valueRef` prefix-string input with typed `reference` payload variants: env, vault, and external secret provider. Server now validates per-kind fields and stores normalized JSON in the existing `value_ref` storage column instead of `env:/vault:/secret:` protocol strings.
 - Web tenant Secret drawer now uses reference type selection plus scoped fields, and the list renders parsed structured references as tags/fields rather than exposing a raw "Value Ref" string contract.
 - Verification: `rtk cargo test -p tikee-server tenant_secret -- --nocapture`; `rtk cargo check -p tikee-server`; `cd web && rtk bun run typecheck`; `cd web && rtk bun test --run src/pages/__tests__/ScopesPage.test.tsx`; `rtk git diff --check -- . ':!.omx'`.
+
+### 2026-05-31 — Web dark-mode custom surface coverage
+- Submitted the current local dev DB snapshot as requested before starting the theme fix.
+- Reworked Web custom styles to use shared light/dark CSS variables for shell, cards, heroes, workflow canvases, topology fullscreen, API-Key panels, worker stats, and scheduling advice modules instead of hard-coded light surfaces.
+- Added `ThemeDarkMode.test.tsx` coverage to lock the custom module dark-mode variable contract; also cleaned existing lint blockers in Calendar and Jobs pages so Web lint is green.
+- Verification: `cd web && rtk bun test`; `cd web && rtk bun run lint`; `cd web && rtk bun run typecheck`; `rtk git diff --check -- . ':!.omx'`.
