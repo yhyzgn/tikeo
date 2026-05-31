@@ -122,7 +122,8 @@ class TikeeWorkerAutoConfigurationTest {
     }
 
     @Test
-    void enablingSandboxScriptsAdvertisesScriptCapabilitiesWhenRuntimeCheckIsDisabled() {
+    void enablingSandboxScriptsAdvertisesScriptCapabilitiesWhenRuntimeCheckIsDisabled() throws Exception {
+        installFakeWasmtime(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.scripts.enabled=true",
