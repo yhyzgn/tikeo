@@ -6,14 +6,14 @@ import type { WorkerListResponse, WorkerSummary } from '../../api/client';
 import { persistentPagination, usePersistentTablePageSize } from '../../utils/pagination';
 import { filterWorkers, uniqueSorted } from './workerPageModel';
 
-function workerTags(worker: WorkerSummary) {
+export function visibleCapabilityTags(worker: WorkerSummary) {
   return uniqueSorted([
     ...(worker.structuredCapabilities?.tags ?? []),
     ...worker.capabilities.filter((capability) => !capability.includes(':')),
   ]);
 }
 
-function sdkProcessors(worker: WorkerSummary) {
+export function visibleSdkProcessors(worker: WorkerSummary) {
   return worker.structuredCapabilities?.sdkProcessors?.length
     ? worker.structuredCapabilities.sdkProcessors
     : worker.capabilities
@@ -21,10 +21,10 @@ function sdkProcessors(worker: WorkerSummary) {
       .map((capability) => capability.slice('processor:'.length));
 }
 
-function capabilityFilterValues(worker: WorkerSummary) {
+export function capabilityFilterValues(worker: WorkerSummary) {
   return [
-    ...workerTags(worker),
-    ...sdkProcessors(worker).map((name) => `SDK:${name}`),
+    ...visibleCapabilityTags(worker),
+    ...visibleSdkProcessors(worker).map((name) => `SDK:${name}`),
     ...(worker.structuredCapabilities?.scriptRunners.map((runner) => `Script:${runner.language}`) ?? []),
     ...(worker.structuredCapabilities?.pluginProcessors.flatMap((plugin) =>
       plugin.processorNames.map((name) => `Plugin:${plugin.type}:${name}`)
@@ -102,7 +102,7 @@ export function WorkerTable({ workers, loading }: WorkerTableProps) {
             title: 'Capabilities',
             dataIndex: 'capabilities',
             render: (_, worker) => {
-              const visible = workerTags(worker);
+              const visible = visibleCapabilityTags(worker);
               return visible.length > 0
                 ? <Space size={[4, 4]} wrap>{visible.map((item) => <Tag key={item}>{item}</Tag>)}</Space>
                 : <Typography.Text type="secondary">-</Typography.Text>;
@@ -112,7 +112,7 @@ export function WorkerTable({ workers, loading }: WorkerTableProps) {
             title: 'SDK Processors',
             dataIndex: 'capabilities',
             render: (_, worker) => {
-              const processors = sdkProcessors(worker);
+              const processors = visibleSdkProcessors(worker);
               return processors.length > 0
                 ? <Space size={[4, 4]} wrap>{processors.map((item) => <Tag key={item} color="purple">{item}</Tag>)}</Space>
                 : <Typography.Text type="secondary">-</Typography.Text>;

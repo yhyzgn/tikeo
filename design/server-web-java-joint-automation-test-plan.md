@@ -158,7 +158,7 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 | C-WEB-002 | 根路径默认路由 | web | RouteAuth 单测 + `/` HTML smoke | 跳到总览页面或渲染总览 | `.dev/reports/web-live-20260601T070328Z-825949-route-auth-test.log`、root HTML | ✅ 通过 | 覆盖“直接访问域名默认总览”；截图待浏览器 e2e |
 | C-WEB-003 | 会话有效时访问 login | web + auth | RouteAuth 单测 | 自动跳过 login，回到总览 | `.dev/reports/web-live-20260601T070328Z-825949-route-auth-test.log` | ✅ 通过 | 覆盖登录态路由守卫；截图待浏览器 e2e |
 | C-WEB-004 | 刷新二级路由 | web | 直接刷新 `/api-keys`、`/jobs/topology`、`/workflows/new`、`/workflows/:id/edit`、`/gitops` | 不应 404 | `.dev/reports/web-live-20260601T070328Z-825949-*.html` | ✅ 通过 | 验证 SPA fallback；截图待浏览器 e2e |
-| C-WEB-005 | Worker 列表显示 | web + server | Web 打开 Workers 页 | 页面字段与 `/api/v1/workers` 一致：状态、结构化 capabilities、processorNames、pluginProcessors、master/follower、domain 不丢失不误显 | screenshot + workers JSON | ⏳ 待执行 | 数据来自 `/api/v1/workers` |
+| C-WEB-005 | Worker 列表显示 | web + server | Web 打开 Workers 页 | 页面字段与 `/api/v1/workers` 一致：状态、结构化 capabilities、processorNames、pluginProcessors、master/follower、domain 不丢失不误显 | `.dev/reports/web-workers-page-20260601T0705-test.log`、`.dev/reports/web-typecheck-20260601T0705.log` | ✅ 通过 | WorkerTable 模型已锁定 capabilities/processor 分栏；live 截图留给 D-WEB failover 浏览器项 |
 | C-WEB-006 | API-Key 页面 | web + server | 创建/编辑 API-Key | 创建弹窗 key 可点击复制，列表不泄露明文 | screenshot / API assert | ⏳ 待执行 | 覆盖 SDK API-Key UI |
 | C-WEB-007 | 任务拓扑二级页 | web + server | 打开任务拓扑页面 | 画布渲染、全屏切换、箭头避让/动画正常 | screenshot/video | ⏳ 待执行 | 图形回放基础 |
 | C-WEB-008 | 工作流画布 | web + server | 打开 workflow designer | 全屏切换、实线流动动画正常 | screenshot/video | ⏳ 待执行 | 与任务拓扑一致交互 |

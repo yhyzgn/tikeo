@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 
+import type { WorkerSummary } from '../../api/client';
+import { capabilityFilterValues, visibleCapabilityTags, visibleSdkProcessors } from '../workers/WorkerTable';
+import { filterWorkers } from '../workers/workerPageModel';
+
 const pageSource = readFileSync(new URL('../WorkersPage.tsx', import.meta.url), 'utf8');
 const tableSource = readFileSync(new URL('../workers/WorkerTable.tsx', import.meta.url), 'utf8');
 const queueSource = readFileSync(new URL('../workers/DispatchQueuePanel.tsx', import.meta.url), 'utf8');
@@ -40,5 +44,56 @@ describe('Worker cluster page redesign', () => {
     expect(styles).toContain('.dispatch-queue-item__meta');
     expect(styles).toContain('.worker-history-layer-switch');
     expect(styles).toContain('@media (max-width: 767px)');
+  });
+});
+
+describe('Worker capability presentation model', () => {
+  const worker: WorkerSummary = {
+    workerId: 'worker-1',
+    logicalInstanceId: 'demo-worker',
+    clientInstanceId: 'spring-demo-worker',
+    namespace: 'default',
+    app: 'billing',
+    cluster: 'standalone',
+    region: 'local',
+    capabilities: ['sdk', 'processor:demo.echo', 'script:shell', 'legacy-tag'],
+    structuredCapabilities: {
+      tags: ['sdk', 'java'],
+      sdkProcessors: ['demo.echo'],
+      scriptRunners: [{ language: 'shell', sandboxBackend: 'srt' }],
+      pluginProcessors: [{ type: 'sql', processorNames: ['billing.sql-sync'] }],
+    },
+    master: {
+      domain: 'billing-domain',
+      isMaster: true,
+      masterWorkerId: 'worker-1',
+      term: 2,
+      fencingToken: 'ft-2',
+    },
+    generation: 1,
+    status: 'online',
+    statusReason: null,
+    replacedByWorkerId: null,
+    lastSequence: 42,
+  };
+
+  test('keeps processor names out of the generic Capabilities column', () => {
+    expect(visibleCapabilityTags(worker)).toEqual(['java', 'legacy-tag', 'sdk']);
+    expect(visibleCapabilityTags(worker)).not.toContain('processor:demo.echo');
+    expect(visibleCapabilityTags(worker)).not.toContain('script:shell');
+    expect(visibleSdkProcessors(worker)).toEqual(['demo.echo']);
+  });
+
+  test('still exposes structured processor choices through dedicated filters', () => {
+    expect(capabilityFilterValues(worker)).toEqual([
+      'java',
+      'legacy-tag',
+      'sdk',
+      'SDK:demo.echo',
+      'Script:shell',
+      'Plugin:sql:billing.sql-sync',
+    ]);
+    expect(filterWorkers([worker], { query: 'billing.sql-sync', namespace: '', capability: '' })).toHaveLength(1);
+    expect(filterWorkers([worker], { query: '', namespace: '', capability: 'SDK:demo.echo' })).toHaveLength(1);
   });
 });
