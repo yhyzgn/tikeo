@@ -140,6 +140,29 @@ wait_instance_status() {
   done
 }
 
+wait_instance_terminal() {
+  local instance_id="$1"
+  local deadline=$((SECONDS + 90))
+  local status=""
+  while true; do
+    status="$(api_json_get GET "/api/v1/instances/$instance_id" data.status)"
+    case "$status" in
+      succeeded|failed|cancelled|skipped)
+        return 0
+        ;;
+    esac
+    if (( SECONDS >= deadline )); then
+      echo "timed out waiting for instance $instance_id terminal status, got $status" >&2
+      api GET "/api/v1/instances/$instance_id" >&2 || true
+      api GET "/api/v1/instances/$instance_id/logs" >&2 || true
+      tail -n 120 "$SERVER_LOG" >&2 || true
+      tail -n 120 "$JAVA_LOG" >&2 || true
+      return 1
+    fi
+    sleep 1
+  done
+}
+
 wait_job_instance_status() {
   local job_id="$1"
   local expected="$2"
@@ -251,6 +274,54 @@ print(json.dumps({
 PY
 )"
   api_json_get POST /api/v1/jobs data.id "$body"
+}
+
+assert_script_terminal() {
+  local instance_file="$1"
+  local logs_file="$2"
+  local success_text="$3"
+  python3 - "$instance_file" "$logs_file" "$success_text" <<'PY'
+import json, sys
+inst = json.load(open(sys.argv[1], encoding='utf-8'))['data']
+logs = json.load(open(sys.argv[2], encoding='utf-8'))['data']
+success_text = sys.argv[3]
+status = inst.get('status')
+if status not in {'succeeded', 'failed'}:
+    raise SystemExit(f'script instance did not reach a governed terminal state: {status}')
+if not inst.get('workerId') and not inst.get('worker_id'):
+    raise SystemExit('script instance has no worker id')
+items = logs.get('items') if isinstance(logs, dict) else logs
+if not items:
+    raise SystemExit('script terminal instance has no execution logs')
+messages = '\n'.join(str(item.get('message', '')) for item in items)
+if status == 'succeeded' and success_text not in messages:
+    raise SystemExit(f'succeeded script logs do not contain expected text: {success_text}')
+print(f'script terminal status={status}')
+PY
+}
+
+run_governed_script_case() {
+  local language="$1"
+  local name="$2"
+  local content="$3"
+  local success_text="$4"
+  local script publish_status job instance file logs status
+  script="$(create_script "$name" "$language" "$content")"
+  publish_status="$(publish_script "$script")"
+  if [[ "$publish_status" != "approved" ]]; then
+    echo "$language script publish did not approve script: $publish_status" >&2
+    return 1
+  fi
+  job="$(create_script_job "$name-job" "$script")"
+  instance="$(trigger_job "$job" single)"
+  wait_instance_terminal "$instance"
+  file="$REPORT_DIR/${RUN_ID}-${instance}.json"
+  logs="$REPORT_DIR/${RUN_ID}-${instance}-logs.json"
+  api GET "/api/v1/instances/$instance" > "$file"
+  api GET "/api/v1/instances/$instance/logs" > "$logs"
+  assert_script_terminal "$file" "$logs" "$success_text"
+  status="$(api_json_get GET "/api/v1/instances/$instance" data.status)"
+  tikee_smoke_record_case "script-${language}-terminal" passed "$file $logs" "$language script reached $status without queue starvation"
 }
 
 assert_queue_drained() {
@@ -465,6 +536,11 @@ PY
   api GET "/api/v1/instances/$shell_instance/logs" > "$shell_logs"
   tikee_smoke_assert instance "$shell_file" --expected-status succeeded --require-worker --min-log-count 1 --logs-file "$shell_logs" --require-log-text tikee-shell-smoke --forbid-duplicate-logs >/dev/null
   tikee_smoke_record_case script-shell-success passed "$shell_file $shell_logs" "shell script executed through worker sandbox and persisted stdout logs"
+
+  run_governed_script_case python python-smoke 'print("tikee-python-smoke")' tikee-python-smoke
+  run_governed_script_case javascript js-smoke 'console.log("tikee-js-smoke");' tikee-js-smoke
+  run_governed_script_case typescript ts-smoke 'const msg: string = "tikee-ts-smoke"; console.log(msg);' tikee-ts-smoke
+  run_governed_script_case rhai rhai-smoke 'print("tikee-rhai-smoke");' tikee-rhai-smoke
 
   queue_file="$REPORT_DIR/${RUN_ID}-dispatch-queue.json"
   assert_queue_drained "$queue_file"

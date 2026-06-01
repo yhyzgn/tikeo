@@ -15,13 +15,26 @@ public final class SrtScriptRunner implements ScriptRunner {
 
     private final ScriptRunnerKind kind;
     private final String runtimeCommand;
+    private final String interpreterCommand;
 
     public SrtScriptRunner(ScriptRunnerKind kind, String runtimeCommand) {
+        this(kind, runtimeCommand, defaultInterpreterCommand(kind));
+    }
+
+    public SrtScriptRunner(
+        ScriptRunnerKind kind,
+        String runtimeCommand,
+        String interpreterCommand
+    ) {
         if (runtimeCommand == null || runtimeCommand.isBlank()) {
             throw new ScriptRunnerException("SRT script runner requires a runtime command");
         }
+        if (interpreterCommand == null || interpreterCommand.isBlank()) {
+            throw new ScriptRunnerException("SRT script runner requires an interpreter command");
+        }
         this.kind = kind;
         this.runtimeCommand = runtimeCommand;
+        this.interpreterCommand = interpreterCommand;
     }
 
     @Override
@@ -37,36 +50,80 @@ public final class SrtScriptRunner implements ScriptRunner {
     @Override
     public TaskOutcome run(ScriptRunnerTask task, ScriptRunnerLogSink logSink) {
         Path settings = null;
+        Path scriptFile = null;
         try {
             ScriptRunnerSupport.validateTask(kind, task);
             validatePolicy(task);
-            settings = writeSettings(task.policy());
+            if (kind == ScriptRunnerKind.RHAI) {
+                scriptFile = Files.createTempFile("tikee-rhai-script-", ".rhai");
+                Files.writeString(scriptFile, task.content());
+            }
+            settings = writeSettings(task.policy(), scriptFile);
             ProcessBuilder builder = new ProcessBuilder(
-                command(settings, task.content())
+                command(settings, shellCommand(task.content(), scriptFile))
             );
             configureEnvironment(builder, task);
             return ScriptRunnerSupport.runProcessWithoutStdin(builder, kind, task, logSink);
         } catch (IOException error) {
             throw new ScriptRunnerException("failed to prepare SRT settings: " + error.getMessage(), error);
         } finally {
-            if (settings != null) {
-                try {
-                    Files.deleteIfExists(settings);
-                } catch (IOException ignored) {
-                    // Best-effort cleanup only.
-                }
-            }
+            deleteIfPresent(settings);
+            deleteIfPresent(scriptFile);
         }
     }
 
-    private List<String> command(Path settings, String content) {
+    private List<String> command(Path settings, String shellCommand) {
         java.util.ArrayList<String> resolved = new java.util.ArrayList<>();
         resolved.add(runtimeCommand);
         resolved.add("--settings");
         resolved.add(settings.toString());
         resolved.add("-c");
-        resolved.add(content);
+        resolved.add(shellCommand);
         return resolved;
+    }
+
+    private String shellCommand(String content, Path scriptFile) {
+        return switch (kind) {
+            case SHELL -> content;
+            case PYTHON -> heredoc(interpreterCommand + " -", "PY", content);
+            case POWERSHELL -> heredoc(
+                interpreterCommand + " -NoProfile -NonInteractive -Command -",
+                "PWSH",
+                content
+            );
+            case PHP -> heredoc(interpreterCommand, "PHP", content);
+            case GROOVY -> heredoc(interpreterCommand, "GROOVY", content);
+            case RHAI -> interpreterCommand + " " + shellQuote(scriptFile.toString());
+            case JS, TS -> throw new ScriptRunnerException(
+                "SRT script runner does not execute " + kind.value() +
+                    " scripts; use the Deno script runner"
+            );
+        };
+    }
+
+    private static String heredoc(String command, String marker, String content) {
+        String delimiter = marker;
+        while (content.contains(delimiter)) {
+            delimiter = delimiter + "_TIKEE";
+        }
+        return command + " <<'" + delimiter + "'\n" + content + "\n" + delimiter;
+    }
+
+    private static String shellQuote(String value) {
+        return "'" + value.replace("'", "'\''") + "'";
+    }
+
+
+    private static String defaultInterpreterCommand(ScriptRunnerKind kind) {
+        return switch (kind) {
+            case SHELL -> "sh";
+            case PYTHON -> "python3";
+            case POWERSHELL -> "pwsh";
+            case PHP -> "php";
+            case GROOVY -> "groovy";
+            case RHAI -> "rhai-run";
+            case JS, TS -> "deno";
+        };
     }
 
     private void configureEnvironment(ProcessBuilder builder, ScriptRunnerTask task) {
@@ -113,13 +170,19 @@ public final class SrtScriptRunner implements ScriptRunner {
         }
     }
 
-    private static Path writeSettings(ScriptRunnerPolicy policy) throws IOException {
+    private static Path writeSettings(ScriptRunnerPolicy policy, Path scriptFile) throws IOException {
         Map<String, Object> network = new LinkedHashMap<>();
         network.put("allowUnixSocket", false);
         network.put("allowedDomains", policy.allowedNetworkHosts());
 
         Map<String, Object> filesystem = new LinkedHashMap<>();
-        filesystem.put("allowRead", policy.readOnlyPaths());
+        java.util.ArrayList<String> allowRead = new java.util.ArrayList<>(
+            policy.readOnlyPaths()
+        );
+        if (scriptFile != null) {
+            allowRead.add(scriptFile.toString());
+        }
+        filesystem.put("allowRead", allowRead);
         filesystem.put("allowWrite", policy.writablePaths());
         filesystem.put(
             "denyRead",
@@ -136,6 +199,17 @@ public final class SrtScriptRunner implements ScriptRunner {
         Path file = Files.createTempFile("tikee-srt-settings-", ".json");
         JSON.writeValue(file.toFile(), settings);
         return file;
+    }
+
+    private static void deleteIfPresent(Path path) {
+        if (path == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException ignored) {
+            // Best-effort cleanup only.
+        }
     }
 
     private static String homeDirectory() {

@@ -99,6 +99,22 @@ public final class SandboxToolResolver {
             : Optional.empty();
     }
 
+    public Optional<String> resolveDenoCommand() {
+        SandboxToolInstaller.Tool tool = SandboxToolInstaller.Tool.DENO;
+        String command = resolveCommand(tool);
+        return toolAvailable(tool, command)
+            ? Optional.of(command)
+            : Optional.empty();
+    }
+
+    public Optional<String> resolveRhaiCommand() {
+        SandboxToolInstaller.Tool tool = SandboxToolInstaller.Tool.RHAI;
+        String command = resolveCommand(tool);
+        return toolAvailable(tool, command)
+            ? Optional.of(command)
+            : Optional.empty();
+    }
+
     public String localCommand(SandboxToolInstaller.Tool tool) {
         return SandboxToolInstaller.binaryPath(
             tool,

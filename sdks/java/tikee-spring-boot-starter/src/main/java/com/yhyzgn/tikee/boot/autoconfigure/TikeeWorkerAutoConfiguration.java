@@ -5,8 +5,10 @@ import com.yhyzgn.tikee.management.client.HttpTikeeJobClient;
 import com.yhyzgn.tikee.management.client.TikeeJobClient;
 import com.yhyzgn.tikee.sandbox.SandboxToolResolver;
 import com.yhyzgn.tikee.script.ContainerScriptRunner;
+import com.yhyzgn.tikee.script.DenoScriptRunner;
 import com.yhyzgn.tikee.script.ScriptRunnerKind;
 import com.yhyzgn.tikee.script.SrtScriptRunner;
+import com.yhyzgn.tikee.script.UnavailableScriptRunner;
 import com.yhyzgn.tikee.script.ScriptRunnerRegistry;
 import com.yhyzgn.tikee.spring.processor.TikeeProcessorRegistry;
 import com.yhyzgn.tikee.spring.worker.SpringTikeeTaskProcessor;
@@ -298,14 +300,83 @@ public class TikeeWorkerAutoConfiguration {
         resolver
             .resolveSrtCommand()
             .ifPresentOrElse(
-                runtimeCommand -> registry.register(
-                    new SrtScriptRunner(ScriptRunnerKind.SHELL, runtimeCommand)
-                ),
-                () -> log.warn(
-                    "tikee script sandbox is enabled but SRT is unavailable; " +
-                        "script:shell capability will not be advertised"
+                runtimeCommand -> registerSrtNativeRunners(registry, resolver, runtimeCommand),
+                () -> registerUnavailableNativeRunners(
+                    registry,
+                    "SRT sandbox runtime is unavailable"
                 )
             );
+        resolver
+            .resolveDenoCommand()
+            .ifPresentOrElse(
+                runtimeCommand -> {
+                    registry.register(new DenoScriptRunner(ScriptRunnerKind.JS, runtimeCommand));
+                    registry.register(new DenoScriptRunner(ScriptRunnerKind.TS, runtimeCommand));
+                },
+                () -> {
+                    registry.register(
+                        new UnavailableScriptRunner(
+                            ScriptRunnerKind.JS,
+                            "Deno sandbox runtime is unavailable"
+                        )
+                    );
+                    registry.register(
+                        new UnavailableScriptRunner(
+                            ScriptRunnerKind.TS,
+                            "Deno sandbox runtime is unavailable"
+                        )
+                    );
+                }
+            );
+    }
+
+    private static void registerSrtNativeRunners(
+        ScriptRunnerRegistry registry,
+        SandboxToolResolver resolver,
+        String runtimeCommand
+    ) {
+        for (ScriptRunnerKind kind : List.of(
+            ScriptRunnerKind.SHELL,
+            ScriptRunnerKind.PYTHON,
+            ScriptRunnerKind.POWERSHELL,
+            ScriptRunnerKind.PHP,
+            ScriptRunnerKind.GROOVY
+        )) {
+            registry.register(new SrtScriptRunner(kind, runtimeCommand));
+        }
+        resolver
+            .resolveRhaiCommand()
+            .ifPresentOrElse(
+                rhaiCommand -> registry.register(
+                    new SrtScriptRunner(
+                        ScriptRunnerKind.RHAI,
+                        runtimeCommand,
+                        rhaiCommand
+                    )
+                ),
+                () -> registry.register(
+                    new UnavailableScriptRunner(
+                        ScriptRunnerKind.RHAI,
+                        "Rhai sandbox interpreter is unavailable"
+                    )
+                )
+            );
+    }
+
+    private static void registerUnavailableNativeRunners(
+        ScriptRunnerRegistry registry,
+        String reason
+    ) {
+        for (ScriptRunnerKind kind : List.of(
+            ScriptRunnerKind.SHELL,
+            ScriptRunnerKind.PYTHON,
+            ScriptRunnerKind.POWERSHELL,
+            ScriptRunnerKind.PHP,
+            ScriptRunnerKind.GROOVY,
+            ScriptRunnerKind.RHAI
+        )) {
+            registry.register(new UnavailableScriptRunner(kind, reason));
+        }
     }
 
     private static void registerContainerRunner(

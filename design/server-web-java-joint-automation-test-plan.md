@@ -214,11 +214,11 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 
 | ID | 功能/测试项 | 覆盖组件 | 执行方式 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| F-SCRIPT-001 | Shell 脚本任务 | server + Java SDK/demo | 创建/触发 shell script job | 分发到 worker，经 SRT 沙箱执行成功且 stdout 入实例日志 | `.dev/reports/java-demo-20260601T052128Z-563896-inst_019e81a173267331bd069a20de0bdbd8-logs.json` | ✅ 通过 | 默认 auto sandbox：SHELL→SRT |
-| F-SCRIPT-002 | Python 脚本任务 | server + Java SDK/demo | 创建/触发 python script job | 不因 `script:python` 能力字符串缺失而卡 dispatching | instance/logs | ⏳ 待执行 | worker 统一接收，worker 侧选沙箱 |
-| F-SCRIPT-003 | JavaScript 脚本任务 | server + Java SDK/demo | 创建/触发 JavaScript job | 自动使用 Deno/V8 类沙箱 | instance/logs | ⏳ 待执行 | 语言全称 JavaScript |
-| F-SCRIPT-004 | TypeScript 脚本任务 | server + Java SDK/demo | 创建/触发 TypeScript job | 自动使用 Deno/V8 类沙箱 | instance/logs | ⏳ 待执行 | 语言全称 TypeScript |
-| F-SCRIPT-005 | Rhai 脚本输出 | Java SDK/demo | 触发 rhai job | print 输出进入 worker 控制台与实例日志，无重复 | console + logs | ⏳ 待执行 | 覆盖前期 print 不显示问题 |
+| F-SCRIPT-001 | Shell 脚本任务 | server + Java SDK/demo | 创建/触发 shell script job | 分发到 worker，经 SRT 沙箱执行成功且 stdout 入实例日志 | `.dev/reports/java-demo-20260601T055026Z-640840-inst_019e81bcb36b7c63add4ca2fcc1211ae-logs.json` | ✅ 通过 | 默认 auto sandbox：SHELL→SRT |
+| F-SCRIPT-002 | Python 脚本任务 | server + Java SDK/demo | 创建/触发 python script job | 不因 `script:python` 能力字符串缺失而卡 dispatching | `.dev/reports/java-demo-20260601T055026Z-640840-inst_019e81bcbbee73739cd1be16b5a50b03-logs.json` | ✅ 通过 | SRT 沙箱执行成功 |
+| F-SCRIPT-003 | JavaScript 脚本任务 | server + Java SDK/demo | 创建/触发 JavaScript job | 自动使用 Deno/V8 类沙箱 | `.dev/reports/java-demo-20260601T055026Z-640840-inst_019e81bcc08c7d01a6ccb7ac641e563d-logs.json` | ✅ 通过 | Deno 沙箱执行成功 |
+| F-SCRIPT-004 | TypeScript 脚本任务 | server + Java SDK/demo | 创建/触发 TypeScript job | 自动使用 Deno/V8 类沙箱 | `.dev/reports/java-demo-20260601T055026Z-640840-inst_019e81bcc50f77b19c0018cf2a48139b-logs.json` | ✅ 通过 | Deno 沙箱执行成功 |
+| F-SCRIPT-005 | Rhai 脚本输出 | Java SDK/demo | 触发 rhai job | print 输出进入 worker 控制台与实例日志，无重复 | `.dev/reports/java-demo-20260601T055026Z-640840-inst_019e81bcc9a27353a6c9456ab91921e9-logs.json` | ✅ 通过 | SRT + rhai-run 执行成功 |
 | F-SANDBOX-001 | wasmtime/wasmedge/deno/rhai/v8/srt 环境检查日志 | Java SDK | 启动 demo | info 日志打印检查、安装、fallback 过程 | demo log | ⏳ 待执行 | sandbox 工具统一包管理 |
 | F-PLUGIN-001 | 插件注册 | server + web | 创建 plugin processor/alert channel | 类型与处理器结构化保存 | API response | ⏳ 待执行 | 不靠 `plugin-processor:<type>` 拼接 |
 | F-PLUGIN-002 | 插件类型任务创建 | server + web + Java demo | 选择插件处理器创建任务 | 候选项来自 worker/plugin 结构化注册 | payload + screenshot | ⏳ 待执行 | 不能出现未注册处理器如 `mixed.sql` |
