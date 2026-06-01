@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
-import { ApiClientError, createAppScope, createCalendar, createJob, createNamespace, createPlugin, createSdkApiKey, createServiceAccount, createWorkerPool, deletePlugin, disableServiceAccount, dryRunWorkflow, getAuthToken, listInstanceAttempts, listInstanceLogs, getJobImpact, getJobSchedulingAdvice, getJobTopology, getWorkflowReplay, listJobVersions, listJobs, listNamespaces, listPlugins, listServiceAccounts, listWorkerPools, login, rollbackJob, setAuthErrorHandler, setAuthToken, triggerJob, triggerJobWebhookEvent, updateJob, updatePlugin, updateSdkApiKey, updateServiceAccount, updateWorkflow } from './client';
+import { ApiClientError, createAppScope, createCalendar, createJob, createNamespace, createPlugin, createSdkApiKey, createServiceAccount, createWorkerPool, deletePlugin, diffGitOpsManifest, disableServiceAccount, dryRunWorkflow, exportGitOpsManifest, getAuthToken, listInstanceAttempts, listInstanceLogs, getJobImpact, getJobSchedulingAdvice, getJobTopology, getWorkflowReplay, listJobVersions, listJobs, listNamespaces, listPlugins, listServiceAccounts, listWorkerPools, login, rollbackJob, setAuthErrorHandler, setAuthToken, triggerJob, triggerJobWebhookEvent, updateJob, updatePlugin, updateSdkApiKey, updateServiceAccount, updateWorkflow } from './client';
 
 const originalFetch = globalThis.fetch;
 
@@ -418,6 +418,52 @@ describe('api client envelope handling', () => {
       maintenanceWindows: [{ start: '2026-06-01T01:00:00.000Z', end: '2026-06-01T02:00:00.000Z' }],
       freezeWindows: [{ start: '2026-06-02T01:00:00.000Z', end: '2026-06-02T02:00:00.000Z' }],
     });
+  });
+
+  test('exports and diffs GitOps manifests through typed endpoints', async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    const manifest = {
+      apiVersion: 'tikee.yhyzgn.com/v1',
+      kind: 'TikeeManifest',
+      scope: { namespace: 'default', app: 'billing' },
+      resources: [{
+        kind: 'Job',
+        metadata: { id: 'job_1', name: 'demo', namespace: 'default', app: 'billing' },
+        spec: { scheduleType: 'api' },
+      }],
+    };
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({
+        method: init?.method ?? 'GET',
+        url: String(url),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      });
+      if ((init?.method ?? 'GET') === 'GET') {
+        return new Response(JSON.stringify({
+          code: 0,
+          message: 'success',
+          data: { manifest, format: 'yaml', manifestYaml: 'apiVersion: tikee.yhyzgn.com/v1', checksum: 'sha256:abc' },
+        }));
+      }
+      return new Response(JSON.stringify({
+        code: 0,
+        message: 'success',
+        data: {
+          currentChecksum: 'sha256:abc',
+          desiredChecksum: 'sha256:def',
+          summary: { update: 1 },
+          changes: [{ action: 'update', key: 'Job/default/billing/demo', kind: 'Job', name: 'demo', before: manifest.resources[0], after: manifest.resources[0], diff: '- old\\n+ new' }],
+        },
+      }));
+    }) as unknown as typeof fetch;
+
+    await expect(exportGitOpsManifest({ namespace: 'default', app: 'billing', format: 'yaml' })).resolves.toMatchObject({ checksum: 'sha256:abc' });
+    await expect(diffGitOpsManifest(manifest)).resolves.toMatchObject({ summary: { update: 1 } });
+
+    expect(calls).toEqual([
+      { method: 'GET', url: '/api/v1/gitops/manifest?namespace=default&app=billing&format=yaml', body: undefined },
+      { method: 'POST', url: '/api/v1/gitops/diff', body: { manifest } },
+    ]);
   });
 
   test('manages service accounts and binds sdk api keys by existing id', async () => {

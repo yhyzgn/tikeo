@@ -143,7 +143,7 @@ rtk bash deploy/smoke/web-live-smoke.sh
 | C-WEB-009 | 调度日历维护 | 新建/编辑 calendar | 维护/冻结窗口使用范围选择标签交互，不手写 JSON | `.dev/reports/web-calendar-windows-20260601T0725-test.log`、`.dev/reports/web-typecheck-20260601T0725.log` | Calendar/API 测试 23 pass；编辑按钮存在，维护/冻结窗口用 RangePicker 行并序列化 start/end payload，无 TextArea/JSON 手填 | ✅ 通过 |
 | C-WEB-010 | 实例详情日志 | 打开 instance detail | 非广播展示“执行器”；广播展示子执行；worker/status/updatedAt 可见 | `.dev/reports/web-instance-logs-20260601T0730-test.log`、`.dev/reports/web-typecheck-20260601T0730.log` | Instances/API 测试 24 pass；单实例显示执行器且包含 worker/status/updatedAt，广播显示 attempts，日志列含 worker | ✅ 通过 |
 | C-WEB-011 | Workflow designer 节点属性 | 编辑 job 节点 | 绑定调度任务后 processor 不手填，来自任务绑定 | `.dev/reports/web-workflow-node-binding-20260601T0735-test.log`、`.dev/reports/web-typecheck-20260601T0735.log` | Workflow/API 测试 28 pass；节点绑定 jobId 后 processorName 清空且执行器 label 来自任务，不暴露 processorName 输入 | ✅ 通过 |
-| C-WEB-012 | GitOps / IaC 页面 | 打开相关功能入口 | Manifest export/diff 可用；Terraform provider 若未 live 验证不得显示已完成 | screenshot、API response | 本轮未执行 | ⏳ 待执行 |
+| C-WEB-012 | GitOps / IaC 页面 | 打开相关功能入口 | Manifest export/diff 可用；Terraform provider 若未 live 验证不得显示已完成 | `.dev/reports/web-gitops-iac-20260601T0740-test.log`、`.dev/reports/web-typecheck-20260601T0740.log` | GitOps/API 测试 25 pass；页面暴露 manifest export/diff，不宣称 Terraform plan/apply 已完成 | ✅ 通过 |
 
 ## 6. P0-D：Server + Web + 双 Java demo 端到端
 
@@ -223,7 +223,7 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | P0-A 静态/单元/DB | 17 | 17 | 0 | 0 | 0 | 0 |
 | P0-B Server + Java demo | 16 | 16 | 0 | 0 | 0 | 0 |
-| P0-C Server + Web | 12 | 11 | 1 | 0 | 0 | 0 |
+| P0-C Server + Web | 12 | 12 | 0 | 0 | 0 | 0 |
 | P0-D 三端双 worker e2e | 10 | 8 | 2 | 0 | 0 | 0 |
 | P1-E SDK Management/API-Key | 7 | 7 | 0 | 0 | 0 | 0 |
 | P1-F 脚本沙箱/插件 | 9 | 9 | 0 | 0 | 0 | 0 |
@@ -233,7 +233,7 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 ## 12. 下一步执行建议
 
 1. `✅ A-SRV-004` clippy debt 已修复并重跑通过；后续继续保持 `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` 为合并前必跑。
-2. `✅ P1-E/P1-F` 已补齐 live/API/Java 验证；下一步转向 `⏳ P0-C Web e2e`、`⏳ D-WEB-*` 或 `⏳ P2-G GitOps/IaC`。
-3. 补齐 `⏳ C-* / D-WEB-*`：浏览器级 UI e2e、截图、登录态重定向、详情页日志一致性。
-4. 再执行 P2-G 的 live/CI 项，并补齐剩余 Web 端截图/e2e，继续用图标状态回填。
+2. `✅ P0-C/P1-E/P1-F` 已补齐当前自动化验证；下一步转向 `⏳ D-WEB-*` 浏览器截图级证据或 `⏳ P2-G GitOps/IaC` live 验证。
+3. `✅ P0-C` Web 功能项已补齐源码/API/HTML smoke 级验证；下一步补 `⏳ D-WEB-*` 浏览器截图级证据与 `⏳ P2-G` GitOps/IaC live 验证。
+4. 再执行 P2-G 的 live/CI 项，并为 D-WEB 双 worker failover 页面补截图/e2e，继续用图标状态回填。
 5. 每次执行后将本文件对应行的“当前测试结果”和“状态”改为实际结果，禁止未跑即标 `✅ 通过`。
