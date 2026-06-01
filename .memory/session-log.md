@@ -1845,3 +1845,10 @@ Commit/push:
 - Added `.github/RELEASE_SETUP.md` with required placeholders/secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`, and Docker Hub repositories.
 - Fixed Rust SDK test/proto drift and clippy blockers so the new SDK CI lane is actually green.
 - Verification: workflow contract unittest; `cargo check --workspace --all-features`; `cd web && rtk bun run build`; `(cd sdks/java && ./gradlew test jar sourcesJar)`; Rust SDK clippy/test; `rtk git diff --check -- . ':!.omx'`.
+
+### 2026-06-01 — Fix Terraform provider and K8s CRD test verification
+- Resolved Go dependency errors by executing `go mod tidy` in `deploy/terraform/provider/` and `deploy/k8s/operator/` sub-modules, restoring missing `go.sum` lock files.
+- Executed local verification tests: ran `deploy/smoke/terraform-provider-smoke.sh` and `deploy/smoke/k8s-operator-dry-run-smoke.sh` successfully.
+- Validated K8s CustomResourceDefinition YAML using `kubeconform` dry-run, confirming the CRD schema parses correctly.
+- Patched status in `design/server-web-java-joint-executable-test-status-plan.md` and `design/server-web-java-joint-automation-test-plan.md` for `G-TF-001` (Terraform provider build/test), `G-K8S-001` (CRD schema check), and `G-K8S-002` (Operator reconcile dry-run) to `✅ 通过`.
+- Verification: local executions of all three dry-run scripts passed successfully.
