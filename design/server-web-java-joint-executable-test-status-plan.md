@@ -137,7 +137,7 @@ rtk bash deploy/smoke/web-live-smoke.sh
 | C-WEB-003 | 登录态路由守卫 | 登录后访问 `/login` | 跳过 login，返回 dashboard/目标页 | `.dev/reports/web-live-20260601T070328Z-825949-route-auth-test.log` | RouteAuth 单测断言已登录 `/login` bypass 到 dashboard | ✅ 通过 |
 | C-WEB-004 | 刷新二级路由 | 刷新 `/api-keys`、`/jobs/topology`、`/workflows/new`、`/workflows/:id/edit` 等 | 不 404；SPA fallback 正常 | `.dev/reports/web-live-20260601T070328Z-825949-*.html` | api-keys/workers/jobs topology/workflows new+edit/gitops 均返回 SPA shell 且非 404 | ✅ 通过 |
 | C-WEB-005 | Worker 列表展示 | 打开 Workers 页 | API 字段与 UI 一致；Capabilities 不误列 processor | `.dev/reports/web-workers-page-20260601T0705-test.log` | WorkerTable 模型单测 5 pass；Capabilities 排除 `processor:*`，SDK/Script/Plugin 单独过滤/分栏 | ✅ 通过 |
-| C-WEB-006 | Task 列表分页 | 打开任务列表，切换 page size | 默认 20；下拉选择可用；cookie 持久化 | screenshot、cookie dump | 本轮未执行 | ⏳ 待执行 |
+| C-WEB-006 | Task 列表分页 | 打开任务列表，切换 page size | 默认 20；下拉选择可用；cookie 持久化 | `.dev/reports/web-jobs-pagination-20260601T0710-test.log`、`.dev/reports/web-typecheck-20260601T0710.log` | Pagination 单测验证默认 20、选项 10/20/50/100、cookie 持久化；JobsPage 测试通过 | ✅ 通过 |
 | C-WEB-007 | Task 新建/编辑抽屉 | 创建/编辑 api、cron、fixed_rate、script job | 抽屉宽度、字段、processor/script 选择逻辑正确；payload 小驼峰 | screenshot、request payload | 本轮未执行 | ⏳ 待执行 |
 | C-WEB-008 | 操作按钮样式 | 检查任务/实例操作栏 | 按钮平铺，主色调跟随全局主题 | screenshot | 本轮未执行 | ⏳ 待执行 |
 | C-WEB-009 | 调度日历维护 | 新建/编辑 calendar | 维护/冻结窗口使用范围选择标签交互，不手写 JSON | screenshot、payload | 本轮未执行 | ⏳ 待执行 |
@@ -223,7 +223,7 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | P0-A 静态/单元/DB | 17 | 17 | 0 | 0 | 0 | 0 |
 | P0-B Server + Java demo | 16 | 16 | 0 | 0 | 0 | 0 |
-| P0-C Server + Web | 12 | 5 | 7 | 0 | 0 | 0 |
+| P0-C Server + Web | 12 | 6 | 6 | 0 | 0 | 0 |
 | P0-D 三端双 worker e2e | 10 | 8 | 2 | 0 | 0 | 0 |
 | P1-E SDK Management/API-Key | 7 | 7 | 0 | 0 | 0 | 0 |
 | P1-F 脚本沙箱/插件 | 9 | 9 | 0 | 0 | 0 | 0 |
