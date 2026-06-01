@@ -937,8 +937,16 @@
         assert_eq!(json["data"]["canaryRouting"]["routed"], true);
         assert_eq!(json["data"]["canaryRouting"]["originalJobId"], main.id);
         assert_eq!(json["data"]["canaryRouting"]["routedJobId"], canary.id);
-        assert_eq!(instances.list_by_job(&main.id).await.unwrap().len(), 0);
-        assert_eq!(instances.list_by_job(&canary.id).await.unwrap().len(), 1);
+        let main_instances = instances
+            .list_by_job(&main.id)
+            .await
+            .unwrap_or_else(|error| panic!("main instances should load: {error}"));
+        let canary_instances = instances
+            .list_by_job(&canary.id)
+            .await
+            .unwrap_or_else(|error| panic!("canary instances should load: {error}"));
+        assert_eq!(main_instances.len(), 0);
+        assert_eq!(canary_instances.len(), 1);
     }
 
 
@@ -1050,7 +1058,12 @@
         assert_eq!(json["data"]["prediction"]["estimatedDurationSeconds"], 30);
         assert_eq!(json["data"]["prediction"]["recommendedConcurrency"], 1);
         assert_eq!(json["data"]["prediction"]["workerCapacity"]["eligibleWorkerCount"], 1);
-        assert!(json["data"]["prediction"]["reasons"].as_array().unwrap().iter().any(|item| item.as_str().unwrap_or_default().contains("history")));
+        let Some(reasons) = json["data"]["prediction"]["reasons"].as_array() else {
+            panic!("prediction reasons should be an array");
+        };
+        assert!(reasons
+            .iter()
+            .any(|item| item.as_str().unwrap_or_default().contains("history")));
     }
 
     #[tokio::test]
@@ -1121,10 +1134,19 @@
 
         assert!(status.is_success(), "unexpected status {status}: {json}");
         assert_eq!(json["data"]["targetJob"]["id"], normalize.id);
-        assert!(json["data"]["referencingWorkflows"].as_array().unwrap().iter().any(|item| item["id"] == first.id));
-        assert!(json["data"]["referencingWorkflows"].as_array().unwrap().iter().any(|item| item["id"] == second.id));
-        assert!(json["data"]["upstreamJobs"].as_array().unwrap().iter().any(|item| item["id"] == extract.id));
-        assert!(json["data"]["downstreamJobs"].as_array().unwrap().iter().any(|item| item["id"] == publish.id));
+        let Some(referencing_workflows) = json["data"]["referencingWorkflows"].as_array() else {
+            panic!("referencingWorkflows should be an array");
+        };
+        let Some(upstream_jobs) = json["data"]["upstreamJobs"].as_array() else {
+            panic!("upstreamJobs should be an array");
+        };
+        let Some(downstream_jobs) = json["data"]["downstreamJobs"].as_array() else {
+            panic!("downstreamJobs should be an array");
+        };
+        assert!(referencing_workflows.iter().any(|item| item["id"] == first.id));
+        assert!(referencing_workflows.iter().any(|item| item["id"] == second.id));
+        assert!(upstream_jobs.iter().any(|item| item["id"] == extract.id));
+        assert!(downstream_jobs.iter().any(|item| item["id"] == publish.id));
         assert_eq!(json["data"]["riskSummary"]["workflowCount"], 2);
     }
 

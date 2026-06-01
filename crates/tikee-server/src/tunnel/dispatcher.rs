@@ -1629,23 +1629,23 @@ mod tests {
         script_is_dispatchable, script_version_is_dispatchable,
     };
 
-    fn sdk_capabilities(processor_name: &str) -> Option<WorkerCapabilities> {
-        Some(WorkerCapabilities {
+    fn sdk_capabilities(processor_name: &str) -> WorkerCapabilities {
+        WorkerCapabilities {
             sdk_processors: vec![SdkProcessorCapability {
                 name: processor_name.to_owned(),
             }],
             ..WorkerCapabilities::default()
-        })
+        }
     }
 
-    fn script_capabilities(language: &str) -> Option<WorkerCapabilities> {
-        Some(WorkerCapabilities {
+    fn script_capabilities(language: &str) -> WorkerCapabilities {
+        WorkerCapabilities {
             script_runners: vec![ScriptRunnerCapability {
                 language: language.to_owned(),
                 sandbox_backend: "auto".to_owned(),
             }],
             ..WorkerCapabilities::default()
-        })
+        }
     }
 
     #[tokio::test]
@@ -1712,11 +1712,11 @@ mod tests {
 
         assert!(outcome.success, "unexpected outcome: {outcome:?}");
         assert!(outcome.message.contains("attempts=2"));
-        let captured = captured.lock().await;
-        assert_eq!(captured.len(), 2);
-        assert!(captured[0].contains("POST /hook HTTP/1.1"));
-        assert!(captured[0].contains(&format!("x-tikee-signature: {expected_signature}")));
-        assert!(captured[1].contains(&format!("x-tikee-signature: {expected_signature}")));
+        let captured_requests = captured.lock().await.clone();
+        assert_eq!(captured_requests.len(), 2);
+        assert!(captured_requests[0].contains("POST /hook HTTP/1.1"));
+        assert!(captured_requests[0].contains(&format!("x-tikee-signature: {expected_signature}")));
+        assert!(captured_requests[1].contains(&format!("x-tikee-signature: {expected_signature}")));
     }
 
     #[tokio::test]
@@ -1797,7 +1797,7 @@ mod tests {
                     cluster: "local".to_owned(),
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
-                    structured_capabilities: sdk_capabilities("billing.manual"),
+                    structured_capabilities: Some(sdk_capabilities("billing.manual")),
                     election: None,
                     labels: HashMap::default(),
                 },
@@ -1926,7 +1926,7 @@ mod tests {
                     cluster: "local".to_owned(),
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
-                    structured_capabilities: sdk_capabilities("demo.echo"),
+                    structured_capabilities: Some(sdk_capabilities("demo.echo")),
                     election: None,
                     labels: HashMap::default(),
                 },
@@ -2177,7 +2177,7 @@ mod tests {
                     cluster: "local".to_owned(),
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
-                    structured_capabilities: script_capabilities("python"),
+                    structured_capabilities: Some(script_capabilities("python")),
                     election: None,
                     labels: HashMap::default(),
                 },
@@ -2283,7 +2283,7 @@ mod tests {
                     cluster: "local".to_owned(),
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
-                    structured_capabilities: sdk_capabilities("manual"),
+                    structured_capabilities: Some(sdk_capabilities("manual")),
                     election: None,
                     labels: HashMap::default(),
                 },
@@ -2301,7 +2301,7 @@ mod tests {
                     cluster: "local".to_owned(),
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
-                    structured_capabilities: sdk_capabilities("manual"),
+                    structured_capabilities: Some(sdk_capabilities("manual")),
                     election: None,
                     labels: HashMap::default(),
                 },
@@ -2560,7 +2560,7 @@ mod tests {
                     cluster: "local".to_owned(),
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
-                    structured_capabilities: sdk_capabilities("workflow.override"),
+                    structured_capabilities: Some(sdk_capabilities("workflow.override")),
                     election: None,
                     labels: HashMap::default(),
                 },
@@ -2682,7 +2682,7 @@ mod tests {
                     cluster: "local".to_owned(),
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
-                    structured_capabilities: script_capabilities("wasm"),
+                    structured_capabilities: Some(script_capabilities("wasm")),
                     election: None,
                     labels: HashMap::default(),
                 },

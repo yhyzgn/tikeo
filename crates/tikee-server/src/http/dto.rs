@@ -820,27 +820,29 @@ pub struct UpdateJobRequest {
     pub name: Option<String>,
     pub schedule_type: Option<String>,
     #[serde(default, deserialize_with = "deserialize_nullable_update")]
-    pub schedule_expr: Option<Option<String>>,
+    pub schedule_expr: NullableUpdate<String>,
     pub misfire_policy: Option<String>,
     #[serde(default, deserialize_with = "deserialize_nullable_update")]
-    pub schedule_start_at: Option<Option<String>>,
+    pub schedule_start_at: NullableUpdate<String>,
     #[serde(default, deserialize_with = "deserialize_nullable_update")]
-    pub schedule_end_at: Option<Option<String>>,
+    pub schedule_end_at: NullableUpdate<String>,
     #[serde(default)]
     pub schedule_calendar: Option<Option<serde_json::Value>>,
     #[serde(default, deserialize_with = "deserialize_nullable_update")]
-    pub processor_name: Option<Option<String>>,
+    pub processor_name: NullableUpdate<String>,
     #[serde(default, deserialize_with = "deserialize_nullable_update")]
-    pub processor_type: Option<Option<String>>,
+    pub processor_type: NullableUpdate<String>,
     #[serde(default, deserialize_with = "deserialize_nullable_update")]
-    pub script_id: Option<Option<String>>,
+    pub script_id: NullableUpdate<String>,
     pub enabled: Option<bool>,
     #[serde(default, deserialize_with = "deserialize_nullable_update")]
-    pub canary_job_id: Option<Option<String>>,
+    pub canary_job_id: NullableUpdate<String>,
     pub canary_percent: Option<i32>,
 }
 
-fn deserialize_nullable_update<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+pub type NullableUpdate<T> = Option<Option<T>>;
+
+fn deserialize_nullable_update<'de, D, T>(deserializer: D) -> Result<NullableUpdate<T>, D::Error>
 where
     D: Deserializer<'de>,
     T: Deserialize<'de>,

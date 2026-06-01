@@ -29,6 +29,11 @@ use crate::http::{
     params(GitOpsExportQuery),
     responses((status = 200, description = "Declarative GitOps manifest", body = GitOpsManifestApiResponse))
 )]
+/// Export the current scope as a declarative `GitOps` manifest.
+///
+/// # Errors
+///
+/// Returns authorization, validation, serialization, or storage errors.
 pub async fn export_gitops_manifest(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -66,6 +71,11 @@ pub async fn export_gitops_manifest(
     request_body = GitOpsDiffRequest,
     responses((status = 200, description = "GitOps manifest drift diff", body = GitOpsDiffApiResponse))
 )]
+/// Compare a desired `GitOps` manifest against current server state.
+///
+/// # Errors
+///
+/// Returns authorization, validation, serialization, or storage errors.
 pub async fn diff_gitops_manifest(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -233,7 +243,7 @@ async fn build_manifest(
         ));
     }
 
-    resources.sort_by(|left, right| resource_key(left).cmp(&resource_key(right)));
+    resources.sort_by_key(resource_key);
     Ok(GitOpsManifest {
         api_version: "tikee.io/v1alpha1".to_owned(),
         kind: "TikeeManifest".to_owned(),
@@ -270,7 +280,7 @@ fn diff_resources(
                 changes.push(change("unchanged", &key, Some(before), Some(after))?);
             }
             (Some(before), Some(after)) => {
-                changes.push(change("update", &key, Some(before), Some(after))?)
+                changes.push(change("update", &key, Some(before), Some(after))?);
             }
             (None, None) => {}
         }

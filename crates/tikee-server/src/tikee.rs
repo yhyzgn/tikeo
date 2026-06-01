@@ -167,7 +167,7 @@ async fn cron_due(
             .take_while(|next| *next <= now)
             .collect()
     };
-    Ok(misfire_decision(job, due_times, TriggerType::Cron, now))
+    Ok(misfire_decision(job, &due_times, TriggerType::Cron, now))
 }
 
 #[derive(Debug, Clone)]
@@ -260,15 +260,14 @@ async fn fixed_rate_due(
     if now.signed_duration_since(last) < due_after {
         return Ok(ScheduleDecision::default());
     }
-    let missed = (now.signed_duration_since(last).num_milliseconds()
+    let missed_raw = (now.signed_duration_since(last).num_milliseconds()
         / rate.num_milliseconds().max(1))
-    .max(1) as usize;
-    let due_times = std::iter::repeat(now)
-        .take(missed.min(CATCH_UP_LIMIT))
-        .collect();
+    .max(1);
+    let missed = usize::try_from(missed_raw).unwrap_or(CATCH_UP_LIMIT);
+    let due_times: Vec<_> = std::iter::repeat_n(now, missed.min(CATCH_UP_LIMIT)).collect();
     Ok(misfire_decision(
         job,
-        due_times,
+        &due_times,
         TriggerType::FixedRate,
         now,
     ))
@@ -315,7 +314,12 @@ fn deterministic_jitter(job_id: &str, max_jitter: chrono::Duration) -> chrono::D
     }
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     job_id.hash(&mut hasher);
-    chrono::Duration::milliseconds((hasher.finish() % max as u64) as i64)
+    let max = u64::try_from(max).unwrap_or(0);
+    if max == 0 {
+        return chrono::Duration::zero();
+    }
+    let jitter = hasher.finish() % max;
+    chrono::Duration::milliseconds(i64::try_from(jitter).unwrap_or(i64::MAX))
 }
 
 async fn fixed_delay_due(
@@ -370,10 +374,13 @@ async fn daily_time_interval_due(
         return Ok(ScheduleDecision::default());
     };
     let spec = parse_daily_time_interval(expression)?;
-    let local_now = now.with_timezone(
-        &chrono::FixedOffset::east_opt(spec.utc_offset_seconds)
-            .unwrap_or_else(|| chrono::FixedOffset::east_opt(0).expect("zero offset is valid")),
-    );
+    let Some(offset) = chrono::FixedOffset::east_opt(spec.utc_offset_seconds) else {
+        return Err(ScheduleDecisionError::InvalidExpression(format!(
+            "invalid timezone offset seconds: {}",
+            spec.utc_offset_seconds
+        )));
+    };
+    let local_now = now.with_timezone(&offset);
     let minute_of_day =
         i64::from(local_now.time().hour()) * 60 + i64::from(local_now.time().minute());
     if minute_of_day < spec.start_minute || minute_of_day > spec.end_minute {
@@ -483,14 +490,13 @@ fn one_trigger(trigger_type: TriggerType) -> ScheduleDecision {
 
 fn misfire_decision(
     job: &JobSummary,
-    due_times: Vec<DateTime<Utc>>,
+    due_times: &[DateTime<Utc>],
     trigger_type: TriggerType,
     now: DateTime<Utc>,
 ) -> ScheduleDecision {
-    if due_times.is_empty() {
+    let Some(latest) = due_times.last().copied() else {
         return ScheduleDecision::default();
-    }
-    let latest = *due_times.last().expect("checked non-empty due_times");
+    };
     let misfired = due_times.len() > 1 || now.signed_duration_since(latest) > MISFIRE_GRACE;
     let policy = job
         .misfire_policy
@@ -506,7 +512,7 @@ fn misfire_decision(
         1
     };
     ScheduleDecision {
-        triggers: std::iter::repeat(trigger_type).take(count).collect(),
+        triggers: std::iter::repeat_n(trigger_type, count).collect(),
         advance_cursor: true,
     }
 }
@@ -520,19 +526,17 @@ async fn within_lifecycle_window(
         .schedule_start_at
         .as_deref()
         .filter(|value| !value.trim().is_empty())
+        && now < parse_rfc3339_utc(start)?
     {
-        if now < parse_rfc3339_utc(start)? {
-            return Ok(false);
-        }
+        return Ok(false);
     }
     if let Some(end) = job
         .schedule_end_at
         .as_deref()
         .filter(|value| !value.trim().is_empty())
+        && now >= parse_rfc3339_utc(end)?
     {
-        if now >= parse_rfc3339_utc(end)? {
-            return Ok(false);
-        }
+        return Ok(false);
     }
     if schedule_calendar_blocks(jobs, job, now).await? {
         return Ok(false);
@@ -591,10 +595,10 @@ async fn resolve_schedule_calendar(
             job.namespace, job.app, name
         )));
     };
-    Ok(Some(calendar_summary_to_value(stored)))
+    Ok(Some(calendar_summary_to_value(&stored)))
 }
 
-fn calendar_summary_to_value(calendar: CalendarSummary) -> serde_json::Value {
+fn calendar_summary_to_value(calendar: &CalendarSummary) -> serde_json::Value {
     serde_json::json!({
         "timezone": calendar.timezone,
         "excludedDates": calendar.excluded_dates,
@@ -842,8 +846,9 @@ mod tests {
 
     #[test]
     fn fixed_rate_expression_rejects_jitter_not_smaller_than_interval() {
-        let error = super::parse_fixed_rate_expression("30s;jitter=30s")
-            .expect_err("jitter equal to interval must be rejected");
+        let Err(error) = super::parse_fixed_rate_expression("30s;jitter=30s") else {
+            panic!("jitter equal to interval must be rejected");
+        };
         assert!(error.to_string().contains("jitter"));
     }
 

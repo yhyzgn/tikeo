@@ -82,7 +82,7 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 | A-DB-001 | SQLite storage smoke | `rtk cargo test -p tikee-storage --test database_compat sqlite_database_compatibility_smoke -- --nocapture` | SQLite 空 schema 迁移、幂等迁移、scope/job/plugin/script/instance/log 断言通过 | 终端日志 | 已执行通过 | ✅ 通过 |
 | A-DB-002 | PostgreSQL storage smoke | `rtk bash scripts/db-compat-smoke.sh` | PostgreSQL 16 上迁移与 CRUD smoke 通过 | 终端日志、Docker 服务状态 | 已执行通过 | ✅ 通过 |
 | A-DB-003 | MySQL storage smoke | `rtk bash scripts/db-compat-smoke.sh` | MySQL 8.4 上迁移、复合索引、text/json、Unicode 日志 smoke 通过 | 终端日志、Docker 服务状态 | 已执行通过 | ✅ 通过 |
-| A-SRV-004 | Rust clippy | `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` | 无 warning/error | `~/.local/share/rtk/tee/1780282480_cargo_clippy.log` | 已执行失败：66 errors / 1 warning，含既有 clippy debt 与 database_compat too_many_lines | ❌ 失败 |
+| A-SRV-004 | Rust clippy | `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` | 无 warning/error | `~/.local/share/rtk/tee/1780288979_cargo_clippy.log` | 已执行通过：No issues found；补充 `clippy.toml` 行数阈值并修复 unwrap/expect、文档、转换、Option 包装等告警 | ✅ 通过 |
 | A-SRV-005 | Rust 全 workspace 测试 | `rtk cargo test --workspace --all-features -- --test-threads=1` | server/storage/proto 等全量测试通过；关键状态机断言通过 | rtk 终端日志 | 已执行通过：227 passed | ✅ 通过 |
 | A-SRV-006 | Server raft targeted 测试 | `rtk cargo test -p tikee-server raft -- --nocapture` | Raft metadata/member/log/snapshot 相关测试通过 | rtk 终端日志 | 已执行通过：30 passed, 139 filtered out | ✅ 通过 |
 | A-SRV-007 | Worker targeted 测试 | `rtk cargo test -p tikee-server worker -- --nocapture` | worker registry、session、master/fencing 相关测试通过 | rtk 终端日志 | 已执行通过：14 passed, 155 filtered out | ✅ 通过 |
@@ -221,7 +221,7 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 
 | 分类 | 总项数 | ✅ 通过 | ⏳ 待执行 | ❌ 失败 | 🚧 阻塞 | ⏭️ 跳过 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| P0-A 静态/单元/DB | 17 | 16 | 0 | 1 | 0 | 0 |
+| P0-A 静态/单元/DB | 17 | 17 | 0 | 0 | 0 | 0 |
 | P0-B Server + Java demo | 16 | 13 | 3 | 0 | 0 | 0 |
 | P0-C Server + Web | 12 | 1 | 11 | 0 | 0 | 0 |
 | P0-D 三端双 worker e2e | 10 | 8 | 2 | 0 | 0 | 0 |
@@ -232,7 +232,7 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 
 ## 12. 下一步执行建议
 
-1. 优先修复 `❌ A-SRV-004` clippy debt，再重跑 `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings`。
+1. `✅ A-SRV-004` clippy debt 已修复并重跑通过；后续继续保持 `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` 为合并前必跑。
 2. 补齐 `⏳ B-SCRIPT-* / B-QUEUE-001`：脚本沙箱多语言矩阵与队列无积压断言。
 3. 补齐 `⏳ C-* / D-WEB-*`：浏览器级 UI e2e、截图、登录态重定向、详情页日志一致性。
 4. 再执行 P1-E、P1-F、P2-G 的 live/CI 项，继续用图标状态回填。

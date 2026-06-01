@@ -297,9 +297,7 @@ fn webhook_signature(
     nonce: &str,
     payload: Option<&serde_json::Value>,
 ) -> String {
-    let payload = payload
-        .map(canonical_json)
-        .unwrap_or_else(|| "null".to_owned());
+    let payload = payload.map_or_else(|| "null".to_owned(), canonical_json);
     let canonical = format!(
         "tikee-webhook-v1\njob_id={job_id}\ntimestamp={timestamp}\nnonce={nonce}\npayload={payload}"
     );

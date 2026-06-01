@@ -56,7 +56,7 @@ pub struct WorkerMasterState {
 }
 
 impl WorkerMasterState {
-    fn follower(domain: String) -> Self {
+    const fn follower(domain: String) -> Self {
         Self {
             domain,
             is_master: false,
@@ -602,7 +602,7 @@ fn stable_worker_id(
 }
 
 fn worker_election_registration(worker: &RegisterWorker) -> WorkerElectionRegistration {
-    let election = worker.election.as_ref().cloned().unwrap_or_default();
+    let election = worker.election.clone().unwrap_or_default();
     WorkerElectionRegistration {
         enabled: election.enabled,
         domain: normalized_election_domain(worker, &election),

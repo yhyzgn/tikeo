@@ -558,19 +558,15 @@ fn trigger_autonomous_campaign(node: &mut RawNode<MemStorage>) {
 }
 
 fn is_lowest_known_voter(node: &RawNode<MemStorage>) -> bool {
-    node.store()
-        .initial_state()
-        .ok()
-        .map(|state| {
-            state
-                .conf_state
-                .voters
-                .iter()
-                .copied()
-                .min()
-                .is_none_or(|lowest| node.raft.id == lowest)
-        })
-        .unwrap_or(true)
+    node.store().initial_state().ok().is_none_or(|state| {
+        state
+            .conf_state
+            .voters
+            .iter()
+            .copied()
+            .min()
+            .is_none_or(|lowest| node.raft.id == lowest)
+    })
 }
 
 async fn process_ready(

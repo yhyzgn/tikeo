@@ -793,6 +793,10 @@ pub async fn get_job_instance(
 }
 
 /// Cancel a pending/running job instance and close its dispatch queue item.
+///
+/// # Errors
+///
+/// Returns authorization, not-found, or storage errors.
 #[utoipa::path(
     post,
     path = "/api/v1/instances/{instance}/cancel",

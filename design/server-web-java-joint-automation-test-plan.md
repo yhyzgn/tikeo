@@ -104,7 +104,7 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 | ID | 功能/测试项 | 覆盖组件 | 执行命令 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | A-SRV-001 | Rust 格式检查 | server/storage/proto/sdk rust | `rtk cargo fmt --all -- --check` | exit code = 0 | CI log | ✅ 通过 | 合并前必跑 |
-| A-SRV-002 | Rust Clippy 全工作区 | server/storage/proto | `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` | 无 warning/error | CI log | ❌ 失败 | 不允许 `#[allow(clippy::too_many_lines)]` 掩盖大文件问题 |
+| A-SRV-002 | Rust Clippy 全工作区 | server/storage/proto | `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` | 无 warning/error | `~/.local/share/rtk/tee/1780288979_cargo_clippy.log` | ✅ 通过 | 已修复 clippy debt；通过 `clippy.toml` 统一 too-many-lines 阈值，未用局部 allow 掩盖 |
 | A-SRV-003 | Rust 全工作区测试 | server/storage/proto | `rtk cargo test --workspace --all-features` | 不仅全部通过，还必须确认关键状态机断言覆盖 storage schema、dispatch、auth、workflow、logs | CI log | ✅ 通过 | 基础功能预期回归 |
 | A-SRV-004 | Server Raft 自主选主测试 | server | `rtk cargo test -p tikee-server raft -- --nocapture` | Raft 相关测试通过 | CI log | ✅ 通过 | 覆盖 server 服务集群 master election |
 | A-SRV-005 | Worker registry/master 测试 | server worker tunnel | `rtk cargo test -p tikee-server worker -- --nocapture` | Worker registry/master dispatch 测试通过 | CI log | ✅ 通过 | 覆盖 worker 服务集群 master election |

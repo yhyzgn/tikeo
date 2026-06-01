@@ -39,6 +39,11 @@ pub struct UpdatePluginRequest {
     pub enabled: Option<bool>,
 }
 
+/// List installed plugin declarations.
+///
+/// # Errors
+///
+/// Returns authorization or storage errors.
 #[utoipa::path(get, path = "/api/v1/plugins", tag = "plugins")]
 pub async fn list_plugins(
     State(state): State<Arc<AppState>>,
@@ -53,6 +58,11 @@ pub async fn list_plugins(
     Ok(Json(ApiResponse::success(items)))
 }
 
+/// Create a plugin declaration.
+///
+/// # Errors
+///
+/// Returns authorization, validation, or storage errors.
 #[utoipa::path(post, path = "/api/v1/plugins", tag = "plugins", request_body = CreatePluginRequest)]
 pub async fn create_plugin(
     State(state): State<Arc<AppState>>,
@@ -85,6 +95,11 @@ pub async fn create_plugin(
     Ok(Json(ApiResponse::success(created)))
 }
 
+/// Update a plugin declaration.
+///
+/// # Errors
+///
+/// Returns authorization, validation, not-found, or storage errors.
 #[utoipa::path(patch, path = "/api/v1/plugins/{id}", tag = "plugins", request_body = UpdatePluginRequest)]
 pub async fn update_plugin(
     State(state): State<Arc<AppState>>,
@@ -127,6 +142,11 @@ pub async fn update_plugin(
     Ok(Json(ApiResponse::success(updated)))
 }
 
+/// Delete a plugin declaration.
+///
+/// # Errors
+///
+/// Returns authorization, not-found, or storage errors.
 #[utoipa::path(delete, path = "/api/v1/plugins/{id}", tag = "plugins")]
 pub async fn delete_plugin(
     State(state): State<Arc<AppState>>,
@@ -155,7 +175,7 @@ pub async fn delete_plugin(
     Ok(Json(ApiResponse::success(EmptyData {})))
 }
 
-fn default_enabled() -> bool {
+const fn default_enabled() -> bool {
     true
 }
 
@@ -200,8 +220,8 @@ fn validate_processor_types(
                 .artifact_ref
                 .as_deref()
                 .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .is_none()
+                .as_ref()
+                .is_none_or(|value| value.is_empty())
             {
                 return Err(ApiError::bad_request(
                     "external_jar processor type requires artifactRef",
@@ -211,8 +231,8 @@ fn validate_processor_types(
                 .container_image
                 .as_deref()
                 .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .is_none()
+                .as_ref()
+                .is_none_or(|value| value.is_empty())
             {
                 return Err(ApiError::bad_request(
                     "external_jar processor type requires containerImage",

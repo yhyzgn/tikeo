@@ -225,17 +225,16 @@ pub async fn delete_user(
         .await
         .map_err(|error| ApiError::storage(&error))?;
 
-    if let Some(user) = existing.as_ref() {
-        if user.role == "admin"
-            && state
-                .users
-                .count_by_role("admin")
-                .await
-                .map_err(|error| ApiError::storage(&error))?
-                <= 1
-        {
-            return Err(ApiError::bad_request("cannot delete the last admin user"));
-        }
+    if let Some(user) = existing.as_ref()
+        && user.role == "admin"
+        && state
+            .users
+            .count_by_role("admin")
+            .await
+            .map_err(|error| ApiError::storage(&error))?
+            <= 1
+    {
+        return Err(ApiError::bad_request("cannot delete the last admin user"));
     }
 
     let success = state

@@ -238,20 +238,16 @@ mod tests {
             .unwrap_or_else(|error| panic!("plugin should create: {error}"));
 
         assert_eq!(created.processor_types[0].capability, "sql");
-        assert!(
-            repository
-                .resolve_processor_type("sql")
-                .await
-                .unwrap()
-                .is_some()
-        );
-        assert!(
-            repository
-                .resolve_alert_channel_type("ops_webhook")
-                .await
-                .unwrap()
-                .is_some()
-        );
+        let processor_type = repository
+            .resolve_processor_type("sql")
+            .await
+            .unwrap_or_else(|error| panic!("processor type should resolve: {error}"));
+        assert!(processor_type.is_some());
+        let alert_channel_type = repository
+            .resolve_alert_channel_type("ops_webhook")
+            .await
+            .unwrap_or_else(|error| panic!("alert channel type should resolve: {error}"));
+        assert!(alert_channel_type.is_some());
     }
 
     #[tokio::test]

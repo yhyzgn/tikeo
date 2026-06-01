@@ -61,7 +61,7 @@ pub async fn job_scheduling_advice(
         .find_eligible_workers_with_requirement(
             &job_summary.namespace,
             &job_summary.app,
-            requirement.as_ref(),
+            Some(&requirement),
         )
         .await;
     let worker_capacity = worker_capacity(&state, &eligible_workers).await;
@@ -82,14 +82,14 @@ pub async fn job_scheduling_advice(
         .filter(|instance| instance.status.to_string() == "failed")
         .count();
     let (ready, severity, reason) = advice_status(&eligible_workers, recent_failures);
-    let history_summary = history_summary(history);
+    let history_summary = history_summary(&history);
     let prediction = prediction(&history_summary, worker_capacity);
 
     Ok(Json(ApiResponse::success(JobSchedulingAdviceResponse {
         ready,
         severity,
         reason,
-        required_capability: requirement.as_ref().map(WorkerRequirement::display_label),
+        required_capability: Some(requirement.display_label()),
         eligible_workers,
         recent_instances: u64::try_from(recent_instances).unwrap_or(u64::MAX),
         recent_failures: u64::try_from(recent_failures).unwrap_or(u64::MAX),
@@ -98,15 +98,15 @@ pub async fn job_scheduling_advice(
     })))
 }
 
-fn required_requirement_for_job(job: &tikee_storage::JobSummary) -> Option<WorkerRequirement> {
+fn required_requirement_for_job(job: &tikee_storage::JobSummary) -> WorkerRequirement {
     if job
         .script_id
         .as_deref()
         .is_some_and(|value| !value.trim().is_empty())
     {
-        return Some(WorkerRequirement::ScriptRunner {
+        return WorkerRequirement::ScriptRunner {
             language: "*".to_owned(),
-        });
+        };
     }
     if let Some(processor_type) = job
         .processor_type
@@ -120,10 +120,10 @@ fn required_requirement_for_job(job: &tikee_storage::JobSummary) -> Option<Worke
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .unwrap_or(&job.name);
-        return Some(WorkerRequirement::PluginProcessor {
+        return WorkerRequirement::PluginProcessor {
             processor_type: processor_type.to_owned(),
             processor_name: processor_name.to_owned(),
-        });
+        };
     }
     let processor = job
         .processor_name
@@ -131,9 +131,9 @@ fn required_requirement_for_job(job: &tikee_storage::JobSummary) -> Option<Worke
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .unwrap_or(&job.name);
-    Some(WorkerRequirement::SdkProcessor {
+    WorkerRequirement::SdkProcessor {
         name: processor.to_owned(),
-    })
+    }
 }
 
 async fn worker_capacity(
@@ -158,7 +158,7 @@ async fn worker_capacity(
     }
 }
 
-fn history_summary(history: JobDurationHistory) -> JobSchedulingHistorySummary {
+const fn history_summary(history: &JobDurationHistory) -> JobSchedulingHistorySummary {
     JobSchedulingHistorySummary {
         inspected_instances: history.inspected_instances,
         completed_instances: history.completed_instances,
@@ -184,7 +184,7 @@ fn prediction(
     } else if estimated_duration_seconds >= 300 {
         1
     } else {
-        worker_capacity.eligible_worker_count.min(4).max(1)
+        worker_capacity.eligible_worker_count.clamp(1, 4)
     };
     let mut reasons = Vec::new();
     reasons.push(format!(
