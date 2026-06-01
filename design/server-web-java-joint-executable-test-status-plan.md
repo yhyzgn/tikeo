@@ -142,7 +142,7 @@ rtk bash deploy/smoke/web-live-smoke.sh
 | C-WEB-008 | 操作按钮样式 | 检查任务/实例操作栏 | 按钮平铺，主色调跟随全局主题 | `.dev/reports/web-operation-buttons-20260601T0720-test.log`、`.dev/reports/web-typecheck-20260601T0720.log` | OperationButtons/Theme 测试 6 pass；任务操作平铺且 primary/link/default hover 绑定 `--app-primary-color` | ✅ 通过 |
 | C-WEB-009 | 调度日历维护 | 新建/编辑 calendar | 维护/冻结窗口使用范围选择标签交互，不手写 JSON | `.dev/reports/web-calendar-windows-20260601T0725-test.log`、`.dev/reports/web-typecheck-20260601T0725.log` | Calendar/API 测试 23 pass；编辑按钮存在，维护/冻结窗口用 RangePicker 行并序列化 start/end payload，无 TextArea/JSON 手填 | ✅ 通过 |
 | C-WEB-010 | 实例详情日志 | 打开 instance detail | 非广播展示“执行器”；广播展示子执行；worker/status/updatedAt 可见 | `.dev/reports/web-instance-logs-20260601T0730-test.log`、`.dev/reports/web-typecheck-20260601T0730.log` | Instances/API 测试 24 pass；单实例显示执行器且包含 worker/status/updatedAt，广播显示 attempts，日志列含 worker | ✅ 通过 |
-| C-WEB-011 | Workflow designer 节点属性 | 编辑 job 节点 | 绑定调度任务后 processor 不手填，来自任务绑定 | screenshot、payload | 本轮未执行 | ⏳ 待执行 |
+| C-WEB-011 | Workflow designer 节点属性 | 编辑 job 节点 | 绑定调度任务后 processor 不手填，来自任务绑定 | `.dev/reports/web-workflow-node-binding-20260601T0735-test.log`、`.dev/reports/web-typecheck-20260601T0735.log` | Workflow/API 测试 28 pass；节点绑定 jobId 后 processorName 清空且执行器 label 来自任务，不暴露 processorName 输入 | ✅ 通过 |
 | C-WEB-012 | GitOps / IaC 页面 | 打开相关功能入口 | Manifest export/diff 可用；Terraform provider 若未 live 验证不得显示已完成 | screenshot、API response | 本轮未执行 | ⏳ 待执行 |
 
 ## 6. P0-D：Server + Web + 双 Java demo 端到端
@@ -223,7 +223,7 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | P0-A 静态/单元/DB | 17 | 17 | 0 | 0 | 0 | 0 |
 | P0-B Server + Java demo | 16 | 16 | 0 | 0 | 0 | 0 |
-| P0-C Server + Web | 12 | 10 | 2 | 0 | 0 | 0 |
+| P0-C Server + Web | 12 | 11 | 1 | 0 | 0 | 0 |
 | P0-D 三端双 worker e2e | 10 | 8 | 2 | 0 | 0 | 0 |
 | P1-E SDK Management/API-Key | 7 | 7 | 0 | 0 | 0 | 0 |
 | P1-F 脚本沙箱/插件 | 9 | 9 | 0 | 0 | 0 | 0 |

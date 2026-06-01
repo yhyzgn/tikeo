@@ -35,6 +35,10 @@ describe('workflow editor avoids user-facing internal bindings', () => {
     expect(source).not.toContain('子工作流 ID');
     expect(source).toContain('执行器由所选调度任务绑定决定');
     expect(source).toContain('脚本沙箱绑定都不能在工作流节点里手动覆盖');
+    expect(source).toContain('jobExecutionLabel(jobById.get(selectedNode.jobId))');
+    expect(source).toContain('onChange={(value) => updateNode(selectedNode.key, { jobId: value, processorName: undefined })}');
+    expect(source).not.toContain('name=\"processorName\"');
+    expect(source).not.toContain('label=\"Processor\"');
     expect(source).not.toContain('processorName: key');
   });
 });
