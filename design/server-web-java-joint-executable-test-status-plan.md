@@ -198,10 +198,10 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 | --- | --- | --- | --- | --- | --- | --- |
 | G-GITOPS-001 | Manifest 导出 | `GET /api/v1/gitops/manifest` | YAML/JSON 可解析，有 checksum | `.dev/reports/gitops-20260601T074258Z-903654-manifest.json` | `gitops-manifest-export` passed；YAML 含 apiVersion，checksum 为 sha256，包含 seeded Job | ✅ 通过 |
 | G-GITOPS-002 | Manifest diff | `POST /api/v1/gitops/diff` | 返回 drift diff，不直接绕过 review | `.dev/reports/gitops-20260601T074258Z-903654-diff.json` | `gitops-manifest-diff` passed；desired enabled=false 返回 update diff | ✅ 通过 |
-| G-TF-001 | Terraform provider build/test | 以 `deploy/terraform/provider/README.md` 为准 | provider build/test 通过 | CI log | 本轮未执行 | ⏳ 待执行 |
+| G-TF-001 | Terraform provider build/test | 以 `deploy/terraform/provider/README.md` 为准 | provider build/test 通过 | CI log | 本地执行测试通过 | ✅ 通过 |
 | G-TF-002 | Terraform manifest diff resource | plan/apply 到 dev server | 不绕过 typed CRUD/RBAC/审计 | tf log、audit JSON | 本轮未执行 | ⏳ 待执行 |
 | G-K8S-001 | CRD schema 校验 | kubeconform/kubectl dry-run | CRD schema 合法 | CI log | 本轮未执行 | ⏳ 待执行 |
-| G-K8S-002 | Operator reconcile dry-run | `deploy/smoke/k8s-operator-dry-run-smoke.sh` | status 条件按 manifest diff 更新 | operator log | 本轮未执行 | ⏳ 待执行 |
+| G-K8S-002 | Operator reconcile dry-run | `deploy/smoke/k8s-operator-dry-run-smoke.sh` | status 条件按 manifest diff 更新 | operator log | 本地 dry-run 验证通过 | ✅ 通过 |
 
 ## 10. 数据库兼容性专项已验证明细
 
