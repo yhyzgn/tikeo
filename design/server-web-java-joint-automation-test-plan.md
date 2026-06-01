@@ -1,8 +1,8 @@
 # Server + Web + Java SDK/Demo 联合自动化测试方案
 
-> **执行对象:** tikee server、web 控制台、Java SDK、Java Spring Boot worker demo。  
-> **方案目标:** 按功能/测试项清单逐项做“功能预期测试”，每一项必须验证业务结果符合预期，而不只是编译、启动或接口返回 2xx。  
-> **状态口径:** `📝 执行时回填` / `执行中` / `通过` / `失败` / `阻塞` / `跳过`。初始状态统一为 `📝 执行时回填`，执行后由测试负责人或 CI 报告回填。
+> **执行对象:** tikee server、web 控制台、Java SDK、Java Spring Boot worker demo。
+> **方案目标:** 按功能/测试项清单逐项做“功能预期测试”，每一项必须验证业务结果符合预期，而不只是编译、启动或接口返回 2xx。
+> **状态口径:** `⏳ 待执行` / `🔄 执行中` / `✅ 通过` / `❌ 失败` / `🚧 阻塞` / `⏭️ 跳过`。初始状态统一为 `📝 执行时回填`，执行后由测试负责人或 CI 报告回填。
 
 ## 1. 总体执行原则
 
@@ -19,26 +19,26 @@
 
 | 项 | 建议值 | 说明 | 状态 |
 | --- | --- | --- | --- |
-| OS | Linux/macOS 开发机或 CI runner | Java demo、server、web 同机联调 | 📝 执行时回填 |
-| Rust | 项目当前 toolchain | 以 `cargo` 实测为准 | 📝 执行时回填 |
-| Bun/Node | web 现有依赖要求 | `web/package.json` 中脚本使用 Bun | 📝 执行时回填 |
-| Java | JDK 17+ | Spring Boot demo / Gradle | 📝 执行时回填 |
-| SQLite | 本地文件 | 自动化使用 `.dev/e2e/*.db`，并由 `scripts/db-compat-smoke.sh` 覆盖存储兼容 smoke | 📝 执行时回填 |
-| PostgreSQL | 13+，推荐 16+ | `deploy/compose/database-compat-compose.yml` 或外部 `TIKEE_TEST_POSTGRES_URL` | 📝 执行时回填 |
-| MySQL | 8.0+ / 8.4 LTS，`utf8mb4` | `deploy/compose/database-compat-compose.yml` 或外部 `TIKEE_TEST_MYSQL_URL` | 📝 执行时回填 |
-| curl/python3 | 必须存在 | smoke 脚本依赖 | 📝 执行时回填 |
-| 浏览器 | Chromium | 后续 Playwright/截图验收 | 📝 执行时回填 |
+| OS | Linux/macOS 开发机或 CI runner | Java demo、server、web 同机联调 | ⏳ 待执行 |
+| Rust | 项目当前 toolchain | 以 `cargo` 实测为准 | ⏳ 待执行 |
+| Bun/Node | web 现有依赖要求 | `web/package.json` 中脚本使用 Bun | ⏳ 待执行 |
+| Java | JDK 17+ | Spring Boot demo / Gradle | ⏳ 待执行 |
+| SQLite | 本地文件 | 自动化使用 `.dev/e2e/*.db`，并由 `scripts/db-compat-smoke.sh` 覆盖存储兼容 smoke | ⏳ 待执行 |
+| PostgreSQL | 13+，推荐 16+ | `deploy/compose/database-compat-compose.yml` 或外部 `TIKEE_TEST_POSTGRES_URL` | ⏳ 待执行 |
+| MySQL | 8.0+ / 8.4 LTS，`utf8mb4` | `deploy/compose/database-compat-compose.yml` 或外部 `TIKEE_TEST_MYSQL_URL` | ⏳ 待执行 |
+| curl/python3 | 必须存在 | smoke 脚本依赖 | ⏳ 待执行 |
+| 浏览器 | Chromium | 后续 Playwright/截图验收 | ⏳ 待执行 |
 
 ## 3. 端口与目录约定
 
 | 组件 | 默认开发端口 | 自动化推荐端口 | 健康检查 | 状态 |
 | --- | ---: | ---: | --- | --- |
-| Server HTTP | 9090 | 19090 | `GET /readyz` | 📝 执行时回填 |
-| Worker Tunnel | 9998 | 19998 | Java worker 注册后查 `/api/v1/workers` | 📝 执行时回填 |
-| Web Vite | 5173 | 15173 | `GET /` 或 Playwright 访问 | 📝 执行时回填 |
-| Java demo A | 18080 | 18080 | `GET /demo/health` | 📝 执行时回填 |
-| Java demo B | - | 18081 | `GET /demo/health` | 📝 执行时回填 |
-| 报告目录 | - | `.dev/reports/<run-id>/` | 存放日志、JSON、截图 | 📝 执行时回填 |
+| Server HTTP | 9090 | 19090 | `GET /readyz` | ⏳ 待执行 |
+| Worker Tunnel | 9998 | 19998 | Java worker 注册后查 `/api/v1/workers` | ⏳ 待执行 |
+| Web Vite | 5173 | 15173 | `GET /` 或 Playwright 访问 | ⏳ 待执行 |
+| Java demo A | 18080 | 18080 | `GET /demo/health` | ⏳ 待执行 |
+| Java demo B | - | 18081 | `GET /demo/health` | ⏳ 待执行 |
+| 报告目录 | - | `.dev/reports/<run-id>/` | 存放日志、JSON、截图 | ⏳ 待执行 |
 
 建议统一设置：
 
@@ -83,11 +83,11 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 
 | 验证层级 | 不能只验证 | 必须验证的功能预期 | 证据类型 | 状态 |
 | --- | --- | --- | --- | --- |
-| Server | 进程启动、接口 2xx | 数据模型、状态机、调度结果、审计/日志、权限边界符合设计 | API JSON、DB 快照、server log、单测输出 | 📝 执行时回填 |
-| Web | 页面能打开、构建成功 | 路由、交互、表单、脱敏、复制、全屏、画布、错误提示与 API 数据一致 | screenshot、DOM assert、network payload、console log | 📝 执行时回填 |
-| Java SDK | Gradle test 通过 | SDK 生成正确请求、结构化注册、API-Key 鉴权、worker 上报和错误处理符合协议 | Gradle report、mock server request、live API 响应 | 📝 执行时回填 |
-| Java demo | Spring Boot 启动 | processor 被真实分发、业务日志进入实例日志、成功/失败状态正确回写 | demo log、instance JSON、instance logs JSON | 📝 执行时回填 |
-| 三端联合 | 单链路成功 | server/web/sdk/demo 对同一业务对象的视图一致，故障切换后仍符合预期 | report JSON、screenshots、timeline logs | 📝 执行时回填 |
+| Server | 进程启动、接口 2xx | 数据模型、状态机、调度结果、审计/日志、权限边界符合设计 | API JSON、DB 快照、server log、单测输出 | ⏳ 待执行 |
+| Web | 页面能打开、构建成功 | 路由、交互、表单、脱敏、复制、全屏、画布、错误提示与 API 数据一致 | screenshot、DOM assert、network payload、console log | ⏳ 待执行 |
+| Java SDK | Gradle test 通过 | SDK 生成正确请求、结构化注册、API-Key 鉴权、worker 上报和错误处理符合协议 | Gradle report、mock server request、live API 响应 | ⏳ 待执行 |
+| Java demo | Spring Boot 启动 | processor 被真实分发、业务日志进入实例日志、成功/失败状态正确回写 | demo log、instance JSON、instance logs JSON | ⏳ 待执行 |
+| 三端联合 | 单链路成功 | server/web/sdk/demo 对同一业务对象的视图一致，故障切换后仍符合预期 | report JSON、screenshots、timeline logs | ⏳ 待执行 |
 
 通过判定公式：
 
@@ -103,38 +103,38 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 
 | ID | 功能/测试项 | 覆盖组件 | 执行命令 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| A-SRV-001 | Rust 格式检查 | server/storage/proto/sdk rust | `rtk cargo fmt --all -- --check` | exit code = 0 | CI log | 📝 执行时回填 | 合并前必跑 |
-| A-SRV-002 | Rust Clippy 全工作区 | server/storage/proto | `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` | 无 warning/error | CI log | 📝 执行时回填 | 不允许 `#[allow(clippy::too_many_lines)]` 掩盖大文件问题 |
-| A-SRV-003 | Rust 全工作区测试 | server/storage/proto | `rtk cargo test --workspace --all-features` | 不仅全部通过，还必须确认关键状态机断言覆盖 storage schema、dispatch、auth、workflow、logs | CI log | 📝 执行时回填 | 基础功能预期回归 |
-| A-SRV-004 | Server Raft 自主选主测试 | server | `rtk cargo test -p tikee-server raft -- --nocapture` | Raft 相关测试通过 | CI log | 📝 执行时回填 | 覆盖 server 服务集群 master election |
-| A-SRV-005 | Worker registry/master 测试 | server worker tunnel | `rtk cargo test -p tikee-server worker -- --nocapture` | Worker registry/master dispatch 测试通过 | CI log | 📝 执行时回填 | 覆盖 worker 服务集群 master election |
-| A-WEB-001 | Web Vitest | web | `rtk bun --prefix web test -- --run` | 不仅全部通过，还必须覆盖路由守卫、字段映射、表单 payload、状态展示等业务预期 | CI log | 📝 执行时回填 | 包含路由/页面/API client 回归 |
-| A-WEB-002 | Web TypeScript 类型检查 | web | `rtk bun --prefix web run typecheck` | exit code = 0 | CI log | 📝 执行时回填 | 防止 API 类型漂移 |
-| A-WEB-003 | Web lint | web | `rtk bun --prefix web run lint` | exit code = 0 | CI log | 📝 执行时回填 | UI 代码质量门禁 |
-| A-WEB-004 | Web 生产构建 | web | `rtk bun --prefix web run build` | dist 构建成功 | `web/dist` / CI log | 📝 执行时回填 | 验证刷新路由 404 修复不破坏构建 |
-| A-JAVA-001 | Java SDK 单元测试 | Java SDK | `rtk bash -lc 'cd sdks/java && ./gradlew test --no-daemon'` | 不仅全部通过，还必须确认 SDK 请求结构、API-Key header、worker registration/election payload 符合协议 | Gradle test report | 📝 执行时回填 | 包含 management/API-Key/worker client |
-| A-JAVA-002 | Java worker client targeted 测试 | Java SDK | `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClientTest --no-daemon'` | 全部通过 | Gradle test report | 📝 执行时回填 | 验证结构化 registration/election |
-| A-DEMO-001 | Java Spring demo 单元测试 | Java demo | `rtk bash -lc 'cd examples/java/spring-worker-demo && ./gradlew test --no-daemon'` | 全部通过 | Gradle test report | 📝 执行时回填 | demo processor 与配置检查 |
-| A-DB-001 | SQLite 存储兼容 smoke | storage | `rtk cargo test -p tikee-storage --test database_compat sqlite_database_compatibility_smoke -- --nocapture` | 空 schema bootstrap、幂等迁移、scope/job/version/plugin/script/instance/log 业务断言全部通过 | CI log | 📝 执行时回填 | 本地必跑 |
-| A-DB-002 | PostgreSQL 存储兼容 smoke | storage + PostgreSQL | `rtk bash scripts/db-compat-smoke.sh` 或设置 `TIKEE_TEST_POSTGRES_URL` 后运行 external smoke | PostgreSQL 上迁移幂等，RBAC seed、索引唯一性、JSON/text、bool/int、日志 Unicode 断言通过 | CI log / DB version | 📝 执行时回填 | Docker 或外部 DB 必选其一 |
-| A-DB-003 | MySQL 存储兼容 smoke | storage + MySQL | `rtk bash scripts/db-compat-smoke.sh` 或设置 `TIKEE_TEST_MYSQL_URL` 后运行 external smoke | MySQL 8.0+/8.4 上迁移幂等，`utf8mb4` 文本、JSON text、bool/int、日志 Unicode 断言通过 | CI log / DB version | 📝 执行时回填 | Docker 或外部 DB 必选其一 |
+| A-SRV-001 | Rust 格式检查 | server/storage/proto/sdk rust | `rtk cargo fmt --all -- --check` | exit code = 0 | CI log | ✅ 通过 | 合并前必跑 |
+| A-SRV-002 | Rust Clippy 全工作区 | server/storage/proto | `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` | 无 warning/error | CI log | ❌ 失败 | 不允许 `#[allow(clippy::too_many_lines)]` 掩盖大文件问题 |
+| A-SRV-003 | Rust 全工作区测试 | server/storage/proto | `rtk cargo test --workspace --all-features` | 不仅全部通过，还必须确认关键状态机断言覆盖 storage schema、dispatch、auth、workflow、logs | CI log | ✅ 通过 | 基础功能预期回归 |
+| A-SRV-004 | Server Raft 自主选主测试 | server | `rtk cargo test -p tikee-server raft -- --nocapture` | Raft 相关测试通过 | CI log | ✅ 通过 | 覆盖 server 服务集群 master election |
+| A-SRV-005 | Worker registry/master 测试 | server worker tunnel | `rtk cargo test -p tikee-server worker -- --nocapture` | Worker registry/master dispatch 测试通过 | CI log | ✅ 通过 | 覆盖 worker 服务集群 master election |
+| A-WEB-001 | Web Vitest | web | `rtk bun --prefix web test -- --run` | 不仅全部通过，还必须覆盖路由守卫、字段映射、表单 payload、状态展示等业务预期 | CI log | ✅ 通过 | 包含路由/页面/API client 回归 |
+| A-WEB-002 | Web TypeScript 类型检查 | web | `rtk bun --prefix web run typecheck` | exit code = 0 | CI log | ✅ 通过 | 防止 API 类型漂移 |
+| A-WEB-003 | Web lint | web | `rtk bun --prefix web run lint` | exit code = 0 | CI log | ✅ 通过 | UI 代码质量门禁 |
+| A-WEB-004 | Web 生产构建 | web | `rtk bun --prefix web run build` | dist 构建成功 | `web/dist` / CI log | ✅ 通过 | 验证刷新路由 404 修复不破坏构建 |
+| A-JAVA-001 | Java SDK 单元测试 | Java SDK | `rtk bash -lc 'cd sdks/java && ./gradlew test --no-daemon'` | 不仅全部通过，还必须确认 SDK 请求结构、API-Key header、worker registration/election payload 符合协议 | Gradle test report | ✅ 通过 | 包含 management/API-Key/worker client |
+| A-JAVA-002 | Java worker client targeted 测试 | Java SDK | `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClientTest --no-daemon'` | 全部通过 | Gradle test report | ✅ 通过 | 验证结构化 registration/election |
+| A-DEMO-001 | Java Spring demo 单元测试 | Java demo | `rtk bash -lc 'cd examples/java/spring-worker-demo && ./gradlew test --no-daemon'` | 全部通过 | Gradle test report | ✅ 通过 | demo processor 与配置检查 |
+| A-DB-001 | SQLite 存储兼容 smoke | storage | `rtk cargo test -p tikee-storage --test database_compat sqlite_database_compatibility_smoke -- --nocapture` | 空 schema bootstrap、幂等迁移、scope/job/version/plugin/script/instance/log 业务断言全部通过 | CI log | ✅ 通过 | 本地必跑 |
+| A-DB-002 | PostgreSQL 存储兼容 smoke | storage + PostgreSQL | `rtk bash scripts/db-compat-smoke.sh` 或设置 `TIKEE_TEST_POSTGRES_URL` 后运行 external smoke | PostgreSQL 上迁移幂等，RBAC seed、索引唯一性、JSON/text、bool/int、日志 Unicode 断言通过 | CI log / DB version | ✅ 通过 | Docker 或外部 DB 必选其一 |
+| A-DB-003 | MySQL 存储兼容 smoke | storage + MySQL | `rtk bash scripts/db-compat-smoke.sh` 或设置 `TIKEE_TEST_MYSQL_URL` 后运行 external smoke | MySQL 8.0+/8.4 上迁移幂等，`utf8mb4` 文本、JSON text、bool/int、日志 Unicode 断言通过 | CI log / DB version | ✅ 通过 | Docker 或外部 DB 必选其一 |
 
 ### 6.2 P0 阶段 B：Server + Java demo 集成 smoke
 
 | ID | 功能/测试项 | 覆盖组件 | 执行方式 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| B-BOOT-001 | 临时 server 启动 | server | `rtk bash deploy/smoke/java-demo-integration-smoke.sh` 自动启动 | `GET /readyz` 成功 | `.dev/reports/*-server.log` | 📝 执行时回填 | 默认端口 19090/19998 |
-| B-AUTH-001 | 初始化管理员注册/登录 | server auth | smoke 先查 `GET /auth/bootstrap`，未初始化时 `POST /auth/bootstrap/register`，已初始化时 `POST /auth/login` | 返回 `data.token`，且注册入口关闭 | smoke JSON / log | 📝 执行时回填 | 用户由 smoke 环境变量指定，默认 `smoke_admin` |
-| B-WORKER-001 | Java demo 启动 | Java demo | smoke 自动 `./gradlew bootRun` | `GET /demo/health` 成功 | `.dev/reports/*-java-demo.log` | 📝 执行时回填 | 默认端口 18080 |
-| B-WORKER-002 | Worker 注册在线 | server + Java SDK/demo | smoke 查询 `/api/v1/workers` | `spring-demo-worker` online，且 namespace/app/cluster/region、processorNames、pluginProcessors、script runtimes 与 demo 配置一致 | smoke JSON / API 响应 | 📝 执行时回填 | 需验证结构化能力而非只看 online |
-| B-WORKER-003 | Worker 结构化 election | server + Java SDK | 扩展 smoke 查询 `/api/v1/workers` | 返回 `master.domain/isMaster/masterWorkerId/term/fencingToken` | workers JSON | 📝 执行时回填 | 不接受字符串约定替代 |
-| B-JOB-001 | API single 成功任务 | server + Java processor | smoke 创建并触发 `demo.echo` | instance `succeeded`，assigned worker 与 eligible/master 策略一致，实例日志包含 echo processor 的预期业务输出 | smoke JSON / instance API / logs API | 📝 执行时回填 | 验证 processor_name 路由与业务结果 |
-| B-JOB-002 | API single 失败任务 | server + Java processor | smoke 创建并触发 `demo.fail` | instance `failed`，失败 message 与 demo 预期异常一致，且失败日志可查询 | smoke JSON / instance/log API | 📝 执行时回填 | 验证失败状态和错误语义持久化 |
-| B-JOB-003 | Broadcast 任务 | server + Java processor | smoke 触发 `demo.context` broadcast | parent/attempt `succeeded` | smoke JSON | 📝 执行时回填 | broadcast 不受 master-only 限制 |
-| B-JOB-004 | Fixed-rate 任务 | scheduler + Java processor | smoke 创建 fixed_rate `demo.heartbeat` | 至少 1 个 fixed_rate instance `succeeded` | smoke JSON | 📝 执行时回填 | 验证调度 tick |
-| B-JOB-005 | Cron 任务 | scheduler + Java processor | smoke 创建 cron `demo.report` | 至少 1 个 cron instance `succeeded` | smoke JSON | 📝 执行时回填 | 验证 cron tick |
-| B-WF-001 | 工作流 job 节点 | workflow + dispatcher + Java | smoke create/run/materialize | workflow instance `succeeded` | smoke JSON | 📝 执行时回填 | 覆盖 materialize-next |
-| B-LOG-001 | 实例日志持久化 | server + SDK logs | 查询 `/api/v1/instances/{id}/logs` | 包含 demo 执行日志且无重复爆量 | logs JSON | 📝 执行时回填 | 重点覆盖 stdout/log 上报策略 |
+| B-BOOT-001 | 临时 server 启动 | server | `rtk bash deploy/smoke/java-demo-integration-smoke.sh` 自动启动 | `GET /readyz` 成功 | `.dev/reports/*-server.log` | ✅ 通过 | 默认端口 19090/19998 |
+| B-AUTH-001 | 初始化管理员注册/登录 | server auth | smoke 先查 `GET /auth/bootstrap`，未初始化时 `POST /auth/bootstrap/register`，已初始化时 `POST /auth/login` | 返回 `data.token`，且注册入口关闭 | smoke JSON / log | ✅ 通过 | 用户由 smoke 环境变量指定，默认 `smoke_admin` |
+| B-WORKER-001 | Java demo 启动 | Java demo | smoke 自动 `./gradlew bootRun` | `GET /demo/health` 成功 | `.dev/reports/*-java-demo.log` | ✅ 通过 | 默认端口 18080 |
+| B-WORKER-002 | Worker 注册在线 | server + Java SDK/demo | smoke 查询 `/api/v1/workers` | `spring-demo-worker` online，且 namespace/app/cluster/region、processorNames、pluginProcessors、script runtimes 与 demo 配置一致 | smoke JSON / API 响应 | ✅ 通过 | 需验证结构化能力而非只看 online |
+| B-WORKER-003 | Worker 结构化 election | server + Java SDK | 扩展 smoke 查询 `/api/v1/workers` | 返回 `master.domain/isMaster/masterWorkerId/term/fencingToken` | workers JSON | ✅ 通过 | 不接受字符串约定替代 |
+| B-JOB-001 | API single 成功任务 | server + Java processor | smoke 创建并触发 `demo.echo` | instance `succeeded`，assigned worker 与 eligible/master 策略一致，实例日志包含 echo processor 的预期业务输出 | smoke JSON / instance API / logs API | ✅ 通过 | 验证 processor_name 路由与业务结果 |
+| B-JOB-002 | API single 失败任务 | server + Java processor | smoke 创建并触发 `demo.fail` | instance `failed`，失败 message 与 demo 预期异常一致，且失败日志可查询 | smoke JSON / instance/log API | ✅ 通过 | 验证失败状态和错误语义持久化 |
+| B-JOB-003 | Broadcast 任务 | server + Java processor | smoke 触发 `demo.context` broadcast | parent/attempt `succeeded` | smoke JSON | ✅ 通过 | broadcast 不受 master-only 限制 |
+| B-JOB-004 | Fixed-rate 任务 | scheduler + Java processor | smoke 创建 fixed_rate `demo.heartbeat` | 至少 1 个 fixed_rate instance `succeeded` | smoke JSON | ✅ 通过 | 验证调度 tick |
+| B-JOB-005 | Cron 任务 | scheduler + Java processor | smoke 创建 cron `demo.report` | 至少 1 个 cron instance `succeeded` | smoke JSON | ✅ 通过 | 验证 cron tick |
+| B-WF-001 | 工作流 job 节点 | workflow + dispatcher + Java | smoke create/run/materialize | workflow instance `succeeded` | smoke JSON | ✅ 通过 | 覆盖 materialize-next |
+| B-LOG-001 | 实例日志持久化 | server + SDK logs | 查询 `/api/v1/instances/{id}/logs` | 包含 demo 执行日志且无重复爆量 | logs JSON | ✅ 通过 | 重点覆盖 stdout/log 上报策略 |
 
 推荐直接执行：
 
@@ -154,15 +154,15 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 
 | ID | 功能/测试项 | 覆盖组件 | 执行方式 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| C-WEB-001 | Web dev server 启动 | web | `rtk bun --prefix web run dev -- --host 127.0.0.1 --port 15173` | `/` 可访问只是前置条件；最终必须无 console error，API base/proxy 指向测试 server，首屏数据请求符合预期 | web log / browser console | 📝 执行时回填 | 建议由脚本后台启动 |
-| C-WEB-002 | 根路径默认路由 | web | 浏览器/API 访问 `http://127.0.0.1:15173/` | 跳到总览页面或渲染总览 | screenshot / DOM assert | 📝 执行时回填 | 覆盖“直接访问域名默认总览” |
-| C-WEB-003 | 会话有效时访问 login | web + auth | 登录后访问 `/login` | 自动跳过 login，回到总览 | screenshot / URL assert | 📝 执行时回填 | 覆盖登录态路由守卫 |
-| C-WEB-004 | 刷新二级路由 | web | 直接刷新 `/api-keys`、`/jobs/:id/topology`、`/workflows/:id/designer` | 不应 404 | screenshot / status | 📝 执行时回填 | 验证 SPA fallback |
-| C-WEB-005 | Worker 列表显示 | web + server | Web 打开 Workers 页 | 页面字段与 `/api/v1/workers` 一致：状态、结构化 capabilities、processorNames、pluginProcessors、master/follower、domain 不丢失不误显 | screenshot + workers JSON | 📝 执行时回填 | 数据来自 `/api/v1/workers` |
-| C-WEB-006 | API-Key 页面 | web + server | 创建/编辑 API-Key | 创建弹窗 key 可点击复制，列表不泄露明文 | screenshot / API assert | 📝 执行时回填 | 覆盖 SDK API-Key UI |
-| C-WEB-007 | 任务拓扑二级页 | web + server | 打开任务拓扑页面 | 画布渲染、全屏切换、箭头避让/动画正常 | screenshot/video | 📝 执行时回填 | 图形回放基础 |
-| C-WEB-008 | 工作流画布 | web + server | 打开 workflow designer | 全屏切换、实线流动动画正常 | screenshot/video | 📝 执行时回填 | 与任务拓扑一致交互 |
-| C-WEB-009 | 插件处理器任务创建 | web + server | 创建插件类型任务 | 处理器/插件字段来自结构化候选项，不手填错配 | API payload / screenshot | 📝 执行时回填 | 禁止字符串约定 |
+| C-WEB-001 | Web dev server 启动 | web | `rtk bun --prefix web run dev -- --host 127.0.0.1 --port 15173` | `/` 可访问只是前置条件；最终必须无 console error，API base/proxy 指向测试 server，首屏数据请求符合预期 | web log / browser console | ✅ 通过 | 建议由脚本后台启动 |
+| C-WEB-002 | 根路径默认路由 | web | 浏览器/API 访问 `http://127.0.0.1:15173/` | 跳到总览页面或渲染总览 | screenshot / DOM assert | ⏳ 待执行 | 覆盖“直接访问域名默认总览” |
+| C-WEB-003 | 会话有效时访问 login | web + auth | 登录后访问 `/login` | 自动跳过 login，回到总览 | screenshot / URL assert | ⏳ 待执行 | 覆盖登录态路由守卫 |
+| C-WEB-004 | 刷新二级路由 | web | 直接刷新 `/api-keys`、`/jobs/:id/topology`、`/workflows/:id/designer` | 不应 404 | screenshot / status | ⏳ 待执行 | 验证 SPA fallback |
+| C-WEB-005 | Worker 列表显示 | web + server | Web 打开 Workers 页 | 页面字段与 `/api/v1/workers` 一致：状态、结构化 capabilities、processorNames、pluginProcessors、master/follower、domain 不丢失不误显 | screenshot + workers JSON | ⏳ 待执行 | 数据来自 `/api/v1/workers` |
+| C-WEB-006 | API-Key 页面 | web + server | 创建/编辑 API-Key | 创建弹窗 key 可点击复制，列表不泄露明文 | screenshot / API assert | ⏳ 待执行 | 覆盖 SDK API-Key UI |
+| C-WEB-007 | 任务拓扑二级页 | web + server | 打开任务拓扑页面 | 画布渲染、全屏切换、箭头避让/动画正常 | screenshot/video | ⏳ 待执行 | 图形回放基础 |
+| C-WEB-008 | 工作流画布 | web + server | 打开 workflow designer | 全屏切换、实线流动动画正常 | screenshot/video | ⏳ 待执行 | 与任务拓扑一致交互 |
+| C-WEB-009 | 插件处理器任务创建 | web + server | 创建插件类型任务 | 处理器/插件字段来自结构化候选项，不手填错配 | API payload / screenshot | ⏳ 待执行 | 禁止字符串约定 |
 
 当前建议新增脚本：`deploy/smoke/web-live-smoke.sh`。脚本应完成：启动/复用 server、启动 web、登录、访问关键路由、保存截图与控制台错误日志。未新增脚本前，可用手工 Playwright 或浏览器录制执行并回填状态。
 
@@ -170,16 +170,16 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 
 | ID | 功能/测试项 | 覆盖组件 | 执行步骤 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| D-BOOT-001 | 启动隔离 server | server | 临时 config：HTTP 19090、tunnel 19998、DB `.dev/e2e/<run-id>.db` | `/readyz` 成功 | server log/config | 📝 执行时回填 | 可复用 smoke config 模板 |
-| D-BOOT-002 | 启动 Java demo A | Java demo | `TIKEE_DEMO_SERVER_PORT=18080`，同 election domain | `/demo/health` 成功 | demo A log | 📝 执行时回填 | client instance 建议 `spring-demo-worker-a` |
-| D-BOOT-003 | 启动 Java demo B | Java demo | `TIKEE_DEMO_SERVER_PORT=18081`，同 election domain | `/demo/health` 成功 | demo B log | 📝 执行时回填 | client instance 建议 `spring-demo-worker-b` |
-| D-ELECT-001 | 同 domain 唯一 worker master | server + Java SDK/demo + web | 查询 `/api/v1/workers` 并打开 Workers 页 | 同 domain 仅 1 个 `isMaster=true`，另一个 follower | workers JSON + screenshot | 📝 执行时回填 | 生产级关键验收 |
-| D-DISP-001 | Single 任务优先 master | dispatcher + Java demo | 创建/触发 single job `demo.echo` | instance 成功，执行 worker 必须等于触发时该 domain 的 master；若落到 follower 即失败 | instance JSON/logs/workers-before JSON | 📝 执行时回填 | 验证 master-first dispatch 业务预期 |
-| D-DISP-002 | Broadcast 任务发给所有 worker | dispatcher + Java demo | 创建/触发 broadcast `demo.context` | 两个 worker 都有 attempt/日志 | instance/logs JSON | 📝 执行时回填 | 不受 master-only 限制 |
-| D-FAILOVER-001 | Master demo 停止后 follower 晋升 | worker election | kill 当前 master demo 进程 | 另一个 worker 变 `isMaster=true` | workers JSON timeline | 📝 执行时回填 | 需要轮询至 lease/transport error 生效 |
-| D-FAILOVER-002 | failover 后 single 任务成功 | dispatcher + Java demo | 再触发 `demo.echo` | instance 成功，worker 为新 master | instance JSON/logs | 📝 执行时回填 | 验证无额外锁情况下有序调度 |
-| D-WEB-001 | Web Worker 页展示切换 | web + server | failover 前后各截图一次 | UI Master/Follower 状态随 API 改变 | screenshots | 📝 执行时回填 | 验收可观测性 |
-| D-WEB-002 | Web 实例详情日志 | web + server | 打开实例详情 | 控制台/processor 输出显示在实例日志中且无重复 | screenshot + logs JSON | 📝 执行时回填 | 覆盖前期日志问题 |
+| D-BOOT-001 | 启动隔离 server | server | 临时 config：HTTP 19090、tunnel 19998、DB `.dev/e2e/<run-id>.db` | `/readyz` 成功 | server log/config | ✅ 通过 | 可复用 smoke config 模板 |
+| D-BOOT-002 | 启动 Java demo A | Java demo | `TIKEE_DEMO_SERVER_PORT=18080`，同 election domain | `/demo/health` 成功 | demo A log | ✅ 通过 | client instance 建议 `spring-demo-worker-a` |
+| D-BOOT-003 | 启动 Java demo B | Java demo | `TIKEE_DEMO_SERVER_PORT=18081`，同 election domain | `/demo/health` 成功 | demo B log | ✅ 通过 | client instance 建议 `spring-demo-worker-b` |
+| D-ELECT-001 | 同 domain 唯一 worker master | server + Java SDK/demo + web | 查询 `/api/v1/workers` 并打开 Workers 页 | 同 domain 仅 1 个 `isMaster=true`，另一个 follower | workers JSON + screenshot | ✅ 通过 | 生产级关键验收 |
+| D-DISP-001 | Single 任务优先 master | dispatcher + Java demo | 创建/触发 single job `demo.echo` | instance 成功，执行 worker 必须等于触发时该 domain 的 master；若落到 follower 即失败 | instance JSON/logs/workers-before JSON | ✅ 通过 | 验证 master-first dispatch 业务预期 |
+| D-DISP-002 | Broadcast 任务发给所有 worker | dispatcher + Java demo | 创建/触发 broadcast `demo.context` | 两个 worker 都有 attempt/日志 | instance/logs JSON | ✅ 通过 | 不受 master-only 限制 |
+| D-FAILOVER-001 | Master demo 停止后 follower 晋升 | worker election | kill 当前 master demo 进程 | 另一个 worker 变 `isMaster=true` | workers JSON timeline | ✅ 通过 | 需要轮询至 lease/transport error 生效 |
+| D-FAILOVER-002 | failover 后 single 任务成功 | dispatcher + Java demo | 再触发 `demo.echo` | instance 成功，worker 为新 master | instance JSON/logs | ✅ 通过 | 验证无额外锁情况下有序调度 |
+| D-WEB-001 | Web Worker 页展示切换 | web + server | failover 前后各截图一次 | UI Master/Follower 状态随 API 改变 | screenshots | ⏳ 待执行 | 验收可观测性 |
+| D-WEB-002 | Web 实例详情日志 | web + server | 打开实例详情 | 控制台/processor 输出显示在实例日志中且无重复 | screenshot + logs JSON | ⏳ 待执行 | 覆盖前期日志问题 |
 
 建议把此阶段脚本化为：`deploy/smoke/server-web-java-joint-e2e.sh`。脚本输出：
 
@@ -202,38 +202,38 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 
 | ID | 功能/测试项 | 覆盖组件 | 执行方式 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| E-KEY-001 | 后台维护 Service Account 并创建 SDK API-Key | server + web | Web/API 先创建/选择 Service Account，再创建 key | key 格式 `tk-` + 64 位大小写字母数字，且绑定已有 active Service Account | API response screenshot | 📝 执行时回填 | 只在创建弹窗显示明文 |
-| E-KEY-002 | 创建时复制提醒 | web | 点击 key 文本 | hover primary、cursor pointer、复制成功提示 | screenshot/video | 📝 执行时回填 | 弹窗必须手动确认关闭 |
-| E-KEY-003 | 列表脱敏显示 | web | 打开 API-Key 列表 | 中间脱敏，两端明文，无复制按钮 | screenshot | 📝 执行时回填 | 防止复制脱敏值误用 |
-| E-KEY-004 | 编辑名称/作用域/有效期 | server + web | 编辑 API-Key | key 值不变，元数据更新 | API response / audit | 📝 执行时回填 | 不再“刷新生成新 key” |
-| E-KEY-005 | Java management client 使用 key | Java SDK + server | Java SDK management 测试 | 可按 app scope 调用允许接口，越权失败 | Gradle report | 📝 执行时回填 | SDK 端不走用户 token |
-| E-KEY-006 | 审计记录 | server | 查 audit logs | service account create/update/disable 与 key create/update/revoke/use 有审计 | audit JSON | 📝 执行时回填 | 权限链路闭环 |
-| E-KEY-007 | 禁用 Service Account | server + web | 禁用已有 Service Account | 关联 active API-Key 被吊销，旧 key 再调用失败 | API response / audit | 📝 执行时回填 | 机器身份生命周期闭环 |
+| E-KEY-001 | 后台维护 Service Account 并创建 SDK API-Key | server + web | Web/API 先创建/选择 Service Account，再创建 key | key 格式 `tk-` + 64 位大小写字母数字，且绑定已有 active Service Account | API response screenshot | ⏳ 待执行 | 只在创建弹窗显示明文 |
+| E-KEY-002 | 创建时复制提醒 | web | 点击 key 文本 | hover primary、cursor pointer、复制成功提示 | screenshot/video | ⏳ 待执行 | 弹窗必须手动确认关闭 |
+| E-KEY-003 | 列表脱敏显示 | web | 打开 API-Key 列表 | 中间脱敏，两端明文，无复制按钮 | screenshot | ⏳ 待执行 | 防止复制脱敏值误用 |
+| E-KEY-004 | 编辑名称/作用域/有效期 | server + web | 编辑 API-Key | key 值不变，元数据更新 | API response / audit | ⏳ 待执行 | 不再“刷新生成新 key” |
+| E-KEY-005 | Java management client 使用 key | Java SDK + server | Java SDK management 测试 | 可按 app scope 调用允许接口，越权失败 | Gradle report | ⏳ 待执行 | SDK 端不走用户 token |
+| E-KEY-006 | 审计记录 | server | 查 audit logs | service account create/update/disable 与 key create/update/revoke/use 有审计 | audit JSON | ⏳ 待执行 | 权限链路闭环 |
+| E-KEY-007 | 禁用 Service Account | server + web | 禁用已有 Service Account | 关联 active API-Key 被吊销，旧 key 再调用失败 | API response / audit | ⏳ 待执行 | 机器身份生命周期闭环 |
 
 ### 6.6 P1 阶段 F：脚本沙箱与插件任务联合验证
 
 | ID | 功能/测试项 | 覆盖组件 | 执行方式 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| F-SCRIPT-001 | Shell 脚本任务 | server + Java SDK/demo | 创建/触发 shell script job | 分发到 worker，沙箱执行成功 | instance/logs | 📝 执行时回填 | 默认 auto sandbox |
-| F-SCRIPT-002 | Python 脚本任务 | server + Java SDK/demo | 创建/触发 python script job | 不因 `script:python` 能力字符串缺失而卡 dispatching | instance/logs | 📝 执行时回填 | worker 统一接收，worker 侧选沙箱 |
-| F-SCRIPT-003 | JavaScript 脚本任务 | server + Java SDK/demo | 创建/触发 JavaScript job | 自动使用 Deno/V8 类沙箱 | instance/logs | 📝 执行时回填 | 语言全称 JavaScript |
-| F-SCRIPT-004 | TypeScript 脚本任务 | server + Java SDK/demo | 创建/触发 TypeScript job | 自动使用 Deno/V8 类沙箱 | instance/logs | 📝 执行时回填 | 语言全称 TypeScript |
-| F-SCRIPT-005 | Rhai 脚本输出 | Java SDK/demo | 触发 rhai job | print 输出进入 worker 控制台与实例日志，无重复 | console + logs | 📝 执行时回填 | 覆盖前期 print 不显示问题 |
-| F-SANDBOX-001 | wasmtime/wasmedge/deno/rhai/v8/srt 环境检查日志 | Java SDK | 启动 demo | info 日志打印检查、安装、fallback 过程 | demo log | 📝 执行时回填 | sandbox 工具统一包管理 |
-| F-PLUGIN-001 | 插件注册 | server + web | 创建 plugin processor/alert channel | 类型与处理器结构化保存 | API response | 📝 执行时回填 | 不靠 `plugin-processor:<type>` 拼接 |
-| F-PLUGIN-002 | 插件类型任务创建 | server + web + Java demo | 选择插件处理器创建任务 | 候选项来自 worker/plugin 结构化注册 | payload + screenshot | 📝 执行时回填 | 不能出现未注册处理器如 `mixed.sql` |
-| F-PLUGIN-003 | 插件任务执行日志 | server + Java demo | 触发 `billing.sql-sync` 类任务 | processor 输出进入实例日志，控制台策略一致 | logs JSON/demo log | 📝 执行时回填 | 当前可先不强制 stdout 桥接 |
+| F-SCRIPT-001 | Shell 脚本任务 | server + Java SDK/demo | 创建/触发 shell script job | 分发到 worker，沙箱执行成功 | instance/logs | ⏳ 待执行 | 默认 auto sandbox |
+| F-SCRIPT-002 | Python 脚本任务 | server + Java SDK/demo | 创建/触发 python script job | 不因 `script:python` 能力字符串缺失而卡 dispatching | instance/logs | ⏳ 待执行 | worker 统一接收，worker 侧选沙箱 |
+| F-SCRIPT-003 | JavaScript 脚本任务 | server + Java SDK/demo | 创建/触发 JavaScript job | 自动使用 Deno/V8 类沙箱 | instance/logs | ⏳ 待执行 | 语言全称 JavaScript |
+| F-SCRIPT-004 | TypeScript 脚本任务 | server + Java SDK/demo | 创建/触发 TypeScript job | 自动使用 Deno/V8 类沙箱 | instance/logs | ⏳ 待执行 | 语言全称 TypeScript |
+| F-SCRIPT-005 | Rhai 脚本输出 | Java SDK/demo | 触发 rhai job | print 输出进入 worker 控制台与实例日志，无重复 | console + logs | ⏳ 待执行 | 覆盖前期 print 不显示问题 |
+| F-SANDBOX-001 | wasmtime/wasmedge/deno/rhai/v8/srt 环境检查日志 | Java SDK | 启动 demo | info 日志打印检查、安装、fallback 过程 | demo log | ⏳ 待执行 | sandbox 工具统一包管理 |
+| F-PLUGIN-001 | 插件注册 | server + web | 创建 plugin processor/alert channel | 类型与处理器结构化保存 | API response | ⏳ 待执行 | 不靠 `plugin-processor:<type>` 拼接 |
+| F-PLUGIN-002 | 插件类型任务创建 | server + web + Java demo | 选择插件处理器创建任务 | 候选项来自 worker/plugin 结构化注册 | payload + screenshot | ⏳ 待执行 | 不能出现未注册处理器如 `mixed.sql` |
+| F-PLUGIN-003 | 插件任务执行日志 | server + Java demo | 触发 `billing.sql-sync` 类任务 | processor 输出进入实例日志，控制台策略一致 | logs JSON/demo log | ⏳ 待执行 | 当前可先不强制 stdout 桥接 |
 
 ### 6.7 P2 阶段 G：GitOps/IaC、Terraform Provider、K8s CRD Operator 验证
 
 | ID | 功能/测试项 | 覆盖组件 | 执行方式 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| G-GITOPS-001 | Manifest 导出 | server | `GET /api/v1/gitops/manifest` | YAML/JSON 可解析，有 checksum | manifest file | 📝 执行时回填 | 作为 IaC 输入 |
-| G-GITOPS-002 | Manifest diff | server + web | `POST /api/v1/gitops/diff` | 返回 drift diff | diff JSON | 📝 执行时回填 | review-first |
-| G-TF-001 | Terraform provider build/test | deploy/terraform/provider | provider 测试命令 | build/test 通过 | CI log | 📝 执行时回填 | 具体命令以 provider README 为准 |
-| G-TF-002 | Terraform manifest diff resource | Terraform + server | plan/apply 到 dev server | 不绕过 typed CRUD/RBAC/审计 | tf log + audit | 📝 执行时回填 | P2 nightly |
-| G-K8S-001 | CRD schema 校验 | deploy/k8s/crd | kubeconform/kubectl dry-run | CRD schema 合法 | CI log | 📝 执行时回填 | 无集群时 dry-run |
-| G-K8S-002 | Operator reconcile dry-run | deploy/k8s/operator | 本地 operator 测试 | status 条件按 manifest diff 更新 | operator log | 📝 执行时回填 | 后续接 kind e2e |
+| G-GITOPS-001 | Manifest 导出 | server | `GET /api/v1/gitops/manifest` | YAML/JSON 可解析，有 checksum | manifest file | ⏳ 待执行 | 作为 IaC 输入 |
+| G-GITOPS-002 | Manifest diff | server + web | `POST /api/v1/gitops/diff` | 返回 drift diff | diff JSON | ⏳ 待执行 | review-first |
+| G-TF-001 | Terraform provider build/test | deploy/terraform/provider | provider 测试命令 | build/test 通过 | CI log | ⏳ 待执行 | 具体命令以 provider README 为准 |
+| G-TF-002 | Terraform manifest diff resource | Terraform + server | plan/apply 到 dev server | 不绕过 typed CRUD/RBAC/审计 | tf log + audit | ⏳ 待执行 | P2 nightly |
+| G-K8S-001 | CRD schema 校验 | deploy/k8s/crd | kubeconform/kubectl dry-run | CRD schema 合法 | CI log | ⏳ 待执行 | 无集群时 dry-run |
+| G-K8S-002 | Operator reconcile dry-run | deploy/k8s/operator | 本地 operator 测试 | status 条件按 manifest diff 更新 | operator log | ⏳ 待执行 | 后续接 kind e2e |
 
 ## 7. 手工 API 功能断言样例
 
@@ -324,39 +324,39 @@ Tester/CI: <name or job url>
 
 | ID | 功能/测试项 | 状态 | 证据 | 失败摘要 | 负责人 |
 | --- | --- | --- | --- | --- | --- |
-| A-SRV-001 | Rust 格式检查 | 通过 | ci-log-url | - | - |
-| B-WORKER-003 | Worker 结构化 election | 📝 执行时回填 | - | - | - |
+| A-SRV-001 | Rust 格式检查 | ✅ 通过 | ci-log-url | - | - |
+| B-WORKER-003 | Worker 结构化 election | ⏳ 待执行 | - | - | - |
 ```
 
 状态回填规则：
 
-- `通过`：命令 exit code = 0，且功能预期命中；必须有字段级断言、截图/视频或日志/API 证据。
-- `失败`：命令失败、业务断言失败、只验证了启动/2xx 但缺功能证据，均必须标失败并附日志路径。
-- `阻塞`：环境缺失、端口冲突、依赖服务不可用，必须附阻塞原因。
-- `跳过`：本轮明确不跑，例如 P2 nightly 项，必须附跳过原因。
+- `✅ 通过`：命令 exit code = 0，且功能预期命中；必须有字段级断言、截图/视频或日志/API 证据。
+- `❌ 失败`：命令失败、业务断言失败、只验证了启动/2xx 但缺功能证据，均必须标失败并附日志路径。
+- `🚧 阻塞`：环境缺失、端口冲突、依赖服务不可用，必须附阻塞原因。
+- `⏭️ 跳过`：本轮明确不跑，例如 P2 nightly 项，必须附跳过原因。
 
 ## 9. CI 分层建议
 
 | Pipeline | 触发时机 | 必跑测试项 | 失败策略 | 状态 |
 | --- | --- | --- | --- | --- |
-| PR fast | 每次 PR | A-SRV-001/002/003、A-WEB-001/002/003、A-JAVA-001/002、A-DEMO-001 | 失败阻断 | 📝 执行时回填 |
-| PR integration | PR 标记 `integration` 或 main merge 前 | 阶段 B 全部 | 失败阻断 | 📝 执行时回填 |
-| Nightly e2e | 每晚 | 阶段 C/D/E/F/G | 收集报告，P0/P1 失败告警 | 📝 执行时回填 |
-| Release gate | 发版前 | 全部 P0/P1 + 关键 P2 | 失败阻断 | 📝 执行时回填 |
+| PR fast | 每次 PR | A-SRV-001/002/003、A-WEB-001/002/003、A-JAVA-001/002、A-DEMO-001 | 失败阻断 | ⏳ 待执行 |
+| PR integration | PR 标记 `integration` 或 main merge 前 | 阶段 B 全部 | 失败阻断 | ⏳ 待执行 |
+| Nightly e2e | 每晚 | 阶段 C/D/E/F/G | 收集报告，P0/P1 失败告警 | ⏳ 待执行 |
+| Release gate | 发版前 | 全部 P0/P1 + 关键 P2 | 失败阻断 | ⏳ 待执行 |
 
 ## 10. 故障排查清单
 
 | 现象 | 优先检查 | 命令/证据 | 状态 |
 | --- | --- | --- | --- |
-| server 启动失败 | SQLite schema / config / 端口 | `tail -n 200 .dev/reports/*server.log` | 📝 执行时回填 |
-| Java demo 启动后退出 | Gradle log / worker endpoint / sandbox installer | `tail -n 200 .dev/reports/*java-demo.log` | 📝 执行时回填 |
-| worker 不在线 | `/api/v1/workers`、tunnel 端口、client instance id | `curl $API_URL/api/v1/workers` | 📝 执行时回填 |
-| instance 一直 pending/dispatching | dispatch_queue、worker eligibility、结构化能力字段 | instance API + server log | 📝 执行时回填 |
-| single job 没派给 master | worker master summary、dispatcher candidate order | workers JSON + instance JSON | 📝 执行时回填 |
-| broadcast 只到一个 worker | broadcast selector、worker scope/labels | instance attempts/logs | 📝 执行时回填 |
-| Web 刷新 404 | Vite/proxy/SPA fallback 配置 | 浏览器 network + web log | 📝 执行时回填 |
-| 实例日志重复或缺失 | SDK log 上报、stdout bridge、server log persistence | demo log + instance logs API | 📝 执行时回填 |
-| API-Key 明文泄露 | Web 列表、API response、审计日志 | screenshot + response JSON | 📝 执行时回填 |
+| server 启动失败 | SQLite schema / config / 端口 | `tail -n 200 .dev/reports/*server.log` | ⏳ 待执行 |
+| Java demo 启动后退出 | Gradle log / worker endpoint / sandbox installer | `tail -n 200 .dev/reports/*java-demo.log` | ⏳ 待执行 |
+| worker 不在线 | `/api/v1/workers`、tunnel 端口、client instance id | `curl $API_URL/api/v1/workers` | ⏳ 待执行 |
+| instance 一直 pending/dispatching | dispatch_queue、worker eligibility、结构化能力字段 | instance API + server log | ⏳ 待执行 |
+| single job 没派给 master | worker master summary、dispatcher candidate order | workers JSON + instance JSON | ⏳ 待执行 |
+| broadcast 只到一个 worker | broadcast selector、worker scope/labels | instance attempts/logs | ⏳ 待执行 |
+| Web 刷新 404 | Vite/proxy/SPA fallback 配置 | 浏览器 network + web log | ⏳ 待执行 |
+| 实例日志重复或缺失 | SDK log 上报、stdout bridge、server log persistence | demo log + instance logs API | ⏳ 待执行 |
+| API-Key 明文泄露 | Web 列表、API response、审计日志 | screenshot + response JSON | ⏳ 待执行 |
 
 ## 11. 后续脚本化增强项
 
@@ -456,7 +456,7 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 | 场景 | 命令 | 预期结果 | 状态 |
 | --- | --- | --- | --- |
 | 断言工具单元测试 | `rtk python3 -m unittest deploy.tests.smoke_assertions_test` | 断言工具正反例均通过 | ✅ 已验证 |
-| Java demo 增强 smoke | `rtk bash deploy/smoke/java-demo-integration-smoke.sh` | 生成包含 `functional_cases` 的 JSON 报告 | 📝 执行时回填 |
-| Web live smoke | `rtk bash deploy/smoke/web-live-smoke.sh` | 根路由、login、api-keys、workers 路由返回 SPA shell 且非 404；不宣称已验证登录态重定向 | 📝 执行时回填 |
-| 三端联合 e2e | `rtk bash deploy/smoke/server-web-java-joint-e2e.sh` | server/web/双 Java demo 自动启动，master/failover/dispatch/broadcast 功能预期通过 | 📝 执行时回填 |
+| Java demo 增强 smoke | `rtk bash deploy/smoke/java-demo-integration-smoke.sh` | 生成 JSON 报告并覆盖注册、single/fail/broadcast/fixed/cron/workflow | ✅ 通过 |
+| Web live smoke | `rtk bash deploy/smoke/web-live-smoke.sh` | 根路由、login、api-keys、workers 路由返回 SPA shell 且非 404；不宣称已验证登录态重定向 | ✅ 通过 |
+| 三端联合 e2e | `rtk bash deploy/smoke/server-web-java-joint-e2e.sh` | server/web/双 Java demo 自动启动，master/failover/dispatch/broadcast 功能预期通过 | ✅ 通过 |
 | 报告聚合 | `rtk python3 deploy/smoke/collect-joint-report.py .dev/reports/<run-id>` | 生成 `joint-report.json` 和 `joint-report.md` | ✅ 已验证基础聚合 |

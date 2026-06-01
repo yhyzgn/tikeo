@@ -72,3 +72,12 @@ Before marking database compatibility complete for a release branch:
 4. Record database image/version, command log and pass/fail evidence in the release report.
 
 If Docker or external DBs are unavailable, SQLite-only results are not sufficient to claim full SQLite/PostgreSQL/MySQL compatibility.
+
+## Latest execution status (2026-06-01)
+
+| Item | Command / Asset | Result | Status |
+| --- | --- | --- | --- |
+| SQLite compatibility smoke | `rtk cargo test -p tikee-storage --test database_compat sqlite_database_compatibility_smoke -- --nocapture` / `rtk bash scripts/db-compat-smoke.sh` | schema bootstrap、幂等迁移、CRUD smoke 通过 | ✅ 通过 |
+| PostgreSQL compatibility smoke | `rtk bash scripts/db-compat-smoke.sh` with `postgres:16-alpine` | PostgreSQL 16 迁移与 CRUD smoke 通过 | ✅ 通过 |
+| MySQL compatibility smoke | `rtk bash scripts/db-compat-smoke.sh` with `mysql:8.4` | MySQL 8.4 + utf8mb4 迁移与 CRUD smoke 通过 | ✅ 通过 |
+| Storage unit suite | `rtk cargo test -p tikee-storage` | 35 passed | ✅ 通过 |

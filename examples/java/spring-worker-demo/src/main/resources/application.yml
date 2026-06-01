@@ -12,6 +12,8 @@ tikee:
   worker:
     dry-run: ${TIKEE_WORKER_DRY_RUN:false}
     endpoint: ${TIKEE_WORKER_ENDPOINT:http://127.0.0.1:9998}
+    client-instance-id: ${TIKEE_WORKER_CLIENT_INSTANCE_ID:}
+    state-dir: ${TIKEE_WORKER_STATE_DIR:}
     namespace: default
     app: default
     cluster: local

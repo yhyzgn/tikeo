@@ -57,3 +57,12 @@ Use `deploy/smoke/java-demo-integration-smoke.sh` as the executable verifier. Th
 - Java SDK tests pass.
 - Smoke script exits 0 and emits a report with all cases passed.
 - No source file exceeds 1500 lines.
+
+## Latest execution status (2026-06-01)
+
+| Case | Evidence | Result | Status |
+| --- | --- | --- | --- |
+| Java demo unit tests | `rtk bash -lc 'cd examples/java/spring-worker-demo && ./gradlew test --no-daemon'` | BUILD SUCCESSFUL | ✅ 通过 |
+| Java SDK worker client targeted test | `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClientTest --no-daemon'` | BUILD SUCCESSFUL | ✅ 通过 |
+| Server + Java demo smoke | `.dev/reports/java-demo-20260601T033026Z-286798.json` | worker registration、single success/failure、broadcast、fixed_rate、cron、workflow job 全部 passed | ✅ 通过 |
+| Shell/Python/JS/TS/Rhai script live matrix | 当前 smoke 未覆盖 | 需要后续补充脚本沙箱矩阵 live 用例 | ⏳ 待执行 |

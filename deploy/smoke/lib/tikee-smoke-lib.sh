@@ -58,7 +58,11 @@ tikee_smoke_api() {
   local method="$2"
   local path="$3"
   local body="${4:-}"
-  shift 4 || true
+  if (( $# >= 4 )); then
+    shift 4
+  else
+    shift "$#"
+  fi
   local headers=(-H "authorization: Bearer $TIKEE_SMOKE_AUTH_TOKEN")
   if [[ -n "$body" ]]; then
     curl -fsS -X "$method" "$(tikee_smoke_api_path "$api_url" "$path")" \
@@ -170,6 +174,9 @@ for item in payload.get('data', {}).get('items', []):
         break
 PY
 )"
+    if [[ -n "$found" ]]; then
+      break
+    fi
     if (( SECONDS >= deadline )); then
       echo "timed out waiting for job $job_id instance status $expected trigger=$trigger_type" >&2
       cat "$output_file" >&2 || true

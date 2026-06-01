@@ -122,6 +122,10 @@ async fn dispatch_once(
             fencing_token,
         )
         .await?;
+    dispatch_broadcast_attempts(
+        jobs, instances, attempts, workflows, scripts, logs, audit, registry,
+    )
+    .await?;
     dispatch_single_instances(
         jobs,
         instances,
@@ -131,10 +135,6 @@ async fn dispatch_once(
         audit,
         registry,
         fencing_token,
-    )
-    .await?;
-    dispatch_broadcast_attempts(
-        jobs, instances, attempts, workflows, scripts, logs, audit, registry,
     )
     .await
 }

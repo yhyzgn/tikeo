@@ -153,11 +153,14 @@ try:
 except Exception:
     sys.exit(0)
 for item in payload.get('data', {}).get('items', []):
-    if item.get('status') == expected and (not trigger or item.get('trigger_type') == trigger):
+    if item.get('status') == expected and (not trigger or item.get('triggerType') == trigger or item.get('trigger_type') == trigger):
         print(item['id'])
         break
 PY
 )"
+    if [[ -n "$found" ]]; then
+      break
+    fi
     if (( SECONDS >= deadline )); then
       echo "timed out waiting for job $job_id instance status $expected trigger=$trigger_type" >&2
       api GET "/api/v1/jobs/$job_id/instances" >&2 || true
@@ -181,12 +184,12 @@ body = {
     'namespace': 'default',
     'app': 'default',
     'name': f'{run_id}-{name}',
-    'schedule_type': schedule_type,
-    'processor_name': processor,
+    'scheduleType': schedule_type,
+    'processorName': processor,
     'enabled': True,
 }
 if expr:
-    body['schedule_expr'] = expr
+    body['scheduleExpr'] = expr
 print(json.dumps(body))
 PY
 )"
@@ -196,7 +199,7 @@ PY
 trigger_job() {
   local job_id="$1"
   local mode="${2:-single}"
-  api_json_get POST "/api/v1/jobs/$job_id:trigger" data.id "{\"trigger_type\":\"api\",\"execution_mode\":\"$mode\"}"
+  api_json_get POST "/api/v1/jobs/$job_id:trigger" data.id "{\"triggerType\":\"api\",\"executionMode\":\"$mode\"}"
 }
 
 start_server_if_needed() {
@@ -281,7 +284,9 @@ start_java_demo() {
     TIKEE_WORKER_DRY_RUN=false \
     TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
     TIKEE_DEMO_SERVER_PORT="${DEMO_URL##*:}" \
-    ./gradlew bootRun --no-daemon >"$JAVA_LOG" 2>&1
+    TIKEE_WORKER_CLIENT_INSTANCE_ID="${TIKEE_WORKER_CLIENT_INSTANCE_ID:-spring-demo-worker}" \
+    TIKEE_WORKER_STATE_DIR="${TIKEE_WORKER_STATE_DIR:-$REPORT_DIR/${RUN_ID}-worker-state}" \
+    ./scripts/run-demo-worker.sh >"$JAVA_LOG" 2>&1
   ) &
   JAVA_PID=$!
   wait_for_ready java-demo "$DEMO_URL/demo/health"
@@ -344,10 +349,10 @@ print(json.dumps({
       'key': 'java-step',
       'name': 'Java step',
       'kind': 'job',
-      'job_id': job_id,
-      'processor_name': 'demo.workflow.step',
-      'child_workflow_id': None,
-      'map_items': None,
+      'jobId': job_id,
+      'processorName': 'demo.workflow.step',
+      'childWorkflowId': None,
+      'mapItems': None,
       'config': None,
     }],
     'edges': [],
@@ -356,8 +361,8 @@ print(json.dumps({
 PY
 )"
   workflow_id="$(api_json_get POST /api/v1/workflows data.id "$wf_body")"
-  workflow_instance="$(api_json_get POST "/api/v1/workflows/$workflow_id/run" data.id '{"trigger_type":"api"}')"
-  materialized_job_instance="$(api_json_get POST /api/v1/workflow-instances/materialize-next data.node.job_instance_id '{}')"
+  workflow_instance="$(api_json_get POST "/api/v1/workflows/$workflow_id/run" data.id '{"triggerType":"api"}')"
+  materialized_job_instance="$(api_json_get POST /api/v1/workflow-instances/materialize-next data.node.jobInstanceId '{}')"
   wait_instance_status "$materialized_job_instance" succeeded
   local workflow_job_file workflow_job_logs
   workflow_job_file="$REPORT_DIR/${RUN_ID}-${materialized_job_instance}.json"

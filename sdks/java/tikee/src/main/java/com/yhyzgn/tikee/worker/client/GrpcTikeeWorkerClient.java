@@ -71,6 +71,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
     private final Consumer<Worker.DispatchTask> dispatchObserver;
     private final ScheduledExecutorService tikee;
     private final ExecutorService processorExecutor;
+    private final Object outboundLock = new Object();
     private final AtomicReference<String> workerId = new AtomicReference<>();
     private final AtomicReference<String> fencingToken = new AtomicReference<>(
         ""
@@ -653,11 +654,13 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
     }
 
     private void send(Worker.WorkerMessage message) {
-        StreamObserver<Worker.WorkerMessage> observer = outbound.get();
-        if (observer == null || !connected()) {
-            throw new WorkerClientException("worker tunnel is not open");
+        synchronized (outboundLock) {
+            StreamObserver<Worker.WorkerMessage> observer = outbound.get();
+            if (observer == null || !connected()) {
+                throw new WorkerClientException("worker tunnel is not open");
+            }
+            observer.onNext(message);
         }
-        observer.onNext(message);
     }
 
     private void markDisconnected() {

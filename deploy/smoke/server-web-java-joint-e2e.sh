@@ -16,22 +16,21 @@ SERVER_LOG="$REPORT_DIR/${RUN_ID}-server.log"
 WEB_LOG="$REPORT_DIR/${RUN_ID}-web.log"
 JAVA_A_LOG="$REPORT_DIR/${RUN_ID}-java-a.log"
 JAVA_B_LOG="$REPORT_DIR/${RUN_ID}-java-b.log"
+JAVA_A_PORT=18080
+JAVA_B_PORT=18081
 SERVER_PID=""
 WEB_PID=""
 JAVA_A_PID=""
 JAVA_B_PID=""
+STARTED_JAVA_PID=""
 OWN_SERVER=0
 OWN_WEB=0
 mkdir -p "$REPORT_DIR"
 
 cleanup() {
   local code=$?
-  for pid in "$JAVA_A_PID" "$JAVA_B_PID"; do
-    if [[ -n "$pid" ]] && kill -0 "$pid" >/dev/null 2>&1; then
-      kill "$pid" >/dev/null 2>&1 || true
-      wait "$pid" 2>/dev/null || true
-    fi
-  done
+  stop_java_demo "$JAVA_A_PID" "$JAVA_A_PORT"
+  stop_java_demo "$JAVA_B_PID" "$JAVA_B_PORT"
   if [[ "$OWN_WEB" == "1" && -n "$WEB_PID" ]] && kill -0 "$WEB_PID" >/dev/null 2>&1; then
     kill "$WEB_PID" >/dev/null 2>&1 || true
     wait "$WEB_PID" 2>/dev/null || true
@@ -44,6 +43,18 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+stop_java_demo() {
+  local pid="${1:-}"
+  local port="${2:-}"
+  if [[ -n "$pid" ]] && kill -0 "$pid" >/dev/null 2>&1; then
+    kill "$pid" >/dev/null 2>&1 || true
+    wait "$pid" 2>/dev/null || true
+  fi
+  if [[ -n "$port" ]]; then
+    fuser -k "${port}/tcp" >/dev/null 2>&1 || true
+  fi
+}
+
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || { echo "missing command: $1" >&2; exit 127; }
 }
@@ -51,6 +62,7 @@ need_cmd cargo
 need_cmd curl
 need_cmd python3
 need_cmd bun
+need_cmd fuser
 
 api() {
   tikee_smoke_api "$API_URL" "$@"
@@ -148,14 +160,14 @@ start_java_demo() {
     TIKEE_WORKER_ELECTION_DOMAIN="joint-default-domain" \
     TIKEE_WORKER_ELECTION_PRIORITY="$priority" \
     TIKEE_WORKER_SCRIPTS_ENABLED=false \
-    ./gradlew bootRun --no-daemon >"$log_file" 2>&1
+    exec ./scripts/run-demo-worker.sh >"$log_file" 2>&1
   ) &
   local pid=$!
   tikee_smoke_wait_for_http "java-$name" "http://127.0.0.1:$port/demo/health" 120 || {
     tail -n 160 "$log_file" >&2 || true
     return 1
   }
-  printf '%s' "$pid"
+  STARTED_JAVA_PID="$pid"
 }
 
 wait_workers_asserted() {
@@ -207,8 +219,8 @@ print(json.dumps({
   'namespace': 'default',
   'app': 'default',
   'name': f'{run_id}-{name}',
-  'schedule_type': 'api',
-  'processor_name': processor,
+  'scheduleType': 'api',
+  'processorName': processor,
   'enabled': True,
 }))
 PY
@@ -219,7 +231,7 @@ PY
 trigger_job() {
   local job_id="$1"
   local mode="$2"
-  api_json_get POST "/api/v1/jobs/$job_id:trigger" data.id "{\"trigger_type\":\"api\",\"execution_mode\":\"$mode\"}"
+  api_json_get POST "/api/v1/jobs/$job_id:trigger" data.id "{\"triggerType\":\"api\",\"executionMode\":\"$mode\"}"
 }
 
 main() {
@@ -229,8 +241,10 @@ main() {
   export AUTH_TOKEN
   start_web_if_needed
 
-  JAVA_A_PID="$(start_java_demo spring-demo-worker-a 18080 10 "$JAVA_A_LOG")"
-  JAVA_B_PID="$(start_java_demo spring-demo-worker-b 18081 20 "$JAVA_B_LOG")"
+  start_java_demo spring-demo-worker-a "$JAVA_A_PORT" 10 "$JAVA_A_LOG"
+  JAVA_A_PID="$STARTED_JAVA_PID"
+  start_java_demo spring-demo-worker-b "$JAVA_B_PORT" 20 "$JAVA_B_LOG"
+  JAVA_B_PID="$STARTED_JAVA_PID"
 
   local workers_before master_worker master_client echo_job echo_instance echo_file echo_logs
   workers_before="$REPORT_DIR/${RUN_ID}-workers-before.json"
@@ -260,12 +274,10 @@ main() {
   tikee_smoke_record_case joint-broadcast-all-workers passed "$broadcast_attempts" "broadcast created successful attempts for both workers"
 
   if [[ "$master_client" == "spring-demo-worker-a" ]]; then
-    kill "$JAVA_A_PID" >/dev/null 2>&1 || true
-    wait "$JAVA_A_PID" 2>/dev/null || true
+    stop_java_demo "$JAVA_A_PID" "$JAVA_A_PORT"
     JAVA_A_PID=""
   else
-    kill "$JAVA_B_PID" >/dev/null 2>&1 || true
-    wait "$JAVA_B_PID" 2>/dev/null || true
+    stop_java_demo "$JAVA_B_PID" "$JAVA_B_PORT"
     JAVA_B_PID=""
   fi
 
