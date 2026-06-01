@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
-import { ApiClientError, createAppScope, createJob, createNamespace, createPlugin, createSdkApiKey, createServiceAccount, createWorkerPool, deletePlugin, disableServiceAccount, dryRunWorkflow, getAuthToken, listInstanceLogs, getJobImpact, getJobSchedulingAdvice, getJobTopology, getWorkflowReplay, listJobVersions, listJobs, listNamespaces, listPlugins, listServiceAccounts, listWorkerPools, login, rollbackJob, setAuthErrorHandler, setAuthToken, triggerJob, triggerJobWebhookEvent, updatePlugin, updateSdkApiKey, updateServiceAccount, updateWorkflow } from './client';
+import { ApiClientError, createAppScope, createJob, createNamespace, createPlugin, createSdkApiKey, createServiceAccount, createWorkerPool, deletePlugin, disableServiceAccount, dryRunWorkflow, getAuthToken, listInstanceLogs, getJobImpact, getJobSchedulingAdvice, getJobTopology, getWorkflowReplay, listJobVersions, listJobs, listNamespaces, listPlugins, listServiceAccounts, listWorkerPools, login, rollbackJob, setAuthErrorHandler, setAuthToken, triggerJob, triggerJobWebhookEvent, updateJob, updatePlugin, updateSdkApiKey, updateServiceAccount, updateWorkflow } from './client';
 
 const originalFetch = globalThis.fetch;
 
@@ -169,6 +169,90 @@ describe('api client envelope handling', () => {
     const headers = calls.at(-1)?.headers;
     expect(headers).toBeInstanceOf(Headers);
     expect((headers as Headers).get('authorization')).toBe('Bearer atk_test_token');
+  });
+
+  test('sends job create and update payloads in server camelCase contract', async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({
+        method: init?.method ?? 'GET',
+        url: String(url),
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      });
+      return new Response(JSON.stringify({
+        code: 0,
+        message: 'success',
+        data: {
+          id: 'job_1',
+          namespace: 'default',
+          app: 'billing',
+          name: 'script job',
+          scheduleType: 'api',
+          scheduleExpr: null,
+          misfirePolicy: 'fire_once',
+          scheduleStartAt: null,
+          scheduleEndAt: null,
+          scheduleCalendar: null,
+          processorName: null,
+          processorType: null,
+          scriptId: 'scr_shell',
+          enabled: true,
+          canaryJobId: null,
+          canaryPercent: 0,
+          versionNumber: 1,
+        },
+      }));
+    }) as unknown as typeof fetch;
+
+    await createJob({
+      namespace: 'default',
+      app: 'billing',
+      name: 'script job',
+      scheduleType: 'api',
+      processorName: null,
+      processorType: null,
+      scriptId: 'scr_shell',
+      scheduleStartAt: null,
+      scheduleEndAt: null,
+      scheduleCalendar: { ref: 'cal_default' },
+      enabled: true,
+    });
+    await updateJob('job_1', {
+      name: 'plugin job',
+      scheduleType: 'cron',
+      scheduleExpr: '0 0 * * * * *',
+      processorType: 'sql',
+      processorName: 'billing.sql-sync',
+      scriptId: null,
+      enabled: false,
+    });
+
+    expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual([
+      'POST /api/v1/jobs',
+      'PATCH /api/v1/jobs/job_1',
+    ]);
+    expect(calls[0].body).toEqual({
+      namespace: 'default',
+      app: 'billing',
+      name: 'script job',
+      scheduleType: 'api',
+      processorName: null,
+      processorType: null,
+      scriptId: 'scr_shell',
+      scheduleStartAt: null,
+      scheduleEndAt: null,
+      scheduleCalendar: { ref: 'cal_default' },
+      enabled: true,
+    });
+    expect(calls[1].body).toEqual({
+      name: 'plugin job',
+      scheduleType: 'cron',
+      scheduleExpr: '0 0 * * * * *',
+      processorType: 'sql',
+      processorName: 'billing.sql-sync',
+      scriptId: null,
+      enabled: false,
+    });
   });
 
   test('manages plugin registry through CRUD endpoints', async () => {

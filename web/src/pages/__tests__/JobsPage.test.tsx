@@ -34,6 +34,20 @@ describe('job schedule form governance', () => {
     expect(source).not.toContain("label: 'Script'");
   });
 
+  test('uses formal drawers and structured executor/script selectors for create and edit', () => {
+    expect(source).toContain('title="创建任务"');
+    expect(source).toContain("title={editingJob ? `编辑任务 - ${editingJob.name}` : '编辑任务'}");
+    expect(source.match(/width=\{760\}/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(source).toContain("{ value: 'sdk', label: 'SDK Processor' }");
+    expect(source).toContain("{ value: 'plugin', label: '插件处理器' }");
+    expect(source).toContain("{ value: 'script', label: '脚本（沙箱自动执行）' }");
+    expect(source).toContain('normalizeExecutor');
+    expect(source).toContain("if (values.executorKind === 'script') return { ...rest, processorName: null, processorType: null }");
+    expect(source).toContain('validatePluginExecutor(values.processorType, values.processorName)');
+    expect(source).toContain('return { ...rest, scriptId: null, processorType: null }');
+    expect(source).not.toContain('script:${script.id}');
+  });
+
   test('exposes job version history and rollback UI copy', () => {
     expect(source).toContain('版本历史');
     expect(source).toContain('listJobVersions');

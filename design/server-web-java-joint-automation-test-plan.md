@@ -163,7 +163,7 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 | C-WEB-006A | 任务列表分页 | web | JobsPage + pagination unit | 默认 20；下拉选项 10/20/50/100；cookie 持久化 | `.dev/reports/web-jobs-pagination-20260601T0710-test.log`、`.dev/reports/web-typecheck-20260601T0710.log` | ✅ 通过 | 对齐执行状态计划中的任务分页项 |
 | C-WEB-007 | 任务拓扑二级页 | web + server | 打开任务拓扑页面 | 画布渲染、全屏切换、箭头避让/动画正常 | screenshot/video | ⏳ 待执行 | 图形回放基础 |
 | C-WEB-008 | 工作流画布 | web + server | 打开 workflow designer | 全屏切换、实线流动动画正常 | screenshot/video | ⏳ 待执行 | 与任务拓扑一致交互 |
-| C-WEB-009 | 插件处理器任务创建 | web + server | 创建插件类型任务 | 处理器/插件字段来自结构化候选项，不手填错配 | API payload / screenshot | ⏳ 待执行 | 禁止字符串约定 |
+| C-WEB-009 | 插件处理器任务创建 | web + server | 创建插件类型任务 | 处理器/插件字段来自结构化候选项，不手填错配 | `.dev/reports/web-job-drawer-20260601T0715-test.log`、`.dev/reports/web-typecheck-20260601T0715.log` | ✅ 通过 | 已覆盖 SDK/Script/Plugin 结构化候选和 create/update camelCase payload；截图待浏览器 e2e |
 
 当前建议新增脚本：`deploy/smoke/web-live-smoke.sh`。脚本应完成：启动/复用 server、启动 web、登录、访问关键路由、保存截图与控制台错误日志。未新增脚本前，可用手工 Playwright 或浏览器录制执行并回填状态。
 
