@@ -116,11 +116,11 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 | B-JOB-003 | Broadcast 任务 | 创建并触发 `demo.context` broadcast | parent/attempt 成功；至少一个 worker attempt 有日志 | report JSON、attempts JSON | api-broadcast-success passed | ✅ 通过 |
 | B-JOB-004 | Fixed-rate 任务 | 创建 fixed_rate `demo.heartbeat` | 至少一个调度实例自动生成并成功 | report JSON、instances JSON | fixed-rate-success passed | ✅ 通过 |
 | B-JOB-005 | Cron 任务 | 创建 cron `demo.report` | 至少一个 cron 实例生成并成功 | report JSON、instances JSON | cron-success passed | ✅ 通过 |
-| B-SCRIPT-001 | Shell 脚本任务 | 创建 shell script job 并触发 | worker 经 SRT 沙箱执行；stdout 进入 worker 控制台和实例日志 | `.dev/reports/java-demo-20260601T060129Z-669993-inst_019e81c6d4d17742b635361ba9bf3a42.json`、`...-logs.json`、report JSON | `script-shell-success` passed；shell=AUTO→SRT，stdout 已持久化 | ✅ 通过 |
-| B-SCRIPT-002 | Python/JS/TS/Rhai 脚本任务 | 逐语言创建/触发脚本任务 | 不因 processor capability 字符串缺失卡 pending；失败时给出明确治理原因 | `.dev/reports/java-demo-20260601T060129Z-669993.json`、各 instance/logs JSON | Python/JS/TS succeeded；Rhai succeeded；无 pending | ✅ 通过 |
+| B-SCRIPT-001 | Shell 脚本任务 | 创建 shell script job 并触发 | worker 经 SRT 沙箱执行；stdout 进入 worker 控制台和实例日志 | `.dev/reports/java-demo-20260601T061839Z-714299-inst_019e81d6947d76d2af19b01b767d2a5b.json`、`...-logs.json`、report JSON | `script-shell-success` passed；shell=AUTO→SRT，stdout 已持久化 | ✅ 通过 |
+| B-SCRIPT-002 | Python/JS/TS/Rhai 脚本任务 | 逐语言创建/触发脚本任务 | 不因 processor capability 字符串缺失卡 pending；失败时给出明确治理原因 | `.dev/reports/java-demo-20260601T061839Z-714299.json`、各 instance/logs JSON | Python/JS/TS succeeded；Rhai succeeded；无 pending | ✅ 通过 |
 | B-WF-001 | Workflow job 节点 | 创建 workflow，run/materialize | workflow instance 最终 `succeeded`，节点状态与任务实例一致 | report JSON、workflow/instance logs | workflow-job-success passed | ✅ 通过 |
 | B-LOG-001 | 实例日志持久化 | 查询 `/api/v1/instances/{id}/logs` | demo 执行日志存在、workerId 可见、无重复爆量 | instance logs JSON | echo/fail/workflow 日志断言通过且 forbid duplicate logs | ✅ 通过 |
-| B-QUEUE-001 | 队列无堵塞 | smoke 完成后查 queue overview | 无长期 `pending/queued` 积压；历史失效 worker 不阻塞新任务 | `.dev/reports/java-demo-20260601T060129Z-669993-dispatch-queue.json` | smoke 结束 `dispatch queue drained: done=25 failed=0` | ✅ 通过 |
+| B-QUEUE-001 | 队列无堵塞 | smoke 完成后查 queue overview | 无长期 `pending/queued` 积压；历史失效 worker 不阻塞新任务 | `.dev/reports/java-demo-20260601T061839Z-714299-dispatch-queue.json` | smoke 结束 `dispatch queue drained: done=25 failed=0` | ✅ 通过 |
 
 ## 5. P0-C：Server + Web 联合验证
 
@@ -182,15 +182,15 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 
 | ID | 测试项 | 执行方式 | 核心断言 | 证据产物 | 当前测试结果 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- |
-| F-SCRIPT-001 | Shell 脚本沙箱 | 创建/触发 shell script job | `SHELL` 默认经 SRT 沙箱执行，stdout 进 worker 控制台和实例日志 | `.dev/reports/java-demo-20260601T060129Z-669993-inst_019e81c6d4d17742b635361ba9bf3a42-logs.json`、demo log | `script-shell-success` passed | ✅ 通过 |
-| F-SCRIPT-002 | Python 脚本治理 | 创建/触发 python script job | 若运行器不可用，明确 fail-closed；不可 pending 卡死 | `.dev/reports/java-demo-20260601T060129Z-669993-inst_019e81c6dd4d7a63a7c127f7f48e403f-logs.json` | Python script succeeded，stdout 入日志 | ✅ 通过 |
-| F-SCRIPT-003 | JavaScript 脚本治理 | 创建/触发 JavaScript job | 运行或治理失败都有终态与日志 | `.dev/reports/java-demo-20260601T060129Z-669993-inst_019e81c6e1de73d0b4eb365a39a01669-logs.json` | JavaScript script succeeded，stdout 入日志 | ✅ 通过 |
-| F-SCRIPT-004 | TypeScript 脚本治理 | 创建/触发 TypeScript job | 运行或治理失败都有终态与日志 | `.dev/reports/java-demo-20260601T060129Z-669993-inst_019e81c6e66c7ed0ab8676da1a39c4de-logs.json` | TypeScript script succeeded，stdout 入日志 | ✅ 通过 |
-| F-SCRIPT-005 | Rhai 输出 | 触发 rhai script job | print 输出进入 worker 控制台与实例日志 | `.dev/reports/java-demo-20260601T060129Z-669993-inst_019e81c6eafd7c73921a883bea3896f4-logs.json` | Rhai script succeeded，print 输出入日志 | ✅ 通过 |
-| F-SANDBOX-001 | Wasmtime/SRT 自动选择 | demo 启动并触发脚本 + resolver matrix | `shell/python/...` 原生脚本 Auto→SRT；`wasm` Auto→Wasmtime；JS/TS Auto→Deno/V8；缺失时安装或明确失败 | Gradle report、`.dev/reports/java-demo-20260601T060129Z-669993.json`、demo log | resolver matrix 覆盖 Wasmtime/WasmEdge/SRT/Deno/V8/Rhai；demo 验证 SRT/Deno/Rhai 成功 | ✅ 通过 |
-| F-PLUGIN-001 | 插件注册 | 创建 plugin processor/alert channel | 结构化保存，非字符串拼接约定 | API JSON | 本轮未执行 | ⏳ 待执行 |
-| F-PLUGIN-002 | 插件类型任务创建 | Web/API 创建插件任务 | 候选项来自 worker/plugin 结构化注册 | screenshot、payload | 本轮未执行 | ⏳ 待执行 |
-| F-PLUGIN-003 | 插件任务执行日志 | 触发插件任务 | processor 输出进实例日志；失败有清晰原因 | logs JSON、demo log | 本轮未执行 | ⏳ 待执行 |
+| F-SCRIPT-001 | Shell 脚本沙箱 | 创建/触发 shell script job | `SHELL` 默认经 SRT 沙箱执行，stdout 进 worker 控制台和实例日志 | `.dev/reports/java-demo-20260601T061839Z-714299-inst_019e81d6947d76d2af19b01b767d2a5b-logs.json`、demo log | `script-shell-success` passed | ✅ 通过 |
+| F-SCRIPT-002 | Python 脚本治理 | 创建/触发 python script job | 若运行器不可用，明确 fail-closed；不可 pending 卡死 | `.dev/reports/java-demo-20260601T061839Z-714299-inst_019e81d69cfa794384a8b8d995ae36fd-logs.json` | Python script succeeded，stdout 入日志 | ✅ 通过 |
+| F-SCRIPT-003 | JavaScript 脚本治理 | 创建/触发 JavaScript job | 运行或治理失败都有终态与日志 | `.dev/reports/java-demo-20260601T061839Z-714299-inst_019e81d6a1877751af9a205103c401c6-logs.json` | JavaScript script succeeded，stdout 入日志 | ✅ 通过 |
+| F-SCRIPT-004 | TypeScript 脚本治理 | 创建/触发 TypeScript job | 运行或治理失败都有终态与日志 | `.dev/reports/java-demo-20260601T061839Z-714299-inst_019e81d6a61870b1a01bbc57f2b3a9ab-logs.json` | TypeScript script succeeded，stdout 入日志 | ✅ 通过 |
+| F-SCRIPT-005 | Rhai 输出 | 触发 rhai script job | print 输出进入 worker 控制台与实例日志 | `.dev/reports/java-demo-20260601T061839Z-714299-inst_019e81d6aaa875f3bb9c6abf7958be87-logs.json` | Rhai script succeeded，print 输出入日志 | ✅ 通过 |
+| F-SANDBOX-001 | Wasmtime/SRT 自动选择 | demo 启动并触发脚本 + resolver matrix | `shell/python/...` 原生脚本 Auto→SRT；`wasm` Auto→Wasmtime；JS/TS Auto→Deno/V8；缺失时安装或明确失败 | Gradle report、`.dev/reports/java-demo-20260601T061839Z-714299.json`、demo log | resolver matrix 覆盖 Wasmtime/WasmEdge/SRT/Deno/V8/Rhai；demo 验证 SRT/Deno/Rhai 成功 | ✅ 通过 |
+| F-PLUGIN-001 | 插件注册 | 创建 plugin processor/alert channel | 结构化保存，非字符串拼接约定 | `.dev/reports/java-demo-20260601T061839Z-714299-plugin.json` | structured sql plugin processor declaration created | ✅ 通过 |
+| F-PLUGIN-002 | 插件类型任务创建 | API 创建插件任务并校验非法候选 | 候选项来自 worker/plugin 结构化注册 | `.dev/reports/java-demo-20260601T061839Z-714299-bad-plugin-job-response.json` | `billing.sql-sync` 可创建；`mixed.sql` 被拒绝 | ✅ 通过 |
+| F-PLUGIN-003 | 插件任务执行日志 | 触发插件任务 | processor 输出进实例日志；失败有清晰原因 | `.dev/reports/java-demo-20260601T061839Z-714299-inst_019e81d687de7dc09a59ed27821aaadd-logs.json`、demo log | `billing.sql-sync` succeeded 且日志持久化 | ✅ 通过 |
 
 ## 9. P2-G：GitOps / IaC / Terraform / K8s 验证
 
@@ -226,14 +226,14 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 | P0-C Server + Web | 12 | 1 | 11 | 0 | 0 | 0 |
 | P0-D 三端双 worker e2e | 10 | 8 | 2 | 0 | 0 | 0 |
 | P1-E SDK Management/API-Key | 7 | 0 | 7 | 0 | 0 | 0 |
-| P1-F 脚本沙箱/插件 | 9 | 6 | 3 | 0 | 0 | 0 |
+| P1-F 脚本沙箱/插件 | 9 | 9 | 0 | 0 | 0 | 0 |
 | P2-G GitOps/IaC | 6 | 0 | 6 | 0 | 0 | 0 |
 | 数据库专项明细 | 3 | 3 | 0 | 0 | 0 | 0 |
 
 ## 12. 下一步执行建议
 
 1. `✅ A-SRV-004` clippy debt 已修复并重跑通过；后续继续保持 `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` 为合并前必跑。
-2. `✅ B-SCRIPT-002 / F-SCRIPT-005 / F-SANDBOX-001` 已补齐；继续处理 `⏳ F-PLUGIN-*` 插件注册/创建/执行日志。
+2. `✅ P1-F` 脚本沙箱/插件已补齐；下一步转向 `⏳ P1-E SDK Management/API-Key` 或 `⏳ P0-C Web e2e`。
 3. 补齐 `⏳ C-* / D-WEB-*`：浏览器级 UI e2e、截图、登录态重定向、详情页日志一致性。
 4. 再执行 P1-E、P1-F、P2-G 的 live/CI 项，继续用图标状态回填。
 5. 每次执行后将本文件对应行的“当前测试结果”和“状态”改为实际结果，禁止未跑即标 `✅ 通过`。

@@ -214,15 +214,15 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 
 | ID | 功能/测试项 | 覆盖组件 | 执行方式 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| F-SCRIPT-001 | Shell 脚本任务 | server + Java SDK/demo | 创建/触发 shell script job | 分发到 worker，经 SRT 沙箱执行成功且 stdout 入实例日志 | `.dev/reports/java-demo-20260601T060129Z-669993-inst_019e81c6d4d17742b635361ba9bf3a42-logs.json` | ✅ 通过 | 默认 auto sandbox：SHELL→SRT |
-| F-SCRIPT-002 | Python 脚本任务 | server + Java SDK/demo | 创建/触发 python script job | 不因 `script:python` 能力字符串缺失而卡 dispatching | `.dev/reports/java-demo-20260601T060129Z-669993-inst_019e81c6dd4d7a63a7c127f7f48e403f-logs.json` | ✅ 通过 | SRT 沙箱执行成功 |
-| F-SCRIPT-003 | JavaScript 脚本任务 | server + Java SDK/demo | 创建/触发 JavaScript job | 自动使用 Deno/V8 类沙箱 | `.dev/reports/java-demo-20260601T060129Z-669993-inst_019e81c6e1de73d0b4eb365a39a01669-logs.json` | ✅ 通过 | Deno 沙箱执行成功 |
-| F-SCRIPT-004 | TypeScript 脚本任务 | server + Java SDK/demo | 创建/触发 TypeScript job | 自动使用 Deno/V8 类沙箱 | `.dev/reports/java-demo-20260601T060129Z-669993-inst_019e81c6e66c7ed0ab8676da1a39c4de-logs.json` | ✅ 通过 | Deno 沙箱执行成功 |
-| F-SCRIPT-005 | Rhai 脚本输出 | Java SDK/demo | 触发 rhai job | print 输出进入 worker 控制台与实例日志，无重复 | `.dev/reports/java-demo-20260601T060129Z-669993-inst_019e81c6eafd7c73921a883bea3896f4-logs.json` | ✅ 通过 | SRT + rhai-run 执行成功 |
-| F-SANDBOX-001 | wasmtime/wasmedge/deno/rhai/v8/srt 环境检查日志 | Java SDK | 启动 demo + resolver matrix | info 日志打印检查、安装、fallback 过程 | Gradle report + `.dev/reports/java-demo-20260601T060129Z-669993.json` | ✅ 通过 | Wasmtime/WasmEdge/SRT/Deno/V8/Rhai resolver 覆盖；demo 验证 SRT/Deno/Rhai |
-| F-PLUGIN-001 | 插件注册 | server + web | 创建 plugin processor/alert channel | 类型与处理器结构化保存 | API response | ⏳ 待执行 | 不靠 `plugin-processor:<type>` 拼接 |
-| F-PLUGIN-002 | 插件类型任务创建 | server + web + Java demo | 选择插件处理器创建任务 | 候选项来自 worker/plugin 结构化注册 | payload + screenshot | ⏳ 待执行 | 不能出现未注册处理器如 `mixed.sql` |
-| F-PLUGIN-003 | 插件任务执行日志 | server + Java demo | 触发 `billing.sql-sync` 类任务 | processor 输出进入实例日志，控制台策略一致 | logs JSON/demo log | ⏳ 待执行 | 当前可先不强制 stdout 桥接 |
+| F-SCRIPT-001 | Shell 脚本任务 | server + Java SDK/demo | 创建/触发 shell script job | 分发到 worker，经 SRT 沙箱执行成功且 stdout 入实例日志 | `.dev/reports/java-demo-20260601T061839Z-714299-inst_019e81d6947d76d2af19b01b767d2a5b-logs.json` | ✅ 通过 | 默认 auto sandbox：SHELL→SRT |
+| F-SCRIPT-002 | Python 脚本任务 | server + Java SDK/demo | 创建/触发 python script job | 不因 `script:python` 能力字符串缺失而卡 dispatching | `.dev/reports/java-demo-20260601T061839Z-714299-inst_019e81d69cfa794384a8b8d995ae36fd-logs.json` | ✅ 通过 | SRT 沙箱执行成功 |
+| F-SCRIPT-003 | JavaScript 脚本任务 | server + Java SDK/demo | 创建/触发 JavaScript job | 自动使用 Deno/V8 类沙箱 | `.dev/reports/java-demo-20260601T061839Z-714299-inst_019e81d6a1877751af9a205103c401c6-logs.json` | ✅ 通过 | Deno 沙箱执行成功 |
+| F-SCRIPT-004 | TypeScript 脚本任务 | server + Java SDK/demo | 创建/触发 TypeScript job | 自动使用 Deno/V8 类沙箱 | `.dev/reports/java-demo-20260601T061839Z-714299-inst_019e81d6a61870b1a01bbc57f2b3a9ab-logs.json` | ✅ 通过 | Deno 沙箱执行成功 |
+| F-SCRIPT-005 | Rhai 脚本输出 | Java SDK/demo | 触发 rhai job | print 输出进入 worker 控制台与实例日志，无重复 | `.dev/reports/java-demo-20260601T061839Z-714299-inst_019e81d6aaa875f3bb9c6abf7958be87-logs.json` | ✅ 通过 | SRT + rhai-run 执行成功 |
+| F-SANDBOX-001 | wasmtime/wasmedge/deno/rhai/v8/srt 环境检查日志 | Java SDK | 启动 demo + resolver matrix | info 日志打印检查、安装、fallback 过程 | Gradle report + `.dev/reports/java-demo-20260601T061839Z-714299.json` | ✅ 通过 | Wasmtime/WasmEdge/SRT/Deno/V8/Rhai resolver 覆盖；demo 验证 SRT/Deno/Rhai |
+| F-PLUGIN-001 | 插件注册 | server + Java demo | 创建 plugin processor/alert channel | 类型与处理器结构化保存 | `.dev/reports/java-demo-20260601T061839Z-714299-plugin.json` | ✅ 通过 | 不靠 `plugin-processor:<type>` 拼接 |
+| F-PLUGIN-002 | 插件类型任务创建 | server + Java demo | 选择插件处理器创建任务 | 候选项来自 worker/plugin 结构化注册 | `.dev/reports/java-demo-20260601T061839Z-714299-bad-plugin-job-response.json` | ✅ 通过 | `mixed.sql` 已验证拒绝 |
+| F-PLUGIN-003 | 插件任务执行日志 | server + Java demo | 触发 `billing.sql-sync` 类任务 | processor 输出进入实例日志，控制台策略一致 | `.dev/reports/java-demo-20260601T061839Z-714299-inst_019e81d687de7dc09a59ed27821aaadd-logs.json` | ✅ 通过 | Java demo plugin processor |
 
 ### 6.7 P2 阶段 G：GitOps/IaC、Terraform Provider、K8s CRD Operator 验证
 

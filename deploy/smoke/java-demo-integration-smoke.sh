@@ -223,10 +223,100 @@ PY
   api_json_get POST /api/v1/jobs data.id "$body"
 }
 
+create_plugin_declaration() {
+  local body
+  body="$(python3 - "$RUN_ID" <<'PY'
+import json, sys
+run_id = sys.argv[1]
+print(json.dumps({
+    'name': f'{run_id}-billing-sql-plugin',
+    'kind': 'processor',
+    'processorTypes': [{
+        'type': 'sql',
+        'label': 'SQL Sync',
+        'capability': 'sql',
+        'processorNames': ['billing.sql-sync'],
+        'description': 'Billing SQL sync processor used by Java demo',
+        'artifactRef': None,
+        'containerImage': None,
+        'entrypoint': None,
+        'checksum': None,
+    }],
+    'alertChannelTypes': [],
+    'enabled': True,
+}))
+PY
+)"
+  api_json_get POST /api/v1/plugins data.id "$body"
+}
+
+create_plugin_job() {
+  local name="$1"
+  local processor_type="$2"
+  local processor_name="$3"
+  local body
+  body="$(python3 - "$RUN_ID" "$name" "$processor_type" "$processor_name" <<'PY'
+import json, sys
+run_id, name, processor_type, processor_name = sys.argv[1:]
+print(json.dumps({
+    'namespace': 'default',
+    'app': 'default',
+    'name': f'{run_id}-{name}',
+    'scheduleType': 'api',
+    'processorType': processor_type,
+    'processorName': processor_name,
+    'enabled': True,
+}))
+PY
+)"
+  api_json_get POST /api/v1/jobs data.id "$body"
+}
+
+assert_invalid_plugin_job_rejected() {
+  local body status response
+  body="$(python3 - "$RUN_ID" <<'PY'
+import json, sys
+run_id = sys.argv[1]
+print(json.dumps({
+    'namespace': 'default',
+    'app': 'default',
+    'name': f'{run_id}-bad-plugin-job',
+    'scheduleType': 'api',
+    'processorType': 'sql',
+    'processorName': 'mixed.sql',
+    'enabled': True,
+}))
+PY
+)"
+  response="$REPORT_DIR/${RUN_ID}-bad-plugin-job-response.json"
+  status="$(curl -sS -o "$response" -w '%{http_code}' -X POST "$(api_path /api/v1/jobs)" \
+    -H "authorization: Bearer $AUTH_TOKEN" \
+    -H 'content-type: application/json' \
+    -d "$body")"
+  if [[ "$status" == "200" || "$status" == "201" ]]; then
+    echo "invalid plugin processor job unexpectedly succeeded" >&2
+    cat "$response" >&2 || true
+    return 1
+  fi
+  python3 - "$response" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], encoding='utf-8'))
+message = str(payload.get('message', ''))
+if 'plugin processorName is not declared' not in message:
+    raise SystemExit(f'unexpected invalid plugin rejection message: {message}')
+print('invalid plugin processor rejection expectation passed')
+PY
+}
+
 trigger_job() {
   local job_id="$1"
   local mode="${2:-single}"
   api_json_get POST "/api/v1/jobs/$job_id:trigger" data.id "{\"triggerType\":\"api\",\"executionMode\":\"$mode\"}"
+}
+
+disable_job() {
+  local job_id="$1"
+  api PATCH "/api/v1/jobs/$job_id" '{"enabled":false}' >/dev/null
 }
 
 create_script() {
@@ -473,6 +563,8 @@ main() {
 
   fixed_instance="$(wait_job_instance_status "$fixed_job" succeeded fixed_rate)"
   cron_instance="$(wait_job_instance_status "$cron_job" succeeded cron)"
+  disable_job "$fixed_job"
+  disable_job "$cron_job"
 
   local wf_body
   wf_body="$(python3 - "$RUN_ID" "$workflow_job" <<'PY'
@@ -507,6 +599,34 @@ PY
   api GET "/api/v1/instances/$materialized_job_instance/logs" > "$workflow_job_logs"
   tikee_smoke_assert instance "$workflow_job_file" --expected-status succeeded --require-worker --min-log-count 1 --logs-file "$workflow_job_logs" --require-log-text demo.workflow.step --forbid-duplicate-logs >/dev/null
   tikee_smoke_record_case workflow-job-success passed "$workflow_job_file $workflow_job_logs" "workflow materialized Java job succeeded with logs"
+
+  local plugin_id plugin_file plugin_job plugin_instance plugin_instance_file plugin_logs
+  plugin_id="$(create_plugin_declaration)"
+  plugin_file="$REPORT_DIR/${RUN_ID}-plugin.json"
+  api GET "/api/v1/plugins" > "$plugin_file"
+  python3 - "$plugin_file" <<'PY'
+import json, sys
+items = json.load(open(sys.argv[1], encoding='utf-8'))['data']
+plugin = next(
+    item for item in items
+    if any(pt.get('type') == 'sql' and 'billing.sql-sync' in pt.get('processorNames', [])
+           for pt in item.get('processorTypes', []))
+)
+assert plugin['enabled'] is True
+print('plugin structured processor expectation passed')
+PY
+  plugin_job="$(create_plugin_job plugin-sql-job sql billing.sql-sync)"
+  assert_invalid_plugin_job_rejected
+  plugin_instance="$(trigger_job "$plugin_job" single)"
+  wait_instance_status "$plugin_instance" succeeded
+  plugin_instance_file="$REPORT_DIR/${RUN_ID}-${plugin_instance}.json"
+  plugin_logs="$REPORT_DIR/${RUN_ID}-${plugin_instance}-logs.json"
+  api GET "/api/v1/instances/$plugin_instance" > "$plugin_instance_file"
+  api GET "/api/v1/instances/$plugin_instance/logs" > "$plugin_logs"
+  tikee_smoke_assert instance "$plugin_instance_file" --expected-status succeeded --require-worker --min-log-count 1 --logs-file "$plugin_logs" --require-log-text billing.sql-sync --forbid-duplicate-logs >/dev/null
+  tikee_smoke_record_case plugin-processor-registration passed "$plugin_file" "created structured sql plugin processor declaration id=$plugin_id"
+  tikee_smoke_record_case plugin-job-validation passed "$REPORT_DIR/${RUN_ID}-bad-plugin-job-response.json" "invalid plugin processor mixed.sql was rejected"
+  tikee_smoke_record_case plugin-job-success passed "$plugin_instance_file $plugin_logs" "plugin processor billing.sql-sync executed and persisted logs"
 
   local workflow_status=""
   local deadline=$((SECONDS + 90))
