@@ -54,26 +54,49 @@ fetch_page() {
 
 main() {
   start_web_if_needed
-  local root_html login_html api_keys_html workers_html
+  local route_auth_log root_html login_html api_keys_html workers_html jobs_topology_html workflow_new_html workflow_edit_html gitops_html
+  route_auth_log="$REPORT_DIR/${RUN_ID}-route-auth-test.log"
   root_html="$REPORT_DIR/${RUN_ID}-root.html"
   login_html="$REPORT_DIR/${RUN_ID}-login.html"
   api_keys_html="$REPORT_DIR/${RUN_ID}-api-keys.html"
   workers_html="$REPORT_DIR/${RUN_ID}-workers.html"
+  jobs_topology_html="$REPORT_DIR/${RUN_ID}-jobs-topology.html"
+  workflow_new_html="$REPORT_DIR/${RUN_ID}-workflow-new.html"
+  workflow_edit_html="$REPORT_DIR/${RUN_ID}-workflow-edit.html"
+  gitops_html="$REPORT_DIR/${RUN_ID}-gitops.html"
+
+  (cd "$ROOT_DIR/web" && bun test src/pages/__tests__/RouteAuth.test.tsx) > "$route_auth_log" 2>&1 || {
+    cat "$route_auth_log" >&2 || true
+    return 1
+  }
 
   fetch_page / "$root_html"
   fetch_page /login "$login_html"
   fetch_page /api-keys "$api_keys_html"
   fetch_page /workers "$workers_html"
+  fetch_page /jobs/topology "$jobs_topology_html"
+  fetch_page /workflows/new "$workflow_new_html"
+  fetch_page /workflows/wf_smoke/edit "$workflow_edit_html"
+  fetch_page /gitops "$gitops_html"
 
   tikee_smoke_assert web "$root_html" --require-text '<div id="root"></div>' >/dev/null
   tikee_smoke_assert web "$login_html" --require-text '<div id="root"></div>' >/dev/null
   tikee_smoke_assert web "$api_keys_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
   tikee_smoke_assert web "$workers_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
+  tikee_smoke_assert web "$jobs_topology_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
+  tikee_smoke_assert web "$workflow_new_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
+  tikee_smoke_assert web "$workflow_edit_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
+  tikee_smoke_assert web "$gitops_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
 
   tikee_smoke_record_case web-root passed "$root_html" "SPA root route returned app shell"
-  tikee_smoke_record_case web-login-route passed "$login_html" "login route returned SPA shell; authenticated redirect is covered by RouteAuth unit test and should be browser-e2e asserted separately"
+  tikee_smoke_record_case web-route-auth passed "$route_auth_log" "RouteAuth unit coverage asserts root dashboard redirect and authenticated login bypass"
+  tikee_smoke_record_case web-login-route passed "$login_html" "login route returned SPA shell"
   tikee_smoke_record_case web-api-keys-refresh passed "$api_keys_html" "api-keys secondary route refresh did not return 404"
   tikee_smoke_record_case web-workers-route passed "$workers_html" "workers route returned app shell"
+  tikee_smoke_record_case web-jobs-topology-refresh passed "$jobs_topology_html" "jobs topology secondary route refresh did not return 404"
+  tikee_smoke_record_case web-workflow-new-refresh passed "$workflow_new_html" "workflow new secondary route refresh did not return 404"
+  tikee_smoke_record_case web-workflow-edit-refresh passed "$workflow_edit_html" "workflow edit secondary route refresh did not return 404"
+  tikee_smoke_record_case web-gitops-route passed "$gitops_html" "gitops route returned app shell"
 
   local report="$REPORT_DIR/${RUN_ID}.json"
   tikee_smoke_finalize_report "$report" passed >/dev/null

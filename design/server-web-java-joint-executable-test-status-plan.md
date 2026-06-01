@@ -132,10 +132,10 @@ rtk bash deploy/smoke/web-live-smoke.sh
 
 | ID | 测试项 | 自动化步骤 | 核心断言 | 证据产物 | 当前测试结果 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- |
-| C-WEB-001 | Web dev server 启动 | 启动/复用 server，启动 web | Web 可访问；API base 指向测试 server；无 console error | `.dev/reports/web-live-20260601T033058Z-288793.json`、web log | web live smoke passed；HTTP shell 可访问（未跑浏览器 console） | ✅ 通过 |
-| C-WEB-002 | 根路径重定向 | 登录后访问 `/` | 自动进入 `/dashboard` | URL assert、screenshot | 本轮未执行 | ⏳ 待执行 |
-| C-WEB-003 | 登录态路由守卫 | 登录后访问 `/login` | 跳过 login，返回 dashboard/目标页 | screenshot、URL assert | 本轮未执行 | ⏳ 待执行 |
-| C-WEB-004 | 刷新二级路由 | 刷新 `/jobs/:id/topology`、`/workflows/:id/designer` 等 | 不 404；SPA fallback 正常 | web-live HTML | `/api-keys`、`/workers` 二级路由已验证非 404；jobs/workflows 明细路由待浏览器 e2e 补齐 | ⏳ 待执行 |
+| C-WEB-001 | Web dev server 启动 | 启动/复用 server，启动 web | Web 可访问；API base 指向测试 server；无 console error | `.dev/reports/web-live-20260601T070328Z-825949.json`、web log | web live smoke passed；HTTP shell 可访问（浏览器 console 仍归 P0-C 后续） | ✅ 通过 |
+| C-WEB-002 | 根路径重定向 | 登录后访问 `/` | 自动进入 `/dashboard` | `.dev/reports/web-live-20260601T070328Z-825949-route-auth-test.log` | RouteAuth 单测断言 `/` 指向 `ROUTE_META.dashboard.path` | ✅ 通过 |
+| C-WEB-003 | 登录态路由守卫 | 登录后访问 `/login` | 跳过 login，返回 dashboard/目标页 | `.dev/reports/web-live-20260601T070328Z-825949-route-auth-test.log` | RouteAuth 单测断言已登录 `/login` bypass 到 dashboard | ✅ 通过 |
+| C-WEB-004 | 刷新二级路由 | 刷新 `/api-keys`、`/jobs/topology`、`/workflows/new`、`/workflows/:id/edit` 等 | 不 404；SPA fallback 正常 | `.dev/reports/web-live-20260601T070328Z-825949-*.html` | api-keys/workers/jobs topology/workflows new+edit/gitops 均返回 SPA shell 且非 404 | ✅ 通过 |
 | C-WEB-005 | Worker 列表展示 | 打开 Workers 页 | API 字段与 UI 一致；Capabilities 不误列 processor | screenshot、workers JSON | 本轮未执行 | ⏳ 待执行 |
 | C-WEB-006 | Task 列表分页 | 打开任务列表，切换 page size | 默认 20；下拉选择可用；cookie 持久化 | screenshot、cookie dump | 本轮未执行 | ⏳ 待执行 |
 | C-WEB-007 | Task 新建/编辑抽屉 | 创建/编辑 api、cron、fixed_rate、script job | 抽屉宽度、字段、processor/script 选择逻辑正确；payload 小驼峰 | screenshot、request payload | 本轮未执行 | ⏳ 待执行 |
@@ -223,7 +223,7 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | P0-A 静态/单元/DB | 17 | 17 | 0 | 0 | 0 | 0 |
 | P0-B Server + Java demo | 16 | 16 | 0 | 0 | 0 | 0 |
-| P0-C Server + Web | 12 | 1 | 11 | 0 | 0 | 0 |
+| P0-C Server + Web | 12 | 4 | 8 | 0 | 0 | 0 |
 | P0-D 三端双 worker e2e | 10 | 8 | 2 | 0 | 0 | 0 |
 | P1-E SDK Management/API-Key | 7 | 7 | 0 | 0 | 0 | 0 |
 | P1-F 脚本沙箱/插件 | 9 | 9 | 0 | 0 | 0 | 0 |

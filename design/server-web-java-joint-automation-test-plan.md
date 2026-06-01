@@ -154,10 +154,10 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 
 | ID | 功能/测试项 | 覆盖组件 | 执行方式 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| C-WEB-001 | Web dev server 启动 | web | `rtk bun --prefix web run dev -- --host 127.0.0.1 --port 15173` | `/` 可访问只是前置条件；最终必须无 console error，API base/proxy 指向测试 server，首屏数据请求符合预期 | web log / browser console | ✅ 通过 | 建议由脚本后台启动 |
-| C-WEB-002 | 根路径默认路由 | web | 浏览器/API 访问 `http://127.0.0.1:15173/` | 跳到总览页面或渲染总览 | screenshot / DOM assert | ⏳ 待执行 | 覆盖“直接访问域名默认总览” |
-| C-WEB-003 | 会话有效时访问 login | web + auth | 登录后访问 `/login` | 自动跳过 login，回到总览 | screenshot / URL assert | ⏳ 待执行 | 覆盖登录态路由守卫 |
-| C-WEB-004 | 刷新二级路由 | web | 直接刷新 `/api-keys`、`/jobs/:id/topology`、`/workflows/:id/designer` | 不应 404 | screenshot / status | ⏳ 待执行 | 验证 SPA fallback |
+| C-WEB-001 | Web dev server 启动 | web | `rtk bash deploy/smoke/web-live-smoke.sh` | `/` 可访问只是前置条件；最终必须无 console error，API base/proxy 指向测试 server，首屏数据请求符合预期 | `.dev/reports/web-live-20260601T070328Z-825949.json` | ✅ 通过 | 已由 smoke 后台启动/复用 Vite；console 细项待浏览器 e2e |
+| C-WEB-002 | 根路径默认路由 | web | RouteAuth 单测 + `/` HTML smoke | 跳到总览页面或渲染总览 | `.dev/reports/web-live-20260601T070328Z-825949-route-auth-test.log`、root HTML | ✅ 通过 | 覆盖“直接访问域名默认总览”；截图待浏览器 e2e |
+| C-WEB-003 | 会话有效时访问 login | web + auth | RouteAuth 单测 | 自动跳过 login，回到总览 | `.dev/reports/web-live-20260601T070328Z-825949-route-auth-test.log` | ✅ 通过 | 覆盖登录态路由守卫；截图待浏览器 e2e |
+| C-WEB-004 | 刷新二级路由 | web | 直接刷新 `/api-keys`、`/jobs/topology`、`/workflows/new`、`/workflows/:id/edit`、`/gitops` | 不应 404 | `.dev/reports/web-live-20260601T070328Z-825949-*.html` | ✅ 通过 | 验证 SPA fallback；截图待浏览器 e2e |
 | C-WEB-005 | Worker 列表显示 | web + server | Web 打开 Workers 页 | 页面字段与 `/api/v1/workers` 一致：状态、结构化 capabilities、processorNames、pluginProcessors、master/follower、domain 不丢失不误显 | screenshot + workers JSON | ⏳ 待执行 | 数据来自 `/api/v1/workers` |
 | C-WEB-006 | API-Key 页面 | web + server | 创建/编辑 API-Key | 创建弹窗 key 可点击复制，列表不泄露明文 | screenshot / API assert | ⏳ 待执行 | 覆盖 SDK API-Key UI |
 | C-WEB-007 | 任务拓扑二级页 | web + server | 打开任务拓扑页面 | 画布渲染、全屏切换、箭头避让/动画正常 | screenshot/video | ⏳ 待执行 | 图形回放基础 |
