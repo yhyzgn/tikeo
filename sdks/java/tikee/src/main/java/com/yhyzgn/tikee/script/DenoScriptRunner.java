@@ -82,9 +82,13 @@ public final class DenoScriptRunner implements ScriptRunner {
 
     private void validatePolicy(ScriptRunnerTask task) {
         ScriptSandboxBackend backend = task.sandboxBackend().resolve(kind);
-        if (backend != ScriptSandboxBackend.DENO && backend != ScriptSandboxBackend.CUSTOM) {
+        if (
+            backend != ScriptSandboxBackend.DENO &&
+            backend != ScriptSandboxBackend.V8 &&
+            backend != ScriptSandboxBackend.CUSTOM
+        ) {
             throw new ScriptRunnerException(
-                "Deno script runner does not support backend: " + backend.value()
+                "Deno/V8 script runner does not support backend: " + backend.value()
             );
         }
         if (!task.policy().secretRefs().isEmpty()) {

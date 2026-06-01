@@ -28,30 +28,18 @@ public final class SandboxToolResolver {
             SandboxToolInstaller.runtimePlatform(),
             installDir(tool)
         );
-        String command = tool.binaryName();
-        if (
-            explicitInstallDir(tool).isEmpty() && toolAvailable(tool, command)
-        ) {
-            log.info(
-                "[tikee.sandbox] tool={} found on PATH command={}",
-                tool.binaryName(),
-                command
-            );
-            return command;
-        }
-        if (explicitInstallDir(tool).isEmpty()) {
-            command = localCommand(tool);
+        Optional<Path> explicitInstallDir = explicitInstallDir(tool);
+        if (explicitInstallDir.isPresent()) {
+            String command = localCommand(tool);
             if (toolAvailable(tool, command)) {
                 log.info(
-                    "[tikee.sandbox] tool={} found in managed install command={}",
+                    "[tikee.sandbox] tool={} found in explicit install command={}",
                     tool.binaryName(),
                     command
                 );
                 return command;
             }
-        }
-        command = installIfAllowed(tool);
-        if (explicitInstallDir(tool).isPresent()) {
+            command = installIfAllowed(tool);
             if (toolAvailable(tool, command)) {
                 log.info(
                     "[tikee.sandbox] tool={} installed/resolved command={}",
@@ -67,6 +55,26 @@ public final class SandboxToolResolver {
             );
             return localCommand(tool);
         }
+
+        String command = tool.binaryName();
+        if (toolAvailable(tool, command)) {
+            log.info(
+                "[tikee.sandbox] tool={} found on PATH command={}",
+                tool.binaryName(),
+                command
+            );
+            return command;
+        }
+        command = localCommand(tool);
+        if (toolAvailable(tool, command)) {
+            log.info(
+                "[tikee.sandbox] tool={} found in managed install command={}",
+                tool.binaryName(),
+                command
+            );
+            return command;
+        }
+        command = installIfAllowed(tool);
         if (toolAvailable(tool, command)) {
             log.info(
                 "[tikee.sandbox] tool={} installed/resolved command={}",
@@ -91,6 +99,14 @@ public final class SandboxToolResolver {
             : Optional.empty();
     }
 
+    public Optional<String> resolveWasmedgeCommand() {
+        SandboxToolInstaller.Tool tool = SandboxToolInstaller.Tool.WASMEDGE;
+        String command = resolveCommand(tool);
+        return toolAvailable(tool, command)
+            ? Optional.of(command)
+            : Optional.empty();
+    }
+
     public Optional<String> resolveSrtCommand() {
         SandboxToolInstaller.Tool tool = SandboxToolInstaller.Tool.SRT;
         String command = resolveCommand(tool);
@@ -105,6 +121,12 @@ public final class SandboxToolResolver {
         return toolAvailable(tool, command)
             ? Optional.of(command)
             : Optional.empty();
+    }
+
+    public Optional<String> resolveV8Command() {
+        // Tikee's JavaScript/TypeScript V8 backend is currently fulfilled by
+        // the Deno runtime, which embeds V8 and supplies the permission sandbox.
+        return resolveDenoCommand();
     }
 
     public Optional<String> resolveRhaiCommand() {
