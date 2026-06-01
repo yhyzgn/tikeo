@@ -6,8 +6,8 @@ import com.yhyzgn.tikee.management.client.TikeeJobClient;
 import com.yhyzgn.tikee.sandbox.SandboxToolResolver;
 import com.yhyzgn.tikee.script.ContainerScriptRunner;
 import com.yhyzgn.tikee.script.ScriptRunnerKind;
+import com.yhyzgn.tikee.script.SrtScriptRunner;
 import com.yhyzgn.tikee.script.ScriptRunnerRegistry;
-import com.yhyzgn.tikee.script.WasmScriptRunner;
 import com.yhyzgn.tikee.spring.processor.TikeeProcessorRegistry;
 import com.yhyzgn.tikee.spring.worker.SpringTikeeTaskProcessor;
 import com.yhyzgn.tikee.wasm.CliWasmtimeRunner;
@@ -204,7 +204,7 @@ public class TikeeWorkerAutoConfiguration {
         if (!scripts.isEnabled()) {
             return registry;
         }
-        registerDefaultWasmScriptRunners(registry, properties);
+        registerDefaultSrtScriptRunners(registry, properties);
         if (scripts.isContainerEnabled()) {
             if (
                 scripts.getRuntimeCommand() == null ||
@@ -290,22 +290,19 @@ public class TikeeWorkerAutoConfiguration {
         return registry;
     }
 
-    private static void registerDefaultWasmScriptRunners(
+    private static void registerDefaultSrtScriptRunners(
         ScriptRunnerRegistry registry,
         TikeeWorkerProperties properties
     ) {
-        sandboxToolResolver(properties)
-            .resolveWasmtimeCommand()
+        SandboxToolResolver resolver = sandboxToolResolver(properties);
+        resolver
+            .resolveSrtCommand()
             .ifPresentOrElse(
                 runtimeCommand -> registry.register(
-                    new WasmScriptRunner(
-                        ScriptRunnerKind.SHELL,
-                        runtimeCommand,
-                        List.of()
-                    )
+                    new SrtScriptRunner(ScriptRunnerKind.SHELL, runtimeCommand)
                 ),
                 () -> log.warn(
-                    "tikee script sandbox is enabled but Wasmtime is unavailable; " +
+                    "tikee script sandbox is enabled but SRT is unavailable; " +
                         "script:shell capability will not be advertised"
                 )
             );
@@ -318,7 +315,7 @@ public class TikeeWorkerAutoConfiguration {
         String image,
         List<String> runtimeArgs
     ) {
-        if (image == null || image.isBlank()) {
+        if (image == null || image.isBlank() || registry.find(kind).isPresent()) {
             return;
         }
         registry.register(

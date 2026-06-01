@@ -20,6 +20,10 @@ OWN_SERVER=0
 AUTH_TOKEN=""
 
 mkdir -p "$REPORT_DIR"
+TIKEE_SMOKE_RUN_ID="$RUN_ID"
+TIKEE_SMOKE_CASES_FILE="$REPORT_DIR/${RUN_ID}-cases.jsonl"
+export TIKEE_SMOKE_RUN_ID TIKEE_SMOKE_CASES_FILE
+: > "$TIKEE_SMOKE_CASES_FILE"
 
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -200,6 +204,67 @@ trigger_job() {
   local job_id="$1"
   local mode="${2:-single}"
   api_json_get POST "/api/v1/jobs/$job_id:trigger" data.id "{\"triggerType\":\"api\",\"executionMode\":\"$mode\"}"
+}
+
+create_script() {
+  local name="$1"
+  local language="$2"
+  local content="$3"
+  local body
+  body="$(python3 - "$RUN_ID" "$name" "$language" "$content" <<'PY'
+import json, sys
+run_id, name, language, content = sys.argv[1:]
+print(json.dumps({
+    'name': f'{run_id}-{name}',
+    'language': language,
+    'version': '1.0.0',
+    'content': content,
+    'timeout_seconds': 30,
+    'max_memory_bytes': 67108864,
+    'allow_network': False,
+}))
+PY
+)"
+  api_json_get POST /api/v1/scripts data.id "$body"
+}
+
+publish_script() {
+  local script_id="$1"
+  api_json_get POST "/api/v1/scripts/$script_id/publish" data.status '{}'
+}
+
+create_script_job() {
+  local name="$1"
+  local script_id="$2"
+  local body
+  body="$(python3 - "$RUN_ID" "$name" "$script_id" <<'PY'
+import json, sys
+run_id, name, script_id = sys.argv[1:]
+print(json.dumps({
+    'namespace': 'default',
+    'app': 'default',
+    'name': f'{run_id}-{name}',
+    'scheduleType': 'api',
+    'scriptId': script_id,
+    'enabled': True,
+}))
+PY
+)"
+  api_json_get POST /api/v1/jobs data.id "$body"
+}
+
+assert_queue_drained() {
+  local queue_file="$1"
+  api GET /api/v1/dispatch-queue > "$queue_file"
+  python3 - "$queue_file" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], encoding='utf-8'))['data']
+pending = int(payload.get('pending', 0))
+running = int(payload.get('running', 0))
+if pending != 0 or running != 0:
+    raise SystemExit(f'dispatch queue not drained: pending={pending} running={running}')
+print(f'dispatch queue drained: done={payload.get("done", 0)} failed={payload.get("failed", 0)}')
+PY
 }
 
 start_server_if_needed() {
@@ -383,6 +448,27 @@ PY
     fi
     sleep 1
   done
+
+  local shell_script shell_publish_status shell_job shell_instance shell_file shell_logs queue_file
+  shell_script="$(create_script shell-smoke shell 'echo tikee-shell-smoke')"
+  shell_publish_status="$(publish_script "$shell_script")"
+  if [[ "$shell_publish_status" != "approved" ]]; then
+    echo "shell script publish did not approve script: $shell_publish_status" >&2
+    return 1
+  fi
+  shell_job="$(create_script_job shell-script-job "$shell_script")"
+  shell_instance="$(trigger_job "$shell_job" single)"
+  wait_instance_status "$shell_instance" succeeded
+  shell_file="$REPORT_DIR/${RUN_ID}-${shell_instance}.json"
+  shell_logs="$REPORT_DIR/${RUN_ID}-${shell_instance}-logs.json"
+  api GET "/api/v1/instances/$shell_instance" > "$shell_file"
+  api GET "/api/v1/instances/$shell_instance/logs" > "$shell_logs"
+  tikee_smoke_assert instance "$shell_file" --expected-status succeeded --require-worker --min-log-count 1 --logs-file "$shell_logs" --require-log-text tikee-shell-smoke --forbid-duplicate-logs >/dev/null
+  tikee_smoke_record_case script-shell-success passed "$shell_file $shell_logs" "shell script executed through worker sandbox and persisted stdout logs"
+
+  queue_file="$REPORT_DIR/${RUN_ID}-dispatch-queue.json"
+  assert_queue_drained "$queue_file"
+  tikee_smoke_record_case dispatch-queue-drained passed "$queue_file" "dispatch queue has zero pending/running items after smoke"
 
   python3 - "$REPORT_FILE" "$RUN_ID" "$API_URL" "$WORKER_ENDPOINT" "$DEMO_URL" \
     "$echo_job" "$echo_instance" "$fail_job" "$fail_instance" \

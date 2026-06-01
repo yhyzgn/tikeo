@@ -91,6 +91,14 @@ public final class SandboxToolResolver {
             : Optional.empty();
     }
 
+    public Optional<String> resolveSrtCommand() {
+        SandboxToolInstaller.Tool tool = SandboxToolInstaller.Tool.SRT;
+        String command = resolveCommand(tool);
+        return toolAvailable(tool, command)
+            ? Optional.of(command)
+            : Optional.empty();
+    }
+
     public String localCommand(SandboxToolInstaller.Tool tool) {
         return SandboxToolInstaller.binaryPath(
             tool,

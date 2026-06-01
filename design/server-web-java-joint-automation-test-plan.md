@@ -214,7 +214,7 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 
 | ID | 功能/测试项 | 覆盖组件 | 执行方式 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| F-SCRIPT-001 | Shell 脚本任务 | server + Java SDK/demo | 创建/触发 shell script job | 分发到 worker，沙箱执行成功 | instance/logs | ⏳ 待执行 | 默认 auto sandbox |
+| F-SCRIPT-001 | Shell 脚本任务 | server + Java SDK/demo | 创建/触发 shell script job | 分发到 worker，经 SRT 沙箱执行成功且 stdout 入实例日志 | `.dev/reports/java-demo-20260601T052128Z-563896-inst_019e81a173267331bd069a20de0bdbd8-logs.json` | ✅ 通过 | 默认 auto sandbox：SHELL→SRT |
 | F-SCRIPT-002 | Python 脚本任务 | server + Java SDK/demo | 创建/触发 python script job | 不因 `script:python` 能力字符串缺失而卡 dispatching | instance/logs | ⏳ 待执行 | worker 统一接收，worker 侧选沙箱 |
 | F-SCRIPT-003 | JavaScript 脚本任务 | server + Java SDK/demo | 创建/触发 JavaScript job | 自动使用 Deno/V8 类沙箱 | instance/logs | ⏳ 待执行 | 语言全称 JavaScript |
 | F-SCRIPT-004 | TypeScript 脚本任务 | server + Java SDK/demo | 创建/触发 TypeScript job | 自动使用 Deno/V8 类沙箱 | instance/logs | ⏳ 待执行 | 语言全称 TypeScript |

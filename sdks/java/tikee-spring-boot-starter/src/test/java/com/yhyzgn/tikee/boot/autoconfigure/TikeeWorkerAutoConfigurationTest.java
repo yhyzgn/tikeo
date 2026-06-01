@@ -7,6 +7,9 @@ import com.yhyzgn.tikee.management.client.TikeeJobClient;
 import com.yhyzgn.tikee.processor.TikeeProcessor;
 import com.yhyzgn.tikee.processor.TikeeProcessorKind;
 import com.yhyzgn.tikee.spring.processor.TikeeProcessorRegistry;
+import com.yhyzgn.tikee.script.ScriptRunnerKind;
+import com.yhyzgn.tikee.script.ScriptRunnerRegistry;
+import com.yhyzgn.tikee.script.SrtScriptRunner;
 import com.yhyzgn.tikee.worker.client.NoopTikeeWorkerClient;
 import com.yhyzgn.tikee.worker.client.TikeeWorkerClient;
 import java.nio.file.Path;
@@ -39,6 +42,7 @@ class TikeeWorkerAutoConfigurationTest {
     @Test
     void dryRunCreatesNoopClientWithGeneratedRegistrationHint() throws Exception {
         installFakeWasmtime(stateDir);
+        installFakeSrt(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.scripts.container-enabled=false").run(context -> {
@@ -106,8 +110,9 @@ class TikeeWorkerAutoConfigurationTest {
     }
 
     @Test
-    void enablingScriptsDefaultsToWasmShellWithoutContainerRuntime() throws Exception {
+    void enablingScriptsDefaultsToWasmAndSrtShellWithoutContainerRuntime() throws Exception {
         installFakeWasmtime(stateDir);
+        installFakeSrt(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.scripts.enabled=true",
@@ -124,6 +129,7 @@ class TikeeWorkerAutoConfigurationTest {
     @Test
     void enablingSandboxScriptsAdvertisesScriptCapabilitiesWhenRuntimeCheckIsDisabled() throws Exception {
         installFakeWasmtime(stateDir);
+        installFakeSrt(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.scripts.enabled=true",
@@ -143,12 +149,16 @@ class TikeeWorkerAutoConfigurationTest {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(scriptLanguages(noop))
                             .contains("wasm", "shell", "python", "javascript", "typescript", "powershell", "php", "groovy", "rhai");
+                    ScriptRunnerRegistry registry = context.getBean(ScriptRunnerRegistry.class);
+                    assertThat(registry.find(ScriptRunnerKind.SHELL))
+                            .hasValueSatisfying(runner -> assertThat(runner).isInstanceOf(SrtScriptRunner.class));
                 });
     }
 
     @Test
-    void sandboxScriptsStayWasmOnlyWhenContainerRuntimeCommandIsMissing() throws Exception {
+    void sandboxScriptsStayWasmAndSrtShellWhenContainerRuntimeCommandIsMissing() throws Exception {
         installFakeWasmtime(stateDir);
+        installFakeSrt(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.scripts.enabled=true",
@@ -165,8 +175,9 @@ class TikeeWorkerAutoConfigurationTest {
     }
 
     @Test
-    void unavailableContainerRuntimeKeepsDefaultWasmShellOnly() throws Exception {
+    void unavailableContainerRuntimeKeepsDefaultWasmAndSrtShellOnly() throws Exception {
         installFakeWasmtime(stateDir);
+        installFakeSrt(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.scripts.enabled=true",
@@ -257,6 +268,13 @@ class TikeeWorkerAutoConfigurationTest {
         Path binary = stateDir.resolve("sandbox-tools").resolve("wasmtime").resolve("bin").resolve("wasmtime");
         java.nio.file.Files.createDirectories(binary.getParent());
         java.nio.file.Files.writeString(binary, "#!/usr/bin/env sh\necho wasmtime 0.0.0-test\n");
+        binary.toFile().setExecutable(true);
+    }
+
+    private static void installFakeSrt(Path stateDir) throws Exception {
+        Path binary = stateDir.resolve("sandbox-tools").resolve("srt").resolve("bin").resolve("srt");
+        java.nio.file.Files.createDirectories(binary.getParent());
+        java.nio.file.Files.writeString(binary, "#!/usr/bin/env sh\necho srt 0.0.0-test\n");
         binary.toFile().setExecutable(true);
     }
 
