@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
-import { ApiClientError, createAppScope, createJob, createNamespace, createPlugin, createSdkApiKey, createServiceAccount, createWorkerPool, deletePlugin, disableServiceAccount, dryRunWorkflow, getAuthToken, listInstanceLogs, getJobImpact, getJobSchedulingAdvice, getJobTopology, getWorkflowReplay, listJobVersions, listJobs, listNamespaces, listPlugins, listServiceAccounts, listWorkerPools, login, rollbackJob, setAuthErrorHandler, setAuthToken, triggerJob, triggerJobWebhookEvent, updateJob, updatePlugin, updateSdkApiKey, updateServiceAccount, updateWorkflow } from './client';
+import { ApiClientError, createAppScope, createCalendar, createJob, createNamespace, createPlugin, createSdkApiKey, createServiceAccount, createWorkerPool, deletePlugin, disableServiceAccount, dryRunWorkflow, getAuthToken, listInstanceLogs, getJobImpact, getJobSchedulingAdvice, getJobTopology, getWorkflowReplay, listJobVersions, listJobs, listNamespaces, listPlugins, listServiceAccounts, listWorkerPools, login, rollbackJob, setAuthErrorHandler, setAuthToken, triggerJob, triggerJobWebhookEvent, updateJob, updatePlugin, updateSdkApiKey, updateServiceAccount, updateWorkflow } from './client';
 
 const originalFetch = globalThis.fetch;
 
@@ -356,6 +356,53 @@ describe('api client envelope handling', () => {
     expect(calls.map((call) => call.url)).toContain('/api/v1/namespaces');
     expect(calls.map((call) => call.url)).toContain('/api/v1/worker-pools?namespace=default&app=billing');
     expect(calls.at(-1)?.body).toEqual({ namespace: 'payments', app: 'settlement', name: 'critical' });
+  });
+
+  test('creates calendars with typed date arrays and start/end window payloads', async () => {
+    let capturedBody: unknown = null;
+    globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      capturedBody = init?.body ? JSON.parse(String(init.body)) : null;
+      return new Response(JSON.stringify({
+        code: 0,
+        message: 'success',
+        data: {
+          id: 'cal_1',
+          namespace: 'default',
+          app: 'billing',
+          name: 'cn-maintenance',
+          timezone: 'Asia/Shanghai',
+          excludedDates: ['2026-10-01'],
+          holidays: ['2026-10-02'],
+          maintenanceWindows: [{ start: '2026-06-01T01:00:00.000Z', end: '2026-06-01T02:00:00.000Z' }],
+          freezeWindows: [{ start: '2026-06-02T01:00:00.000Z', end: '2026-06-02T02:00:00.000Z' }],
+          createdBy: 'admin',
+          createdAt: 'now',
+          updatedAt: 'now',
+        },
+      }));
+    }) as unknown as typeof fetch;
+
+    await expect(createCalendar({
+      namespace: 'default',
+      app: 'billing',
+      name: 'cn-maintenance',
+      timezone: 'Asia/Shanghai',
+      excludedDates: ['2026-10-01'],
+      holidays: ['2026-10-02'],
+      maintenanceWindows: [{ start: '2026-06-01T01:00:00.000Z', end: '2026-06-01T02:00:00.000Z' }],
+      freezeWindows: [{ start: '2026-06-02T01:00:00.000Z', end: '2026-06-02T02:00:00.000Z' }],
+    })).resolves.toMatchObject({ id: 'cal_1' });
+
+    expect(capturedBody).toEqual({
+      namespace: 'default',
+      app: 'billing',
+      name: 'cn-maintenance',
+      timezone: 'Asia/Shanghai',
+      excludedDates: ['2026-10-01'],
+      holidays: ['2026-10-02'],
+      maintenanceWindows: [{ start: '2026-06-01T01:00:00.000Z', end: '2026-06-01T02:00:00.000Z' }],
+      freezeWindows: [{ start: '2026-06-02T01:00:00.000Z', end: '2026-06-02T02:00:00.000Z' }],
+    });
   });
 
   test('manages service accounts and binds sdk api keys by existing id', async () => {

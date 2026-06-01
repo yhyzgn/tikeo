@@ -162,6 +162,7 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 | C-WEB-006 | API-Key 页面 | web + server | 创建/编辑 API-Key | 创建弹窗 key 可点击复制，列表不泄露明文 | screenshot / API assert | ⏳ 待执行 | 覆盖 SDK API-Key UI；任务分页另见执行状态计划 C-WEB-006 |
 | C-WEB-006A | 任务列表分页 | web | JobsPage + pagination unit | 默认 20；下拉选项 10/20/50/100；cookie 持久化 | `.dev/reports/web-jobs-pagination-20260601T0710-test.log`、`.dev/reports/web-typecheck-20260601T0710.log` | ✅ 通过 | 对齐执行状态计划中的任务分页项 |
 | C-WEB-008A | 操作按钮样式与主题色 | web | OperationButtons + Theme unit | 任务/实例操作按钮平铺；primary/link/default hover 跟随全局主色调 | `.dev/reports/web-operation-buttons-20260601T0720-test.log`、`.dev/reports/web-typecheck-20260601T0720.log` | ✅ 通过 | 对齐执行状态计划中的操作按钮样式项；截图待浏览器 e2e |
+| C-WEB-009A | 调度日历维护窗口 | web + API client | Calendar window unit + payload test | 编辑按钮存在；维护/冻结窗口由 RangePicker 行维护；payload 为 start/end 数组，不手写 JSON | `.dev/reports/web-calendar-windows-20260601T0725-test.log`、`.dev/reports/web-typecheck-20260601T0725.log` | ✅ 通过 | 对齐执行状态计划中的调度日历项；截图待浏览器 e2e |
 | C-WEB-007 | 任务拓扑二级页 | web + server | 打开任务拓扑页面 | 画布渲染、全屏切换、箭头避让/动画正常 | screenshot/video | ⏳ 待执行 | 图形回放基础 |
 | C-WEB-008 | 工作流画布 | web + server | 打开 workflow designer | 全屏切换、实线流动动画正常 | screenshot/video | ⏳ 待执行 | 与任务拓扑一致交互 |
 | C-WEB-009 | 插件处理器任务创建 | web + server | 创建插件类型任务 | 处理器/插件字段来自结构化候选项，不手填错配 | `.dev/reports/web-job-drawer-20260601T0715-test.log`、`.dev/reports/web-typecheck-20260601T0715.log` | ✅ 通过 | 已覆盖 SDK/Script/Plugin 结构化候选和 create/update camelCase payload；截图待浏览器 e2e |

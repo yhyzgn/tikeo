@@ -25,7 +25,7 @@ interface CalendarFormValues {
   freezeWindows?: CalendarWindowFormValue[];
 }
 
-function toWindowPayloads(items?: CalendarWindowFormValue[]): CalendarWindowPayload[] {
+export function toWindowPayloads(items?: CalendarWindowFormValue[]): CalendarWindowPayload[] {
   return (items || []).flatMap((item) => {
     const [start, end] = item.range ?? [];
     return start && end ? [{ start: start.toISOString(), end: end.toISOString() }] : [];
