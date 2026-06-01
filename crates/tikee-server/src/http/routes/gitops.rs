@@ -13,6 +13,7 @@ use axum::{
 use sha2::{Digest, Sha256};
 
 use crate::http::{
+    routes::common::audit,
     AppState, auth,
     dto::{
         AlertRuleSummary, ApiResponse, GitOpsDiffApiResponse, GitOpsDiffChange, GitOpsDiffRequest,
@@ -39,7 +40,17 @@ pub async fn export_gitops_manifest(
     headers: HeaderMap,
     Query(query): Query<GitOpsExportQuery>,
 ) -> Result<Json<ApiResponse<GitOpsManifestResponse>>, ApiError> {
-    auth::require_permission(&headers, &state, "tenants", "read").await?;
+    let principal = auth::require_permission(&headers, &state, "tenants", "read").await?;
+    audit(
+        &state,
+        &principal.username,
+        "gitops_manifest_export",
+        "tenants",
+        &query.namespace.clone().unwrap_or_else(|| "all".to_owned()),
+        Some(format!("app={:?}", query.app)),
+        &headers,
+    )
+    .await;
     let manifest = build_manifest(&state, query.namespace.clone(), query.app.clone()).await?;
     let format = query.format.unwrap_or_else(|| "json".to_owned());
     if !matches!(format.as_str(), "json" | "yaml") {
@@ -81,8 +92,18 @@ pub async fn diff_gitops_manifest(
     headers: HeaderMap,
     Json(request): Json<GitOpsDiffRequest>,
 ) -> Result<Json<ApiResponse<GitOpsDiffResponse>>, ApiError> {
-    auth::require_permission(&headers, &state, "tenants", "read").await?;
+    let principal = auth::require_permission(&headers, &state, "tenants", "read").await?;
     let scope = request.manifest.scope.clone();
+    audit(
+        &state,
+        &principal.username,
+        "gitops_manifest_diff",
+        "tenants",
+        &scope.namespace.clone().unwrap_or_else(|| "all".to_owned()),
+        Some(format!("app={:?}", scope.app)),
+        &headers,
+    )
+    .await;
     let current = build_manifest(&state, scope.namespace.clone(), scope.app.clone()).await?;
     let changes = diff_resources(&current.resources, &request.manifest.resources)?;
     let summary = summarize_changes(&changes);

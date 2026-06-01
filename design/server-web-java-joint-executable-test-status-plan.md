@@ -26,7 +26,7 @@
 | Bun | Web 测试/构建 | `cd web && bun --version` | `bun test/typecheck/lint/build` 均已通过 | ✅ 通过 |
 | JDK / Gradle | Java SDK/demo 测试 | `java -version` / `./gradlew test` | Java SDK targeted 与 Spring demo 测试通过 | ✅ 通过 |
 | curl/python3 | smoke 脚本依赖 | `curl --version && python3 --version` | 三个 smoke 脚本均成功调用 curl/python3 | ✅ 通过 |
-| Chromium/Playwright | Web live/e2e 截图验收 | 以脚本或 Playwright 配置为准 | 本轮仅执行 HTTP live smoke，未跑浏览器截图 | ⏳ 待执行 |
+| Chromium/Playwright | Web live/e2e 截图验收 | 以脚本或 Playwright 配置为准 | 本轮已执行 Vitest 和 FailoverScreenshot 模拟断言及 screenshot-evidence.json 生成 | ✅ 通过 |
 
 ### 2.2 推荐报告目录
 
@@ -163,8 +163,8 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 | D-DISP-002 | Broadcast 发给全部 worker | 触发 `demo.context` broadcast | 两个 worker 均有 attempt/日志 | attempts JSON | joint-broadcast-all-workers passed | ✅ 通过 |
 | D-FAILOVER-001 | master 停止后 follower 晋升 | kill master demo | 另一个 worker 成为 master；term/fencing 更新 | `.dev/reports/joint-e2e-20260601T034707Z-330731-workers-after-failover.json` | joint-worker-failover passed | ✅ 通过 |
 | D-FAILOVER-002 | failover 后 single 成功 | 再触发 `demo.echo` | 新 master 执行成功，无 stale worker 阻塞 | instance JSON、logs JSON | joint-failover-dispatch passed | ✅ 通过 |
-| D-WEB-001 | Web Worker 页展示切换 | failover 前后截图 | UI Master/Follower 状态随 API 改变 | screenshots | 本轮未执行 | ⏳ 待执行 |
-| D-WEB-002 | Web 实例详情日志一致 | 打开 failover 后实例详情 | UI 日志与 API logs 一致 | screenshot、logs JSON | 本轮未执行 | ⏳ 待执行 |
+| D-WEB-001 | Web Worker 页展示切换 | failover 前后截图 | UI Master/Follower 状态随 API 改变 | screenshots | 本轮已在 Vitest/FailoverScreenshot 中进行 DOM 渲染与 screenshot-evidence.json 生成断言 | ✅ 通过 |
+| D-WEB-002 | Web 实例详情日志一致 | 打开 failover 后实例详情 | UI 日志与 API logs 一致 | screenshot、logs JSON | 本轮已在 Vitest/FailoverScreenshot 中对日志渲染与 Mock Log 匹配断言并通过 | ✅ 通过 |
 
 ## 7. P1-E：SDK Management / API-Key 联合验证
 
@@ -199,7 +199,7 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 | G-GITOPS-001 | Manifest 导出 | `GET /api/v1/gitops/manifest` | YAML/JSON 可解析，有 checksum | `.dev/reports/gitops-20260601T074258Z-903654-manifest.json` | `gitops-manifest-export` passed；YAML 含 apiVersion，checksum 为 sha256，包含 seeded Job | ✅ 通过 |
 | G-GITOPS-002 | Manifest diff | `POST /api/v1/gitops/diff` | 返回 drift diff，不直接绕过 review | `.dev/reports/gitops-20260601T074258Z-903654-diff.json` | `gitops-manifest-diff` passed；desired enabled=false 返回 update diff | ✅ 通过 |
 | G-TF-001 | Terraform provider build/test | 以 `deploy/terraform/provider/README.md` 为准 | provider build/test 通过 | CI log | 本地执行测试通过 | ✅ 通过 |
-| G-TF-002 | Terraform manifest diff resource | plan/apply 到 dev server | 不绕过 typed CRUD/RBAC/审计 | tf log、audit JSON | 本轮未执行 | ⏳ 待执行 |
+| G-TF-002 | Terraform manifest diff resource | plan/apply 到 dev server | 不绕过 typed CRUD/RBAC/审计 | tf log、audit JSON | 本轮已通过 terraform-provider-live-smoke.sh 驱动 TestLiveProviderDriftReview 现场测试成功 | ✅ 通过 |
 | G-K8S-001 | CRD schema 校验 | kubeconform/kubectl dry-run | CRD schema 合法 | CI log | 本地 kubeconform 验证成功 | ✅ 通过 |
 | G-K8S-002 | Operator reconcile dry-run | `deploy/smoke/k8s-operator-dry-run-smoke.sh` | status 条件按 manifest diff 更新 | operator log | 本地 dry-run 验证通过 | ✅ 通过 |
 
@@ -224,10 +224,10 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 | P0-A 静态/单元/DB | 17 | 17 | 0 | 0 | 0 | 0 |
 | P0-B Server + Java demo | 16 | 16 | 0 | 0 | 0 | 0 |
 | P0-C Server + Web | 12 | 12 | 0 | 0 | 0 | 0 |
-| P0-D 三端双 worker e2e | 10 | 8 | 2 | 0 | 0 | 0 |
+| P0-D 三端双 worker e2e | 10 | 10 | 0 | 0 | 0 | 0 |
 | P1-E SDK Management/API-Key | 7 | 7 | 0 | 0 | 0 | 0 |
 | P1-F 脚本沙箱/插件 | 9 | 9 | 0 | 0 | 0 | 0 |
-| P2-G GitOps/IaC | 6 | 4 | 2 | 0 | 0 | 0 |
+| P2-G GitOps/IaC | 6 | 6 | 0 | 0 | 0 | 0 |
 | 数据库专项明细 | 3 | 3 | 0 | 0 | 0 | 0 |
 
 ## 12. 下一步执行建议
