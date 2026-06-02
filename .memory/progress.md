@@ -1249,3 +1249,9 @@ Verification evidence:
 - 用例同时检查 SDK 层 Boot2/Boot3/Boot4 starter 与 Spring5/Spring6 adapter 都是带真实源码/测试/资源元数据的模块，避免空模块或 Gradle sourceSet 伪兼容。
 - Demo README 已补充 starter 兼容矩阵与测试项说明。
 - 验证：`cd examples/java/spring-worker-demo && ./gradlew clean test --no-daemon`；`cd sdks/java && ./gradlew clean test --no-daemon`；`git diff --check -- examples/java/spring-worker-demo sdks/java .memory`。
+
+### 2026-06-02 — Java demo 按 Spring Boot 2/3/4 独立拆分
+- `examples/java` 下新增三个独立 demo：`spring-boot2-worker-demo`、`spring-boot3-worker-demo`、`spring-boot4-worker-demo`。
+- 每个 demo 独立 Gradle 工程/工作目录，分别依赖 `tikee-spring-boot2-starter`、`tikee-spring-boot3-starter`、`tikee-spring-boot-starter`，并保留 processor、worker lifecycle、management API、script/API/plugin 用例测试。
+- Boot2 demo 使用 Spring Boot 2.7 BOM 方式规避 Boot2 Gradle plugin 与当前 Gradle 9.5.1 API 冲突，但仍是标准 Spring Boot 2 应用与 `@SpringBootTest` 用例。
+- 验证：三套 demo 均在各自目录执行 `./gradlew clean test --no-daemon` 通过。

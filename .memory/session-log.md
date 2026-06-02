@@ -1877,3 +1877,9 @@ Commit/push:
 - The demo test now also verifies the Java SDK publishes separate Boot 2, Boot 3, and Boot 4 starter modules plus Spring 5/6 adapters with concrete `src/main` and `src/test` trees, not Gradle-only aliases.
 - Updated the Java demo README with the compatibility matrix and test-suite entry so the expected starter choice is visible to users.
 - Verification: `cd examples/java/spring-worker-demo && ./gradlew clean test --no-daemon`; `cd sdks/java && ./gradlew clean test --no-daemon`; source-count checks for compat modules; `git diff --check -- examples/java/spring-worker-demo sdks/java .memory`.
+
+### 2026-06-02 — Split Java Spring Boot demos by major version
+- Added independent Java demo projects under `examples/java/spring-boot2-worker-demo`, `examples/java/spring-boot3-worker-demo`, and `examples/java/spring-boot4-worker-demo` instead of relying on a single Boot3 demo plus matrix assertions.
+- Each demo has its own Gradle wrapper/project files, source tree, tests, README, default port, worker labels, processor examples, management API examples, and matching tikee starter dependency.
+- Boot2 demo intentionally uses the Spring Boot 2.7 BOM without applying the Boot Gradle plugin because the Boot 2 plugin is not compatible with the current Gradle 9.5.1 API; the application remains a standard `@SpringBootApplication` with Boot2 web/test dependencies.
+- Verification: Boot2/Boot3/Boot4 demo `./gradlew clean test --no-daemon` all passed from their own directories.

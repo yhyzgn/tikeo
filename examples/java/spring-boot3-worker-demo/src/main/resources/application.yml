@@ -1,0 +1,49 @@
+server:
+  port: ${TIKEE_DEMO_SERVER_PORT:18083}
+
+spring:
+  application:
+    name: tikee-spring-boot3-worker-demo
+  output:
+    ansi:
+      enabled: always
+
+tikee:
+  worker:
+    dry-run: ${TIKEE_WORKER_DRY_RUN:false}
+    endpoint: ${TIKEE_WORKER_ENDPOINT:http://127.0.0.1:9998}
+    client-instance-id: ${TIKEE_WORKER_CLIENT_INSTANCE_ID:}
+    state-dir: ${TIKEE_WORKER_STATE_DIR:}
+    namespace: default
+    app: default
+    cluster: local
+    region: local
+    capabilities:
+      - java
+      - spring-boot
+    labels:
+      runtime: java
+      demo: spring-boot3-worker-demo
+    wasm:
+      auto-install: ${TIKEE_WORKER_WASM_AUTO_INSTALL:true}
+      install-version: ${TIKEE_WORKER_WASM_VERSION:latest}
+      install-dir: ${TIKEE_WORKER_WASM_INSTALL_DIR:}
+    scripts:
+      enabled: ${TIKEE_WORKER_SCRIPTS_ENABLED:true}
+      container-enabled: ${TIKEE_WORKER_CONTAINER_SCRIPTS_ENABLED:false}
+      runtime-command: ${TIKEE_WORKER_CONTAINER_RUNTIME:}
+      availability-check: ${TIKEE_WORKER_SCRIPT_RUNTIME_CHECK:true}
+      images:
+        shell: ${TIKEE_WORKER_SCRIPT_SHELL_IMAGE:}
+        python: ${TIKEE_WORKER_SCRIPT_PYTHON_IMAGE:}
+        js: ${TIKEE_WORKER_SCRIPT_JAVASCRIPT_IMAGE:}
+        ts: ${TIKEE_WORKER_SCRIPT_TYPESCRIPT_IMAGE:}
+        powershell: ${TIKEE_WORKER_SCRIPT_POWERSHELL_IMAGE:}
+        rhai: ${TIKEE_WORKER_SCRIPT_RHAI_IMAGE:}
+
+  management:
+    enabled: ${TIKEE_MANAGEMENT_ENABLED:true}
+    endpoint: ${TIKEE_MANAGEMENT_ENDPOINT:http://127.0.0.1:9999}
+    api-key: ${TIKEE_MANAGEMENT_API_KEY:tk-TBP5qDyzqkagXI8Rbr5e3tMayvL6Y3ppk7WLZae1hqgwVhD1eRWLHZzzV7ToOh73}
+    namespace: ${TIKEE_MANAGEMENT_NAMESPACE:default}
+    app: ${TIKEE_MANAGEMENT_APP:default}
