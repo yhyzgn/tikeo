@@ -9,5 +9,3 @@ The Java examples are split by Spring Boot major version so each demo validates 
 | `spring-boot4-worker-demo` | 4.0.x | `tikee-spring-boot-starter` | `18084` | `(cd examples/java/spring-boot4-worker-demo && ./gradlew clean test --no-daemon)` |
 
 Each demo contains its own `settings.gradle.kts`, `build.gradle.kts`, Gradle wrapper, `src/main`, `src/test`, and README. They all include the same worker use-case surface: task processors, worker lifecycle/logging, processor registry invocation, management API examples, script/API/plugin job management examples, and starter compatibility assertions.
-
-`spring-worker-demo` is kept as the original Boot 3 demo path for continuity, but new version-specific validation should use the three `spring-boot*-worker-demo` directories above.

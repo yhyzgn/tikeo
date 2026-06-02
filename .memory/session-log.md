@@ -1883,3 +1883,14 @@ Commit/push:
 - Each demo has its own Gradle wrapper/project files, source tree, tests, README, default port, worker labels, processor examples, management API examples, and matching tikee starter dependency.
 - Boot2 demo intentionally uses the Spring Boot 2.7 BOM without applying the Boot Gradle plugin because the Boot 2 plugin is not compatible with the current Gradle 9.5.1 API; the application remains a standard `@SpringBootApplication` with Boot2 web/test dependencies.
 - Verification: Boot2/Boot3/Boot4 demo `./gradlew clean test --no-daemon` all passed from their own directories.
+
+### 2026-06-02 — Removed obsolete generic Java Spring demo
+- Removed `examples/java/spring-worker-demo` after adding explicit Spring Boot 2/3/4 demos; keeping it would create duplicate Boot3 maintenance and path ambiguity.
+- Updated current README, smoke scripts, integration docs, test plans, and architecture docs to point at `spring-boot3-worker-demo` for default Java joint testing and document the three-version demo split.
+- Verification pending in this turn: Boot2/Boot3/Boot4 demo tests, Java SDK tests, shell syntax, and diff check.
+
+### 2026-06-02 — Java SDK Gradle ownership split per module
+- Reworked `sdks/java` from a root build script that injected all module plugins/dependencies into a root aggregator plus per-module `build.gradle.kts` files.
+- Root `sdks/java/build.gradle.kts` now owns only aggregation and shared group/version; each SDK module owns `java-library`, `maven-publish`, dependencies, tests, and framework/plugin constraints.
+- `tikee` owns the protobuf plugin and gRPC/protobuf dependencies; Spring adapters own their Spring Framework major version; Boot starters own their Boot BOM and starter/autoconfigure dependencies.
+- Verification: `cd sdks/java && ./gradlew projects --no-daemon`; `cd sdks/java && ./gradlew clean test publishToMavenLocal --no-daemon`; Boot2/Boot3/Boot4 demo `./gradlew clean test --no-daemon`.

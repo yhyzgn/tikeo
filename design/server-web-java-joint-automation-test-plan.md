@@ -71,7 +71,7 @@ rtk bun --prefix web run build
 
 # 3) Java SDK / demo 单元验证
 rtk bash -lc 'cd sdks/java && ./gradlew test --no-daemon'
-rtk bash -lc 'cd examples/java/spring-worker-demo && ./gradlew test --no-daemon'
+rtk bash -lc 'cd examples/java/spring-boot3-worker-demo && ./gradlew test --no-daemon'
 
 # 4) Server + Java demo 集成 smoke
 rtk bash deploy/smoke/java-demo-integration-smoke.sh
@@ -114,7 +114,7 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 | A-WEB-004 | Web 生产构建 | web | `rtk bun --prefix web run build` | dist 构建成功 | `web/dist` / CI log | ✅ 通过 | 验证刷新路由 404 修复不破坏构建 |
 | A-JAVA-001 | Java SDK 单元测试 | Java SDK | `rtk bash -lc 'cd sdks/java && ./gradlew test --no-daemon'` | 不仅全部通过，还必须确认 SDK 请求结构、API-Key header、worker registration/election payload 符合协议 | Gradle test report | ✅ 通过 | 包含 management/API-Key/worker client |
 | A-JAVA-002 | Java worker client targeted 测试 | Java SDK | `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClientTest --no-daemon'` | 全部通过 | Gradle test report | ✅ 通过 | 验证结构化 registration/election |
-| A-DEMO-001 | Java Spring demo 单元测试 | Java demo | `rtk bash -lc 'cd examples/java/spring-worker-demo && ./gradlew test --no-daemon'` | 全部通过 | Gradle test report | ✅ 通过 | demo processor 与配置检查 |
+| A-DEMO-001 | Java Spring demo 单元测试 | Java demo | `rtk bash -lc 'cd examples/java/spring-boot3-worker-demo && ./gradlew test --no-daemon'` | 全部通过 | Gradle test report | ✅ 通过 | demo processor 与配置检查 |
 | A-DB-001 | SQLite 存储兼容 smoke | storage | `rtk cargo test -p tikee-storage --test database_compat sqlite_database_compatibility_smoke -- --nocapture` | 空 schema bootstrap、幂等迁移、scope/job/version/plugin/script/instance/log 业务断言全部通过 | CI log | ✅ 通过 | 本地必跑 |
 | A-DB-002 | PostgreSQL 存储兼容 smoke | storage + PostgreSQL | `rtk bash scripts/db-compat-smoke.sh` 或设置 `TIKEE_TEST_POSTGRES_URL` 后运行 external smoke | PostgreSQL 上迁移幂等，RBAC seed、索引唯一性、JSON/text、bool/int、日志 Unicode 断言通过 | CI log / DB version | ✅ 通过 | Docker 或外部 DB 必选其一 |
 | A-DB-003 | MySQL 存储兼容 smoke | storage + MySQL | `rtk bash scripts/db-compat-smoke.sh` 或设置 `TIKEE_TEST_MYSQL_URL` 后运行 external smoke | MySQL 8.0+/8.4 上迁移幂等，`utf8mb4` 文本、JSON text、bool/int、日志 Unicode 断言通过 | CI log / DB version | ✅ 通过 | Docker 或外部 DB 必选其一 |
@@ -379,7 +379,7 @@ Tester/CI: <name or job url>
 rtk cargo test -p tikee-server worker -- --nocapture
 rtk bun --prefix web test -- --run
 rtk bash -lc 'cd sdks/java && ./gradlew test --no-daemon'
-rtk bash -lc 'cd examples/java/spring-worker-demo && ./gradlew test --no-daemon'
+rtk bash -lc 'cd examples/java/spring-boot3-worker-demo && ./gradlew test --no-daemon'
 rtk bash deploy/smoke/java-demo-integration-smoke.sh
 ```
 
@@ -399,7 +399,7 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 | `crates/tikee-server/src/tunnel/*` 测试 | worker registry、dispatcher、worker master | 高 | 单元层已覆盖；真实 Java demo 双 worker 由 joint e2e 脚本覆盖 | ✅ 已覆盖 |
 | `web/src/**/*.test.ts(x)` | API client、路由、页面源码级回归 | 中 | 已补 Web live smoke 与路由证据；真实浏览器截图/视频属于可选增强 | ✅ 已补 live smoke；浏览器截图为可选增强 |
 | `sdks/java/**/src/test` | Java SDK、Spring starter、sandbox、processor registry | 高 | 已补 SDK API-Key live smoke 脚本入口 | ✅ 已补 live smoke 入口 |
-| `examples/java/spring-worker-demo/src/test` | demo 启动、处理器、管理 controller | 高 | 已补双 worker 启动脚本与 joint e2e failover 断言 | ✅ 已补脚本 |
+| `examples/java/spring-boot2-worker-demo/src/test` / `spring-boot3-worker-demo/src/test` / `spring-boot4-worker-demo/src/test` | demo 启动、处理器、管理 controller | 高 | 已补双 worker 启动脚本与 joint e2e failover 断言 | ✅ 已补脚本 |
 | `deploy/tests/iac_artifacts_test.py` | IaC artifact 静态验证 | 中 | Terraform/K8s dry-run 入口已补；真实集群验证属发布环境增强 | ✅ 已覆盖 |
 
 ### 13.2 必须补充的 P0 测试脚本/代码
@@ -418,7 +418,7 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 | ID | 建议资产 | 建议路径 | 作用 | 必须验证的功能预期 | 优先级 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- |
 | ADD-P1-001 | SDK API-Key live smoke | `deploy/smoke/sdk-api-key-live-smoke.sh` | 连接真实 server 并使用 `x-tikee-api-key` 调用管理链路 | API-Key 格式、namespace/app scope、create/update/use 与 server 状态一致 | P1 | ✅ 已自动化 |
-| ADD-P1-002 | Java demo 双 worker 启动脚本支持 | `examples/java/spring-worker-demo/scripts/run-demo-worker.sh` | 统一传入 port/clientInstanceId/election priority/stateDir | 同一代码可启动 A/B 两个稳定 worker，互不抢端口/状态目录 | P1 | ✅ 已自动化 |
+| ADD-P1-002 | Java demo 双 worker 启动脚本支持 | `examples/java/spring-boot3-worker-demo/scripts/run-demo-worker.sh` | Boot3 联调默认脚本；Boot2/Boot4 目录提供同名脚本，统一传入 port/clientInstanceId/election priority/stateDir | 同一代码可启动 A/B 两个稳定 worker，互不抢端口/状态目录 | P1 | ✅ 已自动化 |
 | ADD-P1-003 | Web live smoke 路由测试 | `deploy/smoke/web-live-smoke.sh` | 用真实 Vite 服务验证关键 SPA 路由 shell 与非 404 | `/`、`/login`、`/api-keys`、`/workers` 可刷新访问；Playwright 截图为可选增强 | P1 | ✅ 已自动化 |
 | ADD-P1-004 | Web 静态/路由测试脚本 | `web/package.json` + `deploy/smoke/web-live-smoke.sh` | 复用现有 `bun test/typecheck/lint/build` 与 live smoke | CI 可一键跑 Web 静态测试和 live route smoke；截图/video 为可选增强 | P1 | ✅ 已覆盖 |
 | ADD-P1-005 | 脚本沙箱 live smoke | `deploy/smoke/script-sandbox-live-smoke.sh` | 自动创建 Shell/Python/JavaScript/TypeScript/Rhai 脚本定义 | 服务端脚本语言模型与治理字段可被自动断言；真实执行由 joint/script runtime 环境启用后继续跑 | P1 | ✅ 已自动化 |

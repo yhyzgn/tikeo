@@ -60,7 +60,7 @@ rtk bash -lc 'cd web && bun run build'
 
 # E. Java SDK / Demo 回归
 rtk bash -lc 'cd sdks/java && ./gradlew test --no-daemon'
-rtk bash -lc 'cd examples/java/spring-worker-demo && ./gradlew test --no-daemon'
+rtk bash -lc 'cd examples/java/spring-boot3-worker-demo && ./gradlew test --no-daemon'
 
 # F. Server + Java demo live smoke
 rtk bash deploy/smoke/java-demo-integration-smoke.sh
@@ -92,7 +92,7 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 | A-WEB-004 | Web build | `rtk bash -lc 'cd web && bun run build'` | 生产构建成功，SPA fallback 不破坏构建 | rtk/Bun build log | 已执行通过 | ✅ 通过 |
 | A-JAVA-001 | Java SDK 单元测试 | `rtk bash -lc 'cd sdks/java && ./gradlew test --no-daemon'` | management client、API-Key、worker client、请求 payload 断言通过 | Gradle report / rtk log | 已执行通过 | ✅ 通过 |
 | A-JAVA-002 | Java worker client targeted 测试 | `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClientTest --no-daemon'` | gRPC 注册、心跳、任务响应协议测试通过 | Gradle report / rtk log | 已执行通过 | ✅ 通过 |
-| A-DEMO-001 | Java Spring demo 单元测试 | `rtk bash -lc 'cd examples/java/spring-worker-demo && ./gradlew test --no-daemon'` | demo processors、Spring 配置、任务用例类测试通过 | Gradle report / rtk log | 已执行通过 | ✅ 通过 |
+| A-DEMO-001 | Java Spring demo 单元测试 | `rtk bash -lc 'cd examples/java/spring-boot3-worker-demo && ./gradlew test --no-daemon'` | demo processors、Spring 配置、任务用例类测试通过 | Gradle report / rtk log | 已执行通过 | ✅ 通过 |
 
 ## 4. P0-B：Server + Java demo 集成 smoke
 

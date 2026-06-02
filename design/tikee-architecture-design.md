@@ -437,7 +437,9 @@ examples/
 ├── rust/
 │   └── worker-demo/                    # Rust SDK demo worker / task processor
 ├── java/
-│   └── spring-worker-demo/             # Java Spring Boot demo app，Gradle 构建，JDK 21+
+│   ├── spring-boot2-worker-demo/       # Java Spring Boot 2 demo app，Gradle 构建，Java 17+
+│   ├── spring-boot3-worker-demo/       # Java Spring Boot 3 demo app，Gradle 构建，Java 17+
+│   └── spring-boot4-worker-demo/       # Java Spring Boot 4 demo app，Gradle 构建，Java 17+
 ├── go/
 │   └── worker-demo/                    # Go SDK demo worker
 ├── python/
@@ -2088,7 +2090,9 @@ tikee/
 │
 ├── examples/                         # SDK demo 项目，按 sdks/ 语言结构对齐
 │   ├── rust/worker-demo/
-│   ├── java/spring-worker-demo/
+│   ├── java/spring-boot2-worker-demo/
+│   ├── java/spring-boot3-worker-demo/
+│   ├── java/spring-boot4-worker-demo/
 │   ├── go/worker-demo/
 │   ├── python/worker-demo/
 │   └── nodejs/worker-demo/

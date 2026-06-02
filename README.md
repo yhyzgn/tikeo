@@ -111,7 +111,7 @@ bun run --cwd web build
 ## SDK 与 Demo 目录规范
 
 - SDK 总目录：`sdks/<language>/<sdk-name>/`，例如 `sdks/rust/tikee/`、`sdks/java/tikee-spring-boot-starter/`。
-- Demo 总目录：`examples/<language>/<demo-name>/`，例如 `examples/rust/worker-demo/`、`examples/java/spring-worker-demo/`。
+- Demo 总目录：`examples/<language>/<demo-name>/`，例如 `examples/rust/worker-demo/`、`examples/java/spring-boot3-worker-demo/`。
 - 每个已实现 SDK / Demo 都必须能在自身目录或通过显式 `-p` / `--manifest-path` 单独构建、测试、运行。
 - 根 `Dockerfile` 只构建 tikee 服务端镜像，绝不复制、缓存或构建 `sdks/` 与 `examples/`。
 
@@ -122,8 +122,8 @@ cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features
 cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
 (cd sdks/java && ./gradlew test)
 (cd sdks/java && ./gradlew :tikee-spring-boot-starter:test)
-(cd examples/java/spring-worker-demo && ./gradlew test)
-(cd examples/java/spring-worker-demo && TIKEE_WORKER_DRY_RUN=false TIKEE_WORKER_ENDPOINT=http://127.0.0.1:9998 ./gradlew bootRun)
+(cd examples/java/spring-boot3-worker-demo && ./gradlew test)
+(cd examples/java/spring-boot3-worker-demo && TIKEE_WORKER_DRY_RUN=false TIKEE_WORKER_ENDPOINT=http://127.0.0.1:9998 ./gradlew bootRun)
 ```
 
 ## Worker ID 注册约束

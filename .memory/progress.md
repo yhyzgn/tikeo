@@ -1255,3 +1255,12 @@ Verification evidence:
 - 每个 demo 独立 Gradle 工程/工作目录，分别依赖 `tikee-spring-boot2-starter`、`tikee-spring-boot3-starter`、`tikee-spring-boot-starter`，并保留 processor、worker lifecycle、management API、script/API/plugin 用例测试。
 - Boot2 demo 使用 Spring Boot 2.7 BOM 方式规避 Boot2 Gradle plugin 与当前 Gradle 9.5.1 API 冲突，但仍是标准 Spring Boot 2 应用与 `@SpringBootTest` 用例。
 - 验证：三套 demo 均在各自目录执行 `./gradlew clean test --no-daemon` 通过。
+
+### 2026-06-02 — 删除旧 `spring-worker-demo` 泛化 demo
+- 删除 `examples/java/spring-worker-demo`，Java demo 入口统一为 `spring-boot2-worker-demo`、`spring-boot3-worker-demo`、`spring-boot4-worker-demo`。
+- 当前联调脚本默认使用 Boot3 demo；Boot2/Boot4 demo 作为版本兼容验证独立保留。
+
+### 2026-06-02 — Java SDK 改为根聚合 + 子模块独立 Gradle
+- `sdks/java/build.gradle.kts` 只保留聚合与 group/version；各 SDK 子模块新增自己的 `build.gradle.kts`。
+- 每个子模块独立声明插件、依赖、测试、`maven-publish`，便于独立约束 Spring/Boot/grpc/protobuf 版本与独立发布。
+- 验证：`cd sdks/java && ./gradlew clean test publishToMavenLocal --no-daemon`；Boot2/Boot3/Boot4 demo 测试均通过。

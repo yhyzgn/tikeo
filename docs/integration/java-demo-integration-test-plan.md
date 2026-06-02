@@ -15,7 +15,7 @@ In scope:
 
 - Local tikee server with `config/dev.toml` or an equivalent temporary config.
 - Java SDK modules under `sdks/java`.
-- Java Spring demo under `examples/java/spring-worker-demo`.
+- Java Spring demo under `examples/java/spring-boot3-worker-demo`.
 - HTTP API automation for auth, workers, jobs, instances, logs, and workflow materialization.
 
 Out of scope for this plan:
@@ -62,7 +62,7 @@ Use `deploy/smoke/java-demo-integration-smoke.sh` as the executable verifier. Th
 
 | Case | Evidence | Result | Status |
 | --- | --- | --- | --- |
-| Java demo unit tests | `rtk bash -lc 'cd examples/java/spring-worker-demo && ./gradlew test --no-daemon'` | BUILD SUCCESSFUL | ✅ 通过 |
+| Java demo unit tests | `rtk bash -lc 'cd examples/java/spring-boot3-worker-demo && ./gradlew test --no-daemon'` | BUILD SUCCESSFUL | ✅ 通过 |
 | Java SDK worker client targeted test | `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClientTest --no-daemon'` | BUILD SUCCESSFUL | ✅ 通过 |
 | Server + Java demo smoke | `.dev/reports/java-demo-20260601T033026Z-286798.json` | worker registration、single success/failure、broadcast、fixed_rate、cron、workflow job 全部 passed | ✅ 通过 |
 | Shell/Python/JS/TS/Rhai script live matrix | 当前 smoke 未覆盖 | 需要后续补充脚本沙箱矩阵 live 用例 | ⏳ 待执行 |

@@ -151,7 +151,7 @@ start_java_demo() {
   local priority="$3"
   local log_file="$4"
   (
-    cd "$ROOT_DIR/examples/java/spring-worker-demo"
+    cd "$ROOT_DIR/examples/java/spring-boot3-worker-demo"
     TIKEE_WORKER_DRY_RUN=false \
     TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
     TIKEE_DEMO_SERVER_PORT="$port" \

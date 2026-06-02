@@ -1,6 +1,6 @@
 # tikee Java SDKs
 
-Java SDK packages live under `sdks/java/<sdk-name>/`. This language directory is a Gradle multi-project aggregator; each included SDK module can also be built/tested independently by Gradle task path.
+Java SDK packages live under `sdks/java/<sdk-name>/`. This language directory is a Gradle multi-project aggregator: the root `build.gradle.kts` only owns aggregation and shared group/version, while every SDK module owns its own `build.gradle.kts` with module-specific plugins, dependencies, tests, and `maven-publish` publication. This keeps Boot 2/3/4 and Spring 5/6/7 constraints independent and makes each artifact publishable without hidden root-project dependency wiring.
 
 Current packages:
 
@@ -19,10 +19,12 @@ Registration model: Java workers treat tikee-assigned `worker_id` as authoritati
 Validation from repository root:
 
 ```bash
-(cd sdks/java && ./gradlew test)
-(cd sdks/java && ./gradlew :tikee:test)
-(cd sdks/java && ./gradlew :tikee-spring:test)
-(cd sdks/java && ./gradlew :tikee-spring-boot-starter:test)
+(cd sdks/java && ./gradlew clean test publishToMavenLocal)
+(cd sdks/java && ./gradlew :tikee:test :tikee:publishToMavenLocal)
+(cd sdks/java && ./gradlew :tikee-spring:test :tikee-spring:publishToMavenLocal)
+(cd sdks/java && ./gradlew :tikee-spring-boot2-starter:test :tikee-spring-boot2-starter:publishToMavenLocal)
+(cd sdks/java && ./gradlew :tikee-spring-boot3-starter:test :tikee-spring-boot3-starter:publishToMavenLocal)
+(cd sdks/java && ./gradlew :tikee-spring-boot-starter:test :tikee-spring-boot-starter:publishToMavenLocal)
 ```
 
 Spring Boot starter properties:

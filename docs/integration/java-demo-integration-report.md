@@ -30,7 +30,7 @@ The automated integration smoke verified that the tikee server, Java SDK, and Ja
 ## Additional verification
 
 - Java SDK package-level tests: `(cd sdks/java && ./gradlew test --no-daemon)` passed.
-- Java Spring demo tests: `(cd examples/java/spring-worker-demo && ./gradlew test --no-daemon)` passed.
+- Java Spring demo tests: `(cd examples/java/spring-boot3-worker-demo && ./gradlew test --no-daemon)` passed.
 - Integration smoke: `deploy/smoke/java-demo-integration-smoke.sh` passed.
 
 ## Known boundaries
