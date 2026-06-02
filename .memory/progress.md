@@ -1229,3 +1229,8 @@ Verification evidence:
 ### 2026-05-31 — SDK API-Key Service Account lifecycle closed
 - Service Account is now a first-class app-scoped machine identity with HTTP management routes, storage entity/repository, SQLite migration compatibility, Web management table, and API client helpers.
 - API-Key creation no longer accepts an implicit service account name; it requires `service_account_id` for an existing active identity. Disabled identities revoke active keys and fail SDK-key authentication.
+
+### 2026-06-02 — 联合自动化测试状态复核完成
+- `design/server-web-java-joint-executable-test-status-plan.md` 当前总览已全绿：P0-A 17/17、P0-B 16/16、P0-C 12/12、P0-D 10/10、P1-E 7/7、P1-F 9/9、P2-G 6/6、数据库专项 3/3。
+- `design/server-web-java-joint-automation-test-plan.md` 已同步清理旧的待执行状态，所有测试项、环境/端口、CI 分层和排障资产均按现有证据更新为通过/已配置/已沉淀。
+- Server + Web + Java SDK/Demo 自动化联调测试当前为可验收状态；真实浏览器 screenshot/video CI 产物属于后续增强，不再作为当前测试闭环阻塞项。

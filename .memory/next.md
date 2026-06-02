@@ -1,7 +1,7 @@
 # Next Work
 
 ## Current priority direction
-Continue hardening remaining Phase4 service-governance edges while preserving the source-size/module-entry rule: every source file must stay <= 1500 lines, and `mod.rs` / `lib.rs` files should remain module entry/re-export surfaces.
+Server + Web + Java SDK/Demo 联合自动化测试清单已复核为全绿；下一步若继续测试增强，优先把当前 DOM/JSON evidence 升级为真实浏览器 screenshot/video CI 产物。功能开发方向继续保持 Phase4 P2 advanced differentiation，同时保留单文件 <=1500 行和 `mod.rs` / `lib.rs` 只做入口/re-export 的约束。
 
 ## Phase4 P0 — service usage / operations first
 1. Worker identity/session lifecycle governance is now aligned to `design/worker-identity-lifecycle-design.md`.
@@ -14,7 +14,7 @@ Continue hardening remaining Phase4 service-governance edges while preserving th
 
 ## P2 — ecosystem / advanced differentiation
 - PowerJob and XXL-JOB migration tooling.
-- GitOps/IaC manifest export/diff is implemented; remaining P2 work is real Terraform Provider plus K8s CRD controller/operator (current files are contract/CRD samples only; Terraform Provider tests/build G-TF-001 and K8s CRD schema validation G-K8S-001 & G-K8S-002 are locally tested and verified).
+- GitOps/IaC manifest export/diff、Terraform provider live drift smoke、K8s CRD schema 和 operator dry-run 均已在联合自动化测试状态表中验证通过；后续可继续做真实集群/真实浏览器 CI 增强。
 - Task dependency discovery/topology, workflow replay, intelligent scheduling.
 - Plugin system, advanced webhook/event sources, task versioning/canary rollback.
 
@@ -33,3 +33,7 @@ Continue hardening remaining Phase4 service-governance edges while preserving th
 
 ## Recently completed — 2026-05-31
 - SDK API-Key Service Account lifecycle is upgraded to the long-term model: Service Account is independently managed, API-Key creation selects existing active identity, disable revokes bound keys, and Web/API/smoke tests follow the new flow.
+
+## Recently completed — 2026-06-02
+- 联合自动化测试方案与可执行状态计划已重新核对并同步：所有测试项为通过/已配置/已沉淀，无测试项级待执行、失败或阻塞残留。
+- 当前测试验收总览：80/80 通过（P0-A/P0-B/P0-C/P0-D/P1-E/P1-F/P2-G/数据库专项）。

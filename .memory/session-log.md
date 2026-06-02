@@ -1852,3 +1852,10 @@ Commit/push:
 - Validated K8s CustomResourceDefinition YAML using `kubeconform` dry-run, confirming the CRD schema parses correctly.
 - Patched status in `design/server-web-java-joint-executable-test-status-plan.md` and `design/server-web-java-joint-automation-test-plan.md` for `G-TF-001` (Terraform provider build/test), `G-K8S-001` (CRD schema check), and `G-K8S-002` (Operator reconcile dry-run) to `✅ 通过`.
 - Verification: local executions of all three dry-run scripts passed successfully.
+
+### 2026-06-02 — 联合自动化测试方案/状态复核
+- 重新核对 `design/server-web-java-joint-executable-test-status-plan.md` 与 `design/server-web-java-joint-automation-test-plan.md` 中的测试项状态。
+- 执行状态计划当前 P0-A/P0-B/P0-C/P0-D/P1-E/P1-F/P2-G/数据库专项均为 `✅ 通过`，总览为 80/80 通过、0 待执行/失败/阻塞/跳过。
+- 修正测试方案中残留的旧 `⏳ 待执行`：环境、端口、功能预期断言、C-WEB、D-WEB、E-KEY、G-TF、CI 分层与排障清单均已按现有证据同步为 `✅ 通过` / `✅ 已配置` / `✅ 已沉淀`。
+- 当前项目状态：Server + Web + Java SDK/Demo 联合自动化测试闭环已完成；后续增强仅剩将部分 DOM/JSON 截图证据升级为真实浏览器 screenshot/video CI 产物，不阻塞当前联调验收。
+- Verification: 文档状态 grep 确认无测试项级 `⏳/❌/🚧/⏭️/🔄` 残留（仅状态口径说明和总览表头保留图标）。

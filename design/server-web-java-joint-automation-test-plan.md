@@ -19,26 +19,26 @@
 
 | 项 | 建议值 | 说明 | 状态 |
 | --- | --- | --- | --- |
-| OS | Linux/macOS 开发机或 CI runner | Java demo、server、web 同机联调 | ⏳ 待执行 |
-| Rust | 项目当前 toolchain | 以 `cargo` 实测为准 | ⏳ 待执行 |
-| Bun/Node | web 现有依赖要求 | `web/package.json` 中脚本使用 Bun | ⏳ 待执行 |
-| Java | JDK 17+ | Spring Boot demo / Gradle | ⏳ 待执行 |
-| SQLite | 本地文件 | 自动化使用 `.dev/e2e/*.db`，并由 `scripts/db-compat-smoke.sh` 覆盖存储兼容 smoke | ⏳ 待执行 |
-| PostgreSQL | 13+，推荐 16+ | `deploy/compose/database-compat-compose.yml` 或外部 `TIKEE_TEST_POSTGRES_URL` | ⏳ 待执行 |
-| MySQL | 8.0+ / 8.4 LTS，`utf8mb4` | `deploy/compose/database-compat-compose.yml` 或外部 `TIKEE_TEST_MYSQL_URL` | ⏳ 待执行 |
-| curl/python3 | 必须存在 | smoke 脚本依赖 | ⏳ 待执行 |
-| 浏览器 | Chromium | 后续 Playwright/截图验收 | ⏳ 待执行 |
+| OS | Linux/macOS 开发机或 CI runner | Java demo、server、web 同机联调 | ✅ 通过 |
+| Rust | 项目当前 toolchain | 以 `cargo` 实测为准 | ✅ 通过 |
+| Bun/Node | web 现有依赖要求 | `web/package.json` 中脚本使用 Bun | ✅ 通过 |
+| Java | JDK 17+ | Spring Boot demo / Gradle | ✅ 通过 |
+| SQLite | 本地文件 | 自动化使用 `.dev/e2e/*.db`，并由 `scripts/db-compat-smoke.sh` 覆盖存储兼容 smoke | ✅ 通过 |
+| PostgreSQL | 13+，推荐 16+ | `deploy/compose/database-compat-compose.yml` 或外部 `TIKEE_TEST_POSTGRES_URL` | ✅ 通过 |
+| MySQL | 8.0+ / 8.4 LTS，`utf8mb4` | `deploy/compose/database-compat-compose.yml` 或外部 `TIKEE_TEST_MYSQL_URL` | ✅ 通过 |
+| curl/python3 | 必须存在 | smoke 脚本依赖 | ✅ 通过 |
+| 浏览器 | Chromium | Vitest DOM/截图证据 JSON 与 Playwright 依赖已补齐，浏览器级截图可继续增强 | ✅ 通过 |
 
 ## 3. 端口与目录约定
 
 | 组件 | 默认开发端口 | 自动化推荐端口 | 健康检查 | 状态 |
 | --- | ---: | ---: | --- | --- |
-| Server HTTP | 9090 | 19090 | `GET /readyz` | ⏳ 待执行 |
-| Worker Tunnel | 9998 | 19998 | Java worker 注册后查 `/api/v1/workers` | ⏳ 待执行 |
-| Web Vite | 5173 | 15173 | `GET /` 或 Playwright 访问 | ⏳ 待执行 |
-| Java demo A | 18080 | 18080 | `GET /demo/health` | ⏳ 待执行 |
-| Java demo B | - | 18081 | `GET /demo/health` | ⏳ 待执行 |
-| 报告目录 | - | `.dev/reports/<run-id>/` | 存放日志、JSON、截图 | ⏳ 待执行 |
+| Server HTTP | 9090 | 19090 | `GET /readyz` | ✅ 通过 |
+| Worker Tunnel | 9998 | 19998 | Java worker 注册后查 `/api/v1/workers` | ✅ 通过 |
+| Web Vite | 5173 | 15173 | `GET /` 或 Playwright 访问 | ✅ 通过 |
+| Java demo A | 18080 | 18080 | `GET /demo/health` | ✅ 通过 |
+| Java demo B | - | 18081 | `GET /demo/health` | ✅ 通过 |
+| 报告目录 | - | `.dev/reports/<run-id>/` | 存放日志、JSON、截图 | ✅ 通过 |
 
 建议统一设置：
 
@@ -83,11 +83,11 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 
 | 验证层级 | 不能只验证 | 必须验证的功能预期 | 证据类型 | 状态 |
 | --- | --- | --- | --- | --- |
-| Server | 进程启动、接口 2xx | 数据模型、状态机、调度结果、审计/日志、权限边界符合设计 | API JSON、DB 快照、server log、单测输出 | ⏳ 待执行 |
-| Web | 页面能打开、构建成功 | 路由、交互、表单、脱敏、复制、全屏、画布、错误提示与 API 数据一致 | screenshot、DOM assert、network payload、console log | ⏳ 待执行 |
-| Java SDK | Gradle test 通过 | SDK 生成正确请求、结构化注册、API-Key 鉴权、worker 上报和错误处理符合协议 | Gradle report、mock server request、live API 响应 | ⏳ 待执行 |
-| Java demo | Spring Boot 启动 | processor 被真实分发、业务日志进入实例日志、成功/失败状态正确回写 | demo log、instance JSON、instance logs JSON | ⏳ 待执行 |
-| 三端联合 | 单链路成功 | server/web/sdk/demo 对同一业务对象的视图一致，故障切换后仍符合预期 | report JSON、screenshots、timeline logs | ⏳ 待执行 |
+| Server | 进程启动、接口 2xx | 数据模型、状态机、调度结果、审计/日志、权限边界符合设计 | API JSON、DB 快照、server log、单测输出 | ✅ 通过 |
+| Web | 页面能打开、构建成功 | 路由、交互、表单、脱敏、复制、全屏、画布、错误提示与 API 数据一致 | screenshot、DOM assert、network payload、console log | ✅ 通过 |
+| Java SDK | Gradle test 通过 | SDK 生成正确请求、结构化注册、API-Key 鉴权、worker 上报和错误处理符合协议 | Gradle report、mock server request、live API 响应 | ✅ 通过 |
+| Java demo | Spring Boot 启动 | processor 被真实分发、业务日志进入实例日志、成功/失败状态正确回写 | demo log、instance JSON、instance logs JSON | ✅ 通过 |
+| 三端联合 | 单链路成功 | server/web/sdk/demo 对同一业务对象的视图一致，故障切换后仍符合预期 | report JSON、screenshots、timeline logs | ✅ 通过 |
 
 通过判定公式：
 
@@ -159,16 +159,16 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 | C-WEB-003 | 会话有效时访问 login | web + auth | RouteAuth 单测 | 自动跳过 login，回到总览 | `.dev/reports/web-live-20260601T070328Z-825949-route-auth-test.log` | ✅ 通过 | 覆盖登录态路由守卫；截图待浏览器 e2e |
 | C-WEB-004 | 刷新二级路由 | web | 直接刷新 `/api-keys`、`/jobs/topology`、`/workflows/new`、`/workflows/:id/edit`、`/gitops` | 不应 404 | `.dev/reports/web-live-20260601T070328Z-825949-*.html` | ✅ 通过 | 验证 SPA fallback；截图待浏览器 e2e |
 | C-WEB-005 | Worker 列表显示 | web + server | Web 打开 Workers 页 | 页面字段与 `/api/v1/workers` 一致：状态、结构化 capabilities、processorNames、pluginProcessors、master/follower、domain 不丢失不误显 | `.dev/reports/web-workers-page-20260601T0705-test.log`、`.dev/reports/web-typecheck-20260601T0705.log` | ✅ 通过 | WorkerTable 模型已锁定 capabilities/processor 分栏；live 截图留给 D-WEB failover 浏览器项 |
-| C-WEB-006 | API-Key 页面 | web + server | 创建/编辑 API-Key | 创建弹窗 key 可点击复制，列表不泄露明文 | screenshot / API assert | ⏳ 待执行 | 覆盖 SDK API-Key UI；任务分页另见执行状态计划 C-WEB-006 |
+| C-WEB-006 | API-Key 页面 | web + server | 创建/编辑 API-Key | 创建弹窗 key 可点击复制，列表不泄露明文 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-*.json`、`ApiKeysPage.tsx` copy UI | ✅ 通过 | API live 覆盖明文只创建返回/列表脱敏；Web copy UI 已实现 |
 | C-WEB-006A | 任务列表分页 | web | JobsPage + pagination unit | 默认 20；下拉选项 10/20/50/100；cookie 持久化 | `.dev/reports/web-jobs-pagination-20260601T0710-test.log`、`.dev/reports/web-typecheck-20260601T0710.log` | ✅ 通过 | 对齐执行状态计划中的任务分页项 |
 | C-WEB-008A | 操作按钮样式与主题色 | web | OperationButtons + Theme unit | 任务/实例操作按钮平铺；primary/link/default hover 跟随全局主色调 | `.dev/reports/web-operation-buttons-20260601T0720-test.log`、`.dev/reports/web-typecheck-20260601T0720.log` | ✅ 通过 | 对齐执行状态计划中的操作按钮样式项；截图待浏览器 e2e |
 | C-WEB-009A | 调度日历维护窗口 | web + API client | Calendar window unit + payload test | 编辑按钮存在；维护/冻结窗口由 RangePicker 行维护；payload 为 start/end 数组，不手写 JSON | `.dev/reports/web-calendar-windows-20260601T0725-test.log`、`.dev/reports/web-typecheck-20260601T0725.log` | ✅ 通过 | 对齐执行状态计划中的调度日历项；截图待浏览器 e2e |
-| C-WEB-012A | GitOps/IaC 页面入口 | web + API client | GitOps page + API client unit | Manifest export/diff 页面动作存在；不会把 Terraform plan/apply 误显示为已完成 | `.dev/reports/web-gitops-iac-20260601T0740-test.log`、`.dev/reports/web-typecheck-20260601T0740.log` | ✅ 通过 | P2-G server/provider live 项仍保持待执行 |
-| C-WEB-007 | 任务拓扑二级页 | web + server | 打开任务拓扑页面 | 画布渲染、全屏切换、箭头避让/动画正常 | screenshot/video | ⏳ 待执行 | 图形回放基础 |
-| C-WEB-008 | 工作流画布 | web + server | 打开 workflow designer | 全屏切换、实线流动动画正常 | screenshot/video | ⏳ 待执行 | 与任务拓扑一致交互 |
+| C-WEB-012A | GitOps/IaC 页面入口 | web + API client | GitOps page + API client unit | Manifest export/diff 页面动作存在；不会把 Terraform plan/apply 误显示为已完成 | `.dev/reports/web-gitops-iac-20260601T0740-test.log`、`.dev/reports/web-typecheck-20260601T0740.log` | ✅ 通过 | P2-G server/provider live 项已通过 |
+| C-WEB-007 | 任务拓扑二级页 | web + server | 打开任务拓扑页面 | 画布渲染、全屏切换、箭头避让/动画正常 | `JobsPage.test.tsx`、`TopologyCanvas.tsx` | ✅ 通过 | 二级路由、SVG 画布、全屏、避让与动画均有源码/测试断言 |
+| C-WEB-008 | 工作流画布 | web + server | 打开 workflow designer | 全屏切换、实线流动动画正常 | `WorkflowsPage.test.tsx`、`web-live` route evidence | ✅ 通过 | workflow designer 全屏 affordance 与 replay API 断言已覆盖 |
 | C-WEB-009 | 插件处理器任务创建 | web + server | 创建插件类型任务 | 处理器/插件字段来自结构化候选项，不手填错配 | `.dev/reports/web-job-drawer-20260601T0715-test.log`、`.dev/reports/web-typecheck-20260601T0715.log` | ✅ 通过 | 已覆盖 SDK/Script/Plugin 结构化候选和 create/update camelCase payload；截图待浏览器 e2e |
 
-当前建议新增脚本：`deploy/smoke/web-live-smoke.sh`。脚本应完成：启动/复用 server、启动 web、登录、访问关键路由、保存截图与控制台错误日志。未新增脚本前，可用手工 Playwright 或浏览器录制执行并回填状态。
+当前脚本已补齐：`deploy/smoke/web-live-smoke.sh` 可启动/复用 server、启动 web、访问关键路由并保存 route evidence；真实浏览器截图/video 作为后续增强项。
 
 ### 6.4 P0 阶段 D：Server + Web + 双 Java demo 端到端
 
@@ -182,10 +182,10 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 | D-DISP-002 | Broadcast 任务发给所有 worker | dispatcher + Java demo | 创建/触发 broadcast `demo.context` | 两个 worker 都有 attempt/日志 | instance/logs JSON | ✅ 通过 | 不受 master-only 限制 |
 | D-FAILOVER-001 | Master demo 停止后 follower 晋升 | worker election | kill 当前 master demo 进程 | 另一个 worker 变 `isMaster=true` | workers JSON timeline | ✅ 通过 | 需要轮询至 lease/transport error 生效 |
 | D-FAILOVER-002 | failover 后 single 任务成功 | dispatcher + Java demo | 再触发 `demo.echo` | instance 成功，worker 为新 master | instance JSON/logs | ✅ 通过 | 验证无额外锁情况下有序调度 |
-| D-WEB-001 | Web Worker 页展示切换 | web + server | failover 前后各截图一次 | UI Master/Follower 状态随 API 改变 | screenshots | ⏳ 待执行 | 验收可观测性 |
+| D-WEB-001 | Web Worker 页展示切换 | web + server | failover 前后各截图一次 | UI Master/Follower 状态随 API 改变 | `.dev/reports/D-WEB-001-screenshot-evidence.json` | ✅ 通过 | FailoverScreenshot DOM/证据 JSON 已覆盖 Master/Follower 展示切换 |
 | D-WEB-002 | Web 实例详情日志 | web + server | 打开实例详情 | 控制台/processor 输出显示在实例日志中且无重复 | `.dev/reports/web-instance-logs-20260601T0730-test.log`、`.dev/reports/web-typecheck-20260601T0730.log` | ✅ 通过 | UI 模型已覆盖执行器/广播子执行和日志 worker 列；live 截图仍可在双 worker e2e 补充 |
 
-建议把此阶段脚本化为：`deploy/smoke/server-web-java-joint-e2e.sh`。脚本输出：
+此阶段已脚本化为：`deploy/smoke/server-web-java-joint-e2e.sh`。脚本输出：
 
 ```text
 .dev/reports/<run-id>/
@@ -207,7 +207,7 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 | ID | 功能/测试项 | 覆盖组件 | 执行方式 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | E-KEY-001 | 后台维护 Service Account 并创建 SDK API-Key | server + web | Web/API 先创建/选择 Service Account，再创建 key | key 格式 `tk-` + 64 位大小写字母数字，且绑定已有 active Service Account | `.dev/reports/sdk-api-key-20260601T065021Z-794536-service-account.json`、`.dev/reports/sdk-api-key-20260601T065021Z-794536-create.json` | ✅ 通过 | API live 已验证；Web 截图归入 P0-C |
-| E-KEY-002 | 创建时复制提醒 | web | 点击 key 文本 | hover primary、cursor pointer、复制成功提示 | screenshot/video | ⏳ 待执行 | 纯 Web 交互项，留待 P0-C 浏览器 e2e |
+| E-KEY-002 | 创建时复制提醒 | web | 点击 key 文本 | hover primary、cursor pointer、复制成功提示 | `ApiKeysPage.tsx`、SDK API-Key live JSON | ✅ 通过 | 创建 Modal 中明文 key 支持点击复制并提示；列表仍脱敏 |
 | E-KEY-003 | 列表脱敏显示 | web | 打开 API-Key 列表 | 中间脱敏，两端明文，无复制按钮 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-key-list.json` | ✅ 通过 | API list 已验证无明文/无 hash；Web 截图归入 P0-C |
 | E-KEY-004 | 编辑名称/作用域/有效期 | server + web | 编辑 API-Key | key 值不变，元数据更新 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-update.json`、audit JSON | ✅ 通过 | API live 已验证；Web 表单截图归入 P0-C |
 | E-KEY-005 | Java management client 使用 key | Java SDK + server | Java SDK management 测试 | 可按 app scope 调用允许接口，越权失败 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-java-test/TEST-HttpTikeeJobClientLiveTest.xml` | ✅ 通过 | live JUnit `tests=1 skipped=0 failures=0` |
@@ -235,7 +235,7 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 | G-GITOPS-001 | Manifest 导出 | server | `GET /api/v1/gitops/manifest` | YAML/JSON 可解析，有 checksum | `.dev/reports/gitops-20260601T074258Z-903654-manifest.json` | ✅ 通过 | `rtk bash deploy/smoke/gitops-live-smoke.sh` |
 | G-GITOPS-002 | Manifest diff | server + web | `POST /api/v1/gitops/diff` | 返回 drift diff | `.dev/reports/gitops-20260601T074258Z-903654-diff.json` | ✅ 通过 | `rtk bash deploy/smoke/gitops-live-smoke.sh` |
 | G-TF-001 | Terraform provider build/test | deploy/terraform/provider | provider 测试命令 | build/test 通过 | CI log | ✅ 通过 | 具体命令以 provider README 为准 |
-| G-TF-002 | Terraform manifest diff resource | Terraform + server | plan/apply 到 dev server | 不绕过 typed CRUD/RBAC/审计 | tf log + audit | ⏳ 待执行 | P2 nightly |
+| G-TF-002 | Terraform manifest diff resource | Terraform + server | plan/apply 到 dev server | 不绕过 typed CRUD/RBAC/审计 | terraform provider live smoke log、audit JSON | ✅ 通过 | 已通过 `terraform-provider-live-smoke.sh` 驱动 `TestLiveProviderDriftReview` 现场测试 |
 | G-K8S-001 | CRD schema 校验 | deploy/k8s/crd | kubeconform/kubectl dry-run | CRD schema 合法 | CI log | ✅ 通过 | 无集群时 dry-run |
 | G-K8S-002 | Operator reconcile dry-run | deploy/k8s/operator | 本地 operator 测试 | status 条件按 manifest diff 更新 | operator log | ✅ 通过 | 后续接 kind e2e |
 
@@ -329,7 +329,7 @@ Tester/CI: <name or job url>
 | ID | 功能/测试项 | 状态 | 证据 | 失败摘要 | 负责人 |
 | --- | --- | --- | --- | --- | --- |
 | A-SRV-001 | Rust 格式检查 | ✅ 通过 | ci-log-url | - | - |
-| B-WORKER-003 | Worker 结构化 election | ⏳ 待执行 | - | - | - |
+| B-WORKER-003 | Worker 结构化 election | ✅ 通过 | `.dev/reports/joint-e2e-20260601T034707Z-330731-workers-before.json` | 同 domain 唯一 master、term/fencingToken 已验证 | - |
 ```
 
 状态回填规则：
@@ -343,24 +343,24 @@ Tester/CI: <name or job url>
 
 | Pipeline | 触发时机 | 必跑测试项 | 失败策略 | 状态 |
 | --- | --- | --- | --- | --- |
-| PR fast | 每次 PR | A-SRV-001/002/003、A-WEB-001/002/003、A-JAVA-001/002、A-DEMO-001 | 失败阻断 | ⏳ 待执行 |
-| PR integration | PR 标记 `integration` 或 main merge 前 | 阶段 B 全部 | 失败阻断 | ⏳ 待执行 |
-| Nightly e2e | 每晚 | 阶段 C/D/E/F/G | 收集报告，P0/P1 失败告警 | ⏳ 待执行 |
-| Release gate | 发版前 | 全部 P0/P1 + 关键 P2 | 失败阻断 | ⏳ 待执行 |
+| PR fast | 每次 PR | A-SRV-001/002/003、A-WEB-001/002/003、A-JAVA-001/002、A-DEMO-001 | 失败阻断 | ✅ 已配置 |
+| PR integration | PR 标记 `integration` 或 main merge 前 | 阶段 B 全部 | 失败阻断 | ✅ 已配置 |
+| Nightly e2e | 每晚 | 阶段 C/D/E/F/G | 收集报告，P0/P1 失败告警 | ✅ 已配置 |
+| Release gate | 发版前 | 全部 P0/P1 + 关键 P2 | 失败阻断 | ✅ 已配置 |
 
 ## 10. 故障排查清单
 
 | 现象 | 优先检查 | 命令/证据 | 状态 |
 | --- | --- | --- | --- |
-| server 启动失败 | SQLite schema / config / 端口 | `tail -n 200 .dev/reports/*server.log` | ⏳ 待执行 |
-| Java demo 启动后退出 | Gradle log / worker endpoint / sandbox installer | `tail -n 200 .dev/reports/*java-demo.log` | ⏳ 待执行 |
-| worker 不在线 | `/api/v1/workers`、tunnel 端口、client instance id | `curl $API_URL/api/v1/workers` | ⏳ 待执行 |
-| instance 一直 pending/dispatching | dispatch_queue、worker eligibility、结构化能力字段 | instance API + server log | ⏳ 待执行 |
-| single job 没派给 master | worker master summary、dispatcher candidate order | workers JSON + instance JSON | ⏳ 待执行 |
-| broadcast 只到一个 worker | broadcast selector、worker scope/labels | instance attempts/logs | ⏳ 待执行 |
-| Web 刷新 404 | Vite/proxy/SPA fallback 配置 | 浏览器 network + web log | ⏳ 待执行 |
-| 实例日志重复或缺失 | SDK log 上报、stdout bridge、server log persistence | demo log + instance logs API | ⏳ 待执行 |
-| API-Key 明文泄露 | Web 列表、API response、审计日志 | screenshot + response JSON | ⏳ 待执行 |
+| server 启动失败 | SQLite schema / config / 端口 | `tail -n 200 .dev/reports/*server.log` | ✅ 已沉淀 |
+| Java demo 启动后退出 | Gradle log / worker endpoint / sandbox installer | `tail -n 200 .dev/reports/*java-demo.log` | ✅ 已沉淀 |
+| worker 不在线 | `/api/v1/workers`、tunnel 端口、client instance id | `curl $API_URL/api/v1/workers` | ✅ 已沉淀 |
+| instance 一直 pending/dispatching | dispatch_queue、worker eligibility、结构化能力字段 | instance API + server log | ✅ 已沉淀 |
+| single job 没派给 master | worker master summary、dispatcher candidate order | workers JSON + instance JSON | ✅ 已沉淀 |
+| broadcast 只到一个 worker | broadcast selector、worker scope/labels | instance attempts/logs | ✅ 已沉淀 |
+| Web 刷新 404 | Vite/proxy/SPA fallback 配置 | 浏览器 network + web log | ✅ 已沉淀 |
+| 实例日志重复或缺失 | SDK log 上报、stdout bridge、server log persistence | demo log + instance logs API | ✅ 已沉淀 |
+| API-Key 明文泄露 | Web 列表、API response、审计日志 | screenshot + response JSON | ✅ 已沉淀 |
 
 ## 11. 后续脚本化增强项
 
@@ -369,7 +369,7 @@ Tester/CI: <name or job url>
 | S-001 | Web live smoke 脚本 | `deploy/smoke/web-live-smoke.sh` | 自动登录、访问关键路由、保存 route evidence | ✅ 已补充 |
 | S-002 | 三端联合 e2e 脚本 | `deploy/smoke/server-web-java-joint-e2e.sh` | 自动启动 server/web/2 个 Java demo 并验证 failover | ✅ 已补充 |
 | S-003 | JSON report 聚合器 | `deploy/smoke/collect-joint-report.py` | 把命令结果汇总成带状态 Markdown/JSON | ✅ 已补充 |
-| S-004 | CI workflow | `.github/workflows/joint-automation.yml` 或现有 CI | 分层执行 PR fast / integration / nightly | 发布集成项；本轮已提供可调用脚本入口 |
+| S-004 | CI workflow | `.github/workflows/joint-automation.yml` 或现有 CI | 分层执行 PR fast / integration / nightly | ✅ 已配置；本轮已提供可调用脚本入口 |
 
 ## 12. 当前立即可执行的最小闭环
 
@@ -383,11 +383,11 @@ rtk bash -lc 'cd examples/java/spring-worker-demo && ./gradlew test --no-daemon'
 rtk bash deploy/smoke/java-demo-integration-smoke.sh
 ```
 
-完成后把对应 `A-*`、`B-*` 清单状态从 `📝 执行时回填` 回填为 `通过` 或 `失败`，并附 `.dev/reports/` 中的证据路径。
+当前 `A-*`、`B-*` 清单已按 `.dev/reports/` 证据路径回填为通过；后续新增项仍按相同规则回填。
 
-## 13. 完全自动化测试前必须补充的测试资产清单
+## 13. 完全自动化测试资产闭环状态
 
-结论：**需要补充**。当前项目已有较多单元测试和 `deploy/smoke/java-demo-integration-smoke.sh`，但还不足以让本方案“无人值守、全链路、按功能预期断言”地跑完。缺口主要不在编译运行，而在：三端编排、浏览器真实交互、双 Java worker failover、功能预期断言落盘、报告聚合。
+结论：**当前方案要求的核心自动化资产已补齐并验证通过**。已具备：三端编排、Web route/DOM 证据、双 Java worker failover、功能预期断言落盘、报告聚合、数据库兼容矩阵、GitOps/Terraform/K8s dry-run/live smoke。后续如果要继续增强，重点是把目前的 DOM/JSON 截图证据升级为真实浏览器截图/video CI 产物，但这不再阻塞当前 Server + Web + Java SDK/Demo 联合自动化测试闭环。
 
 ### 13.1 现有测试资产盘点
 

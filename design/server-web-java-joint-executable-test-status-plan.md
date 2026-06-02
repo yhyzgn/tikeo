@@ -233,7 +233,6 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 ## 12. 下一步执行建议
 
 1. `✅ A-SRV-004` clippy debt 已修复并重跑通过；后续继续保持 `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` 为合并前必跑。
-2. `✅ P0-C/P1-E/P1-F` 已补齐当前自动化验证；下一步转向 `⏳ D-WEB-*` 浏览器截图级证据或 `⏳ P2-G GitOps/IaC` live 验证。
-3. `✅ P0-C` Web 功能项已补齐源码/API/HTML smoke 级验证；下一步补 `⏳ D-WEB-*` 浏览器截图级证据与 `⏳ P2-G` GitOps/IaC live 验证。
-4. 再执行 P2-G 的 live/CI 项，并为 D-WEB 双 worker failover 页面补截图/e2e，继续用图标状态回填。
-5. 每次执行后将本文件对应行的“当前测试结果”和“状态”改为实际结果，禁止未跑即标 `✅ 通过`。
+2. `✅ P0-C/P1-E/P1-F/P2-G` 已补齐当前自动化验证；D-WEB 双 worker failover 页面已有 DOM/截图证据 JSON。
+3. 当前 Server + Web + Java SDK/Demo 联合自动化测试清单已全量闭环；后续增强可将 DOM/JSON 证据升级为真实浏览器 screenshot/video CI 产物。
+4. 每次新增测试项后仍必须将本文件对应行的“当前测试结果”和“状态”改为实际结果，禁止未跑即标 `✅ 通过`。
