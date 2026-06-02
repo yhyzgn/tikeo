@@ -1871,3 +1871,9 @@ Commit/push:
 - Reworked the Spring Boot 2/3 compatibility modules from Gradle source-set indirection into real modules with their own `src/main` and `src/test` trees.
 - Confirmed `tikee-spring5`, `tikee-spring6`, `tikee-spring-boot2-starter`, and `tikee-spring-boot3-starter` each contain concrete Java sources/resources/tests where applicable.
 - Verification: explicit source-count checks for all four modules; `cd sdks/java && ./gradlew clean test --no-daemon`; `cd examples/java/spring-worker-demo && ./gradlew clean test --no-daemon`; source line check max Java file 1043 lines; `git diff --check`.
+
+### 2026-06-02 — Java demo covers Spring starter compatibility use cases
+- Added a Java demo regression/use-case test for the Spring Boot starter compatibility matrix: the demo is explicitly validated as a Spring Boot 3.x application using `tikee-spring-boot3-starter`.
+- The demo test now also verifies the Java SDK publishes separate Boot 2, Boot 3, and Boot 4 starter modules plus Spring 5/6 adapters with concrete `src/main` and `src/test` trees, not Gradle-only aliases.
+- Updated the Java demo README with the compatibility matrix and test-suite entry so the expected starter choice is visible to users.
+- Verification: `cd examples/java/spring-worker-demo && ./gradlew clean test --no-daemon`; `cd sdks/java && ./gradlew clean test --no-daemon`; source-count checks for compat modules; `git diff --check -- examples/java/spring-worker-demo sdks/java .memory`.

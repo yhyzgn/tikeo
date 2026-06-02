@@ -1243,3 +1243,9 @@ Verification evidence:
 ### 2026-06-02 — Java compat modules have real source boundaries
 - Boot 2/3 compatibility modules now contain explicit `src/main` and `src/test` directories instead of relying on hidden Gradle source-set indirection.
 - Full Java SDK and Spring demo tests pass with the explicit module layout.
+
+### 2026-06-02 — Java demo 补齐 Spring Boot starter 兼容用例
+- Java Spring Worker Demo 新增 `SpringBootStarterCompatibilityMatrixTest`，明确覆盖 Boot3 demo 使用 `tikee-spring-boot3-starter` 的用例。
+- 用例同时检查 SDK 层 Boot2/Boot3/Boot4 starter 与 Spring5/Spring6 adapter 都是带真实源码/测试/资源元数据的模块，避免空模块或 Gradle sourceSet 伪兼容。
+- Demo README 已补充 starter 兼容矩阵与测试项说明。
+- 验证：`cd examples/java/spring-worker-demo && ./gradlew clean test --no-daemon`；`cd sdks/java && ./gradlew clean test --no-daemon`；`git diff --check -- examples/java/spring-worker-demo sdks/java .memory`。

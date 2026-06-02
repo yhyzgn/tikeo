@@ -14,6 +14,7 @@ The demo test suite covers:
 - `EchoProcessorTest` — plain unit test for the example processor behavior.
 - `SpringWorkerDemoApplicationTest` — Spring Boot context test for dry-run worker identity, lifecycle startup, capabilities/labels, and `@TikeeProcessor` registry invocation.
 - `SpringWorkerDemoDisabledTest` — verifies `tikee.worker.enabled=false` keeps processor discovery but does not create a Worker client.
+- `SpringBootStarterCompatibilityMatrixTest` — verifies this demo uses `tikee-spring-boot3-starter` and that the Java SDK exposes real Boot 2, Boot 3, and Boot 4 starter modules with concrete `src` trees.
 
 The demo is a normal embedded-web Spring Boot application. `bootRun` stays online through the web server, not a custom blocking runner. It exposes `GET /demo/health` and `GET /demo/processors` on `TIKEE_DEMO_SERVER_PORT` (default `18080`).
 
@@ -24,6 +25,16 @@ The demo does not configure `client-instance-id`; the SDK creates and reuses a s
 ```
 
 For local UI-only startup without a tikee server, explicitly set `TIKEE_WORKER_DRY_RUN=true`; dry-run workers do not register with the server and will not appear in the Worker cluster page.
+
+## Spring Boot starter compatibility matrix
+
+The Java SDK intentionally publishes separate starter artifacts for Spring Boot major versions:
+
+- Spring Boot 4.x: `com.yhyzgn.tikee:tikee-spring-boot-starter`
+- Spring Boot 3.x: `com.yhyzgn.tikee:tikee-spring-boot3-starter`
+- Spring Boot 2.x: `com.yhyzgn.tikee:tikee-spring-boot2-starter`
+
+This demo is the Boot 3 example and therefore depends on `tikee-spring-boot3-starter`.
 
 ## API-type task management example
 
