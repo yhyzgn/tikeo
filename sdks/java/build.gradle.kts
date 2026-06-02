@@ -88,22 +88,6 @@ project(":tikee") {
     }
 }
 
-fun Project.reuseMainSourcesFrom(projectName: String, includeTests: Boolean = false) {
-    val upstream = project(projectName).extensions.getByType<SourceSetContainer>()
-    sourceSets {
-        named("main") {
-            java.setSrcDirs(upstream.named("main").get().java.srcDirs)
-            resources.setSrcDirs(upstream.named("main").get().resources.srcDirs)
-        }
-        if (includeTests) {
-            named("test") {
-                java.setSrcDirs(upstream.named("test").get().java.srcDirs)
-                resources.setSrcDirs(upstream.named("test").get().resources.srcDirs)
-            }
-        }
-    }
-}
-
 fun Project.configureSpringModule(springContextVersion: String) {
     dependencies {
         "api"(project(":tikee"))
@@ -132,12 +116,10 @@ project(":tikee-spring") {
 }
 
 project(":tikee-spring5") {
-    reuseMainSourcesFrom(":tikee-spring")
     configureSpringModule("5.3.39")
 }
 
 project(":tikee-spring6") {
-    reuseMainSourcesFrom(":tikee-spring")
     configureSpringModule("6.2.14")
 }
 
@@ -146,11 +128,9 @@ project(":tikee-spring-boot-starter") {
 }
 
 project(":tikee-spring-boot2-starter") {
-    reuseMainSourcesFrom(":tikee-spring-boot-starter", includeTests = true)
     configureBootStarter(":tikee-spring5", springBoot2Version)
 }
 
 project(":tikee-spring-boot3-starter") {
-    reuseMainSourcesFrom(":tikee-spring-boot-starter", includeTests = true)
     configureBootStarter(":tikee-spring6", springBoot3Version)
 }

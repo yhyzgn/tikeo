@@ -1866,3 +1866,8 @@ Commit/push:
 - 新增 `tikee-spring-boot2-starter` / `tikee-spring-boot3-starter`，复用主 starter 源码与测试，分别依赖 Spring Boot 2.7 / 3.5；demo 改用 Boot3 compat starter。
 - Java SDK 全模块保持 `--release 17`，修掉 Java 21 `List.getFirst()` API 残留，保证 Java 17+ 消费者可用。
 - Verification: `cd sdks/java && ./gradlew projects --no-daemon`; `cd sdks/java && ./gradlew clean test --no-daemon`; `cd sdks/java && ./gradlew :tikee-spring-boot-starter:test :tikee-spring-boot2-starter:test :tikee-spring-boot3-starter:test --no-daemon`; `cd examples/java/spring-worker-demo && ./gradlew clean test --no-daemon`; dependency matrix grep confirmed Boot4/Spring7, Boot2/Spring5, Boot3/Spring6.
+
+### 2026-06-02 — Java compat modules now contain explicit src trees
+- Reworked the Spring Boot 2/3 compatibility modules from Gradle source-set indirection into real modules with their own `src/main` and `src/test` trees.
+- Confirmed `tikee-spring5`, `tikee-spring6`, `tikee-spring-boot2-starter`, and `tikee-spring-boot3-starter` each contain concrete Java sources/resources/tests where applicable.
+- Verification: explicit source-count checks for all four modules; `cd sdks/java && ./gradlew clean test --no-daemon`; `cd examples/java/spring-worker-demo && ./gradlew clean test --no-daemon`; source line check max Java file 1043 lines; `git diff --check`.

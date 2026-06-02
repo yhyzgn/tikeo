@@ -1239,3 +1239,7 @@ Verification evidence:
 - Main `tikee-spring-boot-starter` remains the Spring Boot 4.x starter.
 - Added compatibility modules: `tikee-spring5`, `tikee-spring6`, `tikee-spring-boot2-starter`, and `tikee-spring-boot3-starter`.
 - All Java SDK modules compile with `--release 17`; Spring demo validates Boot 3.x through `tikee-spring-boot3-starter`.
+
+### 2026-06-02 — Java compat modules have real source boundaries
+- Boot 2/3 compatibility modules now contain explicit `src/main` and `src/test` directories instead of relying on hidden Gradle source-set indirection.
+- Full Java SDK and Spring demo tests pass with the explicit module layout.
