@@ -15,7 +15,7 @@ dependencies {
     testCompileOnly("org.projectlombok:lombok:$lombokVersion")
     testAnnotationProcessor("org.projectlombok:lombok:$lombokVersion")
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("com.yhyzgn.tikee:tikee-spring-boot-starter:0.1.0-SNAPSHOT")
+    implementation("com.yhyzgn.tikee:tikee-spring-boot3-starter:0.1.0-SNAPSHOT")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

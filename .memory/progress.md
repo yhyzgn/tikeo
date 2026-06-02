@@ -1234,3 +1234,8 @@ Verification evidence:
 - `design/server-web-java-joint-executable-test-status-plan.md` 当前总览已全绿：P0-A 17/17、P0-B 16/16、P0-C 12/12、P0-D 10/10、P1-E 7/7、P1-F 9/9、P2-G 6/6、数据库专项 3/3。
 - `design/server-web-java-joint-automation-test-plan.md` 已同步清理旧的待执行状态，所有测试项、环境/端口、CI 分层和排障资产均按现有证据更新为通过/已配置/已沉淀。
 - Server + Web + Java SDK/Demo 自动化联调测试当前为可验收状态；真实浏览器 screenshot/video CI 产物属于后续增强，不再作为当前测试闭环阻塞项。
+
+### 2026-06-02 — Java SDK Spring Boot starter compatibility corrected
+- Main `tikee-spring-boot-starter` remains the Spring Boot 4.x starter.
+- Added compatibility modules: `tikee-spring5`, `tikee-spring6`, `tikee-spring-boot2-starter`, and `tikee-spring-boot3-starter`.
+- All Java SDK modules compile with `--release 17`; Spring demo validates Boot 3.x through `tikee-spring-boot3-starter`.

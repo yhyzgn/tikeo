@@ -5,7 +5,9 @@ plugins {
     id("com.google.protobuf") version "0.10.0" apply false
 }
 
-val springBootVersion = "2.7.18"
+val springBoot4Version = "4.0.6"
+val springBoot3Version = "3.5.8"
+val springBoot2Version = "2.7.18"
 val grpcVersion = "1.81.0"
 val protobufVersion = "4.34.1"
 val lombokVersion = "1.18.46"
@@ -86,25 +88,69 @@ project(":tikee") {
     }
 }
 
-project(":tikee-spring") {
+fun Project.reuseMainSourcesFrom(projectName: String, includeTests: Boolean = false) {
+    val upstream = project(projectName).extensions.getByType<SourceSetContainer>()
+    sourceSets {
+        named("main") {
+            java.setSrcDirs(upstream.named("main").get().java.srcDirs)
+            resources.setSrcDirs(upstream.named("main").get().resources.srcDirs)
+        }
+        if (includeTests) {
+            named("test") {
+                java.setSrcDirs(upstream.named("test").get().java.srcDirs)
+                resources.setSrcDirs(upstream.named("test").get().resources.srcDirs)
+            }
+        }
+    }
+}
+
+fun Project.configureSpringModule(springContextVersion: String) {
     dependencies {
         "api"(project(":tikee"))
-        "api"("org.springframework:spring-context:5.3.39")
+        "api"("org.springframework:spring-context:$springContextVersion")
         "testImplementation"("org.assertj:assertj-core:3.27.7")
     }
 }
 
-project(":tikee-spring-boot-starter") {
+fun Project.configureBootStarter(springModule: String, bootVersion: String) {
     dependencies {
-        "api"(project(":tikee-spring"))
-        "api"(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
+        "api"(project(springModule))
+        "api"(platform("org.springframework.boot:spring-boot-dependencies:$bootVersion"))
         "api"("org.springframework.boot:spring-boot-starter")
         "api"("org.springframework.boot:spring-boot-autoconfigure")
-        "annotationProcessor"(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
+        "annotationProcessor"(platform("org.springframework.boot:spring-boot-dependencies:$bootVersion"))
         "annotationProcessor"("org.springframework.boot:spring-boot-configuration-processor")
-        "testImplementation"(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
+        "testImplementation"(platform("org.springframework.boot:spring-boot-dependencies:$bootVersion"))
         "testImplementation"("org.springframework.boot:spring-boot-test")
         "testImplementation"("org.springframework:spring-test")
         "testImplementation"("org.assertj:assertj-core")
     }
+}
+
+project(":tikee-spring") {
+    configureSpringModule("7.0.2")
+}
+
+project(":tikee-spring5") {
+    reuseMainSourcesFrom(":tikee-spring")
+    configureSpringModule("5.3.39")
+}
+
+project(":tikee-spring6") {
+    reuseMainSourcesFrom(":tikee-spring")
+    configureSpringModule("6.2.14")
+}
+
+project(":tikee-spring-boot-starter") {
+    configureBootStarter(":tikee-spring", springBoot4Version)
+}
+
+project(":tikee-spring-boot2-starter") {
+    reuseMainSourcesFrom(":tikee-spring-boot-starter", includeTests = true)
+    configureBootStarter(":tikee-spring5", springBoot2Version)
+}
+
+project(":tikee-spring-boot3-starter") {
+    reuseMainSourcesFrom(":tikee-spring-boot-starter", includeTests = true)
+    configureBootStarter(":tikee-spring6", springBoot3Version)
 }

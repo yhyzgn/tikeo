@@ -1859,3 +1859,10 @@ Commit/push:
 - 修正测试方案中残留的旧 `⏳ 待执行`：环境、端口、功能预期断言、C-WEB、D-WEB、E-KEY、G-TF、CI 分层与排障清单均已按现有证据同步为 `✅ 通过` / `✅ 已配置` / `✅ 已沉淀`。
 - 当前项目状态：Server + Web + Java SDK/Demo 联合自动化测试闭环已完成；后续增强仅剩将部分 DOM/JSON 截图证据升级为真实浏览器 screenshot/video CI 产物，不阻塞当前联调验收。
 - Verification: 文档状态 grep 确认无测试项级 `⏳/❌/🚧/⏭️/🔄` 残留（仅状态口径说明和总览表头保留图标）。
+
+### 2026-06-02 — Java SDK Java 17+ 与 Spring Boot 2/3/4 starter 分层修正
+- 修正上一版错误方向：主 `tikee-spring-boot-starter` 不再降级，恢复/保持 Spring Boot 4.x + Spring Framework 7.x 依赖。
+- 新增 `tikee-spring5` / `tikee-spring6` 兼容 Spring adapter 模块，复用 `tikee-spring` 源码但分别依赖 Spring Framework 5.3 / 6.2。
+- 新增 `tikee-spring-boot2-starter` / `tikee-spring-boot3-starter`，复用主 starter 源码与测试，分别依赖 Spring Boot 2.7 / 3.5；demo 改用 Boot3 compat starter。
+- Java SDK 全模块保持 `--release 17`，修掉 Java 21 `List.getFirst()` API 残留，保证 Java 17+ 消费者可用。
+- Verification: `cd sdks/java && ./gradlew projects --no-daemon`; `cd sdks/java && ./gradlew clean test --no-daemon`; `cd sdks/java && ./gradlew :tikee-spring-boot-starter:test :tikee-spring-boot2-starter:test :tikee-spring-boot3-starter:test --no-daemon`; `cd examples/java/spring-worker-demo && ./gradlew clean test --no-daemon`; dependency matrix grep confirmed Boot4/Spring7, Boot2/Spring5, Boot3/Spring6.

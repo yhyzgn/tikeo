@@ -1,6 +1,6 @@
 # Java Spring Worker Demo
 
-Standard Spring Boot Web demo for `sdks/java/tikee-spring-boot-starter`.
+Standard Spring Boot Web demo for `sdks/java/tikee-spring-boot3-starter`, validating the compatibility starter in a Spring Boot 3.x application.
 
 Build, test, and run independently from the repository root. Use the committed Gradle Wrapper; the demo targets Java 17 bytecode and runs on Spring Boot 3.x to validate the starter against a modern Boot 3 application while the starter itself remains Boot 2.x/3.x compatible.
 

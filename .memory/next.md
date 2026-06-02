@@ -37,3 +37,9 @@ Server + Web + Java SDK/Demo 联合自动化测试清单已复核为全绿；下
 ## Recently completed — 2026-06-02
 - 联合自动化测试方案与可执行状态计划已重新核对并同步：所有测试项为通过/已配置/已沉淀，无测试项级待执行、失败或阻塞残留。
 - 当前测试验收总览：80/80 通过（P0-A/P0-B/P0-C/P0-D/P1-E/P1-F/P2-G/数据库专项）。
+
+## Java SDK starter compatibility
+- Use `tikee-spring-boot-starter` for Spring Boot 4.x.
+- Use `tikee-spring-boot2-starter` for Spring Boot 2.x.
+- Use `tikee-spring-boot3-starter` for Spring Boot 3.x.
+- Keep Java source and tests compatible with Java 17 APIs while `--release 17` is configured.
