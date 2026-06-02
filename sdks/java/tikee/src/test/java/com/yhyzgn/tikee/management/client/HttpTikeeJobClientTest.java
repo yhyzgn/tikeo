@@ -53,7 +53,7 @@ class HttpTikeeJobClientTest {
     void scopesListAndCreateToConfiguredNamespaceAndApp() {
         var jobs = client.listJobs();
         assertEquals(1, jobs.size());
-        assertEquals("demo.echo", jobs.getFirst().processorName());
+        assertEquals("demo.echo", jobs.get(0).processorName());
 
         var created = client.createJob(CreateJobRequest.api("echo", "demo.echo"));
         assertEquals("api", created.scheduleType());

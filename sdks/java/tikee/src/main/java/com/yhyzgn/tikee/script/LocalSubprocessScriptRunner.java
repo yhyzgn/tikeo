@@ -17,11 +17,11 @@ public final class LocalSubprocessScriptRunner implements ScriptRunner {
     }
 
     public LocalSubprocessScriptRunner(ScriptRunnerKind kind, List<String> command) {
-        if (command == null || command.isEmpty() || command.getFirst() == null || command.getFirst().isBlank()) {
+        if (command == null || command.isEmpty() || command.get(0) == null || command.get(0).isBlank()) {
             throw new ScriptRunnerException("local script runner requires a command");
         }
         this.kind = kind;
-        this.command = command.getFirst();
+        this.command = command.get(0);
         this.args = List.copyOf(command.subList(1, command.size()));
     }
 

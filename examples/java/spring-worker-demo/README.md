@@ -2,7 +2,7 @@
 
 Standard Spring Boot Web demo for `sdks/java/tikee-spring-boot-starter`.
 
-Build, test, and run independently from the repository root. Use the committed Gradle Wrapper; Spring Boot 4 requires Gradle 8.14+ or 9.x, and this demo pins Gradle 9.5.1 for IDE/import consistency.
+Build, test, and run independently from the repository root. Use the committed Gradle Wrapper; the demo targets Java 17 bytecode and runs on Spring Boot 3.x to validate the starter against a modern Boot 3 application while the starter itself remains Boot 2.x/3.x compatible.
 
 ```bash
 (cd examples/java/spring-worker-demo && ./gradlew test)

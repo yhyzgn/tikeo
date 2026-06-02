@@ -6,9 +6,9 @@ Current packages:
 
 - `tikee/` — native Java integration: Worker Tunnel gRPC client, protocol bindings, task contracts.
 - `tikee-spring/` — Spring Framework integration: `@TikeeProcessor` registry and method adapter.
-- `tikee-spring-boot-starter/` — Spring Boot integration: auto-configuration, properties, starter-style dependency.
+- `tikee-spring-boot-starter/` — Spring Boot integration: auto-configuration, properties, starter-style dependency. It is compiled against the Spring Boot 2.7 / Spring Framework 5.3 public API and publishes both `spring.factories` and `AutoConfiguration.imports`, so the same starter can be used by Spring Boot 2.x and 3.x applications.
 
-Java SDK uses Gradle and requires JDK 21+. Maven `pom.xml` is intentionally not used. SDK/demo code may use Lombok to reduce boilerplate; Spring beans should prefer constructor injection.
+Java SDK uses Gradle and targets Java 17 bytecode (`--release 17`), so consumers can run it on Java 17+. Maven `pom.xml` is intentionally not used. SDK/demo code may use Lombok to reduce boilerplate; Spring beans should prefer constructor injection.
 
 Registration model: Java workers treat tikee-assigned `worker_id` as authoritative. The SDK auto-generates and persists a stable `client_instance_id` per namespace/app/cluster/region so reconnects correlate to the same worker identity. `tikee.worker.client-instance-id` remains an advanced optional override only; normal applications and demos should not set it. `GrpcTikeeWorkerClient` reads `WorkerRegistered.worker_id` and uses it for heartbeat/log/result calls.
 

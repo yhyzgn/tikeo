@@ -5,7 +5,7 @@ plugins {
     id("com.google.protobuf") version "0.10.0" apply false
 }
 
-val springBootVersion = "4.0.6"
+val springBootVersion = "2.7.18"
 val grpcVersion = "1.81.0"
 val protobufVersion = "4.34.1"
 val lombokVersion = "1.18.46"
@@ -29,14 +29,11 @@ subprojects {
     apply(plugin = "java-library")
 
     java {
-        toolchain {
-            languageVersion.set(JavaLanguageVersion.of(21))
-        }
         withSourcesJar()
     }
 
     tasks.withType<JavaCompile>().configureEach {
-        options.release.set(21)
+        options.release.set(17)
         options.encoding = "UTF-8"
     }
 
@@ -92,7 +89,7 @@ project(":tikee") {
 project(":tikee-spring") {
     dependencies {
         "api"(project(":tikee"))
-        "api"("org.springframework:spring-context:7.0.2")
+        "api"("org.springframework:spring-context:5.3.39")
         "testImplementation"("org.assertj:assertj-core:3.27.7")
     }
 }

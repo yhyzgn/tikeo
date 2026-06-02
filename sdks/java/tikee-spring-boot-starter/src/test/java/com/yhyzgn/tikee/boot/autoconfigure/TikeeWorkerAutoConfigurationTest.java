@@ -39,6 +39,23 @@ class TikeeWorkerAutoConfigurationTest {
                 .toList();
     }
 
+
+    @Test
+    void starterPublishesBoot2AndBoot3AutoConfigurationMetadata() throws Exception {
+        try (var imports = Thread.currentThread().getContextClassLoader().getResourceAsStream(
+                "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports");
+             var factories = Thread.currentThread().getContextClassLoader().getResourceAsStream(
+                "META-INF/spring.factories")) {
+            assertThat(imports).as("Spring Boot 2.7+/3.x auto-configuration imports").isNotNull();
+            assertThat(factories).as("Spring Boot 2.x spring.factories auto-configuration entry").isNotNull();
+            assertThat(new String(imports.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8))
+                    .contains("com.yhyzgn.tikee.boot.autoconfigure.TikeeWorkerAutoConfiguration");
+            assertThat(new String(factories.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8))
+                    .contains("org.springframework.boot.autoconfigure.EnableAutoConfiguration")
+                    .contains("com.yhyzgn.tikee.boot.autoconfigure.TikeeWorkerAutoConfiguration");
+        }
+    }
+
     @Test
     void dryRunCreatesNoopClientWithGeneratedRegistrationHint() throws Exception {
         installFakeWasmtime(stateDir);
