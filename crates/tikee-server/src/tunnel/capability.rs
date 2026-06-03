@@ -57,38 +57,7 @@ impl WorkerRequirement {
                 processor_name: "*".to_owned(),
             });
         }
-        if required == "script" {
-            return Some(Self::ScriptRunner {
-                language: "*".to_owned(),
-            });
-        }
-        if let Some(language) = required.strip_prefix("script:") {
-            let language = language.trim();
-            return (!language.is_empty()).then(|| Self::ScriptRunner {
-                language: language.to_owned(),
-            });
-        }
         None
-    }
-
-    pub(crate) fn matches_legacy_capability(&self, capability: &str) -> bool {
-        let capability = capability.trim();
-        if capability == "*" {
-            return true;
-        }
-        match self {
-            Self::SdkProcessor { name } => capability == format!("processor:{name}"),
-            Self::ScriptRunner { language } => {
-                capability == "script"
-                    || capability == "script:*"
-                    || language == "*" && capability.starts_with("script:")
-                    || capability == format!("script:{language}")
-            }
-            Self::PluginProcessor {
-                processor_type,
-                processor_name: _,
-            } => capability == format!("plugin-processor:{processor_type}"),
-        }
     }
 }
 

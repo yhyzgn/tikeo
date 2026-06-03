@@ -20,7 +20,6 @@ export function workerSearchText(worker: WorkerSummary): string {
     worker.clientInstanceId ?? '',
     worker.status,
     worker.statusReason ?? '',
-    ...worker.capabilities,
     ...(structured?.tags ?? []),
     ...(structured?.sdkProcessors ?? []),
     ...(structured?.scriptRunners.map((runner) => `${runner.language} ${runner.sandboxBackend}`) ?? []),
@@ -34,7 +33,7 @@ export function filterWorkers(workers: WorkerSummary[], filters: WorkerFilters):
     const matchesQuery = !query || workerSearchText(worker).includes(query);
     const matchesNamespace = !filters.namespace || worker.namespace === filters.namespace;
     const workerFilterValues = [
-      ...(worker.structuredCapabilities?.tags ?? worker.capabilities),
+      ...(worker.structuredCapabilities?.tags ?? []),
       ...(worker.structuredCapabilities?.sdkProcessors.map((name) => `SDK:${name}`) ?? []),
       ...(worker.structuredCapabilities?.scriptRunners.map((runner) => `Script:${runner.language}`) ?? []),
       ...(worker.structuredCapabilities?.pluginProcessors.flatMap((plugin) =>

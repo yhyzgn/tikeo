@@ -7,18 +7,11 @@ import { persistentPagination, usePersistentTablePageSize } from '../../utils/pa
 import { filterWorkers, uniqueSorted } from './workerPageModel';
 
 export function visibleCapabilityTags(worker: WorkerSummary) {
-  return uniqueSorted([
-    ...(worker.structuredCapabilities?.tags ?? []),
-    ...worker.capabilities.filter((capability) => !capability.includes(':')),
-  ]);
+  return uniqueSorted(worker.structuredCapabilities?.tags ?? []);
 }
 
 export function visibleSdkProcessors(worker: WorkerSummary) {
-  return worker.structuredCapabilities?.sdkProcessors?.length
-    ? worker.structuredCapabilities.sdkProcessors
-    : worker.capabilities
-      .filter((capability) => capability.startsWith('processor:'))
-      .map((capability) => capability.slice('processor:'.length));
+  return worker.structuredCapabilities?.sdkProcessors ?? [];
 }
 
 export function capabilityFilterValues(worker: WorkerSummary) {

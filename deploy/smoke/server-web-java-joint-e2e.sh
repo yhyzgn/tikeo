@@ -25,6 +25,9 @@ JAVA_B_PID=""
 STARTED_JAVA_PID=""
 OWN_SERVER=0
 OWN_WEB=0
+DEMO_NAMESPACE="${TIKEE_JOINT_DEMO_NAMESPACE:-dev-alpha}"
+DEMO_APP="${TIKEE_JOINT_DEMO_APP:-orders}"
+DEMO_WORKER_POOL="${TIKEE_JOINT_DEMO_WORKER_POOL:-boot3-blue}"
 mkdir -p "$REPORT_DIR"
 
 cleanup() {
@@ -70,6 +73,43 @@ api() {
 
 api_json_get() {
   tikee_smoke_api_json_get "$API_URL" "$@"
+}
+
+json_body() {
+  python3 - "$@" <<'PY'
+import json, sys
+pairs = [arg.split('=', 1) for arg in sys.argv[1:]]
+print(json.dumps({k: v for k, v in pairs}, ensure_ascii=False, separators=(',', ':')))
+PY
+}
+
+exists_in_list() {
+  local path="$1"
+  shift
+  api GET "$path" | python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+criteria = dict(arg.split("=", 1) for arg in sys.argv[1:])
+data = payload.get("data") or []
+items = data.get("items", []) if isinstance(data, dict) else data
+for item in items:
+    if all(str(item.get(k)) == v for k, v in criteria.items()):
+        sys.exit(0)
+sys.exit(1)' "$@"
+}
+
+ensure_demo_scope() {
+  if ! exists_in_list /api/v1/namespaces name="$DEMO_NAMESPACE"; then
+    api POST /api/v1/namespaces "$(json_body name="$DEMO_NAMESPACE")" >/dev/null
+  fi
+  if ! exists_in_list "/api/v1/apps?namespace=$DEMO_NAMESPACE" namespace="$DEMO_NAMESPACE" name="$DEMO_APP"; then
+    api POST /api/v1/apps "$(json_body namespace="$DEMO_NAMESPACE" name="$DEMO_APP")" >/dev/null
+  fi
+  if ! exists_in_list "/api/v1/worker-pools?namespace=$DEMO_NAMESPACE&app=$DEMO_APP" namespace="$DEMO_NAMESPACE" app="$DEMO_APP" name="$DEMO_WORKER_POOL"; then
+    local created pool_id
+    created="$(api POST /api/v1/worker-pools "$(json_body namespace="$DEMO_NAMESPACE" app="$DEMO_APP" name="$DEMO_WORKER_POOL")")"
+    pool_id="$(printf '%s' "$created" | tikee_smoke_json_get data.id)"
+    api PATCH "/api/v1/worker-pools/$pool_id/quota" '{"max_queue_depth":200,"max_concurrency":8}' >/dev/null
+  fi
 }
 
 start_server_if_needed() {
@@ -154,6 +194,9 @@ start_java_demo() {
     cd "$ROOT_DIR/examples/java/spring-boot3-worker-demo"
     TIKEE_WORKER_DRY_RUN=false \
     TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
+    TIKEE_WORKER_NAMESPACE="$DEMO_NAMESPACE" \
+    TIKEE_WORKER_APP="$DEMO_APP" \
+    TIKEE_WORKER_POOL="$DEMO_WORKER_POOL" \
     TIKEE_DEMO_SERVER_PORT="$port" \
     TIKEE_WORKER_CLIENT_INSTANCE_ID="$name" \
     TIKEE_WORKER_STATE_DIR="$REPORT_DIR/$name-state" \
@@ -212,12 +255,12 @@ create_job() {
   local name="$1"
   local processor="$2"
   local body
-  body="$(python3 - "$RUN_ID" "$name" "$processor" <<'PY'
+  body="$(python3 - "$RUN_ID" "$DEMO_NAMESPACE" "$DEMO_APP" "$name" "$processor" <<'PY'
 import json, sys
-run_id, name, processor = sys.argv[1:]
+run_id, namespace, app, name, processor = sys.argv[1:]
 print(json.dumps({
-  'namespace': 'default',
-  'app': 'default',
+  'namespace': namespace,
+  'app': app,
   'name': f'{run_id}-{name}',
   'scheduleType': 'api',
   'processorName': processor,
@@ -239,6 +282,7 @@ main() {
   tikee_smoke_login "$API_URL"
   AUTH_TOKEN="$TIKEE_SMOKE_AUTH_TOKEN"
   export AUTH_TOKEN
+  ensure_demo_scope
   start_web_if_needed
 
   start_java_demo spring-demo-worker-a "$JAVA_A_PORT" 10 "$JAVA_A_LOG"

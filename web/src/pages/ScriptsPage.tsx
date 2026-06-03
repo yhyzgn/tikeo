@@ -97,9 +97,9 @@ function policySummary(policy?: ScriptExecutionPolicy): string {
 function scriptCapabilitySummary(script?: ScriptSummary): string {
   if (!script) return '-';
   if (script.language === 'wasm') {
-    return '直接 WASM 模块模式：Worker 需声明 script:wasm 能力并启用 Wasmtime 沙箱执行器；此模式用于原生 WASI/WASM 插件';
+    return '直接 WASM 模块模式：Worker 必须在结构化 scriptRunners 中声明 language=wasm，并启用对应沙箱执行器；此模式用于原生 WASI/WASM 插件';
   }
-  return `Worker 需声明 script:${script.language} 语言能力；默认 sandbox=auto：可编译到 WASM 时优先 Wasmtime，原生命令/二进制优先 srt，JavaScript/TypeScript 逻辑优先 Deno，未匹配时回退 Wasmtime；也可手动指定 wasmtime/wasmedge/srt/deno/v8/docker/podman/custom`;
+  return `Worker 必须在结构化 scriptRunners 中声明 language=${script.language}；默认 sandbox=auto：可编译到 WASM 时优先 Wasmtime，原生命令/二进制优先 srt，JavaScript/TypeScript 逻辑优先 Deno，未匹配时回退 Wasmtime；也可手动指定 wasmtime/wasmedge/srt/deno/v8/docker/podman/custom`;
 }
 
 function shortDigest(value?: string | null): string {

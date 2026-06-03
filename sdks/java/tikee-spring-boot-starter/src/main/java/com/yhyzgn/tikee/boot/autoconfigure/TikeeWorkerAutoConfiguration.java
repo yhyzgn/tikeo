@@ -183,7 +183,7 @@ public class TikeeWorkerAutoConfiguration {
                 () ->
                     log.warn(
                         "tikee default WASM sandbox runtime is unavailable; " +
-                            "script:wasm capability will not be advertised"
+                            "structured scriptRunners language=wasm will not be advertised"
                     )
             );
         return registry;
@@ -214,7 +214,7 @@ public class TikeeWorkerAutoConfiguration {
             ) {
                 log.warn(
                     "tikee non-WASM script runners are enabled but no container runtime command is configured; " +
-                        "script:shell/python/javascript/typescript/powershell/php/groovy/rhai capabilities will not be advertised"
+                        "structured scriptRunners language=shell/python/javascript/typescript/powershell/php/groovy/rhai will not be advertised"
                 );
             } else if (
                 !scripts.isAvailabilityCheck() ||

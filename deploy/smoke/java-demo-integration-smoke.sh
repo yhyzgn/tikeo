@@ -19,6 +19,10 @@ JAVA_PID=""
 OWN_SERVER=0
 AUTH_TOKEN=""
 
+DEMO_NAMESPACE="${TIKEE_JAVA_DEMO_NAMESPACE:-dev-alpha}"
+DEMO_APP="${TIKEE_JAVA_DEMO_APP:-orders}"
+DEMO_WORKER_POOL="${TIKEE_JAVA_DEMO_WORKER_POOL:-boot3-blue}"
+
 mkdir -p "$REPORT_DIR"
 TIKEE_SMOKE_RUN_ID="$RUN_ID"
 TIKEE_SMOKE_CASES_FILE="$REPORT_DIR/${RUN_ID}-cases.jsonl"
@@ -88,6 +92,43 @@ api_json_get() {
     api "$method" "$path" "$body" | json_get "$selector"
   else
     api "$method" "$path" | json_get "$selector"
+  fi
+}
+
+json_body() {
+  python3 - "$@" <<'PY'
+import json, sys
+pairs = [arg.split('=', 1) for arg in sys.argv[1:]]
+print(json.dumps({k: v for k, v in pairs}, ensure_ascii=False, separators=(',', ':')))
+PY
+}
+
+exists_in_list() {
+  local path="$1"
+  shift
+  api GET "$path" | python3 -c 'import json, sys
+payload = json.load(sys.stdin)
+criteria = dict(arg.split("=", 1) for arg in sys.argv[1:])
+data = payload.get("data") or []
+items = data.get("items", []) if isinstance(data, dict) else data
+for item in items:
+    if all(str(item.get(k)) == v for k, v in criteria.items()):
+        sys.exit(0)
+sys.exit(1)' "$@"
+}
+
+ensure_demo_scope() {
+  if ! exists_in_list /api/v1/namespaces name="$DEMO_NAMESPACE"; then
+    api POST /api/v1/namespaces "$(json_body name="$DEMO_NAMESPACE")" >/dev/null
+  fi
+  if ! exists_in_list "/api/v1/apps?namespace=$DEMO_NAMESPACE" namespace="$DEMO_NAMESPACE" name="$DEMO_APP"; then
+    api POST /api/v1/apps "$(json_body namespace="$DEMO_NAMESPACE" name="$DEMO_APP")" >/dev/null
+  fi
+  if ! exists_in_list "/api/v1/worker-pools?namespace=$DEMO_NAMESPACE&app=$DEMO_APP" namespace="$DEMO_NAMESPACE" app="$DEMO_APP" name="$DEMO_WORKER_POOL"; then
+    local created pool_id
+    created="$(api POST /api/v1/worker-pools "$(json_body namespace="$DEMO_NAMESPACE" app="$DEMO_APP" name="$DEMO_WORKER_POOL")")"
+    pool_id="$(printf '%s' "$created" | json_get data.id)"
+    api PATCH "/api/v1/worker-pools/$pool_id/quota" '{"max_queue_depth":200,"max_concurrency":8}' >/dev/null
   fi
 }
 
@@ -204,12 +245,12 @@ create_job() {
   local processor="$3"
   local schedule_expr="${4:-}"
   local body
-  body="$(python3 - "$RUN_ID" "$name" "$schedule_type" "$processor" "$schedule_expr" <<'PY'
+  body="$(python3 - "$RUN_ID" "$DEMO_NAMESPACE" "$DEMO_APP" "$name" "$schedule_type" "$processor" "$schedule_expr" <<'PY'
 import json, sys
-run_id, name, schedule_type, processor, expr = sys.argv[1:]
+run_id, namespace, app, name, schedule_type, processor, expr = sys.argv[1:]
 body = {
-    'namespace': 'default',
-    'app': 'default',
+    'namespace': namespace,
+    'app': app,
     'name': f'{run_id}-{name}',
     'scheduleType': schedule_type,
     'processorName': processor,
@@ -255,12 +296,12 @@ create_plugin_job() {
   local processor_type="$2"
   local processor_name="$3"
   local body
-  body="$(python3 - "$RUN_ID" "$name" "$processor_type" "$processor_name" <<'PY'
+  body="$(python3 - "$RUN_ID" "$DEMO_NAMESPACE" "$DEMO_APP" "$name" "$processor_type" "$processor_name" <<'PY'
 import json, sys
-run_id, name, processor_type, processor_name = sys.argv[1:]
+run_id, namespace, app, name, processor_type, processor_name = sys.argv[1:]
 print(json.dumps({
-    'namespace': 'default',
-    'app': 'default',
+    'namespace': namespace,
+    'app': app,
     'name': f'{run_id}-{name}',
     'scheduleType': 'api',
     'processorType': processor_type,
@@ -274,12 +315,12 @@ PY
 
 assert_invalid_plugin_job_rejected() {
   local body status response
-  body="$(python3 - "$RUN_ID" <<'PY'
+  body="$(python3 - "$RUN_ID" "$DEMO_NAMESPACE" "$DEMO_APP" <<'PY'
 import json, sys
-run_id = sys.argv[1]
+run_id, namespace, app = sys.argv[1:4]
 print(json.dumps({
-    'namespace': 'default',
-    'app': 'default',
+    'namespace': namespace,
+    'app': app,
     'name': f'{run_id}-bad-plugin-job',
     'scheduleType': 'api',
     'processorType': 'sql',
@@ -350,12 +391,12 @@ create_script_job() {
   local name="$1"
   local script_id="$2"
   local body
-  body="$(python3 - "$RUN_ID" "$name" "$script_id" <<'PY'
+  body="$(python3 - "$RUN_ID" "$DEMO_NAMESPACE" "$DEMO_APP" "$name" "$script_id" <<'PY'
 import json, sys
-run_id, name, script_id = sys.argv[1:]
+run_id, namespace, app, name, script_id = sys.argv[1:]
 print(json.dumps({
-    'namespace': 'default',
-    'app': 'default',
+    'namespace': namespace,
+    'app': app,
     'name': f'{run_id}-{name}',
     'scheduleType': 'api',
     'scriptId': script_id,
@@ -509,6 +550,9 @@ start_java_demo() {
     cd "$ROOT_DIR/examples/java/spring-boot3-worker-demo"
     TIKEE_WORKER_DRY_RUN=false \
     TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
+    TIKEE_WORKER_NAMESPACE="$DEMO_NAMESPACE" \
+    TIKEE_WORKER_APP="$DEMO_APP" \
+    TIKEE_WORKER_POOL="$DEMO_WORKER_POOL" \
     TIKEE_DEMO_SERVER_PORT="${DEMO_URL##*:}" \
     TIKEE_WORKER_CLIENT_INSTANCE_ID="${TIKEE_WORKER_CLIENT_INSTANCE_ID:-spring-demo-worker}" \
     TIKEE_WORKER_STATE_DIR="${TIKEE_WORKER_STATE_DIR:-$REPORT_DIR/${RUN_ID}-worker-state}" \
@@ -522,6 +566,7 @@ start_java_demo() {
 main() {
   start_server_if_needed
   login
+  ensure_demo_scope
   start_java_demo
 
   local echo_job fail_job broadcast_job fixed_job cron_job workflow_job

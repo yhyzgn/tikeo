@@ -26,7 +26,7 @@ public class TikeeWorkerProperties {
     private boolean dryRun = false;
     /** Heartbeat interval in milliseconds. */
     private long heartbeatIntervalMillis = 10_000;
-    /** Optional stable client-side instance hint; when blank, the SDK generates and persists one per scope. */
+    /** Optional stable client-side instance hint; when blank, the SDK generates and persists one per scope and runtime identity. */
     private String clientInstanceId;
     /** Directory used to persist generated client instance ids. Blank uses ~/.tikee/workers. */
     private String stateDir;

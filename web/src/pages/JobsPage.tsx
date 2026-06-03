@@ -1,5 +1,6 @@
 import { Alert, Button, Card, DatePicker, Drawer, Form, Input, InputNumber, Popconfirm, Select, Space, Switch, Table, Tag, Timeline, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -8,6 +9,17 @@ import { PermissionGate, useCan } from '../components/Permission';
 import { ROUTE_META } from '../routes';
 import { useUrlQueryState } from '../hooks/useUrlQueryState';
 import { TABLE_PAGE_SIZE_OPTIONS, usePersistentTablePageSize } from '../utils/pagination';
+
+type JobFormValues = Omit<CreateJobRequest & UpdateJobRequest, 'scheduleStartAt' | 'scheduleEndAt'> & {
+  executorKind?: 'sdk' | 'script' | 'plugin';
+  fixedRateValue?: number;
+  fixedRateUnit?: string;
+  fixedRateJitterValue?: number;
+  fixedRateJitterUnit?: string;
+  scheduleCalendarRef?: string | null;
+  scheduleStartAt?: unknown;
+  scheduleEndAt?: unknown;
+};
 
 export function JobsPage() {
   const navigate = useNavigate();
@@ -22,8 +34,8 @@ export function JobsPage() {
   const [calendars, setCalendars] = useState<CalendarSummary[]>([]);
   const [workers, setWorkers] = useState<WorkerSummary[]>([]);
   const [loading, setLoading] = useState(false);
-  const [form] = Form.useForm<CreateJobRequest & { executorKind?: 'sdk' | 'script' | 'plugin'; fixedRateValue?: number; fixedRateUnit?: string; fixedRateJitterValue?: number; fixedRateJitterUnit?: string; scheduleCalendarRef?: string | null }>();
-  const [editForm] = Form.useForm<UpdateJobRequest & { executorKind?: 'sdk' | 'script' | 'plugin'; fixedRateValue?: number; fixedRateUnit?: string; fixedRateJitterValue?: number; fixedRateJitterUnit?: string; scheduleCalendarRef?: string | null }>();
+  const [form] = Form.useForm<JobFormValues>();
+  const [editForm] = Form.useForm<JobFormValues>();
   const [broadcastForm] = Form.useForm<{ tags?: string[]; region?: string; cluster?: string; labelsText?: string }>();
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<JobSummary | null>(null);
@@ -71,7 +83,6 @@ export function JobsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const isScriptCapability = (value?: string | null) => String(value ?? '').trim().startsWith('script:');
   const workerSdkProcessorNames = () => Array.from(new Set(
     workers.flatMap((worker) => worker.structuredCapabilities?.sdkProcessors ?? [])
       .map((processor) => processor.trim())
@@ -104,12 +115,12 @@ export function JobsPage() {
     for (const value of workerSdkProcessorNames()) sdkValues.add(value);
     for (const job of jobs) {
       const value = job.processorName?.trim() || (!job.scriptId ? job.name.trim() : '');
-      if (value && !isScriptCapability(value)) sdkValues.add(value);
+      if (value) sdkValues.add(value);
     }
     const trimmedSearch = search.trim();
-    if (trimmedSearch && !isScriptCapability(trimmedSearch)) sdkValues.add(trimmedSearch);
+    if (trimmedSearch) sdkValues.add(trimmedSearch);
     const current = currentValue?.trim();
-    if (current && !isScriptCapability(current)) sdkValues.add(current);
+    if (current) sdkValues.add(current);
     return Array.from(sdkValues).sort().map((value) => ({ value, label: value }));
   };
   const calendarOptions = calendars.map((calendar) => ({ value: calendar.name, label: `${calendar.namespace}/${calendar.app} · ${calendar.name}` }));
@@ -118,6 +129,14 @@ export function JobsPage() {
     if (!value || typeof value !== 'object') return undefined;
     const ref = (value as { calendarRef?: unknown }).calendarRef;
     return typeof ref === 'string' ? ref : undefined;
+  };
+  const datePickerValue = (value?: string | null) => value ? dayjs(value) : undefined;
+  const isoDateValue = (value?: unknown) => {
+    if (value === undefined) return undefined;
+    if (value === null || value === '') return null;
+    if (typeof value === 'string') return value;
+    if (dayjs.isDayjs(value)) return value.toISOString();
+    return undefined;
   };
   const scriptOptions = scripts
     .filter((script) => script.status === 'approved')
@@ -155,25 +174,30 @@ export function JobsPage() {
   const openEditDrawer = (job: JobSummary) => {
     setEditingJob(job);
     setEditProcessorSearch(job.processorName ?? job.name);
-    const fixedRate = parseFixedRate(job.scheduleExpr);
-    editForm.setFieldsValue({
-      name: job.name,
-      scheduleType: job.scheduleType,
-      scheduleExpr: ['cron', 'once', 'daily_time_interval'].includes(job.scheduleType) ? job.scheduleExpr : undefined,
-      ...fixedRate,
-      misfirePolicy: job.misfirePolicy ?? 'fire_once',
-      scheduleStartAt: job.scheduleStartAt ?? undefined,
-      scheduleEndAt: job.scheduleEndAt ?? undefined,
-      scheduleCalendarRef: parseCalendarRef(job.scheduleCalendar),
-      executorKind: job.scriptId ? 'script' : job.processorType ? 'plugin' : 'sdk',
-      processorName: job.processorName ?? undefined,
-      processorType: job.processorType ?? undefined,
-      scriptId: job.scriptId ?? undefined,
-      canaryJobId: job.canaryJobId ?? undefined,
-      canaryPercent: job.canaryPercent ?? 0,
-      enabled: job.enabled,
-    });
   };
+
+  useEffect(() => {
+    if (!editingJob) return;
+    const fixedRate = parseFixedRate(editingJob.scheduleExpr);
+    editForm.resetFields();
+    editForm.setFieldsValue({
+      name: editingJob.name,
+      scheduleType: editingJob.scheduleType,
+      scheduleExpr: ['cron', 'once', 'daily_time_interval'].includes(editingJob.scheduleType) ? editingJob.scheduleExpr : undefined,
+      ...fixedRate,
+      misfirePolicy: editingJob.misfirePolicy ?? 'fire_once',
+      scheduleStartAt: datePickerValue(editingJob.scheduleStartAt),
+      scheduleEndAt: datePickerValue(editingJob.scheduleEndAt),
+      scheduleCalendarRef: parseCalendarRef(editingJob.scheduleCalendar),
+      executorKind: editingJob.scriptId ? 'script' : editingJob.processorType ? 'plugin' : 'sdk',
+      processorName: editingJob.processorName ?? undefined,
+      processorType: editingJob.processorType ?? undefined,
+      scriptId: editingJob.scriptId ?? undefined,
+      canaryJobId: editingJob.canaryJobId ?? undefined,
+      canaryPercent: editingJob.canaryPercent ?? 0,
+      enabled: editingJob.enabled,
+    });
+  }, [editForm, editingJob]);
 
   const parseBroadcastLabels = (labelsText?: string): Record<string, string> => {
     const labels: Record<string, string> = {};
@@ -227,7 +251,7 @@ export function JobsPage() {
     return { ...rest, scriptId: null, processorType: null };
   };
 
-  const handleEditSubmit = async (values: UpdateJobRequest & { executorKind?: 'sdk' | 'script' | 'plugin'; fixedRateValue?: number; fixedRateUnit?: string; fixedRateJitterValue?: number; fixedRateJitterUnit?: string; scheduleCalendarRef?: string | null }) => {
+  const handleEditSubmit = async (values: JobFormValues) => {
     if (!editingJob) return;
     if (!canWriteJobs) { message.error('当前账号无权限编辑任务'); return; }
     try {
@@ -237,7 +261,11 @@ export function JobsPage() {
       void _ignoredJitterValue;
       void _ignoredJitterUnit;
       void _ignoredCalendarRef;
-      const payload = normalizeExecutor(scheduled);
+      const payload = normalizeExecutor({
+        ...scheduled,
+        scheduleStartAt: isoDateValue(scheduled.scheduleStartAt),
+        scheduleEndAt: isoDateValue(scheduled.scheduleEndAt),
+      });
       const updated = await updateJob(editingJob.id, payload);
       setJobs((current) => current.map((item) => item.id === updated.id ? updated : item));
       setEditingJob(null);
@@ -403,10 +431,17 @@ export function JobsPage() {
           onFinish={async (values) => {
             if (!canWriteJobs) { message.error('当前账号无权限创建任务'); return; }
             try {
-              const { fixedRateValue: _ignoredFixedRateValue, fixedRateUnit: _ignoredFixedRateUnit, ...scheduled } = normalizeSchedule(values);
+              const { fixedRateValue: _ignoredFixedRateValue, fixedRateUnit: _ignoredFixedRateUnit, fixedRateJitterValue: _ignoredJitterValue, fixedRateJitterUnit: _ignoredJitterUnit, scheduleCalendarRef: _ignoredCalendarRef, ...scheduled } = normalizeSchedule(values);
               void _ignoredFixedRateValue;
               void _ignoredFixedRateUnit;
-              const payload = normalizeExecutor(scheduled);
+              void _ignoredJitterValue;
+              void _ignoredJitterUnit;
+              void _ignoredCalendarRef;
+              const payload = normalizeExecutor({
+                ...scheduled,
+                scheduleStartAt: isoDateValue(scheduled.scheduleStartAt),
+                scheduleEndAt: isoDateValue(scheduled.scheduleEndAt),
+              });
               await createJob(payload);
               message.success('任务已创建');
               form.resetFields();
@@ -427,7 +462,7 @@ export function JobsPage() {
             ) : getFieldValue('executorKind') === 'plugin' ? (
               <><Form.Item name="processorType" label="插件处理器类型" rules={[{ required: true, message: '请选择插件处理器类型' }]}><Select placeholder="选择插件处理器类型" options={pluginProcessorOptions} onChange={(value) => applyPluginProcessorSelection(form, value)} /></Form.Item><Form.Item noStyle shouldUpdate={(prev, next) => prev.processorType !== next.processorType || prev.processorName !== next.processorName}>{({ getFieldValue }) => <Form.Item name="processorName" label="任务处理器名" extra="来自插件管理中声明的“任务处理器名候选”；未声明时需要先回到插件管理补齐。" rules={[{ required: true, message: '请选择任务处理器名候选' }]}><Select placeholder="自动选择任务处理器名" options={pluginProcessorNameOptions(getFieldValue('processorType'))} /></Form.Item>}</Form.Item></>
             ) : (
-              <Form.Item name="processorName" label="SDK Processor" extra="只能选择普通 SDK processor；候选来自 Worker 注册的结构化 sdkProcessors。Java demo/Spring Worker 通过 @TikeeProcessor 注册，例如 demo.echo。" rules={[{ validator: (_, value) => isScriptCapability(value) ? Promise.reject(new Error('SDK Processor 不能选择脚本执行器')) : Promise.resolve() }]}><Select allowClear showSearch placeholder="输入或选择 SDK Processor" options={sdkProcessorOptions(createProcessorSearch, form.getFieldValue('processorName'))} filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())} onSearch={setCreateProcessorSearch} onChange={(value) => setCreateProcessorSearch(String(value ?? ''))} /></Form.Item>
+              <Form.Item name="processorName" label="SDK Processor" extra="只能选择普通 SDK processor；候选来自 Worker 注册的结构化 sdkProcessors。Java demo/Spring Worker 通过 @TikeeProcessor 注册，例如 demo.echo。"><Select allowClear showSearch placeholder="输入或选择 SDK Processor" options={sdkProcessorOptions(createProcessorSearch, form.getFieldValue('processorName'))} filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())} onSearch={setCreateProcessorSearch} onChange={(value) => setCreateProcessorSearch(String(value ?? ''))} /></Form.Item>
             )}
           </Form.Item>
           <Form.Item name="scheduleType" label="调度类型"><Select options={scheduleTypeOptions} /></Form.Item>
@@ -472,7 +507,7 @@ export function JobsPage() {
             ) : getFieldValue('executorKind') === 'plugin' ? (
               <><Form.Item name="processorType" label="插件处理器类型" rules={[{ required: true, message: '请选择插件处理器类型' }]}><Select placeholder="选择插件处理器类型" options={pluginProcessorOptions} onChange={(value) => applyPluginProcessorSelection(editForm, value)} /></Form.Item><Form.Item noStyle shouldUpdate={(prev, next) => prev.processorType !== next.processorType || prev.processorName !== next.processorName}>{({ getFieldValue }) => <Form.Item name="processorName" label="任务处理器名" extra="来自插件管理中声明的“任务处理器名候选”；未声明时需要先回到插件管理补齐。" rules={[{ required: true, message: '请选择任务处理器名候选' }]}><Select placeholder="自动选择任务处理器名" options={pluginProcessorNameOptions(getFieldValue('processorType'))} /></Form.Item>}</Form.Item></>
             ) : (
-              <Form.Item name="processorName" label="SDK Processor" extra="只能选择普通 SDK processor；候选来自 Worker 注册的结构化 sdkProcessors。Java demo/Spring Worker 通过 @TikeeProcessor 注册，例如 demo.echo。" rules={[{ validator: (_, value) => isScriptCapability(value) ? Promise.reject(new Error('SDK Processor 不能选择脚本执行器')) : Promise.resolve() }]}><Select allowClear showSearch placeholder="输入或选择 SDK Processor" options={sdkProcessorOptions(editProcessorSearch, editForm.getFieldValue('processorName'))} filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())} onSearch={setEditProcessorSearch} onChange={(value) => setEditProcessorSearch(String(value ?? ''))} /></Form.Item>
+              <Form.Item name="processorName" label="SDK Processor" extra="只能选择普通 SDK processor；候选来自 Worker 注册的结构化 sdkProcessors。Java demo/Spring Worker 通过 @TikeeProcessor 注册，例如 demo.echo。"><Select allowClear showSearch placeholder="输入或选择 SDK Processor" options={sdkProcessorOptions(editProcessorSearch, editForm.getFieldValue('processorName'))} filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())} onSearch={setEditProcessorSearch} onChange={(value) => setEditProcessorSearch(String(value ?? ''))} /></Form.Item>
             )}
           </Form.Item>
           <Form.Item name="scheduleType" label="调度类型"><Select options={scheduleTypeOptions} /></Form.Item>
@@ -538,7 +573,7 @@ export function JobsPage() {
                   {version.rolled_back_from_version ? <Tag color="orange">from v{version.rolled_back_from_version}</Tag> : null}
                 </Space>
                 <Typography.Text type="secondary">{version.schedule_type}{version.schedule_expr ? ` · ${version.schedule_expr}` : ''} · {version.enabled ? '启用' : '禁用'} · {version.created_by} · {version.created_at}</Typography.Text>
-                <Typography.Text code>{version.script_id ? `script:${version.script_id}` : (version.processor_name ?? 'default processor')}</Typography.Text>
+                <Typography.Text code>{version.script_id ? `脚本 ${version.script_id}` : (version.processor_name ?? 'default processor')}</Typography.Text>
                 <PermissionGate resource="jobs" action="write">
                   <Popconfirm title="回滚任务版本" description={`将任务恢复到 v${version.version_number}，并生成新的最新版本。`} onConfirm={() => void handleRollback(version)} disabled={version.version_number === versionJob?.versionNumber}>
                     <Button size="small" disabled={version.version_number === versionJob?.versionNumber}>回滚到此版本</Button>

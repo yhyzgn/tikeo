@@ -1,6 +1,7 @@
 package com.yhyzgn.tikee.examples.worker.web;
 
 import com.yhyzgn.tikee.spring.processor.TikeeProcessorRegistry;
+import com.yhyzgn.tikee.boot.autoconfigure.TikeeWorkerProperties;
 import com.yhyzgn.tikee.worker.client.TikeeWorkerClient;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -17,11 +18,20 @@ import org.springframework.web.bind.annotation.RestController;
 public final class DemoInfoController {
     private final TikeeProcessorRegistry registry;
     private final TikeeWorkerClient workerClient;
+    private final TikeeWorkerProperties workerProperties;
 
     @GetMapping("/health")
     public DemoHealth health() {
         boolean connected = workerClient.connected();
-        return new DemoHealth(connected ? "ok" : "disconnected", workerClient.workerId(), connected, processors());
+        return new DemoHealth(
+                connected ? "ok" : "disconnected",
+                workerClient.workerId(),
+                connected,
+                workerProperties.getNamespace(),
+                workerProperties.getApp(),
+                workerProperties.getLabels().getOrDefault("worker_pool", ""),
+                workerProperties.getClientInstanceId(),
+                processors());
     }
 
     @GetMapping("/processors")
@@ -29,5 +39,13 @@ public final class DemoInfoController {
         return registry.handlers().keySet().stream().sorted().toList();
     }
 
-    public record DemoHealth(String status, String workerId, boolean connected, List<String> processors) {}
+    public record DemoHealth(
+            String status,
+            String workerId,
+            boolean connected,
+            String namespace,
+            String app,
+            String workerPool,
+            String clientInstanceId,
+            List<String> processors) {}
 }

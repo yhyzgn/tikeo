@@ -12,17 +12,17 @@ tikee:
   worker:
     dry-run: ${TIKEE_WORKER_DRY_RUN:false}
     endpoint: ${TIKEE_WORKER_ENDPOINT:http://127.0.0.1:9998}
-    client-instance-id: ${TIKEE_WORKER_CLIENT_INSTANCE_ID:}
+    client-instance-id: ${TIKEE_WORKER_CLIENT_INSTANCE_ID:spring-boot3-worker-demo-${HOSTNAME:local}}
     state-dir: ${TIKEE_WORKER_STATE_DIR:}
-    namespace: ${TIKEE_WORKER_NAMESPACE:default}
-    app: ${TIKEE_WORKER_APP:default}
+    namespace: ${TIKEE_WORKER_NAMESPACE:dev-alpha}
+    app: ${TIKEE_WORKER_APP:orders}
     cluster: ${TIKEE_WORKER_CLUSTER:local}
     region: ${TIKEE_WORKER_REGION:local}
     capabilities:
       - java
       - spring-boot
     labels:
-      worker_pool: ${TIKEE_WORKER_POOL:default}
+      worker_pool: ${TIKEE_WORKER_POOL:boot3-blue}
       runtime: java
       demo: spring-boot3-worker-demo
     wasm:
@@ -34,6 +34,7 @@ tikee:
       container-enabled: ${TIKEE_WORKER_CONTAINER_SCRIPTS_ENABLED:false}
       runtime-command: ${TIKEE_WORKER_CONTAINER_RUNTIME:}
       availability-check: ${TIKEE_WORKER_SCRIPT_RUNTIME_CHECK:true}
+      auto-install-tools: ${TIKEE_WORKER_SCRIPT_AUTO_INSTALL_TOOLS:true}
       images:
         shell: ${TIKEE_WORKER_SCRIPT_SHELL_IMAGE:}
         python: ${TIKEE_WORKER_SCRIPT_PYTHON_IMAGE:}
@@ -46,5 +47,5 @@ tikee:
     enabled: ${TIKEE_MANAGEMENT_ENABLED:true}
     endpoint: ${TIKEE_MANAGEMENT_ENDPOINT:http://127.0.0.1:9999}
     api-key: ${TIKEE_MANAGEMENT_API_KEY:tk-TBP5qDyzqkagXI8Rbr5e3tMayvL6Y3ppk7WLZae1hqgwVhD1eRWLHZzzV7ToOh73}
-    namespace: ${TIKEE_MANAGEMENT_NAMESPACE:default}
-    app: ${TIKEE_MANAGEMENT_APP:default}
+    namespace: ${TIKEE_MANAGEMENT_NAMESPACE:dev-alpha}
+    app: ${TIKEE_MANAGEMENT_APP:orders}

@@ -22,6 +22,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
         "tikee.worker.dry-run=true",
         "tikee.worker.wasm.auto-install=false",
         "tikee.worker.state-dir=${java.io.tmpdir}/spring-boot3-worker-demo-test",
+        "tikee.worker.client-instance-id=spring-boot3-worker-demo-test",
         "tikee.worker.namespace=demo-ns",
         "tikee.worker.app=demo-app",
         "tikee.worker.cluster=demo-cluster",
@@ -49,8 +50,8 @@ class SpringWorkerDemoApplicationTest {
         NoopTikeeWorkerClient noop = (NoopTikeeWorkerClient) client;
 
         assertThat(noop.running()).isTrue();
-        assertThat(noop.workerId()).startsWith("dry-run-java-");
-        assertThat(noop.registration().clientInstanceId()).startsWith("java-");
+        assertThat(noop.workerId()).isEqualTo("dry-run-spring-boot3-worker-demo-test");
+        assertThat(noop.registration().clientInstanceId()).isEqualTo("spring-boot3-worker-demo-test");
         assertThat(noop.registration().namespace()).isEqualTo("demo-ns");
         assertThat(noop.registration().app()).isEqualTo("demo-app");
         assertThat(noop.registration().cluster()).isEqualTo("demo-cluster");
@@ -76,7 +77,7 @@ class SpringWorkerDemoApplicationTest {
 
         assertThat(health).contains("\"status\":\"ok\"");
         assertThat(health).contains("\"connected\":true");
-        assertThat(health).contains("\"workerId\":\"dry-run-java-");
+        assertThat(health).contains("\"workerId\":\"dry-run-spring-boot3-worker-demo-test\"");
         assertThat(health).contains("demo.echo", "demo.fail", "demo.workflow.step");
         assertThat(processors).contains("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail", "billing.sql-sync");
         assertThat(processors).doesNotContain("shell.test");

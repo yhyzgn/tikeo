@@ -22,9 +22,9 @@ class ClientInstanceIdsTest {
     }
 
     @Test
-    void generatedValueIsStableForSameScope() {
-        String first = ClientInstanceIds.resolve(null, "default", "demo", "local", "local", stateRoot);
-        String second = ClientInstanceIds.resolve(null, "default", "demo", "local", "local", stateRoot);
+    void generatedValueIsStableForSameScopeAndRuntimeIdentity() {
+        String first = ClientInstanceIds.resolve(null, "default", "demo", "local", "local", stateRoot, "pod-a");
+        String second = ClientInstanceIds.resolve(null, "default", "demo", "local", "local", stateRoot, "pod-a");
 
         assertEquals(first, second);
         assertTrue(first.startsWith("java-"));
@@ -32,8 +32,16 @@ class ClientInstanceIdsTest {
 
     @Test
     void generatedValueIsScopedByNamespaceAndApp() {
-        String first = ClientInstanceIds.resolve(null, "default", "demo", "local", "local", stateRoot);
-        String second = ClientInstanceIds.resolve(null, "default", "other", "local", "local", stateRoot);
+        String first = ClientInstanceIds.resolve(null, "default", "demo", "local", "local", stateRoot, "pod-a");
+        String second = ClientInstanceIds.resolve(null, "default", "other", "local", "local", stateRoot, "pod-a");
+
+        assertNotEquals(first, second);
+    }
+
+    @Test
+    void generatedValueIsScopedByRuntimeIdentity() {
+        String first = ClientInstanceIds.resolve(null, "default", "demo", "local", "local", stateRoot, "pod-a");
+        String second = ClientInstanceIds.resolve(null, "default", "demo", "local", "local", stateRoot, "pod-b");
 
         assertNotEquals(first, second);
     }

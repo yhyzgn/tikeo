@@ -2,6 +2,8 @@ package com.yhyzgn.tikee.worker.identity;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,14 +38,34 @@ public final class ClientInstanceIds {
             String cluster,
             String region,
             Path stateRoot) {
+        return resolve(explicitClientInstanceId, namespace, app, cluster, region, stateRoot, runtimeIdentity());
+    }
+
+    /**
+     * Returns an explicit id when present, otherwise reads or creates a stable id scoped to a runtime identity.
+     *
+     * <p>The runtime identity is intentionally part of both the state path and generated id. In Kubernetes,
+     * multiple Pods commonly share namespace/app/cluster/region but must register as separate worker
+     * instances; using the Pod/host identity prevents those replicas from collapsing into one instance.
+     */
+    public static String resolve(
+            String explicitClientInstanceId,
+            String namespace,
+            String app,
+            String cluster,
+            String region,
+            Path stateRoot,
+            String runtimeIdentity) {
         if (hasText(explicitClientInstanceId)) {
             return explicitClientInstanceId.trim();
         }
         Objects.requireNonNull(stateRoot, "stateRoot");
+        String runtimeSegment = safeSegment(runtimeIdentity);
         Path path = stateRoot.resolve(safeSegment(namespace))
                 .resolve(safeSegment(app))
                 .resolve(safeSegment(cluster))
                 .resolve(safeSegment(region))
+                .resolve(runtimeSegment)
                 .resolve(FILE_NAME);
         try {
             if (Files.exists(path)) {
@@ -53,13 +75,49 @@ public final class ClientInstanceIds {
                 }
             }
             Files.createDirectories(path.getParent());
-            String generated = "java-" + digest(namespace, app, cluster, region, System.getProperty("user.name", "unknown"), path.toAbsolutePath().toString())
+            String generated = "java-" + digest(
+                            namespace,
+                            app,
+                            cluster,
+                            region,
+                            runtimeSegment,
+                            System.getProperty("user.name", "unknown"),
+                            path.toAbsolutePath().toString())
                     .substring(0, 24);
             Files.writeString(path, generated + System.lineSeparator(), StandardCharsets.UTF_8);
             return generated;
         } catch (IOException error) {
             throw new UncheckedIOException("Failed to resolve tikee client instance id at " + path, error);
         }
+    }
+
+    private static String runtimeIdentity() {
+        String explicitRuntime = firstText(
+                System.getenv("TIKEE_WORKER_RUNTIME_ID"),
+                System.getenv("TIKEE_POD_NAME"),
+                System.getenv("POD_NAME"),
+                System.getenv("HOSTNAME"));
+        if (hasText(explicitRuntime)) {
+            return explicitRuntime.trim();
+        }
+        try {
+            String hostName = InetAddress.getLocalHost().getHostName();
+            if (hasText(hostName)) {
+                return hostName.trim();
+            }
+        } catch (UnknownHostException ignored) {
+            // Fall through to a process-local fallback.
+        }
+        return "pid-" + ProcessHandle.current().pid();
+    }
+
+    private static String firstText(String... values) {
+        for (String value : values) {
+            if (hasText(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private static Path defaultStateRoot() {

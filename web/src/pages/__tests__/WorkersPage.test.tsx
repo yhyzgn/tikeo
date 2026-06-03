@@ -56,7 +56,7 @@ describe('Worker capability presentation model', () => {
     app: 'billing',
     cluster: 'standalone',
     region: 'local',
-    capabilities: ['sdk', 'processor:demo.echo', 'script:shell', 'legacy-tag'],
+    capabilities: ['sdk', 'processor:demo.echo', 'legacy-script-shell', 'legacy-tag'],
     structuredCapabilities: {
       tags: ['sdk', 'java'],
       sdkProcessors: ['demo.echo'],
@@ -78,16 +78,15 @@ describe('Worker capability presentation model', () => {
   };
 
   test('keeps processor names out of the generic Capabilities column', () => {
-    expect(visibleCapabilityTags(worker)).toEqual(['java', 'legacy-tag', 'sdk']);
+    expect(visibleCapabilityTags(worker)).toEqual(['java', 'sdk']);
     expect(visibleCapabilityTags(worker)).not.toContain('processor:demo.echo');
-    expect(visibleCapabilityTags(worker)).not.toContain('script:shell');
+    expect(visibleCapabilityTags(worker)).not.toContain('legacy-script-shell');
     expect(visibleSdkProcessors(worker)).toEqual(['demo.echo']);
   });
 
   test('still exposes structured processor choices through dedicated filters', () => {
     expect(capabilityFilterValues(worker)).toEqual([
       'java',
-      'legacy-tag',
       'sdk',
       'SDK:demo.echo',
       'Script:shell',

@@ -18,13 +18,31 @@ The demo test suite covers:
 
 The demo is a normal embedded-web Spring Boot application. `bootRun` stays online through the web server, not a custom blocking runner. It exposes `GET /demo/health` and `GET /demo/processors` on `TIKEE_DEMO_SERVER_PORT` (default `18084`).
 
-The demo does not configure `client-instance-id`; the SDK creates and reuses a stable local instance id under `~/.tikee/workers` for the configured namespace/app/cluster/region. The demo defaults to `tikee.worker.dry-run=false`, so `bootRun` connects to the live Worker Tunnel at `TIKEE_WORKER_ENDPOINT` and should appear in the Worker cluster page after registration. Start tikee with `config/dev.toml`, then run:
+The demo configures `client-instance-id` to `spring-boot4-worker-demo` by default so multiple Java demos in the same namespace/app still register as separate workers. Override `TIKEE_WORKER_CLIENT_INSTANCE_ID` only when intentionally testing worker identity reuse. The demo defaults to `tikee.worker.dry-run=false`, so `bootRun` connects to the live Worker Tunnel at `TIKEE_WORKER_ENDPOINT` and should appear in the Worker cluster page after registration. Start tikee with `config/dev.toml`, then run:
 
 ```bash
 (cd examples/java/spring-boot4-worker-demo && TIKEE_WORKER_ENDPOINT=http://127.0.0.1:9998 TIKEE_DEMO_SERVER_PORT=18084 ./gradlew bootRun)
 ```
 
+
+For the manual acceptance defaults, prefer the wrapper script because it sets the demo scope and management scope consistently:
+
+```bash
+(cd examples/java/spring-boot4-worker-demo && ./scripts/run-demo-worker.sh)
+```
+
 For local UI-only startup without a tikee server, explicitly set `TIKEE_WORKER_DRY_RUN=true`; dry-run workers do not register with the server and will not appear in the Worker cluster page.
+
+
+## Manual integration acceptance scope
+
+By default `scripts/run-demo-worker.sh` starts this demo in the same scope used by `scripts/dev-integration-seed.sh` and `scripts/start-java-demo-workers.sh`:
+
+- scope: `dev-alpha/billing/boot4-green`
+- advertised processors: `demo.echo, demo.context, demo.bytes, demo.heartbeat, demo.report, demo.workflow.step, demo.fail, sql:billing.sql-sync`
+- health check: `GET /demo/health` returns `namespace`, `app`, `workerPool`, `clientInstanceId`, and the sorted processor list.
+
+The startup path intentionally keeps script runtime availability checks and tool auto-installation enabled by default. Override `TIKEE_WORKER_SCRIPT_RUNTIME_CHECK`, `TIKEE_WORKER_SCRIPT_AUTO_INSTALL_TOOLS`, or `TIKEE_WORKER_WASM_AUTO_INSTALL` only when testing those failure modes explicitly.
 
 ## Spring Boot starter compatibility matrix
 

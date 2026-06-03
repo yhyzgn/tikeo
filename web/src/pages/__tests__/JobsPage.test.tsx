@@ -23,13 +23,13 @@ describe('job schedule form governance', () => {
     expect(source).toContain('脚本（沙箱自动执行）');
     expect(source).toContain('具体脚本');
     expect(source).toContain('workerSdkProcessorNames');
-    expect(source).toContain('SDK Processor 不能选择脚本执行器');
     expect(source).toContain('选择已审批脚本');
     expect(source).toContain('Server 会按脚本语言匹配 Worker 注册的结构化 scriptRunners');
     expect(source).toContain('demo.echo');
     expect(source).not.toContain('scriptExecutor');
     expect(source).not.toContain('选择脚本执行器能力');
     expect(source).not.toContain('执行器类型');
+    expect(source).not.toContain('script:');
     expect(source).not.toContain('script:${script.id}');
     expect(source).not.toContain("label: 'Script'");
   });
@@ -46,6 +46,16 @@ describe('job schedule form governance', () => {
     expect(source).toContain('validatePluginExecutor(values.processorType, values.processorName)');
     expect(source).toContain('return { ...rest, scriptId: null, processorType: null }');
     expect(source).not.toContain('script:${script.id}');
+  });
+
+  test('replays edit drawer values after remount and converts lifecycle date values', () => {
+    expect(source).toContain('useEffect(() => {');
+    expect(source).toContain('if (!editingJob) return;');
+    expect(source).toContain('editForm.resetFields();');
+    expect(source).toContain('scheduleStartAt: datePickerValue(editingJob.scheduleStartAt)');
+    expect(source).toContain('scheduleEndAt: datePickerValue(editingJob.scheduleEndAt)');
+    expect(source).toContain('scheduleStartAt: isoDateValue(scheduled.scheduleStartAt)');
+    expect(source).toContain('scheduleEndAt: isoDateValue(scheduled.scheduleEndAt)');
   });
 
   test('exposes job version history and rollback UI copy', () => {

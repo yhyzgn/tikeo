@@ -401,8 +401,13 @@ impl WorkerRegistry {
         app: &str,
         required_capability: Option<&str>,
     ) -> Vec<String> {
-        let requirement = required_capability.and_then(WorkerRequirement::from_legacy);
-        self.find_eligible_workers_with_requirement(namespace, app, requirement.as_ref())
+        let Some(required_capability) = required_capability else {
+            return self.find_eligible_workers_with_requirement(namespace, app, None).await;
+        };
+        let Some(requirement) = WorkerRequirement::from_legacy(required_capability) else {
+            return Vec::new();
+        };
+        self.find_eligible_workers_with_requirement(namespace, app, Some(&requirement))
             .await
     }
 
@@ -465,8 +470,13 @@ impl WorkerRegistry {
         worker_id: &str,
         required_capability: Option<&str>,
     ) -> bool {
-        let requirement = required_capability.and_then(WorkerRequirement::from_legacy);
-        self.worker_supports_requirement(worker_id, requirement.as_ref())
+        let Some(required_capability) = required_capability else {
+            return self.worker_supports_requirement(worker_id, None).await;
+        };
+        let Some(requirement) = WorkerRequirement::from_legacy(required_capability) else {
+            return false;
+        };
+        self.worker_supports_requirement(worker_id, Some(&requirement))
             .await
     }
 
@@ -775,10 +785,6 @@ fn broadcast_selector_matches(worker: &RegisteredWorker, selector: &BroadcastSel
 
 fn worker_satisfies(worker: &RegisteredWorker, requirement: &WorkerRequirement) -> bool {
     structured_capabilities_match(&worker.structured_capabilities, requirement)
-        || worker
-            .capabilities
-            .iter()
-            .any(|capability| requirement.matches_legacy_capability(capability))
 }
 
 /// Worker session status used by scheduling and UI grouping.
@@ -1111,7 +1117,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn registry_matches_unified_and_legacy_script_capabilities() {
+    async fn registry_requires_structured_script_runner_capabilities() {
         let registry = WorkerRegistry::default();
         registry
             .register(
@@ -1125,21 +1131,46 @@ mod tests {
         registry
             .register(
                 RegisterWorker {
-                    capabilities: vec!["script:python".to_owned()],
+                    capabilities: vec!["legacy-script-python".to_owned()],
                     ..register_worker("pod-python")
                 },
                 mpsc::channel(1).0,
             )
             .await;
+        registry
+            .register(
+                RegisterWorker {
+                    structured_capabilities: Some(WorkerCapabilities {
+                        script_runners: vec![ScriptRunnerCapability {
+                            language: "python".to_owned(),
+                            sandbox_backend: "srt".to_owned(),
+                        }],
+                        ..WorkerCapabilities::default()
+                    }),
+                    ..register_worker("pod-python-structured")
+                },
+                mpsc::channel(1).0,
+            )
+            .await;
 
-        let script_workers = registry
+        let legacy_script_workers = registry
             .find_eligible_workers_with_capability("finance", "billing", Some("script"))
             .await;
-        assert_eq!(script_workers.len(), 2);
-        let python_workers = registry
-            .find_eligible_workers_with_capability("finance", "billing", Some("script:python"))
+        assert!(legacy_script_workers.is_empty());
+        let legacy_python_workers = registry
+            .find_eligible_workers_with_capability("finance", "billing", Some("legacy-script-python"))
             .await;
-        assert_eq!(python_workers.len(), 2);
+        assert!(legacy_python_workers.is_empty());
+        let python_workers = registry
+            .find_eligible_workers_with_requirement(
+                "finance",
+                "billing",
+                Some(&WorkerRequirement::ScriptRunner {
+                    language: "python".to_owned(),
+                }),
+            )
+            .await;
+        assert_eq!(python_workers.len(), 1);
     }
 
     #[tokio::test]
