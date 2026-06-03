@@ -284,20 +284,20 @@ export function ScopesPage() {
         <Typography.Text type="secondary">所有新建/绑定操作通过右侧抽屉完成，列表区域只负责检索、查看和删除。</Typography.Text>
       </Card>
 
-      <Drawer title="创建命名空间" open={drawer === 'namespace'} onClose={() => { setDrawer(null); namespaceForm.resetFields(); }} width={640} destroyOnClose>
+      <Drawer title="创建命名空间" open={drawer === 'namespace'} onClose={() => { setDrawer(null); namespaceForm.resetFields(); }} width={760} destroyOnClose>
         <Form form={namespaceForm} layout="vertical" onFinish={(values) => void handleNamespaceCreate(values)}>
           <Form.Item name="name" label="命名空间" rules={[{ required: true, message: '请输入命名空间' }]}><Input placeholder="default / payments" /></Form.Item>
           <PermissionGate resource="tenants" action="manage"><Button type="primary" htmlType="submit" block>创建命名空间</Button></PermissionGate>
         </Form>
       </Drawer>
-      <Drawer title="创建应用" open={drawer === 'app'} onClose={() => { setDrawer(null); appForm.resetFields(); }} width={640} destroyOnClose>
+      <Drawer title="创建应用" open={drawer === 'app'} onClose={() => { setDrawer(null); appForm.resetFields(); }} width={760} destroyOnClose>
         <Form form={appForm} layout="vertical" onFinish={(values) => void handleAppCreate(values)}>
           <Form.Item name="namespace" label="命名空间" rules={[{ required: true, message: '请选择命名空间' }]}><Select options={namespaceOptions} placeholder="选择 namespace" /></Form.Item>
           <Form.Item name="name" label="应用" rules={[{ required: true, message: '请输入应用名' }]}><Input placeholder="billing / settlement" /></Form.Item>
           <PermissionGate resource="tenants" action="manage"><Button type="primary" htmlType="submit" block>创建应用</Button></PermissionGate>
         </Form>
       </Drawer>
-      <Drawer title="创建 Worker Pool" open={drawer === 'pool'} onClose={() => { setDrawer(null); poolForm.resetFields(); }} width={640} destroyOnClose>
+      <Drawer title="创建 Worker Pool" open={drawer === 'pool'} onClose={() => { setDrawer(null); poolForm.resetFields(); }} width={760} destroyOnClose>
         <Form form={poolForm} layout="vertical" onFinish={(values) => void handleWorkerPoolCreate(values)}>
           <Form.Item name="namespace" label="命名空间" rules={[{ required: true, message: '请选择命名空间' }]}><Select options={namespaceOptions} placeholder="选择 namespace" /></Form.Item>
           <Form.Item name="app" label="应用" rules={[{ required: true, message: '请选择应用' }]}><Select options={appOptions} placeholder="选择 app" /></Form.Item>
@@ -307,7 +307,7 @@ export function ScopesPage() {
         </Form>
       </Drawer>
 
-      <Drawer title="新建 Secret 引用" open={drawer === 'secret'} onClose={() => { setDrawer(null); secretForm.resetFields(); }} width={640} destroyOnClose>
+      <Drawer title="新建 Secret 引用" open={drawer === 'secret'} onClose={() => { setDrawer(null); secretForm.resetFields(); }} width={760} destroyOnClose>
         <Alert type="info" showIcon style={{ marginBottom: 16 }} message="这里只保存结构化 Secret 引用，不保存明文" description="请选择引用类型并填写对应字段，系统会保存规范化结构化引用。" />
         <Form form={secretForm} layout="vertical" initialValues={{ referenceKind: 'env' }} onFinish={(values) => void handleSecretCreate(values)}>
           <Form.Item name="namespace" label="命名空间" rules={[{ required: true, message: '请选择命名空间' }]}><Select options={namespaceOptions} placeholder="选择 namespace" /></Form.Item>
@@ -321,7 +321,7 @@ export function ScopesPage() {
         </Form>
       </Drawer>
 
-      <Drawer title={quotaPool ? `Worker Pool 配额 - ${quotaPool.name}` : 'Worker Pool 配额'} open={quotaPool !== null} onClose={() => { setQuotaPool(null); quotaForm.resetFields(); }} width={640} destroyOnClose>
+      <Drawer title={quotaPool ? `Worker Pool 配额 - ${quotaPool.name}` : 'Worker Pool 配额'} open={quotaPool !== null} onClose={() => { setQuotaPool(null); quotaForm.resetFields(); }} width={760} destroyOnClose>
         <Form form={quotaForm} layout="vertical" onFinish={(values) => void handleQuotaUpdate(values)}>
           <Form.Item name="maxQueueDepth" label="队列上限" extra="pending + running 总数上限；0 表示不限" rules={[{ required: true }]}><InputNumber min={0} precision={0} style={{ width: '100%' }} /></Form.Item>
           <Form.Item name="maxConcurrency" label="并发上限" extra="running 上限；0 表示不限" rules={[{ required: true }]}><InputNumber min={0} precision={0} style={{ width: '100%' }} /></Form.Item>
@@ -340,7 +340,7 @@ export function ScopesPage() {
         <Table rowKey="id" loading={loading} columns={secretColumns} dataSource={secrets} pagination={persistentPagination(pageSize, setPageSize)} size="small" />
       </Card>
 
-      <Drawer title="保存 OIDC 映射" open={drawer === 'oidc'} onClose={() => { setDrawer(null); oidcForm.resetFields(); }} width={840} destroyOnClose>
+      <Drawer title="保存 OIDC 映射" open={drawer === 'oidc'} onClose={() => { setDrawer(null); oidcForm.resetFields(); }} width={980} destroyOnClose>
         <Alert type="info" showIcon style={{ marginBottom: 16 }} message="Fail-closed OIDC 映射" description="只有显式配置 issuer + subject 到本地用户的映射后，OIDC callback 才会签发本地 tikee session；namespace/app/Worker Pool 会进入 scope binding。" />
         <Form form={oidcForm} layout="vertical" onFinish={(values) => void handleOidcIdentityUpsert(values)}>
           <Row gutter={[12, 0]}>

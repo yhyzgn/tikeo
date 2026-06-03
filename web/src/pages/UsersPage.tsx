@@ -150,7 +150,7 @@ export function UsersPage() {
         title={editingId ? '编辑用户' : '创建用户'}
         open={drawerOpen}
         onClose={closeDrawer}
-        width={640}
+        width={760}
         destroyOnClose
       >
         <Typography.Paragraph type="secondary">用户创建与角色调整会影响登录权限；编辑用户时留空密码表示不修改。</Typography.Paragraph>

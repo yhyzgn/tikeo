@@ -559,7 +559,7 @@ export function ScriptsPage() {
         title="新建脚本"
         open={createDrawerOpen}
         onClose={() => { setCreateDrawerOpen(false); form.resetFields(); }}
-        width={760}
+        width={900}
         destroyOnClose
         extra={<Space wrap className="card-toolbar"><Button onClick={() => { setCreateDrawerOpen(false); form.resetFields(); }}>取消</Button><Button type="primary" onClick={() => void handleCreate()}>创建脚本</Button></Space>}
       >
@@ -622,7 +622,7 @@ export function ScriptsPage() {
         title={`脚本详情 - ${detailScript?.name ?? ''}`}
         open={detailDrawerOpen}
         onClose={() => { setDetailDrawerOpen(false); setDetailScript(null); }}
-        width={840}
+        width={980}
       >
         {detailLoading ? (
           <Spin />
@@ -683,7 +683,7 @@ export function ScriptsPage() {
         title={`版本历史 - ${activeScript?.name ?? ''}`}
         open={versionDrawerOpen}
         onClose={() => setVersionDrawerOpen(false)}
-        width={840}
+        width={980}
       >
         {versionsLoading ? (
           <Spin />

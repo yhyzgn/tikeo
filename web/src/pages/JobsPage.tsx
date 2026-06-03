@@ -392,7 +392,7 @@ export function JobsPage() {
         title="创建任务"
         open={createDrawerOpen}
         onClose={() => { setCreateDrawerOpen(false); form.resetFields(); }}
-        width={760}
+        width={900}
         destroyOnClose
       >
         <Typography.Paragraph type="secondary">配置任务所属 namespace/app、调度类型和 Worker processor 绑定；创建后在列表统一启停和触发。</Typography.Paragraph>
@@ -458,7 +458,7 @@ export function JobsPage() {
         title={editingJob ? `编辑任务 - ${editingJob.name}` : '编辑任务'}
         open={editingJob !== null}
         onClose={() => { setEditingJob(null); editForm.resetFields(); }}
-        width={760}
+        width={900}
         destroyOnClose
       >
         <Typography.Paragraph type="secondary">编辑任务基础信息、调度配置、Processor 绑定和启用状态；namespace/app 暂不支持变更，避免历史实例归属漂移。</Typography.Paragraph>
@@ -505,7 +505,7 @@ export function JobsPage() {
         title={broadcastJob ? `广播触发 - ${broadcastJob.name}` : '广播触发'}
         open={broadcastJob !== null}
         onClose={() => { setBroadcastJob(null); broadcastForm.resetFields(); }}
-        width={760}
+        width={900}
         destroyOnClose
       >
         <Typography.Paragraph type="secondary">可选填写 Worker 筛选条件；不填写时广播到当前 Namespace/App 下全部在线可调度 Worker。</Typography.Paragraph>
@@ -522,7 +522,7 @@ export function JobsPage() {
         title={versionJob ? `版本历史 - ${versionJob.name}` : '版本历史'}
         open={versionJob !== null}
         onClose={() => { setVersionJob(null); setJobVersions([]); }}
-        width={560}
+        width={680}
       >
         <Typography.Paragraph type="secondary">任务版本是每次创建、编辑和回滚后的不可变快照；回滚会生成新的最新版本，不会覆盖历史。</Typography.Paragraph>
         <Timeline
@@ -556,7 +556,7 @@ export function JobsPage() {
         title={adviceJob ? `调度建议 - ${adviceJob.name}` : '调度建议'}
         open={adviceJob !== null}
         onClose={() => { setAdviceJob(null); setSchedulingAdvice(null); }}
-        width={720}
+        width={840}
       >
         <Typography.Paragraph className="scheduling-advice-intro" type="secondary">基于当前 Job 绑定、在线 Worker 能力和最近实例状态给出触发前建议；只读展示，不改变调度行为。</Typography.Paragraph>
         {adviceLoading ? <Typography.Text type="secondary">加载调度建议...</Typography.Text> : null}

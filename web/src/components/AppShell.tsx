@@ -43,7 +43,7 @@ export function AppShell({ children, onLogout }: AppShellProps) {
 
   return (
     <Layout className="app-shell">
-      <Sider breakpoint="lg" collapsedWidth="0" width={264} className="app-shell__sider">
+      <Sider breakpoint="lg" collapsedWidth="0" width={304} className="app-shell__sider">
         <div className="app-shell__brand">
           <TikeeLogo size={64} />
           <div>

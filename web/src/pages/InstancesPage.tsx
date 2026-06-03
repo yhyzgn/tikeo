@@ -175,7 +175,7 @@ export function InstancesPage() {
         </>
       )}
       <Drawer
-        width={760}
+        width={900}
         title={selectedInstance ? `实例日志： ${selectedInstance.id}` : '实例日志'}
         open={logDrawerOpen}
         onClose={() => setLogDrawerOpen(false)}

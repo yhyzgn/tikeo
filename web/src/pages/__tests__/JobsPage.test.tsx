@@ -37,7 +37,7 @@ describe('job schedule form governance', () => {
   test('uses formal drawers and structured executor/script selectors for create and edit', () => {
     expect(source).toContain('title="创建任务"');
     expect(source).toContain("title={editingJob ? `编辑任务 - ${editingJob.name}` : '编辑任务'}");
-    expect(source.match(/width=\{760\}/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(source.match(/width=\{900\}/g)?.length).toBeGreaterThanOrEqual(3);
     expect(source).toContain("{ value: 'sdk', label: 'SDK Processor' }");
     expect(source).toContain("{ value: 'plugin', label: '插件处理器' }");
     expect(source).toContain("{ value: 'script', label: '脚本（沙箱自动执行）' }");
