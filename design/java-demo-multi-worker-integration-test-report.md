@@ -64,7 +64,7 @@
 | 同时真实启动 5 个 Java demo worker 并完成 server worker list 注册断言 | 已启动 5 个 worker；`/api/v1/workers` 返回 `online=5`，5 个 logical instance 分属 `dev-alpha/orders`、`dev-alpha/billing`、`dev-beta/analytics`、`dev-ops/automation`；worker pool 通过 master domain 体现为 `boot2-blue`、`boot3-blue`、`boot4-green`、`boot3-batch`、`boot4-ops` | `/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/workers-final.json`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/worker-process-status.txt`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/health-18182.json` ~ `health-18186.json` | ✅ 通过 |
 | 手动触发 seed 生成的 8 个 API jobs 并等待实例完成 | 已触发 8 个 seed jobs；7 个业务 processor succeeded，`fail-api` 走预期失败路径；实例日志均已采集 | `/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/final-e2e-summary.json`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/trigger-results.json`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/retrigger-sql-result.json` | ✅ 通过 |
 | SQL plugin job 调度绑定 | 首次触发暴露 seed 缺口：`sql-sync-api` 未带 `processorType=sql` 时被当作 SDK processor 匹配并 fail-closed；已修 `scripts/dev-integration-seed.sh` 注册 SQL plugin 并创建 `processorType=sql` job，PATCH 当前临时 DB 后重触发成功 | `/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/sql-job-patch.json`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/retrigger-sql-result.json` | ✅ 已修复并通过 |
-| worker pool quota 对调度拥塞/并发限制的压力测试 | 本轮仍只验证 quota API 写入成功；未构造超额并发/队列拥塞压力 | 后续专项批量触发构造 pending/running 并验证 quota 行为 | ⚠️ 待专项测试 |
+| worker pool quota 对调度拥塞/并发限制的压力测试 | 已补存储层专项压力回归：`max_concurrency=1` 会阻止同池第二个 running claim；`max_queue_depth=1` 会在 active depth 超限时背压并在深度下降后恢复；拥塞池不会饿死后续开放池 | `cargo test -p tikee-storage worker_pool_ --all-features` | ✅ 通过 |
 | 已初始化 dev DB 上的默认账号登录路径 | 完整联调改用临时 SQLite DB，bootstrap 注册 `smoke_admin/Tikee@2026!` 成功；已初始化本机 dev DB 仍不应假设默认账号有效 | `/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/login.json`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/seed.log` | ✅ 临时库通过 / ⚠️ dev DB 环境相关 |
 | 非 SQLite 数据库上的 seed API 验证 | 本轮完整联合冒烟仍使用临时 SQLite | DB 兼容性专项计划中分别跑 PostgreSQL/MySQL | ⚠️ 另有专项 |
 
@@ -396,9 +396,9 @@ scripts/start-java-demo-workers.sh --stop
    - server worker 列表当前接受 `worker_pool`/`worker-pool` label 识别 worker pool。
    - 本轮 Java demo 已统一写入 `worker_pool` label。
 
-4. **quota 已验证写入，未验证拥塞调度行为**
+4. **quota 拥塞/并发限制已补专项回归**
    - worker pool quota API 写入通过。
-   - 并发/队列上限实际调度效果仍应在后续压力/拥塞专项中验证。
+   - 存储层 dispatch queue claim 已覆盖 `max_concurrency`、`max_queue_depth` 与拥塞池跳过，避免同池超并发和跨池饥饿。
 
 ## 9. 最终状态
 
@@ -409,4 +409,26 @@ scripts/start-java-demo-workers.sh --stop
 - ✅ seed 真实 API 创建通过（含 SQL plugin processor 注册）
 - ✅ 文档已补充
 - ✅ 完整多 worker 在线触发闭环已执行并采集证据
-- ⚠️ worker pool quota 拥塞/并发限制仍留待专项压力测试
+- ✅ worker pool quota 拥塞/并发限制专项回归通过
+
+## 10. Worker Pool quota 拥塞/并发限制专项结果
+
+本专项补充了直接作用于 `DispatchQueueRepository::claim_next_job_queue_item*` 的回归测试，验证调度队列在 worker pool quota 下的背压语义：
+
+| 场景 | 断言 | 结果 |
+| --- | --- | --- |
+| `max_concurrency=1` | 同一 namespace/app/worker_pool 已有 running queue item 时，第二个 pending item 不会被 claim | ✅ 通过 |
+| `max_queue_depth=1` | 同池 active depth 超限时 pending item 被背压；关闭一个 active item 后剩余 item 可继续 claim | ✅ 通过 |
+| 拥塞池跳过 | 前面 20 个 queue items 属于超限池时，后续开放池 item 仍可被 claim，避免跨池饥饿 | ✅ 通过 |
+
+修复点：
+
+1. worker pool quota 查询从“仅按 pool name 查找”改为按 `namespace + app + worker_pool` 解析，避免不同 app/namespace 同名 pool 互相影响。
+2. claim 扫描不再只看第一个候选，允许跳过被 quota 背压的拥塞池，继续寻找后续可运行池。
+3. 保留 `max_queue_depth` 的可消化语义：active depth **超过**上限时背压；降回上限后允许继续 claim，避免队列无法自行恢复。
+
+验证命令：
+
+```bash
+cargo test -p tikee-storage worker_pool_ --all-features
+```

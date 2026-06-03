@@ -7,8 +7,9 @@ use sea_orm::{
 use tikee_core::InstanceStatus;
 
 use crate::entities::{
-    dispatch_queue, instance_event, job_instance, workflow, workflow_edge, workflow_instance,
-    workflow_node, workflow_node_instance, workflow_shard,
+    app as app_entity, dispatch_queue, instance_event, job_instance, namespace as namespace_entity,
+    workflow, workflow_edge, workflow_instance, workflow_node, workflow_node_instance,
+    workflow_shard,
 };
 
 use super::util::{new_id, now_rfc3339, rfc3339_after_seconds};
@@ -1653,8 +1654,7 @@ impl WorkflowRepository {
                     .or(dispatch_queue::Column::LeaseUntil.lt(now.clone())),
             )
             .order_by_asc(dispatch_queue::Column::Priority)
-            .order_by_asc(dispatch_queue::Column::RunAfter)
-            .limit(1);
+            .order_by_asc(dispatch_queue::Column::RunAfter);
         query = match kind {
             DispatchQueueClaimKind::Any => query,
             DispatchQueueClaimKind::WorkflowNode => {
@@ -1667,7 +1667,6 @@ impl WorkflowRepository {
         let candidates = query
             .select_only()
             .column(dispatch_queue::Column::Id)
-            .limit(16)
             .into_tuple::<(String,)>()
             .all(&self.db)
             .await?;
@@ -1719,7 +1718,24 @@ impl WorkflowRepository {
         else {
             return Ok(false);
         };
+        let Some(namespace_model) = namespace_entity::Entity::find()
+            .filter(namespace_entity::Column::Name.eq(namespace.clone()))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(false);
+        };
+        let Some(app_model) = app_entity::Entity::find()
+            .filter(app_entity::Column::NamespaceId.eq(namespace_model.id.clone()))
+            .filter(app_entity::Column::Name.eq(app.clone()))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(false);
+        };
         let Some(scope) = crate::entities::worker_pool::Entity::find()
+            .filter(crate::entities::worker_pool::Column::NamespaceId.eq(namespace_model.id))
+            .filter(crate::entities::worker_pool::Column::AppId.eq(app_model.id))
             .filter(crate::entities::worker_pool::Column::Name.eq(pool.clone()))
             .one(&self.db)
             .await?

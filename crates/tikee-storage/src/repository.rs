@@ -95,25 +95,101 @@ pub use workflow::{
 #[cfg(test)]
 mod tests {
     use sea_orm::{
-        ActiveModelTrait, ColumnTrait, ConnectionTrait, Database, EntityTrait, QueryFilter, Set,
-        Statement,
+        ActiveModelTrait, ColumnTrait, ConnectionTrait, Database, DatabaseConnection, EntityTrait,
+        QueryFilter, Set, Statement,
     };
     use sea_orm_migration::MigratorTrait;
 
     use tikee_core::{ExecutionMode, InstanceStatus, TriggerType};
 
     use crate::{
-        entities::auth_session,
+        entities::{auth_session, dispatch_queue, job_instance},
         migration::Migrator,
         repository::{
             AppendJobInstanceLog, CreateJob, CreateJobInstance, CreateScript, RaftRepository,
-            RecordRaftAppliedCommand, ScriptRepository, UpdateJob, UpdateScript,
-            UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot,
-            VerifiedScriptReleaseGrants, VerifiedScriptReleaseSignature,
+            RecordRaftAppliedCommand, ScopeRepository, ScriptRepository, UpdateJob, UpdateScript,
+            UpdateWorkerPoolQuota, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
+            UpsertRaftSnapshot, VerifiedScriptReleaseGrants, VerifiedScriptReleaseSignature,
         },
     };
 
     use super::{JobInstanceRepository, JobRepository};
+
+    async fn seed_worker_pool_quota(
+        db: &DatabaseConnection,
+        namespace: &str,
+        app: &str,
+        pool: &str,
+        max_queue_depth: i32,
+        max_concurrency: i32,
+    ) {
+        let scopes = ScopeRepository::new(db.clone());
+        let worker_pool = scopes
+            .create_worker_pool(namespace, app, pool)
+            .await
+            .unwrap_or_else(|error| panic!("worker pool should create: {error}"));
+        scopes
+            .update_worker_pool_quota(
+                &worker_pool.id,
+                UpdateWorkerPoolQuota {
+                    max_queue_depth,
+                    max_concurrency,
+                },
+            )
+            .await
+            .unwrap_or_else(|error| panic!("worker pool quota should update: {error}"))
+            .unwrap_or_else(|| panic!("worker pool should exist"));
+    }
+
+    async fn insert_scoped_job_queue_item(
+        db: &DatabaseConnection,
+        namespace: &str,
+        app: &str,
+        pool: &str,
+        status: &str,
+    ) -> String {
+        let now = super::util::now_rfc3339();
+        let instance_id = super::util::new_id("inst");
+        job_instance::ActiveModel {
+            id: Set(instance_id.clone()),
+            job_id: Set(super::util::new_id("job")),
+            status: Set(if status == "running" {
+                "running".to_owned()
+            } else {
+                "pending".to_owned()
+            }),
+            trigger_type: Set("api".to_owned()),
+            execution_mode: Set("single".to_owned()),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        }
+        .insert(db)
+        .await
+        .unwrap_or_else(|error| panic!("job instance should insert: {error}"));
+        let queue_id = super::util::new_id("dq");
+        dispatch_queue::ActiveModel {
+            id: Set(queue_id.clone()),
+            job_instance_id: Set(Some(instance_id)),
+            workflow_node_instance_id: Set(None),
+            priority: Set(0),
+            run_after: Set(now.clone()),
+            status: Set(status.to_owned()),
+            attempt: Set(0),
+            lease_owner: Set(None),
+            lease_until: Set(None),
+            fencing_token: Set(None),
+            worker_selector: Set(None),
+            namespace: Set(Some(namespace.to_owned())),
+            app: Set(Some(app.to_owned())),
+            worker_pool: Set(Some(pool.to_owned())),
+            created_at: Set(now.clone()),
+            updated_at: Set(now),
+        }
+        .insert(db)
+        .await
+        .unwrap_or_else(|error| panic!("dispatch queue item should insert: {error}"));
+        queue_id
+    }
 
     #[tokio::test]
     async fn alert_rules_apply_threshold_dedupe_window_and_silence() {
@@ -1417,7 +1493,7 @@ mod tests {
             .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
         let jobs = JobRepository::new(db.clone());
         let instances = super::JobInstanceRepository::new(db.clone());
-        let workflows = super::WorkflowRepository::new(db);
+        let workflows = super::WorkflowRepository::new(db.clone());
         let job = jobs
             .create_job(CreateJob {
                 created_by: None,
@@ -1574,6 +1650,101 @@ mod tests {
             Some("raft:server-b:term-2")
         );
         assert_eq!(reclaimed.item.attempt, 2);
+    }
+
+    #[tokio::test]
+    async fn worker_pool_max_concurrency_blocks_additional_job_claims() {
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        seed_worker_pool_quota(&db, "tenant-a", "billing", "slow-pool", 0, 1).await;
+        insert_scoped_job_queue_item(&db, "tenant-a", "billing", "slow-pool", "pending").await;
+        insert_scoped_job_queue_item(&db, "tenant-a", "billing", "slow-pool", "pending").await;
+        let workflows = super::WorkflowRepository::new(db.clone());
+
+        let first = workflows
+            .claim_next_job_queue_item("server-a", 30)
+            .await
+            .unwrap_or_else(|error| panic!("first queue item should claim: {error}"))
+            .unwrap_or_else(|| panic!("first item should be claimable"));
+        assert!(
+            workflows
+                .mark_dispatch_queue_running(&first.item.id, "server-a")
+                .await
+                .unwrap_or_else(|error| panic!("first item should mark running: {error}"))
+        );
+
+        let blocked = workflows
+            .claim_next_job_queue_item("server-b", 30)
+            .await
+            .unwrap_or_else(|error| panic!("blocked queue scan should not error: {error}"));
+        assert!(
+            blocked.is_none(),
+            "max_concurrency=1 must prevent a second running item in the same pool"
+        );
+    }
+
+    #[tokio::test]
+    async fn worker_pool_max_queue_depth_blocks_until_depth_falls_below_limit() {
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        seed_worker_pool_quota(&db, "tenant-a", "billing", "tiny-pool", 1, 0).await;
+        let first_queue_id =
+            insert_scoped_job_queue_item(&db, "tenant-a", "billing", "tiny-pool", "pending").await;
+        insert_scoped_job_queue_item(&db, "tenant-a", "billing", "tiny-pool", "pending").await;
+        let workflows = super::WorkflowRepository::new(db.clone());
+
+        let blocked = workflows
+            .claim_next_job_queue_item("server-a", 30)
+            .await
+            .unwrap_or_else(|error| panic!("queue-depth scan should not error: {error}"));
+        assert!(
+            blocked.is_none(),
+            "max_queue_depth=1 must backpressure when two active items are already queued"
+        );
+
+        assert!(
+            dispatch_queue::Entity::update_many()
+                .col_expr(
+                    dispatch_queue::Column::Status,
+                    sea_orm::sea_query::Expr::value("done"),
+                )
+                .filter(dispatch_queue::Column::Id.eq(&first_queue_id))
+                .exec(&db)
+                .await
+                .unwrap_or_else(|error| panic!("one queue item should close: {error}"))
+                .rows_affected
+                == 1
+        );
+        let claim = workflows
+            .claim_next_job_queue_item("server-a", 30)
+            .await
+            .unwrap_or_else(|error| panic!("queue item should claim after depth falls: {error}"))
+            .unwrap_or_else(|| panic!("remaining item should be claimable"));
+        assert_ne!(claim.item.id, first_queue_id);
+    }
+
+    #[tokio::test]
+    async fn worker_pool_quota_scan_skips_congested_pool_without_starving_later_pool() {
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        seed_worker_pool_quota(&db, "tenant-a", "billing", "congested", 1, 0).await;
+        seed_worker_pool_quota(&db, "tenant-a", "billing", "open", 0, 0).await;
+        for _ in 0..20 {
+            insert_scoped_job_queue_item(&db, "tenant-a", "billing", "congested", "pending").await;
+        }
+        let open_queue_id =
+            insert_scoped_job_queue_item(&db, "tenant-a", "billing", "open", "pending").await;
+        let workflows = super::WorkflowRepository::new(db);
+
+        let claim = workflows
+            .claim_next_job_queue_item("server-a", 30)
+            .await
+            .unwrap_or_else(|error| panic!("queue scan should not error: {error}"))
+            .unwrap_or_else(|| panic!("open pool item must remain claimable"));
+        assert_eq!(claim.item.id, open_queue_id);
     }
 
     #[tokio::test]
