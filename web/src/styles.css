@@ -1256,6 +1256,23 @@ body {
   text-underline-offset: 5px;
 }
 
+.api-key-section-card.ant-card {
+  background: color-mix(in srgb, var(--app-surface-solid) 92%, var(--app-primary-color) 8%);
+  border-color: var(--app-border);
+}
+
+.api-key-section-card .ant-card-head {
+  min-height: 58px;
+}
+
+.api-key-section-desc.ant-typography {
+  display: block;
+  max-width: min(760px, 62vw);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+}
+
 .api-key-once-alert.ant-alert {
   margin-bottom: 14px;
   border-style: dashed;
@@ -1312,6 +1329,30 @@ body {
   margin: 10px 0 0;
   color: #92400e;
   font-weight: 600;
+}
+
+.audit-log-resource {
+  max-width: 100%;
+}
+
+.audit-log-mono.ant-typography,
+.audit-log-detail.ant-typography {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
+}
+
+.audit-log-mono.ant-typography {
+  font-family: "SFMono-Regular", "Cascadia Code", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+.audit-log-detail.ant-typography {
+  color: var(--app-text-muted);
+}
+
+.audit-log-subtext.ant-typography {
+  font-size: 12px;
 }
 
 @media (max-width: 991px) {

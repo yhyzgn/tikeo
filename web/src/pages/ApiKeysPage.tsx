@@ -7,6 +7,13 @@ import { createSdkApiKey, createServiceAccount, deleteSdkApiKey, disableServiceA
 
 const DEFAULT_SCOPES = ['jobs:read', 'jobs:write', 'instances:execute'];
 
+const SectionTitle = ({ title, desc }: { title: string; desc: string }) => (
+  <Space direction="vertical" size={0}>
+    <Typography.Text strong>{title}</Typography.Text>
+    <Typography.Text type="secondary" className="api-key-section-desc">{desc}</Typography.Text>
+  </Space>
+);
+
 interface ApiKeyFormValues {
   name: string;
   namespace: string;
@@ -157,73 +164,92 @@ export function ApiKeysPage() {
     <Space direction="vertical" size={20} style={{ width: '100%' }}>
       <Card
         title={<Space><KeyOutlined />SDK Management API-Key</Space>}
-        extra={<Space><Button icon={<ReloadOutlined />} onClick={reload}>刷新列表</Button><Button icon={<PlusOutlined />} onClick={openCreateServiceAccount}>新建 Service Account</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>签发 API-Key</Button></Space>}
+        extra={<Button icon={<ReloadOutlined />} onClick={reload}>刷新列表</Button>}
       >
         <Alert
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="Service Account 是 app 作用域机器身份；API-Key 只是它的凭证。先维护 Service Account，再给它签发一个或多个 API-Key。禁用 Service Account 会吊销其关联 Key。"
+          message="本页分为两栏：Service Account 是 app 作用域机器身份；API-Key 是绑定到 Service Account 的访问凭证。先维护机器身份，再给它签发一个或多个 Key。"
         />
 
-        <Table<ServiceAccountSummary>
-          rowKey="id"
-          loading={loading}
-          dataSource={serviceAccounts}
-          pagination={false}
-          style={{ marginBottom: 20 }}
-          columns={[
-            { title: 'Service Account', width: 260, render: (_, item) => <Space direction="vertical" size={0}><Typography.Text strong>{item.name}</Typography.Text><Typography.Text type="secondary">{item.id}</Typography.Text></Space> },
-            { title: '范围', width: 180, render: (_, item) => `${item.namespace}/${item.app}` },
-            { title: 'Worker Pool', dataIndex: 'workerPool', width: 140, render: (value) => value ?? '*' },
-            { title: '状态', dataIndex: 'status', width: 100, render: (status) => <Tag color={status === 'active' ? 'green' : 'default'}>{status}</Tag> },
-            { title: '描述', dataIndex: 'description', render: (value) => value ?? '-' },
-            {
-              title: '操作',
-              width: 180,
-              render: (_, item) => (
-                <Space>
-                  <Button size="small" icon={<EditOutlined />} onClick={() => openEditServiceAccount(item)}>编辑</Button>
-                  <Button danger size="small" icon={<DeleteOutlined />} disabled={item.status !== 'active'} onClick={() => void handleDisableServiceAccount(item.id)}>禁用</Button>
-                </Space>
-              ),
-            },
-          ]}
-        />
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Card
+            size="small"
+            className="api-key-section-card"
+            title={<SectionTitle title="Service Accounts（机器身份）" desc="定义 namespace/app/worker pool 作用域；禁用后会吊销关联 API-Key。" />}
+            extra={<Button icon={<PlusOutlined />} onClick={openCreateServiceAccount}>新建 Service Account</Button>}
+          >
+            <Table<ServiceAccountSummary>
+              rowKey="id"
+              loading={loading}
+              dataSource={serviceAccounts}
+              pagination={false}
+              size="small"
+              scroll={{ x: 980 }}
+              columns={[
+                { title: 'Service Account', width: 260, render: (_, item) => <Space direction="vertical" size={0}><Typography.Text strong>{item.name}</Typography.Text><Typography.Text type="secondary">{item.id}</Typography.Text></Space> },
+                { title: '范围', width: 180, render: (_, item) => `${item.namespace}/${item.app}` },
+                { title: 'Worker Pool', dataIndex: 'workerPool', width: 140, render: (value) => value ?? '*' },
+                { title: '状态', dataIndex: 'status', width: 100, render: (status) => <Tag color={status === 'active' ? 'green' : 'default'}>{status}</Tag> },
+                { title: '描述', dataIndex: 'description', width: 180, render: (value) => value ?? '-' },
+                {
+                  title: '操作',
+                  fixed: 'right',
+                  width: 180,
+                  render: (_, item) => (
+                    <Space>
+                      <Button size="small" icon={<EditOutlined />} onClick={() => openEditServiceAccount(item)}>编辑</Button>
+                      <Button danger size="small" icon={<DeleteOutlined />} disabled={item.status !== 'active'} onClick={() => void handleDisableServiceAccount(item.id)}>禁用</Button>
+                    </Space>
+                  ),
+                },
+              ]}
+            />
+          </Card>
 
-        <Table<SdkApiKeySummary>
-          rowKey="id"
-          loading={loading}
-          dataSource={keys}
-          scroll={{ x: 1160 }}
-          columns={[
-            { title: '名称', dataIndex: 'name', width: 180 },
-            {
-              title: 'API-Key',
-              dataIndex: 'key_prefix',
-              width: 260,
-              render: (value: string) => <Typography.Text className="api-key-masked-text">{value}</Typography.Text>,
-            },
-            { title: '范围', width: 180, render: (_, item) => `${item.namespace}/${item.app}` },
-            { title: 'Service Account', width: 240, render: (_, item) => <Space direction="vertical" size={0}><Typography.Text>{item.service_account_name}</Typography.Text><Typography.Text type="secondary">{item.service_account_id}</Typography.Text></Space> },
-            { title: 'Scopes', width: 260, render: (_, item) => <Space wrap>{item.scopes.map((scope) => <Tag key={scope}>{scope}</Tag>)}</Space> },
-            { title: '状态', dataIndex: 'status', width: 100, render: (status) => <Tag color={status === 'active' ? 'green' : 'default'}>{status}</Tag> },
-            { title: '有效期', dataIndex: 'expires_at', width: 190, render: (value) => value ?? '永久有效' },
-            { title: '最近使用', dataIndex: 'last_used_at', width: 190, render: (value) => value ?? '-' },
-            { title: '创建人', dataIndex: 'created_by', width: 140 },
-            {
-              title: '操作',
-              fixed: 'right',
-              width: 170,
-              render: (_, item) => (
-                <Space>
-                  <Button size="small" icon={<EditOutlined />} disabled={item.status !== 'active'} onClick={() => openEditModal(item)}>编辑</Button>
-                  <Button danger size="small" icon={<DeleteOutlined />} disabled={item.status !== 'active'} onClick={() => void handleRevoke(item.id)}>吊销</Button>
-                </Space>
-              ),
-            },
-          ]}
-        />
+          <Card
+            size="small"
+            className="api-key-section-card"
+            title={<SectionTitle title="API-Keys（访问凭证）" desc="绑定到一个 Service Account；用于 SDK 调用，明文只在签发时显示一次。" />}
+            extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>签发 API-Key</Button>}
+          >
+            <Table<SdkApiKeySummary>
+              rowKey="id"
+              loading={loading}
+              dataSource={keys}
+              size="small"
+              scroll={{ x: 1160 }}
+              columns={[
+                { title: '名称', dataIndex: 'name', width: 180 },
+                {
+                  title: 'API-Key',
+                  dataIndex: 'key_prefix',
+                  width: 260,
+                  render: (value: string) => <Typography.Text className="api-key-masked-text">{value}</Typography.Text>,
+                },
+                { title: '范围', width: 180, render: (_, item) => `${item.namespace}/${item.app}` },
+                { title: 'Service Account', width: 240, render: (_, item) => <Space direction="vertical" size={0}><Typography.Text>{item.service_account_name}</Typography.Text><Typography.Text type="secondary">{item.service_account_id}</Typography.Text></Space> },
+                { title: 'Scopes', width: 260, render: (_, item) => <Space wrap>{item.scopes.map((scope) => <Tag key={scope}>{scope}</Tag>)}</Space> },
+                { title: '状态', dataIndex: 'status', width: 100, render: (status) => <Tag color={status === 'active' ? 'green' : 'default'}>{status}</Tag> },
+                { title: '有效期', dataIndex: 'expires_at', width: 190, render: (value) => value ?? '永久有效' },
+                { title: '最近使用', dataIndex: 'last_used_at', width: 190, render: (value) => value ?? '-' },
+                { title: '创建人', dataIndex: 'created_by', width: 140 },
+                {
+                  title: '操作',
+                  fixed: 'right',
+                  width: 170,
+                  render: (_, item) => (
+                    <Space>
+                      <Button size="small" icon={<EditOutlined />} disabled={item.status !== 'active'} onClick={() => openEditModal(item)}>编辑</Button>
+                      <Button danger size="small" icon={<DeleteOutlined />} disabled={item.status !== 'active'} onClick={() => void handleRevoke(item.id)}>吊销</Button>
+                    </Space>
+                  ),
+                },
+              ]}
+            />
+          </Card>
+        </Space>
       </Card>
 
 

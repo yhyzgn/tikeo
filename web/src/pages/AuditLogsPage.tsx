@@ -68,17 +68,58 @@ export function AuditLogsPage() {
     [logs],
   );
 
+  const renderCompactText = (value: string | null | undefined, className?: string) => {
+    if (!value) return <Typography.Text type="secondary">-</Typography.Text>;
+    return (
+      <Tooltip title={value}>
+        <Typography.Text className={className} ellipsis>
+          {value}
+        </Typography.Text>
+      </Tooltip>
+    );
+  };
+
   const columns = [
-    { title: 'Time', dataIndex: 'createdAt', key: 'time', width: 200, render: (v: string) => new Date(v).toLocaleString() },
-    { title: 'Actor', dataIndex: 'actor', key: 'actor', width: 140 },
+    {
+      title: 'Time',
+      dataIndex: 'createdAt',
+      key: 'time',
+      width: 170,
+      render: (v: string) => {
+        const date = new Date(v);
+        return (
+          <Space direction="vertical" size={0}>
+            <Typography.Text strong>{date.toLocaleDateString()}</Typography.Text>
+            <Typography.Text type="secondary" className="audit-log-subtext">{date.toLocaleTimeString()}</Typography.Text>
+          </Space>
+        );
+      },
+    },
+    {
+      title: 'Actor',
+      dataIndex: 'actor',
+      key: 'actor',
+      width: 150,
+      render: (v: string) => renderCompactText(v),
+    },
     {
       title: 'Action',
       dataIndex: 'action',
       key: 'action',
-      width: 120,
+      width: 110,
       render: (v: string) => <Tag color={ACTION_COLORS[v] ?? 'default'}>{v}</Tag>,
     },
-    { title: 'Resource', key: 'resource', width: 240, render: (_: unknown, r: AuditLogSummary) => <span>{r.resource_type}/{r.resource_id}</span> },
+    {
+      title: 'Resource',
+      key: 'resource',
+      width: 260,
+      render: (_: unknown, r: AuditLogSummary) => (
+        <Space direction="vertical" size={2} className="audit-log-resource">
+          <Tag color="blue">{r.resource_type}</Tag>
+          {renderCompactText(r.resource_id, 'audit-log-mono')}
+        </Space>
+      ),
+    },
     {
       title: 'Result',
       dataIndex: 'result',
@@ -90,15 +131,38 @@ export function AuditLogsPage() {
         </Tooltip>
       ),
     },
-    { title: 'Trace', dataIndex: 'trace_id', key: 'trace', width: 160, ellipsis: true, render: (v: string | null) => v ?? '-' },
-    { title: 'Detail', dataIndex: 'detail', key: 'detail', ellipsis: true },
+    {
+      title: 'Trace',
+      dataIndex: 'trace_id',
+      key: 'trace',
+      width: 150,
+      render: (v: string | null) => renderCompactText(v, 'audit-log-mono'),
+    },
+    {
+      title: 'Detail',
+      dataIndex: 'detail',
+      key: 'detail',
+      width: 280,
+      render: (v: string | null) => renderCompactText(v, 'audit-log-detail'),
+    },
     {
       title: 'Snapshot',
       key: 'snapshot',
-      width: 120,
-      render: (_: unknown, r: AuditLogSummary) => (r.before || r.after ? <Tag color="geekblue">before/after</Tag> : '-'),
+      width: 140,
+      render: (_: unknown, r: AuditLogSummary) => (r.before || r.after ? (
+        <Space size={4} wrap>
+          {r.before ? <Tag color="geekblue">before</Tag> : null}
+          {r.after ? <Tag color="purple">after</Tag> : null}
+        </Space>
+      ) : <Typography.Text type="secondary">-</Typography.Text>),
     },
-    { title: 'IP', dataIndex: 'ip_address', key: 'ip', width: 150, render: (v: string | null) => v ?? '-' },
+    {
+      title: 'IP',
+      dataIndex: 'ip_address',
+      key: 'ip',
+      width: 140,
+      render: (v: string | null) => renderCompactText(v, 'audit-log-mono'),
+    },
   ];
 
   useEffect(() => {
@@ -182,6 +246,7 @@ export function AuditLogsPage() {
           dataSource={logs}
           columns={columns}
           loading={loading}
+          scroll={{ x: 1500 }}
           pagination={{
             pageSize: effectivePageSize,
             total,
