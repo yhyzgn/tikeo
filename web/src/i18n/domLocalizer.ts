@@ -86,19 +86,40 @@ export function localizeDom(root: ParentNode, messages: TranslationMessages, ena
   });
 }
 
-export function observeLocalization(root: HTMLElement, messages: TranslationMessages, enabled: boolean): MutationObserver {
-  const observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      if (mutation.type === 'characterData' && mutation.target.nodeType === Node.TEXT_NODE) {
-        localizeTextNode(mutation.target as Text, messages, enabled);
-      }
-      if (mutation.type === 'attributes' && mutation.target.nodeType === Node.ELEMENT_NODE) {
-        localizeElementAttributes(mutation.target as Element, messages, enabled);
-      }
-      mutation.addedNodes.forEach((node) => localizeDom(node as ParentNode, messages, enabled));
+const OBSERVER_OPTIONS: MutationObserverInit = {
+  childList: true,
+  subtree: true,
+  characterData: true,
+  attributes: true,
+  attributeFilter: ATTRIBUTES_TO_LOCALIZE,
+};
+
+function scheduleOnce(callback: () => void): () => void {
+  let scheduled = false;
+  return () => {
+    if (scheduled) return;
+    scheduled = true;
+    const run = () => {
+      scheduled = false;
+      callback();
+    };
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(run);
+    } else {
+      setTimeout(run, 0);
     }
-  });
-  observer.observe(root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRIBUTES_TO_LOCALIZE });
+  };
+}
+
+export function observeLocalization(root: HTMLElement, messages: TranslationMessages, enabled: boolean): MutationObserver {
+  const observer = new MutationObserver(() => scheduleApply());
+  const applySafely = () => {
+    observer.disconnect();
+    localizeDom(root, messages, enabled);
+    observer.observe(root, OBSERVER_OPTIONS);
+  };
+  const scheduleApply = scheduleOnce(applySafely);
+  observer.observe(root, OBSERVER_OPTIONS);
   return observer;
 }
 
