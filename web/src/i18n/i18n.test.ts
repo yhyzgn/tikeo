@@ -11,12 +11,16 @@ describe('i18n message dictionaries', () => {
     expect(enUS['审计日志']).toBe('Audit logs');
     expect(enUS['总览']).toBe('Overview');
     expect(zhCN['审计日志']).toBe('审计日志');
+    expect(zhCN['Service Account']).toBe('服务账号');
+    expect(zhCN['API-Key']).toBe('接口密钥');
   });
 
   test('translates exact and embedded string content without changing Chinese default', () => {
     expect(translateString('审计日志', enUS, true)).toBe('Audit logs');
     expect(translateString('已导出 12 条审计记录', enUS, true)).toBe('Exported 12 audit records');
     expect(translateString('审计日志', enUS, false)).toBe('审计日志');
+    expect(translateString('Service Account 已创建', zhCN, true)).toBe('服务账号已创建');
+    expect(translateString('Worker 集群', zhCN, true)).toBe('执行节点集群');
   });
 
   test('normalizes unsupported locales to a supported locale', () => {
@@ -81,6 +85,24 @@ describe('DOM localizer', () => {
     localizeDom(root, enUS, false);
     expect(button.textContent).toBe('总览');
     expect(button.getAttribute('title')).toBe('选择语言');
+  });
+
+
+
+  test('normalizes mixed Chinese-English UI copy in Chinese locale', () => {
+    const dom = new JSDOM('<main><h1>SDK Management API-Key</h1><p>Service Account 是 app 作用域机器身份；API-Key 是绑定到 Service Account 的访问凭证。</p><button title="Worker 集群">在线 Worker</button><input placeholder="Namespace" /></main>');
+    globalThis.document = dom.window.document;
+    globalThis.NodeFilter = dom.window.NodeFilter;
+    globalThis.Node = dom.window.Node;
+
+    const root = dom.window.document.querySelector('main')!;
+    localizeDom(root, zhCN, true);
+
+    expect(root.textContent).toContain('软件开发工具包接口密钥管理');
+    expect(root.textContent).toContain('服务账号 是 应用 作用域机器身份；接口密钥 是绑定到 服务账号 的访问凭证。');
+    expect(root.textContent).toContain('在线执行节点');
+    expect(root.querySelector('button')?.getAttribute('title')).toBe('执行节点集群');
+    expect(root.querySelector('input')?.getAttribute('placeholder')).toBe('命名空间');
   });
 
   test('localizes text and attributes, then restores original Chinese copy', () => {

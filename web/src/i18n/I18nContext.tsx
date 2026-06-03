@@ -40,7 +40,6 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   });
 
   const messages = locale === 'en-US' ? enUS : zhCN;
-  const englishEnabled = locale === 'en-US';
 
   const setLocale = (nextLocale: LocaleCode) => {
     const normalized = normalizeLocale(nextLocale);
@@ -53,16 +52,16 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.locale = locale;
     const root = document.getElementById('root');
     if (!root) return undefined;
-    localizeDom(root, messages, englishEnabled);
-    const observer = observeLocalization(root, messages, englishEnabled);
+    localizeDom(root, messages, true);
+    const observer = observeLocalization(root, messages, true);
     return () => observer.disconnect();
-  }, [englishEnabled, locale, messages]);
+  }, [locale, messages]);
 
   const value = useMemo<I18nContextValue>(() => ({
     locale,
     setLocale,
-    t: (text: string) => translateString(text, messages, englishEnabled),
-  }), [englishEnabled, locale, messages]);
+    t: (text: string) => translateString(text, messages, true),
+  }), [locale, messages]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
