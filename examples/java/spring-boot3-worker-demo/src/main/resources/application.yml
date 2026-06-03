@@ -14,14 +14,15 @@ tikee:
     endpoint: ${TIKEE_WORKER_ENDPOINT:http://127.0.0.1:9998}
     client-instance-id: ${TIKEE_WORKER_CLIENT_INSTANCE_ID:}
     state-dir: ${TIKEE_WORKER_STATE_DIR:}
-    namespace: default
-    app: default
-    cluster: local
-    region: local
+    namespace: ${TIKEE_WORKER_NAMESPACE:default}
+    app: ${TIKEE_WORKER_APP:default}
+    cluster: ${TIKEE_WORKER_CLUSTER:local}
+    region: ${TIKEE_WORKER_REGION:local}
     capabilities:
       - java
       - spring-boot
     labels:
+      worker_pool: ${TIKEE_WORKER_POOL:default}
       runtime: java
       demo: spring-boot3-worker-demo
     wasm:

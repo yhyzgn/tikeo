@@ -28,6 +28,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
         "tikee.worker.region=demo-region",
         "tikee.worker.capabilities[0]=java",
         "tikee.worker.capabilities[1]=spring-boot",
+        "tikee.worker.labels.worker_pool=demo-pool",
         "tikee.worker.labels.runtime=java",
         "tikee.worker.labels.demo=spring-boot3-worker-demo"
 })
@@ -60,7 +61,8 @@ class SpringWorkerDemoApplicationTest {
                     assertThat(plugin.type()).isEqualTo("sql");
                     assertThat(plugin.processorNames()).contains("billing.sql-sync");
                 });
-        assertThat(noop.registration().labels()).containsEntry("runtime", "java")
+        assertThat(noop.registration().labels()).containsEntry("worker_pool", "demo-pool")
+                .containsEntry("runtime", "java")
                 .containsEntry("demo", "spring-boot3-worker-demo");
         log.info("[java-demo-plugin-test] dry-run registration capabilities={}", noop.registration().capabilities());
         log.info("[java-demo-plugin-test] dry-run structured capabilities={}", noop.registration().structuredCapabilities());
