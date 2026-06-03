@@ -13,7 +13,6 @@ use axum::{
 use sha2::{Digest, Sha256};
 
 use crate::http::{
-    routes::common::audit,
     AppState, auth,
     dto::{
         AlertRuleSummary, ApiResponse, GitOpsDiffApiResponse, GitOpsDiffChange, GitOpsDiffRequest,
@@ -21,6 +20,7 @@ use crate::http::{
         GitOpsManifestResponse, GitOpsMetadata, GitOpsResource, GitOpsScope,
     },
     error::ApiError,
+    routes::common::audit,
 };
 
 #[utoipa::path(
