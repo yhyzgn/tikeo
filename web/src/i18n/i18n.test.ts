@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { JSDOM } from 'jsdom';
 
-import { localizeDom, translateString } from './domLocalizer';
+import { localizeDom, observeLocalization, translateString } from './domLocalizer';
 import { enUS, zhCN } from './messages';
 import { normalizeLocale } from './I18nContext';
 
@@ -28,6 +28,34 @@ describe('i18n message dictionaries', () => {
 
 describe('DOM localizer', () => {
 
+
+
+
+  test('does not self-trigger an endless localization mutation loop', async () => {
+    const dom = new JSDOM('<main><button title="退出">审计日志</button></main>');
+    globalThis.document = dom.window.document;
+    globalThis.NodeFilter = dom.window.NodeFilter;
+    globalThis.Node = dom.window.Node;
+    globalThis.MutationObserver = dom.window.MutationObserver;
+
+    const root = dom.window.document.querySelector('main')!;
+    let mutationCount = 0;
+    const externalObserver = new dom.window.MutationObserver((mutations: MutationRecord[]) => {
+      mutationCount += mutations.length;
+    });
+    externalObserver.observe(root, { childList: true, subtree: true, characterData: true, attributes: true });
+
+    const observer = observeLocalization(root, enUS, true);
+    localizeDom(root, enUS, true);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(root.textContent).toBe('Audit logs');
+    expect(root.querySelector('button')?.getAttribute('title')).toBe('Sign out');
+    expect(mutationCount).toBeLessThan(8);
+
+    observer.disconnect();
+    externalObserver.disconnect();
+  });
 
   test('treats later React-style text and attribute changes as new source copy', () => {
     const dom = new JSDOM('<main><button title="退出">审计日志</button></main>');
