@@ -30,10 +30,11 @@ async fn main() -> Result<(), WorkerSdkError> {
     ) {
         config.add_sdk_processor(processor);
     }
-    if let Ok(worker_pool) = std::env::var("TIKEE_WORKER_POOL") {
-        config.labels.insert("worker_pool".to_owned(), worker_pool);
-    }
-    if enabled_env("TIKEE_ENABLE_PLUGIN_SQL") {
+    config.labels.insert(
+        "worker_pool".to_owned(),
+        env_or("TIKEE_WORKER_POOL", "rust-blue"),
+    );
+    if enabled_by_default("TIKEE_ENABLE_PLUGIN_SQL") {
         config.add_plugin_processor(
             env_or("TIKEE_PLUGIN_SQL_TYPE", "sql"),
             env_or("TIKEE_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"),
@@ -97,9 +98,9 @@ async fn main() -> Result<(), WorkerSdkError> {
         config.labels
     );
 
-    if !enabled_env("TIKEE_WORKER_CONNECT") {
+    if dry_run_enabled() {
         println!(
-            "Dry run only. Set TIKEE_WORKER_CONNECT=1 and TIKEE_ENABLE_SCRIPT_<LANG>=1 to open a live Worker Tunnel."
+            "Dry run only. Set TIKEE_WORKER_DRY_RUN=0 or omit it to open a live Worker Tunnel; set TIKEE_ENABLE_SCRIPT_<LANG>=1 to advertise script runners."
         );
         return Ok(());
     }
@@ -170,6 +171,14 @@ fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_owned())
 }
 
+fn dry_run_enabled() -> bool {
+    enabled_env("TIKEE_WORKER_DRY_RUN") || disabled_env("TIKEE_WORKER_CONNECT")
+}
+
+fn enabled_by_default(key: &str) -> bool {
+    !disabled_env(key)
+}
+
 fn enabled_env(key: &str) -> bool {
     matches!(
         std::env::var(key)
@@ -177,6 +186,16 @@ fn enabled_env(key: &str) -> bool {
             .to_ascii_lowercase()
             .as_str(),
         "1" | "true" | "yes" | "on"
+    )
+}
+
+fn disabled_env(key: &str) -> bool {
+    matches!(
+        std::env::var(key)
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str(),
+        "0" | "false" | "no" | "off"
     )
 }
 

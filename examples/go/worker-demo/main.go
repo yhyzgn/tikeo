@@ -23,7 +23,8 @@ func main() {
 	for _, processor := range csvOr("TIKEE_WORKER_SDK_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail") {
 		config.AddSDKProcessor(processor)
 	}
-	if enabled("TIKEE_ENABLE_PLUGIN_SQL") {
+	config.Labels["worker_pool"] = envOr("TIKEE_WORKER_POOL", "go-blue")
+	if enabledByDefault("TIKEE_ENABLE_PLUGIN_SQL") {
 		config.AddPluginProcessor(envOr("TIKEE_PLUGIN_SQL_TYPE", "sql"), envOr("TIKEE_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"))
 		config.Labels["plugin_sql"] = "enabled"
 	}
@@ -73,7 +74,7 @@ func main() {
 		}
 	}
 
-	if !enabled("TIKEE_WORKER_CONNECT") {
+	if dryRunEnabled() {
 		if err := client.StartDryRun(context.Background(), processor); err != nil {
 			log.Fatal(err)
 		}
@@ -119,9 +120,26 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
+func dryRunEnabled() bool {
+	return enabled("TIKEE_WORKER_DRY_RUN") || disabled("TIKEE_WORKER_CONNECT")
+}
+
+func enabledByDefault(key string) bool {
+	return !disabled(key)
+}
+
 func enabled(key string) bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
 	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func disabled(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
+	case "0", "false", "no", "off":
 		return true
 	default:
 		return false
