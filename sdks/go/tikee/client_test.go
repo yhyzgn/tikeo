@@ -2,11 +2,14 @@ package tikee
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestClientRegistrationAndHeartbeatDryRun(t *testing.T) {
@@ -177,4 +180,53 @@ func TestManagementClientCreatesStructuredPluginAndScriptJobs(t *testing.T) {
 	if got := bodies[1]["scriptId"]; got != "script_manual_shell_echo" {
 		t.Fatalf("scriptId = %v", got)
 	}
+}
+
+func TestLocalCommandScriptRunnerExecutesReleasedShellSnapshot(t *testing.T) {
+	runner, err := NewLocalCommandScriptRunner("shell", "custom")
+	if err != nil {
+		t.Fatalf("NewLocalCommandScriptRunner() error = %v", err)
+	}
+	content := []byte("printf 'go-script-ok'\n")
+	outcome, err := runner.Run(context.Background(), ScriptRunnerTask{
+		ScriptID:      "script-shell-1",
+		VersionNumber: 1,
+		Language:      "shell",
+		Content:       content,
+		ContentSHA256: sha256Hex(content),
+		Timeout:       time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !outcome.Success || outcome.Message != "go-script-ok" {
+		t.Fatalf("unexpected outcome: %+v", outcome)
+	}
+}
+
+func TestLocalCommandScriptRunnerRejectsUnsafePolicy(t *testing.T) {
+	runner, err := NewLocalCommandScriptRunner("shell", "custom")
+	if err != nil {
+		t.Fatalf("NewLocalCommandScriptRunner() error = %v", err)
+	}
+	content := []byte("echo unsafe\n")
+	outcome, err := runner.Run(context.Background(), ScriptRunnerTask{
+		ScriptID:      "script-shell-unsafe",
+		VersionNumber: 1,
+		Language:      "shell",
+		Content:       content,
+		ContentSHA256: sha256Hex(content),
+		AllowNetwork:  true,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if outcome.Success || !strings.Contains(outcome.Message, "network") {
+		t.Fatalf("expected network rejection, got %+v", outcome)
+	}
+}
+
+func sha256Hex(content []byte) string {
+	digest := sha256.Sum256(content)
+	return hex.EncodeToString(digest[:])
 }

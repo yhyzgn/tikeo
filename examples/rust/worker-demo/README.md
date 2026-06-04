@@ -12,21 +12,12 @@ cd examples/rust/worker-demo
 cargo run
 ```
 
-By default this connects to `http://127.0.0.1:9998`, registers under `dev-alpha/orders`, advertises the structured SDK processors and the SQL plugin processor, and should appear in the Worker cluster page as `rust-worker-demo-local`.
+By default this connects to `http://127.0.0.1:9998`, registers under `dev-alpha/orders`, advertises the structured SDK processors, SQL plugin processor, and the same script language matrix as the Java demos.
 
 Dry-run configuration smoke test:
 
 ```bash
 TIKEE_WORKER_DRY_RUN=1 cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
-```
-
-Explicit live Worker Tunnel example with script runner advertisement:
-
-```bash
-TIKEE_WORKER_ENDPOINT=http://127.0.0.1:9998 \
-TIKEE_WORKER_CLIENT_INSTANCE_ID=rust-worker-demo-local \
-TIKEE_ENABLE_SCRIPT_SHELL=1 \
-cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
 ```
 
 Defaults:
@@ -36,6 +27,8 @@ Defaults:
 - worker pool label: `rust-blue`
 - SDK processors: `demo.echo`, `demo.context`, `demo.bytes`, `demo.heartbeat`, `demo.fail`
 - plugin processor: `type=sql`, `processorName=billing.sql-sync`
+- script runners: `shell`, `python`, `javascript`, `typescript`, `powershell`, `php`, `groovy`, `rhai`
+- default script backend resolution: Java-parity `auto` -> `srt` for shell/python/powershell/php/groovy/rhai, `deno` for JavaScript/TypeScript
 - tags: `rust`, `manual-demo`
 
 Environment variables:
@@ -49,7 +42,8 @@ Environment variables:
 - `TIKEE_WORKER_SDK_PROCESSORS` overrides the comma-separated SDK processor list.
 - `TIKEE_ENABLE_PLUGIN_SQL` defaults to enabled; set `TIKEE_ENABLE_PLUGIN_SQL=0` to stop advertising the SQL plugin processor.
 - `TIKEE_PLUGIN_SQL_TYPE` and `TIKEE_PLUGIN_SQL_PROCESSOR` override the default `sql` / `billing.sql-sync` structured plugin fields.
-- `TIKEE_ENABLE_SCRIPT_SHELL=1`, `TIKEE_ENABLE_SCRIPT_PYTHON=1`, `TIKEE_ENABLE_SCRIPT_NODE=1`, `TIKEE_ENABLE_SCRIPT_RHAI=1`, or `TIKEE_ENABLE_SCRIPT_POWERSHELL=1` register structured script runners.
-- `TIKEE_<LANG>_IMAGE` overrides the container image, for example `TIKEE_SHELL_IMAGE=alpine:3.20`.
+- `TIKEE_WORKER_SCRIPT_SANDBOX` supports `auto`, `srt`, `deno`, `v8`, `wasmtime`, `wasmedge`, `docker`, `podman`, and `custom`; `container` is accepted as `docker`.
+- `TIKEE_ENABLE_SCRIPT_<LANG>=0` disables a default language, for example `TIKEE_ENABLE_SCRIPT_RHAI=0`.
+- `TIKEE_<LANG>_IMAGE` overrides the container image when `TIKEE_WORKER_SCRIPT_SANDBOX=docker` or `podman`.
 
-Script tasks are executed only through `ContainerScriptRunner`, which starts an isolated container with `--network=none`, read-only root filesystem, bounded memory, and script content from the released immutable snapshot.
+Execution note: Rust demo can execute script tasks through Docker/Podman container runners. For Java-parity `srt`, `deno`, `v8`, `wasmtime`, `wasmedge`, or `custom` backends, the demo advertises the structured capability and fails closed with a clear unavailable-backend error until a matching Rust runner is configured.

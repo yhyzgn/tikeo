@@ -53,23 +53,24 @@ async fn unsupported_script_runner_validates_default_deny_policy_before_executio
         ScriptRunnerKind::from_language("python"),
         Some(ScriptRunnerKind::Python)
     );
-    assert_eq!(ScriptRunnerKind::Node.as_str(), "node");
+    assert_eq!(ScriptRunnerKind::Js.as_str(), "javascript");
+    assert_eq!(ScriptRunnerKind::Ts.as_str(), "typescript");
 
-    let runner = UnsupportedScriptRunner;
+    let runner = UnsupportedScriptRunner::new(ScriptRunnerKind::Python, "SRT sandbox runtime is unavailable");
     let task = ScriptRunnerTask {
         script_id: "script_py".to_owned(),
         version_id: "sv_1".to_owned(),
         version_number: 1,
         language: "python".to_owned(),
         content: "print(1)".to_owned(),
-        content_sha256: "digest".to_owned(),
+        content_sha256: format!("{:x}", sha2::Sha256::digest("print(1)".as_bytes())),
         policy: ScriptRunnerPolicy::default(),
     };
     let error = match runner.run(task).await {
         Ok(outcome) => panic!("runner should not execute yet: {outcome:?}"),
         Err(error) => error,
     };
-    assert!(error.to_string().contains("not enabled"));
+    assert!(error.to_string().contains("backend is unavailable"));
 
     let dangerous = ScriptRunnerPolicy {
         allowed_network_hosts: vec!["api.example.com".to_owned()],

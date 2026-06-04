@@ -18,7 +18,7 @@ Dynamic script bindings are executed only when a Worker explicitly registers a m
 
 - Shell: call `config.add_script_runner("shell", "container")` and register `ContainerScriptRunner::new(ScriptRunnerKind::Shell, "alpine:3.20")`.
 - Python: call `config.add_script_runner("python", "container")` and use a Python image/runner.
-- JavaScript/TypeScript: call `config.add_script_runner("node", "container")` and use a Node image/runner.
+- JavaScript/TypeScript: call `config.add_script_runner("javascript", "deno")` / `config.add_script_runner("typescript", "deno")` and use a Deno-capable runner or container image.
 - PowerShell: call `config.add_script_runner("powershell", "container")` and use a PowerShell image/runner.
 - Rhai: call `config.add_script_runner("rhai", "container")` and use a Rhai-capable image/runner.
 

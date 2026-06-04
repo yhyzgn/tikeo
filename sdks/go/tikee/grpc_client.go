@@ -158,6 +158,10 @@ func (s *Session) Heartbeat() (*workerpb.Ping, error) {
 }
 
 func (s *Session) ProcessNext(ctx context.Context, processor TaskProcessor) (TaskOutcome, error) {
+	return s.ProcessNextWithScriptRunners(ctx, processor, nil)
+}
+
+func (s *Session) ProcessNextWithScriptRunners(ctx context.Context, processor TaskProcessor, scripts *ScriptRunnerRegistry) (TaskOutcome, error) {
 	if processor == nil {
 		return TaskOutcome{}, errors.New("tikee task processor is required")
 	}
@@ -170,12 +174,7 @@ func (s *Session) ProcessNext(ctx context.Context, processor TaskProcessor) (Tas
 		if task == nil {
 			continue
 		}
-		outcome, err := processor.Process(ctx, TaskContext{
-			InstanceID:    task.GetInstanceId(),
-			JobID:         task.GetJobId(),
-			ProcessorName: task.GetProcessorName(),
-			Payload:       task.GetPayload(),
-		})
+		outcome, err := processDispatchTask(ctx, processor, scripts, task)
 		if err != nil {
 			outcome = Failed(err.Error())
 		}
@@ -246,4 +245,20 @@ func toProtoCapabilities(capabilities WorkerCapabilities) *workerpb.WorkerCapabi
 		})
 	}
 	return out
+}
+
+func processDispatchTask(ctx context.Context, processor TaskProcessor, scripts *ScriptRunnerRegistry, task *workerpb.DispatchTask) (TaskOutcome, error) {
+	if script := task.GetProcessorBinding().GetScript(); script != nil {
+		runner := scripts.get(script.GetLanguage())
+		if runner == nil {
+			return Failed(fmt.Sprintf("%s script runner is not registered on this worker", script.GetLanguage())), nil
+		}
+		return runner.Run(ctx, scriptRunnerTask(task, script))
+	}
+	return processor.Process(ctx, TaskContext{
+		InstanceID:    task.GetInstanceId(),
+		JobID:         task.GetJobId(),
+		ProcessorName: task.GetProcessorName(),
+		Payload:       task.GetPayload(),
+	})
 }

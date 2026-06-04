@@ -5,7 +5,7 @@ use std::{collections::HashMap, time::Duration};
 use async_trait::async_trait;
 use tikee::{
     ContainerScriptRunner, ScriptRunnerKind, ScriptRunnerRegistry, TaskContext, TaskOutcome,
-    TaskProcessor, WorkerClient, WorkerConfig, WorkerSdkError,
+    TaskProcessor, UnsupportedScriptRunner, WorkerClient, WorkerConfig, WorkerSdkError,
 };
 
 #[tokio::main]
@@ -45,45 +45,82 @@ async fn main() -> Result<(), WorkerSdkError> {
     }
 
     let mut runners = ScriptRunnerRegistry::new();
-    configure_script_runner(
+    let sandbox_backend = env_or("TIKEE_WORKER_SCRIPT_SANDBOX", "auto");
+    configure_default_script_runner(
         &mut config,
         &mut runners,
         ScriptRunnerKind::Shell,
+        "TIKEE_ENABLE_SCRIPT_SHELL",
+        &sandbox_backend,
         "TIKEE_SHELL_IMAGE",
         "alpine:3.20",
     );
-    configure_script_runner(
+    configure_default_script_runner(
         &mut config,
         &mut runners,
         ScriptRunnerKind::Python,
+        "TIKEE_ENABLE_SCRIPT_PYTHON",
+        &sandbox_backend,
         "TIKEE_PYTHON_IMAGE",
         "python:3.13-alpine",
     );
-    configure_script_runner(
+    configure_default_script_runner(
         &mut config,
         &mut runners,
-        ScriptRunnerKind::Node,
-        "TIKEE_NODE_IMAGE",
-        "node:24-alpine",
+        ScriptRunnerKind::Js,
+        "TIKEE_ENABLE_SCRIPT_JAVASCRIPT",
+        &sandbox_backend,
+        "TIKEE_JAVASCRIPT_IMAGE",
+        "denoland/deno:alpine",
     );
-    configure_script_runner(
+    configure_default_script_runner(
+        &mut config,
+        &mut runners,
+        ScriptRunnerKind::Ts,
+        "TIKEE_ENABLE_SCRIPT_TYPESCRIPT",
+        &sandbox_backend,
+        "TIKEE_TYPESCRIPT_IMAGE",
+        "denoland/deno:alpine",
+    );
+    configure_default_script_runner(
+        &mut config,
+        &mut runners,
+        ScriptRunnerKind::PowerShell,
+        "TIKEE_ENABLE_SCRIPT_POWERSHELL",
+        &sandbox_backend,
+        "TIKEE_POWERSHELL_IMAGE",
+        "mcr.microsoft.com/powershell:latest",
+    );
+    configure_default_script_runner(
+        &mut config,
+        &mut runners,
+        ScriptRunnerKind::Php,
+        "TIKEE_ENABLE_SCRIPT_PHP",
+        &sandbox_backend,
+        "TIKEE_PHP_IMAGE",
+        "php:8.4-cli-alpine",
+    );
+    configure_default_script_runner(
+        &mut config,
+        &mut runners,
+        ScriptRunnerKind::Groovy,
+        "TIKEE_ENABLE_SCRIPT_GROOVY",
+        &sandbox_backend,
+        "TIKEE_GROOVY_IMAGE",
+        "groovy:4-jdk21-alpine",
+    );
+    configure_default_script_runner(
         &mut config,
         &mut runners,
         ScriptRunnerKind::Rhai,
+        "TIKEE_ENABLE_SCRIPT_RHAI",
+        &sandbox_backend,
         "TIKEE_RHAI_IMAGE",
         "rhaiscript/rhai:latest",
     );
     for runner in runners.structured_capabilities() {
         config.add_script_runner(runner.language, runner.sandbox_backend);
     }
-
-    configure_script_runner(
-        &mut config,
-        &mut runners,
-        ScriptRunnerKind::PowerShell,
-        "TIKEE_POWERSHELL_IMAGE",
-        "mcr.microsoft.com/powershell:latest",
-    );
 
     println!(
         "Rust worker demo configured: client_instance_id={}, endpoint={}, namespace={}, app={}, cluster={}, region={}, structured_capabilities={:?}, legacy_capabilities={:?}, labels={:?}",
@@ -132,24 +169,62 @@ async fn main() -> Result<(), WorkerSdkError> {
     }
 }
 
-fn configure_script_runner(
+fn configure_default_script_runner(
     config: &mut WorkerConfig,
     runners: &mut ScriptRunnerRegistry,
     kind: ScriptRunnerKind,
+    enable_env: &str,
+    sandbox_backend: &str,
     image_env: &str,
     default_image: &str,
 ) {
-    let enable_key = format!("TIKEE_ENABLE_SCRIPT_{}", kind.as_str().to_ascii_uppercase());
-    if !enabled_env(&enable_key) {
+    if disabled_env(enable_env) {
         return;
     }
+    register_script_runner(config, runners, kind, sandbox_backend, image_env, default_image);
+}
+
+fn register_script_runner(
+    config: &mut WorkerConfig,
+    runners: &mut ScriptRunnerRegistry,
+    kind: ScriptRunnerKind,
+    sandbox_backend: &str,
+    image_env: &str,
+    default_image: &str,
+) {
     let image = env_or(image_env, default_image);
-    runners.register(ContainerScriptRunner::new(kind, image));
-    config.add_script_runner(kind.as_str(), "container");
+    let backend = resolve_sandbox_backend(kind, sandbox_backend);
+    if backend == "docker" || backend == "podman" {
+        runners.register(ContainerScriptRunner::with_runtime(
+            kind,
+            backend.clone(),
+            image,
+            std::iter::empty::<String>(),
+        ));
+    } else {
+        runners.register(UnsupportedScriptRunner::new(
+            kind,
+            format!("{backend} backend is declared for Java parity but no Rust runner is configured"),
+        ));
+    }
+    config.add_script_runner(kind.as_str(), backend.clone());
     config.labels.insert(
         format!("script_{}_sandbox", kind.as_str()),
-        "container".to_owned(),
+        backend,
     );
+}
+
+fn resolve_sandbox_backend(kind: ScriptRunnerKind, requested: &str) -> String {
+    let normalized = requested.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "" | "auto" => match kind {
+            ScriptRunnerKind::Js | ScriptRunnerKind::Ts => "deno".to_owned(),
+            _ => "srt".to_owned(),
+        },
+        "container" => "docker".to_owned(),
+        "docker" | "podman" | "srt" | "deno" | "v8" | "wasmtime" | "wasmedge" | "custom" => normalized,
+        other => other.to_owned(),
+    }
 }
 
 struct NoopProcessor;

@@ -28,9 +28,16 @@ func main() {
 		config.AddPluginProcessor(envOr("TIKEE_PLUGIN_SQL_TYPE", "sql"), envOr("TIKEE_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"))
 		config.Labels["plugin_sql"] = "enabled"
 	}
-	for _, lang := range csvOr("TIKEE_WORKER_SCRIPT_LANGUAGES", "") {
-		config.AddScriptRunner(lang, envOr("TIKEE_WORKER_SCRIPT_SANDBOX", "external"))
+	scripts := tikee.NewScriptRunnerRegistry()
+	for _, lang := range csvOr("TIKEE_WORKER_SCRIPT_LANGUAGES", "shell,python,javascript,typescript,powershell,php,groovy,rhai") {
+		if disabled("TIKEE_ENABLE_SCRIPT_" + strings.ToUpper(lang)) {
+			continue
+		}
+		backend := scriptSandboxBackend(lang)
+		reason := backend + " backend is declared for Java parity; Go demo fails closed unless a real sandbox runner is configured"
+		scripts.Register(tikee.NewUnavailableScriptRunner(lang, backend, reason))
 	}
+	scripts.AddCapabilities(&config)
 
 	client, err := tikee.NewClient(config)
 	if err != nil {
@@ -101,7 +108,7 @@ func main() {
 	}
 	oneshot := enabled("TIKEE_WORKER_ONESHOT")
 	for {
-		outcome, err := session.ProcessNext(context.Background(), processor)
+		outcome, err := session.ProcessNextWithScriptRunners(context.Background(), processor, scripts)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -159,4 +166,16 @@ func csvOr(key, fallback string) []string {
 		}
 	}
 	return out
+}
+
+func scriptSandboxBackend(language string) string {
+	if value := strings.TrimSpace(os.Getenv("TIKEE_WORKER_SCRIPT_SANDBOX")); value != "" {
+		return strings.ToLower(value)
+	}
+	switch strings.ToLower(strings.TrimSpace(language)) {
+	case "javascript", "js", "typescript", "ts":
+		return "deno"
+	default:
+		return "srt"
+	}
 }

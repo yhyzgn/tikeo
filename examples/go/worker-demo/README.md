@@ -12,7 +12,7 @@ cd examples/go/worker-demo
 go run .
 ```
 
-By default this connects to `http://127.0.0.1:9998`, registers under `dev-alpha/orders`, advertises the structured SDK processors and the SQL plugin processor, and should appear in the Worker cluster page as `go-worker-demo-local`.
+By default this connects to `http://127.0.0.1:9998`, registers under `dev-alpha/orders`, advertises the structured SDK processors, SQL plugin processor, and the same script language matrix as the Java demos.
 
 Build/test:
 
@@ -26,15 +26,6 @@ Dry-run configuration smoke test:
 TIKEE_WORKER_DRY_RUN=1 go run .
 ```
 
-Explicit live Worker Tunnel example with script runner advertisement:
-
-```bash
-TIKEE_WORKER_ENDPOINT=http://127.0.0.1:9998 \
-TIKEE_WORKER_CLIENT_INSTANCE_ID=go-worker-demo-local \
-TIKEE_WORKER_SCRIPT_LANGUAGES=shell,python \
-go run .
-```
-
 Defaults:
 
 - namespace/app: `dev-alpha/orders`
@@ -42,6 +33,8 @@ Defaults:
 - worker pool label: `go-blue`
 - SDK processors: `demo.echo`, `demo.context`, `demo.bytes`, `demo.heartbeat`, `demo.fail`
 - plugin processor: `type=sql`, `processorName=billing.sql-sync`
+- script runners: `shell`, `python`, `javascript`, `typescript`, `powershell`, `php`, `groovy`, `rhai`
+- default script backend resolution: Java-parity `srt` for shell/python/powershell/php/groovy/rhai, `deno` for JavaScript/TypeScript
 - tags: `go`, `manual-demo`
 
 Environment variables:
@@ -55,5 +48,9 @@ Environment variables:
 - `TIKEE_WORKER_SDK_PROCESSORS` overrides the comma-separated SDK processor list.
 - `TIKEE_ENABLE_PLUGIN_SQL` defaults to enabled; set `TIKEE_ENABLE_PLUGIN_SQL=0` to stop advertising the SQL plugin processor.
 - `TIKEE_PLUGIN_SQL_TYPE` and `TIKEE_PLUGIN_SQL_PROCESSOR` override the default `sql` / `billing.sql-sync` structured plugin fields.
-- `TIKEE_WORKER_SCRIPT_LANGUAGES=shell,python` advertises structured script runners with `TIKEE_WORKER_SCRIPT_SANDBOX` as backend label.
+- `TIKEE_WORKER_SCRIPT_LANGUAGES` defaults to all Java-parity demo languages; set it to a comma-separated list to override advertised/executable script runners.
+- `TIKEE_ENABLE_SCRIPT_<LANG>=0` disables a default language, for example `TIKEE_ENABLE_SCRIPT_PHP=0`.
+- `TIKEE_WORKER_SCRIPT_SANDBOX` overrides the advertised sandbox backend label for all languages.
 - `TIKEE_MANAGEMENT_CREATE_EXAMPLES=1` uses `TIKEE_HTTP_URL` and `TIKEE_API_KEY` to create SDK/plugin job examples in the configured scope.
+
+Execution note: Go demo advertises Java-parity `srt`/`deno` script backends and fails closed for script execution until a real Go sandbox runner is configured. It does not expose any non-Java sandbox label.

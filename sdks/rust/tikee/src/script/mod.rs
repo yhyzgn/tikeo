@@ -21,10 +21,16 @@ pub enum ScriptRunnerKind {
     Shell,
     /// Python runner.
     Python,
-    /// Node.js runner.
-    Node,
+    /// JavaScript runner.
+    Js,
+    /// TypeScript runner.
+    Ts,
     /// PowerShell runner.
     PowerShell,
+    /// PHP runner.
+    Php,
+    /// Groovy runner.
+    Groovy,
     /// Rhai expression/script runner.
     Rhai,
 }
@@ -36,8 +42,11 @@ impl ScriptRunnerKind {
         match language.trim().to_ascii_lowercase().as_str() {
             "shell" | "sh" | "bash" => Some(Self::Shell),
             "python" | "py" => Some(Self::Python),
-            "node" | "nodejs" | "javascript" | "js" | "typescript" | "ts" => Some(Self::Node),
+            "node" | "nodejs" | "javascript" | "js" => Some(Self::Js),
+            "typescript" | "ts" => Some(Self::Ts),
             "powershell" | "pwsh" => Some(Self::PowerShell),
+            "php" => Some(Self::Php),
+            "groovy" => Some(Self::Groovy),
             "rhai" => Some(Self::Rhai),
             _ => None,
         }
@@ -49,8 +58,11 @@ impl ScriptRunnerKind {
         match self {
             Self::Shell => "shell",
             Self::Python => "python",
-            Self::Node => "node",
+            Self::Js => "javascript",
+            Self::Ts => "typescript",
             Self::PowerShell => "powershell",
+            Self::Php => "php",
+            Self::Groovy => "groovy",
             Self::Rhai => "rhai",
         }
     }
@@ -247,10 +259,12 @@ pub(super) const fn default_script_command(
     match kind {
         ScriptRunnerKind::Shell => ("sh", &["-s"]),
         ScriptRunnerKind::Python => ("python3", &["-"]),
-        ScriptRunnerKind::Node => ("node", &["-"]),
+        ScriptRunnerKind::Js | ScriptRunnerKind::Ts => ("deno", &["run", "--no-prompt", "-"]),
         ScriptRunnerKind::PowerShell => {
             ("pwsh", &["-NoProfile", "-NonInteractive", "-Command", "-"])
         }
+        ScriptRunnerKind::Php => ("php", &[]),
+        ScriptRunnerKind::Groovy => ("groovy", &[]),
         ScriptRunnerKind::Rhai => ("rhai", &[]),
     }
 }
@@ -373,20 +387,41 @@ pub(super) async fn run_script_command(
 }
 
 /// Placeholder runner used until language-specific sandbox implementations are enabled.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct UnsupportedScriptRunner;
+#[derive(Debug, Clone)]
+pub struct UnsupportedScriptRunner {
+    kind: ScriptRunnerKind,
+    reason: String,
+}
+
+impl Default for UnsupportedScriptRunner {
+    fn default() -> Self {
+        Self::new(ScriptRunnerKind::Shell, "script runner is not enabled")
+    }
+}
+
+impl UnsupportedScriptRunner {
+    /// Create an unavailable runner for one language with an operator-facing reason.
+    #[must_use]
+    pub fn new(kind: ScriptRunnerKind, reason: impl Into<String>) -> Self {
+        Self {
+            kind,
+            reason: reason.into(),
+        }
+    }
+}
 
 #[async_trait]
 impl ScriptRunner for UnsupportedScriptRunner {
     fn kind(&self) -> ScriptRunnerKind {
-        ScriptRunnerKind::Shell
+        self.kind
     }
 
     async fn run(&self, task: ScriptRunnerTask) -> Result<TaskOutcome, WorkerSdkError> {
+        validate_script_runner_task(self.kind, &task)?;
         task.policy.validate_default_deny()?;
         Err(WorkerSdkError::UnsupportedScriptRunner(format!(
-            "{} script runner is not enabled; use a dedicated sandbox runner before executing dynamic scripts",
-            task.language
+            "{} script runner backend is unavailable: {}",
+            self.kind.as_str(), self.reason
         )))
     }
 }
