@@ -2,6 +2,9 @@ package tikee
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -10,7 +13,11 @@ func TestClientRegistrationAndHeartbeatDryRun(t *testing.T) {
 	config := LocalConfig("http://127.0.0.1:9998", "go-worker-1")
 	config.Namespace = "tenant-a"
 	config.App = "billing"
-	config.Capabilities = []string{"echo", "echo", " script:shell ", ""}
+	config.Capabilities = []string{"legacy-tag", "legacy-tag", ""}
+	config.AddTag("go")
+	config.AddSDKProcessor("demo.echo")
+	config.AddScriptRunner("python", "container")
+	config.AddPluginProcessor("sql", "billing.sql-sync")
 	client, err := NewClient(config)
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
@@ -20,8 +27,24 @@ func TestClientRegistrationAndHeartbeatDryRun(t *testing.T) {
 	if registration.ClientInstanceID != "go-worker-1" || registration.Namespace != "tenant-a" || registration.App != "billing" {
 		t.Fatalf("unexpected registration: %+v", registration)
 	}
-	if got, want := strings.Join(registration.Capabilities, ","), "echo,script:shell"; got != want {
+	if got, want := strings.Join(registration.Capabilities, ","), "legacy-tag"; got != want {
 		t.Fatalf("capabilities = %q, want %q", got, want)
+	}
+	if got := registration.Structured.SDKProcessors; len(got) != 1 || got[0] != "demo.echo" {
+		t.Fatalf("structured sdk processors = %+v", got)
+	}
+	if got := registration.Structured.ScriptRunners; len(got) != 1 || got[0].Language != "python" || got[0].SandboxBackend != "container" {
+		t.Fatalf("structured script runners = %+v", got)
+	}
+	if got := registration.Structured.PluginProcessors; len(got) != 1 || got[0].Type != "sql" || strings.Join(got[0].ProcessorNames, ",") != "billing.sql-sync" {
+		t.Fatalf("structured plugin processors = %+v", got)
+	}
+	register := client.registerMessage().GetRegister()
+	if register == nil || register.GetStructuredCapabilities() == nil {
+		t.Fatalf("register message missing structured capabilities: %+v", register)
+	}
+	if len(register.GetStructuredCapabilities().GetScriptRunners()) != 1 {
+		t.Fatalf("proto structured script runners = %+v", register.GetStructuredCapabilities())
 	}
 
 	processor := TaskProcessorFunc(func(context.Context, TaskContext) (TaskOutcome, error) {
@@ -108,5 +131,50 @@ func TestGeneratedWorkerTunnelClientCanBeConstructed(t *testing.T) {
 	defer conn.Close()
 	if generated := NewWorkerTunnelClient(conn); generated == nil {
 		t.Fatal("NewWorkerTunnelClient() returned nil")
+	}
+}
+
+func TestManagementClientCreatesStructuredPluginAndScriptJobs(t *testing.T) {
+	var bodies []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(apiKeyHeader) != "key-1" {
+			t.Fatalf("missing api key header")
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		bodies = append(bodies, body)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"code":    0,
+			"message": "ok",
+			"data": map[string]any{
+				"id":            "job-1",
+				"namespace":     body["namespace"],
+				"app":           body["app"],
+				"name":          body["name"],
+				"scheduleType":  body["scheduleType"],
+				"processorName": body["processorName"],
+				"processorType": body["processorType"],
+				"scriptId":      body["scriptId"],
+				"enabled":       true,
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewManagementClient(server.URL, "key-1", "dev-alpha", "orders")
+	if _, err := client.CreateJob(context.Background(), PluginAPIJob("go-sql", "sql", "billing.sql-sync")); err != nil {
+		t.Fatalf("CreateJob(plugin) error = %v", err)
+	}
+	if _, err := client.CreateJob(context.Background(), ScriptAPIJob("go-script", "script_manual_shell_echo")); err != nil {
+		t.Fatalf("CreateJob(script) error = %v", err)
+	}
+
+	if got := bodies[0]["processorType"]; got != "sql" {
+		t.Fatalf("processorType = %v, want sql", got)
+	}
+	if got := bodies[1]["scriptId"]; got != "script_manual_shell_echo" {
+		t.Fatalf("scriptId = %v", got)
 	}
 }

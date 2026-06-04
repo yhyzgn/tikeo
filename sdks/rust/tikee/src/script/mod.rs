@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use sha2::{Digest, Sha256};
 use tokio::{io::AsyncWriteExt, process::Command};
 
-use crate::{error::WorkerSdkError, task::TaskOutcome};
+use crate::{error::WorkerSdkError, proto::worker::v1::ScriptRunnerCapability, task::TaskOutcome};
 
 mod container;
 mod local;
@@ -194,6 +194,21 @@ impl ScriptRunnerRegistry {
 
     pub(crate) fn get(&self, kind: ScriptRunnerKind) -> Option<&dyn ScriptRunner> {
         self.runners.get(&kind).map(std::convert::AsRef::as_ref)
+    }
+
+    /// Structured capabilities advertised for registered runners.
+    #[must_use]
+    pub fn structured_capabilities(&self) -> Vec<ScriptRunnerCapability> {
+        let mut runners = self
+            .runners
+            .keys()
+            .map(|kind| ScriptRunnerCapability {
+                language: kind.as_str().to_owned(),
+                sandbox_backend: "container".to_owned(),
+            })
+            .collect::<Vec<_>>();
+        runners.sort_by(|left, right| left.language.cmp(&right.language));
+        runners
     }
 }
 

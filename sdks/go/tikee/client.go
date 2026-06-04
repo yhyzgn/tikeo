@@ -15,7 +15,10 @@ type Registration struct {
 	Name             string
 	Region           string
 	Version          string
+	Cluster          string
 	Capabilities     []string
+	Labels           map[string]string
+	Structured       WorkerCapabilities
 }
 
 // Heartbeat is the protocol-neutral heartbeat snapshot.
@@ -42,6 +45,11 @@ func NewClient(config WorkerConfig) (*Client, error) {
 		return nil, err
 	}
 	config.Capabilities = normalizedCapabilities(config.Capabilities)
+	config.Structured.Tags = normalizedCapabilities(config.Structured.Tags)
+	config.Structured.SDKProcessors = normalizedCapabilities(config.Structured.SDKProcessors)
+	if config.Labels == nil {
+		config.Labels = map[string]string{}
+	}
 	return &Client{config: config}, nil
 }
 
@@ -54,7 +62,10 @@ func (c *Client) Registration() Registration {
 		Name:             c.config.Name,
 		Region:           c.config.Region,
 		Version:          c.config.Version,
+		Cluster:          c.config.Cluster,
 		Capabilities:     append([]string(nil), c.config.Capabilities...),
+		Labels:           cloneMap(c.config.Labels),
+		Structured:       cloneWorkerCapabilities(c.config.Structured),
 	}
 }
 
@@ -68,6 +79,31 @@ func (c *Client) StartDryRun(_ context.Context, processor TaskProcessor) error {
 	defer c.mu.Unlock()
 	c.open = true
 	return nil
+}
+
+func cloneMap(values map[string]string) map[string]string {
+	out := make(map[string]string, len(values))
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
+}
+
+func cloneWorkerCapabilities(in WorkerCapabilities) WorkerCapabilities {
+	out := WorkerCapabilities{
+		Tags:          append([]string(nil), in.Tags...),
+		SDKProcessors: append([]string(nil), in.SDKProcessors...),
+	}
+	for _, runner := range in.ScriptRunners {
+		out.ScriptRunners = append(out.ScriptRunners, runner)
+	}
+	for _, plugin := range in.PluginProcessors {
+		out.PluginProcessors = append(out.PluginProcessors, PluginProcessorCapability{
+			Type:           plugin.Type,
+			ProcessorNames: append([]string(nil), plugin.ProcessorNames...),
+		})
+	}
+	return out
 }
 
 // NextHeartbeat returns the next local heartbeat shape.

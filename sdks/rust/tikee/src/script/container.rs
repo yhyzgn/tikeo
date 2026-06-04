@@ -19,7 +19,7 @@ use crate::{error::WorkerSdkError, task::TaskOutcome};
 /// sandbox is supplied, the container root filesystem is read-only, file grants become explicit
 /// bind mounts, and only explicitly whitelisted env vars are injected into the container.
 /// Workers must still opt in by registering this runner and advertising the matching
-/// `script:<language>` capability.
+/// structured `script_runners.language` capability.
 #[derive(Debug, Clone)]
 pub struct ContainerScriptRunner {
     kind: ScriptRunnerKind,

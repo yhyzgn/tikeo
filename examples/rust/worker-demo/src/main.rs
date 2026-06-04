@@ -13,20 +13,34 @@ async fn main() -> Result<(), WorkerSdkError> {
     let endpoint = std::env::var("TIKEE_WORKER_ENDPOINT")
         .unwrap_or_else(|_| "http://127.0.0.1:9998".to_owned());
     let client_instance_id = std::env::var("TIKEE_WORKER_INSTANCE_ID")
-        .unwrap_or_else(|_| "rust-demo-instance".to_owned());
+        .or_else(|_| std::env::var("TIKEE_WORKER_CLIENT_INSTANCE_ID"))
+        .unwrap_or_else(|_| "rust-worker-demo-local".to_owned());
     let mut config = WorkerConfig::local(endpoint, client_instance_id);
-    config.namespace = env_or("TIKEE_WORKER_NAMESPACE", "default");
-    config.app = env_or("TIKEE_WORKER_APP", "default");
+    config.namespace = env_or("TIKEE_WORKER_NAMESPACE", "dev-alpha");
+    config.app = env_or("TIKEE_WORKER_APP", "orders");
     config.cluster = env_or("TIKEE_WORKER_CLUSTER", "local");
     config.region = env_or("TIKEE_WORKER_REGION", "local");
     config.capabilities = csv_env("TIKEE_WORKER_CAPABILITIES");
     config.labels = labels_env("TIKEE_WORKER_LABELS");
+    config.add_tag("rust");
+    config.add_tag("manual-demo");
+    for processor in csv_env_or(
+        "TIKEE_WORKER_SDK_PROCESSORS",
+        "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail",
+    ) {
+        config.add_sdk_processor(processor);
+    }
     if let Ok(worker_pool) = std::env::var("TIKEE_WORKER_POOL") {
         config.labels.insert("worker_pool".to_owned(), worker_pool);
     }
     if enabled_env("TIKEE_ENABLE_PLUGIN_SQL") {
-        push_unique(&mut config.capabilities, "plugin-processor:sql".to_owned());
-        config.labels.insert("plugin_sql".to_owned(), "enabled".to_owned());
+        config.add_plugin_processor(
+            env_or("TIKEE_PLUGIN_SQL_TYPE", "sql"),
+            env_or("TIKEE_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"),
+        );
+        config
+            .labels
+            .insert("plugin_sql".to_owned(), "enabled".to_owned());
     }
 
     let mut runners = ScriptRunnerRegistry::new();
@@ -54,19 +68,31 @@ async fn main() -> Result<(), WorkerSdkError> {
     configure_script_runner(
         &mut config,
         &mut runners,
+        ScriptRunnerKind::Rhai,
+        "TIKEE_RHAI_IMAGE",
+        "rhaiscript/rhai:latest",
+    );
+    for runner in runners.structured_capabilities() {
+        config.add_script_runner(runner.language, runner.sandbox_backend);
+    }
+
+    configure_script_runner(
+        &mut config,
+        &mut runners,
         ScriptRunnerKind::PowerShell,
         "TIKEE_POWERSHELL_IMAGE",
         "mcr.microsoft.com/powershell:latest",
     );
 
     println!(
-        "Rust worker demo configured: client_instance_id={}, endpoint={}, namespace={}, app={}, cluster={}, region={}, capabilities={:?}, labels={:?}",
+        "Rust worker demo configured: client_instance_id={}, endpoint={}, namespace={}, app={}, cluster={}, region={}, structured_capabilities={:?}, legacy_capabilities={:?}, labels={:?}",
         config.client_instance_id,
         config.endpoint,
         config.namespace,
         config.app,
         config.cluster,
         config.region,
+        config.structured_capabilities,
         config.capabilities,
         config.labels
     );
@@ -118,20 +144,11 @@ fn configure_script_runner(
     }
     let image = env_or(image_env, default_image);
     runners.register(ContainerScriptRunner::new(kind, image));
-    push_unique(
-        &mut config.capabilities,
-        format!("script:{}", kind.as_str()),
-    );
+    config.add_script_runner(kind.as_str(), "container");
     config.labels.insert(
         format!("script_{}_sandbox", kind.as_str()),
         "container".to_owned(),
     );
-}
-
-fn push_unique(values: &mut Vec<String>, value: String) {
-    if !values.iter().any(|item| item == &value) {
-        values.push(value);
-    }
 }
 
 struct NoopProcessor;
@@ -163,6 +180,16 @@ fn enabled_env(key: &str) -> bool {
 fn csv_env(key: &str) -> Vec<String> {
     std::env::var(key)
         .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+fn csv_env_or(key: &str, fallback: &str) -> Vec<String> {
+    let value = std::env::var(key).unwrap_or_else(|_| fallback.to_owned());
+    value
         .split(',')
         .map(str::trim)
         .filter(|value| !value.is_empty())

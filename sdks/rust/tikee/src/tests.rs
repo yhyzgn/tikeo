@@ -18,6 +18,35 @@ use super::{
     TaskProcessor, UnsupportedScriptRunner, WorkerClient, WorkerConfig, WorkerSdkError,
 };
 
+#[test]
+fn worker_config_registers_structured_capabilities_without_legacy_routing_strings() {
+    let mut config = WorkerConfig::local("http://127.0.0.1:9998", "rust-demo");
+    config.add_tag("rust");
+    config.add_sdk_processor("demo.echo");
+    config.add_script_runner("python", "container");
+    config.add_plugin_processor("sql", "billing.sql-sync");
+
+    let message = config.register_message();
+    let register = match message.kind {
+        Some(worker_message::Kind::Register(register)) => register,
+        other => panic!("expected register message, got {other:?}"),
+    };
+    let structured = register
+        .structured_capabilities
+        .expect("structured capabilities should be present");
+
+    assert!(register.capabilities.is_empty());
+    assert_eq!(structured.tags, vec!["rust"]);
+    assert_eq!(structured.sdk_processors[0].name, "demo.echo");
+    assert_eq!(structured.script_runners[0].language, "python");
+    assert_eq!(structured.script_runners[0].sandbox_backend, "container");
+    assert_eq!(structured.plugin_processors[0].r#type, "sql");
+    assert_eq!(
+        structured.plugin_processors[0].processor_names,
+        vec!["billing.sql-sync"]
+    );
+}
+
 #[tokio::test]
 async fn unsupported_script_runner_validates_default_deny_policy_before_execution() {
     assert_eq!(
@@ -654,7 +683,7 @@ fn script_dispatch_task(instance_id: &str, content: &str) -> DispatchTask {
         instance_id: instance_id.to_owned(),
         job_id: "job-script".to_owned(),
         payload: Vec::new(),
-        processor_name: "script:script_shell".to_owned(),
+        processor_name: "script_shell".to_owned(),
         assignment_token: "assign-token-1".to_owned(),
         processor_binding: Some(Box::new(TaskProcessorBinding {
             kind: Some(task_processor_binding::Kind::Script(
@@ -688,7 +717,7 @@ fn wasm_dispatch_task(instance_id: &str, module: Vec<u8>, allow_network: bool) -
         instance_id: instance_id.to_owned(),
         job_id: "job-wasm".to_owned(),
         payload: Vec::new(),
-        processor_name: "script:script_wasm".to_owned(),
+        processor_name: "script_wasm".to_owned(),
         assignment_token: String::new(),
         processor_binding: Some(Box::new(TaskProcessorBinding {
             kind: Some(task_processor_binding::Kind::Wasm(WasmProcessorBinding {

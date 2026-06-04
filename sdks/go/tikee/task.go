@@ -4,9 +4,10 @@ import "context"
 
 // TaskContext is the ergonomic task shape passed to Go processors.
 type TaskContext struct {
-	InstanceID string
-	JobID      string
-	Payload    []byte
+	InstanceID    string
+	JobID         string
+	ProcessorName string
+	Payload       []byte
 }
 
 // TaskOutcome is the worker result reported to tikee.

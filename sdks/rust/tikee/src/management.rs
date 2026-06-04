@@ -72,6 +72,7 @@ impl ManagementClient {
             schedule_type: request.schedule_type.as_deref(),
             schedule_expr: request.schedule_expr.as_deref(),
             processor_name: request.processor_name.as_deref(),
+            processor_type: request.processor_type.as_deref(),
             script_id: request.script_id.as_deref(),
             enabled: request.enabled,
         };
@@ -139,6 +140,8 @@ pub struct JobDefinition {
     pub schedule_expr: Option<String>,
     /// Optional processor binding.
     pub processor_name: Option<String>,
+    /// Optional structured plugin processor type.
+    pub processor_type: Option<String>,
     /// Optional script binding.
     pub script_id: Option<String>,
     /// Whether this job is enabled.
@@ -156,6 +159,8 @@ pub struct CreateJobRequest {
     pub schedule_expr: Option<String>,
     /// Optional processor binding.
     pub processor_name: Option<String>,
+    /// Optional structured plugin processor type.
+    pub processor_type: Option<String>,
     /// Optional script binding.
     pub script_id: Option<String>,
     /// Optional enabled flag.
@@ -171,7 +176,40 @@ impl CreateJobRequest {
             schedule_type: Some("api".to_owned()),
             schedule_expr: None,
             processor_name: Some(processor_name.into()),
+            processor_type: None,
             script_id: None,
+            enabled: Some(true),
+        }
+    }
+
+    /// Build an API-triggered plugin processor job request.
+    #[must_use]
+    pub fn plugin_api(
+        name: impl Into<String>,
+        processor_type: impl Into<String>,
+        processor_name: impl Into<String>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            schedule_type: Some("api".to_owned()),
+            schedule_expr: None,
+            processor_name: Some(processor_name.into()),
+            processor_type: Some(processor_type.into()),
+            script_id: None,
+            enabled: Some(true),
+        }
+    }
+
+    /// Build an API-triggered script job request.
+    #[must_use]
+    pub fn script_api(name: impl Into<String>, script_id: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            schedule_type: Some("api".to_owned()),
+            schedule_expr: None,
+            processor_name: None,
+            processor_type: None,
+            script_id: Some(script_id.into()),
             enabled: Some(true),
         }
     }
@@ -202,6 +240,8 @@ struct ScopedCreateJobRequest<'a> {
     schedule_expr: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     processor_name: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    processor_type: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     script_id: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
