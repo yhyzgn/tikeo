@@ -455,14 +455,14 @@ export function JobsPage() {
           <Form.Item name="namespace" label="Namespace" rules={[{ required: true }]}><Input placeholder="default" /></Form.Item>
           <Form.Item name="app" label="App" rules={[{ required: true }]}><Input placeholder="default" /></Form.Item>
           <Form.Item name="name" label="任务名称" rules={[{ required: true }]}><Input placeholder="demo.echo" /></Form.Item>
-          <Form.Item name="executorKind" label="执行方式" rules={[{ required: true }]}><Select options={[{ value: 'sdk', label: 'SDK Processor' }, { value: 'plugin', label: '插件处理器' }, { value: 'script', label: '脚本（沙箱自动执行）' }]} /></Form.Item>
+          <Form.Item name="executorKind" label="执行方式" rules={[{ required: true }]}><Select options={[{ value: 'sdk', label: '处理器' }, { value: 'plugin', label: '插件处理器' }, { value: 'script', label: '脚本（沙箱自动执行）' }]} /></Form.Item>
           <Form.Item noStyle shouldUpdate={(prev, next) => prev.executorKind !== next.executorKind}>
             {({ getFieldValue }) => getFieldValue('executorKind') === 'script' ? (
               <Form.Item name="scriptId" label="具体脚本" extra="选择已审批脚本即可；Server 会按脚本语言匹配 Worker 注册的结构化 scriptRunners。" rules={[{ required: true, message: '请选择具体脚本' }]}><Select showSearch optionFilterProp="label" placeholder="选择已审批脚本" options={scriptOptions} /></Form.Item>
             ) : getFieldValue('executorKind') === 'plugin' ? (
               <><Form.Item name="processorType" label="插件处理器类型" rules={[{ required: true, message: '请选择插件处理器类型' }]}><Select placeholder="选择插件处理器类型" options={pluginProcessorOptions} onChange={(value) => applyPluginProcessorSelection(form, value)} /></Form.Item><Form.Item noStyle shouldUpdate={(prev, next) => prev.processorType !== next.processorType || prev.processorName !== next.processorName}>{({ getFieldValue }) => <Form.Item name="processorName" label="任务处理器名" extra="来自插件管理中声明的“任务处理器名候选”；未声明时需要先回到插件管理补齐。" rules={[{ required: true, message: '请选择任务处理器名候选' }]}><Select placeholder="自动选择任务处理器名" options={pluginProcessorNameOptions(getFieldValue('processorType'))} /></Form.Item>}</Form.Item></>
             ) : (
-              <Form.Item name="processorName" label="SDK Processor" extra="只能选择普通 SDK processor；候选来自 Worker 注册的结构化 sdkProcessors。Java demo/Spring Worker 通过 @TikeeProcessor 注册，例如 demo.echo。"><Select allowClear showSearch placeholder="输入或选择 SDK Processor" options={sdkProcessorOptions(createProcessorSearch, form.getFieldValue('processorName'))} filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())} onSearch={setCreateProcessorSearch} onChange={(value) => setCreateProcessorSearch(String(value ?? ''))} /></Form.Item>
+              <Form.Item name="processorName" label="处理器" extra="只能选择普通处理器；候选来自 Worker 注册的结构化 sdkProcessors。Java demo/Spring Worker 通过 @TikeeProcessor 注册，例如 demo.echo。"><Select allowClear showSearch placeholder="输入或选择处理器" options={sdkProcessorOptions(createProcessorSearch, form.getFieldValue('processorName'))} filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())} onSearch={setCreateProcessorSearch} onChange={(value) => setCreateProcessorSearch(String(value ?? ''))} /></Form.Item>
             )}
           </Form.Item>
           <Form.Item name="scheduleType" label="调度类型"><Select options={scheduleTypeOptions} /></Form.Item>
@@ -500,14 +500,14 @@ export function JobsPage() {
         <Form form={editForm} layout="vertical" onFinish={(values) => void handleEditSubmit(values)}>
           <Form.Item label="Namespace / App"><Typography.Text code>{editingJob ? `${editingJob.namespace}/${editingJob.app}` : '-'}</Typography.Text></Form.Item>
           <Form.Item name="name" label="任务名称" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="executorKind" label="执行方式" rules={[{ required: true }]}><Select options={[{ value: 'sdk', label: 'SDK Processor' }, { value: 'plugin', label: '插件处理器' }, { value: 'script', label: '脚本（沙箱自动执行）' }]} /></Form.Item>
+          <Form.Item name="executorKind" label="执行方式" rules={[{ required: true }]}><Select options={[{ value: 'sdk', label: '处理器' }, { value: 'plugin', label: '插件处理器' }, { value: 'script', label: '脚本（沙箱自动执行）' }]} /></Form.Item>
           <Form.Item noStyle shouldUpdate={(prev, next) => prev.executorKind !== next.executorKind}>
             {({ getFieldValue }) => getFieldValue('executorKind') === 'script' ? (
               <Form.Item name="scriptId" label="具体脚本" extra="选择已审批脚本即可；Server 会按脚本语言匹配 Worker 注册的结构化 scriptRunners。" rules={[{ required: true, message: '请选择具体脚本' }]}><Select showSearch optionFilterProp="label" placeholder="选择已审批脚本" options={scriptOptions} /></Form.Item>
             ) : getFieldValue('executorKind') === 'plugin' ? (
               <><Form.Item name="processorType" label="插件处理器类型" rules={[{ required: true, message: '请选择插件处理器类型' }]}><Select placeholder="选择插件处理器类型" options={pluginProcessorOptions} onChange={(value) => applyPluginProcessorSelection(editForm, value)} /></Form.Item><Form.Item noStyle shouldUpdate={(prev, next) => prev.processorType !== next.processorType || prev.processorName !== next.processorName}>{({ getFieldValue }) => <Form.Item name="processorName" label="任务处理器名" extra="来自插件管理中声明的“任务处理器名候选”；未声明时需要先回到插件管理补齐。" rules={[{ required: true, message: '请选择任务处理器名候选' }]}><Select placeholder="自动选择任务处理器名" options={pluginProcessorNameOptions(getFieldValue('processorType'))} /></Form.Item>}</Form.Item></>
             ) : (
-              <Form.Item name="processorName" label="SDK Processor" extra="只能选择普通 SDK processor；候选来自 Worker 注册的结构化 sdkProcessors。Java demo/Spring Worker 通过 @TikeeProcessor 注册，例如 demo.echo。"><Select allowClear showSearch placeholder="输入或选择 SDK Processor" options={sdkProcessorOptions(editProcessorSearch, editForm.getFieldValue('processorName'))} filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())} onSearch={setEditProcessorSearch} onChange={(value) => setEditProcessorSearch(String(value ?? ''))} /></Form.Item>
+              <Form.Item name="processorName" label="处理器" extra="只能选择普通处理器；候选来自 Worker 注册的结构化 sdkProcessors。Java demo/Spring Worker 通过 @TikeeProcessor 注册，例如 demo.echo。"><Select allowClear showSearch placeholder="输入或选择处理器" options={sdkProcessorOptions(editProcessorSearch, editForm.getFieldValue('processorName'))} filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())} onSearch={setEditProcessorSearch} onChange={(value) => setEditProcessorSearch(String(value ?? ''))} /></Form.Item>
             )}
           </Form.Item>
           <Form.Item name="scheduleType" label="调度类型"><Select options={scheduleTypeOptions} /></Form.Item>

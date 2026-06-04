@@ -6,12 +6,15 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tikee_proto::worker::v1::{
     DispatchTask, RegisterWorker, ServerMessage, WorkerCapabilities, WorkerClusterElection,
     server_message,
 };
-use tikee_storage::{RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository};
+use tikee_storage::{
+    RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository, WorkerSessionSnapshotUpdate,
+};
 use tokio::sync::{RwLock, mpsc};
 use tonic::Status;
 use uuid::Uuid;
@@ -41,7 +44,8 @@ pub struct BroadcastSelector {
 }
 
 /// Worker-side master election outcome for a namespace/app/cluster/region domain.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkerMasterState {
     /// Deterministic election domain.
     pub domain: String,
@@ -114,7 +118,7 @@ impl WorkerRegistry {
             .await;
         let election = worker_election_registration(&worker);
         let master = WorkerMasterState::follower(election.domain.clone());
-        let (record, worker_count) = {
+        let (record, worker_count, snapshots) = {
             let mut workers = self.workers.write().await;
             let generation = persisted_generation
                 .unwrap_or_else(|| next_generation(&workers, &logical_instance_id));
@@ -147,13 +151,16 @@ impl WorkerRegistry {
             replace_previous_generations(&mut workers, &logical_instance_id, &worker_id);
             workers.insert(record.worker_id.clone(), record.clone());
             recompute_worker_master_states(&mut workers);
+            let record = workers.get(&worker_id).cloned().unwrap_or(record);
             let worker_count = workers
                 .values()
                 .filter(|worker| worker.is_schedulable())
                 .count();
+            let snapshots = session_snapshots(workers.values());
             drop(workers);
-            (record, worker_count)
+            (record, worker_count, snapshots)
         };
+        self.persist_worker_snapshots(snapshots).await;
         metrics::gauge!("tikee_worker_connected_total")
             .set(u32::try_from(worker_count).map_or_else(|_| f64::from(u32::MAX), f64::from));
 
@@ -180,6 +187,14 @@ impl WorkerRegistry {
                 connection_id: connection_id.to_owned(),
                 fencing_token: fencing_token.to_owned(),
                 lease_seconds: i64::try_from(DEFAULT_LEASE_SECONDS).unwrap_or(i64::MAX),
+                capabilities_json: json_or_empty_array(&worker.capabilities),
+                structured_capabilities_json: worker_capabilities_json(
+                    worker.structured_capabilities.as_ref(),
+                ),
+                labels_json: json_or_empty_object(&worker.labels),
+                master_json: json_or_empty_object(&WorkerMasterState::follower(
+                    worker_election_registration(worker).domain,
+                )),
             })
             .await
             .ok()?;
@@ -199,6 +214,7 @@ impl WorkerRegistry {
             .await?;
         self.persist_heartbeat(&updated, sequence, generation, fencing_token)
             .await;
+        self.persist_current_snapshots().await;
         Some(updated)
     }
 
@@ -262,6 +278,7 @@ impl WorkerRegistry {
             .await?;
         self.persist_unregister(&stopped, generation, fencing_token)
             .await;
+        self.persist_current_snapshots().await;
         Some(stopped)
     }
 
@@ -333,6 +350,7 @@ impl WorkerRegistry {
         if let Some(lifecycle) = self.lifecycle.as_ref() {
             let _ = lifecycle.mark_transport_error(worker_id, evidence).await;
         }
+        self.persist_current_snapshots().await;
         Some(offline)
     }
 
@@ -581,6 +599,24 @@ impl WorkerRegistry {
             drop(workers);
         }
     }
+
+    async fn persist_current_snapshots(&self) {
+        if self.lifecycle.is_none() {
+            return;
+        }
+        let snapshots = {
+            let workers = self.workers.read().await;
+            session_snapshots(workers.values())
+        };
+        self.persist_worker_snapshots(snapshots).await;
+    }
+
+    async fn persist_worker_snapshots(&self, snapshots: Vec<WorkerSessionSnapshotUpdate>) {
+        let Some(lifecycle) = self.lifecycle.as_ref() else {
+            return;
+        };
+        let _ = lifecycle.update_session_snapshots(snapshots).await;
+    }
 }
 
 fn logical_instance_id(
@@ -704,6 +740,51 @@ fn hex_prefix(bytes: &[u8], len: usize) -> String {
         .flat_map(|byte| [byte >> 4, byte & 0x0f])
         .take(len)
         .map(|nibble| char::from_digit(u32::from(nibble), 16).unwrap_or('0'))
+        .collect()
+}
+
+fn json_or_empty_array<T: serde::Serialize>(value: &T) -> String {
+    serde_json::to_string(value).unwrap_or_else(|_| "[]".to_owned())
+}
+
+fn json_or_empty_object<T: serde::Serialize>(value: &T) -> String {
+    serde_json::to_string(value).unwrap_or_else(|_| "{}".to_owned())
+}
+
+fn worker_capabilities_json(capabilities: Option<&WorkerCapabilities>) -> String {
+    let Some(capabilities) = capabilities else {
+        return "{}".to_owned();
+    };
+    serde_json::to_string(&serde_json::json!({
+        "tags": capabilities.tags,
+        "sdkProcessors": capabilities.sdk_processors.iter().map(|processor| processor.name.as_str()).collect::<Vec<_>>(),
+        "scriptRunners": capabilities.script_runners.iter().map(|runner| serde_json::json!({
+            "language": runner.language,
+            "sandboxBackend": runner.sandbox_backend,
+        })).collect::<Vec<_>>(),
+        "pluginProcessors": capabilities.plugin_processors.iter().map(|processor| serde_json::json!({
+            "type": processor.r#type,
+            "processorNames": processor.processor_names,
+        })).collect::<Vec<_>>(),
+    }))
+    .unwrap_or_else(|_| "{}".to_owned())
+}
+
+fn session_snapshots<'a>(
+    workers: impl IntoIterator<Item = &'a RegisteredWorker>,
+) -> Vec<WorkerSessionSnapshotUpdate> {
+    workers
+        .into_iter()
+        .filter(|worker| worker.is_current())
+        .map(|worker| WorkerSessionSnapshotUpdate {
+            worker_id: worker.worker_id.clone(),
+            capabilities_json: json_or_empty_array(&worker.capabilities),
+            structured_capabilities_json: worker_capabilities_json(Some(
+                &worker.structured_capabilities,
+            )),
+            labels_json: json_or_empty_object(&worker.labels),
+            master_json: json_or_empty_object(&worker.master),
+        })
         .collect()
 }
 
@@ -1319,6 +1400,81 @@ mod tests {
             .unwrap_or_else(|error| panic!("renewed session should load: {error}"))
             .unwrap_or_else(|| panic!("renewed session should exist"));
         assert_eq!(renewed.last_sequence, 11);
+    }
+
+    #[tokio::test]
+    async fn registry_persists_worker_snapshots_after_master_election() {
+        let db = tikee_storage::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let lifecycle = WorkerLifecycleRepository::new(db);
+        let registry = WorkerRegistry::with_lifecycle(lifecycle.clone());
+
+        let follower = registry
+            .register(election_worker("pod-follower", 10), mpsc::channel(1).0)
+            .await;
+        let master = registry
+            .register(
+                RegisterWorker {
+                    structured_capabilities: Some(WorkerCapabilities {
+                        tags: vec!["java".to_owned()],
+                        sdk_processors: vec![SdkProcessorCapability {
+                            name: "demo.echo".to_owned(),
+                        }],
+                        script_runners: vec![ScriptRunnerCapability {
+                            language: "python".to_owned(),
+                            sandbox_backend: "srt".to_owned(),
+                        }],
+                        plugin_processors: vec![PluginProcessorCapability {
+                            r#type: "sql".to_owned(),
+                            processor_names: vec!["billing.sql-sync".to_owned()],
+                        }],
+                    }),
+                    ..election_worker("pod-master", 1)
+                },
+                mpsc::channel(1).0,
+            )
+            .await;
+
+        assert!(
+            master.master.is_master,
+            "register should return the post-election master state"
+        );
+        let follower_after_election = registry
+            .get(&follower.worker_id)
+            .await
+            .unwrap_or_else(|| panic!("follower worker should remain registered"));
+        assert!(!follower_after_election.master.is_master);
+
+        let persisted = lifecycle
+            .list_online_workers(20)
+            .await
+            .unwrap_or_else(|error| panic!("persisted online workers should load: {error}"));
+        let persisted_master = persisted
+            .iter()
+            .find(|worker| worker.worker_id == master.worker_id)
+            .unwrap_or_else(|| panic!("master worker should be persisted online"));
+        assert!(persisted_master.master_json.contains("\"isMaster\":true"));
+        assert!(
+            persisted_master
+                .master_json
+                .contains(&format!("\"masterWorkerId\":\"{}\"", master.worker_id))
+        );
+        assert!(
+            persisted_master
+                .structured_capabilities_json
+                .contains("\"sdkProcessors\":[\"demo.echo\"]")
+        );
+        assert!(
+            persisted_master
+                .structured_capabilities_json
+                .contains("\"sandboxBackend\":\"srt\"")
+        );
+        assert!(
+            persisted_master
+                .structured_capabilities_json
+                .contains("\"processorNames\":[\"billing.sql-sync\"]")
+        );
     }
 
     fn election_worker(client_instance_id: &str, priority: u32) -> RegisterWorker {

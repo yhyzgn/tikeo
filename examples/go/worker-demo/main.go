@@ -93,28 +93,51 @@ func main() {
 		return
 	}
 
+	oneshot := enabled("TIKEE_WORKER_ONESHOT")
+	for {
+		if runWorkerSession(client, processor, scripts, oneshot) {
+			return
+		}
+		time.Sleep(2 * time.Second)
+	}
+}
+
+func runWorkerSession(
+	client *tikee.Client,
+	processor tikee.TaskProcessor,
+	scripts *tikee.ScriptRunnerRegistry,
+	oneshot bool,
+) bool {
 	session, err := client.Connect(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("connect failed, retrying: %v", err)
+		return false
 	}
-	defer session.Close()
+	stopHeartbeat := session.StartHeartbeat(context.Background())
 	log.Printf("go worker connected: worker_id=%s generation=%d lease_seconds=%d", session.WorkerID(), session.Generation(), session.LeaseSeconds())
+	defer func() {
+		stopHeartbeat()
+		if err := session.Close(); err != nil {
+			log.Printf("worker session close skipped/failed: %v", err)
+		}
+	}()
 	if enabled("TIKEE_WORKER_HEARTBEAT_ON_START") {
 		ping, err := session.Heartbeat()
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("heartbeat-on-start failed, reconnecting: %v", err)
+			return false
 		}
 		log.Printf("heartbeat ack sequence=%d", ping.GetSequence())
 	}
-	oneshot := enabled("TIKEE_WORKER_ONESHOT")
 	for {
 		outcome, err := session.ProcessNextWithScriptRunners(context.Background(), processor, scripts)
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("worker tunnel ended, reconnecting: %v", err)
+			return false
 		}
 		log.Printf("processed task success=%v message=%s", outcome.Success, outcome.Message)
 		if oneshot {
-			return
+			return true
 		}
 		time.Sleep(50 * time.Millisecond)
 	}

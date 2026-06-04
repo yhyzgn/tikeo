@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/yhyzgn/tikee/sdks/go/tikee/internal/workerpb"
 	"google.golang.org/grpc"
@@ -89,13 +91,16 @@ func NewWorkerTunnelClient(conn grpc.ClientConnInterface) WorkerTunnelClient {
 
 // Session is an active Worker Tunnel registration.
 type Session struct {
-	conn         *grpc.ClientConn
-	stream       workerpb.WorkerTunnelService_OpenTunnelClient
-	workerID     string
-	leaseSeconds uint64
-	generation   uint64
-	fencingToken string
-	sequence     uint64
+	conn           *grpc.ClientConn
+	stream         workerpb.WorkerTunnelService_OpenTunnelClient
+	sendMu         sync.Mutex
+	workerID       string
+	leaseSeconds   uint64
+	generation     uint64
+	fencingToken   string
+	heartbeatEvery time.Duration
+	sequence       uint64
+	logSequence    int64
 }
 
 func (c *Client) Connect(ctx context.Context, options ...DialOption) (*Session, error) {
@@ -123,12 +128,13 @@ func (c *Client) Connect(ctx context.Context, options ...DialOption) (*Session, 
 		return nil, errors.New("tikee worker expected registration ack")
 	}
 	return &Session{
-		conn:         conn,
-		stream:       stream,
-		workerID:     registered.GetWorkerId(),
-		leaseSeconds: registered.GetLeaseSeconds(),
-		generation:   registered.GetGeneration(),
-		fencingToken: registered.GetFencingToken(),
+		conn:           conn,
+		stream:         stream,
+		workerID:       registered.GetWorkerId(),
+		leaseSeconds:   registered.GetLeaseSeconds(),
+		generation:     registered.GetGeneration(),
+		fencingToken:   registered.GetFencingToken(),
+		heartbeatEvery: c.config.HeartbeatEvery,
 	}, nil
 }
 
@@ -136,14 +142,53 @@ func (s *Session) WorkerID() string     { return s.workerID }
 func (s *Session) LeaseSeconds() uint64 { return s.leaseSeconds }
 func (s *Session) Generation() uint64   { return s.generation }
 
+// StartHeartbeat starts a background lease renewal loop for long-lived workers.
+// It sends the first heartbeat immediately and then repeats on the configured
+// heartbeat interval. The returned function stops the loop and waits for it to
+// exit; callers should stop it before closing the session.
+func (s *Session) StartHeartbeat(ctx context.Context) func() {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	heartbeatCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(s.heartbeatEvery)
+		defer ticker.Stop()
+		if _, err := s.SendHeartbeat(); err != nil {
+			return
+		}
+		for {
+			select {
+			case <-heartbeatCtx.Done():
+				return
+			case <-ticker.C:
+				if _, err := s.SendHeartbeat(); err != nil {
+					return
+				}
+			}
+		}
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
+}
+
+// SendHeartbeat renews the worker lease without waiting for the ping response.
+// The main receive loop may observe and ignore the ping while waiting for tasks.
+func (s *Session) SendHeartbeat() (uint64, error) {
+	sequence := atomic.AddUint64(&s.sequence, 1)
+	if err := s.sendWorkerMessage(s.heartbeatMessage(sequence)); err != nil {
+		return sequence, err
+	}
+	return sequence, nil
+}
+
 func (s *Session) Heartbeat() (*workerpb.Ping, error) {
 	sequence := atomic.AddUint64(&s.sequence, 1)
-	if err := s.stream.Send(&workerpb.WorkerMessage{Kind: &workerpb.WorkerMessage_Heartbeat{Heartbeat: &workerpb.Heartbeat{
-		WorkerId:     s.workerID,
-		Sequence:     sequence,
-		Generation:   s.generation,
-		FencingToken: s.fencingToken,
-	}}}); err != nil {
+	if err := s.sendWorkerMessage(s.heartbeatMessage(sequence)); err != nil {
 		return nil, err
 	}
 	for {
@@ -155,6 +200,26 @@ func (s *Session) Heartbeat() (*workerpb.Ping, error) {
 			return ping, nil
 		}
 	}
+}
+
+// EmitTaskLog appends one task log line to the current job instance.
+func (s *Session) EmitTaskLog(instanceID, assignmentToken, level, message string) (int64, error) {
+	if strings.TrimSpace(level) == "" {
+		level = "info"
+	}
+	sequence := atomic.AddInt64(&s.logSequence, 1)
+	err := s.sendWorkerMessage(&workerpb.WorkerMessage{Kind: &workerpb.WorkerMessage_TaskLog{TaskLog: &workerpb.TaskLog{
+		WorkerId:        s.workerID,
+		InstanceId:      instanceID,
+		Level:           level,
+		Message:         message,
+		Sequence:        sequence,
+		AssignmentToken: assignmentToken,
+	}}})
+	if err != nil {
+		return sequence, err
+	}
+	return sequence, nil
 }
 
 func (s *Session) ProcessNext(ctx context.Context, processor TaskProcessor) (TaskOutcome, error) {
@@ -174,11 +239,25 @@ func (s *Session) ProcessNextWithScriptRunners(ctx context.Context, processor Ta
 		if task == nil {
 			continue
 		}
+		s.emitTaskLogSafely(
+			task,
+			"info",
+			fmt.Sprintf("received task %s processor=%s", task.GetInstanceId(), task.GetProcessorName()),
+		)
 		outcome, err := processDispatchTask(ctx, processor, scripts, task)
 		if err != nil {
 			outcome = Failed(err.Error())
 		}
-		if err := s.stream.Send(&workerpb.WorkerMessage{Kind: &workerpb.WorkerMessage_TaskResult{TaskResult: &workerpb.TaskResult{
+		level := "info"
+		if !outcome.Success {
+			level = "error"
+		}
+		s.emitTaskLogSafely(
+			task,
+			level,
+			fmt.Sprintf("completed task %s success=%t message=%s", task.GetInstanceId(), outcome.Success, outcome.Message),
+		)
+		if err := s.sendWorkerMessage(&workerpb.WorkerMessage{Kind: &workerpb.WorkerMessage_TaskResult{TaskResult: &workerpb.TaskResult{
 			WorkerId:        s.workerID,
 			InstanceId:      task.GetInstanceId(),
 			Success:         outcome.Success,
@@ -191,8 +270,12 @@ func (s *Session) ProcessNextWithScriptRunners(ctx context.Context, processor Ta
 	}
 }
 
+func (s *Session) emitTaskLogSafely(task *workerpb.DispatchTask, level, message string) {
+	_, _ = s.EmitTaskLog(task.GetInstanceId(), task.GetAssignmentToken(), level, message)
+}
+
 func (s *Session) Close() error {
-	err := s.stream.Send(&workerpb.WorkerMessage{Kind: &workerpb.WorkerMessage_Unregister{Unregister: &workerpb.UnregisterWorker{
+	err := s.sendWorkerMessage(&workerpb.WorkerMessage{Kind: &workerpb.WorkerMessage_Unregister{Unregister: &workerpb.UnregisterWorker{
 		WorkerId:     s.workerID,
 		Generation:   s.generation,
 		FencingToken: s.fencingToken,
@@ -206,6 +289,21 @@ func (s *Session) Close() error {
 		return closeErr
 	}
 	return connErr
+}
+
+func (s *Session) sendWorkerMessage(message *workerpb.WorkerMessage) error {
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+	return s.stream.Send(message)
+}
+
+func (s *Session) heartbeatMessage(sequence uint64) *workerpb.WorkerMessage {
+	return &workerpb.WorkerMessage{Kind: &workerpb.WorkerMessage_Heartbeat{Heartbeat: &workerpb.Heartbeat{
+		WorkerId:     s.workerID,
+		Sequence:     sequence,
+		Generation:   s.generation,
+		FencingToken: s.fencingToken,
+	}}}
 }
 
 func (c *Client) registerMessage() *workerpb.WorkerMessage {

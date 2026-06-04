@@ -995,6 +995,95 @@ body {
   margin-bottom: 14px;
 }
 
+
+.worker-topology-card .ant-card-body {
+  padding-top: 18px;
+}
+
+.worker-scope-collapse.ant-collapse {
+  border: 0;
+  background: transparent;
+}
+
+.worker-scope-collapse .ant-collapse-item {
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid var(--app-border) !important;
+  border-radius: 18px !important;
+  background: var(--app-surface-solid);
+}
+
+.worker-scope-collapse .ant-collapse-header {
+  align-items: center !important;
+  padding: 16px 18px !important;
+}
+
+.worker-scope-title {
+  color: var(--app-text-strong);
+}
+
+.worker-cluster-tree {
+  display: grid;
+  gap: 14px;
+}
+
+.worker-cluster-node {
+  border: 1px solid var(--app-border);
+  border-radius: 16px;
+  background: var(--app-surface-soft);
+}
+
+.worker-cluster-node__header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.worker-node-list.ant-list {
+  padding: 0 12px 12px;
+}
+
+.worker-node.ant-list-item {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--app-border) !important;
+  border-radius: 14px;
+  background: var(--app-surface-solid);
+}
+
+.worker-node--master.ant-list-item {
+  border-color: color-mix(in srgb, #f59e0b 42%, var(--app-border)) !important;
+  box-shadow: inset 4px 0 0 #f59e0b;
+}
+
+.worker-node--follower.ant-list-item {
+  box-shadow: inset 4px 0 0 color-mix(in srgb, var(--app-primary-color) 32%, var(--app-border));
+}
+
+.worker-node__main {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(260px, 1.2fr) minmax(180px, 0.7fr) minmax(280px, 1.5fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.worker-node__identity,
+.worker-node__election,
+.worker-node__capabilities {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.worker-node__capabilities {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.dispatch-queue-page .dispatch-queue-panel.ant-card {
+  min-height: 520px;
+}
+
 .dispatch-queue-filter {
   margin-bottom: 14px;
 }
@@ -1020,6 +1109,10 @@ body {
 @media (max-width: 1199px) {
   .worker-cluster-hero__summary-grid {
     min-width: 100%;
+  }
+
+  .worker-node__main {
+    grid-template-columns: 1fr;
   }
 }
 

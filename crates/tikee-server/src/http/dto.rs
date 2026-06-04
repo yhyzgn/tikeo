@@ -494,7 +494,7 @@ pub struct WorkerSummary {
     pub last_sequence: u64,
 }
 
-#[derive(Debug, Clone, Serialize, ToSchema, Default)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize, ToSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkerMasterSummary {
     pub domain: String,
@@ -504,7 +504,7 @@ pub struct WorkerMasterSummary {
     pub fencing_token: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, ToSchema, Default)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize, ToSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkerCapabilitiesSummary {
     pub tags: Vec<String>,
@@ -513,14 +513,14 @@ pub struct WorkerCapabilitiesSummary {
     pub plugin_processors: Vec<WorkerPluginProcessorSummary>,
 }
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkerScriptRunnerSummary {
     pub language: String,
     pub sandbox_backend: String,
 }
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkerPluginProcessorSummary {
     pub r#type: String,

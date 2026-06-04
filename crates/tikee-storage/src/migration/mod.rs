@@ -1065,6 +1065,10 @@ async fn create_worker_lifecycle_tables(manager: &SchemaManager<'_>) -> Result<(
                 .col(string_null(WorkerSessions::DisconnectedAt))
                 .col(string_null(WorkerSessions::ReplacedByWorkerId))
                 .col(string_null(WorkerSessions::DrainRequestedAt))
+                .col(text_col(WorkerSessions::CapabilitiesJson))
+                .col(text_col(WorkerSessions::StructuredCapabilitiesJson))
+                .col(text_col(WorkerSessions::LabelsJson))
+                .col(text_col(WorkerSessions::MasterJson))
                 .col(string_col(WorkerSessions::CreatedAt))
                 .col(string_col(WorkerSessions::UpdatedAt))
                 .to_owned(),

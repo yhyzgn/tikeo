@@ -32,6 +32,7 @@ const PluginsPage = lazy(() => import('./pages/PluginsPage').then((module) => ({
 const ApiKeysPage = lazy(() => import('./pages/ApiKeysPage').then((module) => ({ default: module.ApiKeysPage })));
 const GitOpsPage = lazy(() => import('./pages/GitOpsPage').then((module) => ({ default: module.GitOpsPage })));
 const WorkersPage = lazy(() => import('./pages/WorkersPage').then((module) => ({ default: module.WorkersPage })));
+const DispatchQueuePage = lazy(() => import('./pages/DispatchQueuePage').then((module) => ({ default: module.DispatchQueuePage })));
 
 function GuardedRoute({ route, children }: { route: { permission?: { resource: string; action: string } }; children: React.ReactNode }) {
   if (!route.permission) return <>{children}</>;
@@ -87,6 +88,7 @@ function AppLayout() {
           <Route path={ROUTE_META.workflowNew.path} element={<GuardedRoute route={ROUTE_META.workflowNew}><WorkflowEditorPage /></GuardedRoute>} />
           <Route path={ROUTE_META.workflowEdit.path} element={<GuardedRoute route={ROUTE_META.workflowEdit}><WorkflowEditorPage /></GuardedRoute>} />
           <Route path={ROUTE_META.workers.path} element={<GuardedRoute route={ROUTE_META.workers}><WorkersPage /></GuardedRoute>} />
+          <Route path={ROUTE_META.dispatchQueue.path} element={<GuardedRoute route={ROUTE_META.dispatchQueue}><DispatchQueuePage /></GuardedRoute>} />
           <Route path={ROUTE_META.users.path} element={<GuardedRoute route={ROUTE_META.users}><UsersPage /></GuardedRoute>} />
           <Route path={ROUTE_META.scopes.path} element={<GuardedRoute route={ROUTE_META.scopes}><ScopesPage /></GuardedRoute>} />
           <Route path={ROUTE_META.calendars.path} element={<GuardedRoute route={ROUTE_META.calendars}><CalendarsPage /></GuardedRoute>} />

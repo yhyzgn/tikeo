@@ -41,6 +41,14 @@ pub struct RegisterWorkerSession {
     pub fencing_token: String,
     /// Lease duration from now.
     pub lease_seconds: i64,
+    /// Legacy free-form capabilities snapshot as JSON array.
+    pub capabilities_json: String,
+    /// Structured capabilities snapshot as JSON object.
+    pub structured_capabilities_json: String,
+    /// Worker label snapshot as JSON object.
+    pub labels_json: String,
+    /// Worker master/election state snapshot as JSON object.
+    pub master_json: String,
 }
 
 /// Input for accepting a fenced worker heartbeat.
@@ -81,8 +89,70 @@ pub struct WorkerSessionSummary {
     pub last_heartbeat_at: String,
     /// Last heartbeat sequence.
     pub last_sequence: i64,
+    /// Legacy free-form capabilities snapshot as JSON array.
+    pub capabilities_json: String,
+    /// Structured capabilities snapshot as JSON object.
+    pub structured_capabilities_json: String,
+    /// Worker label snapshot as JSON object.
+    pub labels_json: String,
+    /// Worker master/election state snapshot as JSON object.
+    pub master_json: String,
     /// Replacement session id.
     pub replaced_by_worker_id: Option<String>,
+}
+
+/// Persisted online worker view reconstructed from durable lifecycle tables.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PersistedOnlineWorkerSummary {
+    /// Worker session id.
+    pub worker_id: String,
+    /// Logical instance id.
+    pub logical_instance_id: String,
+    /// Client-provided stable instance hint.
+    pub client_instance_id: Option<String>,
+    /// Namespace scope.
+    pub namespace_name: String,
+    /// Application scope.
+    pub app_name: String,
+    /// Cluster name.
+    pub cluster: String,
+    /// Region name.
+    pub region: String,
+    /// Generation.
+    pub generation: i64,
+    /// Status.
+    pub status: String,
+    /// Optional status reason.
+    pub status_reason: Option<String>,
+    /// Lease expiry timestamp.
+    pub lease_expires_at: String,
+    /// Last heartbeat sequence.
+    pub last_sequence: i64,
+    /// Legacy free-form capabilities snapshot as JSON array.
+    pub capabilities_json: String,
+    /// Structured capabilities snapshot as JSON object.
+    pub structured_capabilities_json: String,
+    /// Worker label snapshot as JSON object.
+    pub labels_json: String,
+    /// Worker master/election state snapshot as JSON object.
+    pub master_json: String,
+    /// Replacement session id.
+    pub replaced_by_worker_id: Option<String>,
+}
+
+/// Snapshot update for persisted worker presentation fields.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkerSessionSnapshotUpdate {
+    /// Worker session id.
+    pub worker_id: String,
+    /// Legacy free-form capabilities snapshot as JSON array.
+    pub capabilities_json: String,
+    /// Structured capabilities snapshot as JSON object.
+    pub structured_capabilities_json: String,
+    /// Worker label snapshot as JSON object.
+    pub labels_json: String,
+    /// Worker master/election state snapshot as JSON object.
+    pub master_json: String,
 }
 
 /// Worker lifecycle event summary.
@@ -338,6 +408,80 @@ impl WorkerLifecycleRepository {
             .map(|session| WorkerSessionSummary::from_model(session, None)))
     }
 
+    /// List persisted online sessions whose lease has not expired, joined with logical instance metadata.
+    pub async fn list_online_workers(
+        &self,
+        limit: u64,
+    ) -> Result<Vec<PersistedOnlineWorkerSummary>, sea_orm::DbErr> {
+        let now = now_rfc3339();
+        let sessions = worker_session::Entity::find()
+            .filter(worker_session::Column::Status.eq(STATUS_ONLINE.to_owned()))
+            .filter(worker_session::Column::LeaseExpiresAt.gt(now))
+            .order_by_desc(worker_session::Column::UpdatedAt)
+            .limit(limit)
+            .all(&self.db)
+            .await?;
+
+        let mut workers = Vec::with_capacity(sessions.len());
+        for session in sessions {
+            let Some(logical) =
+                worker_logical_instance::Entity::find_by_id(&session.logical_instance_id)
+                    .one(&self.db)
+                    .await?
+            else {
+                continue;
+            };
+            if logical.current_worker_id.as_deref() != Some(session.worker_id.as_str())
+                || logical.current_generation != session.generation
+            {
+                continue;
+            }
+            workers.push(PersistedOnlineWorkerSummary {
+                worker_id: session.worker_id,
+                logical_instance_id: session.logical_instance_id,
+                client_instance_id: non_empty(logical.client_instance_id),
+                namespace_name: logical.namespace_name,
+                app_name: logical.app_name,
+                cluster: logical.cluster,
+                region: logical.region,
+                generation: session.generation,
+                status: session.status,
+                status_reason: session.status_reason,
+                lease_expires_at: session.lease_expires_at,
+                last_sequence: session.last_sequence,
+                capabilities_json: session.capabilities_json,
+                structured_capabilities_json: session.structured_capabilities_json,
+                labels_json: session.labels_json,
+                master_json: session.master_json,
+                replaced_by_worker_id: session.replaced_by_worker_id,
+            });
+        }
+        Ok(workers)
+    }
+
+    /// Update persisted worker capability/label/master snapshots for currently known online sessions.
+    pub async fn update_session_snapshots(
+        &self,
+        snapshots: Vec<WorkerSessionSnapshotUpdate>,
+    ) -> Result<(), sea_orm::DbErr> {
+        for snapshot in snapshots {
+            let Some(session) = self.get_session_model(&snapshot.worker_id).await? else {
+                continue;
+            };
+            if session.status != STATUS_ONLINE {
+                continue;
+            }
+            let mut active = session.into_active_model();
+            active.capabilities_json = Set(snapshot.capabilities_json);
+            active.structured_capabilities_json = Set(snapshot.structured_capabilities_json);
+            active.labels_json = Set(snapshot.labels_json);
+            active.master_json = Set(snapshot.master_json);
+            active.updated_at = Set(now_rfc3339());
+            active.update(&self.db).await?;
+        }
+        Ok(())
+    }
+
     /// List persisted worker sessions ordered by most recently updated first.
     pub async fn list_sessions(
         &self,
@@ -490,6 +634,10 @@ impl WorkerLifecycleRepository {
             disconnected_at: Set(None),
             replaced_by_worker_id: Set(None),
             drain_requested_at: Set(None),
+            capabilities_json: Set(input.capabilities_json.clone()),
+            structured_capabilities_json: Set(input.structured_capabilities_json.clone()),
+            labels_json: Set(input.labels_json.clone()),
+            master_json: Set(input.master_json.clone()),
             created_at: Set(now.to_owned()),
             updated_at: Set(now.to_owned()),
         };
@@ -511,6 +659,10 @@ impl WorkerLifecycleRepository {
                         worker_session::Column::DisconnectedAt,
                         worker_session::Column::ReplacedByWorkerId,
                         worker_session::Column::DrainRequestedAt,
+                        worker_session::Column::CapabilitiesJson,
+                        worker_session::Column::StructuredCapabilitiesJson,
+                        worker_session::Column::LabelsJson,
+                        worker_session::Column::MasterJson,
                         worker_session::Column::UpdatedAt,
                     ])
                     .to_owned(),
@@ -676,6 +828,10 @@ impl WorkerSessionSummary {
             lease_expires_at: model.lease_expires_at,
             last_heartbeat_at: model.last_heartbeat_at,
             last_sequence: model.last_sequence,
+            capabilities_json: model.capabilities_json,
+            structured_capabilities_json: model.structured_capabilities_json,
+            labels_json: model.labels_json,
+            master_json: model.master_json,
             replaced_by_worker_id: model.replaced_by_worker_id,
         }
     }
@@ -692,6 +848,14 @@ impl WorkerSessionEventSummary {
             detail_json: model.detail_json,
             created_at: model.created_at,
         }
+    }
+}
+
+fn non_empty(value: String) -> Option<String> {
+    if value.trim().is_empty() {
+        None
+    } else {
+        Some(value)
     }
 }
 

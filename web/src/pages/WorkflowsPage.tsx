@@ -317,7 +317,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], currentWo
   })() : null;
   const jobExecutionLabel = (job?: JobSummary | null) => {
     if (!job) return '请选择调度任务';
-    return job.scriptId ? `脚本 · ${job.scriptId}` : `SDK · ${job.processorName || job.name}`;
+    return job.scriptId ? `脚本 · ${job.scriptId}` : `处理器 · ${job.processorName || job.name}`;
   };
   const jobOptions = jobs.map((job) => ({ label: `${job.name} · ${job.namespace}/${job.app} · ${jobExecutionLabel(job)}`, value: job.id }));
   const jobById = new Map(jobs.map((job) => [job.id, job]));
@@ -639,7 +639,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], currentWo
                   onChange={(value) => updateNode(selectedNode.key, { jobId: value, processorName: undefined })}
                 />
                 <Typography.Text>执行器：<Typography.Text code>{selectedNode.jobId ? jobExecutionLabel(jobById.get(selectedNode.jobId)) : '请选择调度任务'}</Typography.Text></Typography.Text>
-                <Typography.Text type="secondary">执行器由所选调度任务绑定决定；SDK Processor 或脚本沙箱绑定都不能在工作流节点里手动覆盖，避免节点配置与任务定义不一致。</Typography.Text>
+                <Typography.Text type="secondary">执行器由所选调度任务绑定决定；处理器或脚本沙箱绑定都不能在工作流节点里手动覆盖，避免节点配置与任务定义不一致。</Typography.Text>
               </Space>
             ) : null}
 

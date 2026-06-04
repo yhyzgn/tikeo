@@ -25,8 +25,11 @@ export function AppShell({ children, onLogout }: AppShellProps) {
   const { primaryColor, mode, resolvedMode, setPrimaryColor, resetPrimaryColor, setMode } = useThemeSettings();
   const { locale, setLocale, t } = useI18n();
 
-  const selectedKey = '/' + location.pathname.split('/').filter(Boolean)[0];
   const visibleRoutes = MENU_ROUTE_META.filter((route) => !route.permission || hasPermission(principal, route.permission.resource, route.permission.action));
+  const selectedRoute = [...visibleRoutes]
+    .filter((route) => location.pathname === route.path || location.pathname.startsWith(`${route.path}/`))
+    .sort((left, right) => right.path.length - left.path.length)[0];
+  const selectedKey = selectedRoute?.menuKey ?? '/' + location.pathname.split('/').filter(Boolean)[0];
   const menuItems = [
     ...visibleRoutes
       .filter((route) => route.group === 'main')

@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    sync::atomic::{AtomicI64, Ordering},
+    time::Duration,
+};
 
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -26,6 +29,7 @@ pub struct WorkerSession {
     outbound: mpsc::Sender<WorkerMessage>,
     inbound: Streaming<ServerMessage>,
     heartbeat_sequence: u64,
+    log_sequence: AtomicI64,
 }
 
 impl WorkerSession {
@@ -141,6 +145,35 @@ impl WorkerSession {
             .map_err(|_| WorkerSdkError::TunnelClosed)
     }
 
+    /// Emit one task log with the assignment token required by the server.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the tunnel is closed.
+    pub async fn emit_task_log(
+        &self,
+        instance_id: impl Into<String>,
+        assignment_token: impl Into<String>,
+        level: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Result<i64, WorkerSdkError> {
+        let sequence = self.log_sequence.fetch_add(1, Ordering::SeqCst) + 1;
+        self.outbound
+            .send(WorkerMessage {
+                kind: Some(worker_message::Kind::TaskLog(TaskLog {
+                    worker_id: self.worker_id.clone(),
+                    instance_id: instance_id.into(),
+                    level: level.into(),
+                    message: message.into(),
+                    sequence,
+                    assignment_token: assignment_token.into(),
+                })),
+            })
+            .await
+            .map_err(|_| WorkerSdkError::TunnelClosed)?;
+        Ok(sequence)
+    }
+
     /// Wait for one dispatched task, run it through the provided processor, and report the result.
     ///
     /// # Errors
@@ -196,6 +229,16 @@ impl WorkerSession {
     where
         P: TaskProcessor,
     {
+        let instance_id = task.instance_id.clone();
+        let assignment_token = task.assignment_token.clone();
+        let processor_name = task.processor_name.clone();
+        self.emit_task_log_safely(
+            &instance_id,
+            &assignment_token,
+            "info",
+            format!("received task {instance_id} processor={processor_name}"),
+        )
+        .await;
         let context = task_context(&task);
         let outcome = if let Some(binding) = task.processor_binding.as_ref() {
             process_bound_task(binding, &task, script_runners).await
@@ -205,10 +248,38 @@ impl WorkerSession {
                 Err(error) => TaskOutcome::Failed(error.to_string()),
             }
         };
+        let level = if matches!(outcome, TaskOutcome::Succeeded) {
+            "info"
+        } else {
+            "error"
+        };
+        let result_message = task_result_message(&outcome);
+        self.emit_task_log_safely(
+            &instance_id,
+            &assignment_token,
+            level,
+            format!(
+                "completed task {instance_id} success={} message={result_message}",
+                matches!(outcome, TaskOutcome::Succeeded)
+            ),
+        )
+        .await;
         self.report_task_result(context.instance_id, task.assignment_token, &outcome)
             .await?;
 
         Ok(outcome)
+    }
+
+    async fn emit_task_log_safely(
+        &self,
+        instance_id: &str,
+        assignment_token: &str,
+        level: &str,
+        message: String,
+    ) {
+        let _ = self
+            .emit_task_log(instance_id, assignment_token, level, message)
+            .await;
     }
 
     async fn report_task_result(
@@ -276,6 +347,7 @@ impl WorkerClient {
             outbound: tx,
             inbound,
             heartbeat_sequence: 0,
+            log_sequence: AtomicI64::new(0),
         })
     }
 }

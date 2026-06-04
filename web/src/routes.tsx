@@ -1,6 +1,7 @@
 import {
   ApiOutlined,
   AlertOutlined,
+  BarsOutlined,
   AuditOutlined,
   BranchesOutlined,
   CodeOutlined,
@@ -40,6 +41,7 @@ export const ROUTE_META = {
   instances: { path: '/instances', menuKey: '/instances', label: '实例', icon: <DeploymentUnitOutlined />, menu: true, group: 'main' },
   workflows: { path: '/workflows', menuKey: '/workflows', label: '工作流', icon: <BranchesOutlined />, permission: { resource: 'workflows', action: 'read' }, menu: true, group: 'main' },
   workers: { path: '/workers', menuKey: '/workers', label: 'Worker 集群', icon: <ApiOutlined />, permission: { resource: 'workers', action: 'read' }, menu: true, group: 'main' },
+  dispatchQueue: { path: '/workers/dispatch-queue', menuKey: '/workers/dispatch-queue', label: '调度队列', icon: <BarsOutlined />, permission: { resource: 'workers', action: 'read' }, menu: true, group: 'main' },
   users: { path: '/users', menuKey: '/users', label: '用户管理', icon: <UserOutlined />, permission: { resource: 'users', action: 'read' }, menu: true, group: 'governance' },
   scopes: { path: '/scopes', menuKey: '/scopes', label: '租户范围', icon: <PartitionOutlined />, permission: { resource: 'tenants', action: 'read' }, menu: true, group: 'governance' },
   calendars: { path: '/calendars', menuKey: '/calendars', label: '调度日历', icon: <ScheduleOutlined />, permission: { resource: 'tenants', action: 'read' }, menu: true, group: 'governance' },

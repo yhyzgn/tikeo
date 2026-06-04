@@ -143,7 +143,27 @@ async fn main() -> Result<(), WorkerSdkError> {
     }
 
     let oneshot = enabled_env("TIKEE_WORKER_ONESHOT");
-    let mut session = WorkerClient::new(config).connect().await?;
+    let client = WorkerClient::new(config);
+    loop {
+        if run_worker_session(client.clone(), &runners, oneshot).await? {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    }
+}
+
+async fn run_worker_session(
+    client: WorkerClient,
+    runners: &ScriptRunnerRegistry,
+    oneshot: bool,
+) -> Result<bool, WorkerSdkError> {
+    let mut session = match client.connect().await {
+        Ok(session) => session,
+        Err(error) => {
+            eprintln!("Rust worker connect failed, retrying: {error}");
+            return Ok(false);
+        }
+    };
     println!(
         "Rust worker connected: worker_id={}, generation={}, lease_seconds={}",
         session.worker_id(),
@@ -152,18 +172,33 @@ async fn main() -> Result<(), WorkerSdkError> {
     );
 
     if enabled_env("TIKEE_WORKER_HEARTBEAT_ON_START") {
-        let ping = session.heartbeat().await?;
-        println!("heartbeat ack sequence={}", ping.sequence);
+        match session.heartbeat().await {
+            Ok(ping) => println!("heartbeat ack sequence={}", ping.sequence),
+            Err(error) => {
+                eprintln!("heartbeat-on-start failed, reconnecting: {error}");
+                let _ = session.close().await;
+                return Ok(false);
+            }
+        }
     }
 
     loop {
-        let outcome = session
-            .process_next_with_script_runners(&NoopProcessor, &runners)
-            .await?;
-        println!("processed task outcome={outcome:?}");
-        if oneshot {
-            session.close().await?;
-            return Ok(());
+        match session
+            .process_next_with_script_runners(&NoopProcessor, runners)
+            .await
+        {
+            Ok(outcome) => {
+                println!("processed task outcome={outcome:?}");
+                if oneshot {
+                    session.close().await?;
+                    return Ok(true);
+                }
+            }
+            Err(error) => {
+                eprintln!("worker tunnel ended, reconnecting: {error}");
+                let _ = session.close().await;
+                return Ok(false);
+            }
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
@@ -181,7 +216,14 @@ fn configure_default_script_runner(
     if disabled_env(enable_env) {
         return;
     }
-    register_script_runner(config, runners, kind, sandbox_backend, image_env, default_image);
+    register_script_runner(
+        config,
+        runners,
+        kind,
+        sandbox_backend,
+        image_env,
+        default_image,
+    );
 }
 
 fn register_script_runner(
@@ -204,14 +246,15 @@ fn register_script_runner(
     } else {
         runners.register(UnsupportedScriptRunner::new(
             kind,
-            format!("{backend} backend is declared for Java parity but no Rust runner is configured"),
+            format!(
+                "{backend} backend is declared for Java parity but no Rust runner is configured"
+            ),
         ));
     }
     config.add_script_runner(kind.as_str(), backend.clone());
-    config.labels.insert(
-        format!("script_{}_sandbox", kind.as_str()),
-        backend,
-    );
+    config
+        .labels
+        .insert(format!("script_{}_sandbox", kind.as_str()), backend);
 }
 
 fn resolve_sandbox_backend(kind: ScriptRunnerKind, requested: &str) -> String {
@@ -222,7 +265,9 @@ fn resolve_sandbox_backend(kind: ScriptRunnerKind, requested: &str) -> String {
             _ => "srt".to_owned(),
         },
         "container" => "docker".to_owned(),
-        "docker" | "podman" | "srt" | "deno" | "v8" | "wasmtime" | "wasmedge" | "custom" => normalized,
+        "docker" | "podman" | "srt" | "deno" | "v8" | "wasmtime" | "wasmedge" | "custom" => {
+            normalized
+        }
         other => other.to_owned(),
     }
 }

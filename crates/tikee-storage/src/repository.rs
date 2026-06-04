@@ -78,7 +78,8 @@ pub use service_account::{
 };
 pub use user::{CreateUser, UpdateUser, UserRepository, UserSummary};
 pub use worker_lifecycle::{
-    RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository, WorkerSessionEventSummary,
+    PersistedOnlineWorkerSummary, RegisterWorkerSession, WorkerHeartbeat,
+    WorkerLifecycleRepository, WorkerSessionEventSummary, WorkerSessionSnapshotUpdate,
     WorkerSessionSummary,
 };
 pub use workflow::{
@@ -413,6 +414,10 @@ mod tests {
                 connection_id: "conn-one".to_owned(),
                 fencing_token: "token-one".to_owned(),
                 lease_seconds: 30,
+                capabilities_json: r#"["java"]"#.to_owned(),
+                structured_capabilities_json: r#"{"tags":["java"],"sdkProcessors":["demo.echo"],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
+                labels_json: r#"{"worker_pool":"blue"}"#.to_owned(),
+                master_json: r#"{"domain":"dev-alpha/orders/local/local","isMaster":true,"masterWorkerId":"wrk-persisted-online","term":1,"fencingToken":"wmf-test"}"#.to_owned(),
             })
             .await
             .unwrap_or_else(|error| panic!("first session should persist: {error}"));
@@ -427,6 +432,10 @@ mod tests {
                 connection_id: "conn-two".to_owned(),
                 fencing_token: "token-two".to_owned(),
                 lease_seconds: 30,
+                capabilities_json: r#"["java"]"#.to_owned(),
+                structured_capabilities_json: r#"{"tags":["java"],"sdkProcessors":["demo.echo"],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
+                labels_json: r#"{"worker_pool":"blue"}"#.to_owned(),
+                master_json: r#"{"domain":"dev-alpha/orders/local/local","isMaster":true,"masterWorkerId":"wrk-persisted-online","term":1,"fencingToken":"wmf-test"}"#.to_owned(),
             })
             .await
             .unwrap_or_else(|error| panic!("replacement session should persist: {error}"));
@@ -487,6 +496,73 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn worker_lifecycle_lists_online_workers_from_persistent_sessions_after_registry_restart()
+    {
+        use crate::repository::{RegisterWorkerSession, WorkerLifecycleRepository};
+
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let repository = WorkerLifecycleRepository::new(db);
+        repository
+            .register_session(RegisterWorkerSession {
+                worker_id: "wrk-persisted-online".to_owned(),
+                namespace_name: "dev-alpha".to_owned(),
+                app_name: "orders".to_owned(),
+                cluster: "local".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "spring-boot3-worker-demo-fedora".to_owned(),
+                connection_id: "conn-persisted-online".to_owned(),
+                fencing_token: "token-persisted-online".to_owned(),
+                lease_seconds: 30,
+                capabilities_json: r#"["java"]"#.to_owned(),
+                structured_capabilities_json: r#"{"tags":["java"],"sdkProcessors":["demo.echo"],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
+                labels_json: r#"{"worker_pool":"blue"}"#.to_owned(),
+                master_json: r#"{"domain":"dev-alpha/orders/local/local","isMaster":true,"masterWorkerId":"wrk-persisted-online","term":1,"fencingToken":"wmf-test"}"#.to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("online session should persist: {error}"));
+        repository
+            .register_session(RegisterWorkerSession {
+                worker_id: "wrk-persisted-expired".to_owned(),
+                namespace_name: "dev-alpha".to_owned(),
+                app_name: "orders".to_owned(),
+                cluster: "local".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "expired-demo".to_owned(),
+                connection_id: "conn-persisted-expired".to_owned(),
+                fencing_token: "token-persisted-expired".to_owned(),
+                lease_seconds: -1,
+                capabilities_json: "[]".to_owned(),
+                structured_capabilities_json: "{}".to_owned(),
+                labels_json: "{}".to_owned(),
+                master_json: "{}".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("expired session should persist: {error}"));
+
+        let online = repository
+            .list_online_workers(20)
+            .await
+            .unwrap_or_else(|error| panic!("online workers should load: {error}"));
+
+        assert_eq!(online.len(), 1);
+        assert_eq!(online[0].worker_id, "wrk-persisted-online");
+        assert_eq!(online[0].namespace_name, "dev-alpha");
+        assert_eq!(online[0].app_name, "orders");
+        assert_eq!(online[0].cluster, "local");
+        assert_eq!(online[0].region, "local");
+        assert_eq!(
+            online[0].client_instance_id.as_deref(),
+            Some("spring-boot3-worker-demo-fedora")
+        );
+        assert!(online[0].capabilities_json.contains("java"));
+        assert!(online[0].structured_capabilities_json.contains("demo.echo"));
+        assert!(online[0].labels_json.contains("worker_pool"));
+        assert!(online[0].master_json.contains("isMaster"));
+    }
+
+    #[tokio::test]
     async fn worker_lifecycle_graceful_unregister_stops_current_session_with_evidence() {
         use crate::repository::{RegisterWorkerSession, WorkerLifecycleRepository};
 
@@ -505,6 +581,10 @@ mod tests {
                 connection_id: "conn-stop".to_owned(),
                 fencing_token: "token-stop".to_owned(),
                 lease_seconds: 30,
+                capabilities_json: "[]".to_owned(),
+                structured_capabilities_json: "{}".to_owned(),
+                labels_json: "{}".to_owned(),
+                master_json: "{}".to_owned(),
             })
             .await
             .unwrap_or_else(|error| panic!("session should persist: {error}"));
@@ -554,6 +634,10 @@ mod tests {
                 connection_id: "conn-expired".to_owned(),
                 fencing_token: "token-expired".to_owned(),
                 lease_seconds: -1,
+                capabilities_json: "[]".to_owned(),
+                structured_capabilities_json: "{}".to_owned(),
+                labels_json: "{}".to_owned(),
+                master_json: "{}".to_owned(),
             })
             .await
             .unwrap_or_else(|error| panic!("expired test session should persist: {error}"));
@@ -615,6 +699,10 @@ mod tests {
                 connection_id: "conn-transport".to_owned(),
                 fencing_token: "token-transport".to_owned(),
                 lease_seconds: 30,
+                capabilities_json: "[]".to_owned(),
+                structured_capabilities_json: "{}".to_owned(),
+                labels_json: "{}".to_owned(),
+                master_json: "{}".to_owned(),
             })
             .await
             .unwrap_or_else(|error| panic!("transport test session should persist: {error}"));

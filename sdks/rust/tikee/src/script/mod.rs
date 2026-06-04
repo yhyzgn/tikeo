@@ -421,7 +421,8 @@ impl ScriptRunner for UnsupportedScriptRunner {
         task.policy.validate_default_deny()?;
         Err(WorkerSdkError::UnsupportedScriptRunner(format!(
             "{} script runner backend is unavailable: {}",
-            self.kind.as_str(), self.reason
+            self.kind.as_str(),
+            self.reason
         )))
     }
 }

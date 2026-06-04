@@ -18,8 +18,8 @@ describe('job schedule form governance', () => {
     expect(source).not.toContain('cron 或 fixed_rate 表达式，可留空');
   });
 
-  test('distinguishes SDK processors from sandbox script workers', () => {
-    expect(source).toContain('SDK Processor');
+  test('distinguishes 处理器 from sandbox script workers', () => {
+    expect(source).toContain('处理器');
     expect(source).toContain('脚本（沙箱自动执行）');
     expect(source).toContain('具体脚本');
     expect(source).toContain('workerSdkProcessorNames');
@@ -38,7 +38,7 @@ describe('job schedule form governance', () => {
     expect(source).toContain('title="创建任务"');
     expect(source).toContain("title={editingJob ? `编辑任务 - ${editingJob.name}` : '编辑任务'}");
     expect(source.match(/width=\{900\}/g)?.length).toBeGreaterThanOrEqual(3);
-    expect(source).toContain("{ value: 'sdk', label: 'SDK Processor' }");
+    expect(source).toContain("{ value: 'sdk', label: '处理器' }");
     expect(source).toContain("{ value: 'plugin', label: '插件处理器' }");
     expect(source).toContain("{ value: 'script', label: '脚本（沙箱自动执行）' }");
     expect(source).toContain('normalizeExecutor');

@@ -37,6 +37,14 @@ pub struct Model {
     pub replaced_by_worker_id: Option<String>,
     /// Drain request timestamp, when any.
     pub drain_requested_at: Option<String>,
+    /// Legacy free-form capabilities snapshot.
+    pub capabilities_json: String,
+    /// Structured capabilities snapshot.
+    pub structured_capabilities_json: String,
+    /// Worker label snapshot.
+    pub labels_json: String,
+    /// Worker master/election state snapshot.
+    pub master_json: String,
     /// Creation timestamp in RFC3339 format.
     pub created_at: String,
     /// Last update timestamp in RFC3339 format.

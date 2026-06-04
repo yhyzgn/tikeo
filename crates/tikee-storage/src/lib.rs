@@ -29,9 +29,9 @@ pub use repository::{
     JobInstanceLogRepository, JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary,
     JobRepository, JobSummary, JobVersionRepository, JobVersionSummary,
     MaterializeWorkflowNodeResult, NamespaceSummary, OidcAuthStateRepository, OidcAuthStateSummary,
-    OidcIdentityRepository, OidcIdentitySummary, PermissionSummary, PluginAlertChannelTypeSummary,
-    PluginProcessorTypeSummary, PluginRepository, PluginSummary, QueueOverview,
-    RaftAppliedCommandSummary, RaftLogEntrySummary, RaftMemberSummary,
+    OidcIdentityRepository, OidcIdentitySummary, PermissionSummary, PersistedOnlineWorkerSummary,
+    PluginAlertChannelTypeSummary, PluginProcessorTypeSummary, PluginRepository, PluginSummary,
+    QueueOverview, RaftAppliedCommandSummary, RaftLogEntrySummary, RaftMemberSummary,
     RaftMembershipProposalSummary, RaftMetadataSummary, RaftRepository, RaftSnapshotSummary,
     RbacRepository, RebalanceWorkflowShardsInput, RebalanceWorkflowShardsResult,
     RecordAlertDeliveryAttempt, RecordRaftAppliedCommand, RecordRaftMembershipProposal,
@@ -44,10 +44,10 @@ pub use repository::{
     UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
     UpsertRaftSnapshot, UserRepository, UserSummary, VerifiedScriptReleaseGrants,
     VerifiedScriptReleaseSignature, WorkerHeartbeat, WorkerLifecycleRepository, WorkerPoolSummary,
-    WorkerSessionEventSummary, WorkerSessionSummary, WorkflowDefinition, WorkflowEdgeSpec,
-    WorkflowInstanceSummary, WorkflowJobResultOutcome, WorkflowNodeInstanceSummary,
-    WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary, WorkflowSloSummary,
-    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
+    WorkerSessionEventSummary, WorkerSessionSnapshotUpdate, WorkerSessionSummary,
+    WorkflowDefinition, WorkflowEdgeSpec, WorkflowInstanceSummary, WorkflowJobResultOutcome,
+    WorkflowNodeInstanceSummary, WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary,
+    WorkflowSloSummary, WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
 };
 pub use sea_orm::DbErr;
 
@@ -252,6 +252,10 @@ async fn ensure_worker_lifecycle_schema_compatibility(
             disconnected_at varchar,
             replaced_by_worker_id varchar,
             drain_requested_at varchar,
+            capabilities_json text NOT NULL DEFAULT '[]',
+            structured_capabilities_json text NOT NULL DEFAULT '{}',
+            labels_json text NOT NULL DEFAULT '{}',
+            master_json text NOT NULL DEFAULT '{}',
             created_at varchar NOT NULL,
             updated_at varchar NOT NULL
         )",
@@ -267,6 +271,20 @@ async fn ensure_worker_lifecycle_schema_compatibility(
     ] {
         db.execute(Statement::from_string(DatabaseBackend::Sqlite, sql))
             .await?;
+    }
+    for (column, default_json) in [
+        ("capabilities_json", "'[]'"),
+        ("structured_capabilities_json", "'{}'"),
+        ("labels_json", "'{}'"),
+        ("master_json", "'{}'"),
+    ] {
+        if !sqlite_column_exists(db, "worker_sessions", column).await? {
+            db.execute(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                format!("ALTER TABLE worker_sessions ADD COLUMN {column} text NOT NULL DEFAULT {default_json}"),
+            ))
+            .await?;
+        }
     }
     Ok(())
 }

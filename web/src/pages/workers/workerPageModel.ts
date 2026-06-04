@@ -45,6 +45,60 @@ export function filterWorkers(workers: WorkerSummary[], filters: WorkerFilters):
   });
 }
 
+
+export interface WorkerClusterGroup {
+  cluster: string;
+  region: string;
+  master: WorkerSummary | null;
+  followers: WorkerSummary[];
+  workers: WorkerSummary[];
+}
+
+export interface WorkerScopeGroup {
+  scopeKey: string;
+  namespace: string;
+  app: string;
+  clusters: WorkerClusterGroup[];
+  workers: WorkerSummary[];
+}
+
+export function groupWorkersByNamespaceApp(workers: WorkerSummary[]): WorkerScopeGroup[] {
+  const scopeMap = new Map<string, WorkerSummary[]>();
+  for (const worker of workers) {
+    const key = `${worker.namespace}/${worker.app}`;
+    scopeMap.set(key, [...(scopeMap.get(key) ?? []), worker]);
+  }
+
+  return [...scopeMap.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([scopeKey, scopeWorkers]) => {
+      const [namespace, app] = scopeKey.split('/');
+      const clusterMap = new Map<string, WorkerSummary[]>();
+      for (const worker of scopeWorkers) {
+        const clusterKey = `${worker.cluster}@@${worker.region}`;
+        clusterMap.set(clusterKey, [...(clusterMap.get(clusterKey) ?? []), worker]);
+      }
+      const clusters = [...clusterMap.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([clusterKey, clusterWorkers]) => {
+          const [cluster, region] = clusterKey.split('@@');
+          const ordered = [...clusterWorkers].sort((left, right) => {
+            if (left.master?.isMaster && !right.master?.isMaster) return -1;
+            if (!left.master?.isMaster && right.master?.isMaster) return 1;
+            return left.workerId.localeCompare(right.workerId);
+          });
+          return {
+            cluster,
+            region,
+            master: ordered.find((worker) => worker.master?.isMaster) ?? null,
+            followers: ordered.filter((worker) => !worker.master?.isMaster),
+            workers: ordered,
+          };
+        });
+      return { scopeKey, namespace, app, clusters, workers: scopeWorkers };
+    });
+}
+
 export function uniqueSorted(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))].sort((left, right) => left.localeCompare(right));
 }

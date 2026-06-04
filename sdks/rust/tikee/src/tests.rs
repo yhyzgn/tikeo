@@ -31,9 +31,9 @@ fn worker_config_registers_structured_capabilities_without_legacy_routing_string
         Some(worker_message::Kind::Register(register)) => register,
         other => panic!("expected register message, got {other:?}"),
     };
-    let structured = register
-        .structured_capabilities
-        .expect("structured capabilities should be present");
+    let Some(structured) = register.structured_capabilities else {
+        panic!("structured capabilities should be present");
+    };
 
     assert!(register.capabilities.is_empty());
     assert_eq!(structured.tags, vec!["rust"]);
@@ -56,14 +56,17 @@ async fn unsupported_script_runner_validates_default_deny_policy_before_executio
     assert_eq!(ScriptRunnerKind::Js.as_str(), "javascript");
     assert_eq!(ScriptRunnerKind::Ts.as_str(), "typescript");
 
-    let runner = UnsupportedScriptRunner::new(ScriptRunnerKind::Python, "SRT sandbox runtime is unavailable");
+    let runner = UnsupportedScriptRunner::new(
+        ScriptRunnerKind::Python,
+        "SRT sandbox runtime is unavailable",
+    );
     let task = ScriptRunnerTask {
         script_id: "script_py".to_owned(),
         version_id: "sv_1".to_owned(),
         version_number: 1,
         language: "python".to_owned(),
         content: "print(1)".to_owned(),
-        content_sha256: format!("{:x}", sha2::Sha256::digest("print(1)".as_bytes())),
+        content_sha256: format!("{:x}", sha2::Sha256::digest(b"print(1)")),
         policy: ScriptRunnerPolicy::default(),
     };
     let error = match runner.run(task).await {
@@ -399,7 +402,7 @@ async fn worker_session_processes_dispatched_task_and_reports_result() {
         .await
         .unwrap_or_else(|error| panic!("worker should register: {error}"));
     session
-        .emit_log("instance-1", "info", "starting", 1)
+        .emit_task_log("instance-1", "assign-token-1", "info", "starting")
         .await
         .unwrap_or_else(|error| panic!("log should emit: {error}"));
 
@@ -409,12 +412,33 @@ async fn worker_session_processes_dispatched_task_and_reports_result() {
         .unwrap_or_else(|error| panic!("task should process: {error}"));
     assert_eq!(outcome, TaskOutcome::Succeeded);
 
-    let mut saw_log = false;
+    let mut saw_manual_log = false;
+    let mut saw_received_log = false;
+    let mut saw_completed_log = false;
     let mut saw_result = false;
     while let Some(message) = events.recv().await {
         match message.kind {
             Some(worker_message::Kind::TaskLog(log)) => {
-                saw_log = log.instance_id == "instance-1" && log.message == "starting";
+                if log.instance_id == "instance-1"
+                    && log.message == "starting"
+                    && log.assignment_token == "assign-token-1"
+                {
+                    saw_manual_log = true;
+                }
+                if log.instance_id == "instance-1"
+                    && log.message.contains("received task instance-1")
+                    && log.assignment_token == "assign-token-1"
+                {
+                    saw_received_log = true;
+                }
+                if log.instance_id == "instance-1"
+                    && log
+                        .message
+                        .contains("completed task instance-1 success=true")
+                    && log.assignment_token == "assign-token-1"
+                {
+                    saw_completed_log = true;
+                }
             }
             Some(worker_message::Kind::TaskResult(result)) => {
                 saw_result = result.instance_id == "instance-1" && result.success;
@@ -423,7 +447,18 @@ async fn worker_session_processes_dispatched_task_and_reports_result() {
             _ => {}
         }
     }
-    assert!(saw_log, "mock tunnel should receive emitted task log");
+    assert!(
+        saw_manual_log,
+        "mock tunnel should receive emitted task log"
+    );
+    assert!(
+        saw_received_log,
+        "mock tunnel should receive automatic task-start log"
+    );
+    assert!(
+        saw_completed_log,
+        "mock tunnel should receive automatic task-complete log"
+    );
     assert!(saw_result, "mock tunnel should receive task result");
 
     server.abort();

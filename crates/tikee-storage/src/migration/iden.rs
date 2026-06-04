@@ -525,6 +525,10 @@ pub(super) enum WorkerSessions {
     DisconnectedAt,
     ReplacedByWorkerId,
     DrainRequestedAt,
+    CapabilitiesJson,
+    StructuredCapabilitiesJson,
+    LabelsJson,
+    MasterJson,
     CreatedAt,
     UpdatedAt,
 }
