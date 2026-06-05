@@ -1,7 +1,6 @@
 //! Automatic schedule tick loop for CRON, fixed-rate, fixed-delay, one-shot, and daily-window jobs.
 
 use std::{
-    collections::HashMap,
     hash::{Hash, Hasher},
     str::FromStr,
     time::Duration,
@@ -10,25 +9,22 @@ use std::{
 use chrono::{DateTime, Datelike, TimeZone, Timelike, Utc};
 use chrono_tz::Tz;
 use cron::Schedule;
-use tikee_core::{ExecutionMode, MisfirePolicy, ScheduleType, TriggerType};
+use tikee_core::{ExecutionMode, InstanceStatus, MisfirePolicy, ScheduleType, TriggerType};
 
 use crate::cluster::SharedClusterCoordinator;
 use tikee_storage::{
     CalendarRepository, CalendarSummary, CreateJobInstance, JobInstanceRepository, JobRepository,
-    JobSummary,
+    JobSummary, ScheduleCursorRepository,
 };
-use tokio::sync::Mutex;
 use tracing::{debug, warn};
 
 const TICK_INTERVAL: Duration = Duration::from_secs(1);
 const MISFIRE_GRACE: chrono::Duration = chrono::Duration::seconds(5);
 const CATCH_UP_LIMIT: usize = 8;
 
-/// Shared in-memory schedule cursor state.
+/// Backward-compatible lightweight tick state handle. Durable schedule cursors live in storage.
 #[derive(Debug, Default)]
-pub struct ScheduleState {
-    last_triggered_at: Mutex<HashMap<String, DateTime<Utc>>>,
-}
+pub struct ScheduleState;
 
 /// Run the automatic tikee tick loop forever.
 pub async fn run_tick_loop(
@@ -67,11 +63,12 @@ async fn tick_once_if_owner(
 async fn tick_once(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,
-    state: &ScheduleState,
+    _state: &ScheduleState,
     now: DateTime<Utc>,
 ) -> Result<(), tikee_storage::DbErr> {
+    let cursors = ScheduleCursorRepository::new(jobs.db());
     for job in jobs.list_enabled_scheduled_jobs().await? {
-        let decision = match due_triggers(jobs, &job, instances, state, now).await {
+        let decision = match due_triggers(jobs, &job, instances, &cursors, now).await {
             Ok(decision) => decision,
             Err(error) => {
                 warn!(job_id = %job.id, %error, "schedule decision failed");
@@ -79,17 +76,17 @@ async fn tick_once(
             }
         };
 
-        for trigger_type in decision.triggers {
-            instances
-                .create_pending(CreateJobInstance {
-                    job_id: job.id.clone(),
-                    trigger_type,
-                    execution_mode: ExecutionMode::Single,
-                })
+        for trigger in decision.triggers {
+            cursors
+                .create_pending_once(
+                    CreateJobInstance {
+                        job_id: job.id.clone(),
+                        trigger_type: trigger.trigger_type,
+                        execution_mode: ExecutionMode::Single,
+                    },
+                    trigger.fire_at.to_rfc3339(),
+                )
                 .await?;
-        }
-        if decision.advance_cursor {
-            state.last_triggered_at.lock().await.insert(job.id, now);
         }
     }
 
@@ -98,15 +95,20 @@ async fn tick_once(
 
 #[derive(Debug, Default)]
 struct ScheduleDecision {
-    triggers: Vec<TriggerType>,
-    advance_cursor: bool,
+    triggers: Vec<ScheduleTrigger>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ScheduleTrigger {
+    trigger_type: TriggerType,
+    fire_at: DateTime<Utc>,
 }
 
 async fn due_triggers(
     jobs: &JobRepository,
     job: &JobSummary,
     instances: &JobInstanceRepository,
-    state: &ScheduleState,
+    cursors: &ScheduleCursorRepository,
     now: DateTime<Utc>,
 ) -> Result<ScheduleDecision, ScheduleDecisionError> {
     if !within_lifecycle_window(jobs, job, now).await? {
@@ -116,18 +118,18 @@ async fn due_triggers(
         .map_err(|error| ScheduleDecisionError::InvalidScheduleType(error.to_string()))?;
 
     match schedule_type {
-        ScheduleType::Cron => cron_due(job, state, now).await,
-        ScheduleType::FixedRate => fixed_rate_due(job, state, now).await,
-        ScheduleType::FixedDelay => fixed_delay_due(job, instances, state, now).await,
-        ScheduleType::Once => once_due(job, state, now).await,
-        ScheduleType::DailyTimeInterval => daily_time_interval_due(job, state, now).await,
+        ScheduleType::Cron => cron_due(job, cursors, now).await,
+        ScheduleType::FixedRate => fixed_rate_due(job, cursors, now).await,
+        ScheduleType::FixedDelay => fixed_delay_due(job, instances, cursors, now).await,
+        ScheduleType::Once => once_due(job, cursors, now).await,
+        ScheduleType::DailyTimeInterval => daily_time_interval_due(job, cursors, now).await,
         ScheduleType::Api => Ok(ScheduleDecision::default()),
     }
 }
 
 async fn cron_due(
     job: &JobSummary,
-    state: &ScheduleState,
+    cursors: &ScheduleCursorRepository,
     now: DateTime<Utc>,
 ) -> Result<ScheduleDecision, ScheduleDecisionError> {
     let Some(expression) = non_empty_expr(job) else {
@@ -142,12 +144,8 @@ async fn cron_due(
     }
     let schedule = Schedule::from_str(&cron_spec.expression)
         .map_err(|error| ScheduleDecisionError::InvalidExpression(error.to_string()))?;
-    let previous = state
-        .last_triggered_at
-        .lock()
-        .await
-        .get(&job.id)
-        .copied()
+    let previous = latest_cursor(cursors, &job.id)
+        .await?
         .unwrap_or_else(|| now - chrono::Duration::seconds(1));
     let due_times: Vec<DateTime<Utc>> = if let Some(timezone) = cron_spec.timezone {
         let local_now = timezone.from_utc_datetime(&now.naive_utc());
@@ -235,7 +233,7 @@ fn validate_yyyy_mm_dd(value: &str) -> Result<String, ScheduleDecisionError> {
 
 async fn fixed_rate_due(
     job: &JobSummary,
-    state: &ScheduleState,
+    cursors: &ScheduleCursorRepository,
     now: DateTime<Utc>,
 ) -> Result<ScheduleDecision, ScheduleDecisionError> {
     let Some(expression) = non_empty_expr(job) else {
@@ -244,7 +242,7 @@ async fn fixed_rate_due(
     let spec = parse_fixed_rate_expression(expression)?;
     let rate = spec.interval;
     let jitter = deterministic_jitter(&job.id, spec.jitter);
-    let previous = state.last_triggered_at.lock().await.get(&job.id).copied();
+    let previous = latest_cursor(cursors, &job.id).await?;
     let Some(last) = previous else {
         if jitter > chrono::Duration::zero()
             && now
@@ -254,17 +252,21 @@ async fn fixed_rate_due(
         {
             return Ok(ScheduleDecision::default());
         }
-        return Ok(one_trigger(TriggerType::FixedRate));
+        return Ok(one_trigger(TriggerType::FixedRate, now));
     };
     let due_after = rate + jitter;
     if now.signed_duration_since(last) < due_after {
         return Ok(ScheduleDecision::default());
     }
-    let missed_raw = (now.signed_duration_since(last).num_milliseconds()
-        / rate.num_milliseconds().max(1))
-    .max(1);
-    let missed = usize::try_from(missed_raw).unwrap_or(CATCH_UP_LIMIT);
-    let due_times: Vec<_> = std::iter::repeat_n(now, missed.min(CATCH_UP_LIMIT)).collect();
+    let mut due_times = Vec::new();
+    let mut next = last + rate;
+    while next <= now && due_times.len() < CATCH_UP_LIMIT {
+        due_times.push(next);
+        next += rate;
+    }
+    if due_times.is_empty() {
+        due_times.push(now);
+    }
     Ok(misfire_decision(
         job,
         &due_times,
@@ -325,22 +327,40 @@ fn deterministic_jitter(job_id: &str, max_jitter: chrono::Duration) -> chrono::D
 async fn fixed_delay_due(
     job: &JobSummary,
     instances: &JobInstanceRepository,
-    state: &ScheduleState,
+    cursors: &ScheduleCursorRepository,
     now: DateTime<Utc>,
 ) -> Result<ScheduleDecision, ScheduleDecisionError> {
     let Some(expression) = non_empty_expr(job) else {
         return Ok(ScheduleDecision::default());
     };
     let delay = parse_chrono_duration(expression)?;
-    if state.last_triggered_at.lock().await.contains_key(&job.id) {
+    let latest_cursor = latest_cursor(cursors, &job.id).await?;
+    let active_exists = instances
+        .list_by_job(&job.id)
+        .await?
+        .into_iter()
+        .any(|instance| {
+            matches!(
+                instance.status,
+                InstanceStatus::Pending | InstanceStatus::Running
+            )
+        });
+    if active_exists {
         return Ok(ScheduleDecision::default());
     }
     let Some(last_terminal) = instances.latest_terminal_by_job(&job.id).await? else {
-        return Ok(one_trigger(TriggerType::FixedDelay));
+        return if latest_cursor.is_none() {
+            Ok(one_trigger(TriggerType::FixedDelay, now))
+        } else {
+            Ok(ScheduleDecision::default())
+        };
     };
     let completed_at = parse_rfc3339_utc(&last_terminal.updated_at)?;
+    if latest_cursor.is_some_and(|cursor| cursor >= completed_at) {
+        return Ok(ScheduleDecision::default());
+    }
     if now.signed_duration_since(completed_at) >= delay {
-        Ok(one_trigger(TriggerType::FixedDelay))
+        Ok(one_trigger(TriggerType::FixedDelay, now))
     } else {
         Ok(ScheduleDecision::default())
     }
@@ -348,10 +368,10 @@ async fn fixed_delay_due(
 
 async fn once_due(
     job: &JobSummary,
-    state: &ScheduleState,
+    cursors: &ScheduleCursorRepository,
     now: DateTime<Utc>,
 ) -> Result<ScheduleDecision, ScheduleDecisionError> {
-    if state.last_triggered_at.lock().await.contains_key(&job.id) {
+    if latest_cursor(cursors, &job.id).await?.is_some() {
         return Ok(ScheduleDecision::default());
     }
     let Some(expression) = non_empty_expr(job) else {
@@ -359,7 +379,7 @@ async fn once_due(
     };
     let fire_at = parse_rfc3339_utc(expression)?;
     if fire_at <= now {
-        Ok(one_trigger(TriggerType::Once))
+        Ok(one_trigger(TriggerType::Once, fire_at))
     } else {
         Ok(ScheduleDecision::default())
     }
@@ -367,7 +387,7 @@ async fn once_due(
 
 async fn daily_time_interval_due(
     job: &JobSummary,
-    state: &ScheduleState,
+    cursors: &ScheduleCursorRepository,
     now: DateTime<Utc>,
 ) -> Result<ScheduleDecision, ScheduleDecisionError> {
     let Some(expression) = non_empty_expr(job) else {
@@ -390,13 +410,13 @@ async fn daily_time_interval_due(
     if elapsed % spec.interval_minutes != 0 {
         return Ok(ScheduleDecision::default());
     }
-    let previous = state.last_triggered_at.lock().await.get(&job.id).copied();
+    let previous = latest_cursor(cursors, &job.id).await?;
     if previous
         .is_some_and(|last| now.signed_duration_since(last).num_minutes() < spec.interval_minutes)
     {
         return Ok(ScheduleDecision::default());
     }
-    Ok(one_trigger(TriggerType::DailyTimeInterval))
+    Ok(one_trigger(TriggerType::DailyTimeInterval, now))
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -481,10 +501,12 @@ fn parse_timezone_offset_seconds(value: &str) -> Result<i32, ScheduleDecisionErr
     Ok(sign.0 * (hours * 3600 + minutes * 60))
 }
 
-fn one_trigger(trigger_type: TriggerType) -> ScheduleDecision {
+fn one_trigger(trigger_type: TriggerType, fire_at: DateTime<Utc>) -> ScheduleDecision {
     ScheduleDecision {
-        triggers: vec![trigger_type],
-        advance_cursor: true,
+        triggers: vec![ScheduleTrigger {
+            trigger_type,
+            fire_at,
+        }],
     }
 }
 
@@ -511,10 +533,32 @@ fn misfire_decision(
     } else {
         1
     };
+    let selected: Vec<DateTime<Utc>> =
+        if misfired && matches!(policy, MisfirePolicy::FireOnce | MisfirePolicy::LatestOnly) {
+            due_times.last().copied().into_iter().collect()
+        } else {
+            due_times.iter().copied().take(count).collect()
+        };
     ScheduleDecision {
-        triggers: std::iter::repeat_n(trigger_type, count).collect(),
-        advance_cursor: true,
+        triggers: selected
+            .into_iter()
+            .map(|fire_at| ScheduleTrigger {
+                trigger_type,
+                fire_at,
+            })
+            .collect(),
     }
+}
+
+async fn latest_cursor(
+    cursors: &ScheduleCursorRepository,
+    job_id: &str,
+) -> Result<Option<DateTime<Utc>>, ScheduleDecisionError> {
+    cursors
+        .latest_fire_at(job_id)
+        .await?
+        .map(|value| parse_rfc3339_utc(&value))
+        .transpose()
 }
 
 async fn within_lifecycle_window(
@@ -726,6 +770,53 @@ mod tests {
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].status, InstanceStatus::Pending);
         assert_eq!(listed[0].trigger_type, TriggerType::FixedRate);
+    }
+
+    #[tokio::test]
+    async fn fixed_rate_cursor_survives_tick_loop_restart_without_duplicate_trigger() {
+        let (jobs, instances) = repositories().await;
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "fixed-persisted-cursor".to_owned(),
+                schedule_type: "fixed_rate".to_owned(),
+                schedule_expr: Some("1s".to_owned()),
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: None,
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should create: {error}"));
+        let now = Utc
+            .with_ymd_and_hms(2026, 5, 19, 1, 0, 0)
+            .single()
+            .unwrap_or_else(|| panic!("valid time"));
+
+        tick_once(&jobs, &instances, &ScheduleState::default(), now)
+            .await
+            .unwrap_or_else(|error| panic!("first tick should run: {error}"));
+        tick_once(&jobs, &instances, &ScheduleState::default(), now)
+            .await
+            .unwrap_or_else(|error| panic!("restart tick should run: {error}"));
+
+        let listed = instances
+            .list_by_job(&job.id)
+            .await
+            .unwrap_or_else(|error| panic!("instances should list: {error}"));
+        assert_eq!(
+            listed.len(),
+            1,
+            "persisted schedule cursor must prevent duplicate triggers after restart"
+        );
     }
 
     #[tokio::test]

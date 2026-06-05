@@ -27,6 +27,7 @@ pub mod raft_metadata;
 pub mod raft_snapshot;
 pub mod role;
 pub mod role_permission;
+pub mod schedule_cursor;
 pub mod script;
 pub mod script_version;
 pub mod sdk_api_key;

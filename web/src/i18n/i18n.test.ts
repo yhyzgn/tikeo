@@ -6,6 +6,21 @@ import { enUS, zhCN } from './messages';
 import { normalizeLocale } from './I18nContext';
 
 describe('i18n message dictionaries', () => {
+  test('has no blank or mechanically broken English translations', () => {
+    const brokenPatterns = [/Unifiedconsole/, /Againenable/, /Confirmdisable/, /Roll backrelease/, /G RPC/, /Scriptis/, /Createnew/, /complete Key copy/, /selectplugin/, /showplaintext/, /avoidmisleading/, /pagecreate/, /Taskcreate/, /Conditionbroadcast/, /Loadschedule/, /permission(edit|delete|create)/, /approvalpass/, /expressionpass/, /taskbelonging/, /listunified/, /defaultuse/, /Allnew/, /^$/];
+    for (const [source, translated] of Object.entries(enUS)) {
+      if (!/[\u4e00-\u9fff]/.test(source)) continue;
+      expect(translated.trim(), `empty English translation for ${source}`).not.toBe('');
+      expect(/[\u4e00-\u9fff]/.test(translated), `English translation must not contain Chinese for ${source}: ${translated}`).toBe(false);
+      for (const pattern of brokenPatterns) {
+        expect(pattern.test(translated), `broken English translation for ${source}: ${translated}`).toBe(false);
+      }
+    }
+    expect(enUS['本页分为两栏：Service Account 是 app 作用域机器身份；API-Key 是绑定到 Service Account 的访问凭证。先维护机器身份，再给它签发一个或多个 Key。']).toBe('This page has two sections: Service Account is the machine identity scoped to an app; API-Key is the access credential bound to a Service Account. Maintain the machine identity first, then issue one or more keys for it.');
+    expect(enUS['回退草稿']).toBe('Revert to draft');
+    expect(enUS['沙箱后端']).toBe('Sandbox backend');
+  });
+
   test('keeps Chinese and English dictionaries aligned for current UI copy', () => {
     expect(Object.keys(enUS).sort()).toEqual(Object.keys(zhCN).sort());
     expect(enUS['审计日志']).toBe('Audit logs');

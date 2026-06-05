@@ -30,6 +30,14 @@ public final class ContainerScriptRunner implements ScriptRunner {
     }
 
     @Override
+    public ScriptSandboxBackend advertisedBackend() {
+        String command = runtimeCommand == null ? "" : runtimeCommand.trim();
+        int slash = Math.max(command.lastIndexOf('/'), command.lastIndexOf('\\'));
+        String executable = slash >= 0 ? command.substring(slash + 1) : command;
+        return ScriptSandboxBackend.fromValue(executable);
+    }
+
+    @Override
     public TaskOutcome run(ScriptRunnerTask task) {
         return run(task, ScriptRunnerLogSink.NOOP);
     }

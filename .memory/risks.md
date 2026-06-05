@@ -23,7 +23,7 @@
 - 009 dispatch loop 当前是单节点 first-available worker 策略，尚未实现 capability/tag 匹配、租约过期剔除、任务 ack 超时、重试、幂等锁和多 server 协调。
 - TaskResult 当前只落实例最终状态，尚未持久化 worker_id、错误信息、执行耗时和日志。
 
-- 010 tikee tick loop 使用内存 cursor，server 重启后可能重新计算到期触发；后续需要持久化 next_fire_at / last_fire_at 与分布式锁。
+- 010 tikee tick loop 的 schedule cursor 已持久化到 `schedule_cursors` 并由唯一键避免同一 fire_at 重复触发；后续仍需要补充多节点分布式锁/leader ownership 的生产部署压测。
 - CRON / Fixed Rate 当前只创建 pending instance，尚未实现 misfire 策略、时区配置、暂停/恢复、最大并发、任务堆积保护。
 
 - 011 日志当前按实例分页骨架返回全部结果，尚未实现游标分页、日志压缩/归档、实时 SSE/WebSocket 流和敏感信息脱敏策略。
@@ -96,3 +96,9 @@
 - Risk: without automated restart persistence coverage, future changes could regress `/api/v1/workers` back to memory-only visibility or lose structuredCapabilities/labels/master snapshots after server restart.
 - Risk: without explicit worker_pool filtering tests over persisted snapshots, convention-based matching could accidentally reappear.
 - Required next mitigation: implement `.prompt/147-phase4-cross-language-worker-parity-and-persistence-hardening.md` and write evidence under `.dev/reports/cross-language-workers-<run-id>/`.
+
+## 2026-06-05 — Cross-language Worker parity automation mitigated
+
+- Previous risk that cross-language worker parity and server restart worker snapshot were only manually verified is mitigated by `deploy/smoke/cross-language-worker-parity-smoke.sh`.
+- Remaining risk is CI coverage frequency: the harness starts server/web plus five demo workers and may be too heavy for every PR. Recommended mitigation is nightly/manual GitHub Actions with artifacts.
+- Do not regress Go/Rust default capability advertising: unavailable script runners are fail-closed handlers only and must not appear in structured `scriptRunners`.

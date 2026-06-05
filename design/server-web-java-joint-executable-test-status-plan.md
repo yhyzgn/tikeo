@@ -251,3 +251,14 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 2. `✅ P0-C/P1-E/P1-F/P2-G` 已补齐当前自动化验证；D-WEB 双 worker failover 页面已有 DOM/截图证据 JSON。
 3. 当前 Server + Web + Java SDK/Demo 联合自动化测试清单已全量闭环；后续增强可将 DOM/JSON 证据升级为真实浏览器 screenshot/video CI 产物。
 4. 每次新增测试项后仍必须将本文件对应行的“当前测试结果”和“状态”改为实际结果，禁止未跑即标 `✅ 通过`。
+
+## 10.2 2026-06-05 反伪实现审计与跨语言 Worker harness 结果
+
+| ID | 测试项 | 执行方式 | 核心断言 | 当前测试结果 | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| H-AUDIT-001 | server/web/sdks/demo 反伪实现审计 | 代码扫描 + targeted review + 单元/联调验证 | 不存在被声明为完成的伪代码、假能力广告、mock-only 路径或仅内存关键状态；明确未来项单独标注 | 已修复 schedule cursor 持久化、Raft unknown command reject、script runner capability 真实广告、Rust success outcome、Web i18n 质量门 | ✅ 通过 |
+| H-XLANG-001 | 跨语言 Worker parity harness | `deploy/smoke/cross-language-worker-parity-smoke.sh` | Java Boot2/Boot3/Boot4 + Go + Rust 均在线；scope/processor/pool/tag/master 来自结构化字段 | `.dev/reports/cross-language-workers-20260605T032108Z-202626/` | ✅ 通过 |
+| H-XLANG-002 | Go/Rust 实例日志链路 | harness 触发 Go/Rust echo jobs | 实例 succeeded；日志包含 `go demo echo processed` / `rust demo echo processed`，证明 assignment-token 日志链路可用 | `*-go-logs.json`、`*-rust-logs.json` | ✅ 通过 |
+| H-XLANG-003 | server restart worker snapshot | harness 停 worker + 重启 server + 查询 workers | 重启后 worker 仍从 DB snapshot 可见；重连后 live registry 覆盖 snapshot | `workers-after-restart-snapshot.json`、`workers-after-reconnect.json` | ✅ 通过 |
+| H-XLANG-004 | worker_pool scope filtering | harness 使用 scoped API-Key 查询 live 与 persisted workers | live/snapshot 均只返回 boot2 pool worker；禁止命名约定匹配 | `worker-pool-filter-live.json`、`worker-pool-filter-persisted.json` | ✅ 通过 |
+| H-I18N-001 | Web i18n 质量门 | `bun run typecheck` + `bun test --run src/i18n/i18n.test.ts` | 英文无中文/机械拼接/空值；中文 locale 完整中文化关键 label | 8 tests / 20164 expects passed | ✅ 通过 |

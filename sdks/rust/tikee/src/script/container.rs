@@ -153,6 +153,15 @@ impl ScriptRunner for ContainerScriptRunner {
         self.kind
     }
 
+    fn advertised_sandbox_backend(&self) -> Option<String> {
+        let executable = self
+            .runtime_command
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_else(|| self.runtime_command.to_str().unwrap_or("docker"));
+        Some(executable.to_owned())
+    }
+
     async fn run(&self, task: ScriptRunnerTask) -> Result<TaskOutcome, WorkerSdkError> {
         let args = self.docker_args(&task)?;
         let mut command = Command::new(&self.runtime_command);

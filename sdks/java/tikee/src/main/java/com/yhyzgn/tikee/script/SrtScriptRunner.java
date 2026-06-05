@@ -43,6 +43,11 @@ public final class SrtScriptRunner implements ScriptRunner {
     }
 
     @Override
+    public ScriptSandboxBackend advertisedBackend() {
+        return ScriptSandboxBackend.SRT;
+    }
+
+    @Override
     public TaskOutcome run(ScriptRunnerTask task) {
         return run(task, ScriptRunnerLogSink.NOOP);
     }

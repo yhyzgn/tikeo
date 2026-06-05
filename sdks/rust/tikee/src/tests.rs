@@ -47,6 +47,42 @@ fn worker_config_registers_structured_capabilities_without_legacy_routing_string
     );
 }
 
+#[test]
+fn unsupported_script_runner_is_registered_but_not_advertised() {
+    let mut registry = ScriptRunnerRegistry::new();
+    registry.register(UnsupportedScriptRunner::new(
+        ScriptRunnerKind::Python,
+        "srt is not installed",
+    ));
+
+    assert!(registry.get(ScriptRunnerKind::Python).is_some());
+    assert!(registry.structured_capabilities().is_empty());
+}
+
+#[test]
+fn container_script_runner_runtime_path_advertises_canonical_backend() {
+    let runner = ContainerScriptRunner::with_runtime(
+        ScriptRunnerKind::Shell,
+        "/usr/bin/podman",
+        "alpine:3.20",
+        std::iter::empty::<String>(),
+    );
+    let mut registry = ScriptRunnerRegistry::new();
+    registry.register(runner);
+
+    let capabilities = registry.structured_capabilities();
+    assert_eq!(capabilities.len(), 1);
+    assert_eq!(capabilities[0].sandbox_backend, "podman");
+}
+
+#[test]
+fn task_outcome_success_can_carry_operator_message() {
+    let outcome = TaskOutcome::Success("rust demo echo processed".to_owned());
+
+    assert_eq!(outcome.message().as_deref(), Some("rust demo echo processed"));
+    assert!(outcome.failure_class().is_none());
+}
+
 #[tokio::test]
 async fn unsupported_script_runner_validates_default_deny_policy_before_execution() {
     assert_eq!(

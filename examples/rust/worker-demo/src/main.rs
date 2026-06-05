@@ -184,7 +184,7 @@ async fn run_worker_session(
 
     loop {
         match session
-            .process_next_with_script_runners(&NoopProcessor, runners)
+            .process_next_with_script_runners(&DemoProcessor, runners)
             .await
         {
             Ok(outcome) => {
@@ -251,10 +251,15 @@ fn register_script_runner(
             ),
         ));
     }
-    config.add_script_runner(kind.as_str(), backend.clone());
-    config
-        .labels
-        .insert(format!("script_{}_sandbox", kind.as_str()), backend);
+    if runners
+        .structured_capabilities()
+        .iter()
+        .any(|runner| runner.language == kind.as_str())
+    {
+        config
+            .labels
+            .insert(format!("script_{}_sandbox", kind.as_str()), backend);
+    }
 }
 
 fn resolve_sandbox_backend(kind: ScriptRunnerKind, requested: &str) -> String {
@@ -272,14 +277,23 @@ fn resolve_sandbox_backend(kind: ScriptRunnerKind, requested: &str) -> String {
     }
 }
 
-struct NoopProcessor;
+struct DemoProcessor;
 
 #[async_trait]
-impl TaskProcessor for NoopProcessor {
+impl TaskProcessor for DemoProcessor {
     async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError> {
         let outcome = match task.processor_name.as_str() {
-            "" | "demo.echo" | "demo.context" | "demo.bytes" | "demo.heartbeat"
-            | "billing.sql-sync" => TaskOutcome::Succeeded,
+            "" | "demo.echo" => TaskOutcome::Success("rust demo echo processed".to_owned()),
+            "demo.context" => TaskOutcome::Success(format!(
+                "rust demo context processed instance={}",
+                task.instance_id
+            )),
+            "demo.bytes" => TaskOutcome::Success(format!(
+                "rust demo bytes processed payload_bytes={}",
+                task.payload.len()
+            )),
+            "demo.heartbeat" => TaskOutcome::Success("rust demo heartbeat processed".to_owned()),
+            "billing.sql-sync" => TaskOutcome::Success("rust demo sql plugin processed".to_owned()),
             "demo.fail" => TaskOutcome::Failed("rust demo intentional failure".to_owned()),
             other => TaskOutcome::Failed(format!("unsupported rust demo processor: {other}")),
         };

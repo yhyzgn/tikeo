@@ -33,8 +33,20 @@ func main() {
 		if disabled("TIKEE_ENABLE_SCRIPT_" + strings.ToUpper(lang)) {
 			continue
 		}
+		if !enabled("TIKEE_ENABLE_LOCAL_SCRIPT_"+strings.ToUpper(lang)) && !enabled("TIKEE_ENABLE_UNAVAILABLE_SCRIPT_ADAPTERS") {
+			continue
+		}
 		backend := scriptSandboxBackend(lang)
-		reason := backend + " backend is declared for Java parity; Go demo fails closed unless a real sandbox runner is configured"
+		if enabled("TIKEE_ENABLE_LOCAL_SCRIPT_" + strings.ToUpper(lang)) {
+			runner, err := tikee.NewLocalCommandScriptRunner(lang, "custom")
+			if err != nil {
+				log.Printf("local script runner %s skipped: %v", lang, err)
+				continue
+			}
+			scripts.Register(runner)
+			continue
+		}
+		reason := backend + " backend is declared but not executable in this Go demo process"
 		scripts.Register(tikee.NewUnavailableScriptRunner(lang, backend, reason))
 	}
 	scripts.AddCapabilities(&config)

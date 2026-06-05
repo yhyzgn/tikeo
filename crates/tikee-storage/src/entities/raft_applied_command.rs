@@ -24,7 +24,7 @@ pub struct Model {
     pub command_type: String,
     /// JSON/base64 payload captured by the state-machine layer.
     pub payload: Option<String>,
-    /// Apply status, e.g. `applied`, `deferred_unsupported`, or `rejected`.
+    /// Apply status, e.g. `applied` or `rejected`.
     pub status: String,
     /// Human-readable apply result.
     pub message: String,

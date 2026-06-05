@@ -1271,3 +1271,10 @@ Verification evidence:
 - Java demo 多 Worker 联调报告已追加 2026-06-04 跨语言 Worker parity / 持久化可见性补充结果。
 - 联合自动化测试状态表已追加 H-WORKER/H-GO/H-RUST/H-SCRIPT/H-CI 补充项，当前补充项 6/6 通过；测试方案新增 X-LANG 自动化计划。
 - `.prompt/147-phase4-cross-language-worker-parity-and-persistence-hardening.md` 已创建，要求下一阶段把手动验收转成可重复 harness。
+
+### 2026-06-05 — 反伪实现审计完成，跨语言 Worker parity 自动化落地
+- Server 自动调度 cursor 已持久化到 `schedule_cursors`，避免重启后依赖内存 cursor 或重复触发；unknown Raft business command 现在明确 `rejected`。
+- Java/Go/Rust script runner capability 改为真实广告：Unavailable/Unsupported runner 只保留 fail-closed 执行边界，不进入 worker structured scriptRunners；容器 runner 广告 canonical backend。
+- Rust SDK 支持 `TaskOutcome::Success(String)`，Rust demo 与 Go/Java 一样上报可见成功消息。
+- Web i18n 新增质量门，当前英文/中文 label 不再依赖机械坏翻译覆盖。
+- `deploy/smoke/cross-language-worker-parity-smoke.sh` 已通过，证据目录 `.dev/reports/cross-language-workers-20260605T032108Z-202626/`。

@@ -21,7 +21,7 @@ The Go SDK supports structured script runner registration and dynamic script bin
 
 Go exposes the same structured sandbox backend names as Java: `auto`, `srt`, `deno`, `v8`, `wasmtime`, `wasmedge`, `docker`, `podman`, and `custom`. JavaScript and TypeScript resolve `auto` to `deno`; the other Java-parity demo languages resolve `auto` to `srt`.
 
-`UnavailableScriptRunner` is useful when a worker wants to advertise a planned Java-parity backend but fail closed until the real sandbox is configured. `LocalCommandScriptRunner` is development-only and should be advertised as `custom`; do not use it to label a worker as `srt` or `deno` unless there is an actual sandbox boundary behind it.
+`UnavailableScriptRunner` is useful when code needs a registered fail-closed handler for an unconfigured backend, but it is never advertised as an executable Worker capability. `LocalCommandScriptRunner` is development-only and must advertise `custom`; do not label a worker as `srt`, `deno`, `v8`, `docker`, or `podman` unless that real sandbox boundary is configured and executable.
 
 ```go
 scripts := tikee.NewScriptRunnerRegistry()

@@ -4,14 +4,14 @@ use async_trait::async_trait;
 
 use crate::{error::WorkerSdkError, proto::worker::v1::DispatchTask};
 
-/// User-provided async processor interface for future task dispatch support.
+/// User-provided async processor interface for Worker task dispatch.
 #[async_trait]
 pub trait TaskProcessor: Send + Sync + 'static {
     /// Execute one task payload.
     async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError>;
 }
 
-/// Minimal task context placeholder reserved for Worker dispatch protocol evolution.
+/// Task context received from the Worker dispatch protocol.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskContext {
     /// Job identifier.
@@ -24,11 +24,13 @@ pub struct TaskContext {
     pub payload: Vec<u8>,
 }
 
-/// Minimal processor outcome.
+/// Processor outcome reported to the Worker Tunnel.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TaskOutcome {
-    /// Task completed successfully.
+    /// Task completed successfully without an additional operator-facing message.
     Succeeded,
+    /// Task completed successfully with an operator-facing message safe to send back to tikee.
+    Success(String),
     /// Task failed with a message safe to send back to tikee.
     Failed(String),
 }
@@ -37,15 +39,21 @@ impl TaskOutcome {
     pub(crate) fn message(&self) -> Option<String> {
         match self {
             Self::Succeeded => None,
-            Self::Failed(message) => Some(message.clone()),
+            Self::Success(message) | Self::Failed(message) => Some(message.clone()),
         }
+    }
+
+    /// Whether this outcome should be reported as a successful task result.
+    #[must_use]
+    pub const fn is_success(&self) -> bool {
+        matches!(self, Self::Succeeded | Self::Success(_))
     }
 
     /// Stable governance failure class extracted from the failure message when available.
     #[must_use]
     pub fn failure_class(&self) -> Option<&'static str> {
         match self {
-            Self::Succeeded => None,
+            Self::Succeeded | Self::Success(_) => None,
             Self::Failed(message) => classify_failure_message(message),
         }
     }

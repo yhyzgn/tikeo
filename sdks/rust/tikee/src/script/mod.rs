@@ -208,15 +208,17 @@ impl ScriptRunnerRegistry {
         self.runners.get(&kind).map(std::convert::AsRef::as_ref)
     }
 
-    /// Structured capabilities advertised for registered runners.
+    /// Structured capabilities advertised for registered executable runners.
     #[must_use]
     pub fn structured_capabilities(&self) -> Vec<ScriptRunnerCapability> {
         let mut runners = self
             .runners
-            .keys()
-            .map(|kind| ScriptRunnerCapability {
-                language: kind.as_str().to_owned(),
-                sandbox_backend: "container".to_owned(),
+            .values()
+            .filter_map(|runner| {
+                runner.advertised_sandbox_backend().map(|backend| ScriptRunnerCapability {
+                    language: runner.kind().as_str().to_owned(),
+                    sandbox_backend: backend,
+                })
             })
             .collect::<Vec<_>>();
         runners.sort_by(|left, right| left.language.cmp(&right.language));
@@ -229,6 +231,11 @@ impl ScriptRunnerRegistry {
 pub trait ScriptRunner: Send + Sync + 'static {
     /// Runner language/kind.
     fn kind(&self) -> ScriptRunnerKind;
+
+    /// Sandbox backend to advertise when this runner is actually executable.
+    fn advertised_sandbox_backend(&self) -> Option<String> {
+        Some("container".to_owned())
+    }
 
     /// Execute a released immutable script snapshot.
     async fn run(&self, task: ScriptRunnerTask) -> Result<TaskOutcome, WorkerSdkError>;
@@ -414,6 +421,10 @@ impl UnsupportedScriptRunner {
 impl ScriptRunner for UnsupportedScriptRunner {
     fn kind(&self) -> ScriptRunnerKind {
         self.kind
+    }
+
+    fn advertised_sandbox_backend(&self) -> Option<String> {
+        None
     }
 
     async fn run(&self, task: ScriptRunnerTask) -> Result<TaskOutcome, WorkerSdkError> {

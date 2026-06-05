@@ -35,13 +35,13 @@ pub use repository::{
     RaftMembershipProposalSummary, RaftMetadataSummary, RaftRepository, RaftSnapshotSummary,
     RbacRepository, RebalanceWorkflowShardsInput, RebalanceWorkflowShardsResult,
     RecordAlertDeliveryAttempt, RecordRaftAppliedCommand, RecordRaftMembershipProposal,
-    RecoverWorkflowNodeInput, RecoverWorkflowNodeResult, RegisterWorkerSession, ScopeRepository,
-    ScriptReleaseGrantEvidenceSummary, ScriptReleaseSignatureSummary, ScriptRepository,
-    ScriptSummary, ScriptVersionRepository, ScriptVersionSummary, SdkApiKeyRepository,
-    SdkApiKeySummary, SecretRepository, SecretSummary, ServiceAccountRepository,
-    ServiceAccountSummary, UpdateJob, UpdatePlugin, UpdateScript, UpdateSdkApiKey,
-    UpdateServiceAccount, UpdateUser, UpdateWorkerPoolQuota, UpdateWorkflow, UpsertCalendar,
-    UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
+    RecoverWorkflowNodeInput, RecoverWorkflowNodeResult, RegisterWorkerSession,
+    ScheduleCursorRepository, ScopeRepository, ScriptReleaseGrantEvidenceSummary,
+    ScriptReleaseSignatureSummary, ScriptRepository, ScriptSummary, ScriptVersionRepository,
+    ScriptVersionSummary, SdkApiKeyRepository, SdkApiKeySummary, SecretRepository, SecretSummary,
+    ServiceAccountRepository, ServiceAccountSummary, UpdateJob, UpdatePlugin, UpdateScript,
+    UpdateSdkApiKey, UpdateServiceAccount, UpdateUser, UpdateWorkerPoolQuota, UpdateWorkflow,
+    UpsertCalendar, UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
     UpsertRaftSnapshot, UserRepository, UserSummary, VerifiedScriptReleaseGrants,
     VerifiedScriptReleaseSignature, WorkerHeartbeat, WorkerLifecycleRepository, WorkerPoolSummary,
     WorkerSessionEventSummary, WorkerSessionSnapshotUpdate, WorkerSessionSummary,
@@ -106,6 +106,7 @@ async fn ensure_sqlite_schema_compatibility(db: &DatabaseConnection) -> Result<(
     ensure_plugin_schema_compatibility(db).await?;
     ensure_worker_lifecycle_schema_compatibility(db).await?;
     ensure_job_schema_compatibility(db).await?;
+    ensure_schedule_cursor_schema_compatibility(db).await?;
     ensure_scripts_schema_compatibility(db).await?;
     ensure_script_versions_schema_compatibility(db).await?;
     ensure_audit_logs_schema_compatibility(db).await?;
@@ -542,6 +543,32 @@ async fn ensure_raft_schema_compatibility(db: &DatabaseConnection) -> Result<(),
         ))
         .await?;
     }
+    Ok(())
+}
+
+async fn ensure_schedule_cursor_schema_compatibility(
+    db: &DatabaseConnection,
+) -> Result<(), sea_orm::DbErr> {
+    if db.get_database_backend() != DatabaseBackend::Sqlite {
+        return Ok(());
+    }
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        r"CREATE TABLE IF NOT EXISTS schedule_cursors (
+            id varchar NOT NULL PRIMARY KEY,
+            job_id varchar NOT NULL,
+            trigger_type varchar NOT NULL,
+            fire_at varchar NOT NULL,
+            instance_id varchar NOT NULL,
+            created_at varchar NOT NULL
+        )",
+    ))
+    .await?;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Sqlite,
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_schedule_cursors_job_trigger_fire ON schedule_cursors (job_id, trigger_type, fire_at)",
+    ))
+    .await?;
     Ok(())
 }
 

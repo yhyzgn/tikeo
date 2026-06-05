@@ -230,3 +230,31 @@ func sha256Hex(content []byte) string {
 	digest := sha256.Sum256(content)
 	return hex.EncodeToString(digest[:])
 }
+
+
+func TestUnavailableScriptRunnerIsFailClosedButNotAdvertised(t *testing.T) {
+	config := LocalConfig("http://127.0.0.1:9998", "go-worker-unavailable")
+	registry := NewScriptRunnerRegistry()
+	registry.Register(NewUnavailableScriptRunner("python", "srt", "srt is not installed"))
+	registry.AddCapabilities(&config)
+
+	if len(config.Structured.ScriptRunners) != 0 {
+		t.Fatalf("unavailable script runner must not be advertised: %+v", config.Structured.ScriptRunners)
+	}
+
+	outcome, err := registry.get("python").Run(context.Background(), ScriptRunnerTask{
+		ScriptID:      "script-python-1",
+		VersionID:     "sv_1",
+		VersionNumber: 1,
+		Language:      "python",
+		Content:       []byte("print(1)"),
+		ContentSHA256: sha256Hex([]byte("print(1)")),
+		Timeout:       time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if outcome.Success || !strings.Contains(outcome.Message, "unavailable") {
+		t.Fatalf("expected fail-closed unavailable outcome, got %+v", outcome)
+	}
+}

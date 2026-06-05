@@ -251,7 +251,7 @@ async fn raft_apply_committed_entries_applies_member_upsert_once_by_command_id()
 }
 
 #[tokio::test]
-async fn raft_apply_committed_entries_records_unsupported_and_rejected_payloads() {
+async fn raft_apply_committed_entries_rejects_unknown_and_invalid_payloads() {
     let repository = test_raft_repository().await;
     let mut unsupported = raft::eraftpb::Entry::new();
     unsupported.set_entry_type(EntryType::EntryNormal);
@@ -294,7 +294,12 @@ async fn raft_apply_committed_entries_records_unsupported_and_rejected_payloads(
     assert_eq!(applied, Some(14));
     assert_eq!(commands.len(), 3);
     assert_eq!(commands[0].command_id, "cmd-unknown-1");
-    assert_eq!(commands[0].status, "deferred_unsupported");
+    assert_eq!(commands[0].status, "rejected");
+    assert!(
+        commands[0]
+            .message
+            .contains("unsupported raft command_type")
+    );
     assert_eq!(commands[1].command_id, "cmd-member-bad");
     assert_eq!(commands[1].status, "rejected");
     assert!(commands[1].message.contains("http or https"));

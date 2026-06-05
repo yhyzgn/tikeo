@@ -4,10 +4,10 @@ use super::iden::{
     Apps, AuditLogs, AuthSessions, DispatchQueue, InstanceEvents, JobInstanceAttempts,
     JobInstanceLogs, JobInstances, JobVersions, Jobs, Namespaces, OidcAuthStates, OidcIdentities,
     Permissions, Plugins, RaftAppliedCommands, RaftLogEntries, RaftMembers,
-    RaftMembershipProposals, RaftMetadata, RaftSnapshots, RolePermissions, Roles, ScriptVersions,
-    Scripts, SdkApiKeys, ServiceAccounts, Users, WorkerLogicalInstances, WorkerPools,
-    WorkerSessionEvents, WorkerSessions, WorkflowEdges, WorkflowInstances, WorkflowNodeInstances,
-    WorkflowNodes, WorkflowShards, Workflows,
+    RaftMembershipProposals, RaftMetadata, RaftSnapshots, RolePermissions, Roles, ScheduleCursors,
+    ScriptVersions, Scripts, SdkApiKeys, ServiceAccounts, Users, WorkerLogicalInstances,
+    WorkerPools, WorkerSessionEvents, WorkerSessions, WorkflowEdges, WorkflowInstances,
+    WorkflowNodeInstances, WorkflowNodes, WorkflowShards, Workflows,
 };
 
 pub(super) async fn create_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
@@ -86,6 +86,18 @@ async fn create_job_indexes(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
             .table(JobInstances::Table)
             .col(JobInstances::JobId)
             .col(JobInstances::CreatedAt)
+            .to_owned(),
+    )
+    .await?;
+    create_index(
+        manager,
+        Index::create()
+            .name("idx_schedule_cursors_job_trigger_fire")
+            .table(ScheduleCursors::Table)
+            .col(ScheduleCursors::JobId)
+            .col(ScheduleCursors::TriggerType)
+            .col(ScheduleCursors::FireAt)
+            .unique()
             .to_owned(),
     )
     .await?;

@@ -484,3 +484,18 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 2. Worker 重要可见性状态不得只存在内存；新增断言必须覆盖 DB snapshot。
 3. 中文 i18n 显示中文，英文 i18n 显示英文，不允许混合 label。
 4. Go/Rust SDK 与 demo 能力面默认按 Java 已实现能力对齐；无法对齐时必须在 report 中列明真实差异和原因。
+
+## 13.7 2026-06-05 已落地：跨语言 Worker parity / 持久化 harness
+
+`ADD-X-LANG-001` 已从计划升级为可执行资产：`deploy/smoke/cross-language-worker-parity-smoke.sh`。
+
+| 覆盖目标 | 已实现断言 | 证据 |
+| --- | --- | --- |
+| Java/Go/Rust worker parity | Java Boot2/Boot3/Boot4、Go、Rust 五类 worker 均通过真实 Worker Tunnel online，且 processor/tag/worker_pool/scope 走结构化字段 | `.dev/reports/cross-language-workers-20260605T032108Z-202626/*workers*.json` |
+| Go/Rust 日志链路 | Go/Rust echo job succeeded，实例日志包含语言 demo 的真实成功消息，不再是空消息或仅控制台输出 | `go-logs.json`、`rust-logs.json` |
+| Worker 可见性持久化 | 重启 server 且 worker 停止后，`/api/v1/workers` 从 persisted snapshot 返回 worker；重连后 live state 接管 | `workers-after-restart-snapshot.json`、`workers-after-reconnect.json` |
+| worker_pool 过滤 | live 与 persisted snapshot 使用同一 scoped API-Key 过滤，结果一致 | `worker-pool-filter-live.json`、`worker-pool-filter-persisted.json` |
+| Web secondary routes | `/workers` 与 `/workers/dispatch-queue` 返回 SPA shell，调度队列不再混在 worker 主页面 | `web-workers.html`、`web-dispatch-queue.html` |
+| 反假能力广告 | Go/Rust 默认不广告不可执行 `srt/deno/v8/wasmtime/wasmedge/local-command` runner；只有真实可执行 sandbox 才进入 structuredCapabilities | harness worker assertion + SDK unit tests |
+
+后续 CI 增强建议：将该 harness 作为 nightly 或手动触发 workflow artifact 上传，避免每次普通 PR 都承担 Java/Go/Rust 多 worker 启动成本。

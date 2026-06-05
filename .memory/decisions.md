@@ -475,3 +475,9 @@ Constraint:
 - Decision: Persisted worker snapshot fields include capabilities, structuredCapabilities, labels, and master state; UI/API filtering must use structured fields/labels/capabilities, not clientInstanceId or job naming conventions.
 - Decision: Go and Rust SDK/demo parity is evaluated against the Java demo feature surface where feasible: live Worker Tunnel, structured scope, processor names, assignment-token task logs, script runner capabilities, and reconnect behavior.
 - Constraint: Any future worker_pool/sandbox/processor matching fallback based only on naming convention is rejected unless documented as explicit legacy compatibility with tests proving structured matching remains primary.
+
+## 2026-06-05 — Script runner capability truthfulness
+
+- Decision: A Worker may advertise a script runner only when the corresponding sandbox/runtime boundary is executable in that process. Unavailable/Unsupported adapters may exist as fail-closed handlers but must not be included in structured `scriptRunners`.
+- Decision: Go/Rust demos default to no script runner advertisement unless explicitly configured with a real container/runtime or a clearly development-only local runner advertising `custom`.
+- Rejected: Advertising Java parity sandbox names such as `srt`, `deno`, `v8`, `wasmtime`, or `wasmedge` from Go/Rust without an executable implementation | this creates fake scheduling capacity and breaks manual/automated验收.

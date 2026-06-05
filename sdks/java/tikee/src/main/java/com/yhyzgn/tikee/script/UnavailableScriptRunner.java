@@ -20,6 +20,11 @@ public final class UnavailableScriptRunner implements ScriptRunner {
     }
 
     @Override
+    public boolean advertiseCapability() {
+        return false;
+    }
+
+    @Override
     public TaskOutcome run(ScriptRunnerTask task) {
         return run(task, ScriptRunnerLogSink.NOOP);
     }

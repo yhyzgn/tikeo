@@ -202,6 +202,17 @@ pub(super) enum RaftMembershipProposals {
 }
 
 #[derive(DeriveIden)]
+pub(super) enum ScheduleCursors {
+    Table,
+    Id,
+    JobId,
+    TriggerType,
+    FireAt,
+    InstanceId,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
 pub(super) enum SdkApiKeys {
     Table,
     Id,

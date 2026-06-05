@@ -507,3 +507,57 @@ cd examples/rust/worker-demo && cargo test
 2. 增加 server restart persistence smoke：Worker 注册后重启 server，验证 `/api/v1/workers` 能先从 DB snapshot 展示，再由 live registry 覆盖。
 3. 增加 Go/Rust 任务实例日志 API smoke，防止 assignment token 日志链路回退。
 4. 增加 persisted worker 的 worker_pool scope filtering 回归，禁止任何约定命名式匹配回流。
+
+## 13. 2026-06-05 反伪实现审计与跨语言自动化闭环
+
+本轮按生产级实现约束复查 `server / web / sdks / examples demo`，重点排查伪代码、假能力广告、硬编码假数据、仅内存关键状态和 mock-only 路径被当作完成能力的问题。除明确标注为未来 SDK 的 Python/Node demo placeholder 外，发现项已直接改成可验证实现。
+
+### 13.1 已修复的生产级问题
+
+| 范围 | 问题 | 修复结果 | 验证 |
+| --- | --- | --- | --- |
+| Server scheduling | fixed-rate/daily interval 的自动调度 cursor 只在内存中，重启后有重复触发风险 | 新增 `schedule_cursors` 持久化表、entity、repository 与 SQLite 兼容迁移；tick loop 按 `(job_id, trigger_type, fire_at)` 幂等创建 pending instance | `cargo test -p tikee-storage`、`cargo test -p tikee-server` |
+| Raft apply | 未知 `command_type` 以 deferred/unsupported 记录，容易误解为后续会自动补业务 apply | 未知或非法 payload 统一记录为 `rejected`，错误信息明确 `unsupported raft command_type` | `raft_apply_committed_entries_rejects_unknown_and_invalid_payloads` |
+| Java/Go/Rust script capability | Go/Rust/Java starter 可能把不可执行沙箱当成 worker capability 广告，导致 UI/调度误以为可运行 | `Unavailable/UnsupportedScriptRunner` 保留 fail-closed handler，但不进入 structured `scriptRunners`；容器 runner 只广告真实可执行 backend canonical name | Java/Go/Rust SDK tests + cross-language smoke |
+| Rust SDK outcome | Rust demo 返回成功消息前 SDK outcome 不支持 operator-facing success message | `TaskOutcome::Success(String)` 与 `is_success()` 已实现，session result/log 使用真实消息 | Rust SDK tests、cross-language smoke |
+| Web i18n | 英文字典存在机械拼接坏翻译，中文 locale 对若干英文 label 未完全本地化 | 基础字典与 override 同步清理；新增质量门，禁止空英文、中文混入英文和典型机械拼接模式 | `cd web && bun run typecheck && bun test --run src/i18n/i18n.test.ts` |
+
+### 13.2 跨语言自动化 harness 已落地
+
+新增 `deploy/smoke/cross-language-worker-parity-smoke.sh`，将原先手动 Java/Go/Rust worker parity 验收升级为一键 smoke：
+
+1. 启动隔离 tikee server、Web、Java Boot2/Boot3/Boot4、Go、Rust demo worker。
+2. 通过真实 HTTP API 创建 namespace/app/worker pool/quota、SQL plugin processor 和 jobs。
+3. 断言五类 worker 均在线，scope、worker_pool、processor、tags、master state 均来自结构化字段。
+4. 触发 Java/Go/Rust echo jobs，断言实例终态 succeeded 且实例日志包含真实处理消息。
+5. 重启 server 并停止 worker，断言 `/api/v1/workers` 仍能从持久化 `worker_sessions` snapshot 展示 worker、structuredCapabilities、labels、master。
+6. 重连 worker 后断言 live registry 覆盖 snapshot。
+7. 使用 worker_pool scoped API-Key 同时验证 live 与 persisted snapshot 的过滤结果一致，禁止回退到命名约定匹配。
+8. Web route smoke 覆盖 `/workers` 和 `/workers/dispatch-queue` SPA shell。
+
+本轮证据：
+
+- 报告：`.dev/reports/cross-language-workers-20260605T032108Z-202626/cross-language-workers-20260605T032108Z-202626.json`
+- 关键产物：`workers-initial.json`、`workers-before-restart.json`、`workers-after-restart-snapshot.json`、`workers-after-reconnect.json`、`worker-pool-filter-live.json`、`worker-pool-filter-persisted.json`、`go-logs.json`、`rust-logs.json`、`web-workers.html`、`web-dispatch-queue.html`
+
+### 13.3 本轮验证命令
+
+```bash
+cargo test -p tikee-storage -- --nocapture
+cargo test -p tikee-server -- --nocapture
+cd sdks/go/tikee && go test ./... -count=1
+cd examples/go/worker-demo && go test ./... -count=1
+cd sdks/rust/tikee && cargo test --all-features -- --nocapture
+cd examples/rust/worker-demo && cargo test -- --nocapture
+cd sdks/java && ./gradlew test --no-daemon
+cd web && bun run typecheck && bun test --run src/i18n/i18n.test.ts
+bash -n deploy/smoke/cross-language-worker-parity-smoke.sh
+deploy/smoke/cross-language-worker-parity-smoke.sh
+```
+
+### 13.4 审计结论
+
+- 当前 server/web/sdks/demo 范围内，未发现仍被当作已完成功能的伪代码、硬编码假实现或 mock-only 路径。
+- Python/Node demo README 中的 placeholder 属于用户已明确允许的未来 SDK 范围，不计入当前完成能力。
+- 测试中的 fake/mock/noop 名称均限定在测试桩或协议 noop 场景，不作为生产能力暴露。
+- Go/Rust 默认不广告脚本 runner；只有配置了真实可执行 backend 或显式开发 local runner 时才会进入 structured capabilities。

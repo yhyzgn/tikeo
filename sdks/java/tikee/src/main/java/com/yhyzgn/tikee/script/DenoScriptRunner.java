@@ -26,6 +26,11 @@ public final class DenoScriptRunner implements ScriptRunner {
     }
 
     @Override
+    public ScriptSandboxBackend advertisedBackend() {
+        return kind == ScriptRunnerKind.JS || kind == ScriptRunnerKind.TS ? ScriptSandboxBackend.DENO : ScriptSandboxBackend.AUTO;
+    }
+
+    @Override
     public TaskOutcome run(ScriptRunnerTask task) {
         return run(task, ScriptRunnerLogSink.NOOP);
     }

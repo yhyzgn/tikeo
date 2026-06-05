@@ -56,6 +56,10 @@ impl ScriptRunner for LocalSubprocessScriptRunner {
         self.kind
     }
 
+    fn advertised_sandbox_backend(&self) -> Option<String> {
+        Some("custom".to_owned())
+    }
+
     async fn run(&self, task: ScriptRunnerTask) -> Result<TaskOutcome, WorkerSdkError> {
         self.validate_task(&task)?;
 

@@ -248,7 +248,7 @@ impl WorkerSession {
                 Err(error) => TaskOutcome::Failed(error.to_string()),
             }
         };
-        let level = if matches!(outcome, TaskOutcome::Succeeded) {
+        let level = if outcome.is_success() {
             "info"
         } else {
             "error"
@@ -260,7 +260,7 @@ impl WorkerSession {
             level,
             format!(
                 "completed task {instance_id} success={} message={result_message}",
-                matches!(outcome, TaskOutcome::Succeeded)
+                outcome.is_success()
             ),
         )
         .await;
@@ -293,7 +293,7 @@ impl WorkerSession {
                 kind: Some(worker_message::Kind::TaskResult(TaskResult {
                     worker_id: self.worker_id.clone(),
                     instance_id,
-                    success: matches!(outcome, TaskOutcome::Succeeded),
+                    success: outcome.is_success(),
                     message: task_result_message(outcome),
                     assignment_token,
                 })),

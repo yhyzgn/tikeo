@@ -1900,3 +1900,9 @@ Commit/push:
 - 将 2026-06-04 已完成状态同步到架构、Worker 生命周期、Java 多 worker 联调报告、联合自动化测试状态/方案和 integration docs：Worker 可见性快照持久化、Web Worker 分组/调度队列二级页、Go/Rust SDK demo 默认 live、assignment-token 日志、script runner capability 对齐、CI run `26947829951` success。
 - 新增 `.prompt/147-phase4-cross-language-worker-parity-and-persistence-hardening.md`，下一步聚焦把当前手动 Java/Go/Rust Worker parity 与 server restart persistence 验收固化为 executable harness。
 - Verification: 文档轻量检查与 git diff check 在本轮执行后记录。
+
+### 2026-06-05 — 反伪实现审计与跨语言 Worker harness 闭环
+- 按生产级宪法复查 server/web/sdks/demo，修复 schedule cursor 内存状态、Raft unknown command deferred 语义、Go/Rust/Java 不可用 script runner 假能力广告、Rust success outcome 消息、Web i18n 机械翻译残留。
+- 新增 `deploy/smoke/cross-language-worker-parity-smoke.sh`，一键启动临时 server/web + Java Boot2/Boot3/Boot4 + Go + Rust worker，覆盖结构化 worker parity、Go/Rust 实例日志、server restart persisted snapshot、worker_pool scoped filtering 与 Web worker route smoke。
+- 最新证据：`.dev/reports/cross-language-workers-20260605T032108Z-202626/cross-language-workers-20260605T032108Z-202626.json`。
+- Verification: `cargo test -p tikee-storage -- --nocapture`; `cargo test -p tikee-server -- --nocapture`; Go SDK/demo tests; Rust SDK/demo tests; `cd sdks/java && ./gradlew test --no-daemon`; `cd web && bun run typecheck && bun test --run src/i18n/i18n.test.ts`; `deploy/smoke/cross-language-worker-parity-smoke.sh`.

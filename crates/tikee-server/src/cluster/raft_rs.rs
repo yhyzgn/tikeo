@@ -139,11 +139,6 @@ enum RaftCommandApply {
         payload: RaftMemberUpsertPayload,
         payload_json: String,
     },
-    DeferredUnsupported {
-        command_id: String,
-        command_type: String,
-        payload: Option<String>,
-    },
     Rejected {
         command_id: String,
         command_type: String,
@@ -803,18 +798,6 @@ async fn record_normal_command(
                     .to_owned(),
             )
         }
-        RaftCommandApply::DeferredUnsupported {
-            command_id,
-            command_type,
-            payload,
-        } => (
-            command_id,
-            command_type,
-            payload,
-            "deferred_unsupported".to_owned(),
-            "command envelope recorded but business apply is not implemented for this type"
-                .to_owned(),
-        ),
         RaftCommandApply::Rejected {
             command_id,
             command_type,
@@ -1165,10 +1148,11 @@ fn parse_tikee_command(command: TikeeRaftCommand, log_index: u64) -> RaftCommand
                 },
             }
         }
-        _ => RaftCommandApply::DeferredUnsupported {
+        _ => RaftCommandApply::Rejected {
             command_id,
-            command_type,
+            command_type: command_type.clone(),
             payload: Some(command.payload.to_string()),
+            message: format!("unsupported raft command_type: {command_type}"),
         },
     }
 }
@@ -1231,7 +1215,6 @@ impl RaftCommandApply {
         match self {
             Self::Noop { command_id, .. }
             | Self::MemberUpsert { command_id, .. }
-            | Self::DeferredUnsupported { command_id, .. }
             | Self::Rejected { command_id, .. } => command_id,
         }
     }

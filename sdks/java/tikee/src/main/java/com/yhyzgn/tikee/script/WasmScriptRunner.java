@@ -28,6 +28,11 @@ public final class WasmScriptRunner implements ScriptRunner {
     }
 
     @Override
+    public ScriptSandboxBackend advertisedBackend() {
+        return ScriptSandboxBackend.WASMTIME;
+    }
+
+    @Override
     public TaskOutcome run(ScriptRunnerTask task) {
         return run(task, ScriptRunnerLogSink.NOOP);
     }

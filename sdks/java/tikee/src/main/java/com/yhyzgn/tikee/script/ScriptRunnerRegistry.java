@@ -20,20 +20,27 @@ public final class ScriptRunnerRegistry {
     }
 
     public List<String> capabilities() {
-        if (runners.isEmpty()) {
+        List<String> advertised = runners.values().stream()
+                .filter(ScriptRunner::advertiseCapability)
+                .map(runner -> runner.kind().capability())
+                .distinct()
+                .sorted()
+                .toList();
+        if (advertised.isEmpty()) {
             return List.of();
         }
-        return java.util.stream.Stream.concat(
-                        java.util.stream.Stream.of("script"),
-                        runners.keySet().stream().map(ScriptRunnerKind::capability))
+        return java.util.stream.Stream.concat(java.util.stream.Stream.of("script"), advertised.stream())
                 .distinct()
                 .sorted()
                 .toList();
     }
 
     public List<WorkerCapabilitySet.ScriptRunner> structuredCapabilities() {
-        return runners.keySet().stream()
-                .map(kind -> new WorkerCapabilitySet.ScriptRunner(kind.value(), "auto"))
+        return runners.values().stream()
+                .filter(ScriptRunner::advertiseCapability)
+                .map(runner -> new WorkerCapabilitySet.ScriptRunner(
+                        runner.kind().value(),
+                        runner.advertisedBackend().value()))
                 .toList();
     }
 

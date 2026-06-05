@@ -16,10 +16,10 @@ use self::{
         DispatchQueue, InstanceEvents, JobInstanceAttempts, JobInstanceLogs, JobInstances,
         JobVersions, Jobs, Namespaces, OidcAuthStates, OidcIdentities, Permissions, Plugins,
         RaftAppliedCommands, RaftLogEntries, RaftMembers, RaftMembershipProposals, RaftMetadata,
-        RaftSnapshots, RolePermissions, Roles, ScriptVersions, Scripts, SdkApiKeys, Secrets,
-        ServiceAccounts, Users, WorkerLogicalInstances, WorkerPools, WorkerSessionEvents,
-        WorkerSessions, WorkflowEdges, WorkflowInstances, WorkflowNodeInstances, WorkflowNodes,
-        WorkflowShards, Workflows,
+        RaftSnapshots, RolePermissions, Roles, ScheduleCursors, ScriptVersions, Scripts,
+        SdkApiKeys, Secrets, ServiceAccounts, Users, WorkerLogicalInstances, WorkerPools,
+        WorkerSessionEvents, WorkerSessions, WorkflowEdges, WorkflowInstances,
+        WorkflowNodeInstances, WorkflowNodes, WorkflowShards, Workflows,
     },
     indexes::create_indexes,
 };
@@ -47,6 +47,7 @@ impl MigrationTrait for CreateMetadataTables {
         create_jobs(manager).await?;
         create_job_versions(manager).await?;
         create_job_instances(manager).await?;
+        create_schedule_cursors(manager).await?;
         create_job_instance_attempts(manager).await?;
         create_job_instance_logs(manager).await?;
         create_users(manager).await?;
@@ -120,6 +121,7 @@ async fn drop_metadata_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> 
             Users::Table.into_iden(),
             JobInstanceLogs::Table.into_iden(),
             JobInstanceAttempts::Table.into_iden(),
+            ScheduleCursors::Table.into_iden(),
             JobInstances::Table.into_iden(),
             JobVersions::Table.into_iden(),
             Jobs::Table.into_iden(),
@@ -141,6 +143,23 @@ async fn drop_tables(manager: &SchemaManager<'_>, tables: &[DynIden]) -> Result<
             .await?;
     }
     Ok(())
+}
+
+async fn create_schedule_cursors(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(ScheduleCursors::Table)
+                .if_not_exists()
+                .col(string_pk(ScheduleCursors::Id))
+                .col(string_col(ScheduleCursors::JobId))
+                .col(string_col(ScheduleCursors::TriggerType))
+                .col(string_col(ScheduleCursors::FireAt))
+                .col(string_col(ScheduleCursors::InstanceId))
+                .col(string_col(ScheduleCursors::CreatedAt))
+                .to_owned(),
+        )
+        .await
 }
 
 async fn create_job_instance_attempts(manager: &SchemaManager<'_>) -> Result<(), DbErr> {

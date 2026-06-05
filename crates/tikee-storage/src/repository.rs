@@ -20,6 +20,7 @@ mod oidc;
 mod oidc_identity;
 mod plugin;
 mod raft;
+mod schedule_cursor;
 mod scope;
 mod script;
 mod sdk_api_key;
@@ -63,6 +64,7 @@ pub use raft::{
     RecordRaftAppliedCommand, RecordRaftMembershipProposal, UpsertRaftLogEntry, UpsertRaftMember,
     UpsertRaftMetadata, UpsertRaftSnapshot,
 };
+pub use schedule_cursor::ScheduleCursorRepository;
 pub use scope::{
     AppSummary, NamespaceSummary, ScopeRepository, UpdateWorkerPoolQuota, WorkerPoolSummary,
 };

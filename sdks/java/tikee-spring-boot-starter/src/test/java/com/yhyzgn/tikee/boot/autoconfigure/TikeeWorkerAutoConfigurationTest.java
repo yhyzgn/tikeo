@@ -69,7 +69,8 @@ class TikeeWorkerAutoConfigurationTest {
             NoopTikeeWorkerClient noop = (NoopTikeeWorkerClient) client;
             assertThat(noop.registration().clientInstanceId()).startsWith("java-");
             assertThat(noop.registration().app()).isEqualTo("billing");
-            assertThat(scriptLanguages(noop)).contains("wasm", "shell", "python", "javascript", "typescript", "powershell", "php", "groovy", "rhai");
+            assertThat(scriptLanguages(noop)).contains("wasm", "shell", "python", "powershell", "php", "groovy");
+            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript", "rhai");
             assertThat(noop.running()).isTrue();
             assertThat(context.getBean(TikeeProcessorRegistry.class).handlers()).containsKey("demo.echo");
         });
@@ -137,7 +138,8 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.auto-install-tools=false")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(scriptLanguages(noop)).contains("wasm", "shell", "python", "javascript", "typescript", "powershell", "php", "groovy", "rhai");
+                    assertThat(scriptLanguages(noop)).contains("wasm", "shell", "python", "powershell", "php", "groovy");
+            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript", "rhai");
                 });
     }
 
@@ -151,7 +153,7 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.container-enabled=true",
                 "tikee.worker.scripts.availability-check=false",
                 "tikee.worker.scripts.auto-install-tools=false",
-                "tikee.worker.scripts.runtime-command=test-container-runtime",
+                "tikee.worker.scripts.runtime-command=docker",
                 "tikee.worker.scripts.images.shell=alpine:3.20",
                 "tikee.worker.scripts.images.python=python:3.13-alpine",
                 "tikee.worker.scripts.images.js=denoland/deno:alpine",
@@ -163,7 +165,8 @@ class TikeeWorkerAutoConfigurationTest {
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(scriptLanguages(noop))
-                            .contains("wasm", "shell", "python", "javascript", "typescript", "powershell", "php", "groovy", "rhai");
+                            .contains("wasm", "shell", "python", "powershell", "php", "groovy");
+                    assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript", "rhai");
                     ScriptRunnerRegistry registry = context.getBean(ScriptRunnerRegistry.class);
                     assertThat(registry.find(ScriptRunnerKind.SHELL))
                             .hasValueSatisfying(runner -> assertThat(runner).isInstanceOf(SrtScriptRunner.class));
@@ -184,7 +187,8 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.images.shell=alpine:3.20")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(scriptLanguages(noop)).contains("wasm", "shell", "python", "javascript", "typescript", "powershell", "php", "groovy", "rhai");
+                    assertThat(scriptLanguages(noop)).contains("wasm", "shell", "python", "powershell", "php", "groovy");
+            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript", "rhai");
                 });
     }
 
@@ -201,7 +205,8 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.runtime-command=tikee-missing-container-runtime")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(scriptLanguages(noop)).contains("wasm", "shell", "python", "javascript", "typescript", "powershell", "php", "groovy", "rhai");
+                    assertThat(scriptLanguages(noop)).contains("wasm", "shell", "python", "powershell", "php", "groovy");
+            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript", "rhai");
                 });
     }
 

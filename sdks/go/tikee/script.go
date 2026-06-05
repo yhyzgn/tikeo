@@ -21,6 +21,10 @@ type ScriptRunner interface {
 	Run(context.Context, ScriptRunnerTask) (TaskOutcome, error)
 }
 
+type capabilityAdvertiser interface {
+	AdvertiseCapability() bool
+}
+
 // ScriptRunnerTask is the immutable script snapshot delivered by tikee server.
 type ScriptRunnerTask struct {
 	ScriptID            string
@@ -78,11 +82,14 @@ func (r *ScriptRunnerRegistry) AddCapabilities(config *WorkerConfig) {
 		return
 	}
 	for _, runner := range r.runners {
+		if advertiser, ok := runner.(capabilityAdvertiser); ok && !advertiser.AdvertiseCapability() {
+			continue
+		}
 		config.AddScriptRunner(runner.Language(), runner.SandboxBackend())
 	}
 }
 
-// UnavailableScriptRunner advertises one language but fails closed until a backend is configured.
+// UnavailableScriptRunner keeps a fail-closed handler registered for one language but is not advertised as executable capability.
 type UnavailableScriptRunner struct {
 	language       string
 	sandboxBackend string
@@ -102,6 +109,8 @@ func NewUnavailableScriptRunner(language, sandboxBackend, reason string) *Unavai
 func (r *UnavailableScriptRunner) Language() string { return r.language }
 
 func (r *UnavailableScriptRunner) SandboxBackend() string { return r.sandboxBackend }
+
+func (r *UnavailableScriptRunner) AdvertiseCapability() bool { return false }
 
 func (r *UnavailableScriptRunner) Run(_ context.Context, task ScriptRunnerTask) (TaskOutcome, error) {
 	if err := validateScriptTask(r.language, task); err != nil {
