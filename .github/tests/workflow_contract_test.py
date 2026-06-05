@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -9,6 +10,13 @@ DOCKER_SERVER = (WORKFLOWS / "publish-docker-server.yml").read_text()
 DOCKER_WEB = (WORKFLOWS / "publish-docker-web.yml").read_text()
 JAVA_SDK = (WORKFLOWS / "publish-java-sdk.yml").read_text()
 RUST_SDK = (WORKFLOWS / "publish-rust-sdk.yml").read_text()
+
+
+def workflow_job_block(workflow_text: str, job: str) -> str:
+    match = re.search(rf"(?ms)^  {re.escape(job)}:\n(?P<body>.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)", workflow_text)
+    if not match:
+        raise AssertionError(f"job not found: {job}")
+    return match.group("body")
 
 
 class WorkflowContractTest(unittest.TestCase):
@@ -25,6 +33,20 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("push: false", CI)
         self.assertNotIn("docker/login-action", CI)
         self.assertNotIn("softprops/action-gh-release", CI)
+
+    def test_ci_rejects_node20_or_older_action_runtimes_before_other_jobs(self):
+        self.assertTrue((ROOT / "scripts/verify-github-actions-node-runtime.py").exists())
+        self.assertIn("workflow-policy:", CI)
+        policy_job = CI.split("  workflow-policy:", 1)[1].split("\n  server:", 1)[0]
+        self.assertIn("Reject deprecated GitHub Actions Node runtimes", policy_job)
+        self.assertIn("verify-github-actions-node-runtime.py", policy_job)
+        self.assertIn("--min-node-major 24", policy_job)
+        self.assertNotIn("uses:", policy_job)
+        self.assertIn(r"^\s*-?\s*uses\s*:", (ROOT / "scripts/verify-github-actions-node-runtime.py").read_text())
+
+        for job in ["server", "web", "java-sdk", "java-demos", "go-sdk-demo", "go-deploy-tools", "rust-sdk", "rust-demo"]:
+            job_block = workflow_job_block(CI, job)
+            self.assertIn("needs: workflow-policy", job_block)
 
     def test_legacy_aggregate_release_workflow_is_removed(self):
         self.assertFalse((WORKFLOWS / "release.yml").exists())
