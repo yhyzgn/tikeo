@@ -1,4 +1,4 @@
-FROM rust:1.95-alpine AS dependencies
+FROM rust:alpine AS dependencies
 
 RUN apk update --force-missing-repositories \
     && apk upgrade \
@@ -43,7 +43,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release --locked --bin tikee \
     && cp /app/target/release/tikee /tmp/tikee
 
-FROM alpine:3.22 AS runtime
+FROM alpine:latest AS runtime
 
 RUN apk update --force-missing-repositories \
     && apk upgrade \

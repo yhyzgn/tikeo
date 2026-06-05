@@ -8,7 +8,7 @@ RUN bun install --frozen-lockfile && rm -rf /tmp/*
 COPY . .
 RUN NODE_ENV=production bun run build
 
-FROM nginx:1.29-alpine AS runtime
+FROM nginx:alpine AS runtime
 
 WORKDIR /usr/share/nginx/html
 COPY --from=builder /app/dist .
