@@ -11,15 +11,16 @@ on:
         required: true
         type: string
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  CARGO_TERM_COLOR: always
+
 permissions:
   contents: write
 
 concurrency:
   group: release-assets-${{ github.ref_name || inputs.tag }}
   cancel-in-progress: false
-
-env:
-  CARGO_TERM_COLOR: always
 
 jobs:
   server-binaries:
