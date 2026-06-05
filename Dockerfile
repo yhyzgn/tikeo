@@ -43,7 +43,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release --locked --bin tikee \
     && cp /app/target/release/tikee /tmp/tikee
 
-FROM docker.io/library/alpine:3.22 AS runtime
+FROM alpine:3.22 AS runtime
 
 RUN apk update --force-missing-repositories \
     && apk upgrade \
