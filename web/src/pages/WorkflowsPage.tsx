@@ -31,7 +31,9 @@ import {
   type WorkflowSummary,
 } from '../api/client';
 import { PermissionGate, useCan } from '../components/Permission';
+import { useRouteActive } from '../hooks/useRouteActivation';
 import { useUrlQueryState } from '../hooks/useUrlQueryState';
+import { ROUTE_META } from '../routes';
 import { TABLE_PAGE_SIZE_OPTIONS, usePersistentTablePageSize } from '../utils/pagination';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -810,6 +812,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], currentWo
 export function WorkflowsPage() {
   const canManageWorkflows = useCan('workflows', 'manage');
   const canExecuteWorkflows = useCan('workflows', 'execute');
+  const active = useRouteActive(ROUTE_META.workflows.path);
   const [pageSize, setPageSize] = usePersistentTablePageSize();
   const queryDefaults = useMemo(() => ({ page: 1, page_size: pageSize, keyword: '', status: '' }), [pageSize]);
   const { query, setQuery } = useUrlQueryState(queryDefaults);
@@ -843,10 +846,10 @@ export function WorkflowsPage() {
     try { setItems(await listWorkflows()); } finally { setLoading(false); }
   };
 
-  useEffect(() => { void fetchItems(); }, []);
+  useEffect(() => { if (active) void fetchItems(); }, [active]);
 
   useEffect(() => {
-    if (!activeInstance) return undefined;
+    if (!active || !activeInstance) return undefined;
     const token = getAuthToken();
     const url = token ? `${workflowEventStreamUrl(activeInstance.id)}?token=${encodeURIComponent(token)}` : workflowEventStreamUrl(activeInstance.id);
     const source = new EventSource(url);
@@ -874,7 +877,7 @@ export function WorkflowsPage() {
       });
     });
     return () => source.close();
-  }, [activeInstance?.id]);
+  }, [active, activeInstance?.id]);
 
   const validate = async (item: WorkflowSummary) => {
     const result = await validateWorkflow(item.id);

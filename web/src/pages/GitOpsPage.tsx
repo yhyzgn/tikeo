@@ -3,6 +3,8 @@ import { Alert, Button, Card, Col, Input, Row, Space, Table, Tag, Typography, me
 import { useEffect, useMemo, useState } from 'react';
 
 import { diffGitOpsManifest, exportGitOpsManifest, type GitOpsDiffChange, type GitOpsManifest } from '../api/client';
+import { useRouteActive } from '../hooks/useRouteActivation';
+import { ROUTE_META } from '../routes';
 
 const actionColor: Record<string, string> = {
   create: 'green',
@@ -20,6 +22,7 @@ export function GitOpsPage() {
   const [loading, setLoading] = useState(false);
   const [diffing, setDiffing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const active = useRouteActive(ROUTE_META.gitops.path);
 
   const resourceCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -46,8 +49,8 @@ export function GitOpsPage() {
   };
 
   useEffect(() => {
-    void reload();
-  }, []);
+    if (active) void reload();
+  }, [active]);
 
   const copyYaml = async () => {
     await navigator.clipboard.writeText(yaml);

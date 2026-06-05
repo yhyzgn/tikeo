@@ -4,6 +4,8 @@ import dayjs, { type Dayjs } from 'dayjs';
 import { useEffect, useState } from 'react';
 
 import { createSdkApiKey, createServiceAccount, deleteSdkApiKey, disableServiceAccount, listAppScopes, listNamespaces, listSdkApiKeys, listServiceAccounts, updateSdkApiKey, updateServiceAccount, type AppScopeSummary, type NamespaceSummary, type SdkApiKeySummary, type ServiceAccountSummary } from '../api/client';
+import { useRouteActive } from '../hooks/useRouteActivation';
+import { ROUTE_META } from '../routes';
 
 const DEFAULT_SCOPES = ['jobs:read', 'jobs:write', 'instances:execute'];
 
@@ -43,6 +45,7 @@ export function ApiKeysPage() {
   const [form] = Form.useForm<ApiKeyFormValues>();
   const [editForm] = Form.useForm<EditFormValues>();
   const [serviceAccountForm] = Form.useForm<{ name: string; description?: string; namespace: string; app: string; workerPool?: string; status?: string }>();
+  const active = useRouteActive(ROUTE_META.apiKeys.path);
 
   const reload = async () => {
     setLoading(true);
@@ -58,8 +61,8 @@ export function ApiKeysPage() {
   };
 
   useEffect(() => {
-    void reload();
-  }, []);
+    if (active) void reload();
+  }, [active]);
 
   const handleCreate = async () => {
     const values = await form.validateFields();

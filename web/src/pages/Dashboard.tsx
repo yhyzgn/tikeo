@@ -3,10 +3,13 @@ import { Card, Col, Row, Statistic, Tag, Typography } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 
 import { listJobInstances, listJobs, type JobInstanceSummary, type JobSummary } from '../api/client';
+import { useRouteActive } from '../hooks/useRouteActivation';
+import { ROUTE_META } from '../routes';
 
 export function Dashboard() {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [instances, setInstances] = useState<JobInstanceSummary[]>([]);
+  const active = useRouteActive(ROUTE_META.dashboard.path);
 
   const load = useCallback(async () => {
     try {
@@ -17,7 +20,7 @@ export function Dashboard() {
     } catch { /* silent */ }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (active) void load(); }, [active, load]);
 
   const enabledJobs = jobs.filter((job) => job.enabled).length;
   const pendingInstances = instances.filter((instance) => instance.status === 'pending').length;

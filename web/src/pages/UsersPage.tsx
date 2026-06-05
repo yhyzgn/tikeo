@@ -11,6 +11,8 @@ import {
   type UserSummary,
 } from '../api/client';
 import { GuardedButton, PermissionGate, useCan } from '../components/Permission';
+import { useRouteActive } from '../hooks/useRouteActivation';
+import { ROUTE_META } from '../routes';
 import { persistentPagination, usePersistentTablePageSize } from '../utils/pagination';
 
 export function UsersPage() {
@@ -21,6 +23,7 @@ export function UsersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [pageSize, setPageSize] = usePersistentTablePageSize();
+  const active = useRouteActive(ROUTE_META.users.path);
 
   const fetchUsersList = async () => {
     setLoading(true);
@@ -35,8 +38,8 @@ export function UsersPage() {
   };
 
   useEffect(() => {
-    void fetchUsersList();
-  }, []);
+    if (active) void fetchUsersList();
+  }, [active]);
 
   const openCreateDrawer = () => {
     setEditingId(null);

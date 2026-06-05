@@ -6,6 +6,7 @@ import { WorkerClusterOverview } from './workers/WorkerClusterOverview';
 import { WorkerTable } from './workers/WorkerTable';
 import { WorkerLifecycleHistory } from './workers/WorkerLifecycleHistory';
 import { ROUTE_META } from '../routes';
+import { useRouteActive } from '../hooks/useRouteActivation';
 import { useNavigate } from 'react-router-dom';
 
 const WORKER_REFRESH_INTERVAL_MS = 5_000;
@@ -15,6 +16,7 @@ export function WorkersPage() {
   const [history, setHistory] = useState<WorkerLifecycleHistoryResponse>({ sessions: [], events: [] });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const active = useRouteActive(ROUTE_META.workers.path);
 
   const refresh = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -36,13 +38,14 @@ export function WorkersPage() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { if (active) void refresh(); }, [active, refresh]);
   useEffect(() => {
+    if (!active) return undefined;
     const interval = window.setInterval(() => {
       void refresh({ silent: true });
     }, WORKER_REFRESH_INTERVAL_MS);
     return () => window.clearInterval(interval);
-  }, [refresh]);
+  }, [active, refresh]);
 
   return (
     <div className="page-stack worker-cluster-page">

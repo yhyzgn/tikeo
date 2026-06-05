@@ -2,6 +2,8 @@ import { Alert, Card, Col, Row, Space, Statistic, Table, Tag, Typography } from 
 import { useEffect, useState } from 'react';
 
 import { getAlertDeliveryQueueStatus, type AlertDeliveryQueueStatus, type AlertDeliveryAttemptSummary } from '../api/client';
+import { useRouteActive } from '../hooks/useRouteActivation';
+import { ROUTE_META } from '../routes';
 
 const stateColor: Record<string, string> = {
   delivered: 'green',
@@ -13,9 +15,11 @@ const stateColor: Record<string, string> = {
 export function AlertDeliveryPage() {
   const [status, setStatus] = useState<AlertDeliveryQueueStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const active = useRouteActive(ROUTE_META.alerts.path);
 
   useEffect(() => {
     let mounted = true;
+    if (!active) return undefined;
     void getAlertDeliveryQueueStatus()
       .then((data) => {
         if (!mounted) return;
@@ -29,7 +33,7 @@ export function AlertDeliveryPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [active]);
 
   return (
     <Space direction="vertical" size={20} style={{ width: '100%' }}>

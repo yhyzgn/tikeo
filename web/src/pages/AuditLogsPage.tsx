@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { AuditLogQuery, AuditLogSummary } from '../api/client';
 import { exportAuditLogs, listAuditLogs } from '../api/client';
+import { useRouteActive } from '../hooks/useRouteActivation';
 import { useUrlQueryState } from '../hooks/useUrlQueryState';
+import { ROUTE_META } from '../routes';
 import { DEFAULT_TABLE_PAGE_SIZE, TABLE_PAGE_SIZE_OPTIONS, persistTablePageSize, usePersistentTablePageSize } from '../utils/pagination';
 
 const ACTION_COLORS: Record<string, string> = {
@@ -36,6 +38,7 @@ export function AuditLogsPage() {
   const [total, setTotal] = useState(0);
   const [pageSize, setPageSize] = usePersistentTablePageSize();
   const { query: urlQuery, setQuery: setUrlQuery, resetQuery } = useUrlQueryState(AUDIT_QUERY_DEFAULTS);
+  const active = useRouteActive(ROUTE_META.audit.path);
   const query = useMemo<AuditLogQuery>(() => ({
     page_size: Number(urlQuery.page_size) || pageSize,
     page_token: urlQuery.page_token || undefined,
@@ -60,8 +63,8 @@ export function AuditLogsPage() {
   }, [query]);
 
   useEffect(() => {
-    void fetchLogs(query);
-  }, [fetchLogs, query]);
+    if (active) void fetchLogs(query);
+  }, [active, fetchLogs, query]);
 
   const actionOptions = useMemo(
     () => [...new Set(logs.map((log) => log.action))].map((action) => ({ label: action, value: action })),

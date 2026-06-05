@@ -315,6 +315,15 @@ pub(super) fn validate_script_runner_task(
     Ok(())
 }
 
+pub(super) fn replay_script_output(stdout: &[u8], stderr: &[u8]) {
+    if !stdout.is_empty() {
+        print!("{}", String::from_utf8_lossy(stdout));
+    }
+    if !stderr.is_empty() {
+        eprint!("{}", String::from_utf8_lossy(stderr));
+    }
+}
+
 pub(super) async fn run_script_command(
     mut command: Command,
     kind: ScriptRunnerKind,
@@ -359,6 +368,8 @@ pub(super) async fn run_script_command(
             timeout_ms: task.policy.timeout_ms,
         });
     };
+    replay_script_output(&output.stdout, &output.stderr);
+
     writer
         .await
         .map_err(|error| {

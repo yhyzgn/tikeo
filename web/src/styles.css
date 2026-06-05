@@ -34,30 +34,30 @@
 }
 
 html[data-theme="dark"] {
-  --app-bg: #0f172a;
-  --app-bg-rgb: 15, 23, 42;
-  --app-surface: rgba(15, 23, 42, 0.88);
-  --app-surface-solid: #111827;
-  --app-surface-soft: #172033;
-  --app-surface-muted: #1e293b;
-  --app-surface-elevated: rgba(30, 41, 59, 0.96);
+  --app-bg: #191919;
+  --app-bg-rgb: 25, 25, 25;
+  --app-surface: rgba(38, 38, 38, 0.90);
+  --app-surface-solid: #242424;
+  --app-surface-soft: #2b2b2b;
+  --app-surface-muted: #303030;
+  --app-surface-elevated: rgba(46, 46, 46, 0.96);
   --app-text: #e2e8f0;
   --app-text-strong: #f8fafc;
   --app-text-muted: #94a3b8;
   --app-text-subtle: #94a3b8;
-  --app-border: #263448;
-  --app-border-strong: #334155;
+  --app-border: #3a3a3a;
+  --app-border-strong: #4a4a4a;
   --app-card-shadow: 0 14px 38px rgba(0, 0, 0, 0.26);
-  --app-hero-bg: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.9));
-  --app-canvas-bg: #111827;
-  --app-canvas-grid: rgba(96, 165, 250, 0.10);
-  --app-code-bg: linear-gradient(180deg, #111827 0%, #1e293b 100%);
+  --app-hero-bg: linear-gradient(135deg, rgba(36, 36, 36, 0.96), rgba(48, 48, 48, 0.90));
+  --app-canvas-bg: #202020;
+  --app-canvas-grid: rgba(160, 160, 160, 0.07);
+  --app-code-bg: linear-gradient(180deg, #242424 0%, #303030 100%);
   --app-warning-surface: #1f1a11;
   --tikee-logo-accent: color-mix(in srgb, var(--app-primary-color) 58%, #a78bfa);
   --tikee-logo-node-fill: #f8fafc;
   --tikee-logo-line-start: color-mix(in srgb, var(--app-primary-color) 28%, #dbeafe);
   --tikee-logo-line-end: color-mix(in srgb, var(--app-info-color) 38%, #e0f2fe);
-  --tikee-logo-inner-fill: rgba(15, 23, 42, 0.18);
+  --tikee-logo-inner-fill: rgba(20, 20, 20, 0.22);
   --tikee-logo-inner-stroke: rgba(248, 250, 252, 0.26);
   color-scheme: dark;
 }
@@ -532,7 +532,7 @@ body {
   background:
     linear-gradient(var(--app-canvas-grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--app-canvas-grid) 1px, transparent 1px),
-    radial-gradient(circle at 20% 10%, rgba(14, 165, 233, 0.12), transparent 30%),
+    radial-gradient(circle at 20% 10%, rgba(160, 160, 160, 0.05), transparent 30%),
     var(--app-canvas-bg);
   background-size: 28px 28px, 28px 28px, auto, auto;
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--app-surface-solid) 72%, transparent);
@@ -693,7 +693,7 @@ body {
 
 .workflow-node-card--linking {
   border-color: var(--app-primary-color);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-primary-color) 16%, transparent), 0 18px 38px color-mix(in srgb, var(--app-primary-color) 14%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-primary-color) 16%, transparent), 0 18px 38px color-mix(in srgb, var(--app-primary-color) 4%, transparent);
 }
 
 .workflow-node-port::after {
@@ -1643,8 +1643,8 @@ html[data-theme='dark'] {
 
 html[data-theme='dark'] body {
   background:
-    radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--app-primary-color) 18%, transparent), transparent 30%),
-    radial-gradient(circle at 90% 8%, rgba(14, 165, 233, 0.16), transparent 26%),
+    radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--app-primary-color) 5%, transparent), transparent 30%),
+    radial-gradient(circle at 90% 8%, rgba(160, 160, 160, 0.07), transparent 26%),
     var(--app-bg);
 }
 
@@ -1724,7 +1724,7 @@ html[data-theme='dark'] .ant-form-item-label > label {
   margin-top: 12px;
   border: 1px solid var(--app-border);
   border-radius: 14px;
-  background: #0f172a;
+  background: var(--app-bg);
   overflow: hidden;
 }
 
@@ -1796,8 +1796,8 @@ html[data-theme='dark'] .ant-picker-dropdown .ant-picker-ok button.ant-btn-prima
 
 html[data-theme="dark"] body {
   background:
-    radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--app-primary-color) 14%, transparent), transparent 30%),
-    radial-gradient(circle at 90% 8%, rgba(14, 165, 233, 0.12), transparent 26%),
+    radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--app-primary-color) 4%, transparent), transparent 30%),
+    radial-gradient(circle at 90% 8%, rgba(160, 160, 160, 0.05), transparent 26%),
     var(--app-bg);
 }
 
@@ -1811,7 +1811,7 @@ html[data-theme="dark"] .app-shell__menu .ant-menu-item-disabled {
 
 html[data-theme="dark"] .login-page {
   background:
-    radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--app-primary-color) 18%, transparent), transparent 30%),
+    radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--app-primary-color) 5%, transparent), transparent 30%),
     linear-gradient(135deg, var(--app-bg) 0%, var(--app-surface-muted) 100%);
 }
 
@@ -1904,7 +1904,7 @@ html[data-theme="dark"] .ant-table-thead > tr > th {
 .tikee-logo__node,
 .tikee-logo__core {
   transform-origin: center;
-  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
+  filter: drop-shadow(0 3px 6px rgba(20, 20, 20, 0.22));
   animation: tikee-logo-node-pulse 2s ease-in-out infinite;
 }
 
@@ -1950,7 +1950,7 @@ html[data-theme="dark"] .tikee-logo {
   --tikee-logo-node-fill: #f8fafc;
   --tikee-logo-line-start: color-mix(in srgb, var(--app-primary-color) 28%, #dbeafe);
   --tikee-logo-line-end: color-mix(in srgb, var(--app-info-color) 38%, #e0f2fe);
-  --tikee-logo-inner-fill: rgba(15, 23, 42, 0.18);
+  --tikee-logo-inner-fill: rgba(20, 20, 20, 0.22);
   --tikee-logo-inner-stroke: rgba(248, 250, 252, 0.26);
   color: var(--app-text-strong);
 }

@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { createJob, deleteJob, getJobSchedulingAdvice, listCalendars, listJobs, listJobVersions, listPlugins, listScripts, listWorkers, rollbackJob, triggerJob, updateJob, type BroadcastSelectorRequest, type CalendarSummary, type CreateJobRequest, type JobSchedulingAdvice, type JobSummary, type PluginSummary, type JobVersionSummary, type ScriptSummary, type UpdateJobRequest, type WorkerSummary } from '../api/client';
 import { PermissionGate, useCan } from '../components/Permission';
 import { ROUTE_META } from '../routes';
+import { useRouteActive } from '../hooks/useRouteActivation';
 import { useUrlQueryState } from '../hooks/useUrlQueryState';
 import { TABLE_PAGE_SIZE_OPTIONS, usePersistentTablePageSize } from '../utils/pagination';
 
@@ -25,6 +26,7 @@ export function JobsPage() {
   const navigate = useNavigate();
   const canWriteJobs = useCan('jobs', 'write');
   const canExecuteInstances = useCan('instances', 'execute');
+  const active = useRouteActive(ROUTE_META.jobs.path);
   const [pageSize, setPageSize] = usePersistentTablePageSize();
   const queryDefaults = useMemo(() => ({ page: 1, page_size: pageSize, keyword: '', scheduleType: '' }), [pageSize]);
   const { query, setQuery } = useUrlQueryState(queryDefaults);
@@ -81,7 +83,7 @@ export function JobsPage() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (active) void load(); }, [active, load]);
 
   const workerSdkProcessorNames = () => Array.from(new Set(
     workers.flatMap((worker) => worker.structuredCapabilities?.sdkProcessors ?? [])

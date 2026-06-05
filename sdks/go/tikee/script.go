@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -237,6 +238,7 @@ func (r *LocalCommandScriptRunner) Run(ctx context.Context, task ScriptRunnerTas
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
+	mirrorScriptCommandOutput(stdout.Bytes(), stderr.Bytes())
 	if runCtx.Err() != nil {
 		return Failed("script runner timed out"), nil
 	}
@@ -251,6 +253,15 @@ func (r *LocalCommandScriptRunner) Run(ctx context.Context, task ScriptRunnerTas
 		return Failed(limitOutput(message, task.MaxOutputBytes)), nil
 	}
 	return TaskOutcome{Success: true, Message: limitOutput(message, task.MaxOutputBytes)}, nil
+}
+
+func mirrorScriptCommandOutput(stdout []byte, stderr []byte) {
+	if len(stdout) > 0 {
+		_, _ = os.Stdout.Write(stdout)
+	}
+	if len(stderr) > 0 {
+		_, _ = os.Stderr.Write(stderr)
+	}
 }
 
 func validateScriptTask(language string, task ScriptRunnerTask) error {

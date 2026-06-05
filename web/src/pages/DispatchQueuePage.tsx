@@ -4,11 +4,14 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { getDispatchQueue, type QueueOverview } from '../api/client';
 import { DispatchQueuePanel } from './workers/DispatchQueuePanel';
+import { useRouteActive } from '../hooks/useRouteActivation';
+import { ROUTE_META } from '../routes';
 import { queueHealth } from './workers/workerPageModel';
 
 export function DispatchQueuePage() {
   const [queue, setQueue] = useState<QueueOverview>({ pending: 0, running: 0, done: 0, failed: 0, items: [] });
   const [loading, setLoading] = useState(false);
+  const active = useRouteActive(ROUTE_META.dispatchQueue.path);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -21,7 +24,7 @@ export function DispatchQueuePage() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { if (active) void refresh(); }, [active, refresh]);
 
   const health = queueHealth(queue);
 

@@ -244,7 +244,9 @@ func (s *Session) ProcessNextWithScriptRunners(ctx context.Context, processor Ta
 			"info",
 			fmt.Sprintf("received task %s processor=%s", task.GetInstanceId(), task.GetProcessorName()),
 		)
-		outcome, err := processDispatchTask(ctx, processor, scripts, task)
+		outcome, err := processDispatchTaskWithLogs(ctx, processor, scripts, task, func(level, message string) {
+			s.emitTaskLogSafely(task, level, message)
+		})
 		if err != nil {
 			outcome = Failed(err.Error())
 		}
@@ -346,17 +348,23 @@ func toProtoCapabilities(capabilities WorkerCapabilities) *workerpb.WorkerCapabi
 }
 
 func processDispatchTask(ctx context.Context, processor TaskProcessor, scripts *ScriptRunnerRegistry, task *workerpb.DispatchTask) (TaskOutcome, error) {
-	if script := task.GetProcessorBinding().GetScript(); script != nil {
-		runner := scripts.get(script.GetLanguage())
-		if runner == nil {
-			return Failed(fmt.Sprintf("%s script runner is not registered on this worker", script.GetLanguage())), nil
+	return processDispatchTaskWithLogs(ctx, processor, scripts, task, nil)
+}
+
+func processDispatchTaskWithLogs(ctx context.Context, processor TaskProcessor, scripts *ScriptRunnerRegistry, task *workerpb.DispatchTask, emitLog func(level, message string)) (TaskOutcome, error) {
+	return captureTaskConsoleLogs(emitLog, func() (TaskOutcome, error) {
+		if script := task.GetProcessorBinding().GetScript(); script != nil {
+			runner := scripts.get(script.GetLanguage())
+			if runner == nil {
+				return Failed(fmt.Sprintf("%s script runner is not registered on this worker", script.GetLanguage())), nil
+			}
+			return runner.Run(ctx, scriptRunnerTask(task, script))
 		}
-		return runner.Run(ctx, scriptRunnerTask(task, script))
-	}
-	return processor.Process(ctx, TaskContext{
-		InstanceID:    task.GetInstanceId(),
-		JobID:         task.GetJobId(),
-		ProcessorName: task.GetProcessorName(),
-		Payload:       task.GetPayload(),
+		return processor.Process(ctx, TaskContext{
+			InstanceID:    task.GetInstanceId(),
+			JobID:         task.GetJobId(),
+			ProcessorName: task.GetProcessorName(),
+			Payload:       task.GetPayload(),
+		})
 	})
 }

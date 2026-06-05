@@ -29,6 +29,8 @@ import {
   type PluginSummary,
 } from "../api/client";
 import { PermissionGate } from "../components/Permission";
+import { useRouteActive } from "../hooks/useRouteActivation";
+import { ROUTE_META } from "../routes";
 
 const PLUGIN_KIND_OPTIONS = [
   { value: "mixed", label: "混合插件" },
@@ -135,6 +137,7 @@ export function PluginsPage() {
   const [editing, setEditing] = useState<PluginSummary | null>(null);
   const [form] = Form.useForm<PluginFormValues>();
   const selectedProcessorType = Form.useWatch("processorType", form);
+  const active = useRouteActive(ROUTE_META.plugins.path);
 
   const reload = async () => {
     setLoading(true);
@@ -148,8 +151,8 @@ export function PluginsPage() {
   };
 
   useEffect(() => {
-    void reload();
-  }, []);
+    if (active) void reload();
+  }, [active]);
 
   const openCreate = () => {
     setEditing(null);

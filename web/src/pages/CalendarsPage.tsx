@@ -4,6 +4,8 @@ import dayjs, { type Dayjs } from 'dayjs';
 import { useEffect, useState } from 'react';
 
 import { createCalendar, deleteCalendar, listAppScopes, listCalendars, listNamespaces, type AppScopeSummary, type CalendarSummary, type NamespaceSummary } from '../api/client';
+import { useRouteActive } from '../hooks/useRouteActivation';
+import { ROUTE_META } from '../routes';
 
 interface CalendarWindowFormValue {
   range?: [Dayjs, Dayjs];
@@ -40,6 +42,7 @@ export function CalendarsPage() {
   const [open, setOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<CalendarSummary | null>(null);
   const [form] = Form.useForm<CalendarFormValues>();
+  const active = useRouteActive(ROUTE_META.calendars.path);
 
   const reload = async () => {
     setLoading(true);
@@ -53,7 +56,7 @@ export function CalendarsPage() {
     }
   };
 
-  useEffect(() => { void reload(); }, []);
+  useEffect(() => { if (active) void reload(); }, [active]);
 
   const handleSubmit = async () => {
     const values = await form.validateFields();

@@ -16,7 +16,9 @@ import {
   updateScript,
 } from '../api/client';
 import { CodeEditor } from '../components/CodeEditor';
+import { useRouteActive } from '../hooks/useRouteActivation';
 import { useUrlQueryState } from '../hooks/useUrlQueryState';
+import { ROUTE_META } from '../routes';
 import { TABLE_PAGE_SIZE_OPTIONS, usePersistentTablePageSize } from '../utils/pagination';
 
 const LANGUAGE_OPTIONS = [
@@ -232,6 +234,7 @@ export function ScriptsPage() {
   const { query, setQuery } = useUrlQueryState(queryDefaults);
   const [scripts, setScripts] = useState<ScriptSummary[]>([]);
   const [loading, setLoading] = useState(false);
+  const active = useRouteActive(ROUTE_META.scripts.path);
 
   // Create drawer
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
@@ -266,8 +269,8 @@ export function ScriptsPage() {
   };
 
   useEffect(() => {
-    void load();
-  }, []);
+    if (active) void load();
+  }, [active]);
 
   // Create
   const handleCreate = async () => {

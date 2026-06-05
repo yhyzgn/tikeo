@@ -34,6 +34,8 @@ import {
   type WorkerPoolSummary,
 } from '../api/client';
 import { GuardedButton, PermissionGate, useCan } from '../components/Permission';
+import { useRouteActive } from '../hooks/useRouteActivation';
+import { ROUTE_META } from '../routes';
 import { persistentPagination, usePersistentTablePageSize } from '../utils/pagination';
 
 
@@ -106,6 +108,7 @@ export function ScopesPage() {
   const [drawer, setDrawer] = useState<'namespace' | 'app' | 'pool' | 'secret' | 'oidc' | null>(null);
   const [quotaForm] = Form.useForm<UpdateWorkerPoolQuotaRequest>();
   const [quotaPool, setQuotaPool] = useState<WorkerPoolSummary | null>(null);
+  const active = useRouteActive(ROUTE_META.scopes.path);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -129,7 +132,7 @@ export function ScopesPage() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { if (active) void refresh(); }, [active, refresh]);
 
   const namespaceOptions = useMemo(() => namespaces.map((item) => ({ value: item.name, label: item.name })), [namespaces]);
   const appOptions = useMemo(() => apps.map((item) => ({ value: item.name, label: `${item.namespace}/${item.name}` })), [apps]);

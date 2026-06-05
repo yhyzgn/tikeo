@@ -1,9 +1,10 @@
 import { BulbOutlined, LogoutOutlined, MoonOutlined } from '@ant-design/icons';
 import { Avatar, Badge, Button, ColorPicker, Layout, Menu, Select, Space, Tooltip, Typography } from 'antd';
+import type { MenuProps } from 'antd';
 import { useLocation, useNavigate } from 'react-router-dom';
-import type { ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { hasPermission, usePrincipal } from './AuthGuard';
-import { MENU_ROUTE_META } from '../routes';
+import { MENU_GROUPS, MENU_ROUTE_META } from '../routes';
 import { DEFAULT_PRIMARY_COLOR, useThemeSettings } from '../theme';
 import { LOCALE_OPTIONS, useI18n } from '../i18n';
 import { TikeeLogo } from './TikeeLogo';
@@ -30,23 +31,31 @@ export function AppShell({ children, onLogout }: AppShellProps) {
     .filter((route) => location.pathname === route.path || location.pathname.startsWith(`${route.path}/`))
     .sort((left, right) => right.path.length - left.path.length)[0];
   const selectedKey = selectedRoute?.menuKey ?? '/' + location.pathname.split('/').filter(Boolean)[0];
-  const menuItems = [
-    ...visibleRoutes
-      .filter((route) => route.group === 'main')
-      .map((route) => ({ key: route.menuKey, icon: route.icon, label: t(route.label), disabled: route.disabled })),
-    ...visibleRoutes.some((route) => route.group === 'governance') ? [{ type: 'divider' as const }] : [],
-    ...visibleRoutes
-      .filter((route) => route.group === 'governance')
-      .map((route) => ({ key: route.menuKey, icon: route.icon, label: t(route.label), disabled: route.disabled })),
-    { type: 'divider' as const },
-    ...visibleRoutes
-      .filter((route) => route.group === 'coming-soon')
-      .map((route) => ({ key: route.menuKey, icon: route.icon, label: t(route.label), disabled: route.disabled })),
-  ];
+  const overviewItems: MenuProps['items'] = visibleRoutes
+    .filter((route) => route.group === 'overview')
+    .map((route) => ({ key: route.menuKey, icon: route.icon, label: t(route.label), disabled: route.disabled }));
+  const groupedItems: MenuProps['items'] = MENU_GROUPS.map((group) => {
+    const children = visibleRoutes
+      .filter((route) => route.group === group.key)
+      .map((route) => ({ key: route.menuKey, icon: route.icon, label: t(route.label), disabled: route.disabled }));
+    if (children.length === 0) return null;
+    return { key: `group:${group.key}`, icon: group.icon, label: t(group.label), children };
+  }).filter((item): item is NonNullable<typeof item> => item !== null);
+  const menuItems: MenuProps['items'] = [...overviewItems, ...groupedItems];
+  const activeGroupKey = selectedRoute?.group && selectedRoute.group !== 'overview' ? `group:${selectedRoute.group}` : undefined;
+  const routeOpenKeys = useMemo(() => (activeGroupKey ? [activeGroupKey] : []), [activeGroupKey]);
+  const [openKeys, setOpenKeys] = useState<string[]>(routeOpenKeys);
+
+  useEffect(() => {
+    setOpenKeys((current) => {
+      const nextKeys = routeOpenKeys.filter((key) => !current.includes(key));
+      return nextKeys.length > 0 ? [...current, ...nextKeys] : current;
+    });
+  }, [routeOpenKeys]);
 
   return (
     <Layout className="app-shell">
-      <Sider breakpoint="lg" collapsedWidth="0" width={304} className="app-shell__sider">
+      <Sider width={304} className="app-shell__sider">
         <div className="app-shell__brand">
           <TikeeLogo size={64} />
           <div>
@@ -58,7 +67,11 @@ export function AppShell({ children, onLogout }: AppShellProps) {
           className="app-shell__menu"
           mode="inline"
           selectedKeys={[selectedKey]}
-          onClick={(event) => navigate(event.key)}
+          openKeys={openKeys}
+          onOpenChange={(keys) => setOpenKeys(keys.map(String))}
+          onClick={(event) => {
+            if (!event.key.startsWith('group:')) navigate(event.key);
+          }}
           items={menuItems}
         />
       </Sider>

@@ -13,11 +13,14 @@ import {
   type JobInstanceSummary,
   type JobSummary,
 } from '../api/client';
+import { useRouteActive } from '../hooks/useRouteActivation';
+import { ROUTE_META } from '../routes';
 import { persistentPagination, usePersistentTablePageSize } from '../utils/pagination';
 
 export function InstancesPage() {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [instances, setInstances] = useState<JobInstanceSummary[]>([]);
+  const active = useRouteActive(ROUTE_META.instances.path);
 
   const load = useCallback(async () => {
     try {
@@ -30,7 +33,7 @@ export function InstancesPage() {
     } catch { /* silent */ }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (active) void load(); }, [active, load]);
   const jobName = new Map(jobs.map((job) => [job.id, job.name]));
   const [logDrawerOpen, setLogDrawerOpen] = useState(false);
   const [selectedInstance, setSelectedInstance] = useState<JobInstanceSummary | null>(null);
@@ -68,14 +71,14 @@ export function InstancesPage() {
   };
 
   useEffect(() => {
-    if (!logDrawerOpen || !selectedInstance) {
+    if (!active || !logDrawerOpen || !selectedInstance) {
       return undefined;
     }
     const timer = window.setInterval(() => {
       void loadLogs(selectedInstance, false);
     }, 2_000);
     return () => window.clearInterval(timer);
-  }, [loadLogs, logDrawerOpen, selectedInstance]);
+  }, [active, loadLogs, logDrawerOpen, selectedInstance]);
 
   const getStatusColor = (status: string) => {
     switch (status) {

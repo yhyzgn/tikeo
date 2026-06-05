@@ -1,5 +1,8 @@
 use std::{
-    sync::atomic::{AtomicI64, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicI64, Ordering},
+    },
     time::Duration,
 };
 
@@ -9,6 +12,7 @@ use tonic::Streaming;
 
 use crate::{
     config::WorkerConfig,
+    console_capture::capture_task_console,
     error::WorkerSdkError,
     proto::worker::v1::{
         DispatchTask, Heartbeat, Ping, ScriptProcessorBinding, ServerMessage, TaskLog, TaskResult,
@@ -240,14 +244,45 @@ impl WorkerSession {
         )
         .await;
         let context = task_context(&task);
-        let outcome = if let Some(binding) = task.processor_binding.as_ref() {
-            process_bound_task(binding, &task, script_runners).await
-        } else {
-            match processor.process(context.clone()).await {
-                Ok(outcome) => outcome,
-                Err(error) => TaskOutcome::Failed(error.to_string()),
+        let log_instance_id = instance_id.clone();
+        let log_assignment_token = assignment_token.clone();
+        let outbound = self.outbound.clone();
+        let worker_id = self.worker_id.clone();
+        let log_sequence = self.log_sequence.fetch_add(0, Ordering::SeqCst);
+        let sequence_source = Arc::new(AtomicI64::new(log_sequence));
+        let emit_sequence_source = Arc::clone(&sequence_source);
+        let emit_log = Arc::new(move |level: &str, message: String| {
+            let sequence = emit_sequence_source.fetch_add(1, Ordering::SeqCst) + 1;
+            let _ = outbound.blocking_send(WorkerMessage {
+                kind: Some(worker_message::Kind::TaskLog(TaskLog {
+                    worker_id: worker_id.clone(),
+                    instance_id: log_instance_id.clone(),
+                    level: level.to_owned(),
+                    message,
+                    sequence,
+                    assignment_token: log_assignment_token.clone(),
+                })),
+            });
+        });
+        let task_for_capture = task.clone();
+        let context_for_capture = context.clone();
+        let outcome = capture_task_console(emit_log, || async move {
+            if let Some(binding) = task_for_capture.processor_binding.as_ref() {
+                Ok(process_bound_task(binding, &task_for_capture, script_runners).await)
+            } else {
+                match processor.process(context_for_capture).await {
+                    Ok(outcome) => Ok(outcome),
+                    Err(error) => Ok(TaskOutcome::Failed(error.to_string())),
+                }
             }
-        };
+        })
+        .await?;
+        let captured_log_sequence = sequence_source.load(Ordering::SeqCst);
+        let _ = self
+            .log_sequence
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
+                Some(current.max(captured_log_sequence))
+            });
         let level = if outcome.is_success() {
             "info"
         } else {

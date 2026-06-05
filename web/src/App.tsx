@@ -8,6 +8,7 @@ import { getAuthToken, getBootstrapStatus, logout, setAuthErrorHandler, setAuthT
 import { AppShell } from './components/AppShell';
 import { AuthGuard, RequirePermission } from './components/AuthGuard';
 import { ForbiddenPage } from './components/ForbiddenPage';
+import { KeepAliveOutlet } from './components/KeepAliveOutlet';
 import { RouteFallback } from './components/RouteFallback';
 import { ROUTE_META } from './routes';
 import { useI18n } from './i18n';
@@ -33,6 +34,24 @@ const ApiKeysPage = lazy(() => import('./pages/ApiKeysPage').then((module) => ({
 const GitOpsPage = lazy(() => import('./pages/GitOpsPage').then((module) => ({ default: module.GitOpsPage })));
 const WorkersPage = lazy(() => import('./pages/WorkersPage').then((module) => ({ default: module.WorkersPage })));
 const DispatchQueuePage = lazy(() => import('./pages/DispatchQueuePage').then((module) => ({ default: module.DispatchQueuePage })));
+
+const KEEP_ALIVE_ROUTES = [
+  { path: ROUTE_META.dashboard.path, element: <Dashboard /> },
+  { path: ROUTE_META.jobs.path, element: <JobsPage /> },
+  { path: ROUTE_META.instances.path, element: <InstancesPage /> },
+  { path: ROUTE_META.workflows.path, element: <GuardedRoute route={ROUTE_META.workflows}><WorkflowsPage /></GuardedRoute> },
+  { path: ROUTE_META.workers.path, element: <GuardedRoute route={ROUTE_META.workers}><WorkersPage /></GuardedRoute> },
+  { path: ROUTE_META.dispatchQueue.path, element: <GuardedRoute route={ROUTE_META.dispatchQueue}><DispatchQueuePage /></GuardedRoute> },
+  { path: ROUTE_META.users.path, element: <GuardedRoute route={ROUTE_META.users}><UsersPage /></GuardedRoute> },
+  { path: ROUTE_META.scopes.path, element: <GuardedRoute route={ROUTE_META.scopes}><ScopesPage /></GuardedRoute> },
+  { path: ROUTE_META.calendars.path, element: <GuardedRoute route={ROUTE_META.calendars}><CalendarsPage /></GuardedRoute> },
+  { path: ROUTE_META.plugins.path, element: <GuardedRoute route={ROUTE_META.plugins}><PluginsPage /></GuardedRoute> },
+  { path: ROUTE_META.apiKeys.path, element: <GuardedRoute route={ROUTE_META.apiKeys}><ApiKeysPage /></GuardedRoute> },
+  { path: ROUTE_META.gitops.path, element: <GuardedRoute route={ROUTE_META.gitops}><GitOpsPage /></GuardedRoute> },
+  { path: ROUTE_META.scripts.path, element: <GuardedRoute route={ROUTE_META.scripts}><ScriptsPage /></GuardedRoute> },
+  { path: ROUTE_META.alerts.path, element: <GuardedRoute route={ROUTE_META.alerts}><AlertDeliveryPage /></GuardedRoute> },
+  { path: ROUTE_META.audit.path, element: <GuardedRoute route={ROUTE_META.audit}><AuditLogsPage /></GuardedRoute> },
+];
 
 function GuardedRoute({ route, children }: { route: { permission?: { resource: string; action: string } }; children: React.ReactNode }) {
   if (!route.permission) return <>{children}</>;
@@ -80,25 +99,25 @@ function AppLayout() {
       <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/" element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
-          <Route path={ROUTE_META.dashboard.path} element={<Dashboard />} />
-          <Route path={ROUTE_META.jobs.path} element={<JobsPage />} />
+          <Route path={ROUTE_META.dashboard.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
+          <Route path={ROUTE_META.jobs.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.jobTopology.path} element={<JobTopologyPage />} />
-          <Route path={ROUTE_META.instances.path} element={<InstancesPage />} />
-          <Route path={ROUTE_META.workflows.path} element={<GuardedRoute route={ROUTE_META.workflows}><WorkflowsPage /></GuardedRoute>} />
+          <Route path={ROUTE_META.instances.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
+          <Route path={ROUTE_META.workflows.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.workflowNew.path} element={<GuardedRoute route={ROUTE_META.workflowNew}><WorkflowEditorPage /></GuardedRoute>} />
           <Route path={ROUTE_META.workflowEdit.path} element={<GuardedRoute route={ROUTE_META.workflowEdit}><WorkflowEditorPage /></GuardedRoute>} />
-          <Route path={ROUTE_META.workers.path} element={<GuardedRoute route={ROUTE_META.workers}><WorkersPage /></GuardedRoute>} />
-          <Route path={ROUTE_META.dispatchQueue.path} element={<GuardedRoute route={ROUTE_META.dispatchQueue}><DispatchQueuePage /></GuardedRoute>} />
-          <Route path={ROUTE_META.users.path} element={<GuardedRoute route={ROUTE_META.users}><UsersPage /></GuardedRoute>} />
-          <Route path={ROUTE_META.scopes.path} element={<GuardedRoute route={ROUTE_META.scopes}><ScopesPage /></GuardedRoute>} />
-          <Route path={ROUTE_META.calendars.path} element={<GuardedRoute route={ROUTE_META.calendars}><CalendarsPage /></GuardedRoute>} />
-          <Route path={ROUTE_META.plugins.path} element={<GuardedRoute route={ROUTE_META.plugins}><PluginsPage /></GuardedRoute>} />
-          <Route path={ROUTE_META.apiKeys.path} element={<GuardedRoute route={ROUTE_META.apiKeys}><ApiKeysPage /></GuardedRoute>} />
-          <Route path={ROUTE_META.gitops.path} element={<GuardedRoute route={ROUTE_META.gitops}><GitOpsPage /></GuardedRoute>} />
-          <Route path={ROUTE_META.scripts.path} element={<GuardedRoute route={ROUTE_META.scripts}><ScriptsPage /></GuardedRoute>} />
+          <Route path={ROUTE_META.workers.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
+          <Route path={ROUTE_META.dispatchQueue.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
+          <Route path={ROUTE_META.users.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
+          <Route path={ROUTE_META.scopes.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
+          <Route path={ROUTE_META.calendars.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
+          <Route path={ROUTE_META.plugins.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
+          <Route path={ROUTE_META.apiKeys.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
+          <Route path={ROUTE_META.gitops.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
+          <Route path={ROUTE_META.scripts.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.scriptEdit.path} element={<GuardedRoute route={ROUTE_META.scriptEdit}><ScriptEditorPage /></GuardedRoute>} />
-          <Route path={ROUTE_META.alerts.path} element={<GuardedRoute route={ROUTE_META.alerts}><AlertDeliveryPage /></GuardedRoute>} />
-          <Route path={ROUTE_META.audit.path} element={<GuardedRoute route={ROUTE_META.audit}><AuditLogsPage /></GuardedRoute>} />
+          <Route path={ROUTE_META.alerts.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
+          <Route path={ROUTE_META.audit.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path="/forbidden" element={<ForbiddenPage />} />
         </Routes>
       </Suspense>
@@ -185,7 +204,7 @@ export function App() {
           token: {
             colorPrimary: primaryColor,
             colorInfo: DEFAULT_INFO_COLOR,
-            colorBgBase: resolvedMode === 'dark' ? '#0f172a' : '#f6f8fc',
+            colorBgBase: resolvedMode === 'dark' ? '#191919' : '#f6f8fc',
             colorTextBase: resolvedMode === 'dark' ? '#e2e8f0' : '#172033',
             borderRadius: 12,
             controlHeight: 36,

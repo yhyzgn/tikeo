@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use tokio::{io::AsyncWriteExt, process::Command};
 
 use super::{
-    ScriptRunner, ScriptRunnerKind, ScriptRunnerTask, default_script_command,
+    ScriptRunner, ScriptRunnerKind, ScriptRunnerTask, default_script_command, replay_script_output,
     validate_script_runner_task,
 };
 use crate::{error::WorkerSdkError, task::TaskOutcome};
@@ -123,6 +123,8 @@ impl ScriptRunner for LocalSubprocessScriptRunner {
                     timeout_ms: task.policy.timeout_ms,
                 });
             };
+        replay_script_output(&output.stdout, &output.stderr);
+
         writer
             .await
             .map_err(|error| {

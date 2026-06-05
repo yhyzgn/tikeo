@@ -5,12 +5,135 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/yhyzgn/tikee/sdks/go/tikee/internal/workerpb"
 )
+
+func TestProcessDispatchTaskCapturesProcessorConsoleLogs(t *testing.T) {
+	processor := TaskProcessorFunc(func(context.Context, TaskContext) (TaskOutcome, error) {
+		fmt.Println("go processor stdout line")
+		fmt.Fprintln(os.Stderr, "go processor stderr line")
+		log.Print("go processor log package line")
+		return Succeeded(), nil
+	})
+	collector := newCapturedTaskLogCollector()
+	outcome, err := processDispatchTaskWithLogs(context.Background(), processor, nil, &workerpb.DispatchTask{
+		InstanceId:      "inst-go-stdout",
+		JobId:           "job-go-stdout",
+		ProcessorName:   "demo.echo",
+		AssignmentToken: "assign-token-go",
+	}, collector.add)
+	logs := collector.logs()
+	if err != nil {
+		t.Fatalf("processDispatchTaskWithLogs() error = %v", err)
+	}
+	if !outcome.Success {
+		t.Fatalf("unexpected outcome: %+v", outcome)
+	}
+	if !containsCapturedLog(logs, "info", "go processor stdout line") {
+		t.Fatalf("missing stdout task log: %+v", logs)
+	}
+	if !containsCapturedLog(logs, "error", "go processor stderr line") {
+		t.Fatalf("missing stderr task log: %+v", logs)
+	}
+	if !containsCapturedLogWithSubstring(logs, "error", "go processor log package line") {
+		t.Fatalf("missing log package stderr task log: %+v", logs)
+	}
+}
+
+func TestProcessDispatchTaskCapturesScriptRunnerConsoleLogs(t *testing.T) {
+	content := []byte("printf 'go script stdout\\n'; printf 'go script stderr\\n' >&2\n")
+	runner, err := NewLocalCommandScriptRunner("shell", "custom")
+	if err != nil {
+		t.Fatalf("NewLocalCommandScriptRunner() error = %v", err)
+	}
+	registry := NewScriptRunnerRegistry().Register(runner)
+	collector := newCapturedTaskLogCollector()
+	outcome, err := processDispatchTaskWithLogs(context.Background(), TaskProcessorFunc(func(context.Context, TaskContext) (TaskOutcome, error) {
+		t.Fatal("script binding must not invoke normal processor")
+		return Succeeded(), nil
+	}), registry, &workerpb.DispatchTask{
+		InstanceId:      "inst-go-script",
+		JobId:           "job-go-script",
+		AssignmentToken: "assign-token-script",
+		ProcessorBinding: &workerpb.TaskProcessorBinding{Kind: &workerpb.TaskProcessorBinding_Script{Script: &workerpb.ScriptProcessorBinding{
+			ScriptId:       "script-shell-log",
+			VersionId:      "sv-shell-log",
+			VersionNumber:  1,
+			Language:       "shell",
+			Content:        content,
+			ContentSha256:  sha256Hex(content),
+			TimeoutMs:      1000,
+			MaxOutputBytes: 4096,
+		}}},
+	}, collector.add)
+	logs := collector.logs()
+	if err != nil {
+		t.Fatalf("processDispatchTaskWithLogs() error = %v", err)
+	}
+	if !outcome.Success {
+		t.Fatalf("unexpected outcome: %+v", outcome)
+	}
+	if !containsCapturedLog(logs, "info", "go script stdout") {
+		t.Fatalf("missing script stdout task log: %+v", logs)
+	}
+	if !containsCapturedLog(logs, "error", "go script stderr") {
+		t.Fatalf("missing script stderr task log: %+v", logs)
+	}
+}
+
+type capturedTaskLog struct {
+	Level   string
+	Message string
+}
+
+type capturedTaskLogCollector struct {
+	mu      sync.Mutex
+	entries []capturedTaskLog
+}
+
+func newCapturedTaskLogCollector() *capturedTaskLogCollector {
+	return &capturedTaskLogCollector{}
+}
+
+func (c *capturedTaskLogCollector) add(level, message string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries = append(c.entries, capturedTaskLog{Level: level, Message: message})
+}
+
+func (c *capturedTaskLogCollector) logs() []capturedTaskLog {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]capturedTaskLog(nil), c.entries...)
+}
+
+func containsCapturedLog(logs []capturedTaskLog, level string, message string) bool {
+	for _, log := range logs {
+		if log.Level == level && log.Message == message {
+			return true
+		}
+	}
+	return false
+}
+
+func containsCapturedLogWithSubstring(logs []capturedTaskLog, level string, fragment string) bool {
+	for _, log := range logs {
+		if log.Level == level && strings.Contains(log.Message, fragment) {
+			return true
+		}
+	}
+	return false
+}
 
 func TestClientRegistrationAndHeartbeatDryRun(t *testing.T) {
 	config := LocalConfig("http://127.0.0.1:9998", "go-worker-1")
@@ -230,7 +353,6 @@ func sha256Hex(content []byte) string {
 	digest := sha256.Sum256(content)
 	return hex.EncodeToString(digest[:])
 }
-
 
 func TestUnavailableScriptRunnerIsFailClosedButNotAdvertised(t *testing.T) {
 	config := LocalConfig("http://127.0.0.1:9998", "go-worker-unavailable")

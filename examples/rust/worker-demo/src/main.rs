@@ -282,20 +282,66 @@ struct DemoProcessor;
 #[async_trait]
 impl TaskProcessor for DemoProcessor {
     async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError> {
+        println!(
+            "[rust-worker] processor={} instance={} payload_bytes={}",
+            task.processor_name,
+            task.instance_id,
+            task.payload.len()
+        );
         let outcome = match task.processor_name.as_str() {
-            "" | "demo.echo" => TaskOutcome::Success("rust demo echo processed".to_owned()),
-            "demo.context" => TaskOutcome::Success(format!(
-                "rust demo context processed instance={}",
-                task.instance_id
-            )),
-            "demo.bytes" => TaskOutcome::Success(format!(
-                "rust demo bytes processed payload_bytes={}",
-                task.payload.len()
-            )),
-            "demo.heartbeat" => TaskOutcome::Success("rust demo heartbeat processed".to_owned()),
-            "billing.sql-sync" => TaskOutcome::Success("rust demo sql plugin processed".to_owned()),
-            "demo.fail" => TaskOutcome::Failed("rust demo intentional failure".to_owned()),
-            other => TaskOutcome::Failed(format!("unsupported rust demo processor: {other}")),
+            "" | "demo.echo" => {
+                println!(
+                    "[demo.echo] payload='{}'",
+                    String::from_utf8_lossy(&task.payload)
+                );
+                TaskOutcome::Success("rust demo echo processed".to_owned())
+            }
+            "demo.context" => {
+                println!(
+                    "[demo.context] jobId={} instanceId={}",
+                    task.job_id, task.instance_id
+                );
+                TaskOutcome::Success(format!(
+                    "rust demo context processed instance={}",
+                    task.instance_id
+                ))
+            }
+            "demo.bytes" => {
+                println!(
+                    "[demo.bytes] payload='{}' length={}",
+                    String::from_utf8_lossy(&task.payload),
+                    task.payload.len()
+                );
+                TaskOutcome::Success(format!(
+                    "rust demo bytes processed payload_bytes={}",
+                    task.payload.len()
+                ))
+            }
+            "demo.heartbeat" => {
+                println!(
+                    "[demo.heartbeat] tick jobId={} instanceId={}",
+                    task.job_id, task.instance_id
+                );
+                TaskOutcome::Success("rust demo heartbeat processed".to_owned())
+            }
+            "billing.sql-sync" => {
+                println!(
+                    "[billing.sql-sync] plugin SQL processor received payload='{}'",
+                    String::from_utf8_lossy(&task.payload)
+                );
+                TaskOutcome::Success("rust demo sql plugin processed".to_owned())
+            }
+            "demo.fail" => {
+                eprintln!(
+                    "[demo.fail] intentional failure payload='{}'",
+                    String::from_utf8_lossy(&task.payload)
+                );
+                TaskOutcome::Failed("rust demo intentional failure".to_owned())
+            }
+            other => {
+                eprintln!("[rust-worker] unsupported processor={other}");
+                TaskOutcome::Failed(format!("unsupported rust demo processor: {other}"))
+            }
         };
         Ok(outcome)
     }

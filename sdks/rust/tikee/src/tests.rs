@@ -328,6 +328,80 @@ async fn local_subprocess_runner_reports_unavailable_runtime() {
 }
 
 #[tokio::test]
+async fn worker_session_captures_processor_stdout_and_stderr_as_task_logs() {
+    let (addr, server, mut events) = start_mock_tunnel_server(Some(DispatchTask {
+        instance_id: "instance-rust-console".to_owned(),
+        job_id: "job-rust-console".to_owned(),
+        payload: b"hello".to_vec(),
+        processor_name: "demo.console".to_owned(),
+        processor_binding: None,
+        assignment_token: "assign-token-console".to_owned(),
+    }))
+    .await;
+    let config = WorkerConfig::local(format!("http://{addr}"), "worker-rust-console");
+    let mut session = WorkerClient::new(config)
+        .connect()
+        .await
+        .unwrap_or_else(|error| panic!("worker should register: {error}"));
+
+    let outcome = session
+        .process_next(&ConsoleProcessor)
+        .await
+        .unwrap_or_else(|error| panic!("task should process: {error}"));
+    assert_eq!(outcome, TaskOutcome::Succeeded);
+
+    let logs = collect_until_result(&mut events).await;
+    assert!(
+        logs.iter().any(|log| log.level == "info"
+            && log.message == "rust processor stdout line"
+            && log.assignment_token == "assign-token-console"),
+        "missing captured stdout log: {logs:?}"
+    );
+    assert!(
+        logs.iter().any(|log| log.level == "error"
+            && log.message == "rust processor stderr line"
+            && log.assignment_token == "assign-token-console"),
+        "missing captured stderr log: {logs:?}"
+    );
+    server.abort();
+}
+
+#[tokio::test]
+async fn worker_session_captures_script_runner_stdout_and_stderr_as_task_logs() {
+    let dispatch = script_dispatch_task(
+        "instance-rust-script-console",
+        "printf 'rust script stdout\\n'; printf 'rust script stderr\\n' >&2\n",
+    );
+    let (addr, server, mut events) = start_mock_tunnel_server(Some(dispatch)).await;
+    let config = WorkerConfig::local(format!("http://{addr}"), "worker-rust-script-console");
+    let mut session = WorkerClient::new(config)
+        .connect()
+        .await
+        .unwrap_or_else(|error| panic!("worker should register: {error}"));
+    let mut registry = ScriptRunnerRegistry::new();
+    registry.register(LocalSubprocessScriptRunner::new(ScriptRunnerKind::Shell));
+
+    let outcome = session
+        .process_next_with_script_runners(&EchoProcessor, &registry)
+        .await
+        .unwrap_or_else(|error| panic!("script should process: {error}"));
+    assert_eq!(outcome, TaskOutcome::Succeeded);
+
+    let logs = collect_until_result(&mut events).await;
+    assert!(
+        logs.iter()
+            .any(|log| log.level == "info" && log.message == "rust script stdout"),
+        "missing script stdout log: {logs:?}"
+    );
+    assert!(
+        logs.iter()
+            .any(|log| log.level == "error" && log.message == "rust script stderr"),
+        "missing script stderr log: {logs:?}"
+    );
+    server.abort();
+}
+
+#[tokio::test]
 async fn worker_session_executes_script_binding_with_registered_runner() {
     let dispatch = script_dispatch_task("instance-script-ok", "exit 0\n");
     let (addr, server, mut events) = start_mock_tunnel_server(Some(dispatch)).await;
@@ -642,6 +716,20 @@ async fn worker_session_rejects_wasm_network_capability() {
     server.abort();
 }
 
+async fn collect_until_result(
+    events: &mut mpsc::Receiver<WorkerMessage>,
+) -> Vec<crate::proto::worker::v1::TaskLog> {
+    let mut logs = Vec::new();
+    while let Some(message) = events.recv().await {
+        match message.kind {
+            Some(worker_message::Kind::TaskLog(log)) => logs.push(log),
+            Some(worker_message::Kind::TaskResult(_)) => return logs,
+            _ => {}
+        }
+    }
+    panic!("task result should arrive");
+}
+
 async fn next_task_result(
     events: &mut mpsc::Receiver<WorkerMessage>,
 ) -> crate::proto::worker::v1::TaskResult {
@@ -728,6 +816,18 @@ impl worker_tunnel_service_server::WorkerTunnelService for MockTunnel {
         _request: Request<crate::proto::worker::v1::SubscribeTaskLogsRequest>,
     ) -> Result<Response<Self::SubscribeTaskLogsStream>, Status> {
         Ok(Response::new(Box::pin(tokio_stream::empty())))
+    }
+}
+
+struct ConsoleProcessor;
+
+#[async_trait::async_trait]
+impl TaskProcessor for ConsoleProcessor {
+    async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError> {
+        assert_eq!(task.payload, b"hello");
+        println!("rust processor stdout line");
+        eprintln!("rust processor stderr line");
+        Ok(TaskOutcome::Succeeded)
     }
 }
 

@@ -5,6 +5,7 @@
 pub mod proto;
 
 mod config;
+mod console_capture;
 mod error;
 pub mod management;
 mod script;

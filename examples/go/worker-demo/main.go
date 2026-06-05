@@ -56,20 +56,28 @@ func main() {
 		log.Fatal(err)
 	}
 	processor := tikee.TaskProcessorFunc(func(_ context.Context, task tikee.TaskContext) (tikee.TaskOutcome, error) {
+		fmt.Printf("[go-worker] processor=%s instance=%s payload_bytes=%d\n", task.ProcessorName, task.InstanceID, len(task.Payload))
 		switch task.ProcessorName {
 		case "", "demo.echo":
+			fmt.Printf("[demo.echo] payload='%s'\n", string(task.Payload))
 			return tikee.TaskOutcome{Success: true, Message: "go demo echo processed"}, nil
 		case "demo.context":
+			fmt.Printf("[demo.context] jobId=%s instanceId=%s\n", task.JobID, task.InstanceID)
 			return tikee.TaskOutcome{Success: true, Message: fmt.Sprintf("go demo context processed instance=%s", task.InstanceID)}, nil
 		case "demo.bytes":
+			fmt.Printf("[demo.bytes] payload='%s' length=%d\n", string(task.Payload), len(task.Payload))
 			return tikee.TaskOutcome{Success: true, Message: fmt.Sprintf("go demo bytes processed payload_bytes=%d", len(task.Payload))}, nil
 		case "demo.heartbeat":
+			fmt.Printf("[demo.heartbeat] tick jobId=%s instanceId=%s\n", task.JobID, task.InstanceID)
 			return tikee.TaskOutcome{Success: true, Message: "go demo heartbeat processed"}, nil
 		case "billing.sql-sync":
+			fmt.Printf("[billing.sql-sync] plugin SQL processor received payload='%s'\n", string(task.Payload))
 			return tikee.TaskOutcome{Success: true, Message: "go demo sql plugin processed"}, nil
 		case "demo.fail":
+			fmt.Fprintf(os.Stderr, "[demo.fail] intentional failure payload='%s'\n", string(task.Payload))
 			return tikee.Failed("go demo intentional failure"), nil
 		default:
+			fmt.Fprintf(os.Stderr, "[go-worker] unsupported processor=%s\n", task.ProcessorName)
 			return tikee.Failed("unsupported go demo processor: " + task.ProcessorName), nil
 		}
 	})

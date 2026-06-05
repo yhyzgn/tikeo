@@ -6,8 +6,9 @@ const shellSource = readFileSync(new URL('../../components/AppShell.tsx', import
 
 describe('responsive console shell', () => {
   test('keeps shell, toolbars, tables, and drawers usable on mobile widths', () => {
-    expect(shellSource).toContain('breakpoint="lg"');
-    expect(shellSource).toContain('collapsedWidth="0"');
+    expect(shellSource).toContain('<Sider width={304}');
+    expect(shellSource).not.toContain('breakpoint=');
+    expect(shellSource).not.toContain('collapsedWidth=');
     expect(stylesSource).toContain('@media (max-width: 767px)');
     expect(stylesSource).toContain('.app-shell__user');
     expect(stylesSource).toContain('.ant-table-wrapper');
