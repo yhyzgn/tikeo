@@ -1,6 +1,8 @@
-FROM docker.io/library/rust:1.95-alpine AS dependencies
+FROM rust:1.95-alpine AS dependencies
 
-RUN apk add --no-cache build-base ca-certificates cmake perl pkgconf protobuf-dev gcompat
+RUN apk update --force-missing-repositories \
+    && apk upgrade \
+    && apk add --no-cache build-base ca-certificates cmake perl pkgconf protobuf-dev gcompat
 
 # Rust official distribution and sparse registry configuration.
 ENV RUSTUP_DIST_SERVER="https://static.rust-lang.org"
@@ -43,10 +45,15 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 FROM docker.io/library/alpine:3.22 AS runtime
 
-RUN apk add --no-cache ca-certificates tzdata \
+RUN apk update --force-missing-repositories \
+    && apk upgrade \
+    && apk add --no-cache bash openssl-dev curl ca-certificates tzdata busybox-extras \
+    && rm -rf /tmp/* /var/cache/apk/* \
     && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
 ENV TZ=Asia/Shanghai
+LABEL maintainer="Neo<yhyzgn@gmail.com>"
+
 WORKDIR /app
 COPY --from=builder /tmp/tikee /usr/local/bin/tikee
 COPY config ./config
