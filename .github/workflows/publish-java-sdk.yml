@@ -48,7 +48,7 @@ jobs:
           find sdks/java -path '*/build/libs/*.jar' -type f -print -exec cp {} "dist/$PKG/" \;
           tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
       - name: Upload Java SDK package to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name || inputs.tag }}
           name: ${{ github.ref_name || inputs.tag }}

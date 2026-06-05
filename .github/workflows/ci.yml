@@ -200,7 +200,7 @@ jobs:
         run: deploy/smoke/cross-language-worker-parity-smoke.sh
       - name: Upload cross-language smoke report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cross-language-worker-smoke
           path: .dev/reports/cross-language-workers-*/*

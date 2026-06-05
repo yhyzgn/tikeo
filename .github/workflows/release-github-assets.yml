@@ -75,7 +75,7 @@ jobs:
           else
             tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: server-${{ matrix.target }}
           path: |
@@ -113,7 +113,7 @@ jobs:
           cp -R web/nginx "dist/$PKG/nginx"
           cp web/Dockerfile "dist/$PKG/Dockerfile"
           tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: tikee-web-dist
           path: dist/*.tar.gz
@@ -128,7 +128,7 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
           fetch-depth: 0
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: release-assets
           merge-multiple: true
@@ -194,7 +194,7 @@ jobs:
             printf '%s\n' "${CHANGELOG}"
           } > release-notes.md
       - name: Upload assets to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name || inputs.tag }}
           name: ${{ github.ref_name || inputs.tag }}
