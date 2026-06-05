@@ -20,11 +20,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          git init .
-          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
-          git -c http.extraheader="AUTHORIZATION: bearer $GITHUB_TOKEN" fetch --depth=1 origin "$GITHUB_SHA" || \
-            git -c http.extraheader="AUTHORIZATION: bearer $GITHUB_TOKEN" fetch --depth=1 origin "$GITHUB_REF"
-          git checkout --detach "$GITHUB_SHA" || git checkout --detach FETCH_HEAD
+          git init -b policy-check .
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          git remote set-url origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
       - name: Reject deprecated GitHub Actions Node runtimes
         run: python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24
 
