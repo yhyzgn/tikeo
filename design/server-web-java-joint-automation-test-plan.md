@@ -539,3 +539,17 @@ GitHub Actions 的 Node.js 20 warning 不能再作为“可忽略告警”处理
 1. 新增或升级任意 GitHub Action 时，必须保持 `scripts/verify-github-actions-node-runtime.py --min-node-major 24` 通过。
 2. 不得把 `Workflow policy` 改回 `actions/checkout` 或任何 `uses:` step，否则 policy 自身可能在 guard 前触发 runtime warning。
 3. Docker validation 必须保持 server/web 分拆，避免一个慢镜像阻塞另一个镜像的可见性；Buildx cache 必须保留 `cache-from: type=gha` 与 `cache-to: type=gha,mode=max`。
+
+### 13.10 2026-06-05 数据库迁移版本化硬化
+
+结论：SQLite legacy/dev schema 兼容升级已从 `connect_and_migrate` 后置未记录 hook 收敛为显式 SeaORM migration：`crates/tikee-storage/src/migration/sqlite_compat.rs`。初始化或升级后，`seaql_migrations` 会记录 `sqlite_compat`，避免兼容补丁只在启动路径隐式运行、不可审计或不可复盘。
+
+验证项：
+
+| ID | 范围 | 命令 | 断言 | 状态 |
+| --- | --- | --- | --- | --- |
+| DB-MIG-001 | storage | `cargo test -p tikee-storage sqlite_schema_compatibility_upgrade_is_tracked_as_versioned_migration -- --nocapture` | `seaql_migrations` 至少记录初始建表和 `sqlite_compat` 两个 migration | ✅ 通过 |
+| DB-MIG-002 | legacy SQLite | `cargo test -p tikee-storage sqlite_compatibility_creates_scope_tables_before_indexes_for_existing_dev_db -- --nocapture` | 旧 dev DB 形状仍可由显式 migration 补齐 scope 表并继续创建索引 | ✅ 通过 |
+| DB-MIG-003 | storage matrix | `cargo test -p tikee-storage -- --nocapture` / `scripts/db-compat-smoke.sh` | SQLite 幂等迁移、业务 repository、外部 DB smoke 入口保持可跑 | ✅ 通过（SQLite + Docker PostgreSQL/MySQL smoke） |
+
+后续规则：新增 schema 变更必须进入 SeaORM Migrator 的显式列表；不得再在 `connect_and_migrate` 后追加未记录的 `ensure_*` 启动补丁。SQLite 旧库兼容逻辑如果必须保留，应放入命名 migration 文件并保留幂等测试。

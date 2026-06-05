@@ -345,7 +345,7 @@ impl JobInstanceRepository {
     }
 }
 
-pub(crate) async fn job_scope(
+pub(super) async fn job_scope(
     db: &DatabaseConnection,
     parent: &job::Model,
 ) -> Result<Option<(String, String, String)>, sea_orm::DbErr> {

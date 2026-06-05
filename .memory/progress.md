@@ -1282,3 +1282,18 @@ Verification evidence:
 ### 2026-06-05 — Main CI now covers Go, demos, deploy tooling, and cross-language smoke
 - `.github/workflows/ci.yml` now has dedicated jobs for Go SDK/demo, Terraform provider/K8s operator Go modules, Java Boot2/3/4 demos, Rust demo, and cross-language Worker parity smoke.
 - Docker build validation depends on all language/demo/smoke quality gates, so fake SDK/demo regressions cannot bypass CI into image validation.
+
+
+### 2026-06-05 — Storage migration versioning hardening
+- Moved SQLite legacy/dev schema compatibility out of the untracked `connect_and_migrate` post-hook and into the explicit SeaORM migration `crates/tikee-storage/src/migration/sqlite_compat.rs`.
+- `connect_and_migrate` now relies on `migration::Migrator::up` only; schema compatibility upgrades are persisted in `seaql_migrations` as `sqlite_compat`.
+- Split SQLite foreign-key soft-link rebuild helpers into `migration/sqlite_compat/foreign_keys.rs`, keeping touched source files under the 1500-line rule.
+- Added regression coverage proving `sqlite_compat` is recorded and old SQLite dev DB shapes still get scope tables before indexes.
+Verification evidence:
+- `cargo test -p tikee-storage sqlite_schema_compatibility_upgrade_is_tracked_as_versioned_migration -- --nocapture` passed.
+- `cargo test -p tikee-storage sqlite_compatibility_creates_scope_tables_before_indexes_for_existing_dev_db -- --nocapture` passed.
+- `cargo test -p tikee-storage -- --nocapture` passed.
+- `scripts/db-compat-smoke.sh` passed with SQLite + Docker PostgreSQL/MySQL.
+
+- CI policy guard remains clean: `python3 .github/tests/workflow_contract_test.py` passed; `scripts/verify-github-actions-node-runtime.py --min-node-major 24` reported 13 external actions with no runtime below node24.
+- Source-size audit for touched files passed, but whole-repo audit found pre-existing over-1500-line debt in dispatcher/repository/workflow/Web generated-or-aggregate files; recorded in `.memory/next.md` instead of pretending the repo-wide rule is fully satisfied.

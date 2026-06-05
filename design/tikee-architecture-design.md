@@ -1214,6 +1214,8 @@ let instance = db.transaction::<_, (), DbErr>(|txn| {
 | **CockroachDB** | 地理分布/云原生 | ✅ 必须支持 | 分布式 SQL，Serverless 友好 |
 > Phase 2 implementation note: `tikee-storage` now enables `sqlx-postgres` alongside SQLite/MySQL. PostgreSQL and CockroachDB use `postgres://` URLs; CockroachDB relies on PostgreSQL wire protocol compatibility. Database relationships remain soft-linked by id fields only; no foreign keys are introduced for any backend.
 
+> Phase 4 hardening note (2026-06-05): SQLite legacy/dev schema compatibility is no longer an untracked post-migrate hook. The compatibility upgrade lives in the explicit SeaORM migration `crates/tikee-storage/src/migration/sqlite_compat.rs`, is recorded in `seaql_migrations` as `sqlite_compat`, remains idempotent for existing dev databases, and keeps the no-foreign-key soft-link rule. New schema changes must be added as explicit migration entries or clearly scoped helper modules, not hidden startup patches.
+
 | **MariaDB** | MySQL 兼容替代 | 🔄 兼容支持 | 通过 MySQL driver 兼容 |
 
 ### 7.3 存储抽象层设计
@@ -2129,7 +2131,7 @@ tikee/
 
 - [x] 项目脚手架 (workspace, CI, root binary entrypoint；2026-06-05 主 CI 已覆盖 Server/Web/Java/Go/Rust SDK 与 demo、跨语言 Worker smoke、Docker build，并通过 `Workflow policy` 禁止 Node.js 20 或更旧 GitHub JavaScript action runtime 回归)
 - [x] gRPC 协议定义与代码生成（Worker Tunnel proto + server streaming skeleton）
-- [x] SeaORM 存储层 + SQLite + MySQL 迁移（SQLite dev DB 已验证，MySQL migration 通过 SeaORM feature 启用）
+- [x] SeaORM 存储层 + SQLite + MySQL 迁移（SQLite dev DB 已验证，MySQL migration 通过 SeaORM feature 启用；2026-06-05：SQLite legacy schema 兼容升级迁入显式 SeaORM migration `sqlite_compat` 并由 `seaql_migrations` 记录）
 - [x] 基础调度器 (CRON + Fixed Rate + API 触发)
   - [x] API 手动触发实例链路（创建 pending job_instance + 实例列表/详情查询）
   - [x] CRON tick loop（cron 0.16 expression + in-memory trigger cursor）
@@ -2344,7 +2346,7 @@ Phase 3 closeout 状态已在 2026-05-28 复核：原先保留未勾选的 OIDC 
 
 #### Source file hygiene checkpoint (2026-05-25)
 
-后续源码文件必须保持单文件 `<=1500` 行；`mod.rs` / `lib.rs` 等入口文件只做模块声明和 re-export，不堆实现或测试。当前已拆分 HTTP gateway、raft-rs 测试、storage migration、workflow repository 等超大文件，验证最大源文件行数为 1495。
+后续源码文件必须保持单文件 `<=1500` 行；`mod.rs` / `lib.rs` 等入口文件只做模块声明和 re-export，不堆实现或测试。2026-06-05 迁移专项已保证本轮触达文件低于 1500 行，但全仓库重新审计发现仍有历史超限文件（如 dispatcher、repository、workflow、Web i18n/API client 等），后续不得再宣称全仓库已满足该规则，需优先拆分或建立明确生成文件豁免边界。
 
 **P2 — 生态接入 / 高级差异化（不阻塞服务先跑起来）**
 

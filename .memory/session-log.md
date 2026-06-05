@@ -1911,3 +1911,11 @@ Commit/push:
 - Audited `.github/workflows/ci.yml`: previous main CI covered Server/Web/Java SDK/Rust SDK/Docker only; it missed Go SDK/demo, Go deploy tooling, Java Boot2/3/4 demos, Rust demo, and the new cross-language smoke harness.
 - Added CI jobs: `Go SDK and demo`, `Go deploy tooling`, `Java worker demos`, `Rust worker demo`, and `Cross-language worker smoke`; Docker build validation now depends on all quality gates.
 - Verification: workflow YAML parse; `git diff --check`; Go SDK/demo/deploy `go test ./... -count=1`; Rust demo fmt/clippy/test; Java Boot2/3/4 demo `./gradlew test --no-daemon`.
+
+
+### 2026-06-05 — 数据库迁移版本化专项
+- 用户要求继续生产化风险清理；选择数据库 migration/versioning 作为下一步 P0。
+- 审计发现 `tikee-storage::connect_and_migrate` 在 SeaORM Migrator 后追加 SQLite-only `ensure_*_schema_compatibility`，升级补丁没有进入 `seaql_migrations`，属于不可审计/不可复盘的启动隐式 patch。
+- 先写失败测试 `sqlite_schema_compatibility_upgrade_is_tracked_as_versioned_migration`，确认当前 migration history 只有 `['mod']`。
+- 实现：新增 `migration/sqlite_compat.rs` 显式 SeaORM migration，迁入原 SQLite legacy schema compatibility；`connect_and_migrate` 删除未记录 post-hook；foreign-key soft-link rebuild 拆为子模块。
+- 验证：targeted migration tests、`cargo test -p tikee-storage -- --nocapture`、`cargo test -p tikee-server -- --nocapture`、`cargo clippy -p tikee-storage -p tikee-server --all-targets --all-features -- -D warnings`、`scripts/db-compat-smoke.sh`、`cargo build -p tikee-server --all-features`、`git diff --check` 均通过。

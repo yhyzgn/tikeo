@@ -486,3 +486,17 @@ Constraint:
 
 - Decision: Main CI must include every implemented SDK/demo family, not just server/web and Java/Rust SDKs. Go SDK/demo, Java demos, Rust demo, deploy Go tooling, and cross-language smoke are quality gates.
 - Rejected: leaving Go or demo validation as manual-only | it allows parity regressions and fake capability advertising to bypass GitHub checks.
+
+
+## 2026-06-05 — Storage migration versioning rule
+
+Decision:
+- Runtime schema changes must be represented by explicit SeaORM migrations in `tikee-storage::migration::Migrator::migrations` and persisted in `seaql_migrations`.
+- `connect_and_migrate` may configure/connect and run `Migrator::up`, but must not append hidden post-migrate `ensure_*` schema patches.
+- SQLite legacy/dev compatibility remains allowed only as a named, idempotent migration module such as `sqlite_compat`, with regression tests covering old DB shapes.
+
+Rejected:
+- Keeping compatibility DDL as an untracked startup hook | it makes production upgrades unauditable and can diverge across SQLite/MySQL/PostgreSQL/CockroachDB.
+
+Constraint:
+- Future schema additions must add a migration entry or update a clearly named migration module with tests; do not silently patch tables after `Migrator::up`.

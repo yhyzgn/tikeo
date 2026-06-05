@@ -3,6 +3,7 @@
 mod columns;
 mod iden;
 mod indexes;
+mod sqlite_compat;
 
 use sea_orm_migration::prelude::*;
 
@@ -22,6 +23,7 @@ use self::{
         WorkflowNodeInstances, WorkflowNodes, WorkflowShards, Workflows,
     },
     indexes::create_indexes,
+    sqlite_compat::LegacySqliteSchemaCompatibility,
 };
 
 /// Storage schema migrator.
@@ -30,7 +32,10 @@ pub struct Migrator;
 #[async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![Box::new(CreateMetadataTables)]
+        vec![
+            Box::new(CreateMetadataTables),
+            Box::new(LegacySqliteSchemaCompatibility),
+        ]
     }
 }
 

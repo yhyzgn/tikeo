@@ -32,7 +32,7 @@ pub async fn run_tick_loop(
     instances: JobInstanceRepository,
     cluster: SharedClusterCoordinator,
 ) {
-    let state = ScheduleState::default();
+    let state = ScheduleState;
     let mut ticker = tokio::time::interval(TICK_INTERVAL);
 
     loop {
@@ -750,7 +750,7 @@ mod tests {
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let state = ScheduleState::default();
+        let state = ScheduleState;
         let now = Utc
             .with_ymd_and_hms(2026, 5, 19, 1, 0, 0)
             .single()
@@ -801,10 +801,10 @@ mod tests {
             .single()
             .unwrap_or_else(|| panic!("valid time"));
 
-        tick_once(&jobs, &instances, &ScheduleState::default(), now)
+        tick_once(&jobs, &instances, &ScheduleState, now)
             .await
             .unwrap_or_else(|error| panic!("first tick should run: {error}"));
-        tick_once(&jobs, &instances, &ScheduleState::default(), now)
+        tick_once(&jobs, &instances, &ScheduleState, now)
             .await
             .unwrap_or_else(|error| panic!("restart tick should run: {error}"));
 
@@ -859,7 +859,7 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
 
-        tick_once(&jobs, &instances, &ScheduleState::default(), now)
+        tick_once(&jobs, &instances, &ScheduleState, now)
             .await
             .unwrap_or_else(|error| panic!("tick should run: {error}"));
         let listed = instances
@@ -914,7 +914,7 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
 
-        tick_once(&jobs, &instances, &ScheduleState::default(), now)
+        tick_once(&jobs, &instances, &ScheduleState, now)
             .await
             .unwrap_or_else(|error| panic!("tick should run: {error}"));
         let listed = instances
@@ -967,7 +967,7 @@ mod tests {
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let state = ScheduleState::default();
+        let state = ScheduleState;
         let first = Utc
             .with_ymd_and_hms(2026, 5, 19, 1, 0, 0)
             .single()
@@ -1020,7 +1020,7 @@ mod tests {
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let state = ScheduleState::default();
+        let state = ScheduleState;
         let now = Utc
             .with_ymd_and_hms(2026, 5, 19, 1, 0, 1)
             .single()
@@ -1062,7 +1062,7 @@ mod tests {
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let state = ScheduleState::default();
+        let state = ScheduleState;
         let now = Utc
             .with_ymd_and_hms(2026, 5, 29, 1, 30, 0)
             .single()
@@ -1106,7 +1106,7 @@ mod tests {
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let state = ScheduleState::default();
+        let state = ScheduleState;
         let now = Utc
             .with_ymd_and_hms(2026, 5, 29, 1, 30, 0)
             .single()
@@ -1147,7 +1147,7 @@ mod tests {
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let state = ScheduleState::default();
+        let state = ScheduleState;
         let now = Utc
             .with_ymd_and_hms(2026, 5, 19, 1, 0, 0)
             .single()
@@ -1188,7 +1188,7 @@ mod tests {
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let state = ScheduleState::default();
+        let state = ScheduleState;
         let follower = StaticCoordinator::shared(ClusterStatus {
             mode: ClusterMode::Raft,
             role: ClusterRole::Follower,
@@ -1238,7 +1238,7 @@ mod tests {
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let state = ScheduleState::default();
+        let state = ScheduleState;
         let now = Utc
             .with_ymd_and_hms(2026, 5, 29, 1, 30, 0)
             .single()
@@ -1280,7 +1280,7 @@ mod tests {
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let state = ScheduleState::default();
+        let state = ScheduleState;
         let now = Utc
             .with_ymd_and_hms(2026, 5, 29, 0, 30, 0)
             .single()
@@ -1321,7 +1321,7 @@ mod tests {
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let state = ScheduleState::default();
+        let state = ScheduleState;
         let first = Utc
             .with_ymd_and_hms(2026, 5, 29, 1, 30, 0)
             .single()
