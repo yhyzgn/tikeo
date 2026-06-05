@@ -52,6 +52,9 @@ RUN apk update --force-missing-repositories \
     && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
 ENV TZ=Asia/Shanghai
+ENV MIMALLOC_PURGE_DELAY=0
+ENV MIMALLOC_PURGE_DECOMMITS=1
+ENV MIMALLOC_ABANDONED_PAGE_PURGE=1
 LABEL maintainer="Neo<yhyzgn@gmail.com>"
 
 WORKDIR /app

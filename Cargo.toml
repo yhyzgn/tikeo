@@ -29,8 +29,30 @@ nursery = "warn"
 unwrap_used = "warn"
 expect_used = "warn"
 
+[profile.dev]
+opt-level = 0           # Keep the default for fast local builds.
+lto = false             # Disable link-time optimization in development.
+codegen-units = 256     # Maximize parallel code generation for faster rebuilds.
+debug = 2               # Include full debug information.
+panic = "unwind"        # Preserve unwinding for debugger-friendly failures.
+overflow-checks = true  # Keep integer overflow checks enabled.
+incremental = true      # Rebuild only changed code where possible.
+
+# Optimized for production performance; release builds intentionally take longer.
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+debug = false
+panic = "unwind"
+overflow-checks = false
+incremental = false
+rpath = false
+strip = "symbols"
+
 [dependencies]
 anyhow = "1"
+mimalloc = { version = "0.1.52", default-features = false }
 tikee-server = { path = "crates/tikee-server" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 

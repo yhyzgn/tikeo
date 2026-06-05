@@ -183,6 +183,10 @@ WEB_LOG="$LOG_DIR/web.log"
 : >"$SERVER_LOG"
 : >"$WEB_LOG"
 
+export MIMALLOC_PURGE_DELAY="${MIMALLOC_PURGE_DELAY:-0}"
+export MIMALLOC_PURGE_DECOMMITS="${MIMALLOC_PURGE_DECOMMITS:-1}"
+export MIMALLOC_ABANDONED_PAGE_PURGE="${MIMALLOC_ABANDONED_PAGE_PURGE:-1}"
+
 echo "启动后端：$API_URL"
 setsid bash -c 'tail -n +1 -F "$1" 2>/dev/null | sed -u "s/^/[$2] /"' _ "$SERVER_LOG" server &
 SERVER_LOG_CONSOLE_PID=$!

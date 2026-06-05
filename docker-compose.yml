@@ -5,6 +5,10 @@ services:
       dockerfile: Dockerfile
     image: ${TIKEE_IMAGE:-tikee:dev}
     command: ["serve", "--config", "/app/config/container.toml"]
+    environment:
+      MIMALLOC_PURGE_DELAY: ${MIMALLOC_PURGE_DELAY:-0}
+      MIMALLOC_PURGE_DECOMMITS: ${MIMALLOC_PURGE_DECOMMITS:-1}
+      MIMALLOC_ABANDONED_PAGE_PURGE: ${MIMALLOC_ABANDONED_PAGE_PURGE:-1}
     ports:
       - "${TIKEE_HTTP_PORT:-9090}:9090"
       - "${TIKEE_WORKER_TUNNEL_PORT:-9998}:9998"
