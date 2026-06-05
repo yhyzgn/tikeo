@@ -454,3 +454,56 @@ scripts/db-seed-api-compat-smoke.sh
 ```
 
 本轮手动执行证据包含：`postgres-seed.log`、`postgres-jobs.json`、`postgres-worker-pools.json`、`postgres-plugins.json`、`mysql-seed.log`、`mysql-jobs.json`、`mysql-worker-pools.json`、`mysql-plugins.json`。
+
+## 12. 2026-06-04 跨语言 Worker parity 与持久化可见性补充验证
+
+本节记录 2026-06-04 在 Java 多 Worker 联调基线之后追加完成的 Go/Rust SDK 与 demo 对齐、Worker 可见性持久化、Web Worker 集群视图重组和 CI 验证结果。该状态是当前手动抽查验收的最新基线。
+
+### 12.1 代码与数据状态
+
+| 项 | 当前状态 | 说明 |
+| --- | --- | --- |
+| Worker 可见性持久化 | ✅ 已完成 | `worker_sessions` 保存 `capabilities_json`、`structured_capabilities_json`、`labels_json`、`master_json`；`/api/v1/workers` 合并 live registry 与 DB online sessions，避免 server 重启后 Worker 列表完全依赖内存。 |
+| Worker master/follower 观测 | ✅ 已完成 | master state 以 camelCase 序列化，Web Worker 页面按 namespace/app 与 cluster/region 分组展示 node。 |
+| 调度队列 UI | ✅ 已拆分 | 调度队列从 Worker 集群主页面移到 `/workers/dispatch-queue` 二级页。 |
+| i18n label | ✅ 已修正 | 中文显示“处理器”，英文显示 `Processor`，不再混合显示中英混排标签。 |
+| Go SDK/demo | ✅ 已对齐 | 默认 live 连接；官方 gRPC/protobuf；结构化 scope/processor/capability；assignment token 任务日志；重连循环；README 说明 protoc 与 Dockerfile 安装。 |
+| Rust SDK/demo | ✅ 已对齐 | 默认 live 连接；结构化 scope/processor/capability；assignment token 任务日志；重连循环；script runners 对齐 Java sandbox 名称。 |
+| dev DB | ✅ 已同步 | `tikee-dev.db` 已包含 Java/Go/Rust 手动验收数据和 script/job 用例。 |
+
+### 12.2 Go/Rust live 验收证据
+
+| 语言 | 触发 Job | 选择器 | 实例日志断言 | 结果 |
+| --- | --- | --- | --- | --- |
+| Go | `job_go_demo_orders_echo` | structured tag `go` | `received task ... processor=demo.echo`；`completed task ... success=true message=go demo echo processed` | ✅ 通过 |
+| Rust | `job_rust_demo_orders_echo` | structured tag `rust` | `received task ... processor=demo.echo`；`completed task ... success=true message=` | ✅ 通过 |
+
+关键修复：Go/Rust SDK 日志上报必须带 `assignment_token`，否则服务端按当前安全规则会丢弃日志；现在 Go/Rust 与 Java 一样会在任务开始/完成时自动上报实例日志。
+
+### 12.3 本地验证命令
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features -- --test-threads=1
+cargo build --workspace --all-features
+cd web && bun install --frozen-lockfile && bun run lint && bun run typecheck && bun test && bun run build
+cd sdks/java && ./gradlew test jar sourcesJar
+cd sdks/go/tikee && go test ./...
+cd examples/go/worker-demo && go test ./...
+cd sdks/rust/tikee && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features && cargo package --allow-dirty
+cd examples/rust/worker-demo && cargo test
+```
+
+### 12.4 GitHub Actions CI
+
+- CI run：`26947829951`
+- 结果：✅ success
+- 覆盖：Server / Rust workspace、Web / React、Java SDK、Rust SDK、Docker build validation。
+
+### 12.5 后续必须自动化的剩余项
+
+1. 将当前 Go/Rust/Java 手动联调流程收敛成 executable cross-language worker integration harness。
+2. 增加 server restart persistence smoke：Worker 注册后重启 server，验证 `/api/v1/workers` 能先从 DB snapshot 展示，再由 live registry 覆盖。
+3. 增加 Go/Rust 任务实例日志 API smoke，防止 assignment token 日志链路回退。
+4. 增加 persisted worker 的 worker_pool scope filtering 回归，禁止任何约定命名式匹配回流。

@@ -89,3 +89,10 @@
 - Script governance blocks unsafe releases and unverified approval/signature metadata, but full multi-level approval workflow, verified signatures/KMS, URL/File/Secret grants, and production release gates remain future work.
 - Alerting has durable rules/events/recovery/summary, redacted channel readiness, production-guarded webhook/provider POST delivery, provider-specific Slack/DingTalk/Feishu/WeCom/PagerDuty JSON adapters, persisted delivery attempt history, local-loopback SMTP email delivery foundation, and bounded retry/DLQ processing plus ownership-gated background retry scheduling; production SMTP TLS/auth/secret handling and live external provider smoke remain future work.
 - Observability has `/metrics`, metrics summary, Grafana template, dispatch queue pending-age and completed dispatch latency histograms, instance status/success-ratio, alert status, script-governance, and workflow/map-shard SLA Prometheus snapshots; live recording-rule validation and collector export smoke are still open.
+
+## 2026-06-05 — Cross-language Worker parity automation gap
+
+- Go/Rust/Java Worker parity and Worker session snapshot persistence have manual live evidence and CI success, but the cross-language, server-restart, persisted-filtering scenario still needs a committed executable harness.
+- Risk: without automated restart persistence coverage, future changes could regress `/api/v1/workers` back to memory-only visibility or lose structuredCapabilities/labels/master snapshots after server restart.
+- Risk: without explicit worker_pool filtering tests over persisted snapshots, convention-based matching could accidentally reappear.
+- Required next mitigation: implement `.prompt/147-phase4-cross-language-worker-parity-and-persistence-hardening.md` and write evidence under `.dev/reports/cross-language-workers-<run-id>/`.

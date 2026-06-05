@@ -468,3 +468,10 @@ Constraint:
 - Decision: The first local verification boundary supports `env:NAME` secret refs and a deterministic `sha256:<hex>` signature over script id, immutable version number, content SHA-256, and approval ticket.
 - Constraint: This is not a replacement for future KMS/PKI/multi-level approval; it is a local, testable boundary that prevents silently accepting approval/signature metadata.
 - Rejected: Accepting arbitrary approval tickets without a matching signature | would create governance theater instead of a real gate.
+
+## 2026-06-05 — Worker visibility persistence and structured parity rule
+
+- Decision: Worker list visibility must merge live registry state with persisted `worker_sessions` snapshots; important Worker observability state is not allowed to be memory-only.
+- Decision: Persisted worker snapshot fields include capabilities, structuredCapabilities, labels, and master state; UI/API filtering must use structured fields/labels/capabilities, not clientInstanceId or job naming conventions.
+- Decision: Go and Rust SDK/demo parity is evaluated against the Java demo feature surface where feasible: live Worker Tunnel, structured scope, processor names, assignment-token task logs, script runner capabilities, and reconnect behavior.
+- Constraint: Any future worker_pool/sandbox/processor matching fallback based only on naming convention is rejected unless documented as explicit legacy compatibility with tests proving structured matching remains primary.

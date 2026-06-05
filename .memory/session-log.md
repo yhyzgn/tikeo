@@ -1894,3 +1894,9 @@ Commit/push:
 - Root `sdks/java/build.gradle.kts` now owns only aggregation and shared group/version; each SDK module owns `java-library`, `maven-publish`, dependencies, tests, and framework/plugin constraints.
 - `tikee` owns the protobuf plugin and gRPC/protobuf dependencies; Spring adapters own their Spring Framework major version; Boot starters own their Boot BOM and starter/autoconfigure dependencies.
 - Verification: `cd sdks/java && ./gradlew projects --no-daemon`; `cd sdks/java && ./gradlew clean test publishToMavenLocal --no-daemon`; Boot2/Boot3/Boot4 demo `./gradlew clean test --no-daemon`.
+
+### 2026-06-05 — 同步 2026-06-04 Worker/SDK parity 文档与下一阶段提示词
+- 按 `prompt.md` 接手协议读取 prompt、memory、最新 `.prompt/146`、昨日提交与相关 design/docs。
+- 将 2026-06-04 已完成状态同步到架构、Worker 生命周期、Java 多 worker 联调报告、联合自动化测试状态/方案和 integration docs：Worker 可见性快照持久化、Web Worker 分组/调度队列二级页、Go/Rust SDK demo 默认 live、assignment-token 日志、script runner capability 对齐、CI run `26947829951` success。
+- 新增 `.prompt/147-phase4-cross-language-worker-parity-and-persistence-hardening.md`，下一步聚焦把当前手动 Java/Go/Rust Worker parity 与 server restart persistence 验收固化为 executable harness。
+- Verification: 文档轻量检查与 git diff check 在本轮执行后记录。

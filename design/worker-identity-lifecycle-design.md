@@ -234,6 +234,10 @@ status_evidence
 lease_expires_at
 last_heartbeat_at
 last_sequence
+capabilities_json
+structured_capabilities_json
+labels_json
+master_json
 connected_at
 disconnected_at
 replaced_by_worker_id
@@ -262,9 +266,11 @@ detail_json
 created_at
 ```
 
-当前已落地事件包括 `session_registered`、`session_replaced`、`stale_worker_message`、`lease_expired`、`graceful_shutdown`；后续继续扩展 `heartbeat_renewed`、`dispatch_assigned`、`transport_closed`、`drain_requested`、`history_archived`。
+当前已落地事件包括 `session_registered`、`session_replaced`、`stale_worker_message`、`lease_expired`、`graceful_shutdown`、`transport_error`；后续继续扩展 `heartbeat_renewed`、`dispatch_assigned`、`transport_closed`、`drain_requested`、`history_archived`。
 
 > 2026-05-25 已落地 Slice B/C/D/E：`worker_logical_instances` / `worker_sessions` / `worker_session_events` 已进入迁移与 SQLite 兼容初始化；`WorkerRegistry` 在配置持久化仓储后会将注册、替换与心跳续租写入这些表；后台 lease scanner 会将过期 online session 标记为 `offline / lease_expired_unknown` 并写入 `lease_expired` 事件；Rust/Java SDK close 会发送 graceful unregister，Server 标记为 `stopped / graceful_shutdown`；dispatch 生成 assignment token，Rust/Java SDK 回传，Server 只接受当前 assignment token 的日志/结果。遵守项目既定约束：所有跨表关系都是软关联，不创建数据库外键。
+>
+> 2026-06-04 已补齐 Worker 可见性持久化：`worker_sessions` 追加保存 `capabilities_json`、`structured_capabilities_json`、`labels_json`、`master_json` 快照；注册、心跳、unregister、transport error 均更新/保留可观测快照；`/api/v1/workers` 合并 live registry 与持久层 online sessions，因此 server 重启后即使 Worker 尚未完成重连，也能先展示上次 online session 的结构化能力、labels 与 master/follower 状态。worker_pool scope 过滤必须读取结构化 labels/快照，不允许退回命名约定匹配。
 
 ## 8. SDK 配置建议
 
@@ -420,6 +426,13 @@ POST /api/v1/workers/sessions/{worker_id}:mark-history
 - 增加 session timeline 和 replacement chain。
 - 增加指标与告警规则。
 
+### Slice F：重启后可见性快照
+
+- 注册/心跳时持久化 capabilities、structuredCapabilities、labels、master 快照。
+- Worker 列表 API 合并 live registry 与持久 online sessions，live 优先、DB 快照兜底。
+- scope/worker_pool 过滤使用 namespace/app/cluster/region/labels/structuredCapabilities 等结构化字段，不允许依赖 clientInstanceId 或名称约定。
+- UI 按 namespace/app、cluster/region 分组展示 node 列表，调度队列放到独立二级页或抽屉。
+
 ## 14. 验证计划
 
 - 单元测试：注册同 logical key 两次，旧 session 变 `replaced`，新 generation 可调度。
@@ -429,6 +442,8 @@ POST /api/v1/workers/sessions/{worker_id}:mark-history
 - 集成测试：新 Worker 重连 -> 旧 session `replaced_by_new_generation`。
 - Java Starter 测试：默认 client_instance_id 从 env/K8s/host-slot 推导；显式配置优先。
 - Web 测试：默认只显示 online，history 折叠且可过滤。
+- 集成测试：启动 Worker 后重启 server，在 Worker 重连前 `/api/v1/workers` 仍能读取 DB 快照展示 online session 能力与 master 状态；Worker 重连后 live registry 覆盖 DB 快照。
+- 回归测试：worker_pool 过滤对 live Worker 与持久化快照 Worker 结果一致。
 
 ## 15. 关键决策
 

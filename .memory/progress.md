@@ -1264,3 +1264,10 @@ Verification evidence:
 - `sdks/java/build.gradle.kts` 只保留聚合与 group/version；各 SDK 子模块新增自己的 `build.gradle.kts`。
 - 每个子模块独立声明插件、依赖、测试、`maven-publish`，便于独立约束 Spring/Boot/grpc/protobuf 版本与独立发布。
 - 验证：`cd sdks/java && ./gradlew clean test publishToMavenLocal --no-daemon`；Boot2/Boot3/Boot4 demo 测试均通过。
+
+### 2026-06-05 — 文档同步：2026-06-04 Worker/SDK parity 与持久化状态
+- 架构文档已更新 Go SDK 当前状态、Java Boot2/3/4 starter 兼容模块、Worker Tunnel `OpenTunnel` proto 名称、Go/Rust SDK demo parity、Worker session snapshot 持久化和 Web Worker 页面分组/调度队列拆分。
+- Worker identity lifecycle 文档已补充 `worker_sessions` snapshot JSON 字段、`transport_error` 事件、重启后 worker 可见性快照 Slice F 与验证计划。
+- Java demo 多 Worker 联调报告已追加 2026-06-04 跨语言 Worker parity / 持久化可见性补充结果。
+- 联合自动化测试状态表已追加 H-WORKER/H-GO/H-RUST/H-SCRIPT/H-CI 补充项，当前补充项 6/6 通过；测试方案新增 X-LANG 自动化计划。
+- `.prompt/147-phase4-cross-language-worker-parity-and-persistence-hardening.md` 已创建，要求下一阶段把手动验收转成可重复 harness。

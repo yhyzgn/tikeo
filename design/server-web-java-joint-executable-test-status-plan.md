@@ -217,6 +217,20 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 2. MySQL `varchar` 容量不足：脚本内容、workflow definition/config/shard payload、audit detail/before/after、schedule calendar JSON 等改为 `text`。
 3. 跨库验证资产补齐：`scripts/db-compat-smoke.sh` + `deploy/compose/database-compat-compose.yml` + `crates/tikee-storage/tests/database_compat.rs`。
 
+
+## 10.1 2026-06-04 跨语言 Worker parity / 持久化补充状态
+
+| ID | 测试项 | 执行方式 | 核心断言 | 当前测试结果 | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| H-WORKER-001 | Worker 列表持久化快照 | 注册 worker 后重启 server，查询 `/api/v1/workers` | API 合并 live registry 与 `worker_sessions` online snapshot；capabilities/structuredCapabilities/labels/master 不丢失 | 本轮实现已落地并由本地手动重启验证；后续需沉淀为一键 smoke | ✅ 通过 |
+| H-WORKER-002 | Web Worker 集群分组 | 打开 Workers 页面 | 先按 namespace/app 分组，再按 cluster/region 展示 node；master/follower 清晰；调度队列不混在主页面 | `WorkersPage` / `WorkerClusterOverview` / `WorkerTable` 相关测试通过 | ✅ 通过 |
+| H-GO-001 | Go demo live Worker Tunnel | 启动 Go demo 并触发 `job_go_demo_orders_echo` | Go worker 使用结构化 tag `go` 命中，任务成功，实例日志含 received/completed 两条 | 手动 live 验收通过；Go SDK/demo `go test ./...` 通过 | ✅ 通过 |
+| H-RUST-001 | Rust demo live Worker Tunnel | 启动 Rust demo 并触发 `job_rust_demo_orders_echo` | Rust worker 使用结构化 tag `rust` 命中，任务成功，实例日志含 received/completed 两条 | 手动 live 验收通过；Rust SDK/demo clippy/test/package 通过 | ✅ 通过 |
+| H-SCRIPT-001 | Go/Rust script runner capability parity | 查看 worker structuredCapabilities | Go/Rust script runners 对齐 Java sandbox 名称与语言集合；不得出现未设计的 `local-command` 伪 sandbox | 本轮已按 Java sandbox 口径修正 | ✅ 通过 |
+| H-CI-001 | GitHub Actions 全量 CI | 推送后查看 CI run | Web、Java SDK、Rust SDK、Server/Rust workspace、Docker build validation 全部成功 | CI run `26947829951` success | ✅ 通过 |
+
+后续增强：H-WORKER-001/H-GO-001/H-RUST-001 当前已有手动 live 证据，下一阶段必须固化为 cross-language worker integration harness，并把报告落盘到 `.dev/reports/` 后再更新本表证据产物列。
+
 ## 11. 当前总览
 
 | 分类 | 总项数 | ✅ 通过 | ⏳ 待执行 | ❌ 失败 | 🚧 阻塞 | ⏭️ 跳过 |
@@ -229,6 +243,7 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 | P1-F 脚本沙箱/插件 | 9 | 9 | 0 | 0 | 0 | 0 |
 | P2-G GitOps/IaC | 6 | 6 | 0 | 0 | 0 | 0 |
 | 数据库专项明细 | 3 | 3 | 0 | 0 | 0 | 0 |
+| 跨语言 Worker parity / 持久化补充 | 6 | 6 | 0 | 0 | 0 | 0 |
 
 ## 12. 下一步执行建议
 

@@ -464,3 +464,23 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 | Web live smoke | `rtk bash deploy/smoke/web-live-smoke.sh` | 根路由、login、api-keys、workers 路由返回 SPA shell 且非 404；不宣称已验证登录态重定向 | ✅ 通过 |
 | 三端联合 e2e | `rtk bash deploy/smoke/server-web-java-joint-e2e.sh` | server/web/双 Java demo 自动启动，master/failover/dispatch/broadcast 功能预期通过 | ✅ 通过 |
 | 报告聚合 | `rtk python3 deploy/smoke/collect-joint-report.py .dev/reports/<run-id>` | 生成 `joint-report.json` 和 `joint-report.md` | ✅ 已验证基础聚合 |
+
+## 13. 追加自动化计划：跨语言 Worker parity 与持久化可见性
+
+> 2026-06-04 已完成 Go/Rust/Java 手动联调与 CI 验证；下一阶段要把该能力从“手动验收”升级为可重复执行的自动化专项。
+
+| ID | 自动化目标 | 必须断言 | 报告产物 |
+| --- | --- | --- | --- |
+| X-LANG-001 | 启动 Java Boot2/Boot3/Boot4 + Go + Rust demo | 五类 worker 均通过 Worker Tunnel online；scope 使用结构化 namespace/app/cluster/region/clientInstanceId；processor name 与 DB job 一一对应 | `.dev/reports/cross-language-workers-<run-id>/workers.json` |
+| X-LANG-002 | Go/Rust 任务日志链路 | 触发 Go/Rust echo job 后，实例日志包含 received/completed；日志写入必须携带 assignment token | `go-instance-logs.json`、`rust-instance-logs.json` |
+| X-LANG-003 | server restart worker snapshot | server 重启后、worker 重连前，`/api/v1/workers` 仍从 DB snapshot 展示 structuredCapabilities/labels/master；重连后 live registry 覆盖 snapshot | `workers-before-restart.json`、`workers-after-restart.json`、`workers-after-reconnect.json` |
+| X-LANG-004 | worker_pool scope filtering regression | 对 live worker 与 persisted snapshot worker 使用相同 namespace/app/worker_pool 过滤，结果一致；禁止基于名称约定匹配 | `worker-pool-filter-live.json`、`worker-pool-filter-persisted.json` |
+| X-LANG-005 | Web Worker 分组 smoke | Workers 页面按 namespace/app -> cluster/region -> nodes 渲染；dispatch queue 在 `/workers/dispatch-queue` | screenshot 或 DOM evidence JSON |
+| X-LANG-006 | CI 接入 | GitHub Actions 增加可控专项或 nightly；失败时报告 artifacts | CI artifacts / run url |
+
+执行约束：
+
+1. 所有 selector 和 worker 匹配必须来自结构化字段或 `structuredCapabilities`，不得用 clientInstanceId/jobId 字符串约定拼接。
+2. Worker 重要可见性状态不得只存在内存；新增断言必须覆盖 DB snapshot。
+3. 中文 i18n 显示中文，英文 i18n 显示英文，不允许混合 label。
+4. Go/Rust SDK 与 demo 能力面默认按 Java 已实现能力对齐；无法对齐时必须在 report 中列明真实差异和原因。

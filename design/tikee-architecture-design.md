@@ -1,6 +1,6 @@
 # tikee — 下一代分布式任务调度平台架构设计
 
-> **Rust 原生 | 单二进制 | gRPC 标准 | Cloud Native First | 零历史债**  
+> **Rust 原生 | 单二进制 | gRPC 标准 | Cloud Native First | 零历史债**
 > 本设计保留合理的架构、协议、组件、部署、技术栈和路线图设计，项目名称统一为 **tikee**，并增强 PowerJob / xxl-job 源码级剖析、K8s 公共服务化问题、全新开发必要性与创新功能点。
 
 ---
@@ -423,11 +423,15 @@ sdks/
 ├── rust/
 │   └── tikee/           # Rust Worker SDK crate (tonic)
 ├── java/
-│   ├── tikee/                    # 原生 Java SDK
-│   ├── tikee-spring/               # Spring 集成
-│   └── tikee-spring-boot-starter/          # Spring Boot 集成
+│   ├── tikee/                              # 原生 Java SDK
+│   ├── tikee-spring/                       # Spring 7 / Boot 4 集成
+│   ├── tikee-spring5/                      # Spring 5 / Boot 2 兼容适配
+│   ├── tikee-spring6/                      # Spring 6 / Boot 3 兼容适配
+│   ├── tikee-spring-boot2-starter/         # Spring Boot 2 starter
+│   ├── tikee-spring-boot3-starter/         # Spring Boot 3 starter
+│   └── tikee-spring-boot-starter/          # Spring Boot 4 starter
 ├── go/
-│   └── tikee-go-sdk/               # 规划
+│   └── tikee/                      # Go Worker SDK module (official gRPC/protobuf)
 ├── python/
 │   └── tikee-python-sdk/           # 规划
 └── nodejs/
@@ -454,6 +458,7 @@ examples/
 - 后续开发过程中，AI 开发者需要自行判断验证需要；当 SDK、Worker Tunnel、任务执行、工作流或跨语言集成链路需要端到端调试时，应主动创建/更新对应 `examples/<language>/...` demo，而不是等待用户显式要求。
 - 运行配置仍放 `config/`，不得把 `examples/` 再作为配置目录使用。
 - Rust SDK 已按规范迁移到 `sdks/rust/tikee`，Cargo workspace 已同步调整。
+- Go SDK 已落地到 `sdks/go/tikee`，使用官方 `google.golang.org/grpc` 与 `google.golang.org/protobuf` 生成 Worker Tunnel 绑定；Go demo 位于 `examples/go/worker-demo`，默认 live 连接，显式设置 dry-run 才离线。
 - 根 `Dockerfile` 只构建 tikee 服务端镜像，不复制、不缓存、不构建 `sdks/` 与 `examples/`；SDK 与 Demo 必须作为独立构建产物验证。
 - 独立发布约束：每个 SDK 必须可按语言生态独立发布；Rust SDK 不能依赖服务端 `crates/*` path dependency，必须内聚协议定义或依赖已发布协议包。
 - Worker 注册约束：`worker_id` 必须由服务端生成并在 `WorkerRegistered` 下发；客户端只能上报可选 `client_instance_id` 作为实例提示，不能自行声明权威 ID。`worker_id` 语义上代表一次具体 Worker Tunnel session/incarnation，而不是长期稳定机器 ID。
@@ -532,22 +537,26 @@ Java 端 SDK 优先支持 Spring Boot Starter 模式，目标是让现有 Spring
 ```text
 sdks/java/
 ├── settings.gradle.kts                  # Gradle multi-project settings
-├── build.gradle.kts                     # Java 21+ toolchain、统一依赖版本与发布元数据
-├── tikee/                     # 原生 Java 集成：gRPC client、协议模型、通用 Worker runtime
-├── tikee-spring/                   # Spring 集成：@TikeeProcessor 注册表与方法适配
-└── tikee-spring-boot-starter/              # Spring Boot 集成：AutoConfiguration、Properties、starter 聚合
+├── build.gradle.kts                     # 聚合与 group/version
+├── tikee/                               # 原生 Java 集成：gRPC client、协议模型、通用 Worker runtime
+├── tikee-spring/                        # Spring 7 集成：@TikeeProcessor 注册表与方法适配
+├── tikee-spring5/                       # Spring 5 adapter，供 Boot2 starter 使用
+├── tikee-spring6/                       # Spring 6 adapter，供 Boot3 starter 使用
+├── tikee-spring-boot2-starter/          # Spring Boot 2.7 starter
+├── tikee-spring-boot3-starter/          # Spring Boot 3.5 starter
+└── tikee-spring-boot-starter/           # Spring Boot 4.x starter
 ```
 
-Java SDK 三层 Gradle 模块约束：
+Java SDK Gradle 模块约束：
 - `tikee`：原生 Java 集成，包含 Worker Tunnel gRPC client、协议生成、任务上下文与结果模型。
-- `tikee-spring`：Spring Framework 集成，包含 `@TikeeProcessor` 扫描、注册表和方法适配，不包含 Spring Boot autoconfigure。
-- `tikee-spring-boot-starter`：Spring Boot 集成，包含 Properties、AutoConfiguration 和 starter 聚合能力，依赖 `tikee-spring`。
+- `tikee-spring` / `tikee-spring5` / `tikee-spring6`：分别承载 Spring 7/5/6 adapter，包含 `@TikeeProcessor` 扫描、注册表和方法适配，不包含 Spring Boot autoconfigure。
+- `tikee-spring-boot-starter` / `tikee-spring-boot2-starter` / `tikee-spring-boot3-starter`：分别面向 Boot4/2/3，依赖匹配的 Spring adapter；每个模块必须有自己的 `src/main` / `src/test` 边界，不允许只靠 Gradle sourceSet 隐式复用形成空模块。
 
 Java SDK 构建约束：
 - 必须使用 Gradle（优先 Kotlin DSL：`settings.gradle.kts` / `build.gradle.kts`），不再使用 Maven `pom.xml` 作为主构建。
-- Java toolchain 与源码/目标兼容级别必须支持 JDK 21+。
+- Java toolchain 可使用当前 JDK 构建，但 SDK 源码与发布产物必须保持 `--release 17` 兼容，避免误用 Java 21+ API 破坏 Spring Boot 2/3 消费者。
 - Spring Boot Starter 模式继续保留，业务侧只需依赖 starter。
-- 当前 Java Core SDK 已提供真实 gRPC Worker Tunnel 客户端：注册时只发送 `client_instance_id`，读取服务端下发的权威 `worker_id`，并用于心跳、任务日志和任务结果上报；Spring Boot demo 默认 dry-run，可通过配置切换到 live tunnel。
+- 当前 Java Core SDK 已提供真实 gRPC Worker Tunnel 客户端：注册时只发送 `client_instance_id`，读取服务端下发的权威 `worker_id`，并用于心跳、任务日志和任务结果上报；Spring Boot 2/3/4 demo 支持默认/显式 live tunnel 与结构化 namespace/app/cluster/region/worker_pool 配置。
 - CI / 本地验证命令统一为 `./sdks/java/gradlew -p sdks/java test`；每个 Java SDK 子模块也必须支持 Gradle 单模块任务（如 `./sdks/java/gradlew -p sdks/java :tikee:test`）；Maven 骨架与 `mvn -f sdks/java/pom.xml test` 文档引用不得再新增。
 
 **业务侧使用方式**：
@@ -574,6 +583,8 @@ tikee:
 ```
 
 Starter 需要提供：
+
+> 2026-06-04 状态：Java SDK 已拆分为 Boot2/Boot3/Boot4 三套 starter 与 Spring5/Spring6 兼容 adapter，三套 Java demo 独立存在；Rust 与 Go SDK/demo 已对齐 Java demo 的结构化 namespace/app/cluster/region/clientInstanceId/processorName、Worker Tunnel live 连接、assignment token 日志上报、脚本 runner capability 与重连循环。
 
 - `@EnableTikeeWorker` 或自动启用的 Spring Boot auto-configuration。
 - `@TikeeProcessor` 注解扫描和方法适配。
@@ -756,7 +767,7 @@ tikee 的 Worker Tunnel 是对 xxl-job / PowerJob 反向调用模型的直接修
 
 ```protobuf
 service WorkerTunnelService {
-  rpc Connect(stream WorkerMessage) returns (stream ServerMessage);
+  rpc OpenTunnel(stream WorkerMessage) returns (stream ServerMessage);
 }
 ```
 
@@ -2187,6 +2198,7 @@ tikee/
 - [x] Workflow 节点恢复 API（`recover` 支持 retry/skip/fail/succeed 基础恢复语义）
 - [x] Worker / dispatch queue 管理 API 与 Web Worker 集群页面
   - [x] Worker 集群页面运维布局重做（100：数据密集 dashboard；Worker table 支持 search/namespace/capability 筛选；Dispatch Queue 支持状态 drill-down；队列压力/健康状态卡片；拆分为 focused React components）
+  - [x] Worker 集群页面按 namespace/app 与 cluster/region 分组（2026-06-04：主页面只展示 Worker 集群/node 列表和 master/follower；调度队列迁移到 `/workers/dispatch-queue` 二级页，避免 Worker 集群视图混杂队列明细）
 - [x] Worker TaskResult 自动推进 Workflow（按 job_instance_id 软关联回写 workflow_node_instance / workflow_shard，并按边条件入队后继节点）
 - [x] Workflow shard 完成回调与聚合推进（`POST /api/v1/workflow-shards/{id}/complete` 写入 output/status，全部成功后自动推进后继，失败时走失败边）
 - [x] Workflow 操作审计日志（create/update/validate/dry-run/run/advance/materialize/recover 管理与执行动作写入 audit_logs）
@@ -2288,6 +2300,7 @@ tikee/
 - [x] Java Core SDK
 - [x] Worker processor binding model（Job 定义与 Workflow job/map 节点支持 `processor_name`，Worker dispatch 按 processor name 路由，legacy 数据回退 `job_id`）
 - [x] SDK 目录规范迁移：Rust SDK -> `sdks/rust/tikee`，Java SDK -> Gradle/JDK21+，新增 `examples/<language>/<demo-name>` demo 骨架，并补齐 Rust / Java 可独立运行 demo 基础
+- [x] Rust/Go SDK 与 demo 对齐 Java 手动联调能力（2026-06-04：默认 live 连接、结构化 scope/processor/capability、script runners 对齐 Java sandbox 名称、任务日志持久化、重连循环和手动验收数据入库）
 
 #### Phase 3 closeout notes (2026-05-23)
 
@@ -2308,6 +2321,7 @@ Phase 3 closeout 状态已在 2026-05-28 复核：原先保留未勾选的 OIDC 
   - [x] Slice D graceful unregister：协议新增 `UnregisterWorker`，Server/Rust SDK/Java SDK 支持主动下线并标记 `stopped / graceful_shutdown`。
   - [x] Slice E assignment token 校验：dispatch 下发 assignment token，Rust/Java SDK 回传，Server 拒绝缺失/错误 token 的日志与结果。
   - [x] Slice F Web lifecycle history UI：`/workers/history` 返回持久 sessions/events，Worker 集群页面按在线/异常/历史分层显示。
+  - [x] Slice G Worker 可见性快照持久化（2026-06-04：`worker_sessions` 持久保存 capabilities/structuredCapabilities/labels/master 快照；`/api/v1/workers` 合并 live registry 与 DB online sessions，server 重启后可先展示持久在线快照，不能再只依赖内存注册表）。
 - [x] 部署与运维 bootstrap：本地/裸机/systemd/Compose 的最小生产模板优先（125/135：Compose env defaults、systemd server/worker unit/env、Worker identity env、裸机 config smoke helper、readyz + worker dry-run smoke 已落地；Helm 在外部 DB、secret、网关和 TLS 参数稳定后落地）。
 - [x] 生产告警投递硬化：SMTP TLS/auth/secret reference、Provider secret 管理、重试/DLQ 可视化与最小 live smoke（126：Email 支持 smtps/smtp+starttls、AUTH LOGIN、env secret refs；新增 retry/DLQ queue-status API 与 Web 告警投递页；保留 loopback SMTP smoke）。
 
@@ -2323,7 +2337,7 @@ Phase 3 closeout 状态已在 2026-05-28 复核：原先保留未勾选的 OIDC 
   - [x] Worker runtime grant enforcement 闭环：Worker Tunnel `ScriptProcessorBinding` 携带 signed URL/File/Secret grant；Rust SDK policy 显式接收 `allowed_network_hosts`/文件/secret refs，Local runner 对 grant fail-closed，Container runner 仅将文件 grant 转成显式 bind mount，网络/secret grant 无安全 runtime provider 时继续 fail-closed；Java SDK proto/测试同步覆盖 grant-bearing script binding 且仍不执行脚本。
 - [x] OIDC tenant/app/role 绑定策略与高级租户隔离 UI（131：`/api/v1/oidc-identities` 管理 issuer+subject -> local user + namespace/app/worker-pool scope；OIDC callback 未映射 fail-closed；Scopes 页面可管理映射）。
 - [x] Prometheus/Grafana recording-rule 校验、运维 runbook 与真实 scrape 验证（132：本地 Compose Prometheus profile + committed recording rules/config/runbook；CI 覆盖规则/仪表盘引用一致性）。
-- [ ] Go SDK（常见非 Java/Rust 业务接入；official gRPC/protobuf foundation 已完成，待 ergonomic Worker Tunnel run-loop）。
+- [x] Go SDK（2026-06-04：official gRPC/protobuf Worker Tunnel run-loop、默认 live demo、结构化 processor/script capability、assignment token 任务日志与重连循环已落地；README 已说明 protoc 与 Dockerfile 安装方式）。
 - [ ] Python SDK（用户要求先延期）。
 - [ ] Node.js SDK（用户要求先延期）。
 
@@ -2360,7 +2374,7 @@ Worker 集群与 tikee server 集群都必须具备 master 选举能力。Server
 
 **P1 — 常见接入与生产治理**
 
-- [ ] Go SDK（official gRPC/protobuf foundation 已完成，待 ergonomic Worker Tunnel run-loop）
+- [x] Go SDK（2026-06-04：official gRPC/protobuf Worker Tunnel run-loop、默认 live demo、结构化 processor/script capability、assignment token 任务日志与重连循环已落地）
 - [ ] Python SDK（用户要求先延期）
 - [ ] Node.js SDK（用户要求先延期）
 - [x] 脚本生产治理增强（完整审批/签名/KMS、URL/File/Secret grant、生产发布门禁；本地 env-secret verifier 闭环，外部 KMS/PKI 后续增强）

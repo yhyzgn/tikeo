@@ -1,45 +1,32 @@
 # Next Work
 
 ## Current priority direction
-Server + Web + Java SDK/Demo 联合自动化测试清单已复核为全绿；下一步若继续测试增强，优先把当前 DOM/JSON evidence 升级为真实浏览器 screenshot/video CI 产物。功能开发方向继续保持 Phase4 P2 advanced differentiation，同时保留单文件 <=1500 行和 `mod.rs` / `lib.rs` 只做入口/re-export 的约束。
 
-## Phase4 P0 — service usage / operations first
-1. Worker identity/session lifecycle governance is now aligned to `design/worker-identity-lifecycle-design.md`.
-2. Deployment and operations bootstrap is locally closed for Compose/systemd/bare-metal; next Phase4 P0 gap is production packaging/Helm only after external DB/secret/gateway/TLS params stabilize.
-3. Go SDK run-loop, Python SDK, and Node.js SDK are explicitly deferred until later.
+当前优先级：把 2026-06-04 已完成的 Java/Go/Rust Worker parity、Worker session snapshot 持久化和 Web Worker 分组验收，从手动联调升级为可重复执行的 cross-language integration harness。最新阶段提示词：`.prompt/147-phase4-cross-language-worker-parity-and-persistence-hardening.md`。
 
-## P1 completed
-- Script approval/signature/grants production release gate is locally closed: fail-closed policy/signature gates, blocked audit materialization, release-gate preview API, default-disabled env-secret verification, signed release metadata, explicit URL/File/Secret grant request payloads, persisted/displayed grant evidence, and local signed grants bound into the release signature. Worker-side URL/File/Secret access remains disabled until a separate enforcement slice.
+## Immediate next slice — cross-language Worker parity automation
 
+1. 编写 executable harness，启动/验证 Java Boot2、Java Boot3、Java Boot4、Go、Rust demo worker。
+2. 使用结构化 namespace/app/cluster/region/clientInstanceId/worker_pool/processorName/processorType 数据，不允许靠命名约定匹配。
+3. 触发每个语言 family 的 processor job，特别断言 Go/Rust 实例日志包含 assignment-token 保护下的 received/completed 记录。
+4. 增加 server restart persistence smoke：worker 注册后重启 server，验证 `/api/v1/workers` 先从 `worker_sessions` snapshot 展示，再由 live registry 覆盖。
+5. 增加 live 与 persisted worker_pool scope filtering 一致性回归。
+6. Web smoke 覆盖 Workers 页面 namespace/app -> cluster/region -> node 分组与 `/workers/dispatch-queue` 二级页。
+7. 证据统一落盘 `.dev/reports/cross-language-workers-<run-id>/`，并回写 design/docs 与 `.memory`。
 
-## P2 — ecosystem / advanced differentiation
-- PowerJob and XXL-JOB migration tooling.
-- GitOps/IaC manifest export/diff、Terraform provider live drift smoke、K8s CRD schema 和 operator dry-run 均已在联合自动化测试状态表中验证通过；后续可继续做真实集群/真实浏览器 CI 增强。
-- Task dependency discovery/topology, workflow replay, intelligent scheduling.
-- Plugin system, advanced webhook/event sources, task versioning/canary rollback.
+## Recent baseline
 
-## Recently completed
-- HTTP/mod.rs and other oversized Rust files were split; max source file line count is 1495.
-- Script release-gate preview endpoint was added for local production-gate visibility.
-- Script release signatures can be verified locally when `script_governance.release_signature_secret_ref` points at an env secret.
-- Verified script releases now persist and display approval ticket, signature, verification time, and verifier identity.
-- Script release requests now have explicit `grants.url/file_read/file_write/secret` payloads; non-empty grants fail closed until verified grant enforcement exists.
-- Script release pointers can now persist verified grant evidence (`release_grants`); local env-secret signatures can verify and persist signed grants. Worker runtime now carries signed grants, supports container file bind mounts, and fail-closes network/secret grants until safe providers exist.
-- OIDC subject-to-local-user tenant scope mapping is closed through governed API/UI and fail-closed callback behavior.
-- Prometheus/Grafana recording-rule validation has a committed rules file, Prometheus config, Compose observability profile, Grafana recording-query coverage, and operator runbook.
-- Go SDK foundation now uses official `google.golang.org/grpc` / `google.golang.org/protobuf` and generated Worker Tunnel client bindings; Go run-loop/Python/Node.js SDKs are deferred.
-- Worker identity/session lifecycle now follows `design/worker-identity-lifecycle-design.md`, including transport-error evidence when gRPC streams end without graceful unregister.
-- Deployment bootstrap now includes Compose/systemd/bare-metal docs, Worker identity env templates, a systemd Rust worker demo unit, and a readyz/worker dry-run smoke script.
+- Java demos：`examples/java/spring-boot2-worker-demo`、`spring-boot3-worker-demo`、`spring-boot4-worker-demo`。
+- Go SDK/demo：`sdks/go/tikee`、`examples/go/worker-demo`，默认 live，README 已说明 protoc/Dockerfile 安装。
+- Rust SDK/demo：`sdks/rust/tikee`、`examples/rust/worker-demo`，默认 live。
+- Worker visibility：`worker_sessions` 持久化 capabilities/structuredCapabilities/labels/master snapshot；`/api/v1/workers` 合并 live registry 与 DB online sessions。
+- Web Worker：按 namespace/app 与 cluster/region 分组；dispatch queue 在 `/workers/dispatch-queue`。
+- CI：GitHub Actions run `26947829951` success。
 
-## Recently completed — 2026-05-31
-- SDK API-Key Service Account lifecycle is upgraded to the long-term model: Service Account is independently managed, API-Key creation selects existing active identity, disable revokes bound keys, and Web/API/smoke tests follow the new flow.
+## Standing constraints
 
-## Recently completed — 2026-06-02
-- 联合自动化测试方案与可执行状态计划已重新核对并同步：所有测试项为通过/已配置/已沉淀，无测试项级待执行、失败或阻塞残留。
-- 当前测试验收总览：80/80 通过（P0-A/P0-B/P0-C/P0-D/P1-E/P1-F/P2-G/数据库专项）。
-
-## Java SDK starter compatibility
-- Use `tikee-spring-boot-starter` for Spring Boot 4.x.
-- Use `tikee-spring-boot2-starter` for Spring Boot 2.x.
-- Use `tikee-spring-boot3-starter` for Spring Boot 3.x.
-- Keep Java source and tests compatible with Java 17 APIs while `--release 17` is configured.
+- Worker 重要可见性状态不得只在内存。
+- 禁止约定命名匹配；必须使用结构化字段、labels 或 structuredCapabilities。
+- 中文 i18n 必须完整中文，英文 i18n 必须英文，不要中英混合 label。
+- Go/Rust SDK 和 demo 尽量与 Java 一比一对齐；无法对齐时必须写明真实差异。
+- 源文件 <=1500 行；`mod.rs` / `lib.rs` 等入口文件只做声明和 re-export。

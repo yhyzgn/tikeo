@@ -66,3 +66,17 @@ Use `deploy/smoke/java-demo-integration-smoke.sh` as the executable verifier. Th
 | Java SDK worker client targeted test | `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClientTest --no-daemon'` | BUILD SUCCESSFUL | ✅ 通过 |
 | Server + Java demo smoke | `.dev/reports/java-demo-20260601T033026Z-286798.json` | worker registration、single success/failure、broadcast、fixed_rate、cron、workflow job 全部 passed | ✅ 通过 |
 | Shell/Python/JS/TS/Rhai script live matrix | 当前 smoke 未覆盖 | 需要后续补充脚本沙箱矩阵 live 用例 | ⏳ 待执行 |
+
+## 2026-06-04 Follow-up: cross-language integration automation
+
+Add a cross-language smoke harness that extends the existing Java demo checks:
+
+1. Start tikee server with isolated DB and ports.
+2. Seed structured jobs/processors for Java Boot2/Boot3/Boot4, Go, and Rust demos.
+3. Start all five worker demo families with explicit namespace/app/cluster/region/clientInstanceId and worker_pool labels.
+4. Trigger Go/Rust/Java processor jobs and assert instance status plus task logs.
+5. Restart server and assert worker visibility falls back to persisted `worker_sessions` snapshot before live reconnect.
+6. Assert worker_pool scope filtering is identical for live and persisted workers.
+7. Save all API responses and logs under `.dev/reports/cross-language-workers-<run-id>/`.
+
+Do not use naming conventions as selectors; all matching must use structured fields, labels, or structured capabilities.
