@@ -1919,3 +1919,10 @@ Commit/push:
 - 先写失败测试 `sqlite_schema_compatibility_upgrade_is_tracked_as_versioned_migration`，确认当前 migration history 只有 `['mod']`。
 - 实现：新增 `migration/sqlite_compat.rs` 显式 SeaORM migration，迁入原 SQLite legacy schema compatibility；`connect_and_migrate` 删除未记录 post-hook；foreign-key soft-link rebuild 拆为子模块。
 - 验证：targeted migration tests、`cargo test -p tikee-storage -- --nocapture`、`cargo test -p tikee-server -- --nocapture`、`cargo clippy -p tikee-storage -p tikee-server --all-targets --all-features -- -D warnings`、`scripts/db-compat-smoke.sh`、`cargo build -p tikee-server --all-features`、`git diff --check` 均通过。
+
+
+### 2026-06-05 — CI 分组重排，不等待远端 CI
+- 用户要求 CI 按 server、web、java sdk+demo、rust sdk+demo、go sdk+demo、python sdk+demo、nodejs sdk+demo、其他分组展示。
+- 先补 workflow contract RED，确认旧 workflow 仍拆成 `java-sdk/java-demos/rust-sdk/rust-demo/go-deploy-tools/cross-language-smoke/docker-build-*` 不符合目标分组。
+- 改造 `.github/workflows/ci.yml`：合并语言 SDK+demo job，新增 Python/Node.js deferred fail-closed gate，其他类 job 统一 `Other / ...` 命名。
+- 本地验证：contract test、YAML parse、Node runtime policy、diff check 通过。用户明确要求下班前先跳过远端 CI 结果调试，因此本轮提交后不继续等待 GitHub Actions 完成。

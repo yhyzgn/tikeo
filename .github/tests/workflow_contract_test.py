@@ -26,23 +26,50 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertNotIn("cargo clippy --workspace --all-targets --all-features -- -D warnings", CI)
         self.assertIn("bun run build", CI)
         self.assertIn("./gradlew test", CI)
+        self.assertIn("Test Spring Boot 2 worker demo", CI)
         self.assertIn("cargo test --workspace --all-features -- --test-threads=1", CI)
         self.assertIn("cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features", CI)
+        self.assertIn("cargo test --manifest-path examples/rust/worker-demo/Cargo.toml --all-features", CI)
+        self.assertIn("Test Go worker demo", CI)
         self.assertIn("Build server image without push", CI)
         self.assertIn("Build web image without push", CI)
         self.assertIn("push: false", CI)
         self.assertNotIn("docker/login-action", CI)
         self.assertNotIn("softprops/action-gh-release", CI)
 
+    def test_ci_jobs_are_grouped_by_runtime_surface(self):
+        expected_job_names = {
+            "server": "name: Server",
+            "web": "name: Web",
+            "java-sdk-demo": "name: Java SDK + demo",
+            "rust-sdk-demo": "name: Rust SDK + demo",
+            "go-sdk-demo": "name: Go SDK + demo",
+            "python-sdk-demo": "name: Python SDK + demo / deferred",
+            "nodejs-sdk-demo": "name: Node.js SDK + demo / deferred",
+            "other-deploy-tools": "name: Other / deploy tooling",
+            "other-cross-language-smoke": "name: Other / cross-language worker smoke",
+            "other-docker-build-server": "name: Other / Docker build validation / server",
+            "other-docker-build-web": "name: Other / Docker build validation / web",
+        }
+        for job, expected_name in expected_job_names.items():
+            self.assertIn(expected_name, workflow_job_block(CI, job))
+
+        self.assertNotIn("  java-sdk:", CI)
+        self.assertNotIn("  java-demos:", CI)
+        self.assertNotIn("  rust-sdk:", CI)
+        self.assertNotIn("  rust-demo:", CI)
+        self.assertNotIn("  go-deploy-tools:", CI)
+        self.assertNotIn("  cross-language-smoke:", CI)
+
     def test_docker_validation_is_split_and_cached(self):
         self.assertNotIn("  docker-build:", CI)
-        self.assertIn("  docker-build-server:", CI)
-        self.assertIn("  docker-build-web:", CI)
+        self.assertIn("  other-docker-build-server:", CI)
+        self.assertIn("  other-docker-build-web:", CI)
 
-        server_job = workflow_job_block(CI, "docker-build-server")
-        web_job = workflow_job_block(CI, "docker-build-web")
-        self.assertIn("name: Docker build validation / server", server_job)
-        self.assertIn("name: Docker build validation / web", web_job)
+        server_job = workflow_job_block(CI, "other-docker-build-server")
+        web_job = workflow_job_block(CI, "other-docker-build-web")
+        self.assertIn("name: Other / Docker build validation / server", server_job)
+        self.assertIn("name: Other / Docker build validation / web", web_job)
         self.assertIn("file: Dockerfile", server_job)
         self.assertIn("context: .", server_job)
         self.assertIn("file: web/Dockerfile", web_job)
@@ -53,7 +80,7 @@ class WorkflowContractTest(unittest.TestCase):
             self.assertIn("push: false", job_block)
             self.assertIn("load: false", job_block)
             self.assertIn("needs:", job_block)
-            self.assertIn("cross-language-smoke", job_block)
+            self.assertIn("other-cross-language-smoke", job_block)
 
     def test_ci_rejects_node20_or_older_action_runtimes_before_other_jobs(self):
         self.assertTrue((ROOT / "scripts/verify-github-actions-node-runtime.py").exists())
@@ -65,7 +92,16 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertNotIn("uses:", policy_job)
         self.assertIn(r"^\s*-?\s*uses\s*:", (ROOT / "scripts/verify-github-actions-node-runtime.py").read_text())
 
-        for job in ["server", "web", "java-sdk", "java-demos", "go-sdk-demo", "go-deploy-tools", "rust-sdk", "rust-demo"]:
+        for job in [
+            "server",
+            "web",
+            "java-sdk-demo",
+            "go-sdk-demo",
+            "other-deploy-tools",
+            "rust-sdk-demo",
+            "python-sdk-demo",
+            "nodejs-sdk-demo",
+        ]:
             job_block = workflow_job_block(CI, job)
             self.assertIn("needs: workflow-policy", job_block)
 

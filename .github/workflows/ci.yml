@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   workflow-policy:
-    name: Workflow policy
+    name: Other / workflow policy
     runs-on: ubuntu-latest
     steps:
       - name: Fetch repository without JavaScript actions
@@ -29,7 +29,7 @@ jobs:
         run: python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24
 
   server:
-    name: Server / Rust workspace
+    name: Server
     runs-on: ubuntu-latest
     needs: workflow-policy
     steps:
@@ -49,7 +49,7 @@ jobs:
         run: cargo build --workspace --all-features
 
   web:
-    name: Web / React
+    name: Web
     runs-on: ubuntu-latest
     needs: workflow-policy
     steps:
@@ -73,8 +73,8 @@ jobs:
         working-directory: web
         run: bun run build
 
-  java-sdk:
-    name: Java SDK
+  java-sdk-demo:
+    name: Java SDK + demo
     runs-on: ubuntu-latest
     needs: workflow-policy
     steps:
@@ -90,18 +90,6 @@ jobs:
       - name: Build Java SDK jars
         working-directory: sdks/java
         run: ./gradlew jar sourcesJar
-
-  java-demos:
-    name: Java worker demos
-    runs-on: ubuntu-latest
-    needs: workflow-policy
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: gradle
       - name: Test Spring Boot 2 worker demo
         working-directory: examples/java/spring-boot2-worker-demo
         run: ./gradlew test --no-daemon
@@ -112,8 +100,38 @@ jobs:
         working-directory: examples/java/spring-boot4-worker-demo
         run: ./gradlew test --no-daemon
 
+  rust-sdk-demo:
+    name: Rust SDK + demo
+    runs-on: ubuntu-latest
+    needs: workflow-policy
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            sdks/rust/tikee -> target
+            examples/rust/worker-demo -> target
+      - name: Format Rust SDK
+        run: cargo fmt --manifest-path sdks/rust/tikee/Cargo.toml -- --check
+      - name: Clippy Rust SDK
+        run: cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings
+      - name: Test Rust SDK
+        run: cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features
+      - name: Package Rust SDK
+        run: cargo package --manifest-path sdks/rust/tikee/Cargo.toml --allow-dirty
+      - name: Format Rust worker demo
+        run: cargo fmt --manifest-path examples/rust/worker-demo/Cargo.toml -- --check
+      - name: Clippy Rust worker demo
+        run: cargo clippy --manifest-path examples/rust/worker-demo/Cargo.toml --all-targets --all-features -- -D warnings
+      - name: Test Rust worker demo
+        run: cargo test --manifest-path examples/rust/worker-demo/Cargo.toml --all-features
+
   go-sdk-demo:
-    name: Go SDK and demo
+    name: Go SDK + demo
     runs-on: ubuntu-latest
     needs: workflow-policy
     steps:
@@ -131,8 +149,36 @@ jobs:
         working-directory: examples/go/worker-demo
         run: go test ./... -count=1
 
-  go-deploy-tools:
-    name: Go deploy tooling
+  python-sdk-demo:
+    name: Python SDK + demo / deferred
+    runs-on: ubuntu-latest
+    needs: workflow-policy
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify Python SDK/demo is explicitly deferred
+        run: |
+          if [ -d sdks/python ] || [ -d examples/python ]; then
+            echo "::error::Python SDK/demo directories exist but CI has no real Python SDK/demo test command yet. Wire the package tests and demo smoke instead of leaving a deferred gate."
+            exit 1
+          fi
+          echo "Python SDK/demo is intentionally deferred; no runnable Python SDK/demo directories exist."
+
+  nodejs-sdk-demo:
+    name: Node.js SDK + demo / deferred
+    runs-on: ubuntu-latest
+    needs: workflow-policy
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify Node.js SDK/demo is explicitly deferred
+        run: |
+          if [ -d sdks/nodejs ] || [ -d sdks/node ] || [ -d examples/nodejs ] || [ -d examples/node ]; then
+            echo "::error::Node.js SDK/demo directories exist but CI has no real Node.js SDK/demo test command yet. Wire the package tests and demo smoke instead of leaving a deferred gate."
+            exit 1
+          fi
+          echo "Node.js SDK/demo is intentionally deferred; no runnable Node.js SDK/demo directories exist."
+
+  other-deploy-tools:
+    name: Other / deploy tooling
     runs-on: ubuntu-latest
     needs: workflow-policy
     steps:
@@ -150,52 +196,10 @@ jobs:
         working-directory: deploy/k8s/operator
         run: go test ./... -count=1
 
-  rust-sdk:
-    name: Rust SDK
+  other-cross-language-smoke:
+    name: Other / cross-language worker smoke
     runs-on: ubuntu-latest
-    needs: workflow-policy
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.95.0
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: sdks/rust/tikee -> target
-      - name: Format Rust SDK
-        run: cargo fmt --manifest-path sdks/rust/tikee/Cargo.toml -- --check
-      - name: Clippy Rust SDK
-        run: cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings
-      - name: Test Rust SDK
-        run: cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features
-      - name: Package Rust SDK
-        run: cargo package --manifest-path sdks/rust/tikee/Cargo.toml --allow-dirty
-
-  rust-demo:
-    name: Rust worker demo
-    runs-on: ubuntu-latest
-    needs: workflow-policy
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.95.0
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: examples/rust/worker-demo -> target
-      - name: Format Rust worker demo
-        run: cargo fmt --manifest-path examples/rust/worker-demo/Cargo.toml -- --check
-      - name: Clippy Rust worker demo
-        run: cargo clippy --manifest-path examples/rust/worker-demo/Cargo.toml --all-targets --all-features -- -D warnings
-      - name: Test Rust worker demo
-        run: cargo test --manifest-path examples/rust/worker-demo/Cargo.toml --all-features
-
-  cross-language-smoke:
-    name: Cross-language worker smoke
-    runs-on: ubuntu-latest
-    needs: [server, web, java-sdk, java-demos, go-sdk-demo, rust-sdk, rust-demo]
+    needs: [server, web, java-sdk-demo, go-sdk-demo, rust-sdk-demo]
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
@@ -230,14 +234,18 @@ jobs:
           path: .dev/reports/cross-language-workers-*/*
           if-no-files-found: warn
 
-  docker-build-server:
-    name: Docker build validation / server
+  other-docker-build-server:
+    name: Other / Docker build validation / server
     runs-on: ubuntu-latest
     needs:
       - server
-      - java-sdk
-      - go-deploy-tools
-      - cross-language-smoke
+      - java-sdk-demo
+      - rust-sdk-demo
+      - go-sdk-demo
+      - python-sdk-demo
+      - nodejs-sdk-demo
+      - other-deploy-tools
+      - other-cross-language-smoke
     steps:
       - uses: actions/checkout@v6
       - uses: docker/setup-buildx-action@v4
@@ -252,12 +260,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  docker-build-web:
-    name: Docker build validation / web
+  other-docker-build-web:
+    name: Other / Docker build validation / web
     runs-on: ubuntu-latest
     needs:
       - web
-      - cross-language-smoke
+      - other-cross-language-smoke
     steps:
       - uses: actions/checkout@v6
       - uses: docker/setup-buildx-action@v4

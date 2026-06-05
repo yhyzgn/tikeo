@@ -1297,3 +1297,16 @@ Verification evidence:
 
 - CI policy guard remains clean: `python3 .github/tests/workflow_contract_test.py` passed; `scripts/verify-github-actions-node-runtime.py --min-node-major 24` reported 13 external actions with no runtime below node24.
 - Source-size audit for touched files passed, but whole-repo audit found pre-existing over-1500-line debt in dispatcher/repository/workflow/Web generated-or-aggregate files; recorded in `.memory/next.md` instead of pretending the repo-wide rule is fully satisfied.
+
+
+### 2026-06-05 — CI grouping aligned by runtime surface
+- Reorganized main CI job groups to match product/runtime ownership: `Server`, `Web`, `Java SDK + demo`, `Rust SDK + demo`, `Go SDK + demo`, `Python SDK + demo / deferred`, `Node.js SDK + demo / deferred`, and `Other / ...` for workflow policy, deploy tooling, cross-language smoke, and Docker validation.
+- Merged Java SDK and Boot2/Boot3/Boot4 demo checks into one Java group; merged Rust SDK and Rust demo checks into one Rust group; kept Go SDK/demo together.
+- Added fail-closed deferred gates for Python and Node.js SDK/demo: CI passes while directories are absent, but fails as soon as those directories appear without real test/demo smoke wiring.
+- Updated workflow contract tests to prevent regression to fragmented Java/Rust jobs or ambiguous Docker/cross-language naming.
+Verification evidence:
+- `python3 .github/tests/workflow_contract_test.py` passed.
+- YAML parse for all `.github/workflows/*.yml` passed.
+- `scripts/verify-github-actions-node-runtime.py --min-node-major 24` passed with 13 external actions and no runtime below node24.
+- `git diff --check` passed.
+- Per user instruction, GitHub CI result monitoring/debugging is intentionally skipped for this final grouping commit.

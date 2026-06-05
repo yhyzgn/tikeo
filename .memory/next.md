@@ -6,7 +6,7 @@
 
 ## Immediate next slice
 
-1. 完成本轮数据库迁移版本化提交后，确认 GitHub CI 全绿且无 Node.js 20 warning 文案。
+1. 下次接手先查看最新 CI：本轮 CI 分组提交按用户指示未等待远端结果；如果失败，优先按 job 分组日志修复，但不要恢复旧的碎片化 job 命名。
 2. 先处理源码行数历史债务或给 CI 加明确豁免边界：当前审计发现 `dispatcher.rs`、`repository.rs`、`workflow.rs`、`web/src/i18n/messages.ts`、`web/src/api/client.ts` 等历史文件超过 1500 行，不能继续宣称全仓库已满足该规则。
 3. 继续部署生产化专项：Helm values、外部 PostgreSQL/MySQL/CockroachDB 连接、TLS/mTLS secret、readiness/liveness、worker identity env 和回滚文档。
 4. Web 浏览器级验收增强：用 Playwright 对 Workers 分组页、dispatch queue 二级页、API-Key 页面输出 screenshot/video artifact。

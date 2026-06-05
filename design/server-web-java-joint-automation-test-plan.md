@@ -553,3 +553,9 @@ GitHub Actions 的 Node.js 20 warning 不能再作为“可忽略告警”处理
 | DB-MIG-003 | storage matrix | `cargo test -p tikee-storage -- --nocapture` / `scripts/db-compat-smoke.sh` | SQLite 幂等迁移、业务 repository、外部 DB smoke 入口保持可跑 | ✅ 通过（SQLite + Docker PostgreSQL/MySQL smoke） |
 
 后续规则：新增 schema 变更必须进入 SeaORM Migrator 的显式列表；不得再在 `connect_and_migrate` 后追加未记录的 `ensure_*` 启动补丁。SQLite 旧库兼容逻辑如果必须保留，应放入命名 migration 文件并保留幂等测试。
+
+### 13.11 2026-06-05 CI 分组规范调整
+
+主 CI 展示分组调整为按运行时/交付面归属聚合：`Server`、`Web`、`Java SDK + demo`、`Rust SDK + demo`、`Go SDK + demo`、`Python SDK + demo / deferred`、`Node.js SDK + demo / deferred`、`Other / ...`。Java 组同时覆盖 Java SDK 与 Spring Boot 2/3/4 demo；Rust 组同时覆盖 Rust SDK 与 Rust worker demo；Go 组同时覆盖 Go SDK 与 Go worker demo。Python/Node.js 仍是明确后续项，CI 仅做 fail-closed deferred gate：目录不存在时说明延期，目录一旦出现但未接真实测试则失败。
+
+本地验证：`python3 .github/tests/workflow_contract_test.py`、全部 workflow YAML parse、`scripts/verify-github-actions-node-runtime.py --min-node-major 24`、`git diff --check` 通过。按 2026-06-05 用户指示，本次分组提交不等待远端 GitHub CI 结果调试。

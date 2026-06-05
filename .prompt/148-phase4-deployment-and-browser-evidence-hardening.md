@@ -63,6 +63,7 @@ git diff --check
 
 ## 交付规则
 
+- CI job grouping must stay runtime-oriented: Server, Web, Java/Rust/Go SDK+demo, Python/Node.js deferred gates until implemented, and Other for deploy/smoke/Docker/policy.
 - 完成后更新 `design/`、`.memory/`、下一编号 `.prompt/`。
 - 提交信息遵循 Lore protocol。
 - 验证通过后提交并推送；推送后监控 GitHub CI 到完成。
