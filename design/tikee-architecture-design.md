@@ -2127,7 +2127,7 @@ tikee/
 
 **目标**：核心调度能力，可替换 PowerJob 的基本使用场景。
 
-- [x] 项目脚手架 (workspace, CI, root binary entrypoint)
+- [x] 项目脚手架 (workspace, CI, root binary entrypoint；2026-06-05 主 CI 已覆盖 Server/Web/Java/Go/Rust SDK 与 demo、跨语言 Worker smoke、Docker build，并通过 `Workflow policy` 禁止 Node.js 20 或更旧 GitHub JavaScript action runtime 回归)
 - [x] gRPC 协议定义与代码生成（Worker Tunnel proto + server streaming skeleton）
 - [x] SeaORM 存储层 + SQLite + MySQL 迁移（SQLite dev DB 已验证，MySQL migration 通过 SeaORM feature 启用）
 - [x] 基础调度器 (CRON + Fixed Rate + API 触发)
@@ -2153,7 +2153,7 @@ tikee/
   - [x] 后端大文件模块化拆分（HTTP routes 与 storage repository 按领域拆分）
   - [x] 可插拔 SessionStore 抽象（当前 DB + moka，预留 Redis 分布式实现）
   - [x] 实例日志查看（Worker TaskLog -> storage -> HTTP logs API -> Web Drawer）
-- [x] Docker 镜像构建（server 多阶段镜像 + Web nginx 镜像 + Compose/K8s 基础部署）
+- [x] Docker 镜像构建（server 多阶段镜像 + Web nginx 镜像 + Compose/K8s 基础部署；CI 中 server/web 镜像校验拆成 `Docker build validation / server` 与 `Docker build validation / web` 两个并行 job，使用 Buildx `type=gha` cache，只构建不推送）
 - [x] CLI 基础命令（`serve --config`）
 
 ### Phase 2: 工作流与分布式 (月 4-6)

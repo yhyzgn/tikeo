@@ -511,6 +511,31 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 | `Java worker demos` | Spring Boot2/3/4 三个 Java demo | 各目录 `./gradlew test --no-daemon` |
 | `Rust worker demo` | Rust demo 独立 crate | `cargo fmt --check`、`cargo clippy -D warnings`、`cargo test` |
 | `Cross-language worker smoke` | Java Boot2/3/4 + Go + Rust Worker parity、server restart persisted snapshot、worker_pool scoped filtering、Web worker routes | `deploy/smoke/cross-language-worker-parity-smoke.sh`，失败/成功均上传 `.dev/reports/cross-language-workers-*` artifact |
-| `Docker build validation` | server/web 镜像构建 | 依赖上述所有质量门成功后才执行 |
+| `Docker build validation / server` | server 镜像构建 | 依赖 server、Java SDK、Go deploy tooling、跨语言 smoke 成功后执行；使用 Buildx `type=gha` cache；只构建不推送 |
+| `Docker build validation / web` | web 镜像构建 | 依赖 web、跨语言 smoke 成功后执行；使用 Buildx `type=gha` cache；只构建不推送 |
 
 本地验证命令已执行通过：workflow YAML parse、`git diff --check`、Go SDK/demo/deploy tests、Rust demo fmt/clippy/test、Java Boot2/3/4 demo tests。
+
+## 13.9 2026-06-05 CI Node runtime 防回归与最新结果
+
+GitHub Actions 的 Node.js 20 warning 不能再作为“可忽略告警”处理，也不能仅靠人工记忆或 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` 规避。本轮落地以下防线：
+
+| 防线 | 实现 | 验证 |
+| --- | --- | --- |
+| Node24 原生 action | `upload-artifact@v6`、`download-artifact@v7`、`softprops/action-gh-release@v3`；现有 `checkout/setup-* / docker-* / oven-sh/setup-bun / Swatinem/rust-cache` 元数据均为 `node24` | `scripts/verify-github-actions-node-runtime.py --min-node-major 24` 扫描 13 个外部 action |
+| workflow policy job | 主 CI 首个 job `Workflow policy`，不使用任何 `uses:` step；通过 shell-only git fetch 拉取当前 SHA 后运行 runtime 扫描脚本 | GitHub run `27000991938` 中 `Workflow policy` 成功 |
+| contract test | `.github/tests/workflow_contract_test.py` 锁定 policy job、扫描脚本、`- uses:` 解析、Docker validation 拆分/缓存策略 | `python3 .github/tests/workflow_contract_test.py` |
+| defense-in-depth env | 所有 workflow 保留 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"` | `grep`/workflow contract |
+
+最新已验证 CI：
+
+- Commit：`faa29fa`
+- GitHub Actions run：`27000991938`
+- 结果：主 CI 全部 job 成功，包括 `Workflow policy`、Server/Web/Java/Go/Rust、Cross-language worker smoke、Docker build validation。
+- Node20 注解复查：`gh run view 27000991938 | grep -i 'Node.js 20'` 无匹配。
+
+后续维护要求：
+
+1. 新增或升级任意 GitHub Action 时，必须保持 `scripts/verify-github-actions-node-runtime.py --min-node-major 24` 通过。
+2. 不得把 `Workflow policy` 改回 `actions/checkout` 或任何 `uses:` step，否则 policy 自身可能在 guard 前触发 runtime warning。
+3. Docker validation 必须保持 server/web 分拆，避免一个慢镜像阻塞另一个镜像的可见性；Buildx cache 必须保留 `cache-from: type=gha` 与 `cache-to: type=gha,mode=max`。

@@ -34,6 +34,27 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertNotIn("docker/login-action", CI)
         self.assertNotIn("softprops/action-gh-release", CI)
 
+    def test_docker_validation_is_split_and_cached(self):
+        self.assertNotIn("  docker-build:", CI)
+        self.assertIn("  docker-build-server:", CI)
+        self.assertIn("  docker-build-web:", CI)
+
+        server_job = workflow_job_block(CI, "docker-build-server")
+        web_job = workflow_job_block(CI, "docker-build-web")
+        self.assertIn("name: Docker build validation / server", server_job)
+        self.assertIn("name: Docker build validation / web", web_job)
+        self.assertIn("file: Dockerfile", server_job)
+        self.assertIn("context: .", server_job)
+        self.assertIn("file: web/Dockerfile", web_job)
+        self.assertIn("context: web", web_job)
+        for job_block in [server_job, web_job]:
+            self.assertIn("cache-from: type=gha", job_block)
+            self.assertIn("cache-to: type=gha,mode=max", job_block)
+            self.assertIn("push: false", job_block)
+            self.assertIn("load: false", job_block)
+            self.assertIn("needs:", job_block)
+            self.assertIn("cross-language-smoke", job_block)
+
     def test_ci_rejects_node20_or_older_action_runtimes_before_other_jobs(self):
         self.assertTrue((ROOT / "scripts/verify-github-actions-node-runtime.py").exists())
         self.assertIn("workflow-policy:", CI)
