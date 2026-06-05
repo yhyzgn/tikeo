@@ -1278,3 +1278,7 @@ Verification evidence:
 - Rust SDK 支持 `TaskOutcome::Success(String)`，Rust demo 与 Go/Java 一样上报可见成功消息。
 - Web i18n 新增质量门，当前英文/中文 label 不再依赖机械坏翻译覆盖。
 - `deploy/smoke/cross-language-worker-parity-smoke.sh` 已通过，证据目录 `.dev/reports/cross-language-workers-20260605T032108Z-202626/`。
+
+### 2026-06-05 — Main CI now covers Go, demos, deploy tooling, and cross-language smoke
+- `.github/workflows/ci.yml` now has dedicated jobs for Go SDK/demo, Terraform provider/K8s operator Go modules, Java Boot2/3/4 demos, Rust demo, and cross-language Worker parity smoke.
+- Docker build validation depends on all language/demo/smoke quality gates, so fake SDK/demo regressions cannot bypass CI into image validation.

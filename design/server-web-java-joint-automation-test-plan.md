@@ -499,3 +499,18 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 | 反假能力广告 | Go/Rust 默认不广告不可执行 `srt/deno/v8/wasmtime/wasmedge/local-command` runner；只有真实可执行 sandbox 才进入 structuredCapabilities | harness worker assertion + SDK unit tests |
 
 后续 CI 增强建议：将该 harness 作为 nightly 或手动触发 workflow artifact 上传，避免每次普通 PR 都承担 Java/Go/Rust 多 worker 启动成本。
+
+## 13.8 2026-06-05 CI 覆盖补齐
+
+本轮复查 GitHub Actions 主 CI 后发现 Go SDK/demo 没有独立 job，且 Java/Rust demos、Go Terraform/K8s 工具、跨语言 Worker smoke 也未进入主 CI 质量门。已补齐 `.github/workflows/ci.yml`：
+
+| CI job | 覆盖内容 | 命令/断言 |
+| --- | --- | --- |
+| `Go SDK and demo` | `sdks/go/tikee` 与 `examples/go/worker-demo` | `go test ./... -count=1` |
+| `Go deploy tooling` | Terraform provider 与 K8s operator Go modules | `go test ./... -count=1` |
+| `Java worker demos` | Spring Boot2/3/4 三个 Java demo | 各目录 `./gradlew test --no-daemon` |
+| `Rust worker demo` | Rust demo 独立 crate | `cargo fmt --check`、`cargo clippy -D warnings`、`cargo test` |
+| `Cross-language worker smoke` | Java Boot2/3/4 + Go + Rust Worker parity、server restart persisted snapshot、worker_pool scoped filtering、Web worker routes | `deploy/smoke/cross-language-worker-parity-smoke.sh`，失败/成功均上传 `.dev/reports/cross-language-workers-*` artifact |
+| `Docker build validation` | server/web 镜像构建 | 依赖上述所有质量门成功后才执行 |
+
+本地验证命令已执行通过：workflow YAML parse、`git diff --check`、Go SDK/demo/deploy tests、Rust demo fmt/clippy/test、Java Boot2/3/4 demo tests。

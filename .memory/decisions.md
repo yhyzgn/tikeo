@@ -481,3 +481,8 @@ Constraint:
 - Decision: A Worker may advertise a script runner only when the corresponding sandbox/runtime boundary is executable in that process. Unavailable/Unsupported adapters may exist as fail-closed handlers but must not be included in structured `scriptRunners`.
 - Decision: Go/Rust demos default to no script runner advertisement unless explicitly configured with a real container/runtime or a clearly development-only local runner advertising `custom`.
 - Rejected: Advertising Java parity sandbox names such as `srt`, `deno`, `v8`, `wasmtime`, or `wasmedge` from Go/Rust without an executable implementation | this creates fake scheduling capacity and breaks manual/automated验收.
+
+## 2026-06-05 — CI language coverage rule
+
+- Decision: Main CI must include every implemented SDK/demo family, not just server/web and Java/Rust SDKs. Go SDK/demo, Java demos, Rust demo, deploy Go tooling, and cross-language smoke are quality gates.
+- Rejected: leaving Go or demo validation as manual-only | it allows parity regressions and fake capability advertising to bypass GitHub checks.

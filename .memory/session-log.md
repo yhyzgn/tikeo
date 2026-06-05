@@ -1906,3 +1906,8 @@ Commit/push:
 - 新增 `deploy/smoke/cross-language-worker-parity-smoke.sh`，一键启动临时 server/web + Java Boot2/Boot3/Boot4 + Go + Rust worker，覆盖结构化 worker parity、Go/Rust 实例日志、server restart persisted snapshot、worker_pool scoped filtering 与 Web worker route smoke。
 - 最新证据：`.dev/reports/cross-language-workers-20260605T032108Z-202626/cross-language-workers-20260605T032108Z-202626.json`。
 - Verification: `cargo test -p tikee-storage -- --nocapture`; `cargo test -p tikee-server -- --nocapture`; Go SDK/demo tests; Rust SDK/demo tests; `cd sdks/java && ./gradlew test --no-daemon`; `cd web && bun run typecheck && bun test --run src/i18n/i18n.test.ts`; `deploy/smoke/cross-language-worker-parity-smoke.sh`.
+
+### 2026-06-05 — GitHub CI coverage completed for Go and demos
+- Audited `.github/workflows/ci.yml`: previous main CI covered Server/Web/Java SDK/Rust SDK/Docker only; it missed Go SDK/demo, Go deploy tooling, Java Boot2/3/4 demos, Rust demo, and the new cross-language smoke harness.
+- Added CI jobs: `Go SDK and demo`, `Go deploy tooling`, `Java worker demos`, `Rust worker demo`, and `Cross-language worker smoke`; Docker build validation now depends on all quality gates.
+- Verification: workflow YAML parse; `git diff --check`; Go SDK/demo/deploy `go test ./... -count=1`; Rust demo fmt/clippy/test; Java Boot2/3/4 demo `./gradlew test --no-daemon`.
