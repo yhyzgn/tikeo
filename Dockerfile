@@ -1,19 +1,13 @@
-# syntax=docker/dockerfile:1.7
-
 FROM docker.io/library/rust:1.95-alpine AS dependencies
 
-RUN sed -i 's@dl-cdn.alpinelinux.org@mirrors.aliyun.com@g' /etc/apk/repositories \
-    && apk add --no-cache build-base ca-certificates cmake perl pkgconf protobuf-dev gcompat
+RUN apk add --no-cache build-base ca-certificates cmake perl pkgconf protobuf-dev gcompat
 
-# rsproxy 源配置
-ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
-ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
-
+# Rust official distribution and sparse registry configuration.
+ENV RUSTUP_DIST_SERVER="https://static.rust-lang.org"
+ENV RUSTUP_UPDATE_ROOT="https://static.rust-lang.org/rustup"
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
-WORKDIR /app
 
-# 复制 Cargo 配置文件
-COPY .cargo/config.toml .cargo/config.toml
+WORKDIR /app
 
 COPY Cargo.toml Cargo.lock rustfmt.toml ./
 # Server image intentionally excludes ./sdks; keep Docker workspace server-only.
@@ -49,8 +43,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 FROM docker.io/library/alpine:3.22 AS runtime
 
-RUN sed -i 's@dl-cdn.alpinelinux.org@mirrors.aliyun.com@g' /etc/apk/repositories \
-    && apk add --no-cache ca-certificates tzdata \
+RUN apk add --no-cache ca-certificates tzdata \
     && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
 ENV TZ=Asia/Shanghai
