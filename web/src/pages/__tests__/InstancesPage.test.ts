@@ -131,13 +131,14 @@ describe('instance execution result view', () => {
   test('shows concrete execution result and refreshes instance details with logs', () => {
     expect(source).toContain('getInstance(instance.id)');
     expect(source).toContain('执行结果');
-    expect(source).toContain('任务执行成功');
-    expect(source).toContain('任务执行失败');
-    expect(source).toContain('instance-result-panel__message-body');
-    expect(source).toContain('renderExecutionResult(selectedInstance, attempts, logs)');
-    expect(source).toContain('renderBroadcastResults(instance, attempts, logs)');
-    expect(source).toContain('instance-result-broadcast__grid');
-    expect(source).toContain('nodeResult?.message');
+    expect(source).toContain('buildExecutionResultNodes(instance, attempts, logs)');
+    expect(source).toContain('节点执行结果');
+    expect(source).toContain('单节点结果');
     expect(source).toContain('广播节点结果');
+    expect(source).toContain('instance-result-nodes__grid');
+    expect(source).toContain('instance-result-nodes__message');
+    expect(source).toContain('node.result?.message');
+    expect(source).not.toContain('renderBroadcastResults(instance, attempts, logs)');
+    expect(source).not.toContain('暂无执行结果');
   });
 });

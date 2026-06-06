@@ -11,6 +11,7 @@ import {
   listJobs,
   type JobInstanceAttemptSummary,
   type JobInstanceLogSummary,
+  type JobInstanceResult,
   type JobInstanceSummary,
   type JobSummary,
 } from '../api/client';
@@ -63,77 +64,63 @@ const displayExecutionNodes = (
 
 const latestWorkerLog = (logs: JobInstanceLogSummary[], workerId: string) => [...logs].reverse().find((log) => log.workerId === workerId);
 
-const renderBroadcastResults = (instance: JobInstanceSummary | null, attempts: JobInstanceAttemptSummary[], logs: JobInstanceLogSummary[]) => {
-  if (instance?.executionMode !== 'broadcast') {
-    return null;
+type ExecutionResultNode = {
+  id: string;
+  workerId: string;
+  status: string;
+  result: JobInstanceResult | null;
+  updatedAt: string;
+  logCount: number;
+  latestMessage: string | null;
+};
+
+const buildExecutionResultNodes = (
+  instance: JobInstanceSummary | null,
+  attempts: JobInstanceAttemptSummary[],
+  logs: JobInstanceLogSummary[],
+): ExecutionResultNode[] => {
+  if (!instance) {
+    return [];
   }
-  return (
-    <div className="instance-result-broadcast">
-      <div className="instance-result-broadcast__header">
-        <Typography.Text strong>广播节点结果</Typography.Text>
-        <Typography.Text type="secondary">{attempts.length} 个执行节点</Typography.Text>
-      </div>
-      {attempts.length === 0 ? (
-        <Typography.Text type="secondary">暂无广播子执行信息</Typography.Text>
-      ) : (
-        <div className="instance-result-broadcast__grid">
-          {attempts.map((attempt) => {
-            const workerLogCount = logs.filter((log) => log.workerId === attempt.workerId).length;
-            const latestLog = latestWorkerLog(logs, attempt.workerId);
-            const nodeResult = attempt.result;
-            const nodeMessage = nodeResult?.message ?? latestLog?.message ?? '暂无节点结果';
-            return (
-              <div key={attempt.id} className="instance-result-broadcast__node">
-                <div className="instance-result-broadcast__node-head">
-                  <Typography.Text code title={attempt.workerId}>{formatWorkerDisplayId(attempt.workerId)}</Typography.Text>
-                  <Tag color={getStatusColor(attempt.status)} className="instance-status-tag">{nodeResult ? (nodeResult.success ? 'succeeded' : 'failed') : attempt.status}</Tag>
-                </div>
-                <div className="instance-result-broadcast__node-meta">
-                  <span>Updated</span>
-                  <Typography.Text>{nodeResult?.completedAt ?? attempt.updatedAt}</Typography.Text>
-                </div>
-                <div className="instance-result-broadcast__node-meta">
-                  <span>Result</span>
-                  <Typography.Text>{nodeResult ? (nodeResult.success ? 'success' : 'failed') : 'pending'}</Typography.Text>
-                </div>
-                <div className="instance-result-broadcast__node-meta">
-                  <span>Logs</span>
-                  <Typography.Text>{workerLogCount} 条</Typography.Text>
-                </div>
-                <Typography.Paragraph className="instance-result-broadcast__latest-log" title={nodeMessage}>
-                  {nodeMessage}
-                </Typography.Paragraph>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+
+  if (instance.executionMode === 'broadcast') {
+    return attempts.map((attempt) => {
+      const latestLog = latestWorkerLog(logs, attempt.workerId);
+      return {
+        id: attempt.id,
+        workerId: attempt.workerId,
+        status: attempt.result ? (attempt.result.success ? 'succeeded' : 'failed') : attempt.status,
+        result: attempt.result ?? null,
+        updatedAt: attempt.result?.completedAt ?? attempt.updatedAt,
+        logCount: logs.filter((log) => log.workerId === attempt.workerId).length,
+        latestMessage: latestLog?.message ?? null,
+      };
+    });
+  }
+
+  const workerId = instance.result?.workerId ?? instance.workerId ?? instance.latestLog?.workerId ?? '暂无 worker 日志';
+  const latestLog = latestWorkerLog(logs, workerId) ?? instance.latestLog ?? null;
+  return [{
+    id: `${instance.id}-result`,
+    workerId,
+    status: instance.result ? (instance.result.success ? 'succeeded' : 'failed') : instance.status,
+    result: instance.result ?? null,
+    updatedAt: instance.result?.completedAt ?? instance.updatedAt,
+    logCount: logs.filter((log) => log.workerId === workerId).length || instance.logCount || 0,
+    latestMessage: latestLog?.message ?? null,
+  }];
 };
 
 const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: JobInstanceAttemptSummary[], logs: JobInstanceLogSummary[]) => {
-  const result = instance?.result;
-  if (!result) {
-    return (
-      <Card size="small" className="instance-result-card instance-result-card--empty" title="执行结果" style={{ marginTop: 16 }}>
-        <div className="instance-result-empty">
-          <Typography.Text strong>暂无执行结果</Typography.Text>
-          <Typography.Text type="secondary">实例进入运行、重试或完成后会在这里展示 Worker 返回的具体结果。</Typography.Text>
-        </div>
-        {renderBroadcastResults(instance, attempts, logs)}
-      </Card>
-    );
-  }
-
-  const statusColor = result.success ? 'success' : 'error';
-  const statusText = result.success ? '任务执行成功' : '任务执行失败';
-  const messageText = result.message || 'Worker 未返回结果消息';
+  const nodes = buildExecutionResultNodes(instance, attempts, logs);
+  const completed = nodes.filter((node) => node.result).length;
+  const failed = nodes.filter((node) => node.result && !node.result.success).length;
+  const cardState = failed > 0 ? 'failed' : completed > 0 ? 'success' : 'pending';
 
   return (
     <Card
       size="small"
-      className={`instance-result-card instance-result-card--${result.success ? 'success' : 'failed'}`}
+      className={`instance-result-card instance-result-card--${cardState}`}
       title="执行结果"
       style={{ marginTop: 16 }}
     >
@@ -142,36 +129,64 @@ const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: Jo
           <div className="instance-result-panel__status">
             <span className="instance-result-panel__status-dot" />
             <div>
-              <Typography.Text strong className="instance-result-panel__status-title">{statusText}</Typography.Text>
-              <Typography.Text type="secondary" className="instance-result-panel__status-subtitle">Worker 返回的最终执行结果</Typography.Text>
+              <Typography.Text strong className="instance-result-panel__status-title">节点执行结果</Typography.Text>
+              <Typography.Text type="secondary" className="instance-result-panel__status-subtitle">
+                {nodes.length > 0 ? `共 ${nodes.length} 个执行节点，${completed} 个已返回结果` : '暂无执行节点信息'}
+              </Typography.Text>
             </div>
           </div>
-          <Tag color={statusColor} className="instance-result-panel__tag">{String(result.success)}</Tag>
+          {failed > 0 ? (
+            <Tag color="error" className="instance-result-panel__tag">{failed} failed</Tag>
+          ) : (
+            <Tag color={completed > 0 ? 'success' : 'processing'} className="instance-result-panel__tag">{completed}/{nodes.length}</Tag>
+          )}
         </div>
 
-        <div className="instance-result-panel__meta-grid">
-          <div className="instance-result-panel__meta-item">
-            <span>Worker</span>
-            <Typography.Text code title={result.workerId}>{result.workerId || '-'}</Typography.Text>
+        {nodes.length === 0 ? (
+          <div className="instance-result-empty">
+            <Typography.Text strong>暂无执行节点信息</Typography.Text>
+            <Typography.Text type="secondary">实例开始分发后会在这里按节点展示执行结果。</Typography.Text>
           </div>
-          <div className="instance-result-panel__meta-item">
-            <span>Completed At</span>
-            <Typography.Text className="instance-result-panel__time">{result.completedAt || '-'}</Typography.Text>
+        ) : (
+          <div className="instance-result-nodes">
+            <div className="instance-result-nodes__header">
+              <Typography.Text strong>{instance?.executionMode === 'broadcast' ? '广播节点结果' : '单节点结果'}</Typography.Text>
+              <Typography.Text type="secondary">{nodes.length} 个执行节点</Typography.Text>
+            </div>
+            <div className="instance-result-nodes__grid">
+              {nodes.map((node) => {
+                const messageText = node.result?.message ?? node.latestMessage ?? '等待 Worker 返回结果';
+                const resultText = node.result ? (node.result.success ? 'success' : 'failed') : 'pending';
+                return (
+                  <div key={node.id} className="instance-result-nodes__node">
+                    <div className="instance-result-nodes__node-head">
+                      <Typography.Text code title={node.workerId}>{formatWorkerDisplayId(node.workerId)}</Typography.Text>
+                      <Tag color={getStatusColor(node.status)} className="instance-status-tag">{node.status}</Tag>
+                    </div>
+                    <div className="instance-result-nodes__node-meta">
+                      <span>Updated</span>
+                      <Typography.Text>{node.updatedAt || '-'}</Typography.Text>
+                    </div>
+                    <div className="instance-result-nodes__node-meta">
+                      <span>Result</span>
+                      <Typography.Text>{resultText}</Typography.Text>
+                    </div>
+                    <div className="instance-result-nodes__node-meta">
+                      <span>Logs</span>
+                      <Typography.Text>{node.logCount} 条</Typography.Text>
+                    </div>
+                    <div className="instance-result-nodes__message">
+                      <span>Message</span>
+                      <Typography.Paragraph className="instance-result-panel__message-body" title={messageText}>
+                        {messageText}
+                      </Typography.Paragraph>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="instance-result-panel__meta-item">
-            <span>Status</span>
-            <Tag color={statusColor} className="instance-status-tag">{result.success ? 'succeeded' : 'failed'}</Tag>
-          </div>
-        </div>
-
-        <div className="instance-result-panel__message">
-          <span>Message</span>
-          <Typography.Paragraph className="instance-result-panel__message-body">
-            {messageText}
-          </Typography.Paragraph>
-        </div>
-
-        {renderBroadcastResults(instance, attempts, logs)}
+        )}
       </div>
     </Card>
   );
