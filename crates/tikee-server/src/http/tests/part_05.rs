@@ -309,7 +309,7 @@
         let payload = r#"{"username":"bootstrap_admin","email":"bootstrap.admin@example.com","password":"Tikee@2026!","confirmPassword":"Tikee@2026!"}"#;
         let registered = post_json_without_auth(app.clone(), "/api/v1/auth/bootstrap/register", payload).await;
         assert_eq!(registered["data"]["username"], "bootstrap_admin");
-        assert_eq!(registered["data"]["roles"][0], "admin");
+        assert_eq!(registered["data"]["roles"][0], "owner");
         assert!(registered["data"]["token"].as_str().is_some_and(|token| !token.is_empty()));
 
         let closed = app
@@ -341,7 +341,69 @@
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
+    async fn role_management_api_controls_permission_menu_and_ui_action_matrices() {
+        let app = router().await;
+        let admin = admin_token(app.clone()).await;
+
+        let catalog = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/permissions/catalog")
+                    .header("authorization", format!("Bearer {admin}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("catalog should respond: {error}"));
+        assert!(catalog.status().is_success());
+        let body = axum::body::to_bytes(catalog.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let catalog_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        let roles_read_id = catalog_json["data"]
+            .as_array()
+            .unwrap_or_else(|| panic!("catalog should be an array"))
+            .iter()
+            .find(|item| item["resource"] == "roles" && item["action"] == "read")
+            .and_then(|item| item["id"].as_str())
+            .unwrap_or_else(|| panic!("roles:read permission should exist"));
+
+        let created = post_json_raw(
+            app.clone(),
+            "/api/v1/roles",
+            &format!(
+                r#"{{"name":"tenant-auditor","displayName":"Tenant Auditor","description":"Read role matrix","enabled":true,"permissionIds":["{roles_read_id}"],"menuKeys":["/roles"],"uiActionKeys":[]}}"#
+            ),
+            Some(&admin),
+        )
+        .await;
+        assert_eq!(created["code"], 0);
+        assert_eq!(created["data"]["name"], "tenant-auditor");
+        assert_eq!(created["data"]["menuKeys"][0], "/roles");
+
+        let roles = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/roles")
+                    .header("authorization", format!("Bearer {admin}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("roles should respond: {error}"));
+        let body = axum::body::to_bytes(roles.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let roles_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert!(roles_json["data"].as_array().is_some_and(|items| {
+            items.iter().any(|item| item["name"] == "owner" && item["builtin"] == true)
+        }));
+    }
+
+    #[tokio::test]
     async fn user_management_and_rbac_integration() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
@@ -399,7 +461,15 @@
             .unwrap_or_else(|| panic!("expected JSON string"))
             .to_owned();
 
-        // 3. Authenticate with newly created user
+        assert_role_change_invalidates_sessions_and_grants_owner_access(app.clone(), &user_id)
+            .await;
+        delete_user_and_assert_audit(app.clone(), &user_id).await;
+    }
+
+    async fn assert_role_change_invalidates_sessions_and_grants_owner_access(
+        app: axum::Router,
+        user_id: &str,
+    ) {
         let login = post_json_without_auth(
             app.clone(),
             "/api/v1/auth/login",
@@ -426,7 +496,7 @@
             .unwrap_or_else(|error| panic!("test operation should succeed: {error}"));
         assert_eq!(response.status(), axum::http::StatusCode::FORBIDDEN);
 
-        // 5. Update user role to admin
+        // 5. Update user role to owner
         let response = app
             .clone()
             .oneshot(
@@ -434,7 +504,7 @@
                     app.clone(),
                     "PATCH",
                     format!("/api/v1/users/{user_id}"),
-                    r#"{"role":"admin"}"#,
+                    r#"{"role":"owner"}"#,
                 )
                 .await,
             )
@@ -455,7 +525,7 @@
             .unwrap_or_else(|| panic!("expected JSON string"))
             .to_owned();
 
-        // Verify that updated user now HAS access to user list (returns 200 OK)
+        // Verify that updated owner-role user now HAS access to user list (returns 200 OK)
         let response = app
             .clone()
             .oneshot(
@@ -468,8 +538,9 @@
             .await
             .unwrap_or_else(|error| panic!("test operation should succeed: {error}"));
         assert_eq!(response.status(), axum::http::StatusCode::OK);
+    }
 
-        // 7. Delete user
+    async fn delete_user_and_assert_audit(app: axum::Router, user_id: &str) {
         let response = app
             .clone()
             .oneshot(

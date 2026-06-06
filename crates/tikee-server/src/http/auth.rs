@@ -73,9 +73,10 @@ pub async fn require_role(
     allowed_roles: &[&str],
 ) -> Result<MeResponse, ApiError> {
     let principal = authenticate(headers, state).await?;
-    if allowed_roles
-        .iter()
-        .any(|role| principal.roles.contains(&role.to_string()))
+    if principal.bootstrap_admin
+        || allowed_roles
+            .iter()
+            .any(|role| principal.roles.contains(&role.to_string()))
     {
         Ok(principal)
     } else {
@@ -203,7 +204,7 @@ pub async fn register_bootstrap_admin(
             username: username.to_owned(),
             email: email.to_owned(),
             password: password_hash,
-            role: "admin".to_owned(),
+            role: "owner".to_owned(),
             bootstrap_admin: true,
         })
         .await
@@ -236,7 +237,7 @@ pub async fn register_bootstrap_admin(
             action: "bootstrap_admin_register".to_owned(),
             resource_type: "user".to_owned(),
             resource_id: created.id,
-            detail: Some("one_time_bootstrap=true;role=admin".to_owned()),
+            detail: Some("one_time_bootstrap=true;role=owner".to_owned()),
             before: None,
             after: None,
             trace_id: Some(trace_id(&headers)),

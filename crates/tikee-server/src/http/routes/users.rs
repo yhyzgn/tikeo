@@ -67,7 +67,8 @@ pub async fn create_user(
 ) -> Result<Json<crate::http::dto::UserApiResponse>, ApiError> {
     let principal = auth::require_permission(&headers, &state, "users", "manage").await?;
 
-    validate_role(&request.role)?;
+    require_role_assignment_permission(&principal, &state)?;
+    validate_role(&state, &request.role).await?;
     if request.username.trim().is_empty()
         || request.email.trim().is_empty()
         || request.password.trim().is_empty()
@@ -142,7 +143,8 @@ pub async fn update_user(
         .ok_or_else(|| ApiError::not_found(format!("user not found: {id}")))?;
 
     if let Some(role) = request.role.as_deref() {
-        validate_role(role)?;
+        require_role_assignment_permission(&principal, &state)?;
+        validate_role(&state, role).await?;
     }
     if let Some(email) = request.email.as_deref() {
         validate_email(email)?;
@@ -226,10 +228,10 @@ pub async fn delete_user(
         .map_err(|error| ApiError::storage(&error))?;
 
     if let Some(user) = existing.as_ref()
-        && user.role == "admin"
+        && user.role == "owner"
         && state
             .users
-            .count_by_role("admin")
+            .count_by_role("owner")
             .await
             .map_err(|error| ApiError::storage(&error))?
             <= 1
@@ -263,11 +265,34 @@ pub async fn delete_user(
     }
 }
 
-fn validate_role(role: &str) -> Result<(), ApiError> {
-    if matches!(role, "admin" | "operator" | "viewer") {
+fn require_role_assignment_permission(
+    principal: &crate::http::dto::MeResponse,
+    state: &AppState,
+) -> Result<(), ApiError> {
+    if state
+        .rbac
+        .principal_has_permission(principal, "roles", "assign")
+        || state
+            .rbac
+            .principal_has_permission(principal, "roles", "manage")
+    {
         Ok(())
     } else {
-        Err(ApiError::bad_request(format!("unsupported role: {role}")))
+        Err(ApiError::forbidden(
+            "requires permission: roles:assign or roles:manage",
+        ))
+    }
+}
+
+async fn validate_role(state: &AppState, role: &str) -> Result<(), ApiError> {
+    let role = role.trim();
+    let roles = state.rbac.list_roles().await?;
+    if roles.iter().any(|item| item.name == role && item.enabled) {
+        Ok(())
+    } else {
+        Err(ApiError::bad_request(format!(
+            "unsupported or disabled role: {role}"
+        )))
     }
 }
 

@@ -11,10 +11,25 @@ export function usePrincipal() {
 
 export function hasPermission(principal: MeResponse | null, resource: string, action: string): boolean {
   if (!principal) return false;
-  if (principal.roles.includes('admin')) return true;
+  if (principal.bootstrap_admin) return true;
   return principal.permissions.some(
     (permission) => permission.resource === resource && (permission.action === action || permission.action === 'manage'),
   );
+}
+
+
+export function hasMenuAccess(principal: MeResponse | null, menuKey: string, fallback?: { resource: string; action: string }): boolean {
+  if (!principal) return false;
+  if (principal.bootstrap_admin) return true;
+  if (principal.menu_keys.length > 0) return principal.menu_keys.includes(menuKey);
+  return fallback ? hasPermission(principal, fallback.resource, fallback.action) : true;
+}
+
+export function hasUiAction(principal: MeResponse | null, actionKey: string, fallback?: { resource: string; action: string }): boolean {
+  if (!principal) return false;
+  if (principal.bootstrap_admin) return true;
+  if (principal.ui_action_keys.length > 0) return principal.ui_action_keys.includes(actionKey);
+  return fallback ? hasPermission(principal, fallback.resource, fallback.action) : false;
 }
 
 export function AuthGuard() {

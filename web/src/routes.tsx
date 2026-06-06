@@ -63,6 +63,7 @@ export const ROUTE_META = {
   plugins: { path: '/plugins', menuKey: '/plugins', label: '插件系统', icon: <AppstoreAddOutlined />, permission: { resource: 'tenants', action: 'read' }, menu: true, group: 'runtime' },
   scopes: { path: '/scopes', menuKey: '/scopes', label: '租户范围', icon: <PartitionOutlined />, permission: { resource: 'tenants', action: 'read' }, menu: true, group: 'governance' },
   users: { path: '/users', menuKey: '/users', label: '用户管理', icon: <UserOutlined />, permission: { resource: 'users', action: 'read' }, menu: true, group: 'governance' },
+  roles: { path: '/roles', menuKey: '/roles', label: '角色管理', icon: <SafetyCertificateOutlined />, permission: { resource: 'roles', action: 'read' }, menu: true, group: 'governance' },
   calendars: { path: '/calendars', menuKey: '/calendars', label: '调度日历', icon: <ScheduleOutlined />, permission: { resource: 'tenants', action: 'read' }, menu: true, group: 'governance' },
   apiKeys: { path: '/api-keys', menuKey: '/api-keys', label: 'API-Key', icon: <KeyOutlined />, permission: { resource: 'tenants', action: 'manage' }, menu: true, group: 'governance' },
   gitops: { path: '/gitops', menuKey: '/gitops', label: 'GitOps/IaC', icon: <CloudSyncOutlined />, permission: { resource: 'tenants', action: 'read' }, menu: true, group: 'governance' },

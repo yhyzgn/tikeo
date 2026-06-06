@@ -503,14 +503,68 @@ export interface PermissionSummary {
   action: string;
 }
 
+
+export interface RoleSummary {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string;
+  builtin: boolean;
+  enabled: boolean;
+  permissions: PermissionSummary[];
+  menuKeys: string[];
+  uiActionKeys: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PermissionCatalogItem {
+  id: string;
+  resource: string;
+  action: string;
+  description: string;
+}
+
+export interface MenuPermissionCatalogItem {
+  key: string;
+  label: string;
+  group: string;
+  routePath: string;
+  requiredPermission: PermissionSummary | null;
+}
+
+export interface UiActionPermissionCatalogItem {
+  key: string;
+  label: string;
+  pageKey: string;
+  operation: string;
+  dangerous: boolean;
+  requiredPermission: PermissionSummary | null;
+}
+
+export interface CreateRoleRequest {
+  name: string;
+  displayName: string;
+  description?: string | null;
+  enabled: boolean;
+  permissionIds: string[];
+  menuKeys: string[];
+  uiActionKeys: string[];
+}
+
+export type UpdateRoleRequest = Omit<CreateRoleRequest, 'name'>;
+
 export interface AuthSession {
   token: string;
   username: string;
   roles: string[];
   permissions: PermissionSummary[];
+  bootstrap_admin: boolean;
   scope_limited: boolean;
   token_scopes: string[];
   scope_bindings: AccessScopeBinding[];
+  menu_keys: string[];
+  ui_action_keys: string[];
 }
 
 export interface AccessScopeBinding {
@@ -523,9 +577,12 @@ export interface MeResponse {
   username: string;
   roles: string[];
   permissions: PermissionSummary[];
+  bootstrap_admin: boolean;
   scope_limited: boolean;
   token_scopes: string[];
   scope_bindings: AccessScopeBinding[];
+  menu_keys: string[];
+  ui_action_keys: string[];
 }
 
 
@@ -986,6 +1043,40 @@ export async function updateUser(id: string, params: UpdateUserRequest): Promise
     method: 'PATCH',
     body: JSON.stringify(params),
   });
+}
+
+export async function listRoles(): Promise<RoleSummary[]> {
+  return request<RoleSummary[]>('/api/v1/roles');
+}
+
+export async function createRole(params: CreateRoleRequest): Promise<RoleSummary> {
+  return request<RoleSummary>('/api/v1/roles', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function updateRole(id: string, params: UpdateRoleRequest): Promise<RoleSummary> {
+  return request<RoleSummary>(`/api/v1/roles/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function deleteRole(id: string): Promise<unknown> {
+  return request<unknown>(`/api/v1/roles/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function listPermissionCatalog(): Promise<PermissionCatalogItem[]> {
+  return request<PermissionCatalogItem[]>('/api/v1/permissions/catalog');
+}
+
+export async function listMenuPermissionCatalog(): Promise<MenuPermissionCatalogItem[]> {
+  return request<MenuPermissionCatalogItem[]>('/api/v1/menu-permissions/catalog');
+}
+
+export async function listUiActionPermissionCatalog(): Promise<UiActionPermissionCatalogItem[]> {
+  return request<UiActionPermissionCatalogItem[]>('/api/v1/ui-action-permissions/catalog');
 }
 
 export async function deleteUser(id: string): Promise<void> {

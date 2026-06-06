@@ -332,9 +332,12 @@ pub struct AuthSession {
     pub username: String,
     pub roles: Vec<String>,
     pub permissions: Vec<tikee_storage::PermissionSummary>,
+    pub bootstrap_admin: bool,
     pub scope_limited: bool,
     pub token_scopes: Vec<String>,
     pub scope_bindings: Vec<AccessScopeBinding>,
+    pub menu_keys: Vec<String>,
+    pub ui_action_keys: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
@@ -442,9 +445,12 @@ pub struct MeResponse {
     pub username: String,
     pub roles: Vec<String>,
     pub permissions: Vec<tikee_storage::PermissionSummary>,
+    pub bootstrap_admin: bool,
     pub scope_limited: bool,
     pub token_scopes: Vec<String>,
     pub scope_bindings: Vec<AccessScopeBinding>,
+    pub menu_keys: Vec<String>,
+    pub ui_action_keys: Vec<String>,
 }
 
 pub type WorkflowApiResponse = ApiResponse<tikee_storage::WorkflowSummary>;

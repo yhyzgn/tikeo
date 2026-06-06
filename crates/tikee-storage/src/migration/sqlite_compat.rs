@@ -925,7 +925,11 @@ async fn seed_sqlite_rbac_defaults(db: &impl ConnectionTrait) -> Result<(), sea_
         .format(&time::format_description::well_known::Rfc3339)
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_owned());
     for (id, name, description) in [
-        ("role-admin", "admin", "Full platform administration"),
+        (
+            "role-owner",
+            "owner",
+            "Site owner and bootstrap recovery role",
+        ),
         (
             "role-operator",
             "operator",
@@ -950,11 +954,11 @@ async fn seed_sqlite_rbac_defaults(db: &impl ConnectionTrait) -> Result<(), sea_
         ))
         .await?;
     }
-    let admin_permissions = SQLITE_DEFAULT_PERMISSIONS
+    let owner_permissions = SQLITE_DEFAULT_PERMISSIONS
         .iter()
         .map(|(id, _, _, _)| *id)
         .collect::<Vec<_>>();
-    seed_sqlite_role_permissions(db, "role-admin", &admin_permissions, &now).await?;
+    seed_sqlite_role_permissions(db, "role-owner", &owner_permissions, &now).await?;
     seed_sqlite_role_permissions(
         db,
         "role-operator",

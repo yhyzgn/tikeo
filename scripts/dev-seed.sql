@@ -42,11 +42,20 @@ ON CONFLICT(id) DO UPDATE SET
   role = excluded.role,
   bootstrap_admin = excluded.bootstrap_admin;
 
-INSERT INTO jobs (id, namespace_id, app_id, name, schedule_type, schedule_expr, processor_name, misfire_policy, enabled, canary_percent, created_at, updated_at)
+INSERT INTO user_roles (id, user_id, role_id, created_at)
+SELECT 'ur-' || users.id || '-' || roles.id, users.id, roles.id, '2026-01-01T00:00:00Z'
+FROM users
+JOIN roles ON roles.name = users.role
+WHERE users.id IN ('usr-dev-operator', 'usr-dev-viewer')
+ON CONFLICT(id) DO UPDATE SET
+  user_id = excluded.user_id,
+  role_id = excluded.role_id;
+
+INSERT INTO jobs (id, namespace_id, app_id, name, schedule_type, schedule_expr, processor_name, misfire_policy, enabled, canary_percent, retry_policy_json, created_at, updated_at)
 VALUES
-  ('job-dev-api-hello', 'ns-dev-default', 'app-dev-default', 'api-hello', 'api', NULL, 'demo.echo', 'ignore', 1, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
-  ('job-dev-fixed-rate-heartbeat', 'ns-dev-default', 'app-dev-default', 'fixed-rate-heartbeat', 'fixed_rate', '30s', 'demo.heartbeat', 'ignore', 1, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
-  ('job-dev-cron-minute-report', 'ns-dev-default', 'app-dev-default', 'cron-minute-report', 'cron', '0/30 * * * * * *', 'demo.report', 'ignore', 1, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+  ('job-dev-api-hello', 'ns-dev-default', 'app-dev-default', 'api-hello', 'api', NULL, 'demo.echo', 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+  ('job-dev-fixed-rate-heartbeat', 'ns-dev-default', 'app-dev-default', 'fixed-rate-heartbeat', 'fixed_rate', '30s', 'demo.heartbeat', 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+  ('job-dev-cron-minute-report', 'ns-dev-default', 'app-dev-default', 'cron-minute-report', 'cron', '0/30 * * * * * *', 'demo.report', 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
 ON CONFLICT(id) DO UPDATE SET
   namespace_id = excluded.namespace_id,
   app_id = excluded.app_id,
@@ -57,6 +66,7 @@ ON CONFLICT(id) DO UPDATE SET
   misfire_policy = excluded.misfire_policy,
   enabled = excluded.enabled,
   canary_percent = excluded.canary_percent,
+  retry_policy_json = excluded.retry_policy_json,
   updated_at = excluded.updated_at;
 
 INSERT INTO job_instances (id, job_id, status, trigger_type, execution_mode, created_at, updated_at)
@@ -235,15 +245,15 @@ ON CONFLICT(id) DO UPDATE SET
   created_by = excluded.created_by,
   created_at = excluded.created_at;
 
-INSERT INTO jobs (id, namespace_id, app_id, name, schedule_type, schedule_expr, processor_name, misfire_policy, enabled, canary_percent, created_at, updated_at, script_id)
+INSERT INTO jobs (id, namespace_id, app_id, name, schedule_type, schedule_expr, processor_name, misfire_policy, enabled, canary_percent, retry_policy_json, created_at, updated_at, script_id)
 VALUES
-  ('job-dev-script-shell-example', 'ns-dev-default', 'app-dev-default', 'dev-shell-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-shell-example'),
-  ('job-dev-script-python-example', 'ns-dev-default', 'app-dev-default', 'dev-python-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-python-example'),
-  ('job-dev-script-javascript-example', 'ns-dev-default', 'app-dev-default', 'dev-javascript-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-javascript-example'),
-  ('job-dev-script-typescript-example', 'ns-dev-default', 'app-dev-default', 'dev-typescript-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-typescript-example'),
-  ('job-dev-script-powershell-example', 'ns-dev-default', 'app-dev-default', 'dev-powershell-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-powershell-example'),
-  ('job-dev-script-rhai-example', 'ns-dev-default', 'app-dev-default', 'dev-rhai-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-rhai-example'),
-  ('job-dev-script-rhai-object-example', 'ns-dev-default', 'app-dev-default', 'dev-rhai-object-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-rhai-object-example')
+  ('job-dev-script-shell-example', 'ns-dev-default', 'app-dev-default', 'dev-shell-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-shell-example'),
+  ('job-dev-script-python-example', 'ns-dev-default', 'app-dev-default', 'dev-python-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-python-example'),
+  ('job-dev-script-javascript-example', 'ns-dev-default', 'app-dev-default', 'dev-javascript-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-javascript-example'),
+  ('job-dev-script-typescript-example', 'ns-dev-default', 'app-dev-default', 'dev-typescript-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-typescript-example'),
+  ('job-dev-script-powershell-example', 'ns-dev-default', 'app-dev-default', 'dev-powershell-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-powershell-example'),
+  ('job-dev-script-rhai-example', 'ns-dev-default', 'app-dev-default', 'dev-rhai-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-rhai-example'),
+  ('job-dev-script-rhai-object-example', 'ns-dev-default', 'app-dev-default', 'dev-rhai-object-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-rhai-object-example')
 ON CONFLICT(id) DO UPDATE SET
   namespace_id = excluded.namespace_id,
   app_id = excluded.app_id,
@@ -254,6 +264,7 @@ ON CONFLICT(id) DO UPDATE SET
   misfire_policy = excluded.misfire_policy,
   enabled = excluded.enabled,
   canary_percent = excluded.canary_percent,
+  retry_policy_json = excluded.retry_policy_json,
   script_id = excluded.script_id,
   updated_at = excluded.updated_at;
 

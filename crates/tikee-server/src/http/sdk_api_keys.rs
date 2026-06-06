@@ -343,6 +343,7 @@ fn sdk_principal(
             "app_service".to_owned(),
         ],
         permissions,
+        bootstrap_admin: false,
         scope_limited: true,
         token_scopes: summary.scopes,
         scope_bindings: vec![AccessScopeBinding {
@@ -350,6 +351,8 @@ fn sdk_principal(
             app: Some(service_account.app),
             worker_pool: None,
         }],
+        menu_keys: Vec::new(),
+        ui_action_keys: Vec::new(),
     }
 }
 

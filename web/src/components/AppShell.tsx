@@ -3,7 +3,7 @@ import { Avatar, Badge, Button, ColorPicker, Layout, Menu, Select, Space, Toolti
 import type { MenuProps } from 'antd';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { hasPermission, usePrincipal } from './AuthGuard';
+import { hasMenuAccess, usePrincipal } from './AuthGuard';
 import { MENU_GROUPS, MENU_ROUTE_META } from '../routes';
 import { DEFAULT_PRIMARY_COLOR, useThemeSettings } from '../theme';
 import { LOCALE_OPTIONS, useI18n } from '../i18n';
@@ -22,11 +22,11 @@ export function AppShell({ children, onLogout }: AppShellProps) {
   const location = useLocation();
   const username = principal?.username ?? '';
   const roles = principal?.roles ?? [];
-  const isAdmin = roles.includes('admin');
+  const isOwner = principal?.bootstrap_admin || roles.includes('owner');
   const { primaryColor, mode, resolvedMode, setPrimaryColor, resetPrimaryColor, setMode } = useThemeSettings();
   const { locale, setLocale, t } = useI18n();
 
-  const visibleRoutes = MENU_ROUTE_META.filter((route) => !route.permission || hasPermission(principal, route.permission.resource, route.permission.action));
+  const visibleRoutes = MENU_ROUTE_META.filter((route) => hasMenuAccess(principal, route.menuKey, route.permission));
   const selectedRoute = [...visibleRoutes]
     .filter((route) => location.pathname === route.path || location.pathname.startsWith(`${route.path}/`))
     .sort((left, right) => right.path.length - left.path.length)[0];
@@ -119,7 +119,7 @@ export function AppShell({ children, onLogout }: AppShellProps) {
               style={{ width: 112 }}
               options={LOCALE_OPTIONS}
             />
-            <Badge status="processing" text={isAdmin ? "Admin" : "Dev"} />
+            <Badge status="processing" text={isOwner ? "Owner" : "User"} />
             <Avatar className="app-shell__avatar">{username.slice(0, 1).toUpperCase()}</Avatar>
             <Typography.Text className="app-shell__username">{username}</Typography.Text>
             <Button icon={<LogoutOutlined />} onClick={onLogout}>

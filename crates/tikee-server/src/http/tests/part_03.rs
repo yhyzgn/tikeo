@@ -1350,7 +1350,7 @@
             .to_owned();
         assert_eq!(token.len(), 48);
         assert!(token.chars().all(|value| value.is_ascii_alphanumeric()));
-        assert_eq!(login["data"]["roles"][0], "admin");
+        assert_eq!(login["data"]["roles"][0], "owner");
 
         let response = app
             .oneshot(

@@ -2363,3 +2363,25 @@ html[data-theme="dark"] .tikee-logo__flow {
     transform: translate3d(1.2px, 0, 0) scale(1.08);
   }
 }
+
+.role-matrix-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px 14px;
+  width: 100%;
+}
+
+.role-matrix-checkboxes .ant-checkbox-wrapper {
+  align-items: center;
+  min-height: 34px;
+  margin-inline-start: 0 !important;
+  padding: 6px 10px;
+  border: 1px dashed color-mix(in srgb, var(--app-primary-color) 28%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--app-primary-color) 5%, transparent);
+}
+
+html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(148, 163, 184, 0.28);
+}

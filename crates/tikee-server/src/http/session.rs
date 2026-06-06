@@ -203,6 +203,60 @@ impl DbMokaSessionStore {
             .await
             .map_err(|error| ApiError::storage(&error))
     }
+
+    async fn effective_permissions(
+        &self,
+        roles: &[String],
+        bootstrap_admin: bool,
+    ) -> Result<Vec<PermissionSummary>, ApiError> {
+        if bootstrap_admin {
+            return self
+                .rbac
+                .all_permissions()
+                .await
+                .map_err(|error| ApiError::storage(&error));
+        }
+        self.rbac
+            .permissions_for_roles(roles)
+            .await
+            .map_err(|error| ApiError::storage(&error))
+    }
+
+    async fn effective_menu_keys(
+        &self,
+        roles: &[String],
+        bootstrap_admin: bool,
+    ) -> Result<Vec<String>, ApiError> {
+        if bootstrap_admin {
+            return self
+                .rbac
+                .all_menu_keys()
+                .await
+                .map_err(|error| ApiError::storage(&error));
+        }
+        self.rbac
+            .menu_keys_for_roles(roles)
+            .await
+            .map_err(|error| ApiError::storage(&error))
+    }
+
+    async fn effective_ui_action_keys(
+        &self,
+        roles: &[String],
+        bootstrap_admin: bool,
+    ) -> Result<Vec<String>, ApiError> {
+        if bootstrap_admin {
+            return self
+                .rbac
+                .all_ui_action_keys()
+                .await
+                .map_err(|error| ApiError::storage(&error));
+        }
+        self.rbac
+            .ui_action_keys_for_roles(roles)
+            .await
+            .map_err(|error| ApiError::storage(&error))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -233,18 +287,25 @@ impl SessionStore for DbMokaSessionStore {
 
         let roles = vec![summary.role.clone()];
         let permissions = self
-            .rbac
-            .permissions_for_roles(&roles)
-            .await
-            .map_err(|error| ApiError::storage(&error))?;
+            .effective_permissions(&roles, summary.bootstrap_admin)
+            .await?;
+        let menu_keys = self
+            .effective_menu_keys(&roles, summary.bootstrap_admin)
+            .await?;
+        let ui_action_keys = self
+            .effective_ui_action_keys(&roles, summary.bootstrap_admin)
+            .await?;
         let scope_bindings = session_scope_bindings(&summary);
         let principal = MeResponse {
             username: summary.username.clone(),
             roles,
             permissions,
+            bootstrap_admin: summary.bootstrap_admin,
             scope_limited: !scope_bindings.is_empty(),
             token_scopes: Vec::new(),
             scope_bindings,
+            menu_keys,
+            ui_action_keys,
         };
         self.cache
             .insert(
@@ -261,9 +322,12 @@ impl SessionStore for DbMokaSessionStore {
             username: principal.username,
             roles: principal.roles,
             permissions: principal.permissions,
+            bootstrap_admin: principal.bootstrap_admin,
             scope_limited: principal.scope_limited,
             token_scopes: principal.token_scopes,
             scope_bindings: principal.scope_bindings,
+            menu_keys: principal.menu_keys,
+            ui_action_keys: principal.ui_action_keys,
         })
     }
 
@@ -299,11 +363,9 @@ impl SessionStore for DbMokaSessionStore {
             .map_err(|error| ApiError::storage(&error))?;
 
         let roles = vec![summary.role.clone()];
-        let role_permissions = self
-            .rbac
-            .permissions_for_roles(&roles)
-            .await
-            .map_err(|error| ApiError::storage(&error))?;
+        let role_permissions = self.effective_permissions(&roles, false).await?;
+        let menu_keys = self.effective_menu_keys(&roles, false).await?;
+        let ui_action_keys = self.effective_ui_action_keys(&roles, false).await?;
         let token_scopes = api_token_scopes(&summary);
         let scope_bindings = session_scope_bindings(&summary);
         let permissions = if token_scopes.is_empty() {
@@ -315,9 +377,12 @@ impl SessionStore for DbMokaSessionStore {
             username: summary.username.clone(),
             roles,
             permissions,
+            bootstrap_admin: false,
             scope_limited: !token_scopes.is_empty() || !scope_bindings.is_empty(),
             token_scopes,
             scope_bindings,
+            menu_keys,
+            ui_action_keys,
         };
         self.cache
             .insert(
@@ -400,10 +465,14 @@ impl SessionStore for DbMokaSessionStore {
 
         let roles = vec![summary.role.clone()];
         let role_permissions = self
-            .rbac
-            .permissions_for_roles(&roles)
-            .await
-            .map_err(|error| ApiError::storage(&error))?;
+            .effective_permissions(&roles, summary.bootstrap_admin && renewable)
+            .await?;
+        let menu_keys = self
+            .effective_menu_keys(&roles, summary.bootstrap_admin && renewable)
+            .await?;
+        let ui_action_keys = self
+            .effective_ui_action_keys(&roles, summary.bootstrap_admin && renewable)
+            .await?;
         let token_scopes = api_token_scopes(&summary);
         let scope_bindings = session_scope_bindings(&summary);
         let permissions = if token_scopes.is_empty() {
@@ -415,9 +484,12 @@ impl SessionStore for DbMokaSessionStore {
             username: summary.username,
             roles,
             permissions,
+            bootstrap_admin: summary.bootstrap_admin && renewable,
             scope_limited: !token_scopes.is_empty() || !scope_bindings.is_empty(),
             token_scopes,
             scope_bindings,
+            menu_keys,
+            ui_action_keys,
         };
         self.cache
             .insert(
@@ -586,7 +658,7 @@ mod tests {
                 username: "session_admin".to_owned(),
                 email: "session-admin@example.com".to_owned(),
                 password: "$2b$10$sessionhash".to_owned(),
-                role: "admin".to_owned(),
+                role: "owner".to_owned(),
                 bootstrap_admin: true,
             })
             .await
@@ -608,7 +680,7 @@ mod tests {
         SessionCreate {
             user_id,
             username: "session_admin".to_owned(),
-            role: "admin".to_owned(),
+            role: "owner".to_owned(),
             device_id: None,
             device_name: Some("unit-test".to_owned()),
             token_scopes,

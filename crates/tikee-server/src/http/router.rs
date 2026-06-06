@@ -180,6 +180,20 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
             axum::routing::patch(sdk_api_keys::update_sdk_api_key)
                 .delete(sdk_api_keys::revoke_sdk_api_key),
         )
+        .route("/roles", get(routes::list_roles).post(routes::create_role))
+        .route(
+            "/roles/{id}",
+            axum::routing::patch(routes::update_role).delete(routes::delete_role),
+        )
+        .route("/permissions/catalog", get(routes::permission_catalog))
+        .route(
+            "/menu-permissions/catalog",
+            get(routes::menu_permission_catalog),
+        )
+        .route(
+            "/ui-action-permissions/catalog",
+            get(routes::ui_action_permission_catalog),
+        )
         .route(
             "/users",
             axum::routing::get(routes::list_users).post(routes::create_user),

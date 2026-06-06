@@ -27,6 +27,7 @@ const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage').then((module) =
 const ScriptsPage = lazy(() => import('./pages/ScriptsPage').then((module) => ({ default: module.ScriptsPage })));
 const ScriptEditorPage = lazy(() => import('./pages/ScriptsPage').then((module) => ({ default: module.ScriptEditorPage })));
 const UsersPage = lazy(() => import('./pages/UsersPage').then((module) => ({ default: module.UsersPage })));
+const RolesPage = lazy(() => import('./pages/RolesPage').then((module) => ({ default: module.RolesPage })));
 const ScopesPage = lazy(() => import('./pages/ScopesPage').then((module) => ({ default: module.ScopesPage })));
 const CalendarsPage = lazy(() => import('./pages/CalendarsPage').then((module) => ({ default: module.CalendarsPage })));
 const PluginsPage = lazy(() => import('./pages/PluginsPage').then((module) => ({ default: module.PluginsPage })));
@@ -43,6 +44,7 @@ const KEEP_ALIVE_ROUTES = [
   { path: ROUTE_META.workers.path, element: <GuardedRoute route={ROUTE_META.workers}><WorkersPage /></GuardedRoute> },
   { path: ROUTE_META.dispatchQueue.path, element: <GuardedRoute route={ROUTE_META.dispatchQueue}><DispatchQueuePage /></GuardedRoute> },
   { path: ROUTE_META.users.path, element: <GuardedRoute route={ROUTE_META.users}><UsersPage /></GuardedRoute> },
+  { path: ROUTE_META.roles.path, element: <GuardedRoute route={ROUTE_META.roles}><RolesPage /></GuardedRoute> },
   { path: ROUTE_META.scopes.path, element: <GuardedRoute route={ROUTE_META.scopes}><ScopesPage /></GuardedRoute> },
   { path: ROUTE_META.calendars.path, element: <GuardedRoute route={ROUTE_META.calendars}><CalendarsPage /></GuardedRoute> },
   { path: ROUTE_META.plugins.path, element: <GuardedRoute route={ROUTE_META.plugins}><PluginsPage /></GuardedRoute> },
@@ -109,6 +111,7 @@ function AppLayout() {
           <Route path={ROUTE_META.workers.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.dispatchQueue.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.users.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
+          <Route path={ROUTE_META.roles.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.scopes.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.calendars.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.plugins.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />

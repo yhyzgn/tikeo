@@ -419,7 +419,11 @@ pub(super) enum Roles {
     Id,
     Name,
     Description,
+    DisplayName,
+    Builtin,
+    Enabled,
     CreatedAt,
+    UpdatedAt,
 }
 
 #[derive(DeriveIden)]
@@ -438,6 +442,33 @@ pub(super) enum RolePermissions {
     Id,
     RoleId,
     PermissionId,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+pub(super) enum UserRoles {
+    Table,
+    Id,
+    UserId,
+    RoleId,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+pub(super) enum RoleMenuPermissions {
+    Table,
+    Id,
+    RoleId,
+    MenuKey,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+pub(super) enum RoleUiActionPermissions {
+    Table,
+    Id,
+    RoleId,
+    UiActionKey,
     CreatedAt,
 }
 

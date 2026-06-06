@@ -5,7 +5,7 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
-use crate::entities::{auth_session, permission, role, role_permission, user};
+use crate::entities::{auth_session, user};
 
 use super::util::{new_id, now_rfc3339};
 /// Persisted session creation input.
@@ -34,6 +34,8 @@ pub struct AuthSessionSummary {
     pub username: String,
     /// Role.
     pub role: String,
+    /// Whether this account was created by the one-time deployment bootstrap flow.
+    pub bootstrap_admin: bool,
     /// Token hash.
     pub token_hash: String,
     /// Optional device id.
@@ -271,6 +273,7 @@ impl AuthSessionSummary {
             user_id: user.id,
             username: user.username,
             role: user.role,
+            bootstrap_admin: user.bootstrap_admin,
             token_hash: session.token_hash,
             device_id: session.device_id,
             device_name: session.device_name,
@@ -292,88 +295,4 @@ pub struct PermissionSummary {
     pub resource: String,
     /// Action name, for example `manage`.
     pub action: String,
-}
-
-/// RBAC repository using soft relations between users, roles, and permissions.
-#[derive(Debug, Clone)]
-pub struct RbacRepository {
-    db: DatabaseConnection,
-}
-
-impl RbacRepository {
-    /// Create a repository using the provided database connection.
-    #[must_use]
-    pub const fn new(db: DatabaseConnection) -> Self {
-        Self { db }
-    }
-
-    /// List permissions granted to a role name.
-    pub async fn permissions_for_role(
-        &self,
-        role_name: &str,
-    ) -> Result<Vec<PermissionSummary>, sea_orm::DbErr> {
-        let Some(role_model) = role::Entity::find()
-            .filter(role::Column::Name.eq(role_name.to_owned()))
-            .one(&self.db)
-            .await?
-        else {
-            return Ok(Vec::new());
-        };
-
-        let bindings = role_permission::Entity::find()
-            .filter(role_permission::Column::RoleId.eq(role_model.id))
-            .all(&self.db)
-            .await?;
-        let mut permissions = Vec::new();
-        for binding in bindings {
-            if let Some(permission_model) = permission::Entity::find_by_id(binding.permission_id)
-                .one(&self.db)
-                .await?
-            {
-                permissions.push(PermissionSummary {
-                    resource: permission_model.resource,
-                    action: permission_model.action,
-                });
-            }
-        }
-        permissions.sort_by(|left, right| {
-            left.resource
-                .cmp(&right.resource)
-                .then(left.action.cmp(&right.action))
-        });
-        permissions.dedup();
-        Ok(permissions)
-    }
-
-    /// List permissions granted across multiple roles.
-    pub async fn permissions_for_roles(
-        &self,
-        roles: &[String],
-    ) -> Result<Vec<PermissionSummary>, sea_orm::DbErr> {
-        let mut permissions = Vec::new();
-        for role_name in roles {
-            permissions.extend(self.permissions_for_role(role_name).await?);
-        }
-        permissions.sort_by(|left, right| {
-            left.resource
-                .cmp(&right.resource)
-                .then(left.action.cmp(&right.action))
-        });
-        permissions.dedup();
-        Ok(permissions)
-    }
-
-    /// Check whether any role grants a resource/action permission.
-    pub async fn has_permission(
-        &self,
-        roles: &[String],
-        resource: &str,
-        action: &str,
-    ) -> Result<bool, sea_orm::DbErr> {
-        let permissions = self.permissions_for_roles(roles).await?;
-        Ok(permissions.iter().any(|permission| {
-            permission.resource == resource
-                && (permission.action == action || permission.action == "manage")
-        }))
-    }
 }

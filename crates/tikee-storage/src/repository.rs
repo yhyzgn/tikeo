@@ -20,6 +20,7 @@ mod oidc;
 mod oidc_identity;
 mod plugin;
 mod raft;
+mod rbac;
 mod schedule_cursor;
 mod scope;
 mod script;
@@ -41,9 +42,7 @@ pub use attempt::{
 pub use audit::{
     AuditLogFilters, AuditLogPageSummary, AuditLogRepository, AuditLogSummary, CreateAuditLog,
 };
-pub use auth::{
-    AuthSessionRepository, AuthSessionSummary, CreateAuthSession, PermissionSummary, RbacRepository,
-};
+pub use auth::{AuthSessionRepository, AuthSessionSummary, CreateAuthSession, PermissionSummary};
 pub use calendar::{CalendarRepository, CalendarSummary, CalendarWindowSummary, UpsertCalendar};
 pub use instance::{
     CreateJobInstance, JobDurationHistory, JobInstanceRepository, JobInstanceResult,
@@ -65,6 +64,7 @@ pub use raft::{
     RecordRaftAppliedCommand, RecordRaftMembershipProposal, UpsertRaftLogEntry, UpsertRaftMember,
     UpsertRaftMetadata, UpsertRaftSnapshot,
 };
+pub use rbac::{CreateRole, PermissionCatalogItem, RbacRepository, RoleSummary, UpdateRole};
 pub use schedule_cursor::ScheduleCursorRepository;
 pub use scope::{
     AppSummary, NamespaceSummary, ScopeRepository, UpdateWorkerPoolQuota, WorkerPoolSummary,
@@ -1487,7 +1487,7 @@ mod tests {
                 username: "bootstrap-admin".to_owned(),
                 email: "bootstrap-admin@example.com".to_owned(),
                 password: "$2b$10$adminhash".to_owned(),
-                role: "admin".to_owned(),
+                role: "owner".to_owned(),
                 bootstrap_admin: true,
             })
             .await
@@ -1534,7 +1534,7 @@ mod tests {
                 username: "renew-admin".to_owned(),
                 email: "renew-admin@example.com".to_owned(),
                 password: "$2b$10$adminhash".to_owned(),
-                role: "admin".to_owned(),
+                role: "owner".to_owned(),
                 bootstrap_admin: true,
             })
             .await

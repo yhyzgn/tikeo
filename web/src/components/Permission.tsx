@@ -2,10 +2,14 @@ import type { ReactNode } from 'react';
 import { Button, Popconfirm, Tooltip } from 'antd';
 import type { ButtonProps } from 'antd';
 
-import { hasPermission, usePrincipal } from './AuthGuard';
+import { hasPermission, hasUiAction, usePrincipal } from './AuthGuard';
 
 export function useCan(resource: string, action: string): boolean {
   return hasPermission(usePrincipal(), resource, action);
+}
+
+export function useCanUiAction(actionKey: string, fallback?: { resource: string; action: string }): boolean {
+  return hasUiAction(usePrincipal(), actionKey, fallback);
 }
 
 export function PermissionGate({
@@ -23,6 +27,7 @@ export function PermissionGate({
 export interface GuardedButtonProps extends ButtonProps {
   resource: string;
   action: string;
+  uiActionKey?: string;
   confirmTitle?: string;
   confirmDescription?: string;
   hideWhenDenied?: boolean;
@@ -32,6 +37,7 @@ export interface GuardedButtonProps extends ButtonProps {
 export function GuardedButton({
   resource,
   action,
+  uiActionKey,
   confirmTitle,
   confirmDescription,
   hideWhenDenied = true,
@@ -41,7 +47,8 @@ export function GuardedButton({
   onConfirm,
   ...buttonProps
 }: GuardedButtonProps) {
-  const allowed = useCan(resource, action);
+  const principal = usePrincipal();
+  const allowed = uiActionKey ? hasUiAction(principal, uiActionKey, { resource, action }) : hasPermission(principal, resource, action);
   if (!allowed && hideWhenDenied) return null;
   const button = (
     <Button

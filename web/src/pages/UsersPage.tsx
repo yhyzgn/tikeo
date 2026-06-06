@@ -5,9 +5,11 @@ import { useEffect, useState } from 'react';
 import {
   createUser,
   deleteUser,
+  listRoles,
   listUsers,
   updateUser,
   type CreateUserRequest,
+  type RoleSummary,
   type UserSummary,
 } from '../api/client';
 import { GuardedButton, PermissionGate, useCan } from '../components/Permission';
@@ -18,6 +20,7 @@ import { persistentPagination, usePersistentTablePageSize } from '../utils/pagin
 export function UsersPage() {
   const canManageUsers = useCan('users', 'manage');
   const [users, setUsers] = useState<UserSummary[]>([]);
+  const [roles, setRoles] = useState<RoleSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm<CreateUserRequest>();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -28,8 +31,9 @@ export function UsersPage() {
   const fetchUsersList = async () => {
     setLoading(true);
     try {
-      const data = await listUsers();
+      const [data, roleData] = await Promise.all([listUsers(), listRoles()]);
       setUsers(data);
+      setRoles(roleData.filter((role) => role.enabled));
     } catch (err) {
       message.error(err instanceof Error ? err.message : '获取用户列表失败');
     } finally {
@@ -44,7 +48,7 @@ export function UsersPage() {
   const openCreateDrawer = () => {
     setEditingId(null);
     form.resetFields();
-    form.setFieldsValue({ role: 'viewer', email: '' });
+    form.setFieldsValue({ role: roles.find((role) => role.name === 'viewer')?.name ?? roles[0]?.name, email: '' });
     setDrawerOpen(true);
   };
 
@@ -117,7 +121,7 @@ export function UsersPage() {
       title: 'Role',
       dataIndex: 'role',
       render: (role: string) => {
-        const color = role === 'admin' ? 'red' : role === 'operator' ? 'orange' : 'blue';
+        const color = role === 'owner' ? 'purple' : role === 'admin' ? 'red' : role === 'operator' ? 'orange' : 'blue';
         return <Tag color={color}>{role.toUpperCase()}</Tag>;
       },
     },
@@ -127,12 +131,13 @@ export function UsersPage() {
       width: 160,
       render: (_, record) => (
         <Space size="middle">
-          <GuardedButton resource="users" action="manage" type="link" size="small" onClick={() => handleEdit(record)}>
+          <GuardedButton resource="users" action="manage" uiActionKey="users.edit" type="link" size="small" onClick={() => handleEdit(record)}>
             编辑
           </GuardedButton>
           <GuardedButton
             resource="users"
             action="manage"
+            uiActionKey="users.delete"
             type="link"
             size="small"
             danger
@@ -173,7 +178,7 @@ export function UsersPage() {
             <Input.Password placeholder={editingId ? '新密码（留空则不修改）' : '密码'} />
           </Form.Item>
           <Form.Item name="role" label="角色" rules={[{ required: true }]}>
-            <Select options={[{ value: 'admin', label: 'ADMIN' }, { value: 'operator', label: 'OPERATOR' }, { value: 'viewer', label: 'VIEWER' }]} />
+            <Select options={roles.map((role) => ({ value: role.name, label: `${role.displayName} (${role.name})` }))} />
           </Form.Item>
           <Space>
             <PermissionGate resource="users" action="manage"><Button type="primary" htmlType="submit">{editingId ? '保存用户' : '创建用户'}</Button></PermissionGate>
@@ -185,7 +190,7 @@ export function UsersPage() {
       <Card
         className="clean-card"
         title="用户列表"
-        extra={<Space wrap className="card-toolbar"><PermissionGate resource="users" action="manage"><Button type="primary" onClick={openCreateDrawer}>新建用户</Button></PermissionGate><Button onClick={fetchUsersList}>刷新</Button></Space>}
+        extra={<Space wrap className="card-toolbar"><PermissionGate resource="users" action="manage"><GuardedButton resource="users" action="manage" uiActionKey="users.create" type="primary" onClick={openCreateDrawer}>新建用户</GuardedButton></PermissionGate><Button onClick={fetchUsersList}>刷新</Button></Space>}
       >
         <Table
           rowKey="id"

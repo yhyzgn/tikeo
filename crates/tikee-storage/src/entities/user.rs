@@ -16,7 +16,7 @@ pub struct Model {
     pub email: String,
     /// `BCrypt` password hash stored in the `password` column.
     pub password: String,
-    /// System role (e.g. "admin", "operator", "viewer").
+    /// System role (e.g. "owner", "operator", "viewer").
     pub role: String,
     /// Whether this account was created by the one-time deployment bootstrap flow.
     pub bootstrap_admin: bool,

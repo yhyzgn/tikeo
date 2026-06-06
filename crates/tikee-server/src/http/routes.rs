@@ -13,6 +13,7 @@ pub(crate) mod observability;
 pub(crate) mod oidc_identity;
 pub(crate) mod plugins;
 pub(crate) mod raft;
+pub(crate) mod roles;
 pub(crate) mod scheduling;
 pub(crate) mod scope;
 pub(crate) mod scripts;
@@ -43,6 +44,10 @@ pub use observability::observability_status;
 pub use oidc_identity::{delete_oidc_identity, list_oidc_identities, upsert_oidc_identity};
 pub use plugins::{create_plugin, delete_plugin, list_plugins, update_plugin};
 pub use raft::{append_entries, propose_member_change};
+pub use roles::{
+    create_role, delete_role, list_roles, menu_permission_catalog, permission_catalog,
+    ui_action_permission_catalog, update_role,
+};
 pub use scheduling::job_scheduling_advice;
 pub use scope::{
     create_app, create_namespace, create_secret, create_worker_pool, delete_app, delete_namespace,

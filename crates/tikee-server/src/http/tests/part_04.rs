@@ -1290,7 +1290,7 @@
         }
         let payload = r#"{"username":"bootstrap_admin","email":"bootstrap.admin@example.com","password":"Tikee@2026!","confirmPassword":"Tikee@2026!"}"#;
         let created = post_json_raw(app, "/api/v1/auth/bootstrap/register", payload, None).await;
-        assert_eq!(created["data"]["roles"][0], "admin");
+        assert_eq!(created["data"]["roles"][0], "owner");
     }
 
     async fn admin_request_builder(
