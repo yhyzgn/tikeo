@@ -7,8 +7,8 @@ Implement the production-grade RBAC role management module described in `design/
 - Do not use JWT or claim-encoded local sessions.
 - Do not rely on string conventions or scattered hardcoded role/menu/action-element names. Use structured role, backend permission, menu permission, and UI action-element catalogs.
 - The one-time bootstrap account must be represented by `users.bootstrap_admin` / `principal.bootstrapAdmin` and must bypass ordinary role constraints structurally. Never infer it from username.
-- `owner` is the only built-in recovery role. Do not seed or hardcode a built-in `admin` super role; ordinary admin-equivalent roles must be created through role management.
-- Users may be assigned roles only through managed role records. Do not allow free-form role input in Web or API payloads.
+- `owner` is the only built-in recovery role and is exclusive to the one-time bootstrap account. Do not allow owner to be edited, disabled, deleted, or assigned to any other user; ordinary admin-equivalent roles must be created through role management.
+- Users may be assigned only managed role records with `assignable=true`. Do not allow free-form role input in Web or API payloads, and never expose owner as an assignable role.
 - Role/user assignment must require both user-management permission and role-assignment/manage permission.
 - Role changes must revoke affected human sessions so permissions refresh immediately.
 - Keep SDK Management API-Key / Service Account authorization separate from human RBAC roles.
@@ -26,7 +26,7 @@ Implement the production-grade RBAC role management module described in `design/
 2. Backend API
    - Add role CRUD and backend permission/menu/UI action-element catalog endpoints.
    - Add role permission matrix update endpoint with full replacement semantics.
-   - Update user create/update payloads to use role ids/names from managed roles.
+   - Update user create/update payloads to use assignable role ids/names from managed roles; reject owner in create/update user APIs except preserving the bootstrap account existing owner role.
    - Add `bootstrapAdmin` and menu permission data to `/auth/me`.
    - Remove admin hardcoded bypass from service/frontend logic; only `bootstrapAdmin` may bypass structurally, and ordinary roles win through their configured matrices.
    - Add audit logs for role create/update/delete, permission matrix updates, and user role assignment.
@@ -46,10 +46,10 @@ Implement the production-grade RBAC role management module described in `design/
    - Run `cargo fmt --all`, targeted/full Rust tests, `cargo clippy -p tikee-server -p tikee-storage --all-targets --all-features -- -D warnings`, `bun run typecheck`, and relevant `bun test` suites.
 
 ## Acceptance criteria
-- A bootstrap owner can still access all protected backend APIs and all Web menus even if ordinary role bindings are removed.
+- A bootstrap owner can still access all protected backend APIs and all Web menus, and its owner role cannot be manually granted to any other user.
 - A non-bootstrap account receives only backend permissions, menu entries, and UI operation elements granted by its assigned roles.
 - A role manager can edit role backend permission/menu/UI action-element matrices without editing code.
 - A user manager without role assignment permission cannot change user roles.
-- Deleting/disabling protected or in-use roles fails with clear impact details.
+- Deleting/disabling protected or in-use roles fails with clear impact details; owner cannot be edited or assigned.
 - No new user-facing Web text is hardcoded outside locale files.
 - Existing owner/operator/viewer and historical custom-role users remain compatible after migration.

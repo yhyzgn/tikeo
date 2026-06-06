@@ -461,12 +461,45 @@
             .unwrap_or_else(|| panic!("expected JSON string"))
             .to_owned();
 
-        assert_role_change_invalidates_sessions_and_grants_owner_access(app.clone(), &user_id)
+        assert_owner_assignment_is_rejected(app.clone(), &user_id).await;
+        assert_assignable_role_change_invalidates_sessions_and_grants_access(app.clone(), &user_id)
             .await;
         delete_user_and_assert_audit(app.clone(), &user_id).await;
     }
 
-    async fn assert_role_change_invalidates_sessions_and_grants_owner_access(
+    async fn assert_owner_assignment_is_rejected(app: axum::Router, user_id: &str) {
+        let create_owner = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/users",
+                    r#"{"username":"owner_clone","email":"owner.clone@example.com","password":"Password@123","role":"owner"}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("owner create request should respond: {error}"));
+        assert_eq!(create_owner.status(), axum::http::StatusCode::BAD_REQUEST);
+
+        let update_owner = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "PATCH",
+                    format!("/api/v1/users/{user_id}"),
+                    r#"{"role":"owner"}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("owner update request should respond: {error}"));
+        assert_eq!(update_owner.status(), axum::http::StatusCode::BAD_REQUEST);
+    }
+
+    async fn assert_assignable_role_change_invalidates_sessions_and_grants_access(
         app: axum::Router,
         user_id: &str,
     ) {
@@ -496,7 +529,8 @@
             .unwrap_or_else(|error| panic!("test operation should succeed: {error}"));
         assert_eq!(response.status(), axum::http::StatusCode::FORBIDDEN);
 
-        // 5. Update user role to owner
+        let user_admin_role = create_user_admin_role(app.clone()).await;
+
         let response = app
             .clone()
             .oneshot(
@@ -504,13 +538,26 @@
                     app.clone(),
                     "PATCH",
                     format!("/api/v1/users/{user_id}"),
-                    r#"{"role":"owner"}"#,
+                    &format!(r#"{{"role":"{user_admin_role}"}}"#),
                 )
                 .await,
             )
             .await
             .unwrap_or_else(|error| panic!("test operation should succeed: {error}"));
         assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        let old_token_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/users")
+                    .header("authorization", format!("Bearer {operator_token}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("old token request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("old token request should respond: {error}"));
+        assert_eq!(old_token_response.status(), axum::http::StatusCode::UNAUTHORIZED);
 
         // 6. Perform a fresh login to fetch new token (the old token was invalidated on role change)
         let login_again = post_json_without_auth(
@@ -525,7 +572,7 @@
             .unwrap_or_else(|| panic!("expected JSON string"))
             .to_owned();
 
-        // Verify that updated owner-role user now HAS access to user list (returns 200 OK)
+        // Verify that updated assignable role now HAS access to user list (returns 200 OK)
         let response = app
             .clone()
             .oneshot(
@@ -538,6 +585,49 @@
             .await
             .unwrap_or_else(|error| panic!("test operation should succeed: {error}"));
         assert_eq!(response.status(), axum::http::StatusCode::OK);
+    }
+
+    async fn create_user_admin_role(app: axum::Router) -> String {
+        let admin = admin_token(app.clone()).await;
+        let catalog = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/permissions/catalog")
+                    .header("authorization", format!("Bearer {admin}"))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("catalog request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("catalog request should respond: {error}"));
+        assert!(catalog.status().is_success());
+        let body = axum::body::to_bytes(catalog.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("catalog body should collect: {error}"));
+        let catalog_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("catalog body should be JSON: {error}"));
+        let permission_ids = catalog_json["data"]
+            .as_array()
+            .unwrap_or_else(|| panic!("catalog should be an array"))
+            .iter()
+            .filter(|item| item["resource"] == "users" && matches!(item["action"].as_str(), Some("read" | "manage")))
+            .filter_map(|item| item["id"].as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(permission_ids.len(), 2);
+        let permission_json = serde_json::to_string(&permission_ids)
+            .unwrap_or_else(|error| panic!("permission ids should serialize: {error}"));
+        let role_name = "user-admin-test";
+        let created = post_json_raw(
+            app,
+            "/api/v1/roles",
+            &format!(
+                r#"{{"name":"{role_name}","displayName":"User Admin Test","description":"Can manage users in tests","enabled":true,"permissionIds":{permission_json},"menuKeys":["/users"],"uiActionKeys":["users.create","users.edit","users.delete"]}}"#
+            ),
+            Some(&admin),
+        )
+        .await;
+        assert_eq!(created["data"]["assignable"], true);
+        role_name.to_owned()
     }
 
     async fn delete_user_and_assert_audit(app: axum::Router, user_id: &str) {

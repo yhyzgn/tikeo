@@ -1173,4 +1173,5 @@ export const messages: Record<string, string> = {
   "创建 Owner 并进入站点": "创建 Owner 并进入站点",
   "Owner": "Owner",
   "User": "User",
+  '系统保留': '系统保留',
 };

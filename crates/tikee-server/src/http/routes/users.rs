@@ -68,7 +68,7 @@ pub async fn create_user(
     let principal = auth::require_permission(&headers, &state, "users", "manage").await?;
 
     require_role_assignment_permission(&principal, &state)?;
-    validate_role(&state, &request.role).await?;
+    validate_assignable_role(&state, &request.role).await?;
     if request.username.trim().is_empty()
         || request.email.trim().is_empty()
         || request.password.trim().is_empty()
@@ -144,7 +144,7 @@ pub async fn update_user(
 
     if let Some(role) = request.role.as_deref() {
         require_role_assignment_permission(&principal, &state)?;
-        validate_role(&state, role).await?;
+        validate_role_change(&state, &existing, role).await?;
     }
     if let Some(email) = request.email.as_deref() {
         validate_email(email)?;
@@ -227,16 +227,22 @@ pub async fn delete_user(
         .await
         .map_err(|error| ApiError::storage(&error))?;
 
-    if let Some(user) = existing.as_ref()
-        && user.role == "owner"
-        && state
-            .users
-            .count_by_role("owner")
-            .await
-            .map_err(|error| ApiError::storage(&error))?
-            <= 1
-    {
-        return Err(ApiError::bad_request("cannot delete the last admin user"));
+    if let Some(user) = existing.as_ref() {
+        if user.bootstrap_admin {
+            return Err(ApiError::bad_request(
+                "bootstrap owner account cannot be deleted",
+            ));
+        }
+        if user.role == "owner"
+            && state
+                .users
+                .count_by_role("owner")
+                .await
+                .map_err(|error| ApiError::storage(&error))?
+                <= 1
+        {
+            return Err(ApiError::bad_request("cannot delete the last owner user"));
+        }
     }
 
     let success = state
@@ -284,14 +290,34 @@ fn require_role_assignment_permission(
     }
 }
 
-async fn validate_role(state: &AppState, role: &str) -> Result<(), ApiError> {
+async fn validate_role_change(
+    state: &AppState,
+    existing: &tikee_storage::entities::user::Model,
+    role: &str,
+) -> Result<(), ApiError> {
+    let role = role.trim();
+    if existing.bootstrap_admin && role != existing.role {
+        return Err(ApiError::bad_request(
+            "bootstrap owner role cannot be changed",
+        ));
+    }
+    if existing.bootstrap_admin && role == existing.role {
+        return Ok(());
+    }
+    validate_assignable_role(state, role).await
+}
+
+async fn validate_assignable_role(state: &AppState, role: &str) -> Result<(), ApiError> {
     let role = role.trim();
     let roles = state.rbac.list_roles().await?;
-    if roles.iter().any(|item| item.name == role && item.enabled) {
+    if roles
+        .iter()
+        .any(|item| item.name == role && item.assignable)
+    {
         Ok(())
     } else {
         Err(ApiError::bad_request(format!(
-            "unsupported or disabled role: {role}"
+            "unsupported, disabled, or reserved role: {role}"
         )))
     }
 }

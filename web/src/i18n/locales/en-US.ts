@@ -1172,4 +1172,5 @@ export const messages: Record<string, string> = {
   "请设置可长期维护站点的 Owner 身份": "Set up the Owner identity that can maintain the site long term.",
   "创建 Owner 并进入站点": "Create Owner and enter site",
   "Owner": "Owner",
+  '系统保留': 'System reserved',
 };

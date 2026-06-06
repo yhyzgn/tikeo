@@ -148,6 +148,7 @@ export function RolesPage() {
           <Space>
             <strong>{role.displayName}</strong>
             {role.builtin ? <Tag color="purple">OWNER</Tag> : null}
+            {!role.assignable ? <Tag color="cyan">{t('系统保留')}</Tag> : null}
             {!role.enabled ? <Tag color="default">{t('已禁用')}</Tag> : null}
           </Space>
           <Typography.Text type="secondary">{role.name}</Typography.Text>

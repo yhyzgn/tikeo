@@ -511,6 +511,7 @@ export interface RoleSummary {
   description: string;
   builtin: boolean;
   enabled: boolean;
+  assignable: boolean;
   permissions: PermissionSummary[];
   menuKeys: string[];
   uiActionKeys: string[];

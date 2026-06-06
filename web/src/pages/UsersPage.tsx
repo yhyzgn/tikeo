@@ -1,4 +1,4 @@
-import { Button, Card, Drawer, Form, Input, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Button, Card, Drawer, Form, Input, Select, Space, Table, Tag, Typography, message, type SelectProps } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useEffect, useState } from 'react';
 
@@ -17,6 +17,13 @@ import { useRouteActive } from '../hooks/useRouteActivation';
 import { ROUTE_META } from '../routes';
 import { persistentPagination, usePersistentTablePageSize } from '../utils/pagination';
 
+function roleSelectOptions(user: UserSummary | null, roles: RoleSummary[]): SelectProps['options'] {
+  if (user?.bootstrapAdmin) {
+    return [{ value: user.role, label: `${user.role}（初始化账号专属）`, disabled: true }];
+  }
+  return roles.map((role) => ({ value: role.name, label: `${role.displayName} (${role.name})` }));
+}
+
 export function UsersPage() {
   const canManageUsers = useCan('users', 'manage');
   const [users, setUsers] = useState<UserSummary[]>([]);
@@ -24,6 +31,7 @@ export function UsersPage() {
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm<CreateUserRequest>();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<UserSummary | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [pageSize, setPageSize] = usePersistentTablePageSize();
   const active = useRouteActive(ROUTE_META.users.path);
@@ -33,7 +41,7 @@ export function UsersPage() {
     try {
       const [data, roleData] = await Promise.all([listUsers(), listRoles()]);
       setUsers(data);
-      setRoles(roleData.filter((role) => role.enabled));
+      setRoles(roleData.filter((role) => role.assignable));
     } catch (err) {
       message.error(err instanceof Error ? err.message : '获取用户列表失败');
     } finally {
@@ -47,6 +55,7 @@ export function UsersPage() {
 
   const openCreateDrawer = () => {
     setEditingId(null);
+    setEditingUser(null);
     form.resetFields();
     form.setFieldsValue({ role: roles.find((role) => role.name === 'viewer')?.name ?? roles[0]?.name, email: '' });
     setDrawerOpen(true);
@@ -54,6 +63,7 @@ export function UsersPage() {
 
   const handleEdit = (user: UserSummary) => {
     setEditingId(user.id);
+    setEditingUser(user);
     form.setFieldsValue({
       username: user.username,
       email: user.email,
@@ -66,6 +76,7 @@ export function UsersPage() {
   const closeDrawer = () => {
     setDrawerOpen(false);
     setEditingId(null);
+    setEditingUser(null);
     form.resetFields();
   };
 
@@ -141,6 +152,7 @@ export function UsersPage() {
             type="link"
             size="small"
             danger
+            disabled={record.bootstrapAdmin}
             confirmTitle="确定要删除该用户吗？"
             confirmDescription="删除用户会立即移除其登录与管理能力。"
             onConfirm={() => void handleDelete(record.id)}
@@ -178,7 +190,10 @@ export function UsersPage() {
             <Input.Password placeholder={editingId ? '新密码（留空则不修改）' : '密码'} />
           </Form.Item>
           <Form.Item name="role" label="角色" rules={[{ required: true }]}>
-            <Select options={roles.map((role) => ({ value: role.name, label: `${role.displayName} (${role.name})` }))} />
+            <Select
+              disabled={Boolean(editingUser?.bootstrapAdmin)}
+              options={roleSelectOptions(editingUser, roles)}
+            />
           </Form.Item>
           <Space>
             <PermissionGate resource="users" action="manage"><Button type="primary" htmlType="submit">{editingId ? '保存用户' : '创建用户'}</Button></PermissionGate>

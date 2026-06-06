@@ -26,6 +26,8 @@ pub struct RoleSummary {
     pub builtin: bool,
     /// Whether this role can grant permissions to users.
     pub enabled: bool,
+    /// Whether administrators can assign this role to non-bootstrap users.
+    pub assignable: bool,
     /// Backend API permissions granted by this role.
     pub permissions: Vec<PermissionSummary>,
     /// Menu keys visible to this role.
@@ -377,6 +379,7 @@ impl RbacRepository {
             description: role_model.description,
             builtin: role_model.builtin,
             enabled: role_model.enabled,
+            assignable: role_model.enabled && !role_model.builtin,
             created_at: role_model.created_at,
             updated_at: role_model.updated_at,
         })

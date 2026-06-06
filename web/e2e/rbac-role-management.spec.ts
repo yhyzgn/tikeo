@@ -7,6 +7,7 @@ type RoleSummary = {
   description: string;
   builtin: boolean;
   enabled: boolean;
+  assignable: boolean;
   permissions: { resource: string; action: string }[];
   menuKeys: string[];
   uiActionKeys: string[];
@@ -21,6 +22,7 @@ const ownerRole: RoleSummary = {
   description: 'Site owner and bootstrap recovery role',
   builtin: true,
   enabled: true,
+  assignable: false,
   permissions: [{ resource: 'roles', action: 'manage' }, { resource: 'roles', action: 'read' }],
   menuKeys: ['/dashboard', '/roles', '/users'],
   uiActionKeys: ['roles.create', 'roles.edit', 'roles.delete', 'roles.permissions.edit'],
@@ -78,6 +80,7 @@ async function mockRbacApi(page: Page) {
         description: '',
         builtin: false,
         enabled: true,
+        assignable: true,
         permissions: [],
         menuKeys: payload.menuKeys ?? [],
         uiActionKeys: payload.uiActionKeys ?? [],

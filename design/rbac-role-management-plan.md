@@ -8,7 +8,7 @@
 
 ### 必须达成
 
-1. **角色可管理**：具备权限的人员可创建、编辑、启停、删除自定义角色；`owner` 为初始化进站账号默认角色和唯一内置兜底角色，必须保留且不可删除；不再内置 `admin` 超级管理员角色；如需普通管理员，可由 owner 在角色管理中自行创建。
+1. **角色可管理**：具备权限的人员可创建、编辑、启停、删除自定义角色；`owner` 为初始化进站账号专属身份和唯一内置兜底角色，必须保留、不可删除、不可编辑、不可禁用、不可手动分配给其他账号；不再内置 `admin` 超级管理员角色；如需普通管理员，可由 owner 在角色管理中自行创建。
 2. **初始化账号特权边界**：一次性初始化进站账号（`users.bootstrap_admin = true`）不受普通角色权限约束，作为系统 owner/break-glass 账号；该身份必须在数据层、服务端 principal、前端权限判断中结构化表达，不能靠用户名约定。
 3. **用户角色配置**：同时拥有用户管理和角色授权权限的人员，才能调整用户角色；角色变化后必须撤销该用户现有 session，使权限立即刷新。
 4. **权限矩阵配置**：角色可配置：
@@ -46,9 +46,9 @@
 
 - 保留 `roles` 作为角色 catalog。
 - 新增/补齐角色字段：`display_name`、`description`、`builtin`、`enabled`、`created_at`、`updated_at`。
-- 新增 `user_roles` 软关联表并回填 `users.role`，作为后续多角色扩展的数据基础。
+- 新增 `user_roles` 软关联表并回填 `users.role`，作为后续多角色扩展的数据基础；`owner` 绑定仅允许初始化账号保留，不进入普通角色授权流程。
 - 本阶段 API/UI 仍保持单个 active role assignment，避免一次性扩大用户管理交互复杂度；服务端权限、菜单、UI action 均基于当前单主角色计算。
-- `role-owner` 标记 `builtin=true`，不可删除、不可编辑、不可降权，避免误伤 owner/break-glass 能力。自定义管理员等价角色由 owner 在角色管理中另建。
+- `role-owner` 标记 `builtin=true` 且 `assignable=false`，不可删除、不可编辑、不可降权，避免误伤 owner/break-glass 能力。自定义管理员等价角色由 owner 在角色管理中另建。
 
 > 原因：当前产品用户管理仍是单角色交互，先把角色 catalog、权限矩阵和结构化 owner 兜底做成生产闭环；`user_roles` 保留后续平滑升级到多角色的迁移边界。
 
@@ -58,7 +58,7 @@
 - `RbacService::principal_has_permission` 优先判断 `principal.bootstrap_admin == true`，再判断 `principal.permissions`。
 - 前端 `hasPermission` 优先判断 `principal.bootstrapAdmin`。
 - 不再用 `roles.includes('admin')` 作为绕过条件；owner 角色通过权限矩阵自然获得全部权限。
-- 用户管理中对 bootstrap account 增加保护：不能删除；不能删除最后 bootstrap/owner 兜底账号；即使普通角色权限被误配也仍可进入后台。
+- 用户管理中对 bootstrap account 增加保护：不能删除；不能删除 bootstrap owner 账号；不能把 bootstrap owner 改成其他角色；即使普通角色权限被误配也仍可进入后台。
 
 ### 3.3 权限 catalog 与矩阵
 
@@ -92,10 +92,10 @@
 
 ### 3.4 用户授权规则
 
-- 创建/编辑用户时，角色来源必须从角色 API 加载 active roles，不能自由输入。
+- 创建/编辑用户时，角色来源必须从角色 API 加载 `assignable=true` 的 active roles，不能自由输入；`owner` 不出现在普通授权下拉中。
 - 给用户分配角色需要同时满足：`users:manage` + (`roles:assign` 或 `roles:manage`)。
 - 角色变更后调用 `SessionManager::revoke_user_sessions`，强制重新登录刷新权限。
-- 删除/禁用角色前必须校验影响：不能删除内置 owner；不能删除仍被用户绑定的角色，除非 API 支持显式 `forceReassignRoleId`。
+- 删除/禁用角色前必须校验影响：不能删除内置 owner；不能删除仍被用户绑定的角色，除非 API 支持显式 `forceReassignRoleId`。`owner` 始终不可分配给非 bootstrap 用户。
 
 ## 4. 实施任务清单
 
@@ -108,7 +108,7 @@
 | B | 用户 API 对齐 | `routes/users.rs`, `session.rs`, `auth.rs`, `services.rs` | 用户创建/编辑使用 managed enabled role；bootstrapAdmin 结构化 bypass；角色变更撤销 session | 已完成 |
 | C | Web API client | `web/src/api/client.ts`, `client.test.ts` | 角色/权限/menu/UI action catalog API 类型完整；bun 测试覆盖既有 client 契约 | 已完成 |
 | C | 角色页面 | `web/src/pages/RolesPage.tsx`, `routes.tsx`, `AppShell.tsx` | 治理菜单新增角色；角色列表、抽屉、后端权限矩阵、菜单矩阵、UI 操作元素矩阵可编辑 | 已完成 |
-| C | 用户页面改造 | `web/src/pages/UsersPage.tsx` | 角色从 API 加载 enabled roles；单选当前 active role；bootstrap 用户保护展示；不再硬编码 owner/admin/operator/viewer | 已完成 |
+| C | 用户页面改造 | `web/src/pages/UsersPage.tsx` | 角色从 API 加载 assignable enabled roles；单选当前 active role；bootstrap owner 用户保护展示；owner 不可手动授权；不再硬编码 admin/operator/viewer | 已完成 |
 | C | 前端鉴权与菜单/元素 | `AuthGuard.tsx`, `Permission.tsx`, `routes.tsx` | bootstrapAdmin bypass；无 admin 字符串绕过；菜单按服务端 menuKeys + route fallback 控制；按钮/表格操作按 uiActionKeys 精确控制 | 已完成 |
 | C | i18n/主题体验 | `web/src/i18n/locales/*`, CSS | 新页面中文/英文文案覆盖；矩阵表格 light/dark 协调 | 已完成 |
 | D | 测试与验证 | Rust tests, Bun tests | 存储、HTTP、Web typecheck/API、用户/角色权限、session 刷新、bootstrap bypass 已自动化验证；Playwright 可作为后续视觉 smoke | 已完成 |
@@ -169,13 +169,13 @@ GET    /api/v1/ui-action-permissions/catalog
 
 | 场景 | 预期 |
 | --- | --- |
-| 初始化账号角色被清空/改成 viewer | 仍可访问角色/用户/API-Key 等全部后台能力 |
+| 初始化账号尝试改成 viewer | API 拒绝；bootstrap owner 仍可访问角色/用户/API-Key 等全部后台能力 |
 | 非 bootstrap 的普通管理员 | 通过自定义角色权限矩阵获得授权；不依赖前端/后端硬编码角色名 bypass |
 | 拥有 `users:manage` 但没有 `roles:assign` | 可编辑邮箱/密码，不可调整角色 |
-| 拥有 `roles:manage` 但没有 `users:manage` | 可维护角色矩阵，不可改用户角色 |
+| 拥有 `roles:manage` 但没有 `users:manage` | 可维护普通角色矩阵，不可改用户角色，且不能修改 owner |
 | 自定义角色只勾选 jobs read | 只能看到总览/任务等被授权菜单，后端拒绝无权限接口 |
 | 修改某用户角色 | 该用户旧 token 立即失效，需要重新登录 |
-| 删除被用户绑定的角色 | API 拒绝并返回影响用户数 |
+| 删除被用户绑定的角色 | API 拒绝并返回影响用户数；删除 owner 永远拒绝 |
 | 禁用角色 | 已绑定用户重新登录后不再获得该角色权限；当前 session 被撤销或失效 |
 | 菜单权限未勾选但接口权限勾选 | 菜单隐藏，但直接访问路由仍由接口权限/Route guard 判定，后端权限不受菜单影响 |
 | UI 操作元素权限未勾选但接口权限勾选 | 页面可查看数据，但对应按钮/表格操作隐藏或禁用 |
@@ -187,7 +187,7 @@ GET    /api/v1/ui-action-permissions/catalog
 | 风险 | 缓解 |
 | --- | --- |
 | RBAC 逻辑分散导致绕过 | 建立服务端权限 catalog 与统一 `require_permission`；测试扫描关键路由 |
-| 角色编辑误伤 owner | `role-owner` 内置锁定，不允许删除/禁用/降权；bootstrapAdmin 独立兜底 |
+| 角色编辑误伤 owner | `role-owner` 内置锁定且 assignable=false，不允许删除/禁用/降权/授权给他人；bootstrapAdmin 独立兜底 |
 | 前端菜单与后端权限不一致 | 服务端返回 menu catalog/menuKeys；Web 只渲染结构化 key，不自行发明权限 |
 | 迁移破坏旧用户 | `users.role` 回填 `user_roles`，测试覆盖已有 owner/operator/viewer 与历史 role 回填 |
 | 文件继续膨胀 | 新增 `routes/roles.rs`、`repository/rbac.rs`、Web 组件拆分为列表、基础信息、权限矩阵、菜单矩阵 |
