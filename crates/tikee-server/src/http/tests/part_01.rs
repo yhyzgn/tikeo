@@ -473,7 +473,7 @@
         assert_eq!(json["data"]["roles"][0], "viewer");
         let token = json["data"]["token"]
             .as_str()
-            .filter(|value| value.starts_with("atk_") && value.len() > 32)
+            .filter(|value| value.len() == 48 && value.chars().all(|ch| ch.is_ascii_alphanumeric()))
             .unwrap_or_else(|| panic!("callback should return a local opaque tikee token"));
         assert!(!token.contains("provider-access-token"));
 

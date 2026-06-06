@@ -1,4 +1,7 @@
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, QueryFilter,
+    Set,
+};
 use serde::{Deserialize, Serialize};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
@@ -159,6 +162,38 @@ impl AuthSessionRepository {
             .exec(&self.db)
             .await?;
         Ok(result.rows_affected)
+    }
+
+    /// Extend one valid session's expiration timestamp by token hash.
+    ///
+    /// Expired rows are removed lazily and are not renewed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn renew_expires_at(
+        &self,
+        token_hash: &str,
+        expires_at: String,
+    ) -> Result<bool, sea_orm::DbErr> {
+        let Some(session) = auth_session::Entity::find()
+            .filter(auth_session::Column::TokenHash.eq(token_hash))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(false);
+        };
+
+        if is_expired_rfc3339(&session.expires_at) {
+            let _ = self.delete_by_token_hash(token_hash).await?;
+            return Ok(false);
+        }
+
+        let mut active = session.into_active_model();
+        active.expires_at = Set(expires_at);
+        active.updated_at = Set(now_rfc3339());
+        active.update(&self.db).await?;
+        Ok(true)
     }
 
     /// Delete one session by token hash.

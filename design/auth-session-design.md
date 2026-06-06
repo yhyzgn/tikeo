@@ -6,13 +6,13 @@
 
 ## 1. 核心目标
 
-1. **Opaque Access Token**：客户端拿到的是不透明令牌（当前形如 `atk_<uuid>`），令牌不包含用户名、角色等可解码业务信息。
+1. **Opaque Access Token**：客户端拿到的是不透明令牌，使用与 SDK API-Key 一致的安全随机 base62 生成算法；登录会话 token 固定为 48 位大小写字母数字，不包含用户名、角色等可解码业务信息。
 2. **Token 单向哈希存储**：数据库和缓存都以 `SHA-256(token)` 作为索引，不保存 token 明文。
 3. **SessionStore 抽象层**：HTTP 鉴权、登录、登出、用户变更失效逻辑只依赖 `SessionStore` trait，不直接依赖 moka、DB 或未来 Redis。
 4. **当前实现 DB+moka**：DB `auth_sessions` 表是权威状态；moka 只是单进程短缓存，用于降低高频鉴权数据库压力。
 5. **可扩展到 Redis**：未来多 server 节点部署时，新增 `RedisSessionStore` 实现同一个 trait，HTTP 层不需要重写。
 6. **主动撤销能力**：登出、用户密码变更、角色变更、删除用户时，可以立即删除权威 session 记录，并清理本地缓存。
-7. **过期物理删除**：DB+moka 当前实现每次创建/读取 session 前会清理 `expires_at <= now` 的过期 `auth_sessions` 行；命中过期 token 时也会按 token hash 懒删除。
+7. **过期与续签**：人类登录 session 默认有效期为 7 天；每次通过鉴权的请求都会把该 session 的 `expires_at` 续签到当前时间后 7 天。DB+moka 当前实现每次创建/读取 session 前会清理 `expires_at <= now` 的过期 `auth_sessions` 行；命中过期 token 时也会按 token hash 懒删除。API token 保持固定有效期，不做请求滑动续签。
 8. **禁止数据库外键**：`auth_sessions.user_id` 只能软关联 `users.id`，不得创建 `FOREIGN KEY`。
 9. **API 响应规范保持不变**：所有业务 HTTP API 继续返回 `{ code, message, data }`，`data` 必须存在。
 

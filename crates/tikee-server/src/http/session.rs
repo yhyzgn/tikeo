@@ -12,16 +12,19 @@ use chrono::{Duration as ChronoDuration, Utc};
 use moka::future::Cache;
 use sha2::{Digest, Sha256};
 use tikee_storage::{AuthSessionRepository, CreateAuthSession, PermissionSummary, RbacRepository};
-use uuid::Uuid;
 
 use super::{
     dto::{AccessScopeBinding, ApiTokenSummary, AuthSession, CreatedApiToken, MeResponse},
     error::ApiError,
+    opaque_token::generate_base62,
     session_metadata::{
         api_token_scopes, api_token_summary, encode_api_token_device_id, encode_session_device_id,
         is_api_token_session, session_scope_bindings,
     },
 };
+
+const ACCESS_TOKEN_LENGTH: usize = 48;
+const HUMAN_SESSION_TTL_DAYS: i64 = 7;
 
 /// Session creation input passed from the authentication boundary.
 #[derive(Debug, Clone)]
@@ -162,7 +165,7 @@ impl fmt::Debug for SessionManager {
 pub struct DbMokaSessionStore {
     repo: AuthSessionRepository,
     rbac: RbacRepository,
-    cache: Cache<String, MeResponse>,
+    cache: Cache<String, CachedPrincipal>,
     session_ttl: ChronoDuration,
 }
 
@@ -177,7 +180,7 @@ impl DbMokaSessionStore {
                 .time_to_live(Duration::from_mins(5))
                 .max_capacity(16_384)
                 .build(),
-            session_ttl: ChronoDuration::hours(12),
+            session_ttl: ChronoDuration::days(HUMAN_SESSION_TTL_DAYS),
         }
     }
 
@@ -192,13 +195,27 @@ impl DbMokaSessionStore {
         }
         Ok(())
     }
+
+    async fn renew_human_session_expiry(&self, token_hash: &str) -> Result<bool, ApiError> {
+        let expires_at = (Utc::now() + self.session_ttl).to_rfc3339();
+        self.repo
+            .renew_expires_at(token_hash, expires_at)
+            .await
+            .map_err(|error| ApiError::storage(&error))
+    }
+}
+
+#[derive(Debug, Clone)]
+struct CachedPrincipal {
+    principal: MeResponse,
+    renewable: bool,
 }
 
 #[async_trait]
 impl SessionStore for DbMokaSessionStore {
     async fn create_session(&self, input: SessionCreate) -> Result<AuthSession, ApiError> {
         self.prune_expired_sessions().await?;
-        let token = generate_access_token();
+        let token = generate_access_token()?;
         let token_hash = hash_token(&token);
         let expires_at = (Utc::now() + self.session_ttl).to_rfc3339();
 
@@ -229,7 +246,15 @@ impl SessionStore for DbMokaSessionStore {
             token_scopes: Vec::new(),
             scope_bindings,
         };
-        self.cache.insert(token_hash, principal.clone()).await;
+        self.cache
+            .insert(
+                token_hash,
+                CachedPrincipal {
+                    principal: principal.clone(),
+                    renewable: true,
+                },
+            )
+            .await;
 
         Ok(AuthSession {
             token,
@@ -244,7 +269,7 @@ impl SessionStore for DbMokaSessionStore {
 
     async fn create_api_token(&self, input: SessionCreate) -> Result<CreatedApiToken, ApiError> {
         self.prune_expired_sessions().await?;
-        let token = generate_access_token();
+        let token = generate_access_token()?;
         let token_hash = hash_token(&token);
         let ttl = input
             .expires_in_seconds
@@ -294,7 +319,15 @@ impl SessionStore for DbMokaSessionStore {
             token_scopes,
             scope_bindings,
         };
-        self.cache.insert(token_hash, principal).await;
+        self.cache
+            .insert(
+                token_hash,
+                CachedPrincipal {
+                    principal,
+                    renewable: false,
+                },
+            )
+            .await;
 
         Ok(CreatedApiToken {
             access_token: token,
@@ -342,8 +375,12 @@ impl SessionStore for DbMokaSessionStore {
     async fn get_principal(&self, token: &str) -> Result<Option<MeResponse>, ApiError> {
         self.prune_expired_sessions().await?;
         let token_hash = hash_token(token);
-        if let Some(principal) = self.cache.get(&token_hash).await {
-            return Ok(Some(principal));
+        if let Some(cached) = self.cache.get(&token_hash).await {
+            if cached.renewable && !self.renew_human_session_expiry(&token_hash).await? {
+                self.cache.invalidate(&token_hash).await;
+                return Ok(None);
+            }
+            return Ok(Some(cached.principal));
         }
 
         let Some(summary) = self
@@ -354,6 +391,12 @@ impl SessionStore for DbMokaSessionStore {
         else {
             return Ok(None);
         };
+
+        let renewable = !is_api_token_session(&summary);
+        if renewable && !self.renew_human_session_expiry(&token_hash).await? {
+            self.cache.invalidate(&token_hash).await;
+            return Ok(None);
+        }
 
         let roles = vec![summary.role.clone()];
         let role_permissions = self
@@ -376,7 +419,15 @@ impl SessionStore for DbMokaSessionStore {
             token_scopes,
             scope_bindings,
         };
-        self.cache.insert(token_hash, principal.clone()).await;
+        self.cache
+            .insert(
+                token_hash,
+                CachedPrincipal {
+                    principal: principal.clone(),
+                    renewable,
+                },
+            )
+            .await;
         Ok(Some(principal))
     }
 
@@ -415,8 +466,8 @@ fn permissions_from_scopes(scopes: &[String]) -> Vec<PermissionSummary> {
         .collect()
 }
 
-fn generate_access_token() -> String {
-    format!("atk_{}", Uuid::new_v4().as_simple())
+fn generate_access_token() -> Result<String, ApiError> {
+    generate_base62(ACCESS_TOKEN_LENGTH)
 }
 
 fn hash_token(token: &str) -> String {
@@ -426,13 +477,143 @@ fn hash_token(token: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{generate_access_token, hash_token};
+    use chrono::{DateTime, Utc};
+    use tikee_storage::{
+        AuthSessionRepository, CreateUser, RbacRepository, UserRepository, connect_and_migrate,
+    };
+
+    use super::{
+        ACCESS_TOKEN_LENGTH, DbMokaSessionStore, SessionCreate, SessionStore,
+        generate_access_token, hash_token,
+    };
 
     #[test]
     fn access_tokens_are_opaque_and_hashable() {
-        let token = generate_access_token();
-        assert!(token.starts_with("atk_"));
+        let token = generate_access_token().unwrap_or_else(|error| {
+            panic!("access token generation should use OS randomness: {error:?}")
+        });
+        assert_eq!(token.len(), ACCESS_TOKEN_LENGTH);
+        assert!(token.chars().all(|value| value.is_ascii_alphanumeric()));
         assert_eq!(hash_token(&token).len(), 64);
         assert_ne!(hash_token(&token), token);
+    }
+
+    #[tokio::test]
+    async fn human_sessions_slide_expiry_on_authenticated_request() {
+        let fixture = session_store_fixture().await;
+        let session = fixture
+            .store
+            .create_session(session_create(fixture.user_id.clone(), Vec::new(), None))
+            .await
+            .unwrap_or_else(|error| panic!("session should create: {error:?}"));
+        let token_hash = hash_token(&session.token);
+        let old_expiry = "2099-01-01T00:00:00Z".to_owned();
+        fixture
+            .sessions
+            .renew_expires_at(&token_hash, old_expiry.clone())
+            .await
+            .unwrap_or_else(|error| panic!("test expiry should update: {error}"));
+
+        let principal = fixture
+            .store
+            .get_principal(&session.token)
+            .await
+            .unwrap_or_else(|error| panic!("principal should resolve: {error:?}"));
+        assert!(principal.is_some());
+
+        let renewed = fixture
+            .sessions
+            .get_by_token_hash(&token_hash)
+            .await
+            .unwrap_or_else(|error| panic!("renewed session should load: {error}"))
+            .unwrap_or_else(|| panic!("renewed session should exist"));
+        assert_ne!(renewed.expires_at, old_expiry);
+        let renewed_at = DateTime::parse_from_rfc3339(&renewed.expires_at)
+            .unwrap_or_else(|error| panic!("renewed expiry should be rfc3339: {error}"))
+            .with_timezone(&Utc);
+        assert!(renewed_at > Utc::now() + chrono::Duration::days(6));
+    }
+
+    #[tokio::test]
+    async fn api_tokens_do_not_slide_expiry_on_authenticated_request() {
+        let fixture = session_store_fixture().await;
+        let created = fixture
+            .store
+            .create_api_token(session_create(
+                fixture.user_id.clone(),
+                vec!["users:read".to_owned()],
+                Some(900),
+            ))
+            .await
+            .unwrap_or_else(|error| panic!("api token should create: {error:?}"));
+        let token_hash = hash_token(&created.access_token);
+        let fixed_expiry = "2099-01-01T00:00:00Z".to_owned();
+        fixture
+            .sessions
+            .renew_expires_at(&token_hash, fixed_expiry.clone())
+            .await
+            .unwrap_or_else(|error| panic!("test expiry should update: {error}"));
+
+        let principal = fixture
+            .store
+            .get_principal(&created.access_token)
+            .await
+            .unwrap_or_else(|error| panic!("principal should resolve: {error:?}"));
+        assert!(principal.is_some());
+
+        let loaded = fixture
+            .sessions
+            .get_by_token_hash(&token_hash)
+            .await
+            .unwrap_or_else(|error| panic!("api token should load: {error}"))
+            .unwrap_or_else(|| panic!("api token should exist"));
+        assert_eq!(loaded.expires_at, fixed_expiry);
+    }
+
+    struct SessionStoreFixture {
+        store: DbMokaSessionStore,
+        sessions: AuthSessionRepository,
+        user_id: String,
+    }
+
+    async fn session_store_fixture() -> SessionStoreFixture {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let users = UserRepository::new(db.clone());
+        let user = users
+            .create_user(CreateUser {
+                username: "session_admin".to_owned(),
+                email: "session-admin@example.com".to_owned(),
+                password: "$2b$10$sessionhash".to_owned(),
+                role: "admin".to_owned(),
+                bootstrap_admin: true,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("test user should create: {error}"));
+        let sessions = AuthSessionRepository::new(db.clone());
+        let store = DbMokaSessionStore::new(sessions.clone(), RbacRepository::new(db));
+        SessionStoreFixture {
+            store,
+            sessions,
+            user_id: user.id,
+        }
+    }
+
+    fn session_create(
+        user_id: String,
+        token_scopes: Vec<String>,
+        expires_in_seconds: Option<i64>,
+    ) -> SessionCreate {
+        SessionCreate {
+            user_id,
+            username: "session_admin".to_owned(),
+            role: "admin".to_owned(),
+            device_id: None,
+            device_name: Some("unit-test".to_owned()),
+            token_scopes,
+            scope_bindings: Vec::new(),
+            expires_in_seconds,
+        }
     }
 }

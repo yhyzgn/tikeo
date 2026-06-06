@@ -4,7 +4,7 @@
 Complete the P0 OIDC path so an external `(issuer, subject)` identity can be mapped to a local tikee user/role/scope and receive a local opaque tikee session.
 
 ## Decisions
-- Local login state remains opaque `atk_` bearer tokens persisted in `auth_sessions` and cached by moka.
+- Local login state remains 48-character opaque base62 bearer tokens persisted in `auth_sessions` and cached by moka; provider/JWT tokens never become local session state.
 - JWT/id_token/provider access token must not become tikee local session state.
 - OIDC mappings are soft links: no database foreign keys.
 - Optional OIDC scope bindings are encoded as session metadata and returned by `/api/v1/auth/me`.

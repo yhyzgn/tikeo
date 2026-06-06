@@ -1348,7 +1348,8 @@
             .as_str()
             .unwrap_or_else(|| panic!("login should return token"))
             .to_owned();
-        assert!(token.starts_with("atk_"));
+        assert_eq!(token.len(), 48);
+        assert!(token.chars().all(|value| value.is_ascii_alphanumeric()));
         assert_eq!(login["data"]["roles"][0], "admin");
 
         let response = app
@@ -2096,7 +2097,8 @@
             .as_str()
             .unwrap_or_else(|| panic!("api token value should be returned once"))
             .to_owned();
-        assert!(api_token.starts_with("atk_"));
+        assert_eq!(api_token.len(), 48);
+        assert!(api_token.chars().all(|value| value.is_ascii_alphanumeric()));
 
         let list_response = app
             .clone()

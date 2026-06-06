@@ -7,7 +7,6 @@ use axum::{
     extract::{Path, State},
     http::HeaderMap,
 };
-use rand::{TryRngCore, rngs::OsRng};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tikee_storage::{
@@ -20,13 +19,12 @@ use super::{
     AppState, auth,
     dto::{AccessScopeBinding, ApiResponse, EmptyApiResponse, EmptyData, MeResponse},
     error::ApiError,
+    opaque_token::generate_base62,
     routes::{client_ip, trace_id},
 };
 
 const KEY_PREFIX: &str = "tk-";
 const KEY_RANDOM_LENGTH: usize = 64;
-const BASE62: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-const REJECTION_LIMIT: u8 = 248;
 
 /// SDK API key creation request.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
@@ -371,15 +369,7 @@ fn permissions_from_scopes(scopes: &[String]) -> Vec<PermissionSummary> {
 fn generate_api_key() -> Result<String, ApiError> {
     let mut random = String::with_capacity(KEY_PREFIX.len() + KEY_RANDOM_LENGTH);
     random.push_str(KEY_PREFIX);
-    let mut byte = [0_u8; 1];
-    while random.len() < KEY_PREFIX.len() + KEY_RANDOM_LENGTH {
-        OsRng
-            .try_fill_bytes(&mut byte)
-            .map_err(|error| ApiError::bad_request(format!("os rng failed: {error}")))?;
-        if byte[0] < REJECTION_LIMIT {
-            random.push(BASE62[usize::from(byte[0] % 62)] as char);
-        }
-    }
+    random.push_str(&generate_base62(KEY_RANDOM_LENGTH)?);
     Ok(random)
 }
 

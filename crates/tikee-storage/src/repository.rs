@@ -1520,6 +1520,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn auth_session_repository_renews_valid_session_expiry() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        Migrator::up(&db, None)
+            .await
+            .unwrap_or_else(|error| panic!("migration should run: {error}"));
+
+        let users = super::UserRepository::new(db.clone());
+        let admin = users
+            .create_user(super::CreateUser {
+                username: "renew-admin".to_owned(),
+                email: "renew-admin@example.com".to_owned(),
+                password: "$2b$10$adminhash".to_owned(),
+                role: "admin".to_owned(),
+                bootstrap_admin: true,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("admin should insert: {error}"));
+        let sessions = super::AuthSessionRepository::new(db.clone());
+        let original_expires_at = "2099-01-01T00:00:00Z".to_owned();
+        let next_expires_at = "2099-01-08T00:00:00Z".to_owned();
+        auth_session::ActiveModel {
+            id: Set("renew-session".to_owned()),
+            user_id: Set(admin.id),
+            token_hash: Set("renew-token-hash".to_owned()),
+            device_id: Set(None),
+            device_name: Set(None),
+            expires_at: Set(original_expires_at),
+            created_at: Set("2026-01-01T00:00:00Z".to_owned()),
+            updated_at: Set("2026-01-01T00:00:00Z".to_owned()),
+        }
+        .insert(&db)
+        .await
+        .unwrap_or_else(|error| panic!("valid session should insert: {error}"));
+
+        let renewed = sessions
+            .renew_expires_at("renew-token-hash", next_expires_at.clone())
+            .await
+            .unwrap_or_else(|error| panic!("session expiry should renew: {error}"));
+        assert!(renewed);
+
+        let loaded = sessions
+            .get_by_token_hash("renew-token-hash")
+            .await
+            .unwrap_or_else(|error| panic!("session lookup should work: {error}"))
+            .unwrap_or_else(|| panic!("renewed session should remain valid"));
+        assert_eq!(loaded.expires_at, next_expires_at);
+    }
+
+    #[tokio::test]
     async fn user_repository_crud_operations() {
         let db = Database::connect("sqlite::memory:")
             .await

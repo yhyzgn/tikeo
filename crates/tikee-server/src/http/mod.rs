@@ -7,6 +7,7 @@ pub mod error;
 mod health;
 pub mod oidc;
 mod oidc_session;
+mod opaque_token;
 pub mod openapi;
 mod router;
 pub mod routes;
