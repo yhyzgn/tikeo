@@ -46,12 +46,47 @@ jobs:
       - name: Test Java SDK
         working-directory: sdks/java
         run: ./gradlew test --no-daemon -PtikeoVersion=${{ steps.version.outputs.version }}
+      - name: Normalize Maven signing key
+        env:
+          MAVEN_SIGNING_KEY_RAW: ${{ secrets.MAVEN_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          raw = os.environ.get("MAVEN_SIGNING_KEY_RAW", "").strip()
+          if not raw:
+              raise SystemExit("MAVEN_SIGNING_KEY is empty")
+
+          candidates = [raw]
+          if "\\n" in raw:
+              candidates.append(raw.replace("\\n", "\n"))
+          try:
+              decoded = base64.b64decode(raw, validate=True).decode("utf-8")
+              candidates.append(decoded)
+              if "\\n" in decoded:
+                  candidates.append(decoded.replace("\\n", "\n"))
+          except Exception:
+              pass
+
+          key = next((candidate.strip() for candidate in candidates if "BEGIN PGP PRIVATE KEY BLOCK" in candidate), None)
+          if key is None:
+              raise SystemExit("MAVEN_SIGNING_KEY must contain an ASCII-armored PGP private key or base64 of it")
+
+          marker = "TIKEO_MAVEN_SIGNING_KEY"
+          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as env:
+              env.write(f"ORG_GRADLE_PROJECT_signingInMemoryKey<<{marker}\n")
+              env.write(key)
+              env.write(f"\n{marker}\n")
+          print("Maven signing key normalized for in-memory Gradle signing")
+          PY
       - name: Publish Java SDK to Maven Central
         working-directory: sdks/java
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MAVEN_SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MAVEN_SIGNING_KEY_ID }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
         run: ./gradlew publishAndReleaseToMavenCentral --no-daemon -PtikeoVersion=${{ steps.version.outputs.version }}

@@ -38,17 +38,6 @@ jobs:
           VERSION="${RELEASE_TAG#v}"
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-      - name: Set Node.js SDK version from tag
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          version = '${{ steps.version.outputs.version }}'
-          p = Path('sdks/nodejs/tikeo/package.json')
-          data = json.loads(p.read_text())
-          data['version'] = version
-          p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + '\n')
-          PY
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -82,8 +71,7 @@ jobs:
           p = Path('sdks/nodejs/tikeo/package.json')
           data = json.loads(p.read_text())
           data['version'] = version
-          p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + '
-')
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + '\n')
           PY
       - name: Pack Node.js SDK
         working-directory: sdks/nodejs/tikeo

@@ -68,7 +68,7 @@ jobs:
         run: bun run typecheck
       - name: Test
         working-directory: web
-        run: bun test
+        run: bun run test
       - name: Build
         working-directory: web
         run: bun run build

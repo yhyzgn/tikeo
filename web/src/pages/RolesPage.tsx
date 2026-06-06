@@ -22,7 +22,7 @@ import { useI18n } from '../i18n';
 import { ROUTE_META } from '../routes';
 import { persistentPagination, usePersistentTablePageSize } from '../utils/pagination';
 
-interface RoleFormValues extends CreateRoleRequest {}
+type RoleFormValues = CreateRoleRequest;
 
 export function RolesPage() {
   const { t } = useI18n();
