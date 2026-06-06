@@ -335,10 +335,12 @@ class TikeeWorkerAutoConfigurationTest {
         java.nio.file.Files.createDirectories(binary.getParent());
         java.nio.file.Files.writeString(binary, """
                 #!/usr/bin/env sh
-                if [ "${1:-}" = "--version" ] || [ "${1:-}" = "-V" ]; then
-                  echo rhai 1.0.0-test
-                  exit 0
-                fi
+                case "${1:-}" in
+                  ""|"--version"|"-V")
+                    echo rhai 1.0.0-test
+                    exit 0
+                    ;;
+                esac
                 test -f "${1:-}" && echo rhai 1.0.0-test
                 """);
         binary.toFile().setExecutable(true);

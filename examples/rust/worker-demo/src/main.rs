@@ -8,7 +8,8 @@ use async_trait::async_trait;
 use tikee::{
     ContainerScriptRunner, DenoScriptRunner, ManagementClient, ManagementCreateJobRequest,
     SandboxToolResolver, ScriptRunnerKind, ScriptRunnerRegistry, SrtScriptRunner, TaskContext,
-    TaskOutcome, TaskProcessor, UnsupportedScriptRunner, WorkerClient, WorkerConfig, WorkerSdkError,
+    TaskOutcome, TaskProcessor, UnsupportedScriptRunner, WorkerClient, WorkerConfig,
+    WorkerSdkError,
 };
 
 #[tokio::main]
@@ -210,10 +211,7 @@ async fn create_management_examples(config: &WorkerConfig) -> Result<(), WorkerS
         match management.create_job(job).await {
             Ok(created) => println!(
                 "[rust-demo.management] created job namespace={} app={} name={} retry_attempts={}",
-                created.namespace,
-                created.app,
-                created.name,
-                created.retry_policy.max_attempts
+                created.namespace, created.app, created.name, created.retry_policy.max_attempts
             ),
             Err(error) => eprintln!("[rust-demo.management] create job failed: {error}"),
         }
