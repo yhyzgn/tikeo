@@ -59,7 +59,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PROTOC_VERSION=25.8
+          PROTOC_VERSION=21.12
           case "${{ runner.os }}:${{ matrix.target }}" in
             Linux:*)
               PROTOC_ASSET="protoc-${PROTOC_VERSION}-linux-x86_64.zip"
@@ -89,11 +89,21 @@ jobs:
             find "$PROTOC_DIR" -maxdepth 3 -type f -print >&2
             exit 1
           fi
-          echo "$PROTOC_DIR/bin" >> "$GITHUB_PATH"
-          echo "PROTOC=$PROTOC_BIN" >> "$GITHUB_ENV"
+          PROTOC_ENV="$PROTOC_BIN"
+          PROTOC_PATH_ENTRY="$PROTOC_DIR/bin"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            PROTOC_ENV="$(cygpath -w "$PROTOC_BIN")"
+            PROTOC_PATH_ENTRY="$(cygpath -w "$PROTOC_DIR/bin")"
+          fi
+          echo "$PROTOC_PATH_ENTRY" >> "$GITHUB_PATH"
+          echo "PROTOC=$PROTOC_ENV" >> "$GITHUB_ENV"
           "$PROTOC_BIN" --version
       - name: Build server binary
-        run: cargo build --release --locked --bin tikeo --target ${{ matrix.target }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Using PROTOC=$PROTOC"
+          cargo build --release --locked --bin tikeo --target ${{ matrix.target }}
       - name: Stage server release payload
         shell: bash
         run: |
