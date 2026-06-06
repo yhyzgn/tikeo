@@ -1127,5 +1127,17 @@ export const messages: Record<string, string> = {
     "unclosed double quote": "unclosed double quote",
     "Admin": "Admin",
     "Dev": "Dev",
-    "未知 worker": "Unknown worker"
+    "未知 worker": "Unknown worker",
+  "tikee 初始化入口": "tikee setup entry",
+  "首次部署初始化": "First deployment setup",
+  "建立管理员": "Create admin",
+  "启用控制台": "Open console",
+  "创建站点第一个管理员账号，完成后注册入口会自动关闭，后续成员统一由管理员邀请和维护": "Create the first site administrator. After setup, registration closes automatically and future members are invited and maintained by administrators.",
+  "初始化能力说明": "Setup capability notes",
+  "唯一初始化入口": "One-time setup entry",
+  "注册后关闭": "Registration closes after setup",
+  "初始化账号留痕": "Bootstrap account audit trail",
+  "站点初始化": "Site setup",
+  "创建管理员": "Create administrator",
+  "请设置可长期维护站点的管理员身份": "Set up an administrator identity that can maintain the site long term.",
 };

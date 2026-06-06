@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 
 const loginSource = readFileSync(new URL('../LoginPage.tsx', import.meta.url), 'utf8');
+const setupSource = readFileSync(new URL('../SuperAdminSetupPage.tsx', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
 
 describe('login page entry experience', () => {
@@ -19,5 +20,13 @@ describe('login page entry experience', () => {
     expect(styles).toContain('.login-page__card');
     expect(styles).toContain('.login-page__trust-list');
     expect(styles).toContain('html[data-theme="dark"] .login-page');
+  });
+
+  test('uses the branded split-panel setup composition', () => {
+    expect(setupSource).toContain('login-page__visual setup-page__visual');
+    expect(setupSource).toContain('login-page__card login-card setup-card');
+    expect(setupSource).toContain('首次部署初始化');
+    expect(setupSource).toContain('创建管理员并进入站点');
+    expect(setupSource).toContain('useI18n');
   });
 });
