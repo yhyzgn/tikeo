@@ -21,6 +21,11 @@ function applyMessages(value: string, messages: TranslationMessages): string {
   if (!value.trim()) return value;
   const exact = messages[value];
   if (exact) return exact;
+  const compactCjk = value.replace(/([\u4e00-\u9fff])\s+([\u4e00-\u9fff])/g, '$1$2');
+  if (compactCjk !== value) {
+    const compactExact = messages[compactCjk];
+    if (compactExact) return compactExact;
+  }
 
   let translated = value;
   const keys = Object.keys(messages).sort((left, right) => right.length - left.length);

@@ -1,9 +1,60 @@
 import { describe, expect, test } from 'bun:test';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 
 import { localizeDom, observeLocalization, translateString } from './domLocalizer';
 import { enUS, zhCN } from './messages';
 import { normalizeLocale } from './I18nContext';
+
+const i18nContextSource = readFileSync(new URL('./I18nContext.tsx', import.meta.url), 'utf8');
+
+const i18nDir = dirname(fileURLToPath(import.meta.url));
+const srcDir = join(i18nDir, '..');
+
+function collectTsxFiles(directory: string): string[] {
+  return readdirSync(directory).flatMap((name) => {
+    const path = join(directory, name);
+    const stat = statSync(path);
+    if (stat.isDirectory()) return name === '__tests__' ? [] : collectTsxFiles(path);
+    return path.endsWith('.tsx') ? [path] : [];
+  });
+}
+
+const visibleAttributePatterns: RegExp[] = [
+  /\b(?:title|label|placeholder|extra|message|description|emptyText|aria-label)\s*=\s*"([^"]+)"/g,
+  /\b(?:title|label|placeholder|extra|message|description|emptyText)\s*:\s*['"]([^'"]+)['"]/g,
+];
+
+const exampleLiteralPatterns = [
+  /^admin@example\.com$/,
+  /^user@example\.com$/,
+  /^https?:\/\//,
+  /^sqlite:\/\//,
+  /^SELECT\b/,
+  /^sha256:/,
+  /^[A-Z0-9_]+$/,
+  /^\d+[hm]?$/,
+  /^\d{4}-\d{2}-\d{2}T/,
+  /^\d+\/\d+/,
+  /^[a-z]+,[a-z]+$/,
+  /^[a-z]+=[^,]+/,
+  /^[a-z-]+ \/ [a-z-]+$/,
+  /^[a-z]+,-/,
+  /^kv\/data\//,
+  /^registry\./,
+  /^prod\//,
+  /^cn \/ /,
+  /^Asia\/Shanghai$/,
+  /^\d{2}:\d{2}-\d{2}:\d{2}\//,
+  /^prod \/ /,
+  /^aws-secrets-manager \/ /,
+];
+
+function isExampleLiteral(value: string): boolean {
+  return exampleLiteralPatterns.some((pattern) => pattern.test(value));
+}
 
 describe('i18n message dictionaries', () => {
   test('has no blank or mechanically broken English translations', () => {
@@ -30,9 +81,78 @@ describe('i18n message dictionaries', () => {
     expect(zhCN['API-Key']).toBe('接口密钥');
   });
 
+  test('covers visible table headers, enum labels, statuses, and placeholders', () => {
+    const requiredTerms = [
+      'Name',
+      'Status',
+      'Actions',
+      'Created At',
+      'Updated At',
+      'Pending',
+      'Running',
+      'Failed',
+      'Daily Time Interval',
+      'Processor Type',
+      'Channel Type',
+      'Grant URL',
+      'Namespace scope',
+      'pending',
+      'dispatching',
+      'success',
+      'broadcast',
+      'fixed_rate',
+      '选择租户管理中的 Namespace',
+      '失败重试策略',
+      '执行结果',
+      '任务编排',
+    ];
+
+    for (const term of requiredTerms) {
+      expect(zhCN[term], `missing zh-CN term: ${term}`).toBeDefined();
+      expect(enUS[term], `missing en-US term: ${term}`).toBeDefined();
+    }
+
+    expect(zhCN['Name']).toBe('名称');
+    expect(zhCN['Status']).toBe('状态');
+    expect(zhCN['dispatching']).toBe('分发中');
+    expect(zhCN['fixed_rate']).toBe('固定频率');
+    expect(enUS['执行结果']).toBe('Execution result');
+  });
+
+  test('keeps visible JSX and table metadata strings covered by the i18n dictionaries', () => {
+    const files = [
+      ...collectTsxFiles(join(srcDir, 'pages')),
+      ...collectTsxFiles(join(srcDir, 'components')),
+      join(srcDir, 'routes.tsx'),
+    ];
+    const keys = new Set([...Object.keys(zhCN), ...Object.keys(enUS)]);
+    const missing: string[] = [];
+
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8');
+      for (const pattern of visibleAttributePatterns) {
+        for (const match of source.matchAll(pattern)) {
+          const value = match[1].trim();
+          if (!value || value.includes('${') || keys.has(value) || isExampleLiteral(value)) continue;
+          if (/^[a-z][a-zA-Z0-9_.-]*$/.test(value)) continue;
+          const line = source.slice(0, match.index).split('\n').length;
+          missing.push(`${file.replace(`${srcDir}/`, '')}:${line}:${value}`);
+        }
+      }
+    }
+
+    expect(missing).toEqual([]);
+  });
+
+  test('observes document body so Ant Design drawer and modal portals are localized', () => {
+    expect(i18nContextSource).toContain('const root = document.body');
+    expect(i18nContextSource).not.toContain("document.getElementById('root')");
+  });
+
   test('translates exact and embedded string content without changing Chinese default', () => {
     expect(translateString('审计日志', enUS, true)).toBe('Audit logs');
     expect(translateString('已导出 12 条审计记录', enUS, true)).toBe('Exported 12 audit records');
+    expect(translateString('刷 新', enUS, true)).toBe('Refresh');
     expect(translateString('审计日志', enUS, false)).toBe('审计日志');
     expect(translateString('Service Account 已创建', zhCN, true)).toBe('服务账号已创建');
     expect(translateString('Worker 集群', zhCN, true)).toBe('执行节点集群');

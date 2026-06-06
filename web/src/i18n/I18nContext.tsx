@@ -3,21 +3,23 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { localizeDom, observeLocalization, translateString } from './domLocalizer';
 import { enUS, zhCN } from './messages';
 
-export type LocaleCode = 'zh-CN' | 'en-US';
+const LOCALE_REGISTRY = {
+  'zh-CN': { label: '中文', messages: zhCN },
+  'en-US': { label: 'English', messages: enUS },
+} as const;
+
+export type LocaleCode = keyof typeof LOCALE_REGISTRY;
 
 export const LOCALE_STORAGE_KEY = 'tikee.locale';
 
-const SUPPORTED_LOCALES: LocaleCode[] = ['zh-CN', 'en-US'];
+const SUPPORTED_LOCALES = Object.keys(LOCALE_REGISTRY) as LocaleCode[];
 
 export interface LocaleOption {
   value: LocaleCode;
   label: string;
 }
 
-export const LOCALE_OPTIONS: LocaleOption[] = [
-  { value: 'zh-CN', label: '中文' },
-  { value: 'en-US', label: 'English' },
-];
+export const LOCALE_OPTIONS: LocaleOption[] = SUPPORTED_LOCALES.map((value) => ({ value, label: LOCALE_REGISTRY[value].label }));
 
 interface I18nContextValue {
   locale: LocaleCode;
@@ -39,7 +41,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     return normalizeLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY));
   });
 
-  const messages = locale === 'en-US' ? enUS : zhCN;
+  const messages = LOCALE_REGISTRY[locale].messages;
 
   const setLocale = (nextLocale: LocaleCode) => {
     const normalized = normalizeLocale(nextLocale);
@@ -50,7 +52,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.lang = locale;
     document.documentElement.dataset.locale = locale;
-    const root = document.getElementById('root');
+    const root = document.body;
     if (!root) return undefined;
     localizeDom(root, messages, true);
     const observer = observeLocalization(root, messages, true);
