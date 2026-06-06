@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import {
   cancelInstance,
+  getInstance,
   listInstanceAttempts,
   listInstanceLogs,
   listJobInstances,
@@ -88,12 +89,15 @@ export function InstancesPage() {
       setLogsLoading(true);
     }
     try {
-      const [logPage, attemptPage] = await Promise.all([
+      const [logPage, attemptPage, freshInstance] = await Promise.all([
         listInstanceLogs(instance.id),
         listInstanceAttempts(instance.id),
+        getInstance(instance.id),
       ]);
       setLogs(logPage.items);
       setAttempts(attemptPage.items);
+      setSelectedInstance(freshInstance);
+      setInstances((current) => current.map((item) => item.id === freshInstance.id ? freshInstance : item));
       setAttemptsByInstance((previous) => new Map(previous).set(instance.id, attemptPage.items));
     } catch (cause) {
       if (showLoading) {
@@ -262,6 +266,29 @@ export function InstancesPage() {
             locale={{ emptyText: selectedInstance?.executionMode === 'single' ? '暂无执行器信息' : '暂无广播子执行' }}
           />
         </Card>
+        {selectedInstance?.result ? (
+          <Card size="small" className="instance-log-section" title="执行结果" style={{ marginTop: 16 }}>
+            <Alert
+              type={selectedInstance.result.success ? 'success' : 'error'}
+              showIcon
+              message={selectedInstance.result.success ? '任务执行成功' : '任务执行失败'}
+              description={(
+                <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                  <Space wrap>
+                    <Tag color={selectedInstance.result.success ? 'green' : 'red'}>{String(selectedInstance.result.success)}</Tag>
+                    <Typography.Text code>{selectedInstance.result.workerId}</Typography.Text>
+                    <Typography.Text type="secondary">{selectedInstance.result.completedAt}</Typography.Text>
+                  </Space>
+                  <Typography.Paragraph style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                    {selectedInstance.result.message || 'Worker 未返回结果消息'}
+                  </Typography.Paragraph>
+                </Space>
+              )}
+            />
+          </Card>
+        ) : (
+          <Alert type="info" showIcon message="暂无执行结果" description="实例进入运行、重试或完成后会在这里展示 Worker 返回的具体结果。" style={{ marginTop: 16 }} />
+        )}
         <Space align="center" style={{ marginTop: 24, marginBottom: 12 }}>
           <Typography.Title level={5} style={{ margin: 0 }}>执行日志</Typography.Title>
           {selectedInstance ? (

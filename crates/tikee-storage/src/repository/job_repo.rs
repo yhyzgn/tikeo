@@ -7,7 +7,7 @@ use tikee_core::MisfirePolicy;
 use crate::entities::{app, job, namespace};
 
 use super::{
-    job::{CreateJob, JobSummary, UpdateJob},
+    job::{CreateJob, JobRetryPolicy, JobSummary, UpdateJob},
     job_version::{JobVersionRepository, latest_version_number_in},
     util::{new_id, now_rfc3339},
 };
@@ -102,6 +102,7 @@ impl JobRepository {
         } else {
             normalize_processor_name(input.processor_name)
         };
+        let retry_policy = input.retry_policy.unwrap_or_default().normalized();
 
         let active = job::ActiveModel {
             id: Set(id.clone()),
@@ -120,6 +121,7 @@ impl JobRepository {
             enabled: Set(input.enabled),
             canary_job_id: Set(normalize_processor_name(input.canary_job_id)),
             canary_percent: Set(input.canary_percent.clamp(0, 100)),
+            retry_policy_json: Set(retry_policy.to_json()),
             created_at: Set(now.clone()),
             updated_at: Set(now),
         };
@@ -149,6 +151,7 @@ impl JobRepository {
             enabled: model.enabled,
             canary_job_id: model.canary_job_id,
             canary_percent: model.canary_percent,
+            retry_policy: JobRetryPolicy::from_json(Some(&model.retry_policy_json)),
         })
     }
 
@@ -216,6 +219,9 @@ impl JobRepository {
         if let Some(canary_percent) = input.canary_percent {
             active.canary_percent = Set(canary_percent.clamp(0, 100));
         }
+        if let Some(retry_policy) = input.retry_policy {
+            active.retry_policy_json = Set(retry_policy.normalized().to_json());
+        }
         if !job_changed(&before, &active) {
             return Ok(self
                 .hydrate_job_summaries(vec![before])
@@ -273,6 +279,7 @@ impl JobRepository {
         active.processor_type = Set(version.processor_type);
         active.script_id = Set(version.script_id);
         active.enabled = Set(version.enabled);
+        active.retry_policy_json = Set(version.retry_policy.to_json());
         active.updated_at = Set(now_rfc3339());
         let txn = self.db.begin().await?;
         let updated = active.update(&txn).await?;
@@ -337,6 +344,7 @@ impl JobRepository {
                 enabled: job.enabled,
                 canary_job_id: job.canary_job_id,
                 canary_percent: job.canary_percent,
+                retry_policy: JobRetryPolicy::from_json(Some(&job.retry_policy_json)),
             });
         }
 
@@ -418,6 +426,7 @@ fn job_changed(before: &job::Model, active: &job::ActiveModel) -> bool {
         || active.enabled.as_ref() != &before.enabled
         || active.canary_job_id.as_ref() != &before.canary_job_id
         || active.canary_percent.as_ref() != &before.canary_percent
+        || active.retry_policy_json.as_ref() != &before.retry_policy_json
 }
 
 fn normalize_misfire_policy(value: Option<String>) -> String {

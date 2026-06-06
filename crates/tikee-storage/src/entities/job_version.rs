@@ -35,6 +35,8 @@ pub struct Model {
     pub script_id: Option<String>,
     /// Snapshot of enabled flag.
     pub enabled: bool,
+    /// Snapshot of structured failure retry policy JSON.
+    pub retry_policy_json: String,
     /// Actor that created the snapshot.
     pub created_by: String,
     /// Creation reason such as `create`, `update`, or `rollback`.

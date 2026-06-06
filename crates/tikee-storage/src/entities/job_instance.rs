@@ -17,6 +17,14 @@ pub struct Model {
     pub trigger_type: String,
     /// Execution mode, for example `single` or `broadcast`.
     pub execution_mode: String,
+    /// Worker that produced the latest execution result.
+    pub result_worker_id: Option<String>,
+    /// Latest execution success flag.
+    pub result_success: Option<bool>,
+    /// Latest execution result message.
+    pub result_message: Option<String>,
+    /// Latest execution result timestamp.
+    pub result_completed_at: Option<String>,
     /// Creation timestamp in RFC3339 format.
     pub created_at: String,
     /// Last update timestamp in RFC3339 format.

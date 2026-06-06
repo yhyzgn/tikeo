@@ -26,6 +26,8 @@ use self::{
     sqlite_compat::LegacySqliteSchemaCompatibility,
 };
 
+pub(crate) use sqlite_compat::apply_sqlite_schema_compatibility;
+
 /// Storage schema migrator.
 pub struct Migrator;
 
@@ -1137,6 +1139,7 @@ async fn create_jobs(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(boolean_col(Jobs::Enabled))
                 .col(string_null(Jobs::CanaryJobId))
                 .col(integer_col(Jobs::CanaryPercent))
+                .col(text_col(Jobs::RetryPolicyJson))
                 .col(string_col(Jobs::CreatedAt))
                 .col(string_col(Jobs::UpdatedAt))
                 .to_owned(),
@@ -1164,6 +1167,7 @@ async fn create_job_versions(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(string_null(JobVersions::ProcessorType))
                 .col(string_null(JobVersions::ScriptId))
                 .col(boolean_col(JobVersions::Enabled))
+                .col(text_col(JobVersions::RetryPolicyJson))
                 .col(string_col(JobVersions::CreatedBy))
                 .col(string_col(JobVersions::ChangeReason))
                 .col(big_integer_null(JobVersions::RolledBackFromVersion))
@@ -1184,6 +1188,10 @@ async fn create_job_instances(manager: &SchemaManager<'_>) -> Result<(), DbErr> 
                 .col(string_col(JobInstances::Status))
                 .col(string_col(JobInstances::TriggerType))
                 .col(string_col(JobInstances::ExecutionMode))
+                .col(string_null(JobInstances::ResultWorkerId))
+                .col(ColumnDef::new(JobInstances::ResultSuccess).boolean().null())
+                .col(text_null(JobInstances::ResultMessage))
+                .col(string_null(JobInstances::ResultCompletedAt))
                 .col(string_col(JobInstances::CreatedAt))
                 .col(string_col(JobInstances::UpdatedAt))
                 .to_owned(),

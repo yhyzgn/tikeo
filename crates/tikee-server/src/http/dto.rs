@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeMap;
+use tikee_storage::JobRetryPolicy;
 use utoipa::ToSchema;
 
 pub const SUCCESS_CODE: i32 = 0;
@@ -649,6 +650,7 @@ pub struct JobSummary {
     pub enabled: bool,
     pub canary_job_id: Option<String>,
     pub canary_percent: i32,
+    pub retry_policy: JobRetryPolicy,
 }
 
 pub type JobSchedulingAdviceApiResponse = ApiResponse<JobSchedulingAdviceResponse>;
@@ -812,6 +814,7 @@ pub struct CreateJobRequest {
     pub enabled: Option<bool>,
     pub canary_job_id: Option<String>,
     pub canary_percent: Option<i32>,
+    pub retry_policy: Option<JobRetryPolicy>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
@@ -838,6 +841,7 @@ pub struct UpdateJobRequest {
     #[serde(default, deserialize_with = "deserialize_nullable_update")]
     pub canary_job_id: NullableUpdate<String>,
     pub canary_percent: Option<i32>,
+    pub retry_policy: Option<JobRetryPolicy>,
 }
 
 pub type NullableUpdate<T> = Option<Option<T>>;
@@ -925,6 +929,15 @@ pub struct JobInstancePage {
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct JobInstanceResult {
+    pub worker_id: String,
+    pub success: bool,
+    pub message: String,
+    pub completed_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct JobInstanceSummary {
     pub id: String,
     pub job_id: String,
@@ -936,6 +949,7 @@ pub struct JobInstanceSummary {
     pub log_count: u64,
     pub latest_log: Option<JobInstanceLogSummary>,
     pub worker_id: Option<String>,
+    pub result: Option<JobInstanceResult>,
     pub canary_routing: Option<CanaryRoutingSummary>,
 }
 

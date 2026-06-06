@@ -8,7 +8,8 @@ use tikee_proto::worker::v1::{
 };
 use tikee_storage::{
     AppendJobInstanceLog, AuditLogRepository, JobInstanceAttemptRepository,
-    JobInstanceLogRepository, JobInstanceLogSummary, JobInstanceRepository, WorkflowRepository,
+    JobInstanceLogRepository, JobInstanceLogSummary, JobInstanceRepository, JobRepository,
+    WorkflowRepository,
 };
 use tokio::sync::{broadcast, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
@@ -47,6 +48,7 @@ impl TaskLogBroadcaster {
 pub struct WorkerTunnel {
     registry: WorkerRegistry,
     instances: JobInstanceRepository,
+    jobs: JobRepository,
     logs: JobInstanceLogRepository,
     attempts: JobInstanceAttemptRepository,
     workflows: WorkflowRepository,
@@ -60,6 +62,7 @@ impl WorkerTunnel {
     pub const fn new(
         registry: WorkerRegistry,
         instances: JobInstanceRepository,
+        jobs: JobRepository,
         logs: JobInstanceLogRepository,
         attempts: JobInstanceAttemptRepository,
         workflows: WorkflowRepository,
@@ -69,6 +72,7 @@ impl WorkerTunnel {
         Self {
             registry,
             instances,
+            jobs,
             logs,
             attempts,
             workflows,
@@ -90,6 +94,7 @@ impl WorkerTunnelService for WorkerTunnel {
         let mut inbound = request.into_inner();
         let registry = self.registry.clone();
         let instances = self.instances.clone();
+        let jobs = self.jobs.clone();
         let logs = self.logs.clone();
         let attempts = self.attempts.clone();
         let workflows = self.workflows.clone();
@@ -107,6 +112,7 @@ impl WorkerTunnelService for WorkerTunnel {
                         let context = WorkerMessageContext {
                             registry: &registry,
                             instances: &instances,
+                            jobs: &jobs,
                             logs: &logs,
                             attempts: &attempts,
                             workflows: &workflows,
@@ -219,6 +225,7 @@ impl WorkerTunnelService for WorkerTunnel {
 struct WorkerMessageContext<'a> {
     registry: &'a WorkerRegistry,
     instances: &'a JobInstanceRepository,
+    jobs: &'a JobRepository,
     logs: &'a JobInstanceLogRepository,
     attempts: &'a JobInstanceAttemptRepository,
     workflows: &'a WorkflowRepository,
@@ -466,7 +473,8 @@ async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResu
                 &message,
             )
             .await;
-            handle_single_task_result(context, &worker_id, &instance_id, success, status).await;
+            handle_single_task_result(context, &worker_id, &instance_id, success, status, &message)
+                .await;
         }
         Err(error) => {
             tracing::warn!(%error, %instance_id, %worker_id, "failed to persist attempt result");
@@ -526,7 +534,28 @@ async fn handle_single_task_result(
     instance_id: &str,
     success: bool,
     status: InstanceStatus,
+    message: &str,
 ) {
+    if let Err(error) = context
+        .instances
+        .record_result(instance_id, worker_id, success, message)
+        .await
+    {
+        tracing::warn!(%error, %instance_id, "failed to persist concrete task result");
+    }
+    append_execution_log(
+        context,
+        instance_id,
+        worker_id,
+        if success { "info" } else { "error" },
+        &format!("task result success={success} message={message}"),
+    )
+    .await;
+
+    if !success && schedule_retry_after_failure(context, worker_id, instance_id, message).await {
+        return;
+    }
+
     if let Err(error) = context.instances.update_status(instance_id, status).await {
         tracing::warn!(%error, %instance_id, "failed to persist task result");
     }
@@ -543,7 +572,7 @@ async fn handle_single_task_result(
             instance_id,
             status,
             Some(format!(
-                "worker {worker_id} reported task success={success}"
+                "worker {worker_id} reported task success={success}: {message}"
             )),
         )
         .await
@@ -562,6 +591,99 @@ async fn handle_single_task_result(
         Err(error) => {
             tracing::warn!(%error, %instance_id, "failed to advance workflow from task result");
         }
+    }
+}
+
+async fn schedule_retry_after_failure(
+    context: &WorkerMessageContext<'_>,
+    worker_id: &str,
+    instance_id: &str,
+    message: &str,
+) -> bool {
+    let Ok(Some(instance)) = context.instances.get(instance_id).await else {
+        return false;
+    };
+    let Ok(Some(job)) = context.jobs.get(&instance.job_id).await else {
+        return false;
+    };
+    let Ok(Some(queue)) = context
+        .workflows
+        .dispatch_queue_for_instance(instance_id)
+        .await
+    else {
+        return false;
+    };
+    if !job.retry_policy.allows_retry_after_attempt(queue.attempt) {
+        append_execution_log(
+            context,
+            instance_id,
+            "tikee-retry",
+            "error",
+            &format!(
+                "retry exhausted after attempt {}/{}; final failure from worker {worker_id}: {message}",
+                queue.attempt, job.retry_policy.max_attempts
+            ),
+        )
+        .await;
+        return false;
+    }
+    let delay_seconds = job.retry_policy.delay_after_attempt_seconds(queue.attempt);
+    match context
+        .workflows
+        .requeue_dispatch_queue_for_retry(instance_id, delay_seconds)
+        .await
+    {
+        Ok(Some(requeued)) => {
+            append_execution_log(
+                context,
+                instance_id,
+                "tikee-retry",
+                "info",
+                &format!(
+                    "retry scheduled: completed attempt {}/{} failed on worker {worker_id}; next attempt after {}s at {}; result={message}",
+                    queue.attempt, job.retry_policy.max_attempts, delay_seconds, requeued.run_after
+                ),
+            )
+            .await;
+            true
+        }
+        Ok(None) => false,
+        Err(error) => {
+            tracing::warn!(%error, %instance_id, "failed to requeue failed task for retry");
+            false
+        }
+    }
+}
+
+async fn append_execution_log(
+    context: &WorkerMessageContext<'_>,
+    instance_id: &str,
+    worker_id: &str,
+    level: &str,
+    message: &str,
+) {
+    let sequence = context
+        .logs
+        .count_by_instance(instance_id)
+        .await
+        .map(|count| i64::try_from(count).unwrap_or(i64::MAX - 1) + 1)
+        .unwrap_or(0);
+    match context
+        .logs
+        .append(AppendJobInstanceLog {
+            instance_id: instance_id.to_owned(),
+            worker_id: worker_id.to_owned(),
+            level: level.to_owned(),
+            message: message.to_owned(),
+            sequence,
+        })
+        .await
+    {
+        Ok(Some(saved)) => context
+            .log_broadcaster
+            .publish(task_log_from_summary(saved)),
+        Ok(None) => {}
+        Err(error) => tracing::warn!(%error, %instance_id, "failed to append execution log"),
     }
 }
 
@@ -615,7 +737,7 @@ mod tests {
     };
     use tikee_storage::{
         AuditLogRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
-        JobInstanceRepository, WorkflowRepository, connect_and_migrate,
+        JobInstanceRepository, JobRepository, WorkflowRepository, connect_and_migrate,
     };
     use tokio::sync::mpsc;
     use tokio_stream::StreamExt;
@@ -629,6 +751,7 @@ mod tests {
     async fn register_message_updates_registry_and_acknowledges_worker() {
         let registry = WorkerRegistry::default();
         let instances = instances().await;
+        let jobs = jobs().await;
         let logs = logs().await;
         let audit = audit().await;
         let (tx, mut rx) = mpsc::channel(1);
@@ -640,6 +763,7 @@ mod tests {
         let context = WorkerMessageContext {
             registry: &registry,
             instances: &instances,
+            jobs: &jobs,
             logs: &logs,
             attempts: &attempts,
             workflows: &workflows,
@@ -723,6 +847,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -758,6 +883,7 @@ mod tests {
         let context = WorkerMessageContext {
             registry: &registry,
             instances: &instances,
+            jobs: &jobs,
             logs: &logs,
             attempts: &attempts,
             workflows: &workflows,
@@ -785,6 +911,174 @@ mod tests {
             .unwrap_or_else(|error| panic!("instance should load: {error}"))
             .unwrap_or_else(|| panic!("instance should exist"));
         assert_eq!(unchanged.status, InstanceStatus::Pending);
+    }
+
+    #[tokio::test]
+    async fn failed_single_task_result_schedules_retry_and_logs_result() {
+        use tikee_core::{ExecutionMode, InstanceStatus, TriggerType};
+        use tikee_proto::worker::v1::{DispatchTask, RegisterWorker, TaskResult, server_message};
+        use tikee_storage::{CreateJob, CreateJobInstance, JobRepository, JobRetryPolicy};
+
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let logs = JobInstanceLogRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db);
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "retry-runtime".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("demo.retry".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                retry_policy: Some(JobRetryPolicy {
+                    enabled: true,
+                    max_attempts: 3,
+                    initial_delay_seconds: 5,
+                    backoff_multiplier: 2,
+                    max_delay_seconds: 60,
+                }),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should create: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id.clone(),
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should create: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        let claim = workflows
+            .claim_next_job_queue_item("server-a", 30)
+            .await
+            .unwrap_or_else(|error| panic!("queue should claim: {error}"))
+            .unwrap_or_else(|| panic!("queue item should exist"));
+        workflows
+            .mark_dispatch_queue_running(&claim.item.id, "server-a")
+            .await
+            .unwrap_or_else(|error| panic!("queue should run: {error}"));
+        instances
+            .update_status(&instance.id, InstanceStatus::Running)
+            .await
+            .unwrap_or_else(|error| panic!("instance should run: {error}"));
+
+        let (outbound, mut rx) = mpsc::channel(8);
+        let registry = WorkerRegistry::default();
+        let worker = registry
+            .register(
+                RegisterWorker {
+                    client_instance_id: "retry-worker".to_owned(),
+                    app: "billing".to_owned(),
+                    namespace: "default".to_owned(),
+                    cluster: "local".to_owned(),
+                    region: "local".to_owned(),
+                    capabilities: Vec::new(),
+                    structured_capabilities: None,
+                    election: None,
+                    labels: std::collections::HashMap::default(),
+                },
+                outbound,
+            )
+            .await;
+        registry
+            .dispatch_to_worker(
+                &worker.worker_id,
+                DispatchTask {
+                    instance_id: instance.id.clone(),
+                    job_id: job.id,
+                    payload: Vec::new(),
+                    processor_name: "demo.retry".to_owned(),
+                    processor_binding: None,
+                    assignment_token: String::new(),
+                },
+            )
+            .await
+            .unwrap_or_else(|| panic!("task should dispatch"));
+        let token = match rx
+            .recv()
+            .await
+            .unwrap_or_else(|| panic!("dispatch should arrive"))
+            .unwrap_or_else(|error| panic!("dispatch should be ok: {error}"))
+            .kind
+        {
+            Some(server_message::Kind::DispatchTask(task)) => task.assignment_token,
+            other => panic!("unexpected server message: {other:?}"),
+        };
+        let (tx, _events) = mpsc::channel(8);
+        let broadcaster = TaskLogBroadcaster::default();
+        let context = WorkerMessageContext {
+            registry: &registry,
+            instances: &instances,
+            jobs: &jobs,
+            logs: &logs,
+            attempts: &attempts,
+            workflows: &workflows,
+            audit: &audit,
+            log_broadcaster: &broadcaster,
+            tx: &tx,
+            outbound: &tx,
+        };
+
+        handle_task_result(
+            &context,
+            TaskResult {
+                worker_id: worker.worker_id.clone(),
+                instance_id: instance.id.clone(),
+                success: false,
+                message: "runtime failed with exit 2".to_owned(),
+                assignment_token: token,
+            },
+        )
+        .await;
+
+        let requeued_instance = instances
+            .get(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("instance should load: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        assert_eq!(requeued_instance.status, InstanceStatus::Pending);
+        let result = requeued_instance
+            .result
+            .unwrap_or_else(|| panic!("result should persist"));
+        assert!(!result.success);
+        assert_eq!(result.message, "runtime failed with exit 2");
+
+        let requeued = workflows
+            .claim_next_job_queue_item("server-b", 30)
+            .await
+            .unwrap_or_else(|error| panic!("queue should load: {error}"));
+        assert!(requeued.is_none(), "retry should wait for backoff");
+        let persisted_logs = logs
+            .list_by_instance(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("logs should load: {error}"));
+        assert!(
+            persisted_logs
+                .iter()
+                .any(|log| log.message.contains("retry scheduled"))
+        );
+        assert!(
+            persisted_logs
+                .iter()
+                .any(|log| log.message.contains("runtime failed with exit 2"))
+        );
     }
 
     #[tokio::test]
@@ -820,6 +1114,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -847,6 +1142,7 @@ mod tests {
         let service = super::WorkerTunnel::new(
             WorkerRegistry::default(),
             instances,
+            jobs,
             logs,
             attempts,
             workflows,
@@ -883,6 +1179,13 @@ mod tests {
             .unwrap_or_else(|| panic!("live log should exist"))
             .unwrap_or_else(|error| panic!("live log should stream: {error}"));
         assert_eq!(live.message, "live");
+    }
+
+    async fn jobs() -> JobRepository {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        JobRepository::new(db)
     }
 
     async fn instances() -> JobInstanceRepository {

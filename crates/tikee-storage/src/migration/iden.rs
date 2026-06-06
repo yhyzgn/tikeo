@@ -575,6 +575,7 @@ pub(super) enum Jobs {
     Enabled,
     CanaryJobId,
     CanaryPercent,
+    RetryPolicyJson,
     CreatedAt,
     UpdatedAt,
 }
@@ -596,6 +597,7 @@ pub(super) enum JobVersions {
     ProcessorType,
     ScriptId,
     Enabled,
+    RetryPolicyJson,
     CreatedBy,
     ChangeReason,
     RolledBackFromVersion,
@@ -610,6 +612,10 @@ pub(super) enum JobInstances {
     Status,
     TriggerType,
     ExecutionMode,
+    ResultWorkerId,
+    ResultSuccess,
+    ResultMessage,
+    ResultCompletedAt,
     CreatedAt,
     UpdatedAt,
 }

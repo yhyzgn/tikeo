@@ -133,6 +133,14 @@ export interface GitOpsDiffResponse {
   changes: GitOpsDiffChange[];
 }
 
+export interface JobRetryPolicy {
+  enabled: boolean;
+  maxAttempts: number;
+  initialDelaySeconds: number;
+  backoffMultiplier: number;
+  maxDelaySeconds: number;
+}
+
 export interface JobSummary {
   id: string;
   namespace: string;
@@ -151,6 +159,7 @@ export interface JobSummary {
   canaryJobId: string | null;
   canaryPercent: number;
   versionNumber: number;
+  retryPolicy: JobRetryPolicy;
 }
 
 
@@ -300,6 +309,7 @@ export interface CreateJobRequest {
   enabled?: boolean;
   canaryJobId?: string | null;
   canaryPercent?: number;
+  retryPolicy?: JobRetryPolicy;
 }
 
 export interface UpdateJobRequest {
@@ -316,6 +326,7 @@ export interface UpdateJobRequest {
   enabled?: boolean;
   canaryJobId?: string | null;
   canaryPercent?: number;
+  retryPolicy?: JobRetryPolicy;
 }
 
 export interface InboundWebhookTriggerRequest {
@@ -353,6 +364,13 @@ export interface CanaryRoutingSummary {
   percent: number;
 }
 
+export interface JobInstanceResult {
+  workerId: string;
+  success: boolean;
+  message: string;
+  completedAt: string;
+}
+
 export interface JobInstanceSummary {
   id: string;
   jobId: string;
@@ -364,6 +382,7 @@ export interface JobInstanceSummary {
   logCount: number;
   latestLog?: JobInstanceLogSummary | null;
   workerId?: string | null;
+  result?: JobInstanceResult | null;
   canaryRouting?: CanaryRoutingSummary | null;
 }
 

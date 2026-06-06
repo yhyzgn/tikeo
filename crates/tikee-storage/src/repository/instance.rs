@@ -20,6 +20,19 @@ pub struct CreateJobInstance {
     pub execution_mode: ExecutionMode,
 }
 
+/// Latest concrete execution result for a job instance.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JobInstanceResult {
+    /// Worker that reported the result.
+    pub worker_id: String,
+    /// Whether the execution succeeded.
+    pub success: bool,
+    /// Worker-reported result message.
+    pub message: String,
+    /// Result completion timestamp.
+    pub completed_at: String,
+}
+
 /// Job instance summary returned to management API callers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JobInstanceSummary {
@@ -33,6 +46,8 @@ pub struct JobInstanceSummary {
     pub trigger_type: TriggerType,
     /// Execution fan-out mode.
     pub execution_mode: ExecutionMode,
+    /// Latest concrete execution result.
+    pub result: Option<JobInstanceResult>,
     /// Creation timestamp in RFC3339 format.
     pub created_at: String,
     /// Last update timestamp in RFC3339 format.
@@ -105,6 +120,10 @@ impl JobInstanceRepository {
             status: Set(InstanceStatus::Pending.to_string()),
             trigger_type: Set(input.trigger_type.to_string()),
             execution_mode: Set(input.execution_mode.to_string()),
+            result_worker_id: Set(None),
+            result_success: Set(None),
+            result_message: Set(None),
+            result_completed_at: Set(None),
             created_at: Set(now.clone()),
             updated_at: Set(now.clone()),
         }
@@ -318,6 +337,37 @@ impl JobInstanceRepository {
         Ok(result.rows_affected > 0)
     }
 
+    /// Persist the latest concrete execution result without implying terminal status.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn record_result(
+        &self,
+        instance_id: &str,
+        worker_id: &str,
+        success: bool,
+        message: &str,
+    ) -> Result<Option<JobInstanceSummary>, sea_orm::DbErr> {
+        let Some(model) = job_instance::Entity::find_by_id(instance_id.to_owned())
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let completed_at = now_rfc3339();
+        let mut active: job_instance::ActiveModel = model.into();
+        active.result_worker_id = Set(Some(worker_id.to_owned()));
+        active.result_success = Set(Some(success));
+        active.result_message = Set(Some(message.to_owned()));
+        active.result_completed_at = Set(Some(completed_at));
+        active.updated_at = Set(now_rfc3339());
+        active
+            .update(&self.db)
+            .await
+            .map(|model| Some(JobInstanceSummary::from(model)))
+    }
+
     /// Update one instance status.
     ///
     /// # Errors
@@ -425,6 +475,22 @@ impl From<job_instance::Model> for JobInstanceSummary {
                 .execution_mode
                 .parse()
                 .unwrap_or(ExecutionMode::Single),
+            result: match (
+                value.result_worker_id,
+                value.result_success,
+                value.result_message,
+                value.result_completed_at,
+            ) {
+                (Some(worker_id), Some(success), Some(message), Some(completed_at)) => {
+                    Some(JobInstanceResult {
+                        worker_id,
+                        success,
+                        message,
+                        completed_at,
+                    })
+                }
+                _ => None,
+            },
             created_at: value.created_at,
             updated_at: value.updated_at,
         }

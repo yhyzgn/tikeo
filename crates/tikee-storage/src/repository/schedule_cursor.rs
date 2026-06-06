@@ -71,6 +71,10 @@ impl ScheduleCursorRepository {
             status: Set(InstanceStatus::Pending.to_string()),
             trigger_type: Set(trigger_type.clone()),
             execution_mode: Set(input.execution_mode.to_string()),
+            result_worker_id: Set(None),
+            result_success: Set(None),
+            result_message: Set(None),
+            result_completed_at: Set(None),
             created_at: Set(now.clone()),
             updated_at: Set(now.clone()),
         }

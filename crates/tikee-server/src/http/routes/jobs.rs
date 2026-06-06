@@ -17,8 +17,8 @@ use crate::http::{
         ErrorResponse, JobApiResponse, JobInstanceApiResponse, JobInstanceAttemptPage,
         JobInstanceAttemptPageApiResponse, JobInstanceAttemptSummary, JobInstanceCancelApiResponse,
         JobInstanceLogPage, JobInstanceLogPageApiResponse, JobInstanceLogSummary, JobInstancePage,
-        JobInstancePageApiResponse, JobInstanceSummary, JobPageApiResponse, JobSummary,
-        JobVersionPage, JobVersionPageApiResponse, Page, PageQuery, RollbackJobRequest,
+        JobInstancePageApiResponse, JobInstanceResult, JobInstanceSummary, JobPageApiResponse,
+        JobSummary, JobVersionPage, JobVersionPageApiResponse, Page, PageQuery, RollbackJobRequest,
         TriggerJobRequest, UpdateJobRequest,
     },
     error::ApiError,
@@ -149,6 +149,7 @@ pub async fn create_job(
             canary_job_id: None,
             canary_percent: 0,
             created_by: Some(principal.username.clone()),
+            retry_policy: request.retry_policy.clone(),
         })
         .await
         .map_err(|error| ApiError::storage(&error))?;
@@ -411,6 +412,7 @@ pub async fn update_job(
                 enabled: request.enabled,
                 canary_job_id: request.canary_job_id.clone(),
                 canary_percent: request.canary_percent,
+                retry_policy: request.retry_policy.clone(),
                 updated_by: Some(principal.username.clone()),
             },
         )
@@ -966,6 +968,7 @@ impl From<tikee_storage::JobSummary> for JobSummary {
             enabled: value.enabled,
             canary_job_id: value.canary_job_id,
             canary_percent: value.canary_percent,
+            retry_policy: value.retry_policy,
         }
     }
 }
@@ -1001,6 +1004,12 @@ async fn instance_summary_with_latest_log(
         log_count,
         latest_log,
         worker_id,
+        result: value.result.map(|result| JobInstanceResult {
+            worker_id: result.worker_id,
+            success: result.success,
+            message: result.message,
+            completed_at: result.completed_at,
+        }),
         canary_routing: None,
     })
 }

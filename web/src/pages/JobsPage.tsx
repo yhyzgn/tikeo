@@ -4,13 +4,26 @@ import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { createJob, deleteJob, getJobSchedulingAdvice, listCalendars, listJobs, listJobVersions, listPlugins, listScripts, listWorkers, rollbackJob, triggerJob, updateJob, type BroadcastSelectorRequest, type CalendarSummary, type CreateJobRequest, type JobSchedulingAdvice, type JobSummary, type PluginSummary, type JobVersionSummary, type ScriptSummary, type UpdateJobRequest, type WorkerSummary } from '../api/client';
+import { createJob, deleteJob, getJobSchedulingAdvice, listCalendars, listJobs, listJobVersions, listPlugins, listScripts, listWorkers, rollbackJob, triggerJob, updateJob, type BroadcastSelectorRequest, type CalendarSummary, type CreateJobRequest, type JobSchedulingAdvice, type JobSummary, type JobRetryPolicy, type PluginSummary, type JobVersionSummary, type ScriptSummary, type UpdateJobRequest, type WorkerSummary } from '../api/client';
 import { PermissionGate, useCan } from '../components/Permission';
 import { ROUTE_META } from '../routes';
 import { useRouteActive } from '../hooks/useRouteActivation';
 import { useUrlQueryState } from '../hooks/useUrlQueryState';
 import { TABLE_PAGE_SIZE_OPTIONS, usePersistentTablePageSize } from '../utils/pagination';
 import { durationExpr, parseFixedRate } from './jobs/jobSchedule';
+
+const DEFAULT_RETRY_POLICY: JobRetryPolicy = {
+  enabled: true,
+  maxAttempts: 3,
+  initialDelaySeconds: 5,
+  backoffMultiplier: 2,
+  maxDelaySeconds: 60,
+};
+
+const retryPolicyValue = (policy?: JobRetryPolicy | null): JobRetryPolicy => ({
+  ...DEFAULT_RETRY_POLICY,
+  ...(policy ?? {}),
+});
 
 type JobFormValues = Omit<CreateJobRequest & UpdateJobRequest, 'scheduleStartAt' | 'scheduleEndAt'> & {
   executorKind?: 'sdk' | 'script' | 'plugin';
@@ -157,7 +170,7 @@ export function JobsPage() {
   const openCreateDrawer = () => {
     form.resetFields();
     setCreateProcessorSearch('');
-    form.setFieldsValue({ namespace: 'default', app: 'default', scheduleType: 'api', enabled: true, fixedRateUnit: 's', fixedRateJitterUnit: 's', executorKind: 'sdk', canaryPercent: 0, misfirePolicy: 'fire_once' });
+    form.setFieldsValue({ namespace: 'default', app: 'default', scheduleType: 'api', enabled: true, fixedRateUnit: 's', fixedRateJitterUnit: 's', executorKind: 'sdk', canaryPercent: 0, misfirePolicy: 'fire_once', retryPolicy: DEFAULT_RETRY_POLICY });
     setCreateDrawerOpen(true);
   };
 
@@ -186,6 +199,7 @@ export function JobsPage() {
       canaryJobId: editingJob.canaryJobId ?? undefined,
       canaryPercent: editingJob.canaryPercent ?? 0,
       enabled: editingJob.enabled,
+      retryPolicy: retryPolicyValue(editingJob.retryPolicy),
     });
   }, [editForm, editingJob]);
 
@@ -336,10 +350,35 @@ export function JobsPage() {
     </Card>
   );
 
+  const renderRetryPolicyFields = () => (
+    <Card size="small" title="失败重试" className="job-retry-policy-card">
+      <Typography.Paragraph type="secondary">默认启用指数退避：首次失败 5 秒后重试，总共最多 3 次；取消、脚本治理拒绝等非运行期失败不会盲目重试。</Typography.Paragraph>
+      <Form.Item name={["retryPolicy", "enabled"]} label="启用失败重试" valuePropName="checked">
+        <Switch />
+      </Form.Item>
+      <Space.Compact block>
+        <Form.Item name={["retryPolicy", "maxAttempts"]} label="总尝试次数" rules={[{ required: true }]} style={{ flex: 1 }}>
+          <InputNumber min={1} max={10} precision={0} style={{ width: '100%' }} />
+        </Form.Item>
+        <Form.Item name={["retryPolicy", "initialDelaySeconds"]} label="首次延迟" rules={[{ required: true }]} style={{ flex: 1 }}>
+          <InputNumber min={0} max={86400} precision={0} addonAfter="秒" style={{ width: '100%' }} />
+        </Form.Item>
+      </Space.Compact>
+      <Space.Compact block>
+        <Form.Item name={["retryPolicy", "backoffMultiplier"]} label="退避倍数" rules={[{ required: true }]} style={{ flex: 1 }}>
+          <InputNumber min={1} max={10} precision={0} style={{ width: '100%' }} />
+        </Form.Item>
+        <Form.Item name={["retryPolicy", "maxDelaySeconds"]} label="最大延迟" rules={[{ required: true }]} style={{ flex: 1 }}>
+          <InputNumber min={0} max={86400} precision={0} addonAfter="秒" style={{ width: '100%' }} />
+        </Form.Item>
+      </Space.Compact>
+    </Card>
+  );
+
   const columns: ColumnsType<JobSummary> = [
     { title: 'Name', dataIndex: 'name' },
     { title: 'Namespace / App', render: (_, job) => <Space direction="vertical" size={0}><strong>{job.namespace}</strong><Typography.Text type="secondary" style={{ fontSize: 12 }}>{job.app}</Typography.Text></Space> },
-    { title: 'Schedule', dataIndex: 'scheduleType', render: (value: string, job) => <Space><Tag color="blue" className="soft-tag">{value}</Tag><Tag>v{job.versionNumber}</Tag>{job.canaryPercent > 0 ? <Tag color="orange">canary {job.canaryPercent}%</Tag> : null}</Space> },
+    { title: 'Schedule', dataIndex: 'scheduleType', render: (value: string, job) => <Space><Tag color="blue" className="soft-tag">{value}</Tag><Tag>v{job.versionNumber}</Tag>{job.canaryPercent > 0 ? <Tag color="orange">canary {job.canaryPercent}%</Tag> : null}{job.retryPolicy?.enabled && job.retryPolicy.maxAttempts > 1 ? <Tag color="volcano">retry {job.retryPolicy.maxAttempts}x</Tag> : <Tag>no retry</Tag>}</Space> },
     { title: '执行器', render: (_, job) => job.scriptId ? <Tag color="purple">脚本 · {job.scriptId}</Tag> : job.processorType ? <Tag color="geekblue">插件 · {job.processorType} · {job.processorName || job.name}</Tag> : <Typography.Text code>{job.processorName || job.name}</Typography.Text> },
     {
       title: 'Enabled',
@@ -417,7 +456,7 @@ export function JobsPage() {
         <Form
           form={form}
           layout="vertical"
-          initialValues={{ namespace: 'default', app: 'default', scheduleType: 'api', enabled: true, canaryPercent: 0, misfirePolicy: 'fire_once' }}
+          initialValues={{ namespace: 'default', app: 'default', scheduleType: 'api', enabled: true, canaryPercent: 0, misfirePolicy: 'fire_once', retryPolicy: DEFAULT_RETRY_POLICY }}
           onFinish={async (values) => {
             if (!canWriteJobs) { message.error('当前账号无权限创建任务'); return; }
             try {
@@ -467,6 +506,7 @@ export function JobsPage() {
             }}
           </Form.Item>
           <Form.Item name="misfirePolicy" label="Misfire 策略"><Select options={[{ value: 'fire_once', label: '补触发一次' }, { value: 'do_nothing', label: '跳过错过触发' }, { value: 'catch_up_limited', label: '有限追赶' }, { value: 'reschedule', label: '重排到当前' }, { value: 'latest_only', label: '仅保留最近一次' }]} /></Form.Item>
+          {renderRetryPolicyFields()}
           <Space.Compact block>
             <Form.Item name="scheduleStartAt" label="生命周期开始" style={{ flex: 1 }}><DatePicker showTime style={{ width: '100%' }} placeholder="选择开始时间" /></Form.Item>
             <Form.Item name="scheduleEndAt" label="生命周期结束" style={{ flex: 1 }}><DatePicker showTime style={{ width: '100%' }} placeholder="选择结束时间" /></Form.Item>
@@ -514,6 +554,7 @@ export function JobsPage() {
           <Form.Item name="canaryJobId" label="灰度目标任务" extra="可选：显式触发当前任务时，按灰度比例路由到目标任务。"><Select allowClear showSearch optionFilterProp="label" placeholder="选择同 App 下的 canary 任务" options={jobs.map((item) => ({ value: item.id, label: `${item.name} · ${item.id}` }))} /></Form.Item>
           <Form.Item name="canaryPercent" label="灰度比例"><InputNumber min={0} max={100} precision={0} addonAfter="%" style={{ width: '100%' }} /></Form.Item>
           <Form.Item name="misfirePolicy" label="Misfire 策略"><Select options={[{ value: 'fire_once', label: '补触发一次' }, { value: 'do_nothing', label: '跳过错过触发' }, { value: 'catch_up_limited', label: '有限追赶' }, { value: 'reschedule', label: '重排到当前' }, { value: 'latest_only', label: '仅保留最近一次' }]} /></Form.Item>
+          {renderRetryPolicyFields()}
           <Space.Compact block>
             <Form.Item name="scheduleStartAt" label="生命周期开始" style={{ flex: 1 }}><DatePicker showTime style={{ width: '100%' }} placeholder="选择开始时间" /></Form.Item>
             <Form.Item name="scheduleEndAt" label="生命周期结束" style={{ flex: 1 }}><DatePicker showTime style={{ width: '100%' }} placeholder="选择结束时间" /></Form.Item>

@@ -14,4 +14,5 @@ public record JobDefinition(
         String processorType,
         String processorName,
         String scriptId,
-        boolean enabled) {}
+        boolean enabled,
+        JobRetryPolicy retryPolicy) {}

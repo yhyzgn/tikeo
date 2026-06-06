@@ -197,116 +197,100 @@ async fn dispatch_single_instances(
 
         let executor = resolve_job_executor(workflows, &instance.id, &job).await?;
         if let JobExecutor::Http { config } = &executor {
-            let outcome = execute_http_processor(config).await;
-            let status = if outcome.success {
-                InstanceStatus::Succeeded
-            } else {
-                InstanceStatus::Failed
-            };
-            let _ = workflows
-                .mark_dispatch_queue_done_by_instance(&instance.id)
-                .await?;
-            instances.update_status(&instance.id, status).await?;
-            logs.append(AppendJobInstanceLog {
-                instance_id: instance.id.clone(),
-                worker_id: "builtin.http".to_owned(),
-                level: if outcome.success {
-                    "info".to_owned()
-                } else {
-                    "error".to_owned()
-                },
-                message: outcome.message.clone(),
-                sequence: 1,
-            })
+            append_retry_dispatch_progress_log(
+                logs,
+                &instance.id,
+                claim.item.attempt,
+                &job,
+                "executor builtin.http",
+            )
             .await?;
-            let _ = workflows
-                .complete_job_node_from_result(&instance.id, status, Some(outcome.message))
-                .await?;
+            let outcome = execute_http_processor(config).await;
+            complete_builtin_processor_outcome(
+                instances,
+                workflows,
+                logs,
+                &job,
+                &instance.id,
+                claim.item.attempt,
+                "builtin.http",
+                outcome.success,
+                outcome.message,
+            )
+            .await?;
             continue;
         }
         if let JobExecutor::Grpc { config } = &executor {
-            let outcome = execute_grpc_processor(config).await;
-            let status = if outcome.success {
-                InstanceStatus::Succeeded
-            } else {
-                InstanceStatus::Failed
-            };
-            let _ = workflows
-                .mark_dispatch_queue_done_by_instance(&instance.id)
-                .await?;
-            instances.update_status(&instance.id, status).await?;
-            logs.append(AppendJobInstanceLog {
-                instance_id: instance.id.clone(),
-                worker_id: "builtin.grpc".to_owned(),
-                level: if outcome.success {
-                    "info".to_owned()
-                } else {
-                    "error".to_owned()
-                },
-                message: outcome.message.clone(),
-                sequence: 1,
-            })
+            append_retry_dispatch_progress_log(
+                logs,
+                &instance.id,
+                claim.item.attempt,
+                &job,
+                "executor builtin.grpc",
+            )
             .await?;
-            let _ = workflows
-                .complete_job_node_from_result(&instance.id, status, Some(outcome.message))
-                .await?;
+            let outcome = execute_grpc_processor(config).await;
+            complete_builtin_processor_outcome(
+                instances,
+                workflows,
+                logs,
+                &job,
+                &instance.id,
+                claim.item.attempt,
+                "builtin.grpc",
+                outcome.success,
+                outcome.message,
+            )
+            .await?;
             continue;
         }
         if let JobExecutor::Sql { config } = &executor {
-            let outcome = execute_sql_processor(config).await;
-            let status = if outcome.success {
-                InstanceStatus::Succeeded
-            } else {
-                InstanceStatus::Failed
-            };
-            let _ = workflows
-                .mark_dispatch_queue_done_by_instance(&instance.id)
-                .await?;
-            instances.update_status(&instance.id, status).await?;
-            logs.append(AppendJobInstanceLog {
-                instance_id: instance.id.clone(),
-                worker_id: "builtin.sql".to_owned(),
-                level: if outcome.success {
-                    "info".to_owned()
-                } else {
-                    "error".to_owned()
-                },
-                message: outcome.message.clone(),
-                sequence: 1,
-            })
+            append_retry_dispatch_progress_log(
+                logs,
+                &instance.id,
+                claim.item.attempt,
+                &job,
+                "executor builtin.sql",
+            )
             .await?;
-            let _ = workflows
-                .complete_job_node_from_result(&instance.id, status, Some(outcome.message))
-                .await?;
+            let outcome = execute_sql_processor(config).await;
+            complete_builtin_processor_outcome(
+                instances,
+                workflows,
+                logs,
+                &job,
+                &instance.id,
+                claim.item.attempt,
+                "builtin.sql",
+                outcome.success,
+                outcome.message,
+            )
+            .await?;
             continue;
         }
 
         if let JobExecutor::FileCleanup { config } = &executor {
-            let outcome = execute_file_cleanup_processor(config).await;
-            let status = if outcome.success {
-                InstanceStatus::Succeeded
-            } else {
-                InstanceStatus::Failed
-            };
-            let _ = workflows
-                .mark_dispatch_queue_done_by_instance(&instance.id)
-                .await?;
-            instances.update_status(&instance.id, status).await?;
-            logs.append(AppendJobInstanceLog {
-                instance_id: instance.id.clone(),
-                worker_id: "builtin.file_cleanup".to_owned(),
-                level: if outcome.success {
-                    "info".to_owned()
-                } else {
-                    "error".to_owned()
-                },
-                message: outcome.message.clone(),
-                sequence: 1,
-            })
+            append_retry_dispatch_progress_log(
+                logs,
+                &instance.id,
+                claim.item.attempt,
+                &job,
+                "executor builtin.file_cleanup",
+            )
             .await?;
-            let _ = workflows
-                .complete_job_node_from_result(&instance.id, status, Some(outcome.message))
-                .await?;
+            let outcome = execute_file_cleanup_processor(config).await;
+            complete_builtin_processor_outcome(
+                instances,
+                workflows,
+                logs,
+                &job,
+                &instance.id,
+                claim.item.attempt,
+                "builtin.file_cleanup",
+                outcome.success,
+                outcome.message,
+            )
+            .await?;
             continue;
         }
         let task = match build_dispatch_task(
@@ -335,8 +319,16 @@ async fn dispatch_single_instances(
             .find_ordered_dispatch_workers(&job.namespace, &job.app, requirement.as_ref())
             .await;
         if let Some(worker_id) = eligible_workers.first()
-            && let Some(worker_id) = registry.dispatch_to_worker(worker_id, task).await
+            && registry.dispatch_to_worker(worker_id, task).await.is_some()
         {
+            append_retry_dispatch_progress_log(
+                logs,
+                &instance.id,
+                claim.item.attempt,
+                &job,
+                &format!("worker {worker_id}"),
+            )
+            .await?;
             instances
                 .update_status_if_current(
                     &instance.id,
@@ -380,6 +372,123 @@ async fn dispatch_single_instances(
         }
     }
 
+    Ok(())
+}
+
+async fn append_retry_dispatch_progress_log(
+    logs: &tikee_storage::JobInstanceLogRepository,
+    instance_id: &str,
+    attempt: i32,
+    job: &tikee_storage::JobSummary,
+    target: &str,
+) -> Result<(), tikee_storage::DbErr> {
+    if attempt <= 1 {
+        return Ok(());
+    }
+    append_dispatcher_execution_log(
+        logs,
+        instance_id,
+        "tikee-retry",
+        "info",
+        &format!(
+            "retry attempt {}/{} dispatching to {target}",
+            attempt, job.retry_policy.max_attempts
+        ),
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn complete_builtin_processor_outcome(
+    instances: &JobInstanceRepository,
+    workflows: &WorkflowRepository,
+    logs: &tikee_storage::JobInstanceLogRepository,
+    job: &tikee_storage::JobSummary,
+    instance_id: &str,
+    attempt: i32,
+    worker_id: &str,
+    success: bool,
+    message: String,
+) -> Result<(), tikee_storage::DbErr> {
+    instances
+        .record_result(instance_id, worker_id, success, &message)
+        .await?;
+    append_dispatcher_execution_log(
+        logs,
+        instance_id,
+        worker_id,
+        if success { "info" } else { "error" },
+        &format!("task result success={success} message={message}"),
+    )
+    .await?;
+    if !success && job.retry_policy.allows_retry_after_attempt(attempt) {
+        let delay_seconds = job.retry_policy.delay_after_attempt_seconds(attempt);
+        if let Some(requeued) = workflows
+            .requeue_dispatch_queue_for_retry(instance_id, delay_seconds)
+            .await?
+        {
+            append_dispatcher_execution_log(
+                logs,
+                instance_id,
+                "tikee-retry",
+                "info",
+                &format!(
+                    "retry scheduled: completed attempt {}/{} failed on {worker_id}; next attempt after {}s at {}; result={message}",
+                    attempt, job.retry_policy.max_attempts, delay_seconds, requeued.run_after
+                ),
+            )
+            .await?;
+            return Ok(());
+        }
+    } else if !success {
+        append_dispatcher_execution_log(
+            logs,
+            instance_id,
+            "tikee-retry",
+            "error",
+            &format!(
+                "retry exhausted after attempt {}/{}; final failure from {worker_id}: {message}",
+                attempt, job.retry_policy.max_attempts
+            ),
+        )
+        .await?;
+    }
+    let status = if success {
+        InstanceStatus::Succeeded
+    } else {
+        InstanceStatus::Failed
+    };
+    let _ = workflows
+        .mark_dispatch_queue_done_by_instance(instance_id)
+        .await?;
+    instances.update_status(instance_id, status).await?;
+    let _ = workflows
+        .complete_job_node_from_result(instance_id, status, Some(message))
+        .await?;
+    Ok(())
+}
+
+async fn append_dispatcher_execution_log(
+    logs: &tikee_storage::JobInstanceLogRepository,
+    instance_id: &str,
+    worker_id: &str,
+    level: &str,
+    message: &str,
+) -> Result<(), tikee_storage::DbErr> {
+    let sequence = logs
+        .count_by_instance(instance_id)
+        .await
+        .map(|count| i64::try_from(count).unwrap_or(i64::MAX - 1) + 1)
+        .unwrap_or(0);
+    let _ = logs
+        .append(AppendJobInstanceLog {
+            instance_id: instance_id.to_owned(),
+            worker_id: worker_id.to_owned(),
+            level: level.to_owned(),
+            message: message.to_owned(),
+            sequence,
+        })
+        .await?;
     Ok(())
 }
 
@@ -1617,16 +1726,17 @@ mod tests {
     };
     use tikee_storage::{
         AuditLogRepository, CreateJob, CreateJobInstance, JobInstanceAttemptRepository,
-        JobInstanceRepository, JobRepository, ScriptRepository, ScriptSummary,
+        JobInstanceRepository, JobRepository, JobRetryPolicy, ScriptRepository, ScriptSummary,
         ScriptVersionSummary, WorkflowRepository, connect_and_migrate,
     };
     use tokio::sync::mpsc;
 
     use super::{
         DispatchTaskBuild, JobExecutor, ScriptGovernanceFailure, WorkerRegistry,
-        build_dispatch_task, dispatch_once, dispatch_once_if_owner, execute_file_cleanup_processor,
-        execute_grpc_processor, execute_http_processor, execute_sql_processor,
-        script_is_dispatchable, script_version_is_dispatchable,
+        build_dispatch_task, complete_builtin_processor_outcome, dispatch_once,
+        dispatch_once_if_owner, execute_file_cleanup_processor, execute_grpc_processor,
+        execute_http_processor, execute_sql_processor, script_is_dispatchable,
+        script_version_is_dispatchable,
     };
 
     fn sdk_capabilities(processor_name: &str) -> WorkerCapabilities {
@@ -1774,6 +1884,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
@@ -1871,6 +1982,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("blocked job should be created: {error}"));
@@ -1902,6 +2014,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("valid job should be created: {error}"));
@@ -1987,6 +2100,144 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dispatch_once_logs_retry_attempt_dispatch_progress() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db.clone());
+        let logs = tikee_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
+        let scripts = ScriptRepository::new(db);
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "retry-dispatch-log".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("demo.retry".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                retry_policy: Some(JobRetryPolicy {
+                    enabled: true,
+                    max_attempts: 3,
+                    initial_delay_seconds: 0,
+                    backoff_multiplier: 2,
+                    max_delay_seconds: 60,
+                }),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should be created: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id.clone(),
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should be created: {error}"))
+            .unwrap_or_else(|| panic!("job should exist"));
+        let first_claim = workflows
+            .claim_next_job_queue_item("server-a", 30)
+            .await
+            .unwrap_or_else(|error| panic!("queue should claim: {error}"))
+            .unwrap_or_else(|| panic!("queue item should exist"));
+        workflows
+            .mark_dispatch_queue_running(&first_claim.item.id, "server-a")
+            .await
+            .unwrap_or_else(|error| panic!("queue should be running: {error}"));
+        instances
+            .update_status(&instance.id, InstanceStatus::Running)
+            .await
+            .unwrap_or_else(|error| panic!("instance should be running: {error}"));
+
+        complete_builtin_processor_outcome(
+            &instances,
+            &workflows,
+            &logs,
+            &job,
+            &instance.id,
+            first_claim.item.attempt,
+            "builtin.test",
+            false,
+            "first attempt failed".to_owned(),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("failure should schedule retry: {error}"));
+
+        let registry = WorkerRegistry::default();
+        let (tx, mut rx) = mpsc::channel(1);
+        let worker = registry
+            .register(
+                RegisterWorker {
+                    client_instance_id: "worker-retry".to_owned(),
+                    app: "billing".to_owned(),
+                    namespace: "default".to_owned(),
+                    cluster: "local".to_owned(),
+                    region: "local".to_owned(),
+                    capabilities: Vec::new(),
+                    structured_capabilities: Some(sdk_capabilities("demo.retry")),
+                    election: None,
+                    labels: HashMap::default(),
+                },
+                tx,
+            )
+            .await;
+
+        dispatch_once(
+            &jobs,
+            &instances,
+            &attempts,
+            &workflows,
+            &scripts,
+            &logs,
+            &audit,
+            &registry,
+            "test-fence",
+        )
+        .await
+        .unwrap_or_else(|error| panic!("retry dispatch should run: {error}"));
+
+        let message = rx
+            .recv()
+            .await
+            .unwrap_or_else(|| panic!("worker should receive retry dispatch"))
+            .unwrap_or_else(|error| panic!("dispatch should be ok: {error}"));
+        match message.kind {
+            Some(server_message::Kind::DispatchTask(task)) => {
+                assert_eq!(task.instance_id, instance.id);
+                assert_eq!(task.processor_name, "demo.retry");
+            }
+            other => panic!("unexpected server message: {other:?}"),
+        }
+
+        let persisted_logs = logs
+            .list_by_instance(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("logs should load: {error}"));
+        assert!(
+            persisted_logs
+                .iter()
+                .any(|log| log.message.contains(&format!(
+                    "retry attempt 2/3 dispatching to worker {}",
+                    worker.worker_id
+                ))),
+            "retry dispatch progress should be written to execution logs: {persisted_logs:?}"
+        );
+    }
+
+    #[tokio::test]
     async fn dispatch_once_fails_script_instance_when_no_script_worker_capability_exists() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
@@ -2043,6 +2294,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
@@ -2154,6 +2406,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
@@ -2257,6 +2510,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
@@ -2374,6 +2628,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
@@ -2449,6 +2704,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
@@ -2517,6 +2773,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
@@ -2659,6 +2916,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));

@@ -118,3 +118,14 @@ describe('instance list worker visibility and grouped logs', () => {
     expect(source).toContain('--terminal-bg: #18181b;');
   });
 });
+
+
+describe('instance execution result view', () => {
+  test('shows concrete execution result and refreshes instance details with logs', () => {
+    expect(source).toContain('getInstance(instance.id)');
+    expect(source).toContain('执行结果');
+    expect(source).toContain('任务执行成功');
+    expect(source).toContain('任务执行失败');
+    expect(source).toContain('selectedInstance.result.message');
+  });
+});

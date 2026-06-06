@@ -91,6 +91,7 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
             tunnel_runtime(
                 registry.clone(),
                 tunnel_instances,
+                jobs.clone(),
                 logs.clone(),
                 tunnel_attempts,
                 workflows.clone(),
@@ -188,6 +189,7 @@ async fn run_http_listener(
 const fn tunnel_runtime(
     registry: tunnel::WorkerRegistry,
     instances: JobInstanceRepository,
+    jobs: JobRepository,
     logs: JobInstanceLogRepository,
     attempts: JobInstanceAttemptRepository,
     workflows: WorkflowRepository,
@@ -197,6 +199,7 @@ const fn tunnel_runtime(
     tunnel::WorkerTunnelRuntime::new(
         registry,
         instances,
+        jobs,
         logs,
         attempts,
         workflows,

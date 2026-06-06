@@ -75,6 +75,7 @@ impl ManagementClient {
             processor_type: request.processor_type.as_deref(),
             script_id: request.script_id.as_deref(),
             enabled: request.enabled,
+            retry_policy: request.retry_policy.as_ref(),
         };
         self.send(reqwest::Method::POST, "/jobs", Some(&payload))
             .await
@@ -122,6 +123,23 @@ impl ManagementClient {
     }
 }
 
+/// Structured failure retry policy. max_attempts includes the first execution.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobRetryPolicy {
+    pub enabled: bool,
+    pub max_attempts: i32,
+    pub initial_delay_seconds: i64,
+    pub backoff_multiplier: i32,
+    pub max_delay_seconds: i64,
+}
+
+impl Default for JobRetryPolicy {
+    fn default() -> Self {
+        Self { enabled: true, max_attempts: 3, initial_delay_seconds: 5, backoff_multiplier: 2, max_delay_seconds: 60 }
+    }
+}
+
 /// Job definition returned by the tikee management API.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -146,6 +164,7 @@ pub struct JobDefinition {
     pub script_id: Option<String>,
     /// Whether this job is enabled.
     pub enabled: bool,
+    pub retry_policy: JobRetryPolicy,
 }
 
 /// Job creation request for Rust management SDK users.
@@ -165,6 +184,7 @@ pub struct CreateJobRequest {
     pub script_id: Option<String>,
     /// Optional enabled flag.
     pub enabled: Option<bool>,
+    pub retry_policy: Option<JobRetryPolicy>,
 }
 
 impl CreateJobRequest {
@@ -179,6 +199,7 @@ impl CreateJobRequest {
             processor_type: None,
             script_id: None,
             enabled: Some(true),
+            retry_policy: Some(JobRetryPolicy::default()),
         }
     }
 
@@ -197,6 +218,7 @@ impl CreateJobRequest {
             processor_type: Some(processor_type.into()),
             script_id: None,
             enabled: Some(true),
+            retry_policy: Some(JobRetryPolicy::default()),
         }
     }
 
@@ -211,6 +233,7 @@ impl CreateJobRequest {
             processor_type: None,
             script_id: Some(script_id.into()),
             enabled: Some(true),
+            retry_policy: Some(JobRetryPolicy::default()),
         }
     }
 }
@@ -246,6 +269,8 @@ struct ScopedCreateJobRequest<'a> {
     script_id: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retry_policy: Option<&'a JobRetryPolicy>,
 }
 
 fn trim_trailing_slash(value: &str) -> String {

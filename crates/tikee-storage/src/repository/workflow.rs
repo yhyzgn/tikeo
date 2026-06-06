@@ -815,6 +815,10 @@ impl WorkflowRepository {
                     status: Set("pending".to_owned()),
                     trigger_type: Set("workflow".to_owned()),
                     execution_mode: Set("single".to_owned()),
+                    result_worker_id: Set(None),
+                    result_success: Set(None),
+                    result_message: Set(None),
+                    result_completed_at: Set(None),
                     created_at: Set(now.clone()),
                     updated_at: Set(now.clone()),
                 }
@@ -880,6 +884,10 @@ impl WorkflowRepository {
                         status: Set("pending".to_owned()),
                         trigger_type: Set("workflow_shard".to_owned()),
                         execution_mode: Set("single".to_owned()),
+                        result_worker_id: Set(None),
+                        result_success: Set(None),
+                        result_message: Set(None),
+                        result_completed_at: Set(None),
                         created_at: Set(now.clone()),
                         updated_at: Set(now.clone()),
                     }
@@ -1001,6 +1009,10 @@ impl WorkflowRepository {
                     status: Set("pending".to_owned()),
                     trigger_type: Set("workflow".to_owned()),
                     execution_mode: Set("single".to_owned()),
+                    result_worker_id: Set(None),
+                    result_success: Set(None),
+                    result_message: Set(None),
+                    result_completed_at: Set(None),
                     created_at: Set(now.clone()),
                     updated_at: Set(now.clone()),
                 }
@@ -1043,6 +1055,10 @@ impl WorkflowRepository {
                     status: Set("pending".to_owned()),
                     trigger_type: Set("workflow".to_owned()),
                     execution_mode: Set("single".to_owned()),
+                    result_worker_id: Set(None),
+                    result_success: Set(None),
+                    result_message: Set(None),
+                    result_completed_at: Set(None),
                     created_at: Set(now.clone()),
                     updated_at: Set(now.clone()),
                 }
@@ -1935,6 +1951,61 @@ impl WorkflowRepository {
         Ok(result.rows_affected)
     }
 
+    pub async fn dispatch_queue_for_instance(
+        &self,
+        instance_id: &str,
+    ) -> Result<Option<DispatchQueueSummary>, sea_orm::DbErr> {
+        let row = dispatch_queue::Entity::find()
+            .filter(dispatch_queue::Column::JobInstanceId.eq(instance_id.to_owned()))
+            .one(&self.db)
+            .await?;
+        Ok(row.map(DispatchQueueSummary::from))
+    }
+
+    pub async fn requeue_dispatch_queue_for_retry(
+        &self,
+        instance_id: &str,
+        delay_seconds: i64,
+    ) -> Result<Option<DispatchQueueSummary>, sea_orm::DbErr> {
+        let Some(row) = dispatch_queue::Entity::find()
+            .filter(dispatch_queue::Column::JobInstanceId.eq(instance_id.to_owned()))
+            .filter(dispatch_queue::Column::Status.is_in(["pending", "running"]))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let run_after = if delay_seconds > 0 {
+            rfc3339_after_seconds(delay_seconds)
+        } else {
+            now_rfc3339()
+        };
+        let now = now_rfc3339();
+        let mut active: dispatch_queue::ActiveModel = row.into();
+        active.status = Set("pending".to_owned());
+        active.run_after = Set(run_after);
+        active.lease_owner = Set(None);
+        active.lease_until = Set(None);
+        active.fencing_token = Set(None);
+        active.updated_at = Set(now.clone());
+        let updated = active.update(&self.db).await?;
+        job_instance::Entity::update_many()
+            .col_expr(
+                job_instance::Column::Status,
+                Expr::value(InstanceStatus::Pending.to_string()),
+            )
+            .col_expr(job_instance::Column::UpdatedAt, Expr::value(now))
+            .filter(job_instance::Column::Id.eq(instance_id.to_owned()))
+            .filter(job_instance::Column::Status.is_in([
+                InstanceStatus::Running.to_string(),
+                InstanceStatus::Dispatching.to_string(),
+                InstanceStatus::Failed.to_string(),
+            ]))
+            .exec(&self.db)
+            .await?;
+        Ok(Some(DispatchQueueSummary::from(updated)))
+    }
+
     pub async fn mark_dispatch_queue_done_by_instance(
         &self,
         instance_id: &str,
@@ -2251,6 +2322,10 @@ impl WorkflowRepository {
                 status: Set("pending".to_owned()),
                 trigger_type: Set("workflow_shard".to_owned()),
                 execution_mode: Set("single".to_owned()),
+                result_worker_id: Set(None),
+                result_success: Set(None),
+                result_message: Set(None),
+                result_completed_at: Set(None),
                 created_at: Set(now.clone()),
                 updated_at: Set(now.clone()),
             }

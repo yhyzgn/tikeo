@@ -58,7 +58,19 @@ describe('job schedule form governance', () => {
     expect(source).toContain('scheduleEndAt: isoDateValue(scheduled.scheduleEndAt)');
   });
 
-  test('exposes job version history and rollback UI copy', () => {
+  test('configures structured failure retry policy with production defaults', () => {
+    expect(source).toContain('DEFAULT_RETRY_POLICY');
+    expect(source).toContain('maxAttempts: 3');
+    expect(source).toContain('initialDelaySeconds: 5');
+    expect(source).toContain('backoffMultiplier: 2');
+    expect(source).toContain('maxDelaySeconds: 60');
+    expect(source).toContain('失败重试');
+    expect(source).toContain('retryPolicy: DEFAULT_RETRY_POLICY');
+    expect(source).toContain('retryPolicyValue(editingJob.retryPolicy)');
+    expect(source).toContain('retry {job.retryPolicy.maxAttempts}x');
+  });
+
+  test('exposes job version history and rollback UI copy' , () => {
     expect(source).toContain('版本历史');
     expect(source).toContain('listJobVersions');
     expect(source).toContain('rollbackJob');

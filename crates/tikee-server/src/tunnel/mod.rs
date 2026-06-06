@@ -17,7 +17,7 @@ use tikee_config::TlsEndpointConfig;
 use tikee_proto::worker::v1::worker_tunnel_service_server::WorkerTunnelServiceServer;
 use tikee_storage::{
     AuditLogRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
-    JobInstanceRepository, WorkflowRepository,
+    JobInstanceRepository, JobRepository, WorkflowRepository,
 };
 use tonic::transport::Server;
 use tracing::info;
@@ -27,6 +27,7 @@ use tracing::info;
 pub struct WorkerTunnelRuntime {
     registry: WorkerRegistry,
     instances: JobInstanceRepository,
+    jobs: JobRepository,
     logs: JobInstanceLogRepository,
     attempts: JobInstanceAttemptRepository,
     workflows: WorkflowRepository,
@@ -40,6 +41,7 @@ impl WorkerTunnelRuntime {
     pub const fn new(
         registry: WorkerRegistry,
         instances: JobInstanceRepository,
+        jobs: JobRepository,
         logs: JobInstanceLogRepository,
         attempts: JobInstanceAttemptRepository,
         workflows: WorkflowRepository,
@@ -49,6 +51,7 @@ impl WorkerTunnelRuntime {
         Self {
             registry,
             instances,
+            jobs,
             logs,
             attempts,
             workflows,
@@ -89,6 +92,7 @@ pub async fn serve_with_security(
         .add_service(WorkerTunnelServiceServer::new(WorkerTunnel::new(
             runtime.registry,
             runtime.instances,
+            runtime.jobs,
             runtime.logs,
             runtime.attempts,
             runtime.workflows,

@@ -46,9 +46,10 @@ pub use auth::{
 };
 pub use calendar::{CalendarRepository, CalendarSummary, CalendarWindowSummary, UpsertCalendar};
 pub use instance::{
-    CreateJobInstance, JobDurationHistory, JobInstanceRepository, JobInstanceSummary,
+    CreateJobInstance, JobDurationHistory, JobInstanceRepository, JobInstanceResult,
+    JobInstanceSummary,
 };
-pub use job::{CreateJob, JobSummary, UpdateJob};
+pub use job::{CreateJob, JobRetryPolicy, JobSummary, UpdateJob};
 pub use job_repo::JobRepository;
 pub use job_version::{JobVersionRepository, JobVersionSummary};
 pub use log::{AppendJobInstanceLog, JobInstanceLogRepository, JobInstanceLogSummary};
@@ -163,6 +164,10 @@ mod tests {
             }),
             trigger_type: Set("api".to_owned()),
             execution_mode: Set("single".to_owned()),
+            result_worker_id: Set(None),
+            result_success: Set(None),
+            result_message: Set(None),
+            result_completed_at: Set(None),
             created_at: Set(now.clone()),
             updated_at: Set(now.clone()),
         }
@@ -353,6 +358,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -1155,6 +1161,143 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn job_retry_policy_defaults_and_updates_are_versioned() {
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let jobs = super::JobRepository::new(db);
+        let created = jobs
+            .create_job(super::CreateJob {
+                created_by: Some("admin".to_owned()),
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "retry-default".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("demo.retry".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                retry_policy: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should create: {error}"));
+
+        assert_eq!(created.retry_policy.max_attempts, 3);
+        assert_eq!(created.retry_policy.initial_delay_seconds, 5);
+        assert_eq!(created.retry_policy.backoff_multiplier, 2);
+        assert_eq!(created.retry_policy.max_delay_seconds, 60);
+
+        let updated = jobs
+            .update_job(
+                &created.id,
+                super::UpdateJob {
+                    retry_policy: Some(super::job::JobRetryPolicy {
+                        enabled: true,
+                        max_attempts: 5,
+                        initial_delay_seconds: 10,
+                        backoff_multiplier: 3,
+                        max_delay_seconds: 120,
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap_or_else(|error| panic!("job should update: {error}"))
+            .unwrap_or_else(|| panic!("job should exist"));
+        assert_eq!(updated.retry_policy.max_attempts, 5);
+        assert_eq!(updated.version_number, 2);
+
+        let version = jobs
+            .versions()
+            .get_version_by_number(&created.id, 2)
+            .await
+            .unwrap_or_else(|error| panic!("version should load: {error}"))
+            .unwrap_or_else(|| panic!("version should exist"));
+        assert_eq!(version.retry_policy.max_attempts, 5);
+        assert_eq!(version.retry_policy.max_delay_seconds, 120);
+    }
+
+    #[tokio::test]
+    async fn failed_single_instance_can_be_requeued_with_attempt_preserved_for_retry() {
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let jobs = super::JobRepository::new(db.clone());
+        let instances = super::JobInstanceRepository::new(db.clone());
+        let workflows = super::WorkflowRepository::new(db);
+        let job = jobs
+            .create_job(super::CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "retry-queue".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("demo.retry".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                retry_policy: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should create: {error}"));
+        let instance = instances
+            .create_pending(super::CreateJobInstance {
+                job_id: job.id,
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should create: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        let claim = workflows
+            .claim_next_job_queue_item("server-a", 30)
+            .await
+            .unwrap_or_else(|error| panic!("queue should claim: {error}"))
+            .unwrap_or_else(|| panic!("queue item should exist"));
+        assert_eq!(claim.item.attempt, 1);
+        workflows
+            .mark_dispatch_queue_running(&claim.item.id, "server-a")
+            .await
+            .unwrap_or_else(|error| panic!("queue should run: {error}"));
+        instances
+            .update_status(&instance.id, InstanceStatus::Running)
+            .await
+            .unwrap_or_else(|error| panic!("instance should run: {error}"));
+
+        let requeued = workflows
+            .requeue_dispatch_queue_for_retry(&instance.id, 7)
+            .await
+            .unwrap_or_else(|error| panic!("queue should requeue: {error}"))
+            .unwrap_or_else(|| panic!("queue should be requeued"));
+        assert_eq!(requeued.status, "pending");
+        assert_eq!(requeued.attempt, 1);
+        assert!(requeued.run_after > claim.item.run_after);
+
+        let retry_claim = workflows
+            .claim_next_job_queue_item("server-b", 30)
+            .await
+            .unwrap_or_else(|error| panic!("retry should claim: {error}"));
+        assert!(
+            retry_claim.is_none(),
+            "retry must wait until run_after is due"
+        );
+    }
+
+    #[tokio::test]
     async fn repository_creates_and_lists_jobs() {
         let db = Database::connect("sqlite::memory:")
             .await
@@ -1182,6 +1325,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
@@ -1231,6 +1375,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
@@ -1294,6 +1439,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
@@ -1467,6 +1613,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("first job should be created: {error}"));
@@ -1488,6 +1635,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("second job should be created: {error}"));
@@ -1602,6 +1750,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
@@ -1662,6 +1811,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
@@ -1863,6 +2013,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
@@ -1997,6 +2148,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -2209,6 +2361,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
@@ -2316,6 +2469,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));

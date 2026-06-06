@@ -24,22 +24,23 @@ pub use repository::{
     CreateSdkApiKey, CreateSecret, CreateServiceAccount, CreateUser, CreateWorkflow,
     DispatchQueueClaim, DispatchQueueSloSummary, DispatchQueueSummary, InstanceEventSummary,
     JobDurationHistory, JobInstanceAttemptRepository, JobInstanceAttemptSummary,
-    JobInstanceLogRepository, JobInstanceLogSummary, JobInstanceRepository, JobInstanceSummary,
-    JobRepository, JobSummary, JobVersionRepository, JobVersionSummary,
-    MaterializeWorkflowNodeResult, NamespaceSummary, OidcAuthStateRepository, OidcAuthStateSummary,
-    OidcIdentityRepository, OidcIdentitySummary, PermissionSummary, PersistedOnlineWorkerSummary,
-    PluginAlertChannelTypeSummary, PluginProcessorTypeSummary, PluginRepository, PluginSummary,
-    QueueOverview, RaftAppliedCommandSummary, RaftLogEntrySummary, RaftMemberSummary,
-    RaftMembershipProposalSummary, RaftMetadataSummary, RaftRepository, RaftSnapshotSummary,
-    RbacRepository, RebalanceWorkflowShardsInput, RebalanceWorkflowShardsResult,
-    RecordAlertDeliveryAttempt, RecordRaftAppliedCommand, RecordRaftMembershipProposal,
-    RecoverWorkflowNodeInput, RecoverWorkflowNodeResult, RegisterWorkerSession,
-    ScheduleCursorRepository, ScopeRepository, ScriptReleaseGrantEvidenceSummary,
-    ScriptReleaseSignatureSummary, ScriptRepository, ScriptSummary, ScriptVersionRepository,
-    ScriptVersionSummary, SdkApiKeyRepository, SdkApiKeySummary, SecretRepository, SecretSummary,
-    ServiceAccountRepository, ServiceAccountSummary, UpdateJob, UpdatePlugin, UpdateScript,
-    UpdateSdkApiKey, UpdateServiceAccount, UpdateUser, UpdateWorkerPoolQuota, UpdateWorkflow,
-    UpsertCalendar, UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
+    JobInstanceLogRepository, JobInstanceLogSummary, JobInstanceRepository, JobInstanceResult,
+    JobInstanceSummary, JobRepository, JobRetryPolicy, JobSummary, JobVersionRepository,
+    JobVersionSummary, MaterializeWorkflowNodeResult, NamespaceSummary, OidcAuthStateRepository,
+    OidcAuthStateSummary, OidcIdentityRepository, OidcIdentitySummary, PermissionSummary,
+    PersistedOnlineWorkerSummary, PluginAlertChannelTypeSummary, PluginProcessorTypeSummary,
+    PluginRepository, PluginSummary, QueueOverview, RaftAppliedCommandSummary, RaftLogEntrySummary,
+    RaftMemberSummary, RaftMembershipProposalSummary, RaftMetadataSummary, RaftRepository,
+    RaftSnapshotSummary, RbacRepository, RebalanceWorkflowShardsInput,
+    RebalanceWorkflowShardsResult, RecordAlertDeliveryAttempt, RecordRaftAppliedCommand,
+    RecordRaftMembershipProposal, RecoverWorkflowNodeInput, RecoverWorkflowNodeResult,
+    RegisterWorkerSession, ScheduleCursorRepository, ScopeRepository,
+    ScriptReleaseGrantEvidenceSummary, ScriptReleaseSignatureSummary, ScriptRepository,
+    ScriptSummary, ScriptVersionRepository, ScriptVersionSummary, SdkApiKeyRepository,
+    SdkApiKeySummary, SecretRepository, SecretSummary, ServiceAccountRepository,
+    ServiceAccountSummary, UpdateJob, UpdatePlugin, UpdateScript, UpdateSdkApiKey,
+    UpdateServiceAccount, UpdateUser, UpdateWorkerPoolQuota, UpdateWorkflow, UpsertCalendar,
+    UpsertOidcIdentity, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
     UpsertRaftSnapshot, UserRepository, UserSummary, VerifiedScriptReleaseGrants,
     VerifiedScriptReleaseSignature, WorkerHeartbeat, WorkerLifecycleRepository, WorkerPoolSummary,
     WorkerSessionEventSummary, WorkerSessionSnapshotUpdate, WorkerSessionSummary,
@@ -74,6 +75,7 @@ pub async fn connect_and_migrate(database_url: &str) -> Result<DatabaseConnectio
 
     let db = Database::connect(options).await?;
     migration::Migrator::up(&db, None).await?;
+    migration::apply_sqlite_schema_compatibility(&db).await?;
     Ok(db)
 }
 
@@ -150,6 +152,122 @@ mod tests {
             versions.iter().any(|version| version == "sqlite_compat"),
             "schema compatibility upgrade must be recorded by migration/sqlite_compat.rs, got {versions:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn connect_and_migrate_backfills_retry_columns_when_sqlite_compat_was_already_recorded() {
+        let path = std::env::temp_dir().join(format!(
+            "tikee-legacy-compat-{}-{}.db",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        let database_url = format!("sqlite://{}?mode=rwc", path.display());
+        let legacy = sea_orm::Database::connect(&database_url)
+            .await
+            .unwrap_or_else(|error| panic!("legacy sqlite db should open: {error}"));
+        for statement in [
+            r"CREATE TABLE seaql_migrations (version varchar NOT NULL PRIMARY KEY, applied_at bigint NOT NULL)",
+            r"INSERT INTO seaql_migrations (version, applied_at) VALUES ('mod', 1), ('sqlite_compat', 2)",
+            r"CREATE TABLE jobs (
+                id varchar NOT NULL PRIMARY KEY,
+                namespace_id varchar NOT NULL,
+                app_id varchar NOT NULL,
+                name varchar NOT NULL,
+                schedule_type varchar NOT NULL,
+                schedule_expr varchar,
+                misfire_policy varchar NOT NULL,
+                processor_name varchar,
+                enabled boolean NOT NULL,
+                created_at varchar NOT NULL,
+                updated_at varchar NOT NULL
+            )",
+            r"CREATE TABLE job_versions (
+                id varchar NOT NULL PRIMARY KEY,
+                job_id varchar NOT NULL,
+                version_number bigint NOT NULL,
+                name varchar NOT NULL,
+                schedule_type varchar NOT NULL,
+                schedule_expr varchar,
+                misfire_policy varchar NOT NULL,
+                processor_name varchar,
+                enabled boolean NOT NULL,
+                created_by varchar NOT NULL,
+                change_reason varchar NOT NULL,
+                created_at varchar NOT NULL
+            )",
+            r"CREATE TABLE job_instances (
+                id varchar NOT NULL PRIMARY KEY,
+                job_id varchar NOT NULL,
+                status varchar NOT NULL,
+                trigger_type varchar NOT NULL,
+                execution_mode varchar NOT NULL,
+                created_at varchar NOT NULL,
+                updated_at varchar NOT NULL
+            )",
+            r"CREATE TABLE job_instance_logs (
+                id varchar NOT NULL PRIMARY KEY,
+                instance_id varchar NOT NULL,
+                worker_id varchar NOT NULL,
+                level varchar NOT NULL,
+                message text NOT NULL,
+                sequence bigint NOT NULL,
+                created_at varchar NOT NULL
+            )",
+        ] {
+            legacy
+                .execute(Statement::from_string(DatabaseBackend::Sqlite, statement))
+                .await
+                .unwrap_or_else(|error| panic!("legacy schema statement should run: {error}"));
+        }
+        legacy
+            .close()
+            .await
+            .unwrap_or_else(|error| panic!("legacy sqlite db should close: {error}"));
+
+        let migrated = crate::connect_and_migrate(&database_url)
+            .await
+            .unwrap_or_else(|error| panic!("legacy sqlite db should migrate: {error}"));
+
+        for (table, column) in [
+            ("jobs", "retry_policy_json"),
+            ("job_versions", "retry_policy_json"),
+            ("job_instances", "result_worker_id"),
+            ("job_instances", "result_success"),
+            ("job_instances", "result_message"),
+            ("job_instances", "result_completed_at"),
+        ] {
+            assert!(
+                sqlite_table_has_column(&migrated, table, column).await,
+                "{table}.{column} should be backfilled even when sqlite_compat migration was already recorded"
+            );
+        }
+        migrated
+            .close()
+            .await
+            .unwrap_or_else(|error| panic!("migrated sqlite db should close: {error}"));
+        let _ = std::fs::remove_file(path);
+    }
+
+    async fn sqlite_table_has_column(
+        db: &sea_orm::DatabaseConnection,
+        table: &str,
+        column: &str,
+    ) -> bool {
+        let rows = db
+            .query_all(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                format!("PRAGMA table_info({table})"),
+            ))
+            .await
+            .unwrap_or_else(|error| panic!("table info should query: {error}"));
+        rows.iter().any(|row| {
+            row.try_get::<String>("", "name")
+                .map(|name| name == column)
+                .unwrap_or(false)
+        })
     }
 
     #[tokio::test]

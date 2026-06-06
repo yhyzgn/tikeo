@@ -146,6 +146,7 @@ async fn run_storage_smoke(database_url: &str) {
             enabled: true,
             canary_job_id: None,
             canary_percent: 0,
+            retry_policy: None,
         })
         .await
         .unwrap_or_else(|error| panic!("job should persist on {database_url}: {error}"));

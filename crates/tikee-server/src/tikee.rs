@@ -747,6 +747,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -793,6 +794,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -855,6 +857,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -910,6 +913,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -964,6 +968,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -1017,6 +1022,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -1059,6 +1065,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -1103,6 +1110,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -1144,6 +1152,7 @@ mod tests {
                 enabled: false,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -1185,6 +1194,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -1235,6 +1245,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -1277,6 +1288,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
@@ -1318,6 +1330,7 @@ mod tests {
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                retry_policy: None,
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));

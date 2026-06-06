@@ -31,16 +31,29 @@ func NewManagementClient(endpoint, apiKey, namespace, app string) *ManagementCli
 }
 
 type JobDefinition struct {
-	ID            string  `json:"id"`
-	Namespace     string  `json:"namespace"`
-	App           string  `json:"app"`
-	Name          string  `json:"name"`
-	ScheduleType  string  `json:"scheduleType"`
-	ScheduleExpr  *string `json:"scheduleExpr"`
-	ProcessorName *string `json:"processorName"`
-	ProcessorType *string `json:"processorType"`
-	ScriptID      *string `json:"scriptId"`
-	Enabled       bool    `json:"enabled"`
+	ID            string          `json:"id"`
+	Namespace     string          `json:"namespace"`
+	App           string          `json:"app"`
+	Name          string          `json:"name"`
+	ScheduleType  string          `json:"scheduleType"`
+	ScheduleExpr  *string         `json:"scheduleExpr"`
+	ProcessorName *string         `json:"processorName"`
+	ProcessorType *string         `json:"processorType"`
+	ScriptID      *string         `json:"scriptId"`
+	Enabled       bool            `json:"enabled"`
+	RetryPolicy   *JobRetryPolicy `json:"retryPolicy,omitempty"`
+}
+
+type JobRetryPolicy struct {
+	Enabled             bool `json:"enabled"`
+	MaxAttempts         int  `json:"maxAttempts"`
+	InitialDelaySeconds int  `json:"initialDelaySeconds"`
+	BackoffMultiplier   int  `json:"backoffMultiplier"`
+	MaxDelaySeconds     int  `json:"maxDelaySeconds"`
+}
+
+func DefaultJobRetryPolicy() *JobRetryPolicy {
+	return &JobRetryPolicy{Enabled: true, MaxAttempts: 3, InitialDelaySeconds: 5, BackoffMultiplier: 2, MaxDelaySeconds: 60}
 }
 
 type CreateJobRequest struct {
@@ -51,6 +64,7 @@ type CreateJobRequest struct {
 	ProcessorType *string
 	ScriptID      *string
 	Enabled       *bool
+	RetryPolicy   *JobRetryPolicy
 }
 
 func APIJob(name, processorName string) CreateJobRequest {
@@ -60,6 +74,7 @@ func APIJob(name, processorName string) CreateJobRequest {
 		ScheduleType:  "api",
 		ProcessorName: stringPtr(processorName),
 		Enabled:       &enabled,
+		RetryPolicy:   DefaultJobRetryPolicy(),
 	}
 }
 
@@ -71,6 +86,7 @@ func PluginAPIJob(name, processorType, processorName string) CreateJobRequest {
 		ProcessorType: stringPtr(processorType),
 		ProcessorName: stringPtr(processorName),
 		Enabled:       &enabled,
+		RetryPolicy:   DefaultJobRetryPolicy(),
 	}
 }
 
@@ -81,6 +97,7 @@ func ScriptAPIJob(name, scriptID string) CreateJobRequest {
 		ScheduleType: "api",
 		ScriptID:     stringPtr(scriptID),
 		Enabled:      &enabled,
+		RetryPolicy:  DefaultJobRetryPolicy(),
 	}
 }
 
@@ -102,15 +119,16 @@ func (c *ManagementClient) ListJobs(ctx context.Context) ([]JobDefinition, error
 
 func (c *ManagementClient) CreateJob(ctx context.Context, request CreateJobRequest) (JobDefinition, error) {
 	payload := struct {
-		Namespace     string  `json:"namespace"`
-		App           string  `json:"app"`
-		Name          string  `json:"name"`
-		ScheduleType  string  `json:"scheduleType,omitempty"`
-		ScheduleExpr  *string `json:"scheduleExpr,omitempty"`
-		ProcessorName *string `json:"processorName,omitempty"`
-		ProcessorType *string `json:"processorType,omitempty"`
-		ScriptID      *string `json:"scriptId,omitempty"`
-		Enabled       *bool   `json:"enabled,omitempty"`
+		Namespace     string          `json:"namespace"`
+		App           string          `json:"app"`
+		Name          string          `json:"name"`
+		ScheduleType  string          `json:"scheduleType,omitempty"`
+		ScheduleExpr  *string         `json:"scheduleExpr,omitempty"`
+		ProcessorName *string         `json:"processorName,omitempty"`
+		ProcessorType *string         `json:"processorType,omitempty"`
+		ScriptID      *string         `json:"scriptId,omitempty"`
+		Enabled       *bool           `json:"enabled,omitempty"`
+		RetryPolicy   *JobRetryPolicy `json:"retryPolicy,omitempty"`
 	}{
 		Namespace:     c.namespace,
 		App:           c.app,
@@ -121,6 +139,7 @@ func (c *ManagementClient) CreateJob(ctx context.Context, request CreateJobReque
 		ProcessorType: request.ProcessorType,
 		ScriptID:      request.ScriptID,
 		Enabled:       request.Enabled,
+		RetryPolicy:   request.RetryPolicy,
 	}
 	var job JobDefinition
 	if err := c.send(ctx, http.MethodPost, "/jobs", payload, &job); err != nil {

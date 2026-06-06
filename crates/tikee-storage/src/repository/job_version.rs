@@ -7,6 +7,8 @@ use uuid::Uuid;
 
 use crate::entities::{job, job_version};
 
+use super::job::JobRetryPolicy;
+
 use super::util::now_rfc3339;
 
 /// Actor used for version snapshots when no authenticated actor is available.
@@ -29,6 +31,7 @@ pub struct JobVersionSummary {
     pub processor_type: Option<String>,
     pub script_id: Option<String>,
     pub enabled: bool,
+    pub retry_policy: JobRetryPolicy,
     pub created_by: String,
     pub change_reason: String,
     pub rolled_back_from_version: Option<i64>,
@@ -105,6 +108,7 @@ impl JobVersionRepository {
             processor_type: Set(job.processor_type.clone()),
             script_id: Set(job.script_id.clone()),
             enabled: Set(job.enabled),
+            retry_policy_json: Set(job.retry_policy_json.clone()),
             created_by: Set(created_by.clone()),
             change_reason: Set(change_reason.clone()),
             rolled_back_from_version: Set(rolled_back_from_version),
@@ -128,6 +132,7 @@ impl JobVersionRepository {
             processor_type: job.processor_type.clone(),
             script_id: job.script_id.clone(),
             enabled: job.enabled,
+            retry_policy: JobRetryPolicy::from_json(Some(&job.retry_policy_json)),
             created_by,
             change_reason,
             rolled_back_from_version,
@@ -196,6 +201,7 @@ impl From<job_version::Model> for JobVersionSummary {
             processor_type: value.processor_type,
             script_id: value.script_id,
             enabled: value.enabled,
+            retry_policy: JobRetryPolicy::from_json(Some(&value.retry_policy_json)),
             created_by: value.created_by,
             change_reason: value.change_reason,
             rolled_back_from_version: value.rolled_back_from_version,

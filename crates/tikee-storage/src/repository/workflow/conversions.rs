@@ -1,3 +1,5 @@
+use crate::repository::job::JobRetryPolicy;
+
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 
 use crate::entities::{
@@ -109,6 +111,7 @@ where
         enabled: Set(true),
         canary_job_id: Set(None),
         canary_percent: Set(0),
+        retry_policy_json: Set(JobRetryPolicy::default_json()),
         created_at: Set(now.to_owned()),
         updated_at: Set(now.to_owned()),
     }

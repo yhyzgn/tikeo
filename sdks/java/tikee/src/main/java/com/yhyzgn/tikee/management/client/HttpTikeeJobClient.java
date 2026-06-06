@@ -80,7 +80,7 @@ public final class HttpTikeeJobClient implements TikeeJobClient {
 
     private CreateJobPayload scopedCreate(CreateJobRequest request) {
         Objects.requireNonNull(request, "request");
-        return new CreateJobPayload(namespace, app, request.name(), request.scheduleType(), request.scheduleExpr(), request.processorType(), request.processorName(), request.scriptId(), request.enabled());
+        return new CreateJobPayload(namespace, app, request.name(), request.scheduleType(), request.scheduleExpr(), request.processorType(), request.processorName(), request.scriptId(), request.enabled(), request.retryPolicy());
     }
 
     private <T> T send(String method, String path, Object body, TypeReference<T> type) {
@@ -128,5 +128,5 @@ public final class HttpTikeeJobClient implements TikeeJobClient {
         return trimmed;
     }
 
-    private record CreateJobPayload(String namespace, String app, String name, String scheduleType, String scheduleExpr, String processorType, String processorName, String scriptId, Boolean enabled) {}
+    private record CreateJobPayload(String namespace, String app, String name, String scheduleType, String scheduleExpr, String processorType, String processorName, String scriptId, Boolean enabled, com.yhyzgn.tikee.management.model.JobRetryPolicy retryPolicy) {}
 }

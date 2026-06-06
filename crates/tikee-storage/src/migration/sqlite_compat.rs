@@ -11,7 +11,7 @@ impl MigrationTrait for LegacySqliteSchemaCompatibility {
     }
 }
 
-pub(super) async fn apply_sqlite_schema_compatibility(
+pub(crate) async fn apply_sqlite_schema_compatibility(
     db: &impl ConnectionTrait,
 ) -> Result<(), sea_orm::DbErr> {
     ensure_broadcast_schema_compatibility(db).await?;
@@ -260,9 +260,19 @@ async fn ensure_job_schema_compatibility(db: &impl ConnectionTrait) -> Result<()
         ))
         .await?;
     }
+    if !sqlite_column_exists(db, "jobs", "retry_policy_json").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            format!(
+                "ALTER TABLE jobs ADD COLUMN retry_policy_json text NOT NULL DEFAULT '{}'",
+                crate::repository::JobRetryPolicy::default_json().replace('\'', "''")
+            ),
+        ))
+        .await?;
+    }
     db.execute(Statement::from_string(
         DatabaseBackend::Sqlite,
-        r"CREATE TABLE IF NOT EXISTS job_versions (
+        r#"CREATE TABLE IF NOT EXISTS job_versions (
             id varchar NOT NULL PRIMARY KEY,
             job_id varchar NOT NULL,
             version_number bigint NOT NULL,
@@ -277,11 +287,12 @@ async fn ensure_job_schema_compatibility(db: &impl ConnectionTrait) -> Result<()
             processor_type varchar,
             script_id varchar,
             enabled boolean NOT NULL,
+            retry_policy_json text NOT NULL DEFAULT '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}',
             created_by varchar NOT NULL,
             change_reason varchar NOT NULL,
             rolled_back_from_version bigint,
             created_at varchar NOT NULL
-        )",
+        )"#,
     ))
     .await?;
     if !sqlite_column_exists(db, "job_versions", "schedule_calendar_json").await? {
@@ -295,6 +306,16 @@ async fn ensure_job_schema_compatibility(db: &impl ConnectionTrait) -> Result<()
         db.execute(Statement::from_string(
             DatabaseBackend::Sqlite,
             "ALTER TABLE job_versions ADD COLUMN processor_type varchar",
+        ))
+        .await?;
+    }
+    if !sqlite_column_exists(db, "job_versions", "retry_policy_json").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            format!(
+                "ALTER TABLE job_versions ADD COLUMN retry_policy_json text NOT NULL DEFAULT '{}'",
+                crate::repository::JobRetryPolicy::default_json().replace('\'', "''")
+            ),
         ))
         .await?;
     }
@@ -353,6 +374,7 @@ async fn ensure_workflow_schema_compatibility(
         r"CREATE TABLE IF NOT EXISTS workflows (id varchar NOT NULL PRIMARY KEY, name varchar NOT NULL, definition varchar NOT NULL, status varchar NOT NULL, created_by varchar NOT NULL, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS workflow_nodes (id varchar NOT NULL PRIMARY KEY, workflow_id varchar NOT NULL, node_key varchar NOT NULL, name varchar NOT NULL, kind varchar NOT NULL, job_id varchar, processor_name varchar, config varchar, created_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS workflow_edges (id varchar NOT NULL PRIMARY KEY, workflow_id varchar NOT NULL, from_node_key varchar NOT NULL, to_node_key varchar NOT NULL, condition varchar NOT NULL, created_at varchar NOT NULL)",
+        r"CREATE TABLE IF NOT EXISTS job_instances (id varchar NOT NULL PRIMARY KEY, job_id varchar NOT NULL, status varchar NOT NULL, trigger_type varchar NOT NULL, execution_mode varchar NOT NULL, result_worker_id varchar, result_success boolean, result_message text, result_completed_at varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS workflow_instances (id varchar NOT NULL PRIMARY KEY, workflow_id varchar NOT NULL, status varchar NOT NULL, trigger_type varchar NOT NULL, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS workflow_node_instances (id varchar NOT NULL PRIMARY KEY, workflow_instance_id varchar NOT NULL, node_key varchar NOT NULL, status varchar NOT NULL, job_instance_id varchar, child_workflow_instance_id varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS workflow_shards (id varchar NOT NULL PRIMARY KEY, workflow_instance_id varchar NOT NULL, workflow_node_instance_id varchar NOT NULL, node_key varchar NOT NULL, shard_index integer NOT NULL, status varchar NOT NULL, input varchar NOT NULL, output varchar, checkpoint varchar, retry_count integer NOT NULL DEFAULT 0, job_instance_id varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
@@ -369,6 +391,30 @@ async fn ensure_workflow_schema_compatibility(
     ] {
         db.execute(Statement::from_string(DatabaseBackend::Sqlite, sql))
             .await?;
+    }
+
+    for (column, ddl) in [
+        (
+            "result_worker_id",
+            "ALTER TABLE job_instances ADD COLUMN result_worker_id varchar",
+        ),
+        (
+            "result_success",
+            "ALTER TABLE job_instances ADD COLUMN result_success boolean",
+        ),
+        (
+            "result_message",
+            "ALTER TABLE job_instances ADD COLUMN result_message text",
+        ),
+        (
+            "result_completed_at",
+            "ALTER TABLE job_instances ADD COLUMN result_completed_at varchar",
+        ),
+    ] {
+        if !sqlite_column_exists(db, "job_instances", column).await? {
+            db.execute(Statement::from_string(DatabaseBackend::Sqlite, ddl))
+                .await?;
+        }
     }
 
     if !sqlite_column_exists(db, "workflow_nodes", "processor_name").await? {
