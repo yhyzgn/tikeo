@@ -43,7 +43,9 @@ Environment variables:
 - `TIKEE_ENABLE_PLUGIN_SQL` defaults to enabled; set `TIKEE_ENABLE_PLUGIN_SQL=0` to stop advertising the SQL plugin processor.
 - `TIKEE_PLUGIN_SQL_TYPE` and `TIKEE_PLUGIN_SQL_PROCESSOR` override the default `sql` / `billing.sql-sync` structured plugin fields.
 - `TIKEE_WORKER_SCRIPT_SANDBOX` supports `auto`, `srt`, `deno`, `v8`, `wasmtime`, `wasmedge`, `docker`, `podman`, and `custom`; `container` is accepted as `docker`.
+- `TIKEE_SANDBOX_AUTO_INSTALL=0` disables automatic sandbox tool installation. With the default setting, the demo checks and installs SRT, ripgrep, Deno, and Rhai tools as needed.
+- `TIKEE_WORKER_STATE_DIR` overrides the managed sandbox tool install root.
 - `TIKEE_ENABLE_SCRIPT_<LANG>=0` disables a default language, for example `TIKEE_ENABLE_SCRIPT_RHAI=0`.
-- `TIKEE_<LANG>_IMAGE` overrides the container image when `TIKEE_WORKER_SCRIPT_SANDBOX=docker` or `podman`.
+- `TIKEE_<LANG>_IMAGE` overrides the container image only when `TIKEE_WORKER_SCRIPT_SANDBOX=docker` or `podman` is explicitly selected.
 
-Execution note: Rust demo can execute script tasks through Docker/Podman container runners. For Java-parity `srt`, `deno`, `v8`, `wasmtime`, `wasmedge`, or `custom` backends, the demo advertises the structured capability and fails closed with a clear unavailable-backend error until a matching Rust runner is configured.
+Execution note: Rust demo now follows the Java lightweight auto path. `auto` uses SRT for shell/python/powershell/php/groovy/rhai and Deno for JavaScript/TypeScript, with automatic tool resolution/installation before structured capabilities are advertised. Docker/Podman are heavier explicit backends and are never selected by default.

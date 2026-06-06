@@ -1,5 +1,7 @@
 #![allow(clippy::redundant_pub_crate)]
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 
 use crate::{error::WorkerSdkError, proto::worker::v1::DispatchTask};
@@ -12,7 +14,7 @@ pub trait TaskProcessor: Send + Sync + 'static {
 }
 
 /// Task context received from the Worker dispatch protocol.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct TaskContext {
     /// Job identifier.
     pub job_id: String,
@@ -22,6 +24,23 @@ pub struct TaskContext {
     pub instance_id: String,
     /// Raw task payload.
     pub payload: Vec<u8>,
+    /// Task-scoped logger that emits precise instance logs.
+    pub logger: TaskLogger,
+}
+
+/// Task-scoped logger callback.
+pub type TaskLogger = Arc<dyn Fn(&str, String) + Send + Sync>;
+
+impl TaskContext {
+    /// Emit one info log line for this task instance.
+    pub fn log_info(&self, message: impl Into<String>) {
+        (self.logger)("info", message.into());
+    }
+
+    /// Emit one error log line for this task instance.
+    pub fn log_error(&self, message: impl Into<String>) {
+        (self.logger)("error", message.into());
+    }
 }
 
 /// Processor outcome reported to the Worker Tunnel.
@@ -83,7 +102,7 @@ fn classify_failure_message(message: &str) -> Option<&'static str> {
     }
 }
 
-pub(crate) fn task_context(task: &DispatchTask) -> TaskContext {
+pub(crate) fn task_context(task: &DispatchTask, logger: TaskLogger) -> TaskContext {
     let processor_name = if task.processor_name.is_empty() {
         task.job_id.clone()
     } else {
@@ -94,5 +113,6 @@ pub(crate) fn task_context(task: &DispatchTask) -> TaskContext {
         processor_name,
         instance_id: task.instance_id.clone(),
         payload: task.payload.clone(),
+        logger,
     }
 }

@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use tokio::{io::AsyncWriteExt, process::Command};
 
 use super::{
-    ScriptRunner, ScriptRunnerKind, ScriptRunnerTask, default_script_command, replay_script_output,
+    ScriptRunner, ScriptRunnerKind, ScriptRunnerTask, default_script_command, emit_script_output,
     validate_script_runner_task,
 };
 use crate::{error::WorkerSdkError, task::TaskOutcome};
@@ -102,7 +102,7 @@ impl ScriptRunner for LocalSubprocessScriptRunner {
                 "script runner stdin was not available".to_owned(),
             ));
         };
-        let content = task.content.into_bytes();
+        let content = task.content.clone().into_bytes();
         let writer = tokio::spawn(async move {
             stdin.write_all(&content).await?;
             stdin.shutdown().await
@@ -123,7 +123,8 @@ impl ScriptRunner for LocalSubprocessScriptRunner {
                     timeout_ms: task.policy.timeout_ms,
                 });
             };
-        replay_script_output(&output.stdout, &output.stderr);
+        emit_script_output(&task, "info", &output.stdout);
+        emit_script_output(&task, "error", &output.stderr);
 
         writer
             .await

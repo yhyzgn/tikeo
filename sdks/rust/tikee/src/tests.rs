@@ -12,10 +12,12 @@ use crate::proto::worker::v1::{
     worker_tunnel_service_server::WorkerTunnelServiceServer,
 };
 
+use super::script::SrtScriptRunner;
 use super::{
-    ContainerScriptRunner, LocalSubprocessScriptRunner, ScriptRunner, ScriptRunnerKind,
-    ScriptRunnerPolicy, ScriptRunnerRegistry, ScriptRunnerTask, TaskContext, TaskOutcome,
-    TaskProcessor, UnsupportedScriptRunner, WorkerClient, WorkerConfig, WorkerSdkError,
+    ContainerScriptRunner, DenoScriptRunner, LocalSubprocessScriptRunner, ScriptRunner,
+    ScriptRunnerKind, ScriptRunnerPolicy, ScriptRunnerRegistry, ScriptRunnerTask, TaskContext,
+    TaskOutcome, TaskProcessor, UnsupportedScriptRunner, WorkerClient, WorkerConfig,
+    WorkerSdkError,
 };
 
 #[test]
@@ -107,6 +109,7 @@ async fn unsupported_script_runner_validates_default_deny_policy_before_executio
         content: "print(1)".to_owned(),
         content_sha256: format!("{:x}", sha2::Sha256::digest(b"print(1)")),
         policy: ScriptRunnerPolicy::default(),
+        log: None,
     };
     let error = match runner.run(task).await {
         Ok(outcome) => panic!("runner should not execute yet: {outcome:?}"),
@@ -328,7 +331,199 @@ async fn local_subprocess_runner_reports_unavailable_runtime() {
 }
 
 #[tokio::test]
-async fn worker_session_captures_processor_stdout_and_stderr_as_task_logs() {
+async fn srt_runner_preserves_node_path_for_env_launcher_after_env_clear() {
+    let temp_root = std::env::temp_dir().join(format!(
+        "tikee-rust-srt-node-path-test-{}",
+        std::process::id()
+    ));
+    let runtime_dir = temp_root.join("srt-bin");
+    let node_dir = temp_root.join("node-bin");
+    std::fs::create_dir_all(&runtime_dir)
+        .unwrap_or_else(|error| panic!("create fake runtime dir: {error}"));
+    std::fs::create_dir_all(&node_dir)
+        .unwrap_or_else(|error| panic!("create fake node dir: {error}"));
+
+    let runtime = runtime_dir.join("srt");
+    let node = node_dir.join("node");
+    write_executable(&runtime, "#!/bin/sh\nenv node \"$@\"\n");
+    write_executable(&node, "#!/bin/sh\nprintf 'fake-node-srt-ok\\n'\n");
+
+    let runner = SrtScriptRunner::new(ScriptRunnerKind::Shell, runtime, "sh", [node_dir]);
+    let outcome = runner
+        .run(script_task(
+            "shell",
+            "echo should-not-reach-host\n",
+            ScriptRunnerPolicy::default(),
+        ))
+        .await
+        .unwrap_or_else(|error| {
+            panic!("fake SRT launcher should find node on sanitized PATH: {error}")
+        });
+
+    assert_eq!(outcome, TaskOutcome::Succeeded);
+    let _ = std::fs::remove_dir_all(temp_root);
+}
+
+#[tokio::test]
+async fn srt_runner_starts_supported_kinds_inside_task_sandbox_home() {
+    for (kind, language, interpreter) in [
+        (ScriptRunnerKind::Shell, "shell", "sh"),
+        (ScriptRunnerKind::Python, "python", "python3"),
+        (ScriptRunnerKind::PowerShell, "powershell", "pwsh"),
+        (ScriptRunnerKind::Rhai, "rhai", "rhai-run"),
+        (ScriptRunnerKind::Php, "php", "php"),
+        (ScriptRunnerKind::Groovy, "groovy", "groovy"),
+    ] {
+        let temp_root = std::env::temp_dir().join(format!(
+            "tikee-rust-srt-home-test-{}-{}",
+            language,
+            std::process::id()
+        ));
+        let runtime_dir = temp_root.join("runtime-bin");
+        std::fs::create_dir_all(&runtime_dir)
+            .unwrap_or_else(|error| panic!("create fake runtime dir: {error}"));
+        let report = temp_root.join("report.txt");
+        let runtime = runtime_dir.join("srt");
+        write_executable(
+            &runtime,
+            &format!(
+                r#"#!/bin/sh
+printf 'cwd=%s\n' "$(pwd)" > {}
+printf 'home=%s\n' "$HOME" >> {}
+printf 'tmp=%s\n' "$TMPDIR" >> {}
+printf 'claude_tmp=%s\n' "$CLAUDE_CODE_TMPDIR" >> {}
+printf 'args=%s\n' "$*" >> {}
+exit 0
+"#,
+                report.display(),
+                report.display(),
+                report.display(),
+                report.display(),
+                report.display()
+            ),
+        );
+
+        let runner = SrtScriptRunner::new(kind, runtime, interpreter, std::iter::empty());
+        let outcome = runner
+            .run(script_task(
+                language,
+                runner_home_probe_content(kind),
+                ScriptRunnerPolicy::default(),
+            ))
+            .await
+            .unwrap_or_else(|error| panic!("fake SRT should run for {language}: {error}"));
+        assert_eq!(outcome, TaskOutcome::Succeeded, "kind={language}");
+
+        let report_content = std::fs::read_to_string(&report)
+            .unwrap_or_else(|error| panic!("read fake SRT report for {language}: {error}"));
+        let cwd = report_value(&report_content, "cwd");
+        let home = report_value(&report_content, "home");
+        let tmp = report_value(&report_content, "tmp");
+        let claude_tmp = report_value(&report_content, "claude_tmp");
+        let args = report_value(&report_content, "args");
+
+        assert_eq!(cwd, home, "{language} should start SRT in sandbox HOME");
+        assert!(
+            home.contains(&format!("tikee-srt-{}-runtime", kind.as_str())),
+            "{language} HOME should be a task runtime dir: {home}"
+        );
+        let runtime_root = std::path::Path::new(home)
+            .parent()
+            .unwrap_or_else(|| panic!("{language} HOME should have a runtime root: {home}"));
+        assert_eq!(std::path::Path::new(tmp), runtime_root.join("tmp"));
+        assert_eq!(claude_tmp, tmp);
+        assert!(
+            !home.starts_with("/tmp/tikee-rhai-script"),
+            "{language} must not use legacy temp-file directories as HOME"
+        );
+        if kind == ScriptRunnerKind::Rhai {
+            assert!(
+                args.contains("/home/script-"),
+                "rhai script file should live under sandbox HOME: {args}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(temp_root);
+    }
+}
+
+#[tokio::test]
+async fn deno_runner_starts_js_and_ts_inside_task_sandbox_home() {
+    for (kind, language) in [
+        (ScriptRunnerKind::Js, "javascript"),
+        (ScriptRunnerKind::Ts, "typescript"),
+    ] {
+        let temp_root = std::env::temp_dir().join(format!(
+            "tikee-rust-deno-home-test-{}-{}",
+            language,
+            std::process::id()
+        ));
+        let runtime_dir = temp_root.join("runtime-bin");
+        std::fs::create_dir_all(&runtime_dir)
+            .unwrap_or_else(|error| panic!("create fake deno runtime dir: {error}"));
+        let report = temp_root.join("report.txt");
+        let runtime = runtime_dir.join("deno");
+        write_executable(
+            &runtime,
+            &format!(
+                r#"#!/bin/sh
+cat >/dev/null
+printf 'cwd=%s\n' "$(pwd)" > {}
+printf 'home=%s\n' "$HOME" >> {}
+printf 'tmp=%s\n' "$TMPDIR" >> {}
+printf 'deno_dir=%s\n' "$DENO_DIR" >> {}
+printf 'args=%s\n' "$*" >> {}
+exit 0
+"#,
+                report.display(),
+                report.display(),
+                report.display(),
+                report.display(),
+                report.display()
+            ),
+        );
+
+        let runner = DenoScriptRunner::new(kind, runtime);
+        let outcome = runner
+            .run(script_task(
+                language,
+                "console.log(JSON.stringify({ ok: true }))\n",
+                ScriptRunnerPolicy::default(),
+            ))
+            .await
+            .unwrap_or_else(|error| panic!("fake Deno should run for {language}: {error}"));
+        assert_eq!(outcome, TaskOutcome::Succeeded, "kind={language}");
+
+        let report_content = std::fs::read_to_string(&report)
+            .unwrap_or_else(|error| panic!("read fake Deno report for {language}: {error}"));
+        let cwd = report_value(&report_content, "cwd");
+        let home = report_value(&report_content, "home");
+        let tmp = report_value(&report_content, "tmp");
+        let deno_dir = report_value(&report_content, "deno_dir");
+        let args = report_value(&report_content, "args");
+
+        assert_eq!(cwd, home, "{language} should start Deno in sandbox HOME");
+        assert!(
+            home.contains(&format!("tikee-deno-{}-runtime", kind.as_str())),
+            "{language} HOME should be a task runtime dir: {home}"
+        );
+        let runtime_root = std::path::Path::new(home)
+            .parent()
+            .unwrap_or_else(|| panic!("{language} HOME should have a runtime root: {home}"));
+        assert_eq!(std::path::Path::new(tmp), runtime_root.join("tmp"));
+        assert_eq!(
+            std::path::Path::new(deno_dir),
+            runtime_root.join("cache/deno")
+        );
+        assert!(
+            args.contains("run --no-prompt"),
+            "unexpected Deno args: {args}"
+        );
+        let _ = std::fs::remove_dir_all(temp_root);
+    }
+}
+
+#[tokio::test]
+async fn worker_session_records_only_task_logger_lines_for_processors() {
     let (addr, server, mut events) = start_mock_tunnel_server(Some(DispatchTask {
         instance_id: "instance-rust-console".to_owned(),
         job_id: "job-rust-console".to_owned(),
@@ -353,13 +548,13 @@ async fn worker_session_captures_processor_stdout_and_stderr_as_task_logs() {
     let logs = collect_until_result(&mut events).await;
     assert!(
         logs.iter().any(|log| log.level == "info"
-            && log.message == "rust processor stdout line"
+            && log.message == "rust processor task logger info"
             && log.assignment_token == "assign-token-console"),
         "missing captured stdout log: {logs:?}"
     );
     assert!(
         logs.iter().any(|log| log.level == "error"
-            && log.message == "rust processor stderr line"
+            && log.message == "rust processor task logger error"
             && log.assignment_token == "assign-token-console"),
         "missing captured stderr log: {logs:?}"
     );
@@ -367,7 +562,7 @@ async fn worker_session_captures_processor_stdout_and_stderr_as_task_logs() {
 }
 
 #[tokio::test]
-async fn worker_session_captures_script_runner_stdout_and_stderr_as_task_logs() {
+async fn worker_session_records_script_runner_pipe_output_as_task_logs() {
     let dispatch = script_dispatch_task(
         "instance-rust-script-console",
         "printf 'rust script stdout\\n'; printf 'rust script stderr\\n' >&2\n",
@@ -390,12 +585,12 @@ async fn worker_session_captures_script_runner_stdout_and_stderr_as_task_logs() 
     let logs = collect_until_result(&mut events).await;
     assert!(
         logs.iter()
-            .any(|log| log.level == "info" && log.message == "rust script stdout"),
+            .any(|log| log.level == "info" && log.message == "[script] rust script stdout"),
         "missing script stdout log: {logs:?}"
     );
     assert!(
         logs.iter()
-            .any(|log| log.level == "error" && log.message == "rust script stderr"),
+            .any(|log| log.level == "error" && log.message == "[script] rust script stderr"),
         "missing script stderr log: {logs:?}"
     );
     server.abort();
@@ -825,8 +1020,10 @@ struct ConsoleProcessor;
 impl TaskProcessor for ConsoleProcessor {
     async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError> {
         assert_eq!(task.payload, b"hello");
-        println!("rust processor stdout line");
-        eprintln!("rust processor stderr line");
+        println!("rust processor task logger info should stay console-only");
+        eprintln!("rust processor task logger error should stay console-only");
+        task.log_info("rust processor task logger info");
+        task.log_error("rust processor task logger error");
         Ok(TaskOutcome::Succeeded)
     }
 }
@@ -850,6 +1047,45 @@ fn script_task(language: &str, content: &str, policy: ScriptRunnerPolicy) -> Scr
         content: content.to_owned(),
         content_sha256: format!("{:x}", Sha256::digest(content.as_bytes())),
         policy,
+        log: None,
+    }
+}
+
+fn runner_home_probe_content(kind: ScriptRunnerKind) -> &'static str {
+    match kind {
+        ScriptRunnerKind::Shell => "pwd\n",
+        ScriptRunnerKind::Python => "import os; print(os.getcwd())\n",
+        ScriptRunnerKind::PowerShell => "Get-Location\n",
+        ScriptRunnerKind::Rhai => "print(\"ok\");\n",
+        ScriptRunnerKind::Js
+        | ScriptRunnerKind::Ts
+        | ScriptRunnerKind::Php
+        | ScriptRunnerKind::Groovy => "",
+    }
+}
+
+fn report_value<'a>(report: &'a str, key: &str) -> &'a str {
+    let prefix = format!("{key}=");
+    report
+        .lines()
+        .find_map(|line| line.strip_prefix(&prefix))
+        .unwrap_or_else(|| panic!("missing {key} in fake SRT report:\n{report}"))
+}
+
+fn write_executable(path: &std::path::Path, content: &str) {
+    std::fs::write(path, content).unwrap_or_else(|error| {
+        panic!("write executable {}: {error}", path.display());
+    });
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = std::fs::metadata(path)
+            .unwrap_or_else(|error| panic!("read executable metadata {}: {error}", path.display()))
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(path, permissions).unwrap_or_else(|error| {
+            panic!("set executable permissions {}: {error}", path.display());
+        });
     }
 }
 

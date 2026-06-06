@@ -6,13 +6,24 @@ use async_trait::async_trait;
 use sha2::{Digest, Sha256};
 use tokio::{io::AsyncWriteExt, process::Command};
 
-use crate::{error::WorkerSdkError, proto::worker::v1::ScriptRunnerCapability, task::TaskOutcome};
+use crate::{
+    error::WorkerSdkError,
+    proto::worker::v1::ScriptRunnerCapability,
+    task::{TaskLogger, TaskOutcome},
+};
 
 mod container;
+mod deno;
 mod local;
+mod runtime_dirs;
+mod srt;
+mod tools;
 
 pub use container::ContainerScriptRunner;
+pub use deno::DenoScriptRunner;
 pub use local::LocalSubprocessScriptRunner;
+pub use srt::SrtScriptRunner;
+pub use tools::SandboxToolResolver;
 
 /// Supported non-WASM dynamic script runner kinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -244,7 +255,7 @@ pub trait ScriptRunner: Send + Sync + 'static {
 }
 
 /// Immutable script snapshot passed to a future non-WASM runner.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct ScriptRunnerTask {
     /// Script id.
     pub script_id: String,
@@ -260,6 +271,15 @@ pub struct ScriptRunnerTask {
     pub content_sha256: String,
     /// Default-deny execution policy snapshot.
     pub policy: ScriptRunnerPolicy,
+    /// Task-scoped log sink for script stdout/stderr.
+    pub log: Option<TaskLogger>,
+}
+
+impl ScriptRunnerTask {
+    pub(crate) fn with_log_sink(mut self, log: TaskLogger) -> Self {
+        self.log = Some(log);
+        self
+    }
 }
 
 pub(super) const fn default_script_command(
@@ -315,12 +335,16 @@ pub(super) fn validate_script_runner_task(
     Ok(())
 }
 
-pub(super) fn replay_script_output(stdout: &[u8], stderr: &[u8]) {
-    if !stdout.is_empty() {
-        print!("{}", String::from_utf8_lossy(stdout));
-    }
-    if !stderr.is_empty() {
-        eprint!("{}", String::from_utf8_lossy(stderr));
+pub(super) fn emit_script_output(task: &ScriptRunnerTask, level: &str, output: &[u8]) {
+    let Some(log) = task.log.as_ref() else {
+        return;
+    };
+    let text = String::from_utf8_lossy(output).replace("\r\n", "\n");
+    for line in text.split('\n') {
+        let trimmed = line.trim();
+        if !trimmed.is_empty() {
+            log(level, format!("[script] {trimmed}"));
+        }
     }
 }
 
@@ -348,7 +372,7 @@ pub(super) async fn run_script_command(
             "script runner stdin was not available".to_owned(),
         ));
     };
-    let content = task.content.into_bytes();
+    let content = task.content.clone().into_bytes();
     let writer = tokio::spawn(async move {
         stdin.write_all(&content).await?;
         stdin.shutdown().await
@@ -368,7 +392,8 @@ pub(super) async fn run_script_command(
             timeout_ms: task.policy.timeout_ms,
         });
     };
-    replay_script_output(&output.stdout, &output.stderr);
+    emit_script_output(&task, "info", &output.stdout);
+    emit_script_output(&task, "error", &output.stderr);
 
     writer
         .await

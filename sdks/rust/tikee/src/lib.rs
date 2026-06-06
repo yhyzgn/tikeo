@@ -5,7 +5,6 @@
 pub mod proto;
 
 mod config;
-mod console_capture;
 mod error;
 pub mod management;
 mod script;
@@ -19,8 +18,9 @@ pub use management::{
     CreateJobRequest as ManagementCreateJobRequest, JobDefinition, ManagementClient,
 };
 pub use script::{
-    ContainerScriptRunner, LocalSubprocessScriptRunner, ScriptRunner, ScriptRunnerKind,
-    ScriptRunnerPolicy, ScriptRunnerRegistry, ScriptRunnerTask, UnsupportedScriptRunner,
+    ContainerScriptRunner, DenoScriptRunner, LocalSubprocessScriptRunner, SandboxToolResolver,
+    ScriptRunner, ScriptRunnerKind, ScriptRunnerPolicy, ScriptRunnerRegistry, ScriptRunnerTask,
+    SrtScriptRunner, UnsupportedScriptRunner,
 };
 pub use session::{WorkerClient, WorkerSession};
 pub use task::{TaskContext, TaskOutcome, TaskProcessor};

@@ -4,8 +4,9 @@ use std::{collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
 use tikee::{
-    ContainerScriptRunner, ScriptRunnerKind, ScriptRunnerRegistry, TaskContext, TaskOutcome,
-    TaskProcessor, UnsupportedScriptRunner, WorkerClient, WorkerConfig, WorkerSdkError,
+    ContainerScriptRunner, DenoScriptRunner, SandboxToolResolver, ScriptRunnerKind,
+    ScriptRunnerRegistry, SrtScriptRunner, TaskContext, TaskOutcome, TaskProcessor,
+    UnsupportedScriptRunner, WorkerClient, WorkerConfig, WorkerSdkError,
 };
 
 #[tokio::main]
@@ -46,77 +47,106 @@ async fn main() -> Result<(), WorkerSdkError> {
 
     let mut runners = ScriptRunnerRegistry::new();
     let sandbox_backend = env_or("TIKEE_WORKER_SCRIPT_SANDBOX", "auto");
+    let mut sandbox_tools = SandboxToolResolver::default();
+    if let Ok(state_dir) = std::env::var("TIKEE_WORKER_STATE_DIR") {
+        sandbox_tools.state_dir = Some(std::path::PathBuf::from(state_dir));
+    }
+    sandbox_tools.auto_install = !disabled_env("TIKEE_SANDBOX_AUTO_INSTALL");
     configure_default_script_runner(
         &mut config,
         &mut runners,
-        ScriptRunnerKind::Shell,
-        "TIKEE_ENABLE_SCRIPT_SHELL",
-        &sandbox_backend,
-        "TIKEE_SHELL_IMAGE",
-        "alpine:3.20",
+        &sandbox_tools,
+        ScriptRunnerConfig {
+            kind: ScriptRunnerKind::Shell,
+            enable_env: "TIKEE_ENABLE_SCRIPT_SHELL",
+            sandbox_backend: &sandbox_backend,
+            image_env: "TIKEE_SHELL_IMAGE",
+            default_image: "alpine:3.20",
+        },
     );
     configure_default_script_runner(
         &mut config,
         &mut runners,
-        ScriptRunnerKind::Python,
-        "TIKEE_ENABLE_SCRIPT_PYTHON",
-        &sandbox_backend,
-        "TIKEE_PYTHON_IMAGE",
-        "python:3.13-alpine",
+        &sandbox_tools,
+        ScriptRunnerConfig {
+            kind: ScriptRunnerKind::Python,
+            enable_env: "TIKEE_ENABLE_SCRIPT_PYTHON",
+            sandbox_backend: &sandbox_backend,
+            image_env: "TIKEE_PYTHON_IMAGE",
+            default_image: "python:3.13-alpine",
+        },
     );
     configure_default_script_runner(
         &mut config,
         &mut runners,
-        ScriptRunnerKind::Js,
-        "TIKEE_ENABLE_SCRIPT_JAVASCRIPT",
-        &sandbox_backend,
-        "TIKEE_JAVASCRIPT_IMAGE",
-        "denoland/deno:alpine",
+        &sandbox_tools,
+        ScriptRunnerConfig {
+            kind: ScriptRunnerKind::Js,
+            enable_env: "TIKEE_ENABLE_SCRIPT_JAVASCRIPT",
+            sandbox_backend: &sandbox_backend,
+            image_env: "TIKEE_JAVASCRIPT_IMAGE",
+            default_image: "denoland/deno:alpine",
+        },
     );
     configure_default_script_runner(
         &mut config,
         &mut runners,
-        ScriptRunnerKind::Ts,
-        "TIKEE_ENABLE_SCRIPT_TYPESCRIPT",
-        &sandbox_backend,
-        "TIKEE_TYPESCRIPT_IMAGE",
-        "denoland/deno:alpine",
+        &sandbox_tools,
+        ScriptRunnerConfig {
+            kind: ScriptRunnerKind::Ts,
+            enable_env: "TIKEE_ENABLE_SCRIPT_TYPESCRIPT",
+            sandbox_backend: &sandbox_backend,
+            image_env: "TIKEE_TYPESCRIPT_IMAGE",
+            default_image: "denoland/deno:alpine",
+        },
     );
     configure_default_script_runner(
         &mut config,
         &mut runners,
-        ScriptRunnerKind::PowerShell,
-        "TIKEE_ENABLE_SCRIPT_POWERSHELL",
-        &sandbox_backend,
-        "TIKEE_POWERSHELL_IMAGE",
-        "mcr.microsoft.com/powershell:latest",
+        &sandbox_tools,
+        ScriptRunnerConfig {
+            kind: ScriptRunnerKind::PowerShell,
+            enable_env: "TIKEE_ENABLE_SCRIPT_POWERSHELL",
+            sandbox_backend: &sandbox_backend,
+            image_env: "TIKEE_POWERSHELL_IMAGE",
+            default_image: "mcr.microsoft.com/powershell:latest",
+        },
     );
     configure_default_script_runner(
         &mut config,
         &mut runners,
-        ScriptRunnerKind::Php,
-        "TIKEE_ENABLE_SCRIPT_PHP",
-        &sandbox_backend,
-        "TIKEE_PHP_IMAGE",
-        "php:8.4-cli-alpine",
+        &sandbox_tools,
+        ScriptRunnerConfig {
+            kind: ScriptRunnerKind::Php,
+            enable_env: "TIKEE_ENABLE_SCRIPT_PHP",
+            sandbox_backend: &sandbox_backend,
+            image_env: "TIKEE_PHP_IMAGE",
+            default_image: "php:8.4-cli-alpine",
+        },
     );
     configure_default_script_runner(
         &mut config,
         &mut runners,
-        ScriptRunnerKind::Groovy,
-        "TIKEE_ENABLE_SCRIPT_GROOVY",
-        &sandbox_backend,
-        "TIKEE_GROOVY_IMAGE",
-        "groovy:4-jdk21-alpine",
+        &sandbox_tools,
+        ScriptRunnerConfig {
+            kind: ScriptRunnerKind::Groovy,
+            enable_env: "TIKEE_ENABLE_SCRIPT_GROOVY",
+            sandbox_backend: &sandbox_backend,
+            image_env: "TIKEE_GROOVY_IMAGE",
+            default_image: "groovy:4-jdk21-alpine",
+        },
     );
     configure_default_script_runner(
         &mut config,
         &mut runners,
-        ScriptRunnerKind::Rhai,
-        "TIKEE_ENABLE_SCRIPT_RHAI",
-        &sandbox_backend,
-        "TIKEE_RHAI_IMAGE",
-        "rhaiscript/rhai:latest",
+        &sandbox_tools,
+        ScriptRunnerConfig {
+            kind: ScriptRunnerKind::Rhai,
+            enable_env: "TIKEE_ENABLE_SCRIPT_RHAI",
+            sandbox_backend: &sandbox_backend,
+            image_env: "TIKEE_RHAI_IMAGE",
+            default_image: "rhaiscript/rhai:latest",
+        },
     );
     for runner in runners.structured_capabilities() {
         config.add_script_runner(runner.language, runner.sandbox_backend);
@@ -204,39 +234,67 @@ async fn run_worker_session(
     }
 }
 
+struct ScriptRunnerConfig<'a> {
+    kind: ScriptRunnerKind,
+    enable_env: &'a str,
+    sandbox_backend: &'a str,
+    image_env: &'a str,
+    default_image: &'a str,
+}
+
 fn configure_default_script_runner(
     config: &mut WorkerConfig,
     runners: &mut ScriptRunnerRegistry,
-    kind: ScriptRunnerKind,
-    enable_env: &str,
-    sandbox_backend: &str,
-    image_env: &str,
-    default_image: &str,
+    sandbox_tools: &SandboxToolResolver,
+    runner_config: ScriptRunnerConfig<'_>,
 ) {
-    if disabled_env(enable_env) {
+    if disabled_env(runner_config.enable_env) {
         return;
     }
-    register_script_runner(
-        config,
-        runners,
-        kind,
-        sandbox_backend,
-        image_env,
-        default_image,
-    );
+    register_script_runner(config, runners, sandbox_tools, runner_config);
 }
 
 fn register_script_runner(
     config: &mut WorkerConfig,
     runners: &mut ScriptRunnerRegistry,
-    kind: ScriptRunnerKind,
-    sandbox_backend: &str,
-    image_env: &str,
-    default_image: &str,
+    sandbox_tools: &SandboxToolResolver,
+    runner_config: ScriptRunnerConfig<'_>,
 ) {
-    let image = env_or(image_env, default_image);
-    let backend = resolve_sandbox_backend(kind, sandbox_backend);
-    if backend == "docker" || backend == "podman" {
+    let kind = runner_config.kind;
+    let image = env_or(runner_config.image_env, runner_config.default_image);
+    let backend = resolve_sandbox_backend(kind, runner_config.sandbox_backend);
+    if backend == "srt" {
+        if let (Some(srt), Some(rg)) =
+            (sandbox_tools.resolve_srt(), sandbox_tools.resolve_ripgrep())
+        {
+            if let Some(interpreter) = resolve_srt_interpreter(kind, sandbox_tools) {
+                let extra_path = sandbox_tool_path_entries(&srt, &rg, &interpreter, sandbox_tools);
+                runners.register(SrtScriptRunner::new(kind, srt, interpreter, extra_path));
+            } else {
+                runners.register(UnsupportedScriptRunner::new(
+                    kind,
+                    format!(
+                        "{} SRT interpreter is unavailable; install it or use an explicit container backend",
+                        kind.as_str()
+                    ),
+                ));
+            }
+        } else {
+            runners.register(UnsupportedScriptRunner::new(
+                kind,
+                "SRT sandbox runtime or ripgrep dependency is unavailable",
+            ));
+        }
+    } else if backend == "deno" || backend == "v8" {
+        if let Some(deno) = sandbox_tools.resolve_deno() {
+            runners.register(DenoScriptRunner::new(kind, deno));
+        } else {
+            runners.register(UnsupportedScriptRunner::new(
+                kind,
+                "Deno sandbox runtime is unavailable",
+            ));
+        }
+    } else if backend == "docker" || backend == "podman" {
         runners.register(ContainerScriptRunner::with_runtime(
             kind,
             backend.clone(),
@@ -246,9 +304,7 @@ fn register_script_runner(
     } else {
         runners.register(UnsupportedScriptRunner::new(
             kind,
-            format!(
-                "{backend} backend is declared for Java parity but no Rust runner is configured"
-            ),
+            format!("{backend} backend is unavailable in this Rust demo worker"),
         ));
     }
     if runners
@@ -277,69 +333,112 @@ fn resolve_sandbox_backend(kind: ScriptRunnerKind, requested: &str) -> String {
     }
 }
 
+fn sandbox_tool_path_entries(
+    srt: &std::path::Path,
+    rg: &std::path::Path,
+    interpreter: &std::path::Path,
+    sandbox_tools: &SandboxToolResolver,
+) -> Vec<std::path::PathBuf> {
+    let mut entries = Vec::new();
+    for command in [
+        Some(srt.to_path_buf()),
+        Some(rg.to_path_buf()),
+        Some(interpreter.to_path_buf()),
+        sandbox_tools.resolve_node(),
+        sandbox_tools.resolve_npm(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if let Some(parent) = command.parent()
+            && !entries
+                .iter()
+                .any(|entry: &std::path::PathBuf| entry == parent)
+        {
+            entries.push(parent.to_path_buf());
+        }
+    }
+    entries
+}
+
+fn resolve_srt_interpreter(
+    kind: ScriptRunnerKind,
+    sandbox_tools: &SandboxToolResolver,
+) -> Option<std::path::PathBuf> {
+    match kind {
+        ScriptRunnerKind::Rhai => sandbox_tools.resolve_rhai(),
+        ScriptRunnerKind::Shell => sandbox_tools.resolve_interpreter("sh"),
+        ScriptRunnerKind::Python => sandbox_tools.resolve_interpreter("python3"),
+        ScriptRunnerKind::PowerShell => sandbox_tools.resolve_powershell(),
+        ScriptRunnerKind::Php => sandbox_tools.resolve_interpreter("php"),
+        ScriptRunnerKind::Groovy => sandbox_tools.resolve_interpreter("groovy"),
+        ScriptRunnerKind::Js | ScriptRunnerKind::Ts => sandbox_tools.resolve_deno(),
+    }
+}
+
 struct DemoProcessor;
 
 #[async_trait]
 impl TaskProcessor for DemoProcessor {
     async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError> {
-        println!(
+        task.log_info(format!(
             "[rust-worker] processor={} instance={} payload_bytes={}",
             task.processor_name,
             task.instance_id,
             task.payload.len()
-        );
+        ));
         let outcome = match task.processor_name.as_str() {
             "" | "demo.echo" => {
-                println!(
+                task.log_info(format!(
                     "[demo.echo] payload='{}'",
                     String::from_utf8_lossy(&task.payload)
-                );
+                ));
                 TaskOutcome::Success("rust demo echo processed".to_owned())
             }
             "demo.context" => {
-                println!(
+                task.log_info(format!(
                     "[demo.context] jobId={} instanceId={}",
                     task.job_id, task.instance_id
-                );
+                ));
                 TaskOutcome::Success(format!(
                     "rust demo context processed instance={}",
                     task.instance_id
                 ))
             }
             "demo.bytes" => {
-                println!(
+                task.log_info(format!(
                     "[demo.bytes] payload='{}' length={}",
                     String::from_utf8_lossy(&task.payload),
                     task.payload.len()
-                );
+                ));
                 TaskOutcome::Success(format!(
                     "rust demo bytes processed payload_bytes={}",
                     task.payload.len()
                 ))
             }
             "demo.heartbeat" => {
-                println!(
+                task.log_info(format!(
                     "[demo.heartbeat] tick jobId={} instanceId={}",
                     task.job_id, task.instance_id
-                );
+                ));
                 TaskOutcome::Success("rust demo heartbeat processed".to_owned())
             }
             "billing.sql-sync" => {
-                println!(
+                task.log_info(format!(
                     "[billing.sql-sync] plugin SQL processor received payload='{}'",
                     String::from_utf8_lossy(&task.payload)
-                );
+                ));
                 TaskOutcome::Success("rust demo sql plugin processed".to_owned())
             }
             "demo.fail" => {
-                eprintln!(
+                task.log_error(format!(
                     "[demo.fail] intentional failure payload='{}'",
                     String::from_utf8_lossy(&task.payload)
-                );
+                ));
                 TaskOutcome::Failed("rust demo intentional failure".to_owned())
             }
             other => {
-                eprintln!("[rust-worker] unsupported processor={other}");
+                task.log_error(format!("[rust-worker] unsupported processor={other}"));
                 TaskOutcome::Failed(format!("unsupported rust demo processor: {other}"))
             }
         };
@@ -407,4 +506,90 @@ fn labels_env(key: &str) -> HashMap<String, String> {
         .map(|(key, value)| (key.trim().to_owned(), value.trim().to_owned()))
         .filter(|(key, value)| !key.is_empty() && !value.is_empty())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn auto_sandbox_backend_matches_java_lightweight_defaults() {
+        assert_eq!(
+            resolve_sandbox_backend(ScriptRunnerKind::Python, "auto"),
+            "srt"
+        );
+        assert_eq!(
+            resolve_sandbox_backend(ScriptRunnerKind::Js, "auto"),
+            "deno"
+        );
+        assert_eq!(resolve_sandbox_backend(ScriptRunnerKind::Ts, ""), "deno");
+    }
+
+    #[test]
+    fn srt_path_entries_include_runtime_dependencies() {
+        let temp_root = std::env::temp_dir().join(format!(
+            "tikee-rust-worker-demo-path-test-{}",
+            std::process::id()
+        ));
+        let srt_dir = temp_root.join("srt-bin");
+        let rg_dir = temp_root.join("rg-bin");
+        std::fs::create_dir_all(&srt_dir).expect("create fake srt dir");
+        std::fs::create_dir_all(&rg_dir).expect("create fake rg dir");
+
+        let entries = sandbox_tool_path_entries(
+            &srt_dir.join("srt"),
+            &rg_dir.join("rg"),
+            &srt_dir.join("sh"),
+            &SandboxToolResolver::default(),
+        );
+
+        assert!(
+            entries.iter().any(|entry| entry == &srt_dir),
+            "SRT launcher directory must be injected into sanitized PATH: {entries:?}"
+        );
+        assert!(
+            entries.iter().any(|entry| entry == &rg_dir),
+            "ripgrep directory must be injected into sanitized PATH: {entries:?}"
+        );
+
+        for optional_command in ["node", "npm"] {
+            if let Some(command) = find_command_on_path(optional_command)
+                && let Some(parent) = command.parent()
+            {
+                assert!(
+                    entries.iter().any(|entry| entry == parent),
+                    "{optional_command} directory must be preserved for npm-installed SRT launchers: {entries:?}"
+                );
+            }
+        }
+
+        let _ = std::fs::remove_dir_all(temp_root);
+    }
+
+    #[test]
+    fn missing_srt_interpreter_is_not_resolved() {
+        assert!(
+            SandboxToolResolver::default()
+                .resolve_interpreter("definitely-missing-tikee-interpreter")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn powershell_uses_managed_sandbox_tool_resolver() {
+        let source = std::fs::read_to_string(file!()).expect("read rust demo source");
+        assert!(
+            source.contains("ScriptRunnerKind::PowerShell => sandbox_tools.resolve_powershell()")
+        );
+        assert!(!source.contains(
+            "ScriptRunnerKind::PowerShell => sandbox_tools.resolve_interpreter(\"pwsh\")"
+        ));
+    }
+
+    fn find_command_on_path(binary: &str) -> Option<std::path::PathBuf> {
+        let path = std::env::var_os("PATH")?;
+        std::env::split_paths(&path)
+            .map(|entry| entry.join(binary))
+            .find(|candidate| candidate.exists())
+    }
 }

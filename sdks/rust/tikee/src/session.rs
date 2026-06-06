@@ -1,6 +1,6 @@
 use std::{
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicI64, Ordering},
     },
     time::Duration,
@@ -12,7 +12,6 @@ use tonic::Streaming;
 
 use crate::{
     config::WorkerConfig,
-    console_capture::capture_task_console,
     error::WorkerSdkError,
     proto::worker::v1::{
         DispatchTask, Heartbeat, Ping, ScriptProcessorBinding, ServerMessage, TaskLog, TaskResult,
@@ -20,7 +19,7 @@ use crate::{
         worker_message, worker_tunnel_service_client::WorkerTunnelServiceClient,
     },
     script::{ScriptRunnerKind, ScriptRunnerPolicy, ScriptRunnerRegistry, ScriptRunnerTask},
-    task::{TaskOutcome, TaskProcessor, task_context},
+    task::{TaskLogger, TaskOutcome, TaskProcessor, task_context},
     wasm::process_wasm_binding,
 };
 
@@ -33,7 +32,7 @@ pub struct WorkerSession {
     outbound: mpsc::Sender<WorkerMessage>,
     inbound: Streaming<ServerMessage>,
     heartbeat_sequence: u64,
-    log_sequence: AtomicI64,
+    log_sequence: Arc<AtomicI64>,
 }
 
 impl WorkerSession {
@@ -161,14 +160,17 @@ impl WorkerSession {
         level: impl Into<String>,
         message: impl Into<String>,
     ) -> Result<i64, WorkerSdkError> {
+        let level = level.into();
+        let message = message.into();
         let sequence = self.log_sequence.fetch_add(1, Ordering::SeqCst) + 1;
+        print_task_log_locally(&level, &message);
         self.outbound
             .send(WorkerMessage {
                 kind: Some(worker_message::Kind::TaskLog(TaskLog {
                     worker_id: self.worker_id.clone(),
                     instance_id: instance_id.into(),
-                    level: level.into(),
-                    message: message.into(),
+                    level,
+                    message,
                     sequence,
                     assignment_token: assignment_token.into(),
                 })),
@@ -243,46 +245,22 @@ impl WorkerSession {
             format!("received task {instance_id} processor={processor_name}"),
         )
         .await;
-        let context = task_context(&task);
-        let log_instance_id = instance_id.clone();
-        let log_assignment_token = assignment_token.clone();
-        let outbound = self.outbound.clone();
-        let worker_id = self.worker_id.clone();
-        let log_sequence = self.log_sequence.fetch_add(0, Ordering::SeqCst);
-        let sequence_source = Arc::new(AtomicI64::new(log_sequence));
-        let emit_sequence_source = Arc::clone(&sequence_source);
-        let emit_log = Arc::new(move |level: &str, message: String| {
-            let sequence = emit_sequence_source.fetch_add(1, Ordering::SeqCst) + 1;
-            let _ = outbound.blocking_send(WorkerMessage {
-                kind: Some(worker_message::Kind::TaskLog(TaskLog {
-                    worker_id: worker_id.clone(),
-                    instance_id: log_instance_id.clone(),
-                    level: level.to_owned(),
-                    message,
-                    sequence,
-                    assignment_token: log_assignment_token.clone(),
-                })),
-            });
-        });
-        let task_for_capture = task.clone();
-        let context_for_capture = context.clone();
-        let outcome = capture_task_console(emit_log, || async move {
-            if let Some(binding) = task_for_capture.processor_binding.as_ref() {
-                Ok(process_bound_task(binding, &task_for_capture, script_runners).await)
-            } else {
-                match processor.process(context_for_capture).await {
-                    Ok(outcome) => Ok(outcome),
-                    Err(error) => Ok(TaskOutcome::Failed(error.to_string())),
-                }
+        let task_logs = TaskLogBuffer::default();
+        let emit_log = task_logs.logger();
+        let context = task_context(&task, Arc::clone(&emit_log));
+        let result_instance_id = context.instance_id.clone();
+        let outcome = if let Some(binding) = task.processor_binding.as_ref() {
+            process_bound_task(binding, &task, script_runners, emit_log).await
+        } else {
+            match processor.process(context).await {
+                Ok(outcome) => outcome,
+                Err(error) => TaskOutcome::Failed(error.to_string()),
             }
-        })
-        .await?;
-        let captured_log_sequence = sequence_source.load(Ordering::SeqCst);
-        let _ = self
-            .log_sequence
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
-                Some(current.max(captured_log_sequence))
-            });
+        };
+        for entry in task_logs.drain() {
+            self.emit_task_log_safely(&instance_id, &assignment_token, &entry.level, entry.message)
+                .await;
+        }
         let level = if outcome.is_success() {
             "info"
         } else {
@@ -299,7 +277,7 @@ impl WorkerSession {
             ),
         )
         .await;
-        self.report_task_result(context.instance_id, task.assignment_token, &outcome)
+        self.report_task_result(result_instance_id, task.assignment_token, &outcome)
             .await?;
 
         Ok(outcome)
@@ -345,6 +323,38 @@ impl WorkerSession {
     }
 }
 
+#[derive(Debug, Clone)]
+struct BufferedTaskLog {
+    level: String,
+    message: String,
+}
+
+#[derive(Default, Clone)]
+struct TaskLogBuffer {
+    entries: Arc<Mutex<Vec<BufferedTaskLog>>>,
+}
+
+impl TaskLogBuffer {
+    fn logger(&self) -> TaskLogger {
+        let entries = Arc::clone(&self.entries);
+        Arc::new(move |level: &str, message: String| {
+            if let Ok(mut guard) = entries.lock() {
+                guard.push(BufferedTaskLog {
+                    level: level.to_owned(),
+                    message,
+                });
+            }
+        })
+    }
+
+    fn drain(&self) -> Vec<BufferedTaskLog> {
+        self.entries
+            .lock()
+            .map(|mut guard| guard.drain(..).collect())
+            .unwrap_or_default()
+    }
+}
+
 /// Worker tunnel client.
 #[derive(Debug, Clone)]
 pub struct WorkerClient {
@@ -382,13 +392,22 @@ impl WorkerClient {
             outbound: tx,
             inbound,
             heartbeat_sequence: 0,
-            log_sequence: AtomicI64::new(0),
+            log_sequence: Arc::new(AtomicI64::new(0)),
         })
     }
 }
 
 fn heartbeat_interval(lease_seconds: u64) -> Duration {
     Duration::from_secs((lease_seconds / 3).clamp(1, 10))
+}
+
+fn print_task_log_locally(level: &str, message: &str) {
+    let line = format!("[tikee-worker] {message}");
+    if level.eq_ignore_ascii_case("error") {
+        eprintln!("{line}");
+    } else {
+        println!("{line}");
+    }
 }
 
 fn task_result_message(outcome: &TaskOutcome) -> String {
@@ -423,11 +442,12 @@ async fn process_bound_task(
     binding: &crate::proto::worker::v1::TaskProcessorBinding,
     task: &DispatchTask,
     script_runners: &ScriptRunnerRegistry,
+    log: TaskLogger,
 ) -> TaskOutcome {
     match binding.kind.as_ref() {
         Some(task_processor_binding::Kind::Wasm(wasm)) => process_wasm_binding(wasm, task),
         Some(task_processor_binding::Kind::Script(script)) => {
-            process_script_binding(script, script_runners).await
+            process_script_binding(script, script_runners, log).await
         }
         None => TaskOutcome::Failed("empty dynamic processor binding".to_owned()),
     }
@@ -436,6 +456,7 @@ async fn process_bound_task(
 async fn process_script_binding(
     binding: &ScriptProcessorBinding,
     script_runners: &ScriptRunnerRegistry,
+    log: TaskLogger,
 ) -> TaskOutcome {
     let Some(kind) = ScriptRunnerKind::from_language(&binding.language) else {
         return TaskOutcome::Failed(format!("unsupported script language: {}", binding.language));
@@ -464,8 +485,9 @@ async fn process_script_binding(
             writable_paths: binding.writable_paths.clone(),
             secret_refs: binding.secret_refs.clone(),
         },
+        log: None,
     };
-    match runner.run(task).await {
+    match runner.run(task.with_log_sink(log)).await {
         Ok(outcome) => outcome,
         Err(error) => TaskOutcome::Failed(error.to_string()),
     }
