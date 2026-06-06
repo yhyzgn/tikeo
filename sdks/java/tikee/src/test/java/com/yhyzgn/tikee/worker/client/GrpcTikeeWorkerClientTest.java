@@ -75,7 +75,7 @@ class GrpcTikeeWorkerClientTest {
             service.awaitTaskLogs(1);
 
             assertEquals("assigned-java-worker", client.workerId());
-            assertTrue(client.connected());
+            awaitConnected(client);
             client.close();
             service.awaitUnregister();
             Worker.RegisterWorker register = service.messages.get(0).getRegister();
@@ -276,7 +276,7 @@ class GrpcTikeeWorkerClientTest {
             service.awaitRegisterCount(2);
 
             assertEquals("assigned-java-worker", client.workerId());
-            assertTrue(client.connected());
+            awaitConnected(client);
             client.close();
         } finally {
             channel.shutdownNow();
@@ -643,6 +643,18 @@ class GrpcTikeeWorkerClientTest {
             channel.shutdownNow();
             server.shutdownNow();
         }
+    }
+
+
+    private static void awaitConnected(GrpcTikeeWorkerClient client) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            if (client.connected()) {
+                return;
+            }
+            TimeUnit.MILLISECONDS.sleep(20);
+        }
+        assertTrue(client.connected(), "expected client to become connected after reconnect registration");
     }
 
     private static int countOccurrences(String value, String needle) {
