@@ -1,10 +1,10 @@
-import { Alert, AutoComplete, Button, Card, DatePicker, Drawer, Form, Input, InputNumber, Popconfirm, Select, Space, Switch, Table, Tag, Timeline, Typography, message } from 'antd';
+import { Alert, Button, Card, DatePicker, Drawer, Form, Input, InputNumber, Popconfirm, Select, Space, Switch, Table, Tag, Timeline, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { createJob, deleteJob, getJobSchedulingAdvice, listCalendars, listJobs, listJobVersions, listPlugins, listScripts, listWorkers, rollbackJob, triggerJob, updateJob, type BroadcastSelectorRequest, type CalendarSummary, type CreateJobRequest, type JobSchedulingAdvice, type JobSummary, type JobRetryPolicy, type PluginSummary, type JobVersionSummary, type ScriptSummary, type UpdateJobRequest, type WorkerSummary } from '../api/client';
+import { createJob, deleteJob, getJobSchedulingAdvice, listAppScopes, listCalendars, listJobs, listJobVersions, listNamespaces, listPlugins, listScripts, listWorkers, rollbackJob, triggerJob, updateJob, type AppScopeSummary, type BroadcastSelectorRequest, type CalendarSummary, type CreateJobRequest, type JobSchedulingAdvice, type JobSummary, type JobRetryPolicy, type NamespaceSummary, type PluginSummary, type JobVersionSummary, type ScriptSummary, type UpdateJobRequest, type WorkerSummary } from '../api/client';
 import { PermissionGate, useCan } from '../components/Permission';
 import { ROUTE_META } from '../routes';
 import { useRouteActive } from '../hooks/useRouteActivation';
@@ -24,34 +24,6 @@ const retryPolicyValue = (policy?: JobRetryPolicy | null): JobRetryPolicy => ({
   ...DEFAULT_RETRY_POLICY,
   ...(policy ?? {}),
 });
-
-type ScopePair = { namespace: string; app: string };
-
-const scopeFilterOption = (inputValue: string, option?: { value?: string; label?: ReactNode }) => {
-  const needle = inputValue.trim().toLowerCase();
-  return String(option?.label ?? option?.value ?? '').toLowerCase().includes(needle);
-};
-
-const collectScopePairs = (
-  jobs: JobSummary[],
-  workers: WorkerSummary[],
-  calendars: CalendarSummary[],
-): ScopePair[] => {
-  const pairs = new Map<string, ScopePair>();
-  const add = (namespace?: string | null, app?: string | null) => {
-    const normalizedNamespace = namespace?.trim();
-    const normalizedApp = app?.trim();
-    if (!normalizedNamespace || !normalizedApp) return;
-    pairs.set(`${normalizedNamespace}/${normalizedApp}`, {
-      namespace: normalizedNamespace,
-      app: normalizedApp,
-    });
-  };
-  for (const job of jobs) add(job.namespace, job.app);
-  for (const worker of workers) add(worker.namespace, worker.app);
-  for (const calendar of calendars) add(calendar.namespace, calendar.app);
-  return Array.from(pairs.values()).sort((left, right) => `${left.namespace}/${left.app}`.localeCompare(`${right.namespace}/${right.app}`));
-};
 
 type JobFormValues = Omit<CreateJobRequest & UpdateJobRequest, 'scheduleStartAt' | 'scheduleEndAt'> & {
   executorKind?: 'sdk' | 'script' | 'plugin';
@@ -76,6 +48,8 @@ export function JobsPage() {
   const [scripts, setScripts] = useState<ScriptSummary[]>([]);
   const [plugins, setPlugins] = useState<PluginSummary[]>([]);
   const [calendars, setCalendars] = useState<CalendarSummary[]>([]);
+  const [namespaces, setNamespaces] = useState<NamespaceSummary[]>([]);
+  const [apps, setApps] = useState<AppScopeSummary[]>([]);
   const [workers, setWorkers] = useState<WorkerSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm<JobFormValues>();
@@ -107,18 +81,22 @@ export function JobsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [page, scriptPage, workerPage, pluginItems, calendarItems] = await Promise.all([
+      const [page, scriptPage, workerPage, pluginItems, calendarItems, namespaceItems, appItems] = await Promise.all([
         listJobs(),
         listScripts(),
         listWorkers().catch(() => ({ online: 0, items: [] })),
         listPlugins().catch(() => []),
         listCalendars().catch(() => []),
+        listNamespaces(),
+        listAppScopes(),
       ]);
       setJobs(page.items);
       setScripts(scriptPage.items);
       setWorkers(workerPage.items);
       setPlugins(pluginItems);
       setCalendars(calendarItems);
+      setNamespaces(namespaceItems);
+      setApps(appItems);
     } catch (err) {
       message.error(err instanceof Error ? err.message : '加载失败');
     } finally {
@@ -128,24 +106,21 @@ export function JobsPage() {
 
   useEffect(() => { if (active) void load(); }, [active, load]);
 
-  const scopePairs = useMemo(() => collectScopePairs(jobs, workers, calendars), [jobs, workers, calendars]);
-  const namespaceOptions = useMemo(() => Array.from(new Set(scopePairs.map((scope) => scope.namespace)))
-    .sort()
-    .map((value) => ({ value, label: value })), [scopePairs]);
+  const namespaceOptions = useMemo(() => namespaces
+    .map((namespace) => ({ value: namespace.name, label: namespace.name }))
+    .sort((left, right) => left.label.localeCompare(right.label)), [namespaces]);
   const appOptionsForNamespace = useCallback((namespace?: string | null) => {
     const normalizedNamespace = namespace?.trim();
-    const apps = new Set<string>();
-    for (const scope of scopePairs) {
-      if (!normalizedNamespace || scope.namespace === normalizedNamespace) apps.add(scope.app);
-    }
-    return Array.from(apps).sort().map((value) => ({ value, label: value }));
-  }, [scopePairs]);
+    return apps
+      .filter((app) => !normalizedNamespace || app.namespace === normalizedNamespace)
+      .map((app) => ({ value: app.name, label: `${app.namespace}/${app.name}` }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }, [apps]);
   const applyNamespaceSelection = (targetForm: typeof form, namespace?: string | null) => {
     const options = appOptionsForNamespace(namespace);
     const currentApp = String(targetForm.getFieldValue('app') ?? '').trim();
-    if (!currentApp || !options.some((option) => option.value === currentApp)) {
-      targetForm.setFieldsValue({ app: options[0]?.value ?? 'default' });
-    }
+    if (currentApp && options.some((option) => option.value === currentApp)) return;
+    targetForm.setFieldsValue({ app: undefined });
   };
 
   const workerSdkProcessorNames = () => Array.from(new Set(
@@ -531,21 +506,23 @@ export function JobsPage() {
           }}
         >
           <Form.Item name="namespace" label="Namespace" rules={[{ required: true }]}>
-            <AutoComplete
+            <Select
               allowClear
+              showSearch
+              optionFilterProp="label"
               options={namespaceOptions}
-              placeholder="选择或输入 Namespace"
-              filterOption={scopeFilterOption}
-              onSelect={(value) => applyNamespaceSelection(form, value)}
-              onBlur={() => applyNamespaceSelection(form, form.getFieldValue('namespace'))}
+              placeholder="选择租户管理中的 Namespace"
+              onChange={(value) => applyNamespaceSelection(form, value)}
             />
           </Form.Item>
           <Form.Item name="app" label="App" rules={[{ required: true }]}>
-            <AutoComplete
+            <Select
               allowClear
+              showSearch
+              optionFilterProp="label"
               options={appOptionsForNamespace(createNamespace)}
-              placeholder="选择或输入 App"
-              filterOption={scopeFilterOption}
+              placeholder="选择租户管理中的 App"
+              disabled={!createNamespace}
             />
           </Form.Item>
           <Form.Item name="name" label="任务名称" rules={[{ required: true }]}><Input placeholder="demo.echo" /></Form.Item>
@@ -591,9 +568,16 @@ export function JobsPage() {
         width={900}
         destroyOnClose
       >
-        <Typography.Paragraph type="secondary">编辑任务基础信息、调度配置、Processor 绑定和启用状态；namespace/app 暂不支持变更，避免历史实例归属漂移。</Typography.Paragraph>
+        <Typography.Paragraph type="secondary">编辑任务基础信息、调度配置、Processor 绑定和启用状态；namespace/app 来自租户管理且暂不支持变更，避免历史实例归属漂移。</Typography.Paragraph>
         <Form form={editForm} layout="vertical" onFinish={(values) => void handleEditSubmit(values)}>
-          <Form.Item label="Namespace / App"><Typography.Text code>{editingJob ? `${editingJob.namespace}/${editingJob.app}` : '-'}</Typography.Text></Form.Item>
+          <Space.Compact block>
+            <Form.Item label="Namespace" style={{ flex: 1 }}>
+              <Select disabled value={editingJob?.namespace} options={namespaceOptions} />
+            </Form.Item>
+            <Form.Item label="App" style={{ flex: 1 }}>
+              <Select disabled value={editingJob?.app} options={appOptionsForNamespace(editingJob?.namespace)} />
+            </Form.Item>
+          </Space.Compact>
           <Form.Item name="name" label="任务名称" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="executorKind" label="执行方式" rules={[{ required: true }]}><Select options={[{ value: 'sdk', label: '处理器' }, { value: 'plugin', label: '插件处理器' }, { value: 'script', label: '脚本（沙箱自动执行）' }]} /></Form.Item>
           <Form.Item noStyle shouldUpdate={(prev, next) => prev.executorKind !== next.executorKind}>

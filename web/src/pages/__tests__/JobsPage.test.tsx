@@ -48,14 +48,24 @@ describe('job schedule form governance', () => {
     expect(source).not.toContain('script:${script.id}');
   });
 
-  test('offers namespace and app comboboxes from existing scope data while allowing free input', () => {
-    expect(source).toContain('AutoComplete');
-    expect(source).toContain('scopePairs');
+  test('requires namespace and app to be selected from tenant scope management', () => {
+    expect(source).toContain('listNamespaces');
+    expect(source).toContain('listAppScopes');
     expect(source).toContain('namespaceOptions');
     expect(source).toContain('appOptionsForNamespace(createNamespace)');
     expect(source).toContain('applyNamespaceSelection(form, value)');
-    expect(source).toContain('filterOption={scopeFilterOption}');
+    expect(source).toContain('optionFilterProp="label"');
+    expect(source).toContain('placeholder="选择租户管理中的 Namespace"');
+    expect(source).toContain('placeholder="选择租户管理中的 App"');
+    expect(source).toContain('namespace/app 来自租户管理且暂不支持变更');
+    expect(source).toContain('options={appOptionsForNamespace(editingJob?.namespace)}');
     expect(source).toContain('form.setFieldsValue({ scheduleType:');
+    expect(source).not.toContain('AutoComplete');
+    expect(source).not.toContain('scopePairs');
+    expect(source).not.toContain('collectScopePairs');
+    expect(source).not.toContain('filterOption={scopeFilterOption}');
+    expect(source).not.toContain('选择或输入 Namespace');
+    expect(source).not.toContain('选择或输入 App');
     expect(source).not.toContain('namespace: defaultCreateScope.namespace');
     expect(source).not.toContain('app: defaultCreateScope.app');
     expect(source).not.toContain('<Form.Item name="namespace" label="Namespace" rules={[{ required: true }]}><Input placeholder="default" /></Form.Item>');
