@@ -60,20 +60,34 @@ jobs:
           if not raw:
               raise SystemExit("MAVEN_SIGNING_KEY is empty")
 
-          candidates = [raw]
+          candidates = []
           if "\\n" in raw:
               candidates.append(raw.replace("\\n", "\n"))
+          candidates.append(raw)
           try:
               decoded = base64.b64decode(raw, validate=True).decode("utf-8")
-              candidates.append(decoded)
               if "\\n" in decoded:
                   candidates.append(decoded.replace("\\n", "\n"))
+              candidates.append(decoded)
           except Exception:
               pass
 
-          key = next((candidate.strip() for candidate in candidates if "BEGIN PGP PRIVATE KEY BLOCK" in candidate), None)
+          key = None
+          end_marker = "-----END PGP PRIVATE KEY BLOCK-----"
+          for candidate in candidates:
+              normalized = candidate.replace("\r\n", "\n").replace("\r", "\n").strip()
+              begin = normalized.find("-----BEGIN PGP PRIVATE KEY BLOCK-----")
+              end = normalized.find(end_marker)
+              if begin < 0 or end < 0:
+                  continue
+              end += len(end_marker)
+              normalized = normalized[begin:end].strip()
+              if "\\n" in normalized or "\n" not in normalized:
+                  continue
+              key = normalized
+              break
           if key is None:
-              raise SystemExit("MAVEN_SIGNING_KEY must contain an ASCII-armored PGP private key or base64 of it")
+              raise SystemExit("MAVEN_SIGNING_KEY must contain a newline-normalized ASCII-armored PGP private key or base64 of it")
 
           marker = "TIKEO_MAVEN_SIGNING_KEY"
           with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as env:
