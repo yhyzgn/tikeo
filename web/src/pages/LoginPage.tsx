@@ -43,23 +43,23 @@ export function LoginPage() {
           <div className="login-page__brand login-brand"><TikeeLogo size={96} showWordmark /></div>
           <Typography.Text className="login-page__eyebrow">分布式任务调度平台</Typography.Text>
           <Typography.Title className="login-page__headline" level={1}>
-            进入统一调度控制台
+            编排任务，稳态执行
           </Typography.Title>
           <Typography.Paragraph className="login-page__summary">
-            连接 Server、Worker、脚本沙箱与插件执行器，以可观测、可审计的方式管理生产任务流。
+            统一管理任务、Worker 与脚本沙箱，让每一次调度都有清晰轨迹。
           </Typography.Paragraph>
           <div className="login-page__trust-list" aria-label="登录入口能力说明">
-            <span><SafetyCertificateOutlined /> 会话安全</span>
+            <span><SafetyCertificateOutlined /> 受控会话</span>
             <span><CloudServerOutlined /> Worker 隧道</span>
-            <span><LockOutlined /> 权限审计</span>
+            <span><LockOutlined /> 审计留痕</span>
           </div>
         </div>
 
         <Card className="login-page__card login-card">
-          <Typography.Text className="login-page__form-kicker">管理员登录</Typography.Text>
-          <Typography.Title className="login-page__form-title" level={2}>登录 tikee</Typography.Title>
+          <Typography.Text className="login-page__form-kicker">安全登录</Typography.Text>
+          <Typography.Title className="login-page__form-title" level={2}>欢迎回来</Typography.Title>
           <Typography.Paragraph className="login-page__form-copy" type="secondary">
-            使用管理员分配的用户名或邮箱登录。首次部署时请先完成初始化管理员注册。
+            使用用户名或邮箱进入你的工作台。
           </Typography.Paragraph>
           {error ? <Alert className="login-page__alert" type="error" showIcon message="登录失败" description={error} /> : null}
           <Form<LoginRequest>
