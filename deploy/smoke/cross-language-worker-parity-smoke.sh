@@ -255,6 +255,8 @@ seed_scopes() {
   create_pool dev-alpha orders boot3-blue 200 8
   create_pool dev-alpha orders go-blue 200 8
   create_pool dev-alpha orders rust-blue 200 8
+  create_pool dev-alpha orders python-blue 200 8
+  create_pool dev-alpha orders nodejs-blue 200 8
   create_pool dev-alpha billing boot4-green 100 4
   create_pool dev-beta analytics boot3-batch 150 6
   create_pool dev-ops automation boot4-ops 80 3
@@ -344,6 +346,7 @@ start_go_worker() {
     TIKEE_WORKER_REGION=local \
     TIKEE_WORKER_CLIENT_INSTANCE_ID=go-worker-demo-local \
     TIKEE_WORKER_SDK_PROCESSORS=demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail \
+    TIKEE_SANDBOX_AUTO_INSTALL=0 \
     exec go run . >"$log" 2>&1
   ) &
   WORKER_PIDS+=("$!")
@@ -365,10 +368,56 @@ start_rust_worker() {
     TIKEE_WORKER_REGION=local \
     TIKEE_WORKER_CLIENT_INSTANCE_ID=rust-worker-demo-local \
     TIKEE_WORKER_SDK_PROCESSORS=demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail \
+    TIKEE_SANDBOX_AUTO_INSTALL=0 \
     exec cargo run >"$log" 2>&1
   ) &
   WORKER_PIDS+=("$!")
   WORKER_NAMES+=("rust-worker-demo-local")
+  WORKER_LOGS+=("$log")
+}
+
+
+start_python_worker() {
+  local log="$REPORT_DIR/$RUN_ID-python-worker-demo-local.log"
+  (
+    cd "$ROOT_DIR/examples/python/worker-demo"
+    TIKEE_WORKER_DRY_RUN=false \
+    TIKEE_WORKER_CONNECT=1 \
+    TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
+    TIKEE_WORKER_NAMESPACE=dev-alpha \
+    TIKEE_WORKER_APP=orders \
+    TIKEE_WORKER_POOL=python-blue \
+    TIKEE_WORKER_CLUSTER=local \
+    TIKEE_WORKER_REGION=local \
+    TIKEE_WORKER_CLIENT_INSTANCE_ID=python-worker-demo-local \
+    TIKEE_WORKER_SDK_PROCESSORS=demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail \
+    TIKEE_SANDBOX_AUTO_INSTALL=0 \
+    exec python3 -m tikee_python_worker_demo >"$log" 2>&1
+  ) &
+  WORKER_PIDS+=("$!")
+  WORKER_NAMES+=("python-worker-demo-local")
+  WORKER_LOGS+=("$log")
+}
+
+start_nodejs_worker() {
+  local log="$REPORT_DIR/$RUN_ID-nodejs-worker-demo-local.log"
+  (
+    cd "$ROOT_DIR/examples/nodejs/worker-demo"
+    TIKEE_WORKER_DRY_RUN=false \
+    TIKEE_WORKER_CONNECT=1 \
+    TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
+    TIKEE_WORKER_NAMESPACE=dev-alpha \
+    TIKEE_WORKER_APP=orders \
+    TIKEE_WORKER_POOL=nodejs-blue \
+    TIKEE_WORKER_CLUSTER=local \
+    TIKEE_WORKER_REGION=local \
+    TIKEE_WORKER_CLIENT_INSTANCE_ID=nodejs-worker-demo-local \
+    TIKEE_WORKER_SDK_PROCESSORS=demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail \
+    TIKEE_SANDBOX_AUTO_INSTALL=0 \
+    exec bun start >"$log" 2>&1
+  ) &
+  WORKER_PIDS+=("$!")
+  WORKER_NAMES+=("nodejs-worker-demo-local")
   WORKER_LOGS+=("$log")
 }
 
@@ -378,6 +427,8 @@ start_all_workers() {
   start_java_worker boot4 spring-boot4-worker-demo java-boot4-billing-green dev-alpha billing boot4-green 18284 50
   start_go_worker
   start_rust_worker
+  start_python_worker
+  start_nodejs_worker
 }
 
 stop_workers() {
@@ -424,15 +475,11 @@ for client, rule in expected.items():
         raise SystemExit(f'{client} missing sdk processor {rule["processor"]}: {processors}')
     if rule.get('tag') and rule['tag'] not in (structured.get('tags') or []):
         raise SystemExit(f'{client} missing tag {rule["tag"]}')
-    if client.startswith(('go-', 'rust-')):
-        runners = structured.get('scriptRunners') or []
-        backends = {runner.get('sandboxBackend') for runner in runners}
-        forbidden = {'local-command', 'srt', 'deno', 'v8', 'wasmtime', 'wasmedge'}
-        leaked = sorted(backends & forbidden)
-        if leaked:
-            raise SystemExit(f'{client} advertises unavailable or forbidden script sandbox backends: {leaked}')
-        if runners:
-            raise SystemExit(f'{client} should not advertise default script runners without an executable sandbox: {runners}')
+    runners = structured.get('scriptRunners') or []
+    allowed_backends = {'srt', 'deno', 'v8', 'wasmtime', 'wasmedge', 'docker', 'podman'}
+    unexpected = sorted({runner.get('sandboxBackend') for runner in runners} - allowed_backends)
+    if unexpected:
+        raise SystemExit(f'{client} advertises unexpected script sandbox backends: {unexpected}')
 masters = [item for item in items if item.get('status') == 'online' and (item.get('master') or {}).get('isMaster')]
 if not masters:
     raise SystemExit('no online master state visible')
@@ -495,26 +542,32 @@ PY
 }
 
 run_language_jobs() {
-  local boot2_job boot3_job boot4_job go_job rust_job
+  local boot2_job boot3_job boot4_job go_job rust_job python_job nodejs_job
   boot2_job="$(create_job dev-alpha orders boot2-echo demo.echo)"
   boot3_job="$(create_job dev-alpha orders boot3-echo demo.echo)"
   boot4_job="$(create_job dev-alpha billing boot4-echo demo.echo)"
   go_job="$(create_job dev-alpha orders go-echo demo.echo)"
   rust_job="$(create_job dev-alpha orders rust-echo demo.echo)"
+  python_job="$(create_job dev-alpha orders python-echo demo.echo)"
+  nodejs_job="$(create_job dev-alpha orders nodejs-echo demo.echo)"
 
-  local boot2_instance boot3_instance boot4_instance go_instance rust_instance
+  local boot2_instance boot3_instance boot4_instance go_instance rust_instance python_instance nodejs_instance
   boot2_instance="$(trigger_broadcast "$boot2_job" '{"labels":{"worker_pool":"boot2-blue"}}')"
   boot3_instance="$(trigger_broadcast "$boot3_job" '{"labels":{"worker_pool":"boot3-blue"}}')"
   boot4_instance="$(trigger_broadcast "$boot4_job" '{"labels":{"worker_pool":"boot4-green"}}')"
   go_instance="$(trigger_broadcast "$go_job" '{"tags":["go"],"labels":{"worker_pool":"go-blue"}}')"
   rust_instance="$(trigger_broadcast "$rust_job" '{"tags":["rust"],"labels":{"worker_pool":"rust-blue"}}')"
+  python_instance="$(trigger_broadcast "$python_job" '{"tags":["python"],"labels":{"worker_pool":"python-blue"}}')"
+  nodejs_instance="$(trigger_broadcast "$nodejs_job" '{"tags":["nodejs"],"labels":{"worker_pool":"nodejs-blue"}}')"
 
   assert_instance_logs "$boot2_instance" succeeded demo.echo boot2
   assert_instance_logs "$boot3_instance" succeeded demo.echo boot3
   assert_instance_logs "$boot4_instance" succeeded demo.echo boot4
   assert_instance_logs "$go_instance" succeeded "go demo echo processed" go
   assert_instance_logs "$rust_instance" succeeded "rust demo echo processed" rust
-  tikee_smoke_record_case cross-language-dispatch passed "$REPORT_DIR/$RUN_ID-go-logs.json $REPORT_DIR/$RUN_ID-rust-logs.json" "Java Boot2/Boot3/Boot4, Go and Rust jobs reached expected terminal states"
+  assert_instance_logs "$python_instance" succeeded "python demo echo processed" python
+  assert_instance_logs "$nodejs_instance" succeeded "nodejs demo echo processed" nodejs
+  tikee_smoke_record_case cross-language-dispatch passed "$REPORT_DIR/$RUN_ID-go-logs.json $REPORT_DIR/$RUN_ID-rust-logs.json $REPORT_DIR/$RUN_ID-python-logs.json $REPORT_DIR/$RUN_ID-nodejs-logs.json" "Java Boot2/Boot3/Boot4, Go, Rust, Python and Node.js jobs reached expected terminal states"
 }
 
 verify_restart_snapshot() {

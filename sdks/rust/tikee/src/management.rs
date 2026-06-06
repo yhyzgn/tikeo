@@ -123,7 +123,7 @@ impl ManagementClient {
     }
 }
 
-/// Structured failure retry policy. max_attempts includes the first execution.
+/// Structured failure retry policy. `max_attempts` includes the first execution.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JobRetryPolicy {

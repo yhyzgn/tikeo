@@ -41,7 +41,7 @@ impl SandboxToolResolver {
                     &dir.to_string_lossy(),
                     "@anthropic-ai/sandbox-runtime",
                 ],
-                std::slice::from_ref(&bin_dir),
+                &[bin_dir.to_path_buf()],
             )
         })
     }
@@ -66,7 +66,7 @@ impl SandboxToolResolver {
                 self.install_timeout,
                 "cargo",
                 &["install", "--root", &dir.to_string_lossy(), "ripgrep"],
-                std::slice::from_ref(&bin_dir),
+                &[bin_dir.to_path_buf()],
             )
         })
     }
@@ -83,7 +83,7 @@ impl SandboxToolResolver {
                 self.install_timeout,
                 "sh",
                 &["-c", &script],
-                std::slice::from_ref(&bin_dir),
+                &[bin_dir.to_path_buf()],
             )
         })
     }
@@ -104,7 +104,7 @@ impl SandboxToolResolver {
                     "--features",
                     "bin-features",
                 ],
-                std::slice::from_ref(&bin_dir),
+                &[bin_dir.to_path_buf()],
             )
         })
     }
@@ -125,7 +125,7 @@ impl SandboxToolResolver {
 
     fn resolve_tool<F>(&self, binary: &str, installer: F) -> Option<PathBuf>
     where
-        F: FnOnce(PathBuf, PathBuf) -> bool,
+        F: FnOnce(&Path, &Path) -> bool,
     {
         self.resolve_tool_with_local_binary(binary, binary, installer)
     }
@@ -137,7 +137,7 @@ impl SandboxToolResolver {
         installer: F,
     ) -> Option<PathBuf>
     where
-        F: FnOnce(PathBuf, PathBuf) -> bool,
+        F: FnOnce(&Path, &Path) -> bool,
     {
         if let Some(command) = find_command(binary).filter(|command| command_available(command)) {
             return Some(command);
@@ -148,7 +148,7 @@ impl SandboxToolResolver {
         if command_available(&local) {
             return Some(local);
         }
-        if !self.auto_install || !installer(install_dir, bin_dir) {
+        if !self.auto_install || !installer(&install_dir, &bin_dir) {
             return None;
         }
         command_available(&local).then_some(local)
@@ -164,20 +164,19 @@ impl SandboxToolResolver {
     }
 }
 
-fn install_powershell(timeout: Duration, install_dir: PathBuf, bin_dir: PathBuf) -> bool {
+fn install_powershell(timeout: Duration, install_dir: &Path, bin_dir: &Path) -> bool {
     if cfg!(windows) {
         return run_installer(
             timeout,
             "winget",
             &["install", "-e", "--id", "Microsoft.PowerShell"],
-            std::slice::from_ref(&bin_dir),
+            &[bin_dir.to_path_buf()],
         );
     }
 
     let version = std::env::var("TIKEE_POWERSHELL_VERSION").unwrap_or_else(|_| "7.5.4".to_owned());
-    let platform = match powershell_archive_platform() {
-        Some(value) => value,
-        None => return false,
+    let Some(platform) = powershell_archive_platform() else {
+        return false;
     };
     let archive_name = format!("powershell-{version}-{platform}.tar.gz");
     let url = std::env::var("TIKEE_POWERSHELL_DOWNLOAD_URL").unwrap_or_else(|_| {
@@ -187,8 +186,7 @@ fn install_powershell(timeout: Duration, install_dir: PathBuf, bin_dir: PathBuf)
     });
     let archive = install_dir.join(&archive_name);
     let extract_dir = install_dir.join(format!("powershell-{version}"));
-    if std::fs::create_dir_all(&bin_dir).is_err() || std::fs::create_dir_all(&extract_dir).is_err()
-    {
+    if std::fs::create_dir_all(bin_dir).is_err() || std::fs::create_dir_all(&extract_dir).is_err() {
         return false;
     }
     if !download_file(timeout, &url, &archive) {
@@ -203,7 +201,7 @@ fn install_powershell(timeout: Duration, install_dir: PathBuf, bin_dir: PathBuf)
             "-C",
             &extract_dir.to_string_lossy(),
         ],
-        std::slice::from_ref(&bin_dir),
+        &[bin_dir.to_path_buf()],
     ) {
         let _ = std::fs::remove_file(&archive);
         return false;

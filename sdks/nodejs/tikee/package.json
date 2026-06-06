@@ -29,5 +29,16 @@
     "@types/bun": "latest",
     "@types/node": "latest",
     "typescript": "latest"
+  },
+  "license": "Apache-2.0",
+  "author": "tikee contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yhyzgn/tikee.git",
+    "directory": "sdks/nodejs/tikee"
+  },
+  "homepage": "https://github.com/yhyzgn/tikee#readme",
+  "bugs": {
+    "url": "https://github.com/yhyzgn/tikee/issues"
   }
 }

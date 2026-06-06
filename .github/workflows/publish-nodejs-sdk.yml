@@ -1,0 +1,89 @@
+name: Publish / Node.js SDK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to attach Node.js SDK package to, for example v0.1.0'
+        required: true
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nodejs-sdk-${{ github.ref_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Package and optionally publish Node.js SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install Node.js SDK dependencies
+        working-directory: sdks/nodejs/tikee
+        run: bun install --frozen-lockfile
+      - name: Test Node.js SDK
+        working-directory: sdks/nodejs/tikee
+        run: bun test
+      - name: Build Node.js SDK
+        working-directory: sdks/nodejs/tikee
+        run: bun run build
+      - name: Install Node.js demo dependencies
+        working-directory: examples/nodejs/worker-demo
+        run: bun install --frozen-lockfile
+      - name: Test Node.js demo
+        working-directory: examples/nodejs/worker-demo
+        run: bun test
+      - name: Node.js demo dry-run smoke
+        working-directory: examples/nodejs/worker-demo
+        env:
+          TIKEE_WORKER_DRY_RUN: '1'
+          TIKEE_SANDBOX_AUTO_INSTALL: '0'
+        run: bun start
+      - name: Pack Node.js SDK
+        working-directory: sdks/nodejs/tikee
+        run: |
+          mkdir -p ../../../dist
+          npm pack --pack-destination ../../../dist
+      - name: Stage Node.js SDK release payload
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
+          VERSION="${RELEASE_TAG#v}"
+          PKG="nodejs-sdk-${VERSION}"
+          mkdir -p "dist/$PKG"
+          cp dist/yhyzgn-tikee-*.tgz "dist/$PKG/"
+          cp -R sdks/nodejs/tikee/README.md sdks/nodejs/tikee/package.json "dist/$PKG/"
+          tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
+      - name: Publish Node.js SDK to npm when configured
+        working-directory: sdks/nodejs/tikee
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "NPM_TOKEN is not configured; skipping npm publish."
+            exit 0
+          fi
+          npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+          npm publish --access public
+      - name: Upload Node.js SDK package to GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name || inputs.tag }}
+          name: ${{ github.ref_name || inputs.tag }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name || inputs.tag, '-') }}
+          files: dist/*.tar.gz

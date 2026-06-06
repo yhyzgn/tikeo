@@ -4,8 +4,16 @@ version = "0.1.0"
 description = "Python Worker SDK for tikee"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 authors = [{ name = "tikee contributors" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
   "grpcio>=1.76.0",
   "grpcio-tools>=1.76.0",
@@ -25,3 +33,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 tikee = ["proto/*.proto"]
+
+[project.urls]
+Homepage = "https://github.com/yhyzgn/tikee"
+Repository = "https://github.com/yhyzgn/tikee"
+Issues = "https://github.com/yhyzgn/tikee/issues"
