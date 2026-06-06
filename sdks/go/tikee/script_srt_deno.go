@@ -249,13 +249,13 @@ func writeSrtSettings(task ScriptRunnerTask, runtimeDirs *scriptTaskRuntimeDirs,
 	settings := map[string]any{
 		"network": map[string]any{
 			"allowUnixSocket": false,
-			"allowedDomains":  task.AllowedNetworkHosts,
+			"allowedDomains":  stringSliceOrEmpty(task.AllowedNetworkHosts),
 			"deniedDomains":   []string{},
 		},
 		"filesystem": map[string]any{
-			"allowRead":  allowRead,
-			"allowWrite": allowWrite,
-			"denyRead":   sensitiveReadDenies(),
+			"allowRead":  stringSliceOrEmpty(allowRead),
+			"allowWrite": stringSliceOrEmpty(allowWrite),
+			"denyRead":   stringSliceOrEmpty(sensitiveReadDenies()),
 			"denyWrite":  []string{},
 		},
 	}
@@ -277,6 +277,13 @@ func writeSrtSettings(task ScriptRunnerTask, runtimeDirs *scriptTaskRuntimeDirs,
 		return "", func() {}, err
 	}
 	return file.Name(), func() { _ = os.Remove(file.Name()) }, nil
+}
+
+func stringSliceOrEmpty(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }
 
 func heredoc(command, marker, content string) string {

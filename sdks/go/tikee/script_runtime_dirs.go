@@ -15,15 +15,16 @@ import (
 // HOME/TMPDIR/XDG/runtime paths. Sandbox-backed Go runners must use this instead
 // of scattering env names or ad-hoc temp directories per runner.
 type scriptTaskRuntimeDirs struct {
-	root       string
-	home       string
-	config     string
-	cache      string
-	data       string
-	modules    string
-	dotnetHome string
-	tmp        string
-	denoDir    string
+	root            string
+	home            string
+	config          string
+	cache           string
+	data            string
+	modules         string
+	dotnetHome      string
+	powerShellCache string
+	tmp             string
+	denoDir         string
 }
 
 func newScriptTaskRuntimeDirs(prefix string) (*scriptTaskRuntimeDirs, error) {
@@ -34,15 +35,16 @@ func newScriptTaskRuntimeDirs(prefix string) (*scriptTaskRuntimeDirs, error) {
 	data := filepath.Join(root, "data")
 	cache := filepath.Join(root, "cache")
 	dirs := &scriptTaskRuntimeDirs{
-		root:       root,
-		home:       filepath.Join(root, "home"),
-		config:     filepath.Join(root, "config"),
-		cache:      cache,
-		data:       data,
-		modules:    filepath.Join(data, "powershell", "Modules"),
-		dotnetHome: filepath.Join(root, "dotnet"),
-		tmp:        filepath.Join(root, "tmp"),
-		denoDir:    filepath.Join(cache, "deno"),
+		root:            root,
+		home:            filepath.Join(root, "home"),
+		config:          filepath.Join(root, "config"),
+		cache:           cache,
+		data:            data,
+		modules:         filepath.Join(data, "powershell", "Modules"),
+		dotnetHome:      filepath.Join(root, "dotnet"),
+		powerShellCache: filepath.Join(cache, "powershell"),
+		tmp:             filepath.Join(root, "tmp"),
+		denoDir:         filepath.Join(cache, "deno"),
 	}
 	for _, dir := range dirs.requiredDirectories() {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -54,11 +56,11 @@ func newScriptTaskRuntimeDirs(prefix string) (*scriptTaskRuntimeDirs, error) {
 }
 
 func (d *scriptTaskRuntimeDirs) requiredDirectories() []string {
-	return []string{d.root, d.home, d.config, d.cache, d.data, d.modules, d.dotnetHome, d.tmp, d.denoDir}
+	return []string{d.root, d.home, d.config, d.cache, d.data, d.modules, d.dotnetHome, d.powerShellCache, d.tmp, d.denoDir}
 }
 
 func (d *scriptTaskRuntimeDirs) writablePaths() []string {
-	return []string{d.root, d.home, d.config, d.cache, d.data, d.dotnetHome, d.tmp, d.denoDir}
+	return []string{d.root, d.home, d.config, d.cache, d.data, d.dotnetHome, d.powerShellCache, d.tmp, d.denoDir}
 }
 
 func (d *scriptTaskRuntimeDirs) workingDir() string { return d.home }

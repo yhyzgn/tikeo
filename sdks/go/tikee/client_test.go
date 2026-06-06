@@ -418,6 +418,80 @@ func TestSandboxInstallerPathPrependsManagedBinOnce(t *testing.T) {
 	}
 }
 
+func TestSrtSettingsSerializeEmptyPolicyListsAsArrays(t *testing.T) {
+	runtimeDirs, err := newScriptTaskRuntimeDirs("tikee-srt-empty-arrays-test")
+	if err != nil {
+		t.Fatalf("newScriptTaskRuntimeDirs() error = %v", err)
+	}
+	defer runtimeDirs.cleanup()
+	settings, cleanup, err := writeSrtSettings(ScriptRunnerTask{
+		ScriptID:      "script-shell",
+		VersionID:     "sv_1",
+		VersionNumber: 1,
+		Language:      "shell",
+		Content:       []byte("echo ok"),
+		ContentSHA256: sha256Hex([]byte("echo ok")),
+		Timeout:       time.Second,
+	}, runtimeDirs, "")
+	if err != nil {
+		t.Fatalf("writeSrtSettings() error = %v", err)
+	}
+	defer cleanup()
+	parsed := readSrtSettingsJSON(t, settings)
+	network := parsed["network"].(map[string]any)
+	filesystem := parsed["filesystem"].(map[string]any)
+	if _, ok := network["allowedDomains"].([]any); !ok {
+		t.Fatalf("network.allowedDomains = %#v, want JSON array", network["allowedDomains"])
+	}
+	if _, ok := filesystem["allowRead"].([]any); !ok {
+		t.Fatalf("filesystem.allowRead = %#v, want JSON array", filesystem["allowRead"])
+	}
+}
+
+func TestSrtSettingsAllowPowerShellCacheWrites(t *testing.T) {
+	runtimeDirs, err := newScriptTaskRuntimeDirs("tikee-srt-powershell-cache-test")
+	if err != nil {
+		t.Fatalf("newScriptTaskRuntimeDirs() error = %v", err)
+	}
+	defer runtimeDirs.cleanup()
+	settings, cleanup, err := writeSrtSettings(ScriptRunnerTask{
+		ScriptID:      "script-powershell",
+		VersionID:     "sv_1",
+		VersionNumber: 1,
+		Language:      "powershell",
+		Content:       []byte("Write-Output ok"),
+		ContentSHA256: sha256Hex([]byte("Write-Output ok")),
+		Timeout:       time.Second,
+	}, runtimeDirs, "")
+	if err != nil {
+		t.Fatalf("writeSrtSettings() error = %v", err)
+	}
+	defer cleanup()
+	parsed := readSrtSettingsJSON(t, settings)
+	filesystem := parsed["filesystem"].(map[string]any)
+	rawAllowWrite := filesystem["allowWrite"].([]any)
+	want := filepath.Join(runtimeDirs.cache, "powershell")
+	for _, raw := range rawAllowWrite {
+		if raw == want {
+			return
+		}
+	}
+	t.Fatalf("allowWrite=%v, want explicit PowerShell cache path %s", rawAllowWrite, want)
+}
+
+func readSrtSettingsJSON(t *testing.T, settings string) map[string]any {
+	t.Helper()
+	data, err := os.ReadFile(settings)
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error = %v", settings, err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("settings json = %s, error = %v", data, err)
+	}
+	return parsed
+}
+
 func TestSrtSettingsDoNotMaskManagedRuntimeUnderHome(t *testing.T) {
 	runtimeDirs, err := newScriptTaskRuntimeDirs("tikee-srt-settings-test")
 	if err != nil {
