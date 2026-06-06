@@ -150,6 +150,18 @@ body {
   gap: 16px;
 }
 
+
+.instance-copy-id.ant-typography {
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.instance-copy-id.ant-typography:hover {
+  color: var(--app-primary-color);
+  border-color: color-mix(in srgb, var(--app-primary-color) 42%, var(--app-border));
+  background: color-mix(in srgb, var(--app-primary-color) 10%, transparent);
+}
+
 .instance-status-tag {
   min-width: 80px;
   text-align: center;
@@ -378,9 +390,18 @@ body {
   border-radius: 14px;
 }
 
+.ant-table-thead > tr > th,
+.ant-table-tbody > tr > td {
+  text-align: center !important;
+}
+
 .ant-table-thead > tr > th {
   color: #53657d !important;
   background: var(--app-surface-muted) !important;
+}
+
+.ant-table-thead > tr > th .ant-table-column-sorters {
+  justify-content: center;
 }
 
 .login-page {

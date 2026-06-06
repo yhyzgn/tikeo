@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 
-const source = readFileSync(new URL('../InstancesPage.tsx', import.meta.url), 'utf8');
+const source = [
+  readFileSync(new URL('../InstancesPage.tsx', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../components/logs/WorkerLogTerminal.tsx', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../components/logs/AnsiLogLine.tsx', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../components/logs/terminalLogs.css', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../components/logs/logTime.ts', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../styles.css', import.meta.url), 'utf8'),
+].join('\n');
 
 describe('instance log drawer executor visibility', () => {
   test('shows executor details for single instances and broadcast child attempts separately', () => {
@@ -19,8 +26,95 @@ describe('instance log drawer executor visibility', () => {
     expect(source).toContain('listInstanceLogs(instance.id)');
     expect(source).toContain("{ title: 'Worker', dataIndex: 'workerId'");
     expect(source).toContain("{ title: 'Status', dataIndex: 'status'");
-    expect(source).toContain("{ title: 'Updated At', dataIndex: 'updatedAt'");
-    expect(source).toContain("{ title: 'Worker', dataIndex: 'workerId', ellipsis: true, width: 120 }");
+    expect(source).toContain("title: 'Updated At'");
+    expect(source).toContain("dataIndex: 'updatedAt'");
+    expect(source).toContain('const workerLogGroups = groupLogsByWorker(logs);');
+    expect(source).toContain('className="instance-log-terminal"');
     expect(source).toContain('查看日志');
+  });
+});
+
+
+describe('instance list worker visibility and grouped logs', () => {
+
+  test('centers all table headers and body cells globally', () => {
+    expect(source).toContain('.ant-table-thead > tr > th');
+    expect(source).toContain('.ant-table-tbody > tr > td');
+    expect(source).toContain('text-align: center !important;');
+    expect(source).toContain('.ant-table-column-sorters');
+    expect(source).toContain('justify-content: center;');
+  });
+
+  test('renders instance ids as clickable copy targets', () => {
+    expect(source).toContain('copyInstanceId(instance.id)');
+    expect(source).toContain('className="instance-copy-id"');
+    expect(source).toContain('title="点击复制实例 ID"');
+    expect(source).toContain("navigator.clipboard.writeText(instanceId)");
+    expect(source).toContain("message.success('实例 ID 已复制')");
+    expect(source).toContain('.instance-copy-id.ant-typography');
+    expect(source).toContain('cursor: pointer;');
+  });
+  test('copies the original execution node id while displaying the abbreviated label', () => {
+    expect(source).toContain('copyWorkerId(workerId)');
+    expect(source).toContain('onCopyWorkerId(workerId)');
+    expect(source).toContain('formatWorkerDisplayId(workerId)');
+    expect(source).toContain('title="点击复制执行节点"');
+    expect(source).toContain("message.success('执行节点已复制')");
+  });
+
+  test('shows the assigned worker in the instance table', () => {
+    expect(source).toContain("title: '执行节点', key: 'executionNodes'");
+    expect(source).toContain('displayExecutionNodes(instance, attemptsByInstance.get(instance.id),');
+    expect(source).toContain("instance.workerId ?? instance.latestLog?.workerId ?? '暂无 worker'");
+  });
+
+  test('widens the log drawer and groups execution logs by worker', () => {
+    expect(source).toContain('width="60vw"');
+    expect(source).toContain('const workerLogGroups = groupLogsByWorker(logs);');
+    expect(source).toContain('groups.map((group) =>');
+    expect(source).toContain("title={`Worker ${group.workerId}`}");
+    expect(source).toContain('group.logs.map((log) =>');
+    expect(source).toContain('role="log"');
+    expect(source).toContain('renderAnsiLogLine');
+    expect(source).toContain('instance-log-terminal');
+  });
+
+  test('uses theme-aware terminal log classes and ansi rendering', () => {
+    expect(source).toContain('className="instance-log-drawer"');
+    expect(source).toContain('className="instance-log-terminal__line"');
+    expect(source).toContain('renderAnsiLogLine(message)');
+  });
+
+
+
+  test('uses a narrower drawer and balanced instance execution-node columns', () => {
+    expect(source).toContain('width="60vw"');
+    expect(source).toContain('attemptsByInstance');
+    expect(source).toContain('displayExecutionNodes(instance, attemptsByInstance.get(instance.id),');
+    expect(source).toContain("title: 'Instance'");
+    expect(source).toContain('width: 220');
+    expect(source).toContain("title: '执行节点', key: 'executionNodes', width: 340");
+    expect(source).toContain("{ title: 'Status', dataIndex: 'status', width: 110");
+    expect(source).toContain("title: 'Updated At'");
+    expect(source).toContain('width: 360');
+    expect(source).toContain("title: 'Actions'");
+    expect(source).toContain('width: 140');
+    expect(source).toContain('scroll={{ x: 1_440 }}');
+    expect(source).toContain('className="instance-log-attempt-time"');
+    expect(source).toContain('white-space: nowrap;');
+  });
+
+  test('shows log timestamps and binds terminal highlight colors to theme tokens', () => {
+    expect(source).toContain('formatLogTimestamp(log.createdAt)');
+    expect(source).toContain('formatIsoOffset');
+    expect(source).toContain('grid-template-columns: max-content max-content max-content minmax(0, 1fr)');
+    expect(source).toContain('className="instance-log-terminal__time"');
+    expect(source).toContain('dateTime={log.createdAt}');
+    expect(source).toContain('--terminal-highlight-bg');
+    expect(source).toContain('--terminal-time');
+    expect(source).toContain('html[data-theme="dark"]');
+    expect(source).toContain('--terminal-bright-blue:');
+    expect(source).toContain('--terminal-bg: #f8fafc;');
+    expect(source).toContain('--terminal-bg: #18181b;');
   });
 });

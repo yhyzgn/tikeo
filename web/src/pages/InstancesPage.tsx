@@ -13,13 +13,44 @@ import {
   type JobInstanceSummary,
   type JobSummary,
 } from '../api/client';
+import { WorkerLogTerminal, groupLogsByWorker } from '../components/logs/WorkerLogTerminal';
 import { useRouteActive } from '../hooks/useRouteActivation';
 import { ROUTE_META } from '../routes';
+import { formatWorkerDisplayId } from './instances/workerDisplay';
 import { persistentPagination, usePersistentTablePageSize } from '../utils/pagination';
+
+const displayWorkerId = (instance: JobInstanceSummary) => instance.workerId ?? instance.latestLog?.workerId ?? '暂无 worker';
+
+const displayExecutionNodes = (
+  instance: JobInstanceSummary,
+  attempts: JobInstanceAttemptSummary[] | undefined,
+  onCopyWorkerId: (workerId: string) => void,
+) => {
+  const workerIds = [...new Set((attempts ?? []).map((attempt) => attempt.workerId).filter(Boolean))];
+  const nodes = workerIds.length > 0 ? workerIds : [displayWorkerId(instance)];
+
+  return (
+    <Space direction="vertical" size={2} className="instance-execution-node-list">
+      {nodes.map((workerId) => (
+        <Typography.Text
+          key={workerId}
+          code
+          className="instance-copy-id"
+          title="点击复制执行节点"
+          style={{ maxWidth: 308 }}
+          onClick={() => onCopyWorkerId(workerId)}
+        >
+          {formatWorkerDisplayId(workerId)}
+        </Typography.Text>
+      ))}
+    </Space>
+  );
+};
 
 export function InstancesPage() {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [instances, setInstances] = useState<JobInstanceSummary[]>([]);
+  const [attemptsByInstance, setAttemptsByInstance] = useState<Map<string, JobInstanceAttemptSummary[]>>(new Map());
   const active = useRouteActive(ROUTE_META.instances.path);
 
   const load = useCallback(async () => {
@@ -27,9 +58,19 @@ export function InstancesPage() {
       const jobPage = await listJobs();
       setJobs(jobPage.items);
       const instancePages = await Promise.all(jobPage.items.map((job) => listJobInstances(job.id)));
-      setInstances(instancePages
+      const sortedInstances = instancePages
         .flatMap((page) => page.items)
-        .sort((left, right) => right.createdAt.localeCompare(left.createdAt)));
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+      setInstances(sortedInstances);
+      const attemptPairs = await Promise.all(sortedInstances.map(async (instance) => {
+        try {
+          const attemptPage = await listInstanceAttempts(instance.id);
+          return [instance.id, attemptPage.items] as const;
+        } catch {
+          return [instance.id, [] as JobInstanceAttemptSummary[]] as const;
+        }
+      }));
+      setAttemptsByInstance(new Map(attemptPairs));
     } catch { /* silent */ }
   }, []);
 
@@ -53,6 +94,7 @@ export function InstancesPage() {
       ]);
       setLogs(logPage.items);
       setAttempts(attemptPage.items);
+      setAttemptsByInstance((previous) => new Map(previous).set(instance.id, attemptPage.items));
     } catch (cause) {
       if (showLoading) {
         message.error(cause instanceof Error ? cause.message : '日志加载失败');
@@ -101,19 +143,55 @@ export function InstancesPage() {
     }
   };
 
+  const copyInstanceId = async (instanceId: string) => {
+    try {
+      await navigator.clipboard.writeText(instanceId);
+      message.success('实例 ID 已复制');
+    } catch {
+      message.error('实例 ID 复制失败');
+    }
+  };
+
+  const copyWorkerId = async (workerId: string) => {
+    try {
+      await navigator.clipboard.writeText(workerId);
+      message.success('执行节点已复制');
+    } catch {
+      message.error('执行节点复制失败');
+    }
+  };
+
   const columns: ColumnsType<JobInstanceSummary> = [
-    { title: 'Instance', dataIndex: 'id', ellipsis: true, width: 140 },
-    { title: 'Job', dataIndex: 'jobId', render: (value: string) => <strong>{jobName.get(value) ?? value}</strong> },
-    { title: 'Status', dataIndex: 'status', render: (value: string) => <Tag color={getStatusColor(value)} className="instance-status-tag">{value}</Tag> },
-    { title: 'Trigger', dataIndex: 'triggerType', render: (value: string) => <Tag>{value}</Tag> },
-    { title: 'Mode', dataIndex: 'executionMode', render: (value: string) => <Tag color={value === 'broadcast' ? 'purple' : 'default'} className="soft-tag">{value}</Tag> },
-    { title: 'Created At', dataIndex: 'createdAt', width: 180 },
+    {
+      title: 'Instance',
+      dataIndex: 'id',
+      width: 220,
+      render: (_, instance) => (
+        <Typography.Text
+          code
+          className="instance-copy-id"
+          title="点击复制实例 ID"
+          onClick={() => void copyInstanceId(instance.id)}
+        >
+          {instance.id}
+        </Typography.Text>
+      ),
+    },
+    { title: 'Job', dataIndex: 'jobId', width: 220, render: (value: string) => <strong>{jobName.get(value) ?? value}</strong> },
+    { title: 'Status', dataIndex: 'status', width: 120, render: (value: string) => <Tag color={getStatusColor(value)} className="instance-status-tag">{value}</Tag> },
+    { title: 'Trigger', dataIndex: 'triggerType', width: 110, render: (value: string) => <Tag>{value}</Tag> },
+    { title: 'Mode', dataIndex: 'executionMode', width: 120, render: (value: string) => <Tag color={value === 'broadcast' ? 'purple' : 'default'} className="soft-tag">{value}</Tag> },
+    {
+      title: '执行节点', key: 'executionNodes', width: 340,
+      render: (_, instance) => displayExecutionNodes(instance, attemptsByInstance.get(instance.id), (workerId) => void copyWorkerId(workerId)),
+    },
+    { title: 'Created At', dataIndex: 'createdAt', width: 220 },
     {
       title: 'Latest Log',
-      width: 280,
+      width: 320,
       render: (_, instance) => (
         <Space direction="vertical" size={2}>
-          <Typography.Text ellipsis style={{ maxWidth: 260 }}>
+          <Typography.Text ellipsis style={{ maxWidth: 188 }}>
             {instance.latestLog?.message ?? '暂无日志'}
           </Typography.Text>
           <Typography.Text type="secondary">{instance.logCount ?? 0} 条日志</Typography.Text>
@@ -122,7 +200,7 @@ export function InstancesPage() {
     },
     {
       title: 'Actions',
-      width: 180,
+      width: 140,
       render: (_, instance) => (
         <Space size={4}>
           <Button type="link" onClick={() => void openLogs(instance)}>查看日志</Button>
@@ -138,34 +216,17 @@ export function InstancesPage() {
 
   const attemptColumns: ColumnsType<JobInstanceAttemptSummary> = [
     { title: 'Worker', dataIndex: 'workerId', ellipsis: true },
-    { title: 'Status', dataIndex: 'status', render: (value: string) => <Tag color={getStatusColor(value)} className="instance-status-tag">{value}</Tag> },
-    { title: 'Updated At', dataIndex: 'updatedAt', width: 180 },
+    { title: 'Status', dataIndex: 'status', width: 110, render: (value: string) => <Tag color={getStatusColor(value)} className="instance-status-tag">{value}</Tag> },
+    {
+      title: 'Updated At',
+      dataIndex: 'updatedAt',
+      width: 360,
+      render: (value: string) => <Typography.Text className="instance-log-attempt-time">{value}</Typography.Text>,
+    },
   ];
 
-
+  const workerLogGroups = groupLogsByWorker(logs);
   const governanceLogs = logs.filter((log) => log.governanceEvent === 'script_execution_governance');
-
-  const renderLogMessage = (log: JobInstanceLogSummary) => {
-    if (log.governanceEvent !== 'script_execution_governance') {
-      return log.message;
-    }
-    return (
-      <Space direction="vertical" size={2}>
-        <Space wrap>
-          <Tag color="volcano">script governance</Tag>
-          {log.governanceFailureClass ? <Tag color="red">{log.governanceFailureClass}</Tag> : null}
-        </Space>
-        <Typography.Text>{log.governanceMessage ?? log.message}</Typography.Text>
-      </Space>
-    );
-  };
-
-  const logColumns: ColumnsType<JobInstanceLogSummary> = [
-    { title: '#', dataIndex: 'sequence', width: 60 },
-    { title: 'Level', dataIndex: 'level', width: 90, render: (value: string) => <Tag color={value === 'error' ? 'red' : value === 'warn' ? 'orange' : 'blue'}>{value}</Tag> },
-    { title: 'Worker', dataIndex: 'workerId', ellipsis: true, width: 120 },
-    { title: 'Message', dataIndex: 'message', render: (_: string, log) => renderLogMessage(log) },
-  ];
 
   return (
     <Card className="clean-card" title="执行实例">
@@ -174,34 +235,37 @@ export function InstancesPage() {
       ) : (
         <>
           <Typography.Paragraph type="secondary">实例详情 API 已可用：GET /api/v1/instances/&lt;instance&gt;</Typography.Paragraph>
-          <Table rowKey="id" columns={columns} dataSource={instances} pagination={persistentPagination(pageSize, setPageSize)} />
+          <Table rowKey="id" columns={columns} dataSource={instances} pagination={persistentPagination(pageSize, setPageSize)} scroll={{ x: 1_440 }} />
         </>
       )}
       <Drawer
-        width={900}
+        className="instance-log-drawer"
+        width="60vw"
         title={selectedInstance ? `实例日志： ${selectedInstance.id}` : '实例日志'}
         open={logDrawerOpen}
         onClose={() => setLogDrawerOpen(false)}
       >
-        <Typography.Title level={5}>{selectedInstance?.executionMode === 'single' ? '执行器' : '广播子执行'}</Typography.Title>
-        <Table
-          rowKey="id"
-          columns={attemptColumns}
-          dataSource={selectedInstance?.executionMode === 'single' ? [{
-            id: `${selectedInstance.id}-executor`,
-            instanceId: selectedInstance.id,
-            workerId: selectedInstance.workerId ?? selectedInstance.latestLog?.workerId ?? '暂无 worker 日志',
-            status: selectedInstance.status,
-            createdAt: selectedInstance.createdAt,
-            updatedAt: selectedInstance.updatedAt,
-          }] : attempts}
-          pagination={false}
-          locale={{ emptyText: selectedInstance?.executionMode === 'single' ? '暂无执行器信息' : '暂无广播子执行' }}
-        />
-        <Space align="center" style={{ marginTop: 24, marginBottom: 8 }}>
+        <Card size="small" className="instance-log-section" title={selectedInstance?.executionMode === 'single' ? '执行器' : '广播子执行'}>
+          <Table
+            rowKey="id"
+            columns={attemptColumns}
+            dataSource={selectedInstance?.executionMode === 'single' ? [{
+              id: `${selectedInstance.id}-executor`,
+              instanceId: selectedInstance.id,
+              workerId: selectedInstance.workerId ?? selectedInstance.latestLog?.workerId ?? '暂无 worker 日志',
+              status: selectedInstance.status,
+              createdAt: selectedInstance.createdAt,
+              updatedAt: selectedInstance.updatedAt,
+            }] : attempts}
+            pagination={false}
+            scroll={{ x: 860 }}
+            locale={{ emptyText: selectedInstance?.executionMode === 'single' ? '暂无执行器信息' : '暂无广播子执行' }}
+          />
+        </Card>
+        <Space align="center" style={{ marginTop: 24, marginBottom: 12 }}>
           <Typography.Title level={5} style={{ margin: 0 }}>执行日志</Typography.Title>
           {selectedInstance ? (
-            <Button size="small" onClick={() => void loadLogs(selectedInstance)}>刷新</Button>
+            <Button size="small" onClick={() => void loadLogs(selectedInstance)} loading={logsLoading}>刷新</Button>
           ) : null}
         </Space>
         {governanceLogs.length > 0 ? (
@@ -213,14 +277,11 @@ export function InstancesPage() {
             style={{ marginBottom: 12 }}
           />
         ) : null}
-        <Table
-          rowKey="id"
-          loading={logsLoading}
-          columns={logColumns}
-          dataSource={logs}
-          pagination={persistentPagination(pageSize, setPageSize)}
-          locale={{ emptyText: '暂无日志' }}
-        />
+        {workerLogGroups.length === 0 ? (
+          <Empty description={logsLoading ? '日志加载中...' : '暂无日志'} />
+        ) : (
+          <WorkerLogTerminal groups={workerLogGroups} />
+        )}
       </Drawer>
     </Card>
   );
