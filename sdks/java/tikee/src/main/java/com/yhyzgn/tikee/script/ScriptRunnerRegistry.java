@@ -41,6 +41,7 @@ public final class ScriptRunnerRegistry {
                 .map(runner -> new WorkerCapabilitySet.ScriptRunner(
                         runner.kind().value(),
                         runner.advertisedBackend().value()))
+                .sorted(java.util.Comparator.comparing(WorkerCapabilitySet.ScriptRunner::language))
                 .toList();
     }
 

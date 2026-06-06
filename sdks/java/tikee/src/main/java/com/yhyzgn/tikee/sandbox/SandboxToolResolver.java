@@ -115,6 +115,22 @@ public final class SandboxToolResolver {
             : Optional.empty();
     }
 
+    public Optional<String> resolveNodeCommand() {
+        return resolveInterpreterCommand("node");
+    }
+
+    public Optional<String> resolveNpmCommand() {
+        return resolveInterpreterCommand("npm");
+    }
+
+    public Optional<String> resolveRipgrepCommand() {
+        SandboxToolInstaller.Tool tool = SandboxToolInstaller.Tool.RIPGREP;
+        String command = resolveCommand(tool);
+        return toolAvailable(tool, command)
+            ? Optional.of(command)
+            : Optional.empty();
+    }
+
     public Optional<String> resolveDenoCommand() {
         SandboxToolInstaller.Tool tool = SandboxToolInstaller.Tool.DENO;
         String command = resolveCommand(tool);
@@ -127,6 +143,20 @@ public final class SandboxToolResolver {
         // Tikee's JavaScript/TypeScript V8 backend is currently fulfilled by
         // the Deno runtime, which embeds V8 and supplies the permission sandbox.
         return resolveDenoCommand();
+    }
+
+    public Optional<String> resolvePowerShellCommand() {
+        SandboxToolInstaller.Tool tool = SandboxToolInstaller.Tool.POWERSHELL;
+        String command = resolveCommand(tool);
+        return toolAvailable(tool, command)
+            ? Optional.of(command)
+            : Optional.empty();
+    }
+
+    public Optional<String> resolveInterpreterCommand(String binary) {
+        return runtimeAvailable(binary, "--version")
+            ? Optional.of(binary)
+            : Optional.empty();
     }
 
     public Optional<String> resolveRhaiCommand() {
@@ -153,10 +183,16 @@ public final class SandboxToolResolver {
             return Path.of(
                 options.stateDir(),
                 "sandbox-tools",
-                tool.name().toLowerCase(Locale.ROOT)
+                installDirectoryKey(tool)
             );
         }
         return SandboxToolInstaller.defaultInstallDir(tool);
+    }
+
+    private static String installDirectoryKey(SandboxToolInstaller.Tool tool) {
+        return tool == SandboxToolInstaller.Tool.POWERSHELL
+            ? "pwsh"
+            : tool.name().toLowerCase(Locale.ROOT);
     }
 
     private Optional<Path> explicitInstallDir(SandboxToolInstaller.Tool tool) {
@@ -164,9 +200,11 @@ public final class SandboxToolResolver {
             case WASMTIME -> options.wasmtimeInstallDir();
             case WASMEDGE -> options.wasmedgeInstallDir();
             case SRT -> options.srtInstallDir();
+            case RIPGREP -> options.ripgrepInstallDir();
             case DENO -> options.denoInstallDir();
             case V8 -> options.v8InstallDir();
             case RHAI -> options.rhaiInstallDir();
+            case POWERSHELL -> options.powerShellInstallDir();
         };
         return configured == null || configured.isBlank()
             ? Optional.empty()
@@ -198,7 +236,7 @@ public final class SandboxToolResolver {
                 "-"
             );
             case POWERSHELL -> List.of(
-                "pwsh",
+                resolveCommand(SandboxToolInstaller.Tool.POWERSHELL),
                 "-NoProfile",
                 "-NonInteractive",
                 "-Command",
@@ -219,6 +257,7 @@ public final class SandboxToolResolver {
         return switch (tool) {
             case SRT -> srtAvailable(command);
             case RHAI -> rhaiAvailable(command);
+            case RIPGREP -> runtimeAvailable(command, "--version");
             default -> runtimeAvailable(command, "--version");
         };
     }
@@ -304,7 +343,7 @@ public final class SandboxToolResolver {
         return switch (tool) {
             case WASMTIME -> options.autoInstallWasmtime();
             case WASMEDGE -> options.autoInstallWasmedge();
-            case SRT, DENO, V8, RHAI -> options.autoInstallScriptTools();
+            case SRT, RIPGREP, DENO, V8, RHAI, POWERSHELL -> options.autoInstallScriptTools();
         };
     }
 
@@ -313,9 +352,11 @@ public final class SandboxToolResolver {
             case WASMTIME -> options.wasmtimeInstallVersion();
             case WASMEDGE -> options.wasmedgeInstallVersion();
             case SRT -> options.srtInstallVersion();
+            case RIPGREP -> options.ripgrepInstallVersion();
             case DENO -> options.denoInstallVersion();
             case V8 -> options.v8InstallVersion();
             case RHAI -> options.rhaiInstallVersion();
+            case POWERSHELL -> options.powerShellInstallVersion();
         };
     }
 
@@ -323,9 +364,9 @@ public final class SandboxToolResolver {
         return switch (tool) {
             case WASMTIME -> options.wasmtimeInstallerUrl();
             case WASMEDGE -> options.wasmedgeInstallerUrl();
-            case SRT -> "";
+            case SRT, RIPGREP -> "";
             case DENO, V8 -> options.denoInstallerUrl();
-            case RHAI -> "";
+            case RHAI, POWERSHELL -> "";
         };
     }
 
@@ -342,6 +383,8 @@ public final class SandboxToolResolver {
         boolean autoInstallScriptTools,
         String srtInstallVersion,
         String srtInstallDir,
+        String ripgrepInstallVersion,
+        String ripgrepInstallDir,
         String denoInstallVersion,
         String denoInstallDir,
         String denoInstallerUrl,
@@ -349,6 +392,8 @@ public final class SandboxToolResolver {
         String v8InstallDir,
         String rhaiInstallVersion,
         String rhaiInstallDir,
+        String powerShellInstallVersion,
+        String powerShellInstallDir,
         long installTimeoutMillis
     ) {
         public static Options defaults() {
@@ -367,10 +412,14 @@ public final class SandboxToolResolver {
                 "",
                 "latest",
                 "",
+                "latest",
+                "",
                 "https://deno.land/install.sh",
                 "latest",
                 "",
                 "",
+                "",
+                "7.5.4",
                 "",
                 120_000
             );

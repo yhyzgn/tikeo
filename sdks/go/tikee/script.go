@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -45,6 +47,12 @@ type ScriptRunnerTask struct {
 	SandboxBackend      string
 	InstanceID          string
 	JobID               string
+	Log                 func(level, message string)
+}
+
+func (t ScriptRunnerTask) withLogSink(log func(level, message string)) ScriptRunnerTask {
+	t.Log = log
+	return t
 }
 
 // ScriptRunnerRegistry stores explicitly enabled script runners.
@@ -82,7 +90,13 @@ func (r *ScriptRunnerRegistry) AddCapabilities(config *WorkerConfig) {
 	if r == nil || config == nil {
 		return
 	}
-	for _, runner := range r.runners {
+	languages := make([]string, 0, len(r.runners))
+	for language := range r.runners {
+		languages = append(languages, language)
+	}
+	sort.Strings(languages)
+	for _, language := range languages {
+		runner := r.runners[language]
 		if advertiser, ok := runner.(capabilityAdvertiser); ok && !advertiser.AdvertiseCapability() {
 			continue
 		}
@@ -118,6 +132,143 @@ func (r *UnavailableScriptRunner) Run(_ context.Context, task ScriptRunnerTask) 
 		return Failed(err.Error()), nil
 	}
 	return Failed(fmt.Sprintf("%s script runner backend is unavailable: %s", r.language, r.reason)), nil
+}
+
+// ContainerScriptRunner executes scripts inside a Docker/Podman-compatible sandbox.
+type ContainerScriptRunner struct {
+	language       string
+	sandboxBackend string
+	runtimeCommand string
+	image          string
+	runtimeArgs    []string
+}
+
+// NewContainerScriptRunner creates a default-deny container sandbox runner for one language.
+func NewContainerScriptRunner(language, runtimeCommand, image string, runtimeArgs ...string) (*ContainerScriptRunner, error) {
+	language = normalizeScriptLanguage(language)
+	backend, err := normalizeScriptSandboxBackend(runtimeCommand, language)
+	if err != nil {
+		return nil, err
+	}
+	if backend != "docker" && backend != "podman" {
+		return nil, fmt.Errorf("container script runner requires docker or podman backend, got %s", backend)
+	}
+	if strings.TrimSpace(image) == "" {
+		return nil, fmt.Errorf("container script runner requires an image for %s", language)
+	}
+	return &ContainerScriptRunner{
+		language:       language,
+		sandboxBackend: backend,
+		runtimeCommand: backend,
+		image:          strings.TrimSpace(image),
+		runtimeArgs:    append([]string(nil), runtimeArgs...),
+	}, nil
+}
+
+func (r *ContainerScriptRunner) Language() string { return r.language }
+
+func (r *ContainerScriptRunner) SandboxBackend() string { return r.sandboxBackend }
+
+func (r *ContainerScriptRunner) Run(ctx context.Context, task ScriptRunnerTask) (TaskOutcome, error) {
+	if err := validateScriptTask(r.language, task); err != nil {
+		return Failed(err.Error()), nil
+	}
+	if task.AllowNetwork || len(task.AllowedNetworkHosts) > 0 {
+		return Failed("container script runner rejects network grants without host-level filtering"), nil
+	}
+	if len(task.SecretRefs) > 0 {
+		return Failed("container script runner rejects secret refs without a worker-local secret provider"), nil
+	}
+	args, err := r.containerArgs(task)
+	if err != nil {
+		return Failed(err.Error()), nil
+	}
+	timeout := task.Timeout
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	cmd := exec.CommandContext(runCtx, r.runtimeCommand, args...)
+	cmd.Stdin = bytes.NewReader(task.Content)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	emitScriptCommandOutput(task.Log, "info", stdout.Bytes())
+	emitScriptCommandOutput(task.Log, "error", stderr.Bytes())
+	if runCtx.Err() != nil {
+		return Failed("script runner timed out"), nil
+	}
+	message := strings.TrimSpace(stdout.String())
+	if err != nil {
+		if message == "" {
+			message = strings.TrimSpace(stderr.String())
+		}
+		if message == "" {
+			message = err.Error()
+		}
+		return Failed(limitOutput(message, task.MaxOutputBytes)), nil
+	}
+	return TaskOutcome{Success: true, Message: limitOutput(message, task.MaxOutputBytes)}, nil
+}
+
+func (r *ContainerScriptRunner) containerArgs(task ScriptRunnerTask) ([]string, error) {
+	args := []string{"run", "--rm", "-i", "--network=none", "--read-only", "--tmpfs", "/tmp:rw,noexec,nosuid,size=16m"}
+	if task.MaxOutputBytes > 0 {
+		// Output is still enforced after process completion; the memory limit is a sandbox hint.
+		args = append(args, "--memory", fmt.Sprintf("%d", maxTaskMemoryBytes(task)))
+	}
+	args = append(args, r.runtimeArgs...)
+	for _, path := range task.ReadOnlyPaths {
+		mount, err := containerMount(path, true)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, "--mount", mount)
+	}
+	for _, path := range task.WritablePaths {
+		mount, err := containerMount(path, false)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, "--mount", mount)
+	}
+	args = append(args,
+		"--env", "TIKEE_SCRIPT_ID="+task.ScriptID,
+		"--env", "TIKEE_SCRIPT_VERSION_ID="+task.VersionID,
+		"--env", fmt.Sprintf("TIKEE_SCRIPT_VERSION_NUMBER=%d", task.VersionNumber),
+	)
+	for _, name := range task.AllowedEnvVars {
+		if value, ok := os.LookupEnv(name); ok {
+			args = append(args, "--env", name+"="+value)
+		}
+	}
+	args = append(args, r.image)
+	command, commandArgs := defaultScriptCommand(r.language)
+	args = append(args, command)
+	args = append(args, commandArgs...)
+	return args, nil
+}
+
+func maxTaskMemoryBytes(task ScriptRunnerTask) uint64 {
+	if task.MaxOutputBytes == 0 {
+		return 64 * 1024 * 1024
+	}
+	return 64 * 1024 * 1024
+}
+
+func containerMount(path string, readOnly bool) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" || trimmed != path || !filepath.IsAbs(trimmed) || strings.Contains(trimmed, "..") {
+		return "", fmt.Errorf("script file grant path must be clean and absolute: %s", path)
+	}
+	mode := ""
+	if readOnly {
+		mode = ",readonly"
+	}
+	return fmt.Sprintf("type=bind,src=%s,dst=%s%s", trimmed, trimmed, mode), nil
 }
 
 // LocalCommandScriptRunner executes scripts with a local command. It is a development-only implementation detail and always advertises the Java-compatible custom backend.
@@ -217,12 +368,33 @@ func defaultSandboxBackend(language string) string {
 	}
 }
 
+func defaultScriptCommand(language string) (string, []string) {
+	switch normalizeScriptLanguage(language) {
+	case "shell":
+		return "sh", []string{"-s"}
+	case "python":
+		return "python3", []string{"-"}
+	case "javascript", "typescript":
+		return "deno", []string{"run", "--no-prompt", "-"}
+	case "powershell":
+		return "pwsh", []string{"-NoProfile", "-NonInteractive", "-Command", "-"}
+	case "php":
+		return "php", nil
+	case "groovy":
+		return "groovy", nil
+	case "rhai":
+		return "rhai", nil
+	default:
+		return "sh", []string{"-s"}
+	}
+}
+
 func (r *LocalCommandScriptRunner) Language() string { return r.language }
 
 func (r *LocalCommandScriptRunner) SandboxBackend() string { return r.sandboxBackend }
 
 func (r *LocalCommandScriptRunner) Run(ctx context.Context, task ScriptRunnerTask) (TaskOutcome, error) {
-	if err := validateScriptTask(r.language, task); err != nil {
+	if err := validateLocalScriptTask(r.language, task); err != nil {
 		return Failed(err.Error()), nil
 	}
 	timeout := task.Timeout
@@ -238,7 +410,8 @@ func (r *LocalCommandScriptRunner) Run(ctx context.Context, task ScriptRunnerTas
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
-	mirrorScriptCommandOutput(stdout.Bytes(), stderr.Bytes())
+	emitScriptCommandOutput(task.Log, "info", stdout.Bytes())
+	emitScriptCommandOutput(task.Log, "error", stderr.Bytes())
 	if runCtx.Err() != nil {
 		return Failed("script runner timed out"), nil
 	}
@@ -255,12 +428,16 @@ func (r *LocalCommandScriptRunner) Run(ctx context.Context, task ScriptRunnerTas
 	return TaskOutcome{Success: true, Message: limitOutput(message, task.MaxOutputBytes)}, nil
 }
 
-func mirrorScriptCommandOutput(stdout []byte, stderr []byte) {
-	if len(stdout) > 0 {
-		_, _ = os.Stdout.Write(stdout)
+func emitScriptCommandOutput(log func(level, message string), level string, output []byte) {
+	if log == nil || len(output) == 0 {
+		return
 	}
-	if len(stderr) > 0 {
-		_, _ = os.Stderr.Write(stderr)
+	text := strings.ReplaceAll(string(output), "\r\n", "\n")
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			log(level, "[script] "+line)
+		}
 	}
 }
 
@@ -277,6 +454,13 @@ func validateScriptTask(language string, task ScriptRunnerTask) error {
 	digest := sha256.Sum256(task.Content)
 	if hex.EncodeToString(digest[:]) != strings.ToLower(task.ContentSHA256) {
 		return errors.New("script content digest mismatch")
+	}
+	return nil
+}
+
+func validateLocalScriptTask(language string, task ScriptRunnerTask) error {
+	if err := validateScriptTask(language, task); err != nil {
+		return err
 	}
 	if task.AllowNetwork || len(task.AllowedNetworkHosts) > 0 {
 		return errors.New("local script runner rejects network access")

@@ -8,6 +8,23 @@ type TaskContext struct {
 	JobID         string
 	ProcessorName string
 	Payload       []byte
+	Log           func(level, message string)
+}
+
+// LogInfo emits one task-scoped info log line. It is precise to the current task instance.
+func (t TaskContext) LogInfo(message string) {
+	t.log("info", message)
+}
+
+// LogError emits one task-scoped error log line. It is precise to the current task instance.
+func (t TaskContext) LogError(message string) {
+	t.log("error", message)
+}
+
+func (t TaskContext) log(level string, message string) {
+	if t.Log != nil {
+		t.Log(level, message)
+	}
 }
 
 // TaskOutcome is the worker result reported to tikee.

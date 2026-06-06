@@ -60,6 +60,9 @@ class TikeeWorkerAutoConfigurationTest {
     void dryRunCreatesNoopClientWithGeneratedRegistrationHint() throws Exception {
         installFakeWasmtime(stateDir);
         installFakeSrt(stateDir);
+        installFakeRipgrep(stateDir);
+        installFakePowerShell(stateDir);
+        installFakeRhai(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.scripts.container-enabled=false").run(context -> {
@@ -69,8 +72,8 @@ class TikeeWorkerAutoConfigurationTest {
             NoopTikeeWorkerClient noop = (NoopTikeeWorkerClient) client;
             assertThat(noop.registration().clientInstanceId()).startsWith("java-");
             assertThat(noop.registration().app()).isEqualTo("billing");
-            assertThat(scriptLanguages(noop)).contains("wasm", "shell", "python", "powershell", "php", "groovy");
-            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript", "rhai");
+            assertThat(scriptLanguages(noop)).contains("wasm", "shell", "powershell", "rhai");
+            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
             assertThat(noop.running()).isTrue();
             assertThat(context.getBean(TikeeProcessorRegistry.class).handlers()).containsKey("demo.echo");
         });
@@ -130,6 +133,9 @@ class TikeeWorkerAutoConfigurationTest {
     void enablingScriptsDefaultsToWasmAndSrtShellWithoutContainerRuntime() throws Exception {
         installFakeWasmtime(stateDir);
         installFakeSrt(stateDir);
+        installFakeRipgrep(stateDir);
+        installFakePowerShell(stateDir);
+        installFakeRhai(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.scripts.enabled=true",
@@ -138,8 +144,8 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.auto-install-tools=false")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(scriptLanguages(noop)).contains("wasm", "shell", "python", "powershell", "php", "groovy");
-            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript", "rhai");
+                    assertThat(scriptLanguages(noop)).contains("wasm", "shell", "powershell", "rhai");
+            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
                 });
     }
 
@@ -147,6 +153,9 @@ class TikeeWorkerAutoConfigurationTest {
     void enablingSandboxScriptsAdvertisesScriptCapabilitiesWhenRuntimeCheckIsDisabled() throws Exception {
         installFakeWasmtime(stateDir);
         installFakeSrt(stateDir);
+        installFakeRipgrep(stateDir);
+        installFakePowerShell(stateDir);
+        installFakeRhai(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.scripts.enabled=true",
@@ -165,8 +174,8 @@ class TikeeWorkerAutoConfigurationTest {
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
                     assertThat(scriptLanguages(noop))
-                            .contains("wasm", "shell", "python", "powershell", "php", "groovy");
-                    assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript", "rhai");
+                            .contains("wasm", "shell", "powershell", "rhai");
+                    assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
                     ScriptRunnerRegistry registry = context.getBean(ScriptRunnerRegistry.class);
                     assertThat(registry.find(ScriptRunnerKind.SHELL))
                             .hasValueSatisfying(runner -> assertThat(runner).isInstanceOf(SrtScriptRunner.class));
@@ -177,6 +186,9 @@ class TikeeWorkerAutoConfigurationTest {
     void sandboxScriptsStayWasmAndSrtShellWhenContainerRuntimeCommandIsMissing() throws Exception {
         installFakeWasmtime(stateDir);
         installFakeSrt(stateDir);
+        installFakeRipgrep(stateDir);
+        installFakePowerShell(stateDir);
+        installFakeRhai(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.scripts.enabled=true",
@@ -187,8 +199,8 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.images.shell=alpine:3.20")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(scriptLanguages(noop)).contains("wasm", "shell", "python", "powershell", "php", "groovy");
-            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript", "rhai");
+                    assertThat(scriptLanguages(noop)).contains("wasm", "shell", "powershell", "rhai");
+            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
                 });
     }
 
@@ -196,6 +208,9 @@ class TikeeWorkerAutoConfigurationTest {
     void unavailableContainerRuntimeKeepsDefaultWasmAndSrtShellOnly() throws Exception {
         installFakeWasmtime(stateDir);
         installFakeSrt(stateDir);
+        installFakeRipgrep(stateDir);
+        installFakePowerShell(stateDir);
+        installFakeRhai(stateDir);
         contextRunner.withPropertyValues(
                 "tikee.worker.state-dir=" + stateDir,
                 "tikee.worker.scripts.enabled=true",
@@ -205,8 +220,8 @@ class TikeeWorkerAutoConfigurationTest {
                 "tikee.worker.scripts.runtime-command=tikee-missing-container-runtime")
                 .run(context -> {
                     NoopTikeeWorkerClient noop = context.getBean(NoopTikeeWorkerClient.class);
-                    assertThat(scriptLanguages(noop)).contains("wasm", "shell", "python", "powershell", "php", "groovy");
-            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript", "rhai");
+                    assertThat(scriptLanguages(noop)).contains("wasm", "shell", "powershell", "rhai");
+            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
                 });
     }
 
@@ -293,6 +308,35 @@ class TikeeWorkerAutoConfigurationTest {
         Path binary = stateDir.resolve("sandbox-tools").resolve("srt").resolve("bin").resolve("srt");
         java.nio.file.Files.createDirectories(binary.getParent());
         java.nio.file.Files.writeString(binary, "#!/usr/bin/env sh\necho srt 0.0.0-test\n");
+        binary.toFile().setExecutable(true);
+    }
+
+
+    private static void installFakeRipgrep(Path stateDir) throws Exception {
+        Path binary = stateDir.resolve("sandbox-tools").resolve("ripgrep").resolve("bin").resolve("rg");
+        java.nio.file.Files.createDirectories(binary.getParent());
+        java.nio.file.Files.writeString(binary, "#!/usr/bin/env sh\necho ripgrep 0.0.0-test\n");
+        binary.toFile().setExecutable(true);
+    }
+
+
+    private static void installFakePowerShell(Path stateDir) throws Exception {
+        Path binary = stateDir.resolve("sandbox-tools").resolve("pwsh").resolve("bin").resolve("pwsh");
+        java.nio.file.Files.createDirectories(binary.getParent());
+        java.nio.file.Files.writeString(binary, """
+                #!/usr/bin/env sh
+                echo PowerShell 7.5.4-test
+                """);
+        binary.toFile().setExecutable(true);
+    }
+
+    private static void installFakeRhai(Path stateDir) throws Exception {
+        Path binary = stateDir.resolve("sandbox-tools").resolve("rhai").resolve("bin").resolve("rhai-run");
+        java.nio.file.Files.createDirectories(binary.getParent());
+        java.nio.file.Files.writeString(binary, """
+                #!/usr/bin/env sh
+                test -f "$1" && echo rhai 1.0.0-test
+                """);
         binary.toFile().setExecutable(true);
     }
 

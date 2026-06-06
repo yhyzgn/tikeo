@@ -28,7 +28,7 @@ class ScriptRunnerSupportTest {
                 (level, message) -> logs.add(level + ":" + message));
 
         assertTrue(logs.stream().anyMatch(log -> log.equals("info:[script] echo out-line")));
-        assertTrue(logs.stream().anyMatch(log -> log.equals("warn:[script] err-line")));
+        assertTrue(logs.stream().anyMatch(log -> log.equals("error:[script] err-line")));
     }
 
     private static String sha256(String content) throws Exception {

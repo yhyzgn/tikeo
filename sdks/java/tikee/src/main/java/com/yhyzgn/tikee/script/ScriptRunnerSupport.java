@@ -79,7 +79,11 @@ final class ScriptRunnerSupport {
                         + " bytes: " + outputBytes);
             }
             emitCapturedOutput(sink, "info", stdout);
-            emitCapturedOutput(sink, process.exitValue() == 0 ? "warn" : "error", stderr);
+            emitCapturedOutput(sink, "error", stderr);
+            String diagnostic = rhaiDiagnosticMessage(kind, stdout, stderr);
+            if (!diagnostic.isBlank()) {
+                return TaskOutcome.failed(diagnostic);
+            }
             if (process.exitValue() == 0) {
                 return TaskOutcome.succeeded();
             }
@@ -93,6 +97,23 @@ final class ScriptRunnerSupport {
             Thread.currentThread().interrupt();
             throw new ScriptRunnerException("script runner interrupted", error);
         }
+    }
+
+    private static String rhaiDiagnosticMessage(ScriptRunnerKind kind, byte[] stdout, byte[] stderr) {
+        if (kind != ScriptRunnerKind.RHAI) {
+            return "";
+        }
+        String combined = new String(stdout, StandardCharsets.UTF_8) + "\n" + new String(stderr, StandardCharsets.UTF_8);
+        if (!combined.contains("Syntax error:") && !combined.contains("Runtime error:") && !combined.contains("Parse error:")) {
+            return "";
+        }
+        return combined
+                .replace("\r\n", "\n")
+                .lines()
+                .map(String::trim)
+                .filter(line -> !line.isBlank())
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("Rhai script reported an execution diagnostic");
     }
 
     private static void emitCapturedOutput(ScriptRunnerLogSink logSink, String level, byte[] bytes) {

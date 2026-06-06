@@ -297,15 +297,18 @@ public class TikeeWorkerAutoConfiguration {
         TikeeWorkerProperties properties
     ) {
         SandboxToolResolver resolver = sandboxToolResolver(properties);
-        resolver
-            .resolveSrtCommand()
-            .ifPresentOrElse(
-                runtimeCommand -> registerSrtNativeRunners(registry, resolver, runtimeCommand),
-                () -> registerUnavailableNativeRunners(
-                    registry,
-                    "SRT sandbox runtime is unavailable"
-                )
+        var srtCommand = resolver.resolveSrtCommand();
+        var ripgrepCommand = resolver.resolveRipgrepCommand();
+        if (srtCommand.isPresent() && ripgrepCommand.isPresent()) {
+            registerSrtNativeRunners(registry, resolver, srtCommand.get(), ripgrepCommand.get());
+        } else {
+            registerUnavailableNativeRunners(
+                registry,
+                srtCommand.isEmpty()
+                    ? "SRT sandbox runtime is unavailable"
+                    : "SRT sandbox dependency ripgrep (rg) is unavailable"
             );
+        }
         resolver
             .resolveDenoCommand()
             .ifPresentOrElse(
@@ -333,34 +336,74 @@ public class TikeeWorkerAutoConfiguration {
     private static void registerSrtNativeRunners(
         ScriptRunnerRegistry registry,
         SandboxToolResolver resolver,
-        String runtimeCommand
+        String runtimeCommand,
+        String ripgrepCommand
     ) {
         for (ScriptRunnerKind kind : List.of(
             ScriptRunnerKind.SHELL,
             ScriptRunnerKind.PYTHON,
             ScriptRunnerKind.POWERSHELL,
             ScriptRunnerKind.PHP,
-            ScriptRunnerKind.GROOVY
+            ScriptRunnerKind.GROOVY,
+            ScriptRunnerKind.RHAI
         )) {
-            registry.register(new SrtScriptRunner(kind, runtimeCommand));
+            var interpreter = resolveSrtInterpreter(kind, resolver);
+            if (interpreter.isEmpty()) {
+                registry.register(new UnavailableScriptRunner(
+                    kind,
+                    kind.value() + " SRT interpreter is unavailable"
+                ));
+                continue;
+            }
+            registry.register(new SrtScriptRunner(
+                kind,
+                runtimeCommand,
+                interpreter.get(),
+                srtPathEntries(resolver, runtimeCommand, ripgrepCommand, interpreter.get())
+            ));
         }
-        resolver
-            .resolveRhaiCommand()
-            .ifPresentOrElse(
-                rhaiCommand -> registry.register(
-                    new SrtScriptRunner(
-                        ScriptRunnerKind.RHAI,
-                        runtimeCommand,
-                        rhaiCommand
-                    )
-                ),
-                () -> registry.register(
-                    new UnavailableScriptRunner(
-                        ScriptRunnerKind.RHAI,
-                        "Rhai sandbox interpreter is unavailable"
-                    )
-                )
-            );
+    }
+
+    private static java.util.Optional<String> resolveSrtInterpreter(
+        ScriptRunnerKind kind,
+        SandboxToolResolver resolver
+    ) {
+        return switch (kind) {
+            case SHELL -> resolver.resolveInterpreterCommand("sh");
+            case PYTHON -> resolver.resolveInterpreterCommand("python3");
+            case POWERSHELL -> resolver.resolvePowerShellCommand();
+            case PHP -> resolver.resolveInterpreterCommand("php");
+            case GROOVY -> resolver.resolveInterpreterCommand("groovy");
+            case RHAI -> resolver.resolveRhaiCommand();
+            case JS, TS -> resolver.resolveDenoCommand();
+        };
+    }
+
+    private static List<String> srtPathEntries(
+        SandboxToolResolver resolver,
+        String runtimeCommand,
+        String ripgrepCommand,
+        String interpreterCommand
+    ) {
+        java.util.LinkedHashSet<String> entries = new java.util.LinkedHashSet<>();
+        for (String command : List.of(runtimeCommand, ripgrepCommand, interpreterCommand)) {
+            toolPathEntry(command).ifPresent(entries::add);
+        }
+        resolver.resolveNodeCommand().flatMap(TikeeWorkerAutoConfiguration::toolPathEntry).ifPresent(entries::add);
+        resolver.resolveNpmCommand().flatMap(TikeeWorkerAutoConfiguration::toolPathEntry).ifPresent(entries::add);
+        return List.copyOf(entries);
+    }
+
+    private static java.util.Optional<String> toolPathEntry(String command) {
+        if (command == null || command.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        try {
+            java.nio.file.Path parent = java.nio.file.Path.of(command).getParent();
+            return parent == null ? java.util.Optional.empty() : java.util.Optional.of(parent.toString());
+        } catch (Exception ignored) {
+            return java.util.Optional.empty();
+        }
     }
 
     private static void registerUnavailableNativeRunners(
@@ -432,6 +475,8 @@ public class TikeeWorkerAutoConfiguration {
                 scripts.isAutoInstallTools(),
                 scripts.getSrtInstallVersion(),
                 scripts.getSrtInstallDir(),
+                scripts.getRipgrepInstallVersion(),
+                scripts.getRipgrepInstallDir(),
                 scripts.getDenoInstallVersion(),
                 scripts.getDenoInstallDir(),
                 scripts.getDenoInstallerUrl(),
@@ -439,6 +484,8 @@ public class TikeeWorkerAutoConfiguration {
                 scripts.getV8InstallDir(),
                 scripts.getRhaiInstallVersion(),
                 scripts.getRhaiInstallDir(),
+                scripts.getPowerShellInstallVersion(),
+                scripts.getPowerShellInstallDir(),
                 Math.max(
                     wasm.getInstallTimeoutMillis(),
                     scripts.getToolInstallTimeoutMillis()

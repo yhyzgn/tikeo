@@ -16,6 +16,7 @@ public final class SrtScriptRunner implements ScriptRunner {
     private final ScriptRunnerKind kind;
     private final String runtimeCommand;
     private final String interpreterCommand;
+    private final List<String> extraPathEntries;
 
     public SrtScriptRunner(ScriptRunnerKind kind, String runtimeCommand) {
         this(kind, runtimeCommand, defaultInterpreterCommand(kind));
@@ -26,6 +27,15 @@ public final class SrtScriptRunner implements ScriptRunner {
         String runtimeCommand,
         String interpreterCommand
     ) {
+        this(kind, runtimeCommand, interpreterCommand, List.of());
+    }
+
+    public SrtScriptRunner(
+        ScriptRunnerKind kind,
+        String runtimeCommand,
+        String interpreterCommand,
+        List<String> extraPathEntries
+    ) {
         if (runtimeCommand == null || runtimeCommand.isBlank()) {
             throw new ScriptRunnerException("SRT script runner requires a runtime command");
         }
@@ -35,6 +45,7 @@ public final class SrtScriptRunner implements ScriptRunner {
         this.kind = kind;
         this.runtimeCommand = runtimeCommand;
         this.interpreterCommand = interpreterCommand;
+        this.extraPathEntries = List.copyOf(extraPathEntries == null ? List.of() : extraPathEntries);
     }
 
     @Override
@@ -55,25 +66,25 @@ public final class SrtScriptRunner implements ScriptRunner {
     @Override
     public TaskOutcome run(ScriptRunnerTask task, ScriptRunnerLogSink logSink) {
         Path settings = null;
-        Path scriptFile = null;
-        try {
+        try (TaskRuntimeDirs runtimeDirs = TaskRuntimeDirs.create("tikee-srt-" + kind.value() + "-runtime")) {
             ScriptRunnerSupport.validateTask(kind, task);
             validatePolicy(task);
+            Path scriptFile = null;
             if (kind == ScriptRunnerKind.RHAI) {
-                scriptFile = Files.createTempFile("tikee-rhai-script-", ".rhai");
+                scriptFile = runtimeDirs.scriptFile("rhai");
                 Files.writeString(scriptFile, task.content());
             }
-            settings = writeSettings(task.policy(), scriptFile);
+            settings = writeSettings(task.policy(), runtimeDirs, scriptFile);
             ProcessBuilder builder = new ProcessBuilder(
                 command(settings, shellCommand(task.content(), scriptFile))
             );
-            configureEnvironment(builder, task);
+            builder.directory(runtimeDirs.workingDir().toFile());
+            configureEnvironment(builder, task, runtimeDirs);
             return ScriptRunnerSupport.runProcessWithoutStdin(builder, kind, task, logSink);
         } catch (IOException error) {
-            throw new ScriptRunnerException("failed to prepare SRT settings: " + error.getMessage(), error);
+            throw new ScriptRunnerException("failed to prepare SRT runtime: " + error.getMessage(), error);
         } finally {
             deleteIfPresent(settings);
-            deleteIfPresent(scriptFile);
         }
     }
 
@@ -92,7 +103,7 @@ public final class SrtScriptRunner implements ScriptRunner {
             case SHELL -> content;
             case PYTHON -> heredoc(interpreterCommand + " -", "PY", content);
             case POWERSHELL -> heredoc(
-                interpreterCommand + " -NoProfile -NonInteractive -Command -",
+                "cd \"$HOME\" && " + interpreterCommand + " -NoLogo -NoProfile -NonInteractive -InputFormat Text -OutputFormat Text -Command -",
                 "PWSH",
                 content
             );
@@ -131,15 +142,11 @@ public final class SrtScriptRunner implements ScriptRunner {
         };
     }
 
-    private void configureEnvironment(ProcessBuilder builder, ScriptRunnerTask task) {
+    private void configureEnvironment(ProcessBuilder builder, ScriptRunnerTask task, TaskRuntimeDirs runtimeDirs) {
         builder.environment().clear();
-        String path = System.getenv("PATH");
-        if (path != null) {
-            builder.environment().put("PATH", path);
-        }
-        String home = System.getenv("HOME");
-        if (home != null) {
-            builder.environment().put("HOME", home);
+        runtimeDirs.applySrtEnvironment(builder, extraPathEntries);
+        if (kind == ScriptRunnerKind.POWERSHELL) {
+            runtimeDirs.applyPowerShellEnvironment(builder);
         }
         builder.environment().put("TIKEE_SCRIPT_ID", task.scriptId());
         builder.environment().put("TIKEE_SCRIPT_VERSION_ID", task.versionId());
@@ -149,12 +156,7 @@ public final class SrtScriptRunner implements ScriptRunner {
                 "TIKEE_SCRIPT_VERSION_NUMBER",
                 Long.toString(task.versionNumber())
             );
-        for (String name : task.policy().allowedEnvVars()) {
-            String value = System.getenv(name);
-            if (value != null) {
-                builder.environment().put(name, value);
-            }
-        }
+        runtimeDirs.appendAllowedUnmanagedEnv(builder, task.policy().allowedEnvVars());
     }
 
     private void validatePolicy(ScriptRunnerTask task) {
@@ -175,10 +177,11 @@ public final class SrtScriptRunner implements ScriptRunner {
         }
     }
 
-    private static Path writeSettings(ScriptRunnerPolicy policy, Path scriptFile) throws IOException {
+    private static Path writeSettings(ScriptRunnerPolicy policy, TaskRuntimeDirs runtimeDirs, Path scriptFile) throws IOException {
         Map<String, Object> network = new LinkedHashMap<>();
         network.put("allowUnixSocket", false);
         network.put("allowedDomains", policy.allowedNetworkHosts());
+        network.put("deniedDomains", List.of());
 
         Map<String, Object> filesystem = new LinkedHashMap<>();
         java.util.ArrayList<String> allowRead = new java.util.ArrayList<>(
@@ -188,14 +191,11 @@ public final class SrtScriptRunner implements ScriptRunner {
             allowRead.add(scriptFile.toString());
         }
         filesystem.put("allowRead", allowRead);
-        filesystem.put("allowWrite", policy.writablePaths());
-        filesystem.put(
-            "denyRead",
-            policy.readOnlyPaths().isEmpty()
-                ? List.of(homeDirectory())
-                : List.of()
-        );
-        filesystem.put("denyWrite", List.of(homeDirectory()));
+        java.util.ArrayList<String> allowWrite = new java.util.ArrayList<>(policy.writablePaths());
+        allowWrite.addAll(runtimeDirs.writablePaths());
+        filesystem.put("allowWrite", allowWrite);
+        filesystem.put("denyRead", sensitiveReadDenies());
+        filesystem.put("denyWrite", List.of());
 
         Map<String, Object> settings = new LinkedHashMap<>();
         settings.put("network", network);
@@ -217,7 +217,18 @@ public final class SrtScriptRunner implements ScriptRunner {
         }
     }
 
-    private static String homeDirectory() {
-        return System.getProperty("user.home", "");
+    private static List<String> sensitiveReadDenies() {
+        String home = System.getProperty("user.home", "");
+        if (home.isBlank()) {
+            return List.of();
+        }
+        return List.of(
+            Path.of(home, ".ssh").toString(),
+            Path.of(home, ".gnupg").toString(),
+            Path.of(home, ".aws").toString(),
+            Path.of(home, ".kube").toString(),
+            Path.of(home, ".docker").toString(),
+            Path.of(home, ".config", "tikee").toString()
+        );
     }
 }

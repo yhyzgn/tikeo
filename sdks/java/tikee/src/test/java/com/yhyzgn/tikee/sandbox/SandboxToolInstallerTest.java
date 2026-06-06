@@ -14,9 +14,13 @@ class SandboxToolInstallerTest {
                 SandboxToolInstaller.binaryPath(SandboxToolInstaller.Tool.WASMEDGE, Path.of("/tmp/tikee/wasmedge")));
         assertEquals(Path.of("/tmp/tikee/srt", "bin", "srt"),
                 SandboxToolInstaller.binaryPath(SandboxToolInstaller.Tool.SRT, Path.of("/tmp/tikee/srt")));
+        assertEquals(Path.of("/tmp/tikee/ripgrep", "bin", "rg"),
+                SandboxToolInstaller.binaryPath(SandboxToolInstaller.Tool.RIPGREP, Path.of("/tmp/tikee/ripgrep")));
         assertEquals(Path.of("/tmp/tikee/deno", "bin", "deno"),
                 SandboxToolInstaller.binaryPath(SandboxToolInstaller.Tool.DENO, Path.of("/tmp/tikee/deno")));
         assertEquals(Path.of("/tmp/tikee/rhai", "bin", "rhai-run"),
                 SandboxToolInstaller.binaryPath(SandboxToolInstaller.Tool.RHAI, Path.of("/tmp/tikee/rhai")));
+        assertEquals(Path.of("/tmp/tikee/pwsh", "bin", "pwsh"),
+                SandboxToolInstaller.binaryPath(SandboxToolInstaller.Tool.POWERSHELL, Path.of("/tmp/tikee/pwsh")));
     }
 }

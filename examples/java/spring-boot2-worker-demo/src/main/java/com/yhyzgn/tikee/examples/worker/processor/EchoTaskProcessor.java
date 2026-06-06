@@ -1,5 +1,6 @@
 package com.yhyzgn.tikee.examples.worker.processor;
 
+import com.yhyzgn.tikee.processor.TaskContext;
 import com.yhyzgn.tikee.processor.TikeeProcessor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -9,10 +10,12 @@ import org.springframework.stereotype.Component;
 @Component
 public final class EchoTaskProcessor {
     @TikeeProcessor("demo.echo")
-    public String echo(String payload) {
+    public String echo(TaskContext context, String payload) {
         log.info("[demo.echo] received payload='{}'", payload);
+        context.logInfo("[demo.echo] received payload='" + payload + "'");
         String result = "echo:" + payload;
         log.info("[demo.echo] completed result='{}'", result);
+        context.logInfo("[demo.echo] completed result='" + result + "'");
         return result;
     }
 }

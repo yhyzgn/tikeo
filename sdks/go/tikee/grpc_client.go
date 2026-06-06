@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -273,7 +274,17 @@ func (s *Session) ProcessNextWithScriptRunners(ctx context.Context, processor Ta
 }
 
 func (s *Session) emitTaskLogSafely(task *workerpb.DispatchTask, level, message string) {
+	printTaskLogLocally(level, message)
 	_, _ = s.EmitTaskLog(task.GetInstanceId(), task.GetAssignmentToken(), level, message)
+}
+
+func printTaskLogLocally(level, message string) {
+	line := "[tikee-worker] " + message
+	if strings.EqualFold(level, "error") {
+		fmt.Fprintln(os.Stderr, line)
+		return
+	}
+	fmt.Fprintln(os.Stdout, line)
 }
 
 func (s *Session) Close() error {
@@ -352,19 +363,18 @@ func processDispatchTask(ctx context.Context, processor TaskProcessor, scripts *
 }
 
 func processDispatchTaskWithLogs(ctx context.Context, processor TaskProcessor, scripts *ScriptRunnerRegistry, task *workerpb.DispatchTask, emitLog func(level, message string)) (TaskOutcome, error) {
-	return captureTaskConsoleLogs(emitLog, func() (TaskOutcome, error) {
-		if script := task.GetProcessorBinding().GetScript(); script != nil {
-			runner := scripts.get(script.GetLanguage())
-			if runner == nil {
-				return Failed(fmt.Sprintf("%s script runner is not registered on this worker", script.GetLanguage())), nil
-			}
-			return runner.Run(ctx, scriptRunnerTask(task, script))
+	if script := task.GetProcessorBinding().GetScript(); script != nil {
+		runner := scripts.get(script.GetLanguage())
+		if runner == nil {
+			return Failed(fmt.Sprintf("%s script runner is not registered on this worker", script.GetLanguage())), nil
 		}
-		return processor.Process(ctx, TaskContext{
-			InstanceID:    task.GetInstanceId(),
-			JobID:         task.GetJobId(),
-			ProcessorName: task.GetProcessorName(),
-			Payload:       task.GetPayload(),
-		})
+		return runner.Run(ctx, scriptRunnerTask(task, script).withLogSink(emitLog))
+	}
+	return processor.Process(ctx, TaskContext{
+		InstanceID:    task.GetInstanceId(),
+		JobID:         task.GetJobId(),
+		ProcessorName: task.GetProcessorName(),
+		Payload:       task.GetPayload(),
+		Log:           emitLog,
 	})
 }

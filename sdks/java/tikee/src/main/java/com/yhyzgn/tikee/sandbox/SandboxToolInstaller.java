@@ -21,9 +21,11 @@ public final class SandboxToolInstaller {
         WASMTIME("wasmtime"),
         WASMEDGE("wasmedge"),
         SRT("srt"),
+        RIPGREP("rg"),
         DENO("deno"),
         V8("v8"),
-        RHAI("rhai-run");
+        RHAI("rhai-run"),
+        POWERSHELL("pwsh");
 
         private final String binaryName;
 
@@ -57,9 +59,11 @@ public final class SandboxToolInstaller {
             case WASMTIME -> installWasmtime(options);
             case WASMEDGE -> installWasmEdge(options);
             case SRT -> installSrt(options);
+            case RIPGREP -> installRipgrep(options);
             case DENO -> installDeno(options);
             case V8 -> installV8(options);
             case RHAI -> installRhai(options);
+            case POWERSHELL -> installPowerShell(options);
         };
         log.info(
             "[tikee.sandbox] installed tool={} binary={}",
@@ -93,9 +97,11 @@ public final class SandboxToolInstaller {
             case WASMTIME -> canInstallWasmtime();
             case WASMEDGE -> canInstallWasmEdge();
             case SRT -> canInstallSrt();
+            case RIPGREP -> canInstallRipgrep();
             case DENO -> canInstallDeno();
             case V8 -> canInstallV8();
             case RHAI -> canInstallRhai();
+            case POWERSHELL -> canInstallPowerShell();
         };
         log.info(
             "[tikee.sandbox] installer prerequisites tool={} available={}",
@@ -130,12 +136,24 @@ public final class SandboxToolInstaller {
         return commandAvailable("npm", Duration.ofSeconds(2));
     }
 
+    private static boolean canInstallRipgrep() {
+        return commandAvailable("cargo", Duration.ofSeconds(2));
+    }
+
     private static boolean canInstallV8() {
         return commandAvailable("cargo", Duration.ofSeconds(2));
     }
 
     private static boolean canInstallRhai() {
         return commandAvailable("cargo", Duration.ofSeconds(2));
+    }
+
+    private static boolean canInstallPowerShell() {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        if (os.contains("windows")) {
+            return commandAvailable("winget", Duration.ofSeconds(2));
+        }
+        return commandAvailable("curl", Duration.ofSeconds(2)) && commandAvailable("tar", Duration.ofSeconds(2));
     }
 
     private static Path installWasmtime(Options options) {
@@ -240,12 +258,87 @@ public final class SandboxToolInstaller {
         }
     }
 
+    private static Path installRipgrep(Options options) {
+        return cargoInstall(options, "ripgrep", "ripgrep");
+    }
+
     private static Path installV8(Options options) {
         return cargoInstall(options, "deno", "V8/Deno runtime");
     }
 
     private static Path installRhai(Options options) {
         return cargoInstall(options, "rhai", "Rhai");
+    }
+
+    private static Path installPowerShell(Options options) {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        if (os.contains("windows")) {
+            runCommand(
+                new ProcessBuilder("winget", "install", "-e", "--id", "Microsoft.PowerShell"),
+                options.installTimeoutMillis(),
+                "PowerShell"
+            );
+            return Path.of(binaryName(options.tool()));
+        }
+        String platform = powerShellArchivePlatform();
+        if (platform.isBlank()) {
+            throw new IllegalStateException("PowerShell auto-install is unsupported on " + runtimePlatform());
+        }
+        String version = System.getenv().getOrDefault("TIKEE_POWERSHELL_VERSION", "7.5.4");
+        String archiveName = "powershell-" + version + "-" + platform + ".tar.gz";
+        String url = System.getenv().getOrDefault(
+            "TIKEE_POWERSHELL_DOWNLOAD_URL",
+            "https://github.com/PowerShell/PowerShell/releases/download/v" + version + "/" + archiveName
+        );
+        Path archive = options.installDir().resolve(archiveName);
+        Path extractDir = options.installDir().resolve("powershell-" + version);
+        Path binDir = options.installDir().resolve("bin");
+        try {
+            Files.createDirectories(binDir);
+            Files.createDirectories(extractDir);
+            runCommand(
+                new ProcessBuilder("curl", "-fsSL", url, "-o", archive.toString()),
+                options.installTimeoutMillis(),
+                "PowerShell download"
+            );
+            runCommand(
+                new ProcessBuilder("tar", "-xzf", archive.toString(), "-C", extractDir.toString()),
+                options.installTimeoutMillis(),
+                "PowerShell extract"
+            );
+            Path pwsh = extractDir.resolve("pwsh");
+            pwsh.toFile().setExecutable(true, false);
+            Path link = binaryPath(options.tool(), options.installDir());
+            Files.deleteIfExists(link);
+            try {
+                Files.createSymbolicLink(link, pwsh);
+            } catch (Exception error) {
+                Files.copy(pwsh, link, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                link.toFile().setExecutable(true, false);
+            }
+            Files.deleteIfExists(archive);
+            return link;
+        } catch (Exception error) {
+            throw new IllegalStateException("failed to install PowerShell for " + runtimePlatform(), error);
+        }
+    }
+
+    private static String powerShellArchivePlatform() {
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
+        if (os.contains("linux") && (arch.equals("amd64") || arch.equals("x86_64"))) {
+            return "linux-x64";
+        }
+        if (os.contains("linux") && (arch.equals("aarch64") || arch.equals("arm64"))) {
+            return "linux-arm64";
+        }
+        if ((os.contains("mac") || os.contains("darwin")) && (arch.equals("amd64") || arch.equals("x86_64"))) {
+            return "osx-x64";
+        }
+        if ((os.contains("mac") || os.contains("darwin")) && (arch.equals("aarch64") || arch.equals("arm64"))) {
+            return "osx-arm64";
+        }
+        return "";
     }
 
     private static Path runUnixWasmtimeInstaller(Options options) {

@@ -29,24 +29,60 @@ func main() {
 		config.Labels["plugin_sql"] = "enabled"
 	}
 	scripts := tikee.NewScriptRunnerRegistry()
+	resolver := tikee.NewSandboxToolResolver()
+	resolver.StateDir = envOr("TIKEE_WORKER_STATE_DIR", "")
+	resolver.AutoInstall = !disabled("TIKEE_SANDBOX_AUTO_INSTALL")
 	for _, lang := range csvOr("TIKEE_WORKER_SCRIPT_LANGUAGES", "shell,python,javascript,typescript,powershell,php,groovy,rhai") {
 		if disabled("TIKEE_ENABLE_SCRIPT_" + strings.ToUpper(lang)) {
 			continue
 		}
-		if !enabled("TIKEE_ENABLE_LOCAL_SCRIPT_"+strings.ToUpper(lang)) && !enabled("TIKEE_ENABLE_UNAVAILABLE_SCRIPT_ADAPTERS") {
-			continue
-		}
 		backend := scriptSandboxBackend(lang)
-		if enabled("TIKEE_ENABLE_LOCAL_SCRIPT_" + strings.ToUpper(lang)) {
+		if backend == "srt" {
+			srtCommand, srtOK := resolver.ResolveSrt()
+			rgCommand, rgOK := resolver.ResolveRipgrep()
+			if srtOK && rgOK {
+				interpreter, ok := resolveSrtInterpreter(lang, resolver)
+				if !ok {
+					log.Printf("srt script runner %s skipped: interpreter unavailable", lang)
+					continue
+				}
+				runner, err := tikee.NewSrtScriptRunner(lang, srtCommand, interpreter, sandboxToolPathEntries(srtCommand, rgCommand, interpreter, resolver)...)
+				if err == nil {
+					scripts.Register(runner)
+					continue
+				}
+				log.Printf("srt script runner %s skipped: %v", lang, err)
+			}
+		} else if backend == "deno" || backend == "v8" {
+			if denoCommand, ok := resolver.ResolveDeno(); ok {
+				runner, err := tikee.NewDenoScriptRunner(lang, denoCommand)
+				if err == nil {
+					scripts.Register(runner)
+					continue
+				}
+				log.Printf("deno script runner %s skipped: %v", lang, err)
+			}
+		} else if backend == "docker" || backend == "podman" {
+			runner, err := tikee.NewContainerScriptRunner(lang, backend, scriptImage(lang))
+			if err != nil {
+				log.Printf("container script runner %s skipped: %v", lang, err)
+				continue
+			}
+			scripts.Register(runner)
+			continue
+		} else if enabled("TIKEE_ENABLE_LOCAL_SCRIPT_" + strings.ToUpper(lang)) {
 			runner, err := tikee.NewLocalCommandScriptRunner(lang, "custom")
 			if err != nil {
-				log.Printf("local script runner %s skipped: %v", lang, err)
+				log.Printf("development local script runner %s skipped: %v", lang, err)
 				continue
 			}
 			scripts.Register(runner)
 			continue
 		}
-		reason := backend + " backend is declared but not executable in this Go demo process"
+		if !enabled("TIKEE_ENABLE_UNAVAILABLE_SCRIPT_ADAPTERS") {
+			continue
+		}
+		reason := backend + " sandbox backend is unavailable; auto requires SRT+rg for native scripts and Deno for JavaScript/TypeScript"
 		scripts.Register(tikee.NewUnavailableScriptRunner(lang, backend, reason))
 	}
 	scripts.AddCapabilities(&config)
@@ -56,28 +92,28 @@ func main() {
 		log.Fatal(err)
 	}
 	processor := tikee.TaskProcessorFunc(func(_ context.Context, task tikee.TaskContext) (tikee.TaskOutcome, error) {
-		fmt.Printf("[go-worker] processor=%s instance=%s payload_bytes=%d\n", task.ProcessorName, task.InstanceID, len(task.Payload))
+		task.LogInfo(fmt.Sprintf("[go-worker] processor=%s instance=%s payload_bytes=%d", task.ProcessorName, task.InstanceID, len(task.Payload)))
 		switch task.ProcessorName {
 		case "", "demo.echo":
-			fmt.Printf("[demo.echo] payload='%s'\n", string(task.Payload))
+			task.LogInfo(fmt.Sprintf("[demo.echo] payload='%s'", string(task.Payload)))
 			return tikee.TaskOutcome{Success: true, Message: "go demo echo processed"}, nil
 		case "demo.context":
-			fmt.Printf("[demo.context] jobId=%s instanceId=%s\n", task.JobID, task.InstanceID)
+			task.LogInfo(fmt.Sprintf("[demo.context] jobId=%s instanceId=%s", task.JobID, task.InstanceID))
 			return tikee.TaskOutcome{Success: true, Message: fmt.Sprintf("go demo context processed instance=%s", task.InstanceID)}, nil
 		case "demo.bytes":
-			fmt.Printf("[demo.bytes] payload='%s' length=%d\n", string(task.Payload), len(task.Payload))
+			task.LogInfo(fmt.Sprintf("[demo.bytes] payload='%s' length=%d", string(task.Payload), len(task.Payload)))
 			return tikee.TaskOutcome{Success: true, Message: fmt.Sprintf("go demo bytes processed payload_bytes=%d", len(task.Payload))}, nil
 		case "demo.heartbeat":
-			fmt.Printf("[demo.heartbeat] tick jobId=%s instanceId=%s\n", task.JobID, task.InstanceID)
+			task.LogInfo(fmt.Sprintf("[demo.heartbeat] tick jobId=%s instanceId=%s", task.JobID, task.InstanceID))
 			return tikee.TaskOutcome{Success: true, Message: "go demo heartbeat processed"}, nil
 		case "billing.sql-sync":
-			fmt.Printf("[billing.sql-sync] plugin SQL processor received payload='%s'\n", string(task.Payload))
+			task.LogInfo(fmt.Sprintf("[billing.sql-sync] plugin SQL processor received payload='%s'", string(task.Payload)))
 			return tikee.TaskOutcome{Success: true, Message: "go demo sql plugin processed"}, nil
 		case "demo.fail":
-			fmt.Fprintf(os.Stderr, "[demo.fail] intentional failure payload='%s'\n", string(task.Payload))
+			task.LogError(fmt.Sprintf("[demo.fail] intentional failure payload='%s'", string(task.Payload)))
 			return tikee.Failed("go demo intentional failure"), nil
 		default:
-			fmt.Fprintf(os.Stderr, "[go-worker] unsupported processor=%s\n", task.ProcessorName)
+			task.LogError(fmt.Sprintf("[go-worker] unsupported processor=%s", task.ProcessorName))
 			return tikee.Failed("unsupported go demo processor: " + task.ProcessorName), nil
 		}
 	})
@@ -212,7 +248,7 @@ func csvOr(key, fallback string) []string {
 }
 
 func scriptSandboxBackend(language string) string {
-	if value := strings.TrimSpace(os.Getenv("TIKEE_WORKER_SCRIPT_SANDBOX")); value != "" {
+	if value := strings.TrimSpace(os.Getenv("TIKEE_WORKER_SCRIPT_SANDBOX")); value != "" && !strings.EqualFold(value, "auto") {
 		return strings.ToLower(value)
 	}
 	switch strings.ToLower(strings.TrimSpace(language)) {
@@ -220,5 +256,91 @@ func scriptSandboxBackend(language string) string {
 		return "deno"
 	default:
 		return "srt"
+	}
+}
+
+func resolveSrtInterpreter(language string, resolver tikee.SandboxToolResolver) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(language)) {
+	case "shell", "sh", "bash":
+		return resolver.ResolveInterpreter("sh")
+	case "python", "py":
+		return resolver.ResolveInterpreter("python3")
+	case "powershell", "pwsh":
+		return resolver.ResolvePowerShell()
+	case "php":
+		return resolver.ResolveInterpreter("php")
+	case "groovy":
+		return resolver.ResolveInterpreter("groovy")
+	case "rhai":
+		return resolver.ResolveRhai()
+	default:
+		return resolver.ResolveInterpreter("sh")
+	}
+}
+
+func sandboxToolPathEntries(srtCommand, rgCommand, interpreter string, resolver tikee.SandboxToolResolver) []string {
+	entries := []string{}
+	for _, command := range []string{srtCommand, rgCommand, interpreter} {
+		if parent := toolParent(command); parent != "" {
+			entries = append(entries, parent)
+		}
+	}
+	if node, ok := resolver.ResolveNode(); ok {
+		if parent := toolParent(node); parent != "" {
+			entries = append(entries, parent)
+		}
+	}
+	if npm, ok := resolver.ResolveNpm(); ok {
+		if parent := toolParent(npm); parent != "" {
+			entries = append(entries, parent)
+		}
+	}
+	return dedupeStrings(entries)
+}
+
+func dedupeStrings(values []string) []string {
+	seen := map[string]struct{}{}
+	out := []string{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func toolParent(command string) string {
+	if idx := strings.LastIndex(command, string(os.PathSeparator)); idx > 0 {
+		return command[:idx]
+	}
+	return ""
+}
+
+func scriptImage(language string) string {
+	switch strings.ToLower(strings.TrimSpace(language)) {
+	case "shell", "sh", "bash":
+		return envOr("TIKEE_SHELL_IMAGE", "alpine:latest")
+	case "python", "py":
+		return envOr("TIKEE_PYTHON_IMAGE", "python:alpine")
+	case "javascript", "js":
+		return envOr("TIKEE_JAVASCRIPT_IMAGE", "denoland/deno:alpine")
+	case "typescript", "ts":
+		return envOr("TIKEE_TYPESCRIPT_IMAGE", "denoland/deno:alpine")
+	case "powershell", "pwsh":
+		return envOr("TIKEE_POWERSHELL_IMAGE", "mcr.microsoft.com/powershell:latest")
+	case "php":
+		return envOr("TIKEE_PHP_IMAGE", "php:cli-alpine")
+	case "groovy":
+		return envOr("TIKEE_GROOVY_IMAGE", "groovy:latest")
+	case "rhai":
+		return envOr("TIKEE_RHAI_IMAGE", "rhaiscript/rhai:latest")
+	default:
+		return ""
 	}
 }

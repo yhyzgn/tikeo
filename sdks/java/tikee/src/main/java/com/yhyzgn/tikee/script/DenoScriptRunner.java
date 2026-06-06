@@ -39,12 +39,18 @@ public final class DenoScriptRunner implements ScriptRunner {
     public TaskOutcome run(ScriptRunnerTask task, ScriptRunnerLogSink logSink) {
         ScriptRunnerSupport.validateTask(kind, task);
         validatePolicy(task);
-        ProcessBuilder builder = new ProcessBuilder(command(task));
-        configureEnvironment(builder, task);
-        return ScriptRunnerSupport.runProcess(builder, kind, task, logSink);
+        try (TaskRuntimeDirs runtimeDirs = TaskRuntimeDirs.create("tikee-deno-" + kind.value() + "-runtime")) {
+            ProcessBuilder builder = new ProcessBuilder(command(task, runtimeDirs));
+            builder.directory(runtimeDirs.workingDir().toFile());
+            configureEnvironment(builder, task, runtimeDirs);
+            return ScriptRunnerSupport.runProcess(builder, kind, task, logSink);
+        } catch (java.io.IOException error) {
+            throw new ScriptRunnerException("failed to prepare Deno runtime: " + error.getMessage(), error);
+        }
     }
 
-    private List<String> command(ScriptRunnerTask task) {
+    private List<String> command(ScriptRunnerTask task, TaskRuntimeDirs runtimeDirs) {
+
         List<String> command = new ArrayList<>();
         command.add(runtimeCommand);
         command.add("run");
@@ -60,15 +66,18 @@ public final class DenoScriptRunner implements ScriptRunner {
         if (!task.policy().readOnlyPaths().isEmpty()) {
             command.add("--allow-read=" + String.join(",", task.policy().readOnlyPaths()));
         }
-        if (!task.policy().writablePaths().isEmpty()) {
-            command.add("--allow-write=" + String.join(",", task.policy().writablePaths()));
+        List<String> writablePaths = new ArrayList<>(task.policy().writablePaths());
+        writablePaths.addAll(runtimeDirs.writablePaths());
+        if (!writablePaths.isEmpty()) {
+            command.add("--allow-write=" + String.join(",", writablePaths));
         }
         command.add("-");
         return command;
     }
 
-    private void configureEnvironment(ProcessBuilder builder, ScriptRunnerTask task) {
+    private void configureEnvironment(ProcessBuilder builder, ScriptRunnerTask task, TaskRuntimeDirs runtimeDirs) {
         builder.environment().clear();
+        runtimeDirs.applyDenoEnvironment(builder);
         builder.environment().put("TIKEE_SCRIPT_ID", task.scriptId());
         builder.environment().put("TIKEE_SCRIPT_VERSION_ID", task.versionId());
         builder
@@ -77,12 +86,7 @@ public final class DenoScriptRunner implements ScriptRunner {
                 "TIKEE_SCRIPT_VERSION_NUMBER",
                 Long.toString(task.versionNumber())
             );
-        for (String name : task.policy().allowedEnvVars()) {
-            String value = System.getenv(name);
-            if (value != null) {
-                builder.environment().put(name, value);
-            }
-        }
+        runtimeDirs.appendAllowedUnmanagedEnv(builder, task.policy().allowedEnvVars());
     }
 
     private void validatePolicy(ScriptRunnerTask task) {

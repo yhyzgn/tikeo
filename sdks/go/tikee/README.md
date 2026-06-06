@@ -21,12 +21,25 @@ The Go SDK supports structured script runner registration and dynamic script bin
 
 Go exposes the same structured sandbox backend names as Java: `auto`, `srt`, `deno`, `v8`, `wasmtime`, `wasmedge`, `docker`, `podman`, and `custom`. JavaScript and TypeScript resolve `auto` to `deno`; the other Java-parity demo languages resolve `auto` to `srt`.
 
-`UnavailableScriptRunner` is useful when code needs a registered fail-closed handler for an unconfigured backend, but it is never advertised as an executable Worker capability. `LocalCommandScriptRunner` is development-only and must advertise `custom`; do not label a worker as `srt`, `deno`, `v8`, `docker`, or `podman` unless that real sandbox boundary is configured and executable.
+`SandboxToolResolver` checks and optionally installs the lightweight sandbox tools used by the default auto path: SRT + ripgrep for native scripts and Deno for JavaScript/TypeScript. Docker/Podman remain explicit heavier backends and are never selected by default. `UnavailableScriptRunner` is useful when code needs a registered fail-closed handler for an unconfigured backend, but it is never advertised as an executable Worker capability. `LocalCommandScriptRunner` is development-only and must advertise `custom`; do not label a worker as `srt`, `deno`, `v8`, `docker`, or `podman` unless that real sandbox boundary is configured and executable.
 
 ```go
+resolver := tikee.NewSandboxToolResolver()
 scripts := tikee.NewScriptRunnerRegistry()
-scripts.Register(tikee.NewUnavailableScriptRunner("shell", "srt", "SRT runner is not configured"))
-scripts.Register(tikee.NewUnavailableScriptRunner("javascript", "deno", "Deno runner is not configured"))
+if srt, srtOK := resolver.ResolveSrt(); srtOK {
+    if rg, rgOK := resolver.ResolveRipgrep(); rgOK {
+        runner, err := tikee.NewSrtScriptRunner("python", srt, "python3", filepath.Dir(rg))
+        if err == nil {
+            scripts.Register(runner)
+        }
+    }
+}
+if deno, ok := resolver.ResolveDeno(); ok {
+    runner, err := tikee.NewDenoScriptRunner("javascript", deno)
+    if err == nil {
+        scripts.Register(runner)
+    }
+}
 scripts.AddCapabilities(&config)
 
 outcome, err := session.ProcessNextWithScriptRunners(ctx, processor, scripts)

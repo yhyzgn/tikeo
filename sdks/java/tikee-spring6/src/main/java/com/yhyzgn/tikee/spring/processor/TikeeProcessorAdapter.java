@@ -5,7 +5,6 @@ import com.yhyzgn.tikee.processor.TaskOutcome;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -42,20 +41,20 @@ final class TikeeProcessorAdapter implements TikeeProcessorHandler {
 
     private Object[] arguments(TaskContext context) {
         Class<?>[] parameterTypes = method.getParameterTypes();
-        if (parameterTypes.length == 0) {
-            return new Object[0];
+        Object[] arguments = new Object[parameterTypes.length];
+        for (int index = 0; index < parameterTypes.length; index++) {
+            Class<?> parameterType = parameterTypes[index];
+            if (TaskContext.class.equals(parameterType)) {
+                arguments[index] = context;
+            } else if (String.class.equals(parameterType)) {
+                arguments[index] = new String(context.payload(), StandardCharsets.UTF_8);
+            } else if (byte[].class.equals(parameterType)) {
+                arguments[index] = context.payload();
+            } else {
+                throw new IllegalArgumentException("unsupported processor parameter type: " + parameterType.getName());
+            }
         }
-        Class<?> parameterType = parameterTypes[0];
-        if (TaskContext.class.equals(parameterType)) {
-            return new Object[] {context};
-        }
-        if (String.class.equals(parameterType)) {
-            return new Object[] {new String(context.payload(), StandardCharsets.UTF_8)};
-        }
-        if (byte[].class.equals(parameterType)) {
-            return new Object[] {context.payload()};
-        }
-        throw new IllegalArgumentException("unsupported processor parameter type: " + parameterType.getName());
+        return arguments;
     }
 
     private static TaskOutcome toOutcome(Object result) {
@@ -75,15 +74,25 @@ final class TikeeProcessorAdapter implements TikeeProcessorHandler {
     }
 
     private static void validate(Method method) {
-        if (method.getParameterCount() > 1) {
-            throw new IllegalArgumentException("@TikeeProcessor method must have zero or one parameter: " + method);
+        if (method.getParameterCount() > 2) {
+            throw new IllegalArgumentException("@TikeeProcessor method may declare at most TaskContext plus one payload parameter: " + method);
         }
-        if (method.getParameterCount() == 1) {
-            Class<?> parameterType = method.getParameterTypes()[0];
-            boolean supported = Arrays.asList(TaskContext.class, String.class, byte[].class).contains(parameterType);
-            if (!supported) {
+        int contextCount = 0;
+        int payloadCount = 0;
+        for (Class<?> parameterType : method.getParameterTypes()) {
+            if (TaskContext.class.equals(parameterType)) {
+                contextCount++;
+            } else if (String.class.equals(parameterType) || byte[].class.equals(parameterType)) {
+                payloadCount++;
+            } else {
                 throw new IllegalArgumentException("unsupported @TikeeProcessor parameter type: " + parameterType.getName());
             }
+        }
+        if (contextCount > 1) {
+            throw new IllegalArgumentException("@TikeeProcessor method may declare TaskContext at most once: " + method);
+        }
+        if (payloadCount > 1) {
+            throw new IllegalArgumentException("@TikeeProcessor method may declare at most one payload parameter: " + method);
         }
         Class<?> returnType = method.getReturnType();
         boolean supportedReturn = Void.TYPE.equals(returnType)

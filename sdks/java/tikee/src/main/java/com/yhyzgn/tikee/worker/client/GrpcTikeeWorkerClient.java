@@ -18,14 +18,11 @@ import com.yhyzgn.tikee.worker.WorkerRegistration;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
 import java.net.URI;
 import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -733,7 +730,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
             );
             TaskOutcome outcome;
             try {
-                outcome = captureTaskConsole(task, assignedWorkerId, () -> processDispatchedTask(task, assignedWorkerId));
+                outcome = processDispatchedTask(task, assignedWorkerId);
             } catch (Exception error) {
                 outcome = TaskOutcome.failed(error.getMessage());
             }
@@ -788,73 +785,10 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                 task.getJobId(),
                 task.getProcessorName(),
                 task.getInstanceId(),
-                task.getPayload().toByteArray()
+                task.getPayload().toByteArray(),
+                (level, message) -> emitTaskLogSafely(task, assignedWorkerId, level, message, true)
             )
         );
-    }
-
-    private TaskOutcome captureTaskConsole(
-        Worker.DispatchTask task,
-        String assignedWorkerId,
-        Callable<TaskOutcome> processorCall
-    ) throws Exception {
-        PrintStream originalOut = System.out;
-        PrintStream originalErr = System.err;
-        ByteArrayOutputStream capturedOut = new ByteArrayOutputStream();
-        ByteArrayOutputStream capturedErr = new ByteArrayOutputStream();
-        TaskStdoutCaptureStream outTee = new TaskStdoutCaptureStream(
-            originalOut,
-            capturedOut
-        );
-        TaskStdoutCaptureStream errTee = new TaskStdoutCaptureStream(
-            originalErr,
-            capturedErr
-        );
-        try (
-            PrintStream captureOut = new PrintStream(
-                outTee,
-                true,
-                java.nio.charset.StandardCharsets.UTF_8
-            );
-            PrintStream captureErr = new PrintStream(
-                errTee,
-                true,
-                java.nio.charset.StandardCharsets.UTF_8
-            )
-        ) {
-            System.setOut(captureOut);
-            System.setErr(captureErr);
-            return processorCall.call();
-        } finally {
-            System.setOut(originalOut);
-            System.setErr(originalErr);
-            emitCapturedTaskConsole(
-                task,
-                assignedWorkerId,
-                "info",
-                capturedOut.toString(java.nio.charset.StandardCharsets.UTF_8)
-            );
-            emitCapturedTaskConsole(
-                task,
-                assignedWorkerId,
-                "error",
-                capturedErr.toString(java.nio.charset.StandardCharsets.UTF_8)
-            );
-        }
-    }
-
-    private void emitCapturedTaskConsole(
-        Worker.DispatchTask task,
-        String assignedWorkerId,
-        String level,
-        String output
-    ) {
-        for (String line : output.split("\\R")) {
-            String trimmed = line.trim();
-            if (!trimmed.isEmpty()) {
-                emitTaskLogSafely(task, assignedWorkerId, level, trimmed, false);
-            }
-        }
     }
 
     private TaskOutcome processWasmBinding(
@@ -887,7 +821,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                             binding.getAllowedEnvVarsList()
                         )
                     ),
-                    (level, message) -> printTaskLogLocally(level, message)
+                    (level, message) -> emitTaskLogSafely(task, assignedWorkerId, level, message, true)
                 );
         } catch (Exception error) {
             return TaskOutcome.failed(error.getMessage());
@@ -940,7 +874,7 @@ public final class GrpcTikeeWorkerClient implements TikeeWorkerClient {
                             binding.getSandboxBackend()
                         )
                     ),
-                    (level, message) -> printTaskLogLocally(level, message)
+                    (level, message) -> emitTaskLogSafely(task, assignedWorkerId, level, message, true)
                 );
         } catch (Exception error) {
             return TaskOutcome.failed(error.getMessage());

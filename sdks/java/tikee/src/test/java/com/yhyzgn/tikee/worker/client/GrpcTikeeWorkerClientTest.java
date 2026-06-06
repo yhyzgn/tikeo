@@ -195,7 +195,7 @@ class GrpcTikeeWorkerClientTest {
     }
 
     @Test
-    void dispatchedTaskCapturesProcessorStdoutAsTaskLog() throws Exception {
+    void dispatchedTaskRecordsOnlyTaskLoggerLines() throws Exception {
         String serverName = "tikee-worker-test-" + UUID.randomUUID();
         RecordingTunnelService service = new RecordingTunnelService(Worker.DispatchTask.newBuilder()
                 .setJobId("job-sql")
@@ -216,7 +216,9 @@ class GrpcTikeeWorkerClientTest {
                     false,
                     new WorkerRegistration("java-instance-stdout", "default", "billing", "local", "local", List.of(), Map.of()),
                     context -> {
-                        System.out.println("[billing.sql-sync] plugin SQL processor received payload='"
+                        System.out.println("[billing.sql-sync] stdout should stay console-only payload='"
+                                + new String(context.payload(), StandardCharsets.UTF_8) + "'");
+                        context.logInfo("[billing.sql-sync] plugin SQL processor received payload='"
                                 + new String(context.payload(), StandardCharsets.UTF_8) + "'");
                         return new TaskOutcome(true, "sql-plugin-ok");
                     },
@@ -240,7 +242,9 @@ class GrpcTikeeWorkerClientTest {
             assertTrue(service.taskLogs.stream()
                     .anyMatch(log -> log.getMessage().contains(processorLog)
                             && log.getAssignmentToken().equals("java-assign-token")));
-            assertEquals(1, countOccurrences(console.toString(StandardCharsets.UTF_8), processorLog));
+            assertTrue(service.taskLogs.stream()
+                    .noneMatch(log -> log.getMessage().contains("stdout should stay console-only")));
+            assertTrue(console.toString(StandardCharsets.UTF_8).contains("stdout should stay console-only"));
         } finally {
             channel.shutdownNow();
             server.shutdownNow();

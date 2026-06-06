@@ -97,6 +97,10 @@ public class TikeeWorkerProperties {
         private String srtInstallVersion = "latest";
         /** Optional Anthropic Sandbox Runtime install directory. Blank uses state-dir/sandbox-tools/srt. */
         private String srtInstallDir = "";
+        /** ripgrep crate version required by Anthropic Sandbox Runtime. Blank/latest follows cargo latest. */
+        private String ripgrepInstallVersion = "latest";
+        /** Optional ripgrep install directory. Blank uses state-dir/sandbox-tools/ripgrep. */
+        private String ripgrepInstallDir = "";
         /** Deno version passed to the official installer; use latest by default. */
         private String denoInstallVersion = "latest";
         /** Optional Deno install directory. Blank uses state-dir/script-tools/deno or ~/.tikee/script-tools/deno. */
@@ -107,6 +111,10 @@ public class TikeeWorkerProperties {
         private String rhaiInstallVersion = "";
         /** Optional Rhai install directory. Blank uses state-dir/script-tools/rhai or ~/.tikee/script-tools/rhai. */
         private String rhaiInstallDir = "";
+        /** PowerShell Core version used when auto-installing pwsh for SRT-backed PowerShell. */
+        private String powerShellInstallVersion = "7.5.4";
+        /** Optional PowerShell Core install directory. Blank uses state-dir/sandbox-tools/pwsh. */
+        private String powerShellInstallDir = "";
         /** Automatically install WasmEdge when absent. Disabled by default until explicitly selected. */
         private boolean wasmedgeAutoInstall = false;
         /** WasmEdge version passed to the installer; latest by default. */
