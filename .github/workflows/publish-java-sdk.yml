@@ -49,6 +49,7 @@ jobs:
       - name: Normalize Maven signing key
         env:
           MAVEN_SIGNING_KEY_RAW: ${{ secrets.MAVEN_SIGNING_KEY }}
+          MAVEN_SIGNING_KEY_ID: ${{ secrets.MAVEN_SIGNING_KEY_ID }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -89,13 +90,38 @@ jobs:
           if key is None:
               raise SystemExit("MAVEN_SIGNING_KEY must contain a newline-normalized ASCII-armored PGP private key or base64 of it")
 
-          marker = "TIKEO_MAVEN_SIGNING_KEY"
-          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as env:
-              env.write(f"ORG_GRADLE_PROJECT_signingInMemoryKey<<{marker}\n")
-              env.write(key)
-              env.write(f"\n{marker}\n")
-          print("Maven signing key normalized for in-memory Gradle signing")
+          Path("/tmp/tikeo-maven-signing-key.raw.asc").write_text(key + "\n", encoding="utf-8")
+          print(f"Maven signing key raw armor bytes: {len(key.encode('utf-8'))}")
           PY
+          export GNUPGHOME=/tmp/tikeo-maven-gnupg
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
+          gpg --batch --import /tmp/tikeo-maven-signing-key.raw.asc
+          mapfile -t FINGERPRINTS < <(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10}')
+          if [ "${#FINGERPRINTS[@]}" -eq 0 ]; then
+            echo "MAVEN_SIGNING_KEY did not import as a secret key" >&2
+            exit 1
+          fi
+          SELECTED_FPR="${FINGERPRINTS[0]}"
+          if [ -n "${MAVEN_SIGNING_KEY_ID:-}" ]; then
+            for fpr in "${FINGERPRINTS[@]}"; do
+              case "$fpr" in
+                *"$MAVEN_SIGNING_KEY_ID") SELECTED_FPR="$fpr" ;;
+              esac
+            done
+          fi
+          gpg --batch --armor --export-secret-keys "$SELECTED_FPR" > /tmp/tikeo-maven-signing-key.clean.asc
+          if ! grep -q 'BEGIN PGP PRIVATE KEY BLOCK' /tmp/tikeo-maven-signing-key.clean.asc; then
+            echo "failed to re-export a clean Maven signing private key" >&2
+            exit 1
+          fi
+          marker="TIKEO_MAVEN_SIGNING_KEY"
+          {
+            echo "ORG_GRADLE_PROJECT_signingInMemoryKey<<$marker"
+            cat /tmp/tikeo-maven-signing-key.clean.asc
+            echo "$marker"
+          } >> "$GITHUB_ENV"
+          echo "Maven signing key imported and re-exported for in-memory Gradle signing"
       - name: Validate Maven signing key metadata
         env:
           MAVEN_SIGNING_KEY_ID: ${{ secrets.MAVEN_SIGNING_KEY_ID }}
