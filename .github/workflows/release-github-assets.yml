@@ -351,6 +351,6 @@ jobs:
           tag_name: ${{ github.ref_name || inputs.tag }}
           name: ${{ github.ref_name || inputs.tag }}
           draft: false
-          prerelease: ${{ contains(github.ref_name || inputs.tag, '-') }}
+          prerelease: ${{ contains(github.ref_name || inputs.tag, '-') || startsWith(github.ref_name || inputs.tag, 'v0.') }}
           body_path: release-notes.md
           files: release-assets/*

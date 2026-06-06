@@ -78,5 +78,5 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.tag }}
           draft: false
-          prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
+          prerelease: ${{ contains(steps.version.outputs.tag, '-') || startsWith(steps.version.outputs.tag, 'v0.') }}
           files: dist/*.tar.gz
