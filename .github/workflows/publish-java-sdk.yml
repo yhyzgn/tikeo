@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to attach Java SDK package to, for example v0.1.0'
+        description: 'Release tag to publish Java SDK, for example v0.1.123'
         required: true
         type: string
 
@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   publish:
-    name: Package and upload Java SDK
+    name: Publish Java SDK to Maven Central and GitHub Release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -34,14 +34,31 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
-      - name: Test and build Java SDK
-        working-directory: sdks/java
-        run: ./gradlew test jar sourcesJar
-      - name: Package Java SDK jars
+      - name: Resolve release version
+        id: version
+        shell: bash
         run: |
           set -euo pipefail
           RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
           VERSION="${RELEASE_TAG#v}"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Test Java SDK
+        working-directory: sdks/java
+        run: ./gradlew test --no-daemon -PtikeoVersion=${{ steps.version.outputs.version }}
+      - name: Publish Java SDK to Maven Central
+        working-directory: sdks/java
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MAVEN_SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MAVEN_SIGNING_KEY_ID }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
+        run: ./gradlew publishAndReleaseToMavenCentral --no-daemon -PtikeoVersion=${{ steps.version.outputs.version }}
+      - name: Package Java SDK jars
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
           PKG="java-sdk-${VERSION}"
           mkdir -p "dist/$PKG"
           cp -R sdks/java/README.md sdks/java/settings.gradle.kts sdks/java/build.gradle.kts sdks/java/gradle.properties "dist/$PKG/"
@@ -50,8 +67,8 @@ jobs:
       - name: Upload Java SDK package to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.ref_name || inputs.tag }}
-          name: ${{ github.ref_name || inputs.tag }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
           draft: false
-          prerelease: ${{ contains(github.ref_name || inputs.tag, '-') }}
+          prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
           files: dist/*.tar.gz

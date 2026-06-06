@@ -2,7 +2,6 @@ import com.google.protobuf.gradle.id
 
 plugins {
     `java-library`
-    `maven-publish`
     id("com.google.protobuf") version "0.10.0"
 }
 
@@ -63,14 +62,6 @@ protobuf {
             plugins {
                 id("grpc")
             }
-        }
-    }
-}
-
-publishing {
-    publications {
-        create<MavenPublication>("mavenJava") {
-            from(components["java"])
         }
     }
 }

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to attach Rust SDK package to, for example v0.1.0'
+        description: 'Release tag to publish Rust SDK, for example v0.1.123'
         required: true
         type: string
 
@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   publish:
-    name: Package and upload Rust SDK
+    name: Publish Rust SDK to crates.io and GitHub Release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -35,15 +35,38 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: sdks/rust/tikeo -> target
-      - name: Test Rust SDK
-        run: cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
-      - name: Package Rust SDK crate
-        run: cargo package --manifest-path sdks/rust/tikeo/Cargo.toml --allow-dirty
-      - name: Stage Rust SDK release payload
+      - name: Resolve release version
+        id: version
+        shell: bash
         run: |
           set -euo pipefail
           RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
           VERSION="${RELEASE_TAG#v}"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Set Rust SDK version from tag
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          version = '${{ steps.version.outputs.version }}'
+          p = Path('sdks/rust/tikeo/Cargo.toml')
+          s = p.read_text()
+          import re
+          s = re.sub(r'(?m)^version = "[^"]+"', f'version = "{version}"', s, count=1)
+          p.write_text(s)
+          PY
+      - name: Test Rust SDK
+        run: cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
+      - name: Package Rust SDK crate
+        run: cargo package --manifest-path sdks/rust/tikeo/Cargo.toml --allow-dirty
+      - name: Publish Rust SDK to crates.io
+        env:
+          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish --manifest-path sdks/rust/tikeo/Cargo.toml --token "$CRATES_IO_TOKEN" --allow-dirty
+      - name: Stage Rust SDK release payload
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
           PKG="rust-sdk-${VERSION}"
           mkdir -p "dist/$PKG"
           cp sdks/rust/tikeo/target/package/*.crate "dist/$PKG/"
@@ -52,8 +75,8 @@ jobs:
       - name: Upload Rust SDK package to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.ref_name || inputs.tag }}
-          name: ${{ github.ref_name || inputs.tag }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
           draft: false
-          prerelease: ${{ contains(github.ref_name || inputs.tag, '-') }}
+          prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
           files: dist/*.tar.gz

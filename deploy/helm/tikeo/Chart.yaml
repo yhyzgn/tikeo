@@ -1,0 +1,17 @@
+apiVersion: v2
+name: tikeo
+description: Tikeo server and web deployment for Kubernetes.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/yhyzgn/tikeo
+sources:
+  - https://github.com/yhyzgn/tikeo
+maintainers:
+  - name: yhyzgn
+    url: https://github.com/yhyzgn
+keywords:
+  - workflow
+  - scheduler
+  - worker
+  - tikeo

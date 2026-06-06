@@ -51,7 +51,7 @@ spec:
     spec:
       containers:
         - name: tikeo
-          image: tikeo/server:dev
+          image: yhyzgn/tikeo-server:dev
           imagePullPolicy: IfNotPresent
           args: ["serve", "--config", "/config/container.toml"]
           ports:
@@ -139,7 +139,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: tikeo/web:dev
+          image: yhyzgn/tikeo-web:dev
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

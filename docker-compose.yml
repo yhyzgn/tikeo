@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${TIKEO_IMAGE:-tikeo/server:dev}
+    image: ${TIKEO_IMAGE:-yhyzgn/tikeo-server:dev}
     command: ["serve", "--config", "/app/config/container.toml"]
     environment:
       MIMALLOC_PURGE_DELAY: ${MIMALLOC_PURGE_DELAY:-0}
@@ -18,7 +18,7 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
-    image: ${TIKEO_WEB_IMAGE:-tikeo/web:dev}
+    image: ${TIKEO_WEB_IMAGE:-yhyzgn/tikeo-web:dev}
     depends_on:
       - tikeo
     ports:

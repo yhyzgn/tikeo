@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to attach Node.js SDK package to, for example v0.1.0'
+        description: 'Release tag to publish Node.js SDK, for example v0.1.123'
         required: true
         type: string
 
@@ -29,6 +29,26 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
+          VERSION="${RELEASE_TAG#v}"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Set Node.js SDK version from tag
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          version = '${{ steps.version.outputs.version }}'
+          p = Path('sdks/nodejs/tikeo/package.json')
+          data = json.loads(p.read_text())
+          data['version'] = version
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + '\n')
+          PY
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -53,6 +73,18 @@ jobs:
           TIKEO_WORKER_DRY_RUN: '1'
           TIKEO_SANDBOX_AUTO_INSTALL: '0'
         run: bun start
+      - name: Set Node.js SDK version from tag
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          version = '${{ steps.version.outputs.version }}'
+          p = Path('sdks/nodejs/tikeo/package.json')
+          data = json.loads(p.read_text())
+          data['version'] = version
+          p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + '
+')
+          PY
       - name: Pack Node.js SDK
         working-directory: sdks/nodejs/tikeo
         run: |
@@ -61,8 +93,8 @@ jobs:
       - name: Stage Node.js SDK release payload
         run: |
           set -euo pipefail
-          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
-          VERSION="${RELEASE_TAG#v}"
+          RELEASE_TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
           PKG="nodejs-sdk-${VERSION}"
           mkdir -p "dist/$PKG"
           cp dist/yhyzgn-tikeo-*.tgz "dist/$PKG/"
@@ -82,8 +114,8 @@ jobs:
       - name: Upload Node.js SDK package to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.ref_name || inputs.tag }}
-          name: ${{ github.ref_name || inputs.tag }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
           draft: false
-          prerelease: ${{ contains(github.ref_name || inputs.tag, '-') }}
+          prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
           files: dist/*.tar.gz

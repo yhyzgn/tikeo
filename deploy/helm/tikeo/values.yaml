@@ -1,0 +1,21 @@
+namespaceOverride: ""
+
+server:
+  image:
+    repository: yhyzgn/tikeo-server
+    tag: dev
+    pullPolicy: IfNotPresent
+  replicas: 1
+  httpPort: 9090
+  workerTunnelPort: 9998
+  storage:
+    databaseUrl: sqlite:///data/tikeo.db?mode=rwc
+    size: 1Gi
+
+web:
+  image:
+    repository: yhyzgn/tikeo-web
+    tag: dev
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 80

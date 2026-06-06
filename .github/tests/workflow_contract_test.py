@@ -129,6 +129,9 @@ class WorkflowContractTest(unittest.TestCase):
         for target in ["x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"]:
             self.assertIn(target, GITHUB_RELEASE)
         self.assertIn("tikeo-web-dist", GITHUB_RELEASE)
+        self.assertIn("deploy-assets", GITHUB_RELEASE)
+        self.assertIn("terraform-provider-tikeo", GITHUB_RELEASE)
+        self.assertIn("helm package deploy/helm/tikeo", GITHUB_RELEASE)
         self.assertIn("config", GITHUB_RELEASE)
         self.assertIn("softprops/action-gh-release", GITHUB_RELEASE)
         self.assertIn("workflow_dispatch", GITHUB_RELEASE)
@@ -144,27 +147,31 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("body_path: release-notes.md", GITHUB_RELEASE)
 
     def test_docker_publish_targets_are_split(self):
-        self.assertIn("tikeo/server", DOCKER_SERVER)
+        self.assertIn("yhyzgn/tikeo-server", DOCKER_SERVER)
         self.assertIn("docker/login-action", DOCKER_SERVER)
         self.assertIn("docker/build-push-action", DOCKER_SERVER)
         self.assertIn("push: true", DOCKER_SERVER)
-        self.assertNotIn("tikeo/web", DOCKER_SERVER)
+        self.assertNotIn("yhyzgn/tikeo-web", DOCKER_SERVER)
 
-        self.assertIn("tikeo/web", DOCKER_WEB)
+        self.assertIn("yhyzgn/tikeo-web", DOCKER_WEB)
         self.assertIn("docker/login-action", DOCKER_WEB)
         self.assertIn("docker/build-push-action", DOCKER_WEB)
         self.assertIn("push: true", DOCKER_WEB)
-        self.assertNotIn("tikeo/server", DOCKER_WEB)
+        self.assertNotIn("yhyzgn/tikeo-server", DOCKER_WEB)
 
     def test_sdk_publish_targets_are_split(self):
         self.assertIn("sdks/java", JAVA_SDK)
         self.assertIn("java-sdk", JAVA_SDK)
-        self.assertIn("./gradlew test jar sourcesJar", JAVA_SDK)
+        self.assertIn("./gradlew test --no-daemon", JAVA_SDK)
+        self.assertIn("publishAndReleaseToMavenCentral", JAVA_SDK)
+        self.assertIn("MAVEN_CENTRAL_USERNAME", JAVA_SDK)
         self.assertNotIn("sdks/rust/tikeo", JAVA_SDK)
 
         self.assertIn("sdks/rust/tikeo", RUST_SDK)
         self.assertIn("rust-sdk", RUST_SDK)
         self.assertIn("cargo package --manifest-path sdks/rust/tikeo/Cargo.toml", RUST_SDK)
+        self.assertIn("cargo publish --manifest-path sdks/rust/tikeo/Cargo.toml", RUST_SDK)
+        self.assertIn("CRATES_IO_TOKEN", RUST_SDK)
         self.assertNotIn("sdks/java", RUST_SDK)
 
 

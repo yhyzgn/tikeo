@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tikeo.name" . }}-config
+  namespace: {{ include "tikeo.namespace" . }}
+  labels:
+    {{- include "tikeo.labels" . | nindent 4 }}
+data:
+  container.toml: |
+    [server]
+    listen_addr = "0.0.0.0:{{ .Values.server.httpPort }}"
+    worker_tunnel_addr = "0.0.0.0:{{ .Values.server.workerTunnelPort }}"
+
+    [storage]
+    database_url = "{{ .Values.server.storage.databaseUrl }}"

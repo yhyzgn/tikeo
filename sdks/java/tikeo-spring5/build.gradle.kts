@@ -1,6 +1,5 @@
 plugins {
     `java-library`
-    `maven-publish`
 }
 
 java {
@@ -26,12 +25,4 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:${providers.gradleProperty("junitJupiterVersion").get()}")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.assertj:assertj-core:${providers.gradleProperty("assertjVersion").get()}")
-}
-
-publishing {
-    publications {
-        create<MavenPublication>("mavenJava") {
-            from(components["java"])
-        }
-    }
 }
