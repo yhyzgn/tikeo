@@ -96,11 +96,18 @@ jobs:
           export GNUPGHOME=/tmp/tikeo-maven-gnupg
           mkdir -p "$GNUPGHOME"
           chmod 700 "$GNUPGHOME"
-          gpg --batch --import /tmp/tikeo-maven-signing-key.raw.asc
+          set +e
+          gpg --batch --import /tmp/tikeo-maven-signing-key.raw.asc 2>/tmp/tikeo-gpg-import-warnings.log
+          GPG_IMPORT_STATUS=$?
+          set -e
           mapfile -t FINGERPRINTS < <(gpg --batch --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10}')
           if [ "${#FINGERPRINTS[@]}" -eq 0 ]; then
-            echo "MAVEN_SIGNING_KEY did not import as a secret key" >&2
+            echo "MAVEN_SIGNING_KEY did not import as a secret key; gpg status=$GPG_IMPORT_STATUS" >&2
+            sed 's/.*/gpg import warning redacted/' /tmp/tikeo-gpg-import-warnings.log >&2 || true
             exit 1
+          fi
+          if [ "$GPG_IMPORT_STATUS" -ne 0 ]; then
+            echo "gpg reported non-fatal import warnings while a secret key was imported; continuing clean re-export."
           fi
           SELECTED_FPR="${FINGERPRINTS[0]}"
           if [ -n "${MAVEN_SIGNING_KEY_ID:-}" ]; then
