@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, rmSync, chmodSync, symlinkSync, copyFileSync } from "node:fs";
-import { homedir, platform, arch } from "node:os";
+import { existsSync, mkdirSync, rmSync, chmodSync, symlinkSync, copyFileSync, writeFileSync, mkdtempSync } from "node:fs";
+import { homedir, platform, arch, tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -74,7 +74,20 @@ export class SandboxToolResolver {
 
   private toolWorks(binary: string, command: string): boolean {
     if (binary === "srt") return this.commandWorks(command, ["--version"]) || this.commandWorks(command, ["--help"]);
-    return this.commandWorks(command, ["--version"]) || (binary === "rhai-run" && this.commandWorks(command, ["--help"]));
+    if (binary === "rhai-run") return this.rhaiWorks(command);
+    return this.commandWorks(command, ["--version"]);
+  }
+
+  private rhaiWorks(command: string): boolean {
+    if ((command.includes("/") || command.includes("\\")) && !existsSync(command)) return false;
+    const dir = mkdtempSync(join(tmpdir(), "tikee-rhai-probe-"));
+    const script = join(dir, "probe.rhai");
+    try {
+      writeFileSync(script, 'print("tikee-rhai-probe");\n');
+      return this.commandWorks(command, [script]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   }
 }
 

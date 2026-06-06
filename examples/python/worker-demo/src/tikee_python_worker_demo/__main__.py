@@ -82,17 +82,23 @@ def configure_scripts(config: tikee.WorkerConfig) -> tikee.ScriptRunnerRegistry:
                 interpreter, interpreter_ok = resolve_srt_interpreter(language, resolver)
                 if srt_ok and rg_ok and interpreter_ok:
                     scripts.register(tikee.SrtScriptRunner(language, srt, interpreter, sandbox_tool_path_entries(srt, rg, interpreter, resolver)))
+                    logging.info("script runner %s registered backend=srt interpreter=%s", language, interpreter)
                     continue
+                logging.warning("script runner %s skipped: srt_ok=%s rg_ok=%s interpreter_ok=%s interpreter=%s", language, srt_ok, rg_ok, interpreter_ok, interpreter)
             elif backend in {"deno", "v8"}:
                 deno, ok = resolver.resolve_deno()
                 if ok:
                     scripts.register(tikee.DenoScriptRunner(language, deno))
+                    logging.info("script runner %s registered backend=deno runtime=%s", language, deno)
                     continue
+                logging.warning("script runner %s skipped: deno unavailable runtime=%s", language, deno)
             elif backend in {"docker", "podman"}:
                 scripts.register(tikee.ContainerScriptRunner(language, backend, script_image(language)))
+                logging.info("script runner %s registered backend=%s", language, backend)
                 continue
             elif enabled("TIKEE_ENABLE_LOCAL_SCRIPT_" + language.upper()):
                 scripts.register(tikee.LocalCommandScriptRunner(language, "custom"))
+                logging.info("script runner %s registered backend=custom", language)
                 continue
         except Exception as exc:
             logging.warning("script runner %s skipped: %s", language, exc)

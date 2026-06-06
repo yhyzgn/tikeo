@@ -6,6 +6,7 @@ import os
 import platform
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -137,8 +138,24 @@ class SandboxToolResolver:
         if binary == "srt":
             return self._command_works(command, "--version") or self._command_works(command, "--help")
         if binary == "rhai-run":
-            return self._command_works(command, "--help") or self._command_works(command, "--version")
+            return self._rhai_works(command)
         return self._command_works(command, "--version")
+
+    def _rhai_works(self, command: str) -> bool:
+        if os.sep in command and not Path(command).exists():
+            return False
+        script: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile("w", suffix=".rhai", delete=False) as handle:
+                handle.write('print("tikee-rhai-probe");\n')
+                script = Path(handle.name)
+            subprocess.run([command, str(script)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2.0, check=True)
+            return True
+        except Exception:
+            return False
+        finally:
+            if script is not None:
+                script.unlink(missing_ok=True)
 
 
 def _dedupe(values: list[str]) -> list[str]:

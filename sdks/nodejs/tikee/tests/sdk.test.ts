@@ -116,6 +116,22 @@ describe("node sdk parity", () => {
     expect(ok).toBe(false);
   });
 
+
+  test("rhai resolver probes by running script file", () => {
+    const root = mkdtempSync(join(tmpdir(), "tikee-node-rhai-probe-"));
+    const binary = join(root, "rhai-run");
+    const reportFile = join(root, "report.txt");
+    executable(binary, `#!/bin/sh\nprintf 'arg=%s\n' "$1" > '${reportFile}'\ntest -f "$1"\n`);
+    const resolver = new SandboxToolResolver(root, false);
+    const ok = (resolver as unknown as { toolWorks(binary: string, command: string): boolean }).toolWorks("rhai-run", binary);
+    expect(ok).toBe(true);
+    const values = report(reportFile);
+    expect(values.arg).toEndWith(".rhai");
+    expect(values.arg).not.toBe("--version");
+    expect(values.arg).not.toBe("--help");
+    rmSync(root, { recursive: true, force: true });
+  });
+
   test("srt and deno runners advertise structured backends", () => {
     const registry = new ScriptRunnerRegistry().register(new SrtScriptRunner("python", "srt", "python3")).register(new DenoScriptRunner("javascript", "deno"));
     const config = localConfig("http://127.0.0.1:9998", "node-sandbox-test");

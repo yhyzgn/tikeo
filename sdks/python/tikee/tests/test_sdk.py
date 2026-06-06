@@ -147,6 +147,20 @@ def test_script_registry_adds_structured_capabilities():
     assert seen == {"javascript": "deno", "python": "srt"}
 
 
+
+
+def test_rhai_resolver_probes_by_running_script_file(tmp_path):
+    binary = tmp_path / "rhai-run"
+    report = tmp_path / "report.txt"
+    write_executable(binary, f"#!/bin/sh\nprintf 'arg=%s\n' \"$1\" > {report!s}\ntest -f \"$1\"\n")
+    resolver = tikee.SandboxToolResolver(state_dir=str(tmp_path), auto_install=False)
+    assert resolver._tool_works("rhai-run", str(binary))
+    values = read_report(report)
+    assert values["arg"].endswith(".rhai")
+    assert values["arg"] != "--version"
+    assert values["arg"] != "--help"
+
+
 def test_srt_settings_serialize_empty_policy_lists_as_arrays():
     dirs = ScriptTaskRuntimeDirs.create("tikee-python-srt-settings-test")
     try:

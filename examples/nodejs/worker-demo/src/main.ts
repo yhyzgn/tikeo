@@ -86,14 +86,16 @@ export function configureScripts(config: WorkerConfig): ScriptRunnerRegistry {
         const [srt, srtOk] = resolver.resolveSrt();
         const [rg, rgOk] = resolver.resolveRipgrep();
         const [interpreter, interpreterOk] = resolveSrtInterpreter(language, resolver);
-        if (srtOk && rgOk && interpreterOk) { scripts.register(new SrtScriptRunner(language, srt, interpreter, sandboxToolPathEntries(srt, rg, interpreter, resolver))); continue; }
+        if (srtOk && rgOk && interpreterOk) { scripts.register(new SrtScriptRunner(language, srt, interpreter, sandboxToolPathEntries(srt, rg, interpreter, resolver))); console.log(`script runner ${language} registered backend=srt interpreter=${interpreter}`); continue; }
+        console.warn(`script runner ${language} skipped: srtOk=${srtOk} rgOk=${rgOk} interpreterOk=${interpreterOk} interpreter=${interpreter}`);
       } else if (backend === "deno" || backend === "v8") {
         const [deno, ok] = resolver.resolveDeno();
-        if (ok) { scripts.register(new DenoScriptRunner(language, deno)); continue; }
+        if (ok) { scripts.register(new DenoScriptRunner(language, deno)); console.log(`script runner ${language} registered backend=deno runtime=${deno}`); continue; }
+        console.warn(`script runner ${language} skipped: deno unavailable runtime=${deno}`);
       } else if (backend === "docker" || backend === "podman") {
-        scripts.register(new ContainerScriptRunner(language, backend, scriptImage(language))); continue;
+        scripts.register(new ContainerScriptRunner(language, backend, scriptImage(language))); console.log(`script runner ${language} registered backend=${backend}`); continue;
       } else if (enabled("TIKEE_ENABLE_LOCAL_SCRIPT_" + language.toUpperCase())) {
-        scripts.register(new LocalCommandScriptRunner(language, "custom")); continue;
+        scripts.register(new LocalCommandScriptRunner(language, "custom")); console.log(`script runner ${language} registered backend=custom`); continue;
       }
     } catch (error) { console.warn(`script runner ${language} skipped: ${(error as Error).message}`); }
   }
