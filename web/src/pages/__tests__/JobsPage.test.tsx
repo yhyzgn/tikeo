@@ -89,9 +89,15 @@ describe('job schedule form governance', () => {
     expect(source).toContain('backoffMultiplier: 2');
     expect(source).toContain('maxDelaySeconds: 60');
     expect(source).toContain('失败重试');
+    expect(source).toContain('job-retry-policy-section');
+    expect(source).toContain('job-retry-policy-grid');
+    expect(source).toContain('job-retry-policy-heading');
+    expect(stylesSource).toContain('.job-retry-policy-section');
+    expect(stylesSource).toContain('.job-retry-policy-grid');
     expect(source).toContain('retryPolicy: DEFAULT_RETRY_POLICY');
     expect(source).toContain('retryPolicyValue(editingJob.retryPolicy)');
     expect(source).toContain('retry {job.retryPolicy.maxAttempts}x');
+    expect(source).not.toContain('className="job-retry-policy-card"');
   });
 
   test('exposes job version history and rollback UI copy' , () => {

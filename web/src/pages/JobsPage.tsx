@@ -375,28 +375,31 @@ export function JobsPage() {
   );
 
   const renderRetryPolicyFields = () => (
-    <Card size="small" title="失败重试" className="job-retry-policy-card">
-      <Typography.Paragraph type="secondary">默认启用指数退避：首次失败 5 秒后重试，总共最多 3 次；取消、脚本治理拒绝等非运行期失败不会盲目重试。</Typography.Paragraph>
-      <Form.Item name={["retryPolicy", "enabled"]} label="启用失败重试" valuePropName="checked">
-        <Switch />
-      </Form.Item>
-      <Space.Compact block>
-        <Form.Item name={["retryPolicy", "maxAttempts"]} label="总尝试次数" rules={[{ required: true }]} style={{ flex: 1 }}>
+    <section className="job-retry-policy-section" aria-label="失败重试策略">
+      <div className="job-retry-policy-header">
+        <div className="job-retry-policy-copy">
+          <Typography.Text strong className="job-retry-policy-heading">失败重试</Typography.Text>
+          <Typography.Text type="secondary" className="job-retry-policy-desc">默认启用指数退避：首次失败 5 秒后重试，总共最多 3 次；取消、脚本治理拒绝等非运行期失败不会盲目重试。</Typography.Text>
+        </div>
+        <Form.Item name={["retryPolicy", "enabled"]} valuePropName="checked" className="job-retry-policy-toggle">
+          <Switch checkedChildren="启用" unCheckedChildren="关闭" />
+        </Form.Item>
+      </div>
+      <div className="job-retry-policy-grid">
+        <Form.Item name={["retryPolicy", "maxAttempts"]} label="总尝试次数" rules={[{ required: true }]}>
           <InputNumber min={1} max={10} precision={0} style={{ width: '100%' }} />
         </Form.Item>
-        <Form.Item name={["retryPolicy", "initialDelaySeconds"]} label="首次延迟" rules={[{ required: true }]} style={{ flex: 1 }}>
+        <Form.Item name={["retryPolicy", "initialDelaySeconds"]} label="首次延迟" rules={[{ required: true }]}>
           <InputNumber min={0} max={86400} precision={0} addonAfter="秒" style={{ width: '100%' }} />
         </Form.Item>
-      </Space.Compact>
-      <Space.Compact block>
-        <Form.Item name={["retryPolicy", "backoffMultiplier"]} label="退避倍数" rules={[{ required: true }]} style={{ flex: 1 }}>
+        <Form.Item name={["retryPolicy", "backoffMultiplier"]} label="退避倍数" rules={[{ required: true }]}>
           <InputNumber min={1} max={10} precision={0} style={{ width: '100%' }} />
         </Form.Item>
-        <Form.Item name={["retryPolicy", "maxDelaySeconds"]} label="最大延迟" rules={[{ required: true }]} style={{ flex: 1 }}>
+        <Form.Item name={["retryPolicy", "maxDelaySeconds"]} label="最大延迟" rules={[{ required: true }]}>
           <InputNumber min={0} max={86400} precision={0} addonAfter="秒" style={{ width: '100%' }} />
         </Form.Item>
-      </Space.Compact>
-    </Card>
+      </div>
+    </section>
   );
 
   const columns: ColumnsType<JobSummary> = [

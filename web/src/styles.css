@@ -353,6 +353,73 @@ body {
   font-weight: 600;
 }
 
+.job-retry-policy-section {
+  margin: 8px 0 24px;
+  padding: 16px;
+  border: 1px solid var(--app-border);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--app-surface-solid) 92%, transparent), color-mix(in srgb, var(--app-surface-soft) 96%, transparent));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--app-surface-solid) 80%, transparent);
+}
+
+.job-retry-policy-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.job-retry-policy-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.job-retry-policy-heading {
+  color: var(--app-text-strong);
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+.job-retry-policy-desc {
+  max-width: 720px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.job-retry-policy-toggle.ant-form-item {
+  margin-bottom: 0;
+}
+
+.job-retry-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+}
+
+.job-retry-policy-grid .ant-form-item {
+  margin-bottom: 0;
+}
+
+.job-retry-policy-grid .ant-form-item-label {
+  padding-bottom: 4px;
+}
+
+@media (max-width: 640px) {
+  .job-retry-policy-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .job-retry-policy-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .clean-card,
 .metric-card,
 .login-card,
