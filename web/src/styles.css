@@ -320,7 +320,10 @@ body {
   min-height: var(--app-tag-min-height);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  text-align: center;
+  vertical-align: middle;
   padding: 2px 11px;
   border-radius: 999px;
   line-height: 1.35;

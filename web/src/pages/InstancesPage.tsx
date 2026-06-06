@@ -22,6 +22,18 @@ import { persistentPagination, usePersistentTablePageSize } from '../utils/pagin
 
 const displayWorkerId = (instance: JobInstanceSummary) => instance.workerId ?? instance.latestLog?.workerId ?? '暂无 worker';
 
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'succeeded': return 'success';
+    case 'failed': return 'error';
+    case 'partial_failed': return 'warning';
+    case 'running': return 'processing';
+    case 'pending': return 'gold';
+    default: return 'default';
+  }
+};
+
+
 const displayExecutionNodes = (
   instance: JobInstanceSummary,
   attempts: JobInstanceAttemptSummary[] | undefined,
@@ -49,7 +61,9 @@ const displayExecutionNodes = (
 };
 
 
-const renderExecutionResult = (instance: JobInstanceSummary | null) => {
+const latestWorkerLog = (logs: JobInstanceLogSummary[], workerId: string) => [...logs].reverse().find((log) => log.workerId === workerId);
+
+const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: JobInstanceAttemptSummary[], logs: JobInstanceLogSummary[]) => {
   const result = instance?.result;
   if (!result) {
     return (
@@ -106,6 +120,44 @@ const renderExecutionResult = (instance: JobInstanceSummary | null) => {
             {messageText}
           </Typography.Paragraph>
         </div>
+
+        {instance?.executionMode === 'broadcast' ? (
+          <div className="instance-result-broadcast">
+            <div className="instance-result-broadcast__header">
+              <Typography.Text strong>广播节点结果</Typography.Text>
+              <Typography.Text type="secondary">{attempts.length} 个执行节点</Typography.Text>
+            </div>
+            {attempts.length === 0 ? (
+              <Typography.Text type="secondary">暂无广播子执行信息</Typography.Text>
+            ) : (
+              <div className="instance-result-broadcast__grid">
+                {attempts.map((attempt) => {
+                  const workerLogCount = logs.filter((log) => log.workerId === attempt.workerId).length;
+                  const latestLog = latestWorkerLog(logs, attempt.workerId);
+                  return (
+                    <div key={attempt.id} className="instance-result-broadcast__node">
+                      <div className="instance-result-broadcast__node-head">
+                        <Typography.Text code title={attempt.workerId}>{formatWorkerDisplayId(attempt.workerId)}</Typography.Text>
+                        <Tag color={getStatusColor(attempt.status)} className="instance-status-tag">{attempt.status}</Tag>
+                      </div>
+                      <div className="instance-result-broadcast__node-meta">
+                        <span>Updated</span>
+                        <Typography.Text>{attempt.updatedAt}</Typography.Text>
+                      </div>
+                      <div className="instance-result-broadcast__node-meta">
+                        <span>Logs</span>
+                        <Typography.Text>{workerLogCount} 条</Typography.Text>
+                      </div>
+                      <Typography.Paragraph className="instance-result-broadcast__latest-log" title={latestLog?.message ?? ''}>
+                        {latestLog?.message ?? '暂无节点日志'}
+                      </Typography.Paragraph>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : null}
       </div>
     </Card>
   );
@@ -188,17 +240,6 @@ export function InstancesPage() {
     }, 2_000);
     return () => window.clearInterval(timer);
   }, [active, loadLogs, logDrawerOpen, selectedInstance]);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'succeeded': return 'success';
-      case 'failed': return 'error';
-      case 'partial_failed': return 'warning';
-      case 'running': return 'processing';
-      case 'pending': return 'gold';
-      default: return 'default';
-    }
-  };
 
   const cancelRunningInstance = async (instance: JobInstanceSummary) => {
     try {
@@ -329,7 +370,7 @@ export function InstancesPage() {
             locale={{ emptyText: selectedInstance?.executionMode === 'single' ? '暂无执行器信息' : '暂无广播子执行' }}
           />
         </Card>
-        {renderExecutionResult(selectedInstance)}
+        {renderExecutionResult(selectedInstance, attempts, logs)}
         <Space align="center" style={{ marginTop: 24, marginBottom: 12 }}>
           <Typography.Title level={5} style={{ margin: 0 }}>执行日志</Typography.Title>
           {selectedInstance ? (

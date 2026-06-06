@@ -37,6 +37,12 @@ describe('instance log drawer executor visibility', () => {
 
 describe('instance list worker visibility and grouped logs', () => {
 
+  test('centers status bubbles with inline-flex alignment', () => {
+    expect(source).toContain('justify-content: center');
+    expect(source).toContain('vertical-align: middle');
+    expect(source).toContain('text-align: center');
+  });
+
   test('centers all table headers and body cells globally', () => {
     expect(source).toContain('.ant-table-thead > tr > th');
     expect(source).toContain('.ant-table-tbody > tr > td');
@@ -107,7 +113,8 @@ describe('instance list worker visibility and grouped logs', () => {
   test('shows log timestamps and binds terminal highlight colors to theme tokens', () => {
     expect(source).toContain('formatLogTimestamp(log.createdAt)');
     expect(source).toContain('formatIsoOffset');
-    expect(source).toContain('grid-template-columns: max-content max-content max-content minmax(0, 1fr)');
+    expect(source).toContain('grid-template-columns: var(--instance-log-seq-width, 6ch) max-content max-content minmax(0, 1fr)');
+    expect(source).toContain('text-align: right');
     expect(source).toContain('className="instance-log-terminal__time"');
     expect(source).toContain('dateTime={log.createdAt}');
     expect(source).toContain('--terminal-highlight-bg');
@@ -127,6 +134,8 @@ describe('instance execution result view', () => {
     expect(source).toContain('任务执行成功');
     expect(source).toContain('任务执行失败');
     expect(source).toContain('instance-result-panel__message-body');
-    expect(source).toContain('renderExecutionResult(selectedInstance)');
+    expect(source).toContain('renderExecutionResult(selectedInstance, attempts, logs)');
+    expect(source).toContain('instance-result-broadcast__grid');
+    expect(source).toContain('广播节点结果');
   });
 });
