@@ -6,6 +6,7 @@ import com.yhyzgn.tikee.management.client.TikeeJobClient;
 import com.yhyzgn.tikee.management.model.CreateJobRequest;
 import com.yhyzgn.tikee.management.model.JobDefinition;
 import com.yhyzgn.tikee.management.model.JobInstance;
+import com.yhyzgn.tikee.management.model.JobRetryPolicy;
 import com.yhyzgn.tikee.management.model.TriggerJobRequest;
 import com.yhyzgn.tikee.management.model.UpdateJobRequest;
 import java.net.URI;
@@ -104,7 +105,7 @@ class DemoJobManagementControllerTest {
                 assertThat(request.scriptId()).isEqualTo("script-demo");
             }
             return new JobDefinition("job-created", "default", "default", request.name(), "api", null,
-                    request.processorType(), request.processorName(), request.scriptId(), true);
+                    request.processorType(), request.processorName(), request.scriptId(), true, JobRetryPolicy.defaults());
         }
 
         @Override
@@ -122,7 +123,7 @@ class DemoJobManagementControllerTest {
         }
 
         private static JobDefinition job(String id, String name, String processorName, boolean enabled) {
-            return new JobDefinition(id, "default", "default", name, "api", null, null, processorName, null, enabled);
+            return new JobDefinition(id, "default", "default", name, "api", null, null, processorName, null, enabled, JobRetryPolicy.defaults());
         }
     }
 }
