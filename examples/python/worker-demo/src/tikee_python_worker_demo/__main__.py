@@ -1,0 +1,208 @@
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import asdict
+import os
+import time
+from typing import Iterable
+
+import tikee
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+
+def main() -> None:
+    config = tikee.local_config(env_or("TIKEE_WORKER_ENDPOINT", "http://127.0.0.1:9998"), env_or("TIKEE_WORKER_CLIENT_INSTANCE_ID", "python-worker-demo-local"))
+    config.namespace = env_or("TIKEE_WORKER_NAMESPACE", "dev-alpha")
+    config.app = env_or("TIKEE_WORKER_APP", "orders")
+    config.cluster = env_or("TIKEE_WORKER_CLUSTER", "local")
+    config.region = env_or("TIKEE_WORKER_REGION", "local")
+    config.add_tag("python")
+    config.add_tag("manual-demo")
+    for processor in csv_or("TIKEE_WORKER_SDK_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail"):
+        config.add_sdk_processor(processor)
+    config.labels["worker_pool"] = env_or("TIKEE_WORKER_POOL", "python-blue")
+    if enabled_by_default("TIKEE_ENABLE_PLUGIN_SQL"):
+        config.add_plugin_processor(env_or("TIKEE_PLUGIN_SQL_TYPE", "sql"), env_or("TIKEE_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"))
+        config.labels["plugin_sql"] = "enabled"
+
+    scripts = configure_scripts(config)
+    client = tikee.Client(config)
+    registration = client.registration()
+    print("python worker demo configured: " + json.dumps(asdict(registration), indent=2))
+
+    if enabled("TIKEE_MANAGEMENT_CREATE_EXAMPLES"):
+        mgmt = tikee.ManagementClient(env_or("TIKEE_HTTP_URL", "http://127.0.0.1:8080"), os.environ.get("TIKEE_API_KEY", ""), config.namespace, config.app)
+        for job in [tikee.api_job("python-echo-api", "demo.echo"), tikee.plugin_api_job("python-sql-sync-api", "sql", "billing.sql-sync")]:
+            try:
+                created = mgmt.create_job(job)
+                logging.info("created job %s/%s %s", created.namespace, created.app, created.name)
+            except Exception as exc:
+                logging.warning("create job %s failed: %s", job.name, exc)
+
+    if dry_run_enabled():
+        client.start_dry_run(process_task)
+        heartbeat = client.next_heartbeat("dry-run-worker", "dry-run-fence", 1)
+        print(f"dry_run_heartbeat_sequence={heartbeat.sequence}")
+        return
+
+    oneshot = enabled("TIKEE_WORKER_ONESHOT")
+    while True:
+        try:
+            session = client.connect()
+            stop = session.start_heartbeat()
+            logging.info("python worker connected: worker_id=%s generation=%s lease_seconds=%s", session.worker_id, session.generation, session.lease_seconds)
+            try:
+                while True:
+                    outcome = session.process_next(process_task, scripts)
+                    logging.info("processed task success=%s message=%s", outcome.success, outcome.message)
+                    if oneshot:
+                        return
+                    time.sleep(0.05)
+            finally:
+                stop.set()
+                session.close()
+        except Exception as exc:
+            logging.warning("worker tunnel ended, reconnecting: %s", exc)
+            time.sleep(2)
+
+
+def configure_scripts(config: tikee.WorkerConfig) -> tikee.ScriptRunnerRegistry:
+    scripts = tikee.ScriptRunnerRegistry()
+    resolver = tikee.SandboxToolResolver(state_dir=env_or("TIKEE_WORKER_STATE_DIR", ""), auto_install=not disabled("TIKEE_SANDBOX_AUTO_INSTALL"))
+    for language in csv_or("TIKEE_WORKER_SCRIPT_LANGUAGES", "shell,python,javascript,typescript,powershell,php,groovy,rhai"):
+        if disabled("TIKEE_ENABLE_SCRIPT_" + language.upper()):
+            continue
+        backend = script_sandbox_backend(language)
+        try:
+            if backend == "srt":
+                srt, srt_ok = resolver.resolve_srt()
+                rg, rg_ok = resolver.resolve_ripgrep()
+                interpreter, interpreter_ok = resolve_srt_interpreter(language, resolver)
+                if srt_ok and rg_ok and interpreter_ok:
+                    scripts.register(tikee.SrtScriptRunner(language, srt, interpreter, sandbox_tool_path_entries(srt, rg, interpreter, resolver)))
+                    continue
+            elif backend in {"deno", "v8"}:
+                deno, ok = resolver.resolve_deno()
+                if ok:
+                    scripts.register(tikee.DenoScriptRunner(language, deno))
+                    continue
+            elif backend in {"docker", "podman"}:
+                scripts.register(tikee.ContainerScriptRunner(language, backend, script_image(language)))
+                continue
+            elif enabled("TIKEE_ENABLE_LOCAL_SCRIPT_" + language.upper()):
+                scripts.register(tikee.LocalCommandScriptRunner(language, "custom"))
+                continue
+        except Exception as exc:
+            logging.warning("script runner %s skipped: %s", language, exc)
+        if enabled("TIKEE_ENABLE_UNAVAILABLE_SCRIPT_ADAPTERS"):
+            scripts.register(tikee.UnavailableScriptRunner(language, backend, f"{backend} sandbox backend is unavailable; auto requires SRT+rg for native scripts and Deno for JavaScript/TypeScript"))
+    scripts.add_capabilities(config)
+    return scripts
+
+
+def process_task(task: tikee.TaskContext) -> tikee.TaskOutcome:
+    task.log_info(f"[python-worker] processor={task.processor_name} instance={task.instance_id} payload_bytes={len(task.payload)}")
+    payload = task.payload.decode(errors="replace")
+    match task.processor_name or "demo.echo":
+        case "" | "demo.echo":
+            task.log_info(f"[demo.echo] payload='{payload}'")
+            return tikee.TaskOutcome(True, "python demo echo processed")
+        case "demo.context":
+            task.log_info(f"[demo.context] jobId={task.job_id} instanceId={task.instance_id}")
+            return tikee.TaskOutcome(True, f"python demo context processed instance={task.instance_id}")
+        case "demo.bytes":
+            task.log_info(f"[demo.bytes] payload='{payload}' length={len(task.payload)}")
+            return tikee.TaskOutcome(True, f"python demo bytes processed payload_bytes={len(task.payload)}")
+        case "demo.heartbeat":
+            task.log_info(f"[demo.heartbeat] tick jobId={task.job_id} instanceId={task.instance_id}")
+            return tikee.TaskOutcome(True, "python demo heartbeat processed")
+        case "billing.sql-sync":
+            task.log_info(f"[billing.sql-sync] plugin SQL processor received payload='{payload}'")
+            return tikee.TaskOutcome(True, "python demo sql plugin processed")
+        case "demo.fail":
+            task.log_error(f"[demo.fail] intentional failure payload='{payload}'")
+            return tikee.failed("python demo intentional failure")
+        case other:
+            task.log_error(f"[python-worker] unsupported processor={other}")
+            return tikee.failed("unsupported python demo processor: " + other)
+
+
+def script_sandbox_backend(language: str) -> str:
+    value = os.environ.get("TIKEE_WORKER_SCRIPT_SANDBOX", "").strip()
+    if value and value.lower() != "auto":
+        return value.lower()
+    return "deno" if language.lower() in {"javascript", "js", "typescript", "ts"} else "srt"
+
+
+def resolve_srt_interpreter(language: str, resolver: tikee.SandboxToolResolver) -> tuple[str, bool]:
+    key = language.strip().lower()
+    if key in {"shell", "sh", "bash"}:
+        return resolver.resolve_interpreter("sh")
+    if key in {"python", "py"}:
+        return resolver.resolve_interpreter("python3")
+    if key in {"powershell", "pwsh"}:
+        return resolver.resolve_powershell()
+    if key == "php":
+        return resolver.resolve_interpreter("php")
+    if key == "groovy":
+        return resolver.resolve_interpreter("groovy")
+    if key == "rhai":
+        return resolver.resolve_rhai()
+    return resolver.resolve_interpreter("sh")
+
+
+def sandbox_tool_path_entries(srt: str, rg: str, interpreter: str, resolver: tikee.SandboxToolResolver) -> list[str]:
+    entries = [parent for parent in [tool_parent(srt), tool_parent(rg), tool_parent(interpreter)] if parent]
+    for value, ok in [resolver.resolve_node(), resolver.resolve_npm()]:
+        if ok and tool_parent(value):
+            entries.append(tool_parent(value))
+    return list(dict.fromkeys(entries))
+
+
+def tool_parent(command: str) -> str:
+    return str(os.path.dirname(command)) if os.path.sep in command else ""
+
+
+def script_image(language: str) -> str:
+    images = {
+        "shell": env_or("TIKEE_SHELL_IMAGE", "alpine:latest"),
+        "python": env_or("TIKEE_PYTHON_IMAGE", "python:alpine"),
+        "javascript": env_or("TIKEE_JAVASCRIPT_IMAGE", "denoland/deno:alpine"),
+        "typescript": env_or("TIKEE_TYPESCRIPT_IMAGE", "denoland/deno:alpine"),
+        "powershell": env_or("TIKEE_POWERSHELL_IMAGE", "mcr.microsoft.com/powershell:latest"),
+        "php": env_or("TIKEE_PHP_IMAGE", "php:cli-alpine"),
+        "groovy": env_or("TIKEE_GROOVY_IMAGE", "groovy:latest"),
+        "rhai": env_or("TIKEE_RHAI_IMAGE", "rhaiscript/rhai:latest"),
+    }
+    return images.get(tikee.normalize_script_language(language), "")
+
+
+def env_or(key: str, fallback: str) -> str:
+    return os.environ.get(key, "").strip() or fallback
+
+
+def csv_or(key: str, fallback: str) -> list[str]:
+    value = env_or(key, fallback)
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def enabled_by_default(key: str) -> bool:
+    return not disabled(key)
+
+
+def enabled(key: str) -> bool:
+    return os.environ.get(key, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def disabled(key: str) -> bool:
+    return os.environ.get(key, "").strip().lower() in {"0", "false", "no", "off"}
+
+
+def dry_run_enabled() -> bool:
+    return enabled("TIKEE_WORKER_DRY_RUN") or disabled("TIKEE_WORKER_CONNECT")
+
+
+if __name__ == "__main__":
+    main()
