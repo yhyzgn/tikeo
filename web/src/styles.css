@@ -561,7 +561,7 @@ body {
   content: "";
   position: absolute;
   left: 4px;
-  bottom: 118px;
+  bottom: 76px;
   width: min(520px, 78%);
   height: 3px;
   border-radius: 999px;
@@ -600,6 +600,21 @@ body {
   line-height: 1.18;
   letter-spacing: 0.01em;
   text-wrap: balance;
+}
+
+.login-page__headline span {
+  display: block;
+  width: fit-content;
+  background: linear-gradient(92deg, var(--app-text-strong) 0%, var(--app-primary-color) 48%, var(--app-info-color) 78%, var(--app-text-strong) 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: login-title-breathe 4.8s ease-in-out infinite;
+}
+
+.login-page__headline span:nth-child(2) {
+  animation-delay: 0.35s;
 }
 
 .login-page__summary.ant-typography {
@@ -664,6 +679,40 @@ body {
 
 .login-page__card.login-card::before {
   display: none;
+}
+
+.login-page__brand .tikee-logo {
+  transform-origin: 50% 50%;
+  animation: login-logo-breathe 5.2s ease-in-out infinite;
+}
+
+@keyframes login-title-breathe {
+  0%, 100% {
+    background-position: 0% 50%;
+    filter: drop-shadow(0 0 0 rgba(37, 99, 235, 0));
+  }
+  50% {
+    background-position: 100% 50%;
+    filter: drop-shadow(0 10px 24px rgba(37, 99, 235, 0.18));
+  }
+}
+
+@keyframes login-logo-breathe {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 12px 20px rgba(37, 99, 235, 0.20));
+  }
+  50% {
+    transform: translateY(-2px) scale(1.035);
+    filter: drop-shadow(0 18px 28px rgba(37, 99, 235, 0.32));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-page__headline span,
+  .login-page__brand .tikee-logo {
+    animation: none;
+  }
 }
 
 @media (max-width: 991px) {
