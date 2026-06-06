@@ -59,25 +59,16 @@ pub struct WorkerTunnel {
 impl WorkerTunnel {
     /// Create a Worker Tunnel service backed by an in-memory registry.
     #[must_use]
-    pub const fn new(
-        registry: WorkerRegistry,
-        instances: JobInstanceRepository,
-        jobs: JobRepository,
-        logs: JobInstanceLogRepository,
-        attempts: JobInstanceAttemptRepository,
-        workflows: WorkflowRepository,
-        audit: AuditLogRepository,
-        log_broadcaster: TaskLogBroadcaster,
-    ) -> Self {
+    pub fn new(runtime: super::WorkerTunnelRuntime) -> Self {
         Self {
-            registry,
-            instances,
-            jobs,
-            logs,
-            attempts,
-            workflows,
-            audit,
-            log_broadcaster,
+            registry: runtime.registry,
+            instances: runtime.instances,
+            jobs: runtime.jobs,
+            logs: runtime.logs,
+            attempts: runtime.attempts,
+            workflows: runtime.workflows,
+            audit: runtime.audit,
+            log_broadcaster: runtime.log_broadcaster,
         }
     }
 }
@@ -666,8 +657,7 @@ async fn append_execution_log(
         .logs
         .count_by_instance(instance_id)
         .await
-        .map(|count| i64::try_from(count).unwrap_or(i64::MAX - 1) + 1)
-        .unwrap_or(0);
+        .map_or(0, |count| i64::try_from(count).unwrap_or(i64::MAX - 1) + 1);
     match context
         .logs
         .append(AppendJobInstanceLog {
@@ -1139,16 +1129,18 @@ mod tests {
 
         let audit = audit().await;
         let broadcaster = TaskLogBroadcaster::default();
-        let service = super::WorkerTunnel::new(
-            WorkerRegistry::default(),
-            instances,
-            jobs,
-            logs,
-            attempts,
-            workflows,
-            audit,
-            broadcaster.clone(),
-        );
+        let service = super::WorkerTunnel::new(crate::tunnel::WorkerTunnelRuntime::new(
+            crate::tunnel::WorkerTunnelRuntimeParts {
+                registry: WorkerRegistry::default(),
+                instances,
+                jobs,
+                logs,
+                attempts,
+                workflows,
+                audit,
+                log_broadcaster: broadcaster.clone(),
+            },
+        ));
         let response = service
             .subscribe_task_logs(Request::new(SubscribeTaskLogsRequest {
                 instance_id: instance.id.clone(),

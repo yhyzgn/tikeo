@@ -2554,3 +2554,20 @@
         assert_eq!(json["code"], 40101);
         assert!(json.get("data").is_some());
     }
+
+    #[tokio::test]
+    async fn login_accepts_email_identifier_for_password_session() {
+        let app = router().await;
+        ensure_bootstrap_admin(app.clone()).await;
+
+        let login = post_json_without_auth(
+            app,
+            "/api/v1/auth/login",
+            r#"{"username":"bootstrap.admin@example.com","password":"Tikee@2026!"}"#,
+        )
+        .await;
+
+        assert_eq!(login["code"], 0);
+        assert_eq!(login["data"]["username"], "bootstrap_admin");
+        assert!(login["data"]["token"].as_str().is_some_and(|token| !token.is_empty()));
+    }

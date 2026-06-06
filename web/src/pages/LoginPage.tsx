@@ -1,3 +1,4 @@
+import { CloudServerOutlined, LockOutlined, SafetyCertificateOutlined, UserOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Form, Input, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -37,40 +38,60 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <Card className="login-card">
-        <div className="login-brand"><TikeeLogo size={96} showWordmark /></div>
-        <Typography.Title level={2}>登录 tikee</Typography.Title>
-        <Typography.Paragraph type="secondary">
-          使用管理员分配的账号登录。首次部署时请先完成初始化管理员注册。
-        </Typography.Paragraph>
-        {error ? <Alert type="error" showIcon message="登录失败" description={error} /> : null}
-        <Form<LoginRequest>
-          layout="vertical"
-          onFinish={async (values) => {
-            setLoading(true);
-            setError(null);
-            try {
-              const session = await login(values);
-              setAuthToken(session.token);
-              navigate(postLoginPath, { replace: true });
-            } catch (cause) {
-              setError(cause instanceof Error ? cause.message : '登录失败');
-            } finally {
-              setLoading(false);
-            }
-          }}
-        >
-          <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
-            <Input autoComplete="username" />
-          </Form.Item>
-          <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}>
-            <Input.Password autoComplete="current-password" />
-          </Form.Item>
-          <Button type="primary" htmlType="submit" loading={loading} block>
-            登录
-          </Button>
-        </Form>
-      </Card>
+      <section className="login-page__shell" aria-label="tikee 登录入口">
+        <div className="login-page__visual">
+          <div className="login-page__brand login-brand"><TikeeLogo size={96} showWordmark /></div>
+          <Typography.Text className="login-page__eyebrow">分布式任务调度平台</Typography.Text>
+          <Typography.Title className="login-page__headline" level={1}>
+            进入统一调度控制台
+          </Typography.Title>
+          <Typography.Paragraph className="login-page__summary">
+            连接 Server、Worker、脚本沙箱与插件执行器，以可观测、可审计的方式管理生产任务流。
+          </Typography.Paragraph>
+          <div className="login-page__trust-list" aria-label="登录入口能力说明">
+            <span><SafetyCertificateOutlined /> 会话安全</span>
+            <span><CloudServerOutlined /> Worker 隧道</span>
+            <span><LockOutlined /> 权限审计</span>
+          </div>
+        </div>
+
+        <Card className="login-page__card login-card">
+          <Typography.Text className="login-page__form-kicker">管理员登录</Typography.Text>
+          <Typography.Title className="login-page__form-title" level={2}>登录 tikee</Typography.Title>
+          <Typography.Paragraph className="login-page__form-copy" type="secondary">
+            使用管理员分配的用户名或邮箱登录。首次部署时请先完成初始化管理员注册。
+          </Typography.Paragraph>
+          {error ? <Alert className="login-page__alert" type="error" showIcon message="登录失败" description={error} /> : null}
+          <Form<LoginRequest>
+            className="login-page__form"
+            layout="vertical"
+            requiredMark={false}
+            onFinish={async (values) => {
+              setLoading(true);
+              setError(null);
+              try {
+                const session = await login(values);
+                setAuthToken(session.token);
+                navigate(postLoginPath, { replace: true });
+              } catch (cause) {
+                setError(cause instanceof Error ? cause.message : '登录失败');
+              } finally {
+                setLoading(false);
+              }
+            }}
+          >
+            <Form.Item name="username" label="用户名或邮箱" rules={[{ required: true, message: '请输入用户名或邮箱' }]}>
+              <Input prefix={<UserOutlined />} autoComplete="username" placeholder="admin 或 admin@example.com" />
+            </Form.Item>
+            <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}>
+              <Input.Password prefix={<LockOutlined />} autoComplete="current-password" placeholder="请输入密码" />
+            </Form.Item>
+            <Button className="login-page__submit" type="primary" htmlType="submit" loading={loading} block>
+              登录
+            </Button>
+          </Form>
+        </Card>
+      </section>
     </div>
   );
 }

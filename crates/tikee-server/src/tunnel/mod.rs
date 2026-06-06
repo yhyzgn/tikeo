@@ -35,28 +35,39 @@ pub struct WorkerTunnelRuntime {
     log_broadcaster: TaskLogBroadcaster,
 }
 
+/// Input bundle used to create a Worker Tunnel runtime.
+pub struct WorkerTunnelRuntimeParts {
+    /// Shared Worker registry.
+    pub registry: WorkerRegistry,
+    /// Job instance repository.
+    pub instances: JobInstanceRepository,
+    /// Job definition repository.
+    pub jobs: JobRepository,
+    /// Job instance log repository.
+    pub logs: JobInstanceLogRepository,
+    /// Job instance attempt repository.
+    pub attempts: JobInstanceAttemptRepository,
+    /// Workflow repository.
+    pub workflows: WorkflowRepository,
+    /// Audit log repository.
+    pub audit: AuditLogRepository,
+    /// Live task log broadcaster.
+    pub log_broadcaster: TaskLogBroadcaster,
+}
+
 impl WorkerTunnelRuntime {
     /// Create a Worker Tunnel runtime dependency bundle.
     #[must_use]
-    pub const fn new(
-        registry: WorkerRegistry,
-        instances: JobInstanceRepository,
-        jobs: JobRepository,
-        logs: JobInstanceLogRepository,
-        attempts: JobInstanceAttemptRepository,
-        workflows: WorkflowRepository,
-        audit: AuditLogRepository,
-        log_broadcaster: TaskLogBroadcaster,
-    ) -> Self {
+    pub fn new(parts: WorkerTunnelRuntimeParts) -> Self {
         Self {
-            registry,
-            instances,
-            jobs,
-            logs,
-            attempts,
-            workflows,
-            audit,
-            log_broadcaster,
+            registry: parts.registry,
+            instances: parts.instances,
+            jobs: parts.jobs,
+            logs: parts.logs,
+            attempts: parts.attempts,
+            workflows: parts.workflows,
+            audit: parts.audit,
+            log_broadcaster: parts.log_broadcaster,
         }
     }
 }
@@ -89,16 +100,7 @@ pub async fn serve_with_security(
             .context("failed to configure Worker Tunnel TLS")?;
     }
     server
-        .add_service(WorkerTunnelServiceServer::new(WorkerTunnel::new(
-            runtime.registry,
-            runtime.instances,
-            runtime.jobs,
-            runtime.logs,
-            runtime.attempts,
-            runtime.workflows,
-            runtime.audit,
-            runtime.log_broadcaster,
-        )))
+        .add_service(WorkerTunnelServiceServer::new(WorkerTunnel::new(runtime)))
         .serve(listen_addr)
         .await
         .context("worker tunnel gRPC server failed")

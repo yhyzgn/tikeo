@@ -279,12 +279,8 @@ pub async fn login(
     headers: HeaderMap,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<ApiResponse<AuthSession>>, ApiError> {
-    let user = state
-        .users
-        .get_by_username(&request.username)
-        .await
-        .map_err(|error| ApiError::storage(&error))?
-        .ok_or_else(|| ApiError::unauthorized("invalid username or password"))?;
+    let identifier = request.username.trim();
+    let user = resolve_login_user(&state, identifier).await?;
 
     // Verify hashed password
     let matches = verify(&request.password, &user.password)
@@ -329,6 +325,32 @@ pub async fn login(
     }
 
     Ok(Json(ApiResponse::success(session)))
+}
+
+async fn resolve_login_user(
+    state: &AppState,
+    identifier: &str,
+) -> Result<tikee_storage::entities::user::Model, ApiError> {
+    if identifier.is_empty() {
+        return Err(ApiError::unauthorized("invalid username or password"));
+    }
+    if let Some(user) = state
+        .users
+        .get_by_username(identifier)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+    {
+        return Ok(user);
+    }
+    if !identifier.contains('@') {
+        return Err(ApiError::unauthorized("invalid username or password"));
+    }
+    state
+        .users
+        .get_by_email(identifier)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::unauthorized("invalid username or password"))
 }
 
 /// Create a durable API token for the current principal.

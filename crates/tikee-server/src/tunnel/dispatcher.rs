@@ -478,8 +478,7 @@ async fn append_dispatcher_execution_log(
     let sequence = logs
         .count_by_instance(instance_id)
         .await
-        .map(|count| i64::try_from(count).unwrap_or(i64::MAX - 1) + 1)
-        .unwrap_or(0);
+        .map_or(0, |count| i64::try_from(count).unwrap_or(i64::MAX - 1) + 1);
     let _ = logs
         .append(AppendJobInstanceLog {
             instance_id: instance_id.to_owned(),

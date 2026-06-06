@@ -265,8 +265,7 @@ mod tests {
             .unwrap_or_else(|error| panic!("table info should query: {error}"));
         rows.iter().any(|row| {
             row.try_get::<String>("", "name")
-                .map(|name| name == column)
-                .unwrap_or(false)
+                .is_ok_and(|name| name == column)
         })
     }
 

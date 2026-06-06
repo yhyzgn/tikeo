@@ -80,7 +80,10 @@ impl JobRetryPolicy {
     #[must_use]
     pub fn delay_after_attempt_seconds(&self, completed_attempt: i32) -> i64 {
         let policy = self.clone().normalized();
-        let exponent = completed_attempt.saturating_sub(1).clamp(0, 9) as u32;
+        let exponent = completed_attempt
+            .saturating_sub(1)
+            .clamp(0, 9)
+            .cast_unsigned();
         let multiplier = i64::from(policy.backoff_multiplier).saturating_pow(exponent);
         policy
             .initial_delay_seconds

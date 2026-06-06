@@ -88,16 +88,16 @@ pub async fn serve(config: TikeeConfig) -> Result<()> {
         run_http_listener(http_addr, http_router, transport_security.http.clone()),
         tunnel::serve_with_security(
             tunnel_addr,
-            tunnel_runtime(
-                registry.clone(),
-                tunnel_instances,
-                jobs.clone(),
-                logs.clone(),
-                tunnel_attempts,
-                workflows.clone(),
-                audit.clone(),
+            tunnel::WorkerTunnelRuntime::new(tunnel::WorkerTunnelRuntimeParts {
+                registry: registry.clone(),
+                instances: tunnel_instances,
+                jobs: jobs.clone(),
+                logs: logs.clone(),
+                attempts: tunnel_attempts,
+                workflows: workflows.clone(),
+                audit: audit.clone(),
                 log_broadcaster,
-            ),
+            }),
             &transport_security.worker_tunnel,
         ),
         async {
@@ -184,28 +184,6 @@ async fn run_http_listener(
         .await
         .with_context(|| format!("failed to bind HTTP listener at {http_addr}"))?;
     http::serve_listener_with_state(listener, http_router, &tls).await
-}
-
-const fn tunnel_runtime(
-    registry: tunnel::WorkerRegistry,
-    instances: JobInstanceRepository,
-    jobs: JobRepository,
-    logs: JobInstanceLogRepository,
-    attempts: JobInstanceAttemptRepository,
-    workflows: WorkflowRepository,
-    audit: AuditLogRepository,
-    log_broadcaster: tunnel::TaskLogBroadcaster,
-) -> tunnel::WorkerTunnelRuntime {
-    tunnel::WorkerTunnelRuntime::new(
-        registry,
-        instances,
-        jobs,
-        logs,
-        attempts,
-        workflows,
-        audit,
-        log_broadcaster,
-    )
 }
 
 async fn run_alert_retry_worker(

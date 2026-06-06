@@ -11,7 +11,7 @@ impl MigrationTrait for LegacySqliteSchemaCompatibility {
     }
 }
 
-pub(crate) async fn apply_sqlite_schema_compatibility(
+pub async fn apply_sqlite_schema_compatibility(
     db: &impl ConnectionTrait,
 ) -> Result<(), sea_orm::DbErr> {
     ensure_broadcast_schema_compatibility(db).await?;

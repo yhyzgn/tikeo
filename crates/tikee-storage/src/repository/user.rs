@@ -137,6 +137,23 @@ impl UserRepository {
             .await
     }
 
+    /// Get user by email address.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn get_by_email(
+        &self,
+        email: &str,
+    ) -> Result<Option<crate::entities::user::Model>, sea_orm::DbErr> {
+        use crate::entities::user;
+
+        user::Entity::find()
+            .filter(user::Column::Email.eq(email.to_owned()))
+            .one(&self.db)
+            .await
+    }
+
     /// Count platform users.
     ///
     /// # Errors
