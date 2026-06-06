@@ -56,7 +56,7 @@ describe('instance list worker visibility and grouped logs', () => {
     expect(source).toContain('className="instance-copy-id"');
     expect(source).toContain('title="点击复制实例 ID"');
     expect(source).toContain("navigator.clipboard.writeText(instanceId)");
-    expect(source).toContain("message.success('实例 ID 已复制')");
+    expect(source).toContain("message.success(t('实例 ID 已复制'))");
     expect(source).toContain('.instance-copy-id.ant-typography');
     expect(source).toContain('cursor: pointer;');
   });
@@ -65,7 +65,7 @@ describe('instance list worker visibility and grouped logs', () => {
     expect(source).toContain('onCopyWorkerId(workerId)');
     expect(source).toContain('formatWorkerDisplayId(workerId)');
     expect(source).toContain('title="点击复制执行节点"');
-    expect(source).toContain("message.success('执行节点已复制')");
+    expect(source).toContain("message.success(t('执行节点已复制'))");
   });
 
   test('shows the assigned worker in the instance table', () => {
@@ -78,10 +78,12 @@ describe('instance list worker visibility and grouped logs', () => {
     expect(source).toContain('width="60vw"');
     expect(source).toContain('const workerLogGroups = groupLogsByWorker(logs);');
     expect(source).toContain('groups.map((group) =>');
-    expect(source).toContain("title={`Worker ${group.workerId}`}");
+    expect(source).toContain("title={`${t('Worker')} ${group.workerId}`}");
     expect(source).toContain('group.logs.map((log) =>');
     expect(source).toContain('role="log"');
     expect(source).toContain('renderAnsiLogLine');
+    expect(source).toContain('useI18n');
+    expect(source).toContain("aria-label={`${t('Worker')} ${group.workerId} ${t('执行日志')}`}");
     expect(source).toContain('instance-log-terminal');
   });
 

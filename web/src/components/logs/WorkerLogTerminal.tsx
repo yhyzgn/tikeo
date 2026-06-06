@@ -2,6 +2,7 @@ import { Card, Space, Tag } from 'antd';
 
 import type { JobInstanceLogSummary } from '../../api/client';
 import { renderAnsiLogLine } from './AnsiLogLine';
+import { useI18n, type LocaleCode } from '../../i18n/I18nContext';
 import { formatLogTimestamp } from './logTime';
 
 type WorkerLogGroup = {
@@ -23,6 +24,8 @@ export const groupLogsByWorker = (logs: JobInstanceLogSummary[]): WorkerLogGroup
 
 const formatLogSequence = (sequence: number) => `#${String(sequence).padStart(3, '0')}`;
 
+const formatLogCount = (count: number, locale: LocaleCode) => locale === 'en-US' ? `${count} logs` : `${count} 条日志`;
+
 const renderLogMessage = (log: JobInstanceLogSummary) => {
   const message = log.governanceEvent === 'script_execution_governance'
     ? (log.governanceMessage ?? log.message)
@@ -35,6 +38,7 @@ type WorkerLogTerminalProps = {
 };
 
 export function WorkerLogTerminal({ groups }: WorkerLogTerminalProps) {
+  const { locale, t } = useI18n();
   return (
     <Space direction="vertical" size={14} style={{ width: '100%' }}>
       {groups.map((group) => (
@@ -42,10 +46,10 @@ export function WorkerLogTerminal({ groups }: WorkerLogTerminalProps) {
           key={group.workerId}
           size="small"
           className="instance-log-terminal-card"
-          title={`Worker ${group.workerId}`}
-          extra={<Tag color="blue">{group.logs.length} 条日志</Tag>}
+          title={`${t('Worker')} ${group.workerId}`}
+          extra={<Tag color="blue">{formatLogCount(group.logs.length, locale)}</Tag>}
         >
-          <div className="instance-log-terminal" role="log" aria-label={`Worker ${group.workerId} execution logs`}>
+          <div className="instance-log-terminal" role="log" aria-label={`${t('Worker')} ${group.workerId} ${t('执行日志')}`}>
             {group.logs.map((log) => (
               <div key={log.id} className="instance-log-terminal__line">
                 <span className="instance-log-terminal__seq">{formatLogSequence(log.sequence)}</span>

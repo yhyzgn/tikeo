@@ -17,6 +17,7 @@ import {
 } from '../api/client';
 import { WorkerLogTerminal, groupLogsByWorker } from '../components/logs/WorkerLogTerminal';
 import { useRouteActive } from '../hooks/useRouteActivation';
+import { useI18n, type LocaleCode } from '../i18n/I18nContext';
 import { ROUTE_META } from '../routes';
 import { formatWorkerDisplayId } from './instances/workerDisplay';
 import { persistentPagination, usePersistentTablePageSize } from '../utils/pagination';
@@ -63,6 +64,16 @@ const displayExecutionNodes = (
 
 
 const latestWorkerLog = (logs: JobInstanceLogSummary[], workerId: string) => [...logs].reverse().find((log) => log.workerId === workerId);
+
+const formatNodeResultSummary = (total: number, completed: number, locale: LocaleCode) => (
+  locale === 'en-US' ? `${total} execution nodes, ${completed} returned results` : `共 ${total} 个执行节点，${completed} 个已返回结果`
+);
+
+const formatExecutionNodeCount = (count: number, locale: LocaleCode) => (locale === 'en-US' ? `${count} execution nodes` : `${count} 个执行节点`);
+
+const formatResultLogCount = (count: number, locale: LocaleCode) => (locale === 'en-US' ? `${count} logs` : `${count} 条`);
+
+const formatInstanceLogTitle = (instanceId: string, locale: LocaleCode) => (locale === 'en-US' ? `Instance logs: ${instanceId}` : `实例日志： ${instanceId}`);
 
 type ExecutionResultNode = {
   id: string;
@@ -111,7 +122,7 @@ const buildExecutionResultNodes = (
   }];
 };
 
-const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: JobInstanceAttemptSummary[], logs: JobInstanceLogSummary[]) => {
+const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: JobInstanceAttemptSummary[], logs: JobInstanceLogSummary[], t: (text: string) => string, locale: LocaleCode) => {
   const nodes = buildExecutionResultNodes(instance, attempts, logs);
   const completed = nodes.filter((node) => node.result).length;
   const failed = nodes.filter((node) => node.result && !node.result.success).length;
@@ -121,7 +132,7 @@ const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: Jo
     <Card
       size="small"
       className={`instance-result-card instance-result-card--${cardState}`}
-      title="执行结果"
+      title={t('执行结果')}
       style={{ marginTop: 16 }}
     >
       <div className="instance-result-panel">
@@ -129,9 +140,9 @@ const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: Jo
           <div className="instance-result-panel__status">
             <span className="instance-result-panel__status-dot" />
             <div>
-              <Typography.Text strong className="instance-result-panel__status-title">节点执行结果</Typography.Text>
+              <Typography.Text strong className="instance-result-panel__status-title">{t('节点执行结果')}</Typography.Text>
               <Typography.Text type="secondary" className="instance-result-panel__status-subtitle">
-                {nodes.length > 0 ? `共 ${nodes.length} 个执行节点，${completed} 个已返回结果` : '暂无执行节点信息'}
+                {nodes.length > 0 ? formatNodeResultSummary(nodes.length, completed, locale) : t('暂无执行节点信息')}
               </Typography.Text>
             </div>
           </div>
@@ -144,19 +155,19 @@ const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: Jo
 
         {nodes.length === 0 ? (
           <div className="instance-result-empty">
-            <Typography.Text strong>暂无执行节点信息</Typography.Text>
-            <Typography.Text type="secondary">实例开始分发后会在这里按节点展示执行结果。</Typography.Text>
+            <Typography.Text strong>{t('暂无执行节点信息')}</Typography.Text>
+            <Typography.Text type="secondary">{t('实例开始分发后会在这里按节点展示执行结果。')}</Typography.Text>
           </div>
         ) : (
           <div className="instance-result-nodes">
             <div className="instance-result-nodes__header">
-              <Typography.Text strong>{instance?.executionMode === 'broadcast' ? '广播节点结果' : '单节点结果'}</Typography.Text>
-              <Typography.Text type="secondary">{nodes.length} 个执行节点</Typography.Text>
+              <Typography.Text strong>{t(instance?.executionMode === 'broadcast' ? '广播节点结果' : '单节点结果')}</Typography.Text>
+              <Typography.Text type="secondary">{formatExecutionNodeCount(nodes.length, locale)}</Typography.Text>
             </div>
             <div className="instance-result-nodes__list">
               {nodes.map((node) => {
-                const messageText = node.result?.message ?? node.latestMessage ?? '等待 Worker 返回结果';
-                const resultText = node.result ? (node.result.success ? 'success' : 'failed') : 'pending';
+                const messageText = node.result?.message ?? node.latestMessage ?? t('等待 Worker 返回结果');
+                const resultText = node.result ? (node.result.success ? t('success') : t('failed')) : t('pending');
                 return (
                   <div key={node.id} className="instance-result-nodes__node">
                     <div className="instance-result-nodes__node-main">
@@ -166,21 +177,21 @@ const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: Jo
                       </div>
                       <div className="instance-result-nodes__meta-row">
                         <div className="instance-result-nodes__node-meta">
-                          <span>Updated</span>
+                          <span>{t('Updated')}</span>
                           <Typography.Text>{node.updatedAt || '-'}</Typography.Text>
                         </div>
                         <div className="instance-result-nodes__node-meta">
-                          <span>Result</span>
+                          <span>{t('Result')}</span>
                           <Typography.Text>{resultText}</Typography.Text>
                         </div>
                         <div className="instance-result-nodes__node-meta">
-                          <span>Logs</span>
-                          <Typography.Text>{node.logCount} 条</Typography.Text>
+                          <span>{t('Logs')}</span>
+                          <Typography.Text>{formatResultLogCount(node.logCount, locale)}</Typography.Text>
                         </div>
                       </div>
                     </div>
                     <div className="instance-result-nodes__message">
-                      <span>Message</span>
+                      <span>{t('Message')}</span>
                       <Typography.Paragraph className="instance-result-panel__message-body" title={messageText}>
                         {messageText}
                       </Typography.Paragraph>
@@ -197,6 +208,7 @@ const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: Jo
 };
 
 export function InstancesPage() {
+  const { locale, t } = useI18n();
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [instances, setInstances] = useState<JobInstanceSummary[]>([]);
   const [attemptsByInstance, setAttemptsByInstance] = useState<Map<string, JobInstanceAttemptSummary[]>>(new Map());
@@ -249,14 +261,14 @@ export function InstancesPage() {
       setAttemptsByInstance((previous) => new Map(previous).set(instance.id, attemptPage.items));
     } catch (cause) {
       if (showLoading) {
-        message.error(cause instanceof Error ? cause.message : '日志加载失败');
+        message.error(cause instanceof Error ? cause.message : t('日志加载失败'));
       }
     } finally {
       if (showLoading) {
         setLogsLoading(false);
       }
     }
-  }, []);
+  }, [t]);
 
   const openLogs = async (instance: JobInstanceSummary) => {
     setSelectedInstance(instance);
@@ -277,28 +289,28 @@ export function InstancesPage() {
   const cancelRunningInstance = async (instance: JobInstanceSummary) => {
     try {
       const updated = await cancelInstance(instance.id);
-      message.success(`已取消实例 ${updated.id}`);
+      message.success(locale === 'en-US' ? `Cancelled instance ${updated.id}` : `已取消实例 ${updated.id}`);
       await load();
     } catch (cause) {
-      message.error(cause instanceof Error ? cause.message : '取消失败');
+      message.error(cause instanceof Error ? cause.message : t('取消失败'));
     }
   };
 
   const copyInstanceId = async (instanceId: string) => {
     try {
       await navigator.clipboard.writeText(instanceId);
-      message.success('实例 ID 已复制');
+      message.success(t('实例 ID 已复制'));
     } catch {
-      message.error('实例 ID 复制失败');
+      message.error(t('实例 ID 复制失败'));
     }
   };
 
   const copyWorkerId = async (workerId: string) => {
     try {
       await navigator.clipboard.writeText(workerId);
-      message.success('执行节点已复制');
+      message.success(t('执行节点已复制'));
     } catch {
-      message.error('执行节点复制失败');
+      message.error(t('执行节点复制失败'));
     }
   };
 
@@ -382,11 +394,11 @@ export function InstancesPage() {
       <Drawer
         className="instance-log-drawer"
         width="60vw"
-        title={selectedInstance ? `实例日志： ${selectedInstance.id}` : '实例日志'}
+        title={selectedInstance ? formatInstanceLogTitle(selectedInstance.id, locale) : t('实例日志')}
         open={logDrawerOpen}
         onClose={() => setLogDrawerOpen(false)}
       >
-        <Card size="small" className="instance-log-section" title={selectedInstance?.executionMode === 'single' ? '执行器' : '广播子执行'}>
+        <Card size="small" className="instance-log-section" title={t(selectedInstance?.executionMode === 'single' ? '执行器' : '广播子执行')}>
           <Table
             rowKey="id"
             columns={attemptColumns}
@@ -400,27 +412,27 @@ export function InstancesPage() {
             }] : attempts}
             pagination={false}
             scroll={{ x: 860 }}
-            locale={{ emptyText: selectedInstance?.executionMode === 'single' ? '暂无执行器信息' : '暂无广播子执行' }}
+            locale={{ emptyText: t(selectedInstance?.executionMode === 'single' ? '暂无执行器信息' : '暂无广播子执行') }}
           />
         </Card>
-        {renderExecutionResult(selectedInstance, attempts, logs)}
+        {renderExecutionResult(selectedInstance, attempts, logs, t, locale)}
         <Space align="center" style={{ marginTop: 24, marginBottom: 12 }}>
-          <Typography.Title level={5} style={{ margin: 0 }}>执行日志</Typography.Title>
+          <Typography.Title level={5} style={{ margin: 0 }}>{t('执行日志')}</Typography.Title>
           {selectedInstance ? (
-            <Button size="small" onClick={() => void loadLogs(selectedInstance)} loading={logsLoading}>刷新</Button>
+            <Button size="small" onClick={() => void loadLogs(selectedInstance)} loading={logsLoading}>{t('刷新')}</Button>
           ) : null}
         </Space>
         {governanceLogs.length > 0 ? (
           <Alert
             type="warning"
             showIcon
-            message={`脚本执行治理事件 ${governanceLogs.length} 条`}
-            description="已识别脚本 capability、runner、policy、digest、timeout、output 或 runtime 相关治理失败。"
+            message={locale === 'en-US' ? `Script execution governance events: ${governanceLogs.length}` : `脚本执行治理事件 ${governanceLogs.length} 条`}
+            description={t('已识别脚本 capability、runner、policy、digest、timeout、output 或 runtime 相关治理失败。')}
             style={{ marginBottom: 12 }}
           />
         ) : null}
         {workerLogGroups.length === 0 ? (
-          <Empty description={logsLoading ? '日志加载中...' : '暂无日志'} />
+          <Empty description={logsLoading ? t('日志加载中...') : t('暂无日志')} />
         ) : (
           <WorkerLogTerminal groups={workerLogGroups} />
         )}

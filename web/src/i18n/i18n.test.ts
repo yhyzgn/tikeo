@@ -9,6 +9,7 @@ import { enUS, zhCN } from './messages';
 import { normalizeLocale } from './I18nContext';
 
 const i18nContextSource = readFileSync(new URL('./I18nContext.tsx', import.meta.url), 'utf8');
+const messagesSource = readFileSync(new URL('./messages.ts', import.meta.url), 'utf8');
 
 const i18nDir = dirname(fileURLToPath(import.meta.url));
 const srcDir = join(i18nDir, '..');
@@ -72,6 +73,11 @@ describe('i18n message dictionaries', () => {
     expect(enUS['沙箱后端']).toBe('Sandbox backend');
   });
 
+  test('keeps locale dictionaries split into standalone language files', () => {
+    expect(messagesSource).toContain('./locales/zh-CN');
+    expect(messagesSource).toContain('./locales/en-US');
+  });
+
   test('keeps Chinese and English dictionaries aligned for current UI copy', () => {
     expect(Object.keys(enUS).sort()).toEqual(Object.keys(zhCN).sort());
     expect(enUS['审计日志']).toBe('Audit logs');
@@ -104,6 +110,16 @@ describe('i18n message dictionaries', () => {
       '选择租户管理中的 Namespace',
       '失败重试策略',
       '执行结果',
+      '节点执行结果',
+      '暂无执行节点信息',
+      '广播节点结果',
+      '单节点结果',
+      '等待 Worker 返回结果',
+      'Updated',
+      'Logs',
+      'Message',
+      '执行日志',
+      '广播子执行',
       '任务编排',
     ];
 
@@ -117,6 +133,9 @@ describe('i18n message dictionaries', () => {
     expect(zhCN['dispatching']).toBe('分发中');
     expect(zhCN['fixed_rate']).toBe('固定频率');
     expect(enUS['执行结果']).toBe('Execution result');
+    expect(enUS['节点执行结果']).toBe('Node execution results');
+    expect(enUS['广播节点结果']).toBe('Broadcast node results');
+    expect(enUS['等待 Worker 返回结果']).toBe('Waiting for Worker result');
   });
 
   test('keeps visible JSX and table metadata strings covered by the i18n dictionaries', () => {
@@ -156,6 +175,8 @@ describe('i18n message dictionaries', () => {
     expect(translateString('审计日志', enUS, false)).toBe('审计日志');
     expect(translateString('Service Account 已创建', zhCN, true)).toBe('服务账号已创建');
     expect(translateString('Worker 集群', zhCN, true)).toBe('执行节点集群');
+    expect(translateString('节点执行结果', enUS, true)).toBe('Node execution results');
+    expect(translateString('等待 Worker 返回结果', enUS, true)).toBe('Waiting for Worker result');
   });
 
   test('normalizes unsupported locales to a supported locale', () => {
