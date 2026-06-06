@@ -1,12 +1,14 @@
+//! Runnable Rust worker SDK demo with processor, script sandbox, plugin, and management examples.
+
 #![forbid(unsafe_code)]
 
 use std::{collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
 use tikee::{
-    ContainerScriptRunner, DenoScriptRunner, SandboxToolResolver, ScriptRunnerKind,
-    ScriptRunnerRegistry, SrtScriptRunner, TaskContext, TaskOutcome, TaskProcessor,
-    UnsupportedScriptRunner, WorkerClient, WorkerConfig, WorkerSdkError,
+    ContainerScriptRunner, DenoScriptRunner, ManagementClient, ManagementCreateJobRequest,
+    SandboxToolResolver, ScriptRunnerKind, ScriptRunnerRegistry, SrtScriptRunner, TaskContext,
+    TaskOutcome, TaskProcessor, UnsupportedScriptRunner, WorkerClient, WorkerConfig, WorkerSdkError,
 };
 
 #[tokio::main]
@@ -165,6 +167,10 @@ async fn main() -> Result<(), WorkerSdkError> {
         config.labels
     );
 
+    if enabled_env("TIKEE_MANAGEMENT_CREATE_EXAMPLES") {
+        create_management_examples(&config).await?;
+    }
+
     if dry_run_enabled() {
         println!(
             "Dry run only. Set TIKEE_WORKER_DRY_RUN=0 or omit it to open a live Worker Tunnel; set TIKEE_ENABLE_SCRIPT_<LANG>=1 to advertise script runners."
@@ -180,6 +186,39 @@ async fn main() -> Result<(), WorkerSdkError> {
         }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
+}
+
+async fn create_management_examples(config: &WorkerConfig) -> Result<(), WorkerSdkError> {
+    let api_key = std::env::var("TIKEE_API_KEY").unwrap_or_default();
+    if api_key.trim().is_empty() {
+        eprintln!(
+            "TIKEE_MANAGEMENT_CREATE_EXAMPLES=1 but TIKEE_API_KEY is empty; skip Rust management examples"
+        );
+        return Ok(());
+    }
+    let http_url = env_or("TIKEE_HTTP_URL", "http://127.0.0.1:8080");
+    let management = ManagementClient::new(
+        http_url,
+        api_key,
+        config.namespace.clone(),
+        config.app.clone(),
+    );
+    for job in [
+        ManagementCreateJobRequest::api("rust-echo-api", "demo.echo"),
+        ManagementCreateJobRequest::plugin_api("rust-sql-sync-api", "sql", "billing.sql-sync"),
+    ] {
+        match management.create_job(job).await {
+            Ok(created) => println!(
+                "[rust-demo.management] created job namespace={} app={} name={} retry_attempts={}",
+                created.namespace,
+                created.app,
+                created.name,
+                created.retry_policy.max_attempts
+            ),
+            Err(error) => eprintln!("[rust-demo.management] create job failed: {error}"),
+        }
+    }
+    Ok(())
 }
 
 async fn run_worker_session(

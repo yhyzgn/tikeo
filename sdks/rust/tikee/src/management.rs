@@ -127,16 +127,27 @@ impl ManagementClient {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JobRetryPolicy {
+    /// Whether failed executions should be retried.
     pub enabled: bool,
+    /// Total attempts including the first execution.
     pub max_attempts: i32,
+    /// Delay before the first retry attempt, in seconds.
     pub initial_delay_seconds: i64,
+    /// Integer multiplier applied to each subsequent retry delay.
     pub backoff_multiplier: i32,
+    /// Upper bound for any retry delay, in seconds.
     pub max_delay_seconds: i64,
 }
 
 impl Default for JobRetryPolicy {
     fn default() -> Self {
-        Self { enabled: true, max_attempts: 3, initial_delay_seconds: 5, backoff_multiplier: 2, max_delay_seconds: 60 }
+        Self {
+            enabled: true,
+            max_attempts: 3,
+            initial_delay_seconds: 5,
+            backoff_multiplier: 2,
+            max_delay_seconds: 60,
+        }
     }
 }
 
@@ -164,6 +175,7 @@ pub struct JobDefinition {
     pub script_id: Option<String>,
     /// Whether this job is enabled.
     pub enabled: bool,
+    /// Structured failure retry policy applied to this job.
     pub retry_policy: JobRetryPolicy,
 }
 
@@ -184,6 +196,7 @@ pub struct CreateJobRequest {
     pub script_id: Option<String>,
     /// Optional enabled flag.
     pub enabled: Option<bool>,
+    /// Optional structured failure retry policy.
     pub retry_policy: Option<JobRetryPolicy>,
 }
 
