@@ -179,6 +179,13 @@ async fn create_job_instance_attempts(manager: &SchemaManager<'_>) -> Result<(),
                 .col(string_col(JobInstanceAttempts::InstanceId))
                 .col(string_col(JobInstanceAttempts::WorkerId))
                 .col(string_col(JobInstanceAttempts::Status))
+                .col(
+                    ColumnDef::new(JobInstanceAttempts::ResultSuccess)
+                        .boolean()
+                        .null(),
+                )
+                .col(text_null(JobInstanceAttempts::ResultMessage))
+                .col(string_null(JobInstanceAttempts::ResultCompletedAt))
                 .col(string_col(JobInstanceAttempts::CreatedAt))
                 .col(string_col(JobInstanceAttempts::UpdatedAt))
                 .to_owned(),

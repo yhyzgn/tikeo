@@ -967,6 +967,7 @@ pub struct JobInstanceAttemptSummary {
     pub instance_id: String,
     pub worker_id: String,
     pub status: String,
+    pub result: Option<JobInstanceResult>,
     pub created_at: String,
     pub updated_at: String,
 }

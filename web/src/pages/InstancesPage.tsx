@@ -63,6 +63,55 @@ const displayExecutionNodes = (
 
 const latestWorkerLog = (logs: JobInstanceLogSummary[], workerId: string) => [...logs].reverse().find((log) => log.workerId === workerId);
 
+const renderBroadcastResults = (instance: JobInstanceSummary | null, attempts: JobInstanceAttemptSummary[], logs: JobInstanceLogSummary[]) => {
+  if (instance?.executionMode !== 'broadcast') {
+    return null;
+  }
+  return (
+    <div className="instance-result-broadcast">
+      <div className="instance-result-broadcast__header">
+        <Typography.Text strong>广播节点结果</Typography.Text>
+        <Typography.Text type="secondary">{attempts.length} 个执行节点</Typography.Text>
+      </div>
+      {attempts.length === 0 ? (
+        <Typography.Text type="secondary">暂无广播子执行信息</Typography.Text>
+      ) : (
+        <div className="instance-result-broadcast__grid">
+          {attempts.map((attempt) => {
+            const workerLogCount = logs.filter((log) => log.workerId === attempt.workerId).length;
+            const latestLog = latestWorkerLog(logs, attempt.workerId);
+            const nodeResult = attempt.result;
+            const nodeMessage = nodeResult?.message ?? latestLog?.message ?? '暂无节点结果';
+            return (
+              <div key={attempt.id} className="instance-result-broadcast__node">
+                <div className="instance-result-broadcast__node-head">
+                  <Typography.Text code title={attempt.workerId}>{formatWorkerDisplayId(attempt.workerId)}</Typography.Text>
+                  <Tag color={getStatusColor(attempt.status)} className="instance-status-tag">{nodeResult ? (nodeResult.success ? 'succeeded' : 'failed') : attempt.status}</Tag>
+                </div>
+                <div className="instance-result-broadcast__node-meta">
+                  <span>Updated</span>
+                  <Typography.Text>{nodeResult?.completedAt ?? attempt.updatedAt}</Typography.Text>
+                </div>
+                <div className="instance-result-broadcast__node-meta">
+                  <span>Result</span>
+                  <Typography.Text>{nodeResult ? (nodeResult.success ? 'success' : 'failed') : 'pending'}</Typography.Text>
+                </div>
+                <div className="instance-result-broadcast__node-meta">
+                  <span>Logs</span>
+                  <Typography.Text>{workerLogCount} 条</Typography.Text>
+                </div>
+                <Typography.Paragraph className="instance-result-broadcast__latest-log" title={nodeMessage}>
+                  {nodeMessage}
+                </Typography.Paragraph>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: JobInstanceAttemptSummary[], logs: JobInstanceLogSummary[]) => {
   const result = instance?.result;
   if (!result) {
@@ -72,6 +121,7 @@ const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: Jo
           <Typography.Text strong>暂无执行结果</Typography.Text>
           <Typography.Text type="secondary">实例进入运行、重试或完成后会在这里展示 Worker 返回的具体结果。</Typography.Text>
         </div>
+        {renderBroadcastResults(instance, attempts, logs)}
       </Card>
     );
   }
@@ -121,43 +171,7 @@ const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: Jo
           </Typography.Paragraph>
         </div>
 
-        {instance?.executionMode === 'broadcast' ? (
-          <div className="instance-result-broadcast">
-            <div className="instance-result-broadcast__header">
-              <Typography.Text strong>广播节点结果</Typography.Text>
-              <Typography.Text type="secondary">{attempts.length} 个执行节点</Typography.Text>
-            </div>
-            {attempts.length === 0 ? (
-              <Typography.Text type="secondary">暂无广播子执行信息</Typography.Text>
-            ) : (
-              <div className="instance-result-broadcast__grid">
-                {attempts.map((attempt) => {
-                  const workerLogCount = logs.filter((log) => log.workerId === attempt.workerId).length;
-                  const latestLog = latestWorkerLog(logs, attempt.workerId);
-                  return (
-                    <div key={attempt.id} className="instance-result-broadcast__node">
-                      <div className="instance-result-broadcast__node-head">
-                        <Typography.Text code title={attempt.workerId}>{formatWorkerDisplayId(attempt.workerId)}</Typography.Text>
-                        <Tag color={getStatusColor(attempt.status)} className="instance-status-tag">{attempt.status}</Tag>
-                      </div>
-                      <div className="instance-result-broadcast__node-meta">
-                        <span>Updated</span>
-                        <Typography.Text>{attempt.updatedAt}</Typography.Text>
-                      </div>
-                      <div className="instance-result-broadcast__node-meta">
-                        <span>Logs</span>
-                        <Typography.Text>{workerLogCount} 条</Typography.Text>
-                      </div>
-                      <Typography.Paragraph className="instance-result-broadcast__latest-log" title={latestLog?.message ?? ''}>
-                        {latestLog?.message ?? '暂无节点日志'}
-                      </Typography.Paragraph>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ) : null}
+        {renderBroadcastResults(instance, attempts, logs)}
       </div>
     </Card>
   );

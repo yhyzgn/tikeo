@@ -135,7 +135,9 @@ describe('instance execution result view', () => {
     expect(source).toContain('任务执行失败');
     expect(source).toContain('instance-result-panel__message-body');
     expect(source).toContain('renderExecutionResult(selectedInstance, attempts, logs)');
+    expect(source).toContain('renderBroadcastResults(instance, attempts, logs)');
     expect(source).toContain('instance-result-broadcast__grid');
+    expect(source).toContain('nodeResult?.message');
     expect(source).toContain('广播节点结果');
   });
 });

@@ -425,3 +425,7 @@ html[data-theme="dark"] {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+
+.instance-result-card--empty .instance-result-broadcast {
+  margin-top: 12px;
+}

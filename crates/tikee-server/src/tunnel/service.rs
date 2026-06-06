@@ -449,6 +449,8 @@ async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResu
         .await
     {
         Ok(Some(_)) => {
+            persist_broadcast_task_result(context, &worker_id, &instance_id, success, &message)
+                .await;
             if let Err(error) =
                 refresh_broadcast_parent(context.instances, context.attempts, &instance_id).await
             {
@@ -470,6 +472,40 @@ async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResu
         Err(error) => {
             tracing::warn!(%error, %instance_id, %worker_id, "failed to persist attempt result");
         }
+    }
+}
+
+async fn persist_broadcast_task_result(
+    context: &WorkerMessageContext<'_>,
+    worker_id: &str,
+    instance_id: &str,
+    success: bool,
+    message: &str,
+) {
+    if let Err(error) = context
+        .attempts
+        .record_result(instance_id, worker_id, success, message)
+        .await
+    {
+        tracing::warn!(%error, %instance_id, %worker_id, "failed to persist broadcast attempt result");
+    }
+    append_execution_log(
+        context,
+        instance_id,
+        worker_id,
+        if success { "info" } else { "error" },
+        &format!("task result success={success} message={message}"),
+    )
+    .await;
+    if !success {
+        persist_script_result_governance(
+            context.logs,
+            context.audit,
+            worker_id,
+            instance_id,
+            message,
+        )
+        .await;
     }
 }
 
@@ -901,6 +937,146 @@ mod tests {
             .unwrap_or_else(|error| panic!("instance should load: {error}"))
             .unwrap_or_else(|| panic!("instance should exist"));
         assert_eq!(unchanged.status, InstanceStatus::Pending);
+    }
+
+    #[tokio::test]
+    async fn broadcast_task_result_persists_per_worker_attempt_result() {
+        use tikee_core::{ExecutionMode, InstanceStatus, TriggerType};
+        use tikee_proto::worker::v1::{DispatchTask, RegisterWorker, TaskResult, server_message};
+        use tikee_storage::{CreateJob, CreateJobInstance, JobRepository};
+
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let logs = JobInstanceLogRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db);
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "broadcast-result".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("demo.broadcast".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                retry_policy: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should create: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id.clone(),
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Broadcast,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should create: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+
+        let (outbound, mut rx) = mpsc::channel(8);
+        let registry = WorkerRegistry::default();
+        let worker = registry
+            .register(
+                RegisterWorker {
+                    client_instance_id: "broadcast-worker".to_owned(),
+                    app: "billing".to_owned(),
+                    namespace: "default".to_owned(),
+                    cluster: "local".to_owned(),
+                    region: "local".to_owned(),
+                    capabilities: Vec::new(),
+                    structured_capabilities: None,
+                    election: None,
+                    labels: std::collections::HashMap::default(),
+                },
+                outbound,
+            )
+            .await;
+        attempts
+            .create_pending_for_workers(&instance.id, std::slice::from_ref(&worker.worker_id))
+            .await
+            .unwrap_or_else(|error| panic!("attempt should create: {error}"));
+        registry
+            .dispatch_to_worker(
+                &worker.worker_id,
+                DispatchTask {
+                    instance_id: instance.id.clone(),
+                    job_id: job.id,
+                    payload: Vec::new(),
+                    processor_name: "demo.broadcast".to_owned(),
+                    processor_binding: None,
+                    assignment_token: String::new(),
+                },
+            )
+            .await
+            .unwrap_or_else(|| panic!("task should dispatch"));
+        let token = match rx
+            .recv()
+            .await
+            .unwrap_or_else(|| panic!("dispatch should arrive"))
+            .unwrap_or_else(|error| panic!("dispatch should be ok: {error}"))
+            .kind
+        {
+            Some(server_message::Kind::DispatchTask(task)) => task.assignment_token,
+            other => panic!("unexpected server message: {other:?}"),
+        };
+        let (tx, _events) = mpsc::channel(8);
+        let broadcaster = TaskLogBroadcaster::default();
+        let context = WorkerMessageContext {
+            registry: &registry,
+            instances: &instances,
+            jobs: &jobs,
+            logs: &logs,
+            attempts: &attempts,
+            workflows: &workflows,
+            audit: &audit,
+            log_broadcaster: &broadcaster,
+            tx: &tx,
+            outbound: &tx,
+        };
+
+        handle_task_result(
+            &context,
+            TaskResult {
+                worker_id: worker.worker_id.clone(),
+                instance_id: instance.id.clone(),
+                success: true,
+                message: "broadcast ok".to_owned(),
+                assignment_token: token,
+            },
+        )
+        .await;
+
+        let persisted_attempts = attempts
+            .list_by_instance(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("attempts should load: {error}"));
+        let result = persisted_attempts[0]
+            .result
+            .clone()
+            .unwrap_or_else(|| panic!("attempt result should persist"));
+        assert!(result.success);
+        assert_eq!(result.worker_id, worker.worker_id);
+        assert_eq!(result.message, "broadcast ok");
+
+        let parent = instances
+            .get(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("instance should load: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        assert_eq!(parent.status, InstanceStatus::Succeeded);
     }
 
     #[tokio::test]

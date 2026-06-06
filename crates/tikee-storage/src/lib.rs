@@ -238,6 +238,9 @@ mod tests {
             ("job_instances", "result_success"),
             ("job_instances", "result_message"),
             ("job_instances", "result_completed_at"),
+            ("job_instance_attempts", "result_success"),
+            ("job_instance_attempts", "result_message"),
+            ("job_instance_attempts", "result_completed_at"),
         ] {
             assert!(
                 sqlite_table_has_column(&migrated, table, column).await,

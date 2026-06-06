@@ -86,12 +86,12 @@ describe('api client envelope handling', () => {
     expect(fetch).toHaveBeenCalledWith('/api/v1/instances/inst_1/logs?page_token=script_execution_governance', expect.any(Object));
   });
 
-  test('loads instance attempts so the UI can show executor worker status and update time', async () => {
+  test('loads instance attempts so the UI can show executor worker status result and update time', async () => {
     const body = {
       code: 0,
       message: 'success',
       data: {
-        items: [{ id: 'att_1', instanceId: 'inst_1', workerId: 'worker_1', status: 'succeeded', createdAt: '2026-06-01T00:00:00Z', updatedAt: '2026-06-01T00:00:02Z' }],
+        items: [{ id: 'att_1', instanceId: 'inst_1', workerId: 'worker_1', status: 'succeeded', result: { workerId: 'worker_1', success: true, message: 'broadcast ok', completedAt: '2026-06-01T00:00:02Z' }, createdAt: '2026-06-01T00:00:00Z', updatedAt: '2026-06-01T00:00:02Z' }],
         nextPageToken: null,
       },
     };

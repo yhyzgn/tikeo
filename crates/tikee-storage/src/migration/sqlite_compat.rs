@@ -716,11 +716,34 @@ async fn ensure_broadcast_schema_compatibility(
             instance_id varchar NOT NULL,
             worker_id varchar NOT NULL,
             status varchar NOT NULL,
+            result_success boolean,
+            result_message text,
+            result_completed_at varchar,
             created_at varchar NOT NULL,
             updated_at varchar NOT NULL
         )",
     ))
     .await?;
+    for (column, ddl) in [
+        (
+            "result_success",
+            "ALTER TABLE job_instance_attempts ADD COLUMN result_success boolean",
+        ),
+        (
+            "result_message",
+            "ALTER TABLE job_instance_attempts ADD COLUMN result_message text",
+        ),
+        (
+            "result_completed_at",
+            "ALTER TABLE job_instance_attempts ADD COLUMN result_completed_at varchar",
+        ),
+    ] {
+        if !sqlite_column_exists(db, "job_instance_attempts", column).await? {
+            db.execute(Statement::from_string(DatabaseBackend::Sqlite, ddl))
+                .await?;
+        }
+    }
+
     db.execute(Statement::from_string(
         DatabaseBackend::Sqlite,
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_job_instance_attempts_instance_worker ON job_instance_attempts (instance_id, worker_id)",

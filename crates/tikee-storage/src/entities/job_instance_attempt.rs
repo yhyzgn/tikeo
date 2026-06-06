@@ -15,6 +15,12 @@ pub struct Model {
     pub worker_id: String,
     /// Current attempt status.
     pub status: String,
+    /// Whether the worker-reported result succeeded.
+    pub result_success: Option<bool>,
+    /// Worker-reported result message.
+    pub result_message: Option<String>,
+    /// Result completion timestamp.
+    pub result_completed_at: Option<String>,
     /// Creation timestamp in RFC3339 format.
     pub created_at: String,
     /// Last update timestamp in RFC3339 format.

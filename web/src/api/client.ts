@@ -391,6 +391,7 @@ export interface JobInstanceAttemptSummary {
   instanceId: string;
   workerId: string;
   status: string;
+  result?: JobInstanceResult | null;
   createdAt: string;
   updatedAt: string;
 }

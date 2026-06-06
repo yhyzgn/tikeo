@@ -6,7 +6,10 @@ use tikee_core::InstanceStatus;
 
 use crate::entities::{job_instance, job_instance_attempt};
 
-use super::util::{new_id, now_rfc3339};
+use super::{
+    instance::JobInstanceResult,
+    util::{new_id, now_rfc3339},
+};
 /// Job instance attempt creation input.
 #[derive(Debug, Clone)]
 pub struct CreateJobInstanceAttempt {
@@ -27,6 +30,8 @@ pub struct JobInstanceAttemptSummary {
     pub worker_id: String,
     /// Current attempt status.
     pub status: InstanceStatus,
+    /// Concrete worker result for this attempt.
+    pub result: Option<JobInstanceResult>,
     /// Creation timestamp in RFC3339 format.
     pub created_at: String,
     /// Last update timestamp in RFC3339 format.
@@ -72,6 +77,9 @@ impl JobInstanceAttemptRepository {
                 instance_id: Set(instance_id.to_owned()),
                 worker_id: Set(worker_id.clone()),
                 status: Set(InstanceStatus::Pending.to_string()),
+                result_success: Set(None),
+                result_message: Set(None),
+                result_completed_at: Set(None),
                 created_at: Set(now.clone()),
                 updated_at: Set(now),
             }
@@ -155,6 +163,39 @@ impl JobInstanceAttemptRepository {
         Ok(result.rows_affected > 0)
     }
 
+    /// Persist a concrete worker result for one broadcast attempt.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn record_result(
+        &self,
+        instance_id: &str,
+        worker_id: &str,
+        success: bool,
+        message: &str,
+    ) -> Result<Option<JobInstanceAttemptSummary>, sea_orm::DbErr> {
+        let Some(model) = job_instance_attempt::Entity::find()
+            .filter(job_instance_attempt::Column::InstanceId.eq(instance_id))
+            .filter(job_instance_attempt::Column::WorkerId.eq(worker_id))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let completed_at = now_rfc3339();
+        let mut active: job_instance_attempt::ActiveModel = model.into();
+        active.result_success = Set(Some(success));
+        active.result_message = Set(Some(message.to_owned()));
+        active.result_completed_at = Set(Some(completed_at));
+        active.updated_at = Set(now_rfc3339());
+        active
+            .update(&self.db)
+            .await
+            .map(|model| Some(JobInstanceAttemptSummary::from(model)))
+    }
+
     /// Update one attempt status.
     ///
     /// # Errors
@@ -190,8 +231,21 @@ impl From<job_instance_attempt::Model> for JobInstanceAttemptSummary {
         Self {
             id: value.id,
             instance_id: value.instance_id,
-            worker_id: value.worker_id,
+            worker_id: value.worker_id.clone(),
             status: value.status.parse().unwrap_or(InstanceStatus::Failed),
+            result: match (
+                value.result_success,
+                value.result_message,
+                value.result_completed_at,
+            ) {
+                (Some(success), Some(message), Some(completed_at)) => Some(JobInstanceResult {
+                    worker_id: value.worker_id.clone(),
+                    success,
+                    message,
+                    completed_at,
+                }),
+                _ => None,
+            },
             created_at: value.created_at,
             updated_at: value.updated_at,
         }

@@ -1021,6 +1021,12 @@ impl From<tikee_storage::JobInstanceAttemptSummary> for JobInstanceAttemptSummar
             instance_id: value.instance_id,
             worker_id: value.worker_id,
             status: value.status.to_string(),
+            result: value.result.map(|result| JobInstanceResult {
+                worker_id: result.worker_id,
+                success: result.success,
+                message: result.message,
+                completed_at: result.completed_at,
+            }),
             created_at: value.created_at,
             updated_at: value.updated_at,
         }
