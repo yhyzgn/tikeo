@@ -145,7 +145,10 @@ class SandboxToolResolverTest {
         java.nio.file.Files.createDirectories(binary.getParent());
         String body = "#!/usr/bin/env sh\n";
         if (tool == SandboxToolInstaller.Tool.RHAI) {
-            body += "test -f \"$1\" && echo rhai-ok\n";
+            body += "case \"${1:-}\" in\n";
+            body += "  \"\"|\"--version\"|\"-V\") echo rhai-ok; exit 0 ;;\n";
+            body += "esac\n";
+            body += "test -f \"${1:-}\" && echo rhai-ok\n";
         } else {
             body += "echo " + tool.binaryName() + "-ok\n";
         }
