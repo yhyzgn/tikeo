@@ -16,6 +16,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -102,6 +103,13 @@ def split_action_spec(spec: str) -> tuple[str, str, str, str]:
     return owner, repo, subpath, ref
 
 
+def github_raw_request(url: str, timeout: int) -> bytes:
+    headers = {"User-Agent": "tikee-node-runtime-policy-check"}
+    request = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.read()
+
+
 def github_api_request(url: str, timeout: int) -> bytes:
     headers = {
         "Accept": "application/vnd.github+json",
@@ -116,22 +124,54 @@ def github_api_request(url: str, timeout: int) -> bytes:
         return response.read()
 
 
-def fetch_action_file(owner: str, repo: str, subpath: str, ref: str, filename: str, timeout: int) -> str | None:
-    path = f"{subpath}/{filename}" if subpath else filename
+def fetch_action_file_from_raw(owner: str, repo: str, path: str, ref: str, timeout: int) -> str | None:
+    url = f"https://raw.githubusercontent.com/{owner}/{repo}/{urllib.parse.quote(ref, safe='')}/{path}"
+    last_error: Exception | None = None
+    for attempt in range(3):
+        try:
+            return github_raw_request(url, timeout).decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                return None
+            last_error = exc
+        except (urllib.error.URLError, OSError) as exc:
+            last_error = exc
+        if attempt < 2:
+            time.sleep(0.35 * (attempt + 1))
+    if isinstance(last_error, urllib.error.HTTPError):
+        raise RuntimeError(f"raw metadata fetch failed with HTTP {last_error.code}") from last_error
+    raise RuntimeError(f"raw metadata fetch failed: {last_error}") from last_error
+
+
+def fetch_action_file_from_api(owner: str, repo: str, path: str, ref: str, timeout: int) -> str | None:
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={urllib.parse.quote(ref, safe='')}"
     try:
         payload = json.loads(github_api_request(url, timeout).decode("utf-8"))
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             return None
-        raise RuntimeError(f"failed to fetch {owner}/{repo}/{path}@{ref}: HTTP {exc.code}") from exc
+        raise RuntimeError(f"contents API metadata fetch failed with HTTP {exc.code}") from exc
     except urllib.error.URLError as exc:
-        raise RuntimeError(f"failed to fetch {owner}/{repo}/{path}@{ref}: {exc.reason}") from exc
+        raise RuntimeError(f"contents API metadata fetch failed: {exc.reason}") from exc
     content = payload.get("content")
     encoding = payload.get("encoding")
     if encoding != "base64" or not isinstance(content, str):
         raise RuntimeError(f"unexpected GitHub contents response for {owner}/{repo}/{path}@{ref}")
     return base64.b64decode(content).decode("utf-8")
+
+
+def fetch_action_file(owner: str, repo: str, subpath: str, ref: str, filename: str, timeout: int) -> str | None:
+    path = f"{subpath}/{filename}" if subpath else filename
+    raw_error: RuntimeError | None = None
+    try:
+        return fetch_action_file_from_raw(owner, repo, path, ref, timeout)
+    except RuntimeError as exc:
+        raw_error = exc
+
+    try:
+        return fetch_action_file_from_api(owner, repo, path, ref, timeout)
+    except RuntimeError as exc:
+        raise RuntimeError(f"failed to fetch {owner}/{repo}/{path}@{ref}: {raw_error}; {exc}") from exc
 
 
 def fetch_action_metadata(spec: str, timeout: int) -> ActionMetadata:

@@ -135,7 +135,8 @@ describe('instance execution result view', () => {
     expect(source).toContain('节点执行结果');
     expect(source).toContain('单节点结果');
     expect(source).toContain('广播节点结果');
-    expect(source).toContain('instance-result-nodes__grid');
+    expect(source).toContain('instance-result-nodes__list');
+    expect(source).toContain('instance-result-nodes__meta-row');
     expect(source).toContain('instance-result-nodes__message');
     expect(source).toContain('node.result?.message');
     expect(source).not.toContain('renderBroadcastResults(instance, attempts, logs)');

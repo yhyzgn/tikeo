@@ -366,14 +366,20 @@ html[data-theme="dark"] {
   gap: 12px;
 }
 
-.instance-result-nodes__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+.instance-result-nodes__list {
+  display: flex;
+  max-height: min(52vh, 560px);
+  overflow: auto;
+  flex-direction: column;
   gap: 10px;
+  padding-right: 4px;
 }
 
 .instance-result-nodes__node {
+  display: grid;
   min-width: 0;
+  grid-template-columns: minmax(250px, 0.9fr) minmax(320px, 1.4fr);
+  gap: 14px;
   padding: 12px;
   border: 1px solid var(--app-border);
   border-radius: 14px;
@@ -381,8 +387,13 @@ html[data-theme="dark"] {
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--app-surface-elevated) 86%, transparent);
 }
 
+.instance-result-nodes__node-main {
+  min-width: 0;
+}
+
 .instance-result-nodes__node-head {
   display: flex;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -390,18 +401,27 @@ html[data-theme="dark"] {
 }
 
 .instance-result-nodes__node-head .ant-typography {
-  max-width: 150px;
+  max-width: min(100%, 260px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.instance-result-nodes__meta-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+}
+
 .instance-result-nodes__node-meta {
   display: grid;
-  grid-template-columns: 70px minmax(0, 1fr);
+  min-width: 0;
+  grid-template-columns: 72px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
-  margin-top: 6px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--app-surface-muted) 72%, transparent);
   font-size: 12px;
 }
 
@@ -420,7 +440,7 @@ html[data-theme="dark"] {
 }
 
 .instance-result-nodes__message {
-  margin-top: 10px;
+  min-width: 0;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--app-primary-color) 10%, var(--app-border));
   border-radius: 12px;
@@ -439,6 +459,13 @@ html[data-theme="dark"] {
 
 .instance-result-nodes__message .instance-result-panel__message-body.ant-typography {
   max-height: 118px;
+}
+
+
+@media (max-width: 980px) {
+  .instance-result-nodes__node {
+    grid-template-columns: 1fr;
+  }
 }
 
 .instance-result-card--pending .instance-result-nodes {

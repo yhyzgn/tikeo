@@ -153,27 +153,31 @@ const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: Jo
               <Typography.Text strong>{instance?.executionMode === 'broadcast' ? '广播节点结果' : '单节点结果'}</Typography.Text>
               <Typography.Text type="secondary">{nodes.length} 个执行节点</Typography.Text>
             </div>
-            <div className="instance-result-nodes__grid">
+            <div className="instance-result-nodes__list">
               {nodes.map((node) => {
                 const messageText = node.result?.message ?? node.latestMessage ?? '等待 Worker 返回结果';
                 const resultText = node.result ? (node.result.success ? 'success' : 'failed') : 'pending';
                 return (
                   <div key={node.id} className="instance-result-nodes__node">
-                    <div className="instance-result-nodes__node-head">
-                      <Typography.Text code title={node.workerId}>{formatWorkerDisplayId(node.workerId)}</Typography.Text>
-                      <Tag color={getStatusColor(node.status)} className="instance-status-tag">{node.status}</Tag>
-                    </div>
-                    <div className="instance-result-nodes__node-meta">
-                      <span>Updated</span>
-                      <Typography.Text>{node.updatedAt || '-'}</Typography.Text>
-                    </div>
-                    <div className="instance-result-nodes__node-meta">
-                      <span>Result</span>
-                      <Typography.Text>{resultText}</Typography.Text>
-                    </div>
-                    <div className="instance-result-nodes__node-meta">
-                      <span>Logs</span>
-                      <Typography.Text>{node.logCount} 条</Typography.Text>
+                    <div className="instance-result-nodes__node-main">
+                      <div className="instance-result-nodes__node-head">
+                        <Typography.Text code title={node.workerId}>{formatWorkerDisplayId(node.workerId)}</Typography.Text>
+                        <Tag color={getStatusColor(node.status)} className="instance-status-tag">{node.status}</Tag>
+                      </div>
+                      <div className="instance-result-nodes__meta-row">
+                        <div className="instance-result-nodes__node-meta">
+                          <span>Updated</span>
+                          <Typography.Text>{node.updatedAt || '-'}</Typography.Text>
+                        </div>
+                        <div className="instance-result-nodes__node-meta">
+                          <span>Result</span>
+                          <Typography.Text>{resultText}</Typography.Text>
+                        </div>
+                        <div className="instance-result-nodes__node-meta">
+                          <span>Logs</span>
+                          <Typography.Text>{node.logCount} 条</Typography.Text>
+                        </div>
+                      </div>
                     </div>
                     <div className="instance-result-nodes__message">
                       <span>Message</span>
