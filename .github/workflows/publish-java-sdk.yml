@@ -82,12 +82,38 @@ jobs:
               env.write(f"\n{marker}\n")
           print("Maven signing key normalized for in-memory Gradle signing")
           PY
+      - name: Validate Maven signing key metadata
+        env:
+          MAVEN_SIGNING_KEY_ID: ${{ secrets.MAVEN_SIGNING_KEY_ID }}
+          MAVEN_SIGNING_PASSWORD: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          key = os.environ.get("ORG_GRADLE_PROJECT_signingInMemoryKey", "")
+          key_id = os.environ.get("MAVEN_SIGNING_KEY_ID", "")
+          password = os.environ.get("MAVEN_SIGNING_PASSWORD", "")
+          if "BEGIN PGP PRIVATE KEY BLOCK" not in key:
+              raise SystemExit("normalized Maven signing key is not an ASCII-armored private key")
+          if not password:
+              raise SystemExit("MAVEN_SIGNING_PASSWORD is empty")
+          key_path = Path("/tmp/tikeo-maven-signing-key.asc")
+          key_path.write_text(key, encoding="utf-8")
+          print(f"Maven signing key private block present: yes")
+          print(f"Maven signing password present: yes")
+          print(f"MAVEN_SIGNING_KEY_ID configured: {'yes' if key_id else 'no'} length={len(key_id)}")
+          print(f"Maven signing key armor bytes: {len(key.encode('utf-8'))}")
+          PY
+          gpg --batch --show-keys --with-colons /tmp/tikeo-maven-signing-key.asc \
+            | awk -F: '/^(sec|fpr|uid):/ { if ($1 == "sec") print "gpg secret key algorithm=" $4 " keyid=" $5; else if ($1 == "fpr") print "gpg fingerprint=" $10; else if ($1 == "uid") print "gpg uid present" }'
       - name: Publish Java SDK to Maven Central
         working-directory: sdks/java
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.MAVEN_SIGNING_KEY_ID }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
         run: ./gradlew publishAndReleaseToMavenCentral --no-daemon -PtikeoVersion=${{ steps.version.outputs.version }}
       - name: Package Java SDK jars

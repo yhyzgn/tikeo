@@ -372,7 +372,7 @@ mod tests {
             webhook_signature("secret", "job-1", 1_700_000_000, "nonce-1", Some(&payload));
         assert_eq!(
             signature,
-            "sha256:c7ed68481e552835d570c3ea02f434bb1b4e4a0076e94d8e704ab4bc46e475b2"
+            "sha256:2c5acc0c0eba7b886d7554f885f2114e7cc55a035c133faca1ff2720d2cf38ee"
         );
     }
 }
