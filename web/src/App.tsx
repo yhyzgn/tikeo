@@ -222,15 +222,12 @@ export function App() {
           {!bootstrap && !bootstrapError ? <RouteFallback /> : null}
           {bootstrap ? (
             <Routes>
-            <Route path="/" element={<Navigate to={bootstrap.registrationOpen ? '/setup' : ROUTE_META.dashboard.path} replace />} />
-            <Route path="/setup" element={<SetupRoute bootstrap={bootstrap} onRegistered={refreshBootstrap} />} />
-            <Route path="/login" element={<LoginRoute bootstrap={bootstrap} />} />
-            <Route element={<AuthGuard />}>
-              <Route element={<AppLayout />}>
-                <Route index element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
-                <Route path="*" element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
+              <Route path="/" element={<Navigate to={bootstrap.registrationOpen ? '/setup' : ROUTE_META.dashboard.path} replace />} />
+              <Route path="/setup" element={<SetupRoute bootstrap={bootstrap} onRegistered={refreshBootstrap} />} />
+              <Route path="/login" element={<LoginRoute bootstrap={bootstrap} />} />
+              <Route element={<AuthGuard />}>
+                <Route path="/*" element={<AppLayout />} />
               </Route>
-            </Route>
             </Routes>
           ) : null}
         </Suspense>
