@@ -11,19 +11,19 @@ import (
 )
 
 // Reconciler calls /api/v1/gitops/diff and projects the review result into CRD status.
-type Reconciler struct { Client TikeeClient }
+type Reconciler struct { Client TikeoClient }
 
-type ReconcileResult struct { Status TikeeManifestStatus }
+type ReconcileResult struct { Status TikeoManifestStatus }
 
-func (r Reconciler) Reconcile(ctx context.Context, resource *TikeeManifest) (*ReconcileResult, error) {
-	if resource == nil { return nil, fmt.Errorf("TikeeManifest is required") }
+func (r Reconciler) Reconcile(ctx context.Context, resource *TikeoManifest) (*ReconcileResult, error) {
+	if resource == nil { return nil, fmt.Errorf("TikeoManifest is required") }
 	mode := resource.Spec.ApplyMode
 	if mode == "" { mode = DefaultApplyMode }
 	if mode != "diffOnly" && mode != "apply" { return nil, fmt.Errorf("spec.applyMode must be diffOnly or apply") }
 	manifest := resource.Spec.Manifest.Raw
 	if len(manifest) == 0 { return nil, fmt.Errorf("spec.manifest is required") }
 	diff, err := r.Client.Diff(ctx, manifest)
-	status := TikeeManifestStatus{ObservedGeneration: resource.Generation, Checksum: checksum(manifest)}
+	status := TikeoManifestStatus{ObservedGeneration: resource.Generation, Checksum: checksum(manifest)}
 	if err != nil {
 		status.Conditions = []metav1.Condition{condition("Ready", metav1.ConditionFalse, "DiffFailed", err.Error())}
 		return &ReconcileResult{Status: status}, err
@@ -33,7 +33,7 @@ func (r Reconciler) Reconcile(ctx context.Context, resource *TikeeManifest) (*Re
 	status.Summary = diff.Summary
 	status.LastDiff = diff.Changes
 	if mode == "apply" {
-		status.Conditions = []metav1.Condition{condition("Ready", metav1.ConditionTrue, "DiffReviewed", "applyMode=apply is accepted by the operator, but mutations remain delegated to typed tikee CRUD APIs")}
+		status.Conditions = []metav1.Condition{condition("Ready", metav1.ConditionTrue, "DiffReviewed", "applyMode=apply is accepted by the operator, but mutations remain delegated to typed tikeo CRUD APIs")}
 	} else {
 		status.Conditions = []metav1.Condition{condition("Ready", metav1.ConditionTrue, "DiffOnly", "diffOnly completed without applying mutations")}
 	}

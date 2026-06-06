@@ -1,9 +1,9 @@
 [project]
-name = "tikee-python-worker-demo"
+name = "tikeo-python-worker-demo"
 version = "0.1.0"
-description = "Python Worker demo for tikee"
+description = "Python Worker demo for tikeo"
 requires-python = ">=3.11"
-dependencies = ["tikee"]
+dependencies = ["tikeo"]
 
 [project.optional-dependencies]
 test = ["pytest>=9.0.0"]

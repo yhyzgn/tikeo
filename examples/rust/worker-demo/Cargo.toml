@@ -1,5 +1,5 @@
 [package]
-name = "tikee-rust-worker-demo"
+name = "tikeo-rust-worker-demo"
 description = "Runnable Rust worker SDK demo."
 edition = "2024"
 version = "0.1.0"
@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 async-trait = "0.1"
-tikee = { path = "../../../sdks/rust/tikee" }
+tikeo = { path = "../../../sdks/rust/tikeo" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tikv-jemallocator = "0.7"
 rustyline = "18"

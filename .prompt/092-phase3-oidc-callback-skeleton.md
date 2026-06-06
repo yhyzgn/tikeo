@@ -23,6 +23,6 @@ Phase 091 added alert channel delivery readiness/redaction without sending real 
 - Web validation if Web files change.
 
 ## Completion notes
-- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md` if risks change.
+- Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md` if risks change.
 - Create the next `.prompt/093-*.md` before commit.
 - Commit with Lore trailers and push.

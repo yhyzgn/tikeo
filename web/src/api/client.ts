@@ -673,8 +673,8 @@ export interface UpsertOidcIdentityRequest {
   worker_pool?: string | null;
 }
 
-const API_BASE = import.meta.env.VITE_TIKEE_API_BASE ?? '';
-const TOKEN_STORAGE_KEY = 'tikee.auth.token';
+const API_BASE = import.meta.env.VITE_TIKEO_API_BASE ?? '';
+const TOKEN_STORAGE_KEY = 'tikeo.auth.token';
 let authToken: string | null = readStoredToken();
 
 export class ApiClientError extends Error {
@@ -1357,12 +1357,12 @@ export async function exportAuditLogs(query: AuditLogQuery = {}): Promise<AuditL
   return request<AuditLogExport>(`/api/v1/audit-logs:export${suffix ? `?${suffix}` : ''}`);
 }
 
-interface TikeeRequestInit extends RequestInit {
+interface TikeoRequestInit extends RequestInit {
   auth?: boolean;
   allowNullData?: boolean;
 }
 
-async function request<T>(path: string, init: TikeeRequestInit = {}): Promise<T> {
+async function request<T>(path: string, init: TikeoRequestInit = {}): Promise<T> {
   const { auth = true, allowNullData = false, headers, ...fetchInit } = init;
   const mergedHeaders = new Headers(headers);
   if (!mergedHeaders.has('content-type')) {

@@ -13,14 +13,14 @@ WORKDIR /app
 
 COPY Cargo.toml Cargo.lock rustfmt.toml ./
 # Server image intentionally excludes ./sdks; keep Docker workspace server-only.
-COPY crates/tikee-config/Cargo.toml crates/tikee-config/Cargo.toml
-COPY crates/tikee-core/Cargo.toml crates/tikee-core/Cargo.toml
-COPY crates/tikee-proto/Cargo.toml crates/tikee-proto/Cargo.toml
-COPY crates/tikee-proto/build.rs crates/tikee-proto/build.rs
-COPY crates/tikee-proto/proto crates/tikee-proto/proto
-COPY crates/tikee-server/Cargo.toml crates/tikee-server/Cargo.toml
-COPY crates/tikee-storage/Cargo.toml crates/tikee-storage/Cargo.toml
-COPY crates/tikee-wasm/Cargo.toml crates/tikee-wasm/Cargo.toml
+COPY crates/tikeo-config/Cargo.toml crates/tikeo-config/Cargo.toml
+COPY crates/tikeo-core/Cargo.toml crates/tikeo-core/Cargo.toml
+COPY crates/tikeo-proto/Cargo.toml crates/tikeo-proto/Cargo.toml
+COPY crates/tikeo-proto/build.rs crates/tikeo-proto/build.rs
+COPY crates/tikeo-proto/proto crates/tikeo-proto/proto
+COPY crates/tikeo-server/Cargo.toml crates/tikeo-server/Cargo.toml
+COPY crates/tikeo-storage/Cargo.toml crates/tikeo-storage/Cargo.toml
+COPY crates/tikeo-wasm/Cargo.toml crates/tikeo-wasm/Cargo.toml
 
 RUN mkdir -p src \
     && echo 'fn main() {}' > src/main.rs \
@@ -40,8 +40,8 @@ COPY config ./config
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/app/target \
-    cargo build --release --locked --bin tikee \
-    && cp /app/target/release/tikee /tmp/tikee
+    cargo build --release --locked --bin tikeo \
+    && cp /app/target/release/tikeo /tmp/tikeo
 
 FROM alpine:latest AS runtime
 
@@ -58,10 +58,10 @@ ENV MIMALLOC_ABANDONED_PAGE_PURGE=1
 LABEL maintainer="Neo<yhyzgn@gmail.com>"
 
 WORKDIR /app
-COPY --from=builder /tmp/tikee /usr/local/bin/tikee
+COPY --from=builder /tmp/tikeo /usr/local/bin/tikeo
 COPY config ./config
 
 VOLUME ["/data"]
 EXPOSE 9090 9998
-ENTRYPOINT ["tikee"]
+ENTRYPOINT ["tikeo"]
 CMD ["serve", "--config", "/app/config/container.toml"]

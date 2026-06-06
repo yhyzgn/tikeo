@@ -23,6 +23,6 @@ Phase 089 extended the deterministic metrics summary with dispatch queue SLO fie
 - Web validation if Web files change.
 
 ## Completion notes
-- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md` if risks change.
+- Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md` if risks change.
 - Create the next `.prompt/091-*.md` before commit.
 - Commit with Lore trailers and push.

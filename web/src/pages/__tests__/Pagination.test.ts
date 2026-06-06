@@ -26,19 +26,19 @@ describe('persistent table pagination', () => {
     expect(TABLE_PAGE_SIZE_OPTIONS).toEqual([10, 20, 50, 100]);
     expect(getPersistedTablePageSize()).toBe(20);
 
-    installCookieDocument('tikee_table_page_size=999');
+    installCookieDocument('tikeo_table_page_size=999');
     expect(getPersistedTablePageSize()).toBe(20);
   });
 
   test('persists only supported page sizes into the shared cookie', () => {
     installCookieDocument('');
     persistTablePageSize(50);
-    expect(document.cookie).toContain('tikee_table_page_size=50');
+    expect(document.cookie).toContain('tikeo_table_page_size=50');
     expect(getPersistedTablePageSize()).toBe(50);
 
-    document.cookie = 'tikee_table_page_size=50';
+    document.cookie = 'tikeo_table_page_size=50';
     persistTablePageSize(25);
-    expect(document.cookie).toBe('tikee_table_page_size=50');
+    expect(document.cookie).toBe('tikeo_table_page_size=50');
   });
 
   test('exposes selectable page-size options for table components', () => {

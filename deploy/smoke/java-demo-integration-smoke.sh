@@ -3,13 +3,13 @@ set -euo pipefail
 
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-# shellcheck source=deploy/smoke/lib/tikee-smoke-lib.sh
-source "$ROOT_DIR/deploy/smoke/lib/tikee-smoke-lib.sh"
-API_URL="${TIKEE_HTTP_URL:-http://127.0.0.1:19090}"
-WORKER_ENDPOINT="${TIKEE_WORKER_ENDPOINT:-http://127.0.0.1:19998}"
-DEMO_URL="${TIKEE_DEMO_URL:-http://127.0.0.1:18080}"
-REPORT_DIR="${TIKEE_INTEGRATION_REPORT_DIR:-$ROOT_DIR/.dev/reports}"
-RUN_ID="${TIKEE_INTEGRATION_RUN_ID:-java-demo-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+# shellcheck source=deploy/smoke/lib/tikeo-smoke-lib.sh
+source "$ROOT_DIR/deploy/smoke/lib/tikeo-smoke-lib.sh"
+API_URL="${TIKEO_HTTP_URL:-http://127.0.0.1:19090}"
+WORKER_ENDPOINT="${TIKEO_WORKER_ENDPOINT:-http://127.0.0.1:19998}"
+DEMO_URL="${TIKEO_DEMO_URL:-http://127.0.0.1:18080}"
+REPORT_DIR="${TIKEO_INTEGRATION_REPORT_DIR:-$ROOT_DIR/.dev/reports}"
+RUN_ID="${TIKEO_INTEGRATION_RUN_ID:-java-demo-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 REPORT_FILE="$REPORT_DIR/${RUN_ID}.json"
 WORKERS_FILE="$REPORT_DIR/${RUN_ID}-workers.json"
 SERVER_LOG="$REPORT_DIR/${RUN_ID}-server.log"
@@ -19,15 +19,15 @@ JAVA_PID=""
 OWN_SERVER=0
 AUTH_TOKEN=""
 
-DEMO_NAMESPACE="${TIKEE_JAVA_DEMO_NAMESPACE:-dev-alpha}"
-DEMO_APP="${TIKEE_JAVA_DEMO_APP:-orders}"
-DEMO_WORKER_POOL="${TIKEE_JAVA_DEMO_WORKER_POOL:-boot3-blue}"
+DEMO_NAMESPACE="${TIKEO_JAVA_DEMO_NAMESPACE:-dev-alpha}"
+DEMO_APP="${TIKEO_JAVA_DEMO_APP:-orders}"
+DEMO_WORKER_POOL="${TIKEO_JAVA_DEMO_WORKER_POOL:-boot3-blue}"
 
 mkdir -p "$REPORT_DIR"
-TIKEE_SMOKE_RUN_ID="$RUN_ID"
-TIKEE_SMOKE_CASES_FILE="$REPORT_DIR/${RUN_ID}-cases.jsonl"
-export TIKEE_SMOKE_RUN_ID TIKEE_SMOKE_CASES_FILE
-: > "$TIKEE_SMOKE_CASES_FILE"
+TIKEO_SMOKE_RUN_ID="$RUN_ID"
+TIKEO_SMOKE_CASES_FILE="$REPORT_DIR/${RUN_ID}-cases.jsonl"
+export TIKEO_SMOKE_RUN_ID TIKEO_SMOKE_CASES_FILE
+: > "$TIKEO_SMOKE_CASES_FILE"
 
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -149,7 +149,7 @@ wait_for_ready() {
 
 wait_for_worker() {
   local deadline=$((SECONDS + 90))
-  until api GET /api/v1/workers > "$WORKERS_FILE" && tikee_smoke_assert workers "$WORKERS_FILE" --client-instance spring-demo-worker --require-capability java --require-capability spring-boot --require-sdk-processor demo.echo --require-plugin-processor sql:billing.sql-sync >/dev/null
+  until api GET /api/v1/workers > "$WORKERS_FILE" && tikeo_smoke_assert workers "$WORKERS_FILE" --client-instance spring-demo-worker --require-capability java --require-capability spring-boot --require-sdk-processor demo.echo --require-plugin-processor sql:billing.sql-sync >/dev/null
   do
     if (( SECONDS >= deadline )); then
       echo "timed out waiting for spring-demo-worker online" >&2
@@ -452,7 +452,7 @@ run_governed_script_case() {
   api GET "/api/v1/instances/$instance/logs" > "$logs"
   assert_script_terminal "$file" "$logs" "$success_text"
   status="$(api_json_get GET "/api/v1/instances/$instance" data.status)"
-  tikee_smoke_record_case "script-${language}-terminal" passed "$file $logs" "$language script reached $status without queue starvation"
+  tikeo_smoke_record_case "script-${language}-terminal" passed "$file $logs" "$language script reached $status without queue starvation"
 }
 
 assert_queue_drained() {
@@ -521,15 +521,15 @@ backoff_seconds = 300
 
 [script_governance]
 CFG
-  (cd "$ROOT_DIR" && cargo run --bin tikee -- serve --config "$config" >"$SERVER_LOG" 2>&1) &
+  (cd "$ROOT_DIR" && cargo run --bin tikeo -- serve --config "$config" >"$SERVER_LOG" 2>&1) &
   SERVER_PID=$!
   wait_for_ready server "$(api_path /readyz)"
 }
 
 login() {
-  local username="${TIKEE_SMOKE_ADMIN_USERNAME:-smoke_admin}"
-  local email="${TIKEE_SMOKE_ADMIN_EMAIL:-smoke.admin@example.com}"
-  local password="${TIKEE_SMOKE_ADMIN_PASSWORD:-Tikee@2026!}"
+  local username="${TIKEO_SMOKE_ADMIN_USERNAME:-smoke_admin}"
+  local email="${TIKEO_SMOKE_ADMIN_EMAIL:-smoke.admin@example.com}"
+  local password="${TIKEO_SMOKE_ADMIN_PASSWORD:-Tikeo@2026!}"
   local registration_open
   registration_open="$(curl -fsS "$(api_path /api/v1/auth/bootstrap)" | json_get data.registrationOpen)"
   if [[ "$registration_open" == "True" || "$registration_open" == "true" ]]; then
@@ -541,21 +541,21 @@ login() {
       -H 'content-type: application/json' \
       -d "{\"username\":\"$username\",\"password\":\"$password\"}" | json_get data.token)"
   fi
-  TIKEE_SMOKE_AUTH_TOKEN="$AUTH_TOKEN"
-  export TIKEE_SMOKE_AUTH_TOKEN
+  TIKEO_SMOKE_AUTH_TOKEN="$AUTH_TOKEN"
+  export TIKEO_SMOKE_AUTH_TOKEN
 }
 
 start_java_demo() {
   (
     cd "$ROOT_DIR/examples/java/spring-boot3-worker-demo"
-    TIKEE_WORKER_DRY_RUN=false \
-    TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
-    TIKEE_WORKER_NAMESPACE="$DEMO_NAMESPACE" \
-    TIKEE_WORKER_APP="$DEMO_APP" \
-    TIKEE_WORKER_POOL="$DEMO_WORKER_POOL" \
-    TIKEE_DEMO_SERVER_PORT="${DEMO_URL##*:}" \
-    TIKEE_WORKER_CLIENT_INSTANCE_ID="${TIKEE_WORKER_CLIENT_INSTANCE_ID:-spring-demo-worker}" \
-    TIKEE_WORKER_STATE_DIR="${TIKEE_WORKER_STATE_DIR:-$REPORT_DIR/${RUN_ID}-worker-state}" \
+    TIKEO_WORKER_DRY_RUN=false \
+    TIKEO_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
+    TIKEO_WORKER_NAMESPACE="$DEMO_NAMESPACE" \
+    TIKEO_WORKER_APP="$DEMO_APP" \
+    TIKEO_WORKER_POOL="$DEMO_WORKER_POOL" \
+    TIKEO_DEMO_SERVER_PORT="${DEMO_URL##*:}" \
+    TIKEO_WORKER_CLIENT_INSTANCE_ID="${TIKEO_WORKER_CLIENT_INSTANCE_ID:-spring-demo-worker}" \
+    TIKEO_WORKER_STATE_DIR="${TIKEO_WORKER_STATE_DIR:-$REPORT_DIR/${RUN_ID}-worker-state}" \
     ./scripts/run-demo-worker.sh >"$JAVA_LOG" 2>&1
   ) &
   JAVA_PID=$!
@@ -598,13 +598,13 @@ main() {
   api GET "/api/v1/instances/$fail_instance/logs" > "$fail_logs"
   api GET "/api/v1/instances/$broadcast_instance" > "$broadcast_file"
   api GET "/api/v1/instances/$broadcast_instance/attempts" > "$broadcast_attempts"
-  tikee_smoke_assert instance "$echo_file" --expected-status succeeded --require-worker --min-log-count 1 --logs-file "$echo_logs" --require-log-text demo.echo --forbid-duplicate-logs >/dev/null
-  tikee_smoke_assert instance "$fail_file" --expected-status failed --min-log-count 1 --logs-file "$fail_logs" --require-log-text demo.fail --forbid-duplicate-logs >/dev/null
-  tikee_smoke_assert attempts "$broadcast_attempts" --min-attempts 1 --expected-status succeeded >/dev/null
-  tikee_smoke_record_case worker-registration passed "$WORKERS_FILE" "spring demo worker registered with structured capabilities"
-  tikee_smoke_record_case api-single-success passed "$echo_file $echo_logs" "demo.echo reached succeeded and emitted logs"
-  tikee_smoke_record_case api-single-failure passed "$fail_file $fail_logs" "demo.fail reached failed with logs"
-  tikee_smoke_record_case api-broadcast-success passed "$broadcast_file $broadcast_attempts" "broadcast attempt succeeded"
+  tikeo_smoke_assert instance "$echo_file" --expected-status succeeded --require-worker --min-log-count 1 --logs-file "$echo_logs" --require-log-text demo.echo --forbid-duplicate-logs >/dev/null
+  tikeo_smoke_assert instance "$fail_file" --expected-status failed --min-log-count 1 --logs-file "$fail_logs" --require-log-text demo.fail --forbid-duplicate-logs >/dev/null
+  tikeo_smoke_assert attempts "$broadcast_attempts" --min-attempts 1 --expected-status succeeded >/dev/null
+  tikeo_smoke_record_case worker-registration passed "$WORKERS_FILE" "spring demo worker registered with structured capabilities"
+  tikeo_smoke_record_case api-single-success passed "$echo_file $echo_logs" "demo.echo reached succeeded and emitted logs"
+  tikeo_smoke_record_case api-single-failure passed "$fail_file $fail_logs" "demo.fail reached failed with logs"
+  tikeo_smoke_record_case api-broadcast-success passed "$broadcast_file $broadcast_attempts" "broadcast attempt succeeded"
 
   fixed_instance="$(wait_job_instance_status "$fixed_job" succeeded fixed_rate)"
   cron_instance="$(wait_job_instance_status "$cron_job" succeeded cron)"
@@ -642,8 +642,8 @@ PY
   workflow_job_logs="$REPORT_DIR/${RUN_ID}-${materialized_job_instance}-logs.json"
   api GET "/api/v1/instances/$materialized_job_instance" > "$workflow_job_file"
   api GET "/api/v1/instances/$materialized_job_instance/logs" > "$workflow_job_logs"
-  tikee_smoke_assert instance "$workflow_job_file" --expected-status succeeded --require-worker --min-log-count 1 --logs-file "$workflow_job_logs" --require-log-text demo.workflow.step --forbid-duplicate-logs >/dev/null
-  tikee_smoke_record_case workflow-job-success passed "$workflow_job_file $workflow_job_logs" "workflow materialized Java job succeeded with logs"
+  tikeo_smoke_assert instance "$workflow_job_file" --expected-status succeeded --require-worker --min-log-count 1 --logs-file "$workflow_job_logs" --require-log-text demo.workflow.step --forbid-duplicate-logs >/dev/null
+  tikeo_smoke_record_case workflow-job-success passed "$workflow_job_file $workflow_job_logs" "workflow materialized Java job succeeded with logs"
 
   local plugin_id plugin_file plugin_job plugin_instance plugin_instance_file plugin_logs
   plugin_id="$(create_plugin_declaration)"
@@ -668,10 +668,10 @@ PY
   plugin_logs="$REPORT_DIR/${RUN_ID}-${plugin_instance}-logs.json"
   api GET "/api/v1/instances/$plugin_instance" > "$plugin_instance_file"
   api GET "/api/v1/instances/$plugin_instance/logs" > "$plugin_logs"
-  tikee_smoke_assert instance "$plugin_instance_file" --expected-status succeeded --require-worker --min-log-count 1 --logs-file "$plugin_logs" --require-log-text billing.sql-sync --forbid-duplicate-logs >/dev/null
-  tikee_smoke_record_case plugin-processor-registration passed "$plugin_file" "created structured sql plugin processor declaration id=$plugin_id"
-  tikee_smoke_record_case plugin-job-validation passed "$REPORT_DIR/${RUN_ID}-bad-plugin-job-response.json" "invalid plugin processor mixed.sql was rejected"
-  tikee_smoke_record_case plugin-job-success passed "$plugin_instance_file $plugin_logs" "plugin processor billing.sql-sync executed and persisted logs"
+  tikeo_smoke_assert instance "$plugin_instance_file" --expected-status succeeded --require-worker --min-log-count 1 --logs-file "$plugin_logs" --require-log-text billing.sql-sync --forbid-duplicate-logs >/dev/null
+  tikeo_smoke_record_case plugin-processor-registration passed "$plugin_file" "created structured sql plugin processor declaration id=$plugin_id"
+  tikeo_smoke_record_case plugin-job-validation passed "$REPORT_DIR/${RUN_ID}-bad-plugin-job-response.json" "invalid plugin processor mixed.sql was rejected"
+  tikeo_smoke_record_case plugin-job-success passed "$plugin_instance_file $plugin_logs" "plugin processor billing.sql-sync executed and persisted logs"
 
   local workflow_status=""
   local deadline=$((SECONDS + 90))
@@ -686,7 +686,7 @@ PY
   done
 
   local shell_script shell_publish_status shell_job shell_instance shell_file shell_logs queue_file
-  shell_script="$(create_script shell-smoke shell 'echo tikee-shell-smoke')"
+  shell_script="$(create_script shell-smoke shell 'echo tikeo-shell-smoke')"
   shell_publish_status="$(publish_script "$shell_script")"
   if [[ "$shell_publish_status" != "approved" ]]; then
     echo "shell script publish did not approve script: $shell_publish_status" >&2
@@ -699,17 +699,17 @@ PY
   shell_logs="$REPORT_DIR/${RUN_ID}-${shell_instance}-logs.json"
   api GET "/api/v1/instances/$shell_instance" > "$shell_file"
   api GET "/api/v1/instances/$shell_instance/logs" > "$shell_logs"
-  tikee_smoke_assert instance "$shell_file" --expected-status succeeded --require-worker --min-log-count 1 --logs-file "$shell_logs" --require-log-text tikee-shell-smoke --forbid-duplicate-logs >/dev/null
-  tikee_smoke_record_case script-shell-success passed "$shell_file $shell_logs" "shell script executed through worker sandbox and persisted stdout logs"
+  tikeo_smoke_assert instance "$shell_file" --expected-status succeeded --require-worker --min-log-count 1 --logs-file "$shell_logs" --require-log-text tikeo-shell-smoke --forbid-duplicate-logs >/dev/null
+  tikeo_smoke_record_case script-shell-success passed "$shell_file $shell_logs" "shell script executed through worker sandbox and persisted stdout logs"
 
-  run_governed_script_case python python-smoke 'print("tikee-python-smoke")' tikee-python-smoke
-  run_governed_script_case javascript js-smoke 'console.log("tikee-js-smoke");' tikee-js-smoke
-  run_governed_script_case typescript ts-smoke 'const msg: string = "tikee-ts-smoke"; console.log(msg);' tikee-ts-smoke
-  run_governed_script_case rhai rhai-smoke 'print("tikee-rhai-smoke");' tikee-rhai-smoke
+  run_governed_script_case python python-smoke 'print("tikeo-python-smoke")' tikeo-python-smoke
+  run_governed_script_case javascript js-smoke 'console.log("tikeo-js-smoke");' tikeo-js-smoke
+  run_governed_script_case typescript ts-smoke 'const msg: string = "tikeo-ts-smoke"; console.log(msg);' tikeo-ts-smoke
+  run_governed_script_case rhai rhai-smoke 'print("tikeo-rhai-smoke");' tikeo-rhai-smoke
 
   queue_file="$REPORT_DIR/${RUN_ID}-dispatch-queue.json"
   assert_queue_drained "$queue_file"
-  tikee_smoke_record_case dispatch-queue-drained passed "$queue_file" "dispatch queue has zero pending/running items after smoke"
+  tikeo_smoke_record_case dispatch-queue-drained passed "$queue_file" "dispatch queue has zero pending/running items after smoke"
 
   python3 - "$REPORT_FILE" "$RUN_ID" "$API_URL" "$WORKER_ENDPOINT" "$DEMO_URL" \
     "$echo_job" "$echo_instance" "$fail_job" "$fail_instance" \

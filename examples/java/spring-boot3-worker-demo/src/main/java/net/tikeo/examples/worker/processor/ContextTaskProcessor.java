@@ -1,0 +1,23 @@
+package net.tikeo.examples.worker.processor;
+
+import net.tikeo.processor.TaskContext;
+import net.tikeo.processor.TaskOutcome;
+import net.tikeo.processor.TikeoProcessor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+/** Broadcast/context-aware task example. */
+@Slf4j
+@Component
+public final class ContextTaskProcessor {
+    @TikeoProcessor("demo.context")
+    public TaskOutcome context(TaskContext context) {
+        log.info("[demo.context] received jobId={} instanceId={} processor={}",
+                context.jobId(), context.instanceId(), context.processorName());
+        context.logInfo("[demo.context] received jobId=" + context.jobId() + " instanceId=" + context.instanceId() + " processor=" + context.processorName());
+        TaskOutcome outcome = new TaskOutcome(true, "context:" + context.processorName() + ":" + context.instanceId());
+        log.info("[demo.context] completed instanceId={} message='{}'", context.instanceId(), outcome.message());
+        context.logInfo("[demo.context] completed instanceId=" + context.instanceId() + " message='" + outcome.message() + "'");
+        return outcome;
+    }
+}

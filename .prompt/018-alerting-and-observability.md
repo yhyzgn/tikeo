@@ -7,7 +7,7 @@
 
 ## 目标
 
-为 tikee 添加 Prometheus 指标暴露、审计日志持久化与查询、基础告警通知（Webhook）。
+为 tikeo 添加 Prometheus 指标暴露、审计日志持久化与查询、基础告警通知（Webhook）。
 
 ## 关键约束
 
@@ -47,4 +47,4 @@ bun run --cwd web build
 docker compose config
 ```
 
-完成后更新 `design/tikee-architecture-design.md`、`.memory/*`、后续 `.prompt/019-*.md`，提交并推送。
+完成后更新 `design/tikeo-architecture-design.md`、`.memory/*`、后续 `.prompt/019-*.md`，提交并推送。

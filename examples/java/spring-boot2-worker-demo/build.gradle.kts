@@ -3,7 +3,7 @@ plugins {
     application
 }
 
-group = "com.yhyzgn.tikee.examples"
+group = "net.tikeo.examples"
 version = "0.1.0-SNAPSHOT"
 
 val springBootVersion = "2.7.18"
@@ -28,13 +28,13 @@ dependencies {
     testCompileOnly("org.projectlombok:lombok:$lombokVersion")
     testAnnotationProcessor("org.projectlombok:lombok:$lombokVersion")
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("com.yhyzgn.tikee:tikee-spring-boot2-starter:0.1.0-SNAPSHOT")
+    implementation("net.tikeo:tikeo-spring-boot2-starter:0.1.0-SNAPSHOT")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 application {
-    mainClass.set("com.yhyzgn.tikee.examples.worker.SpringWorkerDemoApplication")
+    mainClass.set("net.tikeo.examples.worker.SpringWorkerDemoApplication")
 }
 
 tasks.withType<Test>().configureEach {
@@ -54,5 +54,5 @@ tasks.register<JavaExec>("bootRun") {
     group = "application"
     description = "Runs this Spring Boot 2 demo with the same command shape as the Boot 3/4 demos."
     classpath = sourceSets.main.get().runtimeClasspath
-    mainClass.set("com.yhyzgn.tikee.examples.worker.SpringWorkerDemoApplication")
+    mainClass.set("net.tikeo.examples.worker.SpringWorkerDemoApplication")
 }

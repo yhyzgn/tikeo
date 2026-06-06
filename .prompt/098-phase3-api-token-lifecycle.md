@@ -16,7 +16,7 @@ Phase 3 RBAC was previously limited to username/password sessions and `resource/
 - Do not claim fine-grained token scopes, rotation policy, OIDC federation, or multi-tenant scope binding complete.
 
 ## Expected verification
-- `cargo test -p tikee-server api_token_lifecycle_creates_lists_authenticates_and_revokes --all-features`
+- `cargo test -p tikeo-server api_token_lifecycle_creates_lists_authenticates_and_revokes --all-features`
 - `cargo fmt --all -- --check`
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 - `cargo test --workspace --all-features`
@@ -24,5 +24,5 @@ Phase 3 RBAC was previously limited to username/password sessions and `resource/
 - `cargo run -- --help`
 
 ## Completion notes
-- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md`.
+- Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md`.
 - Commit with Lore trailers and push.

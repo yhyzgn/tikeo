@@ -33,13 +33,13 @@ jobs:
         with:
           bun-version: latest
       - name: Install Node.js SDK dependencies
-        working-directory: sdks/nodejs/tikee
+        working-directory: sdks/nodejs/tikeo
         run: bun install --frozen-lockfile
       - name: Test Node.js SDK
-        working-directory: sdks/nodejs/tikee
+        working-directory: sdks/nodejs/tikeo
         run: bun test
       - name: Build Node.js SDK
-        working-directory: sdks/nodejs/tikee
+        working-directory: sdks/nodejs/tikeo
         run: bun run build
       - name: Install Node.js demo dependencies
         working-directory: examples/nodejs/worker-demo
@@ -50,11 +50,11 @@ jobs:
       - name: Node.js demo dry-run smoke
         working-directory: examples/nodejs/worker-demo
         env:
-          TIKEE_WORKER_DRY_RUN: '1'
-          TIKEE_SANDBOX_AUTO_INSTALL: '0'
+          TIKEO_WORKER_DRY_RUN: '1'
+          TIKEO_SANDBOX_AUTO_INSTALL: '0'
         run: bun start
       - name: Pack Node.js SDK
-        working-directory: sdks/nodejs/tikee
+        working-directory: sdks/nodejs/tikeo
         run: |
           mkdir -p ../../../dist
           npm pack --pack-destination ../../../dist
@@ -65,11 +65,11 @@ jobs:
           VERSION="${RELEASE_TAG#v}"
           PKG="nodejs-sdk-${VERSION}"
           mkdir -p "dist/$PKG"
-          cp dist/yhyzgn-tikee-*.tgz "dist/$PKG/"
-          cp -R sdks/nodejs/tikee/README.md sdks/nodejs/tikee/package.json "dist/$PKG/"
+          cp dist/yhyzgn-tikeo-*.tgz "dist/$PKG/"
+          cp -R sdks/nodejs/tikeo/README.md sdks/nodejs/tikeo/package.json "dist/$PKG/"
           tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
       - name: Publish Node.js SDK to npm when configured
-        working-directory: sdks/nodejs/tikee
+        working-directory: sdks/nodejs/tikeo
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |

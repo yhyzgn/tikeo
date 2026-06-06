@@ -22,8 +22,8 @@ Keep ephemeral `worker_id` as the authoritative session id while adding logical 
 - Web Online/Suspect/Logical/History layered UI.
 
 ## Verification
-- `rtk cargo test -p tikee-server worker --all-features`
-- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`
-- `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`
+- `rtk cargo test -p tikeo-server worker --all-features`
+- `rtk cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm`
+- `rtk cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings`
 - `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'`
-- `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out'`
+- `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikeo-help.out'`

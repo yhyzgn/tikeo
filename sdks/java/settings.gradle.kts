@@ -12,13 +12,13 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "tikee-sdk"
+rootProject.name = "tikeo-sdk"
 include(
-    "tikee",
-    "tikee-spring",
-    "tikee-spring5",
-    "tikee-spring6",
-    "tikee-spring-boot-starter",
-    "tikee-spring-boot2-starter",
-    "tikee-spring-boot3-starter",
+    "tikeo",
+    "tikeo-spring",
+    "tikeo-spring5",
+    "tikeo-spring6",
+    "tikeo-spring-boot-starter",
+    "tikeo-spring-boot2-starter",
+    "tikeo-spring-boot3-starter",
 )

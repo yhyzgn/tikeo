@@ -23,6 +23,6 @@ Phase 083 added a deterministic `/api/v1/metrics/summary` management API for das
 - `cargo run -- --help`
 
 ## Completion notes
-- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md` if risks change.
+- Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md` if risks change.
 - Create the next `.prompt/085-*.md` before commit.
 - Commit with Lore trailers and push.

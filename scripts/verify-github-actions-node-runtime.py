@@ -104,7 +104,7 @@ def split_action_spec(spec: str) -> tuple[str, str, str, str]:
 
 
 def github_raw_request(url: str, timeout: int) -> bytes:
-    headers = {"User-Agent": "tikee-node-runtime-policy-check"}
+    headers = {"User-Agent": "tikeo-node-runtime-policy-check"}
     request = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.read()
@@ -114,7 +114,7 @@ def github_api_request(url: str, timeout: int) -> bytes:
     headers = {
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "tikee-node-runtime-policy-check",
+        "User-Agent": "tikeo-node-runtime-policy-check",
     }
     token = os.environ.get("GITHUB_TOKEN")
     if token:

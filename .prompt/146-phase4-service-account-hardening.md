@@ -7,13 +7,13 @@ Current baseline:
 - Web `/api-keys` manages Service Accounts and API-Key credentials in one operational page.
 
 Validation anchors from the closing slice:
-- `cargo check -p tikee-server`
-- `cargo test -p tikee-server sdk_api_key -- --nocapture`
-- `cargo test -p tikee-server disabling_service_account_revokes_bound_sdk_keys -- --nocapture`
+- `cargo check -p tikeo-server`
+- `cargo test -p tikeo-server sdk_api_key -- --nocapture`
+- `cargo test -p tikeo-server disabling_service_account_revokes_bound_sdk_keys -- --nocapture`
 - `cd web && bun run typecheck`
 - `cd web && bun test --run client.test.ts`
 
 Next hardening ideas:
-1. Add live smoke coverage that disables a Service Account and verifies the old `X-Tikee-API-Key` fails against a running server.
+1. Add live smoke coverage that disables a Service Account and verifies the old `X-Tikeo-API-Key` fails against a running server.
 2. Add Web page interaction/e2e coverage for Service Account create/edit/disable when browser automation is enabled.
-3. Consider splitting storage compatibility helpers if `crates/tikee-storage/src/lib.rs` grows further; do not add clippy allow attributes for file size/too-many-lines.
+3. Consider splitting storage compatibility helpers if `crates/tikeo-storage/src/lib.rs` grows further; do not add clippy allow attributes for file size/too-many-lines.

@@ -1,10 +1,10 @@
 # Phase4 P2：入站 Webhook / 事件源基础
 
 ## 背景
-当前 tikee 已具备告警出站 Webhook 投递能力，但外部系统（CI/CD、监控、Git 平台、内部平台）触发 tikee Job 仍只能走通用 Job trigger API。Phase4 P2 的“高级 Webhook/事件源”先落地一个稳定、可审计、可用 API-Key 授权的入站事件源基础。
+当前 tikeo 已具备告警出站 Webhook 投递能力，但外部系统（CI/CD、监控、Git 平台、内部平台）触发 tikeo Job 仍只能走通用 Job trigger API。Phase4 P2 的“高级 Webhook/事件源”先落地一个稳定、可审计、可用 API-Key 授权的入站事件源基础。
 
 ## 本阶段目标
-- 新增入站 Webhook 触发入口，外部系统可以 `POST` JSON 事件到 tikee 并触发指定 Job。
+- 新增入站 Webhook 触发入口，外部系统可以 `POST` JSON 事件到 tikeo 并触发指定 Job。
 - 鉴权复用现有 session / API Token / SDK API-Key 体系，权限使用 `instances:execute`，并继续校验 namespace/app scope。
 - 创建 Job Instance 后写入一条事件源日志，保留 source/eventType/payload 供排障审计。
 - 为后续 GitLab/GitHub/Prometheus Alertmanager 等具体事件源适配器保留扩展点。

@@ -16,7 +16,7 @@ Phase 098 added durable API token lifecycle endpoints, but tokens still inherite
 - Do not claim multi-tenant namespace/app/worker-pool scope binding or token rotation/expiry policy complete.
 
 ## Expected verification
-- `cargo test -p tikee-server api_token --all-features`
+- `cargo test -p tikeo-server api_token --all-features`
 - `cargo fmt --all -- --check`
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 - `cargo test --workspace --all-features`
@@ -24,5 +24,5 @@ Phase 098 added durable API token lifecycle endpoints, but tokens still inherite
 - `cargo run -- --help`
 
 ## Completion notes
-- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md`.
+- Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md`.
 - Commit with Lore trailers and push.

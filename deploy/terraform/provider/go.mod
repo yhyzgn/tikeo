@@ -1,4 +1,4 @@
-module github.com/yhyzgn/tikee/deploy/terraform/provider
+module github.com/yhyzgn/tikeo/deploy/terraform/provider
 
 go 1.26
 

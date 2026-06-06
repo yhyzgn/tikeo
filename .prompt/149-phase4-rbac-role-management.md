@@ -43,7 +43,7 @@ Implement the production-grade RBAC role management module described in `design/
    - HTTP tests for role API, bootstrap/owner bypass, owner locked behavior, user role assignment permission gates, session invalidation.
    - Bun tests for API client and permission/menu rendering helpers.
    - Playwright smoke for role page, user role assignment, and menu visibility.
-   - Run `cargo fmt --all`, targeted/full Rust tests, `cargo clippy -p tikee-server -p tikee-storage --all-targets --all-features -- -D warnings`, `bun run typecheck`, and relevant `bun test` suites.
+   - Run `cargo fmt --all`, targeted/full Rust tests, `cargo clippy -p tikeo-server -p tikeo-storage --all-targets --all-features -- -D warnings`, `bun run typecheck`, and relevant `bun test` suites.
 
 ## Acceptance criteria
 - A bootstrap owner can still access all protected backend APIs and all Web menus, and its owner role cannot be manually granted to any other user.

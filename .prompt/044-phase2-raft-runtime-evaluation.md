@@ -8,7 +8,7 @@ Evaluate and introduce the first real Raft runtime slice, or explicitly defer wi
 
 ## Required work
 1. Check TiKV raft-rs (`raft` crate) compatibility and required storage/transport/Ready handling for Rust 1.95 / current dependency graph.
-2. Decide whether to add a new `crates/tikee-cluster` crate or keep runtime under `tikee-server::cluster` for now.
+2. Decide whether to add a new `crates/tikeo-cluster` crate or keep runtime under `tikeo-server::cluster` for now.
 3. Implement the smallest honest runtime slice:
    - in-memory single-node Raft bootstrap that can become leader, OR
    - persisted metadata schema + no-op runtime with explicit blocked status if real runtime is too broad.

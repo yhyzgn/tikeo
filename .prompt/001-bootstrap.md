@@ -2,12 +2,12 @@
 
 ## 阶段目标
 
-建立 tikee 的最小 Rust workspace（所有 crate 位于 `./crates/`）与可运行服务骨架，为后续 HTTP API、Worker Tunnel、存储和 Web UI 开发提供稳定基础。
+建立 tikeo 的最小 Rust workspace（所有 crate 位于 `./crates/`）与可运行服务骨架，为后续 HTTP API、Worker Tunnel、存储和 Web UI 开发提供稳定基础。
 
 ## 开始前必读
 
 - `../prompt.md`
-- `../design/tikee-architecture-design.md`
+- `../design/tikeo-architecture-design.md`
 - `../.memory/project.md`
 - `../.memory/progress.md`
 - `../.memory/decisions.md`
@@ -34,13 +34,13 @@
 
 1. 初始化 Cargo workspace，根目录只放 workspace 配置和后端主程序入口 `src/main.rs`，不承载业务模块代码。
 2. 在 `./crates/` 下创建建议 crate（除根 `src/main.rs` 入口外，所有 Rust 代码模块必须以 crate 形式解耦）：
-   - `crates/tikee-server`：server binary / HTTP gateway / CLI serve。
-   - `crates/tikee-core`：领域模型与核心 trait 占位。
-   - `crates/tikee-config`：配置加载。
-   - 后续可增加 `tikee-proto`、`tikee-storage`、`tikee`。
+   - `crates/tikeo-server`：server binary / HTTP gateway / CLI serve。
+   - `crates/tikeo-core`：领域模型与核心 trait 占位。
+   - `crates/tikeo-config`：配置加载。
+   - 后续可增加 `tikeo-proto`、`tikeo-storage`、`tikeo`。
 3. 增加根 `Cargo.toml` workspace 配置。
 4. 增加 `rustfmt.toml`、基础 `.gitignore`，并确保 workspace members 包含根入口 package 和 `crates/*` 下 crate。
-5. 实现 `tikee serve`：
+5. 实现 `tikeo serve`：
    - 读取默认配置。
    - 启动 Axum HTTP server。
    - 暴露 `GET /healthz` 与 `GET /readyz`。
@@ -66,7 +66,7 @@ cargo build --workspace --all-features
 冒烟运行：
 
 ```bash
-cargo run --bin tikee -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/readyz
 ```
@@ -95,5 +95,5 @@ curl -fsS http://0.0.0.0:9090/readyz
 示例首行：
 
 ```text
-🚀 奠定 tikee Rust 开发骨架以支撑平台化调度能力
+🚀 奠定 tikeo Rust 开发骨架以支撑平台化调度能力
 ```

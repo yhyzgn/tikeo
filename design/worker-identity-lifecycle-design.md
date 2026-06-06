@@ -2,7 +2,7 @@
 
 ## 1. 背景与问题
 
-当前 tikee Worker Tunnel 的核心约束是：Worker 主动出站连接 Server，`worker_id` 由 Server 在注册成功后下发，客户端只能上报 `client_instance_id` 作为提示。这符合 K8s/Docker 模型，也同样适用于裸机、VM、systemd、Supervisor、Windows Service 等常规服务器部署：每次进程启动都可以视为一次新的运行会话，但这些环境往往缺少 Pod UID 这类天然实例标识，因此更需要明确的 logical identity 策略。
+当前 tikeo Worker Tunnel 的核心约束是：Worker 主动出站连接 Server，`worker_id` 由 Server 在注册成功后下发，客户端只能上报 `client_instance_id` 作为提示。这符合 K8s/Docker 模型，也同样适用于裸机、VM、systemd、Supervisor、Windows Service 等常规服务器部署：每次进程启动都可以视为一次新的运行会话，但这些环境往往缺少 Pod UID 这类天然实例标识，因此更需要明确的 logical identity 策略。
 
 用户提出的关键问题是：如果 demo 或生产服务每启动一次都注册一个新的 Worker，系统如何区分“异常失联 / 网络掉线 / 正常迭代后成为历史”的 Worker？如果不区分，Worker 列表、调度、排障和指标都会逐渐混乱。
 
@@ -63,9 +63,9 @@ Logical Worker Instance 1 --- has many ---> Worker Session / worker_id
 
 ### 3.4 裸机/VM 部署身份规则
 
-裸机和 VM 环境没有 Pod UID，也不一定有稳定容器 ID。tikee 不应假设 Worker 一定运行在容器内。常规服务器部署应遵循：
+裸机和 VM 环境没有 Pod UID，也不一定有稳定容器 ID。tikeo 不应假设 Worker 一定运行在容器内。常规服务器部署应遵循：
 
-- `host_id` 表示机器或 VM 的稳定身份，优先级：显式 `TIKEE_WORKER_HOST_ID` > 云 instance id > `/etc/machine-id` > 稳定 hostname。
+- `host_id` 表示机器或 VM 的稳定身份，优先级：显式 `TIKEO_WORKER_HOST_ID` > 云 instance id > `/etc/machine-id` > 稳定 hostname。
 - `instance_slot` 表示同一主机上的第几个 Worker 实例，适配 systemd template、Supervisor program name、Windows Service name 或手工多进程部署。
 - `client_instance_id` 可以由 SDK 组合为：`{service_name}@{host_id}#{instance_slot}`。
 - 如果业务希望“每次进程启动都作为新 logical instance”，可以显式设置 `identity_mode=ephemeral`；否则默认推荐 `stable_host_slot`。
@@ -279,12 +279,12 @@ created_at
 新增/调整默认解析：
 
 ```yaml
-tikee:
+tikeo:
   worker:
-    client-instance-id: ${TIKEE_WORKER_CLIENT_INSTANCE_ID:}
+    client-instance-id: ${TIKEO_WORKER_CLIENT_INSTANCE_ID:}
     identity-mode: auto # auto | k8s_pod | container | stable_host_slot | ephemeral
-    host-id: ${TIKEE_WORKER_HOST_ID:${HOSTNAME:}}
-    instance-slot: ${TIKEE_WORKER_INSTANCE_SLOT:default}
+    host-id: ${TIKEO_WORKER_HOST_ID:${HOSTNAME:}}
+    instance-slot: ${TIKEO_WORKER_INSTANCE_SLOT:default}
     lifecycle-mode: session-per-process
 ```
 
@@ -363,12 +363,12 @@ AND capabilities/labels match
 建议指标：
 
 ```text
-tikee_worker_sessions{status,reason,namespace,app}
-tikee_worker_logical_instances{status,namespace,app}
-tikee_worker_session_replacements_total{namespace,app}
-tikee_worker_lease_expirations_total{reason,namespace,app}
-tikee_worker_stale_messages_total{kind,namespace,app}
-tikee_worker_generation{namespace,app,client_instance_id}
+tikeo_worker_sessions{status,reason,namespace,app}
+tikeo_worker_logical_instances{status,namespace,app}
+tikeo_worker_session_replacements_total{namespace,app}
+tikeo_worker_lease_expirations_total{reason,namespace,app}
+tikeo_worker_stale_messages_total{kind,namespace,app}
+tikeo_worker_generation{namespace,app,client_instance_id}
 ```
 
 建议告警：

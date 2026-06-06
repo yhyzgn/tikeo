@@ -2,11 +2,11 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIG_FILE="${TIKEE_CONFIG:-$ROOT_DIR/config/dev.toml}"
-API_PORT="${TIKEE_API_PORT:-9090}"
-WEB_PORT="${TIKEE_WEB_PORT:-5173}"
-API_URL="${TIKEE_API_URL:-http://localhost:$API_PORT}"
-WEB_URL="${TIKEE_WEB_URL:-http://localhost:$WEB_PORT}"
+CONFIG_FILE="${TIKEO_CONFIG:-$ROOT_DIR/config/dev.toml}"
+API_PORT="${TIKEO_API_PORT:-9090}"
+WEB_PORT="${TIKEO_WEB_PORT:-5173}"
+API_URL="${TIKEO_API_URL:-http://localhost:$API_PORT}"
+WEB_URL="${TIKEO_WEB_URL:-http://localhost:$WEB_PORT}"
 LOG_DIR="$ROOT_DIR/.dev"
 
 mkdir -p "$LOG_DIR"
@@ -74,8 +74,8 @@ ensure_port_free() {
   if port_in_use "$port"; then
     echo "$label 端口 $port 已被占用，dev.sh 无法启动。" >&2
     describe_port_owner "$port"
-    echo "请先停止占用该端口的旧 tikee/dev 进程，或通过环境变量指定其他端口。" >&2
-    echo "示例：TIKEE_API_PORT=9091 TIKEE_WEB_PORT=5174 ./scripts/dev.sh" >&2
+    echo "请先停止占用该端口的旧 tikeo/dev 进程，或通过环境变量指定其他端口。" >&2
+    echo "示例：TIKEO_API_PORT=9091 TIKEO_WEB_PORT=5174 ./scripts/dev.sh" >&2
     exit 1
   fi
 }
@@ -125,12 +125,12 @@ terminate_process_tree() {
 cleanup() {
   local code=$?
   trap - INT TERM EXIT
-  if [[ "${TIKEE_DEV_CLEANING_UP:-0}" == "1" ]]; then
+  if [[ "${TIKEO_DEV_CLEANING_UP:-0}" == "1" ]]; then
     exit "$code"
   fi
-  TIKEE_DEV_CLEANING_UP=1
+  TIKEO_DEV_CLEANING_UP=1
   echo
-  echo "正在停止 tikee 开发进程..."
+  echo "正在停止 tikeo 开发进程..."
   terminate_process_tree "${SERVER_PID:-}"
   terminate_process_tree "${WEB_PID:-}"
   terminate_process_tree "${SERVER_LOG_CONSOLE_PID:-}"
@@ -156,12 +156,12 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   exit 1
 fi
 
-API_PORT="${TIKEE_API_PORT:-$(extract_config_port listen_addr || true)}"
+API_PORT="${TIKEO_API_PORT:-$(extract_config_port listen_addr || true)}"
 API_PORT="${API_PORT:-9090}"
-TUNNEL_PORT="${TIKEE_TUNNEL_PORT:-$(extract_config_port worker_tunnel_addr || true)}"
+TUNNEL_PORT="${TIKEO_TUNNEL_PORT:-$(extract_config_port worker_tunnel_addr || true)}"
 TUNNEL_PORT="${TUNNEL_PORT:-9998}"
-API_URL="${TIKEE_API_URL:-http://localhost:$API_PORT}"
-WEB_URL="${TIKEE_WEB_URL:-http://localhost:$WEB_PORT}"
+API_URL="${TIKEO_API_URL:-http://localhost:$API_PORT}"
+WEB_URL="${TIKEO_WEB_URL:-http://localhost:$WEB_PORT}"
 
 ensure_port_free "后端 HTTP" "$API_PORT"
 ensure_port_free "Worker Tunnel" "$TUNNEL_PORT"
@@ -190,7 +190,7 @@ export MIMALLOC_ABANDONED_PAGE_PURGE="${MIMALLOC_ABANDONED_PAGE_PURGE:-1}"
 echo "启动后端：$API_URL"
 setsid bash -c 'tail -n +1 -F "$1" 2>/dev/null | sed -u "s/^/[$2] /"' _ "$SERVER_LOG" server &
 SERVER_LOG_CONSOLE_PID=$!
-setsid bash -c 'cd "$1" && exec cargo run --bin tikee -- serve --config "$2"' _ "$ROOT_DIR" "$CONFIG_FILE" >"$SERVER_LOG" 2>&1 &
+setsid bash -c 'cd "$1" && exec cargo run --bin tikeo -- serve --config "$2"' _ "$ROOT_DIR" "$CONFIG_FILE" >"$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 
 echo -n "等待后端健康检查"

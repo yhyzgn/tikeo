@@ -2,13 +2,13 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: tikee
-      POSTGRES_USER: tikee
-      POSTGRES_PASSWORD: tikee
+      POSTGRES_DB: tikeo
+      POSTGRES_USER: tikeo
+      POSTGRES_PASSWORD: tikeo
     ports:
-      - "${TIKEE_TEST_POSTGRES_PORT:-15432}:5432"
+      - "${TIKEO_TEST_POSTGRES_PORT:-15432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tikee -d tikee"]
+      test: ["CMD-SHELL", "pg_isready -U tikeo -d tikeo"]
       interval: 2s
       timeout: 3s
       retries: 30
@@ -16,15 +16,15 @@ services:
   mysql:
     image: mysql:8.4
     environment:
-      MYSQL_DATABASE: tikee
-      MYSQL_USER: tikee
-      MYSQL_PASSWORD: tikee
+      MYSQL_DATABASE: tikeo
+      MYSQL_USER: tikeo
+      MYSQL_PASSWORD: tikeo
       MYSQL_ROOT_PASSWORD: root
     command:
       - "--character-set-server=utf8mb4"
       - "--collation-server=utf8mb4_0900_ai_ci"
     ports:
-      - "${TIKEE_TEST_MYSQL_PORT:-13306}:3306"
+      - "${TIKEO_TEST_MYSQL_PORT:-13306}:3306"
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
       interval: 2s

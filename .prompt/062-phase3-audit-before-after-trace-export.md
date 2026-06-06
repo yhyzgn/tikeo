@@ -15,5 +15,5 @@ Current audit state:
 3. Add middleware or helper propagation for trace_id so write routes and failure paths can reuse it consistently.
 4. Add export governance plan or minimal CSV/JSON export endpoint if scope stays small; otherwise document deferred export with precise prompt.
 5. Update Web UI audit page to show trace/result/failure fields if API support is added.
-6. Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, and create `.prompt/063-*.md`.
+6. Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, and create `.prompt/063-*.md`.
 7. Run full verification and commit/push with Lore-style trailers.

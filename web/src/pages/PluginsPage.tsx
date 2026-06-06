@@ -468,10 +468,10 @@ export function PluginsPage() {
               <>
                 <Alert type="warning" showIcon message="外部 JAR 必须通过容器沙箱执行" description="artifactRef 记录版本化 JAR 坐标或对象存储引用，containerImage 指定实际执行镜像；Worker 仍按 pluginProcessors.type=external_jar + processorNames 匹配。" />
                 <Form.Item name="artifactRef" label="JAR Artifact Ref" rules={[{ required: true, message: "请输入 JAR artifactRef" }]}>
-                  <Input placeholder="s3://tikee-plugins/billing-sync-1.0.0.jar 或 maven:group:artifact:version" />
+                  <Input placeholder="s3://tikeo-plugins/billing-sync-1.0.0.jar 或 maven:group:artifact:version" />
                 </Form.Item>
                 <Form.Item name="containerImage" label="Container Image" rules={[{ required: true, message: "请输入容器镜像" }]}>
-                  <Input placeholder="registry.example.com/tikee/jar-runner:1.0.0" />
+                  <Input placeholder="registry.example.com/tikeo/jar-runner:1.0.0" />
                 </Form.Item>
                 <Form.Item name="entrypoint" label="Entrypoint">
                   <Select mode="tags" placeholder="java,-jar,/plugins/billing-sync.jar" />

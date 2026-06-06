@@ -34,25 +34,25 @@ jobs:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: |
-            sdks/python/tikee/pyproject.toml
+            sdks/python/tikeo/pyproject.toml
             examples/python/worker-demo/pyproject.toml
       - name: Install build and test dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install build twine
-          python -m pip install -e sdks/python/tikee[test]
+          python -m pip install -e sdks/python/tikeo[test]
           python -m pip install -e examples/python/worker-demo[test]
       - name: Test Python SDK and demo
-        run: python -m pytest sdks/python/tikee/tests examples/python/worker-demo/tests -q
+        run: python -m pytest sdks/python/tikeo/tests examples/python/worker-demo/tests -q
       - name: Python demo dry-run smoke
         env:
-          TIKEE_WORKER_DRY_RUN: '1'
-          TIKEE_SANDBOX_AUTO_INSTALL: '0'
-        run: python -m tikee_python_worker_demo
+          TIKEO_WORKER_DRY_RUN: '1'
+          TIKEO_SANDBOX_AUTO_INSTALL: '0'
+        run: python -m tikeo_python_worker_demo
       - name: Build Python SDK distributions
-        run: python -m build sdks/python/tikee
+        run: python -m build sdks/python/tikeo
       - name: Verify Python SDK distributions
-        run: python -m twine check sdks/python/tikee/dist/*
+        run: python -m twine check sdks/python/tikeo/dist/*
       - name: Stage Python SDK release payload
         run: |
           set -euo pipefail
@@ -60,8 +60,8 @@ jobs:
           VERSION="${RELEASE_TAG#v}"
           PKG="python-sdk-${VERSION}"
           mkdir -p "dist/$PKG"
-          cp sdks/python/tikee/dist/* "dist/$PKG/"
-          cp -R sdks/python/tikee/README.md sdks/python/tikee/pyproject.toml "dist/$PKG/"
+          cp sdks/python/tikeo/dist/* "dist/$PKG/"
+          cp -R sdks/python/tikeo/README.md sdks/python/tikeo/pyproject.toml "dist/$PKG/"
           tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
       - name: Publish Python SDK to PyPI when configured
         env:
@@ -71,7 +71,7 @@ jobs:
             echo "PYPI_API_TOKEN is not configured; skipping PyPI publish."
             exit 0
           fi
-          python -m twine upload --non-interactive --username __token__ --password "$PYPI_API_TOKEN" sdks/python/tikee/dist/*
+          python -m twine upload --non-interactive --username __token__ --password "$PYPI_API_TOKEN" sdks/python/tikeo/dist/*
       - name: Upload Python SDK package to GitHub Release
         uses: softprops/action-gh-release@v3
         with:

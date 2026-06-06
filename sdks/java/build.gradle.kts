@@ -3,6 +3,6 @@ plugins {
 }
 
 allprojects {
-    group = "com.yhyzgn.tikee"
-    version = providers.gradleProperty("tikeeVersion").get()
+    group = "net.tikeo"
+    version = providers.gradleProperty("tikeoVersion").get()
 }

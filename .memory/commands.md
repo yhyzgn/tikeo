@@ -9,7 +9,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-cargo run --bin tikee -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 ```
 
@@ -32,7 +32,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-cargo run --bin tikee -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/readyz
 ```
@@ -45,7 +45,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-cargo run --bin tikee -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/readyz
 curl -fsS http://0.0.0.0:9090/api-docs/openapi.json
@@ -76,21 +76,21 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-cargo run --bin tikee -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/api-docs/openapi.json
 # Smoke also verifies 0.0.0.0:9998 accepts TCP connection for Worker Tunnel gRPC listener.
 ```
 
 
-## 已验证命令（004-storage-and-tikee）
+## 已验证命令（004-storage-and-tikeo）
 
 ```bash
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-cargo run --bin tikee -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/api-docs/openapi.json
 curl -fsS http://0.0.0.0:9090/api/v1/jobs
@@ -98,17 +98,17 @@ curl -fsS -H 'content-type: application/json' -d '{"namespace":"default","app":"
 curl -fsS http://0.0.0.0:9090/api/v1/jobs
 ```
 
-说明：本阶段新增 SeaORM storage crate；SQLite dev DB 使用 `config/dev.toml` 的 `sqlite://tikee-dev.db?mode=rwc`。
+说明：本阶段新增 SeaORM storage crate；SQLite dev DB 使用 `config/dev.toml` 的 `sqlite://tikeo-dev.db?mode=rwc`。
 
 
-## 已验证命令（005-basic-tikee）
+## 已验证命令（005-basic-tikeo）
 
 ```bash
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-cargo run --bin tikee -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/api-docs/openapi.json
 curl -fsS http://0.0.0.0:9090/api/v1/jobs
@@ -127,7 +127,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-cargo run --bin tikee -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/api-docs/openapi.json
 ```
@@ -151,7 +151,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-cargo run --bin tikee -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/api-docs/openapi.json
 curl -fsS http://0.0.0.0:9090/api/v1/jobs
@@ -164,8 +164,8 @@ curl -fsS http://0.0.0.0:9090/api/v1/jobs
 
 ```bash
 docker compose config
-docker build -t tikee:dev .
-docker build -t tikee-web:dev ./web
+docker build -t tikeo:dev .
+docker build -t tikeo-web:dev ./web
 docker compose up -d --no-build
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:8080/
@@ -174,7 +174,7 @@ docker compose down
 python - <<'PY'
 from pathlib import Path
 import yaml
-items = list(yaml.safe_load_all(Path('deploy/k8s/tikee.yaml').read_text()))
+items = list(yaml.safe_load_all(Path('deploy/k8s/tikeo.yaml').read_text()))
 assert all(item and item.get('apiVersion') and item.get('kind') for item in items)
 print(f'k8s yaml documents: {len(items)}')
 PY
@@ -201,7 +201,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-cargo run --bin tikee -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/api/v1/jobs
 ./sdks/java/gradlew -p sdks/java test
@@ -211,8 +211,8 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-docker build -t tikee:dev .
-docker build -t tikee-web:dev ./web
+docker build -t tikeo:dev .
+docker build -t tikeo-web:dev ./web
 docker compose up -d --no-build
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:8080/api/v1/jobs
@@ -220,14 +220,14 @@ docker compose down
 ```
 
 
-## 已验证命令（010-tikee-tick-loop）
+## 已验证命令（010-tikeo-tick-loop）
 
 ```bash
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-cargo run --bin tikee -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS -H 'content-type: application/json' -d '{"namespace":"default","app":"demo","name":"fast","schedule_type":"fixed_rate","schedule_expr":"1s"}' http://0.0.0.0:9090/api/v1/jobs
 curl -fsS http://0.0.0.0:9090/api/v1/jobs/<job_id>/instances
@@ -238,8 +238,8 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-docker build -t tikee:dev .
-docker build -t tikee-web:dev ./web
+docker build -t tikeo:dev .
+docker build -t tikeo-web:dev ./web
 docker compose up -d --no-build
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:8080/api/v1/jobs
@@ -260,8 +260,8 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-docker build -t tikee:dev .
-docker build -t tikee-web:dev ./web
+docker build -t tikeo:dev .
+docker build -t tikeo-web:dev ./web
 docker compose up -d --no-build
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:8080/api/v1/jobs
@@ -294,8 +294,8 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-docker build -t tikee:dev .
-docker build -t tikee-web:dev ./web
+docker build -t tikeo:dev .
+docker build -t tikeo-web:dev ./web
 docker compose up -d --no-build
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:8080
@@ -305,9 +305,9 @@ docker compose down
 额外本地 server auth smoke：
 
 ```bash
-cargo run --bin tikee -- serve --config config/dev.toml
-curl -fsS http://0.0.0.0:9090/api/v1/auth/login -H 'content-type: application/json' -d '{"username":"tikee_init","password":"Tikee@2026!"}'
-TOKEN=$(curl -fsS http://0.0.0.0:9090/api/v1/auth/login -H 'content-type: application/json' -d '{"username":"tikee_init","password":"Tikee@2026!"}' | jq -r '.data.token')
+cargo run --bin tikeo -- serve --config config/dev.toml
+curl -fsS http://0.0.0.0:9090/api/v1/auth/login -H 'content-type: application/json' -d '{"username":"tikeo_init","password":"Tikeo@2026!"}'
+TOKEN=$(curl -fsS http://0.0.0.0:9090/api/v1/auth/login -H 'content-type: application/json' -d '{"username":"tikeo_init","password":"Tikeo@2026!"}' | jq -r '.data.token')
 curl -fsS http://0.0.0.0:9090/api/v1/auth/me -H "authorization: Bearer $TOKEN"
 curl -fsS http://0.0.0.0:9090/api/v1/jobs -H 'content-type: application/json' -H "authorization: Bearer $TOKEN" -d '{"namespace":"default","app":"smoke","name":"auth-smoke"}'
 ```
@@ -326,8 +326,8 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-DOCKER_BUILDKIT=1 docker build -t tikee:dev .
-DOCKER_BUILDKIT=1 docker build -t tikee-web:dev ./web
+DOCKER_BUILDKIT=1 docker build -t tikeo:dev .
+DOCKER_BUILDKIT=1 docker build -t tikeo-web:dev ./web
 docker compose down --remove-orphans || true
 docker compose up -d --no-build
 curl -fsS http://0.0.0.0:9090/healthz
@@ -354,8 +354,8 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-DOCKER_BUILDKIT=1 docker build -t tikee:dev .
-DOCKER_BUILDKIT=1 docker build -t tikee-web:dev ./web
+DOCKER_BUILDKIT=1 docker build -t tikeo:dev .
+DOCKER_BUILDKIT=1 docker build -t tikeo-web:dev ./web
 docker compose down --remove-orphans || true
 docker compose up -d --no-build
 curl -fsS http://0.0.0.0:9090/healthz
@@ -376,7 +376,7 @@ bun run --cwd web lint
 bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
-cargo run --bin tikee -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/api/v1/jobs
 curl -fsS http://0.0.0.0:9090/api/v1/jobs/job_019e3ec775b177b0bd1f804874c84f3c/instances
@@ -396,11 +396,11 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-cargo run --bin tikee -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/api/v1/auth/login \
   -H 'content-type: application/json' \
-  -d '{"username":"tikee_init","password":"Tikee@2026!"}'
+  -d '{"username":"tikeo_init","password":"Tikeo@2026!"}'
 ```
 
 说明：登录冒烟验证返回 `atk_` opaque token；Vite build 仍提示 Ant Design 相关大 chunk 警告，不影响构建通过。
@@ -408,8 +408,8 @@ curl -fsS http://0.0.0.0:9090/api/v1/auth/login \
 ## 本轮新增检查（禁止外键 / users.password）
 
 ```bash
-sqlite3 tikee-dev.db "SELECT name, sql FROM sqlite_master WHERE type='table' AND sql LIKE '%REFERENCES%';"
-sqlite3 tikee-dev.db "PRAGMA table_info(users);"
+sqlite3 tikeo-dev.db "SELECT name, sql FROM sqlite_master WHERE type='table' AND sql LIKE '%REFERENCES%';"
+sqlite3 tikeo-dev.db "PRAGMA table_info(users);"
 ```
 
 Expected:
@@ -444,8 +444,8 @@ docker compose config
 cargo check --workspace --all-features
 bun run --cwd web typecheck
 cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test -p tikee-server workflow_create_validate_and_run_returns_envelopes --all-features
-cargo test -p tikee-server user_management_and_rbac_integration --all-features
+cargo test -p tikeo-server workflow_create_validate_and_run_returns_envelopes --all-features
+cargo test -p tikeo-server user_management_and_rbac_integration --all-features
 ```
 
 ## 已验证命令（022 Phase2 workflow foundation 完成）
@@ -472,7 +472,7 @@ bun run --cwd web typecheck
 
 ```bash
 cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test -p tikee-server workflow_create_validate_run_and_advance_returns_envelopes --all-features
+cargo test -p tikeo-server workflow_create_validate_run_and_advance_returns_envelopes --all-features
 bun run --cwd web lint
 ```
 
@@ -511,28 +511,28 @@ docker compose config
 ./sdks/java/gradlew -p sdks/java test
 ./sdks/java/gradlew -p examples/java/spring-worker-demo test
 cargo fmt --all -- --check
-cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features
+cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
 cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
 bun run --cwd web lint && bun run --cwd web typecheck && bun test --cwd web && bun run --cwd web build
-DOCKER_BUILDKIT=1 docker build -t tikee:dev .
+DOCKER_BUILDKIT=1 docker build -t tikeo:dev .
 ```
 
 ### Rust SDK independent publishing cleanup verification (2026-05-21)
 ```bash
-cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features
-cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings
+cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
+cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
-DOCKER_BUILDKIT=1 docker build -t tikee:dev .
-cargo package --manifest-path sdks/rust/tikee/Cargo.toml --allow-dirty
+DOCKER_BUILDKIT=1 docker build -t tikeo:dev .
+cargo package --manifest-path sdks/rust/tikeo/Cargo.toml --allow-dirty
 ```
 
-## tikee rename verification commands (2026-05-22)
+## tikeo rename verification commands (2026-05-22)
 
 ```bash
 cargo check --workspace --all-features
@@ -542,9 +542,9 @@ cargo test --workspace --all-features
 cargo build --workspace --all-features
 cargo run -- --help
 cd web && bun run typecheck && bun test && bun run build
-cargo test --manifest-path sdks/rust/tikee/Cargo.toml
-cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm
-cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings
+cargo test --manifest-path sdks/rust/tikeo/Cargo.toml
+cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm
+cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings
 cd sdks/java && ./gradlew test --warning-mode all --no-daemon
 ```
 
@@ -557,9 +557,9 @@ cargo test --workspace --all-features -- --test-threads=1
 cargo build --workspace --all-features
 cd web && bun install --frozen-lockfile && bun run lint && bun run typecheck && bun test && bun run build
 cd sdks/java && ./gradlew test jar sourcesJar
-cd sdks/go/tikee && go test ./...
+cd sdks/go/tikeo && go test ./...
 cd examples/go/worker-demo && go test ./...
-cd sdks/rust/tikee && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features && cargo package --allow-dirty
+cd sdks/rust/tikeo && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features && cargo package --allow-dirty
 cd examples/rust/worker-demo && cargo test
 ```
 

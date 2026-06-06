@@ -14,7 +14,7 @@ Phase 088 added a Grafana dashboard template and Phase 089 added dispatch queue 
 - Do not claim complete business SLO coverage; this slice only covers dispatch queue pending-age and pending/running queue gauges.
 
 ## Expected verification
-- `cargo test -p tikee-server metrics_summary_reports_storage_registry_and_alert_counts --all-features`
+- `cargo test -p tikeo-server metrics_summary_reports_storage_registry_and_alert_counts --all-features`
 - `cargo fmt --all -- --check`
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 - `cargo test --workspace --all-features`
@@ -22,5 +22,5 @@ Phase 088 added a Grafana dashboard template and Phase 089 added dispatch queue 
 - `cargo run -- --help`
 
 ## Completion notes
-- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md`.
+- Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md`.
 - Commit with Lore trailers and push.

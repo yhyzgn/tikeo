@@ -28,7 +28,7 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("./gradlew test", CI)
         self.assertIn("Test Spring Boot 2 worker demo", CI)
         self.assertIn("cargo test --workspace --all-features -- --test-threads=1", CI)
-        self.assertIn("cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features", CI)
+        self.assertIn("cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features", CI)
         self.assertIn("cargo test --manifest-path examples/rust/worker-demo/Cargo.toml --all-features", CI)
         self.assertIn("Test Go worker demo", CI)
         self.assertIn("Build server image without push", CI)
@@ -44,8 +44,8 @@ class WorkflowContractTest(unittest.TestCase):
             "java-sdk-demo": "name: Java SDK + demo",
             "rust-sdk-demo": "name: Rust SDK + demo",
             "go-sdk-demo": "name: Go SDK + demo",
-            "python-sdk-demo": "name: Python SDK + demo / deferred",
-            "nodejs-sdk-demo": "name: Node.js SDK + demo / deferred",
+            "python-sdk-demo": "name: Python SDK + demo",
+            "nodejs-sdk-demo": "name: Node.js SDK + demo",
             "other-deploy-tools": "name: Other / deploy tooling",
             "other-cross-language-smoke": "name: Other / cross-language worker smoke",
             "other-docker-build-server": "name: Other / Docker build validation / server",
@@ -106,18 +106,21 @@ class WorkflowContractTest(unittest.TestCase):
             self.assertIn("needs: workflow-policy", job_block)
 
 
-    def test_deferred_python_and_node_gates_allow_only_documented_placeholders(self):
+    def test_python_and_node_sdk_demo_jobs_are_real_release_gates(self):
         python_job = workflow_job_block(CI, "python-sdk-demo")
-        self.assertIn("if [ -d sdks/python ]; then", python_job)
-        self.assertIn("examples/python/worker-demo/README.md", python_job)
-        self.assertIn("Planned placeholder", python_job)
-        self.assertIn("only the documented placeholder is present", python_job)
+        self.assertIn("python -m pip install -e sdks/python/tikeo[test]", python_job)
+        self.assertIn("python -m pip install -e examples/python/worker-demo[test]", python_job)
+        self.assertIn("python -m pytest sdks/python/tikeo/tests examples/python/worker-demo/tests -q", python_job)
+        self.assertIn("python -m tikeo_python_worker_demo", python_job)
+        self.assertNotIn("Planned placeholder", python_job)
 
         node_job = workflow_job_block(CI, "nodejs-sdk-demo")
-        self.assertIn("if [ -d sdks/nodejs ] || [ -d sdks/node ]; then", node_job)
-        self.assertIn("examples/nodejs/worker-demo/README.md", node_job)
-        self.assertIn("Planned placeholder", node_job)
-        self.assertIn("only the documented placeholder is present", node_job)
+        self.assertIn("working-directory: sdks/nodejs/tikeo", node_job)
+        self.assertIn("bun test", node_job)
+        self.assertIn("bun run build", node_job)
+        self.assertIn("working-directory: examples/nodejs/worker-demo", node_job)
+        self.assertIn("bun start", node_job)
+        self.assertNotIn("Planned placeholder", node_job)
 
     def test_legacy_aggregate_release_workflow_is_removed(self):
         self.assertFalse((WORKFLOWS / "release.yml").exists())
@@ -125,7 +128,7 @@ class WorkflowContractTest(unittest.TestCase):
     def test_github_release_assets_are_independent(self):
         for target in ["x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"]:
             self.assertIn(target, GITHUB_RELEASE)
-        self.assertIn("tikee-web-dist", GITHUB_RELEASE)
+        self.assertIn("tikeo-web-dist", GITHUB_RELEASE)
         self.assertIn("config", GITHUB_RELEASE)
         self.assertIn("softprops/action-gh-release", GITHUB_RELEASE)
         self.assertIn("workflow_dispatch", GITHUB_RELEASE)
@@ -141,27 +144,27 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("body_path: release-notes.md", GITHUB_RELEASE)
 
     def test_docker_publish_targets_are_split(self):
-        self.assertIn("tikee-server", DOCKER_SERVER)
+        self.assertIn("tikeo/server", DOCKER_SERVER)
         self.assertIn("docker/login-action", DOCKER_SERVER)
         self.assertIn("docker/build-push-action", DOCKER_SERVER)
         self.assertIn("push: true", DOCKER_SERVER)
-        self.assertNotIn("tikee-web", DOCKER_SERVER)
+        self.assertNotIn("tikeo/web", DOCKER_SERVER)
 
-        self.assertIn("tikee-web", DOCKER_WEB)
+        self.assertIn("tikeo/web", DOCKER_WEB)
         self.assertIn("docker/login-action", DOCKER_WEB)
         self.assertIn("docker/build-push-action", DOCKER_WEB)
         self.assertIn("push: true", DOCKER_WEB)
-        self.assertNotIn("tikee-server", DOCKER_WEB)
+        self.assertNotIn("tikeo/server", DOCKER_WEB)
 
     def test_sdk_publish_targets_are_split(self):
         self.assertIn("sdks/java", JAVA_SDK)
         self.assertIn("java-sdk", JAVA_SDK)
         self.assertIn("./gradlew test jar sourcesJar", JAVA_SDK)
-        self.assertNotIn("sdks/rust/tikee", JAVA_SDK)
+        self.assertNotIn("sdks/rust/tikeo", JAVA_SDK)
 
-        self.assertIn("sdks/rust/tikee", RUST_SDK)
+        self.assertIn("sdks/rust/tikeo", RUST_SDK)
         self.assertIn("rust-sdk", RUST_SDK)
-        self.assertIn("cargo package --manifest-path sdks/rust/tikee/Cargo.toml", RUST_SDK)
+        self.assertIn("cargo package --manifest-path sdks/rust/tikeo/Cargo.toml", RUST_SDK)
         self.assertNotIn("sdks/java", RUST_SDK)
 
 

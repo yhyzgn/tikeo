@@ -2,27 +2,27 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RUN_ID="${TIKEE_CROSS_RUN_ID:-cross-language-workers-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
-REPORT_DIR="${TIKEE_CROSS_REPORT_DIR:-$ROOT_DIR/.dev/reports/$RUN_ID}"
-API_URL="${TIKEE_HTTP_URL:-http://127.0.0.1:19092}"
-WORKER_ENDPOINT="${TIKEE_WORKER_ENDPOINT:-http://127.0.0.1:19992}"
-WEB_URL="${TIKEE_WEB_URL:-http://127.0.0.1:15174}"
+RUN_ID="${TIKEO_CROSS_RUN_ID:-cross-language-workers-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+REPORT_DIR="${TIKEO_CROSS_REPORT_DIR:-$ROOT_DIR/.dev/reports/$RUN_ID}"
+API_URL="${TIKEO_HTTP_URL:-http://127.0.0.1:19092}"
+WORKER_ENDPOINT="${TIKEO_WORKER_ENDPOINT:-http://127.0.0.1:19992}"
+WEB_URL="${TIKEO_WEB_URL:-http://127.0.0.1:15174}"
 WEB_PORT="${WEB_URL##*:}"
 WEB_PORT="${WEB_PORT%%/*}"
 SERVER_CONFIG="$REPORT_DIR/$RUN_ID-config.toml"
 SERVER_LOG="$REPORT_DIR/$RUN_ID-server.log"
-SERVER_BIN="$ROOT_DIR/target/debug/tikee"
+SERVER_BIN="$ROOT_DIR/target/debug/tikeo"
 WEB_LOG="$REPORT_DIR/$RUN_ID-web.log"
 DB_PATH="$REPORT_DIR/$RUN_ID.db"
 SUMMARY_JSON="$REPORT_DIR/$RUN_ID-summary.json"
 REPORT_JSON="$REPORT_DIR/$RUN_ID.json"
 mkdir -p "$REPORT_DIR"
-export TIKEE_SMOKE_REPORT_DIR="$REPORT_DIR"
-export TIKEE_SMOKE_RUN_ID="$RUN_ID"
-export TIKEE_SMOKE_CASES_FILE="$REPORT_DIR/$RUN_ID-cases.jsonl"
-# shellcheck source=deploy/smoke/lib/tikee-smoke-lib.sh
-source "$ROOT_DIR/deploy/smoke/lib/tikee-smoke-lib.sh"
-: > "$TIKEE_SMOKE_CASES_FILE"
+export TIKEO_SMOKE_REPORT_DIR="$REPORT_DIR"
+export TIKEO_SMOKE_RUN_ID="$RUN_ID"
+export TIKEO_SMOKE_CASES_FILE="$REPORT_DIR/$RUN_ID-cases.jsonl"
+# shellcheck source=deploy/smoke/lib/tikeo-smoke-lib.sh
+source "$ROOT_DIR/deploy/smoke/lib/tikeo-smoke-lib.sh"
+: > "$TIKEO_SMOKE_CASES_FILE"
 
 SERVER_PID=""
 WEB_PID=""
@@ -33,7 +33,7 @@ AUTH_TOKEN=""
 POOL_READER_TOKEN=""
 
 need_cmd() {
-  tikee_smoke_need_cmd "$1"
+  tikeo_smoke_need_cmd "$1"
 }
 
 cleanup() {
@@ -46,11 +46,11 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 api() {
-  tikee_smoke_api "$API_URL" "$@"
+  tikeo_smoke_api "$API_URL" "$@"
 }
 
 api_json_get() {
-  tikee_smoke_api_json_get "$API_URL" "$@"
+  tikeo_smoke_api_json_get "$API_URL" "$@"
 }
 
 json_body() {
@@ -125,8 +125,8 @@ CFG
 }
 
 build_server_binary() {
-  if [[ ! -x "$SERVER_BIN" || "${TIKEE_CROSS_REBUILD_SERVER:-1}" == "1" ]]; then
-    (cd "$ROOT_DIR" && cargo build --bin tikee >>"$SERVER_LOG" 2>&1)
+  if [[ ! -x "$SERVER_BIN" || "${TIKEO_CROSS_REBUILD_SERVER:-1}" == "1" ]]; then
+    (cd "$ROOT_DIR" && cargo build --bin tikeo >>"$SERVER_LOG" 2>&1)
   fi
 }
 
@@ -135,7 +135,7 @@ start_server() {
   build_server_binary
   (cd "$ROOT_DIR" && exec "$SERVER_BIN" serve --config "$SERVER_CONFIG" >>"$SERVER_LOG" 2>&1) &
   SERVER_PID=$!
-  tikee_smoke_wait_for_http server "$API_URL/readyz" 180 || {
+  tikeo_smoke_wait_for_http server "$API_URL/readyz" 180 || {
     tail -n 180 "$SERVER_LOG" >&2 || true
     return 1
   }
@@ -158,12 +158,12 @@ stop_server() {
 }
 
 start_web() {
-  if [[ "${TIKEE_CROSS_SKIP_WEB:-0}" == "1" ]]; then
+  if [[ "${TIKEO_CROSS_SKIP_WEB:-0}" == "1" ]]; then
     return 0
   fi
   (cd "$ROOT_DIR/web" && bun run dev -- --host 127.0.0.1 --port "$WEB_PORT" >"$WEB_LOG" 2>&1) &
   WEB_PID=$!
-  tikee_smoke_wait_for_http web "$WEB_URL" 120 || {
+  tikeo_smoke_wait_for_http web "$WEB_URL" 120 || {
     tail -n 120 "$WEB_LOG" >&2 || true
     return 1
   }
@@ -178,10 +178,10 @@ stop_web() {
 }
 
 login() {
-  local username="${TIKEE_SMOKE_ADMIN_USERNAME:-smoke_admin}"
-  local password="${TIKEE_SMOKE_ADMIN_PASSWORD:-Tikee@2026!}"
-  tikee_smoke_login "$API_URL" "$username" "$password"
-  AUTH_TOKEN="$TIKEE_SMOKE_AUTH_TOKEN"
+  local username="${TIKEO_SMOKE_ADMIN_USERNAME:-smoke_admin}"
+  local password="${TIKEO_SMOKE_ADMIN_PASSWORD:-Tikeo@2026!}"
+  tikeo_smoke_login "$API_URL" "$username" "$password"
+  AUTH_TOKEN="$TIKEO_SMOKE_AUTH_TOKEN"
   export AUTH_TOKEN
 }
 
@@ -298,7 +298,7 @@ PY
 
 wait_instance_status() {
   local instance_id="$1" expected="$2" output="$3" timeout="${4:-120}"
-  tikee_smoke_wait_instance_status "$API_URL" "$instance_id" "$expected" "$output" "$timeout"
+  tikeo_smoke_wait_instance_status "$API_URL" "$instance_id" "$expected" "$output" "$timeout"
 }
 
 start_java_worker() {
@@ -306,27 +306,27 @@ start_java_worker() {
   local log="$REPORT_DIR/$RUN_ID-$client.log"
   (
     cd "$ROOT_DIR/examples/java/$dir"
-    TIKEE_WORKER_DRY_RUN=false \
-    TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
-    TIKEE_WORKER_NAMESPACE="$namespace" \
-    TIKEE_WORKER_APP="$app" \
-    TIKEE_WORKER_POOL="$pool" \
-    TIKEE_WORKER_CLUSTER="local" \
-    TIKEE_WORKER_REGION="local" \
-    TIKEE_DEMO_SERVER_PORT="$port" \
-    TIKEE_WORKER_CLIENT_INSTANCE_ID="$client" \
-    TIKEE_WORKER_STATE_DIR="$REPORT_DIR/$client-state" \
-    TIKEE_WORKER_ELECTION_DOMAIN="$namespace/$app/$pool/local" \
-    TIKEE_WORKER_ELECTION_PRIORITY="$priority" \
-    TIKEE_WORKER_SCRIPT_RUNTIME_CHECK=false \
-    TIKEE_WORKER_SCRIPT_AUTO_INSTALL_TOOLS=false \
-    TIKEE_WORKER_WASM_AUTO_INSTALL=false \
+    TIKEO_WORKER_DRY_RUN=false \
+    TIKEO_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
+    TIKEO_WORKER_NAMESPACE="$namespace" \
+    TIKEO_WORKER_APP="$app" \
+    TIKEO_WORKER_POOL="$pool" \
+    TIKEO_WORKER_CLUSTER="local" \
+    TIKEO_WORKER_REGION="local" \
+    TIKEO_DEMO_SERVER_PORT="$port" \
+    TIKEO_WORKER_CLIENT_INSTANCE_ID="$client" \
+    TIKEO_WORKER_STATE_DIR="$REPORT_DIR/$client-state" \
+    TIKEO_WORKER_ELECTION_DOMAIN="$namespace/$app/$pool/local" \
+    TIKEO_WORKER_ELECTION_PRIORITY="$priority" \
+    TIKEO_WORKER_SCRIPT_RUNTIME_CHECK=false \
+    TIKEO_WORKER_SCRIPT_AUTO_INSTALL_TOOLS=false \
+    TIKEO_WORKER_WASM_AUTO_INSTALL=false \
     exec ./scripts/run-demo-worker.sh >"$log" 2>&1
   ) &
   WORKER_PIDS+=("$!")
   WORKER_NAMES+=("$client")
   WORKER_LOGS+=("$log")
-  tikee_smoke_wait_for_http "$family-$client" "http://127.0.0.1:$port/demo/health" 180 || {
+  tikeo_smoke_wait_for_http "$family-$client" "http://127.0.0.1:$port/demo/health" 180 || {
     tail -n 180 "$log" >&2 || true
     return 1
   }
@@ -336,17 +336,17 @@ start_go_worker() {
   local log="$REPORT_DIR/$RUN_ID-go-worker-demo-local.log"
   (
     cd "$ROOT_DIR/examples/go/worker-demo"
-    TIKEE_WORKER_DRY_RUN=false \
-    TIKEE_WORKER_CONNECT=1 \
-    TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
-    TIKEE_WORKER_NAMESPACE=dev-alpha \
-    TIKEE_WORKER_APP=orders \
-    TIKEE_WORKER_POOL=go-blue \
-    TIKEE_WORKER_CLUSTER=local \
-    TIKEE_WORKER_REGION=local \
-    TIKEE_WORKER_CLIENT_INSTANCE_ID=go-worker-demo-local \
-    TIKEE_WORKER_SDK_PROCESSORS=demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail \
-    TIKEE_SANDBOX_AUTO_INSTALL=0 \
+    TIKEO_WORKER_DRY_RUN=false \
+    TIKEO_WORKER_CONNECT=1 \
+    TIKEO_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
+    TIKEO_WORKER_NAMESPACE=dev-alpha \
+    TIKEO_WORKER_APP=orders \
+    TIKEO_WORKER_POOL=go-blue \
+    TIKEO_WORKER_CLUSTER=local \
+    TIKEO_WORKER_REGION=local \
+    TIKEO_WORKER_CLIENT_INSTANCE_ID=go-worker-demo-local \
+    TIKEO_WORKER_SDK_PROCESSORS=demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail \
+    TIKEO_SANDBOX_AUTO_INSTALL=0 \
     exec go run . >"$log" 2>&1
   ) &
   WORKER_PIDS+=("$!")
@@ -358,17 +358,17 @@ start_rust_worker() {
   local log="$REPORT_DIR/$RUN_ID-rust-worker-demo-local.log"
   (
     cd "$ROOT_DIR/examples/rust/worker-demo"
-    TIKEE_WORKER_DRY_RUN=false \
-    TIKEE_WORKER_CONNECT=1 \
-    TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
-    TIKEE_WORKER_NAMESPACE=dev-alpha \
-    TIKEE_WORKER_APP=orders \
-    TIKEE_WORKER_POOL=rust-blue \
-    TIKEE_WORKER_CLUSTER=local \
-    TIKEE_WORKER_REGION=local \
-    TIKEE_WORKER_CLIENT_INSTANCE_ID=rust-worker-demo-local \
-    TIKEE_WORKER_SDK_PROCESSORS=demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail \
-    TIKEE_SANDBOX_AUTO_INSTALL=0 \
+    TIKEO_WORKER_DRY_RUN=false \
+    TIKEO_WORKER_CONNECT=1 \
+    TIKEO_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
+    TIKEO_WORKER_NAMESPACE=dev-alpha \
+    TIKEO_WORKER_APP=orders \
+    TIKEO_WORKER_POOL=rust-blue \
+    TIKEO_WORKER_CLUSTER=local \
+    TIKEO_WORKER_REGION=local \
+    TIKEO_WORKER_CLIENT_INSTANCE_ID=rust-worker-demo-local \
+    TIKEO_WORKER_SDK_PROCESSORS=demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail \
+    TIKEO_SANDBOX_AUTO_INSTALL=0 \
     exec cargo run >"$log" 2>&1
   ) &
   WORKER_PIDS+=("$!")
@@ -381,18 +381,18 @@ start_python_worker() {
   local log="$REPORT_DIR/$RUN_ID-python-worker-demo-local.log"
   (
     cd "$ROOT_DIR/examples/python/worker-demo"
-    TIKEE_WORKER_DRY_RUN=false \
-    TIKEE_WORKER_CONNECT=1 \
-    TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
-    TIKEE_WORKER_NAMESPACE=dev-alpha \
-    TIKEE_WORKER_APP=orders \
-    TIKEE_WORKER_POOL=python-blue \
-    TIKEE_WORKER_CLUSTER=local \
-    TIKEE_WORKER_REGION=local \
-    TIKEE_WORKER_CLIENT_INSTANCE_ID=python-worker-demo-local \
-    TIKEE_WORKER_SDK_PROCESSORS=demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail \
-    TIKEE_SANDBOX_AUTO_INSTALL=0 \
-    exec python3 -m tikee_python_worker_demo >"$log" 2>&1
+    TIKEO_WORKER_DRY_RUN=false \
+    TIKEO_WORKER_CONNECT=1 \
+    TIKEO_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
+    TIKEO_WORKER_NAMESPACE=dev-alpha \
+    TIKEO_WORKER_APP=orders \
+    TIKEO_WORKER_POOL=python-blue \
+    TIKEO_WORKER_CLUSTER=local \
+    TIKEO_WORKER_REGION=local \
+    TIKEO_WORKER_CLIENT_INSTANCE_ID=python-worker-demo-local \
+    TIKEO_WORKER_SDK_PROCESSORS=demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail \
+    TIKEO_SANDBOX_AUTO_INSTALL=0 \
+    exec python3 -m tikeo_python_worker_demo >"$log" 2>&1
   ) &
   WORKER_PIDS+=("$!")
   WORKER_NAMES+=("python-worker-demo-local")
@@ -403,17 +403,17 @@ start_nodejs_worker() {
   local log="$REPORT_DIR/$RUN_ID-nodejs-worker-demo-local.log"
   (
     cd "$ROOT_DIR/examples/nodejs/worker-demo"
-    TIKEE_WORKER_DRY_RUN=false \
-    TIKEE_WORKER_CONNECT=1 \
-    TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
-    TIKEE_WORKER_NAMESPACE=dev-alpha \
-    TIKEE_WORKER_APP=orders \
-    TIKEE_WORKER_POOL=nodejs-blue \
-    TIKEE_WORKER_CLUSTER=local \
-    TIKEE_WORKER_REGION=local \
-    TIKEE_WORKER_CLIENT_INSTANCE_ID=nodejs-worker-demo-local \
-    TIKEE_WORKER_SDK_PROCESSORS=demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail \
-    TIKEE_SANDBOX_AUTO_INSTALL=0 \
+    TIKEO_WORKER_DRY_RUN=false \
+    TIKEO_WORKER_CONNECT=1 \
+    TIKEO_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
+    TIKEO_WORKER_NAMESPACE=dev-alpha \
+    TIKEO_WORKER_APP=orders \
+    TIKEO_WORKER_POOL=nodejs-blue \
+    TIKEO_WORKER_CLUSTER=local \
+    TIKEO_WORKER_REGION=local \
+    TIKEO_WORKER_CLIENT_INSTANCE_ID=nodejs-worker-demo-local \
+    TIKEO_WORKER_SDK_PROCESSORS=demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail \
+    TIKEO_SANDBOX_AUTO_INSTALL=0 \
     exec bun start >"$log" 2>&1
   ) &
   WORKER_PIDS+=("$!")
@@ -505,12 +505,12 @@ create_pool_reader_token() {
 
 capture_pool_filtered_workers() {
   local output="$1"
-  local old_token="$TIKEE_SMOKE_AUTH_TOKEN"
-  TIKEE_SMOKE_AUTH_TOKEN="$POOL_READER_TOKEN"
-  export TIKEE_SMOKE_AUTH_TOKEN
+  local old_token="$TIKEO_SMOKE_AUTH_TOKEN"
+  TIKEO_SMOKE_AUTH_TOKEN="$POOL_READER_TOKEN"
+  export TIKEO_SMOKE_AUTH_TOKEN
   api GET /api/v1/workers > "$output"
-  TIKEE_SMOKE_AUTH_TOKEN="$old_token"
-  export TIKEE_SMOKE_AUTH_TOKEN
+  TIKEO_SMOKE_AUTH_TOKEN="$old_token"
+  export TIKEO_SMOKE_AUTH_TOKEN
   python3 - "$output" <<'PY'
 import json, sys
 payload = json.load(open(sys.argv[1], encoding='utf-8'))
@@ -528,7 +528,7 @@ assert_instance_logs() {
   local logs_file="$REPORT_DIR/$RUN_ID-$evidence_prefix-logs.json"
   wait_instance_status "$instance_id" "$expected_status" "$instance_file" 180
   api GET "/api/v1/instances/$instance_id/logs" > "$logs_file"
-  tikee_smoke_assert instance "$instance_file" --expected-status "$expected_status" --min-log-count 1 --logs-file "$logs_file" --require-log-text "$log_text" --forbid-duplicate-logs >/dev/null
+  tikeo_smoke_assert instance "$instance_file" --expected-status "$expected_status" --min-log-count 1 --logs-file "$logs_file" --require-log-text "$log_text" --forbid-duplicate-logs >/dev/null
   python3 - "$logs_file" "$log_text" <<'PY'
 import json, sys
 path, text = sys.argv[1:3]
@@ -567,7 +567,7 @@ run_language_jobs() {
   assert_instance_logs "$rust_instance" succeeded "rust demo echo processed" rust
   assert_instance_logs "$python_instance" succeeded "python demo echo processed" python
   assert_instance_logs "$nodejs_instance" succeeded "nodejs demo echo processed" nodejs
-  tikee_smoke_record_case cross-language-dispatch passed "$REPORT_DIR/$RUN_ID-go-logs.json $REPORT_DIR/$RUN_ID-rust-logs.json $REPORT_DIR/$RUN_ID-python-logs.json $REPORT_DIR/$RUN_ID-nodejs-logs.json" "Java Boot2/Boot3/Boot4, Go, Rust, Python and Node.js jobs reached expected terminal states"
+  tikeo_smoke_record_case cross-language-dispatch passed "$REPORT_DIR/$RUN_ID-go-logs.json $REPORT_DIR/$RUN_ID-rust-logs.json $REPORT_DIR/$RUN_ID-python-logs.json $REPORT_DIR/$RUN_ID-nodejs-logs.json" "Java Boot2/Boot3/Boot4, Go, Rust, Python and Node.js jobs reached expected terminal states"
 }
 
 verify_restart_snapshot() {
@@ -584,23 +584,23 @@ verify_restart_snapshot() {
   login
   wait_workers "$after_restart" persisted 45
   capture_pool_filtered_workers "$filtered_persisted"
-  tikee_smoke_record_case worker-restart-persisted-snapshot passed "$after_restart $filtered_persisted" "workers remained visible from persisted session snapshots after server restart with workers stopped"
+  tikeo_smoke_record_case worker-restart-persisted-snapshot passed "$after_restart $filtered_persisted" "workers remained visible from persisted session snapshots after server restart with workers stopped"
   start_all_workers
   wait_workers "$after_reconnect" reconnected 240
-  tikee_smoke_record_case worker-reconnect-supersedes-snapshot passed "$after_reconnect" "live workers reconnected and remained structured after persisted snapshot visibility"
+  tikeo_smoke_record_case worker-reconnect-supersedes-snapshot passed "$after_reconnect" "live workers reconnected and remained structured after persisted snapshot visibility"
 }
 
 verify_web_routes() {
-  if [[ "${TIKEE_CROSS_SKIP_WEB:-0}" == "1" ]]; then
+  if [[ "${TIKEO_CROSS_SKIP_WEB:-0}" == "1" ]]; then
     return 0
   fi
   local workers_html="$REPORT_DIR/$RUN_ID-web-workers.html"
   local queue_html="$REPORT_DIR/$RUN_ID-web-dispatch-queue.html"
   curl -fsS "$WEB_URL/workers" -o "$workers_html"
   curl -fsS "$WEB_URL/workers/dispatch-queue" -o "$queue_html"
-  tikee_smoke_assert web "$workers_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
-  tikee_smoke_assert web "$queue_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
-  tikee_smoke_record_case web-worker-secondary-routes passed "$workers_html $queue_html" "Workers page and dispatch queue secondary route return SPA shell"
+  tikeo_smoke_assert web "$workers_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
+  tikeo_smoke_assert web "$queue_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
+  tikeo_smoke_record_case web-worker-secondary-routes passed "$workers_html $queue_html" "Workers page and dispatch queue secondary route return SPA shell"
 }
 
 write_summary() {
@@ -635,7 +635,7 @@ main() {
   run_language_jobs
   verify_restart_snapshot
   verify_web_routes
-  tikee_smoke_finalize_report "$REPORT_JSON" passed >/dev/null
+  tikeo_smoke_finalize_report "$REPORT_JSON" passed >/dev/null
   write_summary
   echo "cross-language worker parity report: $REPORT_JSON"
   echo "cross-language worker parity evidence: $REPORT_DIR"

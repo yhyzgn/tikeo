@@ -19,7 +19,7 @@ Continue P1 script production governance after explicit URL/File/Secret grant re
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 - `cargo test --workspace --all-features`
 - `cargo build --workspace --all-features`
-- `cargo run -- --help >/tmp/tikee-help.out`
+- `cargo run -- --help >/tmp/tikeo-help.out`
 - `cd web && bun run typecheck && bun run lint && bun test && bun run build`
 - Source line count check excluding generated/vendor build folders: max remains `1495` lines.
 

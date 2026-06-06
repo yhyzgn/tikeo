@@ -1,12 +1,12 @@
 # Server + Web + Java SDK/Demo 联合自动化测试方案
 
-> **执行对象:** tikee server、web 控制台、Java SDK、Java Spring Boot worker demo。
+> **执行对象:** tikeo server、web 控制台、Java SDK、Java Spring Boot worker demo。
 > **方案目标:** 按功能/测试项清单逐项做“功能预期测试”，每一项必须验证业务结果符合预期，而不只是编译、启动或接口返回 2xx。
 > **状态口径:** `⏳ 待执行` / `🔄 执行中` / `✅ 通过` / `❌ 失败` / `🚧 阻塞` / `⏭️ 跳过`。初始状态统一为 `📝 执行时回填`，执行后由测试负责人或 CI 报告回填。
 
 ## 1. 总体执行原则
 
-1. **隔离环境优先**：自动化测试默认使用临时 SQLite DB、独立端口和 `.dev/reports/<run-id>/` 报告目录，不污染本地 `tikee-dev.db`。
+1. **隔离环境优先**：自动化测试默认使用临时 SQLite DB、独立端口和 `.dev/reports/<run-id>/` 报告目录，不污染本地 `tikeo-dev.db`。
 2. **先窄后宽**：先跑静态/单元测试，再跑 server + Java demo smoke，最后跑 server + web + Java demo 端到端。
 3. **所有命令用 `rtk` 包装**：保持与本项目当前联调习惯一致，便于后续在 RTK 环境中复用。
 4. **证据必须落盘**：每个自动化阶段至少产出命令日志、JSON/HTML 报告或 API 响应快照。
@@ -24,8 +24,8 @@
 | Bun/Node | web 现有依赖要求 | `web/package.json` 中脚本使用 Bun | ✅ 通过 |
 | Java | JDK 17+ | Spring Boot demo / Gradle | ✅ 通过 |
 | SQLite | 本地文件 | 自动化使用 `.dev/e2e/*.db`，并由 `scripts/db-compat-smoke.sh` 覆盖存储兼容 smoke | ✅ 通过 |
-| PostgreSQL | 13+，推荐 16+ | `deploy/compose/database-compat-compose.yml` 或外部 `TIKEE_TEST_POSTGRES_URL` | ✅ 通过 |
-| MySQL | 8.0+ / 8.4 LTS，`utf8mb4` | `deploy/compose/database-compat-compose.yml` 或外部 `TIKEE_TEST_MYSQL_URL` | ✅ 通过 |
+| PostgreSQL | 13+，推荐 16+ | `deploy/compose/database-compat-compose.yml` 或外部 `TIKEO_TEST_POSTGRES_URL` | ✅ 通过 |
+| MySQL | 8.0+ / 8.4 LTS，`utf8mb4` | `deploy/compose/database-compat-compose.yml` 或外部 `TIKEO_TEST_MYSQL_URL` | ✅ 通过 |
 | curl/python3 | 必须存在 | smoke 脚本依赖 | ✅ 通过 |
 | 浏览器 | Chromium | Vitest DOM/截图证据 JSON 与 Playwright 依赖已补齐，浏览器级截图可继续增强 | ✅ 通过 |
 
@@ -43,9 +43,9 @@
 建议统一设置：
 
 ```bash
-export TIKEE_E2E_RUN_ID="joint-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-export TIKEE_E2E_REPORT_DIR="$PWD/.dev/reports/$TIKEE_E2E_RUN_ID"
-mkdir -p "$TIKEE_E2E_REPORT_DIR"
+export TIKEO_E2E_RUN_ID="joint-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+export TIKEO_E2E_REPORT_DIR="$PWD/.dev/reports/$TIKEO_E2E_RUN_ID"
+mkdir -p "$TIKEO_E2E_REPORT_DIR"
 ```
 
 ## 4. 一键执行总览
@@ -60,8 +60,8 @@ rtk bash -lc 'git status --short -- . ":!.omx"'
 rtk cargo fmt --all -- --check
 rtk cargo clippy --workspace --all-targets --all-features -- -D warnings
 rtk cargo test --workspace --all-features
-rtk cargo test -p tikee-server raft -- --nocapture
-rtk cargo test -p tikee-server worker -- --nocapture
+rtk cargo test -p tikeo-server raft -- --nocapture
+rtk cargo test -p tikeo-server worker -- --nocapture
 
 # 2) Web 静态/单元/构建验证
 rtk bun --prefix web test -- --run
@@ -106,18 +106,18 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 | A-SRV-001 | Rust 格式检查 | server/storage/proto/sdk rust | `rtk cargo fmt --all -- --check` | exit code = 0 | CI log | ✅ 通过 | 合并前必跑 |
 | A-SRV-002 | Rust Clippy 全工作区 | server/storage/proto | `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` | 无 warning/error | `~/.local/share/rtk/tee/1780288979_cargo_clippy.log` | ✅ 通过 | 已修复 clippy debt；通过 `clippy.toml` 统一 too-many-lines 阈值，未用局部 allow 掩盖 |
 | A-SRV-003 | Rust 全工作区测试 | server/storage/proto | `rtk cargo test --workspace --all-features` | 不仅全部通过，还必须确认关键状态机断言覆盖 storage schema、dispatch、auth、workflow、logs | CI log | ✅ 通过 | 基础功能预期回归 |
-| A-SRV-004 | Server Raft 自主选主测试 | server | `rtk cargo test -p tikee-server raft -- --nocapture` | Raft 相关测试通过 | CI log | ✅ 通过 | 覆盖 server 服务集群 master election |
-| A-SRV-005 | Worker registry/master 测试 | server worker tunnel | `rtk cargo test -p tikee-server worker -- --nocapture` | Worker registry/master dispatch 测试通过 | CI log | ✅ 通过 | 覆盖 worker 服务集群 master election |
+| A-SRV-004 | Server Raft 自主选主测试 | server | `rtk cargo test -p tikeo-server raft -- --nocapture` | Raft 相关测试通过 | CI log | ✅ 通过 | 覆盖 server 服务集群 master election |
+| A-SRV-005 | Worker registry/master 测试 | server worker tunnel | `rtk cargo test -p tikeo-server worker -- --nocapture` | Worker registry/master dispatch 测试通过 | CI log | ✅ 通过 | 覆盖 worker 服务集群 master election |
 | A-WEB-001 | Web Vitest | web | `rtk bun --prefix web test -- --run` | 不仅全部通过，还必须覆盖路由守卫、字段映射、表单 payload、状态展示等业务预期 | CI log | ✅ 通过 | 包含路由/页面/API client 回归 |
 | A-WEB-002 | Web TypeScript 类型检查 | web | `rtk bun --prefix web run typecheck` | exit code = 0 | CI log | ✅ 通过 | 防止 API 类型漂移 |
 | A-WEB-003 | Web lint | web | `rtk bun --prefix web run lint` | exit code = 0 | CI log | ✅ 通过 | UI 代码质量门禁 |
 | A-WEB-004 | Web 生产构建 | web | `rtk bun --prefix web run build` | dist 构建成功 | `web/dist` / CI log | ✅ 通过 | 验证刷新路由 404 修复不破坏构建 |
 | A-JAVA-001 | Java SDK 单元测试 | Java SDK | `rtk bash -lc 'cd sdks/java && ./gradlew test --no-daemon'` | 不仅全部通过，还必须确认 SDK 请求结构、API-Key header、worker registration/election payload 符合协议 | Gradle test report | ✅ 通过 | 包含 management/API-Key/worker client |
-| A-JAVA-002 | Java worker client targeted 测试 | Java SDK | `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClientTest --no-daemon'` | 全部通过 | Gradle test report | ✅ 通过 | 验证结构化 registration/election |
+| A-JAVA-002 | Java worker client targeted 测试 | Java SDK | `rtk bash -lc 'cd sdks/java && ./gradlew :tikeo:test --tests net.tikeo.worker.client.GrpcTikeoWorkerClientTest --no-daemon'` | 全部通过 | Gradle test report | ✅ 通过 | 验证结构化 registration/election |
 | A-DEMO-001 | Java Spring demo 单元测试 | Java demo | `rtk bash -lc 'cd examples/java/spring-boot3-worker-demo && ./gradlew test --no-daemon'` | 全部通过 | Gradle test report | ✅ 通过 | demo processor 与配置检查 |
-| A-DB-001 | SQLite 存储兼容 smoke | storage | `rtk cargo test -p tikee-storage --test database_compat sqlite_database_compatibility_smoke -- --nocapture` | 空 schema bootstrap、幂等迁移、scope/job/version/plugin/script/instance/log 业务断言全部通过 | CI log | ✅ 通过 | 本地必跑 |
-| A-DB-002 | PostgreSQL 存储兼容 smoke | storage + PostgreSQL | `rtk bash scripts/db-compat-smoke.sh` 或设置 `TIKEE_TEST_POSTGRES_URL` 后运行 external smoke | PostgreSQL 上迁移幂等，RBAC seed、索引唯一性、JSON/text、bool/int、日志 Unicode 断言通过 | CI log / DB version | ✅ 通过 | Docker 或外部 DB 必选其一 |
-| A-DB-003 | MySQL 存储兼容 smoke | storage + MySQL | `rtk bash scripts/db-compat-smoke.sh` 或设置 `TIKEE_TEST_MYSQL_URL` 后运行 external smoke | MySQL 8.0+/8.4 上迁移幂等，`utf8mb4` 文本、JSON text、bool/int、日志 Unicode 断言通过 | CI log / DB version | ✅ 通过 | Docker 或外部 DB 必选其一 |
+| A-DB-001 | SQLite 存储兼容 smoke | storage | `rtk cargo test -p tikeo-storage --test database_compat sqlite_database_compatibility_smoke -- --nocapture` | 空 schema bootstrap、幂等迁移、scope/job/version/plugin/script/instance/log 业务断言全部通过 | CI log | ✅ 通过 | 本地必跑 |
+| A-DB-002 | PostgreSQL 存储兼容 smoke | storage + PostgreSQL | `rtk bash scripts/db-compat-smoke.sh` 或设置 `TIKEO_TEST_POSTGRES_URL` 后运行 external smoke | PostgreSQL 上迁移幂等，RBAC seed、索引唯一性、JSON/text、bool/int、日志 Unicode 断言通过 | CI log / DB version | ✅ 通过 | Docker 或外部 DB 必选其一 |
+| A-DB-003 | MySQL 存储兼容 smoke | storage + MySQL | `rtk bash scripts/db-compat-smoke.sh` 或设置 `TIKEO_TEST_MYSQL_URL` 后运行 external smoke | MySQL 8.0+/8.4 上迁移幂等，`utf8mb4` 文本、JSON text、bool/int、日志 Unicode 断言通过 | CI log / DB version | ✅ 通过 | Docker 或外部 DB 必选其一 |
 
 ### 6.2 P0 阶段 B：Server + Java demo 集成 smoke
 
@@ -139,7 +139,7 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 推荐直接执行：
 
 ```bash
-export TIKEE_INTEGRATION_REPORT_DIR="$PWD/.dev/reports"
+export TIKEO_INTEGRATION_REPORT_DIR="$PWD/.dev/reports"
 rtk bash deploy/smoke/java-demo-integration-smoke.sh
 ```
 
@@ -175,8 +175,8 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 | ID | 功能/测试项 | 覆盖组件 | 执行步骤 | 断言标准 | 证据产物 | 状态 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | D-BOOT-001 | 启动隔离 server | server | 临时 config：HTTP 19090、tunnel 19998、DB `.dev/e2e/<run-id>.db` | `/readyz` 成功 | server log/config | ✅ 通过 | 可复用 smoke config 模板 |
-| D-BOOT-002 | 启动 Java demo A | Java demo | `TIKEE_DEMO_SERVER_PORT=18080`，同 election domain | `/demo/health` 成功 | demo A log | ✅ 通过 | client instance 建议 `spring-demo-worker-a` |
-| D-BOOT-003 | 启动 Java demo B | Java demo | `TIKEE_DEMO_SERVER_PORT=18081`，同 election domain | `/demo/health` 成功 | demo B log | ✅ 通过 | client instance 建议 `spring-demo-worker-b` |
+| D-BOOT-002 | 启动 Java demo A | Java demo | `TIKEO_DEMO_SERVER_PORT=18080`，同 election domain | `/demo/health` 成功 | demo A log | ✅ 通过 | client instance 建议 `spring-demo-worker-a` |
+| D-BOOT-003 | 启动 Java demo B | Java demo | `TIKEO_DEMO_SERVER_PORT=18081`，同 election domain | `/demo/health` 成功 | demo B log | ✅ 通过 | client instance 建议 `spring-demo-worker-b` |
 | D-ELECT-001 | 同 domain 唯一 worker master | server + Java SDK/demo + web | 查询 `/api/v1/workers` 并打开 Workers 页 | 同 domain 仅 1 个 `isMaster=true`，另一个 follower | workers JSON + screenshot | ✅ 通过 | 生产级关键验收 |
 | D-DISP-001 | Single 任务优先 master | dispatcher + Java demo | 创建/触发 single job `demo.echo` | instance 成功，执行 worker 必须等于触发时该 domain 的 master；若落到 follower 即失败 | instance JSON/logs/workers-before JSON | ✅ 通过 | 验证 master-first dispatch 业务预期 |
 | D-DISP-002 | Broadcast 任务发给所有 worker | dispatcher + Java demo | 创建/触发 broadcast `demo.context` | 两个 worker 都有 attempt/日志 | instance/logs JSON | ✅ 通过 | 不受 master-only 限制 |
@@ -210,7 +210,7 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 | E-KEY-002 | 创建时复制提醒 | web | 点击 key 文本 | hover primary、cursor pointer、复制成功提示 | `ApiKeysPage.tsx`、SDK API-Key live JSON | ✅ 通过 | 创建 Modal 中明文 key 支持点击复制并提示；列表仍脱敏 |
 | E-KEY-003 | 列表脱敏显示 | web | 打开 API-Key 列表 | 中间脱敏，两端明文，无复制按钮 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-key-list.json` | ✅ 通过 | API list 已验证无明文/无 hash；Web 截图归入 P0-C |
 | E-KEY-004 | 编辑名称/作用域/有效期 | server + web | 编辑 API-Key | key 值不变，元数据更新 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-update.json`、audit JSON | ✅ 通过 | API live 已验证；Web 表单截图归入 P0-C |
-| E-KEY-005 | Java management client 使用 key | Java SDK + server | Java SDK management 测试 | 可按 app scope 调用允许接口，越权失败 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-java-test/TEST-HttpTikeeJobClientLiveTest.xml` | ✅ 通过 | live JUnit `tests=1 skipped=0 failures=0` |
+| E-KEY-005 | Java management client 使用 key | Java SDK + server | Java SDK management 测试 | 可按 app scope 调用允许接口，越权失败 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-java-test/TEST-HttpTikeoJobClientLiveTest.xml` | ✅ 通过 | live JUnit `tests=1 skipped=0 failures=0` |
 | E-KEY-006 | 审计记录 | server | 查 audit logs | service account create/update/disable 与 key create/update/revoke/use 有审计 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-audit-*.json` | ✅ 通过 | 已覆盖 SA create/update/disable 与 key create/update/revoke/use |
 | E-KEY-007 | 禁用 Service Account | server + web | 禁用已有 Service Account | 关联 active API-Key 被吊销，旧 key 再调用失败 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-service-account-disable.json`、revoked-key JSON | ✅ 通过 | API live 已验证；Web 操作截图归入 P0-C |
 
@@ -249,7 +249,7 @@ python3 -m json.tool .dev/reports/*java-demo*.json | sed -n '1,220p'
 export API_URL=http://127.0.0.1:19090
 export AUTH_TOKEN="$(curl -fsS -X POST "$API_URL/api/v1/auth/bootstrap/register" \
   -H 'content-type: application/json' \
-  -d '{"username":"smoke_admin","email":"smoke.admin@example.com","password":"Tikee@2026!","confirmPassword":"Tikee@2026!"}' \
+  -d '{"username":"smoke_admin","email":"smoke.admin@example.com","password":"Tikeo@2026!","confirmPassword":"Tikeo@2026!"}' \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["token"])')"
 ```
 
@@ -258,10 +258,10 @@ export AUTH_TOKEN="$(curl -fsS -X POST "$API_URL/api/v1/auth/bootstrap/register"
 ```bash
 curl -fsS "$API_URL/api/v1/workers" \
   -H "authorization: Bearer $AUTH_TOKEN" \
-  | tee "$TIKEE_E2E_REPORT_DIR/workers.json" \
+  | tee "$TIKEO_E2E_REPORT_DIR/workers.json" \
   | python3 -m json.tool
 
-python3 - "$TIKEE_E2E_REPORT_DIR/workers.json" <<'PY'
+python3 - "$TIKEO_E2E_REPORT_DIR/workers.json" <<'PY'
 import json, sys
 payload = json.load(open(sys.argv[1], encoding='utf-8'))
 items = payload.get('data', {}).get('items', [])
@@ -295,15 +295,15 @@ INST_ID="$(curl -fsS -X POST "$API_URL/api/v1/jobs/$JOB_ID:trigger" \
 
 curl -fsS "$API_URL/api/v1/instances/$INST_ID" \
   -H "authorization: Bearer $AUTH_TOKEN" \
-  | tee "$TIKEE_E2E_REPORT_DIR/instance-$INST_ID.json" \
+  | tee "$TIKEO_E2E_REPORT_DIR/instance-$INST_ID.json" \
   | python3 -m json.tool
 
 curl -fsS "$API_URL/api/v1/instances/$INST_ID/logs" \
   -H "authorization: Bearer $AUTH_TOKEN" \
-  | tee "$TIKEE_E2E_REPORT_DIR/instance-$INST_ID-logs.json" \
+  | tee "$TIKEO_E2E_REPORT_DIR/instance-$INST_ID-logs.json" \
   | python3 -m json.tool
 
-python3 - "$TIKEE_E2E_REPORT_DIR/instance-$INST_ID.json" "$TIKEE_E2E_REPORT_DIR/instance-$INST_ID-logs.json" <<'PY'
+python3 - "$TIKEO_E2E_REPORT_DIR/instance-$INST_ID.json" "$TIKEO_E2E_REPORT_DIR/instance-$INST_ID-logs.json" <<'PY'
 import json, sys
 inst = json.load(open(sys.argv[1], encoding='utf-8'))
 logs = json.load(open(sys.argv[2], encoding='utf-8'))
@@ -376,7 +376,7 @@ Tester/CI: <name or job url>
 若只想先快速验证 server + web + Java SDK/demo 主链路，按顺序执行；命令完成后按 smoke report/API/logs 回填功能预期结果：
 
 ```bash
-rtk cargo test -p tikee-server worker -- --nocapture
+rtk cargo test -p tikeo-server worker -- --nocapture
 rtk bun --prefix web test -- --run
 rtk bash -lc 'cd sdks/java && ./gradlew test --no-daemon'
 rtk bash -lc 'cd examples/java/spring-boot3-worker-demo && ./gradlew test --no-daemon'
@@ -394,9 +394,9 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 | 资产 | 当前覆盖 | 可直接复用程度 | 缺口 | 状态 |
 | --- | --- | --- | --- | --- |
 | `deploy/smoke/java-demo-integration-smoke.sh` | server + 单 Java demo；API/fixed-rate/cron/broadcast/workflow smoke | 高 | 已补结构化 worker/election 字段断言、实例日志内容断言；双 worker failover/web 联动由 joint e2e 覆盖 | ✅ 已增强 |
-| `crates/tikee-server/src/http/tests/*` | server API、auth、scope、workflow、logs 等 | 高 | server 单元/集成层已覆盖；真实 Java worker/web 由 smoke/e2e 覆盖 | ✅ 已覆盖 |
-| `crates/tikee-server/src/cluster/raft_rs/tests.rs` | server Raft 自主选主 | 高 | Raft 自主选主测试已覆盖；多进程 chaos 属发布环境增强 | ✅ 已覆盖 |
-| `crates/tikee-server/src/tunnel/*` 测试 | worker registry、dispatcher、worker master | 高 | 单元层已覆盖；真实 Java demo 双 worker 由 joint e2e 脚本覆盖 | ✅ 已覆盖 |
+| `crates/tikeo-server/src/http/tests/*` | server API、auth、scope、workflow、logs 等 | 高 | server 单元/集成层已覆盖；真实 Java worker/web 由 smoke/e2e 覆盖 | ✅ 已覆盖 |
+| `crates/tikeo-server/src/cluster/raft_rs/tests.rs` | server Raft 自主选主 | 高 | Raft 自主选主测试已覆盖；多进程 chaos 属发布环境增强 | ✅ 已覆盖 |
+| `crates/tikeo-server/src/tunnel/*` 测试 | worker registry、dispatcher、worker master | 高 | 单元层已覆盖；真实 Java demo 双 worker 由 joint e2e 脚本覆盖 | ✅ 已覆盖 |
 | `web/src/**/*.test.ts(x)` | API client、路由、页面源码级回归 | 中 | 已补 Web live smoke 与路由证据；真实浏览器截图/视频属于可选增强 | ✅ 已补 live smoke；浏览器截图为可选增强 |
 | `sdks/java/**/src/test` | Java SDK、Spring starter、sandbox、processor registry | 高 | 已补 SDK API-Key live smoke 脚本入口 | ✅ 已补 live smoke 入口 |
 | `examples/java/spring-boot2-worker-demo/src/test` / `spring-boot3-worker-demo/src/test` / `spring-boot4-worker-demo/src/test` | demo 启动、处理器、管理 controller | 高 | 已补双 worker 启动脚本与 joint e2e failover 断言 | ✅ 已补脚本 |
@@ -406,18 +406,18 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 
 | ID | 必补资产 | 建议路径 | 作用 | 必须验证的功能预期 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| ADD-P0-001 | smoke 公共函数库 | `deploy/smoke/lib/tikee-smoke-lib.sh` | 抽出启动 server、登录、轮询、API JSON 断言、清理进程、报告写入 | 后续脚本不再复制粘贴，失败时能统一输出 server/java/web 日志 | ✅ 已补充 |
+| ADD-P0-001 | smoke 公共函数库 | `deploy/smoke/lib/tikeo-smoke-lib.sh` | 抽出启动 server、登录、轮询、API JSON 断言、清理进程、报告写入 | 后续脚本不再复制粘贴，失败时能统一输出 server/java/web 日志 | ✅ 已补充 |
 | ADD-P0-002 | 增强 Java demo smoke | `deploy/smoke/java-demo-integration-smoke.sh` | 在现有 smoke 上增加字段级断言 | worker structured capabilities、pluginProcessors、processorNames、master election 字段、实例日志内容、失败 message | ✅ 已补充 |
 | ADD-P0-003 | 三端联合 e2e 脚本 | `deploy/smoke/server-web-java-joint-e2e.sh` | 自动启动 server + web + Java demo A/B，完整跑 D 阶段 | 同 domain 唯一 master、single 落 master、broadcast 到全部、kill master 后 follower 晋升、Web Worker 页数据一致 | ✅ 已补充 |
 | ADD-P0-004 | JSON/Markdown 报告聚合器 | `deploy/smoke/collect-joint-report.py` | 把各脚本产物汇总成带状态的报告 | 每个测试项输出 `id/status/evidence/failure`，缺证据不能通过 | ✅ 已补充 |
 | ADD-P0-005 | Web live smoke | `deploy/smoke/web-live-smoke.sh` | 自动启动/复用 web，检查 SPA fallback 与关键路由 | `/`、`/login`、`/api-keys`、`/workers` 返回 SPA shell 且非 404；登录态跳过由 RouteAuth 单测覆盖，真实浏览器登录态另由后续 e2e 验证 | ✅ 已补充 |
-| ADD-P0-006 | API 字段断言小工具 | `deploy/smoke/assert_tikee_expectations.py` | 对 workers、instances、logs、api-key 等 JSON 做业务断言 | 不只看 2xx；断言 master 唯一、实例状态、日志内容、脱敏/明文策略等 | ✅ 已补充 |
+| ADD-P0-006 | API 字段断言小工具 | `deploy/smoke/assert_tikeo_expectations.py` | 对 workers、instances、logs、api-key 等 JSON 做业务断言 | 不只看 2xx；断言 master 唯一、实例状态、日志内容、脱敏/明文策略等 | ✅ 已补充 |
 
 ### 13.3 建议补充的 P1/P2 测试代码
 
 | ID | 建议资产 | 建议路径 | 作用 | 必须验证的功能预期 | 优先级 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- |
-| ADD-P1-001 | SDK API-Key live smoke | `deploy/smoke/sdk-api-key-live-smoke.sh` | 连接真实 server 并使用 `x-tikee-api-key` 调用管理链路 | API-Key 格式、namespace/app scope、create/update/use 与 server 状态一致 | P1 | ✅ 已自动化 |
+| ADD-P1-001 | SDK API-Key live smoke | `deploy/smoke/sdk-api-key-live-smoke.sh` | 连接真实 server 并使用 `x-tikeo-api-key` 调用管理链路 | API-Key 格式、namespace/app scope、create/update/use 与 server 状态一致 | P1 | ✅ 已自动化 |
 | ADD-P1-002 | Java demo 双 worker 启动脚本支持 | `examples/java/spring-boot3-worker-demo/scripts/run-demo-worker.sh` | Boot3 联调默认脚本；Boot2/Boot4 目录提供同名脚本，统一传入 port/clientInstanceId/election priority/stateDir | 同一代码可启动 A/B 两个稳定 worker，互不抢端口/状态目录 | P1 | ✅ 已自动化 |
 | ADD-P1-003 | Web live smoke 路由测试 | `deploy/smoke/web-live-smoke.sh` | 用真实 Vite 服务验证关键 SPA 路由 shell 与非 404 | `/`、`/login`、`/api-keys`、`/workers` 可刷新访问；Playwright 截图为可选增强 | P1 | ✅ 已自动化 |
 | ADD-P1-004 | Web 静态/路由测试脚本 | `web/package.json` + `deploy/smoke/web-live-smoke.sh` | 复用现有 `bun test/typecheck/lint/build` 与 live smoke | CI 可一键跑 Web 静态测试和 live route smoke；截图/video 为可选增强 | P1 | ✅ 已覆盖 |
@@ -447,7 +447,7 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 
 | 顺序 | 动作 | 交付物 | 完成后可解锁 | 状态 |
 | --- | --- | --- | --- | --- |
-| 1 | 抽 smoke 公共库 + JSON 断言工具 | `deploy/smoke/lib/tikee-smoke-lib.sh`、`deploy/smoke/assert_tikee_expectations.py` | 所有脚本统一功能断言 | ✅ 已完成 |
+| 1 | 抽 smoke 公共库 + JSON 断言工具 | `deploy/smoke/lib/tikeo-smoke-lib.sh`、`deploy/smoke/assert_tikeo_expectations.py` | 所有脚本统一功能断言 | ✅ 已完成 |
 | 2 | 增强现有 Java demo smoke | `deploy/smoke/java-demo-integration-smoke.sh` | B 阶段真正功能预期自动化 | ✅ 已完成 |
 | 3 | 增加三端联合 e2e 脚本 | `deploy/smoke/server-web-java-joint-e2e.sh` | D 阶段双 worker master/failover 自动化 | ✅ 已完成 |
 | 4 | 增加 Web live smoke | `deploy/smoke/web-live-smoke.sh`，必要时再引入 Playwright | C 阶段真实路由/页面 shell 证据；浏览器截图可后续增强 | ✅ 已完成 |
@@ -506,7 +506,7 @@ rtk bash deploy/smoke/java-demo-integration-smoke.sh
 
 | CI job | 覆盖内容 | 命令/断言 |
 | --- | --- | --- |
-| `Go SDK and demo` | `sdks/go/tikee` 与 `examples/go/worker-demo` | `go test ./... -count=1` |
+| `Go SDK and demo` | `sdks/go/tikeo` 与 `examples/go/worker-demo` | `go test ./... -count=1` |
 | `Go deploy tooling` | Terraform provider 与 K8s operator Go modules | `go test ./... -count=1` |
 | `Java worker demos` | Spring Boot2/3/4 三个 Java demo | 各目录 `./gradlew test --no-daemon` |
 | `Rust worker demo` | Rust demo 独立 crate | `cargo fmt --check`、`cargo clippy -D warnings`、`cargo test` |
@@ -542,15 +542,15 @@ GitHub Actions 的 Node.js 20 warning 不能再作为“可忽略告警”处理
 
 ### 13.10 2026-06-05 数据库迁移版本化硬化
 
-结论：SQLite legacy/dev schema 兼容升级已从 `connect_and_migrate` 后置未记录 hook 收敛为显式 SeaORM migration：`crates/tikee-storage/src/migration/sqlite_compat.rs`。初始化或升级后，`seaql_migrations` 会记录 `sqlite_compat`，避免兼容补丁只在启动路径隐式运行、不可审计或不可复盘。
+结论：SQLite legacy/dev schema 兼容升级已从 `connect_and_migrate` 后置未记录 hook 收敛为显式 SeaORM migration：`crates/tikeo-storage/src/migration/sqlite_compat.rs`。初始化或升级后，`seaql_migrations` 会记录 `sqlite_compat`，避免兼容补丁只在启动路径隐式运行、不可审计或不可复盘。
 
 验证项：
 
 | ID | 范围 | 命令 | 断言 | 状态 |
 | --- | --- | --- | --- | --- |
-| DB-MIG-001 | storage | `cargo test -p tikee-storage sqlite_schema_compatibility_upgrade_is_tracked_as_versioned_migration -- --nocapture` | `seaql_migrations` 至少记录初始建表和 `sqlite_compat` 两个 migration | ✅ 通过 |
-| DB-MIG-002 | legacy SQLite | `cargo test -p tikee-storage sqlite_compatibility_creates_scope_tables_before_indexes_for_existing_dev_db -- --nocapture` | 旧 dev DB 形状仍可由显式 migration 补齐 scope 表并继续创建索引 | ✅ 通过 |
-| DB-MIG-003 | storage matrix | `cargo test -p tikee-storage -- --nocapture` / `scripts/db-compat-smoke.sh` | SQLite 幂等迁移、业务 repository、外部 DB smoke 入口保持可跑 | ✅ 通过（SQLite + Docker PostgreSQL/MySQL smoke） |
+| DB-MIG-001 | storage | `cargo test -p tikeo-storage sqlite_schema_compatibility_upgrade_is_tracked_as_versioned_migration -- --nocapture` | `seaql_migrations` 至少记录初始建表和 `sqlite_compat` 两个 migration | ✅ 通过 |
+| DB-MIG-002 | legacy SQLite | `cargo test -p tikeo-storage sqlite_compatibility_creates_scope_tables_before_indexes_for_existing_dev_db -- --nocapture` | 旧 dev DB 形状仍可由显式 migration 补齐 scope 表并继续创建索引 | ✅ 通过 |
+| DB-MIG-003 | storage matrix | `cargo test -p tikeo-storage -- --nocapture` / `scripts/db-compat-smoke.sh` | SQLite 幂等迁移、业务 repository、外部 DB smoke 入口保持可跑 | ✅ 通过（SQLite + Docker PostgreSQL/MySQL smoke） |
 
 后续规则：新增 schema 变更必须进入 SeaORM Migrator 的显式列表；不得再在 `connect_and_migrate` 后追加未记录的 `ensure_*` 启动补丁。SQLite 旧库兼容逻辑如果必须保留，应放入命名 migration 文件并保留幂等测试。
 

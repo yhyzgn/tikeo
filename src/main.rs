@@ -1,4 +1,4 @@
-//! tikee server binary entrypoint.
+//! tikeo server binary entrypoint.
 
 #![forbid(unsafe_code)]
 
@@ -10,5 +10,5 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tikee_server::run_cli().await
+    tikeo_server::run_cli().await
 }

@@ -34,11 +34,11 @@ jobs:
           toolchain: 1.95.0
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: sdks/rust/tikee -> target
+          workspaces: sdks/rust/tikeo -> target
       - name: Test Rust SDK
-        run: cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features
+        run: cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
       - name: Package Rust SDK crate
-        run: cargo package --manifest-path sdks/rust/tikee/Cargo.toml --allow-dirty
+        run: cargo package --manifest-path sdks/rust/tikeo/Cargo.toml --allow-dirty
       - name: Stage Rust SDK release payload
         run: |
           set -euo pipefail
@@ -46,8 +46,8 @@ jobs:
           VERSION="${RELEASE_TAG#v}"
           PKG="rust-sdk-${VERSION}"
           mkdir -p "dist/$PKG"
-          cp sdks/rust/tikee/target/package/*.crate "dist/$PKG/"
-          cp -R sdks/rust/README.md sdks/rust/tikee/README.md "dist/$PKG/"
+          cp sdks/rust/tikeo/target/package/*.crate "dist/$PKG/"
+          cp -R sdks/rust/README.md sdks/rust/tikeo/README.md "dist/$PKG/"
           tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
       - name: Upload Rust SDK package to GitHub Release
         uses: softprops/action-gh-release@v3

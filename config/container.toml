@@ -3,7 +3,7 @@ listen_addr = "0.0.0.0:9090"
 worker_tunnel_addr = "0.0.0.0:9998"
 
 [storage]
-database_url = "sqlite:///data/tikee.db?mode=rwc"
+database_url = "sqlite:///data/tikeo.db?mode=rwc"
 
 [cluster]
 mode = "standalone"
@@ -24,4 +24,4 @@ backoff_seconds = 300
 
 [alert_secrets]
 allow_env_refs = true
-env_prefix = "TIKEE_ALERT_SECRET_"
+env_prefix = "TIKEO_ALERT_SECRET_"

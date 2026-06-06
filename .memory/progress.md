@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-- [x] 架构设计文档完成：`design/tikee-architecture-design.md`
+- [x] 架构设计文档完成：`design/tikeo-architecture-design.md`
 - [x] 移除旧版本/v2 表述，保留功能内容
 - [x] 补充多语言动态脚本与安全沙箱设计
 - [x] 补充 K8s/Docker/跨集群部署与 Worker Tunnel 网络穿透设计
@@ -19,7 +19,7 @@
 进入代码开发：`001-bootstrap` 至 `013-broadcast-execution` 已完成；下一阶段执行 `014-worker-capability-routing`。
 
 - [x] 001-bootstrap：初始化 Cargo workspace 与 `./crates/*` crate 骨架
-- [x] 001-bootstrap：实现 `tikee serve`、`/healthz`、`/readyz`
+- [x] 001-bootstrap：实现 `tikeo serve`、`/healthz`、`/readyz`
 - [x] 001-bootstrap：通过 fmt、clippy、test、build 与 healthz/readyz 冒烟
 - [x] 002-http-api-and-openapi：HTTP 管理 API 与 OpenAPI 3.1
 - [x] 002-http-api-and-openapi：选择 `utoipa`；禁止 API 文档 UI 依赖
@@ -31,17 +31,17 @@
 - [x] 已在设计文档开发路线图标记完成项：脚手架、HTTP API skeleton、OpenAPI JSON、CLI serve
 - [x] 路线图完成项标记规范调整为仅使用 `[x]`，不额外使用 ✅ 图标
 - [x] Java SDK 规划补充：优先支持 Spring Boot Starter 模式
-- [x] 003-worker-tunnel：新增 `tikee-proto` crate 与 Worker Tunnel protobuf
+- [x] 003-worker-tunnel：新增 `tikeo-proto` crate 与 Worker Tunnel protobuf
 - [x] 003-worker-tunnel：实现 server 侧 Worker Tunnel gRPC skeleton 与内存 registry
 - [x] 003-worker-tunnel：server 同时启动 HTTP 9090 与 Worker Tunnel gRPC 9998
 - [x] 设计路线图标记：gRPC 协议定义与代码生成
-- [x] 004-storage-and-tikee：SeaORM 存储层、SQLite dev DB、MySQL migration feature、Jobs API 持久化
-- [x] 005-basic-tikee：调度领域模型、API 手动触发实例链路、实例列表查询
+- [x] 004-storage-and-tikeo：SeaORM 存储层、SQLite dev DB、MySQL migration feature、Jobs API 持久化
+- [x] 005-basic-tikeo：调度领域模型、API 手动触发实例链路、实例列表查询
 - [x] 006-worker-sdk-rust-and-java-starter：Rust Worker SDK 注册/心跳客户端 + Java Spring Boot Starter 骨架
 - [x] 007-web-ui-foundation：Web 管理端基础工程、Job/Instance 页面骨架
 - [x] 008-container-deployment：Docker / Compose / K8s 部署基础
 - [x] 009-worker-dispatch：Worker Tunnel 真实任务分发、执行回传与实例状态流转
-- [x] 010-tikee-tick-loop：CRON / Fixed Rate tick loop 与调度触发
+- [x] 010-tikeo-tick-loop：CRON / Fixed Rate tick loop 与调度触发
 - [x] 011-instance-logs：实例执行日志与 Web 日志查看基础
 - [x] 012-auth-rbac-foundation：登录与权限感知操作基础
 - [x] 013-broadcast-execution：广播执行基础
@@ -149,7 +149,7 @@
 - 工作流集成测试增加审计断言，确认 workflow / workflow_instance / workflow_node_instance 相关动作写入审计日志。
 
 ## 2026-05-20 040：SDK 目录统一
-- Rust Worker SDK 从 `crates/tikee` 迁移到 `sdks/rust/tikee`，Cargo workspace 显式包含该路径。
+- Rust Worker SDK 从 `crates/tikeo` 迁移到 `sdks/rust/tikeo`，Cargo workspace 显式包含该路径。
 - Java Spring Boot Starter SDK 从 `java/` 迁移到 `sdks/java/`；后续已改为 Gradle 验证命令 `./sdks/java/gradlew -p sdks/java test`。
 - Dockerfile、README、gitignore、design、prompt 和 memory 中的 SDK 路径引用已同步更新。
 
@@ -159,7 +159,7 @@
 - 增加存储层测试覆盖 claim、重复 claim 阻止、release 后重新 claim 与 attempt 递增。
 
 ## 2026-05-21 042：开发脚本本地访问 URL 覆盖
-- 用户手动调整 `scripts/dev.sh`：新增 `TIKEE_API_PORT` / `TIKEE_WEB_URL` 可配置项。
+- 用户手动调整 `scripts/dev.sh`：新增 `TIKEO_API_PORT` / `TIKEO_WEB_URL` 可配置项。
 - dev 脚本默认仍让后端按配置绑定 `0.0.0.0`，但健康检查与浏览器提示默认使用 `http://localhost:<port>`，更符合本机开发访问习惯。
 - 验证：`bash -n scripts/dev.sh`；`timeout 10 ./scripts/dev.sh` 可成功启动后端与 Web，并在超时信号下清理进程。
 
@@ -176,23 +176,23 @@
 - sub_workflow materialize 会初始化子工作流节点与起始 dispatch_queue；子工作流完成后自动回写父 sub_workflow 节点终态并推进父后继。
 
 ## 2026-05-21 045：SDK/examples 目录规范重规划
-- 规划 `sdks/<language>/<sdk-name>` 结构，Rust SDK 从旧 `sdks/tikee` 迁移到 `sdks/rust/tikee`。
+- 规划 `sdks/<language>/<sdk-name>` 结构，Rust SDK 从旧 `sdks/tikeo` 迁移到 `sdks/rust/tikeo`。
 - Java SDK 规划改为 Gradle 多模块 + JDK 21+，替换 Maven 骨架并统一使用 `./sdks/java/gradlew -p sdks/java test` 验证命令。
 - 新增 `examples/<language>/<demo-name>` demo 目录规范；后续开发过程中由 AI 自主判断何时创建 demo 来调试 SDK/Worker/工作流集成链路。
 
 ## 2026-05-21 046：SDK 目录整改执行
-- Rust Worker SDK 已迁移为 `sdks/rust/tikee`，Cargo workspace 已同步；服务端 Dockerfile 已移除 SDK 处理。
+- Rust Worker SDK 已迁移为 `sdks/rust/tikeo`，Cargo workspace 已同步；服务端 Dockerfile 已移除 SDK 处理。
 - Java SDK 已移除 Maven `pom.xml` 骨架，新增 Gradle Kotlin DSL 多模块构建，统一 JDK 21 toolchain / release。
 - 新增 `examples/<language>/<demo-name>` demo 目录骨架与 README；后续 SDK/Worker/工作流调试可按需扩展 runnable demo。
 ### 2026-05-21 SDK layout correction follow-up
-- 用户明确根 `Dockerfile` 只构建 tikee 服务端；已约束不得复制/缓存/构建 `sdks/` 或 `examples/`。
+- 用户明确根 `Dockerfile` 只构建 tikeo 服务端；已约束不得复制/缓存/构建 `sdks/` 或 `examples/`。
 - SDK 路径规范固定为 `sdks/<language>/<sdk-name>/`，Demo 路径规范固定为 `examples/<language>/<demo-name>/`。
-- Rust SDK 路径为 `sdks/rust/tikee`；现已移除 repo-local path dependencies，满足独立发布约束。
+- Rust SDK 路径为 `sdks/rust/tikeo`；现已移除 repo-local path dependencies，满足独立发布约束。
 - 已补齐可独立运行的 Rust demo（`examples/rust/worker-demo`）与 Java Spring Boot demo（`examples/java/spring-worker-demo`）基础。
 - Dockerfile 继续保持服务端专用，构建阶段改为 Alpine Rust 镜像并使用 Alpine runtime，避免 SDK/Demo 进入镜像上下文。
 
 ### 2026-05-21 Rust SDK independent publishing cleanup
-- Removed `sdks/rust/tikee` from root Cargo workspace and removed Dockerfile rewrite workaround.
+- Removed `sdks/rust/tikeo` from root Cargo workspace and removed Dockerfile rewrite workaround.
 - Made Rust SDK self-contained by bundling `proto/worker.proto`, local `build.rs`, and removing all `../../../crates/*` path dependencies.
 - Replaced SDK integration tests with an in-crate mock Worker Tunnel server.
 
@@ -203,26 +203,26 @@
 - Worker identity cleanup verification completed for Rust workspace, standalone Rust SDK, Java SDK, and Java demo. Java wrapper download hit network EOF once, then verification passed with cached Gradle 8.14 binary.
 
 ## 2026-05-21 047：Java SDK Worker Tunnel
-- Java Core SDK 新增 protobuf/gRPC 生成，内置 `GrpcTikeeWorkerClient`，支持 OpenTunnel 注册、读取服务端下发 worker_id、定时心跳、任务日志和任务结果回传。
-- Spring Boot Starter auto-configuration 默认创建真实 gRPC client；新增 `tikee.worker.dry-run` 让 demo/测试无需 live tikee。
+- Java Core SDK 新增 protobuf/gRPC 生成，内置 `GrpcTikeoWorkerClient`，支持 OpenTunnel 注册、读取服务端下发 worker_id、定时心跳、任务日志和任务结果回传。
+- Spring Boot Starter auto-configuration 默认创建真实 gRPC client；新增 `tikeo.worker.dry-run` 让 demo/测试无需 live tikeo。
 - Java Spring demo 默认 dry-run，可通过配置切换到 live Worker Tunnel。
 
-## 2026-05-21 048：Java TikeeProcessor 适配
-- Spring `TikeeProcessorRegistry` 已从 bean map 升级为 invocable handler registry，拒绝重复 processor name。
-- 新增 `SpringTikeeTaskProcessor`，当前按 `TaskContext.jobId()` 匹配 `@TikeeProcessor` 名称，支持 `TaskContext` / `String` / `byte[]` 入参和 `TaskOutcome` / `String` / `boolean` / `void` 返回。
+## 2026-05-21 048：Java TikeoProcessor 适配
+- Spring `TikeoProcessorRegistry` 已从 bean map 升级为 invocable handler registry，拒绝重复 processor name。
+- 新增 `SpringTikeoTaskProcessor`，当前按 `TaskContext.jobId()` 匹配 `@TikeoProcessor` 名称，支持 `TaskContext` / `String` / `byte[]` 入参和 `TaskOutcome` / `String` / `boolean` / `void` 返回。
 - Spring Boot auto-configuration 已把真实 gRPC client 接到 registry adapter，demo 的 `demo.echo` 可作为真实 processor 方法被调用。
 
 ## 2026-05-21 049：Java SDK 三模块重组
-- Java SDK 已按用户要求重组为 3 个 Gradle 子模块：`tikee`、`tikee-spring`、`tikee-spring-boot-starter`。
-- Spring Framework 的 `@TikeeProcessor` registry/adapter 独立在 `tikee-spring`；Spring Boot Properties/AutoConfiguration/starter 聚合在 `tikee-spring-boot-starter`。
-- Java demo 依赖已切换到 `com.yhyzgn.tikee:tikee-spring-boot-starter`。
+- Java SDK 已按用户要求重组为 3 个 Gradle 子模块：`tikeo`、`tikeo-spring`、`tikeo-spring-boot-starter`。
+- Spring Framework 的 `@TikeoProcessor` registry/adapter 独立在 `tikeo-spring`；Spring Boot Properties/AutoConfiguration/starter 聚合在 `tikeo-spring-boot-starter`。
+- Java demo 依赖已切换到 `net.tikeo:tikeo-spring-boot-starter`。
 
-- Spring Boot Java SDK module renamed to `tikee-spring-boot-starter` per user naming correction; demo dependency updated accordingly.
+- Spring Boot Java SDK module renamed to `tikeo-spring-boot-starter` per user naming correction; demo dependency updated accordingly.
 
 ## 2026-05-21 050：Worker processor key protocol
 - Worker Tunnel `DispatchTask` proto 新增 `processor_name` 字段，并同步到服务端 proto、Rust SDK proto、Java SDK proto。
 - Server dispatcher 分发任务时填充 `processor_name`，当前兼容性默认等于 `job_id`。
-- Rust/Java TaskContext 暴露 processor name；Java Spring adapter 改为优先按 `processorName()` 路由 `@TikeeProcessor`。
+- Rust/Java TaskContext 暴露 processor name；Java Spring adapter 改为优先按 `processorName()` 路由 `@TikeoProcessor`。
 
 ## 2026-05-21 051：Job / Workflow processor 绑定模型
 - Job 定义新增可选 `processor_name`，HTTP create/list/OpenAPI DTO 与 Web Job 表单/列表同步展示。
@@ -240,17 +240,17 @@
 - Go/Python SDK remains deferred to Phase4 per user instruction.
 
 ### 2026-05-21 Phase2 PostgreSQL/CockroachDB storage support
-- Enabled `sqlx-postgres` on `tikee-storage` and migrations so PostgreSQL URLs compile through SeaORM/sqlx.
+- Enabled `sqlx-postgres` on `tikeo-storage` and migrations so PostgreSQL URLs compile through SeaORM/sqlx.
 - Added `config/postgres.toml` with PostgreSQL and CockroachDB URL examples; CockroachDB uses PostgreSQL wire protocol.
 - Roadmap marks PostgreSQL + CockroachDB storage support complete at driver/config/template level; live DB smoke remains environment-dependent.
 
 ### 2026-05-21 Phase2 cluster coordinator foundation
-- Added `tikee-server::cluster` with ClusterCoordinator trait, explicit ClusterMode/ClusterRole, and StandaloneCoordinator.
+- Added `tikeo-server::cluster` with ClusterCoordinator trait, explicit ClusterMode/ClusterRole, and StandaloneCoordinator.
 - `/api/v1/cluster` now reports `role=standalone` with node_id/can_schedule/detail instead of fake `leader`.
 - Design now records Raft implementation boundaries: leader ownership gate, follower fencing, DB claim as final idempotency guard, and container-friendly networking.
 
 ### 2026-05-21 Phase2 cluster ownership gates
-- Tikee tick loop and Worker dispatcher loop now consult `ClusterCoordinator` status before ownership-sensitive work.
+- Tikeo tick loop and Worker dispatcher loop now consult `ClusterCoordinator` status before ownership-sensitive work.
 - Standalone remains schedulable; mock Raft follower tests prove tick and dispatch skip work when `can_schedule=false`.
 - dispatch_queue DB conditional claim remains in place as final idempotency/fencing guard.
 
@@ -267,17 +267,17 @@
 ### 2026-05-21 Phase2 Raft transport/fencing shape
 - Added leader fencing token field shape to cluster status and `raft_metadata`; placeholder/config paths keep it null.
 - Added reserved `/api/v1/raft/append-entries` HTTP transport endpoint for Docker/K8s/LB-safe node-to-node wiring; it returns `accepted=false` until real consensus runtime exists.
-- Kept current storage-backed no-op coordinator in `tikee-server::cluster`; no new `tikee-cluster` crate yet because runtime boundaries are not stable enough.
+- Kept current storage-backed no-op coordinator in `tikeo-server::cluster`; no new `tikeo-cluster` crate yet because runtime boundaries are not stable enough.
 
 ### 2026-05-21 Phase2 cluster diagnostics
 - Added `/api/v1/cluster/diagnostics` for operator-visible cluster readiness: current status, scheduling gate, persisted Raft metadata, members, transport placeholder, and runtime boundary.
 - Chose a separate diagnostics endpoint instead of bloating `/api/v1/cluster`; the lightweight status endpoint stays stable for UI polling.
-- Kept cluster runtime in `tikee-server::cluster` for now; no `tikee-cluster` crate until consensus/runtime traits stabilize.
+- Kept cluster runtime in `tikeo-server::cluster` for now; no `tikeo-cluster` crate until consensus/runtime traits stabilize.
 
 ### 2026-05-21 Phase2 dispatch queue fencing token
 - Reviewed Phase2: only full Raft runtime remains incomplete; Go/Python SDK stays Phase4.
 - Added `dispatch_queue.fencing_token` shape and SQLite compatibility migration; claim responses now include a fencing token.
-- Dispatcher now derives a fencing token from ClusterCoordinator status (`standalone:<node>:tikee-dispatcher` today, future `raft:<node>:<leader-token>` when real consensus exists).
+- Dispatcher now derives a fencing token from ClusterCoordinator status (`standalone:<node>:tikeo-dispatcher` today, future `raft:<node>:<leader-token>` when real consensus exists).
 
 ### 2026-05-21 Phase2 closeout / Phase3 audit paging
 - Consensus dependency direction corrected to TiKV raft-rs (`raft` 0.7.0); full Raft scheduling still stays gated until event-loop/transport/persistence/fencing are real.
@@ -286,7 +286,7 @@
 
 ### 2026-05-21 Phase2 raft-rs correction
 - User corrected the OpenRaft direction; project now targets TiKV raft-rs (`raft` crate 0.7.0, Apache-2.0) instead of OpenRaft.
-- Added `tikee-server::cluster::raft_rs` bootstrap validation: deterministic string `node_id` -> non-zero u64 raft id, peer voters, `MemStorage + RawNode` construction. This proves dependency/API integration only; no tick loop, campaign, leader token, or scheduling grant exists yet.
+- Added `tikeo-server::cluster::raft_rs` bootstrap validation: deterministic string `node_id` -> non-zero u64 raft id, peer voters, `MemStorage + RawNode` construction. This proves dependency/API integration only; no tick loop, campaign, leader token, or scheduling grant exists yet.
 - `mode=raft` remains `role=unknown`, `can_schedule=false`, `leader_fencing_token=null` until real raft-rs leadership/fencing is implemented.
 
 ### 2026-05-21 Phase2 raft-rs durable records and wire shape
@@ -300,7 +300,7 @@
 
 ### 2026-05-21 Phase2 raft-rs runtime ticker skeleton
 - `coordinator_from_config_with_storage` now starts a `RaftRuntimeCoordinator` for `mode=raft` when bootstrap succeeds. It drives `RawNode::tick()` on a 100ms loop and processes Ready in safe order: HardState metadata, entries, snapshot, then `advance()`.
-- Runtime does not campaign, does not wire outbound transport, and still keeps `can_schedule=false` and `leader_fencing_token=null`; tikee ownership remains fenced.
+- Runtime does not campaign, does not wire outbound transport, and still keeps `can_schedule=false` and `leader_fencing_token=null`; tikeo ownership remains fenced.
 - Next slice: connect validated inbound HTTP messages to the runtime inbox, then implement Ready apply/outbound transport and real leader fencing.
 
 ### 2026-05-21 Phase2 raft-rs inbound runtime inbox
@@ -309,9 +309,9 @@
 - Next slice: implement outbound peer HTTP transport and Ready apply/state-machine bookkeeping before enabling any leader fencing token.
 
 ### 2026-05-21 Phase2 raft-rs outbound transport skeleton
-- Added optional `cluster.transport_token` config and `x-tikee-raft-token` support so internal Raft HTTP transport can bypass human session auth without committing production secrets.
+- Added optional `cluster.transport_token` config and `x-tikeo-raft-token` support so internal Raft HTTP transport can bypass human session auth without committing production secrets.
 - Wired Ready outbound messages through a `RaftPeerTransport` skeleton: raft-rs `Message` values serialize to the existing HTTP wire DTO, base64 payloads are preserved, peer URLs append `/api/v1/raft/append-entries`, and delivery runs asynchronously through reqwest.
-- Tikee ownership remains fenced: no campaign, no leader token, no `can_schedule=true`. Next slice is committed-entry apply bookkeeping and fencing-token lifecycle.
+- Tikeo ownership remains fenced: no campaign, no leader token, no `can_schedule=true`. Next slice is committed-entry apply bookkeeping and fencing-token lifecycle.
 
 ### 2026-05-21 End-of-day handoff checkpoint
 - Current pushed HEAD before this checkpoint: `222b1d6 Send raft-rs outbound messages through peer HTTP skeleton 📡`; working tree was clean before writing this memory checkpoint.
@@ -322,13 +322,13 @@
 ### 2026-05-22 Phase2 raft-rs apply bookkeeping and fencing lifecycle
 - Implemented Ready committed-entry apply bookkeeping using `advance_append` / `advance_apply_to` instead of blindly advancing without state-machine acknowledgement.
 - Committed `EntryNormal` entries now monotonically update `raft_metadata.applied_index`; `EntryConfChange` / `EntryConfChangeV2` are explicitly gated and stop apply progress before silent membership mutation.
-- Added leader fencing-token lifecycle: only a real raft-rs `Leader` with term > 0 derives `raft:term:<term>:node:<node_id>`, persists it first, then reports `can_schedule=true`; non-leaders clear the token. Tikee/dispatcher gates remain driven by `can_schedule` and dispatcher uses the persisted token.
+- Added leader fencing-token lifecycle: only a real raft-rs `Leader` with term > 0 derives `raft:term:<term>:node:<node_id>`, persists it first, then reports `can_schedule=true`; non-leaders clear the token. Tikeo/dispatcher gates remain driven by `can_schedule` and dispatcher uses the persisted token.
 - Next slice: define business state-machine command envelope/replay idempotency and design dynamic membership handling.
 - Full verification passed for this slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build`.
 
 ### 2026-05-22 Phase2 raft-rs business command envelope foundation
 - Added `raft_applied_commands` no-FK table/entity/repository for idempotent state-machine apply records keyed by `(node_id, log_index)` with `(cluster_id, command_id)` reserved for replay idempotency.
-- `EntryNormal` payloads now parse as tikee command envelopes (`command_id`, `command_type`, `payload`). `noop` is applied, unknown command types are recorded as `deferred_unsupported`, invalid JSON is recorded as `rejected`, and apply index still advances deliberately.
+- `EntryNormal` payloads now parse as tikeo command envelopes (`command_id`, `command_type`, `payload`). `noop` is applied, unknown command types are recorded as `deferred_unsupported`, invalid JSON is recorded as `rejected`, and apply index still advances deliberately.
 - Next slice: choose and implement the first real Raft-owned business command, plus dynamic membership/config-change design.
 - Full verification passed for this slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build`.
 
@@ -357,10 +357,10 @@
 ### 2026-05-22 Phase2 raft-rs multi-node in-process E2E
 - Continued `.prompt/058-phase2-raft-rs-multinode-e2e.md` after committed ConfChange apply.
 - Added a deterministic in-process 3-node raft-rs `RawNode` harness that routes Ready messages directly between nodes and never fakes leadership.
-- The harness now proves a real `campaign()` election can produce exactly one leader, persist `raft:term:1:node:tikee-0`, and set `can_schedule=true` only after the token is persisted.
+- The harness now proves a real `campaign()` election can produce exactly one leader, persist `raft:term:1:node:tikeo-0`, and set `can_schedule=true` only after the token is persisted.
 - Added membership proposal E2E coverage: record proposal intent, propose raft-rs ConfChange, commit/apply it, persist `raft_metadata.conf_state`, mark `raft_membership_proposals` as `applied`, and advance `raft_members` to `active` after committed apply.
 - Production Ready handling now mirrors the harness by syncing HardState/log/snapshot/commit into raft-rs `MemStorage` before `advance_append`, keeping RawNode memory state aligned with DB persistence.
-- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikee-server raft_inprocess --all-features`; `cargo test -p tikee-server raft --all-features`.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikeo-server raft_inprocess --all-features`; `cargo test -p tikeo-server raft --all-features`.
 - Full verification passed for 058: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
 
 ### 2026-05-22 Phase2 raft-rs restart recovery hardening
@@ -369,21 +369,21 @@
 - Startup now clears stale `leader_fencing_token` before runtime observation; scheduling authority must be regenerated from the current real raft-rs role instead of reused after restart.
 - Added targeted test `raft_runtime_restore_replays_persisted_metadata_and_clears_stale_fencing` covering restored entries/hardstate and stale token removal.
 - Next prompt `.prompt/060-phase2-raft-rs-http-transport-smoke.md` keeps the remaining HTTP/Docker bridge transport smoke as the next Phase2 slice.
-- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikee-server raft_runtime_restore --all-features`; `cargo test -p tikee-server raft --all-features`.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikeo-server raft_runtime_restore --all-features`; `cargo test -p tikeo-server raft --all-features`.
 - Full verification passed for 059: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
 
 ### 2026-05-22 Phase2 raft-rs HTTP transport token smoke
 - Continued `.prompt/060-phase2-raft-rs-http-transport-smoke.md` after 059 push.
-- Added HTTP route smoke coverage for `/api/v1/raft/append-entries` with `x-tikee-raft-token`: valid internal token bypasses human session auth and enqueues into the raft runtime inbox; invalid token falls back to normal auth and returns an unauthorized standard envelope.
+- Added HTTP route smoke coverage for `/api/v1/raft/append-entries` with `x-tikeo-raft-token`: valid internal token bypasses human session auth and enqueues into the raft runtime inbox; invalid token falls back to normal auth and returns an unauthorized standard envelope.
 - The test keeps the safety semantics explicit: `accepted=true` means local runtime queue acceptance only, local role remains follower, and no leader fencing token/scheduling authority is granted.
 - Updated design roadmap to split completed route-level smoke from the remaining Docker bridge/K8s Service multi-container E2E script.
 - Next prompt `.prompt/061-phase2-raft-rs-docker-bridge-e2e-script.md` targets bridge-network script verification without host networking.
-- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikee-server raft_append_entries_internal_token --all-features`.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikeo-server raft_append_entries_internal_token --all-features`.
 - Full verification passed for 060: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
 
 ### 2026-05-22 Phase2 raft-rs Docker bridge E2E script
 - Continued `.prompt/061-phase2-raft-rs-docker-bridge-e2e-script.md` after 060 push.
-- Added `scripts/raft-bridge-e2e.sh`: builds the tikee server image, creates a Docker bridge network, starts 3 tikee containers with generated raft configs, peers by container DNS (`tikee-N:9090`), and injects `TIKEE__CLUSTER__TRANSPORT_TOKEN` without committing secrets.
+- Added `scripts/raft-bridge-e2e.sh`: builds the tikeo server image, creates a Docker bridge network, starts 3 tikeo containers with generated raft configs, peers by container DNS (`tikeo-N:9090`), and injects `TIKEO__CLUSTER__TRANSPORT_TOKEN` without committing secrets.
 - The script smoke-checks `/healthz`, `/api/v1/cluster`, `/api/v1/cluster/diagnostics`, and `/api/v1/raft/append-entries` through bridge networking; it also verifies wrong raft token returns 401 and that any schedulable leader is unique and has a fencing token.
 - Dockerfile builder now installs `protobuf-dev gcompat` so raft-proto/protobuf build scripts work on alpine while keeping the runtime image alpine.
 - Updated `config/raft.toml` peer endpoints to the actual HTTP management API port `9090`; worker tunnel remains `9998`.
@@ -397,7 +397,7 @@
 - Audit list API exposes the new fields and the Web audit page shows result, trace id, and before/after availability.
 - Added API test assertions for trace/result/failure/before/after fields in audit list output.
 - Export governance is split to `.prompt/063-phase3-audit-export-governance.md` to keep row limits/redaction/content-type decisions explicit.
-- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikee-server audit_logs_support_server_side_filters_and_pagination --all-features`; `cargo test -p tikee-storage migration_creates_metadata_tables --all-features`.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikeo-server audit_logs_support_server_side_filters_and_pagination --all-features`; `cargo test -p tikeo-storage migration_creates_metadata_tables --all-features`.
 - Full verification passed for 062: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
 
 ### 2026-05-22 Phase3 governed audit JSON export
@@ -406,7 +406,7 @@
 - Export response keeps the standard `{ code, message, data }` envelope and includes governance metadata (`max_rows`, `redacted`, `governance`) plus exported items; CSV is rejected with a clear bad-request message until content-type/redaction rules are designed.
 - Added Web audit page “导出 JSON” action that downloads the governed JSON payload for current filters.
 - Updated design roadmap and created `.prompt/064-phase3-web-danger-confirm-permission-actions.md` for the next Phase3 UI governance slice.
-- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikee-server audit_logs_support_server_side_filters_and_pagination --all-features`; `cd web && bun run typecheck`.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikeo-server audit_logs_support_server_side_filters_and_pagination --all-features`; `cd web && bun run typecheck`.
 - Full verification passed for 063: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun run build` (Vite chunk-size warning only).
 
 ### 2026-05-22 Phase3 Web dangerous confirmations and permission-aware actions
@@ -433,18 +433,18 @@
 ### 2026-05-22 Phase3 WASM sandbox processor boundary
 - Started `.prompt/066-phase3-wasm-sandbox-processor-spike.md` after Web route/auth governance.
 - Checked current crates.io via cargo: `wasmtime = "45.0.0"`; upstream Wasmtime docs expose fuel/epoch interruption and Store resource limiter APIs suitable for worker-side limits.
-- Added `tikee-core` WASM contract types: `WasmRuntimeKind`, `WasmCapabilities`, `WasmResourcePolicy`, `WasmProcessorSpec`, and `WasmSpecError`.
+- Added `tikeo-core` WASM contract types: `WasmRuntimeKind`, `WasmCapabilities`, `WasmResourcePolicy`, `WasmProcessorSpec`, and `WasmSpecError`.
 - Default WASM processor spec selects Wasmtime, `_start`, 30s timeout, 64MiB memory, fuel budget, no network, no preopened host directories, and validates denial of ambient host access.
 - Added core tests for stable wire serialization and policy validation.
-- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikee-core --all-features`.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikeo-core --all-features`.
 - Full verification passed for 066: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build` (Vite chunk-size warning unchanged).
 
 ### 2026-05-22 Phase3 WASM worker runtime executor
 - Started `.prompt/067-phase3-wasm-worker-runtime-executor.md`.
-- Added dedicated `crates/tikee-wasm` so Wasmtime remains worker/runtime-boundary only and is not pulled into server HTTP/storage paths.
+- Added dedicated `crates/tikeo-wasm` so Wasmtime remains worker/runtime-boundary only and is not pulled into server HTTP/storage paths.
 - Implemented `WasmExecutor` on Wasmtime 45.0.0 with fuel metering, epoch interruption timeout hook, memory cap via StoreLimits, and no WASI ambient imports.
 - Added tests for minimal WAT execution, network-capability rejection, missing entrypoint rejection, and fuel exhaustion on a busy loop.
-- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikee-wasm --all-features`; `cargo clippy -p tikee-wasm --all-targets --all-features -- -D warnings`.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikeo-wasm --all-features`; `cargo clippy -p tikeo-wasm --all-targets --all-features -- -D warnings`.
 - Full verification passed for 067: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build` (Vite chunk-size warning unchanged).
 
 ### 2026-05-22 Phase3 WASM script binding and dispatch metadata
@@ -454,9 +454,9 @@
 - Server still does not execute user code; it only passes approved module bytes and policy metadata to connected workers.
 - Added dispatcher tests for approved safe WASM binding shape and rejection of draft / network-enabled WASM scripts.
 - Rust Worker SDK proto fixture updated and SDK tests passed after regenerated proto.
-- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikee-server tunnel::dispatcher --all-features`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features`.
+- Targeted verification so far: `cargo fmt --all`; `cargo test -p tikeo-server tunnel::dispatcher --all-features`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features`.
 - Java SDK Gradle test was attempted but first Gradle distribution download was too slow and was stopped; rerun once Gradle is cached.
-- Full verification passed for 068: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features`. Java SDK Gradle test was attempted but not completed because the first Gradle distribution download was too slow; rerun once cached.
+- Full verification passed for 068: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck`; `cd web && bun test`; `cd web && bun run build`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features`. Java SDK Gradle test was attempted but not completed because the first Gradle distribution download was too slow; rerun once cached.
 - Re-ran final 068 verification after proto boxing/clippy fixes: all listed Rust/backend/web/Rust-SDK checks passed again. Java SDK Gradle remains not completed due slow first distribution download.
 
 ### 2026-05-22 Java SDK Gradle verification补齐
@@ -471,7 +471,7 @@
 - Added opt-in Rust SDK `wasm` feature with Wasmtime 45.0.0 adapter, fuel metering, epoch timeout, memory limit, default network rejection, and tests for enabled execution / network rejection / disabled-feature failure.
 - Java core SDK now explicitly reports unsupported WASM processor binding and does not invoke the user `TaskProcessor` for WASM-bound dispatches.
 - Updated design roadmap and created `.prompt/070-phase3-wasm-distribution-integrity-and-gradle10-cleanup.md`.
-- Full verification passed for 069: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --no-daemon`.
+- Full verification passed for 069: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --no-daemon`.
 - Known warning: Java Gradle build still reports deprecated features that need Gradle 10 compatibility cleanup.
 
 
@@ -483,7 +483,7 @@
 - Rust Worker SDK validates `module_sha256` before Wasmtime compilation/execution and fails digest mismatches clearly.
 - Web script management now shows content SHA-256 and WASM sandbox defaults/policy metadata in list/detail/version views.
 - Java Gradle protobuf plugin upgraded to 0.10.0 and protoc/grpc artifacts use explicit platform classifier notation, removing Gradle 10 multi-string dependency deprecation warnings under Gradle 9.5.1 `--warning-mode all`.
-- Full verification passed for 070: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
+- Full verification passed for 070: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
 
 ### 2026-05-22 Phase3 script release pointer and worker version binding
 - Continued `.prompt/071-phase3-script-release-pointer-and-worker-version-binding.md` after WASM distribution integrity.
@@ -493,7 +493,7 @@
 - Added HTTP `POST /api/v1/scripts/{id}/publish` and `/rollback` endpoints using standard `{code,message,data}` envelopes and audit actions `publish`/`rollback`.
 - Dispatcher now fails closed for approved WASM scripts without a release pointer or missing released version, and worker bindings use released snapshot bytes, SHA-256, version id, and version number.
 - Web script page now shows released version/id, marks released history rows, and exposes publish/rollback actions under script manage permission.
-- Full verification passed for 071: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
+- Full verification passed for 071: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
 - Known warning: Web build still reports existing >500KB chunk-size warning for large lazily loaded chunks.
 
 ### 2026-05-22 Phase3 script policy metadata, runner abstraction, and Web chunk split
@@ -504,14 +504,14 @@
 - Script version diff now includes `policy` changes; Web script management exposes safe resource/env policy fields and policy summaries.
 - Rust Worker SDK now has non-WASM `ScriptRunnerKind`, `ScriptRunnerPolicy`, `ScriptRunnerTask`, `ScriptRunner` and `UnsupportedScriptRunner` abstraction; unsupported runner validates default-deny policy and refuses execution until concrete sandbox runners are implemented.
 - Web build chunk issue fixed with Vite/Rolldown `codeSplitting.groups` for React/AntD/CodeMirror/utility vendor chunks; `bun run build` no longer emits >500KB chunk warnings.
-- Full verification passed for 072: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
+- Full verification passed for 072: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
 
 ### 2026-05-22 Phase3 local subprocess script runner foundation
 - Continued `.prompt/073-phase3-script-sandbox-runner-implementations.md`.
 - Added Rust SDK `LocalSubprocessScriptRunner` as the first opt-in non-WASM runner boundary for Shell/Python/Node/PowerShell/Rhai command mappings.
-- Runner validates default-deny policy, requires released immutable version metadata, verifies content SHA-256 before execution, clears inherited env, only forwards whitelisted env vars plus tikee metadata, feeds script through stdin, enforces wall-clock timeout, and caps captured stdout+stderr bytes.
+- Runner validates default-deny policy, requires released immutable version metadata, verifies content SHA-256 before execution, clears inherited env, only forwards whitelisted env vars plus tikeo metadata, feeds script through stdin, enforces wall-clock timeout, and caps captured stdout+stderr bytes.
 - Added SDK tests for successful shell execution, digest mismatch, missing released snapshot, timeout, output limit, and missing runtime.
-- Full verification passed for 073 slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
+- Full verification passed for 073 slice: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
 
 ### 2026-05-22 Phase3 non-WASM script runner protocol and UI binding
 - Continued `.prompt/074-script-runner-protocol-and-ui-binding.md` after the local subprocess runner foundation.
@@ -521,33 +521,33 @@
 - Rust Worker SDK added `ScriptRunnerRegistry` and executes non-WASM bindings only when the worker explicitly registers a matching runner; missing runners produce a clear failure result.
 - Java SDK now explicitly reports unsupported script processor bindings and does not call the normal task processor for them.
 - Web script detail drawer now documents required worker capabilities and runtime support for WASM and non-WASM scripts.
-- Full verification passed for 074: `cargo fmt --all -- --check`; `cargo test -p tikee-proto --all-features`; `cargo test -p tikee-server --all-features tunnel::dispatcher -- --nocapture`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`; `cd web && bun run typecheck`; `cd web && bun test && bun run build`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
+- Full verification passed for 074: `cargo fmt --all -- --check`; `cargo test -p tikeo-proto --all-features`; `cargo test -p tikeo-server --all-features tunnel::dispatcher -- --nocapture`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings`; `cd web && bun run typecheck`; `cd web && bun test && bun run build`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
 
 ### 2026-05-22 Phase3 containerized script runner foundation
 - Continued `.prompt/075-script-runner-container-and-execution-governance.md` after non-WASM Worker Tunnel protocol binding.
 - Added Rust SDK `ContainerScriptRunner` as an explicit Worker-side opt-in runner for non-WASM dynamic scripts.
 - Refactored the Rust Worker SDK away from a monolithic `lib.rs`: `lib.rs` now only declares/re-exports modules; implementation moved into `config`, `session`, `task`, `error`, `script`, `wasm`, `proto`, and tests modules, with script runners split into `script/local.rs` and `script/container.rs`.
-- The container runner builds Docker-compatible `run --rm -i` commands, passes released script content via stdin, disables container networking with `--network=none`, uses `--read-only`, mounts no host paths, injects tikee metadata env, and forwards only policy-whitelisted env vars.
+- The container runner builds Docker-compatible `run --rm -i` commands, passes released script content via stdin, disables container networking with `--network=none`, uses `--read-only`, mounts no host paths, injects tikeo metadata env, and forwards only policy-whitelisted env vars.
 - Shared released snapshot validation between local subprocess and container runners: language match, version_id/version_number, content SHA-256, default-deny policy, and dangerous network/filesystem/secret rejection before spawn.
 - Added deterministic unit tests for container command boundary and pre-runtime dangerous policy rejection; live Docker/K8s smoke and audit/result governance move to 076.
-- Full verification passed for 075 after SDK module split: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`; `cd web && bun run typecheck && bun test && bun run build`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
+- Full verification passed for 075 after SDK module split: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo run -- --help`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings`; `cd web && bun run typecheck && bun test && bun run build`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
 
-### 2026-05-22 Project rename to tikee
-- Renamed project identity from the previous project identity to tikee across Rust workspace package/crate names, binary name, Docker/Compose/K8s identifiers, config defaults, scripts, docs, memory, and prompts.
-- Renamed Rust SDK to `tikee` and Java SDK modules to `tikee`, `tikee-spring`, and `tikee-spring-boot-starter`.
-- Changed Java package prefix to `com.yhyzgn.tikee` and updated example imports/application main class.
-- Changed worker protobuf package namespace to `tikee.worker.v1` and updated Rust/Java generated-code references.
-- Prepared `.prompt/077-script-execution-governance-after-tikee-rename.md` as the next handoff prompt.
+### 2026-05-22 Project rename to tikeo
+- Renamed project identity from the previous project identity to tikeo across Rust workspace package/crate names, binary name, Docker/Compose/K8s identifiers, config defaults, scripts, docs, memory, and prompts.
+- Renamed Rust SDK to `tikeo` and Java SDK modules to `tikeo`, `tikeo-spring`, and `tikeo-spring-boot-starter`.
+- Changed Java package prefix to `net.tikeo` and updated example imports/application main class.
+- Changed worker protobuf package namespace to `tikeo.worker.v1` and updated Rust/Java generated-code references.
+- Prepared `.prompt/077-script-execution-governance-after-tikeo-rename.md` as the next handoff prompt.
 - Targeted verification so far: `cargo check --workspace --all-features`; `cargo fmt --all`.
 
 ### 2026-05-22 SDK naming contraction
-- Applied user-requested SDK naming contraction: Rust SDK previous Rust Worker SDK name -> `tikee`, Java core SDK module previous Java core SDK name -> `tikee`.
-- Updated Rust example dependency/imports to use `tikee = { path = "../../../sdks/rust/tikee" }`.
-- Updated Java Gradle composite build so `tikee-spring` depends on `project(":tikee")`; Java package prefix remains `com.yhyzgn.tikee`.
-- Rename verification fixed one regression: the default admin password text changed to `Tikee@2026!`, so the seeded BCrypt hash was regenerated to match the new credential.
-- Full rename verification passed: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo build --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
+- Applied user-requested SDK naming contraction: Rust SDK previous Rust Worker SDK name -> `tikeo`, Java core SDK module previous Java core SDK name -> `tikeo`.
+- Updated Rust example dependency/imports to use `tikeo = { path = "../../../sdks/rust/tikeo" }`.
+- Updated Java Gradle composite build so `tikeo-spring` depends on `project(":tikeo")`; Java package prefix remains `net.tikeo`.
+- Rename verification fixed one regression: the default admin password text changed to `Tikeo@2026!`, so the seeded BCrypt hash was regenerated to match the new credential.
+- Full rename verification passed: `cargo fmt --all -- --check`; `cargo clippy --workspace --all-targets --all-features -- -D warnings`; `cargo test --workspace --all-features`; `cargo build --workspace --all-features`; `cargo run -- --help`; `cd web && bun run typecheck && bun test && bun run build`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml`; `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm`; `cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings`; `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`.
 ### 2026-05-23 Phase3 script execution governance visibility
-- Continued `.prompt/077-script-execution-governance-after-tikee-rename.md`.
+- Continued `.prompt/077-script-execution-governance-after-tikeo-rename.md`.
 - Added dispatcher-side script governance instance logs for fail-closed dispatch cases and worker capability misses: missing script, not approved, missing release pointer/version, unsupported language, policy rejection, and no eligible unified `script` worker capability.
 - Added Rust SDK script failure classification via `TaskOutcome::failure_class()` and JSON result messages for missing runner, policy rejection, digest mismatch, timeout, output limit, and runtime unavailable; Server persists these Worker result classes as `script_execution_governance` instance logs.
 - Documented script-capable Worker Pool deployment for Docker/K8s and `ContainerScriptRunner` opt-in constraints in design and Rust SDK README.
@@ -629,7 +629,7 @@
 
 ### 2026-05-23 — Phase 088 Grafana dashboard template foundation
 - Continued `.prompt/088-phase3-remaining-hardening.md` with the smallest locally verifiable observability hardening slice.
-- Added `observability/grafana/tikee-phase3-dashboard.json` as a deterministic Grafana dashboard template for existing Prometheus metrics: HTTP request rate, HTTP p95 latency, connected workers, worker dispatch outcomes, and an HTTP error-ratio SLO placeholder.
+- Added `observability/grafana/tikeo-phase3-dashboard.json` as a deterministic Grafana dashboard template for existing Prometheus metrics: HTTP request rate, HTTP p95 latency, connected workers, worker dispatch outcomes, and an HTTP error-ratio SLO placeholder.
 - Added a Rust integration test that parses the dashboard JSON, asserts the expected title/panels shape, and verifies the required metric query strings stay present without needing a live Grafana/Prometheus service.
 - Roadmap now marks the Grafana template foundation complete while leaving richer scheduling-latency/business SLO metrics open.
 
@@ -672,12 +672,12 @@
 ### 2026-05-23 — Phase 3 closeout review
 - Completed `.prompt/095-phase3-closeout-review.md` as an honest roadmap closeout pass after the Phase 088-094 hardening run.
 - Confirmed Phase 3 top-level items that still require external systems or larger production wiring remain unchecked: real OIDC token exchange and external identity mapping, real TLS/mTLS listeners, full script approval/signing/grants, real alert provider delivery, complete business SLO metrics, and real OTLP exporter smoke.
-- Added Phase 3 closeout notes to `design/tikee-architecture-design.md` summarizing completed local foundations vs remaining production gaps.
+- Added Phase 3 closeout notes to `design/tikeo-architecture-design.md` summarizing completed local foundations vs remaining production gaps.
 - Deferred Phase 4 scope remains unchanged: Node.js SDK, K8s Helm, PowerJob migration tooling, and XXL-JOB migration tooling.
 
 ### 2026-05-23 — Phase 096 dispatch queue Prometheus SLO metric
 - Continued Phase 3 observability hardening by making the Grafana dispatch queue pending-age query backed by a real server-emitted Prometheus histogram instead of a dashboard-only placeholder.
-- `GET /api/v1/metrics/summary` now records `tikee_dispatch_queue_pending_age_seconds{stat="oldest|average"}` and `tikee_dispatch_queue_items_total{status="pending|running"}` into the same local Prometheus recorder exposed by `/metrics`.
+- `GET /api/v1/metrics/summary` now records `tikeo_dispatch_queue_pending_age_seconds{stat="oldest|average"}` and `tikeo_dispatch_queue_items_total{status="pending|running"}` into the same local Prometheus recorder exposed by `/metrics`.
 - Added regression coverage that calls the summary endpoint, then scrapes `/metrics` and asserts the dispatch queue pending-age metric is present.
 - Full business SLO coverage remains open for broader dispatch latency, instance success-rate, workflow SLA, and map-reduce metrics.
 
@@ -709,7 +709,7 @@
 - Reproduced the Java Spring worker demo exiting immediately: `DemoRunner` called `client.close()` directly after `client.start()`, and the README command used the SDK wrapper without selecting the demo project.
 - Updated the demo runner to stay alive on a `CountDownLatch` until shutdown and close the worker client from `@PreDestroy`; dry-run bootRun now remains running instead of exiting immediately.
 - Changed the demo default Worker Tunnel endpoint to `http://127.0.0.1:9998`, added/committed a local demo `gradlew`, ignored demo `.gradle/`, and fixed README/root verification commands.
-- Started tikee with `config/dev.toml`, started the Java demo with `TIKEE_WORKER_DRY_RUN=false`, and verified `/api/v1/workers` reports one online worker with `java` and `spring-boot` capabilities.
+- Started tikeo with `config/dev.toml`, started the Java demo with `TIKEO_WORKER_DRY_RUN=false`, and verified `/api/v1/workers` reports one online worker with `java` and `spring-boot` capabilities.
 ### 2026-05-24 — Phase 102 API token expiry and rotation policy
 - Continued `.prompt/102-phase3-api-token-expiry-rotation.md` with the remaining API token governance gap from Phase 3.
 - Added `auth.api_tokens` policy defaults for token default/min/max TTL and exposed the dev config values explicitly.
@@ -717,17 +717,17 @@
 - Added `POST /api/v1/auth/api-tokens/{id}/rotate` to preserve existing scopes, issue a replacement token, revoke the old token immediately, and audit the rotation.
 - Multi-tenant namespace/app/worker-pool scope binding remains open.
 Verification evidence:
-- `rtk cargo test -p tikee-server api_token_policy --all-features` failed before implementation for ignored TTL and missing TTL bound rejection, then passed after implementation.
-- `rtk cargo test -p tikee-server api_token --all-features` passed.
-- `rtk cargo test -p tikee-config default_auth_config --all-features` passed.
+- `rtk cargo test -p tikeo-server api_token_policy --all-features` failed before implementation for ignored TTL and missing TTL bound rejection, then passed after implementation.
+- `rtk cargo test -p tikeo-server api_token --all-features` passed.
+- `rtk cargo test -p tikeo-config default_auth_config --all-features` passed.
 - `rtk cargo fmt --all -- --check` passed.
 - `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
 - `rtk cargo test --workspace --all-features` passed: 120 tests.
 - `rtk cargo build --workspace --all-features` passed.
 - `rtk cargo run -- --help` passed.
-- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml` passed.
-- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` passed.
-- `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikeo/Cargo.toml` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm` passed.
+- `rtk cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings` passed.
 - `rtk bash -lc 'cd web && bun run lint'` passed.
 - `rtk bash -lc 'cd web && bun run typecheck && bun test && bun run build'` passed.
 - `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.
@@ -745,16 +745,16 @@ Verification evidence:
 - Enforced worker-pool visibility for `/api/v1/workers` using `worker_pool` / `worker-pool` worker labels in addition to namespace/app.
 - Full tenant/app/worker-pool CRUD/UI and OIDC identity-to-tenant mapping remain open.
 Verification evidence:
-- `rtk cargo test -p tikee-server api_token_scope_bindings --all-features` failed before implementation because bindings were ignored, then passed with 2 tests.
-- `rtk cargo test -p tikee-server api_token --all-features` passed with 6 tests.
+- `rtk cargo test -p tikeo-server api_token_scope_bindings --all-features` failed before implementation because bindings were ignored, then passed with 2 tests.
+- `rtk cargo test -p tikeo-server api_token --all-features` passed with 6 tests.
 - `rtk cargo fmt --all -- --check` passed.
 - `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
 - `rtk cargo test --workspace --all-features` passed: 122 tests.
 - `rtk cargo build --workspace --all-features` passed.
 - `rtk cargo run -- --help` passed.
-- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml` passed.
-- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` passed.
-- `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikeo/Cargo.toml` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm` passed.
+- `rtk cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings` passed.
 - `rtk bash -lc 'cd web && bun run lint && bun run typecheck && bun test && bun run build'` passed.
 - `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.
 
@@ -765,37 +765,37 @@ Verification evidence:
 - Script governance alert materialization now returns created alert events and delivers notification channels for newly firing events.
 - Non-webhook providers, retries/DLQ, and persisted delivery attempt history remain future provider-delivery work.
 Verification evidence:
-- `rtk cargo test -p tikee-server production_policy_rejects_insecure_loopback_webhook --all-features` passed.
-- `rtk cargo test -p tikee-server webhook_dispatch_posts_payload_to_allowed_local_receiver --all-features` passed.
-- `rtk cargo test -p tikee-server alert --all-features` passed.
+- `rtk cargo test -p tikeo-server production_policy_rejects_insecure_loopback_webhook --all-features` passed.
+- `rtk cargo test -p tikeo-server webhook_dispatch_posts_payload_to_allowed_local_receiver --all-features` passed.
+- `rtk cargo test -p tikeo-server alert --all-features` passed.
 - `rtk cargo fmt --all -- --check` passed.
 - `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
 - `rtk cargo test --workspace --all-features` passed: 124 tests across workspace suites.
 - `rtk cargo build --workspace --all-features` passed.
 - `rtk cargo run -- --help` passed.
-- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml` passed.
-- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` passed.
-- `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikeo/Cargo.toml` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm` passed.
+- `rtk cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings` passed.
 - `rtk bash -lc 'cd web && bun run lint && bun run typecheck && bun test && bun run build'` passed.
 - `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.
 
 ### 2026-05-24 — Phase 106 workflow and map-shard SLO metrics
 - Continued `.prompt/106-phase3-workflow-slo-metrics.md` by adding workflow SLA coverage to the metrics summary and Prometheus recorder path.
 - `GET /api/v1/metrics/summary` now includes workflow instance totals/statuses, terminal success ratio, duration rollups, shard totals/statuses, shard success ratio, and shard duration rollups.
-- `/metrics` now exposes workflow instance/shard status gauges, success-ratio gauges, and `tikee_workflow_instance_duration_seconds` / `tikee_workflow_shard_duration_seconds` histograms.
+- `/metrics` now exposes workflow instance/shard status gauges, success-ratio gauges, and `tikeo_workflow_instance_duration_seconds` / `tikeo_workflow_shard_duration_seconds` histograms.
 - Updated the Phase 3 Grafana dashboard template with real workflow SLA queries.
 - Remaining observability gaps are end-to-end dispatch latency histograms, live Prometheus/Grafana recording-rule validation, and real OTLP collector smoke.
 Verification evidence:
-- `rtk cargo test -p tikee-server metrics_summary_reports_storage_registry_and_alert_counts --all-features` failed before implementation because `data.workflows` was missing, then passed.
-- `rtk cargo test -p tikee-server --test grafana_dashboard --all-features` passed.
+- `rtk cargo test -p tikeo-server metrics_summary_reports_storage_registry_and_alert_counts --all-features` failed before implementation because `data.workflows` was missing, then passed.
+- `rtk cargo test -p tikeo-server --test grafana_dashboard --all-features` passed.
 - `rtk cargo fmt --all -- --check` passed.
 - `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
 - `rtk cargo test --workspace --all-features` passed: 124 tests across workspace suites.
 - `rtk cargo build --workspace --all-features` passed.
 - `rtk cargo run -- --help` passed.
-- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml` passed.
-- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` passed.
-- `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikeo/Cargo.toml` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm` passed.
+- `rtk cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings` passed.
 - `rtk bash -lc 'cd web && bun run lint && bun run typecheck && bun test && bun run build'` passed.
 - `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.
 
@@ -806,17 +806,17 @@ Verification evidence:
 - Added local Axum receiver coverage that verifies all provider adapters POST and emit expected payload shapes without contacting external services.
 - Email/SMTP, retries/backoff/DLQ, persisted delivery attempts, and live provider smoke remain future hardening.
 Verification evidence:
-- `rtk cargo test -p tikee-server provider_dispatch_posts_expected_payload_shapes_to_allowed_local_receivers --all-features` failed before implementation because provider channel variants were missing, then passed.
-- `rtk cargo test -p tikee-server alert --all-features` passed.
-- `rtk cargo test -p tikee-server alert_rule_delivery_status_redacts_channel_targets_and_reports_readiness --all-features` passed.
+- `rtk cargo test -p tikeo-server provider_dispatch_posts_expected_payload_shapes_to_allowed_local_receivers --all-features` failed before implementation because provider channel variants were missing, then passed.
+- `rtk cargo test -p tikeo-server alert --all-features` passed.
+- `rtk cargo test -p tikeo-server alert_rule_delivery_status_redacts_channel_targets_and_reports_readiness --all-features` passed.
 - `rtk cargo fmt --all -- --check` passed.
 - `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
 - `rtk cargo test --workspace --all-features` passed: 125 tests across workspace suites.
 - `rtk cargo build --workspace --all-features` passed.
 - `rtk cargo run -- --help` passed.
-- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml` passed.
-- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` passed.
-- `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikeo/Cargo.toml` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm` passed.
+- `rtk cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings` passed.
 - `rtk bash -lc 'cd web && bun run lint && bun run typecheck && bun test && bun run build'` passed.
 - `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.
 
@@ -839,7 +839,7 @@ Verification evidence:
 
 
 ### 2026-05-24 — Phase 109 dispatch latency metrics
-- Added completed dispatch queue latency rollups and Prometheus snapshot recording for `tikee_dispatch_queue_dispatch_latency_seconds`.
+- Added completed dispatch queue latency rollups and Prometheus snapshot recording for `tikeo_dispatch_queue_dispatch_latency_seconds`.
 - Grafana template and regression coverage now include the dispatch latency query.
 - Remaining observability gap: live Prometheus/Grafana recording-rule validation and real OTLP collector/export smoke.
 Verification evidence:
@@ -859,7 +859,7 @@ Verification evidence:
 - Remaining alert gap: production SMTP TLS/auth/secret handling, continuous background retry scheduling, and live external provider smoke.
 Verification evidence:
 - RED/green retry processor test plus fmt, clippy, and alert suite passed via RTK.
-- Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
+- Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikeo-help.out; cargo test --manifest-path sdks/rust/tikeo/Cargo.toml; cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
 
 ### 2026-05-24 — Phase 112 alert retry background worker
 - Added enabled-by-default `alert_retry` config for interval, batch size, max attempts, and retry backoff.
@@ -869,8 +869,8 @@ Verification evidence:
 Verification evidence:
 - RED config test failed before `AlertRetryConfig` existed, then passed.
 - RED ownership-gate test failed before `retry_once_if_owner` existed, then passed.
-- Targeted fmt and clippy for `tikee-server` / `tikee-config` passed via RTK.
-- Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
+- Targeted fmt and clippy for `tikeo-server` / `tikeo-config` passed via RTK.
+- Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikeo-help.out; cargo test --manifest-path sdks/rust/tikeo/Cargo.toml; cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
 
 ### 2026-05-24 — Phase 113 tenant scope management API foundation
 - Added persistent worker-pool metadata using soft namespace/app links and no database foreign keys.
@@ -880,7 +880,7 @@ Verification evidence:
 Verification evidence:
 - RED management API test failed before the routes existed, then passed after implementation.
 - Targeted fmt, clippy for storage/server, migration, OpenAPI, and management API tests passed via RTK.
-- Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
+- Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikeo-help.out; cargo test --manifest-path sdks/rust/tikeo/Cargo.toml; cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
 
 ### 2026-05-24 — Phase 114 tenant scope management UI
 - Added Web client methods for namespace, app, and Worker Pool create/list APIs.
@@ -890,7 +890,7 @@ Verification evidence:
 Verification evidence:
 - RED Web client/page tests failed before the API exports and page existed, then passed after implementation.
 - Web lint, typecheck, targeted tests, and production build passed via RTK.
-- Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
+- Full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikeo-help.out; cargo test --manifest-path sdks/rust/tikeo/Cargo.toml; cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
 
 ### 2026-05-24 — Phase 115 tenant scope lifecycle policy
 - Added guarded DELETE routes for namespaces, apps, and Worker Pool metadata.
@@ -903,18 +903,18 @@ Verification evidence:
 - RED Web page test required delete client/actions/confirm copy and passed after implementation.
 - Targeted storage/server clippy, backend lifecycle/OpenAPI tests, Web lint/typecheck/targeted test/build passed via RTK.
 
-- Phase115 full verification passed: rtk bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features && cargo run -- --help >/tmp/tikee-help.out && cargo test --manifest-path sdks/rust/tikee/Cargo.toml && cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm && cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings && cd web && bun run lint && bun run typecheck && bun test && bun run build && cd ../sdks/java && ./gradlew test --warning-mode all --no-daemon'
+- Phase115 full verification passed: rtk bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features && cargo run -- --help >/tmp/tikeo-help.out && cargo test --manifest-path sdks/rust/tikeo/Cargo.toml && cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm && cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings && cd web && bun run lint && bun run typecheck && bun test && bun run build && cd ../sdks/java && ./gradlew test --warning-mode all --no-daemon'
 
 ### 2026-05-24 — Phase 116 OIDC token exchange boundary
 - Added an OIDC callback token-exchange boundary that posts authorization codes to the configured provider token endpoint with client credentials.
 - Callback now requires an `access_token` response but still fails closed before session issuance until external identity mapping and user mapping land.
-- Split OIDC network exchange helpers into `crates/tikee-server/src/http/oidc.rs` to keep auth routing focused.
+- Split OIDC network exchange helpers into `crates/tikeo-server/src/http/oidc.rs` to keep auth routing focused.
 - Remaining OIDC gap: OIDC user-info subject mapping, nonce/state persistence, user/role/tenant mapping, and opaque session issuance.
 Verification evidence:
 - RED/green mock IdP test covers code exchange and proves the callback does not create a session from an unverified ID token.
-- Targeted OIDC tests and tikee-server clippy passed via RTK.
+- Targeted OIDC tests and tikeo-server clippy passed via RTK.
 
-- Phase116 full verification passed: rtk bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features && cargo run -- --help >/tmp/tikee-help.out && cargo test --manifest-path sdks/rust/tikee/Cargo.toml && cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm && cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings && cd web && bun run lint && bun run typecheck && bun test && bun run build && cd ../sdks/java && ./gradlew test --warning-mode all --no-daemon'
+- Phase116 full verification passed: rtk bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features && cargo run -- --help >/tmp/tikeo-help.out && cargo test --manifest-path sdks/rust/tikeo/Cargo.toml && cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm && cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings && cd web && bun run lint && bun run typecheck && bun test && bun run build && cd ../sdks/java && ./gradlew test --warning-mode all --no-daemon'
 
 ### 2026-05-24 — Phase 117 OIDC UserInfo discovery boundary
 - Added OIDC provider discovery and UserInfo retrieval after authorization-code token exchange.
@@ -922,21 +922,21 @@ Verification evidence:
 - Extended the mock IdP regression test to prove token, discovery, and UserInfo endpoints are each reached once while preserving the `{ code, message, data }` failure envelope.
 - Remaining OIDC gap: OIDC user-info subject mapping, role/tenant mapping, nonce/state hardening, and opaque session issuance.
 Verification evidence:
-- Targeted OIDC tests and tikee-server clippy passed via RTK.
+- Targeted OIDC tests and tikeo-server clippy passed via RTK.
 
-- Phase117 full verification passed: rtk bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features && cargo run -- --help >/tmp/tikee-help.out && cargo test --manifest-path sdks/rust/tikee/Cargo.toml && cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm && cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings && cd web && bun run lint && bun run typecheck && bun test && bun run build && cd ../sdks/java && ./gradlew test --warning-mode all --no-daemon'
+- Phase117 full verification passed: rtk bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features && cargo run -- --help >/tmp/tikeo-help.out && cargo test --manifest-path sdks/rust/tikeo/Cargo.toml && cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm && cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings && cd web && bun run lint && bun run typecheck && bun test && bun run build && cd ../sdks/java && ./gradlew test --warning-mode all --no-daemon'
 
 ### 2026-05-24 — Phase 118 OIDC state/UserInfo opaque-session correction
-- Corrected the OIDC direction: tikee login state remains opaque session tokens in `auth_sessions` plus moka cache; provider tokens are never used as local session state.
+- Corrected the OIDC direction: tikeo login state remains opaque session tokens in `auth_sessions` plus moka cache; provider tokens are never used as local session state.
 - Added persisted hashed OIDC authorization states with one-time callback consumption and replay rejection.
-- Replaced the current provider-token-as-session path with token exchange + provider UserInfo fetch, then fail-closed until external subject mapping creates a local opaque tikee session.
+- Replaced the current provider-token-as-session path with token exchange + provider UserInfo fetch, then fail-closed until external subject mapping creates a local opaque tikeo session.
 - Added `oidc_auth_states` storage/entity/repository support with soft, standalone metadata and no foreign keys.
 - Remaining OIDC gap: external subject to local user/role/tenant mapping, nonce/state hardening, and opaque session issuance from mapped identity.
 Verification evidence:
 - Targeted OIDC tests cover generated state, one-time state consumption, token exchange, UserInfo fetch, and fail-closed local session mapping.
 - Storage and server clippy passed via RTK after the correction.
 
-- Phase118 full verification passed: rtk bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features && cargo run -- --help >/tmp/tikee-help.out && cargo test --manifest-path sdks/rust/tikee/Cargo.toml && cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm && cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings && cd web && bun run lint && bun run typecheck && bun test && bun run build && cd ../sdks/java && ./gradlew test --warning-mode all --no-daemon'
+- Phase118 full verification passed: rtk bash -lc 'cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-features && cargo build --workspace --all-features && cargo run -- --help >/tmp/tikeo-help.out && cargo test --manifest-path sdks/rust/tikeo/Cargo.toml && cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm && cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings && cd web && bun run lint && bun run typecheck && bun test && bun run build && cd ../sdks/java && ./gradlew test --warning-mode all --no-daemon'
 
 
 ### 2026-05-24 — Phase 119 real OTLP exporter smoke
@@ -945,21 +945,21 @@ Verification evidence:
 - Added local collector smoke coverage proving exported spans POST a non-empty OTLP protobuf payload to `/v1/traces` and carry configured exporter headers.
 - Remaining observability gap is Prometheus/Grafana recording-rule validation, not OTLP tracing.
 Verification evidence:
-- `rtk cargo test -p tikee-server --test otel_exporter_smoke --all-features` passed.
-- `rtk cargo test -p tikee-server observability_status_reports_default_and_configured_otlp_without_collector --all-features` passed.
-- Targeted `rtk cargo fmt --all -- --check` and `rtk cargo clippy -p tikee-server --all-targets --all-features -- -D warnings` passed.
-- Phase119 full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out'`.
-- SDK/Web verification passed: `rtk bash -lc 'set -euo pipefail; cargo test --manifest-path sdks/rust/tikee/Cargo.toml; cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
+- `rtk cargo test -p tikeo-server --test otel_exporter_smoke --all-features` passed.
+- `rtk cargo test -p tikeo-server observability_status_reports_default_and_configured_otlp_without_collector --all-features` passed.
+- Targeted `rtk cargo fmt --all -- --check` and `rtk cargo clippy -p tikeo-server --all-targets --all-features -- -D warnings` passed.
+- Phase119 full verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikeo-help.out'`.
+- SDK/Web verification passed: `rtk bash -lc 'set -euo pipefail; cargo test --manifest-path sdks/rust/tikeo/Cargo.toml; cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm; cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings; cd web; bun run lint; bun run typecheck; bun test; bun run build; cd ../sdks/java; ./gradlew test --warning-mode all --no-daemon'`.
 
 
 ### 2026-05-24 — Phase 120 Java Spring Boot Starter lifecycle completion
-- Completed the Java Spring Boot Starter SDK runtime behavior with a `TikeeWorkerLifecycle` SmartLifecycle bridge.
-- Starter now auto-starts and stops the configured `TikeeWorkerClient` with the Spring application lifecycle while preserving processor scanning.
-- Added `tikee.worker.enabled` and `tikee.worker.auto-startup` controls for disabling worker beans or manual startup.
+- Completed the Java Spring Boot Starter SDK runtime behavior with a `TikeoWorkerLifecycle` SmartLifecycle bridge.
+- Starter now auto-starts and stops the configured `TikeoWorkerClient` with the Spring application lifecycle while preserving processor scanning.
+- Added `tikeo.worker.enabled` and `tikeo.worker.auto-startup` controls for disabling worker beans or manual startup.
 - Updated the Spring worker demo so lifecycle ownership lives in the starter instead of the demo runner.
 Verification evidence:
-- RED starter test failed before `TikeeWorkerLifecycle` existed, then passed after implementation.
-- `rtk bash -lc 'cd sdks/java && ./gradlew :tikee-spring-boot-starter:test --warning-mode all --no-daemon'` passed.
+- RED starter test failed before `TikeoWorkerLifecycle` existed, then passed after implementation.
+- `rtk bash -lc 'cd sdks/java && ./gradlew :tikeo-spring-boot-starter:test --warning-mode all --no-daemon'` passed.
 - Phase120 Java verification passed: `rtk bash -lc 'set -euo pipefail; cd sdks/java; ./gradlew test --warning-mode all --no-daemon; cd ../../examples/java/spring-worker-demo; ./gradlew build --warning-mode all --no-daemon'`.
 
 ### 2026-05-24 — Worker identity lifecycle design
@@ -989,7 +989,7 @@ Verification evidence:
 Verification evidence:
 - RED mapped-subject callback test failed before `OidcIdentityRepository` existed, then passed.
 - Targeted OIDC tests, storage/server clippy, and fmt check passed via RTK.
-- P0 OIDC mapped opaque session full backend verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out'`.
+- P0 OIDC mapped opaque session full backend verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikeo-help.out'`.
 
 ### 2026-05-25 — P0 real TLS/mTLS listeners
 - Added real HTTP HTTPS serving with rustls and a TLS smoke test that reaches an axum route over `https://127.0.0.1`.
@@ -997,9 +997,9 @@ Verification evidence:
 - HTTP TLS rebuilds the acceptor from configured files for each new connection so certificate/key/CA file rotation is picked up without process restart.
 - Transport security diagnostics now report `plaintext`, `tls`, `mtls`, or `tls_config_error` and check certificate/key/CA file readability instead of claiming `tls_pending_listener`.
 Verification evidence:
-- `rtk cargo test -p tikee-server http_tls_listener_serves_https_when_configured --all-features` passed.
-- `rtk cargo test -p tikee-server transport_security_status_reports_defaults_and_partial_mtls_config --all-features` passed.
-- Full backend verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out'`.
+- `rtk cargo test -p tikeo-server http_tls_listener_serves_https_when_configured --all-features` passed.
+- `rtk cargo test -p tikeo-server transport_security_status_reports_defaults_and_partial_mtls_config --all-features` passed.
+- Full backend verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikeo-help.out'`.
 
 ### 2026-05-25 — P0 Worker lifecycle Slice A: generation/fencing baseline
 - Reviewed `design/worker-identity-lifecycle-design.md` and implemented the first Worker identity lifecycle slice against that design.
@@ -1008,10 +1008,10 @@ Verification evidence:
 - Rust and Java SDK heartbeats now echo the assigned generation/fencing token.
 Verification evidence:
 - RED registry replacement test failed before implementation, then passed.
-- `rtk cargo test -p tikee-server worker --all-features` passed.
+- `rtk cargo test -p tikeo-server worker --all-features` passed.
 - `rtk bash -lc 'cd sdks/java && ./gradlew test --warning-mode all --no-daemon'` passed.
-- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` and Rust SDK clippy passed.
-- Full backend verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikee-help.out'`.
+- `rtk cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm` and Rust SDK clippy passed.
+- Full backend verification passed: `rtk bash -lc 'set -euo pipefail; cargo fmt --all -- --check; cargo clippy --workspace --all-targets --all-features -- -D warnings; cargo test --workspace --all-features; cargo build --workspace --all-features; cargo run -- --help >/tmp/tikeo-help.out'`.
 
 
 ### 2026-05-25 — P0 Worker lifecycle Slice B: persistent lifecycle store
@@ -1022,11 +1022,11 @@ Verification evidence:
 - Avoided `#[allow(clippy::too_many_lines)]`; split lifecycle storage into dedicated entity/repository modules and refactored migration down helpers to keep clippy clean.
 Verification evidence:
 - RED storage lifecycle test failed before repository types existed, then passed after implementation.
-- `rtk cargo clippy -p tikee-storage --all-targets --all-features -- -D warnings` passed.
-- `rtk cargo clippy -p tikee-server --all-targets --all-features -- -D warnings` passed.
-- `rtk cargo test -p tikee-storage --all-features` passed.
-- `rtk cargo test -p tikee-server worker --all-features` passed.
-- `rtk cargo build -p tikee-server --all-features` passed.
+- `rtk cargo clippy -p tikeo-storage --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo clippy -p tikeo-server --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test -p tikeo-storage --all-features` passed.
+- `rtk cargo test -p tikeo-server worker --all-features` passed.
+- `rtk cargo build -p tikeo-server --all-features` passed.
 - Serve smoke with temporary SQLite config reached listener startup (`timeout` 124 => `smoke_started`) without missing-table startup errors.
 
 
@@ -1038,8 +1038,8 @@ Verification evidence:
 - Kept module split; no new clippy allow was added.
 Verification evidence:
 - RED storage test failed before `mark_expired_online_sessions` existed, then passed.
-- `rtk cargo clippy -p tikee-server --all-targets --all-features -- -D warnings` passed after extracting `run_worker_lease_scanner` instead of adding a too-many-lines allow.
-- `rtk cargo test -p tikee-storage worker_lifecycle --all-features` passed.
+- `rtk cargo clippy -p tikeo-server --all-targets --all-features -- -D warnings` passed after extracting `run_worker_lease_scanner` instead of adding a too-many-lines allow.
+- `rtk cargo test -p tikeo-storage worker_lifecycle --all-features` passed.
 
 
 ### 2026-05-25 — P0 Worker lifecycle Slice D: graceful unregister across Rust and Java SDKs
@@ -1047,16 +1047,16 @@ Verification evidence:
 - Added persistent `WorkerLifecycleRepository::graceful_unregister` to mark current fenced sessions as `stopped / graceful_shutdown` and record a `graceful_shutdown` event.
 - Added `WorkerRegistry::unregister` and server tunnel handling for active worker-initiated unregister messages.
 - Rust `WorkerSession::close()` now sends unregister with worker_id/generation/fencing_token.
-- Java `GrpcTikeeWorkerClient.close()` now sends unregister with worker_id/generation/fencing_token before completing the stream.
+- Java `GrpcTikeoWorkerClient.close()` now sends unregister with worker_id/generation/fencing_token before completing the stream.
 - Kept Java and Rust SDK behavior aligned per user direction.
 Verification evidence:
 - RED storage and Rust SDK close tests failed before implementation, then passed.
-- `rtk cargo clippy -p tikee-server --all-targets --all-features -- -D warnings` passed after splitting the oversized Worker message handler instead of adding allow.
-- `rtk cargo test -p tikee-storage worker_lifecycle --all-features` passed.
-- `rtk cargo test -p tikee-server worker --all-features` passed.
-- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml worker_session_close_sends_graceful_unregister --features wasm` passed.
-- `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
-- `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.core.GrpcTikeeWorkerClientTest --warning-mode all --no-daemon'` passed.
+- `rtk cargo clippy -p tikeo-server --all-targets --all-features -- -D warnings` passed after splitting the oversized Worker message handler instead of adding allow.
+- `rtk cargo test -p tikeo-storage worker_lifecycle --all-features` passed.
+- `rtk cargo test -p tikeo-server worker --all-features` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikeo/Cargo.toml worker_session_close_sends_graceful_unregister --features wasm` passed.
+- `rtk cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings` passed.
+- `rtk bash -lc 'cd sdks/java && ./gradlew :tikeo:test --tests net.tikeo.core.GrpcTikeoWorkerClientTest --warning-mode all --no-daemon'` passed.
 
 
 ### 2026-05-25 — P0 Worker lifecycle Slice E: assignment token validation
@@ -1067,11 +1067,11 @@ Verification evidence:
 - Added server tests for token generation/validation and wrong-token result rejection.
 Verification evidence:
 - RED SDK tests failed before token echo; RED server test failed before `accepts_worker_assignment`; then all passed after implementation.
-- `rtk cargo clippy -p tikee-server --all-targets --all-features -- -D warnings` passed.
-- `rtk cargo test -p tikee-server worker --all-features` passed.
-- `rtk cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm` passed.
-- `rtk cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings` passed.
-- `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.core.GrpcTikeeWorkerClientTest --warning-mode all --no-daemon'` passed.
+- `rtk cargo clippy -p tikeo-server --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test -p tikeo-server worker --all-features` passed.
+- `rtk cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm` passed.
+- `rtk cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings` passed.
+- `rtk bash -lc 'cd sdks/java && ./gradlew :tikeo:test --tests net.tikeo.core.GrpcTikeoWorkerClientTest --warning-mode all --no-daemon'` passed.
 
 
 ### 2026-05-25 — P0 Worker lifecycle Slice F: Web layered history UI
@@ -1080,15 +1080,15 @@ Verification evidence:
 - Worker cluster page now fetches online workers, dispatch queue, and lifecycle history together.
 - Added `WorkerLifecycleHistory` panel with 在线 / 异常/待确认 / 历史 segmentation and recent lifecycle event timeline.
 Verification evidence:
-- `rtk cargo clippy -p tikee-storage --all-targets --all-features -- -D warnings` passed.
-- `rtk cargo clippy -p tikee-server --all-targets --all-features -- -D warnings` passed.
-- `rtk cargo test -p tikee-storage worker_lifecycle --all-features` passed.
-- `rtk cargo test -p tikee-server worker --all-features` passed.
+- `rtk cargo clippy -p tikeo-storage --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo clippy -p tikeo-server --all-targets --all-features -- -D warnings` passed.
+- `rtk cargo test -p tikeo-storage worker_lifecycle --all-features` passed.
+- `rtk cargo test -p tikeo-server worker --all-features` passed.
 - `rtk bash -lc 'cd web && bun run lint && bun run typecheck && bun test src/pages/__tests__/WorkersPage.test.tsx && bun run build'` passed.
 
 ## 2026-05-25 P0 deployment/operations bootstrap
 
-- P0 部署与运维 bootstrap 已补齐 Compose/systemd/裸机模板：`deploy/compose/tikee.env.example`、`deploy/systemd/tikee.service`、`deploy/systemd/tikee.env`、`deploy/bare-metal/check-config.sh`。
+- P0 部署与运维 bootstrap 已补齐 Compose/systemd/裸机模板：`deploy/compose/tikeo.env.example`、`deploy/systemd/tikeo.service`、`deploy/systemd/tikeo.env`、`deploy/bare-metal/check-config.sh`。
 - 根 `docker-compose.yml` 支持镜像、端口和数据卷通过环境变量覆盖，便于本地生产化试跑。
 - 新增 `scripts/verify-deploy-bootstrap.sh` 静态校验；Helm 继续后置到外部 DB、secret、网关和 TLS 生产参数稳定后。
 
@@ -1096,8 +1096,8 @@ Verification evidence:
 
 - P0 生产告警投递硬化已补齐：Email channel 支持 `smtps://` / `smtp+starttls://`、AUTH LOGIN、`smtp_url_secret_ref` 与 `password_secret_ref` 环境变量引用；明文 `smtp://` 仅保留 loopback smoke 场景。
 - 告警投递状态 API 增强为返回脱敏 target 与 transport security；新增 `GET /api/v1/alert-delivery-attempts:queue-status` 汇总 delivered/retry_pending/dead_letter/retry_consumed 并返回最近 DLQ。
-- Web 新增“告警投递”运维页面，展示 retry/DLQ 汇总与最近 DLQ 明细；Compose/systemd env 模板补充 `TIKEE_ALERT_SECRET_` secret ref 约定。
-- 验证：`cargo test -p tikee-server alert::`、`cargo test -p tikee-server http::tests::alert`、`cargo test -p tikee-config --lib`、`cargo clippy -p tikee-server --all-targets --all-features -- -D warnings`、`cargo clippy -p tikee-config --all-targets --all-features -- -D warnings`、`cd web && bun run typecheck && bun run lint && bun test src/pages/__tests__/AlertDeliveryPage.test.tsx`。
+- Web 新增“告警投递”运维页面，展示 retry/DLQ 汇总与最近 DLQ 明细；Compose/systemd env 模板补充 `TIKEO_ALERT_SECRET_` secret ref 约定。
+- 验证：`cargo test -p tikeo-server alert::`、`cargo test -p tikeo-server http::tests::alert`、`cargo test -p tikeo-config --lib`、`cargo clippy -p tikeo-server --all-targets --all-features -- -D warnings`、`cargo clippy -p tikeo-config --all-targets --all-features -- -D warnings`、`cd web && bun run typecheck && bun run lint && bun test src/pages/__tests__/AlertDeliveryPage.test.tsx`。
 
 ## 2026-05-25 P0 completion checkpoint
 
@@ -1113,8 +1113,8 @@ Verification evidence:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
 - `cargo test --workspace --all-features` passed.
 - `cargo build --workspace --all-features` passed.
-- `cargo run -- --help >/tmp/tikee-help.out` passed.
-- Targeted release-gate tests passed: `cargo test -p tikee-server script_release_gate_preview --all-features`; `cargo test -p tikee-server script_publish_blocks_legacy_dangerous_policy_snapshot --all-features`.
+- `cargo run -- --help >/tmp/tikeo-help.out` passed.
+- Targeted release-gate tests passed: `cargo test -p tikeo-server script_release_gate_preview --all-features`; `cargo test -p tikeo-server script_publish_blocks_legacy_dangerous_policy_snapshot --all-features`.
 
 ### 2026-05-25 — P1 script signature local verification boundary
 - Added `script_governance.release_signature_secret_ref` configuration, disabled by default so approval/signature metadata remains fail-closed unless an operator explicitly configures verification.
@@ -1126,7 +1126,7 @@ Verification evidence:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
 - `cargo test --workspace --all-features` passed.
 - `cargo build --workspace --all-features` passed.
-- `cargo run -- --help >/tmp/tikee-help.out` passed.
+- `cargo run -- --help >/tmp/tikeo-help.out` passed.
 
 ### 2026-05-25 — P1 script release signature metadata persistence
 - Persisted verified script release signature metadata on the release pointer: approval ticket, signature digest, verification timestamp, and verifier identity.
@@ -1139,7 +1139,7 @@ Verification evidence:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
 - `cargo test --workspace --all-features` passed.
 - `cargo build --workspace --all-features` passed.
-- `cargo run -- --help >/tmp/tikee-help.out` passed.
+- `cargo run -- --help >/tmp/tikeo-help.out` passed.
 - `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.
 
 ### 2026-05-25 — P1 script release grant payload boundary
@@ -1153,7 +1153,7 @@ Verification evidence:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
 - `cargo test --workspace --all-features` passed.
 - `cargo build --workspace --all-features` passed.
-- `cargo run -- --help >/tmp/tikee-help.out` passed.
+- `cargo run -- --help >/tmp/tikeo-help.out` passed.
 - `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.
 
 ### 2026-05-25 — P1 script release grant evidence persistence
@@ -1167,7 +1167,7 @@ Verification evidence:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
 - `cargo test --workspace --all-features` passed.
 - `cargo build --workspace --all-features` passed.
-- `cargo run -- --help >/tmp/tikee-help.out` passed.
+- `cargo run -- --help >/tmp/tikeo-help.out` passed.
 - `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.
 
 ### 2026-05-25 — P1 local signed release grants
@@ -1182,7 +1182,7 @@ Verification evidence:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
 - `cargo test --workspace --all-features` passed.
 - `cargo build --workspace --all-features` passed.
-- `cargo run -- --help >/tmp/tikee-help.out` passed.
+- `cargo run -- --help >/tmp/tikeo-help.out` passed.
 - `cd web && bun run typecheck && bun run lint && bun test && bun run build` passed.
 
 ## 2026-05-25 — P1 Worker runtime grant enforcement
@@ -1193,19 +1193,19 @@ Verification evidence:
 ## 2026-05-25 — P1 OIDC tenant scope mapping
 - Added governed OIDC identity mapping APIs (`/api/v1/oidc-identities`) for issuer+subject -> local user plus namespace/app/worker-pool scope bindings.
 - OIDC session responses now include scope metadata, matching `/auth/me`, so UI can show tenant-limited sessions immediately after callback.
-- Scopes page now manages OIDC mappings with fail-closed copy: unmapped external subjects cannot obtain local tikee sessions.
+- Scopes page now manages OIDC mappings with fail-closed copy: unmapped external subjects cannot obtain local tikeo sessions.
 
 ## 2026-05-25 — P1 Prometheus/Grafana recording-rule validation
 - Added Prometheus recording rules and scrape config under `observability/prometheus/`.
 - Added optional Compose observability profile for local Prometheus scrape/rule smoke.
-- Updated Grafana dashboard SLO panels to query stable `tikee:*` recording series and added regression coverage for dashboard/rule coherence.
+- Updated Grafana dashboard SLO panels to query stable `tikeo:*` recording series and added regression coverage for dashboard/rule coherence.
 
 ## 2026-05-25 — P1 Go SDK dry-run foundation
-- Added independent Go SDK module under `sdks/go/tikee` with config validation, registration/heartbeat message shapes, processor/outcome interfaces, official Go gRPC/protobuf dependency boundary, vendored Worker Tunnel proto, and dry-run client tests.
+- Added independent Go SDK module under `sdks/go/tikeo` with config validation, registration/heartbeat message shapes, processor/outcome interfaces, official Go gRPC/protobuf dependency boundary, vendored Worker Tunnel proto, and dry-run client tests.
 - Added standalone Go worker demo under `examples/go/worker-demo`; no server Dockerfile coupling and no generated protobuf dependency yet.
 
 ### 2026-05-25 P1 Go SDK official gRPC/protobuf foundation
-- Added Go SDK foundation under `sdks/go/tikee` with official `google.golang.org/grpc` ClientConn creation, official protobuf/grpc generated Worker Tunnel bindings, endpoint normalization, dry-run registration/heartbeat/task interfaces, and standalone demo tests.
+- Added Go SDK foundation under `sdks/go/tikeo` with official `google.golang.org/grpc` ClientConn creation, official protobuf/grpc generated Worker Tunnel bindings, endpoint normalization, dry-run registration/heartbeat/task interfaces, and standalone demo tests.
 - User explicitly deferred Python and Node.js SDKs; next SDK slice should stay on Go Worker Tunnel run-loop ergonomics.
 
 ### 2026-05-25 Phase4 P0 Worker lifecycle transport evidence
@@ -1220,7 +1220,7 @@ Verification evidence:
 
 - 2026-05-27 09:51: Removed raw WASM from Web script create/edit language options. Direct language=wasm remains documented as a historical/low-level compatibility path, while normal scripts use sandbox.backend auto/wasmtime/wasmedge/srt/deno/v8/docker/podman/custom instead of WASM as a script type.
 
-- 2026-05-27 09:54: Added local dev seed script examples and API jobs for every Web script language enum: shell, python, javascript, typescript, powershell, and rhai. Applied scripts/dev-seed.sh to tikee-dev.db and verified six script_language_examples plus six script_jobs.
+- 2026-05-27 09:54: Added local dev seed script examples and API jobs for every Web script language enum: shell, python, javascript, typescript, powershell, and rhai. Applied scripts/dev-seed.sh to tikeo-dev.db and verified six script_language_examples plus six script_jobs.
 
 - 2026-05-27 12:55: Changed script dispatch matching to unified worker capability `script` so Python/JavaScript/TypeScript/etc. are dispatched to script-capable workers instead of being blocked by missing `script:<language>` capability. Legacy `script:<language>`, `script:*`, and `*` remain compatible for normal scripts; direct WASM modules still require `script:wasm`. Worker-side sandbox selection remains based on binding language plus sandbox.backend.
 
@@ -1236,23 +1236,23 @@ Verification evidence:
 - Server + Web + Java SDK/Demo 自动化联调测试当前为可验收状态；真实浏览器 screenshot/video CI 产物属于后续增强，不再作为当前测试闭环阻塞项。
 
 ### 2026-06-02 — Java SDK Spring Boot starter compatibility corrected
-- Main `tikee-spring-boot-starter` remains the Spring Boot 4.x starter.
-- Added compatibility modules: `tikee-spring5`, `tikee-spring6`, `tikee-spring-boot2-starter`, and `tikee-spring-boot3-starter`.
-- All Java SDK modules compile with `--release 17`; Spring demo validates Boot 3.x through `tikee-spring-boot3-starter`.
+- Main `tikeo-spring-boot-starter` remains the Spring Boot 4.x starter.
+- Added compatibility modules: `tikeo-spring5`, `tikeo-spring6`, `tikeo-spring-boot2-starter`, and `tikeo-spring-boot3-starter`.
+- All Java SDK modules compile with `--release 17`; Spring demo validates Boot 3.x through `tikeo-spring-boot3-starter`.
 
 ### 2026-06-02 — Java compat modules have real source boundaries
 - Boot 2/3 compatibility modules now contain explicit `src/main` and `src/test` directories instead of relying on hidden Gradle source-set indirection.
 - Full Java SDK and Spring demo tests pass with the explicit module layout.
 
 ### 2026-06-02 — Java demo 补齐 Spring Boot starter 兼容用例
-- Java Spring Worker Demo 新增 `SpringBootStarterCompatibilityMatrixTest`，明确覆盖 Boot3 demo 使用 `tikee-spring-boot3-starter` 的用例。
+- Java Spring Worker Demo 新增 `SpringBootStarterCompatibilityMatrixTest`，明确覆盖 Boot3 demo 使用 `tikeo-spring-boot3-starter` 的用例。
 - 用例同时检查 SDK 层 Boot2/Boot3/Boot4 starter 与 Spring5/Spring6 adapter 都是带真实源码/测试/资源元数据的模块，避免空模块或 Gradle sourceSet 伪兼容。
 - Demo README 已补充 starter 兼容矩阵与测试项说明。
 - 验证：`cd examples/java/spring-worker-demo && ./gradlew clean test --no-daemon`；`cd sdks/java && ./gradlew clean test --no-daemon`；`git diff --check -- examples/java/spring-worker-demo sdks/java .memory`。
 
 ### 2026-06-02 — Java demo 按 Spring Boot 2/3/4 独立拆分
 - `examples/java` 下新增三个独立 demo：`spring-boot2-worker-demo`、`spring-boot3-worker-demo`、`spring-boot4-worker-demo`。
-- 每个 demo 独立 Gradle 工程/工作目录，分别依赖 `tikee-spring-boot2-starter`、`tikee-spring-boot3-starter`、`tikee-spring-boot-starter`，并保留 processor、worker lifecycle、management API、script/API/plugin 用例测试。
+- 每个 demo 独立 Gradle 工程/工作目录，分别依赖 `tikeo-spring-boot2-starter`、`tikeo-spring-boot3-starter`、`tikeo-spring-boot-starter`，并保留 processor、worker lifecycle、management API、script/API/plugin 用例测试。
 - Boot2 demo 使用 Spring Boot 2.7 BOM 方式规避 Boot2 Gradle plugin 与当前 Gradle 9.5.1 API 冲突，但仍是标准 Spring Boot 2 应用与 `@SpringBootTest` 用例。
 - 验证：三套 demo 均在各自目录执行 `./gradlew clean test --no-daemon` 通过。
 
@@ -1285,14 +1285,14 @@ Verification evidence:
 
 
 ### 2026-06-05 — Storage migration versioning hardening
-- Moved SQLite legacy/dev schema compatibility out of the untracked `connect_and_migrate` post-hook and into the explicit SeaORM migration `crates/tikee-storage/src/migration/sqlite_compat.rs`.
+- Moved SQLite legacy/dev schema compatibility out of the untracked `connect_and_migrate` post-hook and into the explicit SeaORM migration `crates/tikeo-storage/src/migration/sqlite_compat.rs`.
 - `connect_and_migrate` now relies on `migration::Migrator::up` only; schema compatibility upgrades are persisted in `seaql_migrations` as `sqlite_compat`.
 - Split SQLite foreign-key soft-link rebuild helpers into `migration/sqlite_compat/foreign_keys.rs`, keeping touched source files under the 1500-line rule.
 - Added regression coverage proving `sqlite_compat` is recorded and old SQLite dev DB shapes still get scope tables before indexes.
 Verification evidence:
-- `cargo test -p tikee-storage sqlite_schema_compatibility_upgrade_is_tracked_as_versioned_migration -- --nocapture` passed.
-- `cargo test -p tikee-storage sqlite_compatibility_creates_scope_tables_before_indexes_for_existing_dev_db -- --nocapture` passed.
-- `cargo test -p tikee-storage -- --nocapture` passed.
+- `cargo test -p tikeo-storage sqlite_schema_compatibility_upgrade_is_tracked_as_versioned_migration -- --nocapture` passed.
+- `cargo test -p tikeo-storage sqlite_compatibility_creates_scope_tables_before_indexes_for_existing_dev_db -- --nocapture` passed.
+- `cargo test -p tikeo-storage -- --nocapture` passed.
 - `scripts/db-compat-smoke.sh` passed with SQLite + Docker PostgreSQL/MySQL.
 
 - CI policy guard remains clean: `python3 .github/tests/workflow_contract_test.py` passed; `scripts/verify-github-actions-node-runtime.py --min-node-major 24` reported 13 external actions with no runtime below node24.

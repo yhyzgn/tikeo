@@ -6,7 +6,7 @@ Close the local end-to-end dispatch latency observability gap by exposing comple
 ## Scope
 - Extend `DispatchQueueSloSummary` with completed dispatch count plus average/longest dispatch latency seconds.
 - Treat terminal dispatch queue rows (`done` / `failed`) as completed dispatches and calculate latency from queue creation to terminal update time.
-- Record `tikee_dispatch_queue_dispatch_latency_seconds` histogram snapshots and a completed dispatch gauge during `GET /api/v1/metrics/summary`.
+- Record `tikeo_dispatch_queue_dispatch_latency_seconds` histogram snapshots and a completed dispatch gauge during `GET /api/v1/metrics/summary`.
 - Update the Phase 3 Grafana template and regression coverage to include the dispatch latency metric.
 
 ## Out of scope

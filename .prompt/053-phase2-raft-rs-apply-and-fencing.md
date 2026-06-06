@@ -7,10 +7,10 @@ Completed raft-rs Phase2 safe slices:
 - inbound `/api/v1/raft/append-entries` validation -> `eraftpb::Message` conversion -> runtime inbox submission;
 - 100ms `RawNode::tick()` runtime loop;
 - Ready persistence order skeleton: HardState -> log entries -> snapshot -> outbound messages -> `advance()`;
-- outbound HTTP skeleton: Ready messages serialize back to the existing wire DTO, target configured peer endpoints via `/api/v1/raft/append-entries`, and optionally carry `x-tikee-raft-token` from `cluster.transport_token`.
+- outbound HTTP skeleton: Ready messages serialize back to the existing wire DTO, target configured peer endpoints via `/api/v1/raft/append-entries`, and optionally carry `x-tikeo-raft-token` from `cluster.transport_token`.
 
 ## Hard safety rule
-Do **not** enable raft-mode scheduling from role alone. `ClusterRole::Leader` is not enough. `can_schedule=true` is allowed only after a leader fencing token is generated, persisted in `raft_metadata.leader_fencing_token`, and consumed by tikee/dispatcher ownership gates.
+Do **not** enable raft-mode scheduling from role alone. `ClusterRole::Leader` is not enough. `can_schedule=true` is allowed only after a leader fencing token is generated, persisted in `raft_metadata.leader_fencing_token`, and consumed by tikeo/dispatcher ownership gates.
 
 ## Completed in 053
 1. Implemented Ready committed-entry apply bookkeeping with `advance_append` / `advance_apply_to`.

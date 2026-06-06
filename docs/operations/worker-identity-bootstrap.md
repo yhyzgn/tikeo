@@ -1,6 +1,6 @@
 # Worker identity bootstrap
 
-Tikee workers always initiate outbound gRPC to the Worker Tunnel. A worker must not expose a business inbound port just to receive scheduled work.
+Tikeo workers always initiate outbound gRPC to the Worker Tunnel. A worker must not expose a business inbound port just to receive scheduled work.
 
 ## Identity layers
 
@@ -36,21 +36,21 @@ cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
 For Spring Boot workers the same values map naturally to properties:
 
 ```yaml
-tikee:
+tikeo:
   worker:
-    endpoint: ${TIKEE_WORKER_ENDPOINT:http://127.0.0.1:9998}
-    client-instance-id: ${TIKEE_WORKER_INSTANCE_ID:billing-worker@host-a#slot-1}
-    namespace: ${TIKEE_WORKER_NAMESPACE:default}
-    app: ${TIKEE_WORKER_APP:default}
-    cluster: ${TIKEE_WORKER_CLUSTER:local}
-    region: ${TIKEE_WORKER_REGION:local}
+    endpoint: ${TIKEO_WORKER_ENDPOINT:http://127.0.0.1:9998}
+    client-instance-id: ${TIKEO_WORKER_INSTANCE_ID:billing-worker@host-a#slot-1}
+    namespace: ${TIKEO_WORKER_NAMESPACE:default}
+    app: ${TIKEO_WORKER_APP:default}
+    cluster: ${TIKEO_WORKER_CLUSTER:local}
+    region: ${TIKEO_WORKER_REGION:local}
     labels:
-      worker_pool: ${TIKEE_WORKER_POOL:default}
+      worker_pool: ${TIKEO_WORKER_POOL:default}
 ```
 
 ## Smoke path
 
-1. Start tikee server and web via Compose or systemd.
+1. Start tikeo server and web via Compose or systemd.
 2. Run `deploy/smoke/worker-bootstrap-smoke.sh` to verify `/readyz`.
 3. Run a worker demo with the same env file.
 4. Open Worker UI and confirm sessions appear under lifecycle history by logical id and generation.

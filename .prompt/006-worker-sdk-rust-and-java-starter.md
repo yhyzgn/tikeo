@@ -9,7 +9,7 @@
 
 ## 当前上下文
 
-- Worker 必须主动出站连接 tikee，不要求业务应用暴露入站端口。
+- Worker 必须主动出站连接 tikeo，不要求业务应用暴露入站端口。
 - Worker Tunnel 当前默认监听 `0.0.0.0:9998`。
 - HTTP 默认监听 `0.0.0.0:9090`。
 - 存储层已使用 SeaORM 1.1.20 稳定线，支持 SQLite dev DB 和 MySQL feature-enabled migration。
@@ -18,10 +18,10 @@
 
 ## Java SDK 硬性约束
 
-- Java SDK 优先提供 `tikee-spring-boot-starter`。
-- 业务侧应通过 Spring Boot auto-configuration 和 `@TikeeProcessor` 注解接入。
-- Java Worker 必须主动连接 tikee Worker Tunnel，不得要求业务应用暴露入站端口。
-- 需要规划 `tikee`、`tikee-spring`、`tikee-spring-boot-starter`。
+- Java SDK 优先提供 `tikeo-spring-boot-starter`。
+- 业务侧应通过 Spring Boot auto-configuration 和 `@TikeoProcessor` 注解接入。
+- Java Worker 必须主动连接 tikeo Worker Tunnel，不得要求业务应用暴露入站端口。
+- 需要规划 `tikeo`、`tikeo-spring`、`tikeo-spring-boot-starter`。
 
 ## 验证
 

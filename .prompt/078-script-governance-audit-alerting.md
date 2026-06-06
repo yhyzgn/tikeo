@@ -1,7 +1,7 @@
 # 078 — Script governance audit and alerting follow-up
 
 ## Context
-Phase 077 added script execution governance visibility after the tikee rename. The dispatcher and Worker result path now classify script execution governance failures into instance logs with `event=script_execution_governance` and `failure_class` values for no eligible worker capability, missing worker runner, policy rejection, digest mismatch, timeout, output limit, and runtime unavailable. Rust SDK `TaskOutcome::failure_class()` wraps recognized script failure results as JSON before reporting them to Server.
+Phase 077 added script execution governance visibility after the tikeo rename. The dispatcher and Worker result path now classify script execution governance failures into instance logs with `event=script_execution_governance` and `failure_class` values for no eligible worker capability, missing worker runner, policy rejection, digest mismatch, timeout, output limit, and runtime unavailable. Rust SDK `TaskOutcome::failure_class()` wraps recognized script failure results as JSON before reporting them to Server.
 
 The Server still never executes user scripts. Dynamic scripts execute only on Worker-side opt-in runners and only from released immutable `script_versions` snapshots.
 
@@ -24,13 +24,13 @@ The Server still never executes user scripts. Dynamic scripts execute only on Wo
 - `cargo test --workspace --all-features`
 - `cargo run -- --help`
 - `cd web && bun run typecheck && bun test && bun run build`
-- `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`
-- `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`
-- `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`
+- `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml`
+- `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm`
+- `cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings`
 - `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`
 
 ## Completion notes
-- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, `.memory/risks.md` if any risk changes.
+- Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, `.memory/risks.md` if any risk changes.
 - Create the next `.prompt/079-*.md` before commit.
 - Mark completed roadmap items in `design/` using `[x]` only, no ✅.
 - Commit with Lore trailers and push.

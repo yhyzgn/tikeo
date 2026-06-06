@@ -13,7 +13,7 @@ import (
 
 const GitOpsDiffPath = "/api/v1/gitops/diff"
 
-type TikeeClient struct {
+type TikeoClient struct {
 	Endpoint string
 	Token    string
 	HTTP     *http.Client
@@ -26,10 +26,10 @@ type DiffResponse struct {
 	Changes         []map[string]any  `json:"changes"`
 }
 
-func (c TikeeClient) Diff(ctx context.Context, manifest []byte) (*DiffResponse, error) {
+func (c TikeoClient) Diff(ctx context.Context, manifest []byte) (*DiffResponse, error) {
 	endpoint := strings.TrimRight(strings.TrimSpace(c.Endpoint), "/")
-	if endpoint == "" { return nil, fmt.Errorf("tikee endpoint is required") }
-	if strings.TrimSpace(c.Token) == "" { return nil, fmt.Errorf("tikee api token is required") }
+	if endpoint == "" { return nil, fmt.Errorf("tikeo endpoint is required") }
+	if strings.TrimSpace(c.Token) == "" { return nil, fmt.Errorf("tikeo api token is required") }
 	var candidate map[string]any
 	if err := json.Unmarshal(manifest, &candidate); err != nil { return nil, fmt.Errorf("spec.manifest must be JSON object: %w", err) }
 	body, err := json.Marshal(map[string]json.RawMessage{"manifest": manifest})
@@ -45,13 +45,13 @@ func (c TikeeClient) Diff(ctx context.Context, manifest []byte) (*DiffResponse, 
 	defer response.Body.Close()
 	payload, err := io.ReadAll(response.Body)
 	if err != nil { return nil, err }
-	if response.StatusCode < 200 || response.StatusCode >= 300 { return nil, fmt.Errorf("tikee diff returned %s: %s", response.Status, string(payload)) }
+	if response.StatusCode < 200 || response.StatusCode >= 300 { return nil, fmt.Errorf("tikeo diff returned %s: %s", response.Status, string(payload)) }
 	var envelope struct {
 		Code int `json:"code"`
 		Message string `json:"message"`
 		Data DiffResponse `json:"data"`
 	}
 	if err := json.Unmarshal(payload, &envelope); err != nil { return nil, err }
-	if envelope.Code != 0 { return nil, fmt.Errorf("tikee diff returned code %d: %s", envelope.Code, envelope.Message) }
+	if envelope.Code != 0 { return nil, fmt.Errorf("tikeo diff returned code %d: %s", envelope.Code, envelope.Message) }
 	return &envelope.Data, nil
 }

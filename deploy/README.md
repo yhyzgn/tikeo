@@ -1,4 +1,4 @@
-# tikee deployment bootstrap
+# tikeo deployment bootstrap
 
 P0 deployment support focuses on service usability for Docker Compose, systemd, and bare-metal/VM hosts. Helm remains deferred until external DB, gateway, secrets, and TLS parameters stabilize.
 
@@ -14,20 +14,20 @@ P0 deployment support focuses on service usability for Docker Compose, systemd, 
 
 ```bash
 # Compose with the root docker-compose.yml plus production-minded env file
-cp deploy/compose/tikee.env.example .env
+cp deploy/compose/tikeo.env.example .env
 DOCKER_BUILDKIT=1 docker compose --env-file .env up -d --build
 
 # Readiness and worker bootstrap smoke
-TIKEE_HTTP_URL=http://127.0.0.1:9090 ./deploy/smoke/worker-bootstrap-smoke.sh
+TIKEO_HTTP_URL=http://127.0.0.1:9090 ./deploy/smoke/worker-bootstrap-smoke.sh
 
 # Bare metal config check
 ./deploy/bare-metal/check-config.sh config/dev.toml
 
 # systemd server install sketch
-sudo install -m 0755 target/release/tikee /opt/tikee/bin/tikee
-sudo install -m 0644 deploy/systemd/tikee.env /etc/tikee/tikee.env
-sudo install -m 0644 deploy/systemd/tikee.service /etc/systemd/system/tikee.service
-sudo systemctl daemon-reload && sudo systemctl enable --now tikee
+sudo install -m 0755 target/release/tikeo /opt/tikeo/bin/tikeo
+sudo install -m 0644 deploy/systemd/tikeo.env /etc/tikeo/tikeo.env
+sudo install -m 0644 deploy/systemd/tikeo.service /etc/systemd/system/tikeo.service
+sudo systemctl daemon-reload && sudo systemctl enable --now tikeo
 ```
 
 Worker identity guidance lives in `docs/operations/worker-identity-bootstrap.md`.

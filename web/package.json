@@ -1,5 +1,5 @@
 {
-  "name": "tikee-web",
+  "name": "tikeo-web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty false",
-    "test": "bun test",
+    "test": "bun test src",
     "e2e": "playwright test"
   },
   "dependencies": {

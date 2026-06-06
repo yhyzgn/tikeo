@@ -5,10 +5,10 @@ Phase 3 Web governance is complete through route metadata, lazy loading, unified
 
 ## Required next work
 1. Design the WASM sandbox processor boundary before broad dynamic language execution.
-2. Evaluate a Rust WASM runtime crate suitable for tikee worker-side execution with resource limits, timeout, memory cap, env/input isolation, and no ambient network/filesystem by default.
+2. Evaluate a Rust WASM runtime crate suitable for tikeo worker-side execution with resource limits, timeout, memory cap, env/input isolation, and no ambient network/filesystem by default.
 3. Add a minimal backend/core processor model extension only if needed; keep server entrypoint outside `crates/` and keep SDKs independently publishable.
 4. Preserve API envelope `{ code, message, data }` and the no-foreign-key database rule.
-5. Update `design/tikee-architecture-design.md`, `.memory/*`, and create `.prompt/067-*.md`.
+5. Update `design/tikeo-architecture-design.md`, `.memory/*`, and create `.prompt/067-*.md`.
 6. Run verification appropriate to changed code (`cargo fmt/clippy/test`, web checks if touched), commit with Lore-style trailers, and push.
 
 ## Notes

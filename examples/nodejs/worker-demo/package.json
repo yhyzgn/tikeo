@@ -1,5 +1,5 @@
 {
-  "name": "@yhyzgn/tikee-nodejs-worker-demo",
+  "name": "@yhyzgn/tikeo-nodejs-worker-demo",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,7 +8,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@yhyzgn/tikee": "file:../../../sdks/nodejs/tikee"
+    "@yhyzgn/tikeo": "file:../../../sdks/nodejs/tikeo"
   },
   "devDependencies": {
     "@types/bun": "latest",

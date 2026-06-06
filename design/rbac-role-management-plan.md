@@ -28,12 +28,12 @@
 
 | 领域 | 现状 | 代码位置 |
 | --- | --- | --- |
-| 角色/权限表 | 已有 `roles`、`permissions`、`role_permissions`，无外键 | `crates/tikee-storage/src/entities/role.rs`, `role_permission.rs`, `migration/mod.rs` |
-| 默认角色 | 迁移里 seed `owner/operator/viewer`；`admin` 不再作为内置默认角色 | `crates/tikee-storage/src/migration/mod.rs` |
-| 用户角色 | `users.role` 单字符串；`CreateUser/UpdateUser/UserSummary` 也是单角色 | `crates/tikee-storage/src/repository/user.rs` |
-| RBAC 查询 | `RbacRepository::permissions_for_role(s)` 只读，无角色 CRUD | `crates/tikee-storage/src/repository/auth.rs` |
-| 用户 API | 角色从角色 catalog 动态校验 enabled role，不再硬编码 owner/admin/operator/viewer | `crates/tikee-server/src/http/routes/users.rs` |
-| 服务端鉴权 | 仅 `bootstrap_admin` 结构化身份绕过；普通角色均走权限矩阵 | `crates/tikee-server/src/http/services.rs` |
+| 角色/权限表 | 已有 `roles`、`permissions`、`role_permissions`，无外键 | `crates/tikeo-storage/src/entities/role.rs`, `role_permission.rs`, `migration/mod.rs` |
+| 默认角色 | 迁移里 seed `owner/operator/viewer`；`admin` 不再作为内置默认角色 | `crates/tikeo-storage/src/migration/mod.rs` |
+| 用户角色 | `users.role` 单字符串；`CreateUser/UpdateUser/UserSummary` 也是单角色 | `crates/tikeo-storage/src/repository/user.rs` |
+| RBAC 查询 | `RbacRepository::permissions_for_role(s)` 只读，无角色 CRUD | `crates/tikeo-storage/src/repository/auth.rs` |
+| 用户 API | 角色从角色 catalog 动态校验 enabled role，不再硬编码 owner/admin/operator/viewer | `crates/tikeo-server/src/http/routes/users.rs` |
+| 服务端鉴权 | 仅 `bootstrap_admin` 结构化身份绕过；普通角色均走权限矩阵 | `crates/tikeo-server/src/http/services.rs` |
 | 前端鉴权 | `principal.bootstrapAdmin` 结构化 bypass；菜单按服务端 menuKeys + route fallback 过滤 | `web/src/components/AuthGuard.tsx`, `web/src/routes.tsx` |
 | 用户页面 | 用户创建/编辑角色下拉从角色 API 动态加载 | `web/src/pages/UsersPage.tsx` |
 | i18n | 已有独立语言文件，新增文案必须进入 locale 文件 | `web/src/i18n/locales/zh-CN.ts`, `en-US.ts` |
@@ -101,10 +101,10 @@
 
 | 阶段 | 任务 | 主要文件 | 验收标准 | 状态 |
 | --- | --- | --- | --- | --- |
-| A | 数据模型与迁移 | `crates/tikee-storage/src/entities/*`, `migration/*`, `sqlite_compat.rs` | 新增 role 字段、`user_roles`、菜单权限关联、UI 操作元素权限关联；现有 `users.role` 自动回填；SQLite 兼容测试通过 | 已完成 |
-| A | RBAC Repository 拆分 | `crates/tikee-storage/src/repository/rbac.rs` | 提供角色 CRUD、权限 catalog、角色权限更新、菜单/UI action 查询；避免 auth.rs 继续膨胀 | 已完成 |
-| B | DTO/OpenAPI | `crates/tikee-server/src/http/dto.rs`, `openapi.rs` | 增加 `RoleSummary`、`PermissionCatalogItem`、`MenuPermissionItem`、角色创建/更新请求 | 已完成 |
-| B | 角色 API | `crates/tikee-server/src/http/routes/roles.rs`, `router.rs` | `GET/POST/PATCH/DELETE /api/v1/roles`、权限/menu/UI action catalog、角色权限全量替换；审计覆盖 | 已完成 |
+| A | 数据模型与迁移 | `crates/tikeo-storage/src/entities/*`, `migration/*`, `sqlite_compat.rs` | 新增 role 字段、`user_roles`、菜单权限关联、UI 操作元素权限关联；现有 `users.role` 自动回填；SQLite 兼容测试通过 | 已完成 |
+| A | RBAC Repository 拆分 | `crates/tikeo-storage/src/repository/rbac.rs` | 提供角色 CRUD、权限 catalog、角色权限更新、菜单/UI action 查询；避免 auth.rs 继续膨胀 | 已完成 |
+| B | DTO/OpenAPI | `crates/tikeo-server/src/http/dto.rs`, `openapi.rs` | 增加 `RoleSummary`、`PermissionCatalogItem`、`MenuPermissionItem`、角色创建/更新请求 | 已完成 |
+| B | 角色 API | `crates/tikeo-server/src/http/routes/roles.rs`, `router.rs` | `GET/POST/PATCH/DELETE /api/v1/roles`、权限/menu/UI action catalog、角色权限全量替换；审计覆盖 | 已完成 |
 | B | 用户 API 对齐 | `routes/users.rs`, `session.rs`, `auth.rs`, `services.rs` | 用户创建/编辑使用 managed enabled role；bootstrapAdmin 结构化 bypass；角色变更撤销 session | 已完成 |
 | C | Web API client | `web/src/api/client.ts`, `client.test.ts` | 角色/权限/menu/UI action catalog API 类型完整；bun 测试覆盖既有 client 契约 | 已完成 |
 | C | 角色页面 | `web/src/pages/RolesPage.tsx`, `routes.tsx`, `AppShell.tsx` | 治理菜单新增角色；角色列表、抽屉、后端权限矩阵、菜单矩阵、UI 操作元素矩阵可编辑 | 已完成 |

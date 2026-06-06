@@ -2,16 +2,16 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-# shellcheck source=deploy/smoke/lib/tikee-smoke-lib.sh
-source "$ROOT_DIR/deploy/smoke/lib/tikee-smoke-lib.sh"
+# shellcheck source=deploy/smoke/lib/tikeo-smoke-lib.sh
+source "$ROOT_DIR/deploy/smoke/lib/tikeo-smoke-lib.sh"
 
-API_URL="${TIKEE_HTTP_URL:-http://127.0.0.1:19090}"
-WORKER_ENDPOINT="${TIKEE_WORKER_ENDPOINT:-http://127.0.0.1:19998}"
-WEB_URL="${TIKEE_WEB_URL:-http://127.0.0.1:15173}"
+API_URL="${TIKEO_HTTP_URL:-http://127.0.0.1:19090}"
+WORKER_ENDPOINT="${TIKEO_WORKER_ENDPOINT:-http://127.0.0.1:19998}"
+WEB_URL="${TIKEO_WEB_URL:-http://127.0.0.1:15173}"
 WEB_PORT="${WEB_URL##*:}"
 WEB_PORT="${WEB_PORT%%/*}"
-REPORT_DIR="${TIKEE_JOINT_REPORT_DIR:-$TIKEE_SMOKE_REPORT_DIR}"
-RUN_ID="${TIKEE_JOINT_RUN_ID:-joint-e2e-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+REPORT_DIR="${TIKEO_JOINT_REPORT_DIR:-$TIKEO_SMOKE_REPORT_DIR}"
+RUN_ID="${TIKEO_JOINT_RUN_ID:-joint-e2e-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 SERVER_LOG="$REPORT_DIR/${RUN_ID}-server.log"
 WEB_LOG="$REPORT_DIR/${RUN_ID}-web.log"
 JAVA_A_LOG="$REPORT_DIR/${RUN_ID}-java-a.log"
@@ -25,9 +25,9 @@ JAVA_B_PID=""
 STARTED_JAVA_PID=""
 OWN_SERVER=0
 OWN_WEB=0
-DEMO_NAMESPACE="${TIKEE_JOINT_DEMO_NAMESPACE:-dev-alpha}"
-DEMO_APP="${TIKEE_JOINT_DEMO_APP:-orders}"
-DEMO_WORKER_POOL="${TIKEE_JOINT_DEMO_WORKER_POOL:-boot3-blue}"
+DEMO_NAMESPACE="${TIKEO_JOINT_DEMO_NAMESPACE:-dev-alpha}"
+DEMO_APP="${TIKEO_JOINT_DEMO_APP:-orders}"
+DEMO_WORKER_POOL="${TIKEO_JOINT_DEMO_WORKER_POOL:-boot3-blue}"
 mkdir -p "$REPORT_DIR"
 
 cleanup() {
@@ -68,11 +68,11 @@ need_cmd bun
 need_cmd fuser
 
 api() {
-  tikee_smoke_api "$API_URL" "$@"
+  tikeo_smoke_api "$API_URL" "$@"
 }
 
 api_json_get() {
-  tikee_smoke_api_json_get "$API_URL" "$@"
+  tikeo_smoke_api_json_get "$API_URL" "$@"
 }
 
 json_body() {
@@ -107,7 +107,7 @@ ensure_demo_scope() {
   if ! exists_in_list "/api/v1/worker-pools?namespace=$DEMO_NAMESPACE&app=$DEMO_APP" namespace="$DEMO_NAMESPACE" app="$DEMO_APP" name="$DEMO_WORKER_POOL"; then
     local created pool_id
     created="$(api POST /api/v1/worker-pools "$(json_body namespace="$DEMO_NAMESPACE" app="$DEMO_APP" name="$DEMO_WORKER_POOL")")"
-    pool_id="$(printf '%s' "$created" | tikee_smoke_json_get data.id)"
+    pool_id="$(printf '%s' "$created" | tikeo_smoke_json_get data.id)"
     api PATCH "/api/v1/worker-pools/$pool_id/quota" '{"max_queue_depth":200,"max_concurrency":8}' >/dev/null
   fi
 }
@@ -164,9 +164,9 @@ backoff_seconds = 300
 
 [script_governance]
 CFG
-  (cd "$ROOT_DIR" && cargo run --bin tikee -- serve --config "$config" >"$SERVER_LOG" 2>&1) &
+  (cd "$ROOT_DIR" && cargo run --bin tikeo -- serve --config "$config" >"$SERVER_LOG" 2>&1) &
   SERVER_PID=$!
-  tikee_smoke_wait_for_http server "$API_URL/readyz" 120 || {
+  tikeo_smoke_wait_for_http server "$API_URL/readyz" 120 || {
     tail -n 160 "$SERVER_LOG" >&2 || true
     return 1
   }
@@ -179,7 +179,7 @@ start_web_if_needed() {
   OWN_WEB=1
   (cd "$ROOT_DIR/web" && bun run dev -- --host 127.0.0.1 --port "$WEB_PORT" >"$WEB_LOG" 2>&1) &
   WEB_PID=$!
-  tikee_smoke_wait_for_http web "$WEB_URL" 120 || {
+  tikeo_smoke_wait_for_http web "$WEB_URL" 120 || {
     tail -n 160 "$WEB_LOG" >&2 || true
     return 1
   }
@@ -192,21 +192,21 @@ start_java_demo() {
   local log_file="$4"
   (
     cd "$ROOT_DIR/examples/java/spring-boot3-worker-demo"
-    TIKEE_WORKER_DRY_RUN=false \
-    TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
-    TIKEE_WORKER_NAMESPACE="$DEMO_NAMESPACE" \
-    TIKEE_WORKER_APP="$DEMO_APP" \
-    TIKEE_WORKER_POOL="$DEMO_WORKER_POOL" \
-    TIKEE_DEMO_SERVER_PORT="$port" \
-    TIKEE_WORKER_CLIENT_INSTANCE_ID="$name" \
-    TIKEE_WORKER_STATE_DIR="$REPORT_DIR/$name-state" \
-    TIKEE_WORKER_ELECTION_DOMAIN="joint-default-domain" \
-    TIKEE_WORKER_ELECTION_PRIORITY="$priority" \
-    TIKEE_WORKER_SCRIPTS_ENABLED=false \
+    TIKEO_WORKER_DRY_RUN=false \
+    TIKEO_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
+    TIKEO_WORKER_NAMESPACE="$DEMO_NAMESPACE" \
+    TIKEO_WORKER_APP="$DEMO_APP" \
+    TIKEO_WORKER_POOL="$DEMO_WORKER_POOL" \
+    TIKEO_DEMO_SERVER_PORT="$port" \
+    TIKEO_WORKER_CLIENT_INSTANCE_ID="$name" \
+    TIKEO_WORKER_STATE_DIR="$REPORT_DIR/$name-state" \
+    TIKEO_WORKER_ELECTION_DOMAIN="joint-default-domain" \
+    TIKEO_WORKER_ELECTION_PRIORITY="$priority" \
+    TIKEO_WORKER_SCRIPTS_ENABLED=false \
     exec ./scripts/run-demo-worker.sh >"$log_file" 2>&1
   ) &
   local pid=$!
-  tikee_smoke_wait_for_http "java-$name" "http://127.0.0.1:$port/demo/health" 120 || {
+  tikeo_smoke_wait_for_http "java-$name" "http://127.0.0.1:$port/demo/health" 120 || {
     tail -n 160 "$log_file" >&2 || true
     return 1
   }
@@ -218,7 +218,7 @@ wait_workers_asserted() {
   local min_online="$2"
   local deadline=$((SECONDS + 120))
   until api GET /api/v1/workers > "$output" \
-    && tikee_smoke_assert workers "$output" --min-online "$min_online" --require-sdk-processor demo.echo --require-plugin-processor sql:billing.sql-sync >/dev/null; do
+    && tikeo_smoke_assert workers "$output" --min-online "$min_online" --require-sdk-processor demo.echo --require-plugin-processor sql:billing.sql-sync >/dev/null; do
     if (( SECONDS >= deadline )); then
       echo "timed out waiting for workers assertion min_online=$min_online" >&2
       cat "$output" >&2 || true
@@ -279,8 +279,8 @@ trigger_job() {
 
 main() {
   start_server_if_needed
-  tikee_smoke_login "$API_URL"
-  AUTH_TOKEN="$TIKEE_SMOKE_AUTH_TOKEN"
+  tikeo_smoke_login "$API_URL"
+  AUTH_TOKEN="$TIKEO_SMOKE_AUTH_TOKEN"
   export AUTH_TOKEN
   ensure_demo_scope
   start_web_if_needed
@@ -293,29 +293,29 @@ main() {
   local workers_before master_worker master_client echo_job echo_instance echo_file echo_logs
   workers_before="$REPORT_DIR/${RUN_ID}-workers-before.json"
   wait_workers_asserted "$workers_before" 2
-  tikee_smoke_assert workers "$workers_before" --client-instance spring-demo-worker-a --client-instance spring-demo-worker-b --min-online 2 --require-sdk-processor demo.echo --require-plugin-processor sql:billing.sql-sync >/dev/null
+  tikeo_smoke_assert workers "$workers_before" --client-instance spring-demo-worker-a --client-instance spring-demo-worker-b --min-online 2 --require-sdk-processor demo.echo --require-plugin-processor sql:billing.sql-sync >/dev/null
   master_worker="$(worker_field "$workers_before" master_worker_id)"
   master_client="$(worker_field "$workers_before" master_client_instance_id)"
-  tikee_smoke_record_case joint-worker-election passed "$workers_before" "two Java workers online with exactly one master: $master_client/$master_worker"
+  tikeo_smoke_record_case joint-worker-election passed "$workers_before" "two Java workers online with exactly one master: $master_client/$master_worker"
 
   echo_job="$(create_job echo demo.echo)"
   echo_instance="$(trigger_job "$echo_job" single)"
   echo_file="$REPORT_DIR/${RUN_ID}-${echo_instance}.json"
   echo_logs="$REPORT_DIR/${RUN_ID}-${echo_instance}-logs.json"
-  tikee_smoke_wait_instance_status "$API_URL" "$echo_instance" succeeded "$echo_file" 120
+  tikeo_smoke_wait_instance_status "$API_URL" "$echo_instance" succeeded "$echo_file" 120
   api GET "/api/v1/instances/$echo_instance/logs" > "$echo_logs"
-  tikee_smoke_assert instance "$echo_file" --expected-status succeeded --expected-worker "$master_worker" --min-log-count 1 --logs-file "$echo_logs" --require-log-text demo.echo --forbid-duplicate-logs >/dev/null
-  tikee_smoke_record_case joint-single-master-dispatch passed "$echo_file $echo_logs" "single dispatch executed by current master $master_worker"
+  tikeo_smoke_assert instance "$echo_file" --expected-status succeeded --expected-worker "$master_worker" --min-log-count 1 --logs-file "$echo_logs" --require-log-text demo.echo --forbid-duplicate-logs >/dev/null
+  tikeo_smoke_record_case joint-single-master-dispatch passed "$echo_file $echo_logs" "single dispatch executed by current master $master_worker"
 
   local broadcast_job broadcast_instance broadcast_file broadcast_attempts
   broadcast_job="$(create_job broadcast demo.context)"
   broadcast_instance="$(trigger_job "$broadcast_job" broadcast)"
   broadcast_file="$REPORT_DIR/${RUN_ID}-${broadcast_instance}.json"
   broadcast_attempts="$REPORT_DIR/${RUN_ID}-${broadcast_instance}-attempts.json"
-  tikee_smoke_wait_instance_status "$API_URL" "$broadcast_instance" succeeded "$broadcast_file" 120
+  tikeo_smoke_wait_instance_status "$API_URL" "$broadcast_instance" succeeded "$broadcast_file" 120
   api GET "/api/v1/instances/$broadcast_instance/attempts" > "$broadcast_attempts"
-  tikee_smoke_assert attempts "$broadcast_attempts" --min-attempts 2 --expected-status succeeded >/dev/null
-  tikee_smoke_record_case joint-broadcast-all-workers passed "$broadcast_attempts" "broadcast created successful attempts for both workers"
+  tikeo_smoke_assert attempts "$broadcast_attempts" --min-attempts 2 --expected-status succeeded >/dev/null
+  tikeo_smoke_record_case joint-broadcast-all-workers passed "$broadcast_attempts" "broadcast created successful attempts for both workers"
 
   if [[ "$master_client" == "spring-demo-worker-a" ]]; then
     stop_java_demo "$JAVA_A_PID" "$JAVA_A_PORT"
@@ -335,28 +335,28 @@ main() {
     cat "$workers_after" >&2 || true
     return 1
   fi
-  tikee_smoke_record_case joint-worker-failover passed "$workers_after" "follower promoted to master: $new_master_client/$new_master_worker"
+  tikeo_smoke_record_case joint-worker-failover passed "$workers_after" "follower promoted to master: $new_master_client/$new_master_worker"
 
   failover_job="$(create_job failover-echo demo.echo)"
   failover_instance="$(trigger_job "$failover_job" single)"
   failover_file="$REPORT_DIR/${RUN_ID}-${failover_instance}.json"
   failover_logs="$REPORT_DIR/${RUN_ID}-${failover_instance}-logs.json"
-  tikee_smoke_wait_instance_status "$API_URL" "$failover_instance" succeeded "$failover_file" 120
+  tikeo_smoke_wait_instance_status "$API_URL" "$failover_instance" succeeded "$failover_file" 120
   api GET "/api/v1/instances/$failover_instance/logs" > "$failover_logs"
-  tikee_smoke_assert instance "$failover_file" --expected-status succeeded --expected-worker "$new_master_worker" --min-log-count 1 --logs-file "$failover_logs" --require-log-text demo.echo --forbid-duplicate-logs >/dev/null
-  tikee_smoke_record_case joint-failover-dispatch passed "$failover_file $failover_logs" "single dispatch after failover executed by new master $new_master_worker"
+  tikeo_smoke_assert instance "$failover_file" --expected-status succeeded --expected-worker "$new_master_worker" --min-log-count 1 --logs-file "$failover_logs" --require-log-text demo.echo --forbid-duplicate-logs >/dev/null
+  tikeo_smoke_record_case joint-failover-dispatch passed "$failover_file $failover_logs" "single dispatch after failover executed by new master $new_master_worker"
 
   local workers_html api_keys_html
   workers_html="$REPORT_DIR/${RUN_ID}-workers.html"
   api_keys_html="$REPORT_DIR/${RUN_ID}-api-keys.html"
   curl -fsS "$WEB_URL/workers" -o "$workers_html"
   curl -fsS "$WEB_URL/api-keys" -o "$api_keys_html"
-  tikee_smoke_assert web "$workers_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
-  tikee_smoke_assert web "$api_keys_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
-  tikee_smoke_record_case joint-web-routes passed "$workers_html $api_keys_html" "web secondary routes returned SPA shell"
+  tikeo_smoke_assert web "$workers_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
+  tikeo_smoke_assert web "$api_keys_html" --require-text '<div id="root"></div>' --forbid-text '404 Not Found' >/dev/null
+  tikeo_smoke_record_case joint-web-routes passed "$workers_html $api_keys_html" "web secondary routes returned SPA shell"
 
   local report="$REPORT_DIR/${RUN_ID}.json"
-  tikee_smoke_finalize_report "$report" passed >/dev/null
+  tikeo_smoke_finalize_report "$report" passed >/dev/null
   python3 "$ROOT_DIR/deploy/smoke/collect-joint-report.py" "$REPORT_DIR" --run-id "$RUN_ID" --json-output "$REPORT_DIR/${RUN_ID}-joint-report.json" --markdown-output "$REPORT_DIR/${RUN_ID}-joint-report.md" >/dev/null
   echo "report: $report"
   echo "joint report: $REPORT_DIR/${RUN_ID}-joint-report.md"

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Verify that the tikee server, Java SDK, and Java Spring worker demo can run together as one service framework:
+Verify that the tikeo server, Java SDK, and Java Spring worker demo can run together as one service framework:
 
 1. The Java worker registers through the outbound Worker Tunnel and appears in server worker APIs.
 2. API-triggered, broadcast-triggered, fixed-rate, cron, and workflow-materialized job dispatches reach Java processors by `processor_name`.
@@ -13,7 +13,7 @@ Verify that the tikee server, Java SDK, and Java Spring worker demo can run toge
 
 In scope:
 
-- Local tikee server with `config/dev.toml` or an equivalent temporary config.
+- Local tikeo server with `config/dev.toml` or an equivalent temporary config.
 - Java SDK modules under `sdks/java`.
 - Java Spring demo under `examples/java/spring-boot3-worker-demo`.
 - HTTP API automation for auth, workers, jobs, instances, logs, and workflow materialization.
@@ -44,7 +44,7 @@ Database compatibility is covered by the dedicated storage matrix in `docs/opera
 Use `deploy/smoke/java-demo-integration-smoke.sh` as the executable verifier. The script should:
 
 1. Start or reuse a local server.
-2. Start the Java Spring demo with `TIKEE_WORKER_DRY_RUN=false`.
+2. Start the Java Spring demo with `TIKEO_WORKER_DRY_RUN=false`.
 3. Login with the development init account.
 4. Create uniquely named integration jobs and one workflow.
 5. Trigger/materialize dispatch paths.
@@ -63,7 +63,7 @@ Use `deploy/smoke/java-demo-integration-smoke.sh` as the executable verifier. Th
 | Case | Evidence | Result | Status |
 | --- | --- | --- | --- |
 | Java demo unit tests | `rtk bash -lc 'cd examples/java/spring-boot3-worker-demo && ./gradlew test --no-daemon'` | BUILD SUCCESSFUL | ✅ 通过 |
-| Java SDK worker client targeted test | `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClientTest --no-daemon'` | BUILD SUCCESSFUL | ✅ 通过 |
+| Java SDK worker client targeted test | `rtk bash -lc 'cd sdks/java && ./gradlew :tikeo:test --tests net.tikeo.worker.client.GrpcTikeoWorkerClientTest --no-daemon'` | BUILD SUCCESSFUL | ✅ 通过 |
 | Server + Java demo smoke | `.dev/reports/java-demo-20260601T033026Z-286798.json` | worker registration、single success/failure、broadcast、fixed_rate、cron、workflow job 全部 passed | ✅ 通过 |
 | Shell/Python/JS/TS/Rhai script live matrix | 当前 smoke 未覆盖 | 需要后续补充脚本沙箱矩阵 live 用例 | ⏳ 待执行 |
 
@@ -71,7 +71,7 @@ Use `deploy/smoke/java-demo-integration-smoke.sh` as the executable verifier. Th
 
 Add a cross-language smoke harness that extends the existing Java demo checks:
 
-1. Start tikee server with isolated DB and ports.
+1. Start tikeo server with isolated DB and ports.
 2. Seed structured jobs/processors for Java Boot2/Boot3/Boot4, Go, and Rust demos.
 3. Start all five worker demo families with explicit namespace/app/cluster/region/clientInstanceId and worker_pool labels.
 4. Trigger Go/Rust/Java processor jobs and assert instance status plus task logs.

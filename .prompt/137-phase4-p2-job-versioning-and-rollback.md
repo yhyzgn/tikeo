@@ -17,7 +17,7 @@ Deliver the first Phase4 P2 service-differentiation slice: immutable job version
 - Do not implement PowerJob/XXL-JOB migration tools in this slice; they are lowest-priority backlog.
 
 ## Verification
-- `cargo test -p tikee-storage job_version -- --nocapture`
-- `cargo test -p tikee-server job_version -- --nocapture`
+- `cargo test -p tikeo-storage job_version -- --nocapture`
+- `cargo test -p tikeo-server job_version -- --nocapture`
 - `cd web && bun run lint && bun run build && bun test src/api/client.test.ts`
 - `git diff --check`

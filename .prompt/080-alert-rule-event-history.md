@@ -26,6 +26,6 @@ Phase 078 introduced the `AlertCondition::ScriptGovernanceFailure` condition sha
 - `cd web && bun run typecheck && bun test && bun run build` if Web changes are made.
 
 ## Completion notes
-- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md` if risks change.
+- Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md` if risks change.
 - Create the next `.prompt/081-*.md` before commit.
 - Commit with Lore trailers and push.

@@ -2,12 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-# shellcheck source=deploy/smoke/lib/tikee-smoke-lib.sh
-source "$ROOT_DIR/deploy/smoke/lib/tikee-smoke-lib.sh"
+# shellcheck source=deploy/smoke/lib/tikeo-smoke-lib.sh
+source "$ROOT_DIR/deploy/smoke/lib/tikeo-smoke-lib.sh"
 
-API_URL="${TIKEE_HTTP_URL:-http://127.0.0.1:19090}"
-REPORT_DIR="${TIKEE_GITOPS_REPORT_DIR:-$TIKEE_SMOKE_REPORT_DIR}"
-RUN_ID="${TIKEE_GITOPS_RUN_ID:-gitops-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+API_URL="${TIKEO_HTTP_URL:-http://127.0.0.1:19090}"
+REPORT_DIR="${TIKEO_GITOPS_REPORT_DIR:-$TIKEO_SMOKE_REPORT_DIR}"
+RUN_ID="${TIKEO_GITOPS_RUN_ID:-gitops-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 SERVER_LOG="$REPORT_DIR/${RUN_ID}-server.log"
 SERVER_PID=""
 OWN_SERVER=0
@@ -75,16 +75,16 @@ backoff_seconds = 300
 
 [script_governance]
 CFG
-  (cd "$ROOT_DIR" && cargo run --bin tikee -- serve --config "$config" >"$SERVER_LOG" 2>&1) &
+  (cd "$ROOT_DIR" && cargo run --bin tikeo -- serve --config "$config" >"$SERVER_LOG" 2>&1) &
   SERVER_PID=$!
-  tikee_smoke_wait_for_http server "$API_URL/readyz" 120 || {
+  tikeo_smoke_wait_for_http server "$API_URL/readyz" 120 || {
     tail -n 160 "$SERVER_LOG" >&2 || true
     return 1
   }
 }
 
 start_server_if_needed
-tikee_smoke_login "$API_URL"
+tikeo_smoke_login "$API_URL"
 
 job_file="$REPORT_DIR/${RUN_ID}-job.json"
 job_body="$(python3 - "$RUN_ID" <<'PY'
@@ -101,10 +101,10 @@ print(json.dumps({
 }))
 PY
 )"
-tikee_smoke_api "$API_URL" POST /api/v1/jobs "$job_body" > "$job_file"
+tikeo_smoke_api "$API_URL" POST /api/v1/jobs "$job_body" > "$job_file"
 
 manifest_file="$REPORT_DIR/${RUN_ID}-manifest.json"
-tikee_smoke_api "$API_URL" GET "/api/v1/gitops/manifest?namespace=default&app=billing&format=yaml" > "$manifest_file"
+tikeo_smoke_api "$API_URL" GET "/api/v1/gitops/manifest?namespace=default&app=billing&format=yaml" > "$manifest_file"
 python3 - "$manifest_file" "$RUN_ID" <<'PY'
 import json, sys
 payload=json.load(open(sys.argv[1], encoding='utf-8'))
@@ -133,7 +133,7 @@ PY
 
 diff_file="$REPORT_DIR/${RUN_ID}-diff.json"
 curl -fsS -X POST "$API_URL/api/v1/gitops/diff" \
-  -H "authorization: Bearer $TIKEE_SMOKE_AUTH_TOKEN" \
+  -H "authorization: Bearer $TIKEO_SMOKE_AUTH_TOKEN" \
   -H 'content-type: application/json' \
   --data-binary "@$desired_file" > "$diff_file"
 python3 - "$diff_file" <<'PY'
@@ -148,8 +148,8 @@ assert any(change['action']=='update' and change['kind']=='Job' and 'enabled' in
 print('gitops manifest diff expectation passed')
 PY
 
-tikee_smoke_record_case gitops-manifest-export passed "$manifest_file" "exported YAML manifest with checksum and seeded Job resource"
-tikee_smoke_record_case gitops-manifest-diff passed "$diff_file" "reported review-first drift diff for desired manifest change"
+tikeo_smoke_record_case gitops-manifest-export passed "$manifest_file" "exported YAML manifest with checksum and seeded Job resource"
+tikeo_smoke_record_case gitops-manifest-diff passed "$diff_file" "reported review-first drift diff for desired manifest change"
 report="$REPORT_DIR/${RUN_ID}.json"
-tikee_smoke_finalize_report "$report" passed >/dev/null
+tikeo_smoke_finalize_report "$report" passed >/dev/null
 echo "report: $report"

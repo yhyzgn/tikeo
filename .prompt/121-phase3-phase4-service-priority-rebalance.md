@@ -4,7 +4,7 @@
 Rebalance the remaining Phase 3 and Phase 4 roadmap so features that directly affect service adoption, secure production use, day-2 operations, and daily Worker usability are implemented before ecosystem/nice-to-have capabilities.
 
 ## Priority rule
-- **P0 Service usability / production blockers**: without this, a real team cannot safely run or operate tikee as a shared service.
+- **P0 Service usability / production blockers**: without this, a real team cannot safely run or operate tikeo as a shared service.
 - **P1 Production hardening / common enterprise use**: important for broader rollout, but the core service can run while these are completed.
 - **P2 Ecosystem / advanced differentiation**: useful, but not required for the first stable production adoption path.
 

@@ -1,0 +1,161 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tikeo
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tikeo-config
+  namespace: tikeo
+data:
+  container.toml: |
+    [server]
+    listen_addr = "0.0.0.0:9090"
+    worker_tunnel_addr = "0.0.0.0:9998"
+
+    [storage]
+    database_url = "sqlite:///data/tikeo.db?mode=rwc"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tikeo-data
+  namespace: tikeo
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tikeo-server
+  namespace: tikeo
+  labels:
+    app.kubernetes.io/name: tikeo
+    app.kubernetes.io/component: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tikeo
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tikeo
+        app.kubernetes.io/component: server
+    spec:
+      containers:
+        - name: tikeo
+          image: tikeo/server:dev
+          imagePullPolicy: IfNotPresent
+          args: ["serve", "--config", "/config/container.toml"]
+          ports:
+            - name: http
+              containerPort: 9090
+            - name: worker-tunnel
+              containerPort: 9998
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: config
+          configMap:
+            name: tikeo-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: tikeo-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tikeo
+  namespace: tikeo
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: tikeo
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 9090
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tikeo-worker-tunnel
+  namespace: tikeo
+  annotations:
+    tikeo.yhyzgn.com/worker-networking: "workers-connect-outbound-only"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: tikeo
+    app.kubernetes.io/component: server
+  ports:
+    - name: grpc-worker-tunnel
+      port: 9998
+      targetPort: worker-tunnel
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tikeo-web
+  namespace: tikeo
+  labels:
+    app.kubernetes.io/name: tikeo
+    app.kubernetes.io/component: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tikeo
+      app.kubernetes.io/component: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tikeo
+        app.kubernetes.io/component: web
+    spec:
+      containers:
+        - name: web
+          image: tikeo/web:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tikeo-web
+  namespace: tikeo
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: tikeo
+    app.kubernetes.io/component: web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

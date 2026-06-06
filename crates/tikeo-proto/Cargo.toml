@@ -1,0 +1,20 @@
+[package]
+name = "tikeo-proto"
+description = "Generated protobuf and gRPC bindings for tikeo."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+prost = "0.14"
+tonic = "0.14"
+tonic-prost = "0.14"
+
+[build-dependencies]
+protoc-bin-vendored = "3"
+tonic-prost-build = "0.14"
+
+[lints]
+workspace = true

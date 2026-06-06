@@ -6,13 +6,13 @@ Normalize SDK and demo layout according to the latest project rule.
 ## Required target layout
 ```text
 sdks/
-├── rust/tikee/
-├── java/tikee/
-├── java/tikee-spring/
-├── java/tikee-spring-boot-starter/
-├── go/tikee-go-sdk/
-├── python/tikee-python-sdk/
-└── nodejs/tikee-nodejs-sdk/
+├── rust/tikeo/
+├── java/tikeo/
+├── java/tikeo-spring/
+├── java/tikeo-spring-boot-starter/
+├── go/tikeo-go-sdk/
+├── python/tikeo-python-sdk/
+└── nodejs/tikeo-nodejs-sdk/
 
 examples/
 ├── rust/worker-demo/
@@ -25,12 +25,12 @@ examples/
 ## Rules
 - Every SDK must live at `sdks/<language>/<sdk-name>/`, be independently buildable/testable, and be independently publishable with its language-native package manager. No SDK may depend on server-local path modules.
 - Every demo must live at `examples/<language>/<demo-name>/` and be independently buildable/runnable.
-- Root `Dockerfile` builds only tikee server; it must not copy/cache/build SDK packages.
+- Root `Dockerfile` builds only tikeo server; it must not copy/cache/build SDK packages.
 - Java SDK uses Gradle, not Maven, with JDK 21+.
 - From now on, when SDK/Worker/workflow integration needs end-to-end debugging, autonomously create or update the relevant `examples/<language>/<demo-name>` demo.
 
 ## Current status
-- Rust SDK is at `sdks/rust/tikee`.
+- Rust SDK is at `sdks/rust/tikeo`.
 - Java SDK is a Gradle multi-project under `sdks/java` with sdk-name subprojects.
 - Rust and Java examples are runnable foundations under `examples/rust/worker-demo` and `examples/java/spring-worker-demo`; Go/Python/NodeJS placeholders must become runnable when those SDKs are implemented.
 

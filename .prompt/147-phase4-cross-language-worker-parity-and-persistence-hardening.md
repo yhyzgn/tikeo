@@ -70,9 +70,9 @@ cargo test --workspace --all-features -- --test-threads=1
 cargo build --workspace --all-features
 cd web && bun install --frozen-lockfile && bun run lint && bun run typecheck && bun test && bun run build
 cd sdks/java && ./gradlew test jar sourcesJar
-cd sdks/go/tikee && go test ./...
+cd sdks/go/tikeo && go test ./...
 cd examples/go/worker-demo && go test ./...
-cd sdks/rust/tikee && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features && cargo package --allow-dirty
+cd sdks/rust/tikeo && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features && cargo package --allow-dirty
 cd examples/rust/worker-demo && cargo test
 ```
 

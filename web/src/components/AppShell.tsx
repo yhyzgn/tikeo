@@ -7,7 +7,7 @@ import { hasMenuAccess, usePrincipal } from './AuthGuard';
 import { MENU_GROUPS, MENU_ROUTE_META } from '../routes';
 import { DEFAULT_PRIMARY_COLOR, useThemeSettings } from '../theme';
 import { LOCALE_OPTIONS, useI18n } from '../i18n';
-import { TikeeLogo } from './TikeeLogo';
+import { TikeoLogo } from './TikeoLogo';
 
 const { Header, Sider, Content } = Layout;
 
@@ -57,9 +57,9 @@ export function AppShell({ children, onLogout }: AppShellProps) {
     <Layout className="app-shell">
       <Sider width={304} className="app-shell__sider">
         <div className="app-shell__brand">
-          <TikeeLogo size={64} />
+          <TikeoLogo size={64} />
           <div>
-            <div className="app-shell__brand-title">tikee</div>
+            <div className="app-shell__brand-title">tikeo</div>
             <div className="app-shell__brand-subtitle">Task Platform</div>
           </div>
         </div>

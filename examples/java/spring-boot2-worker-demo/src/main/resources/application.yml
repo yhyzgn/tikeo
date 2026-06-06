@@ -1,51 +1,51 @@
 server:
-  port: ${TIKEE_DEMO_SERVER_PORT:18082}
+  port: ${TIKEO_DEMO_SERVER_PORT:18082}
 
 spring:
   application:
-    name: tikee-spring-boot2-worker-demo
+    name: tikeo-spring-boot2-worker-demo
   output:
     ansi:
       enabled: always
 
-tikee:
+tikeo:
   worker:
-    dry-run: ${TIKEE_WORKER_DRY_RUN:false}
-    endpoint: ${TIKEE_WORKER_ENDPOINT:http://127.0.0.1:9998}
-    client-instance-id: ${TIKEE_WORKER_CLIENT_INSTANCE_ID:spring-boot2-worker-demo-${HOSTNAME:local}}
-    state-dir: ${TIKEE_WORKER_STATE_DIR:}
-    namespace: ${TIKEE_WORKER_NAMESPACE:dev-alpha}
-    app: ${TIKEE_WORKER_APP:orders}
-    cluster: ${TIKEE_WORKER_CLUSTER:local}
-    region: ${TIKEE_WORKER_REGION:local}
+    dry-run: ${TIKEO_WORKER_DRY_RUN:false}
+    endpoint: ${TIKEO_WORKER_ENDPOINT:http://127.0.0.1:9998}
+    client-instance-id: ${TIKEO_WORKER_CLIENT_INSTANCE_ID:spring-boot2-worker-demo-${HOSTNAME:local}}
+    state-dir: ${TIKEO_WORKER_STATE_DIR:}
+    namespace: ${TIKEO_WORKER_NAMESPACE:dev-alpha}
+    app: ${TIKEO_WORKER_APP:orders}
+    cluster: ${TIKEO_WORKER_CLUSTER:local}
+    region: ${TIKEO_WORKER_REGION:local}
     capabilities:
       - java
       - spring-boot
     labels:
-      worker_pool: ${TIKEE_WORKER_POOL:boot2-blue}
+      worker_pool: ${TIKEO_WORKER_POOL:boot2-blue}
       runtime: java
       demo: spring-boot2-worker-demo
     wasm:
-      auto-install: ${TIKEE_WORKER_WASM_AUTO_INSTALL:true}
-      install-version: ${TIKEE_WORKER_WASM_VERSION:latest}
-      install-dir: ${TIKEE_WORKER_WASM_INSTALL_DIR:}
+      auto-install: ${TIKEO_WORKER_WASM_AUTO_INSTALL:true}
+      install-version: ${TIKEO_WORKER_WASM_VERSION:latest}
+      install-dir: ${TIKEO_WORKER_WASM_INSTALL_DIR:}
     scripts:
-      enabled: ${TIKEE_WORKER_SCRIPTS_ENABLED:true}
-      container-enabled: ${TIKEE_WORKER_CONTAINER_SCRIPTS_ENABLED:false}
-      runtime-command: ${TIKEE_WORKER_CONTAINER_RUNTIME:}
-      availability-check: ${TIKEE_WORKER_SCRIPT_RUNTIME_CHECK:true}
-      auto-install-tools: ${TIKEE_WORKER_SCRIPT_AUTO_INSTALL_TOOLS:true}
+      enabled: ${TIKEO_WORKER_SCRIPTS_ENABLED:true}
+      container-enabled: ${TIKEO_WORKER_CONTAINER_SCRIPTS_ENABLED:false}
+      runtime-command: ${TIKEO_WORKER_CONTAINER_RUNTIME:}
+      availability-check: ${TIKEO_WORKER_SCRIPT_RUNTIME_CHECK:true}
+      auto-install-tools: ${TIKEO_WORKER_SCRIPT_AUTO_INSTALL_TOOLS:true}
       images:
-        shell: ${TIKEE_WORKER_SCRIPT_SHELL_IMAGE:}
-        python: ${TIKEE_WORKER_SCRIPT_PYTHON_IMAGE:}
-        js: ${TIKEE_WORKER_SCRIPT_JAVASCRIPT_IMAGE:}
-        ts: ${TIKEE_WORKER_SCRIPT_TYPESCRIPT_IMAGE:}
-        powershell: ${TIKEE_WORKER_SCRIPT_POWERSHELL_IMAGE:}
-        rhai: ${TIKEE_WORKER_SCRIPT_RHAI_IMAGE:}
+        shell: ${TIKEO_WORKER_SCRIPT_SHELL_IMAGE:}
+        python: ${TIKEO_WORKER_SCRIPT_PYTHON_IMAGE:}
+        js: ${TIKEO_WORKER_SCRIPT_JAVASCRIPT_IMAGE:}
+        ts: ${TIKEO_WORKER_SCRIPT_TYPESCRIPT_IMAGE:}
+        powershell: ${TIKEO_WORKER_SCRIPT_POWERSHELL_IMAGE:}
+        rhai: ${TIKEO_WORKER_SCRIPT_RHAI_IMAGE:}
 
   management:
-    enabled: ${TIKEE_MANAGEMENT_ENABLED:true}
-    endpoint: ${TIKEE_MANAGEMENT_ENDPOINT:http://127.0.0.1:9999}
-    api-key: ${TIKEE_MANAGEMENT_API_KEY:tk-TBP5qDyzqkagXI8Rbr5e3tMayvL6Y3ppk7WLZae1hqgwVhD1eRWLHZzzV7ToOh73}
-    namespace: ${TIKEE_MANAGEMENT_NAMESPACE:dev-alpha}
-    app: ${TIKEE_MANAGEMENT_APP:orders}
+    enabled: ${TIKEO_MANAGEMENT_ENABLED:true}
+    endpoint: ${TIKEO_MANAGEMENT_ENDPOINT:http://127.0.0.1:9999}
+    api-key: ${TIKEO_MANAGEMENT_API_KEY:tk-TBP5qDyzqkagXI8Rbr5e3tMayvL6Y3ppk7WLZae1hqgwVhD1eRWLHZzzV7ToOh73}
+    namespace: ${TIKEO_MANAGEMENT_NAMESPACE:dev-alpha}
+    app: ${TIKEO_MANAGEMENT_APP:orders}

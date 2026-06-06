@@ -4,7 +4,7 @@
 
 Status: **passed**
 
-The automated integration smoke verified that the tikee server, Java SDK, and Java Spring worker demo can run together through the real outbound Worker Tunnel. The Java demo registered as an online worker and executed API, broadcast, scheduled, and workflow-materialized task dispatches.
+The automated integration smoke verified that the tikeo server, Java SDK, and Java Spring worker demo can run together through the real outbound Worker Tunnel. The Java demo registered as an online worker and executed API, broadcast, scheduled, and workflow-materialized task dispatches.
 
 ## Run evidence
 

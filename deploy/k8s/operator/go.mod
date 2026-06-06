@@ -1,4 +1,4 @@
-module github.com/yhyzgn/tikee/deploy/k8s/operator
+module github.com/yhyzgn/tikeo/deploy/k8s/operator
 
 go 1.26
 

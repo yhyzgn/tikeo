@@ -1,0 +1,176 @@
+{
+  "uid": "tikeo-phase3-ops",
+  "title": "tikeo Phase 3 Operations",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "15s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "tags": [
+    "tikeo",
+    "phase3",
+    "operations"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "text": "Prometheus",
+          "value": "Prometheus"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "HTTP Request Rate",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "tikeo:http_requests:rate5m"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "HTTP p95 Latency",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "tikeo:http_latency:p95_5m"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 6,
+        "y": 0
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Connected Workers",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(tikeo_worker_connected_total)"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Worker Dispatch Outcomes",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(tikeo_worker_dispatch_total[5m])) by (result)"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "HTTP Error Ratio",
+      "description": "HTTP availability SLO derived from request counters.",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "tikeo:http_errors:ratio5m"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Dispatch Queue Pending Age p95",
+      "description": "Dispatch queue wait-time SLO backed by server-emitted histogram buckets.",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "tikeo:dispatch_pending_age:p95_5m"
+        },
+        {
+          "refId": "B",
+          "expr": "tikeo:dispatch_latency:p95_5m"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Workflow SLA Durations",
+      "description": "Workflow and map shard SLA histograms emitted by metrics summary snapshots.",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "tikeo:workflow_instance_duration:p95_5m"
+        },
+        {
+          "refId": "B",
+          "expr": "tikeo:workflow_shard_duration:p95_5m"
+        },
+        {
+          "refId": "C",
+          "expr": "tikeo:workflow_instance_success:ratio"
+        },
+        {
+          "refId": "D",
+          "expr": "tikeo:workflow_shard_success:ratio"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 16,
+        "x": 8,
+        "y": 16
+      }
+    }
+  ]
+}

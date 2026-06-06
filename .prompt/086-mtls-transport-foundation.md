@@ -23,6 +23,6 @@ Phase 085 added OIDC/SSO configuration and status metadata without requiring a l
 - `cargo run -- --help`
 
 ## Completion notes
-- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md` if risks change.
+- Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md` if risks change.
 - Create the next `.prompt/087-*.md` before commit.
 - Commit with Lore trailers and push.

@@ -22,13 +22,13 @@ Phase 078 made `script_execution_governance` instance logs queryable and UI-visi
 - `cargo test --workspace --all-features`
 - `cargo run -- --help`
 - `cd web && bun run typecheck && bun test && bun run build`
-- `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`
-- `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`
-- `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`
+- `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml`
+- `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm`
+- `cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings`
 - `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`
 
 ## Completion notes
-- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, `.memory/risks.md` if any risk changes.
+- Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, `.memory/risks.md` if any risk changes.
 - Create the next `.prompt/080-*.md` before commit.
 - Mark completed roadmap items in `design/` using `[x]` only, no ✅.
 - Commit with Lore trailers and push.

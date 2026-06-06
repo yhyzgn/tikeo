@@ -21,4 +21,4 @@ Continue full script production governance without external dependencies by defa
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 - `cargo test --workspace --all-features`
 - `cargo build --workspace --all-features`
-- `cargo run -- --help >/tmp/tikee-help.out`
+- `cargo run -- --help >/tmp/tikeo-help.out`

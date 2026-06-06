@@ -6,28 +6,28 @@ import (
 )
 
 const (
-	GroupVersionString = "tikee.io/v1alpha1"
-	Kind               = "TikeeManifest"
+	GroupVersionString = "tikeo.io/v1alpha1"
+	Kind               = "TikeoManifest"
 	DefaultApplyMode   = "diffOnly"
 )
 
-type TikeeManifest struct {
+type TikeoManifest struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              TikeeManifestSpec   `json:"spec,omitempty"`
-	Status            TikeeManifestStatus `json:"status,omitempty"`
+	Spec              TikeoManifestSpec   `json:"spec,omitempty"`
+	Status            TikeoManifestStatus `json:"status,omitempty"`
 }
 
-type TikeeManifestList struct {
+type TikeoManifestList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []TikeeManifest `json:"items"`
+	Items           []TikeoManifest `json:"items"`
 }
 
-type TikeeManifestSpec struct {
+type TikeoManifestSpec struct {
 	Manifest          runtime.RawExtension `json:"manifest"`
 	ApplyMode         string               `json:"applyMode,omitempty"`
-	TikeeEndpointRef  *KeyRef              `json:"tikeeEndpointRef,omitempty"`
+	TikeoEndpointRef  *KeyRef              `json:"tikeoEndpointRef,omitempty"`
 	APITokenSecretRef *KeyRef              `json:"apiTokenSecretRef,omitempty"`
 }
 
@@ -37,7 +37,7 @@ type KeyRef struct {
 	Key           string `json:"key,omitempty"`
 }
 
-type TikeeManifestStatus struct {
+type TikeoManifestStatus struct {
 	ObservedGeneration int64                  `json:"observedGeneration,omitempty"`
 	Checksum           string                 `json:"checksum,omitempty"`
 	CurrentChecksum    string                 `json:"currentChecksum,omitempty"`

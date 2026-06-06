@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-ASSERT = ROOT / "deploy" / "smoke" / "assert_tikee_expectations.py"
+ASSERT = ROOT / "deploy" / "smoke" / "assert_tikeo_expectations.py"
 
 
 def run_assertion(kind, payload, *args):

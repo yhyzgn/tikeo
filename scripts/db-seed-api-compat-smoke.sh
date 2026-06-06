@@ -3,11 +3,11 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/deploy/compose/database-compat-compose.yml"
-RUN_ID="${TIKEE_DB_SEED_COMPAT_RUN_ID:-db-seed-compat-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
-REPORT_DIR="${TIKEE_DB_SEED_COMPAT_REPORT_DIR:-$ROOT_DIR/.dev/reports/$RUN_ID}"
-POSTGRES_URL="${TIKEE_TEST_POSTGRES_URL:-postgres://tikee:tikee@127.0.0.1:${TIKEE_TEST_POSTGRES_PORT:-15432}/tikee}"
-MYSQL_URL="${TIKEE_TEST_MYSQL_URL:-mysql://tikee:tikee@127.0.0.1:${TIKEE_TEST_MYSQL_PORT:-13306}/tikee}"
-START_COMPOSE="${TIKEE_DB_COMPAT_COMPOSE:-auto}"
+RUN_ID="${TIKEO_DB_SEED_COMPAT_RUN_ID:-db-seed-compat-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+REPORT_DIR="${TIKEO_DB_SEED_COMPAT_REPORT_DIR:-$ROOT_DIR/.dev/reports/$RUN_ID}"
+POSTGRES_URL="${TIKEO_TEST_POSTGRES_URL:-postgres://tikeo:tikeo@127.0.0.1:${TIKEO_TEST_POSTGRES_PORT:-15432}/tikeo}"
+MYSQL_URL="${TIKEO_TEST_MYSQL_URL:-mysql://tikeo:tikeo@127.0.0.1:${TIKEO_TEST_MYSQL_PORT:-13306}/tikeo}"
+START_COMPOSE="${TIKEO_DB_COMPAT_COMPOSE:-auto}"
 mkdir -p "$REPORT_DIR"
 
 cleanup() {
@@ -29,7 +29,7 @@ case "$START_COMPOSE" in
       should_start_compose=true
     fi
     ;;
-  *) echo "TIKEE_DB_COMPAT_COMPOSE must be auto, true, or false" >&2; exit 2 ;;
+  *) echo "TIKEO_DB_COMPAT_COMPOSE must be auto, true, or false" >&2; exit 2 ;;
 esac
 
 if [[ "$should_start_compose" == "true" ]]; then
@@ -92,7 +92,7 @@ run_one() {
   local name="$1" url="$2" api_port="$3" tunnel_port="$4"
   local config="$REPORT_DIR/$name.toml" log="$REPORT_DIR/$name-server.log"
   write_config "$name" "$url" "$api_port" "$tunnel_port" "$config"
-  (cd "$ROOT_DIR" && setsid cargo run --bin tikee -- serve --config "$config" >"$log" 2>&1 & echo $! >"$REPORT_DIR/$name-server.pid")
+  (cd "$ROOT_DIR" && setsid cargo run --bin tikeo -- serve --config "$config" >"$log" 2>&1 & echo $! >"$REPORT_DIR/$name-server.pid")
   SERVER_PID="$(cat "$REPORT_DIR/$name-server.pid")"
   for _ in $(seq 1 90); do
     if curl -fsS "http://127.0.0.1:$api_port/healthz" >/dev/null 2>&1; then
@@ -105,10 +105,10 @@ run_one() {
     sleep 1
   done
   curl -fsS "http://127.0.0.1:$api_port/healthz" >/dev/null
-  (cd "$ROOT_DIR" && TIKEE_HTTP_URL="http://127.0.0.1:$api_port" scripts/dev-integration-seed.sh) | tee "$REPORT_DIR/$name-seed.log"
+  (cd "$ROOT_DIR" && TIKEO_HTTP_URL="http://127.0.0.1:$api_port" scripts/dev-integration-seed.sh) | tee "$REPORT_DIR/$name-seed.log"
   curl -fsS "http://127.0.0.1:$api_port/api/v1/auth/login" \
     -H 'content-type: application/json' \
-    -d '{"username":"smoke_admin","password":"Tikee@2026!"}' >"$REPORT_DIR/$name-login.json"
+    -d '{"username":"smoke_admin","password":"Tikeo@2026!"}' >"$REPORT_DIR/$name-login.json"
   local token
   token="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["data"]["token"])' "$REPORT_DIR/$name-login.json")"
   curl -fsS "http://127.0.0.1:$api_port/api/v1/jobs" -H "authorization: Bearer $token" >"$REPORT_DIR/$name-jobs.json"
@@ -129,6 +129,6 @@ PY
   echo "✅ $name seed API compatibility passed"
 }
 
-run_one postgres "$POSTGRES_URL" "${TIKEE_DB_SEED_POSTGRES_API_PORT:-19090}" "${TIKEE_DB_SEED_POSTGRES_TUNNEL_PORT:-19998}"
-run_one mysql "$MYSQL_URL" "${TIKEE_DB_SEED_MYSQL_API_PORT:-19091}" "${TIKEE_DB_SEED_MYSQL_TUNNEL_PORT:-19999}"
+run_one postgres "$POSTGRES_URL" "${TIKEO_DB_SEED_POSTGRES_API_PORT:-19090}" "${TIKEO_DB_SEED_POSTGRES_TUNNEL_PORT:-19998}"
+run_one mysql "$MYSQL_URL" "${TIKEO_DB_SEED_MYSQL_API_PORT:-19091}" "${TIKEO_DB_SEED_MYSQL_TUNNEL_PORT:-19999}"
 echo "reports: $REPORT_DIR"

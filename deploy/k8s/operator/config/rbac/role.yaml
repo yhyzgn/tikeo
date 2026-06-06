@@ -1,13 +1,13 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: tikee-manifest-operator
+  name: tikeo-manifest-operator
 rules:
-  - apiGroups: ["tikee.io"]
-    resources: ["tikeemanifests"]
+  - apiGroups: ["tikeo.io"]
+    resources: ["tikeomanifests"]
     verbs: ["get", "list", "watch", "patch", "update"]
-  - apiGroups: ["tikee.io"]
-    resources: ["tikeemanifests/status"]
+  - apiGroups: ["tikeo.io"]
+    resources: ["tikeomanifests/status"]
     verbs: ["patch", "update"]
   - apiGroups: [""]
     resources: ["secrets", "configmaps"]

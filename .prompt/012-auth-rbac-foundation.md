@@ -36,8 +36,8 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-docker build -t tikee:dev .
-docker build -t tikee-web:dev ./web
+docker build -t tikeo:dev .
+docker build -t tikeo-web:dev ./web
 ```
 
 完成后必须更新路线图、记忆库、后续 prompt，提交并推送。

@@ -17,7 +17,7 @@ The raft-rs apply path now has a safe first real command:
    - prevent removing self or reducing quorum without an explicit safe path.
 4. Wire only the proposal intent first if needed; do not apply `EntryConfChange` until committed-entry decoding + ConfState persistence are implemented and tested.
 5. Add tests for non-leader rejection, invalid endpoint/status rejection, duplicate proposal idempotency, and config-change entries remaining gated when unsupported.
-6. Update `design/tikee-architecture-design.md`, `.memory/*`, and the roadmap checklist.
+6. Update `design/tikeo-architecture-design.md`, `.memory/*`, and the roadmap checklist.
 7. Run full verification and commit/push.
 
 ## Constraints

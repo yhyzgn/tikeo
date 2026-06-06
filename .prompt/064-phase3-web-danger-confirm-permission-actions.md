@@ -8,5 +8,5 @@ Audit governance is now strengthened with before/after/trace/result fields and a
 2. Use existing auth/RBAC permission context to hide or disable actions the current principal cannot perform; preserve route guards.
 3. Ensure all backend responses still use `{ code, message, data }`; no database foreign keys.
 4. Add or update tests where practical (frontend typecheck/build at minimum; backend tests if permission metadata changes).
-5. Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, and create `.prompt/065-*.md`.
+5. Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, and create `.prompt/065-*.md`.
 6. Run full verification, commit with Lore-style trailers, and push.

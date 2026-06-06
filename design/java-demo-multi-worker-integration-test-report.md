@@ -2,7 +2,7 @@
 
 - 报告时间：2026-06-03 13:00 CST
 - 范围：本轮新增的开发联调数据脚本、Java demo 多 Worker 启动脚本、Java demo scope 注入能力
-- 目标：验证一个 tikee server 下，多个 Java demo worker 可以按不同 namespace/app/worker pool 注册，为后续联合触发任务与观察 Worker 列表/实例日志提供可复用测试资产。
+- 目标：验证一个 tikeo server 下，多个 Java demo worker 可以按不同 namespace/app/worker pool 注册，为后续联合触发任务与观察 Worker 列表/实例日志提供可复用测试资产。
 
 ## 1. 测试对象
 
@@ -39,11 +39,11 @@
    - 验证脚本可在全新空库上从 0 生成联调数据。
 
 3. **Java demo 配置绑定**
-   - `tikee.worker.namespace` 支持 `TIKEE_WORKER_NAMESPACE`。
-   - `tikee.worker.app` 支持 `TIKEE_WORKER_APP`。
-   - `tikee.worker.cluster` 支持 `TIKEE_WORKER_CLUSTER`。
-   - `tikee.worker.region` 支持 `TIKEE_WORKER_REGION`。
-   - worker labels 增加 `worker_pool: ${TIKEE_WORKER_POOL:default}`。
+   - `tikeo.worker.namespace` 支持 `TIKEO_WORKER_NAMESPACE`。
+   - `tikeo.worker.app` 支持 `TIKEO_WORKER_APP`。
+   - `tikeo.worker.cluster` 支持 `TIKEO_WORKER_CLUSTER`。
+   - `tikeo.worker.region` 支持 `TIKEO_WORKER_REGION`。
+   - worker labels 增加 `worker_pool: ${TIKEO_WORKER_POOL:default}`。
    - demo run script 会把这些环境变量传入 Gradle run/bootRun 进程。
 
 4. **Java demo 单元/上下文测试**
@@ -61,11 +61,11 @@
 
 | 边界项 | 本轮复跑结果 | 证据 | 状态 |
 | --- | --- | --- | --- |
-| 同时真实启动 5 个 Java demo worker 并完成 server worker list 注册断言 | 已启动 5 个 worker；`/api/v1/workers` 返回 `online=5`，5 个 logical instance 分属 `dev-alpha/orders`、`dev-alpha/billing`、`dev-beta/analytics`、`dev-ops/automation`；worker pool 通过 master domain 体现为 `boot2-blue`、`boot3-blue`、`boot4-green`、`boot3-batch`、`boot4-ops` | `/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/workers-final.json`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/worker-process-status.txt`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/health-18182.json` ~ `health-18186.json` | ✅ 通过 |
-| 手动触发 seed 生成的 8 个 API jobs 并等待实例完成 | 已触发 8 个 seed jobs；7 个业务 processor succeeded，`fail-api` 走预期失败路径；实例日志均已采集 | `/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/final-e2e-summary.json`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/trigger-results.json`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/retrigger-sql-result.json` | ✅ 通过 |
-| SQL plugin job 调度绑定 | 首次触发暴露 seed 缺口：`sql-sync-api` 未带 `processorType=sql` 时被当作 SDK processor 匹配并 fail-closed；已修 `scripts/dev-integration-seed.sh` 注册 SQL plugin 并创建 `processorType=sql` job，PATCH 当前临时 DB 后重触发成功 | `/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/sql-job-patch.json`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/retrigger-sql-result.json` | ✅ 已修复并通过 |
-| worker pool quota 对调度拥塞/并发限制的压力测试 | 已补存储层专项压力回归：`max_concurrency=1` 会阻止同池第二个 running claim；`max_queue_depth=1` 会在 active depth 超限时背压并在深度下降后恢复；拥塞池不会饿死后续开放池 | `cargo test -p tikee-storage worker_pool_ --all-features` | ✅ 通过 |
-| 非 SQLite 数据库上的 seed API 验证 | 已使用 PostgreSQL 16 与 MySQL 8.4 compose 服务分别启动 tikee server，并通过真实 HTTP API 跑 `scripts/dev-integration-seed.sh`；两端均创建 3 namespaces、4 apps、5 worker pools、SQL plugin、8 jobs | `/home/neo/Projects/neo/pub/tikee/.dev/reports/db-seed-compat-20260603T060134Z/postgres-seed.log`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/db-seed-compat-20260603T060134Z/postgres-jobs.json`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/db-seed-compat-20260603T060134Z/postgres-worker-pools.json`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/db-seed-compat-20260603T060134Z/postgres-plugins.json`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/db-seed-compat-20260603T060134Z/mysql-seed.log`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/db-seed-compat-20260603T060134Z/mysql-jobs.json`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/db-seed-compat-20260603T060134Z/mysql-worker-pools.json`、`/home/neo/Projects/neo/pub/tikee/.dev/reports/db-seed-compat-20260603T060134Z/mysql-plugins.json` | ✅ 通过 |
+| 同时真实启动 5 个 Java demo worker 并完成 server worker list 注册断言 | 已启动 5 个 worker；`/api/v1/workers` 返回 `online=5`，5 个 logical instance 分属 `dev-alpha/orders`、`dev-alpha/billing`、`dev-beta/analytics`、`dev-ops/automation`；worker pool 通过 master domain 体现为 `boot2-blue`、`boot3-blue`、`boot4-green`、`boot3-batch`、`boot4-ops` | `/home/neo/Projects/neo/pub/tikeo/.dev/reports/java-multi-worker-20260603T044644Z-205593/workers-final.json`、`/home/neo/Projects/neo/pub/tikeo/.dev/reports/java-multi-worker-20260603T044644Z-205593/worker-process-status.txt`、`/home/neo/Projects/neo/pub/tikeo/.dev/reports/java-multi-worker-20260603T044644Z-205593/health-18182.json` ~ `health-18186.json` | ✅ 通过 |
+| 手动触发 seed 生成的 8 个 API jobs 并等待实例完成 | 已触发 8 个 seed jobs；7 个业务 processor succeeded，`fail-api` 走预期失败路径；实例日志均已采集 | `/home/neo/Projects/neo/pub/tikeo/.dev/reports/java-multi-worker-20260603T044644Z-205593/final-e2e-summary.json`、`/home/neo/Projects/neo/pub/tikeo/.dev/reports/java-multi-worker-20260603T044644Z-205593/trigger-results.json`、`/home/neo/Projects/neo/pub/tikeo/.dev/reports/java-multi-worker-20260603T044644Z-205593/retrigger-sql-result.json` | ✅ 通过 |
+| SQL plugin job 调度绑定 | 首次触发暴露 seed 缺口：`sql-sync-api` 未带 `processorType=sql` 时被当作 SDK processor 匹配并 fail-closed；已修 `scripts/dev-integration-seed.sh` 注册 SQL plugin 并创建 `processorType=sql` job，PATCH 当前临时 DB 后重触发成功 | `/home/neo/Projects/neo/pub/tikeo/.dev/reports/java-multi-worker-20260603T044644Z-205593/sql-job-patch.json`、`/home/neo/Projects/neo/pub/tikeo/.dev/reports/java-multi-worker-20260603T044644Z-205593/retrigger-sql-result.json` | ✅ 已修复并通过 |
+| worker pool quota 对调度拥塞/并发限制的压力测试 | 已补存储层专项压力回归：`max_concurrency=1` 会阻止同池第二个 running claim；`max_queue_depth=1` 会在 active depth 超限时背压并在深度下降后恢复；拥塞池不会饿死后续开放池 | `cargo test -p tikeo-storage worker_pool_ --all-features` | ✅ 通过 |
+| 非 SQLite 数据库上的 seed API 验证 | 已使用 PostgreSQL 16 与 MySQL 8.4 compose 服务分别启动 tikeo server，并通过真实 HTTP API 跑 `scripts/dev-integration-seed.sh`；两端均创建 3 namespaces、4 apps、5 worker pools、SQL plugin、8 jobs | `/home/neo/Projects/neo/pub/tikeo/.dev/reports/db-seed-compat-20260603T060134Z/postgres-seed.log`、`/home/neo/Projects/neo/pub/tikeo/.dev/reports/db-seed-compat-20260603T060134Z/postgres-jobs.json`、`/home/neo/Projects/neo/pub/tikeo/.dev/reports/db-seed-compat-20260603T060134Z/postgres-worker-pools.json`、`/home/neo/Projects/neo/pub/tikeo/.dev/reports/db-seed-compat-20260603T060134Z/postgres-plugins.json`、`/home/neo/Projects/neo/pub/tikeo/.dev/reports/db-seed-compat-20260603T060134Z/mysql-seed.log`、`/home/neo/Projects/neo/pub/tikeo/.dev/reports/db-seed-compat-20260603T060134Z/mysql-jobs.json`、`/home/neo/Projects/neo/pub/tikeo/.dev/reports/db-seed-compat-20260603T060134Z/mysql-worker-pools.json`、`/home/neo/Projects/neo/pub/tikeo/.dev/reports/db-seed-compat-20260603T060134Z/mysql-plugins.json` | ✅ 通过 |
 
 ## 3. 联调数据设计
 
@@ -95,9 +95,9 @@
 
 ### 3.3 完整联合冒烟结果（2026-06-03 13:00 CST）
 
-本轮复跑使用临时 SQLite 配置启动 server，避免污染已初始化 `tikee-dev.db`：
+本轮复跑使用临时 SQLite 配置启动 server，避免污染已初始化 `tikeo-dev.db`：
 
-- 运行目录：`/home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593`
+- 运行目录：`/home/neo/Projects/neo/pub/tikeo/.dev/reports/java-multi-worker-20260603T044644Z-205593`
 - Server：`http://127.0.0.1:9090`，`/healthz` 通过
 - Worker tunnel：`127.0.0.1:9998`
 - Worker 矩阵：5/5 本地健康端点通过，server worker list `online=5`
@@ -118,13 +118,13 @@
 
 | 项 | 值 |
 | --- | --- |
-| 仓库路径 | `/home/neo/Projects/neo/pub/tikee` |
+| 仓库路径 | `/home/neo/Projects/neo/pub/tikeo` |
 | 操作系统上下文 | Fedora/Linux 本地开发机 |
 | Java demo 构建工具 | Gradle wrapper |
-| 完整联合冒烟 server | `target/debug/tikee serve --config /home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/dev-e2e.toml` |
+| 完整联合冒烟 server | `target/debug/tikeo serve --config /home/neo/Projects/neo/pub/tikeo/.dev/reports/java-multi-worker-20260603T044644Z-205593/dev-e2e.toml` |
 | 完整联合冒烟 HTTP | `http://127.0.0.1:9090` |
 | 完整联合冒烟 worker tunnel | `127.0.0.1:9998` |
-| 完整联合冒烟数据库 | `sqlite:///home/neo/Projects/neo/pub/tikee/.dev/reports/java-multi-worker-20260603T044644Z-205593/tikee-e2e.db?mode=rwc` |
+| 完整联合冒烟数据库 | `sqlite:///home/neo/Projects/neo/pub/tikeo/.dev/reports/java-multi-worker-20260603T044644Z-205593/tikeo-e2e.db?mode=rwc` |
 | 常规 dev HTTP 默认值 | `http://127.0.0.1:9090` |
 | 常规 worker tunnel 默认值 | `http://127.0.0.1:9998` |
 
@@ -286,7 +286,7 @@ temp-server-ready
 命令：
 
 ```bash
-TIKEE_HTTP_URL=http://127.0.0.1:19090 scripts/dev-integration-seed.sh
+TIKEO_HTTP_URL=http://127.0.0.1:19090 scripts/dev-integration-seed.sh
 ```
 
 关键输出：
@@ -335,14 +335,14 @@ curl: (22) The requested URL returned error: 401
 
 结论：⚠️ 环境相关，不是 seed 数据创建逻辑失败。
 
-原因：本机 dev DB 已初始化，默认 `smoke_admin/Tikee@2026!` 不一定存在或密码已变更。脚本已补充以下替代认证方式：
+原因：本机 dev DB 已初始化，默认 `smoke_admin/Tikeo@2026!` 不一定存在或密码已变更。脚本已补充以下替代认证方式：
 
 ```bash
-TIKEE_SMOKE_AUTH_TOKEN=<admin bearer token> scripts/dev-integration-seed.sh
+TIKEO_SMOKE_AUTH_TOKEN=<admin bearer token> scripts/dev-integration-seed.sh
 # 或
-TIKEE_ADMIN_TOKEN=<admin bearer token> scripts/dev-integration-seed.sh
+TIKEO_ADMIN_TOKEN=<admin bearer token> scripts/dev-integration-seed.sh
 # 或
-TIKEE_ADMIN_USERNAME=<admin> TIKEE_ADMIN_PASSWORD=<password> scripts/dev-integration-seed.sh
+TIKEO_ADMIN_USERNAME=<admin> TIKEO_ADMIN_PASSWORD=<password> scripts/dev-integration-seed.sh
 ```
 
 ## 6. 验证结论
@@ -365,7 +365,7 @@ TIKEE_ADMIN_USERNAME=<admin> TIKEE_ADMIN_PASSWORD=<password> scripts/dev-integra
 ./scripts/dev.sh
 
 # 2. 如果当前 dev DB 默认账号不可用，先从 Web 登录后复制 admin token，或使用已有 admin 账号
-TIKEE_SMOKE_AUTH_TOKEN=<admin bearer token> scripts/dev-integration-seed.sh
+TIKEO_SMOKE_AUTH_TOKEN=<admin bearer token> scripts/dev-integration-seed.sh
 
 # 3. 启动多 Java demo worker
 scripts/start-java-demo-workers.sh --detach
@@ -385,7 +385,7 @@ scripts/start-java-demo-workers.sh --stop
 
 1. **已初始化 dev DB 默认账号不作为验收项**
    - 本轮完整验证使用临时库 bootstrap 管理员完成；已初始化 dev DB 中默认账号可能不存在或密码不同，这是环境状态而非功能缺口。
-   - `scripts/dev-integration-seed.sh` 支持 `TIKEE_SMOKE_AUTH_TOKEN` / `TIKEE_ADMIN_TOKEN` / 显式账号密码，实际 dev DB 使用时应传入当前有效管理员凭据。
+   - `scripts/dev-integration-seed.sh` 支持 `TIKEO_SMOKE_AUTH_TOKEN` / `TIKEO_ADMIN_TOKEN` / 显式账号密码，实际 dev DB 使用时应传入当前有效管理员凭据。
 
 2. **完整联合测试已在临时 SQLite 环境跑通，但建议沉淀为自动化脚本**
    - 本轮已启动 5 个 demo worker 并完成 `seed -> start workers -> trigger -> wait -> collect logs` 闭环。
@@ -430,14 +430,14 @@ scripts/start-java-demo-workers.sh --stop
 验证命令：
 
 ```bash
-cargo test -p tikee-storage worker_pool_ --all-features
+cargo test -p tikeo-storage worker_pool_ --all-features
 ```
 
 ## 11. 非 SQLite seed API 兼容专项结果
 
-本专项使用 `deploy/compose/database-compat-compose.yml` 启动 PostgreSQL 16 与 MySQL 8.4，分别以对应 DSN 启动 tikee server，并通过真实 HTTP 管理 API 执行 `scripts/dev-integration-seed.sh`。
+本专项使用 `deploy/compose/database-compat-compose.yml` 启动 PostgreSQL 16 与 MySQL 8.4，分别以对应 DSN 启动 tikeo server，并通过真实 HTTP 管理 API 执行 `scripts/dev-integration-seed.sh`。
 
-- 运行目录：`/home/neo/Projects/neo/pub/tikee/.dev/reports/db-seed-compat-20260603T060134Z`
+- 运行目录：`/home/neo/Projects/neo/pub/tikeo/.dev/reports/db-seed-compat-20260603T060134Z`
 - PostgreSQL API：`http://127.0.0.1:19090`
 - MySQL API：`http://127.0.0.1:19091`
 - 验证资产：`scripts/db-seed-api-compat-smoke.sh`
@@ -469,7 +469,7 @@ scripts/db-seed-api-compat-smoke.sh
 | i18n label | ✅ 已修正 | 中文显示“处理器”，英文显示 `Processor`，不再混合显示中英混排标签。 |
 | Go SDK/demo | ✅ 已对齐 | 默认 live 连接；官方 gRPC/protobuf；结构化 scope/processor/capability；assignment token 任务日志；重连循环；README 说明 protoc 与 Dockerfile 安装。 |
 | Rust SDK/demo | ✅ 已对齐 | 默认 live 连接；结构化 scope/processor/capability；assignment token 任务日志；重连循环；script runners 对齐 Java sandbox 名称。 |
-| dev DB | ✅ 已同步 | `tikee-dev.db` 已包含 Java/Go/Rust 手动验收数据和 script/job 用例。 |
+| dev DB | ✅ 已同步 | `tikeo-dev.db` 已包含 Java/Go/Rust 手动验收数据和 script/job 用例。 |
 
 ### 12.2 Go/Rust live 验收证据
 
@@ -489,9 +489,9 @@ cargo test --workspace --all-features -- --test-threads=1
 cargo build --workspace --all-features
 cd web && bun install --frozen-lockfile && bun run lint && bun run typecheck && bun test && bun run build
 cd sdks/java && ./gradlew test jar sourcesJar
-cd sdks/go/tikee && go test ./...
+cd sdks/go/tikeo && go test ./...
 cd examples/go/worker-demo && go test ./...
-cd sdks/rust/tikee && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features && cargo package --allow-dirty
+cd sdks/rust/tikeo && cargo clippy --all-targets --all-features -- -D warnings && cargo test --all-features && cargo package --allow-dirty
 cd examples/rust/worker-demo && cargo test
 ```
 
@@ -516,7 +516,7 @@ cd examples/rust/worker-demo && cargo test
 
 | 范围 | 问题 | 修复结果 | 验证 |
 | --- | --- | --- | --- |
-| Server scheduling | fixed-rate/daily interval 的自动调度 cursor 只在内存中，重启后有重复触发风险 | 新增 `schedule_cursors` 持久化表、entity、repository 与 SQLite 兼容迁移；tick loop 按 `(job_id, trigger_type, fire_at)` 幂等创建 pending instance | `cargo test -p tikee-storage`、`cargo test -p tikee-server` |
+| Server scheduling | fixed-rate/daily interval 的自动调度 cursor 只在内存中，重启后有重复触发风险 | 新增 `schedule_cursors` 持久化表、entity、repository 与 SQLite 兼容迁移；tick loop 按 `(job_id, trigger_type, fire_at)` 幂等创建 pending instance | `cargo test -p tikeo-storage`、`cargo test -p tikeo-server` |
 | Raft apply | 未知 `command_type` 以 deferred/unsupported 记录，容易误解为后续会自动补业务 apply | 未知或非法 payload 统一记录为 `rejected`，错误信息明确 `unsupported raft command_type` | `raft_apply_committed_entries_rejects_unknown_and_invalid_payloads` |
 | Java/Go/Rust script capability | Go/Rust/Java starter 可能把不可执行沙箱当成 worker capability 广告，导致 UI/调度误以为可运行 | `Unavailable/UnsupportedScriptRunner` 保留 fail-closed handler，但不进入 structured `scriptRunners`；容器 runner 只广告真实可执行 backend canonical name | Java/Go/Rust SDK tests + cross-language smoke |
 | Rust SDK outcome | Rust demo 返回成功消息前 SDK outcome 不支持 operator-facing success message | `TaskOutcome::Success(String)` 与 `is_success()` 已实现，session result/log 使用真实消息 | Rust SDK tests、cross-language smoke |
@@ -526,7 +526,7 @@ cd examples/rust/worker-demo && cargo test
 
 新增 `deploy/smoke/cross-language-worker-parity-smoke.sh`，将原先手动 Java/Go/Rust worker parity 验收升级为一键 smoke：
 
-1. 启动隔离 tikee server、Web、Java Boot2/Boot3/Boot4、Go、Rust demo worker。
+1. 启动隔离 tikeo server、Web、Java Boot2/Boot3/Boot4、Go、Rust demo worker。
 2. 通过真实 HTTP API 创建 namespace/app/worker pool/quota、SQL plugin processor 和 jobs。
 3. 断言五类 worker 均在线，scope、worker_pool、processor、tags、master state 均来自结构化字段。
 4. 触发 Java/Go/Rust echo jobs，断言实例终态 succeeded 且实例日志包含真实处理消息。
@@ -543,11 +543,11 @@ cd examples/rust/worker-demo && cargo test
 ### 13.3 本轮验证命令
 
 ```bash
-cargo test -p tikee-storage -- --nocapture
-cargo test -p tikee-server -- --nocapture
-cd sdks/go/tikee && go test ./... -count=1
+cargo test -p tikeo-storage -- --nocapture
+cargo test -p tikeo-server -- --nocapture
+cd sdks/go/tikeo && go test ./... -count=1
 cd examples/go/worker-demo && go test ./... -count=1
-cd sdks/rust/tikee && cargo test --all-features -- --nocapture
+cd sdks/rust/tikeo && cargo test --all-features -- --nocapture
 cd examples/rust/worker-demo && cargo test -- --nocapture
 cd sdks/java && ./gradlew test --no-daemon
 cd web && bun run typecheck && bun test --run src/i18n/i18n.test.ts

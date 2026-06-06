@@ -20,7 +20,7 @@ type manifestModel struct {
 	ManifestYAML types.String `tfsdk:"manifest_yaml"`
 }
 
-const manifestDataSourceName = "tikee_manifest"
+const manifestDataSourceName = "tikeo_manifest"
 
 func NewManifestDataSource() datasource.DataSource { return &manifestDataSource{} }
 
@@ -29,7 +29,7 @@ func (d *manifestDataSource) Metadata(_ context.Context, request datasource.Meta
 }
 
 func (d *manifestDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, response *datasource.SchemaResponse) {
-	response.Schema = schema.Schema{Description: "Exports the current tikee GitOps manifest via /api/v1/gitops/manifest.", Attributes: map[string]schema.Attribute{
+	response.Schema = schema.Schema{Description: "Exports the current tikeo GitOps manifest via /api/v1/gitops/manifest.", Attributes: map[string]schema.Attribute{
 		"namespace": schema.StringAttribute{Optional: true},
 		"app": schema.StringAttribute{Optional: true},
 		"format": schema.StringAttribute{Optional: true},
@@ -50,13 +50,13 @@ func (d *manifestDataSource) Read(ctx context.Context, request datasource.ReadRe
 	format := state.Format.ValueString()
 	if format == "" { format = "json" }
 	payload, err := d.client.client.ExportManifest(ctx, state.Namespace.ValueString(), state.App.ValueString(), format)
-	if err != nil { response.Diagnostics.AddError("Unable to export tikee manifest", err.Error()); return }
+	if err != nil { response.Diagnostics.AddError("Unable to export tikeo manifest", err.Error()); return }
 	var envelope struct {
 		Manifest     json.RawMessage `json:"manifest"`
 		ManifestYAML string          `json:"manifestYaml"`
 		Checksum     string          `json:"checksum"`
 	}
-	if err := json.Unmarshal(payload, &envelope); err != nil { response.Diagnostics.AddError("Invalid tikee manifest response", err.Error()); return }
+	if err := json.Unmarshal(payload, &envelope); err != nil { response.Diagnostics.AddError("Invalid tikeo manifest response", err.Error()); return }
 	state.Checksum = types.StringValue(envelope.Checksum)
 	state.ManifestJSON = types.StringValue(string(envelope.Manifest))
 	state.ManifestYAML = types.StringValue(envelope.ManifestYAML)

@@ -9,7 +9,7 @@ Design and implement the next smallest safe cluster slice without fake leadershi
 ## Required work
 1. Add explicit Raft transport/API design for node-to-node communication over container/K8s/LB-safe HTTP/gRPC endpoints.
 2. Add a leader fencing token shape to cluster status/storage design, but do not mark nodes schedulable without real consensus.
-3. Decide whether to keep the current storage-backed no-op coordinator or introduce a `tikee-cluster` crate boundary.
+3. Decide whether to keep the current storage-backed no-op coordinator or introduce a `tikeo-cluster` crate boundary.
 4. If implementation proceeds, add only transport DTOs/routes or fencing-token plumbing that cannot create fake leader behavior.
 5. Update design/.memory/roadmap.
 

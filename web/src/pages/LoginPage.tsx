@@ -5,7 +5,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { getAuthToken, login, setAuthToken, type LoginRequest } from '../api/client';
 import { ROUTE_META } from '../routes';
-import { TikeeLogo } from '../components/TikeeLogo';
+import { TikeoLogo } from '../components/TikeoLogo';
+import { useI18n } from '../i18n/I18nContext';
 
 function resolvePostLoginPath(state: unknown): string {
   if (
@@ -29,6 +30,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const postLoginPath = resolvePostLoginPath(location.state);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (getAuthToken() !== null) {
@@ -38,9 +40,9 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <section className="login-page__shell" aria-label="tikee 登录入口">
+      <section className="login-page__shell" aria-label="tikeo 登录入口">
         <div className="login-page__visual">
-          <div className="login-page__brand login-brand"><TikeeLogo size={96} showWordmark /></div>
+          <div className="login-page__brand login-brand"><TikeoLogo size={96} showWordmark /></div>
           <Typography.Text className="login-page__eyebrow">分布式任务调度平台</Typography.Text>
           <Typography.Title className="login-page__headline" level={1}>
             <span>编排任务</span>
@@ -82,7 +84,7 @@ export function LoginPage() {
             }}
           >
             <Form.Item name="username" label="用户名或邮箱" rules={[{ required: true, message: '请输入用户名或邮箱' }]}>
-              <Input prefix={<UserOutlined />} autoComplete="username" placeholder="owner 或 owner@example.com" />
+              <Input prefix={<UserOutlined />} autoComplete="username" placeholder={t('owner 或 owner@example.com')} />
             </Form.Item>
             <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}>
               <Input.Password prefix={<LockOutlined />} autoComplete="current-password" placeholder="请输入密码" />

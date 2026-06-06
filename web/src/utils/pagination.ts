@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 export const DEFAULT_TABLE_PAGE_SIZE = 20;
 export const TABLE_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
-const COOKIE_NAME = 'tikee_table_page_size';
+const COOKIE_NAME = 'tikeo_table_page_size';
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
 function parsePageSize(value: string | null | undefined): number | null {

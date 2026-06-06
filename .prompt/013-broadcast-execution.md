@@ -20,7 +20,7 @@
 - 不破坏已有单机执行链路。
 - 不引入 Worker 入站调用；Server 只能经 Worker 主动建立的 Tunnel 下发任务。
 - API 返回必须统一 `{ code, message, data }`。
-- 完成后更新 `.memory/*`、本文件之后的下一阶段 `.prompt/014-*.md`、以及 `design/tikee-architecture-design.md` 路线图 `[x]` 标记。
+- 完成后更新 `.memory/*`、本文件之后的下一阶段 `.prompt/014-*.md`、以及 `design/tikeo-architecture-design.md` 路线图 `[x]` 标记。
 
 ## 建议实现范围
 
@@ -56,8 +56,8 @@ bun run --cwd web typecheck
 bun test --cwd web
 bun run --cwd web build
 docker compose config
-docker build -t tikee:dev .
-docker build -t tikee-web:dev ./web
+docker build -t tikeo:dev .
+docker build -t tikeo-web:dev ./web
 docker compose up -d --no-build
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:8080

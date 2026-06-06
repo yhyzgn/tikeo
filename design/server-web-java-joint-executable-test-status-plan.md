@@ -1,7 +1,7 @@
 # Server + Web + Java SDK/Demo 联合自动化测试落地计划与状态表
 
 > 生成日期：2026-06-01
-> 适用范围：tikee server、web 控制台、Java SDK、Java Spring worker demo、storage 数据库矩阵。
+> 适用范围：tikeo server、web 控制台、Java SDK、Java Spring worker demo、storage 数据库矩阵。
 > 口径：每个测试项必须同时包含“执行命令/步骤、断言标准、证据产物、测试结果、状态”。状态仅允许：`✅ 通过` / `⏳ 待执行` / `❌ 失败` / `🚧 阻塞` / `⏭️ 跳过`。
 > 当前已实测证据来自最近一次本地执行；未实测项不得标记为通过。
 
@@ -31,9 +31,9 @@
 ### 2.2 推荐报告目录
 
 ```bash
-export TIKEE_E2E_RUN_ID="joint-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-export TIKEE_E2E_REPORT_DIR="$PWD/.dev/reports/$TIKEE_E2E_RUN_ID"
-mkdir -p "$TIKEE_E2E_REPORT_DIR"
+export TIKEO_E2E_RUN_ID="joint-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+export TIKEO_E2E_REPORT_DIR="$PWD/.dev/reports/$TIKEO_E2E_RUN_ID"
+mkdir -p "$TIKEO_E2E_REPORT_DIR"
 ```
 
 ### 2.3 一键命令顺序
@@ -42,7 +42,7 @@ mkdir -p "$TIKEE_E2E_REPORT_DIR"
 # A. 基础代码质量
 rtk cargo fmt --all -- --check
 rtk cargo check --workspace
-rtk cargo test -p tikee-storage
+rtk cargo test -p tikeo-storage
 
 # B. 数据库兼容性矩阵
 rtk bash scripts/db-compat-smoke.sh
@@ -78,20 +78,20 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 | --- | --- | --- | --- | --- | --- | --- |
 | A-SRV-001 | Rust 格式检查 | `rtk cargo fmt --all -- --check` | 退出码为 0，无格式 diff | 终端日志 | 已执行通过 | ✅ 通过 |
 | A-SRV-002 | Rust workspace 编译检查 | `rtk cargo check --workspace` | workspace 全部 crate check 通过 | 终端日志 | 已执行通过 | ✅ 通过 |
-| A-SRV-003 | Storage 单元测试 | `rtk cargo test -p tikee-storage` | storage 33 个单测 + database_compat 2 个测试通过 | 终端日志 | 已执行通过，33 + 2 通过 | ✅ 通过 |
-| A-DB-001 | SQLite storage smoke | `rtk cargo test -p tikee-storage --test database_compat sqlite_database_compatibility_smoke -- --nocapture` | SQLite 空 schema 迁移、幂等迁移、scope/job/plugin/script/instance/log 断言通过 | 终端日志 | 已执行通过 | ✅ 通过 |
+| A-SRV-003 | Storage 单元测试 | `rtk cargo test -p tikeo-storage` | storage 33 个单测 + database_compat 2 个测试通过 | 终端日志 | 已执行通过，33 + 2 通过 | ✅ 通过 |
+| A-DB-001 | SQLite storage smoke | `rtk cargo test -p tikeo-storage --test database_compat sqlite_database_compatibility_smoke -- --nocapture` | SQLite 空 schema 迁移、幂等迁移、scope/job/plugin/script/instance/log 断言通过 | 终端日志 | 已执行通过 | ✅ 通过 |
 | A-DB-002 | PostgreSQL storage smoke | `rtk bash scripts/db-compat-smoke.sh` | PostgreSQL 16 上迁移与 CRUD smoke 通过 | 终端日志、Docker 服务状态 | 已执行通过 | ✅ 通过 |
 | A-DB-003 | MySQL storage smoke | `rtk bash scripts/db-compat-smoke.sh` | MySQL 8.4 上迁移、复合索引、text/json、Unicode 日志 smoke 通过 | 终端日志、Docker 服务状态 | 已执行通过 | ✅ 通过 |
 | A-SRV-004 | Rust clippy | `rtk cargo clippy --workspace --all-targets --all-features -- -D warnings` | 无 warning/error | `~/.local/share/rtk/tee/1780288979_cargo_clippy.log` | 已执行通过：No issues found；补充 `clippy.toml` 行数阈值并修复 unwrap/expect、文档、转换、Option 包装等告警 | ✅ 通过 |
 | A-SRV-005 | Rust 全 workspace 测试 | `rtk cargo test --workspace --all-features -- --test-threads=1` | server/storage/proto 等全量测试通过；关键状态机断言通过 | rtk 终端日志 | 已执行通过：227 passed | ✅ 通过 |
-| A-SRV-006 | Server raft targeted 测试 | `rtk cargo test -p tikee-server raft -- --nocapture` | Raft metadata/member/log/snapshot 相关测试通过 | rtk 终端日志 | 已执行通过：30 passed, 139 filtered out | ✅ 通过 |
-| A-SRV-007 | Worker targeted 测试 | `rtk cargo test -p tikee-server worker -- --nocapture` | worker registry、session、master/fencing 相关测试通过 | rtk 终端日志 | 已执行通过：14 passed, 155 filtered out | ✅ 通过 |
+| A-SRV-006 | Server raft targeted 测试 | `rtk cargo test -p tikeo-server raft -- --nocapture` | Raft metadata/member/log/snapshot 相关测试通过 | rtk 终端日志 | 已执行通过：30 passed, 139 filtered out | ✅ 通过 |
+| A-SRV-007 | Worker targeted 测试 | `rtk cargo test -p tikeo-server worker -- --nocapture` | worker registry、session、master/fencing 相关测试通过 | rtk 终端日志 | 已执行通过：14 passed, 155 filtered out | ✅ 通过 |
 | A-WEB-001 | Web Vitest | `rtk bash -lc 'cd web && bun test'` | 路由守卫、API client、字段映射、表单 payload 测试通过 | rtk/Bun test log | 已执行通过：61 pass | ✅ 通过 |
 | A-WEB-002 | Web typecheck | `rtk bash -lc 'cd web && bun run typecheck'` | TypeScript 无错误 | rtk/Bun log | 已执行通过 | ✅ 通过 |
 | A-WEB-003 | Web lint | `rtk bash -lc 'cd web && bun run lint'` | ESLint 无错误 | rtk/Bun log | 已执行通过 | ✅ 通过 |
 | A-WEB-004 | Web build | `rtk bash -lc 'cd web && bun run build'` | 生产构建成功，SPA fallback 不破坏构建 | rtk/Bun build log | 已执行通过 | ✅ 通过 |
 | A-JAVA-001 | Java SDK 单元测试 | `rtk bash -lc 'cd sdks/java && ./gradlew test --no-daemon'` | management client、API-Key、worker client、请求 payload 断言通过 | Gradle report / rtk log | 已执行通过 | ✅ 通过 |
-| A-JAVA-002 | Java worker client targeted 测试 | `rtk bash -lc 'cd sdks/java && ./gradlew :tikee:test --tests com.yhyzgn.tikee.worker.client.GrpcTikeeWorkerClientTest --no-daemon'` | gRPC 注册、心跳、任务响应协议测试通过 | Gradle report / rtk log | 已执行通过 | ✅ 通过 |
+| A-JAVA-002 | Java worker client targeted 测试 | `rtk bash -lc 'cd sdks/java && ./gradlew :tikeo:test --tests net.tikeo.worker.client.GrpcTikeoWorkerClientTest --no-daemon'` | gRPC 注册、心跳、任务响应协议测试通过 | Gradle report / rtk log | 已执行通过 | ✅ 通过 |
 | A-DEMO-001 | Java Spring demo 单元测试 | `rtk bash -lc 'cd examples/java/spring-boot3-worker-demo && ./gradlew test --no-daemon'` | demo processors、Spring 配置、任务用例类测试通过 | Gradle report / rtk log | 已执行通过 | ✅ 通过 |
 
 ## 4. P0-B：Server + Java demo 集成 smoke
@@ -99,7 +99,7 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 执行入口：
 
 ```bash
-export TIKEE_INTEGRATION_REPORT_DIR="$PWD/.dev/reports"
+export TIKEO_INTEGRATION_REPORT_DIR="$PWD/.dev/reports"
 rtk bash deploy/smoke/java-demo-integration-smoke.sh
 ```
 
@@ -174,7 +174,7 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 | E-KEY-002 | SDK API-Key 创建 | API/Web 创建 key | key 格式正确，只在创建弹窗显示明文 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-create.json` | `sdk-api-key-create` passed，明文仅创建响应返回 | ✅ 通过 |
 | E-KEY-003 | 列表脱敏 | 打开 API-Key 列表 | 中间脱敏，两端明文，无复制脱敏值误导 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-key-list.json` | `sdk-api-key-list-redacted` passed；无明文/无 hash | ✅ 通过 |
 | E-KEY-004 | key 元数据编辑 | 编辑名称/作用域/有效期 | key 值不变，元数据更新 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-update.json`、audit JSON | `sdk-api-key-update` passed；未返回新明文 | ✅ 通过 |
-| E-KEY-005 | Java management client 用 key | Java SDK management 测试 | 授权 scope 可调用，越权失败 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-java-test/TEST-HttpTikeeJobClientLiveTest.xml` | live JUnit `tests=1 skipped=0 failures=0` | ✅ 通过 |
+| E-KEY-005 | Java management client 用 key | Java SDK management 测试 | 授权 scope 可调用，越权失败 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-java-test/TEST-HttpTikeoJobClientLiveTest.xml` | live JUnit `tests=1 skipped=0 failures=0` | ✅ 通过 |
 | E-KEY-006 | 审计记录 | 查询 audit logs | SA/key create/update/revoke/use 均有审计 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-audit-*.json` | create/update/authenticate/revoke + SA create/update/disable audit 均通过 | ✅ 通过 |
 | E-KEY-007 | 禁用 SA 级联 | 禁用 SA 后使用旧 key | 关联 active key 被吊销，旧 key 调用失败 | `.dev/reports/sdk-api-key-20260601T065021Z-794536-service-account-disable.json`、revoked-key JSON | `service-account-disable-cascade` passed；旧 key 返回 401 | ✅ 通过 |
 
@@ -215,7 +215,7 @@ rtk bash deploy/smoke/server-web-java-joint-e2e.sh
 
 1. MySQL 复合索引字段过长：worker logical identity 复合索引字段改用短字符串列。
 2. MySQL `varchar` 容量不足：脚本内容、workflow definition/config/shard payload、audit detail/before/after、schedule calendar JSON 等改为 `text`。
-3. 跨库验证资产补齐：`scripts/db-compat-smoke.sh` + `deploy/compose/database-compat-compose.yml` + `crates/tikee-storage/tests/database_compat.rs`。
+3. 跨库验证资产补齐：`scripts/db-compat-smoke.sh` + `deploy/compose/database-compat-compose.yml` + `crates/tikeo-storage/tests/database_compat.rs`。
 
 
 ## 10.1 2026-06-04 跨语言 Worker parity / 持久化补充状态

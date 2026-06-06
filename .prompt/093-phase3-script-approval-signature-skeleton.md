@@ -23,6 +23,6 @@ Phase 092 added OIDC authorize/callback skeleton endpoints that fail closed with
 - Web validation if Web files change.
 
 ## Completion notes
-- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md` if risks change.
+- Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md` if risks change.
 - Create the next `.prompt/094-*.md` before commit.
 - Commit with Lore trailers and push.

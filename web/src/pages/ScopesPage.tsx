@@ -265,7 +265,7 @@ export function ScopesPage() {
       </Space>
     ) },
     { title: '更新时间', dataIndex: 'updatedAt' },
-    { title: '操作', width: 120, render: (_, record) => <GuardedButton resource="tenants" action="manage" type="link" size="small" danger confirmTitle="删除 OIDC 映射" confirmDescription="删除后该外部 subject 将无法换取本地 tikee session。" onConfirm={() => void handleOidcIdentityDelete(record.id)}>删除</GuardedButton> },
+    { title: '操作', width: 120, render: (_, record) => <GuardedButton resource="tenants" action="manage" type="link" size="small" danger confirmTitle="删除 OIDC 映射" confirmDescription="删除后该外部 subject 将无法换取本地 tikeo session。" onConfirm={() => void handleOidcIdentityDelete(record.id)}>删除</GuardedButton> },
   ];
 
   return (
@@ -318,7 +318,7 @@ export function ScopesPage() {
           <Form.Item name="name" label="Secret 名称" rules={[{ required: true, message: '请输入 Secret 名称' }]}><Input placeholder="billing-db-password" /></Form.Item>
           <Form.Item name="referenceKind" label="引用类型" rules={[{ required: true, message: '请选择引用类型' }]}><Select options={[{ value: 'env', label: '环境变量' }, { value: 'vault', label: 'Vault 路径' }, { value: 'secret', label: '外部 Secret Provider' }]} /></Form.Item>
           {secretReferenceKind === 'env' ? <Form.Item name="envName" label="环境变量名" rules={[{ required: true, message: '请输入环境变量名' }]}><Input placeholder="BILLING_DB_PASSWORD" /></Form.Item> : null}
-          {secretReferenceKind === 'vault' ? <><Form.Item name="vaultPath" label="Vault 路径" rules={[{ required: true, message: '请输入 Vault 路径' }]}><Input placeholder="kv/data/tikee/billing" /></Form.Item><Form.Item name="vaultKey" label="Vault Key" rules={[{ required: true, message: '请输入 Vault Key' }]}><Input placeholder="db_password" /></Form.Item></> : null}
+          {secretReferenceKind === 'vault' ? <><Form.Item name="vaultPath" label="Vault 路径" rules={[{ required: true, message: '请输入 Vault 路径' }]}><Input placeholder="kv/data/tikeo/billing" /></Form.Item><Form.Item name="vaultKey" label="Vault Key" rules={[{ required: true, message: '请输入 Vault Key' }]}><Input placeholder="db_password" /></Form.Item></> : null}
           {secretReferenceKind === 'secret' ? <><Form.Item name="secretProvider" label="Provider" rules={[{ required: true, message: '请输入 Provider' }]}><Input placeholder="aws-secrets-manager / k8s" /></Form.Item><Form.Item name="secretId" label="Secret ID" rules={[{ required: true, message: '请输入 Secret ID' }]}><Input placeholder="prod/billing/db" /></Form.Item><Form.Item name="secretKey" label="Secret Key"><Input placeholder="可选，例如 password" /></Form.Item></> : null}
           <PermissionGate resource="tenants" action="manage"><Button type="primary" htmlType="submit" block>创建 Secret</Button></PermissionGate>
         </Form>
@@ -344,10 +344,10 @@ export function ScopesPage() {
       </Card>
 
       <Drawer title="保存 OIDC 映射" open={drawer === 'oidc'} onClose={() => { setDrawer(null); oidcForm.resetFields(); }} width={980} destroyOnClose>
-        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="Fail-closed OIDC 映射" description="只有显式配置 issuer + subject 到本地用户的映射后，OIDC callback 才会签发本地 tikee session；namespace/app/Worker Pool 会进入 scope binding。" />
+        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="Fail-closed OIDC 映射" description="只有显式配置 issuer + subject 到本地用户的映射后，OIDC callback 才会签发本地 tikeo session；namespace/app/Worker Pool 会进入 scope binding。" />
         <Form form={oidcForm} layout="vertical" onFinish={(values) => void handleOidcIdentityUpsert(values)}>
           <Row gutter={[12, 0]}>
-            <Col xs={24} lg={12}><Form.Item name="issuer" label="Issuer" rules={[{ required: true, message: '请输入 issuer' }]}><Input placeholder="https://idp.example.com/realms/tikee" /></Form.Item></Col>
+            <Col xs={24} lg={12}><Form.Item name="issuer" label="Issuer" rules={[{ required: true, message: '请输入 issuer' }]}><Input placeholder="https://idp.example.com/realms/tikeo" /></Form.Item></Col>
             <Col xs={24} lg={12}><Form.Item name="subject" label="Subject" rules={[{ required: true, message: '请输入 subject' }]}><Input placeholder="OIDC sub claim" /></Form.Item></Col>
             <Col xs={24} lg={12}><Form.Item name="username" label="本地用户" rules={[{ required: true, message: '请输入本地用户名' }]}><Input placeholder="oidc.alice" /></Form.Item></Col>
             <Col xs={24} lg={12}><Form.Item name="namespace" label="Namespace scope"><Select allowClear options={namespaceOptions} placeholder="不选表示任意 namespace" /></Form.Item></Col>

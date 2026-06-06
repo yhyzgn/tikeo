@@ -4356,17 +4356,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "tikee"
+name = "tikeo"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "mimalloc",
- "tikee-server",
+ "tikeo-server",
  "tokio",
 ]
 
 [[package]]
-name = "tikee-config"
+name = "tikeo-config"
 version = "0.1.0"
 dependencies = [
  "config",
@@ -4375,7 +4375,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tikee-core"
+name = "tikeo-core"
 version = "0.1.0"
 dependencies = [
  "serde",
@@ -4383,7 +4383,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tikee-proto"
+name = "tikeo-proto"
 version = "0.1.0"
 dependencies = [
  "prost 0.14.3",
@@ -4394,7 +4394,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tikee-server"
+name = "tikeo-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -4430,10 +4430,10 @@ dependencies = [
  "sha2",
  "sqlx",
  "thiserror 2.0.18",
- "tikee-config",
- "tikee-core",
- "tikee-proto",
- "tikee-storage",
+ "tikeo-config",
+ "tikeo-core",
+ "tikeo-proto",
+ "tikeo-storage",
  "time",
  "tokio",
  "tokio-rustls",
@@ -4450,7 +4450,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tikee-storage"
+name = "tikeo-storage"
 version = "0.1.0"
 dependencies = [
  "sea-orm",
@@ -4460,7 +4460,7 @@ dependencies = [
  "sha2",
  "sqlx",
  "thiserror 2.0.18",
- "tikee-core",
+ "tikeo-core",
  "time",
  "tokio",
  "utoipa",
@@ -4468,11 +4468,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "tikee-wasm"
+name = "tikeo-wasm"
 version = "0.1.0"
 dependencies = [
  "thiserror 2.0.18",
- "tikee-core",
+ "tikeo-core",
  "wasmtime",
  "wat",
 ]

@@ -1,0 +1,30 @@
+apiVersion: tikeo.io/v1alpha1
+kind: TikeoManifest
+scope:
+  namespace: default
+  app: billing
+resources:
+  - kind: Job
+    metadata:
+      name: nightly-billing-close
+      namespace: default
+      app: billing
+    spec:
+      scheduleType: cron
+      scheduleExpr: "0 0 2 * * *"
+      misfirePolicy: fire_once
+      processorType: sdk
+      processorName: billing.close
+      enabled: true
+  - kind: Workflow
+    metadata:
+      name: billing-pipeline
+    spec:
+      status: active
+      definition:
+        nodes:
+          - key: close
+            name: Close billing
+            kind: job
+            jobId: nightly-billing-close
+        edges: []

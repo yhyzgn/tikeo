@@ -96,7 +96,7 @@ async function mockRbacApi(page: Page) {
 
 test('role management page renders owner protection and creates a managed role', async ({ page }) => {
   await mockRbacApi(page);
-  await page.addInitScript(() => localStorage.setItem('tikee.auth.token', 'pw-owner-session'));
+  await page.addInitScript(() => localStorage.setItem('tikeo.auth.token', 'pw-owner-session'));
 
   await page.goto('/roles');
 

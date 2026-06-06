@@ -1,10 +1,10 @@
--- Development integration seed data for tikee.
+-- Development integration seed data for tikeo.
 --
 -- Usage:
 --   1. Start the dev server once so migrations create the schema:
 --      ./scripts/dev.sh
 --   2. Apply this script to the SQLite dev database:
---      sqlite3 tikee-dev.db < scripts/dev-seed.sql
+--      sqlite3 tikeo-dev.db < scripts/dev-seed.sql
 --
 -- The script is idempotent: stable ids are upserted, so it can be re-run safely.
 -- It is intended for local development only, not production bootstrapping.
@@ -118,10 +118,10 @@ ON CONFLICT(id) DO UPDATE SET
 INSERT INTO scripts (id, name, language, version, content, status, released_version_id, released_version_number, timeout_seconds, max_memory_bytes, allow_network, allowed_env_vars, policy_json, created_by, created_at, updated_at)
 VALUES
   ('script-dev-shell-hello', 'dev-shell-hello', 'shell', '1.0.0', '#!/usr/bin/env sh
-echo "hello from tikee dev seed: ${TIKEE_DEV_MESSAGE:-ok}"
-', 'approved', 'script-version-dev-shell-hello-1', 1, 10, 67108864, 0, '["TIKEE_DEV_MESSAGE"]', '{"network":{"enabled":false},"filesystem":{"read_only_paths":[],"writable_paths":[]},"resources":{"timeout_ms":10000,"max_memory_bytes":67108864},"env_vars":["TIKEE_DEV_MESSAGE"]}', 'usr-admin', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+echo "hello from tikeo dev seed: ${TIKEO_DEV_MESSAGE:-ok}"
+', 'approved', 'script-version-dev-shell-hello-1', 1, 10, 67108864, 0, '["TIKEO_DEV_MESSAGE"]', '{"network":{"enabled":false},"filesystem":{"read_only_paths":[],"writable_paths":[]},"resources":{"timeout_ms":10000,"max_memory_bytes":67108864},"env_vars":["TIKEO_DEV_MESSAGE"]}', 'usr-admin', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
   ('script-dev-python-json', 'dev-python-json', 'python', '1.0.0', 'import json
-print(json.dumps({"status":"ok","source":"tikee-dev-seed"}))
+print(json.dumps({"status":"ok","source":"tikeo-dev-seed"}))
 ', 'approved', 'script-version-dev-python-json-1', 1, 10, 67108864, 0, '[]', '{"network":{"enabled":false},"filesystem":{"read_only_paths":[],"writable_paths":[]},"resources":{"timeout_ms":10000,"max_memory_bytes":67108864},"env_vars":[]}', 'usr-admin', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
@@ -142,10 +142,10 @@ ON CONFLICT(id) DO UPDATE SET
 INSERT INTO script_versions (id, script_id, version_number, content, content_sha256, language, status, timeout_seconds, max_memory_bytes, allow_network, allowed_env_vars, policy_json, created_by, created_at)
 VALUES
   ('script-version-dev-shell-hello-1', 'script-dev-shell-hello', 1, '#!/usr/bin/env sh
-echo "hello from tikee dev seed: ${TIKEE_DEV_MESSAGE:-ok}"
-', '991474538b28fa818388441d7fb96c51ecc3914914bda96f2d3cf480003ada31', 'shell', 'approved', 10, 67108864, 0, '["TIKEE_DEV_MESSAGE"]', '{"network":{"enabled":false},"filesystem":{"read_only_paths":[],"writable_paths":[]},"resources":{"timeout_ms":10000,"max_memory_bytes":67108864},"env_vars":["TIKEE_DEV_MESSAGE"]}', 'usr-admin', '2026-01-01T00:00:00Z'),
+echo "hello from tikeo dev seed: ${TIKEO_DEV_MESSAGE:-ok}"
+', '991474538b28fa818388441d7fb96c51ecc3914914bda96f2d3cf480003ada31', 'shell', 'approved', 10, 67108864, 0, '["TIKEO_DEV_MESSAGE"]', '{"network":{"enabled":false},"filesystem":{"read_only_paths":[],"writable_paths":[]},"resources":{"timeout_ms":10000,"max_memory_bytes":67108864},"env_vars":["TIKEO_DEV_MESSAGE"]}', 'usr-admin', '2026-01-01T00:00:00Z'),
   ('script-version-dev-python-json-1', 'script-dev-python-json', 1, 'import json
-print(json.dumps({"status":"ok","source":"tikee-dev-seed"}))
+print(json.dumps({"status":"ok","source":"tikeo-dev-seed"}))
 ', '08b4ae890c6e0ad4d9ea6d0886ce65478c60ddcc1cefd0ab76f58ba1b3746f09', 'python', 'approved', 10, 67108864, 0, '[]', '{"network":{"enabled":false},"filesystem":{"read_only_paths":[],"writable_paths":[]},"resources":{"timeout_ms":10000,"max_memory_bytes":67108864},"env_vars":[]}', 'usr-admin', '2026-01-01T00:00:00Z')
 ON CONFLICT(id) DO UPDATE SET
   script_id = excluded.script_id,
@@ -168,7 +168,7 @@ INSERT INTO scripts (id, name, language, version, content, status, released_vers
 VALUES
   ('script-dev-shell-example', 'dev-shell-script-example', 'shell', '1.0.0', '#!/usr/bin/env sh
 set -eu
-echo "tikee shell script example ok"
+echo "tikeo shell script example ok"
 ', 'approved', 'script-version-dev-shell-example-1', 1, 10, 67108864, 0, '[]', '{"resources":{"timeout_ms":10000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[],"sandbox":{"backend":"auto"}}', 'usr-admin', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
   ('script-dev-python-example', 'dev-python-script-example', 'python', '1.0.0', 'import json
 print(json.dumps({"language": "python", "status": "ok"}))
@@ -209,7 +209,7 @@ INSERT INTO script_versions (id, script_id, version_number, content, content_sha
 VALUES
   ('script-version-dev-shell-example-1', 'script-dev-shell-example', 1, '#!/usr/bin/env sh
 set -eu
-echo "tikee shell script example ok"
+echo "tikeo shell script example ok"
 ', '127d5da7417c18bf3d9567da168de6718bef6c78edbe00c6c50efafd4e27f845', 'shell', 'approved', 10, 67108864, 0, '[]', '{"resources":{"timeout_ms":10000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"network":{"enabled":false,"allowed_hosts":[]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"env_vars":[],"sandbox":{"backend":"auto"}}', 'usr-admin', '2026-01-01T00:00:00Z'),
   ('script-version-dev-python-example-1', 'script-dev-python-example', 1, 'import json
 print(json.dumps({"language": "python", "status": "ok"}))

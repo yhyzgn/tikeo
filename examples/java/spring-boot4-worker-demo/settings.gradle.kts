@@ -12,5 +12,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "tikee-spring-boot4-worker-demo"
+rootProject.name = "tikeo-spring-boot4-worker-demo"
 includeBuild("../../../sdks/java")

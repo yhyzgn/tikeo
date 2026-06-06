@@ -9,11 +9,11 @@ Implemented boundaries:
 - Scheduling/dispatch: scheduling advice and Worker dispatch use structured Worker requirements and match `pluginProcessors.type + processorNames`; legacy `plugin-processor:<type>` strings are compatibility-only fallbacks, not the contract.
 - Alerts: plugin alert channel types are visible in delivery readiness and can be materialized into webhook-compatible notification channels with simple `{{message}}`, `{{resource_id}}`, `{{resource_type}}`, `{{severity}}` template replacement.
 - Web: `/plugins` management page, menu route, API client types, and Jobs create/edit plugin processor selector.
-- Demo: Java Spring worker declares `@TikeeProcessor(value = "billing.sql-sync", kind = PLUGIN, pluginType = "sql")`, producing structured `pluginProcessors` registration. Rust demo remains compatibility/compile-safe and should not be treated as the source of the new contract.
+- Demo: Java Spring worker declares `@TikeoProcessor(value = "billing.sql-sync", kind = PLUGIN, pluginType = "sql")`, producing structured `pluginProcessors` registration. Rust demo remains compatibility/compile-safe and should not be treated as the source of the new contract.
 
 Validation anchors:
-- `cargo test -p tikee-storage plugin_repository_resolves_custom_processor_and_alert_channel_types -- --nocapture`
-- `cargo test -p tikee-server plugin_registry_supports_custom_processor_types_and_alert_channels -- --nocapture`
+- `cargo test -p tikeo-storage plugin_repository_resolves_custom_processor_and_alert_channel_types -- --nocapture`
+- `cargo test -p tikeo-server plugin_registry_supports_custom_processor_types_and_alert_channels -- --nocapture`
 - `cd web && bun test src/pages/__tests__/PluginsPage.test.tsx`
 - `cd web && bun run lint && bun run build`
 

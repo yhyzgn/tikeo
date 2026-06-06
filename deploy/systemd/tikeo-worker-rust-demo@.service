@@ -1,0 +1,26 @@
+[Unit]
+Description=tikeo Rust demo worker (%i)
+Documentation=https://github.com/yhyzgn/tikeo
+After=network-online.target tikeo.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tikeo
+Group=tikeo
+EnvironmentFile=/etc/tikeo/tikeo-worker-rust-demo.env
+Environment=TIKEO_WORKER_HOST_ID=%H
+Environment=TIKEO_WORKER_INSTANCE_SLOT=%i
+Environment=TIKEO_WORKER_INSTANCE_ID=rust-demo-worker@%H#%i
+ExecStart=/opt/tikeo/bin/tikeo-rust-worker-demo
+Restart=on-failure
+RestartSec=5s
+WorkingDirectory=/var/lib/tikeo
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/tikeo
+
+[Install]
+WantedBy=multi-user.target

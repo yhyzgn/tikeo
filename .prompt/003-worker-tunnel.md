@@ -7,7 +7,7 @@
 ## 开始前必读
 
 - `../prompt.md`
-- `../design/tikee-architecture-design.md` 中 Worker Tunnel、部署、通信协议章节
+- `../design/tikeo-architecture-design.md` 中 Worker Tunnel、部署、通信协议章节
 - `../.memory/project.md`
 - `../.memory/decisions.md`
 - `../.memory/progress.md`
@@ -16,11 +16,11 @@
 
 ## 当前代码上下文
 
-- 后端主程序入口位于根 `src/main.rs`，只负责调用 `tikee_server::run_cli()`。
+- 后端主程序入口位于根 `src/main.rs`，只负责调用 `tikeo_server::run_cli()`。
 - 业务/平台模块位于 `./crates/*`：
-  - `tikee-core`
-  - `tikee-config`
-  - `tikee-server`
+  - `tikeo-core`
+  - `tikeo-config`
+  - `tikeo-server`
 - HTTP 管理 API 已具备：
   - `/healthz`
   - `/readyz`
@@ -44,9 +44,9 @@
 
 ## 建议任务
 
-1. 新增 `crates/tikee-proto` 或同等 proto crate。
+1. 新增 `crates/tikeo-proto` 或同等 proto crate。
 2. 引入当前最新稳定的 `tonic` / `prost` / `tonic-build` 方案。
-3. 创建 `proto/tikee/worker/v1/worker.proto`，定义最小消息：
+3. 创建 `proto/tikeo/worker/v1/worker.proto`，定义最小消息：
    - `WorkerMessage`
    - `ServerMessage`
    - `RegisterWorker`
@@ -64,7 +64,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo build --workspace --all-features
-cargo run --bin tikee -- serve --config config/dev.toml
+cargo run --bin tikeo -- serve --config config/dev.toml
 curl -fsS http://0.0.0.0:9090/healthz
 curl -fsS http://0.0.0.0:9090/api-docs/openapi.json
 ```
@@ -79,6 +79,6 @@ curl -fsS http://0.0.0.0:9090/api-docs/openapi.json
 - `.memory/next.md`
 - `.memory/decisions.md`
 - `.memory/risks.md`
-- `.prompt/004-storage-and-tikee.md`
+- `.prompt/004-storage-and-tikeo.md`
 
 验证通过后提交并推送。

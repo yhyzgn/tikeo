@@ -14,7 +14,7 @@ Phase 096 made the dispatch queue pending-age Grafana SLO query backed by a real
 - Do not mark full business SLO coverage complete; end-to-end dispatch latency histograms, workflow/map-reduce SLA, and live recording-rule validation remain future work.
 
 ## Expected verification
-- `cargo test -p tikee-server metrics_summary_reports_storage_registry_and_alert_counts --all-features`
+- `cargo test -p tikeo-server metrics_summary_reports_storage_registry_and_alert_counts --all-features`
 - `cargo fmt --all -- --check`
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 - `cargo test --workspace --all-features`
@@ -22,5 +22,5 @@ Phase 096 made the dispatch queue pending-age Grafana SLO query backed by a real
 - `cargo run -- --help`
 
 ## Completion notes
-- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md`.
+- Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`, and `.memory/risks.md`.
 - Commit with Lore trailers and push.

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { registerBootstrapAdmin, type BootstrapRegisterRequest } from '../api/client';
-import { TikeeLogo } from '../components/TikeeLogo';
+import { TikeoLogo } from '../components/TikeoLogo';
 import { useI18n } from '../i18n/I18nContext';
 import { ROUTE_META } from '../routes';
 
@@ -20,9 +20,9 @@ export function SuperAdminSetupPage({ onRegistered }: SuperAdminSetupPageProps) 
 
   return (
     <div className="login-page setup-page">
-      <section className="login-page__shell setup-page__shell" aria-label={t('tikee 初始化入口')}>
+      <section className="login-page__shell setup-page__shell" aria-label={t('tikeo 初始化入口')}>
         <div className="login-page__visual setup-page__visual">
-          <div className="login-page__brand login-brand"><TikeeLogo size={96} showWordmark /></div>
+          <div className="login-page__brand login-brand"><TikeoLogo size={96} showWordmark /></div>
           <Typography.Text className="login-page__eyebrow">{t('首次部署初始化')}</Typography.Text>
           <Typography.Title className="login-page__headline" level={1}>
             <span>{t('建立 Owner')}</span>
@@ -71,7 +71,7 @@ export function SuperAdminSetupPage({ onRegistered }: SuperAdminSetupPageProps) 
               label={t('邮箱')}
               rules={[{ required: true, message: t('请输入邮箱') }, { type: 'email', message: t('请输入有效邮箱') }]}
             >
-              <Input prefix={<MailOutlined />} autoComplete="email" placeholder="owner@example.com" />
+              <Input prefix={<MailOutlined />} autoComplete="email" placeholder={t('owner@example.com')} />
             </Form.Item>
             <Form.Item name="password" label={t('密码')} rules={[{ required: true, message: t('请输入密码') }]}>
               <Input.Password prefix={<LockOutlined />} autoComplete="new-password" placeholder={t('请输入密码')} />
@@ -93,7 +93,7 @@ export function SuperAdminSetupPage({ onRegistered }: SuperAdminSetupPageProps) 
               <Input.Password prefix={<LockOutlined />} autoComplete="new-password" placeholder={t('请再次输入密码')} />
             </Form.Item>
             <Button className="login-page__submit" type="primary" htmlType="submit" loading={loading} block>
-              {t('创建 Owner并进入站点')}
+              {t('创建 Owner 并进入站点')}
             </Button>
           </Form>
         </Card>

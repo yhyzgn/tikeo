@@ -1,0 +1,66 @@
+[package]
+name = "tikeo-server"
+description = "tikeo server binary and management gateway."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow = "1"
+axum = "0"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+chrono-tz = "0.10"
+clap = { version = "4", features = ["derive", "env"] }
+cron = "0.16.0"
+humantime = "2.3.0"
+sha2 = "0.10"
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
+metrics-util = "0.19"
+moka = { version = "0.12", features = ["future"] }
+protobuf = "2.28"
+prost-types = "0.14"
+raft = { version = "0.7", default-features = true }
+hex = "0.4"
+async-trait = "0.1"
+base64 = "0.22"
+rustls-native-certs = "0.8"
+bcrypt = "0.15"
+uuid = { version = "1", features = ["v4"] }
+rand = "0.9"
+hyper-util = { version = "0.1", features = ["server-auto", "service", "tokio"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pemfile = "2"
+tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
+tikeo-config = { path = "../tikeo-config" }
+tikeo-core = { path = "../tikeo-core" }
+tikeo-proto = { path = "../tikeo-proto" }
+tikeo-storage = { path = "../tikeo-storage" }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio-rustls"] }
+tokio-stream = "0.1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "sync", "time"] }
+thiserror = "2"
+url = "2"
+time = { version = "0.3", features = ["formatting"] }
+tonic = { version = "0.14", features = ["tls-ring"] }
+tonic-prost = "0.14"
+tower = "0"
+tracing = "0"
+tracing-opentelemetry = "0.31"
+opentelemetry = "0.30"
+opentelemetry_sdk = "0.30"
+opentelemetry-otlp = { version = "0.30", default-features = false, features = ["http-proto", "reqwest-blocking-client"] }
+tracing-subscriber = { version = "0", features = ["env-filter", "fmt", "registry"] }
+utoipa = { version = "5", features = ["axum_extras"] }
+
+[dev-dependencies]
+tower = { version = "0", features = ["util"] }
+sea-orm = "1"
+
+[lints]
+workspace = true

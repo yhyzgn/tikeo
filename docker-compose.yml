@@ -1,41 +1,41 @@
 services:
-  tikee:
+  tikeo:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${TIKEE_IMAGE:-tikee:dev}
+    image: ${TIKEO_IMAGE:-tikeo/server:dev}
     command: ["serve", "--config", "/app/config/container.toml"]
     environment:
       MIMALLOC_PURGE_DELAY: ${MIMALLOC_PURGE_DELAY:-0}
       MIMALLOC_PURGE_DECOMMITS: ${MIMALLOC_PURGE_DECOMMITS:-1}
       MIMALLOC_ABANDONED_PAGE_PURGE: ${MIMALLOC_ABANDONED_PAGE_PURGE:-1}
     ports:
-      - "${TIKEE_HTTP_PORT:-9090}:9090"
-      - "${TIKEE_WORKER_TUNNEL_PORT:-9998}:9998"
+      - "${TIKEO_HTTP_PORT:-9090}:9090"
+      - "${TIKEO_WORKER_TUNNEL_PORT:-9998}:9998"
     volumes:
-      - ${TIKEE_DATA_VOLUME:-tikee-data}:/data
+      - ${TIKEO_DATA_VOLUME:-tikeo-data}:/data
   web:
     build:
       context: ./web
       dockerfile: Dockerfile
-    image: ${TIKEE_WEB_IMAGE:-tikee-web:dev}
+    image: ${TIKEO_WEB_IMAGE:-tikeo/web:dev}
     depends_on:
-      - tikee
+      - tikeo
     ports:
-      - "${TIKEE_WEB_PORT:-8080}:80"
+      - "${TIKEO_WEB_PORT:-8080}:80"
   prometheus:
     image: prom/prometheus:v3.0.1
     profiles: ["observability"]
     depends_on:
-      - tikee
+      - tikeo
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--web.enable-lifecycle"
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./observability/prometheus/tikee-recording-rules.yml:/etc/prometheus/tikee-recording-rules.yml:ro
+      - ./observability/prometheus/tikeo-recording-rules.yml:/etc/prometheus/tikeo-recording-rules.yml:ro
     ports:
-      - "${TIKEE_PROMETHEUS_PORT:-9091}:9090"
+      - "${TIKEO_PROMETHEUS_PORT:-9091}:9090"
 
 volumes:
-  tikee-data:
+  tikeo-data:

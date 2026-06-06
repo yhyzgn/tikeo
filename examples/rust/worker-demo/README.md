@@ -1,11 +1,11 @@
 # Rust Worker Demo
 
-Runnable demo for `sdks/rust/tikee`, aligned with the Java manual acceptance scopes.
+Runnable demo for `sdks/rust/tikeo`, aligned with the Java manual acceptance scopes.
 
 Direct live Worker Tunnel mode, same default behavior as the Java demos:
 
 ```bash
-# Start tikee first, for example from the repository root:
+# Start tikeo first, for example from the repository root:
 # ./scripts/dev.sh
 
 cd examples/rust/worker-demo
@@ -17,7 +17,7 @@ By default this connects to `http://127.0.0.1:9998`, registers under `dev-alpha/
 Dry-run configuration smoke test:
 
 ```bash
-TIKEE_WORKER_DRY_RUN=1 cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
+TIKEO_WORKER_DRY_RUN=1 cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
 ```
 
 Defaults:
@@ -33,19 +33,19 @@ Defaults:
 
 Environment variables:
 
-- `TIKEE_WORKER_DRY_RUN=1` switches to dry-run mode without opening the Worker Tunnel.
-- `TIKEE_WORKER_CONNECT=0` is also accepted as a compatibility dry-run switch.
-- `TIKEE_WORKER_ENDPOINT` defaults to `http://127.0.0.1:9998`.
-- `TIKEE_WORKER_CLIENT_INSTANCE_ID` / `TIKEE_WORKER_INSTANCE_ID` override the stable client instance id.
-- `TIKEE_WORKER_NAMESPACE` / `TIKEE_WORKER_APP` override the default `dev-alpha/orders` scope.
-- `TIKEE_WORKER_POOL` overrides the default `rust-blue` worker pool label.
-- `TIKEE_WORKER_SDK_PROCESSORS` overrides the comma-separated SDK processor list.
-- `TIKEE_ENABLE_PLUGIN_SQL` defaults to enabled; set `TIKEE_ENABLE_PLUGIN_SQL=0` to stop advertising the SQL plugin processor.
-- `TIKEE_PLUGIN_SQL_TYPE` and `TIKEE_PLUGIN_SQL_PROCESSOR` override the default `sql` / `billing.sql-sync` structured plugin fields.
-- `TIKEE_WORKER_SCRIPT_SANDBOX` supports `auto`, `srt`, `deno`, `v8`, `wasmtime`, `wasmedge`, `docker`, `podman`, and `custom`; `container` is accepted as `docker`.
-- `TIKEE_SANDBOX_AUTO_INSTALL=0` disables automatic sandbox tool installation. With the default setting, the demo checks and installs SRT, ripgrep, Deno, and Rhai tools as needed.
-- `TIKEE_WORKER_STATE_DIR` overrides the managed sandbox tool install root.
-- `TIKEE_ENABLE_SCRIPT_<LANG>=0` disables a default language, for example `TIKEE_ENABLE_SCRIPT_RHAI=0`.
-- `TIKEE_<LANG>_IMAGE` overrides the container image only when `TIKEE_WORKER_SCRIPT_SANDBOX=docker` or `podman` is explicitly selected.
+- `TIKEO_WORKER_DRY_RUN=1` switches to dry-run mode without opening the Worker Tunnel.
+- `TIKEO_WORKER_CONNECT=0` is also accepted as a compatibility dry-run switch.
+- `TIKEO_WORKER_ENDPOINT` defaults to `http://127.0.0.1:9998`.
+- `TIKEO_WORKER_CLIENT_INSTANCE_ID` / `TIKEO_WORKER_INSTANCE_ID` override the stable client instance id.
+- `TIKEO_WORKER_NAMESPACE` / `TIKEO_WORKER_APP` override the default `dev-alpha/orders` scope.
+- `TIKEO_WORKER_POOL` overrides the default `rust-blue` worker pool label.
+- `TIKEO_WORKER_SDK_PROCESSORS` overrides the comma-separated SDK processor list.
+- `TIKEO_ENABLE_PLUGIN_SQL` defaults to enabled; set `TIKEO_ENABLE_PLUGIN_SQL=0` to stop advertising the SQL plugin processor.
+- `TIKEO_PLUGIN_SQL_TYPE` and `TIKEO_PLUGIN_SQL_PROCESSOR` override the default `sql` / `billing.sql-sync` structured plugin fields.
+- `TIKEO_WORKER_SCRIPT_SANDBOX` supports `auto`, `srt`, `deno`, `v8`, `wasmtime`, `wasmedge`, `docker`, `podman`, and `custom`; `container` is accepted as `docker`.
+- `TIKEO_SANDBOX_AUTO_INSTALL=0` disables automatic sandbox tool installation. With the default setting, the demo checks and installs SRT, ripgrep, Deno, and Rhai tools as needed.
+- `TIKEO_WORKER_STATE_DIR` overrides the managed sandbox tool install root.
+- `TIKEO_ENABLE_SCRIPT_<LANG>=0` disables a default language, for example `TIKEO_ENABLE_SCRIPT_RHAI=0`.
+- `TIKEO_<LANG>_IMAGE` overrides the container image only when `TIKEO_WORKER_SCRIPT_SANDBOX=docker` or `podman` is explicitly selected.
 
 Execution note: Rust demo now follows the Java lightweight auto path. `auto` uses SRT for shell/python/powershell/php/groovy/rhai and Deno for JavaScript/TypeScript, with automatic tool resolution/installation before structured capabilities are advertised. Docker/Podman are heavier explicit backends and are never selected by default.

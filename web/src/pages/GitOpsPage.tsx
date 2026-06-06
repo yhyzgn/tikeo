@@ -62,7 +62,7 @@ export function GitOpsPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'tikee-manifest.yaml';
+    link.download = 'tikeo-manifest.yaml';
     link.click();
     URL.revokeObjectURL(url);
   };

@@ -11,9 +11,9 @@ Phase 098 added durable API token create/list/revoke and Phase 099 added `resour
 5. Keep token storage hash-only and maintain standard `{code,message,data}` HTTP envelopes.
 
 ## Verification
-- RED observed first: `rtk cargo test -p tikee-server api_token_policy --all-features` failed because token TTL ignored the request and too-long TTL returned 200.
-- Targeted green: `rtk cargo test -p tikee-server api_token --all-features`.
-- Config default coverage: `rtk cargo test -p tikee-config default_auth_config --all-features`.
+- RED observed first: `rtk cargo test -p tikeo-server api_token_policy --all-features` failed because token TTL ignored the request and too-long TTL returned 200.
+- Targeted green: `rtk cargo test -p tikeo-server api_token --all-features`.
+- Config default coverage: `rtk cargo test -p tikeo-config default_auth_config --all-features`.
 
 ## Remaining boundaries
 - This does not implement multi-tenant namespace/app/worker-pool scope binding.

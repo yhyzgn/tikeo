@@ -1,8 +1,8 @@
-module github.com/yhyzgn/tikee/examples/go/worker-demo
+module github.com/yhyzgn/tikeo/examples/go/worker-demo
 
 go 1.26
 
-require github.com/yhyzgn/tikee/sdks/go/tikee v0.0.0
+require github.com/yhyzgn/tikeo/sdks/go/tikeo v0.0.0
 
 require (
 	golang.org/x/net v0.51.0 // indirect
@@ -14,4 +14,4 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-replace github.com/yhyzgn/tikee/sdks/go/tikee => ../../../sdks/go/tikee
+replace github.com/yhyzgn/tikeo/sdks/go/tikeo => ../../../sdks/go/tikeo

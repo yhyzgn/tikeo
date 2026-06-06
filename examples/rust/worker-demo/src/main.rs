@@ -5,7 +5,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use async_trait::async_trait;
-use tikee::{
+use tikeo::{
     ContainerScriptRunner, DenoScriptRunner, ManagementClient, ManagementCreateJobRequest,
     SandboxToolResolver, ScriptRunnerKind, ScriptRunnerRegistry, SrtScriptRunner, TaskContext,
     TaskOutcome, TaskProcessor, UnsupportedScriptRunner, WorkerClient, WorkerConfig,
@@ -14,34 +14,34 @@ use tikee::{
 
 #[tokio::main]
 async fn main() -> Result<(), WorkerSdkError> {
-    let endpoint = std::env::var("TIKEE_WORKER_ENDPOINT")
+    let endpoint = std::env::var("TIKEO_WORKER_ENDPOINT")
         .unwrap_or_else(|_| "http://127.0.0.1:9998".to_owned());
-    let client_instance_id = std::env::var("TIKEE_WORKER_INSTANCE_ID")
-        .or_else(|_| std::env::var("TIKEE_WORKER_CLIENT_INSTANCE_ID"))
+    let client_instance_id = std::env::var("TIKEO_WORKER_INSTANCE_ID")
+        .or_else(|_| std::env::var("TIKEO_WORKER_CLIENT_INSTANCE_ID"))
         .unwrap_or_else(|_| "rust-worker-demo-local".to_owned());
     let mut config = WorkerConfig::local(endpoint, client_instance_id);
-    config.namespace = env_or("TIKEE_WORKER_NAMESPACE", "dev-alpha");
-    config.app = env_or("TIKEE_WORKER_APP", "orders");
-    config.cluster = env_or("TIKEE_WORKER_CLUSTER", "local");
-    config.region = env_or("TIKEE_WORKER_REGION", "local");
-    config.capabilities = csv_env("TIKEE_WORKER_CAPABILITIES");
-    config.labels = labels_env("TIKEE_WORKER_LABELS");
+    config.namespace = env_or("TIKEO_WORKER_NAMESPACE", "dev-alpha");
+    config.app = env_or("TIKEO_WORKER_APP", "orders");
+    config.cluster = env_or("TIKEO_WORKER_CLUSTER", "local");
+    config.region = env_or("TIKEO_WORKER_REGION", "local");
+    config.capabilities = csv_env("TIKEO_WORKER_CAPABILITIES");
+    config.labels = labels_env("TIKEO_WORKER_LABELS");
     config.add_tag("rust");
     config.add_tag("manual-demo");
     for processor in csv_env_or(
-        "TIKEE_WORKER_SDK_PROCESSORS",
+        "TIKEO_WORKER_SDK_PROCESSORS",
         "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail",
     ) {
         config.add_sdk_processor(processor);
     }
     config.labels.insert(
         "worker_pool".to_owned(),
-        env_or("TIKEE_WORKER_POOL", "rust-blue"),
+        env_or("TIKEO_WORKER_POOL", "rust-blue"),
     );
-    if enabled_by_default("TIKEE_ENABLE_PLUGIN_SQL") {
+    if enabled_by_default("TIKEO_ENABLE_PLUGIN_SQL") {
         config.add_plugin_processor(
-            env_or("TIKEE_PLUGIN_SQL_TYPE", "sql"),
-            env_or("TIKEE_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"),
+            env_or("TIKEO_PLUGIN_SQL_TYPE", "sql"),
+            env_or("TIKEO_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"),
         );
         config
             .labels
@@ -49,21 +49,21 @@ async fn main() -> Result<(), WorkerSdkError> {
     }
 
     let mut runners = ScriptRunnerRegistry::new();
-    let sandbox_backend = env_or("TIKEE_WORKER_SCRIPT_SANDBOX", "auto");
+    let sandbox_backend = env_or("TIKEO_WORKER_SCRIPT_SANDBOX", "auto");
     let mut sandbox_tools = SandboxToolResolver::default();
-    if let Ok(state_dir) = std::env::var("TIKEE_WORKER_STATE_DIR") {
+    if let Ok(state_dir) = std::env::var("TIKEO_WORKER_STATE_DIR") {
         sandbox_tools.state_dir = Some(std::path::PathBuf::from(state_dir));
     }
-    sandbox_tools.auto_install = !disabled_env("TIKEE_SANDBOX_AUTO_INSTALL");
+    sandbox_tools.auto_install = !disabled_env("TIKEO_SANDBOX_AUTO_INSTALL");
     configure_default_script_runner(
         &mut config,
         &mut runners,
         &sandbox_tools,
         ScriptRunnerConfig {
             kind: ScriptRunnerKind::Shell,
-            enable_env: "TIKEE_ENABLE_SCRIPT_SHELL",
+            enable_env: "TIKEO_ENABLE_SCRIPT_SHELL",
             sandbox_backend: &sandbox_backend,
-            image_env: "TIKEE_SHELL_IMAGE",
+            image_env: "TIKEO_SHELL_IMAGE",
             default_image: "alpine:3.20",
         },
     );
@@ -73,9 +73,9 @@ async fn main() -> Result<(), WorkerSdkError> {
         &sandbox_tools,
         ScriptRunnerConfig {
             kind: ScriptRunnerKind::Python,
-            enable_env: "TIKEE_ENABLE_SCRIPT_PYTHON",
+            enable_env: "TIKEO_ENABLE_SCRIPT_PYTHON",
             sandbox_backend: &sandbox_backend,
-            image_env: "TIKEE_PYTHON_IMAGE",
+            image_env: "TIKEO_PYTHON_IMAGE",
             default_image: "python:3.13-alpine",
         },
     );
@@ -85,9 +85,9 @@ async fn main() -> Result<(), WorkerSdkError> {
         &sandbox_tools,
         ScriptRunnerConfig {
             kind: ScriptRunnerKind::Js,
-            enable_env: "TIKEE_ENABLE_SCRIPT_JAVASCRIPT",
+            enable_env: "TIKEO_ENABLE_SCRIPT_JAVASCRIPT",
             sandbox_backend: &sandbox_backend,
-            image_env: "TIKEE_JAVASCRIPT_IMAGE",
+            image_env: "TIKEO_JAVASCRIPT_IMAGE",
             default_image: "denoland/deno:alpine",
         },
     );
@@ -97,9 +97,9 @@ async fn main() -> Result<(), WorkerSdkError> {
         &sandbox_tools,
         ScriptRunnerConfig {
             kind: ScriptRunnerKind::Ts,
-            enable_env: "TIKEE_ENABLE_SCRIPT_TYPESCRIPT",
+            enable_env: "TIKEO_ENABLE_SCRIPT_TYPESCRIPT",
             sandbox_backend: &sandbox_backend,
-            image_env: "TIKEE_TYPESCRIPT_IMAGE",
+            image_env: "TIKEO_TYPESCRIPT_IMAGE",
             default_image: "denoland/deno:alpine",
         },
     );
@@ -109,9 +109,9 @@ async fn main() -> Result<(), WorkerSdkError> {
         &sandbox_tools,
         ScriptRunnerConfig {
             kind: ScriptRunnerKind::PowerShell,
-            enable_env: "TIKEE_ENABLE_SCRIPT_POWERSHELL",
+            enable_env: "TIKEO_ENABLE_SCRIPT_POWERSHELL",
             sandbox_backend: &sandbox_backend,
-            image_env: "TIKEE_POWERSHELL_IMAGE",
+            image_env: "TIKEO_POWERSHELL_IMAGE",
             default_image: "mcr.microsoft.com/powershell:latest",
         },
     );
@@ -121,9 +121,9 @@ async fn main() -> Result<(), WorkerSdkError> {
         &sandbox_tools,
         ScriptRunnerConfig {
             kind: ScriptRunnerKind::Php,
-            enable_env: "TIKEE_ENABLE_SCRIPT_PHP",
+            enable_env: "TIKEO_ENABLE_SCRIPT_PHP",
             sandbox_backend: &sandbox_backend,
-            image_env: "TIKEE_PHP_IMAGE",
+            image_env: "TIKEO_PHP_IMAGE",
             default_image: "php:8.4-cli-alpine",
         },
     );
@@ -133,9 +133,9 @@ async fn main() -> Result<(), WorkerSdkError> {
         &sandbox_tools,
         ScriptRunnerConfig {
             kind: ScriptRunnerKind::Groovy,
-            enable_env: "TIKEE_ENABLE_SCRIPT_GROOVY",
+            enable_env: "TIKEO_ENABLE_SCRIPT_GROOVY",
             sandbox_backend: &sandbox_backend,
-            image_env: "TIKEE_GROOVY_IMAGE",
+            image_env: "TIKEO_GROOVY_IMAGE",
             default_image: "groovy:4-jdk21-alpine",
         },
     );
@@ -145,9 +145,9 @@ async fn main() -> Result<(), WorkerSdkError> {
         &sandbox_tools,
         ScriptRunnerConfig {
             kind: ScriptRunnerKind::Rhai,
-            enable_env: "TIKEE_ENABLE_SCRIPT_RHAI",
+            enable_env: "TIKEO_ENABLE_SCRIPT_RHAI",
             sandbox_backend: &sandbox_backend,
-            image_env: "TIKEE_RHAI_IMAGE",
+            image_env: "TIKEO_RHAI_IMAGE",
             default_image: "rhaiscript/rhai:latest",
         },
     );
@@ -168,18 +168,18 @@ async fn main() -> Result<(), WorkerSdkError> {
         config.labels
     );
 
-    if enabled_env("TIKEE_MANAGEMENT_CREATE_EXAMPLES") {
+    if enabled_env("TIKEO_MANAGEMENT_CREATE_EXAMPLES") {
         create_management_examples(&config).await?;
     }
 
     if dry_run_enabled() {
         println!(
-            "Dry run only. Set TIKEE_WORKER_DRY_RUN=0 or omit it to open a live Worker Tunnel; set TIKEE_ENABLE_SCRIPT_<LANG>=1 to advertise script runners."
+            "Dry run only. Set TIKEO_WORKER_DRY_RUN=0 or omit it to open a live Worker Tunnel; set TIKEO_ENABLE_SCRIPT_<LANG>=1 to advertise script runners."
         );
         return Ok(());
     }
 
-    let oneshot = enabled_env("TIKEE_WORKER_ONESHOT");
+    let oneshot = enabled_env("TIKEO_WORKER_ONESHOT");
     let client = WorkerClient::new(config);
     loop {
         if run_worker_session(client.clone(), &runners, oneshot).await? {
@@ -190,14 +190,14 @@ async fn main() -> Result<(), WorkerSdkError> {
 }
 
 async fn create_management_examples(config: &WorkerConfig) -> Result<(), WorkerSdkError> {
-    let api_key = std::env::var("TIKEE_API_KEY").unwrap_or_default();
+    let api_key = std::env::var("TIKEO_API_KEY").unwrap_or_default();
     if api_key.trim().is_empty() {
         eprintln!(
-            "TIKEE_MANAGEMENT_CREATE_EXAMPLES=1 but TIKEE_API_KEY is empty; skip Rust management examples"
+            "TIKEO_MANAGEMENT_CREATE_EXAMPLES=1 but TIKEO_API_KEY is empty; skip Rust management examples"
         );
         return Ok(());
     }
-    let http_url = env_or("TIKEE_HTTP_URL", "http://127.0.0.1:8080");
+    let http_url = env_or("TIKEO_HTTP_URL", "http://127.0.0.1:8080");
     let management = ManagementClient::new(
         http_url,
         api_key,
@@ -238,7 +238,7 @@ async fn run_worker_session(
         session.lease_seconds()
     );
 
-    if enabled_env("TIKEE_WORKER_HEARTBEAT_ON_START") {
+    if enabled_env("TIKEO_WORKER_HEARTBEAT_ON_START") {
         match session.heartbeat().await {
             Ok(ping) => println!("heartbeat ack sequence={}", ping.sequence),
             Err(error) => {
@@ -488,7 +488,7 @@ fn env_or(key: &str, default: &str) -> String {
 }
 
 fn dry_run_enabled() -> bool {
-    enabled_env("TIKEE_WORKER_DRY_RUN") || disabled_env("TIKEE_WORKER_CONNECT")
+    enabled_env("TIKEO_WORKER_DRY_RUN") || disabled_env("TIKEO_WORKER_CONNECT")
 }
 
 fn enabled_by_default(key: &str) -> bool {
@@ -565,7 +565,7 @@ mod tests {
     #[test]
     fn srt_path_entries_include_runtime_dependencies() {
         let temp_root = std::env::temp_dir().join(format!(
-            "tikee-rust-worker-demo-path-test-{}",
+            "tikeo-rust-worker-demo-path-test-{}",
             std::process::id()
         ));
         let srt_dir = temp_root.join("srt-bin");
@@ -607,7 +607,7 @@ mod tests {
     fn missing_srt_interpreter_is_not_resolved() {
         assert!(
             SandboxToolResolver::default()
-                .resolve_interpreter("definitely-missing-tikee-interpreter")
+                .resolve_interpreter("definitely-missing-tikeo-interpreter")
                 .is_none()
         );
     }

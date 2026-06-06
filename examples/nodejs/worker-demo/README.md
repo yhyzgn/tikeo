@@ -5,7 +5,7 @@ Node.js Worker demo aligned one-to-one with the Rust/Go/Java manual acceptance s
 ```bash
 cd examples/nodejs/worker-demo
 bun install
-TIKEE_WORKER_DRY_RUN=1 bun start
+TIKEO_WORKER_DRY_RUN=1 bun start
 bun test
 ```
 

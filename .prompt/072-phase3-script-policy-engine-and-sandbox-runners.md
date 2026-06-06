@@ -23,12 +23,12 @@ Phase 071 completed explicit script release pointers: dispatch no longer execute
 - `cargo test --workspace --all-features`
 - `cargo run -- --help`
 - `cd web && bun run typecheck && bun test && bun run build`
-- `cargo test --manifest-path sdks/rust/tikee/Cargo.toml`
-- `cargo test --manifest-path sdks/rust/tikee/Cargo.toml --features wasm`
-- `cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings`
+- `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml`
+- `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --features wasm`
+- `cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings`
 - `cd sdks/java && ./gradlew test --warning-mode all --no-daemon`
 
 ## Completion notes
-- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`.
+- Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, `.memory/next.md`.
 - Create the next `.prompt/073-*.md` before committing.
 - Commit with Lore trailers and push.

@@ -15,10 +15,10 @@
 
 ## 开始前检查
 
-- 确认 `crates/tikee-storage` 引入 Users 相关 Entity 并生成 migration。
-- 确认 `crates/tikee-server/src/http/auth.rs` 能够解析真实 Token 并检查 DB 或内存缓存以提供完整的 Authentication 和 Authorization。
+- 确认 `crates/tikeo-storage` 引入 Users 相关 Entity 并生成 migration。
+- 确认 `crates/tikeo-server/src/http/auth.rs` 能够解析真实 Token 并检查 DB 或内存缓存以提供完整的 Authentication 和 Authorization。
 - 完善 `web/src/pages/LoginPage.tsx` 以及 `api/client.ts` 使其对接真实登录接口。
-- 完成后更新 `.memory/*`、`design/tikee-architecture-design.md`、新增 `.prompt/016-*.md`。
+- 完成后更新 `.memory/*`、`design/tikeo-architecture-design.md`、新增 `.prompt/016-*.md`。
 
 ## 验证要求
 

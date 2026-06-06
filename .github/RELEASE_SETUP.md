@@ -8,8 +8,8 @@ The repository uses one validation lane plus independent publish lanes. Normal d
 | --- | --- | --- | --- |
 | CI | `.github/workflows/ci.yml` | Push to `main`, pull request | Nothing; validates server, web, Java SDK, Rust SDK, and Docker builds with `push: false`. |
 | GitHub assets | `.github/workflows/release-github-assets.yml` | `v*` tag or manual dispatch | Cross-platform server archives and web dist archive. |
-| Docker server | `.github/workflows/publish-docker-server.yml` | `v*` tag or manual dispatch | `${DOCKERHUB_USERNAME}/tikee-server`. |
-| Docker web | `.github/workflows/publish-docker-web.yml` | `v*` tag or manual dispatch | `${DOCKERHUB_USERNAME}/tikee-web`. |
+| Docker server | `.github/workflows/publish-docker-server.yml` | `v*` tag or manual dispatch | `tikeo/server`. |
+| Docker web | `.github/workflows/publish-docker-web.yml` | `v*` tag or manual dispatch | `tikeo/web`. |
 | Java SDK | `.github/workflows/publish-java-sdk.yml` | `v*` tag or manual dispatch | Java SDK jar/source-jar archive attached to GitHub Release. |
 | Rust SDK | `.github/workflows/publish-rust-sdk.yml` | `v*` tag or manual dispatch | Rust SDK `.crate` archive attached to GitHub Release. |
 
@@ -42,8 +42,8 @@ Current SDK publish workflows attach validated packages to GitHub Releases. If t
 
 Create or grant access to these Docker Hub repositories before the first Docker publish:
 
-- `${DOCKERHUB_USERNAME}/tikee-server`
-- `${DOCKERHUB_USERNAME}/tikee-web`
+- `tikeo/server`
+- `tikeo/web`
 
 ## Tag release procedure
 

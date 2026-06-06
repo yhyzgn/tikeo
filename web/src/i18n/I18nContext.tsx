@@ -10,7 +10,7 @@ const LOCALE_REGISTRY = {
 
 export type LocaleCode = keyof typeof LOCALE_REGISTRY;
 
-export const LOCALE_STORAGE_KEY = 'tikee.locale';
+export const LOCALE_STORAGE_KEY = 'tikeo.locale';
 
 const SUPPORTED_LOCALES = Object.keys(LOCALE_REGISTRY) as LocaleCode[];
 

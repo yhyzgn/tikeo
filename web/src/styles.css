@@ -22,12 +22,12 @@
   --app-canvas-grid: rgba(37, 99, 235, 0.055);
   --app-code-bg: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   --app-warning-surface: #fffdf7;
-  --tikee-logo-accent: #7c3aed;
-  --tikee-logo-node-fill: #ffffff;
-  --tikee-logo-line-start: #dbeafe;
-  --tikee-logo-line-end: #e0f2fe;
-  --tikee-logo-inner-fill: rgba(255, 255, 255, 0.12);
-  --tikee-logo-inner-stroke: rgba(255, 255, 255, 0.28);
+  --tikeo-logo-accent: #7c3aed;
+  --tikeo-logo-node-fill: #ffffff;
+  --tikeo-logo-line-start: #dbeafe;
+  --tikeo-logo-line-end: #e0f2fe;
+  --tikeo-logo-inner-fill: rgba(255, 255, 255, 0.12);
+  --tikeo-logo-inner-stroke: rgba(255, 255, 255, 0.28);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--app-text);
   background: var(--app-bg);
@@ -53,12 +53,12 @@ html[data-theme="dark"] {
   --app-canvas-grid: rgba(160, 160, 160, 0.07);
   --app-code-bg: linear-gradient(180deg, #242424 0%, #303030 100%);
   --app-warning-surface: #1f1a11;
-  --tikee-logo-accent: color-mix(in srgb, var(--app-primary-color) 58%, #a78bfa);
-  --tikee-logo-node-fill: #f8fafc;
-  --tikee-logo-line-start: color-mix(in srgb, var(--app-primary-color) 28%, #dbeafe);
-  --tikee-logo-line-end: color-mix(in srgb, var(--app-info-color) 38%, #e0f2fe);
-  --tikee-logo-inner-fill: rgba(20, 20, 20, 0.22);
-  --tikee-logo-inner-stroke: rgba(248, 250, 252, 0.26);
+  --tikeo-logo-accent: color-mix(in srgb, var(--app-primary-color) 58%, #a78bfa);
+  --tikeo-logo-node-fill: #f8fafc;
+  --tikeo-logo-line-start: color-mix(in srgb, var(--app-primary-color) 28%, #dbeafe);
+  --tikeo-logo-line-end: color-mix(in srgb, var(--app-info-color) 38%, #e0f2fe);
+  --tikeo-logo-inner-fill: rgba(20, 20, 20, 0.22);
+  --tikeo-logo-inner-stroke: rgba(248, 250, 252, 0.26);
   color-scheme: dark;
 }
 
@@ -684,7 +684,7 @@ body {
   display: none;
 }
 
-.login-page__brand .tikee-logo {
+.login-page__brand .tikeo-logo {
   transform-origin: 50% 50%;
   animation: login-logo-breathe 5.2s ease-in-out infinite;
 }
@@ -713,7 +713,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .login-page__headline span,
-  .login-page__brand .tikee-logo {
+  .login-page__brand .tikeo-logo {
     animation: none;
   }
 }
@@ -2226,13 +2226,13 @@ html[data-theme="dark"] .ant-table-thead > tr > th {
 }
 
 
-.tikee-logo {
-  --tikee-logo-accent: color-mix(in srgb, var(--app-primary-color) 55%, #7c3aed);
-  --tikee-logo-node-fill: #ffffff;
-  --tikee-logo-line-start: color-mix(in srgb, var(--app-primary-color) 18%, #dbeafe);
-  --tikee-logo-line-end: color-mix(in srgb, var(--app-info-color) 20%, #e0f2fe);
-  --tikee-logo-inner-fill: rgba(255, 255, 255, 0.12);
-  --tikee-logo-inner-stroke: rgba(255, 255, 255, 0.28);
+.tikeo-logo {
+  --tikeo-logo-accent: color-mix(in srgb, var(--app-primary-color) 55%, #7c3aed);
+  --tikeo-logo-node-fill: #ffffff;
+  --tikeo-logo-line-start: color-mix(in srgb, var(--app-primary-color) 18%, #dbeafe);
+  --tikeo-logo-line-end: color-mix(in srgb, var(--app-info-color) 20%, #e0f2fe);
+  --tikeo-logo-inner-fill: rgba(255, 255, 255, 0.12);
+  --tikeo-logo-inner-stroke: rgba(255, 255, 255, 0.28);
   display: inline-flex;
   align-items: center;
   gap: 12px;
@@ -2240,55 +2240,55 @@ html[data-theme="dark"] .ant-table-thead > tr > th {
   line-height: 1;
 }
 
-.tikee-logo__mark {
+.tikeo-logo__mark {
   flex: 0 0 auto;
   overflow: visible;
 }
 
-.tikee-logo__shell,
-.tikee-logo__inner {
+.tikeo-logo__shell,
+.tikeo-logo__inner {
   transform-origin: center;
 }
 
-.tikee-logo__track {
+.tikeo-logo__track {
   filter: drop-shadow(0 4px 8px color-mix(in srgb, var(--app-primary-color) 20%, transparent));
 }
 
-.tikee-logo__flow {
+.tikeo-logo__flow {
   opacity: 0.9;
   stroke-dasharray: 24 76;
   stroke-dashoffset: 0;
   filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.7));
-  animation: tikee-logo-flow 2s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+  animation: tikeo-logo-flow 2s cubic-bezier(0.45, 0, 0.2, 1) infinite;
 }
 
-.tikee-logo__flow--right {
+.tikeo-logo__flow--right {
   animation-delay: 0.28s;
 }
 
-.tikee-logo__arrow {
+.tikeo-logo__arrow {
   transform-origin: 47px 35.5px;
-  animation: tikee-logo-arrow 2s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+  animation: tikeo-logo-arrow 2s cubic-bezier(0.45, 0, 0.2, 1) infinite;
 }
 
-.tikee-logo__node,
-.tikee-logo__core {
+.tikeo-logo__node,
+.tikeo-logo__core {
   transform-origin: center;
   filter: drop-shadow(0 3px 6px rgba(20, 20, 20, 0.22));
-  animation: tikee-logo-node-pulse 2s ease-in-out infinite;
+  animation: tikeo-logo-node-pulse 2s ease-in-out infinite;
 }
 
-.tikee-logo__node--two,
-.tikee-logo__core--two {
+.tikeo-logo__node--two,
+.tikeo-logo__core--two {
   animation-delay: 0.2s;
 }
 
-.tikee-logo__node--three,
-.tikee-logo__core--three {
+.tikeo-logo__node--three,
+.tikeo-logo__core--three {
   animation-delay: 0.4s;
 }
 
-.tikee-logo__wordmark {
+.tikeo-logo__wordmark {
   color: var(--app-text-strong);
   font-size: 33px;
   font-weight: 850;
@@ -2301,35 +2301,35 @@ html[data-theme="dark"] .ant-table-thead > tr > th {
   margin-bottom: 20px;
 }
 
-.app-shell__brand .tikee-logo {
+.app-shell__brand .tikeo-logo {
   flex: 0 0 auto;
 }
 
-.app-shell__brand .tikee-logo__mark {
+.app-shell__brand .tikeo-logo__mark {
   width: 64px;
   height: 64px;
 }
 
-.login-brand .tikee-logo__mark {
+.login-brand .tikeo-logo__mark {
   width: 96px;
   height: 96px;
 }
 
-html[data-theme="dark"] .tikee-logo {
-  --tikee-logo-accent: color-mix(in srgb, var(--app-primary-color) 50%, #a78bfa);
-  --tikee-logo-node-fill: #f8fafc;
-  --tikee-logo-line-start: color-mix(in srgb, var(--app-primary-color) 28%, #dbeafe);
-  --tikee-logo-line-end: color-mix(in srgb, var(--app-info-color) 38%, #e0f2fe);
-  --tikee-logo-inner-fill: rgba(20, 20, 20, 0.22);
-  --tikee-logo-inner-stroke: rgba(248, 250, 252, 0.26);
+html[data-theme="dark"] .tikeo-logo {
+  --tikeo-logo-accent: color-mix(in srgb, var(--app-primary-color) 50%, #a78bfa);
+  --tikeo-logo-node-fill: #f8fafc;
+  --tikeo-logo-line-start: color-mix(in srgb, var(--app-primary-color) 28%, #dbeafe);
+  --tikeo-logo-line-end: color-mix(in srgb, var(--app-info-color) 38%, #e0f2fe);
+  --tikeo-logo-inner-fill: rgba(20, 20, 20, 0.22);
+  --tikeo-logo-inner-stroke: rgba(248, 250, 252, 0.26);
   color: var(--app-text-strong);
 }
 
-html[data-theme="dark"] .tikee-logo__flow {
+html[data-theme="dark"] .tikeo-logo__flow {
   filter: drop-shadow(0 0 10px color-mix(in srgb, var(--app-info-color) 62%, transparent));
 }
 
-@keyframes tikee-logo-flow {
+@keyframes tikeo-logo-flow {
   0% {
     stroke-dashoffset: 38;
     opacity: 0.12;
@@ -2343,7 +2343,7 @@ html[data-theme="dark"] .tikee-logo__flow {
   }
 }
 
-@keyframes tikee-logo-node-pulse {
+@keyframes tikeo-logo-node-pulse {
   0%, 100% {
     transform: scale(1);
   }
@@ -2355,7 +2355,7 @@ html[data-theme="dark"] .tikee-logo__flow {
   }
 }
 
-@keyframes tikee-logo-arrow {
+@keyframes tikeo-logo-arrow {
   0%, 70%, 100% {
     transform: translate3d(0, 0, 0) scale(1);
   }

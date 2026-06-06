@@ -51,7 +51,7 @@ Constraint:
 Decision:
 - 后端主程序入口不放在 `crates/` 内，而是放在仓库根 `src/main.rs`。
 - `crates/` 只承载解耦后的库模块 crate，例如 server、config、core、proto、storage 等。
-- 根 package `tikee` 只负责 binary entrypoint 和启动委托，不承载业务模块。
+- 根 package `tikeo` 只负责 binary entrypoint 和启动委托，不承载业务模块。
 
 Rationale:
 - 符合用户对主程序入口位置的明确要求，同时保留 workspace + crates 模块解耦。
@@ -93,7 +93,7 @@ Constraint:
 ## 2026-05-19 — 开发路线图完成状态回写
 
 Decision:
-- 每个开发工作项完成后，必须更新 `design/tikee-architecture-design.md` 的开发路线图。
+- 每个开发工作项完成后，必须更新 `design/tikeo-architecture-design.md` 的开发路线图。
 - 已完成项使用 `[x]` 标记，并可补充实际完成范围说明；不额外添加 ✅ 图标。
 
 Rationale:
@@ -113,7 +113,7 @@ Rationale:
 - 企业 Java/Spring Boot 业务接入调度平台时需要最小改造和自动配置体验。
 
 Constraint:
-- Java Worker 仍必须主动连接 tikee，不得要求业务应用暴露入站端口。
+- Java Worker 仍必须主动连接 tikeo，不得要求业务应用暴露入站端口。
 
 
 ## 2026-05-19 — Worker Tunnel 最小监听端口
@@ -134,7 +134,7 @@ Constraint:
 Decision:
 - 存储层使用 SeaORM / sea-orm-migration `1.1.20` 稳定线。
 - 不采用 crates.io 当前标记为 latest 的 `2.0.0-rc.38`。
-- `tikee-storage` 同时启用 `sqlx-sqlite` 与 `sqlx-mysql` feature；开发默认 SQLite，生产 MySQL migration 能复用通用 SeaORM schema。
+- `tikeo-storage` 同时启用 `sqlx-sqlite` 与 `sqlx-mysql` feature；开发默认 SQLite，生产 MySQL migration 能复用通用 SeaORM schema。
 
 Rationale:
 - 用户要求依赖尽量使用最新版，但调度平台存储层属于核心基础设施，不应以 RC 版本作为初始长期基线。
@@ -148,7 +148,7 @@ Constraint:
 
 Decision:
 - Worker Tunnel protobuf RPC 从 `Connect` 调整为 `OpenTunnel`。
-- Rust proto crate 开启 tonic client 生成，供 `tikee` 使用。
+- Rust proto crate 开启 tonic client 生成，供 `tikeo` 使用。
 
 Rationale:
 - tonic client 生成器会为客户端类型生成关联函数 `connect`；RPC 名称也叫 `Connect` 时会产生重复方法名。
@@ -183,13 +183,13 @@ Rationale:
 - Bun test 与项目包管理器一致，减少前端工具链分裂。
 
 Constraint:
-- 浏览器端只能访问 tikee HTTP/OpenAPI，不直接访问 Worker Tunnel。
+- 浏览器端只能访问 tikeo HTTP/OpenAPI，不直接访问 Worker Tunnel。
 
 
 ## 2026-05-19 — 容器化部署基础形态
 
 Decision:
-- 后端使用仓库根 `Dockerfile` 产出 `tikee` server 镜像，保持根 binary 入口，不把主程序入口迁入 `crates/`。
+- 后端使用仓库根 `Dockerfile` 产出 `tikeo` server 镜像，保持根 binary 入口，不把主程序入口迁入 `crates/`。
 - Web 使用 `web/Dockerfile` 产出独立 nginx 静态资源镜像，并通过同源 `/api/`、`/api-docs/` 反向代理访问后端 HTTP API。
 - Compose 与 K8s baseline 均使用独立 Worker Tunnel 服务入口；Worker 只主动出站连接，不要求业务容器暴露入站端口。
 
@@ -226,14 +226,14 @@ Constraint:
 - Future native dependencies must remain compatible with the musl static build path or explicitly document why the runtime image strategy changes.
 
 
-## 2026-05-19 — Tikee tick loop dependency baseline
+## 2026-05-19 — Tikeo tick loop dependency baseline
 
 Decision:
 - CRON expression parsing uses `cron 0.16.0`; Fixed Rate duration parsing uses `humantime 2.3.0`.
 - 010 keeps trigger cursor in memory and creates pending instances through the existing `JobInstanceRepository`.
 
 Rationale:
-- These are current stable crates from crates.io search, and the project needs a minimal automatic trigger loop before persistent tikee metadata is designed.
+- These are current stable crates from crates.io search, and the project needs a minimal automatic trigger loop before persistent tikeo metadata is designed.
 
 Constraint:
 - Before production deployment, schedule cursor and misfire handling must become durable and coordinated across server replicas.
@@ -254,7 +254,7 @@ Constraint:
 
 ## 2026-05-19 — 开发期认证基础
 
-- 012 阶段采用开发管理员 token 作为最小认证闭环，默认 `tikee_init/Tikee@2026!` -> `tikee-init-token`，允许环境变量覆盖。
+- 012 阶段采用开发管理员 token 作为最小认证闭环，默认 `tikeo_init/Tikeo@2026!` -> `tikeo-init-token`，允许环境变量覆盖。
 - 写操作先保护 Job 创建与手动触发，读接口、health、ready、OpenAPI 暂保持开放，便于开发和部署烟测。
 - Web token 暂存在 `localStorage`，后续正式 RBAC/OIDC 阶段必须替换为更完整的会话、安全刷新与权限模型。
 
@@ -262,7 +262,7 @@ Constraint:
 ## 2026-05-19 — Docker 网络验证基线
 
 - Docker 构建与运行验证不得使用 `--network host` 作为捷径。
-- 最低验收基线是 Docker 默认 bridge 网络与 `docker compose` bridge 网络；Web 容器必须通过 Compose 服务名 / bridge DNS 代理访问 tikee。
+- 最低验收基线是 Docker 默认 bridge 网络与 `docker compose` bridge 网络；Web 容器必须通过 Compose 服务名 / bridge DNS 代理访问 tikeo。
 - 该约束用于提前暴露 WAF / LB / 多层网络下的问题，避免把本地 host 网络当成线上可行性证明。
 
 
@@ -286,7 +286,7 @@ Constraint:
 
 - Local configuration files live under `config/`, not `examples/`, because they are operational configuration rather than sample code.
 - `scripts/dev.sh` is the canonical local development launcher for backend + Web UI during the active development cycle.
-- Built-in initialization credentials are `tikee_init` / `Tikee@2026!` / `tikee-init-token`; they are development-only and remain overrideable through `TIKEE_DEV_ADMIN_*`.
+- Built-in initialization credentials are `tikeo_init` / `Tikeo@2026!` / `tikeo-init-token`; they are development-only and remain overrideable through `TIKEO_DEV_ADMIN_*`.
 
 
 ## 2026-05-19 — SQLite schema compatibility pass
@@ -308,7 +308,7 @@ Decision:
 - Token 明文仅在登录响应中返回一次；持久化和缓存索引均使用 `SHA-256(token)`。
 
 Rationale:
-- tikee server 后续可能多节点部署，需要能够替换为 Redis 分布式 session 存储而不重写 auth/RBAC handler。
+- tikeo server 后续可能多节点部署，需要能够替换为 Redis 分布式 session 存储而不重写 auth/RBAC handler。
 - 用户角色、密码或账号删除后必须能主动撤销已有 session。
 
 Constraint:
@@ -356,7 +356,7 @@ Constraint:
 
 ## 2026-05-20 — 020 安全善后决策
 
-- 删除 `tikee-init-token` 静态 Bearer 后门；初始化账号仅通过 `/api/v1/auth/login` 获取 `atk_` session token。
+- 删除 `tikeo-init-token` 静态 Bearer 后门；初始化账号仅通过 `/api/v1/auth/login` 获取 `atk_` session token。
 - 审计日志不得保存明文 Bearer token；session 相关审计只能保存脱敏标识或不可逆摘要。
 - 出站告警 Webhook 默认只允许 HTTPS，并拒绝 localhost/私网/link-local/metadata 目标；后续如需内网 webhook，必须显式 allowlist。
 
@@ -370,20 +370,20 @@ Constraint:
 ## 2026-05-21 — SDK/examples 语言目录规范与 demo 自主创建
 
 Decision:
-- `sdks/` 是 SDK 总目录，其下必须按 `sdks/<language>/<sdk-name>/` 组织，例如 `sdks/rust/tikee`、`sdks/java/tikee-spring-boot-starter`。
+- `sdks/` 是 SDK 总目录，其下必须按 `sdks/<language>/<sdk-name>/` 组织，例如 `sdks/rust/tikeo`、`sdks/java/tikeo-spring-boot-starter`。
 - Java SDK 必须使用 Gradle（优先 Kotlin DSL）而不是 Maven，且 Java toolchain / source / target 必须支持 JDK 21+。
 - `examples/` 是 demo 总目录，必须按 `examples/<language>/<demo-name>/` 组织，并与 `sdks/` 语言结构对应。
 - `examples/` 不再用于存放运行配置；运行配置仍属于 `config/`。
 - 后续开发者/AI agent 在实现或验证 SDK、Worker、任务执行、工作流或跨语言集成时，需要自行判断并主动创建/更新相应 demo 项目用于调试，不必等待用户显式要求。
 
 Constraint:
-- Rust SDK 路径为 `sdks/rust/tikee`；服务端 Dockerfile 不处理 SDK 构建或缓存。
+- Rust SDK 路径为 `sdks/rust/tikeo`；服务端 Dockerfile 不处理 SDK 构建或缓存。
 - Java Maven `pom.xml` 骨架已要求迁移为 Gradle 多模块，验证命令统一为 `./sdks/java/gradlew -p sdks/java test`。
 
 ## 2026-05-21 — Server Dockerfile 与 SDK 解耦
 
 Decision:
-- 根 `Dockerfile` 只用于构建 tikee server，不复制或缓存 `sdks/`。
+- 根 `Dockerfile` 只用于构建 tikeo server，不复制或缓存 `sdks/`。
 - SDK 与 examples 必须通过各自目录内的语言生态命令独立构建/运行。
 
 Constraint:
@@ -400,15 +400,15 @@ Constraint:
 ### Worker identity assignment rule (2026-05-21)
 - Authoritative `worker_id` is server-assigned during Worker Tunnel registration and returned in `WorkerRegistered`.
 - Clients may only send optional `client_instance_id` hints plus metadata; heartbeats/logs/results must use the assigned worker id.
-- Java SDK/starter configuration must expose `clientInstanceId` / `tikee.worker.client-instance-id`, not `workerId`, until the server returns the authoritative id during tunnel registration.
+- Java SDK/starter configuration must expose `clientInstanceId` / `tikeo.worker.client-instance-id`, not `workerId`, until the server returns the authoritative id during tunnel registration.
 
 ### Java Worker Tunnel real client boundary (2026-05-21)
-- Java SDK core owns gRPC/protobuf generated bindings inside `sdks/java/tikee`; it must remain independently publishable and must not depend on server crates/modules.
-- Spring Boot starter may expose dry-run mode for local demos, but production default is the real `GrpcTikeeWorkerClient`.
-- Remaining Java SDK gap is ergonomic `@TikeeProcessor` method adaptation; do not revert to no-op as the default live client.
+- Java SDK core owns gRPC/protobuf generated bindings inside `sdks/java/tikeo`; it must remain independently publishable and must not depend on server crates/modules.
+- Spring Boot starter may expose dry-run mode for local demos, but production default is the real `GrpcTikeoWorkerClient`.
+- Remaining Java SDK gap is ergonomic `@TikeoProcessor` method adaptation; do not revert to no-op as the default live client.
 
 ### Java processor dispatch convention (2026-05-21)
-- Until Worker Tunnel protocol gains an explicit processor/key field, Java Spring adapter treats `DispatchTask.job_id` as the processor name for `@TikeeProcessor` routing.
+- Until Worker Tunnel protocol gains an explicit processor/key field, Java Spring adapter treats `DispatchTask.job_id` as the processor name for `@TikeoProcessor` routing.
 - Supported Java processor signatures are intentionally small and safe: zero args, `TaskContext`, UTF-8 `String`, or `byte[]`; return `TaskOutcome`, `String`, `boolean`, or `void`.
 - Exceptions are mapped to failed `TaskOutcome` instead of escaping the Worker Tunnel processing thread.
 
@@ -417,15 +417,15 @@ Constraint:
 - Spring beans in SDK/demo code should prefer constructor injection over method/field injection.
 
 ### Java SDK three-layer Gradle layout (2026-05-21)
-- Java SDK Gradle modules are now exactly three integration layers: `tikee` (native Java), `tikee-spring` (Spring Framework adapter), and `tikee-spring-boot-starter` (Spring Boot autoconfiguration/starter).
-- Do not reintroduce `tikee-core`, `tikee-spring-boot-autoconfigure`, or a non-starter `tikee-spring-boot` module name; Spring Boot integration artifact is `tikee-spring-boot-starter`.
+- Java SDK Gradle modules are now exactly three integration layers: `tikeo` (native Java), `tikeo-spring` (Spring Framework adapter), and `tikeo-spring-boot-starter` (Spring Boot autoconfiguration/starter).
+- Do not reintroduce `tikeo-core`, `tikeo-spring-boot-autoconfigure`, or a non-starter `tikeo-spring-boot` module name; Spring Boot integration artifact is `tikeo-spring-boot-starter`.
 
 ### Java Spring Boot starter artifact naming (2026-05-21)
-- The Spring Boot Java SDK module/artifact must be named `tikee-spring-boot-starter` to match Spring Boot ecosystem conventions.
-- The three Java Gradle modules remain: `tikee`, `tikee-spring`, and `tikee-spring-boot-starter`.
+- The Spring Boot Java SDK module/artifact must be named `tikeo-spring-boot-starter` to match Spring Boot ecosystem conventions.
+- The three Java Gradle modules remain: `tikeo`, `tikeo-spring`, and `tikeo-spring-boot-starter`.
 
 ### Worker dispatch processor key (2026-05-21)
-- `DispatchTask.processor_name` is the explicit SDK routing key for Java/Spring `@TikeeProcessor` and future language SDK adapters.
+- `DispatchTask.processor_name` is the explicit SDK routing key for Java/Spring `@TikeoProcessor` and future language SDK adapters.
 - Server currently populates `processor_name` from `job_id` for compatibility until job definitions carry a distinct processor binding.
 - SDKs may fallback to `job_id` only when `processor_name` is empty for backward compatibility.
 
@@ -440,21 +440,21 @@ Constraint:
 
 - 所有后续开发默认按职责/功能拆分文件和模块，适用于 Rust server/crates、各语言 SDK、Web 前端和示例代码。
 - 禁止让单个文件持续膨胀；当文件体量明显变大时，应在同一阶段内顺手拆分到合理模块。
-- Rust SDK 先以 `tikee/src/lib.rs` 为整改对象：`lib.rs` 只保留模块声明和 public re-export，具体能力拆到 config/session/task/error/script/wasm/proto/tests 等模块。
+- Rust SDK 先以 `tikeo/src/lib.rs` 为整改对象：`lib.rs` 只保留模块声明和 public re-export，具体能力拆到 config/session/task/error/script/wasm/proto/tests 等模块。
 
-## 2026-05-22 — Project rename to tikee
+## 2026-05-22 — Project rename to tikeo
 
-- Decision: Rename the product/repository identity from the previous project identity to `tikee` across source, docs, SDKs, protocol namespaces, Docker/K8s names, and operational environment variables.
-- Java SDK/API package prefix is now `com.yhyzgn.tikee`; Java Gradle modules are `tikee`, `tikee-spring`, and `tikee-spring-boot-starter`.
-- Rust crates/binary now use `tikee-*` and root binary `tikee`; Rust Worker SDK path/crate is `sdks/rust/tikee` / `tikee`.
-- Protobuf package is now `tikee.worker.v1`; internal Raft transport token header is `x-tikee-raft-token`.
-- Git remote is expected to be `https://github.com/yhyzgn/tikee.git`; local git identity is `Neo <yhyzgn@gmail.com>`.
+- Decision: Rename the product/repository identity from the previous project identity to `tikeo` across source, docs, SDKs, protocol namespaces, Docker/K8s names, and operational environment variables.
+- Java SDK/API package prefix is now `net.tikeo`; Java Gradle modules are `tikeo`, `tikeo-spring`, and `tikeo-spring-boot-starter`.
+- Rust crates/binary now use `tikeo-*` and root binary `tikeo`; Rust Worker SDK path/crate is `sdks/rust/tikeo` / `tikeo`.
+- Protobuf package is now `tikeo.worker.v1`; internal Raft transport token header is `x-tikeo-raft-token`.
+- Git remote is expected to be `https://github.com/yhyzgn/tikeo.git`; local git identity is `Neo <yhyzgn@gmail.com>`.
 
 ## 2026-05-22 — SDK package names contract
 
-- Decision: The Rust Worker SDK crate and path are `tikee` / `sdks/rust/tikee`, not the previous Rust Worker SDK name.
-- Decision: The Java core SDK Gradle module/artifact is `tikee`, not the previous Java core SDK name; companion modules remain `tikee-spring` and `tikee-spring-boot-starter`.
-- Constraint: The repository root binary crate is also named `tikee`; the Rust SDK is intentionally kept outside the root Cargo workspace so both packages can coexist.
+- Decision: The Rust Worker SDK crate and path are `tikeo` / `sdks/rust/tikeo`, not the previous Rust Worker SDK name.
+- Decision: The Java core SDK Gradle module/artifact is `tikeo`, not the previous Java core SDK name; companion modules remain `tikeo-spring` and `tikeo-spring-boot-starter`.
+- Constraint: The repository root binary crate is also named `tikeo`; the Rust SDK is intentionally kept outside the root Cargo workspace so both packages can coexist.
 
 ## 2026-05-25 — Source file size and module-entry rule
 
@@ -491,7 +491,7 @@ Constraint:
 ## 2026-06-05 — Storage migration versioning rule
 
 Decision:
-- Runtime schema changes must be represented by explicit SeaORM migrations in `tikee-storage::migration::Migrator::migrations` and persisted in `seaql_migrations`.
+- Runtime schema changes must be represented by explicit SeaORM migrations in `tikeo-storage::migration::Migrator::migrations` and persisted in `seaql_migrations`.
 - `connect_and_migrate` may configure/connect and run `Migrator::up`, but must not append hidden post-migrate `ensure_*` schema patches.
 - SQLite legacy/dev compatibility remains allowed only as a named, idempotent migration module such as `sqlite_compat`, with regression tests covering old DB shapes.
 

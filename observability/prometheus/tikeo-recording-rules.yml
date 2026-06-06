@@ -1,0 +1,28 @@
+groups:
+  - name: tikeo.slo.recording
+    interval: 30s
+    rules:
+      - record: tikeo:http_requests:rate5m
+        expr: sum(rate(tikeo_http_requests_total[5m]))
+      - record: tikeo:http_errors:ratio5m
+        expr: sum(rate(tikeo_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(tikeo_http_requests_total[5m])), 1)
+      - record: tikeo:http_latency:p95_5m
+        expr: histogram_quantile(0.95, sum(rate(tikeo_http_request_duration_seconds_bucket[5m])) by (le))
+      - record: tikeo:dispatch_pending_age:p95_5m
+        expr: histogram_quantile(0.95, sum(rate(tikeo_dispatch_queue_pending_age_seconds_bucket[5m])) by (le))
+      - record: tikeo:dispatch_latency:p95_5m
+        expr: histogram_quantile(0.95, sum(rate(tikeo_dispatch_queue_dispatch_latency_seconds_bucket[5m])) by (le))
+      - record: tikeo:workflow_instance_duration:p95_5m
+        expr: histogram_quantile(0.95, sum(rate(tikeo_workflow_instance_duration_seconds_bucket[5m])) by (le))
+      - record: tikeo:workflow_shard_duration:p95_5m
+        expr: histogram_quantile(0.95, sum(rate(tikeo_workflow_shard_duration_seconds_bucket[5m])) by (le))
+      - record: tikeo:job_instance_success:ratio
+        expr: tikeo_job_instance_success_ratio
+      - record: tikeo:workflow_instance_success:ratio
+        expr: tikeo_workflow_instance_success_ratio
+      - record: tikeo:workflow_shard_success:ratio
+        expr: tikeo_workflow_shard_success_ratio
+      - record: tikeo:workers_online:current
+        expr: sum(tikeo_workers_online_current)
+      - record: tikeo:script_governance_failures:current
+        expr: sum(tikeo_script_governance_failures_current)

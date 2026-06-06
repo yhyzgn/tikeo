@@ -6,17 +6,17 @@ import (
 	"os"
 	"testing"
 
-	"github.com/yhyzgn/tikee/deploy/terraform/provider/internal/tikee"
+	"github.com/yhyzgn/tikeo/deploy/terraform/provider/internal/tikeo"
 )
 
 func TestLiveProviderDriftReview(t *testing.T) {
-	endpoint := os.Getenv("TIKEE_TEST_HTTP_URL")
-	apiToken := os.Getenv("TIKEE_TEST_API_TOKEN")
+	endpoint := os.Getenv("TIKEO_TEST_HTTP_URL")
+	apiToken := os.Getenv("TIKEO_TEST_API_TOKEN")
 	if endpoint == "" || apiToken == "" {
-		t.Skip("TIKEE_TEST_HTTP_URL and TIKEE_TEST_API_TOKEN are required for live provider test")
+		t.Skip("TIKEO_TEST_HTTP_URL and TIKEO_TEST_API_TOKEN are required for live provider test")
 	}
 
-	client, err := tikee.NewClient(tikee.Config{
+	client, err := tikeo.NewClient(tikeo.Config{
 		Endpoint: endpoint,
 		APIToken: apiToken,
 	})

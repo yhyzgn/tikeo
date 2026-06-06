@@ -1,0 +1,26 @@
+[Unit]
+Description=tikeo scheduler server
+Documentation=https://github.com/yhyzgn/tikeo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tikeo
+Group=tikeo
+EnvironmentFile=/etc/tikeo/tikeo.env
+ExecStart=/opt/tikeo/bin/tikeo serve --config ${TIKEO_CONFIG}
+Restart=on-failure
+RestartSec=5s
+WorkingDirectory=/var/lib/tikeo
+StateDirectory=tikeo
+RuntimeDirectory=tikeo
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/tikeo /etc/tikeo
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

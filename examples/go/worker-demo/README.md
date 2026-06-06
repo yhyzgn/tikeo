@@ -5,7 +5,7 @@ Go Worker demo aligned with the Java manual acceptance scopes.
 Direct live Worker Tunnel mode, same default behavior as the Java and Rust demos:
 
 ```bash
-# Start tikee first, for example from the repository root:
+# Start tikeo first, for example from the repository root:
 # ./scripts/dev.sh
 
 cd examples/go/worker-demo
@@ -23,7 +23,7 @@ go test ./...
 Dry-run configuration smoke test:
 
 ```bash
-TIKEE_WORKER_DRY_RUN=1 go run .
+TIKEO_WORKER_DRY_RUN=1 go run .
 ```
 
 Defaults:
@@ -39,18 +39,18 @@ Defaults:
 
 Environment variables:
 
-- `TIKEE_WORKER_DRY_RUN=1` switches to dry-run mode without opening the Worker Tunnel.
-- `TIKEE_WORKER_CONNECT=0` is also accepted as a compatibility dry-run switch.
-- `TIKEE_WORKER_ENDPOINT` defaults to `http://127.0.0.1:9998`.
-- `TIKEE_WORKER_CLIENT_INSTANCE_ID` overrides the stable client instance id.
-- `TIKEE_WORKER_NAMESPACE` / `TIKEE_WORKER_APP` override the default `dev-alpha/orders` scope.
-- `TIKEE_WORKER_POOL` overrides the default `go-blue` worker pool label.
-- `TIKEE_WORKER_SDK_PROCESSORS` overrides the comma-separated SDK processor list.
-- `TIKEE_ENABLE_PLUGIN_SQL` defaults to enabled; set `TIKEE_ENABLE_PLUGIN_SQL=0` to stop advertising the SQL plugin processor.
-- `TIKEE_PLUGIN_SQL_TYPE` and `TIKEE_PLUGIN_SQL_PROCESSOR` override the default `sql` / `billing.sql-sync` structured plugin fields.
-- `TIKEE_WORKER_SCRIPT_LANGUAGES` defaults to all Java-parity demo languages; set it to a comma-separated list to override advertised/executable script runners.
-- `TIKEE_ENABLE_SCRIPT_<LANG>=0` disables a default language, for example `TIKEE_ENABLE_SCRIPT_PHP=0`.
-- `TIKEE_WORKER_SCRIPT_SANDBOX` overrides the advertised sandbox backend label for all languages.
-- `TIKEE_MANAGEMENT_CREATE_EXAMPLES=1` uses `TIKEE_HTTP_URL` and `TIKEE_API_KEY` to create SDK/plugin job examples in the configured scope.
+- `TIKEO_WORKER_DRY_RUN=1` switches to dry-run mode without opening the Worker Tunnel.
+- `TIKEO_WORKER_CONNECT=0` is also accepted as a compatibility dry-run switch.
+- `TIKEO_WORKER_ENDPOINT` defaults to `http://127.0.0.1:9998`.
+- `TIKEO_WORKER_CLIENT_INSTANCE_ID` overrides the stable client instance id.
+- `TIKEO_WORKER_NAMESPACE` / `TIKEO_WORKER_APP` override the default `dev-alpha/orders` scope.
+- `TIKEO_WORKER_POOL` overrides the default `go-blue` worker pool label.
+- `TIKEO_WORKER_SDK_PROCESSORS` overrides the comma-separated SDK processor list.
+- `TIKEO_ENABLE_PLUGIN_SQL` defaults to enabled; set `TIKEO_ENABLE_PLUGIN_SQL=0` to stop advertising the SQL plugin processor.
+- `TIKEO_PLUGIN_SQL_TYPE` and `TIKEO_PLUGIN_SQL_PROCESSOR` override the default `sql` / `billing.sql-sync` structured plugin fields.
+- `TIKEO_WORKER_SCRIPT_LANGUAGES` defaults to all Java-parity demo languages; set it to a comma-separated list to override advertised/executable script runners.
+- `TIKEO_ENABLE_SCRIPT_<LANG>=0` disables a default language, for example `TIKEO_ENABLE_SCRIPT_PHP=0`.
+- `TIKEO_WORKER_SCRIPT_SANDBOX` overrides the advertised sandbox backend label for all languages.
+- `TIKEO_MANAGEMENT_CREATE_EXAMPLES=1` uses `TIKEO_HTTP_URL` and `TIKEO_API_KEY` to create SDK/plugin job examples in the configured scope.
 
 Execution note: Go demo advertises Java-parity `srt`/`deno` script backends and fails closed for script execution until a real Go sandbox runner is configured. It does not expose any non-Java sandbox label.

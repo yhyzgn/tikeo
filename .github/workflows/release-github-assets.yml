@@ -32,19 +32,19 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             archive_ext: tar.gz
-            binary_name: tikee
+            binary_name: tikeo
           - target: x86_64-apple-darwin
             os: macos-13
             archive_ext: tar.gz
-            binary_name: tikee
+            binary_name: tikeo
           - target: aarch64-apple-darwin
             os: macos-14
             archive_ext: tar.gz
-            binary_name: tikee
+            binary_name: tikeo
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             archive_ext: zip
-            binary_name: tikee.exe
+            binary_name: tikeo.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -56,19 +56,19 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
       - name: Build server binary
-        run: cargo build --release --locked --bin tikee --target ${{ matrix.target }}
+        run: cargo build --release --locked --bin tikeo --target ${{ matrix.target }}
       - name: Stage server release payload
         shell: bash
         run: |
           set -euo pipefail
           RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
           VERSION="${RELEASE_TAG#v}"
-          PKG="tikee-server-${VERSION}-${{ matrix.target }}"
+          PKG="tikeo-server-${VERSION}-${{ matrix.target }}"
           mkdir -p "dist/$PKG/config" "dist/$PKG/deploy"
           cp "target/${{ matrix.target }}/release/${{ matrix.binary_name }}" "dist/$PKG/${{ matrix.binary_name }}"
           cp README.md "dist/$PKG/README.md"
           cp -R config/. "dist/$PKG/config/"
-          cp deploy/compose/tikee.env.example "dist/$PKG/deploy/tikee.env.example"
+          cp deploy/compose/tikeo.env.example "dist/$PKG/deploy/tikeo.env.example"
           cp docker-compose.yml "dist/$PKG/docker-compose.yml"
           if [ "${{ matrix.archive_ext }}" = "zip" ]; then
             (cd dist && 7z a "$PKG.zip" "$PKG")
@@ -107,7 +107,7 @@ jobs:
           set -euo pipefail
           RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
           VERSION="${RELEASE_TAG#v}"
-          PKG="tikee-web-dist-${VERSION}"
+          PKG="tikeo-web-dist-${VERSION}"
           mkdir -p "dist/$PKG"
           cp -R web/dist "dist/$PKG/dist"
           cp -R web/nginx "dist/$PKG/nginx"
@@ -115,7 +115,7 @@ jobs:
           tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
       - uses: actions/upload-artifact@v6
         with:
-          name: tikee-web-dist
+          name: tikeo-web-dist
           path: dist/*.tar.gz
           if-no-files-found: error
 
@@ -161,7 +161,7 @@ jobs:
           fi
 
           {
-            echo "# Tikee ${RELEASE_TAG}"
+            echo "# Tikeo ${RELEASE_TAG}"
             echo
             echo "## English"
             echo

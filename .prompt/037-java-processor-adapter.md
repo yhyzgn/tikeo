@@ -1,7 +1,7 @@
-# 037 — Java TikeeProcessor method adapter
+# 037 — Java TikeoProcessor method adapter
 
 ## Context
-Java Core SDK now has a real `GrpcTikeeWorkerClient` and generated Worker Tunnel protobuf bindings. Spring Boot auto-configuration creates the real client by default, with `tikee.worker.dry-run=true` available for demos/tests.
+Java Core SDK now has a real `GrpcTikeoWorkerClient` and generated Worker Tunnel protobuf bindings. Spring Boot auto-configuration creates the real client by default, with `tikeo.worker.dry-run=true` available for demos/tests.
 
 ## Current capabilities
 - Java SDK registration sends only `client_instance_id`; `WorkerRegistered.worker_id` is the authoritative id.
@@ -9,10 +9,10 @@ Java Core SDK now has a real `GrpcTikeeWorkerClient` and generated Worker Tunnel
 - Spring demo defaults to dry-run and can be switched to live Worker Tunnel through configuration.
 
 ## Next goal
-Make Spring Boot `@TikeeProcessor` annotations execute real dispatched tasks instead of the current default success processor.
+Make Spring Boot `@TikeoProcessor` annotations execute real dispatched tasks instead of the current default success processor.
 
 ## Required work
-1. Extend `TikeeProcessorRegistry` to store invocable method metadata, not only bean references.
+1. Extend `TikeoProcessorRegistry` to store invocable method metadata, not only bean references.
 2. Add a processor adapter that maps `DispatchTask` to the right annotated method by processor/job metadata once protocol payload convention is defined.
 3. Support method signatures such as `TaskOutcome process(TaskContext)`, `String process(String payload)`, and `void process(TaskContext)` with safe exception-to-failure mapping.
 4. Add tests for annotation discovery, duplicate processor names, invocation success/failure, and Spring autoconfig wiring.

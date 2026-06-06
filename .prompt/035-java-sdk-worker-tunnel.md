@@ -10,10 +10,10 @@ Replace the Java SDK no-op worker client with a real active outbound gRPC Worker
 - API envelope, no-FK database rule, and Swagger UI ban remain unchanged.
 
 ## Required work
-1. Add Java protobuf/gRPC generation or a clean generated-source strategy for `proto/tikee/worker/v1/worker.proto`.
-2. Implement `TikeeWorkerClient` real connect/register/heartbeat/log/result behavior in `tikee`.
-3. Wire Spring Boot properties (`tikee.worker.endpoint`, identity, labels, capabilities) into the real client.
-4. Update `examples/java/spring-worker-demo` so it can smoke-run against either a live tikee Worker Tunnel or a documented dry-run mode.
+1. Add Java protobuf/gRPC generation or a clean generated-source strategy for `proto/tikeo/worker/v1/worker.proto`.
+2. Implement `TikeoWorkerClient` real connect/register/heartbeat/log/result behavior in `tikeo`.
+3. Wire Spring Boot properties (`tikeo.worker.endpoint`, identity, labels, capabilities) into the real client.
+4. Update `examples/java/spring-worker-demo` so it can smoke-run against either a live tikeo Worker Tunnel or a documented dry-run mode.
 5. Add tests for registration config mapping and client lifecycle boundaries.
 
 ## Verification

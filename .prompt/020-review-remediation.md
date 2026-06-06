@@ -8,7 +8,7 @@
 
 ### 安全阻断
 
-1. **静态 Admin Bearer 后门**：`tikee-init-token` 可绕过登录成为 admin。必须删除，仅允许初始化账号通过登录获取 session token。
+1. **静态 Admin Bearer 后门**：`tikeo-init-token` 可绕过登录成为 admin。必须删除，仅允许初始化账号通过登录获取 session token。
 2. **审计日志记录明文 token**：login/logout 不得将 Bearer token 明文写入 `audit_logs.resource_id`，必须脱敏或存不可逆摘要。
 3. **Webhook SSRF 风险**：告警 webhook 必须限制 HTTPS、拒绝 localhost/私网/IP metadata，并设置超时。
 
@@ -37,7 +37,7 @@
 - 修复脚本版本核心语义。
 - 补最低可观测性指标。
 - 修复 fmt/lint/typecheck/test/build 门禁。
-- 更新 `.memory/*` 与 `design/tikee-architecture-design.md` 路线图，避免把“骨架完成”误标成“平台能力完成”。
+- 更新 `.memory/*` 与 `design/tikeo-architecture-design.md` 路线图，避免把“骨架完成”误标成“平台能力完成”。
 
 ## 验证要求
 

@@ -9,31 +9,31 @@ import (
 	"strings"
 	"time"
 
-	tikee "github.com/yhyzgn/tikee/sdks/go/tikee"
+	tikeo "github.com/yhyzgn/tikeo/sdks/go/tikeo"
 )
 
 func main() {
-	config := tikee.LocalConfig(envOr("TIKEE_WORKER_ENDPOINT", "http://127.0.0.1:9998"), envOr("TIKEE_WORKER_CLIENT_INSTANCE_ID", "go-worker-demo-local"))
-	config.Namespace = envOr("TIKEE_WORKER_NAMESPACE", "dev-alpha")
-	config.App = envOr("TIKEE_WORKER_APP", "orders")
-	config.Cluster = envOr("TIKEE_WORKER_CLUSTER", "local")
-	config.Region = envOr("TIKEE_WORKER_REGION", "local")
+	config := tikeo.LocalConfig(envOr("TIKEO_WORKER_ENDPOINT", "http://127.0.0.1:9998"), envOr("TIKEO_WORKER_CLIENT_INSTANCE_ID", "go-worker-demo-local"))
+	config.Namespace = envOr("TIKEO_WORKER_NAMESPACE", "dev-alpha")
+	config.App = envOr("TIKEO_WORKER_APP", "orders")
+	config.Cluster = envOr("TIKEO_WORKER_CLUSTER", "local")
+	config.Region = envOr("TIKEO_WORKER_REGION", "local")
 	config.AddTag("go")
 	config.AddTag("manual-demo")
-	for _, processor := range csvOr("TIKEE_WORKER_SDK_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail") {
+	for _, processor := range csvOr("TIKEO_WORKER_SDK_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail") {
 		config.AddSDKProcessor(processor)
 	}
-	config.Labels["worker_pool"] = envOr("TIKEE_WORKER_POOL", "go-blue")
-	if enabledByDefault("TIKEE_ENABLE_PLUGIN_SQL") {
-		config.AddPluginProcessor(envOr("TIKEE_PLUGIN_SQL_TYPE", "sql"), envOr("TIKEE_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"))
+	config.Labels["worker_pool"] = envOr("TIKEO_WORKER_POOL", "go-blue")
+	if enabledByDefault("TIKEO_ENABLE_PLUGIN_SQL") {
+		config.AddPluginProcessor(envOr("TIKEO_PLUGIN_SQL_TYPE", "sql"), envOr("TIKEO_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"))
 		config.Labels["plugin_sql"] = "enabled"
 	}
-	scripts := tikee.NewScriptRunnerRegistry()
-	resolver := tikee.NewSandboxToolResolver()
-	resolver.StateDir = envOr("TIKEE_WORKER_STATE_DIR", "")
-	resolver.AutoInstall = !disabled("TIKEE_SANDBOX_AUTO_INSTALL")
-	for _, lang := range csvOr("TIKEE_WORKER_SCRIPT_LANGUAGES", "shell,python,javascript,typescript,powershell,php,groovy,rhai") {
-		if disabled("TIKEE_ENABLE_SCRIPT_" + strings.ToUpper(lang)) {
+	scripts := tikeo.NewScriptRunnerRegistry()
+	resolver := tikeo.NewSandboxToolResolver()
+	resolver.StateDir = envOr("TIKEO_WORKER_STATE_DIR", "")
+	resolver.AutoInstall = !disabled("TIKEO_SANDBOX_AUTO_INSTALL")
+	for _, lang := range csvOr("TIKEO_WORKER_SCRIPT_LANGUAGES", "shell,python,javascript,typescript,powershell,php,groovy,rhai") {
+		if disabled("TIKEO_ENABLE_SCRIPT_" + strings.ToUpper(lang)) {
 			continue
 		}
 		backend := scriptSandboxBackend(lang)
@@ -46,7 +46,7 @@ func main() {
 					log.Printf("srt script runner %s skipped: interpreter unavailable", lang)
 					continue
 				}
-				runner, err := tikee.NewSrtScriptRunner(lang, srtCommand, interpreter, sandboxToolPathEntries(srtCommand, rgCommand, interpreter, resolver)...)
+				runner, err := tikeo.NewSrtScriptRunner(lang, srtCommand, interpreter, sandboxToolPathEntries(srtCommand, rgCommand, interpreter, resolver)...)
 				if err == nil {
 					scripts.Register(runner)
 					continue
@@ -55,7 +55,7 @@ func main() {
 			}
 		} else if backend == "deno" || backend == "v8" {
 			if denoCommand, ok := resolver.ResolveDeno(); ok {
-				runner, err := tikee.NewDenoScriptRunner(lang, denoCommand)
+				runner, err := tikeo.NewDenoScriptRunner(lang, denoCommand)
 				if err == nil {
 					scripts.Register(runner)
 					continue
@@ -63,15 +63,15 @@ func main() {
 				log.Printf("deno script runner %s skipped: %v", lang, err)
 			}
 		} else if backend == "docker" || backend == "podman" {
-			runner, err := tikee.NewContainerScriptRunner(lang, backend, scriptImage(lang))
+			runner, err := tikeo.NewContainerScriptRunner(lang, backend, scriptImage(lang))
 			if err != nil {
 				log.Printf("container script runner %s skipped: %v", lang, err)
 				continue
 			}
 			scripts.Register(runner)
 			continue
-		} else if enabled("TIKEE_ENABLE_LOCAL_SCRIPT_" + strings.ToUpper(lang)) {
-			runner, err := tikee.NewLocalCommandScriptRunner(lang, "custom")
+		} else if enabled("TIKEO_ENABLE_LOCAL_SCRIPT_" + strings.ToUpper(lang)) {
+			runner, err := tikeo.NewLocalCommandScriptRunner(lang, "custom")
 			if err != nil {
 				log.Printf("development local script runner %s skipped: %v", lang, err)
 				continue
@@ -79,42 +79,42 @@ func main() {
 			scripts.Register(runner)
 			continue
 		}
-		if !enabled("TIKEE_ENABLE_UNAVAILABLE_SCRIPT_ADAPTERS") {
+		if !enabled("TIKEO_ENABLE_UNAVAILABLE_SCRIPT_ADAPTERS") {
 			continue
 		}
 		reason := backend + " sandbox backend is unavailable; auto requires SRT+rg for native scripts and Deno for JavaScript/TypeScript"
-		scripts.Register(tikee.NewUnavailableScriptRunner(lang, backend, reason))
+		scripts.Register(tikeo.NewUnavailableScriptRunner(lang, backend, reason))
 	}
 	scripts.AddCapabilities(&config)
 
-	client, err := tikee.NewClient(config)
+	client, err := tikeo.NewClient(config)
 	if err != nil {
 		log.Fatal(err)
 	}
-	processor := tikee.TaskProcessorFunc(func(_ context.Context, task tikee.TaskContext) (tikee.TaskOutcome, error) {
+	processor := tikeo.TaskProcessorFunc(func(_ context.Context, task tikeo.TaskContext) (tikeo.TaskOutcome, error) {
 		task.LogInfo(fmt.Sprintf("[go-worker] processor=%s instance=%s payload_bytes=%d", task.ProcessorName, task.InstanceID, len(task.Payload)))
 		switch task.ProcessorName {
 		case "", "demo.echo":
 			task.LogInfo(fmt.Sprintf("[demo.echo] payload='%s'", string(task.Payload)))
-			return tikee.TaskOutcome{Success: true, Message: "go demo echo processed"}, nil
+			return tikeo.TaskOutcome{Success: true, Message: "go demo echo processed"}, nil
 		case "demo.context":
 			task.LogInfo(fmt.Sprintf("[demo.context] jobId=%s instanceId=%s", task.JobID, task.InstanceID))
-			return tikee.TaskOutcome{Success: true, Message: fmt.Sprintf("go demo context processed instance=%s", task.InstanceID)}, nil
+			return tikeo.TaskOutcome{Success: true, Message: fmt.Sprintf("go demo context processed instance=%s", task.InstanceID)}, nil
 		case "demo.bytes":
 			task.LogInfo(fmt.Sprintf("[demo.bytes] payload='%s' length=%d", string(task.Payload), len(task.Payload)))
-			return tikee.TaskOutcome{Success: true, Message: fmt.Sprintf("go demo bytes processed payload_bytes=%d", len(task.Payload))}, nil
+			return tikeo.TaskOutcome{Success: true, Message: fmt.Sprintf("go demo bytes processed payload_bytes=%d", len(task.Payload))}, nil
 		case "demo.heartbeat":
 			task.LogInfo(fmt.Sprintf("[demo.heartbeat] tick jobId=%s instanceId=%s", task.JobID, task.InstanceID))
-			return tikee.TaskOutcome{Success: true, Message: "go demo heartbeat processed"}, nil
+			return tikeo.TaskOutcome{Success: true, Message: "go demo heartbeat processed"}, nil
 		case "billing.sql-sync":
 			task.LogInfo(fmt.Sprintf("[billing.sql-sync] plugin SQL processor received payload='%s'", string(task.Payload)))
-			return tikee.TaskOutcome{Success: true, Message: "go demo sql plugin processed"}, nil
+			return tikeo.TaskOutcome{Success: true, Message: "go demo sql plugin processed"}, nil
 		case "demo.fail":
 			task.LogError(fmt.Sprintf("[demo.fail] intentional failure payload='%s'", string(task.Payload)))
-			return tikee.Failed("go demo intentional failure"), nil
+			return tikeo.Failed("go demo intentional failure"), nil
 		default:
 			task.LogError(fmt.Sprintf("[go-worker] unsupported processor=%s", task.ProcessorName))
-			return tikee.Failed("unsupported go demo processor: " + task.ProcessorName), nil
+			return tikeo.Failed("unsupported go demo processor: " + task.ProcessorName), nil
 		}
 	})
 
@@ -122,11 +122,11 @@ func main() {
 	pretty, _ := json.MarshalIndent(registration, "", "  ")
 	fmt.Printf("go worker demo configured: %s\n", pretty)
 
-	if enabled("TIKEE_MANAGEMENT_CREATE_EXAMPLES") {
-		mgmt := tikee.NewManagementClient(envOr("TIKEE_HTTP_URL", "http://127.0.0.1:8080"), os.Getenv("TIKEE_API_KEY"), config.Namespace, config.App)
-		for _, job := range []tikee.CreateJobRequest{
-			tikee.APIJob("go-echo-api", "demo.echo"),
-			tikee.PluginAPIJob("go-sql-sync-api", "sql", "billing.sql-sync"),
+	if enabled("TIKEO_MANAGEMENT_CREATE_EXAMPLES") {
+		mgmt := tikeo.NewManagementClient(envOr("TIKEO_HTTP_URL", "http://127.0.0.1:8080"), os.Getenv("TIKEO_API_KEY"), config.Namespace, config.App)
+		for _, job := range []tikeo.CreateJobRequest{
+			tikeo.APIJob("go-echo-api", "demo.echo"),
+			tikeo.PluginAPIJob("go-sql-sync-api", "sql", "billing.sql-sync"),
 		} {
 			created, err := mgmt.CreateJob(context.Background(), job)
 			if err != nil {
@@ -149,7 +149,7 @@ func main() {
 		return
 	}
 
-	oneshot := enabled("TIKEE_WORKER_ONESHOT")
+	oneshot := enabled("TIKEO_WORKER_ONESHOT")
 	for {
 		if runWorkerSession(client, processor, scripts, oneshot) {
 			return
@@ -159,9 +159,9 @@ func main() {
 }
 
 func runWorkerSession(
-	client *tikee.Client,
-	processor tikee.TaskProcessor,
-	scripts *tikee.ScriptRunnerRegistry,
+	client *tikeo.Client,
+	processor tikeo.TaskProcessor,
+	scripts *tikeo.ScriptRunnerRegistry,
 	oneshot bool,
 ) bool {
 	session, err := client.Connect(context.Background())
@@ -177,7 +177,7 @@ func runWorkerSession(
 			log.Printf("worker session close skipped/failed: %v", err)
 		}
 	}()
-	if enabled("TIKEE_WORKER_HEARTBEAT_ON_START") {
+	if enabled("TIKEO_WORKER_HEARTBEAT_ON_START") {
 		ping, err := session.Heartbeat()
 		if err != nil {
 			log.Printf("heartbeat-on-start failed, reconnecting: %v", err)
@@ -207,7 +207,7 @@ func envOr(key, fallback string) string {
 }
 
 func dryRunEnabled() bool {
-	return enabled("TIKEE_WORKER_DRY_RUN") || disabled("TIKEE_WORKER_CONNECT")
+	return enabled("TIKEO_WORKER_DRY_RUN") || disabled("TIKEO_WORKER_CONNECT")
 }
 
 func enabledByDefault(key string) bool {
@@ -248,7 +248,7 @@ func csvOr(key, fallback string) []string {
 }
 
 func scriptSandboxBackend(language string) string {
-	if value := strings.TrimSpace(os.Getenv("TIKEE_WORKER_SCRIPT_SANDBOX")); value != "" && !strings.EqualFold(value, "auto") {
+	if value := strings.TrimSpace(os.Getenv("TIKEO_WORKER_SCRIPT_SANDBOX")); value != "" && !strings.EqualFold(value, "auto") {
 		return strings.ToLower(value)
 	}
 	switch strings.ToLower(strings.TrimSpace(language)) {
@@ -259,7 +259,7 @@ func scriptSandboxBackend(language string) string {
 	}
 }
 
-func resolveSrtInterpreter(language string, resolver tikee.SandboxToolResolver) (string, bool) {
+func resolveSrtInterpreter(language string, resolver tikeo.SandboxToolResolver) (string, bool) {
 	switch strings.ToLower(strings.TrimSpace(language)) {
 	case "shell", "sh", "bash":
 		return resolver.ResolveInterpreter("sh")
@@ -278,7 +278,7 @@ func resolveSrtInterpreter(language string, resolver tikee.SandboxToolResolver) 
 	}
 }
 
-func sandboxToolPathEntries(srtCommand, rgCommand, interpreter string, resolver tikee.SandboxToolResolver) []string {
+func sandboxToolPathEntries(srtCommand, rgCommand, interpreter string, resolver tikeo.SandboxToolResolver) []string {
 	entries := []string{}
 	for _, command := range []string{srtCommand, rgCommand, interpreter} {
 		if parent := toolParent(command); parent != "" {
@@ -325,21 +325,21 @@ func toolParent(command string) string {
 func scriptImage(language string) string {
 	switch strings.ToLower(strings.TrimSpace(language)) {
 	case "shell", "sh", "bash":
-		return envOr("TIKEE_SHELL_IMAGE", "alpine:latest")
+		return envOr("TIKEO_SHELL_IMAGE", "alpine:latest")
 	case "python", "py":
-		return envOr("TIKEE_PYTHON_IMAGE", "python:alpine")
+		return envOr("TIKEO_PYTHON_IMAGE", "python:alpine")
 	case "javascript", "js":
-		return envOr("TIKEE_JAVASCRIPT_IMAGE", "denoland/deno:alpine")
+		return envOr("TIKEO_JAVASCRIPT_IMAGE", "denoland/deno:alpine")
 	case "typescript", "ts":
-		return envOr("TIKEE_TYPESCRIPT_IMAGE", "denoland/deno:alpine")
+		return envOr("TIKEO_TYPESCRIPT_IMAGE", "denoland/deno:alpine")
 	case "powershell", "pwsh":
-		return envOr("TIKEE_POWERSHELL_IMAGE", "mcr.microsoft.com/powershell:latest")
+		return envOr("TIKEO_POWERSHELL_IMAGE", "mcr.microsoft.com/powershell:latest")
 	case "php":
-		return envOr("TIKEE_PHP_IMAGE", "php:cli-alpine")
+		return envOr("TIKEO_PHP_IMAGE", "php:cli-alpine")
 	case "groovy":
-		return envOr("TIKEE_GROOVY_IMAGE", "groovy:latest")
+		return envOr("TIKEO_GROOVY_IMAGE", "groovy:latest")
 	case "rhai":
-		return envOr("TIKEE_RHAI_IMAGE", "rhaiscript/rhai:latest")
+		return envOr("TIKEO_RHAI_IMAGE", "rhaiscript/rhai:latest")
 	default:
 		return ""
 	}

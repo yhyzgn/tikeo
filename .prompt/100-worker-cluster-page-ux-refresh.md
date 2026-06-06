@@ -22,5 +22,5 @@ The user reported the Worker cluster page interaction and layout were hard to us
 - `cd web && bun run build`
 
 ## Completion notes
-- Update `design/tikee-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, and `.memory/next.md`.
+- Update `design/tikeo-architecture-design.md`, `.memory/progress.md`, `.memory/session-log.md`, and `.memory/next.md`.
 - Commit with Lore trailers and push.

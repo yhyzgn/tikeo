@@ -1,6 +1,6 @@
-# tikee 安全设计：可插拔 SessionStore 与 DB+moka 会话管理
+# tikeo 安全设计：可插拔 SessionStore 与 DB+moka 会话管理
 
-本设计文档定义 `tikee` 用户登录会话方案。当前阶段已落地 **DB + moka 本地短缓存** 实现；同时必须通过 `SessionStore` 抽象隔离 session 管理细节，后续可以无侵入扩展为 **Redis 分布式 SessionStore**，支撑 tikee server 多节点集群部署。
+本设计文档定义 `tikeo` 用户登录会话方案。当前阶段已落地 **DB + moka 本地短缓存** 实现；同时必须通过 `SessionStore` 抽象隔离 session 管理细节，后续可以无侵入扩展为 **Redis 分布式 SessionStore**，支撑 tikeo server 多节点集群部署。
 
 ---
 
@@ -34,7 +34,7 @@ flowchart LR
 
 ### 2.1 Rust 抽象契约
 
-代码位置：`crates/tikee-server/src/http/session.rs`
+代码位置：`crates/tikeo-server/src/http/session.rs`
 
 ```rust
 #[async_trait]

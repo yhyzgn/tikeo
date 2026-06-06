@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-DB_PATH="${1:-tikee-dev.db}"
+DB_PATH="${1:-tikeo-dev.db}"
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 SQL_FILE="$SCRIPT_DIR/dev-seed.sql"
 
@@ -12,13 +12,13 @@ fi
 
 if [ ! -f "$DB_PATH" ]; then
   echo "Database not found: $DB_PATH" >&2
-  echo "Start tikee once first so migrations create the schema, then re-run this script." >&2
+  echo "Start tikeo once first so migrations create the schema, then re-run this script." >&2
   exit 1
 fi
 
 if ! sqlite3 "$DB_PATH" "SELECT 1 FROM sqlite_master WHERE type='table' AND name='jobs';" | grep -q 1; then
-  echo "Database exists but tikee tables are missing: $DB_PATH" >&2
-  echo "Start tikee once first so migrations create the schema, then re-run this script." >&2
+  echo "Database exists but tikeo tables are missing: $DB_PATH" >&2
+  echo "Start tikeo once first so migrations create the schema, then re-run this script." >&2
   exit 1
 fi
 

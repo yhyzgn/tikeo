@@ -187,7 +187,7 @@ export function AuditLogsPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `tikee-audit-${new Date().toISOString()}.json`;
+    link.download = `tikeo-audit-${new Date().toISOString()}.json`;
     link.click();
     URL.revokeObjectURL(url);
     void message.success(`已导出 ${exported.exported} 条审计记录`);

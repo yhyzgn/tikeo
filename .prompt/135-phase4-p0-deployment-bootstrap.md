@@ -9,7 +9,7 @@ Go SDK remaining run-loop work is intentionally deferred to be handled later tog
 Continue Phase4 P0 with deployment/operations bootstrap:
 - Compose/systemd/bare-metal worker/server templates first.
 - Document stable `client_instance_id` recommendations for K8s, Docker, systemd, VM/bare metal, and local dev.
-- Provide environment variable examples for `TIKEE_WORKER_HOST_ID`, service name, instance slot, namespace/app/cluster/region, and worker pool label.
+- Provide environment variable examples for `TIKEO_WORKER_HOST_ID`, service name, instance slot, namespace/app/cluster/region, and worker pool label.
 - Add smokeable examples that do not require exposing inbound business ports.
 
 ## Validation target

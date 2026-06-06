@@ -1,5 +1,5 @@
 [package]
-name = "tikee"
+name = "tikeo"
 description = "Distributed task scheduling platform server entrypoint."
 edition.workspace = true
 version.workspace = true
@@ -15,7 +15,7 @@ resolver = "3"
 edition = "2024"
 version = "0.1.0"
 license = "Apache-2.0"
-repository = "https://github.com/yhyzgn/tikee.git"
+repository = "https://github.com/yhyzgn/tikeo.git"
 rust-version = "1.95"
 
 [workspace.lints.rust]
@@ -53,7 +53,7 @@ strip = "symbols"
 [dependencies]
 anyhow = "1"
 mimalloc = { version = "0.1.52", default-features = false }
-tikee-server = { path = "crates/tikee-server" }
+tikeo-server = { path = "crates/tikeo-server" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [lints]

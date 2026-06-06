@@ -3,24 +3,24 @@ package main
 import (
 	"testing"
 
-	tikee "github.com/yhyzgn/tikee/sdks/go/tikee"
+	tikeo "github.com/yhyzgn/tikeo/sdks/go/tikeo"
 )
 
 func TestDemoBuilds(t *testing.T) {}
 
 func TestDemoDoesNotAdvertiseLocalScriptsByDefault(t *testing.T) {
-	if enabled("TIKEE_ENABLE_LOCAL_SCRIPT_SHELL") {
+	if enabled("TIKEO_ENABLE_LOCAL_SCRIPT_SHELL") {
 		t.Fatal("local script runner must be explicit; it is not a sandbox backend")
 	}
 }
 
 func TestShellLocalRunnerAddsStructuredCapability(t *testing.T) {
-	config := tikee.LocalConfig("http://127.0.0.1:9998", "go-worker-test")
-	runner, err := tikee.NewLocalCommandScriptRunner("shell", "custom")
+	config := tikeo.LocalConfig("http://127.0.0.1:9998", "go-worker-test")
+	runner, err := tikeo.NewLocalCommandScriptRunner("shell", "custom")
 	if err != nil {
 		t.Fatalf("NewLocalCommandScriptRunner(shell) error = %v", err)
 	}
-	registry := tikee.NewScriptRunnerRegistry().Register(runner)
+	registry := tikeo.NewScriptRunnerRegistry().Register(runner)
 	registry.AddCapabilities(&config)
 	if got := config.Structured.ScriptRunners; len(got) != 1 || got[0].Language != "shell" || got[0].SandboxBackend != "custom" {
 		t.Fatalf("script runners = %+v, want shell/custom", got)

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Tikee storage must run the same schema migration and repository behavior on:
+Tikeo storage must run the same schema migration and repository behavior on:
 
 - SQLite for local/dev/single-node deployments.
 - PostgreSQL 13+; validation asset currently runs PostgreSQL 16.
@@ -12,7 +12,7 @@ Tikee storage must run the same schema migration and repository behavior on:
 
 | Area | Required behavior | Test asset |
 | --- | --- | --- |
-| Backend features | `tikee-storage` builds with SeaORM SQLite/PostgreSQL/MySQL sqlx backends enabled | `cargo test -p tikee-storage --test database_compat` |
+| Backend features | `tikeo-storage` builds with SeaORM SQLite/PostgreSQL/MySQL sqlx backends enabled | `cargo test -p tikeo-storage --test database_compat` |
 | Empty schema bootstrap | `connect_and_migrate` creates the complete schema and RBAC seed data on an empty DB | `scripts/db-compat-smoke.sh` |
 | Migration idempotency | Re-running `connect_and_migrate` against the same DB does not fail on existing tables/indexes/default RBAC rows | `database_compat.rs` reruns migration per backend |
 | Scope metadata | namespace/app/worker_pool CRUD works and uniqueness indexes accept normal names | `ScopeRepository` smoke |
@@ -29,7 +29,7 @@ Tikee storage must run the same schema migration and repository behavior on:
 ### Local SQLite only
 
 ```bash
-cargo test -p tikee-storage --test database_compat sqlite_database_compatibility_smoke -- --nocapture
+cargo test -p tikeo-storage --test database_compat sqlite_database_compatibility_smoke -- --nocapture
 ```
 
 ### Full local matrix with Docker
@@ -41,19 +41,19 @@ cargo test -p tikee-storage --test database_compat sqlite_database_compatibility
 The script starts `deploy/compose/database-compat-compose.yml` when Docker is available, then runs:
 
 - `sqlite::memory:` smoke.
-- `postgres://tikee:tikee@127.0.0.1:15432/tikee` smoke.
-- `mysql://tikee:tikee@127.0.0.1:13306/tikee` smoke.
+- `postgres://tikeo:tikeo@127.0.0.1:15432/tikeo` smoke.
+- `mysql://tikeo:tikeo@127.0.0.1:13306/tikeo` smoke.
 
 ### External database endpoints
 
 ```bash
-export TIKEE_DB_COMPAT_COMPOSE=false
-export TIKEE_TEST_POSTGRES_URL='postgres://user:pass@host:5432/tikee'
-export TIKEE_TEST_MYSQL_URL='mysql://user:pass@host:3306/tikee'
+export TIKEO_DB_COMPAT_COMPOSE=false
+export TIKEO_TEST_POSTGRES_URL='postgres://user:pass@host:5432/tikeo'
+export TIKEO_TEST_MYSQL_URL='mysql://user:pass@host:3306/tikeo'
 ./scripts/db-compat-smoke.sh
 ```
 
-Alternatively set comma-separated `TIKEE_TEST_DATABASE_URLS` to run additional endpoints.
+Alternatively set comma-separated `TIKEO_TEST_DATABASE_URLS` to run additional endpoints.
 
 ## Configuration assets
 
@@ -67,7 +67,7 @@ Alternatively set comma-separated `TIKEE_TEST_DATABASE_URLS` to run additional e
 Before marking database compatibility complete for a release branch:
 
 1. Run `cargo fmt --all -- --check`.
-2. Run `cargo test -p tikee-storage`.
+2. Run `cargo test -p tikeo-storage`.
 3. Run `./scripts/db-compat-smoke.sh` on a machine with Docker or equivalent external PostgreSQL/MySQL URLs.
 4. Record database image/version, command log and pass/fail evidence in the release report.
 
@@ -77,7 +77,7 @@ If Docker or external DBs are unavailable, SQLite-only results are not sufficien
 
 | Item | Command / Asset | Result | Status |
 | --- | --- | --- | --- |
-| SQLite compatibility smoke | `rtk cargo test -p tikee-storage --test database_compat sqlite_database_compatibility_smoke -- --nocapture` / `rtk bash scripts/db-compat-smoke.sh` | schema bootstrap、幂等迁移、CRUD smoke 通过 | ✅ 通过 |
+| SQLite compatibility smoke | `rtk cargo test -p tikeo-storage --test database_compat sqlite_database_compatibility_smoke -- --nocapture` / `rtk bash scripts/db-compat-smoke.sh` | schema bootstrap、幂等迁移、CRUD smoke 通过 | ✅ 通过 |
 | PostgreSQL compatibility smoke | `rtk bash scripts/db-compat-smoke.sh` with `postgres:16-alpine` | PostgreSQL 16 迁移与 CRUD smoke 通过 | ✅ 通过 |
 | MySQL compatibility smoke | `rtk bash scripts/db-compat-smoke.sh` with `mysql:8.4` | MySQL 8.4 + utf8mb4 迁移与 CRUD smoke 通过 | ✅ 通过 |
-| Storage unit suite | `rtk cargo test -p tikee-storage` | 35 passed | ✅ 通过 |
+| Storage unit suite | `rtk cargo test -p tikeo-storage` | 35 passed | ✅ 通过 |

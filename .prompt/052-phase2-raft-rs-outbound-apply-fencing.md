@@ -1,7 +1,7 @@
 # 052 — Phase 2 raft-rs outbound transport, apply bookkeeping, and fencing prep
 
 ## Context
-The project uses TiKV raft-rs (`raft` crate 0.7.x) for the tikee server cluster direction. Completed safe slices:
+The project uses TiKV raft-rs (`raft` crate 0.7.x) for the tikeo server cluster direction. Completed safe slices:
 - stable string `node_id` -> non-zero raft `u64` mapping and `RawNode` bootstrap validation;
 - no-FK durable raft metadata/member/log/snapshot records;
 - `/api/v1/raft/append-entries` DTO validation and conversion into `eraftpb::Message`;
@@ -15,7 +15,7 @@ Do **not** set `can_schedule=true`, do **not** emit `leader_fencing_token`, and 
 ## Completed in 052
 1. Added an outbound peer transport skeleton for raft-rs `Ready.messages()` to configured peer endpoints over HTTP.
 2. Converted outbound `eraftpb::Message` values back into the existing wire DTO shape with base64 payload encoding.
-3. Added optional `cluster.transport_token` / `x-tikee-raft-token` for internal server-to-server Raft HTTP auth.
+3. Added optional `cluster.transport_token` / `x-tikeo-raft-token` for internal server-to-server Raft HTTP auth.
 4. Added tests for outbound message serialization and endpoint path construction.
 
 ## Remaining / continue with 053

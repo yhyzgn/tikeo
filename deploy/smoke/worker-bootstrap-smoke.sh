@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-base_url="${TIKEE_HTTP_URL:-http://127.0.0.1:9090}"
-endpoint="${TIKEE_WORKER_ENDPOINT:-http://127.0.0.1:9998}"
+base_url="${TIKEO_HTTP_URL:-http://127.0.0.1:9090}"
+endpoint="${TIKEO_WORKER_ENDPOINT:-http://127.0.0.1:9998}"
 
-curl -fsS "$base_url/readyz" >/tmp/tikee-readyz.json
+curl -fsS "$base_url/readyz" >/tmp/tikeo-readyz.json
 printf 'readyz ok: %s\n' "$base_url/readyz"
 
-if [[ "${TIKEE_SMOKE_RUN_RUST_WORKER:-1}" == "1" ]]; then
+if [[ "${TIKEO_SMOKE_RUN_RUST_WORKER:-1}" == "1" ]]; then
   cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
 else
-  printf 'worker dry-run skipped; set TIKEE_SMOKE_RUN_RUST_WORKER=1 to run the Rust demo config check.\n'
+  printf 'worker dry-run skipped; set TIKEO_SMOKE_RUN_RUST_WORKER=1 to run the Rust demo config check.\n'
 fi
 
 printf 'worker endpoint configured: %s\n' "$endpoint"

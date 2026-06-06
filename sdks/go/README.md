@@ -1,9 +1,9 @@
-# tikee Go SDKs
+# tikeo Go SDKs
 
 Go SDK packages live under `sdks/go/<sdk-name>/` and must be independently buildable.
 
 ```bash
-(cd sdks/go/tikee && go test ./...)
+(cd sdks/go/tikeo && go test ./...)
 (cd examples/go/worker-demo && go test ./...)
 ```
 

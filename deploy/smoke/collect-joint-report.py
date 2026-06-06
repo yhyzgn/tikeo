@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Collect tikee smoke JSON/JSONL artifacts into one reviewable report."""
+"""Collect tikeo smoke JSON/JSONL artifacts into one reviewable report."""
 from __future__ import annotations
 
 import argparse
@@ -62,7 +62,7 @@ def status_of(cases: list[dict[str, Any]]) -> str:
 
 def write_markdown(path: Path, report: dict[str, Any]) -> None:
     lines = [
-        "# Tikee joint automation report",
+        "# Tikeo joint automation report",
         "",
         f"Run ID: `{report['run_id']}`",
         f"Generated at: `{report['generated_at']}`",

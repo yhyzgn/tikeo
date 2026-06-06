@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Docker bridge smoke for tikee raft-rs HTTP transport.
+# Docker bridge smoke for tikeo raft-rs HTTP transport.
 # This intentionally does NOT use --network host. It validates container-DNS peer
-# endpoints, the internal x-tikee-raft-token path, and safe follower/runtime
+# endpoints, the internal x-tikeo-raft-token path, and safe follower/runtime
 # inbox behavior across Docker bridge networking; if a leader is elected, it must be unique and fenced.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-NETWORK="${TIKEE_RAFT_E2E_NETWORK:-tikee-raft-e2e}"
-IMAGE="${TIKEE_RAFT_E2E_IMAGE:-tikee:raft-bridge-e2e}"
-NODE_COUNT="${TIKEE_RAFT_E2E_NODES:-3}"
-TOKEN="${TIKEE_RAFT_E2E_TOKEN:-}"
-TMP_DIR="${TIKEE_RAFT_E2E_TMP:-}"
-KEEP="${TIKEE_RAFT_E2E_KEEP:-0}"
+NETWORK="${TIKEO_RAFT_E2E_NETWORK:-tikeo-raft-e2e}"
+IMAGE="${TIKEO_RAFT_E2E_IMAGE:-tikeo:raft-bridge-e2e}"
+NODE_COUNT="${TIKEO_RAFT_E2E_NODES:-3}"
+TOKEN="${TIKEO_RAFT_E2E_TOKEN:-}"
+TMP_DIR="${TIKEO_RAFT_E2E_TMP:-}"
+KEEP="${TIKEO_RAFT_E2E_KEEP:-0}"
 HTTP_PORT=9090
 TUNNEL_PORT=9998
 
@@ -25,14 +25,14 @@ if ! docker info >/dev/null 2>&1; then
   exit 125
 fi
 if [[ ! "$NODE_COUNT" =~ ^[0-9]+$ ]] || (( NODE_COUNT < 2 )); then
-  echo "[raft-e2e] TIKEE_RAFT_E2E_NODES must be an integer >= 2" >&2
+  echo "[raft-e2e] TIKEO_RAFT_E2E_NODES must be an integer >= 2" >&2
   exit 2
 fi
 if [[ -z "$TOKEN" ]]; then
   TOKEN="dev-raft-$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')"
 fi
 if [[ -z "$TMP_DIR" ]]; then
-  TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/tikee-raft-e2e.XXXXXX")"
+  TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/tikeo-raft-e2e.XXXXXX")"
 else
   mkdir -p "$TMP_DIR"
 fi
@@ -46,7 +46,7 @@ cleanup() {
     exit "$code"
   fi
   for ((i=0; i<NODE_COUNT; i++)); do
-    docker rm -f "tikee-$i" >/dev/null 2>&1 || true
+    docker rm -f "tikeo-$i" >/dev/null 2>&1 || true
   done
   docker network rm "$NETWORK" >/dev/null 2>&1 || true
   rm -rf "$TMP_DIR"
@@ -63,7 +63,7 @@ docker network create --driver bridge "$NETWORK" >/dev/null
 
 peers_toml() {
   for ((i=0; i<NODE_COUNT; i++)); do
-    printf '  { node_id = "tikee-%d", endpoint = "http://tikee-%d:%d" }' "$i" "$i" "$HTTP_PORT"
+    printf '  { node_id = "tikeo-%d", endpoint = "http://tikeo-%d:%d" }' "$i" "$i" "$HTTP_PORT"
     if (( i + 1 < NODE_COUNT )); then
       printf ',\n'
     else
@@ -73,7 +73,7 @@ peers_toml() {
 }
 
 for ((i=0; i<NODE_COUNT; i++)); do
-  node="tikee-$i"
+  node="tikeo-$i"
   node_dir="$TMP_DIR/$node"
   mkdir -p "$node_dir/data" "$node_dir/config"
   cat > "$node_dir/config/raft-e2e.toml" <<CONFIG
@@ -82,7 +82,7 @@ listen_addr = "0.0.0.0:${HTTP_PORT}"
 worker_tunnel_addr = "0.0.0.0:${TUNNEL_PORT}"
 
 [storage]
-database_url = "sqlite:///data/tikee.db?mode=rwc"
+database_url = "sqlite:///data/tikeo.db?mode=rwc"
 
 [cluster]
 mode = "raft"
@@ -96,7 +96,7 @@ CONFIG
   docker run -d \
     --name "$node" \
     --network "$NETWORK" \
-    -e TIKEE__CLUSTER__TRANSPORT_TOKEN="$TOKEN" \
+    -e TIKEO__CLUSTER__TRANSPORT_TOKEN="$TOKEN" \
     -v "$node_dir/data:/data" \
     -v "$node_dir/config/raft-e2e.toml:/app/config/raft-e2e.toml:ro" \
     "$IMAGE" serve --config /app/config/raft-e2e.toml >/dev/null
@@ -109,7 +109,7 @@ curl_in_bridge() {
 post_in_bridge() {
   docker run --rm --network "$NETWORK" curlimages/curl:8.10.1 -fsS \
     -H 'content-type: application/json' \
-    -H "x-tikee-raft-token: $TOKEN" \
+    -H "x-tikeo-raft-token: $TOKEN" \
     "$@"
 }
 
@@ -148,11 +148,11 @@ wait_for_node() {
 }
 
 for ((i=0; i<NODE_COUNT; i++)); do
-  wait_for_node "tikee-$i"
+  wait_for_node "tikeo-$i"
 done
 
 for ((i=0; i<NODE_COUNT; i++)); do
-  node="tikee-$i"
+  node="tikeo-$i"
   log "checking $node /api/v1/cluster"
   cluster_json="$(curl_in_bridge "http://${node}:${HTTP_PORT}/api/v1/cluster")"
   json_expect "$cluster_json" "code" "0"
@@ -172,7 +172,7 @@ import json, os, pathlib, sys
 root = pathlib.Path(os.environ["TMP_DIR"])
 leaders = []
 for i in range(int(os.environ["NODE_COUNT"])):
-    data = json.loads((root / f"tikee-{i}.cluster.json").read_text())["data"]
+    data = json.loads((root / f"tikeo-{i}.cluster.json").read_text())["data"]
     if data["can_schedule"]:
         if data["role"] != "leader" or not data.get("leader_fencing_token"):
             print(f"schedulable node lacks leader role/fencing: {data}", file=sys.stderr)
@@ -186,15 +186,15 @@ PYLEADER
 
 append_body='{"from":1,"to":2,"term":1,"message_type":"MsgHeartbeat","index":0,"log_term":0,"commit":0,"snapshot_index":null,"snapshot_term":null,"entries":[],"context":null,"reject":false,"reject_hint":null,"leader_fencing_token":null}'
 log "checking raft append-entries over bridge DNS with internal token"
-append_json="$(post_in_bridge -X POST "http://tikee-0:${HTTP_PORT}/api/v1/raft/append-entries" -d "$append_body")"
+append_json="$(post_in_bridge -X POST "http://tikeo-0:${HTTP_PORT}/api/v1/raft/append-entries" -d "$append_body")"
 json_expect "$append_json" "code" "0"
 json_expect "$append_json" "data.accepted" "true"
 
 log "checking wrong raft token is rejected without admin session"
 wrong_status="$(docker run --rm --network "$NETWORK" curlimages/curl:8.10.1 -sS -o /tmp/raft-wrong.json -w '%{http_code}' \
   -H 'content-type: application/json' \
-  -H 'x-tikee-raft-token: wrong-token' \
-  -X POST "http://tikee-0:${HTTP_PORT}/api/v1/raft/append-entries" \
+  -H 'x-tikeo-raft-token: wrong-token' \
+  -X POST "http://tikeo-0:${HTTP_PORT}/api/v1/raft/append-entries" \
   -d "$append_body")"
 if [[ "$wrong_status" != "401" ]]; then
   echo "[raft-e2e] expected wrong-token status 401, got $wrong_status" >&2

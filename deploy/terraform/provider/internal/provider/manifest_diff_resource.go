@@ -20,7 +20,7 @@ type diffModel struct {
 	ChangesJSON      types.String `tfsdk:"changes_json"`
 }
 
-const manifestDiffResourceName = "tikee_manifest_diff"
+const manifestDiffResourceName = "tikeo_manifest_diff"
 
 func NewManifestDiffResource() resource.Resource { return &manifestDiffResource{} }
 
@@ -76,14 +76,14 @@ func (r *manifestDiffResource) Delete(ctx context.Context, _ resource.DeleteRequ
 
 func (r *manifestDiffResource) refresh(ctx context.Context, state *diffModel, diagnostics interface{ AddError(string, string) }) {
 	payload, err := r.client.client.DiffManifest(ctx, json.RawMessage(state.ManifestJSON.ValueString()))
-	if err != nil { diagnostics.AddError("Unable to diff tikee manifest", err.Error()); return }
+	if err != nil { diagnostics.AddError("Unable to diff tikeo manifest", err.Error()); return }
 	var diff struct {
 		CurrentChecksum string          `json:"currentChecksum"`
 		DesiredChecksum string          `json:"desiredChecksum"`
 		Summary         json.RawMessage `json:"summary"`
 		Changes         json.RawMessage `json:"changes"`
 	}
-	if err := json.Unmarshal(payload, &diff); err != nil { diagnostics.AddError("Invalid tikee diff response", err.Error()); return }
+	if err := json.Unmarshal(payload, &diff); err != nil { diagnostics.AddError("Invalid tikeo diff response", err.Error()); return }
 	state.ID = types.StringValue(diff.DesiredChecksum)
 	state.CurrentChecksum = types.StringValue(diff.CurrentChecksum)
 	state.DesiredChecksum = types.StringValue(diff.DesiredChecksum)

@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
-import { TaskContext } from "@yhyzgn/tikee";
+import { TaskContext } from "@yhyzgn/tikeo";
 import { processTask, scriptSandboxBackend } from "../src/main";
 
 test("demo does not advertise local scripts by default", () => {
-  expect(["1", "true", "yes", "on"].includes((process.env.TIKEE_ENABLE_LOCAL_SCRIPT_SHELL ?? "").toLowerCase())).toBe(false);
+  expect(["1", "true", "yes", "on"].includes((process.env.TIKEO_ENABLE_LOCAL_SCRIPT_SHELL ?? "").toLowerCase())).toBe(false);
 });
 
 test("auto sandbox backend matches Java lightweight defaults", () => {
-  delete process.env.TIKEE_WORKER_SCRIPT_SANDBOX;
+  delete process.env.TIKEO_WORKER_SCRIPT_SANDBOX;
   expect(scriptSandboxBackend("python")).toBe("srt");
   expect(scriptSandboxBackend("javascript")).toBe("deno");
   expect(scriptSandboxBackend("typescript")).toBe("deno");

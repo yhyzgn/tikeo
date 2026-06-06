@@ -1,7 +1,7 @@
 # 050 — Phase 2 raft-rs event loop and fencing runtime
 
 ## Context
-The project has switched the consensus plan from OpenRaft to TiKV raft-rs (`raft` crate 0.7.0). `tikee-server::cluster::raft_rs` now validates the crate/config/storage boundary by deriving stable non-zero `u64` raft ids from string node ids, building initial voters from `[cluster].peers`, and constructing `MemStorage + RawNode` without ticking, campaigning, or granting tikee ownership. `mode=raft` still returns `role=unknown`, `can_schedule=false`, and `leader_fencing_token=null`.
+The project has switched the consensus plan from OpenRaft to TiKV raft-rs (`raft` crate 0.7.0). `tikeo-server::cluster::raft_rs` now validates the crate/config/storage boundary by deriving stable non-zero `u64` raft ids from string node ids, building initial voters from `[cluster].peers`, and constructing `MemStorage + RawNode` without ticking, campaigning, or granting tikeo ownership. `mode=raft` still returns `role=unknown`, `can_schedule=false`, and `leader_fencing_token=null`.
 
 ## Goal
 Implement the next safe raft-rs runtime slice without fake leadership.

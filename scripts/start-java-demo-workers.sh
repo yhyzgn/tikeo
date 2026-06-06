@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUN_DIR="${TIKEE_DEMO_WORKER_RUN_DIR:-$ROOT_DIR/.dev/java-demo-workers}"
-WORKER_ENDPOINT="${TIKEE_WORKER_ENDPOINT:-http://127.0.0.1:9998}"
-MANAGEMENT_ENDPOINT="${TIKEE_MANAGEMENT_ENDPOINT:-${TIKEE_HTTP_URL:-${TIKEE_API_URL:-http://127.0.0.1:9090}}}"
+RUN_DIR="${TIKEO_DEMO_WORKER_RUN_DIR:-$ROOT_DIR/.dev/java-demo-workers}"
+WORKER_ENDPOINT="${TIKEO_WORKER_ENDPOINT:-http://127.0.0.1:9998}"
+MANAGEMENT_ENDPOINT="${TIKEO_MANAGEMENT_ENDPOINT:-${TIKEO_HTTP_URL:-${TIKEO_API_URL:-http://127.0.0.1:9090}}}"
 MODE="start"
 DETACH=0
 
@@ -12,14 +12,14 @@ usage() {
   cat <<USAGE
 Usage: $0 [--detach] [--stop|--status]
 
-Starts the Java demo worker matrix against one tikee server.
+Starts the Java demo worker matrix against one tikeo server.
 
 Environment:
-  TIKEE_WORKER_ENDPOINT      Worker tunnel endpoint, default: http://127.0.0.1:9998
-  TIKEE_MANAGEMENT_ENDPOINT  Management API endpoint, default: http://127.0.0.1:9090
-  TIKEE_MANAGEMENT_API_KEY   Demo management API key, optional
-  TIKEE_WORKER_DRY_RUN       Pass-through to demo workers, default: false
-  TIKEE_DEMO_WORKER_RUN_DIR  PID/log/state root, default: .dev/java-demo-workers
+  TIKEO_WORKER_ENDPOINT      Worker tunnel endpoint, default: http://127.0.0.1:9998
+  TIKEO_MANAGEMENT_ENDPOINT  Management API endpoint, default: http://127.0.0.1:9090
+  TIKEO_MANAGEMENT_API_KEY   Demo management API key, optional
+  TIKEO_WORKER_DRY_RUN       Pass-through to demo workers, default: false
+  TIKEO_DEMO_WORKER_RUN_DIR  PID/log/state root, default: .dev/java-demo-workers
 USAGE
 }
 
@@ -125,20 +125,20 @@ start_worker() {
   mkdir -p "$state_dir"
   : >"$log_file"
   setsid env \
-    TIKEE_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
-    TIKEE_MANAGEMENT_ENDPOINT="$MANAGEMENT_ENDPOINT" \
-    TIKEE_WORKER_NAMESPACE="$namespace" \
-    TIKEE_WORKER_APP="$app" \
-    TIKEE_WORKER_POOL="$pool" \
-    TIKEE_WORKER_CLUSTER="local" \
-    TIKEE_WORKER_REGION="local" \
-    TIKEE_WORKER_CLIENT_INSTANCE_ID="$name" \
-    TIKEE_DEMO_SERVER_PORT="$port" \
-    TIKEE_WORKER_STATE_DIR="$state_dir" \
-    TIKEE_WORKER_ELECTION_DOMAIN="$namespace/$app/$pool/local" \
-    TIKEE_WORKER_ELECTION_PRIORITY="$priority" \
-    TIKEE_MANAGEMENT_NAMESPACE="$namespace" \
-    TIKEE_MANAGEMENT_APP="$app" \
+    TIKEO_WORKER_ENDPOINT="$WORKER_ENDPOINT" \
+    TIKEO_MANAGEMENT_ENDPOINT="$MANAGEMENT_ENDPOINT" \
+    TIKEO_WORKER_NAMESPACE="$namespace" \
+    TIKEO_WORKER_APP="$app" \
+    TIKEO_WORKER_POOL="$pool" \
+    TIKEO_WORKER_CLUSTER="local" \
+    TIKEO_WORKER_REGION="local" \
+    TIKEO_WORKER_CLIENT_INSTANCE_ID="$name" \
+    TIKEO_DEMO_SERVER_PORT="$port" \
+    TIKEO_WORKER_STATE_DIR="$state_dir" \
+    TIKEO_WORKER_ELECTION_DOMAIN="$namespace/$app/$pool/local" \
+    TIKEO_WORKER_ELECTION_PRIORITY="$priority" \
+    TIKEO_MANAGEMENT_NAMESPACE="$namespace" \
+    TIKEO_MANAGEMENT_APP="$app" \
     "$script" >"$log_file" 2>&1 &
   echo "$!" >"$pid_file"
   echo "▶ started: $name pid=$(cat "$pid_file") scope=$namespace/$app/$pool port=$port log=$log_file"

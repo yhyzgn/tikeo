@@ -113,16 +113,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
-            sdks/rust/tikee -> target
+            sdks/rust/tikeo -> target
             examples/rust/worker-demo -> target
       - name: Format Rust SDK
-        run: cargo fmt --manifest-path sdks/rust/tikee/Cargo.toml -- --check
+        run: cargo fmt --manifest-path sdks/rust/tikeo/Cargo.toml -- --check
       - name: Clippy Rust SDK
-        run: cargo clippy --manifest-path sdks/rust/tikee/Cargo.toml --all-targets --all-features -- -D warnings
+        run: cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings
       - name: Test Rust SDK
-        run: cargo test --manifest-path sdks/rust/tikee/Cargo.toml --all-features
+        run: cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
       - name: Package Rust SDK
-        run: cargo package --manifest-path sdks/rust/tikee/Cargo.toml --allow-dirty
+        run: cargo package --manifest-path sdks/rust/tikeo/Cargo.toml --allow-dirty
       - name: Format Rust worker demo
         run: cargo fmt --manifest-path examples/rust/worker-demo/Cargo.toml -- --check
       - name: Clippy Rust worker demo
@@ -140,10 +140,10 @@ jobs:
         with:
           go-version: '1.26.x'
           cache-dependency-path: |
-            sdks/go/tikee/go.sum
+            sdks/go/tikeo/go.sum
             examples/go/worker-demo/go.sum
       - name: Test Go SDK
-        working-directory: sdks/go/tikee
+        working-directory: sdks/go/tikeo
         run: go test ./... -count=1
       - name: Test Go worker demo
         working-directory: examples/go/worker-demo
@@ -160,20 +160,20 @@ jobs:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: |
-            sdks/python/tikee/pyproject.toml
+            sdks/python/tikeo/pyproject.toml
             examples/python/worker-demo/pyproject.toml
       - name: Install Python SDK and demo
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e sdks/python/tikee[test]
+          python -m pip install -e sdks/python/tikeo[test]
           python -m pip install -e examples/python/worker-demo[test]
       - name: Test Python SDK and demo
-        run: python -m pytest sdks/python/tikee/tests examples/python/worker-demo/tests -q
+        run: python -m pytest sdks/python/tikeo/tests examples/python/worker-demo/tests -q
       - name: Python demo dry-run smoke
         env:
-          TIKEE_WORKER_DRY_RUN: '1'
-          TIKEE_SANDBOX_AUTO_INSTALL: '0'
-        run: python -m tikee_python_worker_demo
+          TIKEO_WORKER_DRY_RUN: '1'
+          TIKEO_SANDBOX_AUTO_INSTALL: '0'
+        run: python -m tikeo_python_worker_demo
 
   nodejs-sdk-demo:
     name: Node.js SDK + demo
@@ -185,13 +185,13 @@ jobs:
         with:
           bun-version: latest
       - name: Install Node.js SDK dependencies
-        working-directory: sdks/nodejs/tikee
+        working-directory: sdks/nodejs/tikeo
         run: bun install --frozen-lockfile
       - name: Test Node.js SDK
-        working-directory: sdks/nodejs/tikee
+        working-directory: sdks/nodejs/tikeo
         run: bun test
       - name: Build Node.js SDK
-        working-directory: sdks/nodejs/tikee
+        working-directory: sdks/nodejs/tikeo
         run: bun run build
       - name: Install Node.js demo dependencies
         working-directory: examples/nodejs/worker-demo
@@ -202,8 +202,8 @@ jobs:
       - name: Node.js demo dry-run smoke
         working-directory: examples/nodejs/worker-demo
         env:
-          TIKEE_WORKER_DRY_RUN: '1'
-          TIKEE_SANDBOX_AUTO_INSTALL: '0'
+          TIKEO_WORKER_DRY_RUN: '1'
+          TIKEO_SANDBOX_AUTO_INSTALL: '0'
         run: bun start
 
   other-deploy-tools:
@@ -245,14 +245,14 @@ jobs:
         with:
           go-version: '1.26.x'
           cache-dependency-path: |
-            sdks/go/tikee/go.sum
+            sdks/go/tikeo/go.sum
             examples/go/worker-demo/go.sum
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: |
-            sdks/python/tikee/pyproject.toml
+            sdks/python/tikeo/pyproject.toml
             examples/python/worker-demo/pyproject.toml
       - uses: oven-sh/setup-bun@v2
         with:
@@ -263,7 +263,7 @@ jobs:
       - name: Install Python worker demo dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e sdks/python/tikee
+          python -m pip install -e sdks/python/tikeo
           python -m pip install -e examples/python/worker-demo
       - name: Install Node.js worker demo dependencies
         working-directory: examples/nodejs/worker-demo

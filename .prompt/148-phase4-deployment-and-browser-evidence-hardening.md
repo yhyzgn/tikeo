@@ -2,7 +2,7 @@
 
 ## 接手上下文
 
-先阅读：`../prompt.md`、`../.memory/next.md`、`../.memory/progress.md`、`../.memory/decisions.md`、`../design/tikee-architecture-design.md`、`../design/server-web-java-joint-automation-test-plan.md`。
+先阅读：`../prompt.md`、`../.memory/next.md`、`../.memory/progress.md`、`../.memory/decisions.md`、`../design/tikeo-architecture-design.md`、`../design/server-web-java-joint-automation-test-plan.md`。
 
 当前已完成基线：
 
@@ -51,8 +51,8 @@
 
 ```bash
 cargo fmt --all -- --check
-cargo test -p tikee-storage -- --nocapture
-cargo test -p tikee-server -- --nocapture
+cargo test -p tikeo-storage -- --nocapture
+cargo test -p tikeo-server -- --nocapture
 cd web && bun run typecheck && bun run lint && bun test && bun run build
 python3 .github/tests/workflow_contract_test.py
 scripts/verify-github-actions-node-runtime.py --min-node-major 24

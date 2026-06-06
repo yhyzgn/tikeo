@@ -169,7 +169,7 @@ describe('api client envelope handling', () => {
       }));
     }) as unknown as typeof fetch;
 
-    await login({ username: 'bootstrap_admin', password: 'Tikee@2026!' });
+    await login({ username: 'bootstrap_admin', password: 'Tikeo@2026!' });
 
     globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
       calls.push(init ?? {});
@@ -423,8 +423,8 @@ describe('api client envelope handling', () => {
   test('exports and diffs GitOps manifests through typed endpoints', async () => {
     const calls: Array<{ method: string; url: string; body?: unknown }> = [];
     const manifest = {
-      apiVersion: 'tikee.yhyzgn.com/v1',
-      kind: 'TikeeManifest',
+      apiVersion: 'tikeo.yhyzgn.com/v1',
+      kind: 'TikeoManifest',
       scope: { namespace: 'default', app: 'billing' },
       resources: [{
         kind: 'Job',
@@ -442,7 +442,7 @@ describe('api client envelope handling', () => {
         return new Response(JSON.stringify({
           code: 0,
           message: 'success',
-          data: { manifest, format: 'yaml', manifestYaml: 'apiVersion: tikee.yhyzgn.com/v1', checksum: 'sha256:abc' },
+          data: { manifest, format: 'yaml', manifestYaml: 'apiVersion: tikeo.yhyzgn.com/v1', checksum: 'sha256:abc' },
         }));
       }
       return new Response(JSON.stringify({
