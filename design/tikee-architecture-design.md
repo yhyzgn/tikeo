@@ -2216,6 +2216,7 @@ tikee/
 > 020 review remediation 结论：015-019 中已完成项若仅为骨架，路线图必须明确标注“骨架/基础”，不得把未接入真实执行链路、规则引擎或治理闭环的能力标为完全完成。
 
 - [x] RBAC 权限系统（021 已完成最小 permission/resource/action；OIDC/多租户 scope 后续继续增强）
+  - [ ] 角色管理模块与权限矩阵后台（149 计划：内置 admin 角色锁定、bootstrap_admin 结构化 owner bypass、自定义角色 CRUD、用户角色绑定、后端接口权限矩阵、菜单权限矩阵、UI 操作元素权限矩阵、角色/用户权限配置 UI 与完整测试）
   - [x] API Token 生命周期基础（098：`POST/GET/DELETE /api/v1/auth/api-tokens`，token 只创建时返回明文，持久化仍为哈希；列表不暴露 token_hash，删除后 bearer 立即失效并审计）
   - [x] API Token 细粒度 scope 基础（099：创建时可传 `scopes=["resource:action"]`；scope 会收窄 effective permissions，`admin` role 不再绕过 scoped token 限制；列表返回 scopes，scope 校验不得超过当前 principal 权限）
   - [x] API Token 过期/轮换策略基础（102：`auth.api_tokens` 配置 default/min/max TTL；创建可传受策略约束的 `expires_in_seconds`；`POST /api/v1/auth/api-tokens/{id}/rotate` 保留 scopes、签发新 token 并立即撤销旧 token）
