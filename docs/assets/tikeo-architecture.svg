@@ -3,9 +3,9 @@
   <desc id="desc">A complete logical architecture diagram for Tikeo showing user and automation entrypoints, the Rust server cluster with Raft and fencing, scheduling and governance modules, storage engines, observability, outbound gRPC worker tunnel, cross-language worker fleets, sandbox runtimes, and deployment surfaces.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1560" y2="1040" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#ffffff"/>
-      <stop offset="0.48" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#ffffff"/>
+      <stop stop-color="#f8fbff"/>
+      <stop offset="0.48" stop-color="#eef7ff"/>
+      <stop offset="1" stop-color="#f5f0ff"/>
     </linearGradient>
     <linearGradient id="serverGrad" x1="515" y1="185" x2="1045" y2="642" gradientUnits="userSpaceOnUse">
       <stop stop-color="#0f172a"/>
@@ -13,9 +13,9 @@
       <stop offset="1" stop-color="#7c3aed"/>
     </linearGradient>
     <linearGradient id="workerGrad" x1="90" y1="692" x2="1470" y2="955" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#ffffff"/>
-      <stop offset="0.52" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#ffffff"/>
+      <stop stop-color="#0f766e"/>
+      <stop offset="0.52" stop-color="#0891b2"/>
+      <stop offset="1" stop-color="#7c3aed"/>
     </linearGradient>
     <linearGradient id="tunnelGrad" x1="250" y1="650" x2="1310" y2="646" gradientUnits="userSpaceOnUse">
       <stop stop-color="#2563eb"/>
@@ -36,61 +36,58 @@
     </marker>
     <style>
       .title{font:800 34px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#0f172a}
-      .subtitle{font:550 16px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#475569}
-      .section{font:800 18px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#0f172a}
-      .label{font:760 15px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#0f172a}
-      .small{font:600 12.5px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#475569}
-      .tiny{font:650 10.5px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#64748b;letter-spacing:.01em}
-      .mono{font:700 11.5px ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;fill:#334155}
+      .subtitle{font:550 16px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#334155}
+      .section{font:800 18px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#f8fafc}
+      .label{font:760 15px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#f8fafc}
+      .small{font:600 12.5px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#e2e8f0}
+      .tiny{font:650 10.5px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#cbd5e1;letter-spacing:.01em}
+      .mono{font:700 11.5px ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;fill:#f8fafc}
       .white{fill:#fff}.white2{fill:#dbeafe}.white3{fill:#c4b5fd}
-      .pillText{font:750 11px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#0f172a}
+      .pillText{font:750 11px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#f8fafc}
       .solidBlue{stroke:#2563eb;stroke-width:3;stroke-linecap:round;marker-end:url(#arrowBlue)}
       .solidCyan{stroke:#0891b2;stroke-width:3;stroke-linecap:round;marker-end:url(#arrowCyan)}
       .solidViolet{stroke:#7c3aed;stroke-width:3;stroke-linecap:round;marker-end:url(#arrowViolet)}
       .solidWhite{stroke:#f8fafc;stroke-width:3;stroke-linecap:round;marker-end:url(#arrowWhite)}
       .dashBlue{stroke:#2563eb;stroke-width:3;stroke-linecap:round;stroke-dasharray:8 8;marker-end:url(#arrowBlue)}
       .dashCyan{stroke:#0891b2;stroke-width:3;stroke-linecap:round;stroke-dasharray:8 8;marker-end:url(#arrowCyan)}
-      .thin{stroke:#cbd5e1;stroke-width:1.2}
-      @media (prefers-color-scheme: dark){
-        .title,.section,.label{fill:#f8fafc}.subtitle,.small{fill:#cbd5e1}.tiny{fill:#94a3b8}.mono{fill:#cbd5e1}.pillText{fill:#e2e8f0}
-      }
+      .thin{stroke:#38bdf8;stroke-width:1.2}
     </style>
   </defs>
 
   <rect width="1560" height="1040" rx="36" fill="url(#bg)"/>
-  <rect x="46" y="42" width="1468" height="956" rx="32" fill="#ffffff" stroke="#93c5fd" stroke-width="2"/>
+  <rect x="46" y="42" width="1468" height="982" rx="32" fill="#ffffff" stroke="#60a5fa" stroke-width="2.6"/>
 
   <text x="82" y="92" class="title">Tikeo complete architecture</text>
   <text x="82" y="122" class="subtitle">Cloud-native task orchestration with Raft ownership, outbound Worker Tunnel, typed capabilities, governed sandboxes, multi-DB storage, and evidence-first operations.</text>
 
   <!-- Entry points -->
   <g>
-    <rect x="82" y="156" width="340" height="178" rx="24" fill="#ffffff" stroke="#2563eb" stroke-width="2.6"/>
-    <rect x="82" y="156" width="340" height="50" rx="24" fill="#dbeafe"/>
-    <rect x="82" y="180" width="340" height="26" fill="#dbeafe"/>
+    <rect x="82" y="156" width="340" height="178" rx="24" fill="#1d4ed8" stroke="#93c5fd" stroke-width="2.8"/>
+    <rect x="82" y="156" width="340" height="50" rx="24" fill="#2563eb"/>
+    <rect x="82" y="180" width="340" height="26" fill="#2563eb"/>
     <text x="112" y="194" class="section">Entrypoints</text>
-    <rect x="112" y="218" width="276" height="30" rx="15" fill="#ffffff" stroke="#93c5fd"/>
+    <rect x="112" y="218" width="276" height="30" rx="15" fill="#1e40af" stroke="#bfdbfe"/>
     <text x="130" y="238" class="small">Web Console · workflow canvas · topology</text>
-    <rect x="112" y="258" width="276" height="30" rx="15" fill="#ffffff" stroke="#93c5fd"/>
+    <rect x="112" y="258" width="276" height="30" rx="15" fill="#1e40af" stroke="#bfdbfe"/>
     <text x="130" y="278" class="small">REST / OpenAPI · API-Key · RBAC</text>
-    <rect x="112" y="298" width="276" height="30" rx="15" fill="#ffffff" stroke="#93c5fd"/>
+    <rect x="112" y="298" width="276" height="30" rx="15" fill="#1e40af" stroke="#bfdbfe"/>
     <text x="130" y="318" class="small">CLI / SDK management clients</text>
   </g>
 
   <g>
-    <rect x="82" y="372" width="340" height="198" rx="24" fill="#ffffff" stroke="#7c3aed" stroke-width="2.6"/>
-    <rect x="82" y="372" width="340" height="50" rx="24" fill="#ede9fe"/>
-    <rect x="82" y="396" width="340" height="26" fill="#ede9fe"/>
+    <rect x="82" y="372" width="340" height="198" rx="24" fill="#6d28d9" stroke="#c4b5fd" stroke-width="2.8"/>
+    <rect x="82" y="372" width="340" height="50" rx="24" fill="#7c3aed"/>
+    <rect x="82" y="396" width="340" height="26" fill="#7c3aed"/>
     <text x="112" y="410" class="section">Deployment &amp; IaC</text>
     <text x="112" y="438" class="small">Production surfaces are maintained together.</text>
     <g>
-      <rect x="112" y="460" width="84" height="28" rx="14" fill="#dbeafe"/><text x="132" y="479" class="pillText">Docker</text>
-      <rect x="206" y="460" width="92" height="28" rx="14" fill="#dbeafe"/><text x="224" y="479" class="pillText">Compose</text>
-      <rect x="308" y="460" width="74" height="28" rx="14" fill="#dbeafe"/><text x="329" y="479" class="pillText">Helm</text>
-      <rect x="112" y="498" width="102" height="28" rx="14" fill="#ede9fe"/><text x="130" y="517" class="pillText">K8s CRD</text>
-      <rect x="224" y="498" width="108" height="28" rx="14" fill="#ede9fe"/><text x="242" y="517" class="pillText">Operator</text>
-      <rect x="112" y="536" width="118" height="28" rx="14" fill="#cffafe"/><text x="130" y="555" class="pillText">Terraform</text>
-      <rect x="240" y="536" width="88" height="28" rx="14" fill="#cffafe"/><text x="260" y="555" class="pillText">GitOps</text>
+      <rect x="112" y="460" width="84" height="28" rx="14" fill="#1e40af" stroke="#bfdbfe"/><text x="132" y="479" class="pillText">Docker</text>
+      <rect x="206" y="460" width="92" height="28" rx="14" fill="#1e40af" stroke="#bfdbfe"/><text x="224" y="479" class="pillText">Compose</text>
+      <rect x="308" y="460" width="74" height="28" rx="14" fill="#1e40af" stroke="#bfdbfe"/><text x="329" y="479" class="pillText">Helm</text>
+      <rect x="112" y="498" width="102" height="28" rx="14" fill="#5b21b6" stroke="#ddd6fe"/><text x="130" y="517" class="pillText">K8s CRD</text>
+      <rect x="224" y="498" width="108" height="28" rx="14" fill="#5b21b6" stroke="#ddd6fe"/><text x="242" y="517" class="pillText">Operator</text>
+      <rect x="112" y="536" width="118" height="28" rx="14" fill="#155e75" stroke="#a5f3fc"/><text x="130" y="555" class="pillText">Terraform</text>
+      <rect x="240" y="536" width="88" height="28" rx="14" fill="#155e75" stroke="#a5f3fc"/><text x="260" y="555" class="pillText">GitOps</text>
     </g>
   </g>
 
@@ -98,7 +95,8 @@
   <g>
     <rect x="470" y="150" width="660" height="500" rx="32" fill="url(#serverGrad)"/>
     <text x="506" y="196" class="section white">Tikeo Rust Server Cluster</text>
-    <text x="506" y="222" class="small white2">Single native binary per node · HTTP management API · Worker Tunnel listener · scheduler control plane</text>
+    <text x="506" y="222" class="small white2">Single native binary per node · HTTP API · Worker Tunnel</text>
+    <text x="506" y="240" class="small white2">scheduler control plane · management surface</text>
 
     <g>
       <rect x="506" y="248" width="164" height="64" rx="18" fill="#3453a6" stroke="#93c5fd"/>
@@ -156,28 +154,28 @@
 
   <!-- Right side integrations -->
   <g>
-    <rect x="1186" y="156" width="326" height="198" rx="24" fill="#ffffff" stroke="#0891b2" stroke-width="2.6"/>
-    <rect x="1186" y="156" width="326" height="50" rx="24" fill="#cffafe"/>
-    <rect x="1186" y="180" width="326" height="26" fill="#cffafe"/>
+    <rect x="1186" y="156" width="326" height="198" rx="24" fill="#0e7490" stroke="#67e8f9" stroke-width="2.8"/>
+    <rect x="1186" y="156" width="326" height="50" rx="24" fill="#0891b2"/>
+    <rect x="1186" y="180" width="326" height="26" fill="#0891b2"/>
     <text x="1216" y="194" class="section">Observability</text>
     <text x="1216" y="222" class="small">Evidence-first operations.</text>
-    <rect x="1216" y="246" width="246" height="30" rx="15" fill="#ffffff" stroke="#22d3ee"/>
+    <rect x="1216" y="246" width="246" height="30" rx="15" fill="#155e75" stroke="#a5f3fc"/>
     <text x="1234" y="266" class="small">OpenTelemetry traces</text>
-    <rect x="1216" y="286" width="246" height="30" rx="15" fill="#ffffff" stroke="#22d3ee"/>
+    <rect x="1216" y="286" width="246" height="30" rx="15" fill="#155e75" stroke="#a5f3fc"/>
     <text x="1234" y="306" class="small">metrics · terminal task logs</text>
-    <rect x="1216" y="326" width="246" height="30" rx="15" fill="#ffffff" stroke="#22d3ee"/>
+    <rect x="1216" y="326" width="246" height="30" rx="15" fill="#155e75" stroke="#a5f3fc"/>
     <text x="1234" y="346" class="small">audit · replay · GitOps diff</text>
   </g>
 
   <g>
-    <rect x="1186" y="392" width="326" height="178" rx="24" fill="#ffffff" stroke="#7c3aed" stroke-width="2.6"/>
-    <rect x="1186" y="392" width="326" height="50" rx="24" fill="#ede9fe"/>
-    <rect x="1186" y="416" width="326" height="26" fill="#ede9fe"/>
+    <rect x="1186" y="392" width="326" height="178" rx="24" fill="#6d28d9" stroke="#c4b5fd" stroke-width="2.8"/>
+    <rect x="1186" y="392" width="326" height="50" rx="24" fill="#7c3aed"/>
+    <rect x="1186" y="416" width="326" height="26" fill="#7c3aed"/>
     <text x="1216" y="430" class="section">Management APIs</text>
     <text x="1216" y="458" class="small">Typed CRUD, RBAC, and automation.</text>
-    <rect x="1216" y="482" width="248" height="30" rx="15" fill="#ffffff" stroke="#a78bfa"/>
+    <rect x="1216" y="482" width="248" height="30" rx="15" fill="#5b21b6" stroke="#ddd6fe"/>
     <text x="1234" y="502" class="small">Jobs · workflows · scripts · plugins</text>
-    <rect x="1216" y="522" width="248" height="30" rx="15" fill="#ffffff" stroke="#a78bfa"/>
+    <rect x="1216" y="522" width="248" height="30" rx="15" fill="#5b21b6" stroke="#ddd6fe"/>
     <text x="1234" y="542" class="small">Users · roles · tenants · secrets</text>
   </g>
 
@@ -186,16 +184,16 @@
 
   <!-- Storage -->
   <g>
-    <rect x="470" y="690" width="660" height="114" rx="26" fill="#ffffff" stroke="#475569" stroke-width="2.6"/>
-    <rect x="470" y="690" width="660" height="46" rx="26" fill="#e2e8f0"/>
-    <rect x="470" y="710" width="660" height="26" fill="#e2e8f0"/>
+    <rect x="470" y="690" width="660" height="114" rx="26" fill="#b45309" stroke="#fde68a" stroke-width="2.8"/>
+    <rect x="470" y="690" width="660" height="46" rx="26" fill="#d97706"/>
+    <rect x="470" y="710" width="660" height="26" fill="#d97706"/>
     <text x="506" y="730" class="section">Durable storage</text>
     <text x="506" y="757" class="small">Jobs · instances · attempts · task logs · audit · script versions · worker sessions · raft records</text>
     <g>
-      <rect x="506" y="774" width="116" height="28" rx="14" fill="#e2e8f0"/><text x="538" y="793" class="pillText">SQLite</text>
-      <rect x="636" y="774" width="142" height="28" rx="14" fill="#dbeafe"/><text x="658" y="793" class="pillText">PostgreSQL</text>
-      <rect x="792" y="774" width="104" height="28" rx="14" fill="#cffafe"/><text x="824" y="793" class="pillText">MySQL</text>
-      <rect x="910" y="774" width="158" height="28" rx="14" fill="#ede9fe"/><text x="932" y="793" class="pillText">migration smoke</text>
+      <rect x="506" y="774" width="116" height="28" rx="14" fill="#92400e" stroke="#fde68a"/><text x="538" y="793" class="pillText">SQLite</text>
+      <rect x="636" y="774" width="142" height="28" rx="14" fill="#1e40af" stroke="#bfdbfe"/><text x="658" y="793" class="pillText">PostgreSQL</text>
+      <rect x="792" y="774" width="104" height="28" rx="14" fill="#155e75" stroke="#a5f3fc"/><text x="824" y="793" class="pillText">MySQL</text>
+      <rect x="910" y="774" width="158" height="28" rx="14" fill="#5b21b6" stroke="#ddd6fe"/><text x="932" y="793" class="pillText">migration smoke</text>
     </g>
   </g>
   <path d="M780 650V690" class="solidBlue"/>
@@ -210,28 +208,28 @@
 
   <!-- Worker fleet -->
   <g>
-    <rect x="82" y="832" width="1430" height="138" rx="30" fill="#ffffff" stroke="#0891b2" stroke-width="2.8"/>
-    <rect x="82" y="832" width="1430" height="54" rx="30" fill="#cffafe"/>
-    <rect x="82" y="858" width="1430" height="28" fill="#cffafe"/>
+    <rect x="82" y="832" width="1430" height="138" rx="30" fill="#0f766e" stroke="#5eead4" stroke-width="2.8"/>
+    <rect x="82" y="832" width="1430" height="54" rx="30" fill="#0d9488"/>
+    <rect x="82" y="858" width="1430" height="28" fill="#0d9488"/>
     <text x="118" y="872" class="section">Cross-language worker fleets</text>
     <text x="118" y="898" class="small">A single logical worker cluster can mix languages. Dispatch matches namespace/app/cluster/region, domain master, tags, and typed capabilities.</text>
 
     <g>
-      <rect x="118" y="920" width="120" height="42" rx="16" fill="#fff" stroke="#bfdbfe"/>
+      <rect x="118" y="920" width="120" height="42" rx="16" fill="#134e4a" stroke="#99f6e4"/>
       <text x="151" y="946" class="mono">Java</text>
-      <rect x="252" y="920" width="120" height="42" rx="16" fill="#fff" stroke="#bfdbfe"/>
+      <rect x="252" y="920" width="120" height="42" rx="16" fill="#134e4a" stroke="#99f6e4"/>
       <text x="286" y="946" class="mono">Rust</text>
-      <rect x="386" y="920" width="120" height="42" rx="16" fill="#fff" stroke="#bfdbfe"/>
+      <rect x="386" y="920" width="120" height="42" rx="16" fill="#134e4a" stroke="#99f6e4"/>
       <text x="426" y="946" class="mono">Go</text>
-      <rect x="520" y="920" width="120" height="42" rx="16" fill="#fff" stroke="#bfdbfe"/>
+      <rect x="520" y="920" width="120" height="42" rx="16" fill="#134e4a" stroke="#99f6e4"/>
       <text x="551" y="946" class="mono">Python</text>
-      <rect x="654" y="920" width="120" height="42" rx="16" fill="#fff" stroke="#bfdbfe"/>
+      <rect x="654" y="920" width="120" height="42" rx="16" fill="#134e4a" stroke="#99f6e4"/>
       <text x="683" y="946" class="mono">Node.js</text>
-      <rect x="800" y="920" width="168" height="42" rx="16" fill="#fff" stroke="#c4b5fd"/>
+      <rect x="800" y="920" width="168" height="42" rx="16" fill="#115e59" stroke="#99f6e4"/>
       <text x="825" y="946" class="mono">SDK processors</text>
-      <rect x="982" y="920" width="162" height="42" rx="16" fill="#fff" stroke="#c4b5fd"/>
+      <rect x="982" y="920" width="162" height="42" rx="16" fill="#115e59" stroke="#99f6e4"/>
       <text x="1010" y="946" class="mono">Plugins</text>
-      <rect x="1158" y="920" width="318" height="42" rx="16" fill="#0f172a"/>
+      <rect x="1158" y="920" width="318" height="42" rx="16" fill="#022c22" stroke="#99f6e4"/>
       <text x="1190" y="946" class="mono white">SRT · Deno · Wasmtime · WasmEdge · V8</text>
     </g>
   </g>
@@ -241,7 +239,7 @@
 
   <!-- Security invariant -->
   <g>
-    <rect x="82" y="986" width="1430" height="1" fill="#93c5fd"/>
-    <text x="82" y="1013" class="small">Invariant: scheduling decisions stay centralized; execution stays near business code; Worker connectivity is outbound; ownership is fenced; logs are task-scoped; capabilities are structured.</text>
+    <rect x="82" y="986" width="1430" height="36" rx="18" fill="#1d4ed8"/>
+    <text x="110" y="1009" class="small white">Invariant: scheduling decisions stay centralized; execution stays near business code; Worker connectivity is outbound; ownership is fenced; logs are task-scoped; capabilities are structured.</text>
   </g>
 </svg>
