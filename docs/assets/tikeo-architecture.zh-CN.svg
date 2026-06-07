@@ -1,245 +1,205 @@
-<svg width="1560" height="1040" viewBox="0 0 1560 1040" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">Tikeo 完整云原生编排架构</title>
-  <desc id="desc">Tikeo 完整逻辑架构图，展示用户与自动化入口、带 Raft 和 fencing 的 Rust Server 集群、调度与治理模块、存储引擎、可观测性、出站 gRPC Worker Tunnel、跨语言 Worker 集群、沙箱运行时和部署入口。</desc>
+<svg width="1800" height="1500" viewBox="0 0 1800 1500" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Tikeo 完整架构</title>
+  <desc id="desc">Tikeo 完整逻辑架构图，展示入口层、服务集群、Raft 所有权、存储、可观测性、出站 Worker Tunnel、Worker 集群、SDK 处理器、插件与沙箱运行时。</desc>
+
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1560" y2="1040" gradientUnits="userSpaceOnUse">
+    <linearGradient id="bg" x1="0" y1="0" x2="1800" y2="1360" gradientUnits="userSpaceOnUse">
       <stop stop-color="#f8fbff"/>
-      <stop offset="0.48" stop-color="#eef7ff"/>
+      <stop offset="0.52" stop-color="#eef7ff"/>
       <stop offset="1" stop-color="#f5f0ff"/>
     </linearGradient>
-    <linearGradient id="serverGrad" x1="515" y1="185" x2="1045" y2="642" gradientUnits="userSpaceOnUse">
+    <linearGradient id="serverGrad" x1="520" y1="170" x2="1280" y2="760" gradientUnits="userSpaceOnUse">
       <stop stop-color="#0f172a"/>
       <stop offset="0.48" stop-color="#1d4ed8"/>
       <stop offset="1" stop-color="#7c3aed"/>
     </linearGradient>
-    <linearGradient id="workerGrad" x1="90" y1="692" x2="1470" y2="955" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0f766e"/>
+    <linearGradient id="tunnelGrad" x1="210" y1="780" x2="1590" y2="780" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563eb"/>
       <stop offset="0.52" stop-color="#0891b2"/>
       <stop offset="1" stop-color="#7c3aed"/>
     </linearGradient>
-    <linearGradient id="tunnelGrad" x1="250" y1="650" x2="1310" y2="646" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#2563eb"/>
-      <stop offset="0.5" stop-color="#0891b2"/>
-      <stop offset="1" stop-color="#7c3aed"/>
-    </linearGradient>
-    <marker id="arrowBlue" markerWidth="13" markerHeight="13" refX="10" refY="6.5" orient="auto" markerUnits="strokeWidth">
-      <path d="M2 2L10 6.5L2 11" stroke="#2563eb" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
-    <marker id="arrowCyan" markerWidth="13" markerHeight="13" refX="10" refY="6.5" orient="auto" markerUnits="strokeWidth">
-      <path d="M2 2L10 6.5L2 11" stroke="#0891b2" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
-    <marker id="arrowViolet" markerWidth="13" markerHeight="13" refX="10" refY="6.5" orient="auto" markerUnits="strokeWidth">
-      <path d="M2 2L10 6.5L2 11" stroke="#7c3aed" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
-    <marker id="arrowWhite" markerWidth="13" markerHeight="13" refX="10" refY="6.5" orient="auto" markerUnits="strokeWidth">
-      <path d="M2 2L10 6.5L2 11" stroke="#f8fafc" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
+    <marker id="arrowBlue" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth"><path d="M2 2L11 7L2 12" stroke="#2563eb" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+    <marker id="arrowCyan" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth"><path d="M2 2L11 7L2 12" stroke="#0891b2" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+    <marker id="arrowViolet" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth"><path d="M2 2L11 7L2 12" stroke="#7c3aed" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+    <marker id="arrowWhite" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth"><path d="M2 2L11 7L2 12" stroke="#f8fafc" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+
     <style>
-      .title{font:800 34px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#0f172a}
-      .subtitle{font:550 16px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#334155}
-      .section{font:800 18px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#f8fafc}
-      .label{font:760 15px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#f8fafc}
-      .small{font:600 12.5px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#e2e8f0}
-      .tiny{font:650 10.5px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#cbd5e1;letter-spacing:.01em}
-      .mono{font:700 11.5px ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;fill:#f8fafc}
-      .white{fill:#fff}.white2{fill:#dbeafe}.white3{fill:#c4b5fd}
-      .pillText{font:750 11px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#f8fafc}
-      .solidBlue{stroke:#2563eb;stroke-width:3;stroke-linecap:round;marker-end:url(#arrowBlue)}
-      .solidCyan{stroke:#0891b2;stroke-width:3;stroke-linecap:round;marker-end:url(#arrowCyan)}
-      .solidViolet{stroke:#7c3aed;stroke-width:3;stroke-linecap:round;marker-end:url(#arrowViolet)}
-      .solidWhite{stroke:#f8fafc;stroke-width:3;stroke-linecap:round;marker-end:url(#arrowWhite)}
-      .dashBlue{stroke:#2563eb;stroke-width:3;stroke-linecap:round;stroke-dasharray:8 8;marker-end:url(#arrowBlue)}
-      .dashCyan{stroke:#0891b2;stroke-width:3;stroke-linecap:round;stroke-dasharray:8 8;marker-end:url(#arrowCyan)}
-      .thin{stroke:#38bdf8;stroke-width:1.2}
+      .title{font:800 38px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#0f172a}
+      .subtitle{font:600 17px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#334155}
+      .section{font:800 20px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#f8fafc}
+      .label{font:800 16px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#f8fafc}
+      .body{font:650 13px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#e2e8f0}
+      .small{font:700 11.5px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#e2e8f0}
+      .tiny{font:700 10.5px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#cbd5e1}
+      .mono{font:800 11.5px ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;fill:#f8fafc}
+      .white{fill:#fff}.muted{fill:#dbeafe}.darkText{fill:#0f172a}
+      .chipText{font:800 11px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#f8fafc}
+      .lineBlue{stroke:#2563eb;stroke-width:4;stroke-linecap:round;marker-end:url(#arrowBlue)}
+      .lineCyan{stroke:#0891b2;stroke-width:4;stroke-linecap:round;marker-end:url(#arrowCyan)}
+      .lineViolet{stroke:#7c3aed;stroke-width:4;stroke-linecap:round;marker-end:url(#arrowViolet)}
+      .lineWhite{stroke:#f8fafc;stroke-width:4;stroke-linecap:round;marker-end:url(#arrowWhite)}
+      .dashBlue{stroke:#2563eb;stroke-width:3.5;stroke-linecap:round;stroke-dasharray:10 10;marker-end:url(#arrowBlue)}
+      .dashCyan{stroke:#0891b2;stroke-width:3.5;stroke-linecap:round;stroke-dasharray:10 10;marker-end:url(#arrowCyan)}
     </style>
   </defs>
-
-  <rect width="1560" height="1040" rx="36" fill="url(#bg)"/>
-  <rect x="46" y="42" width="1468" height="982" rx="32" fill="#ffffff" stroke="#60a5fa" stroke-width="2.6"/>
-
-  <text x="82" y="92" class="title">Tikeo 完整架构</text>
-  <text x="82" y="122" class="subtitle">云原生任务编排：Raft 所有权、出站 Worker Tunnel、类型化能力、受治理沙箱、多 DB 存储与证据优先运维。</text>
-
-  <!-- Entry points -->
+  <rect width="1800" height="1500" rx="38" fill="url(#bg)"/>
+  <rect x="50" y="42" width="1700" height="1410" rx="34" fill="#ffffff" stroke="#60a5fa" stroke-width="3"/>
+  <text x="90" y="105" class="title">Tikeo 完整架构</text>
+  <text x="90" y="140" class="subtitle">云原生任务编排：Raft 所有权、出站 Worker Tunnel、类型化能力、受治理沙箱、多 DB 存储与证据优先运维。</text>
   <g>
-    <rect x="82" y="156" width="340" height="178" rx="24" fill="#1d4ed8" stroke="#93c5fd" stroke-width="2.8"/>
-    <rect x="82" y="156" width="340" height="50" rx="24" fill="#2563eb"/>
-    <rect x="82" y="180" width="340" height="26" fill="#2563eb"/>
-    <text x="112" y="194" class="section">入口层</text>
-    <rect x="112" y="218" width="276" height="30" rx="15" fill="#1e40af" stroke="#bfdbfe"/>
-    <text x="130" y="238" class="small">Web 控制台 · 工作流画布 · 拓扑</text>
-    <rect x="112" y="258" width="276" height="30" rx="15" fill="#1e40af" stroke="#bfdbfe"/>
-    <text x="130" y="278" class="small">REST / OpenAPI · API-Key · RBAC</text>
-    <rect x="112" y="298" width="276" height="30" rx="15" fill="#1e40af" stroke="#bfdbfe"/>
-    <text x="130" y="318" class="small">CLI / SDK 管理客户端</text>
-  </g>
-
-  <g>
-    <rect x="82" y="372" width="340" height="198" rx="24" fill="#6d28d9" stroke="#c4b5fd" stroke-width="2.8"/>
-    <rect x="82" y="372" width="340" height="50" rx="24" fill="#7c3aed"/>
-    <rect x="82" y="396" width="340" height="26" fill="#7c3aed"/>
-    <text x="112" y="410" class="section">部署与 IaC</text>
-    <text x="112" y="438" class="small">生产部署入口统一维护。</text>
-    <g>
-      <rect x="112" y="460" width="84" height="28" rx="14" fill="#1e40af" stroke="#bfdbfe"/><text x="132" y="479" class="pillText">Docker</text>
-      <rect x="206" y="460" width="92" height="28" rx="14" fill="#1e40af" stroke="#bfdbfe"/><text x="224" y="479" class="pillText">Compose</text>
-      <rect x="308" y="460" width="74" height="28" rx="14" fill="#1e40af" stroke="#bfdbfe"/><text x="329" y="479" class="pillText">Helm</text>
-      <rect x="112" y="498" width="102" height="28" rx="14" fill="#5b21b6" stroke="#ddd6fe"/><text x="130" y="517" class="pillText">K8s CRD</text>
-      <rect x="224" y="498" width="108" height="28" rx="14" fill="#5b21b6" stroke="#ddd6fe"/><text x="242" y="517" class="pillText">Operator</text>
-      <rect x="112" y="536" width="118" height="28" rx="14" fill="#155e75" stroke="#a5f3fc"/><text x="130" y="555" class="pillText">Terraform</text>
-      <rect x="240" y="536" width="88" height="28" rx="14" fill="#155e75" stroke="#a5f3fc"/><text x="260" y="555" class="pillText">GitOps</text>
+    <rect x="90" y="180" width="390" height="245" rx="26" fill="#1d4ed8" stroke="#93c5fd" stroke-width="3"/>
+    <rect x="90" y="180" width="390" height="62" rx="26" fill="#2563eb"/>
+    <rect x="90" y="212" width="390" height="30" fill="#2563eb"/>
+    <text x="124" y="220" class="section">入口层</text>
+    <rect x="124" y="280" width="322" height="34" rx="17" fill="#1e40af" stroke="#93c5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="285.0" y="302" class="chipText">Web 控制台 · 工作流画布 · 拓扑</text>
+    <rect x="124" y="324" width="322" height="34" rx="17" fill="#1e40af" stroke="#93c5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="285.0" y="346" class="chipText">REST / OpenAPI · API-Key · RBAC</text>
+    <rect x="124" y="368" width="322" height="34" rx="17" fill="#1e40af" stroke="#93c5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="285.0" y="390" class="chipText">CLI / SDK 管理客户端</text>
     </g>
-  </g>
-
-  <!-- Server cluster -->
   <g>
-    <rect x="470" y="150" width="660" height="500" rx="32" fill="url(#serverGrad)"/>
-    <text x="506" y="196" class="section white">Tikeo Rust Server 集群</text>
-    <text x="506" y="222" class="small white2">每节点单原生二进制 · HTTP 管理 API · Worker Tunnel</text>
-    <text x="506" y="240" class="small white2">调度控制面 · 管理接口</text>
-
-    <g>
-      <rect x="506" y="248" width="164" height="64" rx="18" fill="#3453a6" stroke="#93c5fd"/>
-      <text x="528" y="273" class="label white">节点 A</text>
-      <text x="528" y="295" class="tiny white2">leader 候选</text>
-      <rect x="718" y="248" width="164" height="64" rx="18" fill="#3453a6" stroke="#93c5fd"/>
-      <text x="740" y="273" class="label white">节点 B</text>
-      <text x="740" y="295" class="tiny white2">follower</text>
-      <rect x="930" y="248" width="164" height="64" rx="18" fill="#3453a6" stroke="#93c5fd"/>
-      <text x="952" y="273" class="label white">节点 C</text>
-      <text x="952" y="295" class="tiny white2">follower</text>
-      <path d="M670 280C690 280 700 280 718 280" class="solidWhite"/>
-      <path d="M882 280C902 280 910 280 930 280" class="solidWhite"/>
+    <rect x="90" y="455" width="390" height="275" rx="26" fill="#6d28d9" stroke="#c4b5fd" stroke-width="3"/>
+    <rect x="90" y="455" width="390" height="62" rx="26" fill="#7c3aed"/>
+    <rect x="90" y="487" width="390" height="30" fill="#7c3aed"/>
+    <text x="124" y="495" class="section">部署与 IaC</text>
+    <text x="124" y="547" class="body">生产部署入口统一维护。</text>
+    <rect x="124" y="583" width="92" height="34" rx="17" fill="#1e40af" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="170.0" y="605" class="chipText">Docker</text>
+    <rect x="230" y="583" width="110" height="34" rx="17" fill="#1e40af" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="285.0" y="605" class="chipText">Compose</text>
+    <rect x="354" y="583" width="86" height="34" rx="17" fill="#1e40af" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="397.0" y="605" class="chipText">Helm</text>
+    <rect x="124" y="627" width="110" height="34" rx="17" fill="#5b21b6" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="179.0" y="649" class="chipText">K8s CRD</text>
+    <rect x="248" y="627" width="120" height="34" rx="17" fill="#5b21b6" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="308.0" y="649" class="chipText">Operator</text>
+    <rect x="124" y="671" width="130" height="34" rx="17" fill="#155e75" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="189.0" y="693" class="chipText">Terraform</text>
+    <rect x="268" y="671" width="100" height="34" rx="17" fill="#155e75" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="318.0" y="693" class="chipText">GitOps</text>
     </g>
-
-    <rect x="506" y="338" width="528" height="58" rx="18" fill="#1e3a8a" stroke="#93c5fd"/>
-    <text x="530" y="362" class="label white">Raft 调度所有权 · fencing token</text>
-    <text x="530" y="382" class="tiny white2">无全局 DB 调度锁</text>
-
-    <g>
-      <rect x="506" y="414" width="172" height="82" rx="18" fill="#405bd0" stroke="#a5b4fc"/>
-      <text x="528" y="440" class="label white">调度器</text>
-      <text x="528" y="461" class="tiny white2">cron · fixed · API</text>
-      <text x="528" y="480" class="tiny white2">重试 · misfire · 队列</text>
-
-      <rect x="698" y="414" width="172" height="82" rx="18" fill="#405bd0" stroke="#a5b4fc"/>
-      <text x="720" y="440" class="label white">工作流引擎</text>
-      <text x="720" y="461" class="tiny white2">DAG · 拓扑</text>
-      <text x="720" y="480" class="tiny white2">影响分析 · 回放包</text>
-
-      <rect x="890" y="414" width="184" height="82" rx="18" fill="#405bd0" stroke="#a5b4fc"/>
-      <text x="912" y="440" class="label white">治理</text>
-      <text x="912" y="461" class="tiny white2">owner · RBAC · API keys</text>
-      <text x="912" y="480" class="tiny white2">租户范围 · 审计</text>
-
-      <rect x="506" y="520" width="172" height="82" rx="18" fill="#405bd0" stroke="#a5b4fc"/>
-      <text x="528" y="546" class="label white">Worker 注册中心</text>
-      <text x="528" y="567" class="tiny white2">身份 · 会话</text>
-      <text x="528" y="586" class="tiny white2">domain master 选举</text>
-
-      <rect x="698" y="520" width="172" height="82" rx="18" fill="#405bd0" stroke="#a5b4fc"/>
-      <text x="720" y="546" class="label white">脚本 / 插件</text>
-      <text x="720" y="567" class="tiny white2">版本 · 摘要</text>
-      <text x="720" y="586" class="tiny white2">策略 · 授权 · 路由</text>
-
-      <rect x="890" y="520" width="184" height="82" rx="18" fill="#405bd0" stroke="#a5b4fc"/>
-      <text x="912" y="546" class="label white">日志流</text>
-      <text x="912" y="567" class="tiny white2">任务日志 · attempts</text>
-      <text x="912" y="586" class="tiny white2">广播分组</text>
+  <g>
+    <rect x="550" y="175" width="700" height="610" rx="34" fill="url(#serverGrad)"/>
+    <text x="590" y="222" class="section">Tikeo Rust Server 集群</text>
+    <text x="590" y="250" class="body muted">每节点单原生二进制 · HTTP 管理 API · Worker Tunnel</text>
+    <text x="590" y="272" class="body muted">调度控制面 · 管理接口</text>
+    <rect x="590" y="305" width="170" height="76" rx="20" fill="#3453a6" stroke="#93c5fd" stroke-width="1.6"/>
+    <text x="614" y="337" class="label">节点 A</text>
+    <text x="614" y="363" class="tiny">leader 候选</text>
+    <rect x="810" y="305" width="170" height="76" rx="20" fill="#3453a6" stroke="#93c5fd" stroke-width="1.6"/>
+    <text x="834" y="337" class="label">节点 B</text>
+    <text x="834" y="363" class="tiny">follower</text>
+    <rect x="1030" y="305" width="170" height="76" rx="20" fill="#3453a6" stroke="#93c5fd" stroke-width="1.6"/>
+    <text x="1054" y="337" class="label">节点 C</text>
+    <text x="1054" y="363" class="tiny">follower</text>
+    <path d="M760 343C782 343 788 343 810 343" class="lineWhite"/>
+    <path d="M980 343C1002 343 1008 343 1030 343" class="lineWhite"/>
+    <rect x="590" y="415" width="590" height="70" rx="20" fill="#1e3a8a" stroke="#93c5fd" stroke-width="1.6"/>
+    <text x="620" y="448" class="label">Raft 调度所有权 · fencing token</text>
+    <text x="620" y="472" class="tiny">无全局 DB 调度锁</text>
+    <rect x="590" y="520" width="190" height="92" rx="20" fill="#3f5fd5" stroke="#93c5fd" stroke-width="1.5"/>
+      <text x="614" y="550" class="label">调度器</text>
+      <text x="614" y="574" class="tiny">cron · fixed · API</text>
+      <text x="614" y="596" class="tiny">重试 · misfire · 队列</text>
+    <rect x="810" y="520" width="190" height="92" rx="20" fill="#3f5fd5" stroke="#93c5fd" stroke-width="1.5"/>
+      <text x="834" y="550" class="label">工作流引擎</text>
+      <text x="834" y="574" class="tiny">DAG · 拓扑</text>
+      <text x="834" y="596" class="tiny">影响分析 · 回放包</text>
+    <rect x="1030" y="520" width="190" height="92" rx="20" fill="#3f5fd5" stroke="#93c5fd" stroke-width="1.5"/>
+      <text x="1054" y="550" class="label">治理</text>
+      <text x="1054" y="574" class="tiny">owner · RBAC · API keys</text>
+      <text x="1054" y="596" class="tiny">租户范围 · 审计</text>
+    <rect x="590" y="645" width="190" height="92" rx="20" fill="#3f5fd5" stroke="#93c5fd" stroke-width="1.5"/>
+      <text x="614" y="675" class="label">Worker 注册中心</text>
+      <text x="614" y="699" class="tiny">身份 · 会话</text>
+      <text x="614" y="721" class="tiny">domain master 选举</text>
+    <rect x="810" y="645" width="190" height="92" rx="20" fill="#3f5fd5" stroke="#93c5fd" stroke-width="1.5"/>
+      <text x="834" y="675" class="label">脚本 / 插件</text>
+      <text x="834" y="699" class="tiny">版本 · 摘要</text>
+      <text x="834" y="721" class="tiny">策略 · 授权 · 路由</text>
+    <rect x="1030" y="645" width="190" height="92" rx="20" fill="#3f5fd5" stroke="#93c5fd" stroke-width="1.5"/>
+      <text x="1054" y="675" class="label">日志流</text>
+      <text x="1054" y="699" class="tiny">任务日志 · attempts</text>
+      <text x="1054" y="721" class="tiny">广播分组</text>
+  </g>
+  <path d="M480 294C506 294 522 294 550 294" class="lineBlue"/>
+  <path d="M480 594C510 594 525 594 550 594" class="lineViolet"/>
+  <g>
+    <rect x="1320" y="180" width="360" height="275" rx="26" fill="#0e7490" stroke="#67e8f9" stroke-width="3"/>
+    <rect x="1320" y="180" width="360" height="62" rx="26" fill="#0891b2"/>
+    <rect x="1320" y="212" width="360" height="30" fill="#0891b2"/>
+    <text x="1354" y="220" class="section">可观测性</text>
+    <text x="1354" y="272" class="body">证据优先运维。</text>
+    <rect x="1354" y="304" width="292" height="34" rx="17" fill="#155e75" stroke="#67e8f9" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1500.0" y="326" class="chipText">OpenTelemetry traces</text>
+    <rect x="1354" y="348" width="292" height="34" rx="17" fill="#155e75" stroke="#67e8f9" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1500.0" y="370" class="chipText">指标 · 终端风格任务日志</text>
+    <rect x="1354" y="392" width="292" height="34" rx="17" fill="#155e75" stroke="#67e8f9" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1500.0" y="414" class="chipText">审计 · 回放 · GitOps diff</text>
     </g>
-  </g>
-
-  <path d="M422 245C446 245 446 245 470 245" class="solidBlue"/>
-  <path d="M422 468C452 468 452 468 470 468" class="solidViolet"/>
-
-  <!-- Right side integrations -->
   <g>
-    <rect x="1186" y="156" width="326" height="198" rx="24" fill="#0e7490" stroke="#67e8f9" stroke-width="2.8"/>
-    <rect x="1186" y="156" width="326" height="50" rx="24" fill="#0891b2"/>
-    <rect x="1186" y="180" width="326" height="26" fill="#0891b2"/>
-    <text x="1216" y="194" class="section">可观测性</text>
-    <text x="1216" y="222" class="small">证据优先运维。</text>
-    <rect x="1216" y="246" width="246" height="30" rx="15" fill="#155e75" stroke="#a5f3fc"/>
-    <text x="1234" y="266" class="small">OpenTelemetry traces</text>
-    <rect x="1216" y="286" width="246" height="30" rx="15" fill="#155e75" stroke="#a5f3fc"/>
-    <text x="1234" y="306" class="small">指标 · 终端风格任务日志</text>
-    <rect x="1216" y="326" width="246" height="30" rx="15" fill="#155e75" stroke="#a5f3fc"/>
-    <text x="1234" y="346" class="small">审计 · 回放 · GitOps diff</text>
-  </g>
-
-  <g>
-    <rect x="1186" y="392" width="326" height="178" rx="24" fill="#6d28d9" stroke="#c4b5fd" stroke-width="2.8"/>
-    <rect x="1186" y="392" width="326" height="50" rx="24" fill="#7c3aed"/>
-    <rect x="1186" y="416" width="326" height="26" fill="#7c3aed"/>
-    <text x="1216" y="430" class="section">管理 API</text>
-    <text x="1216" y="458" class="small">类型化 CRUD、RBAC 与自动化。</text>
-    <rect x="1216" y="482" width="248" height="30" rx="15" fill="#5b21b6" stroke="#ddd6fe"/>
-    <text x="1234" y="502" class="small">任务 · 工作流 · 脚本 · 插件</text>
-    <rect x="1216" y="522" width="248" height="30" rx="15" fill="#5b21b6" stroke="#ddd6fe"/>
-    <text x="1234" y="542" class="small">用户 · 角色 · 租户 · Secrets</text>
-  </g>
-
-  <path d="M1130 290C1160 290 1160 255 1186 255" class="solidCyan"/>
-  <path d="M1130 455C1160 455 1160 482 1186 482" class="solidViolet"/>
-
-  <!-- Storage -->
-  <g>
-    <rect x="470" y="690" width="660" height="114" rx="26" fill="#b45309" stroke="#fde68a" stroke-width="2.8"/>
-    <rect x="470" y="690" width="660" height="46" rx="26" fill="#d97706"/>
-    <rect x="470" y="710" width="660" height="26" fill="#d97706"/>
-    <text x="506" y="730" class="section">持久化存储</text>
-    <text x="506" y="757" class="small">任务 · 实例 · attempts · 任务日志 · 审计 · 脚本版本 · Worker 会话 · Raft 记录</text>
-    <g>
-      <rect x="506" y="774" width="116" height="28" rx="14" fill="#92400e" stroke="#fde68a"/><text x="538" y="793" class="pillText">SQLite</text>
-      <rect x="636" y="774" width="142" height="28" rx="14" fill="#1e40af" stroke="#bfdbfe"/><text x="658" y="793" class="pillText">PostgreSQL</text>
-      <rect x="792" y="774" width="104" height="28" rx="14" fill="#155e75" stroke="#a5f3fc"/><text x="824" y="793" class="pillText">MySQL</text>
-      <rect x="910" y="774" width="158" height="28" rx="14" fill="#5b21b6" stroke="#ddd6fe"/><text x="932" y="793" class="pillText">迁移 smoke</text>
+    <rect x="1320" y="485" width="360" height="245" rx="26" fill="#6d28d9" stroke="#c4b5fd" stroke-width="3"/>
+    <rect x="1320" y="485" width="360" height="62" rx="26" fill="#7c3aed"/>
+    <rect x="1320" y="517" width="360" height="30" fill="#7c3aed"/>
+    <text x="1354" y="525" class="section">管理 API</text>
+    <text x="1354" y="577" class="body">类型化 CRUD、RBAC 与自动化。</text>
+    <rect x="1354" y="609" width="292" height="34" rx="17" fill="#155e75" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1500.0" y="631" class="chipText">任务 · 工作流 · 脚本 · 插件</text>
+    <rect x="1354" y="653" width="292" height="34" rx="17" fill="#155e75" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1500.0" y="675" class="chipText">用户 · 角色 · 租户 · Secrets</text>
     </g>
-  </g>
-  <path d="M780 650V690" class="solidBlue"/>
-
-  <!-- Tunnel -->
+  <path d="M1250 365C1285 365 1295 290 1320 290" class="lineCyan"/>
+  <path d="M1250 600C1286 600 1298 600 1320 600" class="lineViolet"/>
   <g>
-    <rect x="188" y="622" width="1184" height="56" rx="28" fill="url(#tunnelGrad)"/>
-    <text x="258" y="657" class="label white">出站 gRPC / HTTP2 Worker Tunnel</text>
-    <text x="610" y="657" class="small white2">Worker 主动拨出 · 业务 Worker 无需入站端口 · assignment token · 任务日志 · 结果 · 心跳</text>
+    <rect x="220" y="820" width="1360" height="70" rx="35" fill="url(#tunnelGrad)"/>
+    <text x="300" y="864" class="label">出站 gRPC / HTTP2 Worker Tunnel</text>
+    <text x="710" y="864" class="body muted">Worker 主动拨出 · 业务 Worker 无需入站端口 · assignment token · 任务日志 · 结果 · 心跳</text>
   </g>
-  <path d="M780 622C780 606 780 606 780 602" class="solidWhite"/>
-
-  <!-- Worker fleet -->
+  <path d="M900 820C900 805 900 800 900 785" class="lineWhite"/>
   <g>
-    <rect x="82" y="832" width="1430" height="138" rx="30" fill="#0f766e" stroke="#5eead4" stroke-width="2.8"/>
-    <rect x="82" y="832" width="1430" height="54" rx="30" fill="#0d9488"/>
-    <rect x="82" y="858" width="1430" height="28" fill="#0d9488"/>
-    <text x="118" y="872" class="section">跨语言 Worker 集群</text>
-    <text x="118" y="898" class="small">同一个逻辑 Worker 集群可以混合多种语言。派发匹配 namespace/app/cluster/region、domain master、tags 与类型化能力。</text>
-
-    <g>
-      <rect x="118" y="920" width="120" height="42" rx="16" fill="#134e4a" stroke="#99f6e4"/>
-      <text x="151" y="946" class="mono">Java</text>
-      <rect x="252" y="920" width="120" height="42" rx="16" fill="#134e4a" stroke="#99f6e4"/>
-      <text x="286" y="946" class="mono">Rust</text>
-      <rect x="386" y="920" width="120" height="42" rx="16" fill="#134e4a" stroke="#99f6e4"/>
-      <text x="426" y="946" class="mono">Go</text>
-      <rect x="520" y="920" width="120" height="42" rx="16" fill="#134e4a" stroke="#99f6e4"/>
-      <text x="551" y="946" class="mono">Python</text>
-      <rect x="654" y="920" width="120" height="42" rx="16" fill="#134e4a" stroke="#99f6e4"/>
-      <text x="683" y="946" class="mono">Node.js</text>
-      <rect x="800" y="920" width="168" height="42" rx="16" fill="#115e59" stroke="#99f6e4"/>
-      <text x="825" y="946" class="mono">SDK processors</text>
-      <rect x="982" y="920" width="162" height="42" rx="16" fill="#115e59" stroke="#99f6e4"/>
-      <text x="1010" y="946" class="mono">插件</text>
-      <rect x="1158" y="920" width="318" height="42" rx="16" fill="#022c22" stroke="#99f6e4"/>
-      <text x="1190" y="946" class="mono white">SRT · Deno · Wasmtime · WasmEdge · V8</text>
-    </g>
+    <rect x="550" y="940" width="700" height="210" rx="28" fill="#b45309" stroke="#fde68a" stroke-width="3"/>
+    <rect x="550" y="940" width="700" height="62" rx="28" fill="#d97706"/>
+    <rect x="550" y="972" width="700" height="30" fill="#d97706"/>
+    <text x="590" y="982" class="section">持久化存储</text>
+    <text x="590" y="1030" class="body">任务 · 实例 · attempts · 任务日志 · 审计</text>
+    <text x="590" y="1054" class="body">脚本版本 · Worker 会话 · Raft 记录</text>
+    <rect x="590" y="1082" width="120" height="34" rx="17" fill="#92400e" stroke="#fde68a" stroke-width="1.4"/>
+      <text text-anchor="middle" x="650.0" y="1104" class="chipText">SQLite</text>
+    <rect x="732" y="1082" width="150" height="34" rx="17" fill="#1e40af" stroke="#bfdbfe" stroke-width="1.4"/>
+      <text text-anchor="middle" x="807.0" y="1104" class="chipText">PostgreSQL</text>
+    <rect x="904" y="1082" width="115" height="34" rx="17" fill="#155e75" stroke="#bfdbfe" stroke-width="1.4"/>
+      <text text-anchor="middle" x="961.5" y="1104" class="chipText">MySQL</text>
+    <rect x="1041" y="1082" width="180" height="34" rx="17" fill="#5b21b6" stroke="#bfdbfe" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1131.0" y="1104" class="chipText">迁移 smoke</text>
   </g>
-  <path d="M780 832C780 790 780 720 780 678" class="dashCyan"/>
-  <path d="M310 832C310 782 420 732 560 678" class="dashBlue"/>
-  <path d="M1240 832C1240 782 1130 732 1000 678" class="dashCyan"/>
-
-  <!-- Security invariant -->
+  <path d="M900 890V940" class="lineBlue"/>
   <g>
-    <rect x="82" y="986" width="1430" height="36" rx="18" fill="#1d4ed8"/>
-    <text x="110" y="1009" class="small white">不变量：调度决策集中；执行靠近业务代码；Worker 出站连接；所有权受 fencing 保护；日志按任务归属；能力结构化声明。</text>
+    <rect x="90" y="1188" width="1590" height="180" rx="30" fill="#0f766e" stroke="#5eead4" stroke-width="3"/>
+    <rect x="90" y="1188" width="1590" height="64" rx="30" fill="#0d9488"/>
+    <rect x="90" y="1220" width="1590" height="32" fill="#0d9488"/>
+    <text x="130" y="1232" class="section">跨语言 Worker 集群</text>
+    <text x="130" y="1278" class="body">同一个逻辑 Worker 集群可以混合多种语言。派发匹配 namespace/app/cluster/region、domain master、tags 与类型化能力。</text>
+    <rect x="130" y="1310" width="124" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="192.0" y="1332" class="mono">Java</text>
+    <rect x="278" y="1310" width="124" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="340.0" y="1332" class="mono">Rust</text>
+    <rect x="426" y="1310" width="112" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="482.0" y="1332" class="mono">Go</text>
+    <rect x="576" y="1310" width="145" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="648.5" y="1332" class="mono">Python</text>
+    <rect x="743" y="1310" width="145" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="815.5" y="1332" class="mono">Node.js</text>
+    <rect x="910" y="1310" width="210" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1015.0" y="1332" class="mono">SDK processors</text>
+    <rect x="1142" y="1310" width="170" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1227.0" y="1332" class="mono">插件</text>
+    <rect x="1334" y="1310" width="330" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1499.0" y="1332" class="mono">SRT · Deno · Wasmtime · WasmEdge · V8</text>
   </g>
+  <path d="M900 1188C900 1168 900 1164 900 1150" class="dashCyan"/>
+  <path d="M360 1188C360 1140 470 1025 650 890" class="dashBlue"/>
+  <path d="M1410 1188C1410 1140 1260 1025 1100 890" class="dashCyan"/>
+  <rect x="90" y="1390" width="1590" height="50" rx="25" fill="#1d4ed8"/>
+  <text x="130" y="1421" class="body white">不变量：调度决策集中；执行靠近业务代码；Worker 出站连接；所有权受 fencing 保护；日志按任务归属；能力结构化声明。</text>
 </svg>
