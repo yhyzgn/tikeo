@@ -1,0 +1,33 @@
+services:
+  tikeo:
+    command: ["serve", "--config", "/app/config/mysql.toml"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes: []
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${TIKEO_MYSQL_DATABASE:-tikeo}
+      MYSQL_USER: ${TIKEO_MYSQL_USER:-tikeo}
+      MYSQL_PASSWORD: ${TIKEO_MYSQL_PASSWORD:-tikeo}
+      MYSQL_ROOT_PASSWORD: ${TIKEO_MYSQL_ROOT_PASSWORD:-root}
+    command:
+      - "--character-set-server=utf8mb4"
+      - "--collation-server=utf8mb4_0900_ai_ci"
+    ports:
+      - "${TIKEO_MYSQL_PORT:-13306}:3306"
+    volumes:
+      - tikeo-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  tikeo-mysql-data:
+    name: ${TIKEO_MYSQL_DATA_VOLUME:-tikeo-mysql-data}

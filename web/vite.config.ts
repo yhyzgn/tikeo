@@ -11,7 +11,6 @@ const vendorChunkGroups = [
     name: 'vendor-antd',
     test: /node_modules[\/](antd|@ant-design|rc-|@rc-component)[\/]/,
     priority: 30,
-    maxSize: 260 * 1024,
   },
   {
     name: 'vendor-codemirror',

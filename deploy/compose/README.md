@@ -1,11 +1,22 @@
 # Compose bootstrap
 
-The root `docker-compose.yml` is the canonical Compose entrypoint. This directory keeps production-minded defaults and operator notes.
+The root `docker-compose.yml` is the canonical SQLite Compose entrypoint. PostgreSQL and MySQL are provided as override files so the same server/web stack can be validated against each supported storage backend.
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
+
+# SQLite, single-node default
 DOCKER_BUILDKIT=1 docker compose --env-file .env up -d --build
 curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
+
+# PostgreSQL override
+DOCKER_BUILDKIT=1 docker compose --env-file .env -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
+
+# MySQL override
+DOCKER_BUILDKIT=1 docker compose --env-file .env -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
+curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
+
 ./deploy/smoke/worker-bootstrap-smoke.sh
 
 # Optional Prometheus scrape + recording-rule smoke

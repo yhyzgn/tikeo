@@ -1,0 +1,29 @@
+services:
+  tikeo:
+    command: ["serve", "--config", "/app/config/postgres.toml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes: []
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${TIKEO_POSTGRES_DB:-tikeo}
+      POSTGRES_USER: ${TIKEO_POSTGRES_USER:-tikeo}
+      POSTGRES_PASSWORD: ${TIKEO_POSTGRES_PASSWORD:-tikeo}
+    ports:
+      - "${TIKEO_POSTGRES_PORT:-15432}:5432"
+    volumes:
+      - tikeo-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  tikeo-postgres-data:
+    name: ${TIKEO_POSTGRES_DATA_VOLUME:-tikeo-postgres-data}

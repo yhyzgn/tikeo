@@ -7,6 +7,7 @@ mod sqlite_compat;
 
 use sea_orm::{DatabaseBackend, Statement};
 use sea_orm_migration::prelude::*;
+use sea_query::InsertStatement;
 
 use self::{
     columns::{
@@ -91,10 +92,10 @@ async fn add_rbac_role_management_columns(manager: &SchemaManager<'_>) -> Result
         Roles::UpdatedAt,
     );
     for (column, definition) in [
-        ("display_name", "varchar NOT NULL DEFAULT ''"),
+        ("display_name", "varchar(191) NOT NULL DEFAULT ''"),
         ("builtin", "boolean NOT NULL DEFAULT FALSE"),
         ("enabled", "boolean NOT NULL DEFAULT TRUE"),
-        ("updated_at", "varchar NOT NULL DEFAULT ''"),
+        ("updated_at", "varchar(191) NOT NULL DEFAULT ''"),
     ] {
         if manager.get_database_backend() == DatabaseBackend::Sqlite
             && sqlite_column_exists(manager, "roles", column).await?
@@ -216,7 +217,7 @@ async fn seed_role_management_defaults(manager: &SchemaManager<'_>) -> Result<()
                 now.clone().into(),
             ])
             .to_owned();
-        ignore_unique(manager.exec_stmt(insert).await)?;
+        exec_seed_insert_if_missing(manager, "permissions", id, insert).await?;
     }
     seed_role_permissions(
         manager,
@@ -271,13 +272,13 @@ where
                 RoleMenuPermissions::CreatedAt,
             ])
             .values_panic([
-                binding_id.into(),
+                binding_id.clone().into(),
                 role_id.into(),
                 menu_key.into(),
                 now_rfc3339().into(),
             ])
             .to_owned();
-        ignore_unique(manager.exec_stmt(insert).await)?;
+        exec_seed_insert_if_missing(manager, "role_menu_permissions", &binding_id, insert).await?;
     }
     Ok(())
 }
@@ -303,13 +304,14 @@ where
                 RoleUiActionPermissions::CreatedAt,
             ])
             .values_panic([
-                binding_id.into(),
+                binding_id.clone().into(),
                 role_id.into(),
                 ui_action_key.into(),
                 now_rfc3339().into(),
             ])
             .to_owned();
-        ignore_unique(manager.exec_stmt(insert).await)?;
+        exec_seed_insert_if_missing(manager, "role_ui_action_permissions", &binding_id, insert)
+            .await?;
     }
     Ok(())
 }
@@ -1259,7 +1261,7 @@ async fn seed_rbac_defaults(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 now.clone().into(),
             ])
             .to_owned();
-        ignore_unique(manager.exec_stmt(insert).await)?;
+        exec_seed_insert_if_missing(manager, "roles", id, insert).await?;
     }
 
     for (id, resource, action, description) in DEFAULT_PERMISSIONS {
@@ -1280,7 +1282,7 @@ async fn seed_rbac_defaults(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 now.clone().into(),
             ])
             .to_owned();
-        ignore_unique(manager.exec_stmt(insert).await)?;
+        exec_seed_insert_if_missing(manager, "permissions", id, insert).await?;
     }
 
     let owner_permissions: Vec<&str> = DEFAULT_PERMISSIONS
@@ -1325,23 +1327,57 @@ async fn seed_role_permissions<'a>(
                 RolePermissions::CreatedAt,
             ])
             .values_panic([
-                binding_id.into(),
+                binding_id.clone().into(),
                 role_id.into(),
                 permission_id.into(),
                 now_rfc3339().into(),
             ])
             .to_owned();
-        ignore_unique(manager.exec_stmt(insert).await)?;
+        exec_seed_insert_if_missing(manager, "role_permissions", &binding_id, insert).await?;
     }
     Ok(())
+}
+
+async fn exec_seed_insert_if_missing(
+    manager: &SchemaManager<'_>,
+    table: &str,
+    id: &str,
+    insert: InsertStatement,
+) -> Result<(), DbErr> {
+    if seed_row_exists(manager, table, id).await? {
+        return Ok(());
+    }
+    ignore_unique(manager.exec_stmt(insert).await)
+}
+
+async fn seed_row_exists(
+    manager: &SchemaManager<'_>,
+    table: &str,
+    id: &str,
+) -> Result<bool, DbErr> {
+    let escaped_id = id.replace('\'', "''");
+    let sql = format!("SELECT id FROM {table} WHERE id = '{escaped_id}' LIMIT 1");
+    let row = manager
+        .get_connection()
+        .query_one(Statement::from_string(manager.get_database_backend(), sql))
+        .await?;
+    Ok(row.is_some())
 }
 
 fn ignore_unique(result: Result<(), DbErr>) -> Result<(), DbErr> {
     match result {
         Ok(()) => Ok(()),
-        Err(DbErr::Exec(error)) if error.to_string().contains("UNIQUE") => Ok(()),
+        Err(DbErr::Exec(error)) if is_unique_conflict(&error.to_string()) => Ok(()),
         Err(error) => Err(error),
     }
+}
+
+fn is_unique_conflict(message: &str) -> bool {
+    let normalized = message.to_ascii_lowercase();
+    normalized.contains("unique")
+        || normalized.contains("duplicate key")
+        || normalized.contains("duplicate entry")
+        || normalized.contains("already exists")
 }
 
 const DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
@@ -1608,4 +1644,21 @@ async fn create_job_instances(manager: &SchemaManager<'_>) -> Result<(), DbErr> 
                 .to_owned(),
         )
         .await
+}
+
+#[cfg(test)]
+mod seed_error_tests {
+    use super::is_unique_conflict;
+
+    #[test]
+    fn unique_conflict_detection_is_database_dialect_tolerant() {
+        assert!(is_unique_conflict("UNIQUE constraint failed: roles.id"));
+        assert!(is_unique_conflict(
+            "duplicate key value violates unique constraint \"roles_pkey\""
+        ));
+        assert!(is_unique_conflict(
+            "Duplicate entry 'role-owner' for key 'PRIMARY'"
+        ));
+        assert!(!is_unique_conflict("connection refused"));
+    }
 }
