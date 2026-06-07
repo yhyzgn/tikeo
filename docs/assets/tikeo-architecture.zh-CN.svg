@@ -3,9 +3,9 @@
   <desc id="desc">Tikeo 完整逻辑架构图，展示用户与自动化入口、带 Raft 和 fencing 的 Rust Server 集群、调度与治理模块、存储引擎、可观测性、出站 gRPC Worker Tunnel、跨语言 Worker 集群、沙箱运行时和部署入口。</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1560" y2="1040" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#eef6ff"/>
-      <stop offset="0.48" stop-color="#e0f2fe"/>
-      <stop offset="1" stop-color="#ede9fe"/>
+      <stop stop-color="#ffffff"/>
+      <stop offset="0.48" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#ffffff"/>
     </linearGradient>
     <linearGradient id="serverGrad" x1="515" y1="185" x2="1045" y2="642" gradientUnits="userSpaceOnUse">
       <stop stop-color="#0f172a"/>
@@ -13,9 +13,9 @@
       <stop offset="1" stop-color="#7c3aed"/>
     </linearGradient>
     <linearGradient id="workerGrad" x1="90" y1="692" x2="1470" y2="955" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#dbeafe"/>
-      <stop offset="0.52" stop-color="#cffafe"/>
-      <stop offset="1" stop-color="#ede9fe"/>
+      <stop stop-color="#ffffff"/>
+      <stop offset="0.52" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#ffffff"/>
     </linearGradient>
     <linearGradient id="tunnelGrad" x1="250" y1="650" x2="1310" y2="646" gradientUnits="userSpaceOnUse">
       <stop stop-color="#2563eb"/>
@@ -65,18 +65,22 @@
 
   <!-- Entry points -->
   <g>
-    <rect x="82" y="156" width="340" height="178" rx="24" fill="#eaf3ff" stroke="#2563eb" stroke-width="2"/>
+    <rect x="82" y="156" width="340" height="178" rx="24" fill="#ffffff" stroke="#2563eb" stroke-width="2.6"/>
+    <rect x="82" y="156" width="340" height="50" rx="24" fill="#dbeafe"/>
+    <rect x="82" y="180" width="340" height="26" fill="#dbeafe"/>
     <text x="112" y="194" class="section">入口层</text>
-    <rect x="112" y="218" width="276" height="30" rx="15" fill="#eff6ff" stroke="#bfdbfe"/>
+    <rect x="112" y="218" width="276" height="30" rx="15" fill="#ffffff" stroke="#93c5fd"/>
     <text x="130" y="238" class="small">Web 控制台 · 工作流画布 · 拓扑</text>
-    <rect x="112" y="258" width="276" height="30" rx="15" fill="#eff6ff" stroke="#bfdbfe"/>
+    <rect x="112" y="258" width="276" height="30" rx="15" fill="#ffffff" stroke="#93c5fd"/>
     <text x="130" y="278" class="small">REST / OpenAPI · API-Key · RBAC</text>
-    <rect x="112" y="298" width="276" height="30" rx="15" fill="#eff6ff" stroke="#bfdbfe"/>
+    <rect x="112" y="298" width="276" height="30" rx="15" fill="#ffffff" stroke="#93c5fd"/>
     <text x="130" y="318" class="small">CLI / SDK 管理客户端</text>
   </g>
 
   <g>
-    <rect x="82" y="372" width="340" height="198" rx="24" fill="#f2edff" stroke="#7c3aed" stroke-width="2"/>
+    <rect x="82" y="372" width="340" height="198" rx="24" fill="#ffffff" stroke="#7c3aed" stroke-width="2.6"/>
+    <rect x="82" y="372" width="340" height="50" rx="24" fill="#ede9fe"/>
+    <rect x="82" y="396" width="340" height="26" fill="#ede9fe"/>
     <text x="112" y="410" class="section">部署与 IaC</text>
     <text x="112" y="438" class="small">生产部署入口统一维护。</text>
     <g>
@@ -152,24 +156,28 @@
 
   <!-- Right side integrations -->
   <g>
-    <rect x="1186" y="156" width="326" height="198" rx="24" fill="#e6fbff" stroke="#0891b2" stroke-width="2"/>
+    <rect x="1186" y="156" width="326" height="198" rx="24" fill="#ffffff" stroke="#0891b2" stroke-width="2.6"/>
+    <rect x="1186" y="156" width="326" height="50" rx="24" fill="#cffafe"/>
+    <rect x="1186" y="180" width="326" height="26" fill="#cffafe"/>
     <text x="1216" y="194" class="section">可观测性</text>
     <text x="1216" y="222" class="small">证据优先运维。</text>
-    <rect x="1216" y="246" width="246" height="30" rx="15" fill="#ecfeff" stroke="#67e8f9"/>
+    <rect x="1216" y="246" width="246" height="30" rx="15" fill="#ffffff" stroke="#22d3ee"/>
     <text x="1234" y="266" class="small">OpenTelemetry traces</text>
-    <rect x="1216" y="286" width="246" height="30" rx="15" fill="#ecfeff" stroke="#67e8f9"/>
+    <rect x="1216" y="286" width="246" height="30" rx="15" fill="#ffffff" stroke="#22d3ee"/>
     <text x="1234" y="306" class="small">指标 · 终端风格任务日志</text>
-    <rect x="1216" y="326" width="246" height="30" rx="15" fill="#ecfeff" stroke="#67e8f9"/>
+    <rect x="1216" y="326" width="246" height="30" rx="15" fill="#ffffff" stroke="#22d3ee"/>
     <text x="1234" y="346" class="small">审计 · 回放 · GitOps diff</text>
   </g>
 
   <g>
-    <rect x="1186" y="392" width="326" height="178" rx="24" fill="#f3edff" stroke="#7c3aed" stroke-width="2"/>
+    <rect x="1186" y="392" width="326" height="178" rx="24" fill="#ffffff" stroke="#7c3aed" stroke-width="2.6"/>
+    <rect x="1186" y="392" width="326" height="50" rx="24" fill="#ede9fe"/>
+    <rect x="1186" y="416" width="326" height="26" fill="#ede9fe"/>
     <text x="1216" y="430" class="section">管理 API</text>
     <text x="1216" y="458" class="small">类型化 CRUD、RBAC 与自动化。</text>
-    <rect x="1216" y="482" width="248" height="30" rx="15" fill="#f5f3ff" stroke="#c4b5fd"/>
+    <rect x="1216" y="482" width="248" height="30" rx="15" fill="#ffffff" stroke="#a78bfa"/>
     <text x="1234" y="502" class="small">任务 · 工作流 · 脚本 · 插件</text>
-    <rect x="1216" y="522" width="248" height="30" rx="15" fill="#f5f3ff" stroke="#c4b5fd"/>
+    <rect x="1216" y="522" width="248" height="30" rx="15" fill="#ffffff" stroke="#a78bfa"/>
     <text x="1234" y="542" class="small">用户 · 角色 · 租户 · Secrets</text>
   </g>
 
@@ -178,7 +186,9 @@
 
   <!-- Storage -->
   <g>
-    <rect x="470" y="690" width="660" height="114" rx="26" fill="#eef2ff" stroke="#64748b" stroke-width="2"/>
+    <rect x="470" y="690" width="660" height="114" rx="26" fill="#ffffff" stroke="#475569" stroke-width="2.6"/>
+    <rect x="470" y="690" width="660" height="46" rx="26" fill="#e2e8f0"/>
+    <rect x="470" y="710" width="660" height="26" fill="#e2e8f0"/>
     <text x="506" y="730" class="section">持久化存储</text>
     <text x="506" y="757" class="small">任务 · 实例 · attempts · 任务日志 · 审计 · 脚本版本 · Worker 会话 · Raft 记录</text>
     <g>
@@ -200,7 +210,9 @@
 
   <!-- Worker fleet -->
   <g>
-    <rect x="82" y="832" width="1430" height="138" rx="30" fill="url(#workerGrad)" stroke="#0891b2" stroke-width="2"/>
+    <rect x="82" y="832" width="1430" height="138" rx="30" fill="#ffffff" stroke="#0891b2" stroke-width="2.8"/>
+    <rect x="82" y="832" width="1430" height="54" rx="30" fill="#cffafe"/>
+    <rect x="82" y="858" width="1430" height="28" fill="#cffafe"/>
     <text x="118" y="872" class="section">跨语言 Worker 集群</text>
     <text x="118" y="898" class="small">同一个逻辑 Worker 集群可以混合多种语言。派发匹配 namespace/app/cluster/region、domain master、tags 与类型化能力。</text>
 
