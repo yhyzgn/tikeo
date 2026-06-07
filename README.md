@@ -4,6 +4,10 @@
 
 <h1 align="center">Tikeo</h1>
 <p align="center"><strong>The open-source task orchestration platform for teams that have outgrown legacy job schedulers.</strong></p>
+<p align="center">
+  <strong>Pronunciation:</strong> <code>/ˈtaɪ.ki.oʊ/</code> · <em>TY-kee-oh</em><br />
+  <strong>Meaning here:</strong> <strong>Ti</strong>me-aware orchestration + <strong>Ke</strong>pt execution evidence + <strong>O</strong>pen worker ecosystem — a scheduler that treats every task as a traceable, governable platform event.
+</p>
 
 <p align="center">
   <a href="README.zh-CN.md">🇨🇳 中文文档</a> ·
