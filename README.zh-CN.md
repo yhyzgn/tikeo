@@ -5,7 +5,7 @@
 <h1 align="center">Tikeo</h1>
 <p align="center"><strong>面向已经超越传统任务调度器阶段团队的开源任务编排平台。</strong></p>
 <p align="center">
-  <strong>读音：</strong><code>/ˈtaɪ.ki.oʊ/</code> · <em>TY-kee-oh</em><br />
+  <strong>读音：</strong><code>/ˈtɪ.ki.oʊ/</code> · <em>TIH-kee-oh</em><br />
   <strong>在本项目中的含义：</strong><strong>Ti</strong>me-aware orchestration（时间感知编排）+ <strong>Ke</strong>pt execution evidence（保留执行证据）+ <strong>O</strong>pen worker ecosystem（开放 Worker 生态）——让每一次任务调度都成为可追踪、可治理的平台事件。
 </p>
 
