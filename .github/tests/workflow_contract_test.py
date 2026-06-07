@@ -10,6 +10,7 @@ DOCKER_SERVER = (WORKFLOWS / "publish-docker-server.yml").read_text()
 DOCKER_WEB = (WORKFLOWS / "publish-docker-web.yml").read_text()
 JAVA_SDK = (WORKFLOWS / "publish-java-sdk.yml").read_text()
 RUST_SDK = (WORKFLOWS / "publish-rust-sdk.yml").read_text()
+GO_SDK = (WORKFLOWS / "publish-go-sdk.yml").read_text()
 
 
 def workflow_job_block(workflow_text: str, job: str) -> str:
@@ -173,6 +174,14 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("cargo publish --manifest-path sdks/rust/tikeo/Cargo.toml", RUST_SDK)
         self.assertIn("CRATES_IO_TOKEN", RUST_SDK)
         self.assertNotIn("sdks/java", RUST_SDK)
+
+        self.assertIn("sdks/go/tikeo", GO_SDK)
+        self.assertIn("go-sdk", GO_SDK)
+        self.assertIn("go test ./... -count=1", GO_SDK)
+        self.assertIn("Publish Go module version tag", GO_SDK)
+        self.assertIn("sdks/go/tikeo/${RELEASE_TAG}", GO_SDK)
+        self.assertIn("softprops/action-gh-release", GO_SDK)
+        self.assertNotIn("CRATES_IO_TOKEN", GO_SDK)
 
 
 if __name__ == "__main__":

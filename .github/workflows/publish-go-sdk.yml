@@ -1,0 +1,107 @@
+name: Publish / Go SDK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish Go SDK, for example v0.1.123'
+        required: true
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  GOPROXY: https://proxy.golang.org,direct
+
+permissions:
+  contents: write
+
+concurrency:
+  group: go-sdk-${{ github.ref_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Package and publish Go SDK module tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: |
+            sdks/go/tikeo/go.sum
+            examples/go/worker-demo/go.sum
+      - name: Resolve Go SDK release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
+          VERSION="${RELEASE_TAG#v}"
+          MODULE_TAG="sdks/go/tikeo/${RELEASE_TAG}"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "module_tag=$MODULE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Test Go SDK
+        working-directory: sdks/go/tikeo
+        run: go test ./... -count=1
+      - name: Test Go worker demo
+        working-directory: examples/go/worker-demo
+        run: go test ./... -count=1
+      - name: Stage Go SDK release payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          PKG="go-sdk-${VERSION}"
+          mkdir -p "dist/$PKG/examples/go"
+          tar -C sdks/go -czf /tmp/tikeo-go-sdk.tar.gz README.md tikeo
+          tar -C "dist/$PKG" -xzf /tmp/tikeo-go-sdk.tar.gz
+          tar -C examples/go -czf /tmp/tikeo-go-demo.tar.gz worker-demo
+          tar -C "dist/$PKG/examples/go" -xzf /tmp/tikeo-go-demo.tar.gz
+          tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
+      - name: Publish Go module version tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ steps.version.outputs.tag }}"
+          MODULE_TAG="${{ steps.version.outputs.module_tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          TARGET_SHA="$(git rev-list -n 1 "${RELEASE_TAG}")"
+          if git ls-remote --exit-code --tags origin "refs/tags/${MODULE_TAG}" >/dev/null 2>&1; then
+            echo "Go module tag already exists: ${MODULE_TAG}"
+          else
+            git tag -a "${MODULE_TAG}" -m "Go SDK ${RELEASE_TAG}" "$TARGET_SHA"
+            git push origin "refs/tags/${MODULE_TAG}"
+          fi
+      - name: Request Go module proxy indexing
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ steps.version.outputs.tag }}"
+          MODULE="github.com/yhyzgn/tikeo/sdks/go/tikeo"
+          INFO_URL="https://proxy.golang.org/${MODULE}/@v/${RELEASE_TAG}.info"
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS "$INFO_URL"; then
+              echo "Go module proxy indexed ${MODULE}@${RELEASE_TAG}"
+              exit 0
+            fi
+            echo "Go module proxy has not indexed ${MODULE}@${RELEASE_TAG} yet; attempt=${attempt}"
+            sleep 10
+          done
+          echo "Go module tag was published; proxy indexing may finish asynchronously: ${MODULE}@${RELEASE_TAG}"
+      - name: Upload Go SDK package to GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.tag, '-') || startsWith(steps.version.outputs.tag, 'v0.') }}
+          files: dist/*.tar.gz
