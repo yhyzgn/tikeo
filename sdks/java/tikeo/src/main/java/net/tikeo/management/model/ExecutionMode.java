@@ -2,7 +2,9 @@ package net.tikeo.management.model;
 
 import com.fasterxml.jackson.annotation.JsonValue;
 
-/** Job execution fan-out mode. */
+/**
+ * Job execution fan-out mode.
+ */
 public enum ExecutionMode {
     SINGLE("single"),
     BROADCAST("broadcast");

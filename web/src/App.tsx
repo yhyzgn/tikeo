@@ -128,6 +128,13 @@ function AppLayout() {
   );
 }
 
+/**
+ * Tikeo web application root.
+ *
+ * The component owns global Ant Design theming, browser/system dark-mode resolution, bootstrap
+ * registration routing, authentication guards, and keep-alive route composition. Keep data refresh
+ * logic inside individual pages so cached routes stay responsive without remounting the whole app.
+ */
 export function App() {
   const { locale } = useI18n();
   const [primaryColor, setPrimaryColorState] = useState(() => {

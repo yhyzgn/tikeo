@@ -13,3 +13,7 @@ database_url = "postgres://tikeo:tikeo@postgres:5432/tikeo"
 mode = "standalone"
 node_id = "standalone"
 peers = []
+
+[observability.logging]
+level = "info"
+# log_dir = "./logs"

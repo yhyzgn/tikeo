@@ -31,7 +31,8 @@ impl Cli {
         match self.command {
             Command::Serve { config } => {
                 let config = load_config(config.as_deref())?;
-                let mut tracing_runtime = TracingRuntime::start(&config.observability.tracing)?;
+                let mut tracing_runtime =
+                    TracingRuntime::start_observability(&config.observability)?;
                 let result = Box::pin(server::serve(config)).await;
                 tokio::task::spawn_blocking(move || tracing_runtime.shutdown()).await??;
                 result

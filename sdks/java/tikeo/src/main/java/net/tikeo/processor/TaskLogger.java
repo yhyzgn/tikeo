@@ -1,6 +1,8 @@
 package net.tikeo.processor;
 
-/** Emits task-scoped instance logs without capturing unrelated process output. */
+/**
+ * Emits task-scoped instance logs without capturing unrelated process output.
+ */
 @FunctionalInterface
 public interface TaskLogger {
     TaskLogger NOOP = (level, message) -> {};

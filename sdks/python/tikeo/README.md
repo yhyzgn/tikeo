@@ -1,14 +1,38 @@
-# tikeo Python Worker SDK
+# Tikeo Python Worker SDK 🐍
 
-Python SDK aligned with the Rust, Go, and Java Worker SDKs.
+[🇨🇳 中文 SDK 文档](../../../docs/zh-CN/sdk.md)
 
-Highlights:
+Python SDK aligned with the Java, Rust, Go, and Node.js Worker SDKs.
+
+## Features
 
 - Worker Tunnel client with structured capabilities.
-- Task processors with precise task-scoped logs.
+- Task processors and precise task-scoped logs.
+- Standard-library SDK diagnostics through `configure_logging(LogConfig.from_env())`.
+- Optional SDK file output to `tikeo-sdk.log`.
 - Management API client using `x-tikeo-api-key`.
-- Script runners for SRT, Deno, container, local development, and fail-closed unavailable handlers.
-- Default script sandbox resolution: `srt` for shell/Python/PowerShell/PHP/Groovy/Rhai, `deno` for JavaScript/TypeScript.
+- SRT/Deno/container/local script runners and fail-closed unavailable handlers.
+
+## Usage
+
+```python
+from tikeo import Client, LogConfig, configure_logging, local_config
+
+configure_logging(LogConfig.from_env())
+config = local_config("http://127.0.0.1:9998", "orders-python-1")
+config.namespace = "dev-alpha"
+config.app = "orders"
+config.add_sdk_processor("demo.echo")
+client = Client(config)
+```
+
+## Operational cautions
+
+- Do not log API keys or raw payloads through SDK diagnostics.
+- Use task context logging for execution output that belongs in instance logs.
+- Keep script runners fail-closed when sandbox tools are unavailable.
+
+## Verification
 
 ```bash
 python -m pip install -e .[test]

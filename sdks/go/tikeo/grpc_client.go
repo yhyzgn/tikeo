@@ -35,6 +35,7 @@ func WithGRPCDialOption(option grpc.DialOption) DialOption {
 
 // ConnectGRPC validates config and opens a grpc.ClientConn with the official Go gRPC library.
 func (c *Client) ConnectGRPC(ctx context.Context, options ...DialOption) (*grpc.ClientConn, error) {
+	sdkLog(LogLevelInfo, "connecting worker tunnel endpoint=%s client_instance_id=%s", c.config.Endpoint, c.config.ClientInstanceID)
 	if err := c.config.Validate(); err != nil {
 		return nil, err
 	}
@@ -59,6 +60,7 @@ func (c *Client) ConnectGRPC(ctx context.Context, options ...DialOption) (*grpc.
 		return nil, fmt.Errorf("tikeo grpc client create failed: %w", err)
 	}
 	conn.Connect()
+	sdkLog(LogLevelDebug, "grpc connection created target=%s", target)
 	return conn, nil
 }
 
@@ -128,6 +130,7 @@ func (c *Client) Connect(ctx context.Context, options ...DialOption) (*Session, 
 		_ = conn.Close()
 		return nil, errors.New("tikeo worker expected registration ack")
 	}
+	sdkLog(LogLevelInfo, "registered worker_id=%s lease_seconds=%d generation=%d", registered.GetWorkerId(), registered.GetLeaseSeconds(), registered.GetGeneration())
 	return &Session{
 		conn:           conn,
 		stream:         stream,
@@ -181,6 +184,7 @@ func (s *Session) StartHeartbeat(ctx context.Context) func() {
 // The main receive loop may observe and ignore the ping while waiting for tasks.
 func (s *Session) SendHeartbeat() (uint64, error) {
 	sequence := atomic.AddUint64(&s.sequence, 1)
+	sdkLog(LogLevelDebug, "sending heartbeat worker_id=%s sequence=%d", s.workerID, sequence)
 	if err := s.sendWorkerMessage(s.heartbeatMessage(sequence)); err != nil {
 		return sequence, err
 	}
@@ -275,7 +279,9 @@ func (s *Session) ProcessNextWithScriptRunners(ctx context.Context, processor Ta
 
 func (s *Session) emitTaskLogSafely(task *workerpb.DispatchTask, level, message string) {
 	printTaskLogLocally(level, message)
-	_, _ = s.EmitTaskLog(task.GetInstanceId(), task.GetAssignmentToken(), level, message)
+	if _, err := s.EmitTaskLog(task.GetInstanceId(), task.GetAssignmentToken(), level, message); err != nil {
+		sdkLog(LogLevelWarning, "failed to emit task log instance_id=%s error=%v", task.GetInstanceId(), err)
+	}
 }
 
 func printTaskLogLocally(level, message string) {
@@ -366,6 +372,7 @@ func processDispatchTaskWithLogs(ctx context.Context, processor TaskProcessor, s
 	if script := task.GetProcessorBinding().GetScript(); script != nil {
 		runner := scripts.get(script.GetLanguage())
 		if runner == nil {
+			sdkLog(LogLevelWarning, "missing script runner language=%s", script.GetLanguage())
 			return Failed(fmt.Sprintf("%s script runner is not registered on this worker", script.GetLanguage())), nil
 		}
 		return runner.Run(ctx, scriptRunnerTask(task, script).withLogSink(emitLog))

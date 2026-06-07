@@ -6,6 +6,7 @@ import * as protoLoader from "@grpc/proto-loader";
 
 import type { WorkerCapabilities } from "./config.js";
 import { WorkerConfig } from "./config.js";
+import { sdkLog } from "./logging.js";
 import type { ScriptRunnerRegistry, ScriptRunnerTask } from "./script/index.js";
 import { failed, TaskContext, type TaskOutcome, type TaskProcessor } from "./task.js";
 
@@ -68,6 +69,7 @@ export class Client {
   close(): void { this.open = false; }
 
   connectGrpc(): any {
+    sdkLog("info", `connecting worker tunnel endpoint=${this.config.endpoint} client_instance_id=${this.config.clientInstanceId}`);
     const proto = loadProto();
     return new proto.tikeo.worker.v1.WorkerTunnelService(grpcTarget(this.config.endpoint), grpc.credentials.createInsecure());
   }
@@ -79,6 +81,7 @@ export class Client {
     const ack = await nextStreamMessage(call);
     const registered = ack?.registered;
     if (!registered?.workerId) throw new Error("tikeo worker expected registration ack");
+    sdkLog("info", `registered worker_id=${registered.workerId} lease_seconds=${registered.leaseSeconds ?? 0} generation=${registered.generation ?? 0}`);
     return new Session(call, registered.workerId, Number(registered.leaseSeconds ?? 0), Number(registered.generation ?? 0), registered.fencingToken ?? "", this.config.heartbeatEveryMs);
   }
 
@@ -109,6 +112,7 @@ export class Session {
 
   sendHeartbeat(): number {
     this.sequence += 1;
+    sdkLog("debug", `sending heartbeat worker_id=${this.workerId} sequence=${this.sequence}`);
     this.call.write({ heartbeat: { workerId: this.workerId, sequence: this.sequence, generation: this.generation, fencingToken: this.fencingToken } });
     return this.sequence;
   }
@@ -147,7 +151,11 @@ export class Session {
 
   private emitTaskLogSafely(task: any, level: string, message: string): void {
     printTaskLogLocally(level, message);
-    this.emitTaskLog(task.instanceId, task.assignmentToken, level, message);
+    try {
+      this.emitTaskLog(task.instanceId, task.assignmentToken, level, message);
+    } catch (error) {
+      sdkLog("warning", `failed to emit task log instance_id=${task.instanceId} error=${(error as Error).message}`);
+    }
   }
 }
 
@@ -156,7 +164,10 @@ export async function processDispatchTask(processor: TaskProcessor, scripts: Scr
     const script = task.processorBinding?.script;
     if (script) {
       const runner = scripts?.get(script.language);
-      if (!runner) return failed(`script runner is not registered for language: ${script.language}`);
+      if (!runner) {
+        sdkLog("warning", `missing script runner language=${script.language}`);
+        return failed(`script runner is not registered for language: ${script.language}`);
+      }
       return await runner.run({
         scriptId: script.scriptId,
         versionId: script.versionId,
@@ -180,6 +191,7 @@ export async function processDispatchTask(processor: TaskProcessor, scripts: Scr
     }
     return await processor(new TaskContext(task.instanceId, task.jobId, task.processorName || task.jobId, task.payload ?? new Uint8Array(), log));
   } catch (error) {
+    sdkLog("error", `processor failed instance_id=${task.instanceId ?? ""} error=${(error as Error).message}`);
     return failed((error as Error).message);
   }
 }

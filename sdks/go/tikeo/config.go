@@ -8,34 +8,57 @@ import (
 
 // WorkerConfig describes one outbound Worker Tunnel client instance.
 type WorkerConfig struct {
-	Endpoint         string
+	// Endpoint is the Worker Tunnel endpoint, for example http://127.0.0.1:9998.
+	Endpoint string
+	// ClientInstanceID is a stable client-side hint; Tikeo still assigns worker_id.
 	ClientInstanceID string
-	Namespace        string
-	App              string
-	Name             string
-	Region           string
-	Version          string
-	Cluster          string
-	Capabilities     []string
-	Labels           map[string]string
-	Structured       WorkerCapabilities
-	HeartbeatEvery   time.Duration
+	// Namespace scopes the worker for dispatch.
+	Namespace string
+	// App scopes the worker within the namespace.
+	App string
+	// Name is the operator-facing worker name.
+	Name string
+	// Region identifies the worker runtime location.
+	Region string
+	// Version identifies application or worker build version.
+	Version string
+	// Cluster identifies the worker cluster domain.
+	Cluster string
+	// Capabilities preserves legacy operator metadata; routing uses Structured.
+	Capabilities []string
+	// Labels are operator-facing key/value metadata.
+	Labels map[string]string
+	// Structured declares dispatch-routing capabilities.
+	Structured WorkerCapabilities
+	// HeartbeatEvery controls worker lease renewal cadence.
+	HeartbeatEvery time.Duration
 }
 
+// WorkerCapabilities contains typed routing and operator capability declarations.
 type WorkerCapabilities struct {
-	Tags             []string
-	SDKProcessors    []string
-	ScriptRunners    []ScriptRunnerCapability
+	// Tags are operator-facing structured labels.
+	Tags []string
+	// SDKProcessors are normal application processor names.
+	SDKProcessors []string
+	// ScriptRunners are language/backend sandbox declarations.
+	ScriptRunners []ScriptRunnerCapability
+	// PluginProcessors are plugin type plus concrete processor-name declarations.
 	PluginProcessors []PluginProcessorCapability
 }
 
+// ScriptRunnerCapability declares one script language and sandbox backend.
 type ScriptRunnerCapability struct {
-	Language       string
+	// Language is the canonical script language name.
+	Language string
+	// SandboxBackend is auto, srt, deno, wasmtime, wasmedge, v8, docker, podman, or custom.
 	SandboxBackend string
 }
 
+// PluginProcessorCapability declares plugin dispatch capability.
 type PluginProcessorCapability struct {
-	Type           string
+	// Type is the structured plugin processor type.
+	Type string
+	// ProcessorNames are concrete executor names for this plugin type.
 	ProcessorNames []string
 }
 

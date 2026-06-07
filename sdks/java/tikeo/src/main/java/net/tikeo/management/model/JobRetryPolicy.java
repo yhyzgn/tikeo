@@ -1,6 +1,8 @@
 package net.tikeo.management.model;
 
-/** Structured failure retry policy. maxAttempts includes the initial execution. */
+/**
+ * Structured failure retry policy. maxAttempts includes the initial execution.
+ */
 public record JobRetryPolicy(
         boolean enabled,
         int maxAttempts,

@@ -1,6 +1,8 @@
 package net.tikeo.script;
 
-/** Immutable script snapshot passed to a sandbox runner. */
+/**
+ * Immutable script snapshot passed to a sandbox runner.
+ */
 public record ScriptRunnerTask(
         String scriptId,
         String versionId,

@@ -6,7 +6,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Docker-compatible sandbox runner for dynamic scripts. */
+/**
+ * Docker-compatible sandbox runner for dynamic scripts.
+ */
 public final class ContainerScriptRunner implements ScriptRunner {
     private final ScriptRunnerKind kind;
     private final String runtimeCommand;

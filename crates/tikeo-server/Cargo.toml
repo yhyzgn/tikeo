@@ -52,6 +52,7 @@ tonic-prost = "0.14"
 tower = "0"
 tracing = "0"
 tracing-opentelemetry = "0.31"
+tracing-appender = "0.2"
 opentelemetry = "0.30"
 opentelemetry_sdk = "0.30"
 opentelemetry-otlp = { version = "0.30", default-features = false, features = ["http-proto", "reqwest-blocking-client"] }

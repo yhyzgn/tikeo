@@ -13,6 +13,7 @@ use tonic::Streaming;
 use crate::{
     config::WorkerConfig,
     error::WorkerSdkError,
+    logging::{SdkLogLevel, sdk_log},
     proto::worker::v1::{
         DispatchTask, Heartbeat, Ping, ScriptProcessorBinding, ServerMessage, TaskLog, TaskResult,
         UnregisterWorker, WorkerMessage, WorkerRegistered, server_message, task_processor_binding,
@@ -62,6 +63,13 @@ impl WorkerSession {
     /// or the response type is unexpected.
     pub async fn heartbeat(&mut self) -> Result<Ping, WorkerSdkError> {
         let sequence = self.send_heartbeat_message().await?;
+        sdk_log(
+            SdkLogLevel::Debug,
+            format!(
+                "sent heartbeat worker_id={} sequence={sequence}",
+                self.worker_id
+            ),
+        );
 
         loop {
             let message = self.next_server_message().await?;
@@ -219,6 +227,7 @@ impl WorkerSession {
                 message = self.next_server_message() => {
                     if let Some(server_message::Kind::DispatchTask(task)) = message?.kind {
                         self.send_heartbeat_message().await?;
+                        sdk_log(SdkLogLevel::Info, "dispatch received from worker tunnel");
                         return self.process_task(processor, script_runners, task).await;
                     }
                 }
@@ -290,9 +299,15 @@ impl WorkerSession {
         level: &str,
         message: String,
     ) {
-        let _ = self
+        if let Err(error) = self
             .emit_task_log(instance_id, assignment_token, level, message)
-            .await;
+            .await
+        {
+            sdk_log(
+                SdkLogLevel::Warning,
+                format!("failed to emit task log instance_id={instance_id}: {error}"),
+            );
+        }
     }
 
     async fn report_task_result(
@@ -374,6 +389,13 @@ impl WorkerClient {
     ///
     /// Returns an error when connecting, sending registration, or reading the ack fails.
     pub async fn connect(self) -> Result<WorkerSession, WorkerSdkError> {
+        sdk_log(
+            SdkLogLevel::Info,
+            format!(
+                "connecting worker tunnel endpoint={} client_instance_id={}",
+                self.config.endpoint, self.config.client_instance_id
+            ),
+        );
         let mut client = WorkerTunnelServiceClient::connect(self.config.endpoint.clone()).await?;
         let (tx, rx) = mpsc::channel(16);
         tx.send(self.config.register_message())
@@ -383,6 +405,13 @@ impl WorkerClient {
         let response = client.open_tunnel(ReceiverStream::new(rx)).await?;
         let mut inbound = response.into_inner();
         let registered = read_registration(&mut inbound).await?;
+        sdk_log(
+            SdkLogLevel::Info,
+            format!(
+                "registered worker_id={} lease_seconds={} generation={}",
+                registered.worker_id, registered.lease_seconds, registered.generation
+            ),
+        );
 
         Ok(WorkerSession {
             worker_id: registered.worker_id,
@@ -462,6 +491,10 @@ async fn process_script_binding(
         return TaskOutcome::Failed(format!("unsupported script language: {}", binding.language));
     };
     let Some(runner) = script_runners.get(kind) else {
+        sdk_log(
+            SdkLogLevel::Warning,
+            format!("missing script runner language={}", binding.language),
+        );
         return TaskOutcome::Failed(format!(
             "{} script runner is not registered on this worker",
             kind.as_str()

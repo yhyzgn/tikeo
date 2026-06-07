@@ -31,6 +31,10 @@ mtls_required = false
 tls_enabled = false
 mtls_required = false
 
+[observability.logging]
+level = "info"
+# log_dir = "./logs"
+
 [observability.tracing]
 enabled = false
 headers = []

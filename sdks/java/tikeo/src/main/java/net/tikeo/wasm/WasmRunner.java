@@ -3,7 +3,9 @@ package net.tikeo.wasm;
 import net.tikeo.processor.TaskOutcome;
 import net.tikeo.script.ScriptRunnerLogSink;
 
-/** Executes a released WASM processor snapshot inside a sandbox runtime. */
+/**
+ * Executes a released WASM processor snapshot inside a sandbox runtime.
+ */
 @FunctionalInterface
 public interface WasmRunner {
     TaskOutcome run(WasmRunnerTask task, ScriptRunnerLogSink logSink) throws Exception;

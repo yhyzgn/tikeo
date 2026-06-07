@@ -10,7 +10,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Single source of truth for task-scoped script sandbox HOME/TMPDIR/XDG/runtime paths. */
+/**
+ * Single source of truth for task-scoped script sandbox HOME/TMPDIR/XDG/runtime paths.
+ */
 final class TaskRuntimeDirs implements AutoCloseable {
     private static final AtomicLong SCRIPT_FILE_SEQUENCE = new AtomicLong();
     private static final Set<String> MANAGED_ENV_NAMES = Set.of(

@@ -6,7 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/** Explicit registry of sandboxed script runners enabled by a worker. */
+/**
+ * Explicit registry of sandboxed script runners enabled by a worker.
+ */
 public final class ScriptRunnerRegistry {
     private final Map<ScriptRunnerKind, ScriptRunner> runners = new EnumMap<>(ScriptRunnerKind.class);
 

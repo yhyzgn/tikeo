@@ -1,10 +1,10 @@
-# .prompt 阶段提示词目录
+# `.prompt` next-phase handoff prompts
 
-该目录保存后续开发阶段的可接手提示词。
+This directory contains takeover prompts for future development phases.
 
-规则：
+Rules:
 
-- 文件名使用三位编号加阶段名，例如 `001-bootstrap.md`。
-- 每个阶段完成后，必须更新**下一阶段**提示词；不要把刚完成阶段的复盘/完成记录写成本阶段编号提示词。
-- 如果阶段返工或设计调整影响后续任务，必须同步更新受影响的提示词。
-- 新智能体接手时，先读 `../prompt.md`、`../.memory/*`，再读本目录编号最新或 `.memory/next.md` 指向的阶段提示词。
+- Use a three-digit prefix plus a phase name, for example `001-bootstrap.md`.
+- After finishing a phase, update the next-phase prompt rather than rewriting the completed phase as a retrospective.
+- When design changes affect future work, update the affected prompt immediately.
+- New agents should read `../prompt.md`, `../.memory/*`, and then the newest prompt referenced by `.memory/next.md`.

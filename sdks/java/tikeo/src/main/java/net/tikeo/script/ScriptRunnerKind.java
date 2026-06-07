@@ -3,23 +3,41 @@ package net.tikeo.script;
 import java.util.Locale;
 import java.util.Optional;
 
-/** Supported dynamic script runner kinds. */
+/**
+ * Supported dynamic script runner kinds.
+ */
 public enum ScriptRunnerKind {
-    /** POSIX shell scripts. */
+    /**
+ * POSIX shell scripts.
+ */
     SHELL("shell"),
-    /** Python scripts. */
+    /**
+ * Python scripts.
+ */
     PYTHON("python"),
-    /** JavaScript scripts. */
+    /**
+ * JavaScript scripts.
+ */
     JS("javascript"),
-    /** TypeScript scripts. */
+    /**
+ * TypeScript scripts.
+ */
     TS("typescript"),
-    /** PowerShell scripts. */
+    /**
+ * PowerShell scripts.
+ */
     POWERSHELL("powershell"),
-    /** PHP scripts. */
+    /**
+ * PHP scripts.
+ */
     PHP("php"),
-    /** Groovy scripts. */
+    /**
+ * Groovy scripts.
+ */
     GROOVY("groovy"),
-    /** Rhai scripts. */
+    /**
+ * Rhai scripts.
+ */
     RHAI("rhai");
 
     private final String value;

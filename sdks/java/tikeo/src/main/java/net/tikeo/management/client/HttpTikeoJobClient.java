@@ -21,7 +21,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 
-/** HTTP implementation of {@link TikeoJobClient}. */
+/**
+ * HTTP implementation of {@link TikeoJobClient}.
+ */
 public final class HttpTikeoJobClient implements TikeoJobClient {
 
     private static final TypeReference<ApiEnvelope<JobDefinition>> JOB_ENVELOPE = new TypeReference<>() {};

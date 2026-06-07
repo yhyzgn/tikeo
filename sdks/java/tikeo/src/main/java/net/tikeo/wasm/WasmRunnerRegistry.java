@@ -4,7 +4,9 @@ import net.tikeo.worker.WorkerCapabilitySet;
 import java.util.List;
 import java.util.Optional;
 
-/** Explicit registry for the worker-side WASM sandbox runner. */
+/**
+ * Explicit registry for the worker-side WASM sandbox runner.
+ */
 public final class WasmRunnerRegistry {
     private WasmRunner runner;
 

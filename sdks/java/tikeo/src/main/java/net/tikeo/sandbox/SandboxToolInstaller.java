@@ -8,7 +8,9 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Unified installer for worker-side sandbox/runtime tools. */
+/**
+ * Unified installer for worker-side sandbox/runtime tools.
+ */
 public final class SandboxToolInstaller {
 
     private static final Logger log = LoggerFactory.getLogger(

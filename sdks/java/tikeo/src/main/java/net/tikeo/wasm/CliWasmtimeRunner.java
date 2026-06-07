@@ -15,7 +15,9 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-/** CLI-backed Wasmtime sandbox runner for WASM processor bindings. */
+/**
+ * CLI-backed Wasmtime sandbox runner for WASM processor bindings.
+ */
 public final class CliWasmtimeRunner implements WasmRunner {
 
     private final String runtimeCommand;

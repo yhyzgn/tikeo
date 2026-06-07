@@ -2,7 +2,9 @@ package net.tikeo.script;
 
 import net.tikeo.processor.TaskOutcome;
 
-/** Worker-side sandbox runner for dynamic scripts. */
+/**
+ * Worker-side sandbox runner for dynamic scripts.
+ */
 public interface ScriptRunner {
     ScriptRunnerKind kind();
 

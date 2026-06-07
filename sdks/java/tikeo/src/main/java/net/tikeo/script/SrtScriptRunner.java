@@ -9,7 +9,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Anthropic Sandbox Runtime backed runner for native dynamic scripts. */
+/**
+ * Anthropic Sandbox Runtime backed runner for native dynamic scripts.
+ */
 public final class SrtScriptRunner implements ScriptRunner {
     private static final ObjectMapper JSON = new ObjectMapper();
 

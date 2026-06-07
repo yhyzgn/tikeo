@@ -18,3 +18,7 @@ peers = []
 
 [auth]
 local_login_enabled = true
+
+[observability.logging]
+level = "info"
+# log_dir = "./logs"

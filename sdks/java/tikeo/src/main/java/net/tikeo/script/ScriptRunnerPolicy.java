@@ -2,7 +2,9 @@ package net.tikeo.script;
 
 import java.util.List;
 
-/** Default-deny policy snapshot attached to a released script dispatch. */
+/**
+ * Default-deny policy snapshot attached to a released script dispatch.
+ */
 public record ScriptRunnerPolicy(
         long timeoutMillis,
         long maxMemoryBytes,

@@ -4,7 +4,9 @@ import net.tikeo.processor.TaskOutcome;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Deno-backed sandbox runner for JavaScript and TypeScript scripts. */
+/**
+ * Deno-backed sandbox runner for JavaScript and TypeScript scripts.
+ */
 public final class DenoScriptRunner implements ScriptRunner {
     private final ScriptRunnerKind kind;
     private final String runtimeCommand;

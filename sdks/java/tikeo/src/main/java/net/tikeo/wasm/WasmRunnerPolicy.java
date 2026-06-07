@@ -2,7 +2,9 @@ package net.tikeo.wasm;
 
 import java.util.List;
 
-/** Resource and capability policy for WASM processor execution. */
+/**
+ * Resource and capability policy for WASM processor execution.
+ */
 public record WasmRunnerPolicy(
         long timeoutMillis,
         long maxMemoryBytes,

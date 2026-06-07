@@ -1,6 +1,9 @@
-# Node.js Worker demo
+# Node.js Worker demo 🟢
 
-Node.js Worker demo aligned one-to-one with the Rust/Go/Java manual acceptance scopes.
+[🇨🇳 中文示例文档](../../../docs/zh-CN/examples.md)
+
+This Bun-powered demo validates the Node.js SDK against the same manual acceptance matrix as the
+Rust, Go, Python, and Java demos.
 
 ```bash
 cd examples/nodejs/worker-demo
@@ -9,4 +12,8 @@ TIKEO_WORKER_DRY_RUN=1 bun start
 bun test
 ```
 
-Defaults match other demos: `dev-alpha/orders`, stable `nodejs-worker-demo-local`, SQL plugin processor `billing.sql-sync`, and script runners for shell, Python, JavaScript, TypeScript, PowerShell, PHP, Groovy, and Rhai using `auto` (`srt`/`deno`) sandbox resolution.
+Live mode defaults to `http://127.0.0.1:9998`, `dev-alpha/orders`, stable worker id hints, SQL plugin
+processor `billing.sql-sync`, and script runners using `auto` sandbox resolution.
+
+Operational cautions: Bun is the default package runner in this repository; do not switch to npm/yarn
+for project-local verification unless release tooling explicitly requires it.

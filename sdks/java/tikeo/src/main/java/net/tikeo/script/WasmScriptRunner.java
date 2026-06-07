@@ -8,7 +8,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Wasmtime-backed default sandbox runner for dynamic scripts. */
+/**
+ * Wasmtime-backed default sandbox runner for dynamic scripts.
+ */
 public final class WasmScriptRunner implements ScriptRunner {
     private static final String SHELL_RUNTIME_RESOURCE = "/tikeo/wasm-runtimes/shell/runner.wasm";
 

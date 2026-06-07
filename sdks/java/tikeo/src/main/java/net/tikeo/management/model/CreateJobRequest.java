@@ -2,7 +2,9 @@ package net.tikeo.management.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-/** Request to create a job in the current namespace/app scope. */
+/**
+ * Request to create a job in the current namespace/app scope.
+ */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record CreateJobRequest(
         String name,

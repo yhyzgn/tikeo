@@ -19,6 +19,12 @@ import {
 } from '@ant-design/icons';
 import type { ReactNode } from 'react';
 
+/**
+ * Route metadata contract for the management console.
+ *
+ * Labels are resolved through the i18n layer in shell components, while permission fields map to
+ * backend RBAC resources/actions. Add new routes here instead of scattering menu conventions.
+ */
 export interface RoutePermission {
   resource: string;
   action: string;

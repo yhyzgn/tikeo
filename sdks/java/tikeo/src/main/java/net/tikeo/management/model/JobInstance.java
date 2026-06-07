@@ -2,7 +2,9 @@ package net.tikeo.management.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-/** Job instance returned after a trigger call. */
+/**
+ * Job instance returned after a trigger call.
+ */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record JobInstance(
         String id,

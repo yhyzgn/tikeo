@@ -8,7 +8,9 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Resolves sandbox/runtime tool commands and optionally installs missing tools. */
+/**
+ * Resolves sandbox/runtime tool commands and optionally installs missing tools.
+ */
 public final class SandboxToolResolver {
 
     private static final Logger log = LoggerFactory.getLogger(

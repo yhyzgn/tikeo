@@ -2,7 +2,9 @@ package net.tikeo.management.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-/** Request to update a job. Omitted fields are unchanged. */
+/**
+ * Request to update a job. Omitted fields are unchanged.
+ */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record UpdateJobRequest(
         String name,

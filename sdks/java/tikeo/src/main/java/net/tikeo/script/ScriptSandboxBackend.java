@@ -2,7 +2,9 @@ package net.tikeo.script;
 
 import java.util.Locale;
 
-/** Supported sandbox backends for dynamic script execution. */
+/**
+ * Supported sandbox backends for dynamic script execution.
+ */
 public enum ScriptSandboxBackend {
     AUTO("auto"),
     WASMTIME("wasmtime"),

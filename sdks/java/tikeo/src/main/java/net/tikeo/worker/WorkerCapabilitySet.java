@@ -6,7 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/** Structured worker capabilities used by dispatch routing and operator UI. */
+/**
+ * Structured worker capabilities used by dispatch routing and operator UI.
+ */
 public record WorkerCapabilitySet(
         List<String> tags,
         List<String> sdkProcessors,
@@ -61,7 +63,9 @@ public record WorkerCapabilitySet(
                 .toList();
     }
 
-    /** Structured script runtime declaration. */
+    /**
+ * Structured script runtime declaration.
+ */
     public record ScriptRunner(String language, String sandboxBackend) {
         public ScriptRunner {
             language = requireClean(language, "language");
@@ -69,7 +73,9 @@ public record WorkerCapabilitySet(
         }
     }
 
-    /** Structured plugin processor declaration. */
+    /**
+ * Structured plugin processor declaration.
+ */
     public record PluginProcessor(String type, List<String> processorNames) {
         public PluginProcessor {
             type = requireClean(type, "type");

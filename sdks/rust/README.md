@@ -1,16 +1,13 @@
-# Rust SDKs
+# Tikeo Rust SDKs 🦀
 
-Rust SDK packages live under `sdks/rust/<sdk-name>/` and must be independently buildable.
+[🇨🇳 中文 SDK 文档](../../docs/zh-CN/sdk.md)
 
-Current packages:
-
-- `tikeo/`
-
-Validation from repository root:
+Rust SDK packages are self-contained crates suitable for crates.io publishing. They must not depend
+on repository-local server crates.
 
 ```bash
 cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
 cargo build --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
 ```
 
-Publishing rule: each Rust SDK crate must be self-contained for crates.io publishing and must not depend on repository-local `crates/*` path dependencies.
+Current crate: [`sdks/rust/tikeo`](tikeo/README.md).

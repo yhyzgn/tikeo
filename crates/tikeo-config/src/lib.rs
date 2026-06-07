@@ -254,9 +254,38 @@ impl Default for AlertRetryConfig {
 /// Observability export configuration.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObservabilityConfig {
+    /// Local process logging settings for console and optional file output.
+    #[serde(default)]
+    pub logging: LoggingConfig,
     /// Distributed tracing export settings.
     #[serde(default)]
     pub tracing: TracingConfig,
+}
+
+/// Local process logging configuration.
+///
+/// The server always writes operator diagnostics to the console. Set `log_dir` to also
+/// persist the same structured events to `tikeo.log` under a durable directory. Keep the
+/// default `info` level in production and temporarily raise to `debug` only while
+/// diagnosing scheduling, worker tunnel, or storage issues because debug logs may be noisy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LoggingConfig {
+    /// Minimum log level used when `RUST_LOG` is not provided. Supported values are
+    /// `debug`, `info`, `warn`, and `error`.
+    #[serde(default = "default_log_level")]
+    pub level: String,
+    /// Optional directory where the server writes `tikeo.log` in addition to console output.
+    #[serde(default)]
+    pub log_dir: Option<String>,
+}
+
+impl Default for LoggingConfig {
+    fn default() -> Self {
+        Self {
+            level: default_log_level(),
+            log_dir: None,
+        }
+    }
 }
 
 /// OpenTelemetry tracing exporter configuration.
@@ -318,6 +347,10 @@ impl Default for OidcConfig {
 
 const fn default_true() -> bool {
     true
+}
+
+fn default_log_level() -> String {
+    "info".to_owned()
 }
 
 const fn default_api_token_ttl_seconds() -> i64 {
@@ -415,6 +448,7 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeoConfig, ConfigError> {
         .set_default("transport_security.http.mtls_required", false)?
         .set_default("transport_security.worker_tunnel.tls_enabled", false)?
         .set_default("transport_security.worker_tunnel.mtls_required", false)?
+        .set_default("observability.logging.level", default_log_level())?
         .set_default("observability.tracing.enabled", false)?
         .set_default("observability.tracing.headers", Vec::<String>::new())?
         .set_default("alert_secrets.allow_env_refs", true)?
@@ -494,6 +528,8 @@ mod tests {
         let config =
             load_config(None).unwrap_or_else(|error| panic!("default config should load: {error}"));
 
+        assert_eq!(config.observability.logging.level, "info");
+        assert!(config.observability.logging.log_dir.is_none());
         assert!(!config.observability.tracing.enabled);
         assert!(config.observability.tracing.otlp_endpoint.is_none());
         assert!(config.observability.tracing.headers.is_empty());

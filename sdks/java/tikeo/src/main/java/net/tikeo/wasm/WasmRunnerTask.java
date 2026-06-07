@@ -1,6 +1,8 @@
 package net.tikeo.wasm;
 
-/** Immutable WASM module snapshot passed to a sandbox runtime. */
+/**
+ * Immutable WASM module snapshot passed to a sandbox runtime.
+ */
 public record WasmRunnerTask(
         String scriptId,
         String versionId,

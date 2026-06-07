@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 import grpc
 
+from . import logging as sdk_logging
 from .config import WorkerCapabilities, WorkerConfig
 from .proto_loader import worker_modules
 from .script import ScriptRunnerRegistry, ScriptRunnerTask
@@ -82,6 +83,7 @@ class Client:
         self._open = False
 
     def connect_grpc(self) -> grpc.Channel:
+        sdk_logging.info("connecting worker tunnel endpoint=%s client_instance_id=%s", self._config.endpoint, self._config.client_instance_id)
         return grpc.insecure_channel(grpc_target(self._config.endpoint))
 
     def connect(self) -> "Session":
@@ -104,6 +106,7 @@ class Client:
         if not registered or not registered.worker_id:
             channel.close()
             raise RuntimeError("tikeo worker expected registration ack")
+        sdk_logging.info("registered worker_id=%s lease_seconds=%s generation=%s", registered.worker_id, registered.lease_seconds, registered.generation)
         return Session(pb2, channel, stream, outbound, registered.worker_id, registered.lease_seconds, registered.generation, registered.fencing_token, self._config.heartbeat_every.total_seconds())
 
     def _register_message(self, pb2: Any) -> Any:
@@ -149,6 +152,7 @@ class Session:
 
     def send_heartbeat(self) -> int:
         self._sequence += 1
+        sdk_logging.debug("sending heartbeat worker_id=%s sequence=%s", self._worker_id, self._sequence)
         self._outbound.put(self._pb2.WorkerMessage(heartbeat=self._pb2.Heartbeat(worker_id=self._worker_id, sequence=self._sequence, generation=self._generation, fencing_token=self._fencing_token)))
         return self._sequence
 
@@ -188,7 +192,10 @@ class Session:
 
     def _emit_task_log_safely(self, task: Any, level: str, message: str) -> None:
         print_task_log_locally(level, message)
-        self.emit_task_log(task.instance_id, task.assignment_token, level, message)
+        try:
+            self.emit_task_log(task.instance_id, task.assignment_token, level, message)
+        except Exception as exc:
+            sdk_logging.warning("failed to emit task log instance_id=%s error=%s", task.instance_id, exc)
 
 
 def process_dispatch_task(processor: TaskProcessor, scripts: ScriptRunnerRegistry | None, task: Any, log: callable) -> TaskOutcome:
@@ -198,6 +205,7 @@ def process_dispatch_task(processor: TaskProcessor, scripts: ScriptRunnerRegistr
             script = binding.script
             runner = scripts.get(script.language) if scripts else None
             if runner is None:
+                sdk_logging.warning("missing script runner language=%s", script.language)
                 return failed(f"script runner is not registered for language: {script.language}")
             return runner.run(ScriptRunnerTask(
                 script_id=script.script_id,
@@ -221,6 +229,7 @@ def process_dispatch_task(processor: TaskProcessor, scripts: ScriptRunnerRegistr
             ))
         return processor(TaskContext(instance_id=task.instance_id, job_id=task.job_id, processor_name=task.processor_name or task.job_id, payload=bytes(task.payload), log=log))
     except Exception as exc:
+        sdk_logging.error("processor failed instance_id=%s error=%s", getattr(task, "instance_id", ""), exc)
         return failed(str(exc))
 
 

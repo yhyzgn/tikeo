@@ -6,6 +6,7 @@ pub mod proto;
 
 mod config;
 mod error;
+mod logging;
 pub mod management;
 mod script;
 mod session;
@@ -14,6 +15,7 @@ mod wasm;
 
 pub use config::WorkerConfig;
 pub use error::WorkerSdkError;
+pub use logging::{SdkLogConfig, SdkLogLevel, configure_sdk_logging};
 pub use management::{
     CreateJobRequest as ManagementCreateJobRequest, JobDefinition, ManagementClient,
 };

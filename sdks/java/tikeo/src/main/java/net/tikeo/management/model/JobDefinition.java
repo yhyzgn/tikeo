@@ -2,7 +2,9 @@ package net.tikeo.management.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-/** Job definition returned by tikeo management APIs. */
+/**
+ * Job definition returned by tikeo management APIs.
+ */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record JobDefinition(
         String id,

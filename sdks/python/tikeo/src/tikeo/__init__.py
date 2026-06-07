@@ -8,6 +8,7 @@ from .config import (
     WorkerConfig,
     local_config,
 )
+from .logging import LogConfig, configure_logging, sdk_logger
 from .management import (
     API_KEY_HEADER,
     CreateJobRequest,
@@ -43,6 +44,7 @@ __all__ = [
     "Heartbeat",
     "JobDefinition",
     "JobRetryPolicy",
+    "LogConfig",
     "LocalCommandScriptRunner",
     "ManagementClient",
     "PluginProcessorCapability",
@@ -60,6 +62,7 @@ __all__ = [
     "WorkerCapabilities",
     "WorkerConfig",
     "api_job",
+    "configure_logging",
     "default_job_retry_policy",
     "default_sandbox_backend",
     "failed",
@@ -69,5 +72,6 @@ __all__ = [
     "normalize_script_sandbox_backend",
     "plugin_api_job",
     "script_api_job",
+    "sdk_logger",
     "succeeded",
 ]

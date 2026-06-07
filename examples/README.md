@@ -1,21 +1,24 @@
-# SDK Examples
+# Tikeo examples 🚀
 
-This directory contains independently buildable/runnable SDK demo projects.
+[🇨🇳 中文示例文档](../docs/zh-CN/examples.md)
 
-Required layout:
+Runnable demos validate SDK parity across Java, Rust, Go, Python, and Node.js.
 
-```text
-examples/<language>/<demo-name>/
+| Demo | What it validates |
+| --- | --- |
+| `java/spring-boot2-worker-demo` | Spring Boot 2 starter compatibility. |
+| `java/spring-boot3-worker-demo` | Spring Boot 3 starter compatibility. |
+| `java/spring-boot4-worker-demo` | Spring Boot 4 starter and latest Java SDK behavior. |
+| `rust/worker-demo` | Native Rust worker, auto sandbox tooling, structured capabilities. |
+| `go/worker-demo` | Go Worker Tunnel and sandbox parity. |
+| `python/worker-demo` | Python Worker Tunnel and management examples. |
+| `nodejs/worker-demo` | Node.js/Bun Worker Tunnel and JavaScript/TypeScript sandbox flow. |
+
+Start Tikeo first:
+
+```bash
+./scripts/dev.sh
+./scripts/dev-seed.sh
 ```
 
-Current runnable demos:
-
-- `java/spring-boot2-worker-demo/` — Spring Boot 2 Worker demo with live tunnel support.
-- `java/spring-boot3-worker-demo/` — Spring Boot 3 Worker demo with live tunnel support.
-- `java/spring-boot4-worker-demo/` — Spring Boot 4 Worker demo with live tunnel support.
-- `go/worker-demo/` — Go Worker SDK demo with live tunnel support and fail-closed script runner registration.
-- `nodejs/worker-demo/` — Node.js Worker SDK demo with live tunnel support and Java/Rust/Go-compatible sandbox auto resolution.
-- `python/worker-demo/` — Python Worker SDK demo with live tunnel support and Java/Rust/Go-compatible sandbox auto resolution.
-- `rust/worker-demo/` — Rust Worker SDK demo with live tunnel support and fail-closed script runner registration.
-
-Runtime configuration files belong in `config/`, not here.
+Then follow the demo-specific README.

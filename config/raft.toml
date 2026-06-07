@@ -19,3 +19,7 @@ peers = [
   { node_id = "tikeo-1", endpoint = "http://tikeo-1.tikeo-headless:9090" },
   { node_id = "tikeo-2", endpoint = "http://tikeo-2.tikeo-headless:9090" },
 ]
+
+[observability.logging]
+level = "info"
+# log_dir = "./logs"

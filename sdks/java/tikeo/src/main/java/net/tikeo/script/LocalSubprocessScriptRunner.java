@@ -6,7 +6,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-/** Development-only local subprocess runner for dynamic scripts. */
+/**
+ * Development-only local subprocess runner for dynamic scripts.
+ */
 public final class LocalSubprocessScriptRunner implements ScriptRunner {
     private final ScriptRunnerKind kind;
     private final String command;

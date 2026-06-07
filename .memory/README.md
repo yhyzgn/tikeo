@@ -1,8 +1,8 @@
-# .memory 记忆库
+# `.memory` project memory
 
-该目录用于保证 tikeo 开发上下文永不丢失。任何 AI 智能体在开始工作前必须阅读本目录；每次推进后必须更新相关文件。
+This directory stores durable development context for AI agents and maintainers working on Tikeo.
 
-必读顺序：
+Read order:
 
 1. `../prompt.md`
 2. `../design/tikeo-architecture-design.md`
@@ -13,4 +13,7 @@
 7. `.memory/session-log.md`
 8. `.memory/next.md`
 9. `.memory/risks.md`
-10. `../.prompt/` 中最新阶段提示词
+10. the latest handoff in `../.prompt/`
+
+Operational cautions: keep memory factual, update it after meaningful roadmap changes, and never store
+credentials or private tokens here.

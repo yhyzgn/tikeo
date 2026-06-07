@@ -10,6 +10,10 @@ mode = "standalone"
 node_id = "standalone"
 peers = []
 
+[observability.logging]
+level = "info"
+# log_dir = "./logs"
+
 [observability.tracing]
 enabled = false
 headers = []

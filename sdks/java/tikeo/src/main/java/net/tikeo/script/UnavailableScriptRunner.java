@@ -2,7 +2,9 @@ package net.tikeo.script;
 
 import net.tikeo.processor.TaskOutcome;
 
-/** Fail-closed runner used to terminate unsupported script languages without queue starvation. */
+/**
+ * Fail-closed runner used to terminate unsupported script languages without queue starvation.
+ */
 public final class UnavailableScriptRunner implements ScriptRunner {
     private final ScriptRunnerKind kind;
     private final String reason;
