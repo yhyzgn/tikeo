@@ -1,0 +1,158 @@
+<svg width="1280" height="760" viewBox="0 0 1280 760" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Tikeo cloud-native task orchestration architecture</title>
+  <desc id="desc">A layered architecture diagram showing the Tikeo web console, Rust server, scheduler, governance, storage, worker tunnel, SDK workers, and sandbox runtimes.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f8fafc"/>
+      <stop offset="0.58" stop-color="#eef7ff"/>
+      <stop offset="1" stop-color="#f7f2ff"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="160" y1="58" x2="1160" y2="704" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff" stop-opacity="0.94"/>
+      <stop offset="1" stop-color="#f8fbff" stop-opacity="0.96"/>
+    </linearGradient>
+    <linearGradient id="server" x1="463" y1="155" x2="839" y2="488" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0f172a"/>
+      <stop offset="0.45" stop-color="#1d4ed8"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="250" y1="140" x2="1050" y2="640" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563eb"/>
+      <stop offset="0.45" stop-color="#0891b2"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="worker" x1="95" y1="478" x2="1195" y2="692" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#eff6ff"/>
+      <stop offset="0.55" stop-color="#ecfeff"/>
+      <stop offset="1" stop-color="#f5f3ff"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="1280" height="760" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <filter id="soft" x="0" y="0" width="1280" height="760" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#2563eb" flood-opacity="0.16"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2L9 6L2 10" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arrow-dark" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2L9 6L2 10" stroke="#f8fafc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .title{font:700 30px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#0f172a}
+      .subtitle{font:500 16px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#475569}
+      .label{font:700 18px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#0f172a}
+      .small{font:600 13px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#475569}
+      .micro{font:600 11px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#64748b;letter-spacing:.02em}
+      .white{fill:#fff}
+      .white-muted{fill:#dbeafe}
+      .mono{font:650 12px ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;fill:#334155}
+      .line{stroke:#2563eb;stroke-width:3;stroke-linecap:round;stroke-dasharray:8 8;marker-end:url(#arrow)}
+      .solid{stroke:#2563eb;stroke-width:3;stroke-linecap:round;marker-end:url(#arrow)}
+      .white-line{stroke:#f8fafc;stroke-width:3;stroke-linecap:round;marker-end:url(#arrow-dark)}
+      @media (prefers-color-scheme: dark){
+        .title,.label{fill:#f8fafc}.subtitle,.small{fill:#cbd5e1}.micro{fill:#94a3b8}.mono{fill:#cbd5e1}
+      }
+    </style>
+  </defs>
+
+  <rect width="1280" height="760" rx="34" fill="url(#bg)"/>
+  <circle cx="140" cy="108" r="180" fill="#38bdf8" opacity="0.18"/>
+  <circle cx="1120" cy="650" r="220" fill="#8b5cf6" opacity="0.16"/>
+  <circle cx="1020" cy="88" r="120" fill="#22d3ee" opacity="0.14"/>
+
+  <rect x="54" y="46" width="1172" height="668" rx="30" fill="url(#panel)" stroke="#dbeafe" filter="url(#shadow)"/>
+
+  <text x="86" y="96" class="title">Tikeo orchestration fabric</text>
+  <text x="86" y="126" class="subtitle">Typed scheduling, governed execution, outbound workers, secure script sandboxes, and observable workflows.</text>
+
+  <g filter="url(#soft)">
+    <rect x="84" y="164" width="288" height="142" rx="24" fill="#ffffff" stroke="#bfdbfe"/>
+    <text x="112" y="204" class="label">Web Console</text>
+    <text x="112" y="232" class="small">workflow canvas · topology · RBAC</text>
+    <text x="112" y="256" class="small">instance logs · replay · GitOps diff</text>
+    <rect x="112" y="272" width="204" height="24" rx="12" fill="#eff6ff"/>
+    <text x="128" y="288" class="micro">React + Ant Design + i18n</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="420" y="148" width="440" height="324" rx="30" fill="url(#server)"/>
+    <text x="456" y="198" class="label white">Rust Server Core</text>
+    <text x="456" y="226" class="small white-muted">scheduler · workflow engine · worker tunnel · API</text>
+
+    <rect x="456" y="258" width="168" height="72" rx="18" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.28)"/>
+    <text x="478" y="286" class="small white">Scheduling Brain</text>
+    <text x="478" y="310" class="micro white-muted">retry · misfire · Raft-ready</text>
+
+    <rect x="648" y="258" width="176" height="72" rx="18" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.28)"/>
+    <text x="670" y="286" class="small white">Governance</text>
+    <text x="670" y="310" class="micro white-muted">RBAC · audit · API keys</text>
+
+    <rect x="456" y="354" width="168" height="72" rx="18" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.28)"/>
+    <text x="478" y="382" class="small white">Worker Tunnel</text>
+    <text x="478" y="406" class="micro white-muted">outbound gRPC · leases</text>
+
+    <rect x="648" y="354" width="176" height="72" rx="18" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.28)"/>
+    <text x="670" y="382" class="small white">Observability</text>
+    <text x="670" y="406" class="micro white-muted">OTel · metrics · log files</text>
+  </g>
+
+  <g filter="url(#soft)">
+    <rect x="908" y="164" width="286" height="142" rx="24" fill="#ffffff" stroke="#ddd6fe"/>
+    <text x="936" y="204" class="label">Control APIs</text>
+    <text x="936" y="232" class="small">REST · API-Key · OpenAPI</text>
+    <text x="936" y="256" class="small">Terraform · CRD operator · Helm</text>
+    <rect x="936" y="272" width="178" height="24" rx="12" fill="#f5f3ff"/>
+    <text x="952" y="288" class="micro">GitOps / IaC ready</text>
+  </g>
+
+  <g>
+    <path d="M372 235C397 235 397 235 420 235" class="solid"/>
+    <path d="M860 235C884 235 884 235 908 235" class="solid"/>
+    <path d="M640 472V520" class="white-line"/>
+  </g>
+
+  <g filter="url(#soft)">
+    <rect x="94" y="520" width="1092" height="150" rx="28" fill="url(#worker)" stroke="#bae6fd"/>
+    <text x="126" y="560" class="label">Outbound worker fleet</text>
+    <text x="126" y="586" class="small">Every worker declares typed capabilities. Tikeo dispatches only to workers that can safely execute the job.</text>
+
+    <g>
+      <rect x="132" y="612" width="134" height="44" rx="16" fill="#ffffff" stroke="#bfdbfe"/>
+      <text x="166" y="639" class="mono">Java</text>
+      <rect x="286" y="612" width="134" height="44" rx="16" fill="#ffffff" stroke="#bfdbfe"/>
+      <text x="324" y="639" class="mono">Rust</text>
+      <rect x="440" y="612" width="134" height="44" rx="16" fill="#ffffff" stroke="#bfdbfe"/>
+      <text x="480" y="639" class="mono">Go</text>
+      <rect x="594" y="612" width="134" height="44" rx="16" fill="#ffffff" stroke="#bfdbfe"/>
+      <text x="626" y="639" class="mono">Python</text>
+      <rect x="748" y="612" width="134" height="44" rx="16" fill="#ffffff" stroke="#bfdbfe"/>
+      <text x="786" y="639" class="mono">Node.js</text>
+      <rect x="902" y="612" width="230" height="44" rx="16" fill="#0f172a"/>
+      <text x="928" y="639" class="mono white">SRT · Deno · WASM · V8</text>
+    </g>
+  </g>
+
+  <path d="M640 520C640 496 640 496 640 472" class="line"/>
+  <path d="M310 520C310 474 420 450 456 390" class="line"/>
+  <path d="M1018 520C1018 474 860 450 824 390" class="line"/>
+
+  <g>
+    <rect x="94" y="340" width="252" height="96" rx="22" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="122" y="376" class="label">Storage</text>
+    <text x="122" y="404" class="small">SQLite · PostgreSQL · MySQL</text>
+    <path d="M346 388C378 388 390 388 420 388" class="solid"/>
+  </g>
+
+  <g>
+    <rect x="914" y="340" width="280" height="96" rx="22" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="942" y="376" class="label">Telemetry</text>
+    <text x="942" y="404" class="small">OpenTelemetry · metrics · audit</text>
+    <path d="M860 388C890 388 898 388 914 388" class="solid"/>
+  </g>
+
+  <g>
+    <rect x="86" y="680" width="1090" height="1" fill="#dbeafe"/>
+    <text x="86" y="704" class="micro">Design rule: scheduling decisions stay centralized, execution stays near business code, logs stay task-scoped, and capabilities stay structured.</text>
+  </g>
+</svg>
