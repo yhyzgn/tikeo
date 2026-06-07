@@ -15,6 +15,7 @@
 </p>
 
 <p align="center">
+  <strong>Build &amp; release</strong><br />
   <a href="https://github.com/yhyzgn/tikeo/actions/workflows/ci.yml"><img alt="CI build" src="https://img.shields.io/github/actions/workflow/status/yhyzgn/tikeo/ci.yml?branch=main&style=flat-square&label=CI%20build" /></a>
   <a href="https://github.com/yhyzgn/tikeo/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/yhyzgn/tikeo?include_prereleases&style=flat-square&label=release" /></a>
   <img alt="Current version" src="https://img.shields.io/badge/current-v0.1.0-0f172a?style=flat-square" />
@@ -23,13 +24,18 @@
 </p>
 
 <p align="center">
+  <strong>Java artifacts</strong><br />
   <img alt="Java core SDK" src="https://img.shields.io/badge/Java%20core-net.tikeo%3Atikeo%400.1.0--SNAPSHOT-b07219?style=flat-square&logo=openjdk" />
   <img alt="Java Spring 7 SDK" src="https://img.shields.io/badge/Java%20Spring%207-net.tikeo%3Atikeo--spring%400.1.0--SNAPSHOT-b07219?style=flat-square&logo=spring" />
-  <img alt="Java Spring 5 SDK" src="https://img.shields.io/badge/Java%20Spring%205-net.tikeo%3Atikeo--spring5%400.1.0--SNAPSHOT-b07219?style=flat-square&logo=spring" />
   <img alt="Java Spring 6 SDK" src="https://img.shields.io/badge/Java%20Spring%206-net.tikeo%3Atikeo--spring6%400.1.0--SNAPSHOT-b07219?style=flat-square&logo=spring" />
+  <img alt="Java Spring 5 SDK" src="https://img.shields.io/badge/Java%20Spring%205-net.tikeo%3Atikeo--spring5%400.1.0--SNAPSHOT-b07219?style=flat-square&logo=spring" />
   <img alt="Java Spring Boot 4 starter" src="https://img.shields.io/badge/Boot%204%20starter-net.tikeo%3Atikeo--spring--boot--starter%400.1.0--SNAPSHOT-6db33f?style=flat-square&logo=springboot" />
   <img alt="Java Spring Boot 3 starter" src="https://img.shields.io/badge/Boot%203%20starter-net.tikeo%3Atikeo--spring--boot3--starter%400.1.0--SNAPSHOT-6db33f?style=flat-square&logo=springboot" />
   <img alt="Java Spring Boot 2 starter" src="https://img.shields.io/badge/Boot%202%20starter-net.tikeo%3Atikeo--spring--boot2--starter%400.1.0--SNAPSHOT-6db33f?style=flat-square&logo=springboot" />
+</p>
+
+<p align="center">
+  <strong>Other SDKs</strong><br />
   <img alt="Rust SDK" src="https://img.shields.io/badge/Rust%20SDK-tikeo%400.1.0-ce422b?style=flat-square&logo=rust" />
   <img alt="Go SDK" src="https://img.shields.io/badge/Go%20SDK-github.com%2Fyhyzgn%2Ftikeo%2Fsdks%2Fgo%2Ftikeo-00add8?style=flat-square&logo=go" />
   <img alt="Python SDK" src="https://img.shields.io/badge/Python%20SDK-tikeo%400.1.0-3776ab?style=flat-square&logo=python" />
@@ -37,6 +43,7 @@
 </p>
 
 <p align="center">
+  <strong>Runtime &amp; deployment</strong><br />
   <img alt="Server image" src="https://img.shields.io/badge/Docker-yhyzgn%2Ftikeo--server-2563eb?style=flat-square&logo=docker" />
   <img alt="Web image" src="https://img.shields.io/badge/Docker-yhyzgn%2Ftikeo--web-2563eb?style=flat-square&logo=docker" />
   <img alt="Sandbox" src="https://img.shields.io/badge/sandbox-SRT%20%7C%20Deno%20%7C%20WASM%20%7C%20V8-7c3aed?style=flat-square" />
@@ -287,7 +294,280 @@ otlp_endpoint = "http://otel-collector:4318/v1/traces"
 
 所有 SDK 遵循同一条规则：SDK diagnostics 描述 Worker/runtime 生命周期；task logs 描述某个具体任务实例。这个分离能防止无关进程噪音污染执行日志。
 
-## 部署路径
+## 从中央仓库安装 SDK
+
+每个 Worker 服务只需要引用对应语言的一组包。所有 SDK 遵循同一平台契约：出站 Worker
+Tunnel、结构化能力、任务级日志、重试/结果上报、Management API，以及沙箱 auto 行为。
+
+| Language | 中央仓库 | Package name | 当前安装目标 |
+| --- | --- | --- | --- |
+| Java | Maven Central | `net.tikeo:*` | `0.1.0` release artifacts；本地开发可使用 `0.1.0-SNAPSHOT`。 |
+| Rust | crates.io | `tikeo` | `0.1.0` |
+| Go | Go module proxy | `github.com/yhyzgn/tikeo/sdks/go/tikeo` | tag-based，例如 `v0.1.0` |
+| Python | PyPI | `tikeo` | `0.1.0` |
+| Node.js | npm | `@yhyzgn/tikeo` | `0.1.0` |
+
+### Java / Maven Central
+
+每个应用只选择一个运行时 adapter。普通 Java Worker 只需要 core SDK；Spring 应用应该选择与 Spring Boot 代际匹配的 starter。
+
+| Artifact | 用途 |
+| --- | --- |
+| `net.tikeo:tikeo` | 普通 Java Worker、management client、sandbox tooling 和低层 Worker Tunnel 使用。 |
+| `net.tikeo:tikeo-spring` | Spring Framework 7 adapter，用于 Spring Boot 4 应用。 |
+| `net.tikeo:tikeo-spring6` | Spring Framework 6 adapter，用于 Spring Boot 3 应用。 |
+| `net.tikeo:tikeo-spring5` | Spring Framework 5 adapter，用于 Spring Boot 2 应用。 |
+| `net.tikeo:tikeo-spring-boot-starter` | Spring Boot 4 auto-configuration starter。 |
+| `net.tikeo:tikeo-spring-boot3-starter` | Spring Boot 3 auto-configuration starter。 |
+| `net.tikeo:tikeo-spring-boot2-starter` | Spring Boot 2 auto-configuration starter。 |
+
+Gradle Kotlin DSL：
+
+```kotlin
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // 普通 Java worker / management client。
+    implementation("net.tikeo:tikeo:0.1.0")
+
+    // 使用 Spring Boot 时只选择一个 starter。
+    implementation("net.tikeo:tikeo-spring-boot-starter:0.1.0")  // Spring Boot 4
+    // implementation("net.tikeo:tikeo-spring-boot3-starter:0.1.0") // Spring Boot 3
+    // implementation("net.tikeo:tikeo-spring-boot2-starter:0.1.0") // Spring Boot 2
+}
+```
+
+Maven：
+
+```xml
+<dependencies>
+  <dependency>
+    <groupId>net.tikeo</groupId>
+    <artifactId>tikeo</artifactId>
+    <version>0.1.0</version>
+  </dependency>
+  <dependency>
+    <groupId>net.tikeo</groupId>
+    <artifactId>tikeo-spring-boot-starter</artifactId>
+    <version>0.1.0</version>
+  </dependency>
+</dependencies>
+```
+
+Spring Boot Worker 配置：
+
+```yaml
+tikeo:
+  worker:
+    enabled: true
+    auto-startup: true
+    endpoint: http://127.0.0.1:9998
+    namespace: dev-alpha
+    app: orders
+    worker-pool: java-green
+```
+
+### Rust / crates.io
+
+```bash
+cargo add tikeo@0.1.0
+```
+
+```toml
+[dependencies]
+tikeo = "0.1.0"
+```
+
+### Go / Go module proxy
+
+```bash
+go get github.com/yhyzgn/tikeo/sdks/go/tikeo@v0.1.0
+```
+
+```go
+import "github.com/yhyzgn/tikeo/sdks/go/tikeo"
+```
+
+### Python / PyPI
+
+```bash
+python -m pip install "tikeo==0.1.0"
+```
+
+```python
+from tikeo import Client, local_config
+```
+
+### Node.js / npm
+
+Bun 是本仓库默认包管理/运行工具：
+
+```bash
+bun add @yhyzgn/tikeo@0.1.0
+```
+
+npm 和 pnpm 用户可以从公开 npm registry 安装同一个包：
+
+```bash
+npm install @yhyzgn/tikeo@0.1.0
+pnpm add @yhyzgn/tikeo@0.1.0
+```
+
+```ts
+import { Client, WorkerConfig } from "@yhyzgn/tikeo";
+```
+
+## 运行 Tikeo 服务
+
+Tikeo 可以作为 Docker Compose 服务、传统服务器上的直接二进制、systemd 服务，或者 Kubernetes workload 运行。服务端在 `9090` 暴露 HTTP API/Web proxy 目标，在 `9998` 暴露 Worker Tunnel；Web 控制台容器内部监听 `80`。
+
+### Docker Compose：SQLite 默认模式
+
+这是最快的本地产品评估路径。默认会在本地构建 server 和 web 镜像；也可以通过 `TIKEO_IMAGE` / `TIKEO_WEB_IMAGE` 覆盖为远程镜像。
+
+```bash
+cp deploy/compose/tikeo.env.example .env
+DOCKER_BUILDKIT=1 docker compose --env-file .env up -d --build
+curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
+open http://127.0.0.1:${TIKEO_WEB_PORT:-8080}
+```
+
+### Docker Compose：PostgreSQL
+
+```bash
+cp deploy/compose/tikeo.env.example .env
+DOCKER_BUILDKIT=1 docker compose --env-file .env \
+  -f docker-compose.yml \
+  -f docker-compose.postgres.yml \
+  up -d --build
+curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
+```
+
+### Docker Compose：MySQL
+
+```bash
+cp deploy/compose/tikeo.env.example .env
+DOCKER_BUILDKIT=1 docker compose --env-file .env \
+  -f docker-compose.yml \
+  -f docker-compose.mysql.yml \
+  up -d --build
+curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
+```
+
+### 不使用 Compose 的 Docker 运行
+
+当你已经自行管理数据库时，可以手动运行 control plane 和 web 容器。
+
+```bash
+docker network create tikeo || true
+docker volume create tikeo-data
+
+docker run -d --name tikeo-server --network tikeo \
+  -p 9090:9090 -p 9998:9998 \
+  -v tikeo-data:/data \
+  -e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc' \
+  yhyzgn/tikeo-server:0.1.0 serve --config /app/config/container.toml
+
+docker run -d --name tikeo-web --network tikeo \
+  -p 8080:80 \
+  yhyzgn/tikeo-web:0.1.0
+
+curl -fsS http://127.0.0.1:9090/readyz
+```
+
+PostgreSQL/MySQL 场景下，把 `TIKEO__STORAGE__DATABASE_URL` 替换为平台暴露的数据库 URL，并把凭据放到你的 secret manager 中。
+
+### 非 Docker 二进制 / VM / 裸机
+
+该路径适用于传统服务器、VM、Supervisor 或手动管理的进程运行器。生产环境应优先使用 PostgreSQL 或 MySQL，并配置持久化日志目录。
+
+```bash
+cargo build --release --bin tikeo
+install -d ./var/lib/tikeo ./logs
+cp config/dev.toml ./tikeo.toml
+TIKEO__OBSERVABILITY__LOGGING__LOG_DIR=./logs \
+  ./target/release/tikeo serve --config ./tikeo.toml
+curl -fsS http://127.0.0.1:9090/readyz
+```
+
+systemd 部署使用仓库内置 unit 文件：
+
+```bash
+sudo useradd --system --home /var/lib/tikeo --shell /usr/sbin/nologin tikeo || true
+sudo install -d -o tikeo -g tikeo /opt/tikeo/bin /var/lib/tikeo /var/log/tikeo /etc/tikeo
+sudo install -m 0755 target/release/tikeo /opt/tikeo/bin/tikeo
+sudo install -m 0644 config/container.toml /etc/tikeo/tikeo.toml
+sudo install -m 0644 deploy/systemd/tikeo.env /etc/tikeo/tikeo.env
+sudo install -m 0644 deploy/systemd/tikeo.service /etc/systemd/system/tikeo.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now tikeo
+systemctl status tikeo --no-pager
+```
+
+### Kubernetes manifests 与 Operator
+
+当控制面需要运行在集群内，并且 Worker 从业务 namespace 或外部服务连接时使用 Kubernetes。常规安装优先使用 Helm；需要通过 `TikeoManifest` 做 GitOps drift review 时使用 CRD/operator 路径。
+
+```bash
+kubectl create namespace tikeo --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f deploy/k8s/crd/tikeo-manifest-crd.yaml
+kubectl get crd | grep tikeo
+```
+
+如果不使用 Helm，也可以应用仓库中的基础 Kubernetes smoke manifest：
+
+```bash
+kubectl apply -f deploy/k8s/tikeo.yaml
+kubectl -n tikeo rollout status deploy/tikeo-server
+kubectl -n tikeo rollout status deploy/tikeo-web
+```
+
+Operator 目录包含 GitOps diff flow 所需的 controller 实现、RBAC sample 和 `TikeoManifest` sample：
+
+```bash
+kubectl apply -f deploy/k8s/crd/tikeo-manifest-crd.yaml
+kubectl -n tikeo apply -f deploy/k8s/operator/config/rbac/role.yaml
+kubectl -n tikeo apply -f deploy/k8s/operator/config/samples/tikeo-manifest.yaml
+```
+
+Controller 运行方式参考 `deploy/k8s/operator/README.md`，或将其打包为你的集群 release operator image。
+
+### Helm
+
+开发阶段从本地 chart 安装：
+
+```bash
+helm upgrade --install tikeo ./deploy/helm/tikeo \
+  --namespace tikeo \
+  --create-namespace
+kubectl -n tikeo rollout status deploy/tikeo-server
+kubectl -n tikeo rollout status deploy/tikeo-web
+```
+
+安装指定 release 镜像：
+
+```bash
+helm upgrade --install tikeo ./deploy/helm/tikeo \
+  --namespace tikeo \
+  --create-namespace \
+  --set server.image.repository=yhyzgn/tikeo-server \
+  --set server.image.tag=0.1.0 \
+  --set web.image.repository=yhyzgn/tikeo-web \
+  --set web.image.tag=0.1.0
+```
+
+生产集群应通过 values 文件覆盖数据库、ingress/TLS、secret references、resource requests、日志采集和 OpenTelemetry endpoints：
+
+```bash
+helm upgrade --install tikeo ./deploy/helm/tikeo \
+  --namespace tikeo \
+  --create-namespace \
+  --values ./my-tikeo-values.yaml
+```
+
+### 部署路径
 
 | 路径 | 适用时机 |
 | --- | --- |

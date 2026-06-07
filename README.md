@@ -15,6 +15,7 @@
 </p>
 
 <p align="center">
+  <strong>Build &amp; release</strong><br />
   <a href="https://github.com/yhyzgn/tikeo/actions/workflows/ci.yml"><img alt="CI build" src="https://img.shields.io/github/actions/workflow/status/yhyzgn/tikeo/ci.yml?branch=main&style=flat-square&label=CI%20build" /></a>
   <a href="https://github.com/yhyzgn/tikeo/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/yhyzgn/tikeo?include_prereleases&style=flat-square&label=release" /></a>
   <img alt="Current version" src="https://img.shields.io/badge/current-v0.1.0-0f172a?style=flat-square" />
@@ -23,13 +24,18 @@
 </p>
 
 <p align="center">
+  <strong>Java artifacts</strong><br />
   <img alt="Java core SDK" src="https://img.shields.io/badge/Java%20core-net.tikeo%3Atikeo%400.1.0--SNAPSHOT-b07219?style=flat-square&logo=openjdk" />
   <img alt="Java Spring 7 SDK" src="https://img.shields.io/badge/Java%20Spring%207-net.tikeo%3Atikeo--spring%400.1.0--SNAPSHOT-b07219?style=flat-square&logo=spring" />
-  <img alt="Java Spring 5 SDK" src="https://img.shields.io/badge/Java%20Spring%205-net.tikeo%3Atikeo--spring5%400.1.0--SNAPSHOT-b07219?style=flat-square&logo=spring" />
   <img alt="Java Spring 6 SDK" src="https://img.shields.io/badge/Java%20Spring%206-net.tikeo%3Atikeo--spring6%400.1.0--SNAPSHOT-b07219?style=flat-square&logo=spring" />
+  <img alt="Java Spring 5 SDK" src="https://img.shields.io/badge/Java%20Spring%205-net.tikeo%3Atikeo--spring5%400.1.0--SNAPSHOT-b07219?style=flat-square&logo=spring" />
   <img alt="Java Spring Boot 4 starter" src="https://img.shields.io/badge/Boot%204%20starter-net.tikeo%3Atikeo--spring--boot--starter%400.1.0--SNAPSHOT-6db33f?style=flat-square&logo=springboot" />
   <img alt="Java Spring Boot 3 starter" src="https://img.shields.io/badge/Boot%203%20starter-net.tikeo%3Atikeo--spring--boot3--starter%400.1.0--SNAPSHOT-6db33f?style=flat-square&logo=springboot" />
   <img alt="Java Spring Boot 2 starter" src="https://img.shields.io/badge/Boot%202%20starter-net.tikeo%3Atikeo--spring--boot2--starter%400.1.0--SNAPSHOT-6db33f?style=flat-square&logo=springboot" />
+</p>
+
+<p align="center">
+  <strong>Other SDKs</strong><br />
   <img alt="Rust SDK" src="https://img.shields.io/badge/Rust%20SDK-tikeo%400.1.0-ce422b?style=flat-square&logo=rust" />
   <img alt="Go SDK" src="https://img.shields.io/badge/Go%20SDK-github.com%2Fyhyzgn%2Ftikeo%2Fsdks%2Fgo%2Ftikeo-00add8?style=flat-square&logo=go" />
   <img alt="Python SDK" src="https://img.shields.io/badge/Python%20SDK-tikeo%400.1.0-3776ab?style=flat-square&logo=python" />
@@ -37,6 +43,7 @@
 </p>
 
 <p align="center">
+  <strong>Runtime &amp; deployment</strong><br />
   <img alt="Server image" src="https://img.shields.io/badge/Docker-yhyzgn%2Ftikeo--server-2563eb?style=flat-square&logo=docker" />
   <img alt="Web image" src="https://img.shields.io/badge/Docker-yhyzgn%2Ftikeo--web-2563eb?style=flat-square&logo=docker" />
   <img alt="Sandbox" src="https://img.shields.io/badge/sandbox-SRT%20%7C%20Deno%20%7C%20WASM%20%7C%20V8-7c3aed?style=flat-square" />
@@ -308,7 +315,287 @@ Storage support:
 All SDKs follow the same rule: SDK diagnostics describe worker/runtime lifecycle; task logs describe a
 specific job instance. That separation prevents unrelated process noise from polluting execution logs.
 
-## Deployment paths
+## Install SDKs from central registries
+
+Use one package per worker service. Every SDK follows the same platform contract: outbound Worker
+Tunnel, structured capabilities, task-scoped logs, retry/result reporting, management APIs, and
+sandbox auto behavior.
+
+| Language | Central registry | Package name | Current install target |
+| --- | --- | --- | --- |
+| Java | Maven Central | `net.tikeo:*` | `0.1.0` release artifacts; local development may use `0.1.0-SNAPSHOT`. |
+| Rust | crates.io | `tikeo` | `0.1.0` |
+| Go | Go module proxy | `github.com/yhyzgn/tikeo/sdks/go/tikeo` | tag-based, for example `v0.1.0` |
+| Python | PyPI | `tikeo` | `0.1.0` |
+| Node.js | npm | `@yhyzgn/tikeo` | `0.1.0` |
+
+### Java / Maven Central
+
+Choose exactly one runtime adapter for each application. Plain Java workers only need the core SDK;
+Spring applications should use the starter matching their Spring Boot generation.
+
+| Artifact | Use it for |
+| --- | --- |
+| `net.tikeo:tikeo` | Plain Java workers, management clients, sandbox tooling, and low-level Worker Tunnel usage. |
+| `net.tikeo:tikeo-spring` | Spring Framework 7 adapter used by Spring Boot 4 applications. |
+| `net.tikeo:tikeo-spring6` | Spring Framework 6 adapter used by Spring Boot 3 applications. |
+| `net.tikeo:tikeo-spring5` | Spring Framework 5 adapter used by Spring Boot 2 applications. |
+| `net.tikeo:tikeo-spring-boot-starter` | Spring Boot 4 auto-configuration starter. |
+| `net.tikeo:tikeo-spring-boot3-starter` | Spring Boot 3 auto-configuration starter. |
+| `net.tikeo:tikeo-spring-boot2-starter` | Spring Boot 2 auto-configuration starter. |
+
+Gradle Kotlin DSL:
+
+```kotlin
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Plain Java worker / management client.
+    implementation("net.tikeo:tikeo:0.1.0")
+
+    // Pick ONE starter when using Spring Boot.
+    implementation("net.tikeo:tikeo-spring-boot-starter:0.1.0")  // Spring Boot 4
+    // implementation("net.tikeo:tikeo-spring-boot3-starter:0.1.0") // Spring Boot 3
+    // implementation("net.tikeo:tikeo-spring-boot2-starter:0.1.0") // Spring Boot 2
+}
+```
+
+Maven:
+
+```xml
+<dependencies>
+  <dependency>
+    <groupId>net.tikeo</groupId>
+    <artifactId>tikeo</artifactId>
+    <version>0.1.0</version>
+  </dependency>
+  <dependency>
+    <groupId>net.tikeo</groupId>
+    <artifactId>tikeo-spring-boot-starter</artifactId>
+    <version>0.1.0</version>
+  </dependency>
+</dependencies>
+```
+
+Spring Boot worker configuration:
+
+```yaml
+tikeo:
+  worker:
+    enabled: true
+    auto-startup: true
+    endpoint: http://127.0.0.1:9998
+    namespace: dev-alpha
+    app: orders
+    worker-pool: java-green
+```
+
+### Rust / crates.io
+
+```bash
+cargo add tikeo@0.1.0
+```
+
+```toml
+[dependencies]
+tikeo = "0.1.0"
+```
+
+### Go / Go module proxy
+
+```bash
+go get github.com/yhyzgn/tikeo/sdks/go/tikeo@v0.1.0
+```
+
+```go
+import "github.com/yhyzgn/tikeo/sdks/go/tikeo"
+```
+
+### Python / PyPI
+
+```bash
+python -m pip install "tikeo==0.1.0"
+```
+
+```python
+from tikeo import Client, local_config
+```
+
+### Node.js / npm
+
+Bun is the default package runner in this repository:
+
+```bash
+bun add @yhyzgn/tikeo@0.1.0
+```
+
+npm and pnpm users can install the same package from the public npm registry:
+
+```bash
+npm install @yhyzgn/tikeo@0.1.0
+pnpm add @yhyzgn/tikeo@0.1.0
+```
+
+```ts
+import { Client, WorkerConfig } from "@yhyzgn/tikeo";
+```
+
+## Run Tikeo services
+
+Tikeo can run as Docker Compose services, direct binaries on conventional servers, systemd services,
+or Kubernetes workloads. The server exposes the HTTP API/web proxy target on `9090` and the Worker
+Tunnel on `9998`; the web console container exposes port `80` internally.
+
+### Docker Compose: SQLite default
+
+Use this for the fastest local product evaluation. It builds the server and web images locally unless
+you override `TIKEO_IMAGE` / `TIKEO_WEB_IMAGE`.
+
+```bash
+cp deploy/compose/tikeo.env.example .env
+DOCKER_BUILDKIT=1 docker compose --env-file .env up -d --build
+curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
+open http://127.0.0.1:${TIKEO_WEB_PORT:-8080}
+```
+
+### Docker Compose: PostgreSQL
+
+```bash
+cp deploy/compose/tikeo.env.example .env
+DOCKER_BUILDKIT=1 docker compose --env-file .env \
+  -f docker-compose.yml \
+  -f docker-compose.postgres.yml \
+  up -d --build
+curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
+```
+
+### Docker Compose: MySQL
+
+```bash
+cp deploy/compose/tikeo.env.example .env
+DOCKER_BUILDKIT=1 docker compose --env-file .env \
+  -f docker-compose.yml \
+  -f docker-compose.mysql.yml \
+  up -d --build
+curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
+```
+
+### Docker without Compose
+
+Run the control plane and web container manually when you already manage the database yourself.
+
+```bash
+docker network create tikeo || true
+docker volume create tikeo-data
+
+docker run -d --name tikeo-server --network tikeo \
+  -p 9090:9090 -p 9998:9998 \
+  -v tikeo-data:/data \
+  -e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc' \
+  yhyzgn/tikeo-server:0.1.0 serve --config /app/config/container.toml
+
+docker run -d --name tikeo-web --network tikeo \
+  -p 8080:80 \
+  yhyzgn/tikeo-web:0.1.0
+
+curl -fsS http://127.0.0.1:9090/readyz
+```
+
+For PostgreSQL/MySQL, replace `TIKEO__STORAGE__DATABASE_URL` with the database URL exposed by your
+platform and keep credentials in your secret manager.
+
+### Non-Docker binary / VM / bare metal
+
+Use this path for conventional servers, VMs, Supervisor, or manually managed process runners.
+Production environments should prefer PostgreSQL or MySQL and durable log directories.
+
+```bash
+cargo build --release --bin tikeo
+install -d ./var/lib/tikeo ./logs
+cp config/dev.toml ./tikeo.toml
+TIKEO__OBSERVABILITY__LOGGING__LOG_DIR=./logs \
+  ./target/release/tikeo serve --config ./tikeo.toml
+curl -fsS http://127.0.0.1:9090/readyz
+```
+
+Systemd deployment uses the checked-in unit files:
+
+```bash
+sudo useradd --system --home /var/lib/tikeo --shell /usr/sbin/nologin tikeo || true
+sudo install -d -o tikeo -g tikeo /opt/tikeo/bin /var/lib/tikeo /var/log/tikeo /etc/tikeo
+sudo install -m 0755 target/release/tikeo /opt/tikeo/bin/tikeo
+sudo install -m 0644 config/container.toml /etc/tikeo/tikeo.toml
+sudo install -m 0644 deploy/systemd/tikeo.env /etc/tikeo/tikeo.env
+sudo install -m 0644 deploy/systemd/tikeo.service /etc/systemd/system/tikeo.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now tikeo
+systemctl status tikeo --no-pager
+```
+
+### Kubernetes manifests and operator
+
+Use Kubernetes when the control plane should run inside a cluster and workers connect from business
+namespaces or external services. Start with Helm for normal installs; use the CRD/operator path when
+you want GitOps drift review through `TikeoManifest` resources.
+
+```bash
+kubectl create namespace tikeo --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f deploy/k8s/crd/tikeo-manifest-crd.yaml
+kubectl get crd | grep tikeo
+```
+
+For a simple Kubernetes smoke deployment without Helm, apply the checked-in manifest:
+
+```bash
+kubectl apply -f deploy/k8s/tikeo.yaml
+kubectl -n tikeo rollout status deploy/tikeo-server
+kubectl -n tikeo rollout status deploy/tikeo-web
+```
+
+The operator directory contains the controller implementation, RBAC sample, and `TikeoManifest`
+sample for the GitOps diff flow:
+
+```bash
+kubectl apply -f deploy/k8s/crd/tikeo-manifest-crd.yaml
+kubectl -n tikeo apply -f deploy/k8s/operator/config/rbac/role.yaml
+kubectl -n tikeo apply -f deploy/k8s/operator/config/samples/tikeo-manifest.yaml
+```
+
+Run the controller according to `deploy/k8s/operator/README.md` or package it as the release
+operator image for your cluster.
+
+### Helm
+
+Install from the local chart during development:
+
+```bash
+helm upgrade --install tikeo ./deploy/helm/tikeo \
+  --namespace tikeo \
+  --create-namespace
+kubectl -n tikeo rollout status deploy/tikeo-server
+kubectl -n tikeo rollout status deploy/tikeo-web
+```
+
+Install a pinned release image set:
+
+```bash
+helm upgrade --install tikeo ./deploy/helm/tikeo \
+  --namespace tikeo \
+  --create-namespace   --set server.image.repository=yhyzgn/tikeo-server   --set server.image.tag=0.1.0   --set web.image.repository=yhyzgn/tikeo-web   --set web.image.tag=0.1.0
+```
+
+Production clusters should override database settings, ingress/TLS, secret references, resource
+requests, log collection, and OpenTelemetry endpoints in a values file:
+
+```bash
+helm upgrade --install tikeo ./deploy/helm/tikeo \
+  --namespace tikeo \
+  --create-namespace   --values ./my-tikeo-values.yaml
+```
+
+### Deployment paths
 
 | Path | Use it when |
 | --- | --- |
