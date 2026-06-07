@@ -83,9 +83,8 @@ impl SdkLogConfig {
     /// Return configuration from `TIKEO_SDK_LOG_LEVEL` and `TIKEO_SDK_LOG_DIR`.
     #[must_use]
     pub fn from_env() -> Self {
-        let level = std::env::var("TIKEO_SDK_LOG_LEVEL")
-            .map(SdkLogLevel::parse)
-            .unwrap_or(SdkLogLevel::Info);
+        let level =
+            std::env::var("TIKEO_SDK_LOG_LEVEL").map_or(SdkLogLevel::Info, SdkLogLevel::parse);
         let log_dir = std::env::var("TIKEO_SDK_LOG_DIR")
             .ok()
             .map(|value| value.trim().to_owned())
@@ -164,7 +163,7 @@ pub fn configure_sdk_logging(config: SdkLogConfig) -> bool {
     SDK_LOGGER.set(Mutex::new(SdkLogger::new(config))).is_ok()
 }
 
-pub(crate) fn sdk_log(level: SdkLogLevel, message: impl AsRef<str>) {
+pub fn sdk_log(level: SdkLogLevel, message: impl AsRef<str>) {
     let logger = SDK_LOGGER.get_or_init(|| Mutex::new(SdkLogger::new(SdkLogConfig::from_env())));
     if let Ok(mut guard) = logger.lock() {
         guard.log(level, message.as_ref());

@@ -9,11 +9,11 @@ tests, sources JAR, and Maven publication so Spring Boot 2/3/4 compatibility sta
 | --- | --- |
 | `tikeo` | Native Java Worker Tunnel client, task contracts, sandbox tools, and management API client. |
 | `tikeo-spring` | Spring Framework 7 adapter for the primary Spring Boot 4 starter. |
-| `tikeo-spring5` | Spring Framework 5 adapter for Spring Boot 2 applications. |
-| `tikeo-spring6` | Spring Framework 6 adapter for Spring Boot 3 applications. |
-| `tikeo-spring-boot-starter` | Primary Spring Boot 4 starter. |
-| `tikeo-spring-boot2-starter` | Spring Boot 2 compatibility starter. |
-| `tikeo-spring-boot3-starter` | Spring Boot 3 compatibility starter. |
+| `tikeo-spring5` | Spring Framework 5 adapter for Spring Boot 2.x projects. |
+| `tikeo-spring6` | Spring Framework 6 adapter for Spring Boot 3.x projects. |
+| `tikeo-spring-boot-starter` | primary Spring Boot 4.x starter. |
+| `tikeo-spring-boot2-starter` | Spring Boot 2.x projects compatibility starter. |
+| `tikeo-spring-boot3-starter` | Spring Boot 3.x projects compatibility starter. |
 
 ## Usage
 
