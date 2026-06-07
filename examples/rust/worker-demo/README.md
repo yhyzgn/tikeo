@@ -1,6 +1,6 @@
 # Rust Worker demo 🦀
 
-[🇨🇳 中文示例文档](../../../docs/zh-CN/examples.md)
+[🇨🇳 中文示例文档](../../../README.zh-CN.md#能证明产品价值的快速开始)
 
 Runnable demo for `sdks/rust/tikeo`, aligned with Java, Go, Python, and Node.js acceptance scopes.
 

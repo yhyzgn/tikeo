@@ -1,6 +1,6 @@
 # Python Worker demo 🐍
 
-[🇨🇳 中文示例文档](../../../docs/zh-CN/examples.md)
+[🇨🇳 中文示例文档](../../../README.zh-CN.md#能证明产品价值的快速开始)
 
 This demo validates Python SDK parity with the Rust, Go, Node.js, and Java workers.
 

@@ -1,6 +1,6 @@
 # Tikeo Go Worker SDK 🐹
 
-[🇨🇳 中文 SDK 文档](../../../docs/zh-CN/sdk.md)
+[🇨🇳 中文 SDK 文档](../../../README.zh-CN.md#行为一致的-sdk)
 
 Go SDK for active outbound Worker Tunnel clients and app-scoped management APIs.
 

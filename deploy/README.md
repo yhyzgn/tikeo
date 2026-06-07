@@ -1,6 +1,6 @@
 # Tikeo deployment 🚢
 
-[🇨🇳 中文部署文档](../docs/zh-CN/deployment.md)
+[🇨🇳 中文部署文档](../README.zh-CN.md#运行-tikeo-服务)
 
 Tikeo ships deployment assets for local validation, VM/bare-metal operation, Kubernetes, and IaC/GitOps workflows.
 

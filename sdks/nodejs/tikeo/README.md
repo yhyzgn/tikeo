@@ -1,6 +1,6 @@
 # @yhyzgn/tikeo 🟢
 
-[🇨🇳 中文 SDK 文档](../../../docs/zh-CN/sdk.md)
+[🇨🇳 中文 SDK 文档](../../../README.zh-CN.md#行为一致的-sdk)
 
 Node.js SDK aligned with the Rust, Go, Java, and Python Worker SDKs.
 

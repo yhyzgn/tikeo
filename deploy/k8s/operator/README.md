@@ -1,6 +1,6 @@
 # Tikeo K8s CRD controller/operator 🤖
 
-[🇨🇳 中文部署文档](../../../docs/zh-CN/deployment.md)
+[🇨🇳 中文部署文档](../../../README.zh-CN.md#运行-tikeo-服务)
 
 The operator watches `TikeoManifest` resources, calls the Tikeo GitOps diff API, and writes status
 evidence for drift review.

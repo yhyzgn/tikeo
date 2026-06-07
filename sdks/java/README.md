@@ -1,6 +1,6 @@
 # Tikeo Java SDKs ☕
 
-[🇨🇳 中文 SDK 文档](../../docs/zh-CN/sdk.md)
+[🇨🇳 中文 SDK 文档](../../README.zh-CN.md#行为一致的-sdk)
 
 Java SDK modules are published as independent Gradle subprojects. Each module owns its dependencies,
 tests, sources JAR, and Maven publication so Spring Boot 2/3/4 compatibility stays explicit.

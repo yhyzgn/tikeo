@@ -1,6 +1,6 @@
 # Tikeo Go SDKs 🐹
 
-[🇨🇳 中文 SDK 文档](../../docs/zh-CN/sdk.md)
+[🇨🇳 中文 SDK 文档](../../README.zh-CN.md#行为一致的-sdk)
 
 Go SDK packages are independently buildable modules for worker services and platform automation.
 

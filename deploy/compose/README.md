@@ -1,6 +1,6 @@
 # Docker Compose deployment 🐳
 
-[🇨🇳 中文部署文档](../../docs/zh-CN/deployment.md)
+[🇨🇳 中文部署文档](../../README.zh-CN.md#运行-tikeo-服务)
 
 The root `docker-compose.yml` is the canonical SQLite stack. `docker-compose.postgres.yml` and
 `docker-compose.mysql.yml` are complete standalone server + web + database stacks for validating

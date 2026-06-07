@@ -1,6 +1,6 @@
 # Tikeo SDKs 🧩
 
-[🇨🇳 中文 SDK 文档](../docs/zh-CN/sdk.md)
+[🇨🇳 中文 SDK 文档](../README.zh-CN.md#行为一致的-sdk)
 
 Tikeo SDKs are language-specific implementations of the same worker and management contracts. The
 language may change; the behavior must not.

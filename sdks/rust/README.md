@@ -1,6 +1,6 @@
 # Tikeo Rust SDKs 🦀
 
-[🇨🇳 中文 SDK 文档](../../docs/zh-CN/sdk.md)
+[🇨🇳 中文 SDK 文档](../../README.zh-CN.md#行为一致的-sdk)
 
 Rust SDK packages are self-contained crates suitable for crates.io publishing. They must not depend
 on repository-local server crates.

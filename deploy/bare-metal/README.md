@@ -1,6 +1,6 @@
 # Bare-metal / VM bootstrap 🖥️
 
-[🇨🇳 中文部署文档](../../docs/zh-CN/deployment.md)
+[🇨🇳 中文部署文档](../../README.zh-CN.md#运行-tikeo-服务)
 
 Use this path for conventional servers, VMs, Supervisor, or manually managed process runners.
 

@@ -1,6 +1,6 @@
 # Tikeo Node.js SDKs 🟢
 
-[🇨🇳 中文 SDK 文档](../../docs/zh-CN/sdk.md)
+[🇨🇳 中文 SDK 文档](../../README.zh-CN.md#行为一致的-sdk)
 
 Node.js SDKs are built with Bun by default and published under the `@yhyzgn` npm scope.
 

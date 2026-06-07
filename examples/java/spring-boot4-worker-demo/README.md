@@ -1,6 +1,6 @@
 # Spring Boot 4 Worker demo ☕
 
-[🇨🇳 中文示例文档](../../../docs/zh-CN/examples.md)
+[🇨🇳 中文示例文档](../../../README.zh-CN.md#能证明产品价值的快速开始)
 
 This demo validates the Tikeo Java SDK and the Spring Boot 4.x starter line with `tikeo-spring-boot-starter`.
 

@@ -1,6 +1,6 @@
 # systemd deployment ⚙️
 
-[🇨🇳 中文部署文档](../../docs/zh-CN/deployment.md)
+[🇨🇳 中文部署文档](../../README.zh-CN.md#运行-tikeo-服务)
 
 Systemd units run Tikeo as a normal Linux service with explicit state, config, and log directories.
 

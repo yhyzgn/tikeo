@@ -1,6 +1,6 @@
 # Tikeo Python Worker SDK 🐍
 
-[🇨🇳 中文 SDK 文档](../../../docs/zh-CN/sdk.md)
+[🇨🇳 中文 SDK 文档](../../../README.zh-CN.md#行为一致的-sdk)
 
 Python SDK aligned with the Java, Rust, Go, and Node.js Worker SDKs.
 

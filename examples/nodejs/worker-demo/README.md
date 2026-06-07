@@ -1,6 +1,6 @@
 # Node.js Worker demo 🟢
 
-[🇨🇳 中文示例文档](../../../docs/zh-CN/examples.md)
+[🇨🇳 中文示例文档](../../../README.zh-CN.md#能证明产品价值的快速开始)
 
 This Bun-powered demo validates the Node.js SDK against the same manual acceptance matrix as the
 Rust, Go, Python, and Java demos.

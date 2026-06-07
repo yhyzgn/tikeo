@@ -1,6 +1,6 @@
 # Go Worker demo 🐹
 
-[🇨🇳 中文示例文档](../../../docs/zh-CN/examples.md)
+[🇨🇳 中文示例文档](../../../README.zh-CN.md#能证明产品价值的快速开始)
 
 This demo validates Go SDK parity with the Java, Rust, Python, and Node.js workers.
 

@@ -1,6 +1,6 @@
 # Kubernetes deployment ☸️
 
-[🇨🇳 中文部署文档](../../docs/zh-CN/deployment.md)
+[🇨🇳 中文部署文档](../../README.zh-CN.md#运行-tikeo-服务)
 
 Tikeo runs server and web as separate workloads. Workers should run in business namespaces or
 clusters and initiate outbound gRPC connections to the Worker Tunnel endpoint.

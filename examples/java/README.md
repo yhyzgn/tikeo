@@ -1,6 +1,6 @@
 # Java examples ☕
 
-[🇨🇳 中文示例文档](../../docs/zh-CN/examples.md)
+[🇨🇳 中文示例文档](../../README.zh-CN.md#能证明产品价值的快速开始)
 
 Java examples are split by Spring Boot major version so each demo validates the matching starter
 artifact and dependency constraints.
