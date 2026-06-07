@@ -6,7 +6,7 @@
 <p align="center"><strong>The open-source task orchestration platform for teams that have outgrown legacy job schedulers.</strong></p>
 
 <p align="center">
-  <a href="docs/zh-CN/README.md">🇨🇳 中文文档</a> ·
+  <a href="README.zh-CN.md">🇨🇳 中文文档</a> ·
   <a href="deploy/compose/README.md">🐳 Docker Compose</a> ·
   <a href="sdks/README.md">🧩 SDKs</a> ·
   <a href="examples/README.md">🚀 Examples</a> ·
@@ -15,8 +15,24 @@
 </p>
 
 <p align="center">
-  <img alt="Rust" src="https://img.shields.io/badge/core-Rust-0f172a?style=flat-square&logo=rust" />
-  <img alt="5 SDKs" src="https://img.shields.io/badge/SDKs-5%20languages-2563eb?style=flat-square" />
+  <a href="https://github.com/yhyzgn/tikeo/actions/workflows/ci.yml"><img alt="CI build" src="https://img.shields.io/github/actions/workflow/status/yhyzgn/tikeo/ci.yml?branch=main&style=flat-square&label=CI%20build" /></a>
+  <a href="https://github.com/yhyzgn/tikeo/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/yhyzgn/tikeo?include_prereleases&style=flat-square&label=release" /></a>
+  <img alt="Current version" src="https://img.shields.io/badge/current-v0.1.0-0f172a?style=flat-square" />
+  <img alt="Coverage" src="https://img.shields.io/badge/coverage-report%20pending-f97316?style=flat-square" />
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/yhyzgn/tikeo?style=flat-square" /></a>
+</p>
+
+<p align="center">
+  <img alt="Java SDK" src="https://img.shields.io/badge/Java%20SDK-net.tikeo%3Atikeo%400.1.0--SNAPSHOT-b07219?style=flat-square&logo=openjdk" />
+  <img alt="Rust SDK" src="https://img.shields.io/badge/Rust%20SDK-tikeo%400.1.0-ce422b?style=flat-square&logo=rust" />
+  <img alt="Go SDK" src="https://img.shields.io/badge/Go%20SDK-github.com%2Fyhyzgn%2Ftikeo%2Fsdks%2Fgo%2Ftikeo-00add8?style=flat-square&logo=go" />
+  <img alt="Python SDK" src="https://img.shields.io/badge/Python%20SDK-tikeo%400.1.0-3776ab?style=flat-square&logo=python" />
+  <img alt="Node.js SDK" src="https://img.shields.io/badge/Node.js%20SDK-%40yhyzgn%2Ftikeo%400.1.0-339933?style=flat-square&logo=nodedotjs" />
+</p>
+
+<p align="center">
+  <img alt="Server image" src="https://img.shields.io/badge/Docker-yhyzgn%2Ftikeo--server-2563eb?style=flat-square&logo=docker" />
+  <img alt="Web image" src="https://img.shields.io/badge/Docker-yhyzgn%2Ftikeo--web-2563eb?style=flat-square&logo=docker" />
   <img alt="Sandbox" src="https://img.shields.io/badge/sandbox-SRT%20%7C%20Deno%20%7C%20WASM%20%7C%20V8-7c3aed?style=flat-square" />
   <img alt="Databases" src="https://img.shields.io/badge/storage-SQLite%20%7C%20Postgres%20%7C%20MySQL-0891b2?style=flat-square" />
   <img alt="Observability" src="https://img.shields.io/badge/observability-OpenTelemetry-0f766e?style=flat-square" />
