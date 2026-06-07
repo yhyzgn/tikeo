@@ -15,7 +15,6 @@
 </p>
 
 <p align="center">
-  <strong>Build &amp; release</strong><br />
   <a href="https://github.com/yhyzgn/tikeo/actions/workflows/ci.yml"><img alt="CI build" src="https://img.shields.io/github/actions/workflow/status/yhyzgn/tikeo/ci.yml?branch=main&style=flat-square&label=CI%20build" /></a>
   <a href="https://github.com/yhyzgn/tikeo/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/yhyzgn/tikeo?include_prereleases&style=flat-square&label=release" /></a>
   <img alt="Current version" src="https://img.shields.io/badge/current-v0.1.0-0f172a?style=flat-square" />
@@ -24,7 +23,6 @@
 </p>
 
 <p align="center">
-  <strong>Java artifacts</strong><br />
   <img alt="Java core SDK" src="https://img.shields.io/badge/Java%20core-net.tikeo%3Atikeo%400.1.0--SNAPSHOT-b07219?style=flat-square&logo=openjdk" />
   <img alt="Java Spring 7 SDK" src="https://img.shields.io/badge/Java%20Spring%207-net.tikeo%3Atikeo--spring%400.1.0--SNAPSHOT-b07219?style=flat-square&logo=spring" />
   <img alt="Java Spring 6 SDK" src="https://img.shields.io/badge/Java%20Spring%206-net.tikeo%3Atikeo--spring6%400.1.0--SNAPSHOT-b07219?style=flat-square&logo=spring" />
@@ -35,7 +33,6 @@
 </p>
 
 <p align="center">
-  <strong>Other SDKs</strong><br />
   <img alt="Rust SDK" src="https://img.shields.io/badge/Rust%20SDK-tikeo%400.1.0-ce422b?style=flat-square&logo=rust" />
   <img alt="Go SDK" src="https://img.shields.io/badge/Go%20SDK-github.com%2Fyhyzgn%2Ftikeo%2Fsdks%2Fgo%2Ftikeo-00add8?style=flat-square&logo=go" />
   <img alt="Python SDK" src="https://img.shields.io/badge/Python%20SDK-tikeo%400.1.0-3776ab?style=flat-square&logo=python" />
@@ -43,7 +40,6 @@
 </p>
 
 <p align="center">
-  <strong>Runtime &amp; deployment</strong><br />
   <img alt="Server image" src="https://img.shields.io/badge/Docker-yhyzgn%2Ftikeo--server-2563eb?style=flat-square&logo=docker" />
   <img alt="Web image" src="https://img.shields.io/badge/Docker-yhyzgn%2Ftikeo--web-2563eb?style=flat-square&logo=docker" />
   <img alt="Sandbox" src="https://img.shields.io/badge/sandbox-SRT%20%7C%20Deno%20%7C%20WASM%20%7C%20V8-7c3aed?style=flat-square" />
