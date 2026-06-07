@@ -58,7 +58,9 @@ jobs:
           mkdir -p "dist/$PKG/crate" "dist/$PKG/docs"
           cp sdks/rust/tikeo/target/package/*.crate "dist/$PKG/crate/"
           cp sdks/rust/README.md "dist/$PKG/docs/README-rust-workspace.md"
+          cp sdks/rust/LICENSE "dist/$PKG/docs/LICENSE-rust-workspace"
           cp sdks/rust/tikeo/README.md "dist/$PKG/docs/README-tikeo-crate.md"
+          cp sdks/rust/tikeo/LICENSE "dist/$PKG/docs/LICENSE-tikeo-crate"
           tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
       - name: Publish Rust SDK to crates.io
         env:

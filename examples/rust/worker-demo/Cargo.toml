@@ -3,7 +3,7 @@ name = "tikeo-rust-worker-demo"
 description = "Runnable Rust worker SDK demo."
 edition = "2024"
 version = "0.1.0"
-license = "Apache-2.0"
+license = "MIT"
 publish = false
 
 [dependencies]

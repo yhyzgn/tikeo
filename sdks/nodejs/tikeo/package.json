@@ -15,7 +15,8 @@
   "files": [
     "dist",
     "src/proto/worker.proto",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && mkdir -p dist/proto && cp src/proto/worker.proto dist/proto/worker.proto",
@@ -30,7 +31,7 @@
     "@types/node": "latest",
     "typescript": "latest"
   },
-  "license": "Apache-2.0",
+  "license": "MIT",
   "author": "tikeo contributors",
   "repository": {
     "type": "git",

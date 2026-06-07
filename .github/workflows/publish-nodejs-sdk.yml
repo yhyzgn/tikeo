@@ -83,7 +83,7 @@ jobs:
           PKG="nodejs-sdk-${VERSION}"
           mkdir -p "dist/$PKG"
           cp dist/yhyzgn-tikeo-*.tgz "dist/$PKG/"
-          cp -R sdks/nodejs/tikeo/README.md sdks/nodejs/tikeo/package.json "dist/$PKG/"
+          cp -R sdks/nodejs/tikeo/README.md sdks/nodejs/tikeo/LICENSE sdks/nodejs/tikeo/package.json "dist/$PKG/"
           tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
       - name: Publish Node.js SDK to npm via trusted publishing
         working-directory: sdks/nodejs/tikeo

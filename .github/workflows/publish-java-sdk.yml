@@ -188,7 +188,7 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           PKG="java-sdk-${VERSION}"
           mkdir -p "dist/$PKG"
-          cp -R sdks/java/README.md sdks/java/settings.gradle.kts sdks/java/build.gradle.kts sdks/java/gradle.properties "dist/$PKG/"
+          cp -R sdks/java/README.md sdks/java/LICENSE sdks/java/settings.gradle.kts sdks/java/build.gradle.kts sdks/java/gradle.properties "dist/$PKG/"
           find sdks/java -path '*/build/libs/*.jar' -type f -print -exec cp {} "dist/$PKG/" \;
           tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
       - name: Upload Java SDK package to GitHub Release

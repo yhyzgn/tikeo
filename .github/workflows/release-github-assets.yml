@@ -114,6 +114,7 @@ jobs:
           mkdir -p "dist/$PKG/config" "dist/$PKG/deploy"
           cp "target/${{ matrix.target }}/release/${{ matrix.binary_name }}" "dist/$PKG/${{ matrix.binary_name }}"
           cp README.md "dist/$PKG/README.md"
+          cp LICENSE "dist/$PKG/LICENSE"
           cp -R config/. "dist/$PKG/config/"
           cp deploy/compose/tikeo.env.example "dist/$PKG/deploy/tikeo.env.example"
           cp docker-compose.yml "dist/$PKG/docker-compose.yml"
@@ -159,6 +160,7 @@ jobs:
           cp -R web/dist "dist/$PKG/dist"
           cp -R web/nginx "dist/$PKG/nginx"
           cp web/Dockerfile "dist/$PKG/Dockerfile"
+          cp web/LICENSE "dist/$PKG/LICENSE"
           tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
       - uses: actions/upload-artifact@v6
         with:

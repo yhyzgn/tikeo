@@ -18,7 +18,7 @@
   <a href="https://github.com/yhyzgn/tikeo/actions/workflows/ci.yml"><img alt="CI build" src="https://img.shields.io/github/actions/workflow/status/yhyzgn/tikeo/ci.yml?branch=main&style=flat-square&label=CI%20build&logo=githubactions&logoColor=white&color=2088FF" /></a>
   <a href="https://github.com/yhyzgn/tikeo/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/yhyzgn/tikeo?include_prereleases&style=flat-square&label=release&logo=github&logoColor=white&color=181717" /></a>
   <img alt="Coverage" src="https://img.shields.io/badge/coverage-report%20pending-F97316?style=flat-square&logo=codecov&logoColor=white" />
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/yhyzgn/tikeo?style=flat-square&label=license&logo=apache&logoColor=white&color=D22128" /></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/yhyzgn/tikeo?style=flat-square&label=license&logo=opensourceinitiative&logoColor=white&color=3DA639" /></a>
 </p>
 
 <p align="center">
@@ -32,7 +32,7 @@
 </p>
 
 <p align="center">
-  <a href="https://crates.io/crates/tikeo"><img alt="Rust SDK" src="https://img.shields.io/crates/v/tikeo?style=flat-square&label=Rust%20SDK&logo=rust&logoColor=white&color=000000" /></a>
+  <a href="https://crates.io/crates/tikeo"><img alt="Rust SDK" src="https://img.shields.io/crates/v/tikeo?style=flat-square&label=Rust%20SDK&logo=rust&logoColor=white&color=B7410E" /></a>
   <a href="https://pkg.go.dev/github.com/yhyzgn/tikeo/sdks/go/tikeo"><img alt="Go SDK" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fproxy.golang.org%2Fgithub.com%2Fyhyzgn%2Ftikeo%2Fsdks%2Fgo%2Ftikeo%2F%40latest&query=%24.Version&style=flat-square&label=Go%20SDK&logo=go&logoColor=white&color=00ADD8" /></a>
   <a href="https://pypi.org/project/tikeo/"><img alt="Python SDK" src="https://img.shields.io/pypi/v/tikeo?style=flat-square&label=Python%20SDK&logo=python&logoColor=white&color=3776AB" /></a>
   <a href="https://www.npmjs.com/package/@yhyzgn/tikeo"><img alt="Node.js SDK" src="https://img.shields.io/npm/v/@yhyzgn/tikeo/next?style=flat-square&label=Node.js%20SDK&logo=nodedotjs&logoColor=white&color=339933" /></a>
@@ -638,4 +638,4 @@ cargo test --workspace
 
 ## License
 
-Apache-2.0. Build boldly, operate carefully, and keep execution evidence precise.
+MIT. Build boldly, operate carefully, and keep execution evidence precise.

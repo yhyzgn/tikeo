@@ -72,7 +72,7 @@ jobs:
           PKG="python-sdk-${VERSION}"
           mkdir -p "dist/$PKG"
           cp sdks/python/tikeo/dist/* "dist/$PKG/"
-          cp -R sdks/python/tikeo/README.md sdks/python/tikeo/pyproject.toml "dist/$PKG/"
+          cp -R sdks/python/tikeo/README.md sdks/python/tikeo/LICENSE sdks/python/tikeo/pyproject.toml "dist/$PKG/"
           tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
       - name: Publish Python SDK to PyPI when configured
         env:

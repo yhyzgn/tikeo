@@ -63,7 +63,7 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           PKG="go-sdk-${VERSION}"
           mkdir -p "dist/$PKG/examples/go"
-          tar -C sdks/go -czf /tmp/tikeo-go-sdk.tar.gz README.md tikeo
+          tar -C sdks/go -czf /tmp/tikeo-go-sdk.tar.gz README.md LICENSE tikeo
           tar -C "dist/$PKG" -xzf /tmp/tikeo-go-sdk.tar.gz
           tar -C examples/go -czf /tmp/tikeo-go-demo.tar.gz worker-demo
           tar -C "dist/$PKG/examples/go" -xzf /tmp/tikeo-go-demo.tar.gz
