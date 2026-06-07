@@ -59,20 +59,28 @@ jobs:
         run: cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
       - name: Package Rust SDK crate
         run: cargo package --manifest-path sdks/rust/tikeo/Cargo.toml --allow-dirty
-      - name: Publish Rust SDK to crates.io
-        env:
-          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-        run: cargo publish --manifest-path sdks/rust/tikeo/Cargo.toml --token "$CRATES_IO_TOKEN" --allow-dirty
       - name: Stage Rust SDK release payload
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
           PKG="rust-sdk-${VERSION}"
-          mkdir -p "dist/$PKG"
-          cp sdks/rust/tikeo/target/package/*.crate "dist/$PKG/"
-          cp -R sdks/rust/README.md sdks/rust/tikeo/README.md "dist/$PKG/"
+          mkdir -p "dist/$PKG/crate" "dist/$PKG/docs"
+          cp sdks/rust/tikeo/target/package/*.crate "dist/$PKG/crate/"
+          cp sdks/rust/README.md "dist/$PKG/docs/README-rust-workspace.md"
+          cp sdks/rust/tikeo/README.md "dist/$PKG/docs/README-tikeo-crate.md"
           tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
+      - name: Publish Rust SDK to crates.io
+        env:
+          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRATES_IO_TOKEN:-}" ]; then
+            echo "CRATES_IO_TOKEN is not configured; skipping crates.io publish."
+            exit 0
+          fi
+          cargo publish --manifest-path sdks/rust/tikeo/Cargo.toml --token "$CRATES_IO_TOKEN" --allow-dirty
       - name: Upload Rust SDK package to GitHub Release
+        if: always()
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
