@@ -48,6 +48,8 @@ jobs:
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "module_tag=$MODULE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Confirm Go SDK tag-based version
+        run: python scripts/set-release-version.py "${{ steps.version.outputs.version }}" --tag "${{ steps.version.outputs.tag }}" --scope go
       - name: Test Go SDK
         working-directory: sdks/go/tikeo
         run: go test ./... -count=1

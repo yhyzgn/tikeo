@@ -39,16 +39,7 @@ jobs:
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Set Python SDK version from tag
-        run: |
-          python - <<'PY'
-          import re
-          from pathlib import Path
-          version = '${{ steps.version.outputs.version }}'
-          p = Path('sdks/python/tikeo/pyproject.toml')
-          s = p.read_text()
-          s = re.sub(r'(?m)^version = "[^"]+"', f'version = "{version}"', s, count=1)
-          p.write_text(s)
-          PY
+        run: python scripts/set-release-version.py "${{ steps.version.outputs.version }}" --tag "${{ steps.version.outputs.tag }}" --scope python
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'

@@ -39,6 +39,8 @@ jobs:
           VERSION="${RELEASE_TAG#v}"
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Set Node.js SDK version from tag
+        run: python scripts/set-release-version.py "${{ steps.version.outputs.version }}" --tag "${{ steps.version.outputs.tag }}" --scope nodejs
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -68,17 +70,6 @@ jobs:
           TIKEO_WORKER_DRY_RUN: '1'
           TIKEO_SANDBOX_AUTO_INSTALL: '0'
         run: bun start
-      - name: Set Node.js SDK version from tag
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          version = '${{ steps.version.outputs.version }}'
-          p = Path('sdks/nodejs/tikeo/package.json')
-          data = json.loads(p.read_text())
-          data['version'] = version
-          p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + '\n')
-          PY
       - name: Pack Node.js SDK
         working-directory: sdks/nodejs/tikeo
         run: |

@@ -45,16 +45,7 @@ jobs:
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Set Rust SDK version from tag
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          version = '${{ steps.version.outputs.version }}'
-          p = Path('sdks/rust/tikeo/Cargo.toml')
-          s = p.read_text()
-          import re
-          s = re.sub(r'(?m)^version = "[^"]+"', f'version = "{version}"', s, count=1)
-          p.write_text(s)
-          PY
+        run: python scripts/set-release-version.py "${{ steps.version.outputs.version }}" --tag "${{ steps.version.outputs.tag }}" --scope rust
       - name: Test Rust SDK
         run: cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
       - name: Package Rust SDK crate

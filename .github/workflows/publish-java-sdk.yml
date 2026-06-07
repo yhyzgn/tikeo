@@ -43,9 +43,11 @@ jobs:
           VERSION="${RELEASE_TAG#v}"
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Set Java SDK version from tag
+        run: python scripts/set-release-version.py "${{ steps.version.outputs.version }}" --tag "${{ steps.version.outputs.tag }}" --scope java
       - name: Test Java SDK
         working-directory: sdks/java
-        run: ./gradlew test --no-daemon -PtikeoVersion=${{ steps.version.outputs.version }}
+        run: ./gradlew test --no-daemon
       - name: Normalize Maven signing key
         env:
           MAVEN_SIGNING_KEY_RAW: ${{ secrets.MAVEN_SIGNING_KEY }}
@@ -179,7 +181,7 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MAVEN_SIGNING_PASSWORD }}
-        run: ./gradlew publishAndReleaseToMavenCentral --no-daemon -PtikeoVersion=${{ steps.version.outputs.version }}
+        run: ./gradlew publishAndReleaseToMavenCentral --no-daemon
       - name: Package Java SDK jars
         run: |
           set -euo pipefail

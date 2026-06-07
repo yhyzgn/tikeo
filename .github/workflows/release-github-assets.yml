@@ -258,31 +258,20 @@ jobs:
               rm -rf "dist/$pkg"
             fi
           done
-      - name: Package K8s manifests and Helm chart
+      - name: Package K8s manifests, compose files, and Helm chart
         shell: bash
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
           RELEASE_TAG="${{ steps.version.outputs.tag }}"
-          python - <<'PY'
-          from pathlib import Path
-          version = '${{ steps.version.outputs.version }}'
-          tag = '${{ steps.version.outputs.tag }}'
-          chart = Path('deploy/helm/tikeo/Chart.yaml')
-          s = chart.read_text()
-          import re
-          s = re.sub(r'(?m)^version: .+$', f'version: {version}', s)
-          s = re.sub(r'(?m)^appVersion: .+$', f'appVersion: "{version}"', s)
-          chart.write_text(s)
-          values = Path('deploy/helm/tikeo/values.yaml')
-          s = values.read_text()
-          s = re.sub(r'(?m)^(\s*tag: ).+$', rf'\1{tag}', s)
-          values.write_text(s)
-          PY
+          python scripts/set-release-version.py "$VERSION" --tag "$RELEASE_TAG" --scope workspace
           helm lint deploy/helm/tikeo
           helm package deploy/helm/tikeo --destination dist
           cp deploy/k8s/tikeo.yaml "dist/tikeo-k8s-manifest-${VERSION}.yaml"
           cp deploy/k8s/crd/tikeo-manifest-crd.yaml "dist/tikeo-manifest-crd-${VERSION}.yaml"
+          cp docker-compose.yml "dist/tikeo-docker-compose-sqlite-${VERSION}.yml"
+          cp docker-compose.postgres.yml "dist/tikeo-docker-compose-postgres-${VERSION}.yml"
+          cp docker-compose.mysql.yml "dist/tikeo-docker-compose-mysql-${VERSION}.yml"
           tar -C deploy -czf "dist/tikeo-deploy-sources-${VERSION}.tar.gz" terraform k8s helm gitops systemd compose bare-metal README.md
       - uses: actions/upload-artifact@v6
         with:
@@ -292,6 +281,7 @@ jobs:
             dist/*.zip
             dist/*.tgz
             dist/*.yaml
+            dist/*.yml
           if-no-files-found: error
 
   github-release:
