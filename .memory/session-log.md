@@ -2161,3 +2161,18 @@ Verification:
 
 Git:
 - Pending commit/push at the time of this memory update.
+
+
+## 2026-06-08 — Codecov upload verified
+
+Agent:
+- Codex
+
+Verification:
+- Remote Coverage workflow run `27121393205` completed successfully for commit `6a2bf48`.
+- Rust LCOV generation, Codecov CLI install, and Codecov upload all passed.
+- Codecov badge endpoint `https://codecov.io/gh/yhyzgn/tikeo/branch/main/graph/badge.svg?flag=rust` returned `84%` after upload.
+
+Result:
+- The remote `CODECOV_TOKEN` configuration is valid for Rust workspace coverage uploads.
+- Current badge represents the Rust coverage flag, not full monorepo coverage.
