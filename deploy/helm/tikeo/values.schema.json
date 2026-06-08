@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://tikeo.yhyzgn.com/helm/values.schema.json",
+  "title": "Tikeo Helm values",
+  "description": "values.schema.json",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "namespaceOverride": { "type": "string" },
+    "imagePullSecrets": { "type": "array" },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "serviceMonitor": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "interval": { "type": "string" },
+        "scrapeTimeout": { "type": "string" },
+        "path": { "type": "string" }
+      }
+    },
+    "gatewayApi": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "server": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 1 },
+        "httpPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "workerTunnelPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "storage": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "mode": { "type": "string", "enum": ["sqlite", "external"] },
+            "databaseUrl": { "type": "string", "minLength": 1 },
+            "existingSecret": { "type": "string" },
+            "databaseUrlSecretKey": { "type": "string", "minLength": 1 },
+            "persistence": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "size": { "type": "string", "minLength": 1 },
+                "accessModes": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "required": ["mode", "databaseUrlSecretKey"]
+        }
+      }
+    },
+    "web": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 1 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    }
+  }
+}

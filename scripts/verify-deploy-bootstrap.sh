@@ -8,6 +8,13 @@ test -x deploy/bare-metal/check-config.sh
 test -f deploy/helm/tikeo/values.yaml
 test -f deploy/helm/tikeo/examples/values-external-postgres.yaml
 test -f deploy/helm/tikeo/examples/values-ingress-tls.yaml
+test -f deploy/helm/tikeo/templates/gateway-api.yaml
+test -f deploy/helm/tikeo/templates/servicemonitor.yaml
+test -f deploy/helm/tikeo/templates/networkpolicy.yaml
+test -f deploy/helm/tikeo/templates/pdb.yaml
+test -f deploy/helm/tikeo/examples/values-gateway-api-worker-tunnel.yaml
+test -f deploy/helm/tikeo/examples/values-ops-hardening.yaml
+test -f deploy/helm/tikeo/values.schema.json
 
 grep -q 'TIKEO_CONFIG=/etc/tikeo/tikeo.toml' deploy/systemd/tikeo.env
 grep -q 'ExecStart=/opt/tikeo/bin/tikeo serve --config' deploy/systemd/tikeo.service
@@ -17,5 +24,11 @@ grep -q 'existingSecret: tikeo-database' deploy/helm/tikeo/examples/values-exter
 grep -q 'mtlsRequired: true' deploy/helm/tikeo/examples/values-ingress-tls.yaml
 grep -q 'Rollback' deploy/helm/tikeo/README.md
 grep -q 'workers connect outbound' deploy/helm/tikeo/README.md
+grep -q 'NetworkPolicy' deploy/helm/tikeo/templates/networkpolicy.yaml
+grep -q 'GRPCRoute' deploy/helm/tikeo/templates/gateway-api.yaml
+grep -q 'Gateway API' deploy/helm/tikeo/README.md
+grep -q 'ServiceMonitor' deploy/helm/tikeo/README.md
+grep -q 'NetworkPolicy' deploy/helm/tikeo/README.md
+grep -q 'PodDisruptionBudget' deploy/helm/tikeo/README.md
 
 echo 'deployment bootstrap templates verified'

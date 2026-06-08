@@ -1,0 +1,33 @@
+# Optional production operations hardening. Requires matching cluster CRDs/controllers.
+server:
+  replicas: 2
+  pdb:
+    enabled: true
+    minAvailable: 1
+web:
+  replicas: 2
+  pdb:
+    enabled: true
+    minAvailable: 1
+networkPolicy:
+  enabled: true
+  server:
+    httpFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+    workerTunnelFrom:
+      - namespaceSelector:
+          matchLabels:
+            tikeo.yhyzgn.com/worker-access: "true"
+  web:
+    ingressFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+serviceMonitor:
+  enabled: true
+  labels:
+    release: prometheus
+  interval: 30s
+  scrapeTimeout: 10s

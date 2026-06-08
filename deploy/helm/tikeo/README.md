@@ -96,6 +96,38 @@ Rules:
 
 The chart exposes tunable readiness/liveness probes, resources, pod annotations, node placement, and security contexts for both server and web workloads. Defaults keep local installs compatible with the published images; production overlays should set resource requests/limits and image-compatible security contexts explicitly.
 
+
+## Optional operations hardening
+
+The chart includes optional production operations templates that are disabled by default so local clusters do not require extra CRDs or network-policy controllers.
+
+Enable the example overlay:
+
+```bash
+helm upgrade --install tikeo ./deploy/helm/tikeo \
+  --namespace tikeo --create-namespace \
+  -f deploy/helm/tikeo/examples/values-external-postgres.yaml \
+  -f deploy/helm/tikeo/examples/values-ops-hardening.yaml
+```
+
+| Capability | Values | Notes |
+| --- | --- | --- |
+| `PodDisruptionBudget` | `server.pdb.enabled`, `web.pdb.enabled` | Protects multi-replica server/web rollouts and node drains. |
+| `NetworkPolicy` | `networkPolicy.enabled` | Limits inbound access to server/web Pods while preserving the Worker outbound-only model. It does not create Worker inbound Services. |
+| `ServiceMonitor` | `serviceMonitor.enabled` | Scrapes the server `/metrics` endpoint when Prometheus Operator CRDs are installed. |
+| `Gateway API` | `gatewayApi.enabled` | Renders a `GRPCRoute` example for the Worker Tunnel h2/gRPC endpoint when Gateway API CRDs/controller are installed. |
+| `values.schema.json` | automatic Helm validation | Guards common values mistakes such as invalid `server.storage.mode`. |
+
+Gateway API example:
+
+```bash
+helm template tikeo ./deploy/helm/tikeo \
+  --namespace tikeo \
+  -f deploy/helm/tikeo/examples/values-gateway-api-worker-tunnel.yaml
+```
+
+`Gateway` / `GRPCRoute` support depends on the installed Gateway API controller. Keep ingress TLS, listener TLS/mTLS, and gateway TLS boundaries explicit for your platform.
+
 ## Rollback
 
 Keep each production change in a separate Helm revision and verify `/readyz` plus at least one worker dry-run before declaring the rollout healthy.
@@ -122,3 +154,5 @@ If rollback involves database migrations, restore from the database provider's b
 | `values-external-postgres.yaml` | Production baseline using an external database secret. |
 | `values-ingress-tls.yaml` | Ingress TLS plus Tikeo listener TLS/mTLS secret wiring. |
 | `values-worker-identity.yaml` | Documentation-only shape for remote worker identity bootstrap. |
+| `values-ops-hardening.yaml` | Optional PDB, NetworkPolicy, and ServiceMonitor operations overlay. |
+| `values-gateway-api-worker-tunnel.yaml` | Gateway API `GRPCRoute` example for the Worker Tunnel endpoint. |

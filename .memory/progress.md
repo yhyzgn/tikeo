@@ -1337,3 +1337,15 @@ Verification evidence:
 - `.dev/tools/helm lint deploy/helm/tikeo` passed with only the optional icon recommendation.
 - `.dev/tools/helm template` passed for default, external database, and external database + TLS/mTLS values.
 - Remote verification: CI run `27128044956` and Coverage run `27128044845` both completed successfully for source commit `c90b44177a692946ad4cd000f16e6653ddc508e9`.
+
+### 2026-06-08 — Helm operations maturity overlay
+- Extended the Helm chart beyond the first production baseline with optional PodDisruptionBudget, NetworkPolicy, ServiceMonitor, Gateway API `GRPCRoute`, and `values.schema.json` support.
+- Added `values-ops-hardening.yaml` and `values-gateway-api-worker-tunnel.yaml` examples.
+- NetworkPolicy templates preserve the Worker outbound-only model: they limit inbound access to the Tikeo server Worker Tunnel endpoint but still do not create business Worker inbound Services.
+- ServiceMonitor targets the server `/metrics` endpoint for Prometheus Operator installs; Gateway API is optional and requires matching cluster CRDs/controllers.
+Verification evidence so far:
+- RED/green contract: `python3 -m unittest deploy.tests.iac_artifacts_test.IacArtifactsTest.test_helm_chart_exposes_operational_maturity_contracts` failed before implementation and passed after the templates/schema/docs were added.
+- `scripts/verify-deploy-bootstrap.sh` passed.
+- `.dev/tools/helm lint deploy/helm/tikeo` passed with only the optional icon recommendation.
+- `.dev/tools/helm lint` passed with external DB values and with external DB + TLS + ops hardening + Gateway API values.
+- `.dev/tools/helm template` passed for default, external DB, TLS, and ops/Gateway overlays.

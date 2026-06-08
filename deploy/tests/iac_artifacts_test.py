@@ -71,6 +71,38 @@ class IacArtifactsTest(unittest.TestCase):
         self.assertIn('Rollback', readme)
         self.assertIn('worker identity', readme.lower())
 
+    def test_helm_chart_exposes_operational_maturity_contracts(self):
+        values = read('deploy/helm/tikeo/values.yaml')
+        schema = read('deploy/helm/tikeo/values.schema.json')
+        pdb = read('deploy/helm/tikeo/templates/pdb.yaml')
+        network_policy = read('deploy/helm/tikeo/templates/networkpolicy.yaml')
+        service_monitor = read('deploy/helm/tikeo/templates/servicemonitor.yaml')
+        gateway = read('deploy/helm/tikeo/templates/gateway-api.yaml')
+        readme = read('deploy/helm/tikeo/README.md')
+
+        self.assertIn('pdb:', values)
+        self.assertIn('networkPolicy:', values)
+        self.assertIn('serviceMonitor:', values)
+        self.assertIn('gatewayApi:', values)
+
+        self.assertIn('PodDisruptionBudget', pdb)
+        self.assertIn('minAvailable', pdb)
+        self.assertIn('NetworkPolicy', network_policy)
+        self.assertIn('workers-connect-outbound-only', network_policy)
+        self.assertIn('ServiceMonitor', service_monitor)
+        self.assertIn('/metrics', service_monitor)
+        self.assertIn('GRPCRoute', gateway)
+        self.assertIn('worker-tunnel', gateway)
+
+        self.assertIn('"values.schema.json"', schema)
+        self.assertIn('"enum": ["sqlite", "external"]', schema)
+        self.assertIn('"gatewayApi"', schema)
+
+        self.assertIn('PodDisruptionBudget', readme)
+        self.assertIn('NetworkPolicy', readme)
+        self.assertIn('ServiceMonitor', readme)
+        self.assertIn('Gateway API', readme)
+
     def test_roadmap_and_coverage_mark_iac_closed(self):
         design = read('design/tikeo-architecture-design.md')
         coverage = read('design/reports/feature-coverage-competitive-checklist.md')

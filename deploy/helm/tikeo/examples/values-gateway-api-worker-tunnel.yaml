@@ -1,0 +1,20 @@
+# Gateway API example for exposing the Worker Tunnel h2/gRPC endpoint.
+# Requires Gateway API CRDs with GRPCRoute support and a controller that supports gRPC.
+gatewayApi:
+  enabled: true
+  gateway:
+    create: true
+    name: tikeo-worker-tunnel
+    className: envoy-gateway
+    listenerName: grpc-worker-tunnel
+    hostname: worker-tunnel.tikeo.example.com
+    port: 443
+    tls:
+      mode: Terminate
+      certificateRefs:
+        - kind: Secret
+          name: tikeo-worker-tunnel-gateway-tls
+  workerTunnelRoute:
+    enabled: true
+    hostnames:
+      - worker-tunnel.tikeo.example.com

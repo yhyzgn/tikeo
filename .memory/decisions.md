@@ -513,3 +513,16 @@ Implications:
 - `server.storage.mode=external` uses `TIKEO__STORAGE__DATABASE_URL` from `server.storage.existingSecret`.
 - Listener TLS/mTLS secrets are mounted and rendered into `transport_security` config; ingress TLS remains a separate edge termination boundary.
 - Future chart work can add PDB/NetworkPolicy/ServiceMonitor/Gateway API, but must preserve worker outbound-only semantics.
+
+## 2026-06-08 — Helm ops hardening remains optional and CRD-gated
+
+Decision: PodDisruptionBudget, NetworkPolicy, ServiceMonitor, and Gateway API manifests are chart-supported but disabled by default.
+
+Rationale:
+- Local and minimal Kubernetes installs should not require Prometheus Operator or Gateway API CRDs.
+- NetworkPolicy behavior depends on the cluster CNI and must be explicitly enabled by operators.
+- Gateway API `GRPCRoute` support depends on the installed controller and should be an opt-in example for Worker Tunnel h2/gRPC exposure.
+
+Implications:
+- The chart renders these resources only when corresponding values are enabled.
+- Operations overlays must keep Worker networking outbound-only and must not create business Worker inbound Services.

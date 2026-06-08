@@ -1,0 +1,67 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tikeo.name" . }}-server-ingress
+  namespace: {{ include "tikeo.namespace" . }}
+  labels:
+    {{- include "tikeo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  annotations:
+    tikeo.yhyzgn.com/worker-networking: "workers-connect-outbound-only"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "tikeo.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: server
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.server.httpPort }}
+      from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "tikeo.name" . }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: web
+        {{- with .Values.networkPolicy.server.httpFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.server.workerTunnelPort }}
+      from:
+        {{- if .Values.networkPolicy.server.workerTunnelFrom }}
+        {{- toYaml .Values.networkPolicy.server.workerTunnelFrom | nindent 8 }}
+        {{- else }}
+        - namespaceSelector: {}
+        {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tikeo.name" . }}-web-ingress
+  namespace: {{ include "tikeo.namespace" . }}
+  labels:
+    {{- include "tikeo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "tikeo.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: web
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.web.port }}
+      {{- with .Values.networkPolicy.web.ingressFrom }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

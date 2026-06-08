@@ -2274,3 +2274,40 @@ Remote verification after push:
 - CI run `27128044956` completed successfully for source commit `c90b44177a692946ad4cd000f16e6653ddc508e9`.
 - Successful CI groups: workflow policy, Web, deploy tooling, Go SDK + demo, Rust SDK + demo, Python SDK + demo, Java SDK + demo, Node.js SDK + demo, Server, cross-language worker smoke, Docker build validation / web, and Docker build validation / server.
 - Coverage run `27128044845` completed successfully for source commit `c90b44177a692946ad4cd000f16e6653ddc508e9`; Rust workspace, Web, Java SDK, Go SDK, Python SDK, and Node.js SDK coverage jobs all passed.
+
+## 2026-06-08 — Helm operations maturity overlay
+
+Agent:
+- Codex
+
+Work:
+- Added a failing Helm operations maturity contract test, then implemented optional PodDisruptionBudget, NetworkPolicy, ServiceMonitor, Gateway API `GRPCRoute`, and `values.schema.json` support.
+- Added `values-ops-hardening.yaml` and `values-gateway-api-worker-tunnel.yaml` examples.
+- Updated Helm README and root deploy README to describe PDB, NetworkPolicy, ServiceMonitor, Gateway API, and schema validation boundaries.
+- Updated deployment bootstrap verification, design roadmap, memory, and `.prompt/151-phase4-helm-ops-and-source-size-followup.md`.
+
+Verification so far:
+- RED: `python3 -m unittest deploy.tests.iac_artifacts_test.IacArtifactsTest.test_helm_chart_exposes_operational_maturity_contracts` failed against the previous chart because `values.schema.json` and ops templates were missing.
+- GREEN: the same test passed after implementation.
+- `scripts/verify-deploy-bootstrap.sh` passed.
+- `.dev/tools/helm lint deploy/helm/tikeo` passed with only the optional chart icon recommendation.
+- `.dev/tools/helm lint` passed with external DB values and with external DB + TLS + ops hardening + Gateway API values.
+- `.dev/tools/helm template` passed for default, external DB, TLS, and ops/Gateway overlays.
+
+Git:
+- Pending final full verification, commit, push, and remote CI check at the time of this memory update.
+
+Final local verification before commit:
+- `git diff --check` passed.
+- `python3 -m unittest deploy.tests.iac_artifacts_test deploy.tests.smoke_assertions_test` passed with 8 tests.
+- `scripts/verify-deploy-bootstrap.sh` passed.
+- `.dev/tools/helm lint` passed for default, external DB, and external DB + TLS + ops + Gateway values; only optional chart icon recommendation was reported.
+- `.dev/tools/helm template` passed for default, external DB, TLS, and ops/Gateway overlays; ops overlay rendered `PodDisruptionBudget`, `NetworkPolicy`, `ServiceMonitor`, `Gateway`, and `GRPCRoute` resources.
+- `cargo fmt --all -- --check` passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `cargo test --workspace --all-features` passed.
+- `cargo build --workspace --all-features` passed.
+- `bun run --cwd web lint` passed.
+- `bun run --cwd web typecheck` passed.
+- `bun run --cwd web test` passed with 117 tests.
+- `bun run --cwd web build` passed; Vite reported the existing large chunk warning for bundled vendor assets.

@@ -1,0 +1,54 @@
+{{- if .Values.gatewayApi.enabled }}
+{{- if .Values.gatewayApi.gateway.create }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ .Values.gatewayApi.gateway.name }}
+  namespace: {{ include "tikeo.namespace" . }}
+  labels:
+    {{- include "tikeo.labels" . | nindent 4 }}
+  {{- with .Values.gatewayApi.gateway.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  gatewayClassName: {{ .Values.gatewayApi.gateway.className | quote }}
+  listeners:
+    - name: {{ .Values.gatewayApi.gateway.listenerName }}
+      protocol: HTTPS
+      port: {{ .Values.gatewayApi.gateway.port }}
+      hostname: {{ .Values.gatewayApi.gateway.hostname | quote }}
+      tls:
+        mode: {{ .Values.gatewayApi.gateway.tls.mode }}
+        {{- with .Values.gatewayApi.gateway.tls.certificateRefs }}
+        certificateRefs:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+---
+{{- end }}
+{{- if .Values.gatewayApi.workerTunnelRoute.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: {{ .Values.gatewayApi.workerTunnelRoute.name }}
+  namespace: {{ include "tikeo.namespace" . }}
+  labels:
+    {{- include "tikeo.labels" . | nindent 4 }}
+  annotations:
+    tikeo.yhyzgn.com/worker-networking: "workers-connect-outbound-only"
+spec:
+  parentRefs:
+    {{- if .Values.gatewayApi.workerTunnelRoute.parentRefs }}
+    {{- toYaml .Values.gatewayApi.workerTunnelRoute.parentRefs | nindent 4 }}
+    {{- else }}
+    - name: {{ .Values.gatewayApi.gateway.name }}
+      sectionName: {{ .Values.gatewayApi.gateway.listenerName }}
+    {{- end }}
+  hostnames:
+    {{- toYaml .Values.gatewayApi.workerTunnelRoute.hostnames | nindent 4 }}
+  rules:
+    - backendRefs:
+        - name: {{ include "tikeo.name" . }}-worker-tunnel
+          port: {{ .Values.server.workerTunnelService.port }}
+{{- end }}
+{{- end }}

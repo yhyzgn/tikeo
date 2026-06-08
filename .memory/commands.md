@@ -604,3 +604,17 @@ helm template tikeo deploy/helm/tikeo --namespace tikeo
 helm template tikeo deploy/helm/tikeo --namespace tikeo -f deploy/helm/tikeo/examples/values-external-postgres.yaml
 helm template tikeo deploy/helm/tikeo --namespace tikeo -f deploy/helm/tikeo/examples/values-external-postgres.yaml -f deploy/helm/tikeo/examples/values-ingress-tls.yaml
 ```
+
+## 2026-06-08 Helm operations maturity verification
+
+```bash
+python3 -m unittest deploy.tests.iac_artifacts_test deploy.tests.smoke_assertions_test
+scripts/verify-deploy-bootstrap.sh
+helm lint deploy/helm/tikeo
+helm lint deploy/helm/tikeo -f deploy/helm/tikeo/examples/values-external-postgres.yaml
+helm lint deploy/helm/tikeo -f deploy/helm/tikeo/examples/values-external-postgres.yaml -f deploy/helm/tikeo/examples/values-ingress-tls.yaml -f deploy/helm/tikeo/examples/values-ops-hardening.yaml -f deploy/helm/tikeo/examples/values-gateway-api-worker-tunnel.yaml
+helm template tikeo deploy/helm/tikeo --namespace tikeo
+helm template tikeo deploy/helm/tikeo --namespace tikeo -f deploy/helm/tikeo/examples/values-external-postgres.yaml
+helm template tikeo deploy/helm/tikeo --namespace tikeo -f deploy/helm/tikeo/examples/values-external-postgres.yaml -f deploy/helm/tikeo/examples/values-ingress-tls.yaml
+helm template tikeo deploy/helm/tikeo --namespace tikeo -f deploy/helm/tikeo/examples/values-external-postgres.yaml -f deploy/helm/tikeo/examples/values-ingress-tls.yaml -f deploy/helm/tikeo/examples/values-ops-hardening.yaml -f deploy/helm/tikeo/examples/values-gateway-api-worker-tunnel.yaml
+```
