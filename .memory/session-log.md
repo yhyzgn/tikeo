@@ -2142,3 +2142,22 @@ Verification:
 
 Git:
 - Pending commit/push at the time of this memory update.
+
+
+## 2026-06-08 — Codecov upload workflow repair
+
+Agent:
+- Codex
+
+Work:
+- Replaced `codecov/codecov-action@v5` with direct `codecov-cli` installation/upload in `.github/workflows/coverage.yml`.
+
+Reason:
+- Remote run `27120846387` proved Rust LCOV generation succeeded and `CODECOV_TOKEN` was present, but the Codecov action failed during CLI GPG signature validation and emitted an internal Node20 `actions/github-script` warning.
+
+Verification:
+- Workflow policy and YAML checks to be rerun before commit.
+- Remote workflow to be rerun after push.
+
+Git:
+- Pending commit/push at the time of this memory update.

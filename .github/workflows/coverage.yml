@@ -33,12 +33,20 @@ jobs:
           set -euo pipefail
           mkdir -p coverage
           cargo llvm-cov --workspace --all-features --lcov --output-path coverage/rust.lcov
+      - name: Install Codecov CLI
+        run: python3 -m pip install --user codecov-cli
       - name: Upload Rust coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage/rust.lcov
-          flags: rust
-          name: rust-workspace
-          fail_ci_if_error: true
-          disable_search: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          set -euo pipefail
+          ~/.local/bin/codecovcli upload-process \
+            --token "$CODECOV_TOKEN" \
+            --commit-sha "$GITHUB_SHA" \
+            --branch "$GITHUB_REF_NAME" \
+            --slug "$GITHUB_REPOSITORY" \
+            --file coverage/rust.lcov \
+            --disable-search \
+            --flag rust \
+            --name rust-workspace \
+            --fail-on-error
