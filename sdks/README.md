@@ -5,13 +5,21 @@
 Tikeo SDKs are language-specific implementations of the same worker and management contracts. The
 language may change; the behavior must not.
 
-| Language | Package | Status | What it provides |
-| --- | --- | --- | --- |
-| Java | `net.tikeo:*` | Release-ready | Worker Tunnel, Spring Boot starters, sandbox tool management, management API client. |
-| Rust | `tikeo` | Release-ready | Native Worker Tunnel, script runners, management API client, strict docs/lints. |
-| Go | Go module | Release-ready | Worker Tunnel, structured capabilities, sandbox auto tooling, management helpers. |
-| Python | `tikeo` | Release-ready | Worker Tunnel, task logs, sandbox runners, management helpers. |
-| Node.js | `@yhyzgn/tikeo` | Release-ready | Worker Tunnel, JS/TS-friendly tasks, sandbox runners, management helpers. |
+| Language | Package | Runtime requirement | Status | What it provides |
+| --- | --- | --- | --- | --- |
+| Java | `net.tikeo:*` | Java 17+; CI verifies with Temurin 21. | Release-ready | Worker Tunnel, Spring Boot starters, sandbox tool management, management API client. |
+| Rust | `tikeo` | Rust 1.95+. | Release-ready | Native Worker Tunnel, script runners, management API client, strict docs/lints. |
+| Go | Go module | Go 1.26+. | Release-ready | Worker Tunnel, structured capabilities, sandbox auto tooling, management helpers. |
+| Python | `tikeo` | Python 3.11+; CI verifies with Python 3.12. | Release-ready | Worker Tunnel, task logs, sandbox runners, management helpers. |
+| Node.js | `@yhyzgn/tikeo` | Node.js 24+; Bun for repository scripts. | Release-ready | Worker Tunnel, JS/TS-friendly tasks, sandbox runners, management helpers. |
+
+## Runtime requirements
+
+- Java SDKs: Java 17+; CI verifies with Temurin 21.
+- Rust SDK: Rust 1.95+.
+- Go SDK: Go 1.26+.
+- Python SDK: Python 3.11+; CI verifies with Python 3.12.
+- Node.js SDK: Node.js 24+; Bun is used for repository test/build scripts.
 
 ## Shared contract ✅
 

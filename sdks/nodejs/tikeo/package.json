@@ -22,6 +22,9 @@
     "build": "tsc -p tsconfig.json && mkdir -p dist/proto && cp src/proto/worker.proto dist/proto/worker.proto",
     "test": "bun test"
   },
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "dependencies": {
     "@grpc/grpc-js": "latest",
     "@grpc/proto-loader": "latest"

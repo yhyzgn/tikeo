@@ -19,9 +19,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/yhyzgn/tikeo/actions/workflows/ci.yml"><img alt="CI build" src="https://img.shields.io/github/actions/workflow/status/yhyzgn/tikeo/ci.yml?branch=main&style=flat-square&label=CI%20build&logo=githubactions&logoColor=white&color=2088FF" /></a>
+  <a href="https://github.com/yhyzgn/tikeo/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/yhyzgn/tikeo/actions/workflows/ci.yml/badge.svg?branch=main" /></a>
   <a href="https://github.com/yhyzgn/tikeo/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/yhyzgn/tikeo?include_prereleases&style=flat-square&label=release&logo=github&logoColor=white&color=181717" /></a>
-  <img alt="Coverage" src="https://img.shields.io/badge/coverage-report%20pending-F97316?style=flat-square&logo=codecov&logoColor=white" />
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fyhyzgn%2Ftikeo%2Flicense&query=%24.license.spdx_id&style=flat-square&label=license&logo=opensourceinitiative&logoColor=white&color=3DA639" /></a>
 </p>
 
@@ -325,13 +324,13 @@ otlp_endpoint = "http://otel-collector:4318/v1/traces"
 
 ## 行为一致的 SDK
 
-| Language | Package | 适合什么 | 日志契约 |
-| --- | --- | --- | --- |
-| Java | `net.tikeo:tikeo`, Spring Boot starters | 企业 Spring Worker 和管理自动化。 | SLF4J diagnostics；任务日志通过 `TaskContext`。 |
-| Rust | `tikeo` | 原生 Worker、高性能运行时、具备沙箱能力的服务。 | `SdkLogConfig`，console + 可选 `tikeo-sdk.log`。 |
-| Go | Go module | 平台服务、operators、云原生 Worker。 | `Logger` bridge，console + 可选 `tikeo-sdk.log`。 |
-| Python | `tikeo` | 数据任务、自动化、脚本友好 Worker。 | stdlib `logging`，console + 可选 `tikeo-sdk.log`。 |
-| Node.js | `@yhyzgn/tikeo` | JS/TS Worker 和 Web 平台自动化。 | `configureSdkLogging`，console + 可选 `tikeo-sdk.log`。 |
+| Language | Package | 运行时要求 | 适合什么 | 日志契约 |
+| --- | --- | --- | --- | --- |
+| Java | `net.tikeo:tikeo`, Spring Boot starters | **Java 17+**；CI 使用 Temurin 21 验证。 | 企业 Spring Worker 和管理自动化。 | SLF4J diagnostics；任务日志通过 `TaskContext`。 |
+| Rust | `tikeo` | **Rust 1.95+**（`rust-version = "1.95"`）。 | 原生 Worker、高性能运行时、具备沙箱能力的服务。 | `SdkLogConfig`，console + 可选 `tikeo-sdk.log`。 |
+| Go | Go module | **Go 1.26+**（`go 1.26`）。 | 平台服务、operators、云原生 Worker。 | `Logger` bridge，console + 可选 `tikeo-sdk.log`。 |
+| Python | `tikeo` | **Python 3.11+**；CI 使用 Python 3.12 验证。 | 数据任务、自动化、脚本友好 Worker。 | stdlib `logging`，console + 可选 `tikeo-sdk.log`。 |
+| Node.js | `@yhyzgn/tikeo` | **Node.js 24+**；仓库构建/测试脚本使用 Bun。 | JS/TS Worker 和 Web 平台自动化。 | `configureSdkLogging`，console + 可选 `tikeo-sdk.log`。 |
 
 所有 SDK 遵循同一条规则：SDK diagnostics 描述 Worker/runtime 生命周期；task logs 描述某个具体任务实例。这个分离能防止无关进程噪音污染执行日志。
 
@@ -340,13 +339,13 @@ otlp_endpoint = "http://otel-collector:4318/v1/traces"
 每个 Worker 服务只需要引用对应语言的一组包。所有 SDK 遵循同一平台契约：出站 Worker
 Tunnel、结构化能力、任务级日志、重试/结果上报、Management API，以及沙箱 auto 行为。
 
-| Language | 中央仓库 | Package name | 当前安装目标 |
-| --- | --- | --- | --- |
-| Java | Maven Central | `net.tikeo:*` | `0.1.0` release artifacts；本地开发可使用 `0.1.0-SNAPSHOT`。 |
-| Rust | crates.io | `tikeo` | `0.1.0` |
-| Go | Go module proxy | `github.com/yhyzgn/tikeo/sdks/go/tikeo` | tag-based，例如 `v0.1.0` |
-| Python | PyPI | `tikeo` | `0.1.0` |
-| Node.js | npm | `@yhyzgn/tikeo` | `0.1.0` |
+| Language | 中央仓库 | Package name | 运行时要求 | 当前安装目标 |
+| --- | --- | --- | --- | --- |
+| Java | Maven Central | `net.tikeo:*` | Java 17+ | `0.1.0` release artifacts；本地开发可使用 `0.1.0-SNAPSHOT`。 |
+| Rust | crates.io | `tikeo` | Rust 1.95+ | `0.1.0` |
+| Go | Go module proxy | `github.com/yhyzgn/tikeo/sdks/go/tikeo` | Go 1.26+ | tag-based，例如 `v0.1.0` |
+| Python | PyPI | `tikeo` | Python 3.11+ | `0.1.0` |
+| Node.js | npm | `@yhyzgn/tikeo` | Node.js 24+ | `0.1.0` |
 
 ### Java / Maven Central
 

@@ -4,6 +4,11 @@
 
 Node.js SDK aligned with the Rust, Go, Java, and Python Worker SDKs.
 
+## Runtime requirements
+
+- Node.js 24+ is the supported package runtime baseline.
+- Bun is the repository package runner for test/build scripts.
+
 ## Features
 
 - Worker Tunnel client with structured capabilities.

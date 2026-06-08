@@ -4,6 +4,11 @@
 
 Go SDK for active outbound Worker Tunnel clients and app-scoped management APIs.
 
+## Runtime requirements
+
+- Go 1.26+ is required by `go.mod`.
+- CI verifies the SDK and demo with Go 1.26.x.
+
 ## Features
 
 - Real gRPC Worker Tunnel client using official `google.golang.org/grpc`.

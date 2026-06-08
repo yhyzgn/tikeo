@@ -4,6 +4,11 @@
 
 Rust SDK for active outbound Tikeo Worker Tunnel connections.
 
+## Runtime requirements
+
+- Rust 1.95+ is required (`rust-version = "1.95"`).
+- The crate uses Rust 2024 edition and forbids unsafe code.
+
 ## Features
 
 - Outbound gRPC Worker Tunnel registration, heartbeat, task result, and unregister flow.

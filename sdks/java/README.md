@@ -15,6 +15,12 @@ tests, sources JAR, and Maven publication so Spring Boot 2/3/4 compatibility sta
 | `tikeo-spring-boot2-starter` | Spring Boot 2.x projects compatibility starter. |
 | `tikeo-spring-boot3-starter` | Spring Boot 3.x projects compatibility starter. |
 
+## Runtime requirements
+
+- Java 17+ is the supported bytecode/runtime baseline for every Tikeo Java SDK module.
+- CI verifies the SDK and Spring Boot demos on Temurin 21.
+- Spring adapter tracks are explicit: Spring Boot 2 uses the Spring 5 adapter, Spring Boot 3 uses the Spring 6 adapter, and Spring Boot 4 uses the Spring 7 adapter.
+
 ## Usage
 
 ```yaml

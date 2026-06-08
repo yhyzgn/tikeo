@@ -5,6 +5,11 @@
 Rust SDK packages are self-contained crates suitable for crates.io publishing. They must not depend
 on repository-local server crates.
 
+## Runtime requirements
+
+- Rust 1.95+ is required for the published crate baseline.
+- The SDK uses Rust 2024 edition and is tested with all features enabled.
+
 ```bash
 cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
 cargo build --manifest-path sdks/rust/tikeo/Cargo.toml --all-features

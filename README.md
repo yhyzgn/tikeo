@@ -19,9 +19,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/yhyzgn/tikeo/actions/workflows/ci.yml"><img alt="CI build" src="https://img.shields.io/github/actions/workflow/status/yhyzgn/tikeo/ci.yml?branch=main&style=flat-square&label=CI%20build&logo=githubactions&logoColor=white&color=2088FF" /></a>
+  <a href="https://github.com/yhyzgn/tikeo/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/yhyzgn/tikeo/actions/workflows/ci.yml/badge.svg?branch=main" /></a>
   <a href="https://github.com/yhyzgn/tikeo/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/yhyzgn/tikeo?include_prereleases&style=flat-square&label=release&logo=github&logoColor=white&color=181717" /></a>
-  <img alt="Coverage" src="https://img.shields.io/badge/coverage-report%20pending-F97316?style=flat-square&logo=codecov&logoColor=white" />
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fyhyzgn%2Ftikeo%2Flicense&query=%24.license.spdx_id&style=flat-square&label=license&logo=opensourceinitiative&logoColor=white&color=3DA639" /></a>
 </p>
 
@@ -347,13 +346,13 @@ Storage support:
 
 ## SDKs that behave the same way
 
-| Language | Package | Best for | Logging contract |
-| --- | --- | --- | --- |
-| Java | `net.tikeo:tikeo`, Spring Boot starters | Enterprise Spring workers and management automation. | SLF4J diagnostics; task logs through `TaskContext`. |
-| Rust | `tikeo` | Native workers, high-performance runtimes, sandbox-capable services. | `SdkLogConfig`, console + optional `tikeo-sdk.log`. |
-| Go | Go module | Platform services, operators, cloud-native workers. | `Logger` bridge, console + optional `tikeo-sdk.log`. |
-| Python | `tikeo` | Data jobs, automation, scripting-friendly workers. | stdlib `logging`, console + optional `tikeo-sdk.log`. |
-| Node.js | `@yhyzgn/tikeo` | JS/TS workers and web-platform automation. | `configureSdkLogging`, console + optional `tikeo-sdk.log`. |
+| Language | Package | Runtime requirement | Best for | Logging contract |
+| --- | --- | --- | --- | --- |
+| Java | `net.tikeo:tikeo`, Spring Boot starters | **Java 17+**; tested in CI on Temurin 21. | Enterprise Spring workers and management automation. | SLF4J diagnostics; task logs through `TaskContext`. |
+| Rust | `tikeo` | **Rust 1.95+** (`rust-version = "1.95"`). | Native workers, high-performance runtimes, sandbox-capable services. | `SdkLogConfig`, console + optional `tikeo-sdk.log`. |
+| Go | Go module | **Go 1.26+** (`go 1.26`). | Platform services, operators, cloud-native workers. | `Logger` bridge, console + optional `tikeo-sdk.log`. |
+| Python | `tikeo` | **Python 3.11+**; tested in CI on Python 3.12. | Data jobs, automation, scripting-friendly workers. | stdlib `logging`, console + optional `tikeo-sdk.log`. |
+| Node.js | `@yhyzgn/tikeo` | **Node.js 24+**; Bun is used for repository build/test scripts. | JS/TS workers and web-platform automation. | `configureSdkLogging`, console + optional `tikeo-sdk.log`. |
 
 All SDKs follow the same rule: SDK diagnostics describe worker/runtime lifecycle; task logs describe a
 specific job instance. That separation prevents unrelated process noise from polluting execution logs.
@@ -364,13 +363,13 @@ Use one package per worker service. Every SDK follows the same platform contract
 Tunnel, structured capabilities, task-scoped logs, retry/result reporting, management APIs, and
 sandbox auto behavior.
 
-| Language | Central registry | Package name | Current install target |
-| --- | --- | --- | --- |
-| Java | Maven Central | `net.tikeo:*` | `0.1.0` release artifacts; local development may use `0.1.0-SNAPSHOT`. |
-| Rust | crates.io | `tikeo` | `0.1.0` |
-| Go | Go module proxy | `github.com/yhyzgn/tikeo/sdks/go/tikeo` | tag-based, for example `v0.1.0` |
-| Python | PyPI | `tikeo` | `0.1.0` |
-| Node.js | npm | `@yhyzgn/tikeo` | `0.1.0` |
+| Language | Central registry | Package name | Runtime requirement | Current install target |
+| --- | --- | --- | --- | --- |
+| Java | Maven Central | `net.tikeo:*` | Java 17+ | `0.1.0` release artifacts; local development may use `0.1.0-SNAPSHOT`. |
+| Rust | crates.io | `tikeo` | Rust 1.95+ | `0.1.0` |
+| Go | Go module proxy | `github.com/yhyzgn/tikeo/sdks/go/tikeo` | Go 1.26+ | tag-based, for example `v0.1.0` |
+| Python | PyPI | `tikeo` | Python 3.11+ | `0.1.0` |
+| Node.js | npm | `@yhyzgn/tikeo` | Node.js 24+ | `0.1.0` |
 
 ### Java / Maven Central
 

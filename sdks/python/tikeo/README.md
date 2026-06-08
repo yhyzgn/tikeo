@@ -4,6 +4,11 @@
 
 Python SDK aligned with the Java, Rust, Go, and Node.js Worker SDKs.
 
+## Runtime requirements
+
+- Python 3.11+ is required by `pyproject.toml`.
+- CI verifies the SDK and demo with Python 3.12.
+
 ## Features
 
 - Worker Tunnel client with structured capabilities.

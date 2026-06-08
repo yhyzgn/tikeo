@@ -2086,3 +2086,25 @@ Verification:
 
 Git:
 - Pending commit/push at the time of this memory update.
+
+
+## 2026-06-08 — README badges and SDK runtime requirements
+
+Agent:
+- Codex
+
+Work:
+- Replaced the README/Chinese README CI Shields workflow badge with the native GitHub Actions workflow badge because the Shields workflow endpoint can time out and render as a broken image.
+- Removed the hardcoded `coverage: report pending` badge until CI publishes real coverage data to a badge provider.
+- Added SDK runtime requirements to `README.md`, `README.zh-CN.md`, `sdks/README.md`, and each language SDK README.
+- Added `engines.node >=24.0.0` to the Node.js SDK package metadata to match the documented runtime baseline.
+
+Coverage note:
+- A normal percentage badge requires a CI coverage job to generate LCOV/Cobertura/JaCoCo-style reports and upload them to Codecov or another badge source. Until that upload exists, Codecov returns unknown and a static `report pending` badge is only cosmetic.
+
+Verification:
+- README/runtime requirement text checks and JSON parse to be run before commit.
+- `git diff --check` to be run before commit.
+
+Git:
+- Pending commit/push at the time of this memory update.
