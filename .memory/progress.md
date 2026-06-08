@@ -1378,3 +1378,15 @@ Verification evidence:
 - YAML parse for all `.github/workflows/*.yml` passed.
 - `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` passed with 16 external actions and no runtime below node24.
 - `git diff --check` passed.
+
+### 2026-06-08 — Standalone docs site scaffold
+- `website/` now contains a Docusaurus 3.10.1 TypeScript documentation site with Bun lockfile, Tikeo homepage, bilingual routing (`en`, `zh-CN`), sidebar IA, Phase A P0 English docs pages, starter Chinese translations, release-note blog entry, and static `llms.txt` / `llms-full.txt` files.
+- The scaffold reuses existing Tikeo assets (`tikeo-logo-breathe.gif`, architecture SVGs, console tour GIF) and avoids deployment-provider lock-in.
+- Added `.github/tests/docs_site_contract_test.py` to guard the docs scaffold shape.
+Verification evidence:
+- RED/green contract: `python3 .github/tests/docs_site_contract_test.py` failed before `website/` existed and passed after implementation.
+- `python3 scripts/check-source-size.py` passed.
+- `bun install --frozen-lockfile` passed in `website/`.
+- `bun run docs:typecheck` passed in `website/`.
+- `bun run docs:build` passed in `website/` and generated English plus `zh-CN` output.
+- Docs serve smoke passed for `/`, `/docs/`, `/zh-CN/docs/`, `/docs/getting-started/quickstart`, and `/llms.txt` on port `13030`.

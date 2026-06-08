@@ -1,0 +1,205 @@
+<svg width="1800" height="1500" viewBox="0 0 1800 1500" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Tikeo complete architecture</title>
+  <desc id="desc">A complete logical architecture diagram for Tikeo showing entrypoints, server cluster, Raft ownership, storage, observability, outbound worker tunnel, worker fleets, SDK processors, plugins, and sandbox runtimes.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1800" y2="1360" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f8fbff"/>
+      <stop offset="0.52" stop-color="#eef7ff"/>
+      <stop offset="1" stop-color="#f5f0ff"/>
+    </linearGradient>
+    <linearGradient id="serverGrad" x1="520" y1="170" x2="1280" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0f172a"/>
+      <stop offset="0.48" stop-color="#1d4ed8"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="tunnelGrad" x1="210" y1="780" x2="1590" y2="780" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563eb"/>
+      <stop offset="0.52" stop-color="#0891b2"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+    <marker id="arrowBlue" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth"><path d="M2 2L11 7L2 12" stroke="#2563eb" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+    <marker id="arrowCyan" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth"><path d="M2 2L11 7L2 12" stroke="#0891b2" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+    <marker id="arrowViolet" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth"><path d="M2 2L11 7L2 12" stroke="#7c3aed" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+    <marker id="arrowWhite" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth"><path d="M2 2L11 7L2 12" stroke="#f8fafc" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+
+    <style>
+      .title{font:800 38px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#0f172a}
+      .subtitle{font:600 17px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#334155}
+      .section{font:800 20px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#f8fafc}
+      .label{font:800 16px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#f8fafc}
+      .body{font:650 13px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#e2e8f0}
+      .small{font:700 11.5px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#e2e8f0}
+      .tiny{font:700 10.5px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#cbd5e1}
+      .mono{font:800 11.5px ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;fill:#f8fafc}
+      .white{fill:#fff}.muted{fill:#dbeafe}.darkText{fill:#0f172a}
+      .chipText{font:800 11px ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#f8fafc}
+      .lineBlue{stroke:#2563eb;stroke-width:4;stroke-linecap:round;marker-end:url(#arrowBlue)}
+      .lineCyan{stroke:#0891b2;stroke-width:4;stroke-linecap:round;marker-end:url(#arrowCyan)}
+      .lineViolet{stroke:#7c3aed;stroke-width:4;stroke-linecap:round;marker-end:url(#arrowViolet)}
+      .lineWhite{stroke:#f8fafc;stroke-width:4;stroke-linecap:round;marker-end:url(#arrowWhite)}
+      .dashBlue{stroke:#2563eb;stroke-width:3.5;stroke-linecap:round;stroke-dasharray:10 10;marker-end:url(#arrowBlue)}
+      .dashCyan{stroke:#0891b2;stroke-width:3.5;stroke-linecap:round;stroke-dasharray:10 10;marker-end:url(#arrowCyan)}
+    </style>
+  </defs>
+  <rect width="1800" height="1500" rx="38" fill="url(#bg)"/>
+  <rect x="50" y="42" width="1700" height="1410" rx="34" fill="#ffffff" stroke="#60a5fa" stroke-width="3"/>
+  <text x="90" y="105" class="title">Tikeo complete architecture</text>
+  <text x="90" y="140" class="subtitle">Cloud-native task orchestration with Raft ownership, outbound Worker Tunnel, typed capabilities, governed sandboxes, multi-DB storage, and evidence-first operations.</text>
+  <g>
+    <rect x="90" y="180" width="390" height="245" rx="26" fill="#1d4ed8" stroke="#93c5fd" stroke-width="3"/>
+    <rect x="90" y="180" width="390" height="62" rx="26" fill="#2563eb"/>
+    <rect x="90" y="212" width="390" height="30" fill="#2563eb"/>
+    <text x="124" y="220" class="section">Entrypoints</text>
+    <rect x="124" y="280" width="322" height="34" rx="17" fill="#1e40af" stroke="#93c5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="285.0" y="302" class="chipText">Web Console · workflow canvas · topology</text>
+    <rect x="124" y="324" width="322" height="34" rx="17" fill="#1e40af" stroke="#93c5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="285.0" y="346" class="chipText">REST / OpenAPI · API-Key · RBAC</text>
+    <rect x="124" y="368" width="322" height="34" rx="17" fill="#1e40af" stroke="#93c5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="285.0" y="390" class="chipText">CLI / SDK management clients</text>
+    </g>
+  <g>
+    <rect x="90" y="455" width="390" height="275" rx="26" fill="#6d28d9" stroke="#c4b5fd" stroke-width="3"/>
+    <rect x="90" y="455" width="390" height="62" rx="26" fill="#7c3aed"/>
+    <rect x="90" y="487" width="390" height="30" fill="#7c3aed"/>
+    <text x="124" y="495" class="section">Deployment &amp; IaC</text>
+    <text x="124" y="547" class="body">Production delivery surfaces are maintained together.</text>
+    <rect x="124" y="583" width="92" height="34" rx="17" fill="#1e40af" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="170.0" y="605" class="chipText">Docker</text>
+    <rect x="230" y="583" width="110" height="34" rx="17" fill="#1e40af" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="285.0" y="605" class="chipText">Compose</text>
+    <rect x="354" y="583" width="86" height="34" rx="17" fill="#1e40af" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="397.0" y="605" class="chipText">Helm</text>
+    <rect x="124" y="627" width="110" height="34" rx="17" fill="#5b21b6" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="179.0" y="649" class="chipText">K8s CRD</text>
+    <rect x="248" y="627" width="120" height="34" rx="17" fill="#5b21b6" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="308.0" y="649" class="chipText">Operator</text>
+    <rect x="124" y="671" width="130" height="34" rx="17" fill="#155e75" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="189.0" y="693" class="chipText">Terraform</text>
+    <rect x="268" y="671" width="100" height="34" rx="17" fill="#155e75" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="318.0" y="693" class="chipText">GitOps</text>
+    </g>
+  <g>
+    <rect x="550" y="175" width="700" height="610" rx="34" fill="url(#serverGrad)"/>
+    <text x="590" y="222" class="section">Tikeo Rust Server Cluster</text>
+    <text x="590" y="250" class="body muted">Single native binary per node · HTTP API · Worker Tunnel</text>
+    <text x="590" y="272" class="body muted">scheduler control plane · management surface</text>
+    <rect x="590" y="305" width="170" height="76" rx="20" fill="#3453a6" stroke="#93c5fd" stroke-width="1.6"/>
+    <text x="614" y="337" class="label">Node A</text>
+    <text x="614" y="363" class="tiny">leader candidate</text>
+    <rect x="810" y="305" width="170" height="76" rx="20" fill="#3453a6" stroke="#93c5fd" stroke-width="1.6"/>
+    <text x="834" y="337" class="label">Node B</text>
+    <text x="834" y="363" class="tiny">follower</text>
+    <rect x="1030" y="305" width="170" height="76" rx="20" fill="#3453a6" stroke="#93c5fd" stroke-width="1.6"/>
+    <text x="1054" y="337" class="label">Node C</text>
+    <text x="1054" y="363" class="tiny">follower</text>
+    <path d="M760 343C782 343 788 343 810 343" class="lineWhite"/>
+    <path d="M980 343C1002 343 1008 343 1030 343" class="lineWhite"/>
+    <rect x="590" y="415" width="590" height="70" rx="20" fill="#1e3a8a" stroke="#93c5fd" stroke-width="1.6"/>
+    <text x="620" y="448" class="label">Raft scheduling ownership · fencing token</text>
+    <text x="620" y="472" class="tiny">No global DB scheduling lock</text>
+    <rect x="590" y="520" width="190" height="92" rx="20" fill="#3f5fd5" stroke="#93c5fd" stroke-width="1.5"/>
+      <text x="614" y="550" class="label">Scheduler</text>
+      <text x="614" y="574" class="tiny">cron · fixed · API</text>
+      <text x="614" y="596" class="tiny">retry · misfire · queues</text>
+    <rect x="810" y="520" width="190" height="92" rx="20" fill="#3f5fd5" stroke="#93c5fd" stroke-width="1.5"/>
+      <text x="834" y="550" class="label">Workflow Engine</text>
+      <text x="834" y="574" class="tiny">DAG · topology</text>
+      <text x="834" y="596" class="tiny">impact · replay bundle</text>
+    <rect x="1030" y="520" width="190" height="92" rx="20" fill="#3f5fd5" stroke="#93c5fd" stroke-width="1.5"/>
+      <text x="1054" y="550" class="label">Governance</text>
+      <text x="1054" y="574" class="tiny">owner · RBAC · API keys</text>
+      <text x="1054" y="596" class="tiny">tenant scope · audit</text>
+    <rect x="590" y="645" width="190" height="92" rx="20" fill="#3f5fd5" stroke="#93c5fd" stroke-width="1.5"/>
+      <text x="614" y="675" class="label">Worker Registry</text>
+      <text x="614" y="699" class="tiny">identity · sessions</text>
+      <text x="614" y="721" class="tiny">domain master election</text>
+    <rect x="810" y="645" width="190" height="92" rx="20" fill="#3f5fd5" stroke="#93c5fd" stroke-width="1.5"/>
+      <text x="834" y="675" class="label">Script / Plugin</text>
+      <text x="834" y="699" class="tiny">versions · digest</text>
+      <text x="834" y="721" class="tiny">policy · grants · routing</text>
+    <rect x="1030" y="645" width="190" height="92" rx="20" fill="#3f5fd5" stroke="#93c5fd" stroke-width="1.5"/>
+      <text x="1054" y="675" class="label">Log Stream</text>
+      <text x="1054" y="699" class="tiny">task logs · attempts</text>
+      <text x="1054" y="721" class="tiny">broadcast grouping</text>
+  </g>
+  <path d="M480 294C506 294 522 294 550 294" class="lineBlue"/>
+  <path d="M480 594C510 594 525 594 550 594" class="lineViolet"/>
+  <g>
+    <rect x="1320" y="180" width="360" height="275" rx="26" fill="#0e7490" stroke="#67e8f9" stroke-width="3"/>
+    <rect x="1320" y="180" width="360" height="62" rx="26" fill="#0891b2"/>
+    <rect x="1320" y="212" width="360" height="30" fill="#0891b2"/>
+    <text x="1354" y="220" class="section">Observability</text>
+    <text x="1354" y="272" class="body">Evidence-first operations.</text>
+    <rect x="1354" y="304" width="292" height="34" rx="17" fill="#155e75" stroke="#67e8f9" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1500.0" y="326" class="chipText">OpenTelemetry traces</text>
+    <rect x="1354" y="348" width="292" height="34" rx="17" fill="#155e75" stroke="#67e8f9" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1500.0" y="370" class="chipText">metrics · terminal task logs</text>
+    <rect x="1354" y="392" width="292" height="34" rx="17" fill="#155e75" stroke="#67e8f9" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1500.0" y="414" class="chipText">audit · replay · GitOps diff</text>
+    </g>
+  <g>
+    <rect x="1320" y="485" width="360" height="245" rx="26" fill="#6d28d9" stroke="#c4b5fd" stroke-width="3"/>
+    <rect x="1320" y="485" width="360" height="62" rx="26" fill="#7c3aed"/>
+    <rect x="1320" y="517" width="360" height="30" fill="#7c3aed"/>
+    <text x="1354" y="525" class="section">Management APIs</text>
+    <text x="1354" y="577" class="body">Typed CRUD, RBAC, and automation.</text>
+    <rect x="1354" y="609" width="292" height="34" rx="17" fill="#155e75" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1500.0" y="631" class="chipText">Jobs · workflows · scripts · plugins</text>
+    <rect x="1354" y="653" width="292" height="34" rx="17" fill="#155e75" stroke="#c4b5fd" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1500.0" y="675" class="chipText">Users · roles · tenants · secrets</text>
+    </g>
+  <path d="M1250 365C1285 365 1295 290 1320 290" class="lineCyan"/>
+  <path d="M1250 600C1286 600 1298 600 1320 600" class="lineViolet"/>
+  <g>
+    <rect x="220" y="820" width="1360" height="70" rx="35" fill="url(#tunnelGrad)"/>
+    <text x="300" y="864" class="label">Outbound gRPC / HTTP2 Worker Tunnel</text>
+    <text x="710" y="864" class="body muted">workers dial out · no business Worker inbound ports · assignment token · task logs · results · heartbeats</text>
+  </g>
+  <path d="M900 820C900 805 900 800 900 785" class="lineWhite"/>
+  <g>
+    <rect x="550" y="940" width="700" height="210" rx="28" fill="#b45309" stroke="#fde68a" stroke-width="3"/>
+    <rect x="550" y="940" width="700" height="62" rx="28" fill="#d97706"/>
+    <rect x="550" y="972" width="700" height="30" fill="#d97706"/>
+    <text x="590" y="982" class="section">Durable storage</text>
+    <text x="590" y="1030" class="body">Jobs · instances · attempts · task logs · audit</text>
+    <text x="590" y="1054" class="body">script versions · worker sessions · raft records</text>
+    <rect x="590" y="1082" width="120" height="34" rx="17" fill="#92400e" stroke="#fde68a" stroke-width="1.4"/>
+      <text text-anchor="middle" x="650.0" y="1104" class="chipText">SQLite</text>
+    <rect x="732" y="1082" width="150" height="34" rx="17" fill="#1e40af" stroke="#bfdbfe" stroke-width="1.4"/>
+      <text text-anchor="middle" x="807.0" y="1104" class="chipText">PostgreSQL</text>
+    <rect x="904" y="1082" width="115" height="34" rx="17" fill="#155e75" stroke="#bfdbfe" stroke-width="1.4"/>
+      <text text-anchor="middle" x="961.5" y="1104" class="chipText">MySQL</text>
+    <rect x="1041" y="1082" width="180" height="34" rx="17" fill="#5b21b6" stroke="#bfdbfe" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1131.0" y="1104" class="chipText">migration smoke</text>
+  </g>
+  <path d="M900 890V940" class="lineBlue"/>
+  <g>
+    <rect x="90" y="1188" width="1590" height="180" rx="30" fill="#0f766e" stroke="#5eead4" stroke-width="3"/>
+    <rect x="90" y="1188" width="1590" height="64" rx="30" fill="#0d9488"/>
+    <rect x="90" y="1220" width="1590" height="32" fill="#0d9488"/>
+    <text x="130" y="1232" class="section">Cross-language worker fleets</text>
+    <text x="130" y="1278" class="body">A single logical worker cluster can mix languages. Dispatch matches namespace/app/cluster/region, domain master, tags, and typed capabilities.</text>
+    <rect x="130" y="1310" width="124" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="192.0" y="1332" class="mono">Java</text>
+    <rect x="278" y="1310" width="124" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="340.0" y="1332" class="mono">Rust</text>
+    <rect x="426" y="1310" width="112" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="482.0" y="1332" class="mono">Go</text>
+    <rect x="576" y="1310" width="145" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="648.5" y="1332" class="mono">Python</text>
+    <rect x="743" y="1310" width="145" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="815.5" y="1332" class="mono">Node.js</text>
+    <rect x="910" y="1310" width="210" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1015.0" y="1332" class="mono">SDK processors</text>
+    <rect x="1142" y="1310" width="170" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1227.0" y="1332" class="mono">Plugins</text>
+    <rect x="1334" y="1310" width="330" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
+      <text text-anchor="middle" x="1499.0" y="1332" class="mono">SRT · Deno · Wasmtime · WasmEdge · V8</text>
+  </g>
+  <path d="M900 1188C900 1168 900 1164 900 1150" class="dashCyan"/>
+  <path d="M360 1188C360 1140 470 1025 650 890" class="dashBlue"/>
+  <path d="M1410 1188C1410 1140 1260 1025 1100 890" class="dashCyan"/>
+  <rect x="90" y="1390" width="1590" height="50" rx="25" fill="#1d4ed8"/>
+  <text x="130" y="1421" class="body white">Invariant: scheduling decisions stay centralized; execution stays near business code; Worker connectivity is outbound; ownership is fenced; logs are task-scoped; capabilities are structured.</text>
+</svg>

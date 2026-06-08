@@ -2,15 +2,16 @@
 
 ## Current priority direction
 
-当前优先级：源码行数历史债务已清理，本地审计脚本已接入 main CI `workflow-policy`；按用户要求不等待该新提交的远端 Actions，继续推进运营/宣传方向的独立文档站骨架。
+当前优先级：源码行数历史债务已清理并接入 CI；独立 Docusaurus docs 站点 Phase A 骨架已落地。下一步优先填充 Phase B 英文 P0 内容，并在内容稳定后扩展完整中文本地化。
 
 ## Immediate next slice
 
-1. Source-size cleanup commit `2c3efcb` 的远端 CI/Coverage 已绿；`scripts/check-source-size.py` 已接入 main CI `workflow-policy`，但按用户要求本次不等待该新提交的远端 Actions。
-2. 文档站搭建方案已输出到 `design/docs-site-build-plan.md`；下一步创建独立 `website/` Docusaurus 3 站点，先完成导航骨架、英文 P0 页面、中文 i18n 路径和 docs build 验证，不要在未实现前宣称部署完成。
-3. Kubernetes 后续可继续补真实控制器专项文档：Nginx/Envoy/Traefik/Gateway API controller 的实际生产 values、证书模式和 smoke runbook。
-4. 宣传录屏本地证据已完成：最终推荐版为 `.dev/reports/promo-cinematic-showcase-20260608T050247Z-231970/tikeo-cinematic-promo-hq-sentence-subs.mp4`；同目录保留逐句/短语级 `subtitles.en.srt`、`subtitles.zh-CN.srt`、`subtitles.bilingual.srt` 用于平台单独上传 CC 字幕。
-5. 迁移工具（PowerJob/XXL-JOB）仍维持最低优先级 backlog，核心服务体验稳定后再做。
+1. Fill docs Phase B English P0 content in `website/docs/` from verified repository behavior; keep Python/Node and roadmap material honest.
+2. Decide whether docs build should be added to main CI or a docs-specific workflow; current scaffold has local contract/typecheck/build verification but no remote Actions wait per user instruction.
+3. Expand complete `zh-CN` localization after English P0 content stabilizes.
+4. Kubernetes 后续可继续补真实控制器专项文档：Nginx/Envoy/Traefik/Gateway API controller 的实际生产 values、证书模式和 smoke runbook。
+5. 宣传录屏本地证据已完成：最终推荐版为 `.dev/reports/promo-cinematic-showcase-20260608T050247Z-231970/tikeo-cinematic-promo-hq-sentence-subs.mp4`；同目录保留逐句/短语级 `subtitles.en.srt`、`subtitles.zh-CN.srt`、`subtitles.bilingual.srt` 用于平台单独上传 CC 字幕。
+6. 迁移工具（PowerJob/XXL-JOB）仍维持最低优先级 backlog，核心服务体验稳定后再做。
 
 ## Current verified baseline
 
@@ -20,6 +21,7 @@
 - Main CI 基线：run `27129836559` succeeded for source commit `e98f6fd7395f1c104050ce8037db79ab5447aed6`，覆盖 Server/Web/Java/Rust/Go/Python/Node SDK+demo、deploy tooling、cross-language worker smoke 与 Docker build validation。
 - Coverage 基线：run `27129836631` succeeded for source commit `e98f6fd7395f1c104050ce8037db79ab5447aed6`；Rust/Web/Java/Go/Python/Node coverage jobs 均通过并上传。
 - Helm production + ops baseline：`deploy/helm/tikeo` 已支持外部数据库 Secret、SQLite PVC 条件化、TLS/mTLS Secret mounts、PDB、NetworkPolicy、ServiceMonitor、Gateway API `GRPCRoute`、`values.schema.json`、worker identity 文档和 rollback runbook。
+- Docs site scaffold：`website/` Docusaurus 3.10.1 TypeScript + Bun 站点已落地，`bun run docs:typecheck` / `bun run docs:build` / serve smoke 均通过；部署目标尚未选择。
 - Browser promo artifact：最终推荐本地 MP4 位于 `.dev/reports/promo-cinematic-showcase-20260608T050247Z-231970/tikeo-cinematic-promo-hq-sentence-subs.mp4`，`ffprobe` 验证 496.520s、1920x1080、英文默认音轨、中文第二音轨、英/中文字幕逐句软字幕轨、无烧录字幕、CRF 16 高画质封装。
 
 ## Standing constraints

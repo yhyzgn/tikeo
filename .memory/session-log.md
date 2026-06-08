@@ -2354,3 +2354,27 @@ Verification:
 
 Git:
 - Pending commit/push for this CI gate slice. Per user instruction, do not wait for remote Actions before continuing to the next work item.
+
+## 2026-06-08 — Standalone docs site scaffold
+
+Agent:
+- Codex
+
+Work:
+- Created `website/` as a Docusaurus 3.10.1 TypeScript docs app using Bun.
+- Replaced template content with Tikeo homepage, navbar/footer, sidebar IA, Phase A P0 English docs pages, starter `zh-CN` translations, a release-note blog entry, and static `llms.txt` / `llms-full.txt` entrypoints.
+- Reused existing project assets: breathing logo GIF, architecture SVGs, and console tour GIF.
+- Added `.github/tests/docs_site_contract_test.py` to lock the docs scaffold contract.
+- Updated `design/docs-site-build-plan.md`, `.memory/commands.md`, `.memory/progress.md`, `.memory/next.md`, and `.prompt/153-docs-site-content-followup.md`.
+
+Verification:
+- RED: `python3 .github/tests/docs_site_contract_test.py` failed before `website/` existed.
+- GREEN: `python3 .github/tests/docs_site_contract_test.py` passed after scaffold implementation.
+- `python3 scripts/check-source-size.py` passed.
+- `bun install --frozen-lockfile` passed in `website/`.
+- `bun run docs:typecheck` passed in `website/`.
+- `bun run docs:build` passed in `website/`, generating English and `zh-CN` static output.
+- Docs serve smoke passed at port `13030` for `/`, `/docs/`, `/zh-CN/docs/`, `/docs/getting-started/quickstart`, and `/llms.txt`.
+
+Git:
+- Pending final verification, commit, and push for docs scaffold. Remote Actions should not be awaited unless the user asks.

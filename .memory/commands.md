@@ -627,3 +627,18 @@ python3 scripts/check-source-size.py
 ```
 
 2026-06-08 verification: after splitting historical over-limit files, the command reports `All source files are <= 1500 lines.`
+
+## 2026-06-08 docs site verification
+
+```bash
+cd website
+bun install --frozen-lockfile
+bun run docs:typecheck
+bun run docs:build
+bun run docs:serve -- --port 13030
+curl -fsS http://127.0.0.1:13030/
+curl -fsS http://127.0.0.1:13030/docs/
+curl -fsS http://127.0.0.1:13030/zh-CN/docs/
+curl -fsS http://127.0.0.1:13030/docs/getting-started/quickstart
+curl -fsS http://127.0.0.1:13030/llms.txt
+```

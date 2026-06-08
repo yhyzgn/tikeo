@@ -1,0 +1,8 @@
+docs:
+  label: Docs
+  permalink: /docs-site
+  description: Documentation site updates
+release:
+  label: Release
+  permalink: /release
+  description: Release and project update notes

@@ -1,9 +1,9 @@
 # Tikeo Docs Site Build Plan
 
-Status: Draft plan only  
-Last refreshed: 2026-06-08  
-Owner: Tikeo maintainers  
-Scope: Future standalone documentation site; this document does **not** scaffold or deploy the site.
+Status: Phase A scaffold implemented
+Last refreshed: 2026-06-08
+Owner: Tikeo maintainers
+Scope: Standalone documentation site design plus current `website/` scaffold. Deployment target selection remains separate.
 
 ## 1. Goal
 
@@ -347,7 +347,7 @@ Recommended homepage visual assets:
 
 ## 11. Build and validation plan for the future implementation
 
-When the site is actually scaffolded, add scripts similar to:
+The initial `website/` scaffold now includes scripts similar to:
 
 ```json
 {
@@ -385,17 +385,21 @@ curl -fsS http://0.0.0.0:3000/llms.txt
 
 ### Phase A — Scaffold and navigation
 
-- Create `website/` Docusaurus app.
-- Configure TypeScript, Bun scripts, i18n, navbar, footer, sidebars, theme CSS.
-- Add docs landing page and empty page shells for the proposed IA.
-- Reuse existing architecture SVG and demo GIF.
-- Add build validation to local commands.
+Status: **Implemented on 2026-06-08** in `website/`.
 
-Acceptance:
+- [x] Create `website/` Docusaurus app.
+- [x] Configure TypeScript, Bun scripts, i18n, navbar, footer, sidebars, theme CSS.
+- [x] Add docs landing page and verified starter P0 page shells for the proposed IA.
+- [x] Reuse existing architecture SVG, console tour GIF, and breathing logo GIF.
+- [x] Add build validation to local commands.
 
-- `bun run docs:build` passes.
-- English and Chinese routes render.
-- Navbar/sidebar/footer match the planned structure.
+Acceptance evidence:
+
+- `bun install --frozen-lockfile` passed.
+- `bun run docs:typecheck` passed.
+- `bun run docs:build` passed and generated English plus `zh-CN` static output.
+- `bun run docs:serve -- --port 13030` plus curl smoke passed for `/`, `/docs/`, `/zh-CN/docs/`, `/docs/getting-started/quickstart`, and `/llms.txt`.
+- Navbar/sidebar/footer match the planned first scaffold; final deployment domain remains undecided.
 
 ### Phase B — First complete English docs set
 
@@ -488,4 +492,4 @@ P2 after ecosystem expansion:
 
 ## 16. Immediate next action
 
-When the user approves implementation, create `website/` as a Docusaurus 3 docs app with the IA above, add only verified starter content, and wire build validation. Keep deployment provider configuration separate until the user chooses the final hosting target.
+Phase A is implemented in `website/`. Next implementation step: fill the first complete English docs set from verified repository behavior, then expand Chinese localization. Keep deployment provider configuration separate until the final hosting target is chosen.

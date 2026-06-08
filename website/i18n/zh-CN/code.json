@@ -1,0 +1,8 @@
+{
+  "theme.navbar.label.Home": {"message": "首页"},
+  "theme.navbar.label.Docs": {"message": "文档"},
+  "theme.navbar.label.SDKs": {"message": "SDK"},
+  "theme.navbar.label.Integrations": {"message": "集成"},
+  "theme.navbar.label.Blog / Releases": {"message": "发布日志"},
+  "theme.navbar.label.GitHub": {"message": "GitHub"}
+}

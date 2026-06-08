@@ -1,0 +1,17 @@
+# Tikeo docs for LLMs
+
+Tikeo is a Rust-native distributed task scheduling and workflow orchestration platform.
+
+High-value pages:
+
+- /docs/ — overview
+- /docs/getting-started/quickstart — Server + Web + Worker quickstart
+- /docs/concepts/worker-tunnel — outbound-only Worker Tunnel model
+- /docs/concepts/workflows — workflow DAG model
+- /docs/sdks/rust — Rust Worker SDK
+- /docs/sdks/go — Go Worker SDK
+- /docs/sdks/java-spring-boot — Java Spring Boot Starter
+- /docs/deployment/docker-compose — Docker Compose path
+- /docs/deployment/kubernetes — Kubernetes and Helm boundaries
+- /docs/reference/configuration — configuration reference
+- /docs/reference/troubleshooting — troubleshooting
