@@ -2067,3 +2067,22 @@ Verification:
 
 Git:
 - Generated temporary video-processing files remain local under ignored `.dev/`; committed asset is the optimized README GIF only.
+
+
+## 2026-06-08 — Docs site build plan
+
+Agent:
+- Codex
+
+Work:
+- Added `design/docs-site-build-plan.md` as a plan-only document for a future standalone Tikeo documentation site.
+- Used the Hermes Agent docs site as an information-architecture reference and mapped the reusable structure to Tikeo: Getting Started, Concepts, User Guide, SDKs, Deployment, Integrations, Guides, Developer Guide, and Reference.
+- Recommended Docusaurus 3, bilingual docs, LLM-readable exports, search/SEO rules, implementation phases, and first-launch page priorities.
+
+Verification:
+- Markdown file exists and is readable.
+- Checked that the plan is scoped as documentation-only and does not scaffold or deploy the site.
+- `git diff --check` to be run before commit.
+
+Git:
+- Pending commit/push at the time of this memory update.

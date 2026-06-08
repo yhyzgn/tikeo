@@ -2,6 +2,7 @@
 
 ## 当前状态
 
+- [x] 输出独立文档站搭建方案：`design/docs-site-build-plan.md`（方案阶段，尚未搭建/部署）
 - [x] 架构设计文档完成：`design/tikeo-architecture-design.md`
 - [x] 移除旧版本/v2 表述，保留功能内容
 - [x] 补充多语言动态脚本与安全沙箱设计
