@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="web/src/assets/tikeo-logo.svg" alt="Tikeo logo" width="148" height="148" />
+  <img src="docs/assets/tikeo-logo-breathe.gif" alt="Tikeo animated logo" width="148" height="148" />
 </p>
 
 <h1 align="center">Tikeo</h1>
@@ -21,7 +21,7 @@
 <p align="center">
   <a href="https://github.com/yhyzgn/tikeo/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white" /></a>
   <a href="https://github.com/yhyzgn/tikeo/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/yhyzgn/tikeo?include_prereleases&style=flat-square&label=release&logo=github&logoColor=white&color=181717" /></a>
-  <a href="https://codecov.io/gh/yhyzgn/tikeo"><img alt="Rust coverage" src="https://codecov.io/gh/yhyzgn/tikeo/branch/main/graph/badge.svg?flag=rust" /></a>
+  <a href="https://codecov.io/gh/yhyzgn/tikeo"><img alt="Coverage" src="https://codecov.io/gh/yhyzgn/tikeo/branch/main/graph/badge.svg" /></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fyhyzgn%2Ftikeo%2Flicense&query=%24.license.spdx_id&style=flat-square&label=license&logo=opensourceinitiative&logoColor=white&color=3DA639" /></a>
 </p>
 

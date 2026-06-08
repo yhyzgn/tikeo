@@ -1,6 +1,7 @@
 import com.vanniktech.maven.publish.JavaLibrary
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.SourcesJar
+import org.gradle.testing.jacoco.tasks.JacocoReport
 
 plugins {
     base
@@ -15,6 +16,16 @@ allprojects {
 subprojects {
     pluginManager.withPlugin("java-library") {
         apply(plugin = "com.vanniktech.maven.publish")
+        apply(plugin = "jacoco")
+
+        tasks.withType<JacocoReport>().configureEach {
+            dependsOn(tasks.withType<Test>())
+            reports {
+                xml.required.set(true)
+                html.required.set(false)
+                csv.required.set(false)
+            }
+        }
 
         extensions.configure<com.vanniktech.maven.publish.MavenPublishBaseExtension>("mavenPublishing") {
             configure(

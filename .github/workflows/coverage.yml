@@ -50,3 +50,185 @@ jobs:
             --flag rust \
             --name rust-workspace \
             --fail-on-error
+
+  web:
+    name: Web coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install web dependencies
+        working-directory: web
+        run: bun install --frozen-lockfile
+      - name: Generate Web LCOV report
+        working-directory: web
+        run: bun test src --coverage --coverage-reporter=lcov --coverage-dir=../coverage/web
+      - name: Install Codecov CLI
+        run: python3 -m pip install --user codecov-cli
+      - name: Upload Web coverage to Codecov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          set -euo pipefail
+          ~/.local/bin/codecovcli upload-process \
+            --token "$CODECOV_TOKEN" \
+            --commit-sha "$GITHUB_SHA" \
+            --branch "$GITHUB_REF_NAME" \
+            --slug "$GITHUB_REPOSITORY" \
+            --file coverage/web/lcov.info \
+            --disable-search \
+            --flag web \
+            --name web \
+            --fail-on-error
+
+  java:
+    name: Java SDK coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Generate Java JaCoCo reports
+        working-directory: sdks/java
+        run: ./gradlew test jacocoTestReport --no-daemon
+      - name: Install Codecov CLI
+        run: python3 -m pip install --user codecov-cli
+      - name: Upload Java coverage to Codecov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          set -euo pipefail
+          mapfile -t reports < <(find sdks/java -path '*/build/reports/jacoco/test/jacocoTestReport.xml' -type f | sort)
+          if [ "${#reports[@]}" -eq 0 ]; then
+            echo "No JaCoCo XML reports found" >&2
+            exit 1
+          fi
+          args=()
+          for report in "${reports[@]}"; do
+            args+=(--file "$report")
+          done
+          ~/.local/bin/codecovcli upload-process \
+            --token "$CODECOV_TOKEN" \
+            --commit-sha "$GITHUB_SHA" \
+            --branch "$GITHUB_REF_NAME" \
+            --slug "$GITHUB_REPOSITORY" \
+            "${args[@]}" \
+            --disable-search \
+            --flag java \
+            --name java-sdk \
+            --fail-on-error
+
+  go:
+    name: Go SDK coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: sdks/go/tikeo/go.sum
+      - name: Generate Go coverage profile
+        working-directory: sdks/go/tikeo
+        run: |
+          set -euo pipefail
+          mkdir -p ../../../coverage
+          go test ./... -covermode=atomic -coverprofile=../../../coverage/go-sdk.out -count=1
+      - name: Install Codecov CLI
+        run: python3 -m pip install --user codecov-cli
+      - name: Upload Go coverage to Codecov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          set -euo pipefail
+          ~/.local/bin/codecovcli upload-process \
+            --token "$CODECOV_TOKEN" \
+            --commit-sha "$GITHUB_SHA" \
+            --branch "$GITHUB_REF_NAME" \
+            --slug "$GITHUB_REPOSITORY" \
+            --file coverage/go-sdk.out \
+            --disable-search \
+            --flag go \
+            --name go-sdk \
+            --fail-on-error
+
+  python:
+    name: Python SDK coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            sdks/python/tikeo/pyproject.toml
+            examples/python/worker-demo/pyproject.toml
+      - name: Install Python SDK and coverage dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest-cov
+          python -m pip install -e sdks/python/tikeo[test]
+          python -m pip install -e examples/python/worker-demo[test]
+      - name: Generate Python coverage XML
+        run: |
+          set -euo pipefail
+          mkdir -p coverage
+          python -m pytest sdks/python/tikeo/tests examples/python/worker-demo/tests \
+            --cov=tikeo \
+            --cov=tikeo_python_worker_demo \
+            --cov-report=xml:coverage/python.xml \
+            -q
+      - name: Install Codecov CLI
+        run: python3 -m pip install --user codecov-cli
+      - name: Upload Python coverage to Codecov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          set -euo pipefail
+          ~/.local/bin/codecovcli upload-process \
+            --token "$CODECOV_TOKEN" \
+            --commit-sha "$GITHUB_SHA" \
+            --branch "$GITHUB_REF_NAME" \
+            --slug "$GITHUB_REPOSITORY" \
+            --file coverage/python.xml \
+            --disable-search \
+            --flag python \
+            --name python-sdk \
+            --fail-on-error
+
+  nodejs:
+    name: Node.js SDK coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install Node.js SDK dependencies
+        working-directory: sdks/nodejs/tikeo
+        run: bun install --frozen-lockfile
+      - name: Generate Node.js SDK LCOV report
+        working-directory: sdks/nodejs/tikeo
+        run: bun test --coverage --coverage-reporter=lcov --coverage-dir=../../../coverage/nodejs-sdk
+      - name: Install Codecov CLI
+        run: python3 -m pip install --user codecov-cli
+      - name: Upload Node.js coverage to Codecov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          set -euo pipefail
+          ~/.local/bin/codecovcli upload-process \
+            --token "$CODECOV_TOKEN" \
+            --commit-sha "$GITHUB_SHA" \
+            --branch "$GITHUB_REF_NAME" \
+            --slug "$GITHUB_REPOSITORY" \
+            --file coverage/nodejs-sdk/lcov.info \
+            --disable-search \
+            --flag nodejs \
+            --name nodejs-sdk \
+            --fail-on-error

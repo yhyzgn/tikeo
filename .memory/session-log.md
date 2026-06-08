@@ -2176,3 +2176,32 @@ Verification:
 Result:
 - The remote `CODECOV_TOKEN` configuration is valid for Rust workspace coverage uploads.
 - Current badge represents the Rust coverage flag, not full monorepo coverage.
+
+
+## 2026-06-08 — Full coverage workflow and animated README logo
+
+Agent:
+- Codex
+
+Work:
+- Expanded `.github/workflows/coverage.yml` from Rust-only upload to a multi-surface Coverage workflow: Rust workspace LCOV, Web LCOV, Java SDK JaCoCo XML, Go SDK coverprofile, Python SDK/demo XML, and Node.js SDK LCOV.
+- Kept direct `codecov-cli upload-process` for all uploads because the earlier Codecov GitHub Action path failed remotely during GPG validation while the token itself was already verified.
+- Enabled Java SDK JaCoCo XML generation in `sdks/java/build.gradle.kts` for every Java library submodule.
+- Changed README/Chinese README coverage badge from the Rust flag badge to the overall Codecov branch badge, matching the new full-project upload intent.
+- Generated `docs/assets/tikeo-logo-breathe.gif` from the Web breathing/logo motion treatment and replaced the static README logo in both README files.
+
+Verification:
+- YAML parse passed for `.github/workflows/coverage.yml` with jobs `rust, web, java, go, python, nodejs`.
+- `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` passed: 16 external actions checked, no runtime below Node 24.
+- README checks passed: animated logo path present, general Codecov badge present, Rust flag badge removed, runtime requirement badges remain above SDK version badges.
+- GIF check passed: `docs/assets/tikeo-logo-breathe.gif` is GIF89a, 220x220, 404314 bytes.
+- `git diff --check` passed before memory update.
+- Web coverage generation passed: `cd web && bun test src --coverage --coverage-reporter=lcov --coverage-dir=../coverage/web` with 117 tests passing and `coverage/web/lcov.info` produced.
+- Node.js SDK coverage generation passed: `cd sdks/nodejs/tikeo && bun test --coverage --coverage-reporter=lcov --coverage-dir=../../../coverage/nodejs-sdk` with 14 tests passing and `coverage/nodejs-sdk/lcov.info` produced.
+- Go SDK coverage generation passed: `cd sdks/go/tikeo && go test ./... -covermode=atomic -coverprofile=../../../coverage/go-sdk.out -count=1` and `coverage/go-sdk.out` produced.
+- Java SDK JaCoCo generation passed: `cd sdks/java && ./gradlew test jacocoTestReport --no-daemon`; seven `jacocoTestReport.xml` files produced.
+- Python SDK/demo coverage generation passed after clearing the local temporary venv: `python -m pytest sdks/python/tikeo/tests examples/python/worker-demo/tests --cov=tikeo --cov=tikeo_python_worker_demo --cov-report=xml:coverage/python.xml -q` with 19 tests passing.
+
+Git:
+- Pending commit/push at the time of this memory update.
+- Remote full Coverage workflow must be checked after push before claiming the overall Codecov badge is populated by all flags.

@@ -1311,3 +1311,9 @@ Verification evidence:
 - `scripts/verify-github-actions-node-runtime.py --min-node-major 24` passed with 13 external actions and no runtime below node24.
 - `git diff --check` passed.
 - Per user instruction, GitHub CI result monitoring/debugging is intentionally skipped for this final grouping commit.
+
+### 2026-06-08 — README motion polish and full Codecov surface
+- README and Chinese README now use `docs/assets/tikeo-logo-breathe.gif`, a 220x220 GIF derived from the Web breathing/task-flow logo animation, instead of the static SVG logo.
+- Coverage workflow now uploads reports for Rust workspace, Web, Java SDK, Go SDK, Python SDK/demo, and Node.js SDK through direct `codecov-cli` uploads with per-surface flags.
+- Java SDK aggregate Gradle build now applies JaCoCo to Java library subprojects and emits XML reports for Codecov.
+- Local report generation passed for Web (117 tests), Node.js SDK (14 tests), Go SDK, Java SDK (7 JaCoCo XML reports), and Python SDK/demo (19 tests).

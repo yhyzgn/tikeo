@@ -564,3 +564,32 @@ cd examples/rust/worker-demo && cargo test
 ```
 
 GitHub Actions CI evidence: run `26947829951` success.
+
+## 2026-06-08 coverage badge / README logo verification
+
+```bash
+python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24
+python3 - <<'PY'
+from pathlib import Path
+import yaml
+assert 'jobs' in yaml.safe_load(Path('.github/workflows/coverage.yml').read_text())
+for readme in [Path('README.md'), Path('README.zh-CN.md')]:
+    text = readme.read_text()
+    assert 'docs/assets/tikeo-logo-breathe.gif' in text
+    assert 'https://codecov.io/gh/yhyzgn/tikeo/branch/main/graph/badge.svg"' in text
+    assert 'flag=rust' not in text
+    assert text.index('alt="Java 17+"') < text.index('alt="Java core SDK"') < text.index('alt="Rust SDK"')
+PY
+file docs/assets/tikeo-logo-breathe.gif
+git diff --check
+
+cd web && bun test src --coverage --coverage-reporter=lcov --coverage-dir=../coverage/web
+cd sdks/nodejs/tikeo && bun test --coverage --coverage-reporter=lcov --coverage-dir=../../../coverage/nodejs-sdk
+cd sdks/go/tikeo && go test ./... -covermode=atomic -coverprofile=../../../coverage/go-sdk.out -count=1
+cd sdks/java && ./gradlew test jacocoTestReport --no-daemon
+uv venv --clear .dev/python-coverage-venv
+. .dev/python-coverage-venv/bin/activate
+uv pip install pytest-cov -e sdks/python/tikeo[test] -e examples/python/worker-demo[test]
+python -m pytest sdks/python/tikeo/tests examples/python/worker-demo/tests \
+  --cov=tikeo --cov=tikeo_python_worker_demo --cov-report=xml:coverage/python.xml -q
+```
