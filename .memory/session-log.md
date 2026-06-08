@@ -1974,3 +1974,29 @@ Verification:
 
 Git:
 - This commit records enhanced video evidence only; generated media, TTS cache, and Playwright artifacts remain local under ignored `.dev/`.
+
+## 2026-06-08 — Cinematic soft-subtitle promotional video and audit date polish
+
+Agent:
+- Codex
+
+Work:
+- Reworked the promotional browser recording into a cinematic long-form walkthrough with continuous mouse movement, scroll/pan motion on content-heavy pages, slower feature pacing, and expanded narration about Tikeo architecture, cloud-native Worker Tunnel design, dispatch leases/fencing, unified job lifecycle, topology, workflow state machine, script governance, RBAC, service-account API keys, audit evidence, and alert delivery.
+- Re-recorded the real local stack at 1920x1080 using Server, Web, and seven live demo workers: Java Boot2, Java Boot3, Java Boot4, Go, Rust, Python, and Node.js.
+- Regenerated English narration and Chinese narration with `edge-tts`; validated each segment duration covers both English and Chinese TTS without truncation.
+- Changed the final media packaging to high-quality H.264 (`libx264`, `preset=slow`, `crf=16`) with no burned-in subtitles; English and Simplified Chinese subtitles are embedded as soft subtitle tracks, with standalone `.srt` files preserved for platform CC uploads.
+- Fixed Web audit log date rendering to accept both `createdAt` and backend `created_at`, preventing `Invalid Date` from appearing in the promotional audit segment.
+- Final local artifact: `.dev/reports/promo-cinematic-showcase-20260608T041919Z-187012/tikeo-cinematic-promo-hq-softsubs.mp4`.
+- Standalone subtitle files: `subtitles.en.srt`, `subtitles.zh-CN.srt`, and `subtitles.bilingual.srt` in the same report directory.
+
+Verification:
+- `ffprobe` confirmed final MP4 duration `495.320000` seconds, `1920x1080`, H.264 video, English AAC narration default track, Chinese AAC narration second track, English soft subtitle default track, and Chinese soft subtitle second track.
+- Final media summary records `burnedInSubtitles: false` and CRF 16 source-resolution encode.
+- TTS fit script confirmed all 12 segments cover both English and Chinese generated audio without overrun.
+- Visual frame inspection confirmed no burned-in subtitles, clean 1080p UI, and audit dates rendered as concrete dates/times instead of `Invalid Date`.
+- Critical final run log scan found no proxy/auth/module-resolution/Playwright timeout errors.
+- Web verification: `cd web && bun run lint`; `cd web && bun run typecheck`; explicit src unit-test file list via `bun test $(find src -type f \( -name '*.test.ts' -o -name '*.test.tsx' \) | sort)` passed 117 tests; `cd web && bun run build` passed.
+- Known verification note: plain `cd web && bun test` still fails because Bun test runner loads Playwright e2e specs (`e2e/rbac-role-management.spec.ts`) and hits the existing Playwright `test()` runner conflict; this is unrelated to the audit-date fix and was bypassed with an explicit src test file list.
+
+Git:
+- Generated media remains local under ignored `.dev/`; source commit includes only the Web audit date compatibility fix and memory evidence.

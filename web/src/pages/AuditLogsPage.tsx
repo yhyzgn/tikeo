@@ -88,8 +88,12 @@ export function AuditLogsPage() {
       dataIndex: 'createdAt',
       key: 'time',
       width: 170,
-      render: (v: string) => {
-        const date = new Date(v);
+      render: (v: string | undefined, r: AuditLogSummary) => {
+        const raw = v ?? r.createdAt ?? r.created_at;
+        const date = raw ? new Date(raw) : null;
+        if (!date || Number.isNaN(date.getTime())) {
+          return <Typography.Text type="secondary">-</Typography.Text>;
+        }
         return (
           <Space direction="vertical" size={0}>
             <Typography.Text strong>{date.toLocaleDateString()}</Typography.Text>

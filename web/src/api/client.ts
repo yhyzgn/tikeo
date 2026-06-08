@@ -1310,7 +1310,8 @@ export interface AuditLogSummary {
   result: 'success' | 'failed' | string;
   failure_reason: string | null;
   ip_address: string | null;
-  createdAt: string;
+  createdAt?: string;
+  created_at?: string;
 }
 
 export interface AuditLogQuery {
