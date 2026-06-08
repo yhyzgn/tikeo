@@ -50,7 +50,7 @@ class DocsSiteContractTest(unittest.TestCase):
         config = (WEBSITE / "docusaurus.config.ts").read_text()
         homepage = (WEBSITE / "src/pages/index.tsx").read_text()
         self.assertIn("TIKEO_DOCS_BASE_URL", config)
-        self.assertIn("'/tikeo/'", config)
+        self.assertIn("?? '/'", config)
         self.assertIn("useBaseUrl", homepage)
 
     def test_docs_information_architecture_contains_p0_pages(self):
@@ -97,8 +97,9 @@ class DocsSiteContractTest(unittest.TestCase):
         for snippet in [
             "systemctl enable --now tikeo",
             "docker compose --env-file .env up -d --build",
-            "docker-compose.postgres.yml",
-            "docker-compose.mysql.yml",
+            "Full `docker-compose.yml`",
+            "Full `docker-compose.postgres.yml`",
+            "Full `docker-compose.mysql.yml`",
             "helm upgrade --install tikeo",
             "kubectl -n tikeo create secret generic tikeo-database",
             "server.tls.workerTunnel.mtlsRequired",

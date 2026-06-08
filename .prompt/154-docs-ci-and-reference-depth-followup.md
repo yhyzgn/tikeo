@@ -5,12 +5,12 @@
 The standalone docs site has a verified P0 content/localization/deployment baseline:
 
 - Docusaurus 3.10.1 TypeScript + Bun app in `website/`.
-- Default docs deployment target is GitHub Pages project hosting (`https://yhyzgn.github.io/tikeo/`) through `baseUrl=/tikeo/`.
-- Custom standalone docs domains are supported with `TIKEO_DOCS_URL` and `TIKEO_DOCS_BASE_URL=/`.
+- Default docs deployment target is a standalone-root site (`baseUrl=/`) so `/zh-CN/` works without subpath hosting rewrites.
+- GitHub Pages project hosting is supported with `TIKEO_DOCS_URL=https://yhyzgn.github.io` and `TIKEO_DOCS_BASE_URL=/tikeo/`; default builds stay root-based for standalone docs hosting.
 - English P0 docs have contract-enforced minimum evaluation depth.
 - zh-CN P0 docs exist for every current P0 route and have contract-enforced localized depth.
 - SDK docs cover Rust, Go, Java Spring Boot, Python, and Node.js.
-- Deployment docs include copy-paste runbooks for single binary/systemd, Docker Compose SQLite/PostgreSQL/MySQL, Helm dev/prod/TLS/ops overlays, and configuration parameters.
+- Deployment docs include copy-paste runbooks for single binary/systemd, full Docker Compose SQLite/PostgreSQL/MySQL YAML files, Helm dev/prod/TLS/ops overlays, and configuration parameters.
 - Local default `/tikeo/` and custom root `/` builds/serve smokes are green for zh-CN language-switch routes.
 
 ## Recommended next slice
@@ -18,10 +18,10 @@ The standalone docs site has a verified P0 content/localization/deployment basel
 1. Add docs verification to CI.
    - Decide whether to extend main CI or create a docs-specific workflow.
    - Minimum commands: `python3 .github/tests/docs_site_contract_test.py`, `cd website && bun install --frozen-lockfile`, `bun run docs:typecheck`, and `bun run docs:build`.
-   - For GitHub Pages deployment, keep the default `TIKEO_DOCS_BASE_URL=/tikeo/`; for custom domains, set `TIKEO_DOCS_BASE_URL=/`.
+   - For standalone docs deployment, keep the default `TIKEO_DOCS_BASE_URL=/`; for GitHub Pages project hosting, set `TIKEO_DOCS_BASE_URL=/tikeo/`.
 2. Select and document final docs hosting.
-   - If using GitHub Pages project hosting: verify `/tikeo/zh-CN/...` after deployment.
-   - If using a standalone domain: set canonical URL, `TIKEO_DOCS_URL`, and `TIKEO_DOCS_BASE_URL=/`.
+   - If using a standalone domain: verify `/zh-CN/...` after deployment.
+   - If using GitHub Pages project hosting: set `TIKEO_DOCS_URL=https://yhyzgn.github.io`, `TIKEO_DOCS_BASE_URL=/tikeo/`, and verify `/tikeo/zh-CN/...`.
 3. Expand source-backed reference depth.
    - SDK overview and cross-language parity guide.
    - User guide pages for Dashboard, Jobs, Instances, Workers, Workflows, Scripts, Audit, and Settings.

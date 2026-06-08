@@ -11,8 +11,8 @@ const normalizeBaseUrl = (value: string): string => {
   return withLeadingSlash.endsWith('/') ? withLeadingSlash : `${withLeadingSlash}/`;
 };
 
-const siteUrl = process.env.TIKEO_DOCS_URL ?? 'https://yhyzgn.github.io';
-const baseUrl = normalizeBaseUrl(process.env.TIKEO_DOCS_BASE_URL ?? '/tikeo/');
+const siteUrl = process.env.TIKEO_DOCS_URL ?? 'https://tikeo.dev';
+const baseUrl = normalizeBaseUrl(process.env.TIKEO_DOCS_BASE_URL ?? '/');
 
 const config: Config = {
   title: 'Tikeo',
@@ -23,8 +23,8 @@ const config: Config = {
     v4: true,
   },
 
-  // Override TIKEO_DOCS_URL/TIKEO_DOCS_BASE_URL for a custom docs domain.
-  // The default is GitHub Pages project hosting: https://yhyzgn.github.io/tikeo/.
+  // Override TIKEO_DOCS_URL/TIKEO_DOCS_BASE_URL for GitHub Pages project hosting or custom domains.
+  // The default is a standalone docs domain rooted at / so /zh-CN/ works without extra hosting rewrites.
   url: siteUrl,
   baseUrl,
 

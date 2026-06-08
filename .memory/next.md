@@ -2,7 +2,7 @@
 
 ## Current priority direction
 
-当前优先级：独立 Docusaurus docs 站点已经完成 Phase A scaffold、Phase B 当前 P0 内容深度、Phase C 当前 P0 zh-CN 路由镜像，并修复了 GitHub Pages 子路径下语言切换到中文 404 的 baseUrl 问题；部署文档已补到复制即用级别。下一步应把 docs 验证接入 CI/发布准备，再继续扩展用户指南/API reference 深度。
+当前优先级：独立 Docusaurus docs 站点已经完成 Phase A scaffold、Phase B 当前 P0 内容深度、Phase C 当前 P0 zh-CN 路由镜像，并修复了独立站根路径与 GitHub Pages 子路径两种语言切换到中文 404 的 baseUrl 问题；部署文档已补到复制即用级别，Compose 页面已直接写出完整 docker-compose*.yml。下一步应把 docs 验证接入 CI/发布准备，再继续扩展用户指南/API reference 深度。
 
 ## Immediate next slice
 
@@ -15,8 +15,8 @@
 
 ## Current verified baseline
 
-- Docs site P0 content/localization/deployment：`website/docs/` 当前 P0 英文页面通过最小深度/section 契约；`website/i18n/zh-CN/docusaurus-plugin-content-docs/current/` 覆盖所有当前 P0 route，并通过 zh-CN 内容深度契约；SDK docs 覆盖 Rust、Go、Java Spring Boot、Python、Node.js；部署 docs 覆盖 single binary/systemd、Compose SQLite/PostgreSQL/MySQL、Helm dev/prod/TLS/ops 和配置参数。
-- Docs verification：`python3 .github/tests/docs_site_contract_test.py`、`python3 scripts/check-source-size.py`、`cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` 均通过；默认 `/tikeo/` subpath serve smoke 与自定义 root `/` serve smoke 都验证 zh-CN route 非 404。
+- Docs site P0 content/localization/deployment：`website/docs/` 当前 P0 英文页面通过最小深度/section 契约；`website/i18n/zh-CN/docusaurus-plugin-content-docs/current/` 覆盖所有当前 P0 route，并通过 zh-CN 内容深度契约；SDK docs 覆盖 Rust、Go、Java Spring Boot、Python、Node.js；部署 docs 覆盖 single binary/systemd、Compose SQLite/PostgreSQL/MySQL（含完整 docker-compose*.yml）、Helm dev/prod/TLS/ops 和配置参数。
+- Docs verification：`python3 .github/tests/docs_site_contract_test.py`、`python3 scripts/check-source-size.py`、`cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` 均通过；默认 root `/` serve smoke 与可选 `/tikeo/` subpath serve smoke 都验证 zh-CN route 非 404。
 - Source-size cleanup：`scripts/check-source-size.py` 已覆盖普通 `.rs` / `.ts` / `.tsx` 源码并排除 `.git`、`.dev`、`target`、`node_modules`、`dist`、`coverage` 等生成/依赖目录；当前全仓库审计通过，且已接入 main CI `workflow-policy` 快速门禁。
 - Main CI 基线：run `27129836559` succeeded for source commit `e98f6fd7395f1c104050ce8037db79ab5447aed6`，覆盖 Server/Web/Java/Rust/Go/Python/Node SDK+demo、deploy tooling、cross-language worker smoke 与 Docker build validation。
 - Coverage 基线：run `27129836631` succeeded for source commit `e98f6fd7395f1c104050ce8037db79ab5447aed6`；Rust/Web/Java/Go/Python/Node coverage jobs 均通过并上传。

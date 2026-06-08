@@ -2395,7 +2395,7 @@ Verification gap:
 - `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` timed out locally after 20s with no output during this docs-only slice; prior baseline had this policy green, and no workflow files were changed.
 
 ### 2026-06-08 — Docs language switch baseUrl fix and copy-paste deployment docs
-- Fixed the likely zh-CN language-switch 404 for GitHub Pages/project-subpath hosting by making Docusaurus `url`/`baseUrl` environment-configurable and defaulting to `https://yhyzgn.github.io` + `/tikeo/`; custom standalone docs domains can set `TIKEO_DOCS_URL` and `TIKEO_DOCS_BASE_URL=/`.
+- Fixed the likely zh-CN language-switch 404 for GitHub Pages/project-subpath hosting by making Docusaurus `url`/`baseUrl` environment-configurable and defaulting to standalone-root `https://tikeo.dev` + `/`; GitHub Pages project hosting can set `TIKEO_DOCS_URL=https://yhyzgn.github.io` and `TIKEO_DOCS_BASE_URL=/tikeo/`.
 - Updated the homepage to use `useBaseUrl` for static assets, so logo/architecture images remain valid under `/tikeo/`.
 - Expanded deployment docs from overview text into copy-paste runbooks: single binary/systemd, Compose SQLite/PostgreSQL/MySQL, Prometheus profile, Helm SQLite dev install, external database Secret install, TLS/mTLS install, operations hardening, Gateway API rendering, values reference, validation, cleanup, and rollback.
 - Expanded configuration reference with committed config file map, ports, storage URLs, env override rules, auth/API token knobs, transport security, observability, alert retry/secrets, and script governance.
@@ -2407,3 +2407,16 @@ Verification evidence:
 - Generated HTML contains `/tikeo/zh-CN/...` language-switch links for docs root, deployment/kubernetes, and homepage.
 - Default subpath serve smoke on port `13032` passed for `/tikeo/`, `/tikeo/docs/`, `/tikeo/zh-CN/`, `/tikeo/zh-CN/docs/`, and zh-CN deployment/config routes.
 - Custom root build with `TIKEO_DOCS_URL=http://127.0.0.1:13033 TIKEO_DOCS_BASE_URL=/` passed; generated HTML contains `/zh-CN/...` links; root serve smoke on port `13033` passed.
+
+### 2026-06-08 — Docs root-locale fix and full Compose YAML publication
+- Reverted docs default baseUrl to standalone-root `/` so `/zh-CN/` and `/zh-CN/docs/` work by default for an independently deployed docs site.
+- Kept GitHub Pages project hosting supported through explicit `TIKEO_DOCS_URL=https://yhyzgn.github.io TIKEO_DOCS_BASE_URL=/tikeo/` build variables.
+- Expanded Docker Compose docs to include the full committed `docker-compose.yml`, `docker-compose.postgres.yml`, and `docker-compose.mysql.yml` contents in both English and zh-CN docs, plus commands, parameter table, Worker connectivity, Prometheus, and cleanup guidance.
+- Updated docs contract checks so deployment docs must retain full Compose file headings and copy-paste runbook snippets.
+Verification evidence:
+- `python3 .github/tests/docs_site_contract_test.py` passed with 8 tests.
+- `python3 scripts/check-source-size.py` passed.
+- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed with default root baseUrl.
+- Generated root HTML contains `/zh-CN/...` language links; root serve smoke on port `13036` passed for `/zh-CN/`, `/zh-CN/docs/`, `/zh-CN/docs/deployment/docker-compose`, and `/zh-CN/docs/deployment/kubernetes`.
+- GitHub Pages subpath build with `TIKEO_DOCS_URL=https://yhyzgn.github.io TIKEO_DOCS_BASE_URL=/tikeo/` generated `/tikeo/zh-CN/...` links; subpath serve smoke on port `13037` passed.
+- `python3 .github/tests/workflow_contract_test.py` passed; workflow YAML parse passed; `git diff --check` passed.

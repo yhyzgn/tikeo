@@ -1398,6 +1398,11 @@ Verification evidence:
 - Verified locally with docs contract, source-size audit, Docusaurus typecheck/build, zh-CN route smoke, workflow contract, YAML parse, and git diff check.
 
 ### 2026-06-08 — Docs deployment docs made copy-pasteable and zh-CN switching made subpath-safe
-- Docusaurus docs now default to GitHub Pages project base `/tikeo/` and support custom root domains through `TIKEO_DOCS_URL` / `TIKEO_DOCS_BASE_URL`; this fixes the language-switch 404 class caused by root-relative `/zh-CN/...` links on subpath hosting.
+- Docusaurus docs now default to standalone root `/` and support GitHub Pages project base `/tikeo/` through `TIKEO_DOCS_URL` / `TIKEO_DOCS_BASE_URL`; this fixes the language-switch 404 class caused by root-relative `/zh-CN/...` links on subpath hosting.
 - Deployment docs now cover copy-paste paths for single binary/systemd, Docker Compose SQLite/PostgreSQL/MySQL, Helm/Kubernetes dev/prod/TLS/ops, and runtime configuration parameters.
 - Added contract coverage for deployment runbook snippets and baseUrl-safe homepage assets.
+
+### 2026-06-08 — Docs Chinese root path and full Compose files corrected
+- Default docs build is root-based again, so independently hosted Chinese routes open at `/zh-CN/...` without requiring `/tikeo/` rewrites.
+- GitHub Pages project hosting remains available only when explicitly built with `TIKEO_DOCS_BASE_URL=/tikeo/`.
+- Compose deployment docs now include full `docker-compose.yml`, `docker-compose.postgres.yml`, and `docker-compose.mysql.yml` in English and zh-CN.
