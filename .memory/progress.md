@@ -1336,3 +1336,4 @@ Verification evidence:
 - `scripts/verify-deploy-bootstrap.sh` passed.
 - `.dev/tools/helm lint deploy/helm/tikeo` passed with only the optional icon recommendation.
 - `.dev/tools/helm template` passed for default, external database, and external database + TLS/mTLS values.
+- Remote verification: CI run `27128044956` and Coverage run `27128044845` both completed successfully for source commit `c90b44177a692946ad4cd000f16e6653ddc508e9`.
