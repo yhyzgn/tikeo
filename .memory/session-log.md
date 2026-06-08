@@ -1949,3 +1949,28 @@ Verification:
 
 Git:
 - This commit records session evidence only; generated video artifacts remain local under ignored `.dev/`.
+
+## 2026-06-08 — Enhanced bilingual promotional video artifact
+
+Agent:
+- Codex
+
+Work:
+- Re-ran the promotional demo as a slower, richer Playwright walkthrough using an isolated local stack and throwaway SQLite DB under `.dev/reports/`.
+- Seeded denser promotional data across jobs, workers, dispatch queue, topology, workflows, scripts, RBAC roles, service accounts/API keys, audit, and alerts.
+- Reused the user-provided bootstrap admin identity for the local demo recording only.
+- Recorded a 12-segment browser walkthrough covering intro, dashboard, worker fleet, dispatch queue/leases, jobs, topology, workflows, scripts/sandbox policy, RBAC roles, service accounts/API keys, audit trail, and alerts.
+- Generated English narration with `edge-tts`, generated Chinese narration, soft subtitle tracks for English and Simplified Chinese, and burned-in bilingual Chinese/English subtitles.
+- Final local artifact: `.dev/reports/promo-rich-showcase-20260608T032701Z-133036/tikeo-rich-promo-bilingual.mp4`.
+
+Verification:
+- `ffprobe` confirmed final MP4 duration `279.680000` seconds at `1440x960`, 25 fps.
+- `ffprobe` confirmed two AAC audio tracks: English narration (`eng`) is default, Chinese narration (`zho`) is second.
+- `ffprobe` confirmed two soft subtitle tracks: English (`eng`, default) and Simplified Chinese (`zho`).
+- Timeline evidence confirmed 12 slower segments ending at `278.743` seconds.
+- Worker API evidence confirmed seven demo workers online in the enhanced run: Java Boot2, Java Boot3, Java Boot4, Go, Rust, Python, and Node.js demos.
+- Visual frame inspection at 60s and 210s confirmed the authenticated console, rich demo data, feature callout card, and readable burned-in bilingual subtitles.
+- Critical log scan found no proxy/auth/module-resolution/Playwright timeout errors in the enhanced run.
+
+Git:
+- This commit records enhanced video evidence only; generated media, TTS cache, and Playwright artifacts remain local under ignored `.dev/`.

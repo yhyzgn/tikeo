@@ -2,14 +2,14 @@
 
 ## Current priority direction
 
-当前优先级：数据库迁移版本化硬化已进入收尾验证阶段；cross-language Worker parity harness 已纳入主 CI 并上传 artifact，Docker validation 已拆分 server/web 且 Node runtime policy 已全绿。下一步继续推进生产化风险：部署 Helm/外部 DB/TLS/Secret 模板硬化，以及 Web 真实浏览器 screenshot/video 证据增强。
+当前优先级：数据库迁移版本化硬化已进入收尾验证阶段；cross-language Worker parity harness 已纳入主 CI 并上传 artifact，Docker validation 已拆分 server/web 且 Node runtime policy 已全绿。2026-06-08 已补强本地 Playwright 宣传录屏证据，并产出富数据、慢节奏、英文默认/中文第二音轨、英中双语字幕的本地 MP4。下一步继续推进生产化风险：部署 Helm/外部 DB/TLS/Secret 模板硬化。
 
 ## Immediate next slice
 
 1. 下次接手先查看最新 CI：本轮 CI 分组提交按用户指示未等待远端结果；如果失败，优先按 job 分组日志修复，但不要恢复旧的碎片化 job 命名。
 2. 先处理源码行数历史债务或给 CI 加明确豁免边界：当前审计发现 `dispatcher.rs`、`repository.rs`、`workflow.rs`、`web/src/i18n/messages.ts`、`web/src/api/client.ts` 等历史文件超过 1500 行，不能继续宣称全仓库已满足该规则。
 3. 继续部署生产化专项：Helm values、外部 PostgreSQL/MySQL/CockroachDB 连接、TLS/mTLS secret、readiness/liveness、worker identity env 和回滚文档。
-4. Web 浏览器级验收增强：用 Playwright 对 Workers 分组页、dispatch queue 二级页、API-Key 页面输出 screenshot/video artifact。
+4. 宣传录屏本地证据已完成：`.dev/reports/promo-rich-showcase-20260608T032701Z-133036/tikeo-rich-promo-bilingual.mp4`；若要公开分发，下一步可做剪辑压缩、封面海报、上传/CDN 或 CI artifact 化。
 5. 保留 Python/Node SDK demo 为明确未来项；实现前不得在 examples README 中宣称 runnable。
 6. 迁移工具（PowerJob/XXL-JOB）仍维持最低优先级 backlog，核心服务体验稳定后再做。
 
@@ -21,6 +21,7 @@
 - Rust SDK/demo：默认 live；支持 success message；`rust demo echo processed` 实例日志已由 harness 验证。
 - Worker visibility：`worker_sessions` 持久化 capabilities/structuredCapabilities/labels/master snapshot；server restart snapshot smoke 已通过。
 - Web Worker：按 namespace/app 与 cluster/region 分组；dispatch queue 在 `/workers/dispatch-queue`；route smoke 已通过。
+- Browser promo artifact：本地增强版 MP4 位于 `.dev/reports/promo-rich-showcase-20260608T032701Z-133036/tikeo-rich-promo-bilingual.mp4`，`ffprobe` 验证 279.680s、1440x960、英文默认音轨、中文第二音轨、英/中文字幕轨、烧录双语字幕。
 - Storage migration：SQLite legacy schema compatibility 已迁入显式 SeaORM migration `sqlite_compat`，由 `seaql_migrations` 持久记录；本轮验证命令见 progress/session-log。
 
 ## Standing constraints
