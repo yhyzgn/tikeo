@@ -1349,3 +1349,4 @@ Verification evidence so far:
 - `.dev/tools/helm lint deploy/helm/tikeo` passed with only the optional icon recommendation.
 - `.dev/tools/helm lint` passed with external DB values and with external DB + TLS + ops hardening + Gateway API values.
 - `.dev/tools/helm template` passed for default, external DB, TLS, and ops/Gateway overlays.
+- Remote verification: CI run `27129836559` and Coverage run `27129836631` both completed successfully for source commit `e98f6fd7395f1c104050ce8037db79ab5447aed6`.

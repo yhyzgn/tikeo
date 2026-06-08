@@ -15,8 +15,8 @@
 
 ## Current verified baseline
 
-- Main CI 基线：run `27128044956` succeeded for source commit `c90b44177a692946ad4cd000f16e6653ddc508e9`，覆盖 Server/Web/Java/Rust/Go/Python/Node SDK+demo、deploy tooling、cross-language worker smoke 与 Docker build validation。
-- Coverage 基线：run `27128044845` succeeded for source commit `c90b44177a692946ad4cd000f16e6653ddc508e9`；Rust/Web/Java/Go/Python/Node coverage jobs 均通过并上传。
+- Main CI 基线：run `27129836559` succeeded for source commit `e98f6fd7395f1c104050ce8037db79ab5447aed6`，覆盖 Server/Web/Java/Rust/Go/Python/Node SDK+demo、deploy tooling、cross-language worker smoke 与 Docker build validation。
+- Coverage 基线：run `27129836631` succeeded for source commit `e98f6fd7395f1c104050ce8037db79ab5447aed6`；Rust/Web/Java/Go/Python/Node coverage jobs 均通过并上传。
 - Helm production + ops baseline：`deploy/helm/tikeo` 已支持外部 PostgreSQL/MySQL/CockroachDB URL Secret、SQLite PVC 条件化、HTTP/Worker Tunnel TLS/mTLS Secret mounts、transport security config 渲染、server/web ingress、probe/resource/securityContext 参数、PodDisruptionBudget、NetworkPolicy、ServiceMonitor、Gateway API `GRPCRoute`、`values.schema.json`、worker identity 文档和 rollback runbook；本地 `helm lint` 与 default/external/TLS/ops 四套 `helm template` 场景通过。
 - Java demos：`examples/java/spring-boot2-worker-demo`、`spring-boot3-worker-demo`、`spring-boot4-worker-demo`。
 - Go SDK/demo：默认 live；不默认广告不可执行脚本 runner；`go demo echo processed` 实例日志已由 harness 验证。

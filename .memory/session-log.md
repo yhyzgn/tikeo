@@ -2311,3 +2311,8 @@ Final local verification before commit:
 - `bun run --cwd web typecheck` passed.
 - `bun run --cwd web test` passed with 117 tests.
 - `bun run --cwd web build` passed; Vite reported the existing large chunk warning for bundled vendor assets.
+
+Remote verification after push:
+- CI run `27129836559` completed successfully for source commit `e98f6fd7395f1c104050ce8037db79ab5447aed6`.
+- Successful CI groups: workflow policy, Rust SDK + demo, Go SDK + demo, Java SDK + demo, Python SDK + demo, Server, Web, Node.js SDK + demo, deploy tooling, cross-language worker smoke, Docker build validation / server, and Docker build validation / web.
+- Coverage run `27129836631` completed successfully for source commit `e98f6fd7395f1c104050ce8037db79ab5447aed6`; Rust workspace, Web, Java SDK, Go SDK, Python SDK, and Node.js SDK coverage jobs all passed.
