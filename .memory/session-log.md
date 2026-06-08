@@ -2125,3 +2125,20 @@ Verification:
 
 Git:
 - Pending commit/push at the time of this memory update.
+
+
+## 2026-06-08 — Codecov Rust coverage workflow
+
+Agent:
+- Codex
+
+Work:
+- Moved SDK runtime requirement badge rows above all SDK version badge rows in both README files.
+- Added `.github/workflows/coverage.yml` for Rust workspace coverage using `cargo llvm-cov` and Codecov upload with the repository `CODECOV_TOKEN` secret.
+- Added a Codecov Rust coverage badge to README and Chinese README; it will become meaningful after the first successful main-branch coverage upload.
+
+Verification:
+- Workflow runtime policy, YAML parse, README badge ordering checks, badge URL checks, and `git diff --check` to be run before commit.
+
+Git:
+- Pending commit/push at the time of this memory update.
