@@ -2493,3 +2493,31 @@ Verification:
 
 Git:
 - Pending commit and push, then manual rerun of `Publish / Docker web` with `tag=v0.2.0` and `ref=main`.
+
+## 2026-06-08 — 0.2.0 正式发布完成
+
+Agent:
+- Codex
+
+Remote release status:
+- `main` release-prep commit pushed: `00c2927`.
+- Annotated tag pushed: `v0.2.0` -> `00c2927`.
+- GitHub Release published as formal release, not draft and not prerelease: https://github.com/yhyzgn/tikeo/releases/tag/v0.2.0
+- Tag-triggered publish workflows succeeded:
+  - Publish / Rust SDK: run `27146185208` ✅
+  - Publish / Python SDK: run `27146186151` ✅
+  - Publish / Node.js SDK: run `27146186189` ✅
+  - Publish / Java SDK: run `27146186292` ✅
+  - Publish / Go SDK: run `27146186464` ✅
+  - Publish / Docker server: run `27146186396` ✅
+  - Release / GitHub assets: run `27146186259` ✅
+- Tag-triggered Publish / Docker web run `27146185121` failed under `oven/bun:latest` / Bun `1.3.14`; fixed by commit `0eaf04f` and manually re-published `tikeo-web:v0.2.0` from `main` using workflow_dispatch run `27147150174` ✅.
+- Main CI and Coverage after release prep succeeded:
+  - Release-prep CI: run `27146163208` ✅
+  - Release-prep Coverage: run `27146163363` ✅
+  - Docker-web-fix CI: run `27147138165` ✅
+  - Docker-web-fix Coverage: run `27147138007` ✅
+
+Notes:
+- The `v0.2.0` source tag was not moved after successful SDK publishes; only the Docker web image workflow was repaired and rerun with the same image tag from the follow-up `main` fix commit.
+- User restored the shutdown instruction after briefly cancelling it; execute shutdown after this final memory commit/push.

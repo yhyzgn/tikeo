@@ -24,8 +24,8 @@
 - Browser promo artifact：最终推荐本地 MP4 位于 `.dev/reports/promo-cinematic-showcase-20260608T050247Z-231970/tikeo-cinematic-promo-hq-sentence-subs.mp4`，`ffprobe` 验证 496.520s、1920x1080、英文默认音轨、中文第二音轨、英/中文字幕逐句软字幕轨、无烧录字幕、CRF 16 高画质封装。
 ## 0.2.0 release follow-up
 
-- After the `v0.2.0` tag is pushed, monitor GitHub Actions release/publish workflows for Docker server/web images, GitHub assets, and language registry publishes.
-- If any registry publish fails because credentials/secrets are missing, record the failing workflow and rerun after secret repair; do not retag unless the release commit changes.
+- `v0.2.0` formal release is published: https://github.com/yhyzgn/tikeo/releases/tag/v0.2.0
+- Tag-triggered Rust/Python/Node/Java/Go SDK publishing, Docker server image publishing, GitHub assets, and follow-up Docker web image publishing have completed successfully.
 - Next product/docs slice remains: CI docs verification placement, final docs hosting configuration, docs search/SEO/OG readiness, and deeper source-backed API/protobuf references.
 
 ## Standing constraints
