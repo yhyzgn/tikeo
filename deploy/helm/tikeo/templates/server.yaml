@@ -1,3 +1,4 @@
+{{- if and (eq .Values.server.storage.mode "sqlite") .Values.server.storage.persistence.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -6,11 +7,16 @@ metadata:
   labels:
     {{- include "tikeo.labels" . | nindent 4 }}
 spec:
-  accessModes: ["ReadWriteOnce"]
+  accessModes:
+    {{- toYaml .Values.server.storage.persistence.accessModes | nindent 4 }}
+  {{- if .Values.server.storage.persistence.storageClass }}
+  storageClassName: {{ .Values.server.storage.persistence.storageClass | quote }}
+  {{- end }}
   resources:
     requests:
-      storage: {{ .Values.server.storage.size | quote }}
+      storage: {{ .Values.server.storage.persistence.size | quote }}
 ---
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -32,12 +38,33 @@ spec:
         app.kubernetes.io/name: {{ include "tikeo.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: server
+      {{- with .Values.server.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
+      serviceAccountName: {{ include "tikeo.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: tikeo
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           args: ["serve", "--config", "/config/container.toml"]
+          {{- if and (eq .Values.server.storage.mode "external") .Values.server.storage.existingSecret }}
+          env:
+            - name: TIKEO__STORAGE__DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.server.storage.existingSecret | quote }}
+                  key: {{ .Values.server.storage.databaseUrlSecretKey | quote }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.server.httpPort }}
@@ -45,29 +72,123 @@ spec:
               containerPort: {{ .Values.server.workerTunnelPort }}
           readinessProbe:
             httpGet:
-              path: /readyz
+              path: {{ .Values.server.probes.readiness.path | quote }}
               port: http
-            initialDelaySeconds: 3
-            periodSeconds: 10
+              {{- if .Values.server.tls.http.enabled }}
+              scheme: HTTPS
+              {{- end }}
+            initialDelaySeconds: {{ .Values.server.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.server.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.server.probes.readiness.failureThreshold }}
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: {{ .Values.server.probes.liveness.path | quote }}
               port: http
-            initialDelaySeconds: 10
-            periodSeconds: 20
+              {{- if .Values.server.tls.http.enabled }}
+              scheme: HTTPS
+              {{- end }}
+            initialDelaySeconds: {{ .Values.server.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.server.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.server.probes.liveness.failureThreshold }}
+          {{- with .Values.server.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.server.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: config
               mountPath: /config
               readOnly: true
+            {{- if eq .Values.server.storage.mode "sqlite" }}
             - name: data
               mountPath: /data
+            {{- end }}
+            {{- if .Values.server.tls.http.existingSecret }}
+            - name: http-tls
+              mountPath: {{ .Values.server.tls.http.mountPath | quote }}
+              readOnly: true
+            {{- end }}
+            {{- if .Values.server.tls.http.clientCaSecret }}
+            - name: http-client-ca
+              mountPath: {{ .Values.server.tls.http.clientCaMountPath | quote }}
+              readOnly: true
+            {{- end }}
+            {{- if .Values.server.tls.workerTunnel.existingSecret }}
+            - name: worker-tunnel-tls
+              mountPath: {{ .Values.server.tls.workerTunnel.mountPath | quote }}
+              readOnly: true
+            {{- end }}
+            {{- if .Values.server.tls.workerTunnel.clientCaSecret }}
+            - name: worker-tunnel-client-ca
+              mountPath: {{ .Values.server.tls.workerTunnel.clientCaMountPath | quote }}
+              readOnly: true
+            {{- end }}
       volumes:
         - name: config
           configMap:
             name: {{ include "tikeo.name" . }}-config
+        {{- if eq .Values.server.storage.mode "sqlite" }}
         - name: data
+          {{- if .Values.server.storage.persistence.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "tikeo.name" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.server.tls.http.existingSecret }}
+        - name: http-tls
+          secret:
+            secretName: {{ .Values.server.tls.http.existingSecret | quote }}
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+        {{- end }}
+        {{- if .Values.server.tls.http.clientCaSecret }}
+        - name: http-client-ca
+          secret:
+            secretName: {{ .Values.server.tls.http.clientCaSecret | quote }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- end }}
+        {{- if .Values.server.tls.workerTunnel.existingSecret }}
+        - name: worker-tunnel-tls
+          secret:
+            secretName: {{ .Values.server.tls.workerTunnel.existingSecret | quote }}
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+        {{- end }}
+        {{- if .Values.server.tls.workerTunnel.clientCaSecret }}
+        - name: worker-tunnel-client-ca
+          secret:
+            secretName: {{ .Values.server.tls.workerTunnel.clientCaSecret | quote }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- end }}
+      {{- with .Values.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -76,15 +197,19 @@ metadata:
   namespace: {{ include "tikeo.namespace" . }}
   labels:
     {{- include "tikeo.labels" . | nindent 4 }}
+  {{- with .Values.server.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  type: ClusterIP
+  type: {{ .Values.server.service.type }}
   selector:
     app.kubernetes.io/name: {{ include "tikeo.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/component: server
   ports:
     - name: http
-      port: {{ .Values.server.httpPort }}
+      port: {{ .Values.server.service.port }}
       targetPort: http
 ---
 apiVersion: v1
@@ -96,13 +221,53 @@ metadata:
     {{- include "tikeo.labels" . | nindent 4 }}
   annotations:
     tikeo.yhyzgn.com/worker-networking: "workers-connect-outbound-only"
+    {{- with .Values.server.workerTunnelService.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
-  type: ClusterIP
+  type: {{ .Values.server.workerTunnelService.type }}
   selector:
     app.kubernetes.io/name: {{ include "tikeo.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/component: server
   ports:
     - name: grpc-worker-tunnel
-      port: {{ .Values.server.workerTunnelPort }}
+      port: {{ .Values.server.workerTunnelService.port }}
       targetPort: worker-tunnel
+{{- if .Values.server.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "tikeo.name" . }}-server
+  namespace: {{ include "tikeo.namespace" . }}
+  labels:
+    {{- include "tikeo.labels" . | nindent 4 }}
+  {{- with .Values.server.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.server.ingress.className }}
+  ingressClassName: {{ .Values.server.ingress.className | quote }}
+  {{- end }}
+  {{- with .Values.server.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.server.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path | quote }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "tikeo.name" $ }}
+                port:
+                  name: http
+          {{- end }}
+    {{- end }}
+{{- end }}

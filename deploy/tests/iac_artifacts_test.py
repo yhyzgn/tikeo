@@ -35,6 +35,42 @@ class IacArtifactsTest(unittest.TestCase):
         self.assertIn('tikeo-operator', main)
         self.assertIn('kubeconfig', main)
 
+    def test_helm_chart_exposes_production_hardening_contracts(self):
+        values = read('deploy/helm/tikeo/values.yaml')
+        server = read('deploy/helm/tikeo/templates/server.yaml')
+        configmap = read('deploy/helm/tikeo/templates/configmap.yaml')
+        web = read('deploy/helm/tikeo/templates/web.yaml')
+        readme = read('deploy/helm/tikeo/README.md')
+
+        # External database credentials must come from Kubernetes Secrets, not inline values.
+        self.assertIn('mode: sqlite', values)
+        self.assertIn('existingSecret:', values)
+        self.assertIn('databaseUrlSecretKey: database-url', values)
+        self.assertIn('TIKEO__STORAGE__DATABASE_URL', server)
+        self.assertIn('secretKeyRef', server)
+        self.assertIn('eq .Values.server.storage.mode "sqlite"', server)
+
+        # Real listener TLS/mTLS settings must be wired into the generated config and mounted secrets.
+        self.assertIn('[transport_security.http]', configmap)
+        self.assertIn('[transport_security.worker_tunnel]', configmap)
+        self.assertIn('tls.crt', server)
+        self.assertIn('tls.key', server)
+        self.assertIn('ca.crt', server)
+
+        # Production workloads should expose tunable probes, resources, contexts and ingress.
+        self.assertIn('serviceAccount', values)
+        self.assertIn('podSecurityContext', values)
+        self.assertIn('securityContext', values)
+        self.assertIn('resources:', server)
+        self.assertIn('readinessProbe', web)
+        self.assertIn('kind: Ingress', web)
+
+        # Docs/examples must cover external DB, TLS/mTLS, worker identity and rollback operations.
+        self.assertIn('values-external-postgres.yaml', readme)
+        self.assertIn('values-ingress-tls.yaml', readme)
+        self.assertIn('Rollback', readme)
+        self.assertIn('worker identity', readme.lower())
+
     def test_roadmap_and_coverage_mark_iac_closed(self):
         design = read('design/tikeo-architecture-design.md')
         coverage = read('design/reports/feature-coverage-competitive-checklist.md')

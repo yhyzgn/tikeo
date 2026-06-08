@@ -13,3 +13,25 @@ data:
 
     [storage]
     database_url = "{{ .Values.server.storage.databaseUrl }}"
+
+    [transport_security.http]
+    tls_enabled = {{ .Values.server.tls.http.enabled }}
+    mtls_required = {{ .Values.server.tls.http.mtlsRequired }}
+    {{- if .Values.server.tls.http.existingSecret }}
+    cert_path = "{{ include "tikeo.httpCertPath" . }}"
+    key_path = "{{ include "tikeo.httpKeyPath" . }}"
+    {{- end }}
+    {{- if .Values.server.tls.http.clientCaSecret }}
+    client_ca_path = "{{ include "tikeo.httpClientCaPath" . }}"
+    {{- end }}
+
+    [transport_security.worker_tunnel]
+    tls_enabled = {{ .Values.server.tls.workerTunnel.enabled }}
+    mtls_required = {{ .Values.server.tls.workerTunnel.mtlsRequired }}
+    {{- if .Values.server.tls.workerTunnel.existingSecret }}
+    cert_path = "{{ include "tikeo.workerTunnelCertPath" . }}"
+    key_path = "{{ include "tikeo.workerTunnelKeyPath" . }}"
+    {{- end }}
+    {{- if .Values.server.tls.workerTunnel.clientCaSecret }}
+    client_ca_path = "{{ include "tikeo.workerTunnelClientCaPath" . }}"
+    {{- end }}

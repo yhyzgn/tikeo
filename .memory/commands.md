@@ -593,3 +593,14 @@ uv pip install pytest-cov -e sdks/python/tikeo[test] -e examples/python/worker-d
 python -m pytest sdks/python/tikeo/tests examples/python/worker-demo/tests \
   --cov=tikeo --cov=tikeo_python_worker_demo --cov-report=xml:coverage/python.xml -q
 ```
+
+## 2026-06-08 Helm production hardening verification
+
+```bash
+python3 -m unittest deploy.tests.iac_artifacts_test deploy.tests.smoke_assertions_test
+scripts/verify-deploy-bootstrap.sh
+helm lint deploy/helm/tikeo
+helm template tikeo deploy/helm/tikeo --namespace tikeo
+helm template tikeo deploy/helm/tikeo --namespace tikeo -f deploy/helm/tikeo/examples/values-external-postgres.yaml
+helm template tikeo deploy/helm/tikeo --namespace tikeo -f deploy/helm/tikeo/examples/values-external-postgres.yaml -f deploy/helm/tikeo/examples/values-ingress-tls.yaml
+```

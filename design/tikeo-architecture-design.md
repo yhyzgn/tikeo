@@ -2325,7 +2325,7 @@ Phase 3 closeout 状态已在 2026-05-28 复核：原先保留未勾选的 OIDC 
   - [x] Slice E assignment token 校验：dispatch 下发 assignment token，Rust/Java SDK 回传，Server 拒绝缺失/错误 token 的日志与结果。
   - [x] Slice F Web lifecycle history UI：`/workers/history` 返回持久 sessions/events，Worker 集群页面按在线/异常/历史分层显示。
   - [x] Slice G Worker 可见性快照持久化（2026-06-04：`worker_sessions` 持久保存 capabilities/structuredCapabilities/labels/master 快照；`/api/v1/workers` 合并 live registry 与 DB online sessions，server 重启后可先展示持久在线快照，不能再只依赖内存注册表）。
-- [x] 部署与运维 bootstrap：本地/裸机/systemd/Compose 的最小生产模板优先（125/135：Compose env defaults、systemd server/worker unit/env、Worker identity env、裸机 config smoke helper、readyz + worker dry-run smoke 已落地；Helm 在外部 DB、secret、网关和 TLS 参数稳定后落地）。
+- [x] 部署与运维 bootstrap：本地/裸机/systemd/Compose 与 Kubernetes Helm baseline 已落地（125/135/150：Compose env defaults、systemd server/worker unit/env、Worker identity env、裸机 config smoke helper、readyz + worker dry-run smoke、Helm 外部 DB Secret、HTTP/Worker Tunnel TLS/mTLS Secret、Ingress、探针、资源参数与 rollback runbook 已落地）。
 - [x] 生产告警投递硬化：SMTP TLS/auth/secret reference、Provider secret 管理、重试/DLQ 可视化与最小 live smoke（126：Email 支持 smtps/smtp+starttls、AUTH LOGIN、env secret refs；新增 retry/DLQ queue-status API 与 Web 告警投递页；保留 loopback SMTP smoke）。
 
 **P1 — 生产治理增强 / 常见企业用法**
@@ -2372,7 +2372,7 @@ Worker 集群与 tikeo server 集群都必须具备 master 选举能力。Server
 **P0 — 服务使用 / 运维优先**
 
 - [x] Worker 身份与会话生命周期治理（Worker Pool / Logical Worker / Worker Session 三层身份；兼容 K8s/Docker 与裸机/VM/systemd；generation + fencing token；graceful/replaced/heartbeat_timeout/transport_error 证据分级；历史归档与 Worker UI 分层，详见 `design/worker-identity-lifecycle-design.md`）
-- [x] 部署与运维 bootstrap（Compose/systemd/裸机模板优先；包含 Worker identity env、systemd worker 模板、readyz/Worker dry-run smoke；K8s Helm Chart 随外部 DB、secret、网关、TLS 参数稳定后落地）
+- [x] 部署与运维 bootstrap（Compose/systemd/裸机模板与 K8s Helm Chart baseline；包含 Worker identity env、systemd worker 模板、readyz/Worker dry-run smoke、外部 DB Secret、TLS/mTLS Secret、Ingress、探针、资源参数与 rollback runbook）
 - [x] 多租户隔离增强（tenant/app/worker-pool scope policy 与 OIDC tenant binding 对齐；131：OIDC identity mapping API/UI 复用 scope binding，未映射 external subject 不签发本地 session）
 
 **P1 — 常见接入与生产治理**

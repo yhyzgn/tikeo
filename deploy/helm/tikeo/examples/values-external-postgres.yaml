@@ -1,0 +1,36 @@
+# Production baseline using an externally managed PostgreSQL/MySQL/CockroachDB URL.
+# Create the secret first:
+# kubectl -n tikeo create secret generic tikeo-database \
+#   --from-literal=database-url='postgres://tikeo:change-me@postgres.example:5432/tikeo?sslmode=require'
+server:
+  replicas: 2
+  storage:
+    mode: external
+    existingSecret: tikeo-database
+    databaseUrlSecretKey: database-url
+    # This dev fallback is overridden by TIKEO__STORAGE__DATABASE_URL from the secret above.
+    databaseUrl: sqlite:///tmp/tikeo-chart-fallback.db?mode=rwc
+    persistence:
+      enabled: false
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+web:
+  replicas: 2

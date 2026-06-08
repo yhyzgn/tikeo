@@ -1,0 +1,11 @@
+# Development/single-node install. Stores SQLite on a PVC.
+server:
+  replicas: 1
+  storage:
+    mode: sqlite
+    databaseUrl: sqlite:///data/tikeo.db?mode=rwc
+    persistence:
+      enabled: true
+      size: 5Gi
+web:
+  replicas: 1

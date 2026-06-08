@@ -500,3 +500,16 @@ Rejected:
 
 Constraint:
 - Future schema additions must add a migration entry or update a clearly named migration module with tests; do not silently patch tables after `Migrator::up`.
+
+## 2026-06-08 — Helm production secret and worker boundary
+
+Decision: The Helm chart may deploy Tikeo Server, Worker Tunnel service, and Web console, but it must not deploy business workers or expose worker inbound Services by default.
+
+Rationale:
+- Tikeo's core cloud-native advantage is that workers initiate outbound Worker Tunnel connections across namespaces, clusters, VPCs, and NAT boundaries.
+- Production database URLs and TLS/mTLS materials must be injected through Kubernetes Secrets or platform secret managers, not committed in values files.
+
+Implications:
+- `server.storage.mode=external` uses `TIKEO__STORAGE__DATABASE_URL` from `server.storage.existingSecret`.
+- Listener TLS/mTLS secrets are mounted and rendered into `transport_security` config; ingress TLS remains a separate edge termination boundary.
+- Future chart work can add PDB/NetworkPolicy/ServiceMonitor/Gateway API, but must preserve worker outbound-only semantics.

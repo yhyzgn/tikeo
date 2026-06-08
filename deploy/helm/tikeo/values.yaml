@@ -1,5 +1,17 @@
 namespaceOverride: ""
 
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+tlsDefaults:
+  certFilename: tls.crt
+  keyFilename: tls.key
+  clientCaFilename: ca.crt
+
 server:
   image:
     repository: yhyzgn/tikeo-server
@@ -8,9 +20,78 @@ server:
   replicas: 1
   httpPort: 9090
   workerTunnelPort: 9998
+  podAnnotations: {}
+  podSecurityContext: {}
+  securityContext: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
   storage:
+    # sqlite keeps a local PVC for development/single-node installs.
+    # external uses TIKEO__STORAGE__DATABASE_URL from a Kubernetes Secret.
+    mode: sqlite
     databaseUrl: sqlite:///data/tikeo.db?mode=rwc
-    size: 1Gi
+    existingSecret: ""
+    databaseUrlSecretKey: database-url
+    persistence:
+      enabled: true
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 1Gi
+  tls:
+    http:
+      enabled: false
+      mtlsRequired: false
+      existingSecret: ""
+      clientCaSecret: ""
+      mountPath: /etc/tikeo/tls/http
+      clientCaMountPath: /etc/tikeo/tls/http-ca
+    workerTunnel:
+      enabled: false
+      mtlsRequired: false
+      existingSecret: ""
+      clientCaSecret: ""
+      mountPath: /etc/tikeo/tls/worker-tunnel
+      clientCaMountPath: /etc/tikeo/tls/worker-tunnel-ca
+  service:
+    type: ClusterIP
+    port: 9090
+    annotations: {}
+  workerTunnelService:
+    type: ClusterIP
+    port: 9998
+    annotations: {}
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts:
+      - host: api.tikeo.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+  probes:
+    readiness:
+      path: /readyz
+      initialDelaySeconds: 3
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
+    liveness:
+      path: /healthz
+      initialDelaySeconds: 10
+      periodSeconds: 20
+      timeoutSeconds: 2
+      failureThreshold: 3
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
 
 web:
   image:
@@ -19,3 +100,43 @@ web:
     pullPolicy: IfNotPresent
   replicas: 1
   port: 80
+  podAnnotations: {}
+  podSecurityContext: {}
+  securityContext: {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts:
+      - host: tikeo.local
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+  probes:
+    readiness:
+      path: /
+      initialDelaySeconds: 3
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
+    liveness:
+      path: /
+      initialDelaySeconds: 10
+      periodSeconds: 20
+      timeoutSeconds: 2
+      failureThreshold: 3
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}

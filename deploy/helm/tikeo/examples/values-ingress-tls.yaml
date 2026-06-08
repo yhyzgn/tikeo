@@ -1,0 +1,40 @@
+# Ingress TLS for the browser UI and management API, plus listener TLS/mTLS secrets.
+# Expected secret keys: tls.crt and tls.key for TLS secrets, ca.crt for client CA secrets.
+server:
+  tls:
+    http:
+      enabled: true
+      mtlsRequired: false
+      existingSecret: tikeo-http-tls
+    workerTunnel:
+      enabled: true
+      mtlsRequired: true
+      existingSecret: tikeo-worker-tunnel-tls
+      clientCaSecret: tikeo-worker-client-ca
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    hosts:
+      - host: api.tikeo.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: tikeo-api-ingress-tls
+        hosts:
+          - api.tikeo.example.com
+web:
+  ingress:
+    enabled: true
+    className: nginx
+    hosts:
+      - host: tikeo.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: tikeo-web-ingress-tls
+        hosts:
+          - tikeo.example.com

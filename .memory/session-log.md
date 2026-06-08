@@ -2232,3 +2232,40 @@ Verification:
 
 Result:
 - No known remote CI failures remain for the README animated logo / full coverage workflow commit.
+
+## 2026-06-08 — Helm production deployment hardening
+
+Agent:
+- Codex
+
+Work:
+- Added a failing deployment contract test for Helm production hardening, then implemented the chart changes to make it pass.
+- Expanded `deploy/helm/tikeo/values.yaml` and templates for external DB Secret injection, conditional SQLite PVC, service account, tunable probes/resources/security contexts, server/web ingress, HTTP TLS Secret mounts, Worker Tunnel TLS/mTLS Secret mounts, and generated transport security config.
+- Added Helm example values for SQLite dev, external PostgreSQL, ingress/listener TLS, and worker identity shape.
+- Updated Helm/deploy docs with production DB Secret usage, TLS/mTLS boundaries, worker outbound-only identity guidance, and rollback steps.
+- Updated `scripts/verify-deploy-bootstrap.sh` to verify Helm production artifacts instead of the old deferred-Helm statement.
+- Updated design roadmap and `.prompt/150-phase4-production-helm-followup.md` for the next deployment maturity slice.
+
+Verification:
+- RED: `python3 -m unittest deploy.tests.iac_artifacts_test.IacArtifactsTest.test_helm_chart_exposes_production_hardening_contracts` failed against the old chart.
+- GREEN: the same test passed after implementation.
+- `python3 -m unittest deploy.tests.iac_artifacts_test deploy.tests.smoke_assertions_test` passed.
+- `scripts/verify-deploy-bootstrap.sh` passed.
+- `.dev/tools/helm lint deploy/helm/tikeo` passed with only the optional chart icon recommendation.
+- `.dev/tools/helm template tikeo deploy/helm/tikeo --namespace tikeo` passed.
+- `.dev/tools/helm template tikeo deploy/helm/tikeo --namespace tikeo -f deploy/helm/tikeo/examples/values-external-postgres.yaml` passed and rendered no SQLite PVC while injecting `TIKEO__STORAGE__DATABASE_URL` from `tikeo-database`.
+- `.dev/tools/helm template tikeo deploy/helm/tikeo --namespace tikeo -f deploy/helm/tikeo/examples/values-external-postgres.yaml -f deploy/helm/tikeo/examples/values-ingress-tls.yaml` passed and rendered HTTP/Worker Tunnel TLS/mTLS paths.
+
+Git:
+- Pending final full verification, commit, push, and remote CI check at the time of this memory update.
+
+Final local verification before commit:
+- `git diff --check` passed.
+- `cargo fmt --all -- --check` passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `cargo test --workspace --all-features` passed.
+- `cargo build --workspace --all-features` passed.
+- `bun run --cwd web lint` passed.
+- `bun run --cwd web typecheck` passed.
+- `bun run --cwd web test` passed with 117 tests.
+- `bun run --cwd web build` passed; Vite reported the existing large chunk warning for bundled vendor assets.

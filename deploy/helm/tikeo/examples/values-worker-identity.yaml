@@ -1,0 +1,11 @@
+# Example values for documenting remote worker identity bootstrap alongside this chart.
+# Workers are not deployed by this chart and must not expose inbound Services.
+workerIdentity:
+  serverUrl: https://api.tikeo.example.com
+  workerTunnelUrl: https://worker-tunnel.tikeo.example.com:9998
+  namespace: default
+  app: sample-app
+  pool: default
+  cluster: remote-k8s
+  region: us-east-1
+  tokenSecretName: tikeo-worker-bootstrap-token

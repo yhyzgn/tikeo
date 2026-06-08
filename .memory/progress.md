@@ -1324,3 +1324,15 @@ Verification evidence:
 
 ### 2026-06-08 — Main CI green after coverage/logo polish
 - Main CI run `27125171526` succeeded for commit `5beb036380c8fbb54f54a0ed60a01b6c366b286d`, including Server/Web/SDK/demo groups, cross-language worker smoke, and Docker build validation.
+
+### 2026-06-08 — Helm production deployment hardening
+- Helm chart production baseline now covers external PostgreSQL/MySQL/CockroachDB database URL injection via Kubernetes Secret, conditional SQLite PVC persistence, service account creation, tunable resources/probes/security contexts, server/web ingress, HTTP listener TLS Secret mounts, Worker Tunnel TLS/mTLS Secret mounts, and generated `transport_security` config.
+- Added examples: `values-sqlite-dev.yaml`, `values-external-postgres.yaml`, `values-ingress-tls.yaml`, and `values-worker-identity.yaml`.
+- Updated Helm README with external database Secret workflow, TLS/mTLS Secret boundaries, worker identity outbound-only guidance, and rollback runbook.
+- Updated deploy bootstrap verification to assert Helm production artifacts instead of the old deferred-Helm placeholder.
+Verification evidence:
+- RED/green contract: `python3 -m unittest deploy.tests.iac_artifacts_test.IacArtifactsTest.test_helm_chart_exposes_production_hardening_contracts` failed before implementation and passed after chart hardening.
+- `python3 -m unittest deploy.tests.iac_artifacts_test deploy.tests.smoke_assertions_test` passed.
+- `scripts/verify-deploy-bootstrap.sh` passed.
+- `.dev/tools/helm lint deploy/helm/tikeo` passed with only the optional icon recommendation.
+- `.dev/tools/helm template` passed for default, external database, and external database + TLS/mTLS values.
