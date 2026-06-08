@@ -1350,3 +1350,20 @@ Verification evidence so far:
 - `.dev/tools/helm lint` passed with external DB values and with external DB + TLS + ops hardening + Gateway API values.
 - `.dev/tools/helm template` passed for default, external DB, TLS, and ops/Gateway overlays.
 - Remote verification: CI run `27129836559` and Coverage run `27129836631` both completed successfully for source commit `e98f6fd7395f1c104050ce8037db79ab5447aed6`.
+### 2026-06-08 — Source-size debt cleanup
+- Added `scripts/check-source-size.py` as a repo-wide source-size audit for normal Rust/TypeScript/TSX files, excluding generated/dependency/build output.
+- Split all known historical >1500-line source files without behavior changes: storage repository tests, workflow runtime methods, migration RBAC role-management migration, server dispatcher processors/tests, registry tests, HTTP part_03 tests, and Web workflow API client functions.
+- Current source-size gate is green for the whole repository; future source changes should run the audit before commit.
+Verification evidence:
+- `python3 scripts/check-source-size.py` passed.
+- `cargo fmt --all -- --check` passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` passed.
+- `cargo test -p tikeo-storage --all-features` passed.
+- `cargo test -p tikeo-server --all-features` passed.
+- `cargo test --workspace --all-features` passed.
+- `cargo build --workspace --all-features` passed.
+- `bun run --cwd web lint` passed.
+- `bun run --cwd web typecheck` passed.
+- `bun run --cwd web test` passed with 117 tests.
+- `bun run --cwd web build` passed with the existing large vendor chunk warning.
+- Smoke: `cargo run --bin tikeo -- serve --config /tmp/tikeo-source-size-smoke.toml` plus `curl -fsS http://127.0.0.1:19090/healthz` returned `{"status":"ok","uptime_seconds":0}`.

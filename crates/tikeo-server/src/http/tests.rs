@@ -26,6 +26,7 @@ use crate::http::{AppState, router_with_state, serve_listener_with_state};
 
 include!("tests/part_01.rs");
 include!("tests/part_02.rs");
-include!("tests/part_03.rs");
+include!("tests/part_03_a.rs");
+include!("tests/part_03_b.rs");
 include!("tests/part_04.rs");
 include!("tests/part_05.rs");

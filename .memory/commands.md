@@ -618,3 +618,12 @@ helm template tikeo deploy/helm/tikeo --namespace tikeo -f deploy/helm/tikeo/exa
 helm template tikeo deploy/helm/tikeo --namespace tikeo -f deploy/helm/tikeo/examples/values-external-postgres.yaml -f deploy/helm/tikeo/examples/values-ingress-tls.yaml
 helm template tikeo deploy/helm/tikeo --namespace tikeo -f deploy/helm/tikeo/examples/values-external-postgres.yaml -f deploy/helm/tikeo/examples/values-ingress-tls.yaml -f deploy/helm/tikeo/examples/values-ops-hardening.yaml -f deploy/helm/tikeo/examples/values-gateway-api-worker-tunnel.yaml
 ```
+## Source-size audit
+
+Normal Rust/TypeScript/TSX source files must stay at or below 1500 physical lines. Run this before committing source changes:
+
+```bash
+python3 scripts/check-source-size.py
+```
+
+2026-06-08 verification: after splitting historical over-limit files, the command reports `All source files are <= 1500 lines.`

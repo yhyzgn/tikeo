@@ -2347,7 +2347,7 @@ Phase 3 closeout 状态已在 2026-05-28 复核：原先保留未勾选的 OIDC 
 
 #### Source file hygiene checkpoint (2026-05-25)
 
-后续源码文件必须保持单文件 `<=1500` 行；`mod.rs` / `lib.rs` 等入口文件只做模块声明和 re-export，不堆实现或测试。2026-06-05 迁移专项已保证本轮触达文件低于 1500 行，但全仓库重新审计发现仍有历史超限文件（如 dispatcher、repository、workflow、Web i18n/API client 等），后续不得再宣称全仓库已满足该规则，需优先拆分或建立明确生成文件豁免边界。
+后续源码文件必须保持单文件 `<=1500` 行；`mod.rs` / `lib.rs` 等入口文件只做模块声明和 re-export，不堆实现或测试。2026-06-08 已新增 `scripts/check-source-size.py` 并完成历史超限拆分：dispatcher processor/test、storage repository tests、workflow runtime、migration RBAC role management、HTTP part_03 tests、registry tests、Web workflow API client 均按职责拆出子模块；当前 `python3 scripts/check-source-size.py` 对普通 Rust/TypeScript/TSX 源文件全仓库通过。后续新增源码必须继续在本地和 CI 候选验证中运行该审计。
 
 **P2 — 生态接入 / 高级差异化（不阻塞服务先跑起来）**
 
