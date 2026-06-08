@@ -1317,3 +1317,7 @@ Verification evidence:
 - Coverage workflow now uploads reports for Rust workspace, Web, Java SDK, Go SDK, Python SDK/demo, and Node.js SDK through direct `codecov-cli` uploads with per-surface flags.
 - Java SDK aggregate Gradle build now applies JaCoCo to Java library subprojects and emits XML reports for Codecov.
 - Local report generation passed for Web (117 tests), Node.js SDK (14 tests), Go SDK, Java SDK (7 JaCoCo XML reports), and Python SDK/demo (19 tests).
+
+### 2026-06-08 — Full Coverage remote green
+- GitHub Actions Coverage run `27125171618` succeeded on commit `5beb036380c8fbb54f54a0ed60a01b6c366b286d`; all six coverage jobs passed and uploaded through Codecov CLI.
+- Overall Codecov branch badge returned `79%`, confirming the README badge is no longer pending or Rust-only.

@@ -12,7 +12,7 @@
 4. 宣传录屏本地证据已完成：最终推荐版为 `.dev/reports/promo-cinematic-showcase-20260608T050247Z-231970/tikeo-cinematic-promo-hq-sentence-subs.mp4`；同目录保留逐句/短语级 `subtitles.en.srt`、`subtitles.zh-CN.srt`、`subtitles.bilingual.srt` 用于 YouTube/X/Reddit/Bilibili 等平台单独上传 CC 字幕。若要公开分发，下一步可做剪辑压缩、封面海报、上传/CDN 或 CI artifact 化。
 5. 开源传播首屏优化已完成：README/中文 README 已加入 1.58MB 控制台 tour GIF、首屏卖点、Star History、支持提示；已补齐 CONTRIBUTING/SECURITY/CODE_OF_CONDUCT/CHANGELOG/ROADMAP 与 GitHub issue/PR templates；GitHub description/topics 已同步。
 6. 文档站搭建方案已输出到 `design/docs-site-build-plan.md`；若用户批准实施，下一步创建独立 `website/` Docusaurus 3 站点，先完成导航骨架、英文 P0 页面、中文 i18n 路径和 docs build 验证，不要在未实现前宣称部署完成。
-7. Coverage 已扩展到全项目主要 surface：`.github/workflows/coverage.yml` 使用 direct `codecov-cli` 上传 Rust workspace、Web、Java SDK、Go SDK、Python SDK/demo、Node.js SDK 的覆盖率报告；本地报告生成已通过，远端全量 Coverage workflow 需在本轮 push 后确认。此前 Rust-only run `27121393205` 已证明 `CODECOV_TOKEN` 可用并返回 Rust flag 84%。
+7. Coverage 已扩展并远端验证：`.github/workflows/coverage.yml` 使用 direct `codecov-cli` 上传 Rust workspace、Web、Java SDK、Go SDK、Python SDK/demo、Node.js SDK 的覆盖率报告；run `27125171618` 在 commit `5beb036` 上全绿，整体 Codecov badge 返回 79%。
 8. 保留 Python/Node SDK demo 为明确未来项；实现前不得在 examples README 中宣称 runnable。
 9. 迁移工具（PowerJob/XXL-JOB）仍维持最低优先级 backlog，核心服务体验稳定后再做。
 

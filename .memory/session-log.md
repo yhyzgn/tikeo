@@ -2205,3 +2205,17 @@ Verification:
 Git:
 - Pending commit/push at the time of this memory update.
 - Remote full Coverage workflow must be checked after push before claiming the overall Codecov badge is populated by all flags.
+
+
+## 2026-06-08 — Full Coverage workflow remote verification
+
+Agent:
+- Codex
+
+Verification:
+- Remote Coverage workflow run `27125171618` completed successfully for commit `5beb036380c8fbb54f54a0ed60a01b6c366b286d`.
+- Successful remote jobs: Node.js SDK coverage, Rust workspace coverage, Python SDK coverage, Java SDK coverage, Go SDK coverage, and Web coverage.
+- Overall Codecov branch badge endpoint `https://codecov.io/gh/yhyzgn/tikeo/branch/main/graph/badge.svg` returned `79%` after the multi-surface upload.
+
+Result:
+- The README coverage badge now has a real full-project Codecov source instead of a static pending badge or Rust-only flag badge.
