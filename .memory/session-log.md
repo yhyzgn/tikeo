@@ -2219,3 +2219,16 @@ Verification:
 
 Result:
 - The README coverage badge now has a real full-project Codecov source instead of a static pending badge or Rust-only flag badge.
+
+
+## 2026-06-08 — Main CI remote verification for README motion / coverage commit
+
+Agent:
+- Codex
+
+Verification:
+- Remote main CI run `27125171526` completed successfully for commit `5beb036380c8fbb54f54a0ed60a01b6c366b286d`.
+- Successful CI groups included workflow policy, Server, Web, Java SDK + demo, Rust SDK + demo, Go SDK + demo, Python SDK + demo, Node.js SDK + demo, deploy tooling, cross-language worker smoke, and Docker build validation for Web and Server.
+
+Result:
+- No known remote CI failures remain for the README animated logo / full coverage workflow commit.

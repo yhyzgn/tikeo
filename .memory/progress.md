@@ -1321,3 +1321,6 @@ Verification evidence:
 ### 2026-06-08 — Full Coverage remote green
 - GitHub Actions Coverage run `27125171618` succeeded on commit `5beb036380c8fbb54f54a0ed60a01b6c366b286d`; all six coverage jobs passed and uploaded through Codecov CLI.
 - Overall Codecov branch badge returned `79%`, confirming the README badge is no longer pending or Rust-only.
+
+### 2026-06-08 — Main CI green after coverage/logo polish
+- Main CI run `27125171526` succeeded for commit `5beb036380c8fbb54f54a0ed60a01b6c366b286d`, including Server/Web/SDK/demo groups, cross-language worker smoke, and Docker build validation.
