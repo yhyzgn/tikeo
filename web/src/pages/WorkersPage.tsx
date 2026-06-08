@@ -8,6 +8,7 @@ import { WorkerLifecycleHistory } from './workers/WorkerLifecycleHistory';
 import { ROUTE_META } from '../routes';
 import { useRouteActive } from '../hooks/useRouteActivation';
 import { useNavigate } from 'react-router-dom';
+import { useI18n } from '../i18n/I18nContext';
 
 const WORKER_REFRESH_INTERVAL_MS = 3_000;
 
@@ -16,6 +17,8 @@ export function WorkersPage() {
   const [history, setHistory] = useState<WorkerLifecycleHistoryResponse>({ sessions: [], events: [] });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { locale } = useI18n();
+  const isEnglish = locale === 'en-US';
   const active = useRouteActive(ROUTE_META.workers.path);
 
   const refresh = useCallback(async (options?: { silent?: boolean }) => {
@@ -29,7 +32,7 @@ export function WorkersPage() {
       setHistory(historyData);
     } catch (error) {
       if (!options?.silent) {
-        message.error(error instanceof Error ? error.message : '加载 Worker 状态失败');
+        message.error(error instanceof Error ? error.message : (isEnglish ? 'Failed to load Worker status' : '加载 Worker 状态失败'));
       }
     } finally {
       if (!options?.silent) {
@@ -49,7 +52,7 @@ export function WorkersPage() {
 
   return (
     <div className="page-stack worker-cluster-page">
-      <WorkerClusterOverview workers={workers} loading={loading} onRefresh={refresh} extraAction={<Button onClick={() => navigate(ROUTE_META.dispatchQueue.path)}>查看调度队列</Button>} />
+      <WorkerClusterOverview workers={workers} loading={loading} onRefresh={refresh} extraAction={<Button onClick={() => navigate(ROUTE_META.dispatchQueue.path)}>{isEnglish ? 'View dispatch queue' : '查看调度队列'}</Button>} />
       <Row gutter={[18, 18]} align="stretch">
         <Col xs={24}><WorkerTable workers={workers} loading={loading} /></Col>
         <Col xs={24}><WorkerLifecycleHistory history={history} loading={loading} /></Col>

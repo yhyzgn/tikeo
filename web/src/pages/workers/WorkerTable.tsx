@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 
 import type { WorkerListResponse, WorkerSummary } from '../../api/client';
 import { filterWorkers, groupWorkersByNamespaceApp, uniqueSorted } from './workerPageModel';
+import { useI18n } from '../../i18n/I18nContext';
 
 export function visibleCapabilityTags(worker: WorkerSummary) {
   return uniqueSorted(worker.structuredCapabilities?.tags ?? []);
@@ -36,7 +37,7 @@ function statusColor(worker: WorkerSummary) {
   return 'default';
 }
 
-function WorkerNode({ worker }: { worker: WorkerSummary }) {
+function WorkerNode({ worker, isEnglish }: { worker: WorkerSummary; isEnglish: boolean }) {
   const tags = visibleCapabilityTags(worker);
   const sdkProcessors = visibleSdkProcessors(worker);
   const scriptRunners = worker.structuredCapabilities?.scriptRunners ?? [];
@@ -48,25 +49,25 @@ function WorkerNode({ worker }: { worker: WorkerSummary }) {
       <div className="worker-node__main">
         <div className="worker-node__identity">
           <Space size={8} wrap>
-            {isMaster ? <Tag icon={<CrownOutlined />} color="gold">主节点</Tag> : <Tag>从节点</Tag>}
+            {isMaster ? <Tag icon={<CrownOutlined />} color="gold">{isEnglish ? 'Master' : '主节点'}</Tag> : <Tag>{isEnglish ? 'Follower' : '从节点'}</Tag>}
             <Badge status={statusColor(worker)} text={<Typography.Text strong copyable>{worker.workerId}</Typography.Text>} />
           </Space>
           <Typography.Text type="secondary">
-            逻辑实例：{worker.logicalInstanceId || '-'} · 客户端实例：{worker.clientInstanceId || '-'} · 序列：{worker.lastSequence}
+            {isEnglish ? 'Logical instance' : '逻辑实例'}: {worker.logicalInstanceId || '-'} · {isEnglish ? 'Client instance' : '客户端实例'}: {worker.clientInstanceId || '-'} · {isEnglish ? 'Sequence' : '序列'}: {worker.lastSequence}
           </Typography.Text>
         </div>
         <div className="worker-node__election">
-          <Tag color="geekblue">代际 {worker.generation}</Tag>
-          {worker.master?.domain ? <Tag color="blue">选举域 {worker.master.domain}</Tag> : <Tag>未启用选举</Tag>}
-          {worker.master?.term ? <Tag color="purple">任期 {worker.master.term}</Tag> : null}
-          {!isMaster && worker.master?.masterWorkerId ? <Tooltip title={worker.master.masterWorkerId}><Tag color="gold">主节点已知</Tag></Tooltip> : null}
+          <Tag color="geekblue">{isEnglish ? 'Generation' : '代际'} {worker.generation}</Tag>
+          {worker.master?.domain ? <Tag color="blue">{isEnglish ? 'Election domain' : '选举域'} {worker.master.domain}</Tag> : <Tag>{isEnglish ? 'Election disabled' : '未启用选举'}</Tag>}
+          {worker.master?.term ? <Tag color="purple">{isEnglish ? 'Term' : '任期'} {worker.master.term}</Tag> : null}
+          {!isMaster && worker.master?.masterWorkerId ? <Tooltip title={worker.master.masterWorkerId}><Tag color="gold">{isEnglish ? 'Known master' : '主节点已知'}</Tag></Tooltip> : null}
         </div>
         <div className="worker-node__capabilities">
           {tags.map((item) => <Tag key={item}>{item}</Tag>)}
-          {sdkProcessors.map((item) => <Tag key={`sdk:${item}`} color="purple">处理器：{item}</Tag>)}
-          {scriptRunners.map((runner) => <Tag key={`script:${runner.language}:${runner.sandboxBackend}`} color="green">脚本：{runner.language} · {runner.sandboxBackend}</Tag>)}
-          {pluginProcessors.flatMap((plugin) => plugin.processorNames.map((name) => <Tag key={`plugin:${plugin.type}:${name}`} color="blue">插件：{plugin.type} · {name}</Tag>))}
-          {tags.length + sdkProcessors.length + scriptRunners.length + pluginProcessors.length === 0 ? <Typography.Text type="secondary">无结构化能力</Typography.Text> : null}
+          {sdkProcessors.map((item) => <Tag key={`sdk:${item}`} color="purple">{isEnglish ? 'Processor' : '处理器'}: {item}</Tag>)}
+          {scriptRunners.map((runner) => <Tag key={`script:${runner.language}:${runner.sandboxBackend}`} color="green">{isEnglish ? 'Script' : '脚本'}: {runner.language} · {runner.sandboxBackend}</Tag>)}
+          {pluginProcessors.flatMap((plugin) => plugin.processorNames.map((name) => <Tag key={`plugin:${plugin.type}:${name}`} color="blue">{isEnglish ? 'Plugin' : '插件'}: {plugin.type} · {name}</Tag>))}
+          {tags.length + sdkProcessors.length + scriptRunners.length + pluginProcessors.length === 0 ? <Typography.Text type="secondary">{isEnglish ? 'No structured capabilities' : '无结构化能力'}</Typography.Text> : null}
         </div>
       </div>
     </List.Item>
@@ -74,6 +75,8 @@ function WorkerNode({ worker }: { worker: WorkerSummary }) {
 }
 
 export function WorkerTable({ workers, loading }: WorkerTableProps) {
+  const { locale } = useI18n();
+  const isEnglish = locale === 'en-US';
   const [query, setQuery] = useState('');
   const [namespace, setNamespace] = useState('');
   const [capability, setCapability] = useState('');
@@ -92,16 +95,16 @@ export function WorkerTable({ workers, loading }: WorkerTableProps) {
   return (
     <Card
       className="worker-ops-card worker-topology-card"
-      title={<Space direction="vertical" size={0}><span>应用集群节点</span><Typography.Text type="secondary">先按命名空间 / 应用分组，再展开查看集群、主节点和从节点</Typography.Text></Space>}
+      title={<Space direction="vertical" size={0}><span>{isEnglish ? 'App cluster nodes' : '应用集群节点'}</span><Typography.Text type="secondary">{isEnglish ? 'Grouped by namespace and app first, then expanded by clusters, masters, and followers.' : '先按命名空间 / 应用分组，再展开查看集群、主节点和从节点'}</Typography.Text></Space>}
       extra={<Tag color="blue">{filteredWorkers.length}/{workers.items.length}</Tag>}
       loading={loading}
     >
       <div className="worker-toolbar">
-        <Input prefix={<SearchOutlined />} allowClear placeholder="搜索 Worker / 应用 / 区域 / 能力 / 处理器" value={query} onChange={(event) => setQuery(event.target.value)} />
-        <Select allowClear placeholder="命名空间" value={namespace || undefined} onChange={(value) => setNamespace(value ?? '')} options={namespaces.map((value) => ({ label: value, value }))} />
-        <Select allowClear placeholder="能力" value={capability || undefined} onChange={(value) => setCapability(value ?? '')} options={capabilities.map((value) => ({ label: value, value }))} />
+        <Input prefix={<SearchOutlined />} allowClear placeholder={isEnglish ? 'Search workers / apps / regions / capabilities / processors' : '搜索 Worker / 应用 / 区域 / 能力 / 处理器'} value={query} onChange={(event) => setQuery(event.target.value)} />
+        <Select allowClear placeholder={isEnglish ? 'Namespace' : '命名空间'} value={namespace || undefined} onChange={(value) => setNamespace(value ?? '')} options={namespaces.map((value) => ({ label: value, value }))} />
+        <Select allowClear placeholder={isEnglish ? 'Capability' : '能力'} value={capability || undefined} onChange={(value) => setCapability(value ?? '')} options={capabilities.map((value) => ({ label: value, value }))} />
       </div>
-      {scopeGroups.length === 0 ? <Empty description="没有匹配的在线 Worker" /> : null}
+      {scopeGroups.length === 0 ? <Empty description={isEnglish ? 'No matching online Workers' : '没有匹配的在线 Worker'} /> : null}
       <Collapse
         key={scopeGroups.map((group) => group.scopeKey).join('|')}
         className="worker-scope-collapse"
@@ -112,8 +115,8 @@ export function WorkerTable({ workers, loading }: WorkerTableProps) {
             <Space wrap className="worker-scope-title">
               <ApartmentOutlined />
               <Typography.Text strong>{group.namespace}/{group.app}</Typography.Text>
-              <Tag color="geekblue">{group.clusters.length} 个集群</Tag>
-              <Tag color="blue">{group.workers.length} 个节点</Tag>
+              <Tag color="geekblue">{isEnglish ? `${group.clusters.length} clusters` : `${group.clusters.length} 个集群`}</Tag>
+              <Tag color="blue">{isEnglish ? `${group.workers.length} nodes` : `${group.workers.length} 个节点`}</Tag>
             </Space>
           ),
           children: (
@@ -125,14 +128,14 @@ export function WorkerTable({ workers, loading }: WorkerTableProps) {
                       <NodeIndexOutlined />
                       <Typography.Text strong>{cluster.cluster}</Typography.Text>
                       <Tag>{cluster.region}</Tag>
-                      <Tag color={cluster.master ? 'gold' : 'orange'}>{cluster.master ? `主节点 ${cluster.master.workerId}` : '未发现主节点'}</Tag>
-                      <Tag color="blue">从节点 {cluster.followers.length}</Tag>
+                      <Tag color={cluster.master ? 'gold' : 'orange'}>{cluster.master ? `${isEnglish ? 'Master' : '主节点'} ${cluster.master.workerId}` : (isEnglish ? 'No master found' : '未发现主节点')}</Tag>
+                      <Tag color="blue">{isEnglish ? `Followers ${cluster.followers.length}` : `从节点 ${cluster.followers.length}`}</Tag>
                     </Space>
                   </div>
                   <List
                     className="worker-node-list"
                     dataSource={cluster.workers}
-                    renderItem={(worker) => <WorkerNode worker={worker} />}
+                    renderItem={(worker) => <WorkerNode worker={worker} isEnglish={isEnglish} />}
                   />
                 </section>
               ))}

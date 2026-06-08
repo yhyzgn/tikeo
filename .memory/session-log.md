@@ -2000,3 +2000,27 @@ Verification:
 
 Git:
 - Generated media remains local under ignored `.dev/`; source commit includes only the Web audit date compatibility fix and memory evidence.
+
+
+## 2026-06-08 — English-site cinematic promotional video refresh
+
+Agent:
+- Codex
+
+Work:
+- Re-recorded the cinematic promotional browser walkthrough with the Web UI forced to `en-US` through Playwright context locale and `tikeo.locale` localStorage initialization, while preserving the previous rich narration, dynamic scrolling/mouse motion, live Server/Web stack, and seven demo workers.
+- Fixed Worker cluster page English-mode copy gaps that were still hardcoded in Chinese: cluster overview hero, refresh/dispatch actions, app cluster node labels, master/follower tags, generation/election/term labels, logical/client instance metadata, processor/script/plugin capability tags, filters, and empty states.
+- Rebuilt the high-quality MP4 with English default narration, Chinese secondary narration, English/Chinese soft subtitle tracks, standalone `.srt` files, no burned-in subtitles, and 1920x1080 H.264 CRF 16 packaging.
+- Final local English-site artifact: `.dev/reports/promo-cinematic-showcase-20260608T050247Z-231970/tikeo-cinematic-promo-hq-softsubs.mp4`.
+- Standalone subtitle files: `subtitles.en.srt`, `subtitles.zh-CN.srt`, and `subtitles.bilingual.srt` in the same report directory.
+
+Verification:
+- `ffprobe` confirmed final MP4 duration `496.520000` seconds, `1920x1080`, H.264 video, English AAC narration default track, Chinese AAC narration second track, English soft subtitle default track, and Chinese soft subtitle second track.
+- Browser login state body text confirmed English UI indicators: Overview, Task orchestration, Execution resources, Governance configuration, English, and Sign out, with no matching Chinese navigation indicators.
+- Extracted final MP4 frames for dashboard, workers, and API-Key segments; visual inspection confirmed no burned-in subtitles and Worker page labels are English.
+- Critical final run log scan found no proxy/auth/module-resolution/Playwright timeout errors after excluding expected end-of-recording worker EOF/SIGTERM shutdown lines.
+- Web verification after Worker i18n fix: `cd web && bun run lint`; `cd web && bun run typecheck`; explicit src unit-test file list via `bun test $(find src -type f \( -name '*.test.ts' -o -name '*.test.tsx' \) | sort)` passed 117 tests; `cd web && bun run build` passed.
+- `git diff --check` passed before commit.
+
+Git:
+- Generated media remains local under ignored `.dev/`; source commit includes only Worker page English-mode copy hardening and memory evidence.
