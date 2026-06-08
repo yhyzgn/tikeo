@@ -2420,3 +2420,15 @@ Verification evidence:
 - Generated root HTML contains `/zh-CN/...` language links; root serve smoke on port `13036` passed for `/zh-CN/`, `/zh-CN/docs/`, `/zh-CN/docs/deployment/docker-compose`, and `/zh-CN/docs/deployment/kubernetes`.
 - GitHub Pages subpath build with `TIKEO_DOCS_URL=https://yhyzgn.github.io TIKEO_DOCS_BASE_URL=/tikeo/` generated `/tikeo/zh-CN/...` links; subpath serve smoke on port `13037` passed.
 - `python3 .github/tests/workflow_contract_test.py` passed; workflow YAML parse passed; `git diff --check` passed.
+
+### 2026-06-08 — Docs locale separation fixed
+- Generated and completed Docusaurus standard zh-CN translation resources for navbar, footer, docs sidebar categories, blog options, theme copy, blog author metadata, tags, and the first release post.
+- Reworked the docs homepage to be locale-aware: the root/default English page renders English copy and the zh-CN page renders Chinese copy, while code commands remain shared.
+- Confirmed default root route remains English because Docusaurus `defaultLocale` is `en`; Chinese content is under `/zh-CN/...`.
+- Added docs contract coverage to prevent zh-CN navbar/sidebar/footer/blog translations from falling back to English strings.
+Verification evidence:
+- `python3 .github/tests/docs_site_contract_test.py` passed with 10 tests.
+- `python3 scripts/check-source-size.py` passed.
+- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed.
+- Generated HTML grep confirmed root homepage has English headline and no Chinese headline; zh-CN homepage has Chinese headline and no English headline; English docs sidebar remains English; zh-CN docs sidebar/footer are localized; English release remains English; zh-CN release is Chinese.
+- Serve smoke on port `13039` confirmed `/`, `/zh-CN/`, `/zh-CN/docs/deployment/docker-compose`, and `/zh-CN/releases/docs-site-scaffold` render with expected locale isolation.

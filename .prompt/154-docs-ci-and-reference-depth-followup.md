@@ -8,10 +8,10 @@ The standalone docs site has a verified P0 content/localization/deployment basel
 - Default docs deployment target is a standalone-root site (`baseUrl=/`) so `/zh-CN/` works without subpath hosting rewrites.
 - GitHub Pages project hosting is supported with `TIKEO_DOCS_URL=https://yhyzgn.github.io` and `TIKEO_DOCS_BASE_URL=/tikeo/`; default builds stay root-based for standalone docs hosting.
 - English P0 docs have contract-enforced minimum evaluation depth.
-- zh-CN P0 docs exist for every current P0 route and have contract-enforced localized depth.
+- zh-CN P0 docs exist for every current P0 route and have contract-enforced localized depth; navbar, footer, docs sidebar, homepage, and release post content are localized separately from English.
 - SDK docs cover Rust, Go, Java Spring Boot, Python, and Node.js.
 - Deployment docs include copy-paste runbooks for single binary/systemd, full Docker Compose SQLite/PostgreSQL/MySQL YAML files, Helm dev/prod/TLS/ops overlays, and configuration parameters.
-- Local default `/tikeo/` and custom root `/` builds/serve smokes are green for zh-CN language-switch routes.
+- Local root `/` and optional `/tikeo/` builds/serve smokes are green for zh-CN language-switch routes; locale-isolation smoke confirms `/` remains English and `/zh-CN/` is Chinese.
 
 ## Recommended next slice
 

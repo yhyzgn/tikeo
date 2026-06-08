@@ -1,0 +1,34 @@
+{
+  "title": {
+    "message": "Tikeo",
+    "description": "The title in the navbar"
+  },
+  "logo.alt": {
+    "message": "Tikeo 标志",
+    "description": "The alt text of navbar logo"
+  },
+  "item.label.Home": {
+    "message": "首页",
+    "description": "Navbar item with label Home"
+  },
+  "item.label.Docs": {
+    "message": "文档",
+    "description": "Navbar item with label Docs"
+  },
+  "item.label.SDKs": {
+    "message": "SDK",
+    "description": "Navbar item with label SDKs"
+  },
+  "item.label.Integrations": {
+    "message": "集成",
+    "description": "Navbar item with label Integrations"
+  },
+  "item.label.Blog / Releases": {
+    "message": "发布日志",
+    "description": "Navbar item with label Blog / Releases"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Navbar item with label GitHub"
+  }
+}

@@ -1406,3 +1406,8 @@ Verification evidence:
 - Default docs build is root-based again, so independently hosted Chinese routes open at `/zh-CN/...` without requiring `/tikeo/` rewrites.
 - GitHub Pages project hosting remains available only when explicitly built with `TIKEO_DOCS_BASE_URL=/tikeo/`.
 - Compose deployment docs now include full `docker-compose.yml`, `docker-compose.postgres.yml`, and `docker-compose.mysql.yml` in English and zh-CN.
+
+### 2026-06-08 — Docs locale separation completed
+- Docusaurus zh-CN translation resources now cover navbar, footer, docs sidebar, blog options, blog author/tag metadata, and release post content.
+- Homepage is locale-aware: `/` remains English by default, `/zh-CN/` is Chinese.
+- Locale isolation is now covered by docs contract tests and build/serve smoke.

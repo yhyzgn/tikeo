@@ -1,0 +1,8 @@
+docs:
+  label: 文档
+  permalink: /docs-site
+  description: 文档站更新
+release:
+  label: 发布
+  permalink: /release
+  description: 发布说明与项目动态

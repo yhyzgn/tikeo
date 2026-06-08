@@ -1,0 +1,14 @@
+{
+  "title": {
+    "message": "Tikeo 发布日志",
+    "description": "The title for the blog used in SEO"
+  },
+  "description": {
+    "message": "Tikeo 的发布说明与项目动态。",
+    "description": "The description for the blog used in SEO"
+  },
+  "sidebar.title": {
+    "message": "最近文章",
+    "description": "The label for the left sidebar"
+  }
+}

@@ -49,9 +49,42 @@ class DocsSiteContractTest(unittest.TestCase):
     def test_docs_config_supports_project_pages_base_url(self):
         config = (WEBSITE / "docusaurus.config.ts").read_text()
         homepage = (WEBSITE / "src/pages/index.tsx").read_text()
+        self.assertIn("defaultLocale: 'en'", config)
         self.assertIn("TIKEO_DOCS_BASE_URL", config)
         self.assertIn("?? '/'", config)
         self.assertIn("useBaseUrl", homepage)
+        self.assertIn("i18n.currentLocale === 'zh-CN'", homepage)
+
+    def test_zh_navigation_sidebar_footer_are_localized(self):
+        files = {
+            "navbar": WEBSITE / "i18n/zh-CN/docusaurus-theme-classic/navbar.json",
+            "footer": WEBSITE / "i18n/zh-CN/docusaurus-theme-classic/footer.json",
+            "docs_options": WEBSITE / "i18n/zh-CN/docusaurus-plugin-content-docs/current.json",
+            "blog_options": WEBSITE / "i18n/zh-CN/docusaurus-plugin-content-blog/options.json",
+        }
+        for name, path in files.items():
+            self.assertTrue(path.exists(), f"missing zh-CN translation file: {name}")
+        combined = "\n".join(path.read_text() for path in files.values())
+        for localized in ["首页", "文档", "发布日志", "入门", "核心概念", "部署", "参考", "最近文章"]:
+            self.assertIn(localized, combined)
+        for untranslated in [
+            '"message": "Home"',
+            '"message": "Docs"',
+            '"message": "Getting Started"',
+            '"message": "Deployment"',
+            '"message": "Recent posts"',
+        ]:
+            self.assertNotIn(untranslated, combined)
+
+    def test_zh_blog_content_is_localized(self):
+        blog_post = WEBSITE / "i18n/zh-CN/docusaurus-plugin-content-blog/2026-06-08-docs-site-scaffold.md"
+        authors = WEBSITE / "i18n/zh-CN/docusaurus-plugin-content-blog/authors.yml"
+        tags = WEBSITE / "i18n/zh-CN/docusaurus-plugin-content-blog/tags.yml"
+        for path in [blog_post, authors, tags]:
+            self.assertTrue(path.exists(), f"missing zh-CN blog localization: {path.name}")
+        self.assertIn("文档站脚手架", blog_post.read_text())
+        self.assertIn("Tikeo 维护者", authors.read_text())
+        self.assertIn("发布说明与项目动态", tags.read_text())
 
     def test_docs_information_architecture_contains_p0_pages(self):
         for relative_path in P0_DOCS:
