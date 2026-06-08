@@ -2472,3 +2472,24 @@ Notes:
 
 Git:
 - Pending commit, push, annotated tag `v0.2.0`, and GitHub Release creation.
+
+## 2026-06-08 — 0.2.0 Docker web publish follow-up
+
+Agent:
+- Codex
+
+Work:
+- Investigated tag-triggered `Publish / Docker web` failure for `v0.2.0`.
+- First run failed during `bun install` extracting `antd`; rerun failed under `oven/bun:latest` / Bun `1.3.14` with tarball extraction/integrity errors for `@rolldown/binding-linux-x64-gnu` and `@ant-design/icons`.
+- Pinned `web/Dockerfile` builder image to `oven/bun:1.3.13`, matching the verified local/CI Bun baseline used by Web tests.
+- Added optional `ref` input to `publish-docker-web.yml` so the existing `v0.2.0` image tag can be manually built from the release-fix commit on `main` without moving the already-pushed release tag or re-publishing successful SDK artifacts.
+- Cleaned duplicate `CHANGELOG.md` 0.2.0 subsections.
+
+Verification:
+- `.github/workflows/*.yml` YAML parse ✅
+- `python3 .github/tests/workflow_contract_test.py` ✅
+- `bun run --cwd web build` ✅
+- `docker build -f web/Dockerfile web -t tikeo-web:0.2.0-local` ✅
+
+Git:
+- Pending commit and push, then manual rerun of `Publish / Docker web` with `tag=v0.2.0` and `ref=main`.

@@ -12,7 +12,7 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 - Full SDK documentation coverage for Rust, Go, Java Spring Boot, Python, and Node.js Worker surfaces.
 - Production-oriented Helm chart hardening: external database Secret injection, SQLite PVC development path, TLS/mTLS Secret mounts, ingress, probes/resources/security contexts, PodDisruptionBudget, NetworkPolicy, ServiceMonitor, Gateway API Worker Tunnel example, and values schema validation.
 - Docker Compose stacks for SQLite, PostgreSQL, and MySQL plus complete Compose YAML publication in the docs.
-- README promotion assets and trust surfaces: breathing logo GIF, console tour media, stable badges, SDK runtime badges, and full Codecov surface.
+- README promotion assets and trust surfaces: breathing logo GIF, console tour media, stable badges, SDK runtime badges, full Codecov surface, short console tour, clearer discovery links, star-history entry, support note, and open-source project hygiene files.
 
 ### Changed
 
@@ -20,6 +20,7 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 - Source modules were split to keep normal Rust/TypeScript source files within the 1500-line maintainability limit enforced by `scripts/check-source-size.py`.
 - Documentation defaults to an English root route with zh-CN content under `/zh-CN/`; GitHub Pages project hosting remains available through `TIKEO_DOCS_BASE_URL=/tikeo/`.
 - Coverage upload moved to direct Codecov CLI paths across Rust, Web, Java, Go, Python, and Node.js surfaces.
+- README and Chinese README now surface the short console tour, clearer discovery links, star-history entry, and support note.
 
 ### Fixed
 
@@ -32,15 +33,6 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 - Local release preparation includes docs contract/typecheck/build, source-size audit, workflow contract, YAML parse, and targeted locale/route smoke evidence.
 - Remote baseline before release: main CI run `27129836559` and coverage run `27129836631` were green for commit `e98f6fd7395f1c104050ce8037db79ab5447aed6`; later docs-only slices were verified locally before release tagging.
 
-
-### Added
-
-- README first-fold demo tour asset for faster GitHub evaluation.
-- Open-source project hygiene files: contribution guide, security policy, code of conduct, roadmap, issue templates, and pull request template.
-
-### Changed
-
-- README and Chinese README now surface the short console tour, clearer discovery links, star-history entry, and support note.
 
 ## Release notes policy
 
