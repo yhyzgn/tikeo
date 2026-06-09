@@ -1,7 +1,12 @@
 use std::{net::SocketAddr, pin::Pin};
 
 use sha2::{Digest, Sha256};
-use tokio::{net::TcpListener, sync::mpsc, task::JoinHandle};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpListener,
+    sync::mpsc,
+    task::JoinHandle,
+};
 use tokio_stream::{Stream, StreamExt, wrappers::TcpListenerStream};
 use tonic::{Request, Response, Status, transport::Server};
 
@@ -14,10 +19,10 @@ use crate::proto::worker::v1::{
 
 use super::script::SrtScriptRunner;
 use super::{
-    ContainerScriptRunner, DenoScriptRunner, LocalSubprocessScriptRunner, ScriptRunner,
-    ScriptRunnerKind, ScriptRunnerPolicy, ScriptRunnerRegistry, ScriptRunnerTask, TaskContext,
-    TaskOutcome, TaskProcessor, UnsupportedScriptRunner, WorkerClient, WorkerConfig,
-    WorkerSdkError,
+    ContainerScriptRunner, DenoScriptRunner, LocalSubprocessScriptRunner, ManagementClient,
+    ManagementCreateJobRequest, ManagementTriggerJobRequest, ScriptRunner, ScriptRunnerKind,
+    ScriptRunnerPolicy, ScriptRunnerRegistry, ScriptRunnerTask, TaskContext, TaskOutcome,
+    TaskProcessor, UnsupportedScriptRunner, WorkerClient, WorkerConfig, WorkerSdkError,
 };
 
 #[test]
@@ -86,6 +91,82 @@ fn task_outcome_success_can_carry_operator_message() {
         Some("rust demo echo processed")
     );
     assert!(outcome.failure_class().is_none());
+}
+
+#[tokio::test]
+async fn management_client_creates_and_triggers_api_job() {
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .unwrap_or_else(|error| panic!("bind mock management server: {error}"));
+    let address = listener
+        .local_addr()
+        .unwrap_or_else(|error| panic!("read mock management address: {error}"));
+    let server = tokio::spawn(async move {
+        for _ in 0..2 {
+            let (mut stream, _) = listener
+                .accept()
+                .await
+                .unwrap_or_else(|error| panic!("accept management request: {error}"));
+            let mut buffer = vec![0_u8; 8192];
+            let read = stream
+                .read(&mut buffer)
+                .await
+                .unwrap_or_else(|error| panic!("read management request: {error}"));
+            let request = String::from_utf8_lossy(&buffer[..read]);
+            assert!(request.contains("x-tikeo-api-key: key-1"));
+            let (body, status) = if request.contains("POST /api/v1/jobs/job-1:trigger ") {
+                assert!(request.contains(r#""triggerType":"api""#));
+                assert!(request.contains(r#""executionMode":"single""#));
+                (
+                    r#"{"code":0,"message":"ok","data":{"id":"inst-1","jobId":"job-1","status":"pending","triggerType":"api","executionMode":"single","createdAt":"now","updatedAt":"now"}}"#,
+                    "200 OK",
+                )
+            } else {
+                assert!(request.contains("POST /api/v1/jobs "));
+                assert!(request.contains(r#""processorType":"sql""#));
+                (
+                    r#"{"code":0,"message":"ok","data":{"id":"job-1","namespace":"dev-alpha","app":"orders","name":"rust-sql","scheduleType":"api","processorName":"billing.sql-sync","processorType":"sql","enabled":true,"retryPolicy":{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}}}"#,
+                    "200 OK",
+                )
+            };
+            let response = format!(
+                "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n{body}",
+                body.len()
+            );
+            stream
+                .write_all(response.as_bytes())
+                .await
+                .unwrap_or_else(|error| panic!("write management response: {error}"));
+        }
+    });
+
+    let client = ManagementClient::new(format!("http://{address}"), "key-1", "dev-alpha", "orders");
+    let job = client
+        .create_job(ManagementCreateJobRequest::plugin_api(
+            "rust-sql",
+            "sql",
+            "billing.sql-sync",
+        ))
+        .await
+        .unwrap_or_else(|error| panic!("create management job: {error}"));
+    let instance = client
+        .trigger_job(&job.id, ManagementTriggerJobRequest::api())
+        .await
+        .unwrap_or_else(|error| panic!("trigger management job: {error}"));
+    assert_eq!(instance.job_id, "job-1");
+    assert_eq!(instance.trigger_type, "api");
+    let broadcast = ManagementTriggerJobRequest::broadcast_api(Some(
+        crate::management::BroadcastSelectorRequest {
+            tags: None,
+            region: Some("us-east-1".to_owned()),
+            cluster: None,
+            labels: None,
+        },
+    ));
+    assert_eq!(broadcast.execution_mode.as_deref(), Some("broadcast"));
+    server
+        .await
+        .unwrap_or_else(|error| panic!("join mock management server: {error}"));
 }
 
 #[tokio::test]

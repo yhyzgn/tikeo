@@ -38,7 +38,11 @@ export async function main(): Promise<void> {
   if (enabled("TIKEO_MANAGEMENT_CREATE_EXAMPLES")) {
     const mgmt = new ManagementClient(envOr("TIKEO_HTTP_URL", "http://127.0.0.1:8080"), process.env.TIKEO_API_KEY ?? "", config.namespace, config.app);
     for (const job of [apiJob("nodejs-echo-api", "demo.echo"), pluginApiJob("nodejs-sql-sync-api", "sql", "billing.sql-sync")]) {
-      try { const created = await mgmt.createJob(job); console.log(`created job ${created.namespace}/${created.app} ${created.name}`); }
+      try {
+        const created = await mgmt.createJob(job);
+        const instance = await mgmt.triggerJob(created.id);
+        console.log(`created and triggered job ${created.namespace}/${created.app} ${created.name} instance=${instance.id} trigger_type=${instance.triggerType}`);
+      }
       catch (error) { console.warn(`create job ${job.name} failed: ${(error as Error).message}`); }
     }
   }

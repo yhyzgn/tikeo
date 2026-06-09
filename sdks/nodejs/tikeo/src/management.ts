@@ -26,6 +26,16 @@ export interface JobDefinition {
   retryPolicy?: JobRetryPolicy | null;
 }
 
+export interface JobInstance {
+  id: string;
+  jobId: string;
+  status: string;
+  triggerType: string;
+  executionMode: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CreateJobRequest {
   name: string;
   scheduleType: string;
@@ -35,6 +45,27 @@ export interface CreateJobRequest {
   scriptId?: string | null;
   enabled?: boolean;
   retryPolicy?: JobRetryPolicy | null;
+}
+
+export interface BroadcastSelectorRequest {
+  tags?: string[];
+  region?: string;
+  cluster?: string;
+  labels?: Record<string, string>;
+}
+
+export interface TriggerJobRequest {
+  triggerType?: string;
+  executionMode?: "single" | "broadcast";
+  broadcastSelector?: BroadcastSelectorRequest;
+}
+
+export function apiTrigger(): TriggerJobRequest {
+  return { triggerType: "api", executionMode: "single" };
+}
+
+export function broadcastApiTrigger(selector?: BroadcastSelectorRequest): TriggerJobRequest {
+  return { triggerType: "api", executionMode: "broadcast", broadcastSelector: selector };
 }
 
 export function apiJob(name: string, processorName: string): CreateJobRequest {
@@ -78,6 +109,10 @@ export class ManagementClient {
     };
     for (const key of Object.keys(payload)) if (payload[key] === undefined || payload[key] === null) delete payload[key];
     return this.send("POST", "/jobs", payload) as Promise<JobDefinition>;
+  }
+
+  async triggerJob(jobId: string, request: TriggerJobRequest = apiTrigger()): Promise<JobInstance> {
+    return this.send("POST", `/jobs/${encodeURIComponent(jobId)}:trigger`, request) as Promise<JobInstance>;
   }
 
   private async send(method: string, path: string, body?: unknown): Promise<any> {

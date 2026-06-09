@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import Any
+from urllib.parse import quote
 
 import requests
 
@@ -50,6 +51,17 @@ class JobDefinition:
 
 
 @dataclass(slots=True)
+class JobInstance:
+    id: str = ""
+    job_id: str = ""
+    status: str = ""
+    trigger_type: str = ""
+    execution_mode: str = ""
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass(slots=True)
 class CreateJobRequest:
     name: str
     schedule_type: str = "api"
@@ -59,6 +71,47 @@ class CreateJobRequest:
     script_id: str | None = None
     enabled: bool = True
     retry_policy: JobRetryPolicy | None = None
+
+
+@dataclass(slots=True)
+class BroadcastSelectorRequest:
+    tags: list[str] | None = None
+    region: str | None = None
+    cluster: str | None = None
+    labels: dict[str, str] | None = None
+
+    def to_json(self) -> dict[str, Any]:
+        payload = {
+            "tags": self.tags,
+            "region": self.region,
+            "cluster": self.cluster,
+            "labels": self.labels,
+        }
+        return {key: value for key, value in payload.items() if value is not None}
+
+
+@dataclass(slots=True)
+class TriggerJobRequest:
+    trigger_type: str = "api"
+    execution_mode: str = "single"
+    broadcast_selector: BroadcastSelectorRequest | None = None
+
+    def to_json(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "triggerType": self.trigger_type,
+            "executionMode": self.execution_mode,
+        }
+        if self.broadcast_selector is not None:
+            payload["broadcastSelector"] = self.broadcast_selector.to_json()
+        return payload
+
+
+def api_trigger() -> TriggerJobRequest:
+    return TriggerJobRequest()
+
+
+def broadcast_api_trigger(selector: BroadcastSelectorRequest | None = None) -> TriggerJobRequest:
+    return TriggerJobRequest(execution_mode="broadcast", broadcast_selector=selector)
 
 
 def api_job(name: str, processor_name: str) -> CreateJobRequest:
@@ -103,6 +156,10 @@ class ManagementClient:
         payload = {key: value for key, value in payload.items() if value is not None}
         return self._parse_job(self._send("POST", "/jobs", payload))
 
+    def trigger_job(self, job_id: str, request: TriggerJobRequest | None = None) -> JobInstance:
+        body = (request or api_trigger()).to_json()
+        return self._parse_instance(self._send("POST", f"/jobs/{quote(job_id, safe='')}:trigger", body))
+
     def _send(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
         response = self.session.request(method, f"{self.endpoint}/api/v1{path}", json=body, timeout=30)
         try:
@@ -136,4 +193,16 @@ class ManagementClient:
                 backoff_multiplier=retry.get("backoffMultiplier", 2),
                 max_delay_seconds=retry.get("maxDelaySeconds", 60),
             ) if isinstance(retry, dict) else None,
+        )
+
+    @staticmethod
+    def _parse_instance(data: dict[str, Any]) -> JobInstance:
+        return JobInstance(
+            id=data.get("id", ""),
+            job_id=data.get("jobId", ""),
+            status=data.get("status", ""),
+            trigger_type=data.get("triggerType", ""),
+            execution_mode=data.get("executionMode", ""),
+            created_at=data.get("createdAt", ""),
+            updated_at=data.get("updatedAt", ""),
         )

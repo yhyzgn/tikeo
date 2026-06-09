@@ -6,12 +6,14 @@
 
 ## Immediate next slice
 
-1. Decide and implement docs verification workflow placement: main CI docs job vs docs-specific GitHub Actions workflow. Minimum gate should run `python3 .github/tests/docs_site_contract_test.py`, `cd website && bun install --frozen-lockfile`, `bun run docs:typecheck`, and `bun run docs:build`; if publishing to a custom domain, set `TIKEO_DOCS_URL` / `TIKEO_DOCS_BASE_URL=/`.
-2. Add docs search/publish readiness once hosting target is selected: canonical URL, robots policy, OpenGraph image, local search or DocSearch plan, and generated/maintained `llms.txt` strategy.
-3. Expand next docs depth from verified artifacts: SDK overview/cross-language parity, user-guide pages for Dashboard/Jobs/Instances/Workers/Workflows/Scripts/Audit/Settings, and generated OpenAPI/protobuf references.
-4. Kubernetes 后续可继续补真实控制器专项文档：Nginx/Envoy/Traefik/Gateway API controller 的实际生产 values、证书模式和 smoke runbook。
-5. 宣传录屏本地证据已完成：最终推荐版为 `.dev/reports/promo-cinematic-showcase-20260608T050247Z-231970/tikeo-cinematic-promo-hq-sentence-subs.mp4`；同目录保留逐句/短语级 `subtitles.en.srt`、`subtitles.zh-CN.srt`、`subtitles.bilingual.srt` 用于平台单独上传 CC 字幕。
-6. 迁移工具（PowerJob/XXL-JOB）仍维持最低优先级 backlog，核心服务体验稳定后再做。
+1. Extend docs site SDK pages with source-backed examples for all-language Management API create+trigger helpers (`triggerType=api`, default `executionMode=single`, explicit broadcast selector helpers).
+2. Decide and implement docs verification workflow placement: main CI docs job vs docs-specific GitHub Actions workflow. Minimum gate should run `python3 .github/tests/docs_site_contract_test.py`, `cd website && bun install --frozen-lockfile`, `bun run docs:typecheck`, and `bun run docs:build`; if publishing to a custom domain, set `TIKEO_DOCS_URL` / `TIKEO_DOCS_BASE_URL=/`.
+3. Add a repeatable end-to-end management trigger smoke that starts the server, registers a demo worker, creates a job through one SDK, triggers it, and asserts an instance/result transition.
+4. Add docs search/publish readiness once hosting target is selected: canonical URL, robots policy, OpenGraph image, local search or DocSearch plan, and generated/maintained `llms.txt` strategy.
+5. Expand next docs depth from verified artifacts: SDK overview/cross-language parity, user-guide pages for Dashboard/Jobs/Instances/Workers/Workflows/Scripts/Audit/Settings, and generated OpenAPI/protobuf references.
+6. Kubernetes 后续可继续补真实控制器专项文档：Nginx/Envoy/Traefik/Gateway API controller 的实际生产 values、证书模式和 smoke runbook。
+7. 宣传录屏本地证据已完成：最终推荐版为 `.dev/reports/promo-cinematic-showcase-20260608T050247Z-231970/tikeo-cinematic-promo-hq-sentence-subs.mp4`；同目录保留逐句/短语级 `subtitles.en.srt`、`subtitles.zh-CN.srt`、`subtitles.bilingual.srt` 用于平台单独上传 CC 字幕。
+8. 迁移工具（PowerJob/XXL-JOB）仍维持最低优先级 backlog，核心服务体验稳定后再做。
 
 ## Current verified baseline
 
@@ -37,3 +39,9 @@
 - 新 schema 变更必须进入显式 SeaORM migration；不得在 `connect_and_migrate` 后挂未记录的兼容补丁。
 - Helm chart 不能部署业务 Worker 或创建业务 Worker 入站 Service；Worker 只能主动出站连接 Tikeo Worker Tunnel。
 - 源文件 <=1500 行；`mod.rs` / `lib.rs` 等入口文件只做声明和 re-export；后续源码变更必须保持审计通过。
+
+## SDK management trigger parity baseline
+
+- Java/Rust/Go/Python/Node.js SDKs now expose app-scoped Management API create+trigger helpers.
+- Rust/Go/Python/Node.js demos trigger created jobs under `TIKEO_MANAGEMENT_CREATE_EXAMPLES=1`; Java Boot2/3/4 demos expose documented controller endpoints for create+trigger examples.
+- Next quality improvement: promote this from per-SDK mock tests and demo tests into one full server+worker e2e smoke.

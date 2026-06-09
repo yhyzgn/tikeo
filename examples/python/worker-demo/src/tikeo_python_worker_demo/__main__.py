@@ -37,7 +37,8 @@ def main() -> None:
         for job in [tikeo.api_job("python-echo-api", "demo.echo"), tikeo.plugin_api_job("python-sql-sync-api", "sql", "billing.sql-sync")]:
             try:
                 created = mgmt.create_job(job)
-                logging.info("created job %s/%s %s", created.namespace, created.app, created.name)
+                instance = mgmt.trigger_job(created.id)
+                logging.info("created and triggered job %s/%s %s instance=%s trigger_type=%s", created.namespace, created.app, created.name, instance.id, instance.trigger_type)
             except Exception as exc:
                 logging.warning("create job %s failed: %s", job.name, exc)
 

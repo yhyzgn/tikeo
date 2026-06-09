@@ -584,7 +584,7 @@ tikeo:
 
 Starter 需要提供：
 
-> 2026-06-04 状态：Java SDK 已拆分为 Boot2/Boot3/Boot4 三套 starter 与 Spring5/Spring6 兼容 adapter，三套 Java demo 独立存在；Rust 与 Go SDK/demo 已对齐 Java demo 的结构化 namespace/app/cluster/region/clientInstanceId/processorName、Worker Tunnel live 连接、assignment token 日志上报、脚本 runner capability 与重连循环。
+> 2026-06-09 状态：Java SDK 已拆分为 Boot2/Boot3/Boot4 三套 starter 与 Spring5/Spring6 兼容 adapter，三套 Java demo 独立存在；Rust、Go、Python、Node.js SDK/demo 已对齐 Java demo 的结构化 namespace/app/cluster/region/clientInstanceId/processorName、Worker Tunnel live 连接、assignment token 日志上报、脚本 runner capability、management create/trigger API 用例与重连/启动验证。
 
 - `@EnableTikeoWorker` 或自动启用的 Spring Boot auto-configuration。
 - `@TikeoProcessor` 注解扫描和方法适配。
@@ -2341,8 +2341,8 @@ Phase 3 closeout 状态已在 2026-05-28 复核：原先保留未勾选的 OIDC 
 - [x] OIDC tenant/app/role 绑定策略与高级租户隔离 UI（131：`/api/v1/oidc-identities` 管理 issuer+subject -> local user + namespace/app/worker-pool scope；OIDC callback 未映射 fail-closed；Scopes 页面可管理映射）。
 - [x] Prometheus/Grafana recording-rule 校验、运维 runbook 与真实 scrape 验证（132：本地 Compose Prometheus profile + committed recording rules/config/runbook；CI 覆盖规则/仪表盘引用一致性）。
 - [x] Go SDK（2026-06-04：official gRPC/protobuf Worker Tunnel run-loop、默认 live demo、结构化 processor/script capability、assignment token 任务日志与重连循环已落地；README 已说明 protoc 与 Dockerfile 安装方式）。
-- [ ] Python SDK（用户要求先延期）。
-- [ ] Node.js SDK（用户要求先延期）。
+- [x] Python SDK（2026-06-09：Worker Tunnel、结构化 capability、sandbox runner、management create/trigger API 与 demo 用例已落地）。
+- [x] Node.js SDK（2026-06-09：Worker Tunnel、结构化 capability、sandbox runner、management create/trigger API 与 demo 用例已落地）。
 
 
 #### Source file hygiene checkpoint (2026-05-25)
@@ -2351,7 +2351,7 @@ Phase 3 closeout 状态已在 2026-05-28 复核：原先保留未勾选的 OIDC 
 
 **P2 — 生态接入 / 高级差异化（不阻塞服务先跑起来）**
 
-- [x] SDK Management API-Key 签发与鉴权方案（2026-05-31 已升级为长期 Service Account 方案）：SDK 端 management client 不走人工 session token，也不收敛到某个用户账号的 RBAC 权限；Server 提供 `POST/GET/PATCH/DELETE /api/v1/management/service-accounts` 独立维护 app-scoped 机器身份，API-Key 创建时只能选择已有 active Service Account，禁用 Service Account 会吊销其 active API-Key；`POST/GET/PATCH/DELETE /api/v1/management/api-keys` 继续负责凭证签发/元数据编辑/吊销，`tk-` + 64 位大小写字母数字 CSPRNG/rejection sampling 生成，服务端只存 hash 与两端明文脱敏值；`X-Tikeo-API-Key` 鉴权映射为 `sdk_api_key/app_service` principal，并以 Service Account 当前 active 状态与 namespace/app scope 作为最终授权边界；Web `/api-keys` 支持 Service Account 管理、选择已有身份签发 Key、一次性明文展示、编辑名称/权限/有效期、吊销与 last-used 观测；Java 原生 SDK、Spring Boot Starter、Rust SDK management client 与 Java demo 均已接入 API-Key。验证：`cargo test -p tikeo-server sdk_api_key -- --nocapture`、`cargo test -p tikeo-server disabling_service_account_revokes_bound_sdk_keys -- --nocapture`、`cd web && bun run typecheck && bun test --run src/api/client.test.ts`、Java SDK/starter/demo 相关测试。
+- [x] SDK Management API-Key 签发与鉴权方案（2026-05-31 已升级为长期 Service Account 方案）：SDK 端 management client 不走人工 session token，也不收敛到某个用户账号的 RBAC 权限；Server 提供 `POST/GET/PATCH/DELETE /api/v1/management/service-accounts` 独立维护 app-scoped 机器身份，API-Key 创建时只能选择已有 active Service Account，禁用 Service Account 会吊销其 active API-Key；`POST/GET/PATCH/DELETE /api/v1/management/api-keys` 继续负责凭证签发/元数据编辑/吊销，`tk-` + 64 位大小写字母数字 CSPRNG/rejection sampling 生成，服务端只存 hash 与两端明文脱敏值；`X-Tikeo-API-Key` 鉴权映射为 `sdk_api_key/app_service` principal，并以 Service Account 当前 active 状态与 namespace/app scope 作为最终授权边界；Web `/api-keys` 支持 Service Account 管理、选择已有身份签发 Key、一次性明文展示、编辑名称/权限/有效期、吊销与 last-used 观测；Java 原生 SDK、Spring Boot Starter、Rust/Go/Python/Node.js SDK management client 与各语言 demo 均已接入 API-Key create/trigger 用例。验证：`cargo test -p tikeo-server sdk_api_key -- --nocapture`、`cargo test -p tikeo-server disabling_service_account_revokes_bound_sdk_keys -- --nocapture`、`cd web && bun run typecheck && bun test --run src/api/client.test.ts`、Java SDK/starter/demo 相关测试。
 - [x] GitOps/IaC Manifest 导出与 drift diff（2026-05-29：`GET /api/v1/gitops/manifest`、`POST /api/v1/gitops/diff`、Web GitOps/IaC 页面、manifest/CRD/Terraform contract 样例已落地）。
 - [x] Terraform Provider 与 K8s CRD controller/operator 已补齐（2026-05-30：`deploy/terraform/provider` 提供真实 Terraform Plugin Framework provider，含 `tikeo_manifest` data source 与 `tikeo_manifest_diff` resource；`deploy/k8s/operator` 提供 `TikeoManifest` CRD reconciler/operator CLI，按 `/api/v1/gitops/diff` 写入 status evidence；CRD 增加 status subresource、conditions、checksum、summary/lastDiff）。
 - [x] 任务版本管理与回滚（2026-05-28：`job_versions` 不可变快照表、创建/编辑/回滚自动追加版本、`GET /api/v1/jobs/{job}/versions`、`POST /api/v1/jobs/{job}/rollback`、Jobs 页面版本历史抽屉与回滚入口已落地；回滚生成新的最新版本，不覆盖历史）。
@@ -2378,14 +2378,14 @@ Worker 集群与 tikeo server 集群都必须具备 master 选举能力。Server
 **P1 — 常见接入与生产治理**
 
 - [x] Go SDK（2026-06-04：official gRPC/protobuf Worker Tunnel run-loop、默认 live demo、结构化 processor/script capability、assignment token 任务日志与重连循环已落地）
-- [ ] Python SDK（用户要求先延期）
-- [ ] Node.js SDK（用户要求先延期）
+- [x] Python SDK（2026-06-09：Worker Tunnel、结构化 capability、sandbox runner、management create/trigger API 与 demo 用例已落地）
+- [x] Node.js SDK（2026-06-09：Worker Tunnel、结构化 capability、sandbox runner、management create/trigger API 与 demo 用例已落地）
 - [x] 脚本生产治理增强（完整审批/签名/KMS、URL/File/Secret grant、生产发布门禁；本地 env-secret verifier 闭环，外部 KMS/PKI 后续增强）
 - [x] Prometheus/Grafana recording-rule 与真实 scrape 验证（132：规则、Prometheus scrape config、Grafana recording-query 与 runbook）。
 
 **P2 — 生态接入与高级差异化**
 
-- [x] SDK Management API-Key 签发与鉴权方案（2026-05-31 已升级为长期 Service Account 方案）：SDK management client 使用 app-scoped API-Key，不使用人工 session token，不绑定某个用户账号的 RBAC 权限；后台管理员先维护 Service Account 机器身份，再针对已有 active Service Account 手动签发、编辑元数据、吊销授权，供 Java/Rust SDK 管理任务、触发任务和读取实例状态。
+- [x] SDK Management API-Key 签发与鉴权方案（2026-05-31 已升级为长期 Service Account 方案）：SDK management client 使用 app-scoped API-Key，不使用人工 session token，不绑定某个用户账号的 RBAC 权限；后台管理员先维护 Service Account 机器身份，再针对已有 active Service Account 手动签发、编辑元数据、吊销授权，供 Java/Rust/Go/Python/Node.js SDK 管理任务、触发任务和读取实例状态。
 
   **已实现约束 / 后续增强边界**：
   - Key 明文格式固定为 `tk-${64位大小写字母数字}`，即前缀 `tk-` + 64 个 `[A-Za-z0-9]` 字符；全局唯一，只在创建/轮换时返回一次明文。

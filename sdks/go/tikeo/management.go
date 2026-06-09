@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -44,12 +45,29 @@ type JobDefinition struct {
 	RetryPolicy   *JobRetryPolicy `json:"retryPolicy,omitempty"`
 }
 
+type JobInstance struct {
+	ID            string `json:"id"`
+	JobID         string `json:"jobId"`
+	Status        string `json:"status"`
+	TriggerType   string `json:"triggerType"`
+	ExecutionMode string `json:"executionMode"`
+	CreatedAt     string `json:"createdAt"`
+	UpdatedAt     string `json:"updatedAt"`
+}
+
 type JobRetryPolicy struct {
 	Enabled             bool `json:"enabled"`
 	MaxAttempts         int  `json:"maxAttempts"`
 	InitialDelaySeconds int  `json:"initialDelaySeconds"`
 	BackoffMultiplier   int  `json:"backoffMultiplier"`
 	MaxDelaySeconds     int  `json:"maxDelaySeconds"`
+}
+
+type BroadcastSelectorRequest struct {
+	Tags    []string          `json:"tags,omitempty"`
+	Region  string            `json:"region,omitempty"`
+	Cluster string            `json:"cluster,omitempty"`
+	Labels  map[string]string `json:"labels,omitempty"`
 }
 
 func DefaultJobRetryPolicy() *JobRetryPolicy {
@@ -65,6 +83,20 @@ type CreateJobRequest struct {
 	ScriptID      *string
 	Enabled       *bool
 	RetryPolicy   *JobRetryPolicy
+}
+
+type TriggerJobRequest struct {
+	TriggerType       string                    `json:"triggerType,omitempty"`
+	ExecutionMode     string                    `json:"executionMode,omitempty"`
+	BroadcastSelector *BroadcastSelectorRequest `json:"broadcastSelector,omitempty"`
+}
+
+func APITrigger() TriggerJobRequest {
+	return TriggerJobRequest{TriggerType: "api", ExecutionMode: "single"}
+}
+
+func BroadcastAPITrigger(selector *BroadcastSelectorRequest) TriggerJobRequest {
+	return TriggerJobRequest{TriggerType: "api", ExecutionMode: "broadcast", BroadcastSelector: selector}
 }
 
 func APIJob(name, processorName string) CreateJobRequest {
@@ -146,6 +178,14 @@ func (c *ManagementClient) CreateJob(ctx context.Context, request CreateJobReque
 		return JobDefinition{}, err
 	}
 	return job, nil
+}
+
+func (c *ManagementClient) TriggerJob(ctx context.Context, jobID string, request TriggerJobRequest) (JobInstance, error) {
+	var instance JobInstance
+	if err := c.send(ctx, http.MethodPost, "/jobs/"+url.PathEscape(jobID)+":trigger", request, &instance); err != nil {
+		return JobInstance{}, err
+	}
+	return instance, nil
 }
 
 func (c *ManagementClient) send(ctx context.Context, method, path string, body any, out any) error {

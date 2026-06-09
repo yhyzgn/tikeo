@@ -81,6 +81,21 @@ impl ManagementClient {
             .await
     }
 
+    /// Trigger an existing job through the Management API.
+    ///
+    /// # Errors
+    ///
+    /// Returns an SDK error for transport, server, or decoding failures.
+    pub async fn trigger_job(
+        &self,
+        job_id: &str,
+        request: TriggerJobRequest,
+    ) -> Result<JobInstance, WorkerSdkError> {
+        let path = format!("/jobs/{}:trigger", encode_path_segment(job_id));
+        self.send(reqwest::Method::POST, &path, Some(&request))
+            .await
+    }
+
     async fn send<T, B>(
         &self,
         method: reqwest::Method,
@@ -179,6 +194,26 @@ pub struct JobDefinition {
     pub retry_policy: JobRetryPolicy,
 }
 
+/// Job instance returned by explicit API trigger calls.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobInstance {
+    /// Job instance id.
+    pub id: String,
+    /// Triggered job id.
+    pub job_id: String,
+    /// Current instance status.
+    pub status: String,
+    /// Trigger source, usually `api` for SDK-triggered runs.
+    pub trigger_type: String,
+    /// Execution mode selected by the server.
+    pub execution_mode: String,
+    /// Creation timestamp as returned by the server.
+    pub created_at: String,
+    /// Update timestamp as returned by the server.
+    pub updated_at: String,
+}
+
 /// Job creation request for Rust management SDK users.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateJobRequest {
@@ -198,6 +233,60 @@ pub struct CreateJobRequest {
     pub enabled: Option<bool>,
     /// Optional structured failure retry policy.
     pub retry_policy: Option<JobRetryPolicy>,
+}
+
+/// Request to trigger a job through the Management API.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TriggerJobRequest {
+    /// Trigger source. Use `api` for SDK calls.
+    pub trigger_type: String,
+    /// Execution mode selected by the caller. Use `single` or `broadcast`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_mode: Option<String>,
+    /// Optional broadcast worker selector when `execution_mode` is `broadcast`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub broadcast_selector: Option<BroadcastSelectorRequest>,
+}
+
+/// Optional worker selector for broadcast API triggers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BroadcastSelectorRequest {
+    /// Match workers by advertised tags.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<Vec<String>>,
+    /// Match workers by region.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub region: Option<String>,
+    /// Match workers by cluster.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cluster: Option<String>,
+    /// Match workers by labels.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub labels: Option<std::collections::HashMap<String, String>>,
+}
+
+impl TriggerJobRequest {
+    /// Build an API-trigger request.
+    #[must_use]
+    pub fn api() -> Self {
+        Self {
+            trigger_type: "api".to_owned(),
+            execution_mode: Some("single".to_owned()),
+            broadcast_selector: None,
+        }
+    }
+
+    /// Build a broadcast API-trigger request with an optional worker selector.
+    #[must_use]
+    pub fn broadcast_api(selector: Option<BroadcastSelectorRequest>) -> Self {
+        Self {
+            trigger_type: "api".to_owned(),
+            execution_mode: Some("broadcast".to_owned()),
+            broadcast_selector: selector,
+        }
+    }
 }
 
 impl CreateJobRequest {
@@ -297,4 +386,22 @@ fn defaulted(value: &str, fallback: &str) -> String {
     } else {
         trimmed.to_owned()
     }
+}
+
+fn encode_path_segment(value: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut encoded = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                encoded.push(char::from(byte));
+            }
+            other => {
+                encoded.push('%');
+                encoded.push(char::from(HEX[usize::from(other >> 4)]));
+                encoded.push(char::from(HEX[usize::from(other & 0x0F)]));
+            }
+        }
+    }
+    encoded
 }

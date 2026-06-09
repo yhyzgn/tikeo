@@ -7,9 +7,9 @@ use std::{collections::HashMap, time::Duration};
 use async_trait::async_trait;
 use tikeo::{
     ContainerScriptRunner, DenoScriptRunner, ManagementClient, ManagementCreateJobRequest,
-    SandboxToolResolver, ScriptRunnerKind, ScriptRunnerRegistry, SrtScriptRunner, TaskContext,
-    TaskOutcome, TaskProcessor, UnsupportedScriptRunner, WorkerClient, WorkerConfig,
-    WorkerSdkError,
+    ManagementTriggerJobRequest, SandboxToolResolver, ScriptRunnerKind, ScriptRunnerRegistry,
+    SrtScriptRunner, TaskContext, TaskOutcome, TaskProcessor, UnsupportedScriptRunner,
+    WorkerClient, WorkerConfig, WorkerSdkError,
 };
 
 #[tokio::main]
@@ -209,10 +209,26 @@ async fn create_management_examples(config: &WorkerConfig) -> Result<(), WorkerS
         ManagementCreateJobRequest::plugin_api("rust-sql-sync-api", "sql", "billing.sql-sync"),
     ] {
         match management.create_job(job).await {
-            Ok(created) => println!(
-                "[rust-demo.management] created job namespace={} app={} name={} retry_attempts={}",
-                created.namespace, created.app, created.name, created.retry_policy.max_attempts
-            ),
+            Ok(created) => {
+                match management
+                    .trigger_job(&created.id, ManagementTriggerJobRequest::api())
+                    .await
+                {
+                    Ok(instance) => println!(
+                        "[rust-demo.management] created and triggered job namespace={} app={} name={} instance={} trigger_type={} retry_attempts={}",
+                        created.namespace,
+                        created.app,
+                        created.name,
+                        instance.id,
+                        instance.trigger_type,
+                        created.retry_policy.max_attempts
+                    ),
+                    Err(error) => eprintln!(
+                        "[rust-demo.management] trigger job {} failed: {error}",
+                        created.id
+                    ),
+                }
+            }
             Err(error) => eprintln!("[rust-demo.management] create job failed: {error}"),
         }
     }

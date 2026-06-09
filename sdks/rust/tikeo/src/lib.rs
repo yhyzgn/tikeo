@@ -17,7 +17,9 @@ pub use config::WorkerConfig;
 pub use error::WorkerSdkError;
 pub use logging::{SdkLogConfig, SdkLogLevel, configure_sdk_logging};
 pub use management::{
-    CreateJobRequest as ManagementCreateJobRequest, JobDefinition, ManagementClient,
+    BroadcastSelectorRequest as ManagementBroadcastSelectorRequest,
+    CreateJobRequest as ManagementCreateJobRequest, JobDefinition, JobInstance, ManagementClient,
+    TriggerJobRequest as ManagementTriggerJobRequest,
 };
 pub use script::{
     ContainerScriptRunner, DenoScriptRunner, LocalSubprocessScriptRunner, SandboxToolResolver,

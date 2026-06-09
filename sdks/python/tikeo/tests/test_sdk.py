@@ -78,12 +78,35 @@ def test_management_client_creates_structured_plugin_and_script_jobs():
     import threading
 
     bodies = []
+    paths = []
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             assert self.headers.get("x-tikeo-api-key") == "key-1"
+            paths.append(self.path)
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             bodies.append(body)
+            if self.path.endswith(":trigger"):
+                payload = {
+                    "code": 0,
+                    "message": "ok",
+                    "data": {
+                        "id": "inst-1",
+                        "jobId": "job-1",
+                        "status": "pending",
+                        "triggerType": body["triggerType"],
+                        "executionMode": "single",
+                        "createdAt": "now",
+                        "updatedAt": "now",
+                    },
+                }
+                data = json.dumps(payload).encode()
+                self.send_response(200)
+                self.send_header("content-type", "application/json")
+                self.send_header("content-length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
             payload = {"code": 0, "message": "ok", "data": {"id": "job-1", **body}}
             data = json.dumps(payload).encode()
             self.send_response(200)
@@ -102,11 +125,23 @@ def test_management_client_creates_structured_plugin_and_script_jobs():
         client = tikeo.ManagementClient(f"http://127.0.0.1:{server.server_port}", "key-1", "dev-alpha", "orders")
         client.create_job(tikeo.plugin_api_job("python-sql", "sql", "billing.sql-sync"))
         client.create_job(tikeo.script_api_job("python-script", "script_manual_shell_echo"))
+        instance = client.trigger_job("job-1")
     finally:
         server.shutdown()
     assert bodies[0]["processorType"] == "sql"
     assert bodies[0]["retryPolicy"]["maxAttempts"] == 3
     assert bodies[1]["scriptId"] == "script_manual_shell_echo"
+    assert paths[2] == "/api/v1/jobs/job-1:trigger"
+    assert bodies[2]["triggerType"] == "api"
+    assert bodies[2]["executionMode"] == "single"
+    assert instance.job_id == "job-1"
+    assert instance.trigger_type == "api"
+    broadcast = tikeo.broadcast_api_trigger(tikeo.BroadcastSelectorRequest(region="us-east-1"))
+    assert broadcast.to_json() == {
+        "triggerType": "api",
+        "executionMode": "broadcast",
+        "broadcastSelector": {"region": "us-east-1"},
+    }
 
 
 def test_local_command_script_runner_executes_released_shell_snapshot():

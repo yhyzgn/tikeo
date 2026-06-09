@@ -1418,3 +1418,9 @@ Verification evidence:
 - [x] README / README.zh-CN / Helm README install examples updated from `0.1.0` to `0.2.0`.
 - [x] `CHANGELOG.md` contains the `0.2.0` formal release section dated 2026-06-08.
 - [x] Release validation passed across core Rust, Web, docs site, Java/Rust/Go/Node/Python SDKs, and Rust/Go/Node/Python/Java demos.
+
+### 2026-06-09 — Cross-language SDK management trigger parity
+- Java SDK/demo already had Management API job trigger support; Rust/Go/Python/Node.js SDKs now expose equivalent create+trigger helpers.
+- All non-Java SDK trigger helpers default to `triggerType=api` + `executionMode=single` and expose explicit broadcast trigger helpers/selectors to match the server/Web API contract.
+- Rust/Go/Python/Node.js worker demos now provide real Management API create+trigger examples under `TIKEO_MANAGEMENT_CREATE_EXAMPLES=1`; Java Boot2/3/4 README files document existing demo controller endpoints.
+- `design/tikeo-architecture-design.md` has been updated to mark current Python/Node SDK Worker/demo/management-trigger scope complete.

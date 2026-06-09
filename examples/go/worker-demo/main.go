@@ -133,7 +133,12 @@ func main() {
 				log.Printf("create job %s failed: %v", job.Name, err)
 				continue
 			}
-			log.Printf("created job %s/%s %s", created.Namespace, created.App, created.Name)
+			instance, err := mgmt.TriggerJob(context.Background(), created.ID, tikeo.APITrigger())
+			if err != nil {
+				log.Printf("trigger job %s failed: %v", created.ID, err)
+				continue
+			}
+			log.Printf("created and triggered job %s/%s %s instance=%s trigger_type=%s", created.Namespace, created.App, created.Name, instance.ID, instance.TriggerType)
 		}
 	}
 

@@ -268,15 +268,33 @@ func TestGeneratedWorkerTunnelClientCanBeConstructed(t *testing.T) {
 
 func TestManagementClientCreatesStructuredPluginAndScriptJobs(t *testing.T) {
 	var bodies []map[string]any
+	var paths []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get(apiKeyHeader) != "key-1" {
 			t.Fatalf("missing api key header")
 		}
+		paths = append(paths, r.URL.Path)
 		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Fatalf("decode body: %v", err)
 		}
 		bodies = append(bodies, body)
+		if strings.HasSuffix(r.URL.Path, ":trigger") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code":    0,
+				"message": "ok",
+				"data": map[string]any{
+					"id":            "inst-1",
+					"jobId":         "job-1",
+					"status":        "pending",
+					"triggerType":   body["triggerType"],
+					"executionMode": "single",
+					"createdAt":     "now",
+					"updatedAt":     "now",
+				},
+			})
+			return
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"code":    0,
 			"message": "ok",
@@ -302,12 +320,29 @@ func TestManagementClientCreatesStructuredPluginAndScriptJobs(t *testing.T) {
 	if _, err := client.CreateJob(context.Background(), ScriptAPIJob("go-script", "script_manual_shell_echo")); err != nil {
 		t.Fatalf("CreateJob(script) error = %v", err)
 	}
+	instance, err := client.TriggerJob(context.Background(), "job-1", APITrigger())
+	if err != nil {
+		t.Fatalf("TriggerJob() error = %v", err)
+	}
 
 	if got := bodies[0]["processorType"]; got != "sql" {
 		t.Fatalf("processorType = %v, want sql", got)
 	}
 	if got := bodies[1]["scriptId"]; got != "script_manual_shell_echo" {
 		t.Fatalf("scriptId = %v", got)
+	}
+	if got := paths[2]; got != "/api/v1/jobs/job-1:trigger" {
+		t.Fatalf("trigger path = %q", got)
+	}
+	if got := bodies[2]["executionMode"]; got != "single" {
+		t.Fatalf("trigger executionMode = %v, want single", got)
+	}
+	if instance.TriggerType != "api" || instance.JobID != "job-1" {
+		t.Fatalf("unexpected trigger instance: %+v", instance)
+	}
+	broadcast := BroadcastAPITrigger(&BroadcastSelectorRequest{Region: "us-east-1"})
+	if broadcast.ExecutionMode != "broadcast" || broadcast.BroadcastSelector.Region != "us-east-1" {
+		t.Fatalf("unexpected broadcast trigger helper: %+v", broadcast)
 	}
 }
 

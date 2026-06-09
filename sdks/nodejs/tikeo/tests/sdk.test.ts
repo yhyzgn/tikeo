@@ -13,6 +13,7 @@ import {
   ScriptRunnerRegistry,
   SrtScriptRunner,
   UnavailableScriptRunner,
+  broadcastApiTrigger,
   defaultSandboxBackend,
   grpcTarget,
   localConfig,
@@ -67,12 +68,17 @@ describe("node sdk parity", () => {
 
   test("management client creates structured plugin and script jobs", async () => {
     const bodies: any[] = [];
+    const paths: string[] = [];
     const server = Bun.serve({
       port: 0,
       async fetch(req) {
         expect(req.headers.get("x-tikeo-api-key")).toBe("key-1");
         const body = await req.json();
         bodies.push(body);
+        paths.push(new URL(req.url).pathname);
+        if (new URL(req.url).pathname.endsWith(":trigger")) {
+          return Response.json({ code: 0, message: "ok", data: { id: "inst-1", jobId: "job-1", status: "pending", triggerType: body.triggerType, executionMode: "single", createdAt: "now", updatedAt: "now" } });
+        }
         return Response.json({ code: 0, message: "ok", data: { id: "job-1", ...body } });
       },
     });
@@ -80,10 +86,17 @@ describe("node sdk parity", () => {
       const client = new ManagementClient(`http://127.0.0.1:${server.port}`, "key-1", "dev-alpha", "orders");
       await client.createJob(pluginApiJob("node-sql", "sql", "billing.sql-sync"));
       await client.createJob(scriptApiJob("node-script", "script_manual_shell_echo"));
+      const instance = await client.triggerJob("job-1");
+      expect(instance.triggerType).toBe("api");
+      expect(instance.jobId).toBe("job-1");
     } finally { server.stop(true); }
     expect(bodies[0].processorType).toBe("sql");
     expect(bodies[0].retryPolicy.maxAttempts).toBe(3);
     expect(bodies[1].scriptId).toBe("script_manual_shell_echo");
+    expect(paths[2]).toBe("/api/v1/jobs/job-1:trigger");
+    expect(bodies[2].triggerType).toBe("api");
+    expect(bodies[2].executionMode).toBe("single");
+    expect(broadcastApiTrigger({ region: "us-east-1" })).toEqual({ triggerType: "api", executionMode: "broadcast", broadcastSelector: { region: "us-east-1" } });
   });
 
   test("local shell runner executes immutable script snapshot", () => {
