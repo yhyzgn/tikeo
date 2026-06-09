@@ -57,8 +57,12 @@ describe('job schedule form governance', () => {
     expect(source).toContain('optionFilterProp="label"');
     expect(source).toContain('placeholder="选择租户管理中的 Namespace"');
     expect(source).toContain('placeholder="选择租户管理中的 App"');
-    expect(source).toContain('namespace/app 来自租户管理且暂不支持变更');
-    expect(source).toContain('options={appOptionsForNamespace(editingJob?.namespace)}');
+    expect(source).toContain('编辑任务基础信息、所属 namespace/app、调度配置');
+    expect(source).toContain('appOptionsForNamespace(editNamespace)');
+    expect(source).toContain('applyNamespaceSelection(editForm, value)');
+    expect(source).not.toContain('namespace/app 来自租户管理且暂不支持变更');
+    expect(source).not.toContain('<Select disabled value={editingJob?.namespace}');
+    expect(source).not.toContain('<Select disabled value={editingJob?.app}');
     expect(source).toContain('form.setFieldsValue({ scheduleType:');
     expect(source).not.toContain('AutoComplete');
     expect(source).not.toContain('scopePairs');

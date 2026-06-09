@@ -1202,6 +1202,57 @@
         assert!(items.iter().all(|item| item["id"] != job_id));
     }
 
+    #[tokio::test]
+    async fn job_management_update_can_move_namespace_and_app() {
+        let app = router().await;
+        let created = post_json(
+            app.clone(),
+            "/api/v1/jobs",
+            r#"{"namespace":"default","app":"billing","name":"move-me","scheduleType":"api","processorName":"demo.echo"}"#,
+        )
+        .await;
+        post_json(
+            app.clone(),
+            "/api/v1/namespaces",
+            r#"{"name":"ops"}"#,
+        )
+        .await;
+        post_json(
+            app.clone(),
+            "/api/v1/apps",
+            r#"{"namespace":"ops","name":"control"}"#,
+        )
+        .await;
+        let job_id = created["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("created job should contain id"));
+
+        let update = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "PATCH",
+                    format!("/api/v1/jobs/{job_id}"),
+                    r#"{"namespace":"ops","app":"control","name":"moved"}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("router should respond: {error}"));
+        assert!(update.status().is_success());
+        let body = axum::body::to_bytes(update.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let updated: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert_eq!(updated["code"], 0);
+        assert_eq!(updated["data"]["namespace"], "ops");
+        assert_eq!(updated["data"]["app"], "control");
+        assert_eq!(updated["data"]["name"], "moved");
+    }
+
     async fn post_json(app: axum::Router, uri: &str, body: &str) -> Value {
         post_json_with_auth(app, uri, body, true).await
     }

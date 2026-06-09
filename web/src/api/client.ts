@@ -313,6 +313,8 @@ export interface CreateJobRequest {
 }
 
 export interface UpdateJobRequest {
+  namespace?: string;
+  app?: string;
   name?: string;
   scheduleType?: string;
   scheduleExpr?: string | null;

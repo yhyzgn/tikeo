@@ -826,6 +826,8 @@ pub struct CreateJobRequest {
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateJobRequest {
+    pub namespace: Option<String>,
+    pub app: Option<String>,
     pub name: Option<String>,
     pub schedule_type: Option<String>,
     #[serde(default, deserialize_with = "deserialize_nullable_update")]

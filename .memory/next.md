@@ -1,3 +1,7 @@
+# Latest completed slice
+
+- 2026-06-09: Job edit now supports namespace/app migration through API and Web UI with source+target scope authorization and target-scope canary validation. Follow-up prompt: `.prompt/157-job-scope-edit-followup.md`.
+
 # Next Work
 
 ## Current priority direction

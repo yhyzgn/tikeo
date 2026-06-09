@@ -1424,3 +1424,9 @@ Verification evidence:
 - All non-Java SDK trigger helpers default to `triggerType=api` + `executionMode=single` and expose explicit broadcast trigger helpers/selectors to match the server/Web API contract.
 - Rust/Go/Python/Node.js worker demos now provide real Management API create+trigger examples under `TIKEO_MANAGEMENT_CREATE_EXAMPLES=1`; Java Boot2/3/4 README files document existing demo controller endpoints.
 - `design/tikeo-architecture-design.md` has been updated to mark current Python/Node SDK Worker/demo/management-trigger scope complete.
+
+### 2026-06-09 — Job edit namespace/app migration
+- Jobs edit now supports moving a job to a different tenant namespace/app from both HTTP API and Web UI.
+- `PATCH /api/v1/jobs/{job}` persists namespace/app changes into `namespace_id`/`app_id`, creates a job version snapshot for scope moves, and checks both source and target scope bindings.
+- Canary targets are constrained to the destination namespace/app during job updates; Web create/edit selectors filter canary candidates by selected scope and clear stale selections when scope changes.
+- Verification passed: targeted backend/Web RED->GREEN tests, workspace Rust fmt/clippy/test/build, Web typecheck/test/build, source-size audit, and diff whitespace check.

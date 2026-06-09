@@ -2355,6 +2355,7 @@ Phase 3 closeout 状态已在 2026-05-28 复核：原先保留未勾选的 OIDC 
 - [x] GitOps/IaC Manifest 导出与 drift diff（2026-05-29：`GET /api/v1/gitops/manifest`、`POST /api/v1/gitops/diff`、Web GitOps/IaC 页面、manifest/CRD/Terraform contract 样例已落地）。
 - [x] Terraform Provider 与 K8s CRD controller/operator 已补齐（2026-05-30：`deploy/terraform/provider` 提供真实 Terraform Plugin Framework provider，含 `tikeo_manifest` data source 与 `tikeo_manifest_diff` resource；`deploy/k8s/operator` 提供 `TikeoManifest` CRD reconciler/operator CLI，按 `/api/v1/gitops/diff` 写入 status evidence；CRD 增加 status subresource、conditions、checksum、summary/lastDiff）。
 - [x] 任务版本管理与回滚（2026-05-28：`job_versions` 不可变快照表、创建/编辑/回滚自动追加版本、`GET /api/v1/jobs/{job}/versions`、`POST /api/v1/jobs/{job}/rollback`、Jobs 页面版本历史抽屉与回滚入口已落地；回滚生成新的最新版本，不覆盖历史）。
+- [x] 任务 namespace/app 迁移编辑（2026-06-09：`PATCH /api/v1/jobs/{job}` 支持更新所属 namespace/app；迁移时同时校验当前作用域与目标作用域权限，版本快照记录 scope 变更，Jobs 编辑抽屉使用租户管理 Select 选择目标 scope，并限制灰度目标属于目标 namespace/app）。
 - [x] 任务依赖自动发现、拓扑图形画布、跨工作流影响分析与回放基础（2026-05-28：已从 Job + Workflow definition 自动推导 job/workflow 节点、workflow_job_ref / workflow_job_dependency 边与 unresolved 缺失引用；`GET /api/v1/jobs/topology` 返回 layer/position 供画布渲染；新增 `GET /api/v1/jobs/{job}/impact` 汇总引用工作流、上游/下游 Job 与风险摘要；新增 `GET /api/v1/workflow-instances/{id}/replay` 返回 instance + definition + events + graph replay bundle；Jobs 页面“任务拓扑”入口跳转到 `/jobs/topology` 二级页面，二级页面承载 SVG 图形画布并可点击 Job 查看跨工作流影响分析）。
 - [x] 高级 Webhook/事件源基础（2026-05-28：入站事件源 `POST /api/v1/events/webhooks/{job}:trigger` 已落地，复用 `instances:execute` 与 namespace/app scope 鉴权，创建 `webhook` trigger instance 并记录 `webhook_event_source` payload 日志；GitHub/GitLab/Alertmanager 等 provider 适配器保留后续增强）。
 - [x] 任务灰度发布基础（2026-05-28：Job 增加 canary target/percent，显式 UI/API trigger 按百分比路由到 canary Job，并在 `JobInstanceSummary.canaryRouting` 返回 original/routed job；Jobs 页面支持配置灰度目标/比例并在触发后提示命中灰度。自动回滚、worker tag 灰度和指标门禁仍保留后续增强）。
@@ -2405,6 +2406,7 @@ Worker 集群与 tikeo server 集群都必须具备 master 选举能力。Server
 - [x] 插件系统 (自定义处理器类型、告警通道)（2026-05-28：新增 `plugins` 注册表与 `GET/POST/PATCH/DELETE /api/v1/plugins`；插件声明 `processorTypes` 与 `alertChannelTypes`，Job 增加 `processorType` 并按 `plugin-processor:<type>` 能力匹配 Worker；告警规则支持插件 channel type readiness 与 webhook 模板投递；Web 增加 `/plugins` 插件系统页面，Jobs 创建/编辑可选择插件处理器；Java demo 与 Rust demo 可广告 `plugin-processor:sql`，本地 `tikeo-dev.db` 已注入 Ops Plugin 联调用例）。
 - [x] Webhook 入站/出站基础（2026-05-28：出站告警 Webhook 已有；新增入站 `POST /api/v1/events/webhooks/{job}:trigger`，支持外部系统以 session/API Token/SDK API-Key 触发 Job 并记录事件 payload。高级 provider 签名校验、模板映射、重放保护后续增强）
 - [x] 任务版本管理与回滚（2026-05-28：`job_versions` 不可变快照、版本列表 API、回滚 API、Jobs 页面版本历史与回滚入口；验证 `cargo test -p tikeo-storage job_version -- --nocapture`、`cargo test -p tikeo-server job_version -- --nocapture`、Web lint/build/API/UI tests）。
+- [x] 任务 namespace/app 迁移编辑（2026-06-09：任务编辑 API 与 Web 编辑抽屉支持修改所属 namespace/app；后端同时校验源/目标 scope 权限并拒绝跨目标 scope 的灰度任务引用）。
 - [x] 灰度发布基础（2026-05-28：`canaryJobId`/`canaryPercent`、显式 trigger canary routing、response `canaryRouting`、Jobs 页面配置与命中提示已落地；A/B 指标分析、按 worker tag 灰度、失败自动回滚后续增强）
 
 **最低优先级 — 迁移工具 Backlog（核心服务体验稳定后再做）**

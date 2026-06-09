@@ -173,6 +173,38 @@ impl JobRepository {
         };
         let before = model.clone();
         let mut active: job::ActiveModel = model.into();
+        let target_namespace_name = normalize_processor_name(input.namespace);
+        let target_app_name = normalize_processor_name(input.app);
+        if target_namespace_name.is_some() || target_app_name.is_some() {
+            let now = now_rfc3339();
+            let namespace = if let Some(name) = target_namespace_name {
+                self.ensure_namespace(&name, &now).await?
+            } else {
+                namespace::Entity::find_by_id(before.namespace_id.clone())
+                    .one(&self.db)
+                    .await?
+                    .ok_or_else(|| {
+                        sea_orm::DbErr::RecordNotFound(format!(
+                            "namespace not found: {}",
+                            before.namespace_id
+                        ))
+                    })?
+            };
+            let app_name = if let Some(name) = target_app_name {
+                name
+            } else {
+                app::Entity::find_by_id(before.app_id.clone())
+                    .one(&self.db)
+                    .await?
+                    .ok_or_else(|| {
+                        sea_orm::DbErr::RecordNotFound(format!("app not found: {}", before.app_id))
+                    })?
+                    .name
+            };
+            let app = self.ensure_app(&namespace.id, &app_name, &now).await?;
+            active.namespace_id = Set(namespace.id);
+            active.app_id = Set(app.id);
+        }
         if let Some(name) = input.name {
             active.name = Set(name);
         }
@@ -413,7 +445,9 @@ fn normalize_processor_name(value: Option<String>) -> Option<String> {
 }
 
 fn job_changed(before: &job::Model, active: &job::ActiveModel) -> bool {
-    active.name.as_ref() != &before.name
+    active.namespace_id.as_ref() != &before.namespace_id
+        || active.app_id.as_ref() != &before.app_id
+        || active.name.as_ref() != &before.name
         || active.schedule_type.as_ref() != &before.schedule_type
         || active.schedule_expr.as_ref() != &before.schedule_expr
         || active.misfire_policy.as_ref() != &before.misfire_policy

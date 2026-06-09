@@ -350,6 +350,19 @@ pub async fn update_job(
             "api token scope binding does not allow this namespace/app",
         ));
     }
+    let target_namespace =
+        update_scope_or_current(request.namespace.as_deref(), &current.namespace);
+    let target_app = update_scope_or_current(request.app.as_deref(), &current.app);
+    if !crate::http::access_scope::allows_resource(
+        &principal.scope_bindings,
+        &target_namespace,
+        &target_app,
+        None,
+    ) {
+        return Err(ApiError::forbidden(
+            "api token scope binding does not allow target namespace/app",
+        ));
+    }
     let schedule_type = request
         .schedule_type
         .as_deref()
@@ -391,11 +404,24 @@ pub async fn update_job(
         )
         .await?;
     }
+    let final_canary_job_id = request
+        .canary_job_id
+        .clone()
+        .unwrap_or_else(|| current.canary_job_id.clone());
+    validate_canary_target_scope(
+        &state,
+        final_canary_job_id.as_deref(),
+        &target_namespace,
+        &target_app,
+    )
+    .await?;
     let updated = state
         .jobs
         .update_job(
             &job,
             UpdateJob {
+                namespace: request.namespace.clone(),
+                app: request.app.clone(),
                 name: request.name.clone(),
                 schedule_type,
                 schedule_expr: request.schedule_expr.clone(),
@@ -653,6 +679,32 @@ async fn resolve_canary_routing(
     }))
 }
 
+async fn validate_canary_target_scope(
+    state: &AppState,
+    canary_job_id: Option<&str>,
+    namespace: &str,
+    app: &str,
+) -> Result<(), ApiError> {
+    let Some(canary_job_id) = canary_job_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(());
+    };
+    let canary = state
+        .jobs
+        .get(canary_job_id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::not_found(format!("canary job not found: {canary_job_id}")))?;
+    if canary.namespace != namespace || canary.app != app {
+        return Err(ApiError::bad_request(
+            "canary job must belong to the target namespace/app",
+        ));
+    }
+    Ok(())
+}
+
 fn canary_sample(_job_id: &str, percent: i32) -> bool {
     if percent >= 100 {
         return true;
@@ -662,6 +714,14 @@ fn canary_sample(_job_id: &str, percent: i32) -> bool {
     }
     let bucket = rand::random::<u8>() % 100;
     bucket < u8::try_from(percent).unwrap_or(0)
+}
+
+fn update_scope_or_current(value: Option<&str>, current: &str) -> String {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(current)
+        .to_owned()
 }
 
 async fn validate_plugin_processor_binding(

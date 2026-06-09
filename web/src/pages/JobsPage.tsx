@@ -56,6 +56,9 @@ export function JobsPage() {
   const [editForm] = Form.useForm<JobFormValues>();
   const [broadcastForm] = Form.useForm<{ tags?: string[]; region?: string; cluster?: string; labelsText?: string }>();
   const createNamespace = Form.useWatch('namespace', form);
+  const createApp = Form.useWatch('app', form);
+  const editNamespace = Form.useWatch('namespace', editForm);
+  const editApp = Form.useWatch('app', editForm);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<JobSummary | null>(null);
   const [versionJob, setVersionJob] = useState<JobSummary | null>(null);
@@ -116,11 +119,27 @@ export function JobsPage() {
       .map((app) => ({ value: app.name, label: `${app.namespace}/${app.name}` }))
       .sort((left, right) => left.label.localeCompare(right.label));
   }, [apps]);
-  const applyNamespaceSelection = (targetForm: typeof form, namespace?: string | null) => {
+  const canaryJobOptionsForScope = useCallback((namespace?: string | null, app?: string | null, excludeJobId?: string | null) => {
+    const normalizedNamespace = namespace?.trim();
+    const normalizedApp = app?.trim();
+    return jobs
+      .filter((job) => job.id !== excludeJobId)
+      .filter((job) => !normalizedNamespace || job.namespace === normalizedNamespace)
+      .filter((job) => !normalizedApp || job.app === normalizedApp)
+      .map((job) => ({ value: job.id, label: `${job.namespace}/${job.app} · ${job.name} · ${job.id}` }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }, [jobs]);
+  const applyNamespaceSelection = (targetForm: typeof form | typeof editForm, namespace?: string | null) => {
     const options = appOptionsForNamespace(namespace);
     const currentApp = String(targetForm.getFieldValue('app') ?? '').trim();
-    if (currentApp && options.some((option) => option.value === currentApp)) return;
-    targetForm.setFieldsValue({ app: undefined });
+    if (currentApp && options.some((option) => option.value === currentApp)) {
+      targetForm.setFieldsValue({ canaryJobId: undefined });
+      return;
+    }
+    targetForm.setFieldsValue({ app: undefined, canaryJobId: undefined });
+  };
+  const applyAppSelection = (targetForm: typeof form | typeof editForm) => {
+    targetForm.setFieldsValue({ canaryJobId: undefined });
   };
 
   const workerSdkProcessorNames = () => Array.from(new Set(
@@ -208,6 +227,8 @@ export function JobsPage() {
     const fixedRate = parseFixedRate(editingJob.scheduleExpr);
     editForm.resetFields();
     editForm.setFieldsValue({
+      namespace: editingJob.namespace,
+      app: editingJob.app,
       name: editingJob.name,
       scheduleType: editingJob.scheduleType,
       scheduleExpr: ['cron', 'once', 'daily_time_interval'].includes(editingJob.scheduleType) ? editingJob.scheduleExpr : undefined,
@@ -526,6 +547,7 @@ export function JobsPage() {
               options={appOptionsForNamespace(createNamespace)}
               placeholder="选择租户管理中的 App"
               disabled={!createNamespace}
+              onChange={() => applyAppSelection(form)}
             />
           </Form.Item>
           <Form.Item name="name" label="任务名称" rules={[{ required: true }]}><Input placeholder="demo.echo" /></Form.Item>
@@ -557,7 +579,7 @@ export function JobsPage() {
             <Form.Item name="scheduleEndAt" label="生命周期结束" style={{ flex: 1 }}><DatePicker showTime style={{ width: '100%' }} placeholder="选择结束时间" /></Form.Item>
           </Space.Compact>
           <Form.Item name="scheduleCalendarRef" label="调度日历" extra="可选：引用集中式 Calendar，自动排除节假日/维护窗口/冻结窗口。"><Select allowClear showSearch optionFilterProp="label" placeholder="选择 Calendar" options={calendarOptions} /></Form.Item>
-          <Form.Item name="canaryJobId" label="灰度目标任务" extra="可选：显式触发当前任务时，按灰度比例路由到目标任务。"><Select allowClear showSearch optionFilterProp="label" placeholder="选择同 App 下的 canary 任务" options={jobs.map((item) => ({ value: item.id, label: `${item.name} · ${item.id}` }))} /></Form.Item>
+          <Form.Item name="canaryJobId" label="灰度目标任务" extra="可选：显式触发当前任务时，按灰度比例路由到目标任务。"><Select allowClear showSearch optionFilterProp="label" placeholder="选择同 App 下的 canary 任务" options={canaryJobOptionsForScope(createNamespace, createApp)} /></Form.Item>
           <Form.Item name="canaryPercent" label="灰度比例"><InputNumber min={0} max={100} precision={0} addonAfter="%" style={{ width: '100%' }} /></Form.Item>
           <Form.Item name="enabled" label="启用" valuePropName="checked"><Switch /></Form.Item>
           <PermissionGate resource="jobs" action="write"><Button type="primary" htmlType="submit" block>创建任务</Button></PermissionGate>
@@ -571,14 +593,29 @@ export function JobsPage() {
         width={900}
         destroyOnClose
       >
-        <Typography.Paragraph type="secondary">编辑任务基础信息、调度配置、Processor 绑定和启用状态；namespace/app 来自租户管理且暂不支持变更，避免历史实例归属漂移。</Typography.Paragraph>
+        <Typography.Paragraph type="secondary">编辑任务基础信息、所属 namespace/app、调度配置、Processor 绑定和启用状态；迁移后新的触发与 Worker 匹配会按目标 namespace/app 生效，历史实例仍保留原执行记录。</Typography.Paragraph>
         <Form form={editForm} layout="vertical" onFinish={(values) => void handleEditSubmit(values)}>
           <Space.Compact block>
-            <Form.Item label="Namespace" style={{ flex: 1 }}>
-              <Select disabled value={editingJob?.namespace} options={namespaceOptions} />
+            <Form.Item name="namespace" label="Namespace" rules={[{ required: true }]} style={{ flex: 1 }}>
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                options={namespaceOptions}
+                placeholder="选择租户管理中的 Namespace"
+                onChange={(value) => applyNamespaceSelection(editForm, value)}
+              />
             </Form.Item>
-            <Form.Item label="App" style={{ flex: 1 }}>
-              <Select disabled value={editingJob?.app} options={appOptionsForNamespace(editingJob?.namespace)} />
+            <Form.Item name="app" label="App" rules={[{ required: true }]} style={{ flex: 1 }}>
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                options={appOptionsForNamespace(editNamespace)}
+                placeholder="选择租户管理中的 App"
+                disabled={!editNamespace}
+                onChange={() => applyAppSelection(editForm)}
+              />
             </Form.Item>
           </Space.Compact>
           <Form.Item name="name" label="任务名称" rules={[{ required: true }]}><Input /></Form.Item>
@@ -603,7 +640,7 @@ export function JobsPage() {
               return <Typography.Paragraph type="secondary">API 手动触发任务不会配置调度表达式，可通过 UI、SDK 或 HTTP API 显式触发。</Typography.Paragraph>;
             }}
           </Form.Item>
-          <Form.Item name="canaryJobId" label="灰度目标任务" extra="可选：显式触发当前任务时，按灰度比例路由到目标任务。"><Select allowClear showSearch optionFilterProp="label" placeholder="选择同 App 下的 canary 任务" options={jobs.map((item) => ({ value: item.id, label: `${item.name} · ${item.id}` }))} /></Form.Item>
+          <Form.Item name="canaryJobId" label="灰度目标任务" extra="可选：显式触发当前任务时，按灰度比例路由到目标任务。"><Select allowClear showSearch optionFilterProp="label" placeholder="选择同 App 下的 canary 任务" options={canaryJobOptionsForScope(editNamespace, editApp, editingJob?.id)} /></Form.Item>
           <Form.Item name="canaryPercent" label="灰度比例"><InputNumber min={0} max={100} precision={0} addonAfter="%" style={{ width: '100%' }} /></Form.Item>
           <Form.Item name="misfirePolicy" label="Misfire 策略"><Select options={[{ value: 'fire_once', label: '补触发一次' }, { value: 'do_nothing', label: '跳过错过触发' }, { value: 'catch_up_limited', label: '有限追赶' }, { value: 'reschedule', label: '重排到当前' }, { value: 'latest_only', label: '仅保留最近一次' }]} /></Form.Item>
           {renderRetryPolicyFields()}

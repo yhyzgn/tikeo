@@ -526,3 +526,15 @@ Rationale:
 Implications:
 - The chart renders these resources only when corresponding values are enabled.
 - Operations overlays must keep Worker networking outbound-only and must not create business Worker inbound Services.
+
+## 2026-06-09 — Job scope edits require dual-scope authorization
+
+Decision:
+- Editing a Job's namespace/app is allowed through the normal job update path, but it is treated as a scope move rather than a cosmetic field edit.
+- The API must authorize the caller against both the current job scope and the destination namespace/app scope before persisting the move.
+- Existing job instances remain historical execution records; the moved job's future scheduling, triggering, Worker matching, and canary validation use the new namespace/app.
+- Canary targets set or retained during a job update must belong to the target namespace/app.
+
+Rejected:
+- Frontend-only scope editing while the backend silently ignores namespace/app | would create false UI behavior and SDK/API drift.
+- Allowing a move with only source-scope authorization | would let tokens write jobs into scopes they cannot otherwise manage.

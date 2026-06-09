@@ -2545,3 +2545,35 @@ Verification:
 - `git diff --check` ✅
 - `python3 scripts/check-source-size.py` ✅
 - `cargo fmt --all -- --check` ✅
+
+### 2026-06-09 — Job edit namespace/app migration
+
+Agent:
+- Codex
+
+Work:
+- Enabled `PATCH /api/v1/jobs/{job}` to accept `namespace` and `app` updates instead of silently preserving the original job scope.
+- Persisted job scope moves in storage by updating `namespace_id` / `app_id` and creating a new immutable job version when the scope changes.
+- Added source and target scope authorization checks so moving a job requires permission on both the current and destination namespace/app.
+- Added canary target validation for job updates so a moved job cannot retain or set a canary target outside the destination namespace/app.
+- Updated the Web Jobs edit drawer to select namespace/app from tenant scope management and to filter/clear canary targets by the selected scope.
+- Updated README-protocol-required design roadmap and follow-up prompt for this scope-edit slice.
+
+Verification:
+- RED observed before implementation: `cargo test -p tikeo-server job_management_update_can_move_namespace_and_app -- --nocapture` failed because the update still returned `default`; `cd web && bun test src/api/client.test.ts src/pages/__tests__/JobsPage.test.tsx` failed because the edit drawer still had disabled namespace/app fields.
+- `cargo test -p tikeo-server job_management_update_can_move_namespace_and_app -- --nocapture` ✅
+- `cd web && bun test src/api/client.test.ts src/pages/__tests__/JobsPage.test.tsx` ✅
+- `cargo fmt --all -- --check` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features` ✅
+- `cargo build --workspace --all-features` ✅
+- `cd web && bun run typecheck && bun run test && bun run build` ✅ (`vite build` only emitted the existing large vendor chunk warning)
+- `python3 scripts/check-source-size.py` ✅
+- `git diff --check` ✅
+
+Notes:
+- Direct `cd web && bun test` is not the project test command; it also loads Playwright e2e specs and fails with the known Playwright runner boundary. The configured project script `bun run test` correctly runs `bun test src` and passed.
+- Existing local uncommitted files not owned by this slice remain unstaged: `examples/java/spring-boot2-worker-demo/src/main/resources/application.yml` and `tikeo-dev.db`.
+
+Git:
+- Pending commit and push for the job scope edit slice.

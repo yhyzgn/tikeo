@@ -136,6 +136,10 @@ pub struct CreateJob {
 pub struct UpdateJob {
     /// Actor creating the update version snapshot.
     pub updated_by: Option<String>,
+    /// Optional namespace move. `None` leaves the current namespace unchanged.
+    pub namespace: Option<String>,
+    /// Optional application move within the target/current namespace. `None` preserves app name.
+    pub app: Option<String>,
     /// Optional job display name.
     pub name: Option<String>,
     /// Optional schedule type.

@@ -233,6 +233,8 @@ describe('api client envelope handling', () => {
       enabled: true,
     });
     await updateJob('job_1', {
+      namespace: 'ops',
+      app: 'control',
       name: 'plugin job',
       scheduleType: 'cron',
       scheduleExpr: '0 0 * * * * *',
@@ -260,6 +262,8 @@ describe('api client envelope handling', () => {
       enabled: true,
     });
     expect(calls[1].body).toEqual({
+      namespace: 'ops',
+      app: 'control',
       name: 'plugin job',
       scheduleType: 'cron',
       scheduleExpr: '0 0 * * * * *',
