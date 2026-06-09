@@ -10,7 +10,7 @@ High-value pages:
 - /docs/concepts/workflows — workflow DAG model
 - /docs/sdks/rust — Rust Worker SDK
 - /docs/sdks/go — Go Worker SDK
-- /docs/sdks/java-spring-boot — Java artifacts, single-dependency rule, Spring Boot config, env vars, and defaults
+- /docs/sdks/java-spring-boot — Java Boot, plain Java, non-Boot Spring, and single-dependency rule
 - /docs/deployment/docker-compose — Docker Compose path
 - /docs/deployment/kubernetes — Kubernetes and Helm boundaries
 - /docs/deployment/sse-realtime — SSE proxy, LB, WAF, and Ingress requirements

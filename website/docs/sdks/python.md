@@ -14,10 +14,10 @@ The package declares `requires-python = ">=3.11"` and CI verifies the Python sur
 
 ## Install from PyPI
 
-Replace `<TIKEO_VERSION>` with the version shown by the top README `Python SDK` badge. PyPI uses the plain version string without a leading `v`.
+Replace `${TIKEO_VERSION}` with the version shown by the top README `Python SDK` badge. PyPI uses the plain version string without a leading `v`.
 
 ```bash
-python -m pip install "tikeo==<TIKEO_VERSION>"
+python -m pip install "tikeo==${TIKEO_VERSION}"
 ```
 
 ```python

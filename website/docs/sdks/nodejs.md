@@ -14,12 +14,12 @@ The SDK package declares `engines.node >=24.0.0`. Bun is the repository package 
 
 ## Install from npm
 
-Replace `<TIKEO_VERSION>` with the version shown by the top README `Node.js SDK` badge. npm uses the plain version string without a leading `v`.
+Replace `${TIKEO_VERSION}` with the version shown by the top README `Node.js SDK` badge. npm uses the plain version string without a leading `v`.
 
 ```bash
-bun add @yhyzgn/tikeo@<TIKEO_VERSION>
-npm install @yhyzgn/tikeo@<TIKEO_VERSION>
-pnpm add @yhyzgn/tikeo@<TIKEO_VERSION>
+bun add @yhyzgn/tikeo@${TIKEO_VERSION}
+npm install @yhyzgn/tikeo@${TIKEO_VERSION}
+pnpm add @yhyzgn/tikeo@${TIKEO_VERSION}
 ```
 
 ```ts

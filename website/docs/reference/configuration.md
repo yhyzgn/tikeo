@@ -125,13 +125,38 @@ If script release signing is enabled, store the secret in the deployment platfor
 
 ## SDK and worker configuration
 
-Server configuration is only half of a deployment. Worker services also need SDK dependency selection, Worker Tunnel endpoint wiring, identity scope, sandbox tool cache paths, and optional management-client credentials. For Java/Spring deployments, see the complete Maven Central artifact matrix, Spring Boot `application.yml` template, environment variables, and defaults in [Java Spring Boot Starter](../sdks/java-spring-boot).
+Server configuration is only half of a deployment. Worker services also need SDK dependency selection, Worker Tunnel endpoint wiring, identity scope, capabilities, labels, sandbox tool cache paths, and optional management-client credentials.
 
-Production worker checklist:
+For Java-specific Boot, plain Java, and non-Boot Spring examples, see [Java SDK and Spring Boot Starter](../sdks/java-spring-boot).
+
+### Worker runtime fields shared by SDKs
+
+These fields are common to Java, Rust, Go, Python, and Node.js Worker SDKs. Language-specific wrappers expose them as Java records/properties, Rust structs, Go structs, Python dataclasses, TypeScript classes, or Spring Boot configuration properties.
+
+| Field | Default in SDK helpers | Meaning |
+| --- | --- | --- |
+| `endpoint` | usually `http://127.0.0.1:9998` in demos | Worker Tunnel endpoint reachable from the worker process. Use a Service/LB/DNS name in real deployments, not necessarily the server bind address. |
+| `clientInstanceId` / `client_instance_id` | required for core SDK helpers; Java Boot can generate/persist it | Stable client-side hint. The server still assigns the authoritative `worker_id`. |
+| `namespace` | `default` | Tenant/environment namespace used for dispatch and management scoping. |
+| `app` | `default` | Application scope used for routing and management operations. |
+| `cluster` | `local` in Rust/Go/Python/Node helpers; Java Boot default is `default` | Worker cluster or environment shard. |
+| `region` | `local` in Rust/Go/Python/Node helpers; Java Boot default is `default` | Worker region/zone. |
+| `name` | usually the client instance id | Operator-facing worker name when the SDK exposes it. |
+| `version` | `dev` in Go/Python/Node helpers | Worker/application build version when the SDK exposes it. |
+| `heartbeatEvery` / `heartbeat-interval-millis` | `10s` / `10000` | Worker lease renewal cadence. |
+| `capabilities` | `[]` | Legacy/operator metadata. Prefer structured capabilities for dispatch routing when available. |
+| `structuredCapabilities` | empty | SDK processors, script runners, plugin processors, and structured tags used for routing. |
+| `labels` | `{}` | Free-form operational metadata such as `worker_pool`, `runtime`, `team`, or `tier`. |
+| `election.enabled` | `true` | Worker-cluster master election flag in registration. |
+| `election.domain` | blank | Blank means `namespace/app/cluster/region`. |
+| `election.priority` | `100` | Deterministic election priority; lower values win. |
+
+### Worker deployment checklist
 
 - Add one SDK dependency per service and let the package manager resolve transitive Tikeo modules.
 - Point worker SDKs at `server.worker_tunnel_addr` through the reachable Service/LB/DNS name, not necessarily the server bind address.
 - Set namespace/app/cluster/region consistently across workers and management clients.
+- Advertise only capabilities backed by real runtime support; missing tools should fail closed instead of being advertised.
 - Persist SDK state/tool cache directories such as `~/.tikeo/workers` and `~/.tikeo/sandbox-tools/*` when stable identity or offline startup matters.
 - Inject API keys and mirrored installer URLs from platform Secrets/config, not committed files.
 

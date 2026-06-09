@@ -13,10 +13,10 @@ package 声明 `requires-python = ">=3.11"`，CI 使用 Python 3.12 验证。调
 
 ## 从 PyPI 安装
 
-将 `<TIKEO_VERSION>` 替换为 README 顶部 `Python SDK` 徽标显示的版本号。PyPI 使用不带 `v` 的版本字符串。
+将 `${TIKEO_VERSION}` 替换为 README 顶部 `Python SDK` 徽标显示的版本号。PyPI 使用不带 `v` 的版本字符串。
 
 ```bash
-python -m pip install "tikeo==<TIKEO_VERSION>"
+python -m pip install "tikeo==${TIKEO_VERSION}"
 ```
 
 ```python

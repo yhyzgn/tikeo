@@ -10,10 +10,10 @@ The Go SDK lives under `sdks/go/tikeo`, and the runnable worker demo lives under
 
 ## Install from the Go module proxy
 
-Replace `<TIKEO_VERSION>` with the version shown by the top README `Go SDK` badge. Go commands use tag syntax, so include the leading `v` as `v<TIKEO_VERSION>`.
+Replace `${TIKEO_VERSION}` with the version shown by the top README `Go SDK` badge. Go commands use tag syntax, so include the leading `v` as `v${TIKEO_VERSION}`.
 
 ```bash
-go get github.com/yhyzgn/tikeo/sdks/go/tikeo@v<TIKEO_VERSION>
+go get github.com/yhyzgn/tikeo/sdks/go/tikeo@v${TIKEO_VERSION}
 ```
 
 ```go

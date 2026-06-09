@@ -125,13 +125,38 @@ env_prefix = "TIKEO_ALERT_SECRET_"
 
 ## SDK 与 Worker 配置
 
-服务端配置只覆盖部署的一半。Worker 服务还需要 SDK 依赖选择、Worker Tunnel endpoint、身份 scope、sandbox 工具缓存路径，以及可选 management-client 凭证。Java/Spring 部署的 Maven Central artifact 矩阵、Spring Boot `application.yml` 模板、环境变量和默认值，见 [Java Spring Boot Starter](../sdks/java-spring-boot)。
+服务端配置只覆盖部署的一半。Worker 服务还需要 SDK 依赖选择、Worker Tunnel endpoint、身份 scope、capabilities、labels、sandbox 工具缓存路径，以及可选 management-client 凭证。
 
-生产 Worker 清单：
+Java 的 Boot、原生 Java、非 Boot Spring 示例见 [Java SDK and Spring Boot Starter](../sdks/java-spring-boot)。
+
+### 所有 SDK 通用的 Worker runtime 字段
+
+这些字段是 Java、Rust、Go、Python、Node.js Worker SDK 共有的。不同语言可能以 Java record/property、Rust struct、Go struct、Python dataclass、TypeScript class 或 Spring Boot 配置项暴露。
+
+| 字段 | SDK helper 默认值 | 说明 |
+| --- | --- | --- |
+| `endpoint` | demo 通常为 `http://127.0.0.1:9998` | Worker 进程可访问到的 Worker Tunnel endpoint。真实部署应使用 Service/LB/DNS 名称，不一定是服务端 bind 地址。 |
+| `clientInstanceId` / `client_instance_id` | core SDK helper 通常必填；Java Boot 可生成并持久化 | 稳定客户端 hint；服务端仍会分配权威 `worker_id`。 |
+| `namespace` | `default` | 用于派发和 management scope 的租户/环境 namespace。 |
+| `app` | `default` | 用于路由和 management 操作的应用 scope。 |
+| `cluster` | Rust/Go/Python/Node helper 通常为 `local`；Java Boot 默认 `default` | Worker cluster 或环境分片。 |
+| `region` | Rust/Go/Python/Node helper 通常为 `local`；Java Boot 默认 `default` | Worker region/zone。 |
+| `name` | 通常为 client instance id | SDK 暴露时的运维可见 worker 名称。 |
+| `version` | Go/Python/Node helper 为 `dev` | SDK 暴露时的 worker/application build version。 |
+| `heartbeatEvery` / `heartbeat-interval-millis` | `10s` / `10000` | Worker lease renewal cadence。 |
+| `capabilities` | `[]` | 旧式/运维 metadata；支持 structured capabilities 时路由优先使用 structured。 |
+| `structuredCapabilities` | empty | 用于路由的 SDK processors、script runners、plugin processors 和 structured tags。 |
+| `labels` | `{}` | 自由运维 metadata，例如 `worker_pool`、`runtime`、`team`、`tier`。 |
+| `election.enabled` | `true` | registration 中的 worker-cluster master election 开关。 |
+| `election.domain` | 空 | 空表示 `namespace/app/cluster/region`。 |
+| `election.priority` | `100` | 确定性选主优先级；数值越小越优先。 |
+
+### Worker 部署清单
 
 - 每个服务只添加一个 SDK 依赖，让包管理器解析传递的 Tikeo 模块。
 - Worker SDK 应连接到能访问 `server.worker_tunnel_addr` 的 Service/LB/DNS 名称，而不一定是服务端 bind 地址。
 - 在 worker 和 management client 中一致设置 namespace/app/cluster/region。
+- 只广告真实 runtime 支持的 capability；缺失工具应 fail closed，而不是被广告成可用能力。
 - 如果需要稳定身份或离线启动，持久化 SDK state/tool cache 目录，例如 `~/.tikeo/workers` 与 `~/.tikeo/sandbox-tools/*`。
 - API key 与内部镜像 installer URL 应通过平台 Secret/config 注入，不要提交到配置文件。
 

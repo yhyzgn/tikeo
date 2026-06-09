@@ -10,15 +10,15 @@ The Rust SDK lives under `sdks/rust/tikeo`, and the runnable worker demo lives u
 
 ## Install from crates.io
 
-Replace `<TIKEO_VERSION>` with the version shown by the top README `Rust SDK` badge. Rust uses the plain version string without a leading `v`.
+Replace `${TIKEO_VERSION}` with the version shown by the top README `Rust SDK` badge. Rust uses the plain version string without a leading `v`.
 
 ```bash
-cargo add tikeo@<TIKEO_VERSION>
+cargo add tikeo@${TIKEO_VERSION}
 ```
 
 ```toml
 [dependencies]
-tikeo = "<TIKEO_VERSION>"
+tikeo = "${TIKEO_VERSION}"
 ```
 
 ## Verify the SDK
