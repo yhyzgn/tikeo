@@ -11,6 +11,18 @@ Go SDK 位于 `sdks/go/tikeo`，可运行 Worker demo 位于 `examples/go/worker
 
 Go SDK 当前声明 Go 1.26+。仓库文档、`go.mod`、CI 和 runtime 徽章必须保持一致；如果降低或提高版本，应同时更新 SDK README 与文档站。
 
+## 从 Go module proxy 安装
+
+将 `<TIKEO_VERSION>` 替换为 README 顶部 `Go SDK` 徽标显示的版本号。Go 命令使用 tag 语法，因此需要写成 `v<TIKEO_VERSION>`。
+
+```bash
+go get github.com/yhyzgn/tikeo/sdks/go/tikeo@v<TIKEO_VERSION>
+```
+
+```go
+import "github.com/yhyzgn/tikeo/sdks/go/tikeo"
+```
+
 ## 验证 SDK
 
 ```bash

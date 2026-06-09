@@ -11,6 +11,19 @@ The Python SDK lives under `sdks/python/tikeo`, and the runnable worker demo liv
 
 The package declares `requires-python = ">=3.11"` and CI verifies the Python surface with Python 3.12. Keep the docs, `pyproject.toml`, CI matrix, and README runtime badge aligned whenever the baseline changes.
 
+
+## Install from PyPI
+
+Replace `<TIKEO_VERSION>` with the version shown by the top README `Python SDK` badge. PyPI uses the plain version string without a leading `v`.
+
+```bash
+python -m pip install "tikeo==<TIKEO_VERSION>"
+```
+
+```python
+from tikeo import Client, local_config
+```
+
 ## Verify the SDK
 
 ```bash

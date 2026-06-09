@@ -122,6 +122,19 @@ Alert channel JSON may reference secrets through `env:NAME` indirection. Do not 
 
 If script release signing is enabled, store the secret in the deployment platform and pass only a reference into config.
 
+
+## SDK and worker configuration
+
+Server configuration is only half of a deployment. Worker services also need SDK dependency selection, Worker Tunnel endpoint wiring, identity scope, sandbox tool cache paths, and optional management-client credentials. For Java/Spring deployments, see the complete Maven Central artifact matrix, Spring Boot `application.yml` template, environment variables, and defaults in [Java Spring Boot Starter](../sdks/java-spring-boot).
+
+Production worker checklist:
+
+- Add one SDK dependency per service and let the package manager resolve transitive Tikeo modules.
+- Point worker SDKs at `server.worker_tunnel_addr` through the reachable Service/LB/DNS name, not necessarily the server bind address.
+- Set namespace/app/cluster/region consistently across workers and management clients.
+- Persist SDK state/tool cache directories such as `~/.tikeo/workers` and `~/.tikeo/sandbox-tools/*` when stable identity or offline startup matters.
+- Inject API keys and mirrored installer URLs from platform Secrets/config, not committed files.
+
 ## Environment override rule
 
 Nested config keys use double underscores:

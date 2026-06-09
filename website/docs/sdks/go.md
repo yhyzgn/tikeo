@@ -7,6 +7,19 @@ description: Verified Go SDK and Worker demo entry points.
 
 The Go SDK lives under `sdks/go/tikeo`, and the runnable worker demo lives under `examples/go/worker-demo`.
 
+
+## Install from the Go module proxy
+
+Replace `<TIKEO_VERSION>` with the version shown by the top README `Go SDK` badge. Go commands use tag syntax, so include the leading `v` as `v<TIKEO_VERSION>`.
+
+```bash
+go get github.com/yhyzgn/tikeo/sdks/go/tikeo@v<TIKEO_VERSION>
+```
+
+```go
+import "github.com/yhyzgn/tikeo/sdks/go/tikeo"
+```
+
 ## Verify the SDK
 
 ```bash

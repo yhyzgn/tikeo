@@ -368,34 +368,43 @@ specific job instance. That separation prevents unrelated process noise from pol
 
 ## Install SDKs from central registries
 
-Use one package per worker service. Every SDK follows the same platform contract: outbound Worker
-Tunnel, structured capabilities, task-scoped logs, retry/result reporting, management APIs, and
-sandbox auto behavior.
+Use exactly one SDK dependency per worker service. Do **not** add upstream/transitive Tikeo
+modules yourself: Gradle, Maven, Cargo, Go, pip, npm, pnpm, and Bun resolve the required upstream
+packages from the single dependency you choose.
 
-| Language | Central registry | Package name | Runtime requirement | Current install target |
+Version placeholders in this section:
+
+- Replace `<TIKEO_VERSION>` with the version shown by the matching top-of-README package badge
+  (`release`, `Java core`, `Boot 3 starter`, `Rust SDK`, `Node.js SDK`, and so on).
+- Go module commands use tag syntax, so the placeholder is `v<TIKEO_VERSION>`.
+- npm, PyPI, crates.io, and Maven Central use `<TIKEO_VERSION>` without a leading `v`.
+
+| Language | Central registry | Package name | Runtime requirement | Install target |
 | --- | --- | --- | --- | --- |
-| Java | Maven Central | `net.tikeo:*` | Java 17+ | `0.2.0` release artifacts; local development should use the matching `0.2.0` composite build. |
-| Rust | crates.io | `tikeo` | Rust 1.95+ | `0.2.0` |
-| Go | Go module proxy | `github.com/yhyzgn/tikeo/sdks/go/tikeo` | Go 1.26+ | tag-based, for example `v0.2.0` |
-| Python | PyPI | `tikeo` | Python 3.11+ | `0.2.0` |
-| Node.js | npm | `@yhyzgn/tikeo` | Node.js 24+ | `0.2.0` |
+| Java | Maven Central | `net.tikeo:*` | Java 17+ | One `net.tikeo` artifact at `<TIKEO_VERSION>`. |
+| Rust | crates.io | `tikeo` | Rust 1.95+ | `<TIKEO_VERSION>` |
+| Go | Go module proxy | `github.com/yhyzgn/tikeo/sdks/go/tikeo` | Go 1.26+ | tag `v<TIKEO_VERSION>` |
+| Python | PyPI | `tikeo` | Python 3.11+ | `<TIKEO_VERSION>` |
+| Node.js | npm | `@yhyzgn/tikeo` | Node.js 24+ | `<TIKEO_VERSION>` |
 
 ### Java / Maven Central
 
-Choose exactly one runtime adapter for each application. Plain Java workers only need the core SDK;
-Spring applications should use the starter matching their Spring Boot generation.
+Choose **one** artifact for each application. Plain Java workers use the core SDK. Spring Boot
+applications use the starter matching their Spring Boot generation. The starter already brings in
+the matching `tikeo`, `tikeo-spring*`, and Spring integration dependencies transitively, so do not
+also declare those upstream modules unless you are doing advanced manual framework wiring.
 
-| Artifact | Use it for |
-| --- | --- |
-| `net.tikeo:tikeo` | Plain Java workers, management clients, sandbox tooling, and low-level Worker Tunnel usage. |
-| `net.tikeo:tikeo-spring` | Spring Framework 7 adapter used by Spring Boot 4 applications. |
-| `net.tikeo:tikeo-spring6` | Spring Framework 6 adapter used by Spring Boot 3 applications. |
-| `net.tikeo:tikeo-spring5` | Spring Framework 5 adapter used by Spring Boot 2 applications. |
-| `net.tikeo:tikeo-spring-boot-starter` | Spring Boot 4 auto-configuration starter. |
-| `net.tikeo:tikeo-spring-boot3-starter` | Spring Boot 3 auto-configuration starter. |
-| `net.tikeo:tikeo-spring-boot2-starter` | Spring Boot 2 auto-configuration starter. |
+| Artifact | Add this single dependency when... | Gradle Kotlin DSL line |
+| --- | --- | --- |
+| `net.tikeo:tikeo` | You are building a plain Java worker, a management client, sandbox tooling, or low-level Worker Tunnel integration. | `implementation("net.tikeo:tikeo:<TIKEO_VERSION>")` |
+| `net.tikeo:tikeo-spring-boot-starter` | You run Spring Boot 4 / Spring Framework 7 and want auto-configuration. | `implementation("net.tikeo:tikeo-spring-boot-starter:<TIKEO_VERSION>")` |
+| `net.tikeo:tikeo-spring-boot3-starter` | You run Spring Boot 3 / Spring Framework 6 and want auto-configuration. | `implementation("net.tikeo:tikeo-spring-boot3-starter:<TIKEO_VERSION>")` |
+| `net.tikeo:tikeo-spring-boot2-starter` | You run Spring Boot 2 / Spring Framework 5 and want auto-configuration. | `implementation("net.tikeo:tikeo-spring-boot2-starter:<TIKEO_VERSION>")` |
+| `net.tikeo:tikeo-spring` | Advanced/manual Spring Framework 7 adapter without the Boot starter. | `implementation("net.tikeo:tikeo-spring:<TIKEO_VERSION>")` |
+| `net.tikeo:tikeo-spring6` | Advanced/manual Spring Framework 6 adapter without the Boot starter. | `implementation("net.tikeo:tikeo-spring6:<TIKEO_VERSION>")` |
+| `net.tikeo:tikeo-spring5` | Advanced/manual Spring Framework 5 adapter without the Boot starter. | `implementation("net.tikeo:tikeo-spring5:<TIKEO_VERSION>")` |
 
-Gradle Kotlin DSL:
+Gradle Kotlin DSL examples:
 
 ```kotlin
 repositories {
@@ -403,61 +412,157 @@ repositories {
 }
 
 dependencies {
-    // Plain Java worker / management client.
-    implementation("net.tikeo:tikeo:0.2.0")
+    // Pick exactly one for the service you are building:
+    implementation("net.tikeo:tikeo:<TIKEO_VERSION>")                    // plain Java
+    // implementation("net.tikeo:tikeo-spring-boot-starter:<TIKEO_VERSION>")  // Spring Boot 4
+    // implementation("net.tikeo:tikeo-spring-boot3-starter:<TIKEO_VERSION>") // Spring Boot 3
+    // implementation("net.tikeo:tikeo-spring-boot2-starter:<TIKEO_VERSION>") // Spring Boot 2
 
-    // Pick ONE starter when using Spring Boot.
-    implementation("net.tikeo:tikeo-spring-boot-starter:0.2.0")  // Spring Boot 4
-    // implementation("net.tikeo:tikeo-spring-boot3-starter:0.2.0") // Spring Boot 3
-    // implementation("net.tikeo:tikeo-spring-boot2-starter:0.2.0") // Spring Boot 2
+    // Advanced manual Spring Framework adapters, also pick only one when needed:
+    // implementation("net.tikeo:tikeo-spring:<TIKEO_VERSION>")  // Spring Framework 7
+    // implementation("net.tikeo:tikeo-spring6:<TIKEO_VERSION>") // Spring Framework 6
+    // implementation("net.tikeo:tikeo-spring5:<TIKEO_VERSION>") // Spring Framework 5
 }
 ```
 
-Maven:
+Maven example:
 
 ```xml
-<dependencies>
-  <dependency>
-    <groupId>net.tikeo</groupId>
-    <artifactId>tikeo</artifactId>
-    <version>0.2.0</version>
-  </dependency>
-  <dependency>
-    <groupId>net.tikeo</groupId>
-    <artifactId>tikeo-spring-boot-starter</artifactId>
-    <version>0.2.0</version>
-  </dependency>
-</dependencies>
+<!-- Pick exactly one artifactId from the table above. Do not add transitive Tikeo modules explicitly. -->
+<dependency>
+  <groupId>net.tikeo</groupId>
+  <artifactId>tikeo-spring-boot3-starter</artifactId>
+  <version>&lt;TIKEO_VERSION&gt;</version>
+</dependency>
 ```
 
-Spring Boot worker configuration:
+Common `artifactId` choices: `tikeo`, `tikeo-spring-boot-starter`,
+`tikeo-spring-boot3-starter`, `tikeo-spring-boot2-starter`, `tikeo-spring`,
+`tikeo-spring6`, or `tikeo-spring5`.
+
+Spring Boot starter configuration (`application.yml`):
 
 ```yaml
+server:
+  port: ${TIKEO_DEMO_SERVER_PORT:18083}
+
 tikeo:
   worker:
-    enabled: true
-    auto-startup: true
-    endpoint: http://127.0.0.1:9998
-    namespace: dev-alpha
-    app: orders
-    worker-pool: java-green
+    enabled: ${TIKEO_WORKER_ENABLED:true}
+    auto-startup: ${TIKEO_WORKER_AUTO_STARTUP:true}
+    dry-run: ${TIKEO_WORKER_DRY_RUN:false}
+    endpoint: ${TIKEO_WORKER_ENDPOINT:http://127.0.0.1:9998}
+    client-instance-id: ${TIKEO_WORKER_CLIENT_INSTANCE_ID:}
+    state-dir: ${TIKEO_WORKER_STATE_DIR:}
+    namespace: ${TIKEO_WORKER_NAMESPACE:default}
+    app: ${TIKEO_WORKER_APP:default}
+    cluster: ${TIKEO_WORKER_CLUSTER:default}
+    region: ${TIKEO_WORKER_REGION:default}
+    capabilities:
+      - java
+      - spring-boot
+    labels:
+      worker_pool: ${TIKEO_WORKER_POOL:java-blue}
+      runtime: java
+    election:
+      enabled: ${TIKEO_WORKER_ELECTION_ENABLED:true}
+      domain: ${TIKEO_WORKER_ELECTION_DOMAIN:}
+      priority: ${TIKEO_WORKER_ELECTION_PRIORITY:100}
+    wasm:
+      auto-install: ${TIKEO_WORKER_WASM_AUTO_INSTALL:true}
+      install-version: ${TIKEO_WORKER_WASM_VERSION:latest}
+      install-dir: ${TIKEO_WORKER_WASM_INSTALL_DIR:}
+    scripts:
+      enabled: ${TIKEO_WORKER_SCRIPTS_ENABLED:true}
+      container-enabled: ${TIKEO_WORKER_CONTAINER_SCRIPTS_ENABLED:false}
+      runtime-command: ${TIKEO_WORKER_CONTAINER_RUNTIME:}
+      availability-check: ${TIKEO_WORKER_SCRIPT_RUNTIME_CHECK:true}
+      auto-install-tools: ${TIKEO_WORKER_SCRIPT_AUTO_INSTALL_TOOLS:true}
+      power-shell-install-version: ${TIKEO_WORKER_SCRIPT_POWERSHELL_VERSION:7.5.4}
+      power-shell-install-dir: ${TIKEO_WORKER_SCRIPT_POWERSHELL_INSTALL_DIR:}
+      images:
+        shell: ${TIKEO_WORKER_SCRIPT_SHELL_IMAGE:}
+        python: ${TIKEO_WORKER_SCRIPT_PYTHON_IMAGE:}
+        js: ${TIKEO_WORKER_SCRIPT_JAVASCRIPT_IMAGE:}
+        ts: ${TIKEO_WORKER_SCRIPT_TYPESCRIPT_IMAGE:}
+        powershell: ${TIKEO_WORKER_SCRIPT_POWERSHELL_IMAGE:}
+        php: ${TIKEO_WORKER_SCRIPT_PHP_IMAGE:}
+        groovy: ${TIKEO_WORKER_SCRIPT_GROOVY_IMAGE:}
+        rhai: ${TIKEO_WORKER_SCRIPT_RHAI_IMAGE:}
+
+  management:
+    enabled: ${TIKEO_MANAGEMENT_ENABLED:false}
+    endpoint: ${TIKEO_MANAGEMENT_ENDPOINT:http://127.0.0.1:9999}
+    api-key: ${TIKEO_MANAGEMENT_API_KEY:}
+    namespace: ${TIKEO_MANAGEMENT_NAMESPACE:default}
+    app: ${TIKEO_MANAGEMENT_APP:default}
 ```
+
+Worker configuration reference:
+
+| Property | Env var used in examples | Default | Meaning |
+| --- | --- | --- | --- |
+| `tikeo.worker.enabled` | `TIKEO_WORKER_ENABLED` | `true` | Enables worker auto-configuration. |
+| `tikeo.worker.auto-startup` | `TIKEO_WORKER_AUTO_STARTUP` | `true` | Starts/stops the worker with the Spring application lifecycle. |
+| `tikeo.worker.endpoint` | `TIKEO_WORKER_ENDPOINT` | `http://0.0.0.0:9998` | Worker Tunnel endpoint. In deployed workers, set this to the server/LB address reachable from the worker. |
+| `tikeo.worker.dry-run` | `TIKEO_WORKER_DRY_RUN` | `false` | Avoids opening a live Worker Tunnel; useful for local config smoke tests. |
+| `tikeo.worker.heartbeat-interval-millis` | `TIKEO_WORKER_HEARTBEAT_INTERVAL_MILLIS` | `10000` | Worker heartbeat interval in milliseconds. |
+| `tikeo.worker.client-instance-id` | `TIKEO_WORKER_CLIENT_INSTANCE_ID` | blank | Optional stable client-side instance hint; when blank, the SDK generates and persists one per scope/runtime identity. |
+| `tikeo.worker.state-dir` | `TIKEO_WORKER_STATE_DIR` | blank → `~/.tikeo/workers` | Directory for generated worker instance identity state. Mount/persist it for stable worker identities. |
+| `tikeo.worker.namespace` | `TIKEO_WORKER_NAMESPACE` | `default` | Registration namespace. |
+| `tikeo.worker.app` | `TIKEO_WORKER_APP` | `default` | Registration app. |
+| `tikeo.worker.cluster` | `TIKEO_WORKER_CLUSTER` | `default` | Registration cluster or environment shard. |
+| `tikeo.worker.region` | `TIKEO_WORKER_REGION` | `default` | Registration region/zone. |
+| `tikeo.worker.capabilities` | YAML/list config | `[]` | Capabilities used by routing and worker discovery. |
+| `tikeo.worker.labels` | YAML/map config | `{}` | Free-form labels such as `worker_pool`, `runtime`, `team`, or `tier`. |
+| `tikeo.worker.election.enabled` | `TIKEO_WORKER_ELECTION_ENABLED` | `true` | Enables autonomous worker-cluster master election. |
+| `tikeo.worker.election.domain` | `TIKEO_WORKER_ELECTION_DOMAIN` | blank | Blank uses `namespace/app/cluster/region`; set explicitly to isolate election domains. |
+| `tikeo.worker.election.priority` | `TIKEO_WORKER_ELECTION_PRIORITY` | `100` | Deterministic election priority; lower values win. |
+| `tikeo.worker.wasm.auto-install` | `TIKEO_WORKER_WASM_AUTO_INSTALL` | `true` | Installs Wasmtime automatically when missing. |
+| `tikeo.worker.wasm.install-version` | `TIKEO_WORKER_WASM_VERSION` | `latest` | Wasmtime version passed to the installer. |
+| `tikeo.worker.wasm.install-dir` | `TIKEO_WORKER_WASM_INSTALL_DIR` | blank → `~/.tikeo/sandbox-tools/wasmtime` | Wasmtime install directory. Persist/cache this in worker images or volumes to avoid repeated downloads. |
+| `tikeo.worker.scripts.enabled` | `TIKEO_WORKER_SCRIPTS_ENABLED` | `true` | Enables dynamic script execution through the default sandbox path. |
+| `tikeo.worker.scripts.container-enabled` | `TIKEO_WORKER_CONTAINER_SCRIPTS_ENABLED` | `false` | Enables optional container-backed language runners. |
+| `tikeo.worker.scripts.runtime-command` | `TIKEO_WORKER_CONTAINER_RUNTIME` | blank | Docker-compatible runtime command, for example `docker` or `podman`. |
+| `tikeo.worker.scripts.availability-check` | `TIKEO_WORKER_SCRIPT_RUNTIME_CHECK` | `true` | Probes runtime/tool availability before advertising capabilities. |
+| `tikeo.worker.scripts.auto-install-tools` | `TIKEO_WORKER_SCRIPT_AUTO_INSTALL_TOOLS` | `true` | Installs local development script tools when absent. Disable in locked-down production images. |
+| `tikeo.worker.scripts.power-shell-install-version` | `TIKEO_WORKER_SCRIPT_POWERSHELL_VERSION` | `7.5.4` | PowerShell Core version for auto-install. |
+| `tikeo.worker.scripts.power-shell-install-dir` | `TIKEO_WORKER_SCRIPT_POWERSHELL_INSTALL_DIR` | blank → `~/.tikeo/sandbox-tools/pwsh` | PowerShell install/cache directory. |
+| `tikeo.worker.scripts.images.*` | `TIKEO_WORKER_SCRIPT_*_IMAGE` | blank | Per-language container image. Blank disables that container-backed language image. |
+
+Management client configuration:
+
+| Property | Env var used in examples | Default | Meaning |
+| --- | --- | --- | --- |
+| `tikeo.management.enabled` | `TIKEO_MANAGEMENT_ENABLED` | `false` | Enables management/control-plane SDK client auto-configuration. |
+| `tikeo.management.endpoint` | `TIKEO_MANAGEMENT_ENDPOINT` | `http://127.0.0.1:9999` | Management HTTP endpoint. The server HTTP port in Compose examples is usually `9090`, so set this explicitly for real deployments. |
+| `tikeo.management.api-key` | `TIKEO_MANAGEMENT_API_KEY` | blank | App-scoped API key; keep it in a Secret store. |
+| `tikeo.management.namespace` | `TIKEO_MANAGEMENT_NAMESPACE` | `default` | Management namespace scope. |
+| `tikeo.management.app` | `TIKEO_MANAGEMENT_APP` | `default` | Management app scope. |
+
+Sandbox tool install overrides recognized by the Java SDK:
+
+| Env var | Default | Meaning |
+| --- | --- | --- |
+| `TIKEO_POWERSHELL_VERSION` | `7.5.4` | Fallback PowerShell version used by the low-level installer. Prefer the Spring property above when using Boot. |
+| `TIKEO_POWERSHELL_DOWNLOAD_URL` | GitHub release archive URL for the version/platform | Override the PowerShell archive URL for mirrored/offline environments. |
+| `TIKEO_POWERSHELL_INSTALL_TIMEOUT_MILLIS` | `120000` | Download/extract timeout. |
 
 ### Rust / crates.io
 
 ```bash
-cargo add tikeo@0.2.0
+cargo add tikeo@<TIKEO_VERSION>
 ```
 
 ```toml
 [dependencies]
-tikeo = "0.2.0"
+tikeo = "<TIKEO_VERSION>"
 ```
 
 ### Go / Go module proxy
 
 ```bash
-go get github.com/yhyzgn/tikeo/sdks/go/tikeo@v0.2.0
+go get github.com/yhyzgn/tikeo/sdks/go/tikeo@v<TIKEO_VERSION>
 ```
 
 ```go
@@ -467,7 +572,7 @@ import "github.com/yhyzgn/tikeo/sdks/go/tikeo"
 ### Python / PyPI
 
 ```bash
-python -m pip install "tikeo==0.2.0"
+python -m pip install "tikeo==<TIKEO_VERSION>"
 ```
 
 ```python
@@ -479,14 +584,14 @@ from tikeo import Client, local_config
 Bun is the default package runner in this repository:
 
 ```bash
-bun add @yhyzgn/tikeo@0.2.0
+bun add @yhyzgn/tikeo@<TIKEO_VERSION>
 ```
 
 npm and pnpm users can install the same package from the public npm registry:
 
 ```bash
-npm install @yhyzgn/tikeo@0.2.0
-pnpm add @yhyzgn/tikeo@0.2.0
+npm install @yhyzgn/tikeo@<TIKEO_VERSION>
+pnpm add @yhyzgn/tikeo@<TIKEO_VERSION>
 ```
 
 ```ts

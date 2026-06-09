@@ -8,3 +8,5 @@ Start with:
 - /docs/concepts/worker-tunnel
 - /docs/deployment/sse-realtime
 - /docs/reference/troubleshooting
+- /docs/sdks/java-spring-boot
+- /docs/reference/configuration

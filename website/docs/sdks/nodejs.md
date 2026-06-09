@@ -11,6 +11,21 @@ The Node.js SDK lives under `sdks/nodejs/tikeo`, and the runnable worker demo li
 
 The SDK package declares `engines.node >=24.0.0`. Bun is the repository package runner for install, tests, build, and demo execution. Keep `package.json`, README badges, docs, and CI runtime policy aligned whenever this baseline changes.
 
+
+## Install from npm
+
+Replace `<TIKEO_VERSION>` with the version shown by the top README `Node.js SDK` badge. npm uses the plain version string without a leading `v`.
+
+```bash
+bun add @yhyzgn/tikeo@<TIKEO_VERSION>
+npm install @yhyzgn/tikeo@<TIKEO_VERSION>
+pnpm add @yhyzgn/tikeo@<TIKEO_VERSION>
+```
+
+```ts
+import { Client, WorkerConfig } from "@yhyzgn/tikeo";
+```
+
 ## Verify the SDK
 
 ```bash

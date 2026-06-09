@@ -11,6 +11,20 @@ Node.js SDK 位于 `sdks/nodejs/tikeo`，可运行 Worker demo 位于 `examples/
 
 SDK package 声明 `engines.node >=24.0.0`。仓库内安装、测试、构建和 demo 执行默认使用 Bun。调整 baseline 时必须同步 `package.json`、README 徽章、文档和 CI runtime policy。
 
+## 从 npm 安装
+
+将 `<TIKEO_VERSION>` 替换为 README 顶部 `Node.js SDK` 徽标显示的版本号。npm 使用不带 `v` 的版本字符串。
+
+```bash
+bun add @yhyzgn/tikeo@<TIKEO_VERSION>
+npm install @yhyzgn/tikeo@<TIKEO_VERSION>
+pnpm add @yhyzgn/tikeo@<TIKEO_VERSION>
+```
+
+```ts
+import { Client, WorkerConfig } from "@yhyzgn/tikeo";
+```
+
 ## 验证 SDK
 
 ```bash

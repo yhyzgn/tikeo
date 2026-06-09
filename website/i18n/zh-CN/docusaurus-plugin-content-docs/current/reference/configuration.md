@@ -122,6 +122,19 @@ env_prefix = "TIKEO_ALERT_SECRET_"
 
 启用脚本发布签名时，把 secret 存在部署平台中，只把 reference 注入配置。
 
+
+## SDK 与 Worker 配置
+
+服务端配置只覆盖部署的一半。Worker 服务还需要 SDK 依赖选择、Worker Tunnel endpoint、身份 scope、sandbox 工具缓存路径，以及可选 management-client 凭证。Java/Spring 部署的 Maven Central artifact 矩阵、Spring Boot `application.yml` 模板、环境变量和默认值，见 [Java Spring Boot Starter](../sdks/java-spring-boot)。
+
+生产 Worker 清单：
+
+- 每个服务只添加一个 SDK 依赖，让包管理器解析传递的 Tikeo 模块。
+- Worker SDK 应连接到能访问 `server.worker_tunnel_addr` 的 Service/LB/DNS 名称，而不一定是服务端 bind 地址。
+- 在 worker 和 management client 中一致设置 namespace/app/cluster/region。
+- 如果需要稳定身份或离线启动，持久化 SDK state/tool cache 目录，例如 `~/.tikeo/workers` 与 `~/.tikeo/sandbox-tools/*`。
+- API key 与内部镜像 installer URL 应通过平台 Secret/config 注入，不要提交到配置文件。
+
 ## 环境变量覆盖规则
 
 | 环境变量 | 配置项 |

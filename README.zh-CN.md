@@ -345,32 +345,41 @@ otlp_endpoint = "http://otel-collector:4318/v1/traces"
 
 ## 从中央仓库安装 SDK
 
-每个 Worker 服务只需要引用对应语言的一组包。所有 SDK 遵循同一平台契约：出站 Worker
-Tunnel、结构化能力、任务级日志、重试/结果上报、Management API，以及沙箱 auto 行为。
+每个 Worker 服务只引入 **一个** SDK 依赖。不要手动显式引用上游/传递的 Tikeo 模块：Gradle、Maven、
+Cargo、Go、pip、npm、pnpm、Bun 都会从你选择的单个依赖中解析所需的上游包。
 
-| Language | 中央仓库 | Package name | 运行时要求 | 当前安装目标 |
+本节版本占位符规则：
+
+- 将 `<TIKEO_VERSION>` 替换为 README 顶部对应徽标显示的版本号，例如 `release`、`Java core`、
+  `Boot 3 starter`、`Rust SDK`、`Node.js SDK` 等徽标。
+- Go module 命令使用 tag 语法，因此写作 `v<TIKEO_VERSION>`。
+- npm、PyPI、crates.io、Maven Central 使用不带 `v` 的 `<TIKEO_VERSION>`。
+
+| Language | 中央仓库 | Package name | 运行时要求 | 安装目标 |
 | --- | --- | --- | --- | --- |
-| Java | Maven Central | `net.tikeo:*` | Java 17+ | `0.2.0` release artifacts；本地开发应使用匹配的 `0.2.0` composite build。 |
-| Rust | crates.io | `tikeo` | Rust 1.95+ | `0.2.0` |
-| Go | Go module proxy | `github.com/yhyzgn/tikeo/sdks/go/tikeo` | Go 1.26+ | tag-based，例如 `v0.2.0` |
-| Python | PyPI | `tikeo` | Python 3.11+ | `0.2.0` |
-| Node.js | npm | `@yhyzgn/tikeo` | Node.js 24+ | `0.2.0` |
+| Java | Maven Central | `net.tikeo:*` | Java 17+ | 一个 `net.tikeo` artifact，版本为 `<TIKEO_VERSION>`。 |
+| Rust | crates.io | `tikeo` | Rust 1.95+ | `<TIKEO_VERSION>` |
+| Go | Go module proxy | `github.com/yhyzgn/tikeo/sdks/go/tikeo` | Go 1.26+ | tag `v<TIKEO_VERSION>` |
+| Python | PyPI | `tikeo` | Python 3.11+ | `<TIKEO_VERSION>` |
+| Node.js | npm | `@yhyzgn/tikeo` | Node.js 24+ | `<TIKEO_VERSION>` |
 
 ### Java / Maven Central
 
-每个应用只选择一个运行时 adapter。普通 Java Worker 只需要 core SDK；Spring 应用应该选择与 Spring Boot 代际匹配的 starter。
+每个应用只选择 **一个** artifact。普通 Java Worker 使用 core SDK；Spring Boot 应用使用与自己 Boot
+代际匹配的 starter。starter 已经通过传递依赖带入匹配的 `tikeo`、`tikeo-spring*` 和 Spring 集成依赖，
+因此不要再额外声明这些上游模块；只有在高级手动 Spring Framework 接线时才直接使用 adapter artifact。
 
-| Artifact | 用途 |
-| --- | --- |
-| `net.tikeo:tikeo` | 普通 Java Worker、management client、sandbox tooling 和低层 Worker Tunnel 使用。 |
-| `net.tikeo:tikeo-spring` | Spring Framework 7 adapter，用于 Spring Boot 4 应用。 |
-| `net.tikeo:tikeo-spring6` | Spring Framework 6 adapter，用于 Spring Boot 3 应用。 |
-| `net.tikeo:tikeo-spring5` | Spring Framework 5 adapter，用于 Spring Boot 2 应用。 |
-| `net.tikeo:tikeo-spring-boot-starter` | Spring Boot 4 auto-configuration starter。 |
-| `net.tikeo:tikeo-spring-boot3-starter` | Spring Boot 3 auto-configuration starter。 |
-| `net.tikeo:tikeo-spring-boot2-starter` | Spring Boot 2 auto-configuration starter。 |
+| Artifact | 什么时候只添加这个依赖 | Gradle Kotlin DSL 写法 |
+| --- | --- | --- |
+| `net.tikeo:tikeo` | 普通 Java Worker、management client、sandbox tooling 或低层 Worker Tunnel 集成。 | `implementation("net.tikeo:tikeo:<TIKEO_VERSION>")` |
+| `net.tikeo:tikeo-spring-boot-starter` | Spring Boot 4 / Spring Framework 7，需要自动配置。 | `implementation("net.tikeo:tikeo-spring-boot-starter:<TIKEO_VERSION>")` |
+| `net.tikeo:tikeo-spring-boot3-starter` | Spring Boot 3 / Spring Framework 6，需要自动配置。 | `implementation("net.tikeo:tikeo-spring-boot3-starter:<TIKEO_VERSION>")` |
+| `net.tikeo:tikeo-spring-boot2-starter` | Spring Boot 2 / Spring Framework 5，需要自动配置。 | `implementation("net.tikeo:tikeo-spring-boot2-starter:<TIKEO_VERSION>")` |
+| `net.tikeo:tikeo-spring` | 高级/手动 Spring Framework 7 adapter，不使用 Boot starter。 | `implementation("net.tikeo:tikeo-spring:<TIKEO_VERSION>")` |
+| `net.tikeo:tikeo-spring6` | 高级/手动 Spring Framework 6 adapter，不使用 Boot starter。 | `implementation("net.tikeo:tikeo-spring6:<TIKEO_VERSION>")` |
+| `net.tikeo:tikeo-spring5` | 高级/手动 Spring Framework 5 adapter，不使用 Boot starter。 | `implementation("net.tikeo:tikeo-spring5:<TIKEO_VERSION>")` |
 
-Gradle Kotlin DSL：
+Gradle Kotlin DSL 示例：
 
 ```kotlin
 repositories {
@@ -378,61 +387,157 @@ repositories {
 }
 
 dependencies {
-    // 普通 Java worker / management client。
-    implementation("net.tikeo:tikeo:0.2.0")
+    // 每个服务只选择一个：
+    implementation("net.tikeo:tikeo:<TIKEO_VERSION>")                    // plain Java
+    // implementation("net.tikeo:tikeo-spring-boot-starter:<TIKEO_VERSION>")  // Spring Boot 4
+    // implementation("net.tikeo:tikeo-spring-boot3-starter:<TIKEO_VERSION>") // Spring Boot 3
+    // implementation("net.tikeo:tikeo-spring-boot2-starter:<TIKEO_VERSION>") // Spring Boot 2
 
-    // 使用 Spring Boot 时只选择一个 starter。
-    implementation("net.tikeo:tikeo-spring-boot-starter:0.2.0")  // Spring Boot 4
-    // implementation("net.tikeo:tikeo-spring-boot3-starter:0.2.0") // Spring Boot 3
-    // implementation("net.tikeo:tikeo-spring-boot2-starter:0.2.0") // Spring Boot 2
+    // 高级手动 Spring Framework adapter；需要时也只选一个：
+    // implementation("net.tikeo:tikeo-spring:<TIKEO_VERSION>")  // Spring Framework 7
+    // implementation("net.tikeo:tikeo-spring6:<TIKEO_VERSION>") // Spring Framework 6
+    // implementation("net.tikeo:tikeo-spring5:<TIKEO_VERSION>") // Spring Framework 5
 }
 ```
 
-Maven：
+Maven 示例：
 
 ```xml
-<dependencies>
-  <dependency>
-    <groupId>net.tikeo</groupId>
-    <artifactId>tikeo</artifactId>
-    <version>0.2.0</version>
-  </dependency>
-  <dependency>
-    <groupId>net.tikeo</groupId>
-    <artifactId>tikeo-spring-boot-starter</artifactId>
-    <version>0.2.0</version>
-  </dependency>
-</dependencies>
+<!-- 从上表选择一个 artifactId。不要显式添加传递依赖里的 Tikeo 模块。 -->
+<dependency>
+  <groupId>net.tikeo</groupId>
+  <artifactId>tikeo-spring-boot3-starter</artifactId>
+  <version>&lt;TIKEO_VERSION&gt;</version>
+</dependency>
 ```
 
-Spring Boot Worker 配置：
+常用 `artifactId`：`tikeo`、`tikeo-spring-boot-starter`、
+`tikeo-spring-boot3-starter`、`tikeo-spring-boot2-starter`、`tikeo-spring`、
+`tikeo-spring6` 或 `tikeo-spring5`。
+
+Spring Boot starter 配置（`application.yml`）：
 
 ```yaml
+server:
+  port: ${TIKEO_DEMO_SERVER_PORT:18083}
+
 tikeo:
   worker:
-    enabled: true
-    auto-startup: true
-    endpoint: http://127.0.0.1:9998
-    namespace: dev-alpha
-    app: orders
-    worker-pool: java-green
+    enabled: ${TIKEO_WORKER_ENABLED:true}
+    auto-startup: ${TIKEO_WORKER_AUTO_STARTUP:true}
+    dry-run: ${TIKEO_WORKER_DRY_RUN:false}
+    endpoint: ${TIKEO_WORKER_ENDPOINT:http://127.0.0.1:9998}
+    client-instance-id: ${TIKEO_WORKER_CLIENT_INSTANCE_ID:}
+    state-dir: ${TIKEO_WORKER_STATE_DIR:}
+    namespace: ${TIKEO_WORKER_NAMESPACE:default}
+    app: ${TIKEO_WORKER_APP:default}
+    cluster: ${TIKEO_WORKER_CLUSTER:default}
+    region: ${TIKEO_WORKER_REGION:default}
+    capabilities:
+      - java
+      - spring-boot
+    labels:
+      worker_pool: ${TIKEO_WORKER_POOL:java-blue}
+      runtime: java
+    election:
+      enabled: ${TIKEO_WORKER_ELECTION_ENABLED:true}
+      domain: ${TIKEO_WORKER_ELECTION_DOMAIN:}
+      priority: ${TIKEO_WORKER_ELECTION_PRIORITY:100}
+    wasm:
+      auto-install: ${TIKEO_WORKER_WASM_AUTO_INSTALL:true}
+      install-version: ${TIKEO_WORKER_WASM_VERSION:latest}
+      install-dir: ${TIKEO_WORKER_WASM_INSTALL_DIR:}
+    scripts:
+      enabled: ${TIKEO_WORKER_SCRIPTS_ENABLED:true}
+      container-enabled: ${TIKEO_WORKER_CONTAINER_SCRIPTS_ENABLED:false}
+      runtime-command: ${TIKEO_WORKER_CONTAINER_RUNTIME:}
+      availability-check: ${TIKEO_WORKER_SCRIPT_RUNTIME_CHECK:true}
+      auto-install-tools: ${TIKEO_WORKER_SCRIPT_AUTO_INSTALL_TOOLS:true}
+      power-shell-install-version: ${TIKEO_WORKER_SCRIPT_POWERSHELL_VERSION:7.5.4}
+      power-shell-install-dir: ${TIKEO_WORKER_SCRIPT_POWERSHELL_INSTALL_DIR:}
+      images:
+        shell: ${TIKEO_WORKER_SCRIPT_SHELL_IMAGE:}
+        python: ${TIKEO_WORKER_SCRIPT_PYTHON_IMAGE:}
+        js: ${TIKEO_WORKER_SCRIPT_JAVASCRIPT_IMAGE:}
+        ts: ${TIKEO_WORKER_SCRIPT_TYPESCRIPT_IMAGE:}
+        powershell: ${TIKEO_WORKER_SCRIPT_POWERSHELL_IMAGE:}
+        php: ${TIKEO_WORKER_SCRIPT_PHP_IMAGE:}
+        groovy: ${TIKEO_WORKER_SCRIPT_GROOVY_IMAGE:}
+        rhai: ${TIKEO_WORKER_SCRIPT_RHAI_IMAGE:}
+
+  management:
+    enabled: ${TIKEO_MANAGEMENT_ENABLED:false}
+    endpoint: ${TIKEO_MANAGEMENT_ENDPOINT:http://127.0.0.1:9999}
+    api-key: ${TIKEO_MANAGEMENT_API_KEY:}
+    namespace: ${TIKEO_MANAGEMENT_NAMESPACE:default}
+    app: ${TIKEO_MANAGEMENT_APP:default}
 ```
+
+Worker 配置参考：
+
+| 配置项 | 示例环境变量 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `tikeo.worker.enabled` | `TIKEO_WORKER_ENABLED` | `true` | 启用 worker auto-configuration。 |
+| `tikeo.worker.auto-startup` | `TIKEO_WORKER_AUTO_STARTUP` | `true` | 随 Spring 应用生命周期启动/停止 worker。 |
+| `tikeo.worker.endpoint` | `TIKEO_WORKER_ENDPOINT` | `http://0.0.0.0:9998` | Worker Tunnel endpoint。部署时应设置为 worker 能访问到的 server/LB 地址。 |
+| `tikeo.worker.dry-run` | `TIKEO_WORKER_DRY_RUN` | `false` | 不打开真实 Worker Tunnel，用于本地配置冒烟测试。 |
+| `tikeo.worker.heartbeat-interval-millis` | `TIKEO_WORKER_HEARTBEAT_INTERVAL_MILLIS` | `10000` | Worker 心跳间隔，毫秒。 |
+| `tikeo.worker.client-instance-id` | `TIKEO_WORKER_CLIENT_INSTANCE_ID` | 空 | 可选稳定客户端实例 hint；为空时 SDK 按 scope/runtime identity 生成并持久化。 |
+| `tikeo.worker.state-dir` | `TIKEO_WORKER_STATE_DIR` | 空 → `~/.tikeo/workers` | 生成的 worker instance identity 状态目录。需要稳定身份时挂载/持久化。 |
+| `tikeo.worker.namespace` | `TIKEO_WORKER_NAMESPACE` | `default` | 注册 namespace。 |
+| `tikeo.worker.app` | `TIKEO_WORKER_APP` | `default` | 注册 app。 |
+| `tikeo.worker.cluster` | `TIKEO_WORKER_CLUSTER` | `default` | 注册 cluster 或环境分片。 |
+| `tikeo.worker.region` | `TIKEO_WORKER_REGION` | `default` | 注册 region/zone。 |
+| `tikeo.worker.capabilities` | YAML/list 配置 | `[]` | 用于路由和 worker discovery 的能力列表。 |
+| `tikeo.worker.labels` | YAML/map 配置 | `{}` | 自由标签，例如 `worker_pool`、`runtime`、`team`、`tier`。 |
+| `tikeo.worker.election.enabled` | `TIKEO_WORKER_ELECTION_ENABLED` | `true` | 启用 worker-cluster master election。 |
+| `tikeo.worker.election.domain` | `TIKEO_WORKER_ELECTION_DOMAIN` | 空 | 为空时使用 `namespace/app/cluster/region`；显式设置可隔离选主域。 |
+| `tikeo.worker.election.priority` | `TIKEO_WORKER_ELECTION_PRIORITY` | `100` | 确定性选主优先级；数值越小越优先。 |
+| `tikeo.worker.wasm.auto-install` | `TIKEO_WORKER_WASM_AUTO_INSTALL` | `true` | 缺少 Wasmtime 时自动安装。 |
+| `tikeo.worker.wasm.install-version` | `TIKEO_WORKER_WASM_VERSION` | `latest` | 传给 Wasmtime installer 的版本。 |
+| `tikeo.worker.wasm.install-dir` | `TIKEO_WORKER_WASM_INSTALL_DIR` | 空 → `~/.tikeo/sandbox-tools/wasmtime` | Wasmtime 安装目录。建议在 worker 镜像或卷中持久化，避免重复下载。 |
+| `tikeo.worker.scripts.enabled` | `TIKEO_WORKER_SCRIPTS_ENABLED` | `true` | 启用默认 sandbox 路径的动态脚本执行。 |
+| `tikeo.worker.scripts.container-enabled` | `TIKEO_WORKER_CONTAINER_SCRIPTS_ENABLED` | `false` | 启用可选的容器型语言 runner。 |
+| `tikeo.worker.scripts.runtime-command` | `TIKEO_WORKER_CONTAINER_RUNTIME` | 空 | Docker-compatible runtime 命令，例如 `docker` 或 `podman`。 |
+| `tikeo.worker.scripts.availability-check` | `TIKEO_WORKER_SCRIPT_RUNTIME_CHECK` | `true` | 广播能力前探测 runtime/tool 可用性。 |
+| `tikeo.worker.scripts.auto-install-tools` | `TIKEO_WORKER_SCRIPT_AUTO_INSTALL_TOOLS` | `true` | 缺少本地开发脚本工具时自动安装。生产镜像锁定时建议关闭。 |
+| `tikeo.worker.scripts.power-shell-install-version` | `TIKEO_WORKER_SCRIPT_POWERSHELL_VERSION` | `7.5.4` | 自动安装 PowerShell Core 的版本。 |
+| `tikeo.worker.scripts.power-shell-install-dir` | `TIKEO_WORKER_SCRIPT_POWERSHELL_INSTALL_DIR` | 空 → `~/.tikeo/sandbox-tools/pwsh` | PowerShell 安装/缓存目录。 |
+| `tikeo.worker.scripts.images.*` | `TIKEO_WORKER_SCRIPT_*_IMAGE` | 空 | 每种语言的容器镜像；为空表示禁用对应容器型语言镜像。 |
+
+Management client 配置：
+
+| 配置项 | 示例环境变量 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `tikeo.management.enabled` | `TIKEO_MANAGEMENT_ENABLED` | `false` | 启用 management/control-plane SDK client auto-configuration。 |
+| `tikeo.management.endpoint` | `TIKEO_MANAGEMENT_ENDPOINT` | `http://127.0.0.1:9999` | Management HTTP endpoint。Compose 示例里的 server HTTP 端口通常是 `9090`，真实部署请显式设置。 |
+| `tikeo.management.api-key` | `TIKEO_MANAGEMENT_API_KEY` | 空 | App-scoped API key；应放入 Secret store。 |
+| `tikeo.management.namespace` | `TIKEO_MANAGEMENT_NAMESPACE` | `default` | Management namespace scope。 |
+| `tikeo.management.app` | `TIKEO_MANAGEMENT_APP` | `default` | Management app scope。 |
+
+Java SDK 低层 sandbox tool installer 还识别这些覆盖项：
+
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `TIKEO_POWERSHELL_VERSION` | `7.5.4` | 低层 installer 的 PowerShell 版本 fallback。使用 Boot 时优先用上面的 Spring 配置项。 |
+| `TIKEO_POWERSHELL_DOWNLOAD_URL` | 对应版本/平台的 GitHub release archive URL | 离线/镜像环境下覆盖 PowerShell archive URL。 |
+| `TIKEO_POWERSHELL_INSTALL_TIMEOUT_MILLIS` | `120000` | 下载/解压超时。 |
 
 ### Rust / crates.io
 
 ```bash
-cargo add tikeo@0.2.0
+cargo add tikeo@<TIKEO_VERSION>
 ```
 
 ```toml
 [dependencies]
-tikeo = "0.2.0"
+tikeo = "<TIKEO_VERSION>"
 ```
 
 ### Go / Go module proxy
 
 ```bash
-go get github.com/yhyzgn/tikeo/sdks/go/tikeo@v0.2.0
+go get github.com/yhyzgn/tikeo/sdks/go/tikeo@v<TIKEO_VERSION>
 ```
 
 ```go
@@ -442,7 +547,7 @@ import "github.com/yhyzgn/tikeo/sdks/go/tikeo"
 ### Python / PyPI
 
 ```bash
-python -m pip install "tikeo==0.2.0"
+python -m pip install "tikeo==<TIKEO_VERSION>"
 ```
 
 ```python
@@ -454,14 +559,14 @@ from tikeo import Client, local_config
 Bun 是本仓库默认包管理/运行工具：
 
 ```bash
-bun add @yhyzgn/tikeo@0.2.0
+bun add @yhyzgn/tikeo@<TIKEO_VERSION>
 ```
 
 npm 和 pnpm 用户可以从公开 npm registry 安装同一个包：
 
 ```bash
-npm install @yhyzgn/tikeo@0.2.0
-pnpm add @yhyzgn/tikeo@0.2.0
+npm install @yhyzgn/tikeo@<TIKEO_VERSION>
+pnpm add @yhyzgn/tikeo@<TIKEO_VERSION>
 ```
 
 ```ts

@@ -11,6 +11,19 @@ Rust SDK 位于 `sdks/rust/tikeo`，可运行 Worker demo 位于 `examples/rust/
 
 Rust SDK 当前按 README 与 CI 声明的 Rust 1.95+ 基线维护。若未来调整 Rust toolchain，必须同步 SDK 文档、demo manifest、CI setup 和徽章，避免宣传与实际构建漂移。
 
+## 从 crates.io 安装
+
+将 `<TIKEO_VERSION>` 替换为 README 顶部 `Rust SDK` 徽标显示的版本号。Rust 使用不带 `v` 的版本字符串。
+
+```bash
+cargo add tikeo@<TIKEO_VERSION>
+```
+
+```toml
+[dependencies]
+tikeo = "<TIKEO_VERSION>"
+```
+
 ## 验证 SDK
 
 ```bash

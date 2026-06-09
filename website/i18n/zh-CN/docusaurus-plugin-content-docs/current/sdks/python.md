@@ -11,6 +11,18 @@ Python SDK 位于 `sdks/python/tikeo`，可运行 Worker demo 位于 `examples/p
 
 package 声明 `requires-python = ">=3.11"`，CI 使用 Python 3.12 验证。调整基线时，必须同步 `pyproject.toml`、CI matrix、README 徽章和文档站。
 
+## 从 PyPI 安装
+
+将 `<TIKEO_VERSION>` 替换为 README 顶部 `Python SDK` 徽标显示的版本号。PyPI 使用不带 `v` 的版本字符串。
+
+```bash
+python -m pip install "tikeo==<TIKEO_VERSION>"
+```
+
+```python
+from tikeo import Client, local_config
+```
+
 ## 验证 SDK
 
 ```bash
