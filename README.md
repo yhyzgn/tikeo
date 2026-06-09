@@ -499,6 +499,23 @@ Tikeo can run as Docker Compose services, direct binaries on conventional server
 or Kubernetes workloads. The server exposes the HTTP API/web proxy target on `9090` and the Worker
 Tunnel on `9998`; the web console container exposes port `80` internally.
 
+### Realtime console streams and proxies
+
+Tikeo Web uses Server-Sent Events (SSE) for realtime workflow timelines, instance logs, Worker
+cluster state, and dispatch queue updates. When the HTTP API is behind nginx, a load balancer, WAF,
+CDN, or Kubernetes Ingress, configure the network path for long-lived `text/event-stream` responses:
+
+- disable response buffering, proxy caching, and gzip/compression buffering for `/api/v1/**/stream`;
+- set read/idle timeouts well above the 15 second SSE keep-alive cadence; `60s` is a minimum and
+  `300s+` is safer for operator consoles;
+- do not use SSE endpoints for health checks; use `/readyz` or `/healthz`;
+- allow authenticated long-lived `GET` responses without `Content-Length`;
+- redact the `token` query parameter in proxy/LB/WAF logs because browser `EventSource` cannot send
+  an `Authorization` header and the Web console uses `?token=...` fallback.
+
+See the full [SSE realtime deployment notes](website/docs/deployment/sse-realtime.md) for nginx,
+load balancer, WAF, and Kubernetes Ingress examples.
+
 ### Docker Compose: SQLite default
 
 Use this for the fastest local product evaluation. It builds the server and web images locally unless

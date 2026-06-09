@@ -6,4 +6,5 @@ Start with:
 - /docs/
 - /docs/getting-started/quickstart
 - /docs/concepts/worker-tunnel
+- /docs/deployment/sse-realtime
 - /docs/reference/troubleshooting

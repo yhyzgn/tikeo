@@ -472,6 +472,18 @@ import { Client, WorkerConfig } from "@yhyzgn/tikeo";
 
 Tikeo 可以作为 Docker Compose 服务、传统服务器上的直接二进制、systemd 服务，或者 Kubernetes workload 运行。服务端在 `9090` 暴露 HTTP API/Web proxy 目标，在 `9998` 暴露 Worker Tunnel；Web 控制台容器内部监听 `80`。
 
+### 实时控制台流与代理配置
+
+Tikeo Web 使用 Server-Sent Events（SSE）刷新 workflow 时间线、实例日志、Worker 集群状态和调度队列。当 HTTP API 位于 nginx、负载均衡、WAF、CDN 或 Kubernetes Ingress 后面时，网络层必须允许长连接 `text/event-stream` 响应：
+
+- 对 `/api/v1/**/stream` 关闭 response buffering、proxy cache 和 gzip/compression 缓冲；
+- read/idle timeout 必须明显高于 15 秒 SSE keep-alive；`60s` 是实用下限，运维控制台建议 `300s+`；
+- 不要用 SSE endpoint 做健康检查；探针使用 `/readyz` 或 `/healthz`；
+- 允许没有 `Content-Length` 的认证长连接 `GET` 响应；
+- 在代理/LB/WAF 日志中脱敏 `token` query 参数，因为浏览器 `EventSource` 不能发送 `Authorization` header，Web 控制台会使用 `?token=...` fallback。
+
+nginx、负载均衡、WAF 与 Kubernetes Ingress 示例见 [SSE 实时刷新部署注意事项](website/i18n/zh-CN/docusaurus-plugin-content-docs/current/deployment/sse-realtime.md)。
+
 ### Docker Compose：SQLite 默认模式
 
 这是最快的本地产品评估路径。默认会在本地构建 server 和 web 镜像；也可以通过 `TIKEO_IMAGE` / `TIKEO_WEB_IMAGE` 覆盖为远程镜像。

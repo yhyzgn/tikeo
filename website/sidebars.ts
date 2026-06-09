@@ -38,6 +38,7 @@ const sidebars: SidebarsConfig = {
         'deployment/single-binary',
         'deployment/docker-compose',
         'deployment/kubernetes',
+        'deployment/sse-realtime',
       ],
     },
     {
