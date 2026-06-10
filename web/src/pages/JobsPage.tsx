@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { createJob, deleteJob, getJobSchedulingAdvice, listAppScopes, listCalendars, listJobs, listJobVersions, listNamespaces, listPlugins, listScripts, listWorkers, rollbackJob, triggerJob, updateJob, type AppScopeSummary, type BroadcastSelectorRequest, type CalendarSummary, type CreateJobRequest, type JobSchedulingAdvice, type JobSummary, type JobRetryPolicy, type NamespaceSummary, type PluginSummary, type JobVersionSummary, type ScriptSummary, type UpdateJobRequest, type WorkerSummary } from '../api/client';
+import { createJob, deleteJob, getJobSchedulingAdvice, listAppScopes, listCalendars, listJobs, listJobVersions, listNamespaces, listPlugins, listScripts, listWorkers, rollbackJob, triggerJob, updateJob, workerStreamUrl, type AppScopeSummary, type BroadcastSelectorRequest, type CalendarSummary, type CreateJobRequest, type JobSchedulingAdvice, type JobSummary, type JobRetryPolicy, type NamespaceSummary, type PluginSummary, type JobVersionSummary, type ScriptSummary, type UpdateJobRequest, type WorkerListResponse, type WorkerSummary } from '../api/client';
 import { PermissionGate, useCan } from '../components/Permission';
 import { ROUTE_META } from '../routes';
 import { useRouteActive } from '../hooks/useRouteActivation';
@@ -34,6 +34,10 @@ type JobFormValues = Omit<CreateJobRequest & UpdateJobRequest, 'scheduleStartAt'
   scheduleCalendarRef?: string | null;
   scheduleStartAt?: unknown;
   scheduleEndAt?: unknown;
+};
+
+type WorkerStreamSnapshot = {
+  workers: WorkerListResponse;
 };
 
 export function JobsPage() {
@@ -108,6 +112,20 @@ export function JobsPage() {
   }, []);
 
   useEffect(() => { if (active) void load(); }, [active, load]);
+
+  useEffect(() => {
+    if (!active) return undefined;
+    const source = new EventSource(workerStreamUrl());
+    source.addEventListener('workers.snapshot', (event) => {
+      try {
+        const snapshot = JSON.parse((event as MessageEvent).data) as WorkerStreamSnapshot;
+        setWorkers(snapshot.workers.items);
+      } catch {
+        // Ignore malformed stream frames; initial load/manual refresh keep processor choices usable.
+      }
+    });
+    return () => source.close();
+  }, [active]);
 
   const namespaceOptions = useMemo(() => namespaces
     .map((namespace) => ({ value: namespace.name, label: namespace.name }))

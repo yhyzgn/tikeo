@@ -10,6 +10,14 @@ const stylesSource = readFileSync(new URL('../../styles.css', import.meta.url), 
 
 
 describe('job schedule form governance', () => {
+
+  test('keeps SDK processor options live from worker SSE snapshots', () => {
+    expect(source).toContain('workerStreamUrl');
+    expect(source).toContain('new EventSource(workerStreamUrl())');
+    expect(source).toContain("source.addEventListener('workers.snapshot'");
+    expect(source).toContain('setWorkers(snapshot.workers.items);');
+    expect(source).toContain('return () => source.close();');
+  });
   test('uses structured schedule fields instead of one free-form expression for every schedule type', () => {
     expect(source).toContain('API 手动触发任务不会配置调度表达式');
     expect(source).toContain('fixedRateValue');
