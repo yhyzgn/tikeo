@@ -10,8 +10,8 @@
 
 ## Immediate next slice
 
-1. Verify docs image publishing on a release/manual workflow run when Docker Hub credentials and tag/ref are available; record the Docker Hub digest for `yhyzgn/tikeo-docs`.
-2. If publish credentials/tag are unavailable, continue acceptance on newly discovered runtime gaps only; explicitly record blockers rather than inventing completion.
+1. Trigger `Publish / Docker docs` on a current ref/tag and record the Docker Hub digest for `yhyzgn/tikeo-docs`. Existing Docker Hub secrets are likely already available because `Publish / Docker server` and `Publish / Docker web` have succeeded; the docs workflow itself just has not published an image from the new `docs/` module yet.
+2. If no release tag should be created yet, use manual workflow dispatch with a non-release image tag such as `main-<short-sha>` and `ref=main`; otherwise create/push the intended release tag. Continue acceptance on newly discovered runtime gaps only.
 3. 迁移工具（PowerJob/XXL-JOB）仍维持最低优先级 backlog，核心服务体验稳定后再做。
 
 ## Current verified baseline

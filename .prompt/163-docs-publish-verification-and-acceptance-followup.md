@@ -21,8 +21,8 @@
 
 ## Suggested next slice
 
-1. Verify docs image publishing through release/manual workflow when Docker Hub credentials and a tag/ref are available. Record the digest for `yhyzgn/tikeo-docs`.
-2. If no publish credentials/tag are available, continue acceptance on newly discovered real gaps only; avoid reworking completed docs rename, runbook, search, SEO, or user-guide slices.
+1. Trigger `Publish / Docker docs` through workflow_dispatch or a new release tag on a current ref, then record the digest for `yhyzgn/tikeo-docs`. Existing Docker Hub secrets are likely already configured because server/web Docker publish workflows have succeeded.
+2. If no release tag should be created yet, use a manual image tag such as `main-<short-sha>` with `ref=main`; avoid reworking completed docs rename, runbook, search, SEO, or user-guide slices.
 
 ## Verification entrypoint
 

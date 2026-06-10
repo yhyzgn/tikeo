@@ -2762,4 +2762,4 @@ Verification:
 
 Notes:
 - Live Nginx/Envoy Gateway/Traefik/Gateway API controller smoke requires a Kubernetes cluster with those controllers/CRDs installed. This environment does not currently have `helm` / `.dev/tools/helm`, so local controller verification is source-backed docs contract plus deploy bootstrap/artifact contract tests rather than Helm render output.
-- Live Docker Hub digest for `yhyzgn/tikeo-docs` remains release/manual workflow credential-gated.
+- Live Docker Hub digest for `yhyzgn/tikeo-docs` remains workflow-trigger-gated rather than newly credential-gated: server/web Docker publish workflows have already succeeded, so the next step is dispatching `Publish / Docker docs` on a current ref/tag and recording the digest.

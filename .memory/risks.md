@@ -111,5 +111,5 @@
 
 ## 2026-06-10 — Docs publish and live controller verification gap
 
-- Docs publish workflow and docs Docker image build are implemented and locally verified, but live Docker Hub digest recording for `yhyzgn/tikeo-docs` requires a release/manual workflow with Docker Hub credentials.
+- Docs publish workflow and docs Docker image build are implemented and locally verified. `Publish / Docker server` and `Publish / Docker web` have already succeeded in GitHub Actions, so new Docker Hub credentials are not expected; the remaining gap is to trigger `Publish / Docker docs` on a current ref/tag and record the pushed `yhyzgn/tikeo-docs` digest.
 - Kubernetes controller-specific runbooks are source-backed by committed Helm values/templates and include smoke commands for Nginx Ingress, Envoy Gateway, Traefik, and Gateway API; live controller acceptance still depends on an external cluster with the corresponding controllers/CRDs installed.
