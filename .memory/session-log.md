@@ -2053,7 +2053,7 @@ Agent:
 - Codex
 
 Work:
-- Added a compact README console tour GIF derived from the final English promotional walkthrough: `docs/assets/tikeo-console-tour.gif`.
+- Added a compact README console tour GIF derived from the final English promotional walkthrough: `assets/docs/tikeo-console-tour.gif`.
 - Updated English and Chinese README first-fold messaging with a sharper value hook, demo GIF, quick evaluation links, support note, and Star History chart.
 - Added open-source project hygiene files: `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`, and `ROADMAP.md`.
 - Added GitHub pull request and issue templates for bug reports and feature requests.
@@ -2188,13 +2188,13 @@ Work:
 - Kept direct `codecov-cli upload-process` for all uploads because the earlier Codecov GitHub Action path failed remotely during GPG validation while the token itself was already verified.
 - Enabled Java SDK JaCoCo XML generation in `sdks/java/build.gradle.kts` for every Java library submodule.
 - Changed README/Chinese README coverage badge from the Rust flag badge to the overall Codecov branch badge, matching the new full-project upload intent.
-- Generated `docs/assets/tikeo-logo-breathe.gif` from the Web breathing/logo motion treatment and replaced the static README logo in both README files.
+- Generated `assets/docs/tikeo-logo-breathe.gif` from the Web breathing/logo motion treatment and replaced the static README logo in both README files.
 
 Verification:
 - YAML parse passed for `.github/workflows/coverage.yml` with jobs `rust, web, java, go, python, nodejs`.
 - `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` passed: 16 external actions checked, no runtime below Node 24.
 - README checks passed: animated logo path present, general Codecov badge present, Rust flag badge removed, runtime requirement badges remain above SDK version badges.
-- GIF check passed: `docs/assets/tikeo-logo-breathe.gif` is GIF89a, 220x220, 404314 bytes.
+- GIF check passed: `assets/docs/tikeo-logo-breathe.gif` is GIF89a, 220x220, 404314 bytes.
 - `git diff --check` passed before memory update.
 - Web coverage generation passed: `cd web && bun test src --coverage --coverage-reporter=lcov --coverage-dir=../coverage/web` with 117 tests passing and `coverage/web/lcov.info` produced.
 - Node.js SDK coverage generation passed: `cd sdks/nodejs/tikeo && bun test --coverage --coverage-reporter=lcov --coverage-dir=../../../coverage/nodejs-sdk` with 14 tests passing and `coverage/nodejs-sdk/lcov.info` produced.
@@ -2361,19 +2361,19 @@ Agent:
 - Codex
 
 Work:
-- Created `website/` as a Docusaurus 3.10.1 TypeScript docs app using Bun.
+- Created `docs/` as a Docusaurus 3.10.1 TypeScript docs app using Bun.
 - Replaced template content with Tikeo homepage, navbar/footer, sidebar IA, Phase A P0 English docs pages, starter `zh-CN` translations, a release-note blog entry, and static `llms.txt` / `llms-full.txt` entrypoints.
 - Reused existing project assets: breathing logo GIF, architecture SVGs, and console tour GIF.
 - Added `.github/tests/docs_site_contract_test.py` to lock the docs scaffold contract.
 - Updated `design/docs-site-build-plan.md`, `.memory/commands.md`, `.memory/progress.md`, `.memory/next.md`, and `.prompt/153-docs-site-content-followup.md`.
 
 Verification:
-- RED: `python3 .github/tests/docs_site_contract_test.py` failed before `website/` existed.
+- RED: `python3 .github/tests/docs_site_contract_test.py` failed before `docs/` existed.
 - GREEN: `python3 .github/tests/docs_site_contract_test.py` passed after scaffold implementation.
 - `python3 scripts/check-source-size.py` passed.
-- `bun install --frozen-lockfile` passed in `website/`.
-- `bun run docs:typecheck` passed in `website/`.
-- `bun run docs:build` passed in `website/`, generating English and `zh-CN` static output.
+- `bun install --frozen-lockfile` passed in `docs/`.
+- `bun run docs:typecheck` passed in `docs/`.
+- `bun run docs:build` passed in `docs/`, generating English and `zh-CN` static output.
 - Docs serve smoke passed at port `13030` for `/`, `/docs/`, `/zh-CN/docs/`, `/docs/getting-started/quickstart`, and `/llms.txt`.
 
 Git:
@@ -2381,14 +2381,14 @@ Git:
 
 ### 2026-06-08 — Docs P0 content depth, full zh-CN route mirror, and complete SDK list
 - Expanded the standalone docs site P0 pages beyond scaffold-level summaries: overview, installation, quickstart, seed demo data, Worker Tunnel, workflows, Rust/Go/Java SDKs, Docker Compose, Kubernetes/Helm, integrations, configuration, and troubleshooting now contain evaluation-oriented guidance tied to repository behavior.
-- Added missing Python and Node.js SDK pages to `website/docs/sdks/` and the docs sidebar, so the docs list all current SDK families: Rust, Go, Java Spring Boot, Python, and Node.js.
+- Added missing Python and Node.js SDK pages to `docs/docs/sdks/` and the docs sidebar, so the docs list all current SDK families: Rust, Go, Java Spring Boot, Python, and Node.js.
 - Filled zh-CN counterparts for every current P0 docs route, including all SDK pages, fixing the Chinese 404 gap caused by partial localization.
 - Strengthened `.github/tests/docs_site_contract_test.py` so every P0 English route must have enough evaluation depth, every P0 route must have a zh-CN file, and zh-CN files must contain real localized depth instead of placeholder summaries.
 - Updated `design/docs-site-build-plan.md` to mark Phase B P0 content and Phase C current-route localization as implemented; deployment target remains undecided.
 Verification evidence:
 - `python3 .github/tests/docs_site_contract_test.py` passed.
 - `python3 scripts/check-source-size.py` passed.
-- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed.
+- `cd docs && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed.
 - Docs serve smoke on port `13031` passed for `/zh-CN/docs/`, `/zh-CN/docs/getting-started/installation`, `/zh-CN/docs/sdks/rust`, `/zh-CN/docs/sdks/python`, `/zh-CN/docs/sdks/nodejs`, `/zh-CN/docs/deployment/kubernetes`, and `/zh-CN/docs/reference/troubleshooting`.
 - `python3 .github/tests/workflow_contract_test.py` passed; workflow YAML parse passed; `git diff --check` passed.
 Verification gap:
@@ -2403,7 +2403,7 @@ Verification gap:
 Verification evidence:
 - `python3 .github/tests/docs_site_contract_test.py` passed with 8 tests.
 - `python3 scripts/check-source-size.py` passed.
-- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed with default `/tikeo/` baseUrl.
+- `cd docs && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed with default `/tikeo/` baseUrl.
 - Generated HTML contains `/tikeo/zh-CN/...` language-switch links for docs root, deployment/kubernetes, and homepage.
 - Default subpath serve smoke on port `13032` passed for `/tikeo/`, `/tikeo/docs/`, `/tikeo/zh-CN/`, `/tikeo/zh-CN/docs/`, and zh-CN deployment/config routes.
 - Custom root build with `TIKEO_DOCS_URL=http://127.0.0.1:13033 TIKEO_DOCS_BASE_URL=/` passed; generated HTML contains `/zh-CN/...` links; root serve smoke on port `13033` passed.
@@ -2416,7 +2416,7 @@ Verification evidence:
 Verification evidence:
 - `python3 .github/tests/docs_site_contract_test.py` passed with 8 tests.
 - `python3 scripts/check-source-size.py` passed.
-- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed with default root baseUrl.
+- `cd docs && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed with default root baseUrl.
 - Generated root HTML contains `/zh-CN/...` language links; root serve smoke on port `13036` passed for `/zh-CN/`, `/zh-CN/docs/`, `/zh-CN/docs/deployment/docker-compose`, and `/zh-CN/docs/deployment/kubernetes`.
 - GitHub Pages subpath build with `TIKEO_DOCS_URL=https://yhyzgn.github.io TIKEO_DOCS_BASE_URL=/tikeo/` generated `/tikeo/zh-CN/...` links; subpath serve smoke on port `13037` passed.
 - `python3 .github/tests/workflow_contract_test.py` passed; workflow YAML parse passed; `git diff --check` passed.
@@ -2429,7 +2429,7 @@ Verification evidence:
 Verification evidence:
 - `python3 .github/tests/docs_site_contract_test.py` passed with 10 tests.
 - `python3 scripts/check-source-size.py` passed.
-- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed.
+- `cd docs && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed.
 - Generated HTML grep confirmed root homepage has English headline and no Chinese headline; zh-CN homepage has Chinese headline and no English headline; English docs sidebar remains English; zh-CN docs sidebar/footer are localized; English release remains English; zh-CN release is Chinese.
 - Serve smoke on port `13039` confirmed `/`, `/zh-CN/`, `/zh-CN/docs/deployment/docker-compose`, and `/zh-CN/releases/docs-site-scaffold` render with expected locale isolation.
 
@@ -2454,7 +2454,7 @@ Verification:
 - `cargo test --workspace --all-features` ✅
 - `cargo build --workspace --all-features` ✅
 - `bun run --cwd web lint` / `typecheck` / `test` / `build` ✅
-- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` ✅
+- `cd docs && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` ✅
 - `cd sdks/java && ./gradlew test jar sourcesJar --no-daemon` ✅
 - `cd sdks/rust/tikeo && cargo check --all-features && cargo test --all-features` ✅
 - `cd sdks/go/tikeo && go test ./... -count=1` ✅
@@ -2590,13 +2590,13 @@ Agent:
 Work:
 - Added a dedicated `Docs site` job to the main `.github/workflows/ci.yml`, gated by `workflow-policy`.
 - The job validates docs with `.github/tests/docs_site_contract_test.py`, frozen Bun dependency install, Docusaurus TypeScript check, and Docusaurus build.
-- Added workflow contract coverage for the new job and docs contract coverage to prevent `website/bun.lock` from depending on private registry tarball URLs.
+- Added workflow contract coverage for the new job and docs contract coverage to prevent `docs/bun.lock` from depending on private registry tarball URLs.
 - Rewrote docs lockfile tarball URLs from the private Nexus host to `https://registry.npmjs.org/` while preserving locked versions and integrity hashes.
 - Updated architecture roadmap, memory, and follow-up prompt so the next docs work can focus on SDK/reference depth and publishing/search readiness.
 
 Verification:
 - RED observed before CI wiring: `python3 .github/tests/workflow_contract_test.py -k test_ci_runs_docs_site_verification` failed with `job not found: docs-site`.
-- RED observed before lockfile fix: `python3 .github/tests/docs_site_contract_test.py -k test_docs_lockfile_uses_public_registry_for_ci` failed because `website/bun.lock` contained `nexus3.recycloud.cn`.
+- RED observed before lockfile fix: `python3 .github/tests/docs_site_contract_test.py -k test_docs_lockfile_uses_public_registry_for_ci` failed because `docs/bun.lock` contained `nexus3.recycloud.cn`.
 - `python3 .github/tests/workflow_contract_test.py -k test_ci_runs_docs_site_verification` ✅
 - `python3 .github/tests/docs_site_contract_test.py -k test_docs_lockfile_uses_public_registry_for_ci` ✅
 - `python3 .github/tests/workflow_contract_test.py` ✅
@@ -2604,7 +2604,7 @@ Verification:
 - `python3 scripts/check-source-size.py` ✅
 - `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` ✅
 - `.github/workflows/*.yml` YAML parse ✅
-- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` ✅
+- `cd docs && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` ✅
 - `git diff --check` ✅
 
 Notes:
@@ -2630,7 +2630,7 @@ Work:
 - Added follow-up prompt `.prompt/159-docs-reference-and-management-e2e-followup.md` for the next docs/e2e slice.
 
 Verification:
-- RED observed before docs update: `python3 .github/tests/docs_site_contract_test.py -k test_sdk_docs_include_source_backed_management_create_trigger_examples` failed because `website/docs/sdks/rust.md` lacked `x-tikeo-api-key` and the new source-backed examples.
+- RED observed before docs update: `python3 .github/tests/docs_site_contract_test.py -k test_sdk_docs_include_source_backed_management_create_trigger_examples` failed because `docs/docs/sdks/rust.md` lacked `x-tikeo-api-key` and the new source-backed examples.
 - RED observed before Java helper implementation: `./sdks/java/gradlew -p sdks/java :tikeo:test --tests net.tikeo.management.client.HttpTikeoJobClientTest.supportsExplicitBroadcastApiTriggerSelector --no-daemon` failed to compile because `BroadcastSelectorRequest` did not exist.
 - `./sdks/java/gradlew -p sdks/java :tikeo:test --tests net.tikeo.management.client.HttpTikeoJobClientTest.supportsExplicitBroadcastApiTriggerSelector --no-daemon` ✅
 - `python3 .github/tests/docs_site_contract_test.py -k test_sdk_docs_include_source_backed_management_create_trigger_examples` ✅
@@ -2640,7 +2640,7 @@ Verification:
 - `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` ✅
 - `git diff --check` ✅
 - `./sdks/java/gradlew -p sdks/java test --no-daemon` ✅
-- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` ✅
+- `cd docs && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` ✅
 
 Notes:
 - The docs slice did not change Docusaurus routing/baseUrl behavior, so route serve smoke was not required for this slice.
@@ -2692,7 +2692,7 @@ Work:
 - Recorded the user's acceptance-stage rigor/context freshness directive in `~/.codex/CONSTITUTION.md`, OMX project memory/notepad, and `.memory/decisions.md`.
 
 Verification:
-- RED observed before reference implementation: `python3 .github/tests/docs_site_contract_test.py DocsSiteContractTest.test_reference_docs_are_source_backed_for_openapi_and_worker_proto DocsSiteContractTest.test_sdk_docs_link_helpers_to_exact_reference_anchors` failed because `website/docs/reference/management-openapi.md` was missing and SDK docs lacked exact reference links.
+- RED observed before reference implementation: `python3 .github/tests/docs_site_contract_test.py DocsSiteContractTest.test_reference_docs_are_source_backed_for_openapi_and_worker_proto DocsSiteContractTest.test_sdk_docs_link_helpers_to_exact_reference_anchors` failed because `docs/docs/reference/management-openapi.md` was missing and SDK docs lacked exact reference links.
 - `python3 .github/tests/docs_site_contract_test.py DocsSiteContractTest.test_reference_docs_are_source_backed_for_openapi_and_worker_proto DocsSiteContractTest.test_sdk_docs_link_helpers_to_exact_reference_anchors` ✅
 - `python3 .github/tests/workflow_contract_test.py` ✅
 - `python3 .github/tests/docs_site_contract_test.py` ✅
@@ -2701,8 +2701,38 @@ Verification:
 - `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` ✅
 - `.github/workflows/*.yml` YAML parse ✅
 - `git diff --check` ✅
-- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` ✅; build output was checked for absence of `broken anchor` warnings.
+- `cd docs && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` ✅; build output was checked for absence of `broken anchor` warnings.
 
 Notes:
 - First Docusaurus build surfaced a real MDX expression failure from bare `{job}` / `{instance}` in link text; this was fixed with MDX-safe code spans.
 - A later build surfaced Docusaurus broken-anchor warnings because raw `<a id=...>` anchors were not recognized by the anchor checker; headings were changed to stable generated-anchor text and reverified.
+
+## 2026-06-10 — Docs module migration and Docker publishing
+
+Agent:
+- Codex
+
+Work:
+- Migrated the Docusaurus docs site from `website/` to `docs/` after moving old top-level docs media assets to `assets/docs/`.
+- Added docs Docker image build files: `docs/Dockerfile`, `docs/nginx/nginx.conf`, and `docs/nginx/default.conf`.
+- Added split Docker publish workflow `.github/workflows/publish-docker-docs.yml` targeting `yhyzgn/tikeo-docs` and CI docs Docker build validation with `push: false`.
+- Updated README, release setup, docs installation pages, design docs, memory, and prompt handoff references to the new `docs/` module boundary.
+- Completed pending docs publishing/search/SEO/user-guide work with robots.txt, search-index.json, OpenGraph image, llms entrypoints, and source-backed English/zh-CN user guides.
+
+Verification:
+- RED observed before migration: `python3 .github/tests/docs_site_contract_test.py` failed because `docs/package.json`, docs pages, docs Dockerfile, moved assets, and user-guide/search/SEO files were missing under the new layout.
+- RED observed before publishing workflow: `python3 .github/tests/workflow_contract_test.py` failed because `.github/workflows/publish-docker-docs.yml` did not exist.
+- RED observed before local search implementation: `python3 .github/tests/docs_site_contract_test.py DocsSiteContractTest.test_docs_publishing_search_and_seo_readiness` failed because `docs/src/pages/search.tsx` was missing.
+- `python3 .github/tests/workflow_contract_test.py` ✅
+- `python3 .github/tests/docs_site_contract_test.py` ✅
+- `python3 .github/tests/management_smoke_contract_test.py` ✅
+- `python3 scripts/check-source-size.py` ✅
+- `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` ✅
+- `.github/workflows/*.yml` YAML parse ✅
+- `git diff --check` ✅
+- `cd docs && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` ✅; final build output checked for no `broken anchor` warnings.
+- `docker build -f docs/Dockerfile docs -t tikeo-docs:local` ✅
+- Docs container smoke ✅: `/healthz`, `/docs/`, `/zh-CN/docs/`, `/search/`, `/robots.txt`, and `/search-index.json` returned expected content. `/search` redirects to canonical `/search/` under Docusaurus/nginx.
+
+Git:
+- Commit/push pending at time of memory update; final response should record hash and push status.

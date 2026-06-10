@@ -575,12 +575,12 @@ import yaml
 assert 'jobs' in yaml.safe_load(Path('.github/workflows/coverage.yml').read_text())
 for readme in [Path('README.md'), Path('README.zh-CN.md')]:
     text = readme.read_text()
-    assert 'docs/assets/tikeo-logo-breathe.gif' in text
+    assert 'assets/docs/tikeo-logo-breathe.gif' in text
     assert 'https://codecov.io/gh/yhyzgn/tikeo/branch/main/graph/badge.svg"' in text
     assert 'flag=rust' not in text
     assert text.index('alt="Java 17+"') < text.index('alt="Java core SDK"') < text.index('alt="Rust SDK"')
 PY
-file docs/assets/tikeo-logo-breathe.gif
+file assets/docs/tikeo-logo-breathe.gif
 git diff --check
 
 cd web && bun test src --coverage --coverage-reporter=lcov --coverage-dir=../coverage/web
@@ -632,7 +632,7 @@ python3 scripts/check-source-size.py
 
 ```bash
 python3 .github/tests/docs_site_contract_test.py
-cd website
+cd docs
 bun install --frozen-lockfile
 bun run docs:typecheck
 bun run docs:build
@@ -661,10 +661,30 @@ for path in sorted(Path('.github/workflows').glob('*.yml')):
         yaml.safe_load(fh)
 print('workflow YAML parse OK')
 PY
-cd website
+cd docs
 bun install --frozen-lockfile
 bun run docs:typecheck
 bun run docs:build
 ```
 
-Docs lockfile guard: `website/bun.lock` must use public `https://registry.npmjs.org/` tarball URLs so GitHub Actions docs verification does not depend on private npm proxy credentials.
+Docs lockfile guard: `docs/bun.lock` must use public `https://registry.npmjs.org/` tarball URLs so GitHub Actions docs verification does not depend on private npm proxy credentials.
+
+## 2026-06-10 docs module and Docker image verification
+
+The Docusaurus docs site module now lives in `docs/` and publishes as `yhyzgn/tikeo-docs`.
+
+```bash
+python3 .github/tests/workflow_contract_test.py
+python3 .github/tests/docs_site_contract_test.py
+python3 .github/tests/management_smoke_contract_test.py
+python3 scripts/check-source-size.py
+python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24
+cd docs
+bun install --frozen-lockfile
+bun run docs:typecheck
+bun run docs:build
+cd ..
+docker build -f docs/Dockerfile docs -t tikeo-docs:local
+```
+
+Docs lockfile guard: `docs/bun.lock` must use public `https://registry.npmjs.org/` tarball URLs so GitHub Actions docs verification does not depend on private npm proxy credentials.

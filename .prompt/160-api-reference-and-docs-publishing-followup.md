@@ -71,7 +71,7 @@ python3 .github/tests/management_smoke_contract_test.py
 python3 scripts/check-source-size.py
 python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24
 git diff --check
-cd website
+cd docs
 bun install --frozen-lockfile
 bun run docs:typecheck
 bun run docs:build

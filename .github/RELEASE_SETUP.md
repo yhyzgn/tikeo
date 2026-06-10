@@ -10,6 +10,7 @@ The repository uses one validation lane plus independent publish lanes. Normal d
 | GitHub assets | `.github/workflows/release-github-assets.yml` | `v*` tag or manual dispatch | Cross-platform server archives, web dist archive, Terraform provider binaries, K8s operator binaries, CRD/manifests, Helm chart, and deploy source package. |
 | Docker server | `.github/workflows/publish-docker-server.yml` | `v*` tag or manual dispatch | `yhyzgn/tikeo-server`. |
 | Docker web | `.github/workflows/publish-docker-web.yml` | `v*` tag or manual dispatch | `yhyzgn/tikeo-web`. |
+| Docker docs | `.github/workflows/publish-docker-docs.yml` | `v*` tag or manual dispatch | `yhyzgn/tikeo-docs`. |
 | Java SDK | `.github/workflows/publish-java-sdk.yml` | `v*` tag or manual dispatch | Java SDK modules to Maven Central plus GitHub Release tarball. |
 | Rust SDK | `.github/workflows/publish-rust-sdk.yml` | `v*` tag or manual dispatch | Rust SDK crate to crates.io plus GitHub Release tarball. |
 | Node.js SDK | `.github/workflows/publish-nodejs-sdk.yml` | `v*` tag or manual dispatch | `@yhyzgn/tikeo` to npm plus GitHub Release tarball. |
@@ -42,6 +43,7 @@ Create or grant access to these Docker Hub repositories before the first Docker 
 
 - `yhyzgn/tikeo-server`
 - `yhyzgn/tikeo-web`
+- `yhyzgn/tikeo-docs`
 
 ## Tag release procedure
 
@@ -58,7 +60,7 @@ Pushing a `v*` tag starts each independent publish workflow. If a registry publi
 
 - Push/PR workflows intentionally do not publish releases or push images.
 - GitHub asset release does not log in to Docker Hub or publish package registries.
-- Docker server and Docker web are separate workflows and do not build/push each other.
+- Docker server, Docker web, and Docker docs are separate workflows and do not build/push each other.
 - SDK publishing workflows are separate by language and can be rerun independently when the target version has not already been published.
 - Terraform Provider, K8s operator, CRD, manifest, and Helm chart are currently released as GitHub Release assets only.
 - Add new publish destinations as separate workflows unless they must share a transaction boundary.

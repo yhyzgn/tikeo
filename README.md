@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/tikeo-logo-breathe.gif" alt="Tikeo animated logo" width="148" height="148" />
+  <img src="assets/docs/tikeo-logo-breathe.gif" alt="Tikeo animated logo" width="148" height="148" />
 </p>
 
 <h1 align="center">Tikeo</h1>
@@ -31,14 +31,14 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/tikeo-console-tour.gif" alt="Tikeo console tour: dashboard, workers, jobs, and governance" width="960" />
+  <img src="assets/docs/tikeo-console-tour.gif" alt="Tikeo console tour: dashboard, workers, jobs, and governance" width="960" />
 </p>
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#tikeo-vs-xxl-job-vs-powerjob">Compare with XXL-Job / PowerJob</a> ·
   <a href="examples/README.md">Run worker demos</a> ·
-  <a href="docs/assets/tikeo-architecture.en.svg">Architecture diagram</a>
+  <a href="assets/docs/tikeo-architecture.en.svg">Architecture diagram</a>
 </p>
 
 <p align="center">
@@ -69,6 +69,7 @@
 <p align="center">
   <a href="https://hub.docker.com/r/yhyzgn/tikeo-server"><img alt="Server image" src="https://img.shields.io/docker/v/yhyzgn/tikeo-server?sort=semver&style=flat-square&label=server%20image&logo=docker&logoColor=white&color=2496ED" /></a>
   <a href="https://hub.docker.com/r/yhyzgn/tikeo-web"><img alt="Web image" src="https://img.shields.io/docker/v/yhyzgn/tikeo-web?sort=semver&style=flat-square&label=web%20image&logo=docker&logoColor=white&color=2496ED" /></a>
+  <a href="https://hub.docker.com/r/yhyzgn/tikeo-docs"><img alt="Docs image" src="https://img.shields.io/docker/v/yhyzgn/tikeo-docs?sort=semver&style=flat-square&label=docs%20image&logo=docker&logoColor=white&color=2496ED" /></a>
   <img alt="Sandbox" src="https://img.shields.io/badge/sandbox-SRT%20%7C%20Deno%20%7C%20WASM%20%7C%20V8-7c3aed?style=flat-square" />
   <img alt="Databases" src="https://img.shields.io/badge/storage-SQLite%20%7C%20Postgres%20%7C%20MySQL-0891b2?style=flat-square" />
   <img alt="Observability" src="https://img.shields.io/badge/observability-OpenTelemetry-0f766e?style=flat-square" />
@@ -234,7 +235,7 @@ If your scheduler shortlist includes these requirements, Tikeo should move to th
 ## Architecture
 
 <p align="center">
-  <img src="docs/assets/tikeo-architecture.en.svg" alt="Tikeo architecture diagram" width="100%" />
+  <img src="assets/docs/tikeo-architecture.en.svg" alt="Tikeo architecture diagram" width="100%" />
 </p>
 
 The server owns scheduling, persistence, governance, RBAC, workflows, and dispatch decisions. Workers
@@ -733,7 +734,7 @@ CDN, or Kubernetes Ingress, configure the network path for long-lived `text/even
 - redact the `token` query parameter in proxy/LB/WAF logs because browser `EventSource` cannot send
   an `Authorization` header and the Web console uses `?token=...` fallback.
 
-See the full [SSE realtime deployment notes](website/docs/deployment/sse-realtime.md) for nginx,
+See the full [SSE realtime deployment notes](docs/docs/deployment/sse-realtime.md) for nginx,
 load balancer, WAF, and Kubernetes Ingress examples.
 
 ### Docker Compose: SQLite default

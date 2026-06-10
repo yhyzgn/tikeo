@@ -4,7 +4,7 @@
 
 The standalone docs site has a verified P0 content/localization/deployment baseline:
 
-- Docusaurus 3.10.1 TypeScript + Bun app in `website/`.
+- Docusaurus 3.10.1 TypeScript + Bun app in `docs/`.
 - Default docs deployment target is a standalone-root site (`baseUrl=/`) so `/zh-CN/` works without subpath hosting rewrites.
 - GitHub Pages project hosting is supported with `TIKEO_DOCS_URL=https://yhyzgn.github.io` and `TIKEO_DOCS_BASE_URL=/tikeo/`; default builds stay root-based for standalone docs hosting.
 - English P0 docs have contract-enforced minimum evaluation depth.
@@ -13,7 +13,7 @@ The standalone docs site has a verified P0 content/localization/deployment basel
 - Deployment docs include copy-paste runbooks for single binary/systemd, full Docker Compose SQLite/PostgreSQL/MySQL YAML files, Helm dev/prod/TLS/ops overlays, and configuration parameters.
 - Local root `/` and optional `/tikeo/` builds/serve smokes are green for zh-CN language-switch routes; locale-isolation smoke confirms `/` remains English and `/zh-CN/` is Chinese.
 - Main CI now has a dedicated `Docs site` job that runs docs contract, frozen Bun install, Docusaurus typecheck, and Docusaurus build.
-- `website/bun.lock` uses public `https://registry.npmjs.org/` tarball URLs and docs contract tests reject private registry hosts, so CI docs verification does not need private npm proxy credentials.
+- `docs/bun.lock` uses public `https://registry.npmjs.org/` tarball URLs and docs contract tests reject private registry hosts, so CI docs verification does not need private npm proxy credentials.
 
 ## Recommended next slice
 
@@ -47,7 +47,7 @@ Before committing any next docs slice, run:
 python3 .github/tests/docs_site_contract_test.py
 python3 .github/tests/workflow_contract_test.py
 python3 scripts/check-source-size.py
-cd website
+cd docs
 bun install --frozen-lockfile
 bun run docs:typecheck
 bun run docs:build
@@ -55,10 +55,10 @@ bun run docs:build
 
 For route/baseUrl changes, also run `bun run docs:serve` and curl affected English and zh-CN routes under both `/tikeo/` and `/` when relevant.
 
-Also keep `website/bun.lock` free of private registry tarball URLs before pushing:
+Also keep `docs/bun.lock` free of private registry tarball URLs before pushing:
 
 ```bash
-rg "nexus3\\.recycloud\\.cn|repository/npm-public" website/bun.lock
+rg "nexus3\\.recycloud\\.cn|repository/npm-public" docs/bun.lock
 ```
 
 Expected: no matches.

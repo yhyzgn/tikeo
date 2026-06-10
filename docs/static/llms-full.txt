@@ -1,0 +1,32 @@
+# Tikeo docs snapshot
+
+Generated from docs/docs and zh-CN docs. This curated snapshot lists the source-backed public documentation entrypoints that are safe for LLM and search ingestion. The canonical pages remain the markdown sources in docs/docs and docs/i18n/zh-CN/docusaurus-plugin-content-docs/current.
+
+## Reference pages
+
+- Management OpenAPI reference: /docs/reference/management-openapi documents /api-docs/openapi.json, /api/v1/jobs, /api/v1/jobs/{job}:trigger, /api/v1/instances/{instance}, /api/v1/instances/{instance}/logs, CreateJobRequest, TriggerJobRequest, ApiResponse, and x-tikeo-api-key.
+- Worker Tunnel protobuf reference: /docs/reference/worker-tunnel-protobuf documents WorkerTunnelService, OpenTunnel, SubscribeTaskLogs, RegisterWorker, Heartbeat, WorkerRegistered, DispatchTask, TaskLog, TaskResult, TaskCheckpoint, assignment_token, and processor_name.
+
+## User guides
+
+- Dashboard user guide: /docs/user-guide/dashboard explains web/src/pages/Dashboard.tsx, /api/v1/metrics/summary, /api/v1/cluster, instance streams, and Worker streams.
+- Jobs user guide: /docs/user-guide/jobs explains web/src/pages/JobsPage.tsx, /api/v1/jobs, /api/v1/jobs/{job}:trigger, triggerType=api, executionMode=single, broadcastSelector, versions, rollback, and scheduling advice.
+- Instances user guide: /docs/user-guide/instances explains web/src/pages/InstancesPage.tsx, /api/v1/instances/{instance}, /api/v1/instances/{instance}/logs, attempts, cancellation, and broadcast result nodes.
+- Workers user guide: /docs/user-guide/workers explains web/src/pages/WorkersPage.tsx, Worker Tunnel, DispatchTask, structured capabilities, Worker lifecycle history, and outbound-only Worker registration.
+- Workflows user guide: /docs/user-guide/workflows explains web/src/pages/WorkflowsPage.tsx, /api/v1/workflows, DAG definitions, validation, dry-run, run, replay, shards, and recovery.
+- Scripts user guide: /docs/user-guide/scripts explains web/src/pages/ScriptsPage.tsx, /api/v1/scripts, version history, publish, rollback, and diff governance.
+- Audit user guide: /docs/user-guide/audit explains web/src/pages/AuditLogsPage.tsx, /api/v1/audit-logs, /api/v1/audit-logs:export, filters, before/after snapshots, and trace evidence.
+- Settings guide: /docs/user-guide/settings explains web/src/routes.tsx, API-Key management, RBAC, tenant scopes, users, roles, calendars, and GitOps/IaC route boundaries.
+
+## 中文用户指南
+
+- 作业用户指南: /zh-CN/docs/user-guide/jobs 说明 Jobs 页面、API 触发、广播选择器、版本历史和调度建议。
+- Worker 用户指南: /zh-CN/docs/user-guide/workers 说明 Worker Tunnel、DispatchTask、structured capabilities、生命周期历史和出站连接边界。
+- 审计用户指南: /zh-CN/docs/user-guide/audit 说明 /api/v1/audit-logs 与 /api/v1/audit-logs:export 的治理证据流。
+
+## Deployment pages
+
+- /docs/deployment/single-binary covers single binary and systemd.
+- /docs/deployment/docker-compose covers SQLite, PostgreSQL, and MySQL Compose examples.
+- /docs/deployment/kubernetes covers Helm, TLS/mTLS, and Worker outbound-only boundaries.
+- /docs/deployment/sse-realtime covers proxy, load balancer, WAF, and Ingress requirements for SSE.

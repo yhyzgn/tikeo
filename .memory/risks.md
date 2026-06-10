@@ -105,6 +105,6 @@
 
 ## 2026-06-10 — Docs CI registry risk mitigated
 
-- `website/bun.lock` previously pinned tarball URLs to a private Nexus npm proxy; local `bun install --frozen-lockfile` demonstrated the failure mode with 401 responses.
+- `docs/bun.lock` previously pinned tarball URLs to a private Nexus npm proxy; local `bun install --frozen-lockfile` demonstrated the failure mode with 401 responses.
 - The docs lockfile now uses public `https://registry.npmjs.org/` tarball URLs and `.github/tests/docs_site_contract_test.py` rejects private registry hosts.
 - Remaining risk: if a future docs dependency refresh is run against a private registry, the contract test will fail until the lockfile is normalized back to a CI-accessible registry.

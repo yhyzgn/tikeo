@@ -1,0 +1,38 @@
+[
+  {
+    "title": "Management OpenAPI reference",
+    "url": "/docs/reference/management-openapi",
+    "locale": "en",
+    "summary": "Source-derived Management API reference for jobs, triggers, instances, logs, and x-tikeo-api-key credentials."
+  },
+  {
+    "title": "Worker Tunnel protobuf reference",
+    "url": "/docs/reference/worker-tunnel-protobuf",
+    "locale": "en",
+    "summary": "Source-derived WorkerTunnelService, OpenTunnel, DispatchTask, TaskLog, TaskResult, and TaskCheckpoint protocol reference."
+  },
+  {
+    "title": "Jobs user guide",
+    "url": "/docs/user-guide/jobs",
+    "locale": "en",
+    "summary": "How to use the Jobs console, API-triggered jobs, broadcast selectors, version history, and scheduling advice."
+  },
+  {
+    "title": "Workers user guide",
+    "url": "/docs/user-guide/workers",
+    "locale": "en",
+    "summary": "How to read Worker Tunnel status, persisted Worker snapshots, lifecycle history, and dispatch capacity."
+  },
+  {
+    "title": "作业用户指南",
+    "url": "/zh-CN/docs/user-guide/jobs",
+    "locale": "zh-CN",
+    "summary": "使用作业控制台、API 触发、广播选择器、版本历史和调度建议。"
+  },
+  {
+    "title": "Worker 用户指南",
+    "url": "/zh-CN/docs/user-guide/workers",
+    "locale": "zh-CN",
+    "summary": "理解 Worker Tunnel 状态、持久化 Worker 快照、生命周期历史和派发能力。"
+  }
+]

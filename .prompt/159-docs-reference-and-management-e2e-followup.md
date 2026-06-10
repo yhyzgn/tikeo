@@ -21,7 +21,7 @@
 - `python3 scripts/check-source-size.py` passed.
 - `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` passed.
 - `git diff --check` passed.
-- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed.
+- `cd docs && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed.
 
 ## Next slice options
 
@@ -68,7 +68,7 @@ python3 .github/tests/docs_site_contract_test.py
 python3 scripts/check-source-size.py
 python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24
 ./sdks/java/gradlew -p sdks/java test --no-daemon
-cd website
+cd docs
 bun install --frozen-lockfile
 bun run docs:typecheck
 bun run docs:build

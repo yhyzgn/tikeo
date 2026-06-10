@@ -4,8 +4,8 @@
 
 2026-06-10 completed source-derived API/protocol reference docs:
 
-- Added `website/docs/reference/management-openapi.md` and zh-CN mirror.
-- Added `website/docs/reference/worker-tunnel-protobuf.md` and zh-CN mirror.
+- Added `docs/docs/reference/management-openapi.md` and zh-CN mirror.
+- Added `docs/docs/reference/worker-tunnel-protobuf.md` and zh-CN mirror.
 - Added sidebar entries for both reference pages.
 - Extended all Rust, Go, Java Spring Boot, Python, and Node.js SDK docs in English and zh-CN with exact links to:
   - `../reference/management-openapi#post-api-v1-jobs`
@@ -18,7 +18,7 @@
 
 ## Verification evidence
 
-- RED: `python3 .github/tests/docs_site_contract_test.py DocsSiteContractTest.test_reference_docs_are_source_backed_for_openapi_and_worker_proto DocsSiteContractTest.test_sdk_docs_link_helpers_to_exact_reference_anchors` failed because `website/docs/reference/management-openapi.md` was missing and SDK docs lacked exact reference links.
+- RED: `python3 .github/tests/docs_site_contract_test.py DocsSiteContractTest.test_reference_docs_are_source_backed_for_openapi_and_worker_proto DocsSiteContractTest.test_sdk_docs_link_helpers_to_exact_reference_anchors` failed because `docs/docs/reference/management-openapi.md` was missing and SDK docs lacked exact reference links.
 - GREEN: the same targeted docs contract passed after adding reference pages and SDK links.
 - `python3 .github/tests/workflow_contract_test.py` passed.
 - `python3 .github/tests/docs_site_contract_test.py` passed.
@@ -27,7 +27,7 @@
 - `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` passed.
 - `.github/workflows/*.yml` YAML parse passed.
 - `git diff --check` passed.
-- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed.
+- `cd docs && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed.
 - Docusaurus build output was explicitly checked to contain no `broken anchor` warnings.
 
 ## Important notes from the slice
@@ -71,7 +71,7 @@
 - Worker demos must connect outbound over Worker Tunnel only; do not add worker inbound ports.
 - Keep zh-CN pages complete for every docs change.
 - Keep source files <=1500 lines and rerun `python3 scripts/check-source-size.py` before commit.
-- Use `bun` / `bunx` for website/frontend commands.
+- Use `bun` / `bunx` for docs and frontend commands.
 
 ## Verification entrypoint
 
@@ -84,7 +84,7 @@ python3 .github/tests/management_smoke_contract_test.py
 python3 scripts/check-source-size.py
 python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24
 git diff --check
-cd website
+cd docs
 bun install --frozen-lockfile
 bun run docs:typecheck
 bun run docs:build

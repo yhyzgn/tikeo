@@ -8,6 +8,7 @@ CI = (WORKFLOWS / "ci.yml").read_text()
 GITHUB_RELEASE = (WORKFLOWS / "release-github-assets.yml").read_text()
 DOCKER_SERVER = (WORKFLOWS / "publish-docker-server.yml").read_text()
 DOCKER_WEB = (WORKFLOWS / "publish-docker-web.yml").read_text()
+DOCKER_DOCS = (WORKFLOWS / "publish-docker-docs.yml").read_text()
 JAVA_SDK = (WORKFLOWS / "publish-java-sdk.yml").read_text()
 RUST_SDK = (WORKFLOWS / "publish-rust-sdk.yml").read_text()
 GO_SDK = (WORKFLOWS / "publish-go-sdk.yml").read_text()
@@ -34,6 +35,7 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("Test Go worker demo", CI)
         self.assertIn("Build server image without push", CI)
         self.assertIn("Build web image without push", CI)
+        self.assertIn("Build docs image without push", CI)
         self.assertIn("push: false", CI)
         self.assertNotIn("docker/login-action", CI)
         self.assertNotIn("softprops/action-gh-release", CI)
@@ -52,6 +54,7 @@ class WorkflowContractTest(unittest.TestCase):
             "other-cross-language-smoke": "name: Other / cross-language worker smoke",
             "other-docker-build-server": "name: Other / Docker build validation / server",
             "other-docker-build-web": "name: Other / Docker build validation / web",
+            "other-docker-build-docs": "name: Other / Docker build validation / docs",
         }
         for job, expected_name in expected_job_names.items():
             self.assertIn(expected_name, workflow_job_block(CI, job))
@@ -80,16 +83,23 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertNotIn("  docker-build:", CI)
         self.assertIn("  other-docker-build-server:", CI)
         self.assertIn("  other-docker-build-web:", CI)
+        self.assertIn("  other-docker-build-docs:", CI)
 
         server_job = workflow_job_block(CI, "other-docker-build-server")
         web_job = workflow_job_block(CI, "other-docker-build-web")
+        docs_job = workflow_job_block(CI, "other-docker-build-docs")
         self.assertIn("name: Other / Docker build validation / server", server_job)
         self.assertIn("name: Other / Docker build validation / web", web_job)
+        self.assertIn("name: Other / Docker build validation / docs", docs_job)
         self.assertIn("file: Dockerfile", server_job)
         self.assertIn("context: .", server_job)
         self.assertIn("file: web/Dockerfile", web_job)
         self.assertIn("context: web", web_job)
-        for job_block in [server_job, web_job]:
+        self.assertIn("file: docs/Dockerfile", docs_job)
+        self.assertIn("context: docs", docs_job)
+        self.assertIn("needs:", docs_job)
+        self.assertIn("docs-site", docs_job)
+        for job_block in [server_job, web_job, docs_job]:
             self.assertIn("cache-from: type=gha", job_block)
             self.assertIn("cache-to: type=gha,mode=max", job_block)
             self.assertIn("push: false", job_block)
@@ -139,7 +149,8 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("uses: oven-sh/setup-bun@v2", docs_job)
         self.assertIn("bun-version: latest", docs_job)
         self.assertIn("python3 .github/tests/docs_site_contract_test.py", docs_job)
-        self.assertIn("working-directory: website", docs_job)
+        self.assertIn("working-directory: docs", docs_job)
+        self.assertNotIn("working-directory: website", docs_job)
         self.assertIn("bun install --frozen-lockfile", docs_job)
         self.assertIn("bun run docs:typecheck", docs_job)
         self.assertIn("bun run docs:build", docs_job)
@@ -208,6 +219,23 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("docker/build-push-action", DOCKER_WEB)
         self.assertIn("push: true", DOCKER_WEB)
         self.assertNotIn("yhyzgn/tikeo-server", DOCKER_WEB)
+
+        self.assertIn("yhyzgn/tikeo-docs", DOCKER_DOCS)
+        self.assertIn("docker/login-action", DOCKER_DOCS)
+        self.assertIn("docker/build-push-action", DOCKER_DOCS)
+        self.assertIn("push: true", DOCKER_DOCS)
+        self.assertIn("context: docs", DOCKER_DOCS)
+        self.assertIn("file: docs/Dockerfile", DOCKER_DOCS)
+        self.assertNotIn("yhyzgn/tikeo-web", DOCKER_DOCS)
+        self.assertNotIn("yhyzgn/tikeo-server", DOCKER_DOCS)
+
+
+    def test_release_setup_includes_docs_docker_publish_lane(self):
+        setup = (ROOT / ".github/RELEASE_SETUP.md").read_text()
+        self.assertIn("Docker docs", setup)
+        self.assertIn(".github/workflows/publish-docker-docs.yml", setup)
+        self.assertIn("yhyzgn/tikeo-docs", setup)
+        self.assertIn("Docker server, Docker web, and Docker docs are separate workflows", setup)
 
     def test_sdk_publish_targets_are_split(self):
         self.assertIn("sdks/java", JAVA_SDK)

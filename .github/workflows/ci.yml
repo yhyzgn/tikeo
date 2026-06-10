@@ -91,13 +91,13 @@ jobs:
       - name: Validate docs site contract
         run: python3 .github/tests/docs_site_contract_test.py
       - name: Install docs dependencies
-        working-directory: website
+        working-directory: docs
         run: bun install --frozen-lockfile
       - name: Typecheck docs site
-        working-directory: website
+        working-directory: docs
         run: bun run docs:typecheck
       - name: Build docs site
-        working-directory: website
+        working-directory: docs
         run: bun run docs:build
 
   java-sdk-demo:
@@ -356,6 +356,26 @@ jobs:
         with:
           context: web
           file: web/Dockerfile
+          push: false
+          load: false
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  other-docker-build-docs:
+    name: Other / Docker build validation / docs
+    runs-on: ubuntu-latest
+    needs:
+      - docs-site
+      - other-cross-language-smoke
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Build docs image without push
+        uses: docker/build-push-action@v7
+        with:
+          context: docs
+          file: docs/Dockerfile
           push: false
           load: false
           platforms: linux/amd64

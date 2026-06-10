@@ -1313,7 +1313,7 @@ Verification evidence:
 - Per user instruction, GitHub CI result monitoring/debugging is intentionally skipped for this final grouping commit.
 
 ### 2026-06-08 — README motion polish and full Codecov surface
-- README and Chinese README now use `docs/assets/tikeo-logo-breathe.gif`, a 220x220 GIF derived from the Web breathing/task-flow logo animation, instead of the static SVG logo.
+- README and Chinese README now use `assets/docs/tikeo-logo-breathe.gif`, a 220x220 GIF derived from the Web breathing/task-flow logo animation, instead of the static SVG logo.
 - Coverage workflow now uploads reports for Rust workspace, Web, Java SDK, Go SDK, Python SDK/demo, and Node.js SDK through direct `codecov-cli` uploads with per-surface flags.
 - Java SDK aggregate Gradle build now applies JaCoCo to Java library subprojects and emits XML reports for Codecov.
 - Local report generation passed for Web (117 tests), Node.js SDK (14 tests), Go SDK, Java SDK (7 JaCoCo XML reports), and Python SDK/demo (19 tests).
@@ -1380,15 +1380,15 @@ Verification evidence:
 - `git diff --check` passed.
 
 ### 2026-06-08 — Standalone docs site scaffold
-- `website/` now contains a Docusaurus 3.10.1 TypeScript documentation site with Bun lockfile, Tikeo homepage, bilingual routing (`en`, `zh-CN`), sidebar IA, Phase A P0 English docs pages, starter Chinese translations, release-note blog entry, and static `llms.txt` / `llms-full.txt` files.
+- `docs/` now contains a Docusaurus 3.10.1 TypeScript documentation site with Bun lockfile, Tikeo homepage, bilingual routing (`en`, `zh-CN`), sidebar IA, Phase A P0 English docs pages, starter Chinese translations, release-note blog entry, and static `llms.txt` / `llms-full.txt` files.
 - The scaffold reuses existing Tikeo assets (`tikeo-logo-breathe.gif`, architecture SVGs, console tour GIF) and avoids deployment-provider lock-in.
 - Added `.github/tests/docs_site_contract_test.py` to guard the docs scaffold shape.
 Verification evidence:
-- RED/green contract: `python3 .github/tests/docs_site_contract_test.py` failed before `website/` existed and passed after implementation.
+- RED/green contract: `python3 .github/tests/docs_site_contract_test.py` failed before `docs/` existed and passed after implementation.
 - `python3 scripts/check-source-size.py` passed.
-- `bun install --frozen-lockfile` passed in `website/`.
-- `bun run docs:typecheck` passed in `website/`.
-- `bun run docs:build` passed in `website/` and generated English plus `zh-CN` output.
+- `bun install --frozen-lockfile` passed in `docs/`.
+- `bun run docs:typecheck` passed in `docs/`.
+- `bun run docs:build` passed in `docs/` and generated English plus `zh-CN` output.
 - Docs serve smoke passed for `/`, `/docs/`, `/zh-CN/docs/`, `/docs/getting-started/quickstart`, and `/llms.txt` on port `13030`.
 
 ### 2026-06-08 — Docs P0 depth and zh-CN route mirror completed
@@ -1433,10 +1433,10 @@ Verification evidence:
 
 ### 2026-06-10 — Docs site CI verification gate
 - Main CI now includes a dedicated `Docs site` job after `workflow-policy`.
-- The job runs `python3 .github/tests/docs_site_contract_test.py`, `cd website && bun install --frozen-lockfile`, `bun run docs:typecheck`, and `bun run docs:build`.
-- `website/bun.lock` now uses public `https://registry.npmjs.org/` tarball URLs instead of the previous private Nexus tarball host, so GitHub Actions docs verification does not require private npm proxy credentials.
+- The job runs `python3 .github/tests/docs_site_contract_test.py`, `cd docs && bun install --frozen-lockfile`, `bun run docs:typecheck`, and `bun run docs:build`.
+- `docs/bun.lock` now uses public `https://registry.npmjs.org/` tarball URLs instead of the previous private Nexus tarball host, so GitHub Actions docs verification does not require private npm proxy credentials.
 - Workflow/docs contract tests now guard both the CI job shape and public-registry lockfile requirement.
-- Verification passed locally: workflow contract, docs contract, source-size audit, GitHub Actions Node runtime policy, workflow YAML parse, git diff whitespace check, and the full website Bun install/typecheck/build sequence.
+- Verification passed locally: workflow contract, docs contract, source-size audit, GitHub Actions Node runtime policy, workflow YAML parse, git diff whitespace check, and the full docs Bun install/typecheck/build sequence.
 
 ### 2026-06-10 — Source-backed SDK management create+trigger docs
 - English and zh-CN SDK docs now include source-backed Management API create+trigger examples for Rust, Go, Java Spring Boot, Python, and Node.js.
@@ -1458,7 +1458,7 @@ Verification evidence:
 - Fixed an MDX/Docusaurus anchor issue exposed by `docs:build`: endpoint headings now generate stable anchors without broken-anchor warnings.
 - Recorded the acceptance-stage rigor/context freshness rule in `~/.codex/CONSTITUTION.md`, OMX project memory/notepad, and `.memory/decisions.md` per user instruction.
 Verification evidence:
-- RED observed: `python3 .github/tests/docs_site_contract_test.py DocsSiteContractTest.test_reference_docs_are_source_backed_for_openapi_and_worker_proto DocsSiteContractTest.test_sdk_docs_link_helpers_to_exact_reference_anchors` failed because `website/docs/reference/management-openapi.md` was missing and SDK docs lacked exact reference links.
+- RED observed: `python3 .github/tests/docs_site_contract_test.py DocsSiteContractTest.test_reference_docs_are_source_backed_for_openapi_and_worker_proto DocsSiteContractTest.test_sdk_docs_link_helpers_to_exact_reference_anchors` failed because `docs/docs/reference/management-openapi.md` was missing and SDK docs lacked exact reference links.
 - `python3 .github/tests/docs_site_contract_test.py DocsSiteContractTest.test_reference_docs_are_source_backed_for_openapi_and_worker_proto DocsSiteContractTest.test_sdk_docs_link_helpers_to_exact_reference_anchors` passed after implementation.
 - `python3 .github/tests/workflow_contract_test.py` passed.
 - `python3 .github/tests/docs_site_contract_test.py` passed.
@@ -1467,4 +1467,13 @@ Verification evidence:
 - `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` passed.
 - `.github/workflows/*.yml` YAML parse passed.
 - `git diff --check` passed.
-- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed; build log checked for no `broken anchor` warnings.
+- `cd docs && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` passed; build log checked for no `broken anchor` warnings.
+
+### 2026-06-10 — Docs module migration, publishing, search, and user-guide completion
+- Migrated the Docusaurus documentation site from `website/` to `docs/`; old `website/` is removed from the build surface.
+- Moved previous top-level docs media assets from `docs/assets/` to `assets/docs/`, and updated README links accordingly.
+- Added `docs/Dockerfile` plus nginx runtime config modeled after the Web image, and added `.github/workflows/publish-docker-docs.yml` targeting Docker Hub repository `yhyzgn/tikeo-docs`.
+- Main CI now validates a docs Docker image build with `push: false`; release setup documents the separate docs image publish lane.
+- Completed the pending docs publishing/search/SEO readiness slice: canonical URL/baseUrl metadata, robots.txt, OpenGraph image, search-index.json, updated llms.txt, and llms-full.txt.
+- Added English and zh-CN source-backed user guides for Dashboard, Jobs, Instances, Workers, Workflows, Scripts, Audit, and Settings, all guarded by docs contract checks.
+- Verification passed: workflow/docs/management-smoke contracts, source-size audit, GitHub Actions Node runtime policy, workflow YAML parse, diff whitespace check, docs frozen install/typecheck/build with no broken-anchor output, `docker build -f docs/Dockerfile docs -t tikeo-docs:local`, and container smoke for `/healthz`, `/docs/`, `/zh-CN/docs/`, `/search/`, `/robots.txt`, and `/search-index.json`.

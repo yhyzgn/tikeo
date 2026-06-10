@@ -2,7 +2,7 @@
 
 ## Current context
 
-`website/` exists as a Docusaurus 3.10.1 TypeScript + Bun standalone docs site. Phase A scaffold is implemented. The 2026-06-08 follow-up completed the current P0 docs depth pass and zh-CN route mirror:
+`docs/` exists as a Docusaurus 3.10.1 TypeScript + Bun standalone docs site. Phase A scaffold is implemented. The 2026-06-08 follow-up completed the current P0 docs depth pass and zh-CN route mirror:
 
 - English P0 pages now cover Overview, Installation, Quickstart, Seed demo data, Worker Tunnel, Workflows, Rust/Go/Java/Python/Node.js SDKs, Docker Compose, Kubernetes/Helm, Integrations, Configuration, and Troubleshooting.
 - zh-CN counterparts exist for every current P0 route, fixing the previous Chinese 404 gap.
@@ -15,10 +15,10 @@ Local verification passed:
 
 - `python3 .github/tests/docs_site_contract_test.py`
 - `python3 scripts/check-source-size.py`
-- `cd website && bun install --frozen-lockfile`
-- `cd website && bun run docs:typecheck`
-- `cd website && bun run docs:build`
-- `cd website && bun run docs:serve -- --port 13031` plus curl smoke for `/zh-CN/docs/`, `/zh-CN/docs/getting-started/installation`, `/zh-CN/docs/sdks/rust`, `/zh-CN/docs/sdks/python`, `/zh-CN/docs/sdks/nodejs`, `/zh-CN/docs/deployment/kubernetes`, and `/zh-CN/docs/reference/troubleshooting`
+- `cd docs && bun install --frozen-lockfile`
+- `cd docs && bun run docs:typecheck`
+- `cd docs && bun run docs:build`
+- `cd docs && bun run docs:serve -- --port 13031` plus curl smoke for `/zh-CN/docs/`, `/zh-CN/docs/getting-started/installation`, `/zh-CN/docs/sdks/rust`, `/zh-CN/docs/sdks/python`, `/zh-CN/docs/sdks/nodejs`, `/zh-CN/docs/deployment/kubernetes`, and `/zh-CN/docs/reference/troubleshooting`
 - `python3 .github/tests/workflow_contract_test.py`
 - workflow YAML parse
 - `git diff --check`

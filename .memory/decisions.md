@@ -561,3 +561,18 @@ Decision:
 
 Constraint:
 - This rule is also recorded in `~/.codex/CONSTITUTION.md` and OMX project memory; future work must apply it as an acceptance-phase operating rule.
+
+## 2026-06-10 — Docs module path and Docker image publishing
+
+Decision:
+- The Docusaurus documentation site module is now `docs/`, replacing the old `website/` directory name.
+- Shared README/media assets that used to live under top-level `docs/assets/` are now under `assets/docs/`, keeping the `docs/` tree dedicated to the buildable docs-site module.
+- The docs site has its own Docker image boundary and publish workflow targeting Docker Hub repository `yhyzgn/tikeo-docs` with `docs/Dockerfile` and nginx static serving config.
+
+Rationale:
+- The docs site is a first-class module that is built, validated, containerized, and published independently.
+- Keeping assets outside `docs/` avoids mixing generic repository media with Docusaurus source.
+
+Constraint:
+- Future docs/frontend commands must use `bun`/`bunx`; docs module commands should run from `docs/`.
+- Do not reintroduce `website/` as a build module or point CI/publishing contracts back to it.

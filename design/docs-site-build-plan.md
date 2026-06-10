@@ -3,7 +3,7 @@
 Status: Phase B/C P0 docs, zh-CN route mirror, and copy-paste deployment docs implemented
 Last refreshed: 2026-06-08
 Owner: Tikeo maintainers
-Scope: Standalone documentation site design plus current `website/` scaffold, enriched P0 docs, full P0 zh-CN route mirror, SDK coverage for Rust/Go/Java/Python/Node.js, subpath-safe language switching, and copy-paste deployment docs for binary/systemd, Compose, and Helm. Deployment target selection remains separate.
+Scope: Standalone documentation site design plus current `docs/` scaffold, enriched P0 docs, full P0 zh-CN route mirror, SDK coverage for Rust/Go/Java/Python/Node.js, subpath-safe language switching, and copy-paste deployment docs for binary/systemd, Compose, and Helm. Deployment target selection remains separate.
 
 ## 1. Goal
 
@@ -195,45 +195,47 @@ Prefer `zh-CN` if Tikeo already uses that locale in Web UI and README naming; pr
 When implementation begins, add a standalone docs app. Recommended location:
 
 ```text
-website/
+docs/
 ├─ package.json
 ├─ bun.lock
+├─ Dockerfile
+├─ nginx/
 ├─ docusaurus.config.ts
 ├─ sidebars.ts
 ├─ docs/
 │  ├─ index.md
-│  ├─ overview/
 │  ├─ getting-started/
 │  ├─ concepts/
 │  ├─ user-guide/
 │  ├─ sdks/
 │  ├─ deployment/
 │  ├─ integrations/
-│  ├─ guides/
-│  ├─ developer-guide/
 │  └─ reference/
 ├─ blog/
-│  └─ releases/
 ├─ src/
 │  ├─ css/custom.css
-│  ├─ components/
 │  └─ pages/index.tsx
 ├─ static/
 │  ├─ img/
-│  ├─ video/
-│  └─ llms.txt
+│  ├─ llms.txt
+│  ├─ llms-full.txt
+│  ├─ robots.txt
+│  └─ search-index.json
 └─ i18n/
    └─ zh-CN/
       ├─ docusaurus-plugin-content-docs/current/
       ├─ docusaurus-plugin-content-blog/
       └─ code.json
+
+assets/docs/
+└─ shared README and docs media assets
 ```
 
-Why `website/` instead of `docs/`:
+Why `docs/` is now the docs-site module:
 
-- `docs/` already stores shared assets such as architecture SVGs and the demo GIF.
-- A top-level `website/` avoids mixing generated static-site source with existing project docs/assets.
-- Docusaurus conventionally uses `website/` or project root; `website/` is cleaner for a Rust workspace.
+- The documentation site is a first-class buildable module, so the repository root `docs/` now contains the Docusaurus app.
+- Shared README/media assets moved to `assets/docs/` to avoid mixing static-site source with generic project assets.
+- The old `website/` directory name is retired so docs CI, Docker publishing, and local commands all use the same `docs/` module boundary.
 
 ## 6. Landing page content model
 
@@ -253,14 +255,14 @@ Governed scripts. Audit-ready execution evidence.
 
 Below the fold:
 
-1. Demo GIF or short MP4 loop from `docs/assets/tikeo-console-tour.gif` or the promo video artifact.
+1. Demo GIF or short MP4 loop from `assets/docs/tikeo-console-tour.gif` or the promo video artifact.
 2. Four capability cards:
    - Worker Tunnel
    - Workflow DAG Canvas
    - Multi-language SDKs
    - Security and Audit
 3. Quickstart command block.
-4. Architecture diagram from `docs/assets/tikeo-architecture.en.svg`.
+4. Architecture diagram from `assets/docs/tikeo-architecture.en.svg`.
 5. Comparison strip: Tikeo vs XXL-Job vs PowerJob.
 6. Deployment choices: binary, Docker, Kubernetes, Helm roadmap.
 7. Footer links: GitHub, releases, security, roadmap, license.
@@ -276,7 +278,7 @@ Below the fold:
 | `sdks/README.md` | SDK overview | Expand into language-specific pages. |
 | `examples/README.md` | Tutorials and runnable demos | Only document runnable demos as runnable. |
 | `.memory/commands.md` | Verification and local run commands | Use only stable, current commands. |
-| `docs/assets/*` | Architecture diagrams and demo media | Reuse current assets; avoid bloating repository. |
+| `assets/docs/*` | Architecture diagrams and demo media | Reuse current assets; avoid bloating repository. |
 
 ## 8. Documentation quality rules
 
@@ -351,7 +353,7 @@ Recommended homepage visual assets:
 
 ## 11. Build and validation plan for the future implementation
 
-The initial `website/` scaffold now includes scripts similar to:
+The `docs/` module includes scripts similar to:
 
 ```json
 {
@@ -369,7 +371,7 @@ The initial `website/` scaffold now includes scripts similar to:
 Expected verification before publishing:
 
 ```bash
-cd website
+cd docs
 bun install
 bun run docs:typecheck
 bun run docs:lint
@@ -389,9 +391,9 @@ curl -fsS http://0.0.0.0:3000/llms.txt
 
 ### Phase A — Scaffold and navigation
 
-Status: **Implemented on 2026-06-08** in `website/`.
+Status: **Implemented on 2026-06-08** in `website/`, migrated to `docs/` on 2026-06-10.
 
-- [x] Create `website/` Docusaurus app.
+- [x] Create Docusaurus app; module path is now `docs/`.
 - [x] Configure TypeScript, Bun scripts, i18n, navbar, footer, sidebars, theme CSS.
 - [x] Add docs landing page and verified starter P0 page shells for the proposed IA.
 - [x] Reuse existing architecture SVG, console tour GIF, and breathing logo GIF.
@@ -417,8 +419,8 @@ Status: **Implemented on 2026-06-08** for the current P0 sidebar set.
 Acceptance evidence:
 
 - `python3 .github/tests/docs_site_contract_test.py` passed, including deployment runbook snippets and baseUrl guard.
-- `cd website && bun run docs:typecheck` passed.
-- `cd website && bun run docs:build` passed.
+- `cd docs && bun run docs:typecheck` passed.
+- `cd docs && bun run docs:build` passed.
 - zh-CN serve smoke passed for P0 routes including installation, Rust, Python, Node.js, Kubernetes, and troubleshooting.
 - Default `/tikeo/` and custom root `/` builds were both smoke-tested for zh-CN route switching.
 
@@ -505,4 +507,4 @@ P2 after ecosystem expansion:
 
 ## 16. Immediate next action
 
-Phase A scaffold and Phase B P0 content/localization are implemented in `website/`. Next implementation step: add docs CI or a docs-specific workflow, then expand user-guide/API reference depth from generated OpenAPI/protobuf/source artifacts. Keep deployment provider configuration separate until the final hosting target is chosen.
+Phase A scaffold and Phase B P0 content/localization are implemented in `docs/`. Next implementation step: add docs CI or a docs-specific workflow, then expand user-guide/API reference depth from generated OpenAPI/protobuf/source artifacts. Keep deployment provider configuration separate until the final hosting target is chosen.
