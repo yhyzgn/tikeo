@@ -7,7 +7,8 @@ High-value English pages:
 - /docs/ — documentation map, reader outcomes, architecture boundary, and evidence-first evaluation path
 - /docs/getting-started/installation — toolchain matrix, version baselines, repository surfaces, Owner bootstrap prerequisites, and verification commands
 - /docs/getting-started/quickstart — Server + Web + outbound Worker + SDK Management API trigger acceptance runbook
-- /docs/reference/configuration — complete default-value table, environment overrides, TLS/mTLS, OIDC, observability, alerting, and Worker SDK defaults
+- /docs/reference/configuration — complete default-value table, environment overrides, TLS/mTLS, OIDC, observability, alerting, Notification Center delivery, and Worker SDK defaults
+- /docs/reference/notification-center — Notification Center API, RBAC, config defaults, storage model, redaction, retry, DLQ, and UI reference
 - /docs/concepts/worker-tunnel — outbound-only Worker Tunnel model
 - /docs/concepts/workflows — workflow DAG model
 - /docs/user-guide/dashboard — Dashboard operations guide
@@ -15,6 +16,8 @@ High-value English pages:
 - /docs/user-guide/instances — Instance result, attempts, and log triage
 - /docs/user-guide/workers — Worker Tunnel capacity and lifecycle guide
 - /docs/user-guide/workflows — Workflow DAG authoring and runtime triage
+- /docs/user-guide/notifications — Notification Center channels, policies, messages, delivery retry, DLQ, UI channel/policy CRUD, and alert boundary
+- /docs/user-guide/alerts — Alert rule/event operations, silence/recovery/suppression semantics, and Notification Center boundary
 - /docs/user-guide/scripts — Script governance and diff workflow
 - /docs/user-guide/audit — Audit evidence and export workflow
 - /docs/user-guide/settings — Settings, API-Key, and RBAC governance guide
@@ -33,3 +36,9 @@ High-value English pages:
 - /docs/reference/troubleshooting — troubleshooting
 
 High-value zh-CN pages mirror the critical operator path under /zh-CN/docs/, especially /zh-CN/docs/getting-started/installation, /zh-CN/docs/getting-started/quickstart, /zh-CN/docs/reference/configuration, and /zh-CN/docs/sdks/*.
+
+High-value Chinese pages:
+
+- /zh-CN/docs/user-guide/notifications — 通知中心渠道、策略、消息、重试、DLQ、UI 渠道/策略 CRUD 与告警边界
+- /zh-CN/docs/user-guide/alerts — 告警规则/事件、静默/恢复/抑制语义与通知中心边界
+- /zh-CN/docs/reference/notification-center — 通知中心 API、RBAC、配置、存储、脱敏、重试和 DLQ 参考

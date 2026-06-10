@@ -367,6 +367,27 @@ Alert rule editor should reference channels/policies instead of embedding raw pr
 - Add docs runbooks and Docusaurus reference pages for channels, job policies, templates, and delivery troubleshooting.
 - Optional live provider smoke remains external/credential-gated and must be marked as such.
 
+
+## 2026-06-11 implementation status
+
+Implemented in the current Notification Center slice:
+
+- Explicit SeaORM migration/entity/repository coverage for `notification_channels`, `notification_policies`, `notification_messages`, and `notification_delivery_attempts`.
+- Management API and OpenAPI coverage for channel types, channels, policies, policy validation, normalized messages, delivery attempts, queue status, and retry-due processing under `/api/v1/notification-*`.
+- RBAC/menu integration for `notifications:read`, `notifications:manage`, and `notifications:test`; `/notifications` is visible to owner/operator/viewer according to read permission, while mutations remain permission-gated.
+- Web `/notifications` console for provider metadata, redacted channels, policy CRUD/validation, messages, retry/DLQ queue status, and retry-due operations.
+- Job lifecycle materialization for `job_instance.succeeded`, `failed`, `partial_failed`, `cancelled`, `retry_scheduled`, `retry_exhausted`, `no_eligible_worker`, and `script_governance_failure` through reusable notification policies.
+- Generic provider delivery/retry/DLQ path reusing the existing provider semantics for webhook-style, Slack, DingTalk, Feishu/Lark, WeCom, PagerDuty, Email, and plugin webhook-compatible channels.
+- Secret and target safety fixes: `secretRefsJson` is never serialized, `config.headers` values are redacted in summaries, `secretRefs.headers` and `secretRefs.authorization` resolve at delivery time, email accepts metadata-aligned `secretRefs.password`, and Notification Center secret resolution is documented as env-backed only.
+- Retry event semantics were tightened: non-retrying failures emit `job_instance.failed`; `job_instance.retry_exhausted` is emitted only after a configured retry policy with at least one retry is exhausted.
+
+Still intentionally not implemented in this slice:
+
+- `notification_templates` table/API/render endpoint. `templateRef` is persisted as a soft link for forward compatibility, but current materialization uses built-in rendering.
+- Alert-rule backfill/dual-write migration from `alert_rules.channels_json` into `notification_policies(owner_type='alert_rule')`.
+- Runtime migration of workflow `notification` nodes from raw `channel/target/template` fields to registered channel/template references.
+- A real channel test-send endpoint; provider metadata correctly reports `supportsTestSend=false` and the UI exposes retry-due processing instead of fake test-send.
+
 ## 10. Acceptance criteria
 
 1. A reusable channel can be created once and referenced by multiple alert rules, jobs, and workflows without duplicating provider credentials.

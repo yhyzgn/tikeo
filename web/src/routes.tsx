@@ -1,6 +1,7 @@
 import {
   ApiOutlined,
   AlertOutlined,
+  BellOutlined,
   AppstoreAddOutlined,
   AuditOutlined,
   BarsOutlined,
@@ -74,7 +75,8 @@ export const ROUTE_META = {
   apiKeys: { path: '/api-keys', menuKey: '/api-keys', label: 'API-Key', icon: <KeyOutlined />, permission: { resource: 'tenants', action: 'manage' }, menu: true, group: 'governance' },
   gitops: { path: '/gitops', menuKey: '/gitops', label: 'GitOps/IaC', icon: <CloudSyncOutlined />, permission: { resource: 'tenants', action: 'read' }, menu: true, group: 'governance' },
   scriptEdit: { path: '/scripts/:id/edit', menuKey: '/scripts', label: '编辑脚本', permission: { resource: 'scripts', action: 'manage' }, menu: false },
-  alerts: { path: '/alerts', menuKey: '/alerts', label: '告警投递', icon: <AlertOutlined />, permission: { resource: 'audit', action: 'read' }, menu: true, group: 'observability' },
+  notifications: { path: '/notifications', menuKey: '/notifications', label: '通知中心', icon: <BellOutlined />, permission: { resource: 'notifications', action: 'read' }, menu: true, group: 'observability' },
+  alerts: { path: '/alerts', menuKey: '/alerts', label: '告警事件', icon: <AlertOutlined />, permission: { resource: 'audit', action: 'read' }, menu: true, group: 'observability' },
   audit: { path: '/audit', menuKey: '/audit', label: '审计日志', icon: <AuditOutlined />, permission: { resource: 'audit', action: 'read' }, menu: true, group: 'observability' },
   workflowNew: { path: '/workflows/new', menuKey: '/workflows', label: '新增工作流', permission: { resource: 'workflows', action: 'manage' }, menu: false },
   workflowEdit: { path: '/workflows/:id/edit', menuKey: '/workflows', label: '编辑工作流', permission: { resource: 'workflows', action: 'manage' }, menu: false },

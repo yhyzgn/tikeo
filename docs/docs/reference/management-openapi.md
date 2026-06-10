@@ -113,3 +113,23 @@ SDK pages should link helper behavior to the exact reference anchors above:
 Keep those links source-backed. If a new SDK helper is documented, first verify
 that the helper exists in committed SDK source and that its serialized payload
 matches the OpenAPI request contract.
+
+## Notification Center endpoints
+
+Notification Center routes are mounted under `/api/v1` and are included in `/api-docs/openapi.json` by `crates/tikeo-server/src/http/openapi.rs`. They use the same `{code,message,data}` envelope as the job/instance routes above. They are human-operational endpoints, not SDK job-trigger credentials; use bearer session/API auth with the required RBAC permissions.
+
+| Endpoint | Purpose | Required permission |
+| --- | --- | --- |
+| `GET /api/v1/notification-channel-types` | List built-in and enabled plugin-provided notification provider metadata. | `notifications:read` |
+| `GET /api/v1/notification-channels` | List redacted reusable outbound channels. | `notifications:read` |
+| `POST /api/v1/notification-channels` | Create a channel; never echo raw `secretRefs`. | `notifications:manage` |
+| `GET/PATCH/DELETE /api/v1/notification-channels/{id}` | Read, update, or delete one channel. Delete is refused while policies reference it. | `notifications:read` for GET, `notifications:manage` for PATCH/DELETE |
+| `GET/POST /api/v1/notification-policies` | List or create owner/event subscriptions. | `notifications:read` for GET, `notifications:manage` for POST |
+| `GET/PATCH/DELETE /api/v1/notification-policies/{id}` | Read, update, or delete one policy. | `notifications:read` for GET, `notifications:manage` for PATCH/DELETE |
+| `POST /api/v1/notification-policies/{id}:validate` | Validate channel references and enabled state. | `notifications:read` |
+| `GET /api/v1/notification-messages` | List normalized outbound messages. | `notifications:read` |
+| `GET /api/v1/notification-delivery-attempts` | List delivery attempts. | `notifications:read` |
+| `GET /api/v1/notification-delivery-attempts:queue-status` | Return delivered/retry/DLQ counters and recent dead letters. | `notifications:read` |
+| `POST /api/v1/notification-delivery-attempts:retry-due` | Run a bounded due-attempt delivery scan. | `notifications:test` |
+
+The implemented channel providers are `webhook`, `slack`, `dingtalk`, `feishu`, `wechat_work`, `pagerduty`, `email`, and enabled plugin webhook-compatible types. More detail is in [Notification Center reference](./notification-center).

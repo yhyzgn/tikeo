@@ -2289,7 +2289,10 @@ tikeo/
   - [x] Email/SMTP 本地投递基础（110：Email channel 支持 recipients/smtp_url/from；显式 local policy 下可向 loopback `smtp://` 投递纯文本邮件；默认缺少 SMTP 或非 loopback 策略 fail-closed；delivery-status 要求收件人与 SMTP endpoint）
   - [x] 告警 retry/backoff/DLQ 处理基础（111：`retry_pending` attempts 可按 `next_retry_at` 扫描；匹配当前 rule channel 后追加 retry attempt；旧 attempt 标记 `retry_consumed`，耗尽/缺失/无匹配进入 `dead_letter`；`POST /api/v1/alert-delivery-attempts:retry-due` 返回处理汇总）
   - [x] 告警 retry 后台调度（112：`alert_retry` 配置控制 bounded retry worker；server 启动时并行运行；按 cluster `can_schedule` 做所有权门控，避免 Raft follower 处理共享 retry 状态）
-  - [ ] Notification Center 抽象与告警边界重构（规划见 `design/notification-center-alerting-plan.md`：Alerting 保留规则/事件/静默/恢复语义；Notification Center 统一渠道、模板、策略、任务状态触达、工作流 notification 节点、投递重试与 DLQ；现有 alert rule 内嵌 `channels_json` 仅作为兼容/迁移来源）
+  - [x] Notification Center 抽象与告警边界基础（166：显式 migration/repository/entities for `notification_channels`、`notification_policies`、`notification_messages`、`notification_delivery_attempts`；新增 `/api/v1/notification-*` API、OpenAPI、RBAC/menu seed、Web `/notifications` 渠道/策略/消息/投递/DLQ UI；作业生命周期 `succeeded` / `failed` / `partial_failed` / `cancelled` / `retry_scheduled` / `retry_exhausted` / `no_eligible_worker` / `script_governance_failure` 可按 policy 物化消息；generic delivery worker 支持 webhook/Slack/钉钉/飞书/企微/PagerDuty/Email/plugin webhook-compatible provider，响应脱敏且 `secretRefs` 不回显；Alerting 与 Notification Center 边界文档化，现有 alert APIs 保持兼容）
+    - [ ] Notification templates CRUD/render 与 provider-specific 模板预览（当前 `templateRef` 是 soft link 字段，materializer 使用内置默认渲染）
+    - [ ] Alert rule 自动迁移/dual-write 到 Notification Center policy（当前 `alert_rules.channels_json` 仍是兼容路径，普通 job lifecycle 已走 notification policy）
+    - [ ] Workflow `notification` node 迁移到 registered channel/template selectors（当前工作流 UI 仍保留 raw channel/target/template 旧形态）
   - [x] 租户 namespace/app/worker-pool 管理 API 基础（113：新增 `worker_pools` 软链接元数据；`/api/v1/namespaces`、`/api/v1/apps`、`/api/v1/worker-pools` 支持鉴权 create/list；RBAC seed 增加 `tenants` read/manage；OpenAPI 覆盖）
   - [x] 租户 namespace/app/worker-pool Web 管理 UI（114：新增 `/scopes` 菜单与路由；支持 namespace/app/Worker Pool create/list；创建入口按 `tenants:manage` 守卫）
   - [x] 租户 scope 删除生命周期策略（115：namespace/app/Worker Pool DELETE 路由与 UI 删除入口；namespace/app 非空时拒绝删除，避免无外键软关联误级联；Worker Pool 元数据删除不影响在线 Worker）

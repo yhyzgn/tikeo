@@ -905,6 +905,12 @@ const SQLITE_DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
     ("perm-scripts-read", "scripts", "read", "Read scripts"),
     ("perm-scripts-manage", "scripts", "manage", "Manage scripts"),
     ("perm-audit-read", "audit", "read", "Read audit logs"),
+    (
+        "perm-audit-manage",
+        "audit",
+        "manage",
+        "Manage alert rules, alert recovery, and audit-governed operations",
+    ),
     ("perm-workflows-read", "workflows", "read", "Read workflows"),
     (
         "perm-workflows-manage",
@@ -969,6 +975,8 @@ async fn seed_sqlite_rbac_defaults(db: &impl ConnectionTrait) -> Result<(), sea_
             "perm-instances-read",
             "perm-instances-execute",
             "perm-scripts-read",
+            "perm-audit-read",
+            "perm-audit-manage",
             "perm-workflows-read",
             "perm-workflows-execute",
         ],

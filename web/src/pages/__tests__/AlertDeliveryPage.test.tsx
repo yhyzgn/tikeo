@@ -10,7 +10,7 @@ describe('alert delivery operations page', () => {
   test('wires retry and DLQ queue status into a governance menu page', () => {
     expect(routesSource).toContain('alerts:');
     expect(routesSource).toContain('/alerts');
-    expect(routesSource).toContain('告警投递');
+    expect(routesSource).toContain('告警事件');
     expect(appSource).toContain('AlertDeliveryPage');
     expect(appSource).toContain('ROUTE_META.alerts.path');
     expect(clientSource).toContain('/api/v1/alert-delivery-attempts:queue-status');

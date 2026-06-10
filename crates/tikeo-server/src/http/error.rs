@@ -16,6 +16,8 @@ pub const NOT_FOUND_CODE: i32 = 40_004;
 pub const UNAUTHORIZED_CODE: i32 = 40_101;
 /// Business code for authorization failures (forbidden).
 pub const FORBIDDEN_CODE: i32 = 40_301;
+/// Business code for state conflicts such as protected references.
+pub const CONFLICT_CODE: i32 = 40_409;
 
 /// API error variants returned by management handlers.
 #[derive(Debug, Clone)]
@@ -48,6 +50,11 @@ pub enum ApiError {
     /// Authorization failed.
     Forbidden {
         /// Human-readable authorization error.
+        message: String,
+    },
+    /// Request conflicts with current resource state.
+    Conflict {
+        /// Human-readable conflict error.
         message: String,
     },
 }
@@ -93,6 +100,14 @@ impl ApiError {
         }
     }
 
+    /// Build a conflict API error.
+    #[must_use]
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self::Conflict {
+            message: message.into(),
+        }
+    }
+
     const fn status_code(&self) -> StatusCode {
         match self {
             Self::NotImplemented { .. } => StatusCode::NOT_IMPLEMENTED,
@@ -101,6 +116,7 @@ impl ApiError {
             Self::NotFound { .. } => StatusCode::NOT_FOUND,
             Self::Unauthorized { .. } => StatusCode::UNAUTHORIZED,
             Self::Forbidden { .. } => StatusCode::FORBIDDEN,
+            Self::Conflict { .. } => StatusCode::CONFLICT,
         }
     }
 
@@ -112,6 +128,7 @@ impl ApiError {
             Self::NotFound { .. } => NOT_FOUND_CODE,
             Self::Unauthorized { .. } => UNAUTHORIZED_CODE,
             Self::Forbidden { .. } => FORBIDDEN_CODE,
+            Self::Conflict { .. } => CONFLICT_CODE,
         }
     }
 
@@ -122,7 +139,8 @@ impl ApiError {
             | Self::BadRequest { message }
             | Self::NotFound { message }
             | Self::Unauthorized { message }
-            | Self::Forbidden { message } => message.clone(),
+            | Self::Forbidden { message }
+            | Self::Conflict { message } => message.clone(),
         }
     }
 }

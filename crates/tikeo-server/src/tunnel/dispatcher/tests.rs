@@ -10,8 +10,10 @@ use tikeo_proto::worker::v1::{
 };
 use tikeo_storage::{
     AuditLogRepository, CreateJob, CreateJobInstance, JobInstanceAttemptRepository,
-    JobInstanceRepository, JobRepository, JobRetryPolicy, ScriptRepository, ScriptSummary,
-    ScriptVersionSummary, WorkflowRepository, connect_and_migrate,
+    JobInstanceRepository, JobRepository, JobRetryPolicy, NotificationChannelRepository,
+    NotificationDeliveryAttemptRepository, NotificationMessageRepository,
+    NotificationPolicyRepository, ScriptRepository, ScriptSummary, ScriptVersionSummary,
+    WorkflowRepository, connect_and_migrate,
 };
 use tokio::sync::mpsc;
 
@@ -39,6 +41,17 @@ fn script_capabilities(language: &str) -> WorkerCapabilities {
         }],
         ..WorkerCapabilities::default()
     }
+}
+
+fn notification_center(jobs: &JobRepository) -> crate::notification::NotificationCenter {
+    let db = jobs.db();
+    crate::notification::NotificationCenter::new(
+        NotificationChannelRepository::new(db.clone()),
+        NotificationPolicyRepository::new(db.clone()),
+        NotificationMessageRepository::new(db.clone()),
+        NotificationDeliveryAttemptRepository::new(db),
+        jobs.clone(),
+    )
 }
 
 include!("tests/part_01.rs");

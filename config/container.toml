@@ -29,3 +29,10 @@ backoff_seconds = 300
 [alert_secrets]
 allow_env_refs = true
 env_prefix = "TIKEO_ALERT_SECRET_"
+
+[notification_delivery]
+enabled = true
+interval_seconds = 60
+batch_size = 50
+max_attempts = 3
+backoff_seconds = 300

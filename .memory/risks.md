@@ -126,3 +126,11 @@
 - Existing alerting has real provider adapters, delivery attempts, retry, and DLQ, but alert rules still embed `channels_json`. If future work simply adds another notification implementation without a boundary, Tikeo will duplicate credentials, delivery state, provider adapters, and UI concepts.
 - Mitigation: treat Alerting as the abnormal-condition rule/event subsystem and Notification Center as the shared channel/template/policy/delivery subsystem. Preserve existing alert APIs during migration, but new job/workflow/alert touchpoints must use reusable notification channels and policies.
 - Additional risk: job retry flows can spam final-failure notifications on every failed attempt. Mitigation: model `retry_scheduled` separately and emit terminal `failed` / `retry_exhausted` only after retries are exhausted.
+
+## 2026-06-11 — Notification Center remaining hardening risks
+
+- Notification templates are not yet implemented as first-class storage/API/render endpoints. `templateRef` is persisted but currently a soft-link placeholder; current materialization uses built-in subject/body rendering.
+- Alert rules still keep inline `channels_json` for compatibility. Reusable channel/policy migration for Alerting must be implemented before claiming alert delivery is fully unified under Notification Center.
+- Workflow `notification` nodes still use raw `channel/target/template` config in the workflow editor/runtime shape; they must migrate to registered channels/templates before claiming workflow notification-node convergence.
+- Generic delivery is now at-least-once rather than at-most-once: a crash after result row insertion but before old attempt consumption may duplicate delivery. Future mitigation should add lease/in-progress recovery and idempotency keys without reintroducing lost notifications.
+- Live external provider smoke remains credential-gated. Local tests cover loopback/webhook/header/email mechanics and redaction, not Slack/DingTalk/Feishu/WeCom/PagerDuty live SaaS acceptance.

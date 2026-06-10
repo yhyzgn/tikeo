@@ -115,3 +115,28 @@ TLS/mTLS 默认关闭。跨主机、跨集群、跨 VPC 或不可信网络时，
 现场改配置时优先遵循“可公开默认值进 TOML、敏感值进 Secret、临时排障值进环境变量”的顺序。示例：数据库 URL 用 `TIKEO__STORAGE__DATABASE_URL` 覆盖；OIDC issuer 用 `TIKEO__AUTH__OIDC__ISSUER_URL`，client secret 用 `TIKEO__AUTH__OIDC__CLIENT_SECRET`；Worker Tunnel 客户端 CA 用 `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__CLIENT_CA_PATH`。如果数组或 map 的环境变量表达不清楚，例如 `cluster.peers`、`observability.tracing.headers`，应写入 TOML 或 Helm values，避免 shell 转义导致启动成功但运行语义错误。
 
 每次变更后至少执行三类检查：`/healthz` 证明进程存活，`/readyz` 证明存储和运行依赖可用，`/api-docs/openapi.json` 证明 HTTP router 已加载；Worker 侧再用一个 outbound demo Worker 连接 `server.worker_tunnel_addr`，确认注册、心跳、`DispatchTask`、任务日志和结果回传。若启用 mTLS，先用短期证书在 staging 验证证书链，再切生产 Secret；若启用 OTel，确认 collector 收到 span 后再把 tracing 当作上线证据。
+
+## 通知中心投递
+
+通知中心有独立的通用投递 worker，与 `alert_retry` 分离。它扫描由 notification policies 产生的 `notification_delivery_attempts`，并更新关联的 `notification_messages`。配置形状来自 `crates/tikeo-config/src/lib.rs` 中的 `NotificationDeliveryConfig`，并已出现在 `config/dev.toml` 与 `config/container.toml`。
+
+| Config key | 默认值 | 环境变量 | 说明 |
+| --- | --- | --- | --- |
+| `notification_delivery.enabled` | `true` | `TIKEO__NOTIFICATION_DELIVERY__ENABLED` | 启用通用通知中心投递 worker。 |
+| `notification_delivery.interval_seconds` | `60` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | due-attempt 扫描间隔。 |
+| `notification_delivery.batch_size` | `50` | `TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE` | 每轮最大扫描数量。 |
+| `notification_delivery.max_attempts` | `3` | `TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS` | 进入 dead-letter 前最大尝试次数。 |
+| `notification_delivery.backoff_seconds` | `300` | `TIKEO__NOTIFICATION_DELIVERY__BACKOFF_SECONDS` | 下一次通用投递重试前的延迟。 |
+
+示例覆盖：
+
+```bash
+TIKEO__NOTIFICATION_DELIVERY__ENABLED=true \
+TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS=30 \
+TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE=100 \
+TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS=5 \
+TIKEO__NOTIFICATION_DELIVERY__BACKOFF_SECONDS=120 \
+cargo run --bin tikeo -- serve --config config/dev.toml
+```
+
+`alert_retry` 只影响兼容告警投递尝试；`notification_delivery` 影响 Notification Center messages。不要调整一个队列却期望改变另一个队列。渠道、策略、重试、DLQ 与脱敏行为见 [通知中心参考](./notification-center)。

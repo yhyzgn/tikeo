@@ -4,6 +4,39 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## Unreleased
 
+## [0.2.3] - 2026-06-11
+
+### Added
+
+- Reusable Notification Center foundation with explicit `notification_channels`, `notification_policies`, `notification_messages`, and `notification_delivery_attempts` storage, SeaORM migration/entities/repositories, management APIs, OpenAPI registration, and Web `/notifications` console.
+- Generic notification delivery worker with retry/DLQ queue status and retry-due processing for webhook-style, Slack, DingTalk, Feishu/Lark, WeCom, PagerDuty, Email, and plugin webhook-compatible providers.
+- Job lifecycle notification policies for success, failure, partial failure, cancellation, retry scheduled, retry exhausted, no eligible worker, and script governance failure events.
+- English and zh-CN Notification Center and Alerts documentation that separates incident semantics from reusable outbound delivery.
+
+### Changed
+
+- Alerting and Notification Center vocabulary is now enforced in docs/UI: Alerts own rules/events/incidents; Notification Center owns channels/policies/messages/delivery.
+- `/notifications` RBAC/menu seed now aligns read access for owner, operator, and viewer while management actions remain permission-gated.
+- Release workflow strategy remains tag-driven for `v0.2.x` patch tags; package manifests are synchronized inside release workflows from the pushed tag.
+
+### Fixed
+
+- Prevented Notification Center responses from leaking `secretRefs`, webhook tokens, header credentials such as `X-API-Key`, SMTP passwords, or PagerDuty routing keys.
+- Fixed email secret reference alias drift so metadata-aligned `secretRefs.password` and SMTP URL aliases resolve consistently at runtime.
+- Fixed retry event semantics: non-retrying terminal failures emit `job_instance.failed`, while `job_instance.retry_exhausted` is reserved for actual exhausted retry policies.
+- Improved delivery crash safety by persisting provider result rows before consuming the previous pending attempt, preferring at-least-once delivery over lost notifications.
+
+### Verification
+
+- Local verification passed: Rust fmt/clippy/test/build, CLI smoke, Web lint/typecheck/test/build, docs typecheck/build, workflow/docs/management contract tests, GitHub Actions Node runtime policy, source-size audit, and diff whitespace check.
+- Focused code-review subagents reviewed the notification implementation before release; final review passed with the caveat that crash recovery can duplicate delivery after a result row is inserted but before the old attempt is consumed.
+
+### Known gaps
+
+- `notification_templates` storage/API/render endpoints are not implemented yet; `templateRef` is currently a soft link and materialization uses built-in rendering.
+- Alert rule backfill/dual-write from `alert_rules.channels_json` into Notification Center policies remains a follow-up.
+- Workflow `notification` nodes still need migration from raw channel/target/template fields to registered channel/template references.
+
 ## [0.2.0] - 2026-06-08
 
 ### Added

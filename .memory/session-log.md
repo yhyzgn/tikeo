@@ -2810,3 +2810,48 @@ Verification:
 
 Git:
 - Pending commit/push.
+
+## 2026-06-11 — Notification Center implementation and acceptance hardening
+
+Agent:
+- Codex, with code-reviewer/verifier subagents.
+
+Work:
+- Implemented the first production Notification Center slice: `notification_channels`, `notification_policies`, `notification_messages`, and `notification_delivery_attempts` storage, SeaORM migration/entities/repositories, HTTP routes/OpenAPI, config defaults, background generic delivery worker, and Web `/notifications` console.
+- Added reusable outbound channel/policy management for webhook-style, Slack, DingTalk, Feishu/Lark, WeCom, PagerDuty, Email, and plugin webhook-compatible providers while preserving existing alert APIs and `alert_rules.channels_json` compatibility behavior.
+- Wired job lifecycle events to Notification Center policies for `job_instance.succeeded`, `failed`, `partial_failed`, `cancelled`, `retry_scheduled`, `retry_exhausted`, `no_eligible_worker`, and `script_governance_failure`.
+- Added generic delivery retry/DLQ queue-status and retry-due handling under `/api/v1/notification-delivery-attempts:*` plus background ownership-gated processing from server startup.
+- Added docs/reference and user guides in English and zh-CN clarifying Alerts vs Notification Center boundaries, provider config, secret refs, job event semantics, retry/DLQ operations, and UI/API mapping.
+- Fixed review-found gaps before accepting the slice: email `secretRefs.password` alias, secretRefs-only PagerDuty/email API validation coverage, `secretRefs.authorization`/`secretRefs.headers.*` runtime injection, env-only secretRef UI/docs wording, viewer `/notifications` menu seed, `config.headers` value redaction including `X-API-Key`, and retry-aware `failed` vs `retry_exhausted` semantics.
+- Delivery attempt ordering now avoids losing retries on process crash before/during provider delivery: the due attempt remains retryable until a provider result row is persisted, then the previous row is marked `retry_consumed`.
+
+Verification:
+- RED observed: `cargo test -p tikeo-server email_channel_accepts_metadata_secret_refs_password_alias -- --nocapture` initially failed because `secretRefs.password` was ignored.
+- Targeted GREEN: `cargo test -p tikeo-server email_channel_accepts_metadata_secret_refs_password_alias -- --nocapture` ✅
+- Targeted GREEN: `cargo test -p tikeo-server webhook_delivery_injects_authorization_from_secret_refs_without_leaking_it -- --nocapture` ✅
+- Targeted GREEN: `cargo test -p tikeo-server notification_center_api_redacts_channels_and_validates_policies -- --nocapture` ✅
+- Targeted GREEN: `cargo test -p tikeo-server due_delivery_attempts_post_to_webhook_and_update_message_status -- --nocapture` ✅
+- Targeted GREEN: `cargo test -p tikeo-server failed_single_task_result_emits_job_notification_policy -- --nocapture` ✅
+- Targeted GREEN: `cargo test -p tikeo-server non_retrying_failed_task_result_emits_failed_notification_policy -- --nocapture` ✅
+- Targeted GREEN: `cargo test -p tikeo-storage notification_channel_redacts_camel_case_url_and_smtp_keys -- --nocapture` ✅
+- Targeted GREEN: `cargo test -p tikeo-storage notification_center_menu_permission_is_seeded_for_builtin_roles -- --nocapture` ✅
+- Targeted Web: `cd web && bun test src/pages/__tests__/NotificationCenterPage.test.tsx src/i18n/i18n.test.ts` ✅
+- Full Rust: `cargo fmt --all -- --check` ✅
+- Full Rust: `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- Full Rust: `cargo test --workspace --all-features -- --test-threads=1` ✅ (182 server tests, 48 storage tests, docs/tests included)
+- Full Rust: `cargo build --workspace --all-features` ✅
+- CLI smoke: `cargo run -- --help` ✅
+- Web: `cd web && bun run lint && bun run typecheck && bun test src && bun run build` ✅ (125 tests; existing large Ant Design chunk warning only)
+- Docs: `cd docs && bun run docs:typecheck && bun run docs:build` ✅
+- Contracts: `python3 .github/tests/workflow_contract_test.py` ✅; `python3 .github/tests/docs_site_contract_test.py` ✅; `python3 .github/tests/management_smoke_contract_test.py` ✅; `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` ✅; `python3 scripts/check-source-size.py` ✅; `git diff --check` ✅.
+
+Review:
+- First verifier found no blockers and 3 important gaps; those were fixed.
+- Second focused reviewer found 3 HIGH issues (failed vs retry_exhausted semantics, delivery crash-window, config.headers leakage) plus metadata/doc issues; all were fixed and targeted tests added.
+- Final focused reviewer returned PASS with caveat: crash after inserting a new delivery result row but before consuming the old row may duplicate delivery rather than lose it. This is intentionally safer than lost notification and is recorded as a future lease/idempotency hardening risk.
+
+Known not implemented in this slice:
+- `notification_templates` table/API/render endpoint; `templateRef` is persisted only as a soft-link field and current rendering is built-in.
+- Alert-rule backfill/dual-write from `alert_rules.channels_json` into `notification_policies(owner_type='alert_rule')`.
+- Workflow `notification` node runtime/UI migration from raw channel/target/template to registered channel/template refs.
+- Real channel test-send endpoint; metadata correctly reports `supportsTestSend=false`.

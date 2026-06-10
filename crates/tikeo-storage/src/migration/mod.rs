@@ -3,6 +3,7 @@
 mod columns;
 mod iden;
 mod indexes;
+mod notification_center;
 mod rbac_role_management;
 mod sqlite_compat;
 
@@ -18,11 +19,12 @@ use self::{
     iden::{
         AlertDeliveryAttempts, AlertEvents, AlertRules, Apps, AuditLogs, AuthSessions,
         DispatchQueue, InstanceEvents, JobInstanceAttempts, JobInstanceLogs, JobInstances,
-        JobVersions, Jobs, Namespaces, OidcAuthStates, OidcIdentities, Permissions, Plugins,
-        RaftAppliedCommands, RaftLogEntries, RaftMembers, RaftMembershipProposals, RaftMetadata,
-        RaftSnapshots, RoleMenuPermissions, RolePermissions, RoleUiActionPermissions, Roles,
-        ScheduleCursors, ScriptVersions, Scripts, SdkApiKeys, Secrets, ServiceAccounts, UserRoles,
-        Users, WorkerLogicalInstances, WorkerPools, WorkerSessionEvents, WorkerSessions,
+        JobVersions, Jobs, Namespaces, NotificationChannels, NotificationDeliveryAttempts,
+        NotificationMessages, NotificationPolicies, OidcAuthStates, OidcIdentities, Permissions,
+        Plugins, RaftAppliedCommands, RaftLogEntries, RaftMembers, RaftMembershipProposals,
+        RaftMetadata, RaftSnapshots, RoleMenuPermissions, RolePermissions, RoleUiActionPermissions,
+        Roles, ScheduleCursors, ScriptVersions, Scripts, SdkApiKeys, Secrets, ServiceAccounts,
+        UserRoles, Users, WorkerLogicalInstances, WorkerPools, WorkerSessionEvents, WorkerSessions,
         WorkflowEdges, WorkflowInstances, WorkflowNodeInstances, WorkflowNodes, WorkflowShards,
         Workflows,
     },
@@ -42,10 +44,12 @@ impl MigratorTrait for Migrator {
             Box::new(CreateMetadataTables),
             Box::new(LegacySqliteSchemaCompatibility),
             Box::new(RbacRoleManagementMigration),
+            Box::new(NotificationCenterMigration),
         ]
     }
 }
 
+use notification_center::NotificationCenterMigration;
 use rbac_role_management::RbacRoleManagementMigration;
 
 #[derive(DeriveMigrationName)]
@@ -900,9 +904,14 @@ async fn seed_rbac_defaults(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         "perm-instances-read",
         "perm-instances-execute",
         "perm-scripts-read",
+        "perm-audit-read",
+        "perm-audit-manage",
         "perm-workflows-read",
         "perm-workflows-execute",
         "perm-workers-read",
+        "perm-notifications-read",
+        "perm-notifications-manage",
+        "perm-notifications-test",
     ];
     let viewer_permissions = [
         "perm-jobs-read",
@@ -910,6 +919,7 @@ async fn seed_rbac_defaults(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         "perm-scripts-read",
         "perm-workflows-read",
         "perm-workers-read",
+        "perm-notifications-read",
     ];
     seed_role_permissions(manager, "role-owner", owner_permissions).await?;
     seed_role_permissions(manager, "role-operator", operator_permissions).await?;
@@ -1025,6 +1035,12 @@ const DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
     ("perm-scripts-read", "scripts", "read", "Read scripts"),
     ("perm-scripts-manage", "scripts", "manage", "Manage scripts"),
     ("perm-audit-read", "audit", "read", "Read audit logs"),
+    (
+        "perm-audit-manage",
+        "audit",
+        "manage",
+        "Manage alert rules, alert recovery, and audit-governed operations",
+    ),
     ("perm-workflows-read", "workflows", "read", "Read workflows"),
     (
         "perm-workflows-manage",
@@ -1043,6 +1059,30 @@ const DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
         "workers",
         "read",
         "Read workers and queue state",
+    ),
+    (
+        "perm-workers-manage",
+        "workers",
+        "manage",
+        "Manage worker lifecycle operations",
+    ),
+    (
+        "perm-notifications-read",
+        "notifications",
+        "read",
+        "Read notification channels, policies, messages, and delivery state",
+    ),
+    (
+        "perm-notifications-manage",
+        "notifications",
+        "manage",
+        "Manage notification channels, policies, and provider readiness",
+    ),
+    (
+        "perm-notifications-test",
+        "notifications",
+        "test",
+        "Send notification channel test messages",
     ),
 ];
 

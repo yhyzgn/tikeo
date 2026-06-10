@@ -6,6 +6,7 @@ pub mod alert;
 pub mod cli;
 pub mod cluster;
 pub mod http;
+pub mod notification;
 pub mod observability;
 pub mod server;
 pub mod tikeo;

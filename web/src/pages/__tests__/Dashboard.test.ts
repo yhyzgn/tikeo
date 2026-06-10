@@ -13,7 +13,7 @@ describe('dashboard realtime overview', () => {
     expect(source).toContain("instanceSource.addEventListener('instances.snapshot'");
     expect(source).toContain("workerSource.addEventListener('workers.snapshot'");
     expect(source).toContain('setOnlineWorkers(snapshot.workers.online);');
-    expect(source).toContain('window.setInterval(() => { void load({ silent: true }); }, 3000)');
+    expect(source).toContain('window.setInterval(() => { void load(); }, 3000)');
     expect(source).toContain('window.clearInterval(fallbackTimer);');
   });
 });

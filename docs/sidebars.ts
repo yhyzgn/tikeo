@@ -29,6 +29,8 @@ const sidebars: SidebarsConfig = {
         'user-guide/instances',
         'user-guide/workers',
         'user-guide/workflows',
+        'user-guide/notifications',
+        'user-guide/alerts',
         'user-guide/scripts',
         'user-guide/audit',
         'user-guide/settings',
@@ -70,6 +72,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'reference/configuration',
         'reference/management-openapi',
+        'reference/notification-center',
         'reference/worker-tunnel-protobuf',
         'reference/troubleshooting',
       ],

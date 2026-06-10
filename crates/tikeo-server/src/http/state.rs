@@ -8,9 +8,10 @@ use tikeo_config::{
 };
 use tikeo_storage::{
     AlertRepository, AuditLogRepository, AuthSessionRepository, JobInstanceAttemptRepository,
-    JobInstanceLogRepository, JobInstanceRepository, JobRepository, PluginRepository,
-    RaftRepository, RbacRepository, ScriptRepository, UserRepository, WorkerLifecycleRepository,
-    WorkflowRepository,
+    JobInstanceLogRepository, JobInstanceRepository, JobRepository, NotificationChannelRepository,
+    NotificationDeliveryAttemptRepository, NotificationMessageRepository,
+    NotificationPolicyRepository, PluginRepository, RaftRepository, RbacRepository,
+    ScriptRepository, UserRepository, WorkerLifecycleRepository, WorkflowRepository,
 };
 
 use super::{
@@ -31,6 +32,10 @@ pub struct AppState {
     pub(crate) workflows: WorkflowRepository,
     pub(crate) audit: AuditLogRepository,
     pub(crate) alerts: AlertRepository,
+    pub(crate) notification_channels: NotificationChannelRepository,
+    pub(crate) notification_policies: NotificationPolicyRepository,
+    pub(crate) notification_messages: NotificationMessageRepository,
+    pub(crate) notification_delivery_attempts: NotificationDeliveryAttemptRepository,
     pub(crate) plugins: PluginRepository,
     pub(crate) auth_config: AuthConfig,
     pub(crate) transport_security: TransportSecurityConfig,
@@ -65,6 +70,10 @@ impl AppState {
         let rbac = RbacService::new(RbacRepository::new(db.clone()));
         let raft = RaftRepository::new(db.clone());
         let alerts = AlertRepository::new(db.clone());
+        let notification_channels = NotificationChannelRepository::new(db.clone());
+        let notification_policies = NotificationPolicyRepository::new(db.clone());
+        let notification_messages = NotificationMessageRepository::new(db.clone());
+        let notification_delivery_attempts = NotificationDeliveryAttemptRepository::new(db.clone());
         let plugins = PluginRepository::new(db.clone());
         let worker_lifecycle = WorkerLifecycleRepository::new(db.clone());
         let sessions = SessionManager::new(DbMokaSessionStore::new(
@@ -82,6 +91,10 @@ impl AppState {
             workflows,
             audit,
             alerts,
+            notification_channels,
+            notification_policies,
+            notification_messages,
+            notification_delivery_attempts,
             plugins,
             auth_config: AuthConfig::default(),
             transport_security: TransportSecurityConfig::default(),

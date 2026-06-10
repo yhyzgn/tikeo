@@ -99,3 +99,23 @@ SDK 页面应把 helper 行为链接到上面的精确锚点：
 
 这些链接必须保持 source-backed。如果要文档化新的 SDK helper，先确认它已在
 提交的 SDK 源码中存在，并且序列化 payload 与 OpenAPI 请求契约一致。
+
+## 通知中心端点
+
+通知中心路由挂在 `/api/v1` 下，并由 `crates/tikeo-server/src/http/openapi.rs` 纳入 `/api-docs/openapi.json`。它们使用与上面 job/instance routes 相同的 `{code,message,data}` envelope。这些是人工运维端点，不是 SDK job-trigger credential；调用时使用具备对应 RBAC permission 的 bearer/API auth。
+
+| Endpoint | 用途 | 权限 |
+| --- | --- | --- |
+| `GET /api/v1/notification-channel-types` | 列出 built-in 与 enabled plugin-provided provider metadata。 | `notifications:read` |
+| `GET /api/v1/notification-channels` | 列出脱敏后的可复用出站渠道。 | `notifications:read` |
+| `POST /api/v1/notification-channels` | 创建渠道；不回显原始 `secretRefs`。 | `notifications:manage` |
+| `GET/PATCH/DELETE /api/v1/notification-channels/{id}` | 读取、更新或删除单个渠道；被 policy 引用时拒绝删除。 | GET 需要 `notifications:read`，PATCH/DELETE 需要 `notifications:manage` |
+| `GET/POST /api/v1/notification-policies` | 列出或创建 owner/event subscriptions。 | GET 需要 `notifications:read`，POST 需要 `notifications:manage` |
+| `GET/PATCH/DELETE /api/v1/notification-policies/{id}` | 读取、更新或删除单个策略。 | GET 需要 `notifications:read`，PATCH/DELETE 需要 `notifications:manage` |
+| `POST /api/v1/notification-policies/{id}:validate` | 验证 channel refs 和 enabled state。 | `notifications:read` |
+| `GET /api/v1/notification-messages` | 列出标准化出站消息。 | `notifications:read` |
+| `GET /api/v1/notification-delivery-attempts` | 列出投递尝试。 | `notifications:read` |
+| `GET /api/v1/notification-delivery-attempts:queue-status` | 返回 delivered/retry/DLQ 计数和最近 dead letters。 | `notifications:read` |
+| `POST /api/v1/notification-delivery-attempts:retry-due` | 执行 bounded due-attempt delivery scan。 | `notifications:test` |
+
+已实现 provider 包括 `webhook`、`slack`、`dingtalk`、`feishu`、`wechat_work`、`pagerduty`、`email` 和 enabled plugin webhook-compatible types。更多细节见 [通知中心参考](./notification-center)。

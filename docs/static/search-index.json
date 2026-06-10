@@ -60,6 +60,12 @@
     "summary": "Source-derived Management API reference for jobs, triggers, instances, logs, and x-tikeo-api-key credentials."
   },
   {
+    "title": "Notification Center reference",
+    "url": "/docs/reference/notification-center",
+    "locale": "en",
+    "summary": "Source-backed Notification Center API, RBAC, configuration defaults, storage model, redaction, job-event materialization boundary, retry, DLQ, and UI CRUD reference."
+  },
+  {
     "title": "Worker Tunnel protobuf reference",
     "url": "/docs/reference/worker-tunnel-protobuf",
     "locale": "en",
@@ -82,6 +88,18 @@
     "url": "/docs/user-guide/jobs",
     "locale": "en",
     "summary": "How to use the Jobs console, API-triggered jobs, broadcast selectors, version history, and scheduling advice."
+  },
+  {
+    "title": "Notifications user guide",
+    "url": "/docs/user-guide/notifications",
+    "locale": "en",
+    "summary": "Operator workflow for Notification Center channels, policies, job event messages, redaction, delivery retry, DLQ, UI channel/policy CRUD, and the Alerts boundary."
+  },
+  {
+    "title": "Alerts user guide",
+    "url": "/docs/user-guide/alerts",
+    "locale": "en",
+    "summary": "Alert rules, alert events, firing/suppressed/silenced/recovered semantics, alert delivery compatibility, and when to use Notification Center instead."
   },
   {
     "title": "Workers user guide",
@@ -112,6 +130,12 @@
     "url": "/zh-CN/docs/reference/configuration",
     "locale": "zh-CN",
     "summary": "完整默认值表，覆盖 server、storage、cluster、auth、TLS/mTLS、观测、告警和 Worker SDK 默认值。"
+  },
+  {
+    "title": "通知中心参考",
+    "url": "/zh-CN/docs/reference/notification-center",
+    "locale": "zh-CN",
+    "summary": "通知中心 API、RBAC、配置默认值、存储模型、脱敏、作业事件物化边界、重试、DLQ 和 UI CRUD 的源码证据参考。"
   },
   {
     "title": "Rust Worker SDK 中文指南",
@@ -160,6 +184,18 @@
     "url": "/zh-CN/docs/user-guide/jobs",
     "locale": "zh-CN",
     "summary": "使用作业控制台、API 触发、广播选择器、版本历史和调度建议。"
+  },
+  {
+    "title": "通知用户指南",
+    "url": "/zh-CN/docs/user-guide/notifications",
+    "locale": "zh-CN",
+    "summary": "通知中心渠道、策略、作业事件消息、脱敏、投递重试、DLQ、UI 渠道/策略 CRUD 与告警边界运维指南。"
+  },
+  {
+    "title": "告警用户指南",
+    "url": "/zh-CN/docs/user-guide/alerts",
+    "locale": "zh-CN",
+    "summary": "告警规则、事件、firing/suppressed/silenced/recovered 语义、兼容投递，以及何时改用通知中心。"
   },
   {
     "title": "Worker 用户指南",

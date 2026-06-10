@@ -12,7 +12,10 @@ use tikeo_storage::{CreateJob, CreateJobInstance, UpdateJob};
 use tokio::{sync::mpsc, time};
 use tokio_stream::{Stream, wrappers::ReceiverStream};
 
-use crate::tunnel::registry::BroadcastSelector;
+use crate::{
+    notification::{JobNotificationEvent, NotificationCenter, emit_job_instance_event_best_effort},
+    tunnel::registry::BroadcastSelector,
+};
 
 use crate::http::{
     AppState, auth,
@@ -989,6 +992,22 @@ pub async fn cancel_job_instance(
         &headers,
     )
     .await;
+    if summary.status == tikeo_core::InstanceStatus::Cancelled {
+        let notifications = NotificationCenter::new(
+            state.notification_channels.clone(),
+            state.notification_policies.clone(),
+            state.notification_messages.clone(),
+            state.notification_delivery_attempts.clone(),
+            state.jobs.clone(),
+        );
+        emit_job_instance_event_best_effort(
+            &notifications,
+            &summary,
+            JobNotificationEvent::Cancelled,
+            Some("instance cancelled through management API"),
+        )
+        .await;
+    }
     Ok(Json(ApiResponse::success(
         instance_summary_with_latest_log(&state, summary).await?,
     )))

@@ -32,6 +32,9 @@ pub struct TikeoConfig {
     /// Alert delivery retry worker settings.
     #[serde(default)]
     pub alert_retry: AlertRetryConfig,
+    /// Generic Notification Center delivery worker settings.
+    #[serde(default)]
+    pub notification_delivery: NotificationDeliveryConfig,
     /// Alert provider secret management settings.
     #[serde(default)]
     pub alert_secrets: AlertSecretConfig,
@@ -251,6 +254,38 @@ impl Default for AlertRetryConfig {
     }
 }
 
+/// Generic Notification Center delivery worker settings.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NotificationDeliveryConfig {
+    /// Run the background Notification Center delivery worker.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Interval between due-attempt scans.
+    #[serde(default = "default_notification_delivery_interval_seconds")]
+    pub interval_seconds: u64,
+    /// Maximum due attempts scanned per iteration.
+    #[serde(default = "default_notification_delivery_batch_size")]
+    pub batch_size: u64,
+    /// Maximum delivery attempts before dead-lettering.
+    #[serde(default = "default_notification_delivery_max_attempts")]
+    pub max_attempts: i32,
+    /// Backoff before the next retry attempt.
+    #[serde(default = "default_notification_delivery_backoff_seconds")]
+    pub backoff_seconds: i64,
+}
+
+impl Default for NotificationDeliveryConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval_seconds: default_notification_delivery_interval_seconds(),
+            batch_size: default_notification_delivery_batch_size(),
+            max_attempts: default_notification_delivery_max_attempts(),
+            backoff_seconds: default_notification_delivery_backoff_seconds(),
+        }
+    }
+}
+
 /// Observability export configuration.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObservabilityConfig {
@@ -385,6 +420,22 @@ const fn default_alert_retry_backoff_seconds() -> i64 {
     300
 }
 
+const fn default_notification_delivery_interval_seconds() -> u64 {
+    60
+}
+
+const fn default_notification_delivery_batch_size() -> u64 {
+    50
+}
+
+const fn default_notification_delivery_max_attempts() -> i32 {
+    3
+}
+
+const fn default_notification_delivery_backoff_seconds() -> i64 {
+    300
+}
+
 fn default_oidc_scopes() -> Vec<String> {
     vec![
         "openid".to_owned(),
@@ -460,7 +511,12 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeoConfig, ConfigError> {
         .set_default("alert_retry.interval_seconds", 60)?
         .set_default("alert_retry.batch_size", 50)?
         .set_default("alert_retry.max_attempts", 3)?
-        .set_default("alert_retry.backoff_seconds", 300)?;
+        .set_default("alert_retry.backoff_seconds", 300)?
+        .set_default("notification_delivery.enabled", true)?
+        .set_default("notification_delivery.interval_seconds", 60)?
+        .set_default("notification_delivery.batch_size", 50)?
+        .set_default("notification_delivery.max_attempts", 3)?
+        .set_default("notification_delivery.backoff_seconds", 300)?;
 
     if let Some(path) = path {
         builder = builder.add_source(File::from(path).required(true));
@@ -533,6 +589,18 @@ mod tests {
         assert!(!config.observability.tracing.enabled);
         assert!(config.observability.tracing.otlp_endpoint.is_none());
         assert!(config.observability.tracing.headers.is_empty());
+    }
+
+    #[test]
+    fn default_notification_delivery_config_enables_generic_delivery_worker() {
+        let config =
+            load_config(None).unwrap_or_else(|error| panic!("default config should load: {error}"));
+
+        assert!(config.notification_delivery.enabled);
+        assert_eq!(config.notification_delivery.interval_seconds, 60);
+        assert_eq!(config.notification_delivery.batch_size, 50);
+        assert_eq!(config.notification_delivery.max_attempts, 3);
+        assert_eq!(config.notification_delivery.backoff_seconds, 300);
     }
 
     #[test]

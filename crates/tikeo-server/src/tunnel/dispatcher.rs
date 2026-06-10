@@ -18,7 +18,10 @@ use tokio::time;
 use tracing::{debug, warn};
 
 use super::{WorkerRegistry, capability::WorkerRequirement, governance};
-use crate::cluster::SharedClusterCoordinator;
+use crate::{
+    cluster::SharedClusterCoordinator,
+    notification::{JobNotificationEvent, NotificationCenter, emit_job_instance_event_best_effort},
+};
 
 const DISPATCH_INTERVAL: Duration = Duration::from_millis(500);
 const DISPATCH_BATCH_SIZE: u64 = 16;
@@ -46,12 +49,22 @@ pub async fn run(
     audit: AuditLogRepository,
     registry: WorkerRegistry,
     cluster: SharedClusterCoordinator,
+    notifications: NotificationCenter,
 ) {
     let mut ticker = time::interval(DISPATCH_INTERVAL);
     loop {
         ticker.tick().await;
         if let Err(error) = dispatch_once_if_owner(
-            &jobs, &instances, &attempts, &workflows, &scripts, &logs, &audit, &registry, &cluster,
+            &jobs,
+            &instances,
+            &attempts,
+            &workflows,
+            &scripts,
+            &logs,
+            &audit,
+            &registry,
+            &cluster,
+            &notifications,
         )
         .await
         {
@@ -71,6 +84,7 @@ async fn dispatch_once_if_owner(
     audit: &AuditLogRepository,
     registry: &WorkerRegistry,
     cluster: &SharedClusterCoordinator,
+    notifications: &NotificationCenter,
 ) -> Result<(), tikeo_storage::DbErr> {
     let status = cluster.status().await;
     if !status.can_schedule {
@@ -89,6 +103,7 @@ async fn dispatch_once_if_owner(
         audit,
         registry,
         &fencing_token,
+        notifications,
     )
     .await
 }
@@ -104,6 +119,7 @@ async fn dispatch_once(
     audit: &AuditLogRepository,
     registry: &WorkerRegistry,
     fencing_token: &str,
+    notifications: &NotificationCenter,
 ) -> Result<(), tikeo_storage::DbErr> {
     let recovered = workflows
         .requeue_stale_running_job_dispatches(DISPATCH_STALE_RUNNING_SECONDS)
@@ -132,11 +148,12 @@ async fn dispatch_once(
         audit,
         registry,
         fencing_token,
+        notifications,
     )
     .await
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 async fn dispatch_single_instances(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,
@@ -146,6 +163,7 @@ async fn dispatch_single_instances(
     audit: &AuditLogRepository,
     registry: &WorkerRegistry,
     fencing_token: &str,
+    notifications: &NotificationCenter,
 ) -> Result<(), tikeo_storage::DbErr> {
     for _ in 0..DISPATCH_BATCH_SIZE {
         let Some(claim) = workflows
@@ -185,9 +203,18 @@ async fn dispatch_single_instances(
             let _ = workflows
                 .mark_dispatch_queue_failed(&claim.item.id, DISPATCHER_LEASE_OWNER)
                 .await?;
-            instances
+            if let Some(updated) = instances
                 .update_status(&instance.id, InstanceStatus::Failed)
-                .await?;
+                .await?
+            {
+                emit_job_instance_event_best_effort(
+                    notifications,
+                    &updated,
+                    JobNotificationEvent::Failed,
+                    Some("missing job during dispatch"),
+                )
+                .await;
+            }
             warn!(queue_id = %claim.item.id, instance_id = %instance.id, job_id = %instance.job_id, "closed dispatch queue item for missing job");
             continue;
         };
@@ -213,6 +240,7 @@ async fn dispatch_single_instances(
                 "builtin.http",
                 outcome.success,
                 outcome.message,
+                notifications,
             )
             .await?;
             continue;
@@ -237,6 +265,7 @@ async fn dispatch_single_instances(
                 "builtin.grpc",
                 outcome.success,
                 outcome.message,
+                notifications,
             )
             .await?;
             continue;
@@ -261,6 +290,7 @@ async fn dispatch_single_instances(
                 "builtin.sql",
                 outcome.success,
                 outcome.message,
+                notifications,
             )
             .await?;
             continue;
@@ -286,6 +316,7 @@ async fn dispatch_single_instances(
                 "builtin.file_cleanup",
                 outcome.success,
                 outcome.message,
+                notifications,
             )
             .await?;
             continue;
@@ -304,9 +335,25 @@ async fn dispatch_single_instances(
                 let _ = workflows
                     .mark_dispatch_queue_failed(&claim.item.id, DISPATCHER_LEASE_OWNER)
                     .await?;
-                instances
+                if let Some(updated) = instances
                     .update_status(&instance.id, InstanceStatus::Failed)
-                    .await?;
+                    .await?
+                {
+                    emit_job_instance_event_best_effort(
+                        notifications,
+                        &updated,
+                        JobNotificationEvent::ScriptGovernanceFailure,
+                        Some(&failure.message()),
+                    )
+                    .await;
+                    emit_job_instance_event_best_effort(
+                        notifications,
+                        &updated,
+                        JobNotificationEvent::Failed,
+                        Some(&failure.message()),
+                    )
+                    .await;
+                }
                 continue;
             }
         };
@@ -351,9 +398,29 @@ async fn dispatch_single_instances(
                 let _ = workflows
                     .mark_dispatch_queue_failed(&claim.item.id, DISPATCHER_LEASE_OWNER)
                     .await?;
-                instances
+                if let Some(updated) = instances
                     .update_status(&instance.id, InstanceStatus::Failed)
-                    .await?;
+                    .await?
+                {
+                    let reason = ScriptGovernanceFailure::NoEligibleWorkerCapability(
+                        requirement.display_label(),
+                    )
+                    .message();
+                    emit_job_instance_event_best_effort(
+                        notifications,
+                        &updated,
+                        JobNotificationEvent::NoEligibleWorker,
+                        Some(&reason),
+                    )
+                    .await;
+                    emit_job_instance_event_best_effort(
+                        notifications,
+                        &updated,
+                        JobNotificationEvent::ScriptGovernanceFailure,
+                        Some(&reason),
+                    )
+                    .await;
+                }
                 continue;
             }
             let _ = workflows
@@ -406,6 +473,7 @@ async fn complete_builtin_processor_outcome(
     worker_id: &str,
     success: bool,
     message: String,
+    notifications: &NotificationCenter,
 ) -> Result<(), tikeo_storage::DbErr> {
     instances
         .record_result(instance_id, worker_id, success, &message)
@@ -435,6 +503,15 @@ async fn complete_builtin_processor_outcome(
                 ),
             )
             .await?;
+            if let Some(updated) = instances.get(instance_id).await? {
+                emit_job_instance_event_best_effort(
+                    notifications,
+                    &updated,
+                    JobNotificationEvent::RetryScheduled,
+                    Some(&message),
+                )
+                .await;
+            }
             return Ok(());
         }
     } else if !success {
@@ -458,11 +535,33 @@ async fn complete_builtin_processor_outcome(
     let _ = workflows
         .mark_dispatch_queue_done_by_instance(instance_id)
         .await?;
-    instances.update_status(instance_id, status).await?;
+    if let Some(updated) = instances.update_status(instance_id, status).await? {
+        let event = if !success && status == InstanceStatus::Failed {
+            Some(terminal_failure_notification_event(job, attempt))
+        } else {
+            JobNotificationEvent::from_terminal_status(status)
+        };
+        if let Some(event) = event {
+            emit_job_instance_event_best_effort(notifications, &updated, event, Some(&message))
+                .await;
+        }
+    }
     let _ = workflows
         .complete_job_node_from_result(instance_id, status, Some(message))
         .await?;
     Ok(())
+}
+
+fn terminal_failure_notification_event(
+    job: &tikeo_storage::JobSummary,
+    attempt: i32,
+) -> JobNotificationEvent {
+    let policy = job.retry_policy.clone().normalized();
+    if policy.enabled && policy.max_attempts > 1 && attempt >= policy.max_attempts {
+        JobNotificationEvent::RetryExhausted
+    } else {
+        JobNotificationEvent::Failed
+    }
 }
 
 async fn append_dispatcher_execution_log(

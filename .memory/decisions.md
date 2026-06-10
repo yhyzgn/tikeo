@@ -614,3 +614,27 @@ Rationale:
 
 Constraint:
 - Future implementation must preserve existing alert APIs while adding generic notification APIs; never confuse inbound webhook event sources with outbound webhook notification channels.
+
+## 2026-06-11 — Notification delivery crash safety prefers at-least-once over lost delivery
+
+Decision:
+- Generic Notification Center delivery no longer marks a due attempt `retry_consumed` before provider delivery and result persistence.
+- The provider call runs while the previous row remains retryable; after a result row is inserted, the old row is marked `retry_consumed`.
+
+Rationale:
+- A process crash before or during provider delivery must not remove the only pending retry row.
+- The remaining crash window after inserting the result but before consuming the old row can cause duplicate delivery, which is safer and more auditable than lost delivery for notifications.
+
+Constraint:
+- Future hardening should add a lease/in-progress state plus idempotency/dedupe keys to reduce duplicate provider calls without reintroducing lost retries.
+
+## 2026-06-11 — Failed vs retry_exhausted event semantics
+
+Decision:
+- `job_instance.retry_exhausted` is emitted only when an enabled retry policy with at least one retry is actually exhausted.
+- Non-retrying terminal failures, including `maxAttempts=1`, emit `job_instance.failed`.
+- Scheduled retry failures emit `job_instance.retry_scheduled` and do not also emit terminal failure events.
+
+Rationale:
+- Policies that subscribe to normal failed jobs must not miss failures just because a job has no retry budget.
+- `retry_exhausted` should mean retry exhaustion, not any failed terminal status.

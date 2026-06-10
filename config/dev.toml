@@ -50,3 +50,10 @@ backoff_seconds = 300
 [script_governance]
 # Optional local signature verification for script release approval tickets.
 # release_signature_secret_ref = "env:TIKEO_SCRIPT_RELEASE_SECRET"
+
+[notification_delivery]
+enabled = true
+interval_seconds = 60
+batch_size = 50
+max_attempts = 3
+backoff_seconds = 300

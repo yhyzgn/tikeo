@@ -16,6 +16,7 @@ mod job;
 mod job_repo;
 mod job_version;
 mod log;
+mod notification;
 mod oidc;
 mod oidc_identity;
 mod plugin;
@@ -52,6 +53,16 @@ pub use job::{CreateJob, JobRetryPolicy, JobSummary, UpdateJob};
 pub use job_repo::JobRepository;
 pub use job_version::{JobVersionRepository, JobVersionSummary};
 pub use log::{AppendJobInstanceLog, JobInstanceLogRepository, JobInstanceLogSummary};
+pub use notification::{
+    CreateNotificationChannel, CreateNotificationMessage, CreateNotificationPolicy,
+    NotificationChannelDeleteResult, NotificationChannelDeliveryConfig, NotificationChannelFilters,
+    NotificationChannelRepository, NotificationChannelSummary, NotificationDeliveryAttemptFilters,
+    NotificationDeliveryAttemptRepository, NotificationDeliveryAttemptSummary,
+    NotificationMessageFilters, NotificationMessageRepository, NotificationMessageSummary,
+    NotificationPolicyFilters, NotificationPolicyRepository, NotificationPolicySummary,
+    NotificationPolicyValidationSummary, RecordNotificationDeliveryAttempt,
+    UpdateNotificationChannel, UpdateNotificationPolicy,
+};
 pub use oidc::{CreateOidcAuthState, OidcAuthStateRepository, OidcAuthStateSummary};
 pub use oidc_identity::{OidcIdentityRepository, OidcIdentitySummary, UpsertOidcIdentity};
 pub use plugin::{

@@ -1,5 +1,8 @@
 //! gRPC Worker Tunnel service.
 
+use crate::notification::{
+    JobNotificationEvent, NotificationCenter, emit_job_instance_event_best_effort,
+};
 use tikeo_core::InstanceStatus;
 use tikeo_proto::worker::v1::{
     Heartbeat, Ping, ServerMessage, SubscribeTaskLogsRequest, TaskCheckpoint, TaskLog, TaskResult,
@@ -53,6 +56,7 @@ pub struct WorkerTunnel {
     attempts: JobInstanceAttemptRepository,
     workflows: WorkflowRepository,
     audit: AuditLogRepository,
+    notifications: NotificationCenter,
     log_broadcaster: TaskLogBroadcaster,
 }
 
@@ -68,6 +72,7 @@ impl WorkerTunnel {
             attempts: runtime.attempts,
             workflows: runtime.workflows,
             audit: runtime.audit,
+            notifications: runtime.notifications,
             log_broadcaster: runtime.log_broadcaster,
         }
     }
@@ -90,6 +95,7 @@ impl WorkerTunnelService for WorkerTunnel {
         let attempts = self.attempts.clone();
         let workflows = self.workflows.clone();
         let audit = self.audit.clone();
+        let notifications = self.notifications.clone();
         let log_broadcaster = self.log_broadcaster.clone();
         let (tx, rx) = mpsc::channel(16);
         let outbound = tx.clone();
@@ -108,6 +114,7 @@ impl WorkerTunnelService for WorkerTunnel {
                             attempts: &attempts,
                             workflows: &workflows,
                             audit: &audit,
+                            notifications: &notifications,
                             log_broadcaster: &log_broadcaster,
                             tx: &tx,
                             outbound: &outbound,
@@ -221,6 +228,7 @@ struct WorkerMessageContext<'a> {
     attempts: &'a JobInstanceAttemptRepository,
     workflows: &'a WorkflowRepository,
     audit: &'a AuditLogRepository,
+    notifications: &'a NotificationCenter,
     log_broadcaster: &'a TaskLogBroadcaster,
     tx: &'a mpsc::Sender<Result<ServerMessage, Status>>,
     outbound: &'a mpsc::Sender<Result<ServerMessage, Status>>,
@@ -451,8 +459,14 @@ async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResu
         Ok(Some(_)) => {
             persist_broadcast_task_result(context, &worker_id, &instance_id, success, &message)
                 .await;
-            if let Err(error) =
-                refresh_broadcast_parent(context.instances, context.attempts, &instance_id).await
+            if let Err(error) = refresh_broadcast_parent(
+                context.instances,
+                context.attempts,
+                context.notifications,
+                &instance_id,
+                &message,
+            )
+            .await
             {
                 tracing::warn!(%error, %instance_id, "failed to refresh broadcast parent status");
             }
@@ -583,8 +597,25 @@ async fn handle_single_task_result(
         return;
     }
 
-    if let Err(error) = context.instances.update_status(instance_id, status).await {
-        tracing::warn!(%error, %instance_id, "failed to persist task result");
+    match context.instances.update_status(instance_id, status).await {
+        Ok(Some(updated)) => {
+            let event = if !success && status == InstanceStatus::Failed {
+                terminal_failure_notification_event(context, instance_id).await
+            } else {
+                JobNotificationEvent::from_terminal_status(status)
+            };
+            if let Some(event) = event {
+                emit_job_instance_event_best_effort(
+                    context.notifications,
+                    &updated,
+                    event,
+                    Some(message),
+                )
+                .await;
+            }
+        }
+        Ok(None) => {}
+        Err(error) => tracing::warn!(%error, %instance_id, "failed to persist task result"),
     }
     if let Err(error) = context
         .workflows
@@ -672,6 +703,15 @@ async fn schedule_retry_after_failure(
                 ),
             )
             .await;
+            if let Ok(Some(updated)) = context.instances.get(instance_id).await {
+                emit_job_instance_event_best_effort(
+                    context.notifications,
+                    &updated,
+                    JobNotificationEvent::RetryScheduled,
+                    Some(message),
+                )
+                .await;
+            }
             true
         }
         Ok(None) => false,
@@ -679,6 +719,31 @@ async fn schedule_retry_after_failure(
             tracing::warn!(%error, %instance_id, "failed to requeue failed task for retry");
             false
         }
+    }
+}
+
+async fn terminal_failure_notification_event(
+    context: &WorkerMessageContext<'_>,
+    instance_id: &str,
+) -> Option<JobNotificationEvent> {
+    let Ok(Some(instance)) = context.instances.get(instance_id).await else {
+        return Some(JobNotificationEvent::Failed);
+    };
+    let Ok(Some(job)) = context.jobs.get(&instance.job_id).await else {
+        return Some(JobNotificationEvent::Failed);
+    };
+    let Ok(Some(queue)) = context
+        .workflows
+        .dispatch_queue_for_instance(instance_id)
+        .await
+    else {
+        return Some(JobNotificationEvent::Failed);
+    };
+    let policy = job.retry_policy.normalized();
+    if policy.enabled && policy.max_attempts > 1 && queue.attempt >= policy.max_attempts {
+        Some(JobNotificationEvent::RetryExhausted)
+    } else {
+        Some(JobNotificationEvent::Failed)
     }
 }
 
@@ -716,7 +781,9 @@ async fn append_execution_log(
 async fn refresh_broadcast_parent(
     instances: &JobInstanceRepository,
     attempts: &JobInstanceAttemptRepository,
+    notifications: &NotificationCenter,
     instance_id: &str,
+    message: &str,
 ) -> Result<(), tikeo_storage::DbErr> {
     let children = attempts.list_by_instance(instance_id).await?;
     if children.is_empty() {
@@ -739,7 +806,25 @@ async fn refresh_broadcast_parent(
     } else {
         InstanceStatus::PartialFailed
     };
-    let _ = instances.update_status(instance_id, status).await?;
+    let Some(current) = instances.get(instance_id).await? else {
+        return Ok(());
+    };
+    if current.status == status {
+        return Ok(());
+    }
+    if let Some(updated) = instances.update_status(instance_id, status).await?
+        && let Some(event) = JobNotificationEvent::from_terminal_status(status)
+    {
+        emit_job_instance_event_best_effort(
+            notifications,
+            &updated,
+            event,
+            Some(&format!(
+                "broadcast parent completed after worker result: {message}"
+            )),
+        )
+        .await;
+    }
     Ok(())
 }
 
@@ -755,639 +840,4 @@ fn task_log_from_summary(value: JobInstanceLogSummary) -> TaskLog {
 }
 
 #[cfg(test)]
-mod tests {
-    use tikeo_core::InstanceStatus;
-    use tikeo_proto::worker::v1::{
-        RegisterWorker, SubscribeTaskLogsRequest, TaskLog, WorkerMessage, server_message,
-        worker_message,
-    };
-    use tikeo_storage::{
-        AuditLogRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
-        JobInstanceRepository, JobRepository, WorkflowRepository, connect_and_migrate,
-    };
-    use tokio::sync::mpsc;
-    use tokio_stream::StreamExt;
-
-    use super::{
-        TaskLogBroadcaster, WorkerMessageContext, WorkerRegistry, handle_task_result,
-        handle_worker_message,
-    };
-
-    #[tokio::test]
-    async fn register_message_updates_registry_and_acknowledges_worker() {
-        let registry = WorkerRegistry::default();
-        let instances = instances().await;
-        let jobs = jobs().await;
-        let logs = logs().await;
-        let audit = audit().await;
-        let (tx, mut rx) = mpsc::channel(1);
-
-        let attempts = attempts().await;
-
-        let workflows = workflows().await;
-        let log_broadcaster = TaskLogBroadcaster::default();
-        let context = WorkerMessageContext {
-            registry: &registry,
-            instances: &instances,
-            jobs: &jobs,
-            logs: &logs,
-            attempts: &attempts,
-            workflows: &workflows,
-            audit: &audit,
-            log_broadcaster: &log_broadcaster,
-            tx: &tx,
-            outbound: &tx,
-        };
-
-        handle_worker_message(
-            &context,
-            WorkerMessage {
-                kind: Some(worker_message::Kind::Register(RegisterWorker {
-                    client_instance_id: "worker-1".to_owned(),
-                    app: "billing".to_owned(),
-                    namespace: "finance".to_owned(),
-                    cluster: "prod".to_owned(),
-                    region: "cn".to_owned(),
-                    capabilities: Vec::new(),
-                    structured_capabilities: None,
-                    election: None,
-                    labels: std::collections::HashMap::default(),
-                })),
-            },
-        )
-        .await
-        .unwrap_or_else(|error| panic!("ack should send: {error}"));
-
-        let ack = rx
-            .recv()
-            .await
-            .unwrap_or_else(|| panic!("ack should exist"))
-            .unwrap_or_else(|error| panic!("ack should be ok: {error}"));
-
-        match ack.kind {
-            Some(server_message::Kind::Registered(registered)) => {
-                assert!(registered.worker_id.starts_with("wrk-"));
-            }
-            other => panic!("unexpected ack: {other:?}"),
-        }
-
-        let registered_id = registry
-            .worker_ids()
-            .await
-            .into_iter()
-            .next()
-            .unwrap_or_else(|| panic!("registered worker id should exist"));
-        assert!(registry.get(&registered_id).await.is_some());
-    }
-
-    #[tokio::test]
-    async fn task_result_with_wrong_assignment_token_is_rejected() {
-        use tikeo_core::{ExecutionMode, TriggerType};
-        use tikeo_proto::worker::v1::{RegisterWorker, TaskResult};
-        use tikeo_storage::{CreateJob, CreateJobInstance, JobRepository};
-
-        let db = connect_and_migrate("sqlite::memory:")
-            .await
-            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let jobs = JobRepository::new(db.clone());
-        let instances = JobInstanceRepository::new(db.clone());
-        let logs = JobInstanceLogRepository::new(db.clone());
-        let attempts = JobInstanceAttemptRepository::new(db.clone());
-        let workflows = WorkflowRepository::new(db.clone());
-        let audit = AuditLogRepository::new(db.clone());
-        let job = jobs
-            .create_job(CreateJob {
-                created_by: None,
-                namespace: "default".to_owned(),
-                app: "billing".to_owned(),
-                name: "assign-token".to_owned(),
-                schedule_type: "api".to_owned(),
-                schedule_expr: None,
-                misfire_policy: "fire_once".to_owned(),
-                schedule_start_at: None,
-                schedule_end_at: None,
-                schedule_calendar_json: None,
-                processor_name: None,
-                processor_type: None,
-                script_id: None,
-                enabled: true,
-                canary_job_id: None,
-                canary_percent: 0,
-                retry_policy: None,
-            })
-            .await
-            .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let instance = instances
-            .create_pending(CreateJobInstance {
-                job_id: job.id,
-                trigger_type: TriggerType::Api,
-                execution_mode: ExecutionMode::Single,
-            })
-            .await
-            .unwrap_or_else(|error| panic!("instance should create: {error}"))
-            .unwrap_or_else(|| panic!("instance should exist"));
-        let (outbound, _rx) = mpsc::channel(8);
-        let registry = WorkerRegistry::default();
-        let worker = registry
-            .register(
-                RegisterWorker {
-                    client_instance_id: "assign-worker".to_owned(),
-                    app: "billing".to_owned(),
-                    namespace: "default".to_owned(),
-                    cluster: "local".to_owned(),
-                    region: "local".to_owned(),
-                    capabilities: Vec::new(),
-                    structured_capabilities: None,
-                    election: None,
-                    labels: std::collections::HashMap::default(),
-                },
-                outbound,
-            )
-            .await;
-        let (tx, _events) = mpsc::channel(8);
-        let broadcaster = TaskLogBroadcaster::default();
-        let context = WorkerMessageContext {
-            registry: &registry,
-            instances: &instances,
-            jobs: &jobs,
-            logs: &logs,
-            attempts: &attempts,
-            workflows: &workflows,
-            audit: &audit,
-            log_broadcaster: &broadcaster,
-            tx: &tx,
-            outbound: &tx,
-        };
-
-        handle_task_result(
-            &context,
-            TaskResult {
-                worker_id: worker.worker_id,
-                instance_id: instance.id.clone(),
-                success: true,
-                message: "ok".to_owned(),
-                assignment_token: "wrong".to_owned(),
-            },
-        )
-        .await;
-
-        let unchanged = instances
-            .get(&instance.id)
-            .await
-            .unwrap_or_else(|error| panic!("instance should load: {error}"))
-            .unwrap_or_else(|| panic!("instance should exist"));
-        assert_eq!(unchanged.status, InstanceStatus::Pending);
-    }
-
-    #[tokio::test]
-    async fn broadcast_task_result_persists_per_worker_attempt_result() {
-        use tikeo_core::{ExecutionMode, InstanceStatus, TriggerType};
-        use tikeo_proto::worker::v1::{DispatchTask, RegisterWorker, TaskResult, server_message};
-        use tikeo_storage::{CreateJob, CreateJobInstance, JobRepository};
-
-        let db = connect_and_migrate("sqlite::memory:")
-            .await
-            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let jobs = JobRepository::new(db.clone());
-        let instances = JobInstanceRepository::new(db.clone());
-        let logs = JobInstanceLogRepository::new(db.clone());
-        let attempts = JobInstanceAttemptRepository::new(db.clone());
-        let workflows = WorkflowRepository::new(db.clone());
-        let audit = AuditLogRepository::new(db);
-        let job = jobs
-            .create_job(CreateJob {
-                created_by: None,
-                namespace: "default".to_owned(),
-                app: "billing".to_owned(),
-                name: "broadcast-result".to_owned(),
-                schedule_type: "api".to_owned(),
-                schedule_expr: None,
-                misfire_policy: "fire_once".to_owned(),
-                schedule_start_at: None,
-                schedule_end_at: None,
-                schedule_calendar_json: None,
-                processor_name: Some("demo.broadcast".to_owned()),
-                processor_type: None,
-                script_id: None,
-                enabled: true,
-                canary_job_id: None,
-                canary_percent: 0,
-                retry_policy: None,
-            })
-            .await
-            .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let instance = instances
-            .create_pending(CreateJobInstance {
-                job_id: job.id.clone(),
-                trigger_type: TriggerType::Api,
-                execution_mode: ExecutionMode::Broadcast,
-            })
-            .await
-            .unwrap_or_else(|error| panic!("instance should create: {error}"))
-            .unwrap_or_else(|| panic!("instance should exist"));
-
-        let (outbound, mut rx) = mpsc::channel(8);
-        let registry = WorkerRegistry::default();
-        let worker = registry
-            .register(
-                RegisterWorker {
-                    client_instance_id: "broadcast-worker".to_owned(),
-                    app: "billing".to_owned(),
-                    namespace: "default".to_owned(),
-                    cluster: "local".to_owned(),
-                    region: "local".to_owned(),
-                    capabilities: Vec::new(),
-                    structured_capabilities: None,
-                    election: None,
-                    labels: std::collections::HashMap::default(),
-                },
-                outbound,
-            )
-            .await;
-        attempts
-            .create_pending_for_workers(&instance.id, std::slice::from_ref(&worker.worker_id))
-            .await
-            .unwrap_or_else(|error| panic!("attempt should create: {error}"));
-        registry
-            .dispatch_to_worker(
-                &worker.worker_id,
-                DispatchTask {
-                    instance_id: instance.id.clone(),
-                    job_id: job.id,
-                    payload: Vec::new(),
-                    processor_name: "demo.broadcast".to_owned(),
-                    processor_binding: None,
-                    assignment_token: String::new(),
-                },
-            )
-            .await
-            .unwrap_or_else(|| panic!("task should dispatch"));
-        let token = match rx
-            .recv()
-            .await
-            .unwrap_or_else(|| panic!("dispatch should arrive"))
-            .unwrap_or_else(|error| panic!("dispatch should be ok: {error}"))
-            .kind
-        {
-            Some(server_message::Kind::DispatchTask(task)) => task.assignment_token,
-            other => panic!("unexpected server message: {other:?}"),
-        };
-        let (tx, _events) = mpsc::channel(8);
-        let broadcaster = TaskLogBroadcaster::default();
-        let context = WorkerMessageContext {
-            registry: &registry,
-            instances: &instances,
-            jobs: &jobs,
-            logs: &logs,
-            attempts: &attempts,
-            workflows: &workflows,
-            audit: &audit,
-            log_broadcaster: &broadcaster,
-            tx: &tx,
-            outbound: &tx,
-        };
-
-        handle_task_result(
-            &context,
-            TaskResult {
-                worker_id: worker.worker_id.clone(),
-                instance_id: instance.id.clone(),
-                success: true,
-                message: "broadcast ok".to_owned(),
-                assignment_token: token,
-            },
-        )
-        .await;
-
-        let persisted_attempts = attempts
-            .list_by_instance(&instance.id)
-            .await
-            .unwrap_or_else(|error| panic!("attempts should load: {error}"));
-        let result = persisted_attempts[0]
-            .result
-            .clone()
-            .unwrap_or_else(|| panic!("attempt result should persist"));
-        assert!(result.success);
-        assert_eq!(result.worker_id, worker.worker_id);
-        assert_eq!(result.message, "broadcast ok");
-
-        let parent = instances
-            .get(&instance.id)
-            .await
-            .unwrap_or_else(|error| panic!("instance should load: {error}"))
-            .unwrap_or_else(|| panic!("instance should exist"));
-        assert_eq!(parent.status, InstanceStatus::Succeeded);
-    }
-
-    #[tokio::test]
-    async fn failed_single_task_result_schedules_retry_and_logs_result() {
-        use tikeo_core::{ExecutionMode, InstanceStatus, TriggerType};
-        use tikeo_proto::worker::v1::{DispatchTask, RegisterWorker, TaskResult, server_message};
-        use tikeo_storage::{CreateJob, CreateJobInstance, JobRepository, JobRetryPolicy};
-
-        let db = connect_and_migrate("sqlite::memory:")
-            .await
-            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let jobs = JobRepository::new(db.clone());
-        let instances = JobInstanceRepository::new(db.clone());
-        let logs = JobInstanceLogRepository::new(db.clone());
-        let attempts = JobInstanceAttemptRepository::new(db.clone());
-        let workflows = WorkflowRepository::new(db.clone());
-        let audit = AuditLogRepository::new(db);
-        let job = jobs
-            .create_job(CreateJob {
-                created_by: None,
-                namespace: "default".to_owned(),
-                app: "billing".to_owned(),
-                name: "retry-runtime".to_owned(),
-                schedule_type: "api".to_owned(),
-                schedule_expr: None,
-                misfire_policy: "fire_once".to_owned(),
-                schedule_start_at: None,
-                schedule_end_at: None,
-                schedule_calendar_json: None,
-                processor_name: Some("demo.retry".to_owned()),
-                processor_type: None,
-                script_id: None,
-                enabled: true,
-                canary_job_id: None,
-                canary_percent: 0,
-                retry_policy: Some(JobRetryPolicy {
-                    enabled: true,
-                    max_attempts: 3,
-                    initial_delay_seconds: 5,
-                    backoff_multiplier: 2,
-                    max_delay_seconds: 60,
-                }),
-            })
-            .await
-            .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let instance = instances
-            .create_pending(CreateJobInstance {
-                job_id: job.id.clone(),
-                trigger_type: TriggerType::Api,
-                execution_mode: ExecutionMode::Single,
-            })
-            .await
-            .unwrap_or_else(|error| panic!("instance should create: {error}"))
-            .unwrap_or_else(|| panic!("instance should exist"));
-        let claim = workflows
-            .claim_next_job_queue_item("server-a", 30)
-            .await
-            .unwrap_or_else(|error| panic!("queue should claim: {error}"))
-            .unwrap_or_else(|| panic!("queue item should exist"));
-        workflows
-            .mark_dispatch_queue_running(&claim.item.id, "server-a")
-            .await
-            .unwrap_or_else(|error| panic!("queue should run: {error}"));
-        instances
-            .update_status(&instance.id, InstanceStatus::Running)
-            .await
-            .unwrap_or_else(|error| panic!("instance should run: {error}"));
-
-        let (outbound, mut rx) = mpsc::channel(8);
-        let registry = WorkerRegistry::default();
-        let worker = registry
-            .register(
-                RegisterWorker {
-                    client_instance_id: "retry-worker".to_owned(),
-                    app: "billing".to_owned(),
-                    namespace: "default".to_owned(),
-                    cluster: "local".to_owned(),
-                    region: "local".to_owned(),
-                    capabilities: Vec::new(),
-                    structured_capabilities: None,
-                    election: None,
-                    labels: std::collections::HashMap::default(),
-                },
-                outbound,
-            )
-            .await;
-        registry
-            .dispatch_to_worker(
-                &worker.worker_id,
-                DispatchTask {
-                    instance_id: instance.id.clone(),
-                    job_id: job.id,
-                    payload: Vec::new(),
-                    processor_name: "demo.retry".to_owned(),
-                    processor_binding: None,
-                    assignment_token: String::new(),
-                },
-            )
-            .await
-            .unwrap_or_else(|| panic!("task should dispatch"));
-        let token = match rx
-            .recv()
-            .await
-            .unwrap_or_else(|| panic!("dispatch should arrive"))
-            .unwrap_or_else(|error| panic!("dispatch should be ok: {error}"))
-            .kind
-        {
-            Some(server_message::Kind::DispatchTask(task)) => task.assignment_token,
-            other => panic!("unexpected server message: {other:?}"),
-        };
-        let (tx, _events) = mpsc::channel(8);
-        let broadcaster = TaskLogBroadcaster::default();
-        let context = WorkerMessageContext {
-            registry: &registry,
-            instances: &instances,
-            jobs: &jobs,
-            logs: &logs,
-            attempts: &attempts,
-            workflows: &workflows,
-            audit: &audit,
-            log_broadcaster: &broadcaster,
-            tx: &tx,
-            outbound: &tx,
-        };
-
-        handle_task_result(
-            &context,
-            TaskResult {
-                worker_id: worker.worker_id.clone(),
-                instance_id: instance.id.clone(),
-                success: false,
-                message: "runtime failed with exit 2".to_owned(),
-                assignment_token: token,
-            },
-        )
-        .await;
-
-        let requeued_instance = instances
-            .get(&instance.id)
-            .await
-            .unwrap_or_else(|error| panic!("instance should load: {error}"))
-            .unwrap_or_else(|| panic!("instance should exist"));
-        assert_eq!(requeued_instance.status, InstanceStatus::Pending);
-        let result = requeued_instance
-            .result
-            .unwrap_or_else(|| panic!("result should persist"));
-        assert!(!result.success);
-        assert_eq!(result.message, "runtime failed with exit 2");
-
-        let requeued = workflows
-            .claim_next_job_queue_item("server-b", 30)
-            .await
-            .unwrap_or_else(|error| panic!("queue should load: {error}"));
-        assert!(requeued.is_none(), "retry should wait for backoff");
-        let persisted_logs = logs
-            .list_by_instance(&instance.id)
-            .await
-            .unwrap_or_else(|error| panic!("logs should load: {error}"));
-        assert!(
-            persisted_logs
-                .iter()
-                .any(|log| log.message.contains("retry scheduled"))
-        );
-        assert!(
-            persisted_logs
-                .iter()
-                .any(|log| log.message.contains("runtime failed with exit 2"))
-        );
-    }
-
-    #[tokio::test]
-    async fn subscribe_task_logs_replays_existing_and_streams_live_logs() {
-        use tikeo_core::{ExecutionMode, TriggerType};
-        use tikeo_proto::worker::v1::worker_tunnel_service_server::WorkerTunnelService;
-        use tikeo_storage::{CreateJob, CreateJobInstance, JobRepository};
-        use tonic::Request;
-
-        let db = connect_and_migrate("sqlite::memory:")
-            .await
-            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let jobs = JobRepository::new(db.clone());
-        let instances = JobInstanceRepository::new(db.clone());
-        let logs = JobInstanceLogRepository::new(db.clone());
-        let attempts = JobInstanceAttemptRepository::new(db.clone());
-        let workflows = WorkflowRepository::new(db);
-        let job = jobs
-            .create_job(CreateJob {
-                created_by: None,
-                namespace: "default".to_owned(),
-                app: "billing".to_owned(),
-                name: "log-stream".to_owned(),
-                schedule_type: "api".to_owned(),
-                schedule_expr: None,
-                misfire_policy: "fire_once".to_owned(),
-                schedule_start_at: None,
-                schedule_end_at: None,
-                schedule_calendar_json: None,
-                processor_name: None,
-                processor_type: None,
-                script_id: None,
-                enabled: true,
-                canary_job_id: None,
-                canary_percent: 0,
-                retry_policy: None,
-            })
-            .await
-            .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let instance = instances
-            .create_pending(CreateJobInstance {
-                job_id: job.id,
-                trigger_type: TriggerType::Api,
-                execution_mode: ExecutionMode::Single,
-            })
-            .await
-            .unwrap_or_else(|error| panic!("instance should create: {error}"))
-            .unwrap_or_else(|| panic!("instance should exist"));
-        logs.append(tikeo_storage::AppendJobInstanceLog {
-            instance_id: instance.id.clone(),
-            worker_id: "wrk-existing".to_owned(),
-            level: "INFO".to_owned(),
-            message: "existing".to_owned(),
-            sequence: 1,
-        })
-        .await
-        .unwrap_or_else(|error| panic!("existing log should append: {error}"));
-
-        let audit = audit().await;
-        let broadcaster = TaskLogBroadcaster::default();
-        let service = super::WorkerTunnel::new(crate::tunnel::WorkerTunnelRuntime::new(
-            crate::tunnel::WorkerTunnelRuntimeParts {
-                registry: WorkerRegistry::default(),
-                instances,
-                jobs,
-                logs,
-                attempts,
-                workflows,
-                audit,
-                log_broadcaster: broadcaster.clone(),
-            },
-        ));
-        let response = service
-            .subscribe_task_logs(Request::new(SubscribeTaskLogsRequest {
-                instance_id: instance.id.clone(),
-                after_sequence: 0,
-                replay_existing: true,
-            }))
-            .await
-            .unwrap_or_else(|error| panic!("subscription should start: {error}"));
-        let mut stream = response.into_inner();
-        let replayed = stream
-            .next()
-            .await
-            .unwrap_or_else(|| panic!("replayed log should exist"))
-            .unwrap_or_else(|error| panic!("replay should stream: {error}"));
-        assert_eq!(replayed.message, "existing");
-
-        broadcaster.publish(TaskLog {
-            worker_id: "wrk-live".to_owned(),
-            instance_id: instance.id,
-            level: "INFO".to_owned(),
-            message: "live".to_owned(),
-            sequence: 2,
-            assignment_token: String::new(),
-        });
-        let live = stream
-            .next()
-            .await
-            .unwrap_or_else(|| panic!("live log should exist"))
-            .unwrap_or_else(|error| panic!("live log should stream: {error}"));
-        assert_eq!(live.message, "live");
-    }
-
-    async fn jobs() -> JobRepository {
-        let db = connect_and_migrate("sqlite::memory:")
-            .await
-            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        JobRepository::new(db)
-    }
-
-    async fn instances() -> JobInstanceRepository {
-        let db = connect_and_migrate("sqlite::memory:")
-            .await
-            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        JobInstanceRepository::new(db)
-    }
-
-    async fn attempts() -> JobInstanceAttemptRepository {
-        let db = connect_and_migrate("sqlite::memory:")
-            .await
-            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        JobInstanceAttemptRepository::new(db)
-    }
-
-    async fn workflows() -> WorkflowRepository {
-        let db = connect_and_migrate("sqlite::memory:")
-            .await
-            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        WorkflowRepository::new(db)
-    }
-
-    async fn logs() -> JobInstanceLogRepository {
-        let db = connect_and_migrate("sqlite::memory:")
-            .await
-            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        JobInstanceLogRepository::new(db)
-    }
-
-    async fn audit() -> AuditLogRepository {
-        let db = connect_and_migrate("sqlite::memory:")
-            .await
-            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        AuditLogRepository::new(db)
-    }
-}
+mod tests;

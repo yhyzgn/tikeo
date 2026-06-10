@@ -57,6 +57,7 @@
             &audit,
             &registry,
             "test-fence",
+            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -129,7 +130,16 @@
         });
 
         dispatch_once_if_owner(
-            &jobs, &instances, &attempts, &workflows, &scripts, &logs, &audit, &registry, &follower,
+            &jobs,
+            &instances,
+            &attempts,
+            &workflows,
+            &scripts,
+            &logs,
+            &audit,
+            &registry,
+            &follower,
+            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch gate should run: {error}"));
@@ -235,6 +245,7 @@
             &audit,
             &registry,
             "test-fence",
+            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -358,6 +369,7 @@
             &audit,
             &registry,
             "test-fence",
+            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));

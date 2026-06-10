@@ -7,7 +7,7 @@ keywords: [rust scheduler, workflow orchestration, worker tunnel, distributed jo
 
 # What is Tikeo?
 
-Tikeo is a Rust-native orchestration control plane for teams that need more than a timer. It combines scheduled jobs, API-triggered jobs, workflow DAGs, outbound-only Workers, SDK processors, governed scripts, RBAC, audit evidence, Web operations, Docker/Helm/Terraform deployment assets, and source-backed SDK examples into one project.
+Tikeo is a Rust-native orchestration control plane for teams that need more than a timer. It combines scheduled jobs, API-triggered jobs, workflow DAGs, outbound-only Workers, SDK processors, governed scripts, Notification Center delivery, alerting boundaries, RBAC, audit evidence, Web operations, Docker/Helm/Terraform deployment assets, and source-backed SDK examples into one project.
 
 The README is intentionally short: it explains why the project exists and how to evaluate it at a glance. This documentation site is the operating manual. A reader outcome for this site is concrete: after following the relevant pages, you should be able to install the toolchain, start the Server, bootstrap the first Owner, create namespace/app scope, create an app-scoped SDK API key, connect a Worker through the Worker Tunnel, create and trigger a job from an SDK, inspect instances/logs/audit evidence, deploy the Server/Web pair with Compose or Helm, and know which defaults changed when you moved from local SQLite to production PostgreSQL/MySQL.
 
@@ -23,7 +23,7 @@ Read these pages in order when you are new to the repository:
 | 4 | [Worker Tunnel](./concepts/worker-tunnel) | Why Workers dial out, what registration carries, and what must never become a business Worker inbound Service. |
 | 5 | SDK pages | Dependency coordinates, WorkerConfig defaults, minimal Worker examples, Management client credentials, live verification runbooks. |
 | 6 | Deployment pages | Single binary, Docker Compose, Kubernetes/Helm, controller-specific ingress guidance, and smoke scripts. |
-| 7 | Reference pages | Source-derived Management OpenAPI and Worker Tunnel protobuf reference. |
+| 7 | Reference pages | Source-derived Management OpenAPI, Notification Center, and Worker Tunnel protobuf reference. |
 
 If you only want a proof that the whole local path still works, run the Management trigger smoke from the quickstart. If you are writing a production runbook, use the configuration and deployment references first, then select one SDK page for the Worker language used by your service team.
 
@@ -40,13 +40,13 @@ The repository contains production-shaped surfaces, not just screenshots:
 - Rust workspace crates for configuration, storage, server, protocol, and WASM boundaries.
 - A single `tikeo` binary with `serve --config <path>` and `TIKEO_CONFIG` support.
 - Config examples for local SQLite, container SQLite, PostgreSQL/CockroachDB, MySQL, and raft-shape metadata.
-- Web console in `web/`, built with React, TypeScript, Vite, Ant Design, and Bun.
+- Web console in `web/`, built with React, TypeScript, Vite, Ant Design, and Bun. Current operations surfaces include Notification Center channels/policies/messages/delivery queue and alert-event review.
 - Docs site in `docs/`, built as a standalone Docusaurus module and Docker image.
 - Worker SDKs for Rust, Go, Java/Spring Boot, Python, and Node.js.
 - Runnable Worker demos under `examples/<language>/worker-demo` with structured processor capabilities.
 - Management SDK helper surfaces for creating API jobs and triggering them with app-scoped `x-tikeo-api-key` credentials.
 - Deployment assets for Docker Compose, Helm, Kubernetes YAML, systemd, Terraform, GitOps manifest diff, and smoke scripts.
-- Contract tests that keep docs, workflows, source size, runtime versions, deployment artifacts, and management trigger flows from drifting.
+- Contract tests that keep docs, workflows, source size, runtime versions, deployment artifacts, Notification Center indexes, and management trigger flows from drifting.
 
 When a page states a command, it should point to one of those surfaces. When a feature is not yet ready for production use, the page should say so explicitly; for example, raft mode currently exposes a validated shape and cluster metadata but does not claim scheduling leadership until a real leader path is active.
 
@@ -86,11 +86,12 @@ This site should not invent API names, package coordinates, config keys, or depl
 - `deploy/*`, `docker-compose*.yml`, `Dockerfile`, `web/Dockerfile`, and `docs/Dockerfile` for deployment surfaces.
 - `.github/tests/*` and smoke scripts for verification.
 
-If those sources disagree with the docs, fix the docs or code and add a test. Do not paper over drift with vague wording.
+Notification Center and Alerts pages are additionally backed by `design/notification-center-alerting-plan.md`, `crates/tikeo-server/src/notification.rs`, `crates/tikeo-server/src/http/routes/notifications.rs`, `crates/tikeo-storage/src/repository/notification.rs`, `crates/tikeo-config/src/lib.rs`, and `web/src/pages/NotificationCenterPage.tsx`. If those sources disagree with the docs, fix the docs or code and add a test. Do not paper over drift with vague wording.
 
 ## What to do next
 
 - New local evaluator: start with [Installation](./getting-started/installation), then [Quickstart](./getting-started/quickstart).
 - SDK adopter: read [Configuration reference](./reference/configuration) first, then the language SDK page.
 - Kubernetes operator: read [Kubernetes and Helm](./deployment/kubernetes) and [Kubernetes controller runbook](./deployment/kubernetes-controller-runbook).
+- Notification operator: read [Notifications](./user-guide/notifications), [Alerts](./user-guide/alerts), and [Notification Center reference](./reference/notification-center) to keep outbound delivery separate from incident semantics.
 - Troubleshooter: use [Troubleshooting](./reference/troubleshooting), the smoke report directory, and the source-derived references.

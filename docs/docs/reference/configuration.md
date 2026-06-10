@@ -257,3 +257,28 @@ Before moving from local evaluation to shared deployment:
 - Bootstrap the first Owner, then create service accounts and SDK API keys for automation.
 - Configure logging/OTel only after the collector/log path exists.
 - Run the relevant smoke script and preserve evidence under `.dev/reports` or CI artifacts.
+
+## Notification Center delivery
+
+Notification Center has its own generic delivery worker, separate from `alert_retry`. It scans generic `notification_delivery_attempts` produced by notification policies and updates the associated `notification_messages`. The config shape is defined by `NotificationDeliveryConfig` in `crates/tikeo-config/src/lib.rs` and is present in both `config/dev.toml` and `config/container.toml`.
+
+| Config key | Default | Environment variable | Notes |
+| --- | --- | --- | --- |
+| `notification_delivery.enabled` | `true` | `TIKEO__NOTIFICATION_DELIVERY__ENABLED` | Enables the generic Notification Center delivery worker. |
+| `notification_delivery.interval_seconds` | `60` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | Interval between due-attempt scans. |
+| `notification_delivery.batch_size` | `50` | `TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE` | Maximum due attempts scanned per worker iteration. |
+| `notification_delivery.max_attempts` | `3` | `TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS` | Attempts before the generic delivery attempt is dead-lettered. |
+| `notification_delivery.backoff_seconds` | `300` | `TIKEO__NOTIFICATION_DELIVERY__BACKOFF_SECONDS` | Delay before the next generic delivery retry. |
+
+Example override:
+
+```bash
+TIKEO__NOTIFICATION_DELIVERY__ENABLED=true \
+TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS=30 \
+TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE=100 \
+TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS=5 \
+TIKEO__NOTIFICATION_DELIVERY__BACKOFF_SECONDS=120 \
+cargo run --bin tikeo -- serve --config config/dev.toml
+```
+
+Use `alert_retry` for compatibility alert delivery attempts and `notification_delivery` for Notification Center messages. Do not tune one queue expecting it to change the other. See [Notification Center reference](./notification-center) for channel, policy, retry, DLQ, and redaction behavior.

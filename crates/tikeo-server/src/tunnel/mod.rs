@@ -17,7 +17,9 @@ use tikeo_config::TlsEndpointConfig;
 use tikeo_proto::worker::v1::worker_tunnel_service_server::WorkerTunnelServiceServer;
 use tikeo_storage::{
     AuditLogRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
-    JobInstanceRepository, JobRepository, WorkflowRepository,
+    JobInstanceRepository, JobRepository, NotificationChannelRepository,
+    NotificationDeliveryAttemptRepository, NotificationMessageRepository,
+    NotificationPolicyRepository, WorkflowRepository,
 };
 use tonic::transport::Server;
 use tracing::info;
@@ -32,6 +34,7 @@ pub struct WorkerTunnelRuntime {
     attempts: JobInstanceAttemptRepository,
     workflows: WorkflowRepository,
     audit: AuditLogRepository,
+    notifications: crate::notification::NotificationCenter,
     log_broadcaster: TaskLogBroadcaster,
 }
 
@@ -51,6 +54,8 @@ pub struct WorkerTunnelRuntimeParts {
     pub workflows: WorkflowRepository,
     /// Audit log repository.
     pub audit: AuditLogRepository,
+    /// Notification Center materializer.
+    pub notifications: Option<crate::notification::NotificationCenter>,
     /// Live task log broadcaster.
     pub log_broadcaster: TaskLogBroadcaster,
 }
@@ -59,14 +64,26 @@ impl WorkerTunnelRuntime {
     /// Create a Worker Tunnel runtime dependency bundle.
     #[must_use]
     pub fn new(parts: WorkerTunnelRuntimeParts) -> Self {
+        let jobs = parts.jobs;
+        let notifications = parts.notifications.unwrap_or_else(|| {
+            let db = jobs.db();
+            crate::notification::NotificationCenter::new(
+                NotificationChannelRepository::new(db.clone()),
+                NotificationPolicyRepository::new(db.clone()),
+                NotificationMessageRepository::new(db.clone()),
+                NotificationDeliveryAttemptRepository::new(db),
+                jobs.clone(),
+            )
+        });
         Self {
             registry: parts.registry,
             instances: parts.instances,
-            jobs: parts.jobs,
+            jobs,
             logs: parts.logs,
             attempts: parts.attempts,
             workflows: parts.workflows,
             audit: parts.audit,
+            notifications,
             log_broadcaster: parts.log_broadcaster,
         }
     }

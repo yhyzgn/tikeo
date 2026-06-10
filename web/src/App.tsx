@@ -23,6 +23,7 @@ const WorkflowsPage = lazy(() => import('./pages/WorkflowsPage').then((module) =
 const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })));
 const SuperAdminSetupPage = lazy(() => import('./pages/SuperAdminSetupPage').then((module) => ({ default: module.SuperAdminSetupPage })));
 const AlertDeliveryPage = lazy(() => import('./pages/AlertDeliveryPage').then((module) => ({ default: module.AlertDeliveryPage })));
+const NotificationCenterPage = lazy(() => import('./pages/NotificationCenterPage').then((module) => ({ default: module.NotificationCenterPage })));
 const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage').then((module) => ({ default: module.AuditLogsPage })));
 const ScriptsPage = lazy(() => import('./pages/ScriptsPage').then((module) => ({ default: module.ScriptsPage })));
 const ScriptEditorPage = lazy(() => import('./pages/ScriptsPage').then((module) => ({ default: module.ScriptEditorPage })));
@@ -51,6 +52,7 @@ const KEEP_ALIVE_ROUTES = [
   { path: ROUTE_META.apiKeys.path, element: <GuardedRoute route={ROUTE_META.apiKeys}><ApiKeysPage /></GuardedRoute> },
   { path: ROUTE_META.gitops.path, element: <GuardedRoute route={ROUTE_META.gitops}><GitOpsPage /></GuardedRoute> },
   { path: ROUTE_META.scripts.path, element: <GuardedRoute route={ROUTE_META.scripts}><ScriptsPage /></GuardedRoute> },
+  { path: ROUTE_META.notifications.path, element: <GuardedRoute route={ROUTE_META.notifications}><NotificationCenterPage /></GuardedRoute> },
   { path: ROUTE_META.alerts.path, element: <GuardedRoute route={ROUTE_META.alerts}><AlertDeliveryPage /></GuardedRoute> },
   { path: ROUTE_META.audit.path, element: <GuardedRoute route={ROUTE_META.audit}><AuditLogsPage /></GuardedRoute> },
 ];
@@ -119,6 +121,7 @@ function AppLayout() {
           <Route path={ROUTE_META.gitops.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.scripts.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.scriptEdit.path} element={<GuardedRoute route={ROUTE_META.scriptEdit}><ScriptEditorPage /></GuardedRoute>} />
+          <Route path={ROUTE_META.notifications.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.alerts.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.audit.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path="/forbidden" element={<ForbiddenPage />} />

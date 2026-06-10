@@ -373,6 +373,47 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
         .route("/audit-logs", get(routes::list_audit_logs))
         .route("/audit-logs:export", get(routes::export_audit_logs))
         .route(
+            "/notification-channel-types",
+            get(routes::list_notification_channel_types),
+        )
+        .route(
+            "/notification-channels",
+            get(routes::list_notification_channels).post(routes::create_notification_channel),
+        )
+        .route(
+            "/notification-channels/{id}",
+            get(routes::get_notification_channel)
+                .patch(routes::update_notification_channel)
+                .delete(routes::delete_notification_channel),
+        )
+        .route(
+            "/notification-policies",
+            get(routes::list_notification_policies).post(routes::create_notification_policy),
+        )
+        .route(
+            "/notification-policies/{policy_action}",
+            get(routes::get_notification_policy)
+                .patch(routes::update_notification_policy)
+                .delete(routes::delete_notification_policy)
+                .post(routes::validate_notification_policy),
+        )
+        .route(
+            "/notification-messages",
+            get(routes::list_notification_messages),
+        )
+        .route(
+            "/notification-delivery-attempts",
+            get(routes::list_notification_delivery_attempts),
+        )
+        .route(
+            "/notification-delivery-attempts:queue-status",
+            get(routes::notification_delivery_queue_status),
+        )
+        .route(
+            "/notification-delivery-attempts:retry-due",
+            axum::routing::post(routes::retry_due_notification_delivery_attempts),
+        )
+        .route(
             "/alert-rules",
             get(routes::list_alert_rules).post(routes::create_alert_rule),
         )

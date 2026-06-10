@@ -347,6 +347,89 @@ pub(super) enum ScriptVersions {
 }
 
 #[derive(DeriveIden)]
+pub(super) enum NotificationChannels {
+    Table,
+    Id,
+    ScopeType,
+    Namespace,
+    App,
+    WorkerPool,
+    Name,
+    Provider,
+    Enabled,
+    ConfigJson,
+    SecretRefsJson,
+    TargetRedacted,
+    SafetyPolicyJson,
+    CreatedBy,
+    UpdatedBy,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+pub(super) enum NotificationPolicies {
+    Table,
+    Id,
+    Name,
+    Enabled,
+    OwnerType,
+    OwnerId,
+    EventFamily,
+    EventFilterJson,
+    ChannelRefsJson,
+    TemplateRef,
+    Severity,
+    DedupeSeconds,
+    ThrottleJson,
+    QuietHoursJson,
+    EscalationJson,
+    CreatedBy,
+    UpdatedBy,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+pub(super) enum NotificationMessages {
+    Table,
+    Id,
+    SourceType,
+    SourceId,
+    PolicyId,
+    EventType,
+    ResourceType,
+    ResourceId,
+    Severity,
+    Subject,
+    Body,
+    PayloadJson,
+    DedupeKey,
+    TraceId,
+    Status,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+pub(super) enum NotificationDeliveryAttempts {
+    Table,
+    Id,
+    MessageId,
+    PolicyId,
+    ChannelId,
+    Provider,
+    TargetRedacted,
+    Attempt,
+    Delivered,
+    StatusCode,
+    Error,
+    RetryState,
+    NextRetryAt,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
 pub(super) enum AlertRules {
     Table,
     Id,

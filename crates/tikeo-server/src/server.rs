@@ -2,12 +2,14 @@
 
 use anyhow::{Context, Result};
 use tikeo_config::{
-    AlertRetryConfig, AuthConfig, ObservabilityConfig, ScriptGovernanceConfig, TikeoConfig,
-    TransportSecurityConfig,
+    AlertRetryConfig, AuthConfig, NotificationDeliveryConfig, ObservabilityConfig,
+    ScriptGovernanceConfig, TikeoConfig, TransportSecurityConfig,
 };
 use tikeo_storage::{
     AuditLogRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
-    JobInstanceRepository, JobRepository, RaftRepository, ScriptRepository, UserRepository,
+    JobInstanceRepository, JobRepository, NotificationChannelRepository,
+    NotificationDeliveryAttemptRepository, NotificationMessageRepository,
+    NotificationPolicyRepository, RaftRepository, ScriptRepository, UserRepository,
     WorkerLifecycleRepository, WorkflowRepository, connect_and_migrate,
 };
 use tokio::try_join;
@@ -31,6 +33,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
     let transport_security = config.transport_security;
     let observability = config.observability;
     let alert_retry_config = config.alert_retry;
+    let notification_delivery_config = config.notification_delivery;
     let script_governance = config.script_governance;
     let raft_transport_token = cluster_config.transport_token.clone();
     let offset = tikeo_storage::parse_timestamp_offset(&timestamp_offset)
@@ -52,6 +55,13 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
     let workflows = WorkflowRepository::new(db.clone());
     let audit = AuditLogRepository::new(db.clone());
     let alerts = tikeo_storage::AlertRepository::new(db.clone());
+    let notification_center = crate::notification::NotificationCenter::new(
+        NotificationChannelRepository::new(db.clone()),
+        NotificationPolicyRepository::new(db.clone()),
+        NotificationMessageRepository::new(db.clone()),
+        NotificationDeliveryAttemptRepository::new(db.clone()),
+        jobs.clone(),
+    );
     let worker_lifecycle = WorkerLifecycleRepository::new(db.clone());
     let registry = tunnel::WorkerRegistry::with_lifecycle(worker_lifecycle.clone());
     let http_router = build_http_router(HttpRouterParts {
@@ -80,6 +90,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
     let tick_cluster = cluster.clone();
     let dispatch_cluster = cluster.clone();
     let alert_retry_cluster = cluster.clone();
+    let notification_delivery_cluster = cluster.clone();
     let tunnel_attempts = attempts;
 
     info!(%http_addr, %tunnel_addr, "starting tikeo listeners");
@@ -96,6 +107,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
                 attempts: tunnel_attempts,
                 workflows: workflows.clone(),
                 audit: audit.clone(),
+                notifications: None,
                 log_broadcaster,
             }),
             &transport_security.worker_tunnel,
@@ -116,12 +128,20 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
                 audit,
                 registry,
                 dispatch_cluster,
+                notification_center,
             )
             .await;
             #[allow(unreachable_code)]
             Ok::<(), anyhow::Error>(())
         },
         run_alert_retry_worker(alerts, alert_retry_cluster, alert_retry_config),
+        run_notification_delivery_worker(
+            NotificationChannelRepository::new(db.clone()),
+            NotificationMessageRepository::new(db.clone()),
+            NotificationDeliveryAttemptRepository::new(db.clone()),
+            notification_delivery_cluster,
+            notification_delivery_config,
+        ),
         run_worker_lease_scanner(worker_lifecycle),
     )
     .context("tikeo listener failed")?;
@@ -198,6 +218,34 @@ async fn run_alert_retry_worker(
             std::time::Duration::from_secs(config.interval_seconds.max(1)),
             config.batch_size.min(500),
             alert::AlertRetryPolicy {
+                max_attempts: config.max_attempts.clamp(1, 20),
+                backoff_seconds: config.backoff_seconds.clamp(1, 86_400),
+            },
+        )
+        .await;
+    } else {
+        std::future::pending::<()>().await;
+    }
+    #[allow(unreachable_code)]
+    Ok(())
+}
+
+async fn run_notification_delivery_worker(
+    channels: NotificationChannelRepository,
+    messages: NotificationMessageRepository,
+    attempts: NotificationDeliveryAttemptRepository,
+    cluster: crate::cluster::SharedClusterCoordinator,
+    config: NotificationDeliveryConfig,
+) -> Result<()> {
+    if config.enabled {
+        crate::notification::run_delivery_loop(
+            channels,
+            messages,
+            attempts,
+            cluster,
+            std::time::Duration::from_secs(config.interval_seconds.max(1)),
+            config.batch_size.min(500),
+            crate::notification::NotificationDeliveryPolicy {
                 max_attempts: config.max_attempts.clamp(1, 20),
                 backoff_seconds: config.backoff_seconds.clamp(1, 86_400),
             },

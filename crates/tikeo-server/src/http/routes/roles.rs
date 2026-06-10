@@ -438,8 +438,15 @@ const MENU_PERMISSION_CATALOG: &[MenuCatalogEntry] = &[
         Some(("tenants", "read")),
     ),
     (
+        "/notifications",
+        "通知中心",
+        "observability",
+        "/notifications",
+        Some(("notifications", "read")),
+    ),
+    (
         "/alerts",
-        "告警投递",
+        "告警事件",
         "observability",
         "/alerts",
         Some(("audit", "read")),

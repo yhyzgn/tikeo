@@ -30,7 +30,7 @@ export function Dashboard() {
   const [onlineWorkers, setOnlineWorkers] = useState(0);
   const active = useRouteActive(ROUTE_META.dashboard.path);
 
-  const load = useCallback(async (_options?: { silent?: boolean }) => {
+  const load = useCallback(async () => {
     try {
       const [jobPage, workerPage] = await Promise.all([listJobs(), listWorkers()]);
       setJobs(jobPage.items);
@@ -65,7 +65,7 @@ export function Dashboard() {
       }
     });
 
-    const fallbackTimer = window.setInterval(() => { void load({ silent: true }); }, 3000);
+    const fallbackTimer = window.setInterval(() => { void load(); }, 3000);
     return () => {
       instanceSource.close();
       workerSource.close();

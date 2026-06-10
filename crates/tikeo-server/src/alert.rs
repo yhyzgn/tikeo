@@ -679,7 +679,7 @@ fn email_failure(recipients: &[String], error: &str) -> AlertDeliveryResult {
     }
 }
 
-fn resolve_secret_ref(reference: Option<&str>) -> Option<String> {
+pub(crate) fn resolve_secret_ref(reference: Option<&str>) -> Option<String> {
     let reference = reference?.trim();
     let key = reference.strip_prefix("env:").unwrap_or(reference);
     std::env::var(key)
@@ -706,7 +706,10 @@ const fn pagerduty_severity(severity: &Severity) -> &'static str {
     }
 }
 
-fn validate_webhook_url(value: &str, policy: AlertDeliveryPolicy) -> Result<(), &'static str> {
+pub(crate) fn validate_webhook_url(
+    value: &str,
+    policy: AlertDeliveryPolicy,
+) -> Result<(), &'static str> {
     let parsed = Url::parse(value).map_err(|_| "invalid url")?;
     let Some(host) = parsed.host_str() else {
         return Err("webhook url must include host");
@@ -740,7 +743,7 @@ fn is_loopback_host(host: &str) -> bool {
             .is_ok_and(|address| address.is_loopback())
 }
 
-fn redact_url(value: &str) -> String {
+pub(crate) fn redact_url(value: &str) -> String {
     Url::parse(value).map_or_else(
         |_| "invalid-url".to_owned(),
         |url| {

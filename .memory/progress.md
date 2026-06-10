@@ -1502,3 +1502,12 @@ Verification evidence: docs contract, workflow contract, management-smoke contra
 - Added `design/notification-center-alerting-plan.md` with source-backed current-state facts, canonical vocabulary, data model, API/UI/runtime migration plan, and acceptance criteria.
 - Updated the main architecture design so Alerts own rule/event/silence/recovery semantics while Notifications own reusable channels, templates, policies, delivery, retry, and DLQ.
 - Created `.prompt/165-notification-center-alerting-boundary.md` as the next implementation handoff for generic notification channels/policies while keeping existing alert APIs compatible.
+
+### 2026-06-11 — Notification Center implementation and acceptance hardening
+- Implemented reusable Notification Center storage/API/runtime/Web/docs foundation while keeping existing Alert APIs compatible.
+- Added explicit `notification_channels`, `notification_policies`, `notification_messages`, and `notification_delivery_attempts` migration/entities/repositories with soft-link validation and redaction.
+- Added `/api/v1/notification-*` routes/OpenAPI for channel metadata, channel CRUD, policy CRUD/validation, messages, delivery attempts, queue status, and retry-due processing.
+- Added Web `/notifications` page with provider metadata, channel/policy CRUD, validation, messages, retry/DLQ queue status, and permission-gated operations.
+- Job lifecycle events now materialize reusable notification messages/attempts for success, failed, partial failed, cancelled, retry scheduled, retry exhausted, no eligible worker, and script governance failure.
+- Acceptance hardening fixed email secret alias drift, secret header injection coverage, config header redaction, viewer menu consistency, env-only secretRef docs/UI wording, and retry-aware failed vs retry_exhausted semantics.
+- Verification passed across targeted RED->GREEN tests, Rust fmt/clippy/test/build, CLI smoke, Web lint/typecheck/test/build, docs typecheck/build, workflow/docs/management contract tests, Node runtime policy, source-size audit, and diff whitespace check.

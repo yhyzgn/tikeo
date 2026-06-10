@@ -304,7 +304,7 @@ pub async fn create_alert_rule(
     headers: HeaderMap,
     Json(request): Json<CreateAlertRuleRequest>,
 ) -> Result<Json<ApiResponse<AlertRuleSummary>>, ApiError> {
-    auth::require_permission(&headers, &state, "audit", "read").await?;
+    auth::require_permission(&headers, &state, "audit", "manage").await?;
     let created = state
         .alerts
         .create_rule(tikeo_storage::CreateAlertRule {
@@ -410,7 +410,7 @@ pub async fn retry_due_alert_delivery_attempts(
     headers: HeaderMap,
     Json(request): Json<AlertDeliveryRetryRequest>,
 ) -> Result<Json<ApiResponse<crate::alert::AlertRetryProcessSummary>>, ApiError> {
-    auth::require_permission(&headers, &state, "audit", "read").await?;
+    auth::require_permission(&headers, &state, "audit", "manage").await?;
     let policy = AlertRetryPolicy {
         max_attempts: request.max_attempts.unwrap_or(3).clamp(1, 20),
         backoff_seconds: request.backoff_seconds.unwrap_or(300).clamp(1, 86_400),
@@ -519,7 +519,7 @@ pub async fn resolve_alert_event(
     headers: HeaderMap,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Json<ApiResponse<AlertEventSummary>>, ApiError> {
-    auth::require_permission(&headers, &state, "audit", "read").await?;
+    auth::require_permission(&headers, &state, "audit", "manage").await?;
     let resolved = state
         .alerts
         .record_script_governance_recovery(&id)

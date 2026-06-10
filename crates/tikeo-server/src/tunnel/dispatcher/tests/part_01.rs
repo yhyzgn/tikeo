@@ -166,6 +166,7 @@
             &audit,
             &registry,
             "test-fence",
+            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -297,6 +298,7 @@
             &audit,
             &registry,
             "test-fence",
+            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -412,6 +414,7 @@
             "builtin.test",
             false,
             "first attempt failed".to_owned(),
+            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("failure should schedule retry: {error}"));
@@ -445,6 +448,7 @@
             &audit,
             &registry,
             "test-fence",
+            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("retry dispatch should run: {error}"));
@@ -558,6 +562,7 @@
             &audit,
             &WorkerRegistry::default(),
             "test-fence",
+            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -688,6 +693,7 @@
             &audit,
             &registry,
             "test-fence",
+            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
@@ -813,6 +819,7 @@
             &audit,
             &registry,
             "test-fence",
+            &notification_center(&jobs),
         )
         .await
         .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
