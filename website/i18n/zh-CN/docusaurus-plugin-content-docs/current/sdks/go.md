@@ -37,6 +37,59 @@ cd examples/go/worker-demo
 go test ./... -count=1
 ```
 
+
+## Management API 创建并触发任务
+
+Go management client 实现在 `sdks/go/tikeo/management.go`。它固定作用于一个 namespace/app，并使用 `x-tikeo-api-key` 鉴权，通常从 `TIKEO_MANAGEMENT_API_KEY` 读取；不要把人类 OIDC session 或 UI bearer token 塞进 SDK Worker。`APIJob` 创建 API 调度的 processor job，`APITrigger` 发送 `triggerType=api`，默认 `executionMode=single`。
+
+```go
+package main
+
+import (
+    "context"
+    "os"
+
+    tikeo "github.com/yhyzgn/tikeo/sdks/go/tikeo"
+)
+
+func createAndTrigger(ctx context.Context) error {
+    endpoint := os.Getenv("TIKEO_MANAGEMENT_ENDPOINT")
+    if endpoint == "" {
+        endpoint = "http://127.0.0.1:9090"
+    }
+    client := tikeo.NewManagementClient(
+        endpoint,
+        os.Getenv("TIKEO_MANAGEMENT_API_KEY"),
+        "dev-alpha",
+        "orders",
+    )
+
+    created, err := client.CreateJob(ctx, tikeo.APIJob("go-echo-api", "demo.echo"))
+    if err != nil {
+        return err
+    }
+    instance, err := client.TriggerJob(ctx, created.ID, tikeo.APITrigger())
+    if err != nil {
+        return err
+    }
+    if instance.TriggerType != "api" || instance.ExecutionMode != "single" {
+        panic("unexpected trigger response")
+    }
+    return nil
+}
+```
+
+广播扇出必须显式选择。`BroadcastAPITrigger` 会序列化 `executionMode=broadcast` 与 `broadcastSelector`；保持它与单 Worker 默认触发分开，避免一次 API 调用误跑到所有匹配 Worker。
+
+```go
+broadcast := tikeo.BroadcastAPITrigger(&tikeo.BroadcastSelectorRequest{
+    Tags:   []string{"manual-demo"},
+    Region: "us-east-1",
+    Labels: map[string]string{"worker_pool": "go-blue"},
+})
+_, err := client.TriggerJob(ctx, created.ID, broadcast)
+```
+
 ## Worker Tunnel 模型
 
 Go Worker 与 Rust、Java、Python、Node.js Worker 遵循同一协议：主动连接 Server，注册 metadata，心跳，接收派发，并通过 tunnel 回传日志和结果。

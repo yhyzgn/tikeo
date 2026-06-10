@@ -1437,3 +1437,10 @@ Verification evidence:
 - `website/bun.lock` now uses public `https://registry.npmjs.org/` tarball URLs instead of the previous private Nexus tarball host, so GitHub Actions docs verification does not require private npm proxy credentials.
 - Workflow/docs contract tests now guard both the CI job shape and public-registry lockfile requirement.
 - Verification passed locally: workflow contract, docs contract, source-size audit, GitHub Actions Node runtime policy, workflow YAML parse, git diff whitespace check, and the full website Bun install/typecheck/build sequence.
+
+### 2026-06-10 — Source-backed SDK management create+trigger docs
+- English and zh-CN SDK docs now include source-backed Management API create+trigger examples for Rust, Go, Java Spring Boot, Python, and Node.js.
+- Docs explicitly state SDK management auth uses app-scoped `x-tikeo-api-key` / `TIKEO_MANAGEMENT_API_KEY`, not human OIDC/session credentials.
+- Docs and tests preserve the helper contract: API triggers use `triggerType=api`, default `executionMode=single`, and broadcast fan-out is only through explicit helpers/selectors with `broadcastSelector`.
+- Java management SDK gained the missing explicit broadcast helper: `BroadcastSelectorRequest` plus `TriggerJobRequest.broadcastApi(...)`.
+- Verification passed: RED->GREEN docs contract, RED->GREEN Java helper test, full docs contract, workflow contract, source-size audit, GitHub Actions runtime policy, full Java SDK tests, and Docusaurus frozen install/typecheck/build.

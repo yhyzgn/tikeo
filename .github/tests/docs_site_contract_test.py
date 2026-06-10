@@ -26,6 +26,52 @@ P0_DOCS = [
     "reference/troubleshooting.md",
 ]
 
+SDK_MANAGEMENT_EXPECTATIONS = {
+    "sdks/rust.md": [
+        "ManagementClient::new",
+        "ManagementCreateJobRequest::api",
+        "ManagementTriggerJobRequest::api",
+        "ManagementTriggerJobRequest::broadcast_api",
+        "ManagementBroadcastSelectorRequest",
+    ],
+    "sdks/go.md": [
+        "NewManagementClient",
+        "APIJob",
+        "APITrigger",
+        "BroadcastAPITrigger",
+        "BroadcastSelectorRequest",
+    ],
+    "sdks/java-spring-boot.md": [
+        "HttpTikeoJobClient",
+        "CreateJobRequest.api",
+        "TriggerJobRequest.api",
+        "TriggerJobRequest.broadcastApi",
+        "BroadcastSelectorRequest",
+    ],
+    "sdks/python.md": [
+        "ManagementClient",
+        "api_job",
+        "api_trigger",
+        "broadcast_api_trigger",
+        "BroadcastSelectorRequest",
+    ],
+    "sdks/nodejs.md": [
+        "ManagementClient",
+        "apiJob",
+        "apiTrigger",
+        "broadcastApiTrigger",
+        "BroadcastSelectorRequest",
+    ],
+}
+
+SDK_MANAGEMENT_COMMON_TOKENS = [
+    "x-tikeo-api-key",
+    "TIKEO_MANAGEMENT_API_KEY",
+    "triggerType=api",
+    "executionMode=single",
+    "broadcastSelector",
+]
+
 
 class DocsSiteContractTest(unittest.TestCase):
     def test_website_scaffold_has_required_build_contract(self):
@@ -155,6 +201,15 @@ class DocsSiteContractTest(unittest.TestCase):
             headings = [line for line in text.splitlines() if line.startswith("## ")]
             self.assertGreaterEqual(len(cjk_chars), 300, f"zh-CN doc too thin: {relative_path}")
             self.assertGreaterEqual(len(headings), 4, f"zh-CN doc lacks sections: {relative_path}")
+
+    def test_sdk_docs_include_source_backed_management_create_trigger_examples(self):
+        zh_root = WEBSITE / "i18n/zh-CN/docusaurus-plugin-content-docs/current"
+        roots = [WEBSITE / "docs", zh_root]
+        for root in roots:
+            for relative_path, specific_tokens in SDK_MANAGEMENT_EXPECTATIONS.items():
+                text = (root / relative_path).read_text()
+                for token in SDK_MANAGEMENT_COMMON_TOKENS + specific_tokens:
+                    self.assertIn(token, text, f"{root.relative_to(WEBSITE)} / {relative_path} missing {token!r}")
 
 
 if __name__ == "__main__":

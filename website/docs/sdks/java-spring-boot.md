@@ -217,6 +217,47 @@ public final class TikeoPlainJavaWorker {
 
 For management API access from plain Java, create `HttpTikeoJobClient(endpoint, apiKey, namespace, app)` directly and inject the API key from your Secret store.
 
+
+## Management API create + trigger
+
+Java management helpers live in the core `net.tikeo:tikeo` artifact under `net.tikeo.management.*`; Spring Boot starters only auto-configure the same client when `tikeo.management.enabled=true`. `HttpTikeoJobClient` sends the app-scoped `x-tikeo-api-key` header from a Secret such as `TIKEO_MANAGEMENT_API_KEY`. It must not be wired to a browser session, OIDC cookie, or user-scoped bearer token. `CreateJobRequest.api(...)` creates an API-scheduled processor job, and `TriggerJobRequest.api()` sends `triggerType=api` with the default `executionMode=single`.
+
+```java
+import net.tikeo.management.client.HttpTikeoJobClient;
+import net.tikeo.management.client.TikeoJobClient;
+import net.tikeo.management.model.BroadcastSelectorRequest;
+import net.tikeo.management.model.CreateJobRequest;
+import net.tikeo.management.model.TriggerJobRequest;
+import java.util.List;
+import java.util.Map;
+
+String endpoint = System.getenv().getOrDefault(
+    "TIKEO_MANAGEMENT_ENDPOINT",
+    "http://127.0.0.1:9090"
+);
+String apiKey = System.getenv("TIKEO_MANAGEMENT_API_KEY");
+TikeoJobClient client = new HttpTikeoJobClient(endpoint, apiKey, "dev-alpha", "orders");
+
+var created = client.createJob(CreateJobRequest.api("java-echo-api", "demo.echo"));
+var instance = client.triggerJob(created.id(), TriggerJobRequest.api());
+
+if (!"api".equals(instance.triggerType()) || !"single".equals(instance.executionMode())) {
+    throw new IllegalStateException("unexpected trigger response");
+}
+```
+
+Broadcast is intentionally modeled as a different helper. `TriggerJobRequest.broadcastApi(...)` serializes `executionMode=broadcast` and a `broadcastSelector`; use it only when the selected worker set should all receive the API-triggered execution.
+
+```java
+var selector = new BroadcastSelectorRequest(
+    List.of("manual-demo"),
+    "us-east-1",
+    null,
+    Map.of("worker_pool", "java-blue")
+);
+client.triggerJob(created.id(), TriggerJobRequest.broadcastApi(selector));
+```
+
 ## Non-Boot Spring Framework integration
 
 Use `tikeo-spring`, `tikeo-spring6`, or `tikeo-spring5` when you have a Spring Framework application without Boot auto-configuration. You must define the registry and Worker client beans yourself.

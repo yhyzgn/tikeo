@@ -48,6 +48,40 @@ dry-run mode 可在没有 Server 的情况下验证本地包连接和 capability
 
 live mode 默认连接 `http://127.0.0.1:9998`，使用 demo 的开发 scope，广告结构化 SDK/plugin/script capability，并对支持的 runner 做 sandbox auto-resolution。运行 live mode 前应先启动 Server，并在 Web 控制台确认 Worker 可见。
 
+
+## Management API 创建并触发任务
+
+Python management helper 位于 `sdks/python/tikeo/src/tikeo/management.py`。它使用 namespace/app 级 API key header（`x-tikeo-api-key`），密钥应来自 `TIKEO_MANAGEMENT_API_KEY` 这类 Secret；它不是人类登录 session 的包装。`api_job` 创建 `scheduleType=api` 的任务，`api_trigger` 发送 `triggerType=api` 与默认 `executionMode=single`。
+
+```python
+import os
+import tikeo
+
+management = tikeo.ManagementClient(
+    os.getenv("TIKEO_MANAGEMENT_ENDPOINT", "http://127.0.0.1:9090"),
+    os.environ["TIKEO_MANAGEMENT_API_KEY"],
+    "dev-alpha",
+    "orders",
+)
+
+created = management.create_job(tikeo.api_job("python-echo-api", "demo.echo"))
+instance = management.trigger_job(created.id, tikeo.api_trigger())
+
+assert instance.trigger_type == "api"
+assert instance.execution_mode == "single"
+```
+
+广播需要显式 helper。`broadcast_api_trigger` 会输出 `executionMode=broadcast` 和 `broadcastSelector`；只有所有被选中的 Worker 都应收到本次 API 触发时才使用。
+
+```python
+selector = tikeo.BroadcastSelectorRequest(
+    tags=["manual-demo"],
+    region="us-east-1",
+    labels={"worker_pool": "python-blue"},
+)
+management.trigger_job(created.id, tikeo.broadcast_api_trigger(selector))
+```
+
 ## 能力广告纪律
 
 Python Worker 很容易调用本地命令，因此更需要治理边界。只有 runner 已安装并处于受控边界内，才应广告 script capability。任务日志应通过 task context API 输出，SDK diagnostics 应与任务执行证据分离。

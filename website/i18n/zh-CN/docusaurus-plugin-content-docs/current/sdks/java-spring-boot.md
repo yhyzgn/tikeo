@@ -217,6 +217,47 @@ public final class TikeoPlainJavaWorker {
 
 原生 Java 使用 Management API 时，直接创建 `HttpTikeoJobClient(endpoint, apiKey, namespace, app)`，API key 从 Secret store 注入。
 
+
+## Management API 创建并触发任务
+
+Java management helper 位于 core `net.tikeo:tikeo` artifact 的 `net.tikeo.management.*` 包；Spring Boot starter 只是在 `tikeo.management.enabled=true` 时自动配置同一个 client。`HttpTikeoJobClient` 会从 Secret（例如 `TIKEO_MANAGEMENT_API_KEY`）发送 app 级 `x-tikeo-api-key` header，不能绑定浏览器 session、OIDC cookie 或用户 bearer token。`CreateJobRequest.api(...)` 创建 API 调度的 processor job，`TriggerJobRequest.api()` 发送 `triggerType=api` 与默认 `executionMode=single`。
+
+```java
+import net.tikeo.management.client.HttpTikeoJobClient;
+import net.tikeo.management.client.TikeoJobClient;
+import net.tikeo.management.model.BroadcastSelectorRequest;
+import net.tikeo.management.model.CreateJobRequest;
+import net.tikeo.management.model.TriggerJobRequest;
+import java.util.List;
+import java.util.Map;
+
+String endpoint = System.getenv().getOrDefault(
+    "TIKEO_MANAGEMENT_ENDPOINT",
+    "http://127.0.0.1:9090"
+);
+String apiKey = System.getenv("TIKEO_MANAGEMENT_API_KEY");
+TikeoJobClient client = new HttpTikeoJobClient(endpoint, apiKey, "dev-alpha", "orders");
+
+var created = client.createJob(CreateJobRequest.api("java-echo-api", "demo.echo"));
+var instance = client.triggerJob(created.id(), TriggerJobRequest.api());
+
+if (!"api".equals(instance.triggerType()) || !"single".equals(instance.executionMode())) {
+    throw new IllegalStateException("unexpected trigger response");
+}
+```
+
+广播被建模为另一个显式 helper。`TriggerJobRequest.broadcastApi(...)` 会序列化 `executionMode=broadcast` 和 `broadcastSelector`；只有被选中 Worker 集合都应执行本次 API 触发时才使用。
+
+```java
+var selector = new BroadcastSelectorRequest(
+    List.of("manual-demo"),
+    "us-east-1",
+    null,
+    Map.of("worker_pool", "java-blue")
+);
+client.triggerJob(created.id(), TriggerJobRequest.broadcastApi(selector));
+```
+
 ## 非 Boot Spring Framework 集成
 
 已有 Spring Framework 应用但不使用 Boot auto-configuration 时，选择 `tikeo-spring`、`tikeo-spring6` 或 `tikeo-spring5`。你需要自己定义 registry 和 Worker client bean。

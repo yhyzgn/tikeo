@@ -538,3 +538,16 @@ Decision:
 Rejected:
 - Frontend-only scope editing while the backend silently ignores namespace/app | would create false UI behavior and SDK/API drift.
 - Allowing a move with only source-scope authorization | would let tokens write jobs into scopes they cannot otherwise manage.
+
+## 2026-06-10 — SDK management docs must be source-backed
+
+Decision:
+- SDK documentation for Management API create+trigger flows must name only helpers that exist in committed SDK source.
+- Broadcast API triggers remain explicit helper calls with selector payloads; default helper paths stay single-worker (`executionMode=single`).
+- Java SDK now includes `BroadcastSelectorRequest` and `TriggerJobRequest.broadcastApi(...)` to match Rust/Go/Python/Node broadcast selector parity before documentation references it.
+
+Rationale:
+- The docs site should be usable as API reference without inventing SDK helpers or blurring app-scoped machine credentials with human session flows.
+
+Constraint:
+- Future SDK docs must keep `x-tikeo-api-key` / `TIKEO_MANAGEMENT_API_KEY`, `triggerType=api`, default `executionMode=single`, and explicit `broadcastSelector` wording/source tests aligned.

@@ -40,6 +40,52 @@ cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
 
 live mode 下，demo 应从本地配置连接 Worker Tunnel endpoint。
 
+
+## Management API 创建并触发任务
+
+Rust management client 的事实来源是 `sdks/rust/tikeo/src/management.rs`。它只面向 app 级服务凭据：SDK 会发送 `x-tikeo-api-key`，通常从 `TIKEO_MANAGEMENT_API_KEY` 注入；不要把浏览器 session、OIDC cookie 或用户 bearer token 传给 Worker。创建 API 任务时使用 `scheduleType=api`；默认触发 helper 会发送 `triggerType=api` 和 `executionMode=single`。
+
+```rust
+use tikeo::{
+    ManagementBroadcastSelectorRequest,
+    ManagementClient,
+    ManagementCreateJobRequest,
+    ManagementTriggerJobRequest,
+};
+
+let endpoint = std::env::var("TIKEO_MANAGEMENT_ENDPOINT")
+    .unwrap_or_else(|_| "http://127.0.0.1:9090".to_owned());
+let api_key = std::env::var("TIKEO_MANAGEMENT_API_KEY")?;
+let management = ManagementClient::new(endpoint, api_key, "dev-alpha", "orders");
+
+let created = management
+    .create_job(ManagementCreateJobRequest::api("rust-echo-api", "demo.echo"))
+    .await?;
+let instance = management
+    .trigger_job(&created.id, ManagementTriggerJobRequest::api())
+    .await?;
+
+assert_eq!(instance.trigger_type, "api");
+assert_eq!(instance.execution_mode, "single");
+```
+
+广播不是默认行为。只有需要一次 API 触发扇出到多个匹配 Worker 时，才使用显式 selector helper；它会序列化 `broadcastSelector` 并设置 `executionMode=broadcast`。
+
+```rust
+let broadcast = ManagementTriggerJobRequest::broadcast_api(Some(
+    ManagementBroadcastSelectorRequest {
+        tags: Some(vec!["manual-demo".to_owned()]),
+        region: Some("us-east-1".to_owned()),
+        cluster: None,
+        labels: Some(std::collections::HashMap::from([(
+            "worker_pool".to_owned(),
+            "rust-blue".to_owned(),
+        )])),
+    },
+));
+let _instance = management.trigger_job(&created.id, broadcast).await?;
+```
+
 ## Worker 心智模型
 
 Rust Worker 负责三件事：连接 Server tunnel，只广告真实可执行能力，并带着 Server 下发的 assignment token 回传日志和结果。这样调度、审计、stale worker fencing 才能保持一致。

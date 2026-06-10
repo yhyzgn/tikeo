@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import net.tikeo.management.model.BroadcastSelectorRequest;
 import net.tikeo.management.model.CreateJobRequest;
 import net.tikeo.management.model.JobScheduleType;
 import net.tikeo.management.model.TriggerJobRequest;
@@ -18,6 +19,7 @@ import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,6 +83,29 @@ class HttpTikeoJobClientTest {
 
         client.deleteJob("job-1");
         assertEquals(true, requests.stream().anyMatch(request -> request.method().equals("DELETE") && request.path().equals("/api/v1/jobs/job-1")));
+    }
+
+    @Test
+    void supportsExplicitBroadcastApiTriggerSelector() {
+        var instance = client.triggerJob(
+                "job-1",
+                TriggerJobRequest.broadcastApi(new BroadcastSelectorRequest(
+                        List.of("manual-demo"),
+                        "us-east-1",
+                        "prod-a",
+                        Map.of("worker_pool", "java-blue"))));
+
+        assertEquals("api", instance.triggerType());
+
+        RecordedRequest trigger = requests.stream()
+                .filter(request -> request.method().equals("POST") && request.path().equals("/api/v1/jobs/job-1:trigger"))
+                .reduce((first, second) -> second)
+                .orElseThrow();
+        assertTrue(trigger.body().contains("\"triggerType\":\"api\""));
+        assertTrue(trigger.body().contains("\"executionMode\":\"broadcast\""));
+        assertTrue(trigger.body().contains("\"broadcastSelector\""));
+        assertTrue(trigger.body().contains("\"region\":\"us-east-1\""));
+        assertTrue(trigger.body().contains("\"worker_pool\":\"java-blue\""));
     }
 
     @Test

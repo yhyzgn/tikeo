@@ -52,6 +52,46 @@ Dry-run mode proves local package linkage and capability metadata without requir
 
 Live mode defaults to `http://127.0.0.1:9998` and the development scope used by the demo. The demo includes JS/TS-friendly processor behavior plus sandbox runner auto-resolution for configured script paths. Start the Server before running live mode and confirm the Worker appears in the Web console.
 
+
+## Management API create + trigger
+
+The Node.js management surface is implemented in `sdks/nodejs/tikeo/src/management.ts`. It sends the app-scoped `x-tikeo-api-key` header, normally injected through `TIKEO_MANAGEMENT_API_KEY`, and should not be confused with a browser session or human API token. `apiJob` creates an API-scheduled processor job; `apiTrigger` sends `triggerType=api` and the default `executionMode=single`.
+
+```ts
+import {
+  ManagementClient,
+  apiJob,
+  apiTrigger,
+  broadcastApiTrigger,
+  type BroadcastSelectorRequest,
+} from "@yhyzgn/tikeo";
+
+const management = new ManagementClient(
+  process.env.TIKEO_MANAGEMENT_ENDPOINT ?? "http://127.0.0.1:9090",
+  process.env.TIKEO_MANAGEMENT_API_KEY ?? "",
+  "dev-alpha",
+  "orders",
+);
+
+const created = await management.createJob(apiJob("nodejs-echo-api", "demo.echo"));
+const instance = await management.triggerJob(created.id, apiTrigger());
+
+if (instance.triggerType !== "api" || instance.executionMode !== "single") {
+  throw new Error("unexpected trigger response");
+}
+```
+
+Broadcast is opt-in. `broadcastApiTrigger` serializes `executionMode=broadcast` and `broadcastSelector`, so reviewers can spot fan-out in code review instead of treating it like the single-worker default.
+
+```ts
+const selector: BroadcastSelectorRequest = {
+  tags: ["manual-demo"],
+  region: "us-east-1",
+  labels: { worker_pool: "nodejs-blue" },
+};
+await management.triggerJob(created.id, broadcastApiTrigger(selector));
+```
+
 ## Capability discipline
 
 JavaScript and TypeScript workers can integrate quickly with web ecosystems, but they must still follow Tikeo's scheduling contract. Do not advertise SQL, script, plugin, or processor capabilities unless the runtime can execute them safely. Missing tools should fail closed and surface visible task or diagnostic errors.

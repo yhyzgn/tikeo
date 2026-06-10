@@ -36,6 +36,59 @@ go test ./... -count=1
 
 Go workers should advertise only capabilities backed by real runtime support. Unsupported sandbox runners must fail closed instead of appearing as available capabilities.
 
+
+## Management API create + trigger
+
+The Go management client is implemented in `sdks/go/tikeo/management.go`. It is scoped to one namespace/app and authenticates with `x-tikeo-api-key`, typically read from `TIKEO_MANAGEMENT_API_KEY`; do not pass a human OIDC session or UI bearer token into SDK workers. The `APIJob` helper creates an API-scheduled processor job, while `APITrigger` sends `triggerType=api` with the default `executionMode=single`.
+
+```go
+package main
+
+import (
+    "context"
+    "os"
+
+    tikeo "github.com/yhyzgn/tikeo/sdks/go/tikeo"
+)
+
+func createAndTrigger(ctx context.Context) error {
+    endpoint := os.Getenv("TIKEO_MANAGEMENT_ENDPOINT")
+    if endpoint == "" {
+        endpoint = "http://127.0.0.1:9090"
+    }
+    client := tikeo.NewManagementClient(
+        endpoint,
+        os.Getenv("TIKEO_MANAGEMENT_API_KEY"),
+        "dev-alpha",
+        "orders",
+    )
+
+    created, err := client.CreateJob(ctx, tikeo.APIJob("go-echo-api", "demo.echo"))
+    if err != nil {
+        return err
+    }
+    instance, err := client.TriggerJob(ctx, created.ID, tikeo.APITrigger())
+    if err != nil {
+        return err
+    }
+    if instance.TriggerType != "api" || instance.ExecutionMode != "single" {
+        panic("unexpected trigger response")
+    }
+    return nil
+}
+```
+
+Broadcast fan-out is explicit. `BroadcastAPITrigger` serializes `executionMode=broadcast` plus `broadcastSelector`; keep this separate from the single-worker default so accidental API triggers do not run on every matching worker.
+
+```go
+broadcast := tikeo.BroadcastAPITrigger(&tikeo.BroadcastSelectorRequest{
+    Tags:   []string{"manual-demo"},
+    Region: "us-east-1",
+    Labels: map[string]string{"worker_pool": "go-blue"},
+})
+_, err := client.TriggerJob(ctx, created.ID, broadcast)
+```
+
 ## Minimal worker mental model
 
 The Go SDK follows the same Worker Tunnel model as Rust and Java. A worker connects out to the Server, registers metadata, heartbeats, receives dispatches, and reports logs/results back through the tunnel.

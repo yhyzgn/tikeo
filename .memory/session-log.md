@@ -2614,3 +2614,33 @@ Git result for docs CI gate slice:
 - Code/docs/memory commit prepared: `709283d` (`Keep docs verification from depending on private registries`)
 - Remote push: `git push origin main` succeeded (`4d49490..d1097b2 main -> main`).
 - Post-push GitHub Actions query: `gh run list --commit d1097b2 --limit 10` returned no runs at query time.
+
+## 2026-06-10 — Source-backed SDK management create+trigger docs
+
+Agent:
+- Codex
+
+Work:
+- Extended all English and zh-CN SDK docs pages with source-backed Management API create+trigger examples for Rust, Go, Java Spring Boot, Python, and Node.js.
+- Documented app-scoped SDK API key behavior through `x-tikeo-api-key` / `TIKEO_MANAGEMENT_API_KEY`, explicitly separating SDK management credentials from human OIDC/session flows.
+- Documented default helper behavior: `triggerType=api` and `executionMode=single`.
+- Documented explicit broadcast helper/selector paths and `broadcastSelector` usage for all SDK languages.
+- Added docs contract coverage so future SDK docs cannot drop the create+trigger helper names, API-key wording, default single mode, or broadcast selector references.
+- Found and closed a Java parity gap while making docs source-backed: Java management SDK now includes `BroadcastSelectorRequest` and `TriggerJobRequest.broadcastApi(...)`, covered by a regression test.
+- Added follow-up prompt `.prompt/159-docs-reference-and-management-e2e-followup.md` for the next docs/e2e slice.
+
+Verification:
+- RED observed before docs update: `python3 .github/tests/docs_site_contract_test.py -k test_sdk_docs_include_source_backed_management_create_trigger_examples` failed because `website/docs/sdks/rust.md` lacked `x-tikeo-api-key` and the new source-backed examples.
+- RED observed before Java helper implementation: `./sdks/java/gradlew -p sdks/java :tikeo:test --tests net.tikeo.management.client.HttpTikeoJobClientTest.supportsExplicitBroadcastApiTriggerSelector --no-daemon` failed to compile because `BroadcastSelectorRequest` did not exist.
+- `./sdks/java/gradlew -p sdks/java :tikeo:test --tests net.tikeo.management.client.HttpTikeoJobClientTest.supportsExplicitBroadcastApiTriggerSelector --no-daemon` ✅
+- `python3 .github/tests/docs_site_contract_test.py -k test_sdk_docs_include_source_backed_management_create_trigger_examples` ✅
+- `python3 .github/tests/workflow_contract_test.py` ✅
+- `python3 .github/tests/docs_site_contract_test.py` ✅
+- `python3 scripts/check-source-size.py` ✅
+- `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` ✅
+- `git diff --check` ✅
+- `./sdks/java/gradlew -p sdks/java test --no-daemon` ✅
+- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` ✅
+
+Notes:
+- The docs slice did not change Docusaurus routing/baseUrl behavior, so route serve smoke was not required for this slice.

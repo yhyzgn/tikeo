@@ -49,6 +49,40 @@ Dry-run mode is useful for checking local packaging and capability declarations 
 
 Live mode defaults to `http://127.0.0.1:9998`, registers under the development scope used by the demo, advertises structured SDK/plugin/script capabilities, and uses sandbox auto-resolution for supported runners. When running live, start the Server first and verify the worker appears in the Web console.
 
+
+## Management API create + trigger
+
+The Python management helpers live in `sdks/python/tikeo/src/tikeo/management.py`. They use a namespace/app-scoped API key header (`x-tikeo-api-key`) sourced from a Secret such as `TIKEO_MANAGEMENT_API_KEY`; they are not a wrapper around a human login session. `api_job` creates a job with `scheduleType=api`, and `api_trigger` sends `triggerType=api` plus the default `executionMode=single`.
+
+```python
+import os
+import tikeo
+
+management = tikeo.ManagementClient(
+    os.getenv("TIKEO_MANAGEMENT_ENDPOINT", "http://127.0.0.1:9090"),
+    os.environ["TIKEO_MANAGEMENT_API_KEY"],
+    "dev-alpha",
+    "orders",
+)
+
+created = management.create_job(tikeo.api_job("python-echo-api", "demo.echo"))
+instance = management.trigger_job(created.id, tikeo.api_trigger())
+
+assert instance.trigger_type == "api"
+assert instance.execution_mode == "single"
+```
+
+Broadcast requires an explicit helper call. `broadcast_api_trigger` emits `executionMode=broadcast` and a `broadcastSelector`; use it only when all selected workers should receive the API-triggered job.
+
+```python
+selector = tikeo.BroadcastSelectorRequest(
+    tags=["manual-demo"],
+    region="us-east-1",
+    labels={"worker_pool": "python-blue"},
+)
+management.trigger_job(created.id, tikeo.broadcast_api_trigger(selector))
+```
+
 ## Capability discipline
 
 Python is often used to shell out to local tools. Keep that flexibility governed: advertise script runners only when they are installed and controlled, route task logs through task context APIs, and keep SDK diagnostics separate from task execution evidence.

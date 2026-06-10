@@ -51,6 +51,46 @@ dry-run mode 可在没有 live Server 的情况下验证本地包链接和 capab
 
 live mode 默认连接 `http://127.0.0.1:9998`，使用 demo 的开发 scope。demo 包含 JS/TS 友好的 processor 行为，以及已配置 script path 的 sandbox runner auto-resolution。运行前先启动 Server，并确认 Web 控制台能看到 Worker。
 
+
+## Management API 创建并触发任务
+
+Node.js management surface 实现在 `sdks/nodejs/tikeo/src/management.ts`。它发送 app 级 `x-tikeo-api-key` header，通常通过 `TIKEO_MANAGEMENT_API_KEY` 注入；不要把它与浏览器 session 或人类 API token 混用。`apiJob` 创建 API 调度的 processor job，`apiTrigger` 发送 `triggerType=api` 和默认 `executionMode=single`。
+
+```ts
+import {
+  ManagementClient,
+  apiJob,
+  apiTrigger,
+  broadcastApiTrigger,
+  type BroadcastSelectorRequest,
+} from "@yhyzgn/tikeo";
+
+const management = new ManagementClient(
+  process.env.TIKEO_MANAGEMENT_ENDPOINT ?? "http://127.0.0.1:9090",
+  process.env.TIKEO_MANAGEMENT_API_KEY ?? "",
+  "dev-alpha",
+  "orders",
+);
+
+const created = await management.createJob(apiJob("nodejs-echo-api", "demo.echo"));
+const instance = await management.triggerJob(created.id, apiTrigger());
+
+if (instance.triggerType !== "api" || instance.executionMode !== "single") {
+  throw new Error("unexpected trigger response");
+}
+```
+
+广播是 opt-in。`broadcastApiTrigger` 会序列化 `executionMode=broadcast` 与 `broadcastSelector`，代码评审时能清楚看出 fan-out，而不会把它误当成单 Worker 默认触发。
+
+```ts
+const selector: BroadcastSelectorRequest = {
+  tags: ["manual-demo"],
+  region: "us-east-1",
+  labels: { worker_pool: "nodejs-blue" },
+};
+await management.triggerJob(created.id, broadcastApiTrigger(selector));
+```
+
 ## 能力广告纪律
 
 Node.js Worker 集成 Web 生态很快，但仍必须遵守 Tikeo 调度契约。SQL、script、plugin 或 processor capability 必须真实可执行；缺失工具应 fail closed，并产生可见任务或诊断错误。
