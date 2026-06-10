@@ -716,6 +716,10 @@ export function instanceLogStreamUrl(instanceId: string): string {
   return streamUrl(`/api/v1/instances/${encodeURIComponent(instanceId)}/logs/stream`);
 }
 
+export function instanceListStreamUrl(): string {
+  return streamUrl('/api/v1/instances/stream');
+}
+
 export function workerStreamUrl(): string {
   return streamUrl('/api/v1/workers/stream');
 }

@@ -153,3 +153,16 @@ describe('instance execution result view', () => {
     expect(source).not.toContain('暂无执行结果');
   });
 });
+
+
+describe('instance list realtime refresh', () => {
+  test('subscribes to instance list SSE and keeps a 3s polling fallback while active', () => {
+    expect(source).toContain('instanceListStreamUrl');
+    expect(source).toContain('new EventSource(instanceListStreamUrl())');
+    expect(source).toContain("source.addEventListener('instances.snapshot'");
+    expect(source).toContain('setInstances(snapshot.instances);');
+    expect(source).toContain('setAttemptsByInstance(new Map(snapshot.attempts.map');
+    expect(source).toContain('window.setInterval(() => { void load({ silent: true }); }, 3000)');
+    expect(source).toContain('window.clearInterval(fallbackTimer);');
+  });
+});

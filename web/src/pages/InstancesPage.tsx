@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   cancelInstance,
   getInstance,
+  instanceListStreamUrl,
   instanceLogStreamUrl,
   listInstanceAttempts,
   listInstanceLogs,
@@ -208,6 +209,12 @@ const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: Jo
   );
 };
 
+type InstanceListStreamSnapshot = {
+  jobs: JobSummary[];
+  instances: JobInstanceSummary[];
+  attempts: Array<{ instanceId: string; items: JobInstanceAttemptSummary[] }>;
+};
+
 export function InstancesPage() {
   const { locale, t } = useI18n();
   const [jobs, setJobs] = useState<JobSummary[]>([]);
@@ -215,15 +222,19 @@ export function InstancesPage() {
   const [attemptsByInstance, setAttemptsByInstance] = useState<Map<string, JobInstanceAttemptSummary[]>>(new Map());
   const active = useRouteActive(ROUTE_META.instances.path);
 
-  const load = useCallback(async () => {
+  const applyInstanceSnapshot = useCallback((snapshot: InstanceListStreamSnapshot) => {
+    setJobs(snapshot.jobs);
+    setInstances(snapshot.instances);
+    setAttemptsByInstance(new Map(snapshot.attempts.map((entry) => [entry.instanceId, entry.items])));
+  }, []);
+
+  const load = useCallback(async (options?: { silent?: boolean }) => {
     try {
       const jobPage = await listJobs();
-      setJobs(jobPage.items);
       const instancePages = await Promise.all(jobPage.items.map((job) => listJobInstances(job.id)));
       const sortedInstances = instancePages
         .flatMap((page) => page.items)
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-      setInstances(sortedInstances);
       const attemptPairs = await Promise.all(sortedInstances.map(async (instance) => {
         try {
           const attemptPage = await listInstanceAttempts(instance.id);
@@ -232,11 +243,36 @@ export function InstancesPage() {
           return [instance.id, [] as JobInstanceAttemptSummary[]] as const;
         }
       }));
-      setAttemptsByInstance(new Map(attemptPairs));
-    } catch { /* silent */ }
-  }, []);
+      applyInstanceSnapshot({
+        jobs: jobPage.items,
+        instances: sortedInstances,
+        attempts: attemptPairs.map(([instanceId, items]) => ({ instanceId, items })),
+      });
+    } catch (cause) {
+      if (!options?.silent) {
+        message.error(cause instanceof Error ? cause.message : t('实例加载失败'));
+      }
+    }
+  }, [applyInstanceSnapshot, t]);
 
   useEffect(() => { if (active) void load(); }, [active, load]);
+  useEffect(() => {
+    if (!active) return undefined;
+    const source = new EventSource(instanceListStreamUrl());
+    source.addEventListener('instances.snapshot', (event) => {
+      try {
+        const snapshot = JSON.parse((event as MessageEvent).data) as InstanceListStreamSnapshot;
+        applyInstanceSnapshot(snapshot);
+      } catch {
+        // Ignore malformed stream frames; the 3s fallback refresh and manual navigation remain available.
+      }
+    });
+    const fallbackTimer = window.setInterval(() => { void load({ silent: true }); }, 3000);
+    return () => {
+      source.close();
+      window.clearInterval(fallbackTimer);
+    };
+  }, [active, applyInstanceSnapshot, load]);
   const jobName = new Map(jobs.map((job) => [job.id, job.name]));
   const [logDrawerOpen, setLogDrawerOpen] = useState(false);
   const [selectedInstance, setSelectedInstance] = useState<JobInstanceSummary | null>(null);

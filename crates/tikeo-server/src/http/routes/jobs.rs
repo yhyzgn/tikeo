@@ -43,6 +43,28 @@ pub struct JobInstanceLogStreamSnapshot {
     pub attempts: Vec<JobInstanceAttemptSummary>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+/// Attempt summaries grouped by instance for the instance-list stream.
+pub struct JobInstanceListStreamAttemptGroup {
+    /// Instance identifier.
+    pub instance_id: String,
+    /// Latest attempt summaries for the instance.
+    pub items: Vec<JobInstanceAttemptSummary>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+/// Snapshot emitted on the global job instance list stream.
+pub struct JobInstanceListStreamSnapshot {
+    /// Jobs visible to the current principal.
+    pub jobs: Vec<JobSummary>,
+    /// Latest visible instances sorted newest first.
+    pub instances: Vec<JobInstanceSummary>,
+    /// Attempt summaries grouped by instance.
+    pub attempts: Vec<JobInstanceListStreamAttemptGroup>,
+}
+
 /// List jobs.
 ///
 /// # Errors
@@ -836,6 +858,49 @@ pub async fn list_job_instances(
     })))
 }
 
+/// Stream the visible job instance list via Server-Sent Events.
+///
+/// # Errors
+///
+/// Returns authentication or storage errors before opening the stream.
+pub async fn stream_instances(
+    State(state): State<Arc<AppState>>,
+    mut headers: HeaderMap,
+    Query(query): Query<StreamAuthQuery>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
+    apply_stream_token(&mut headers, &query)?;
+    let principal = auth::require_permission(&headers, &state, "instances", "read").await?;
+    let (tx, rx) = mpsc::channel(16);
+
+    tokio::spawn(async move {
+        let mut last_snapshot_json: Option<String> = None;
+        let mut interval = time::interval(Duration::from_secs(1));
+        loop {
+            if let Ok(snapshot) = instance_list_stream_snapshot(&state, &principal).await
+                && let Ok(snapshot_json) = serde_json::to_string(&snapshot)
+                && last_snapshot_json.as_deref() != Some(snapshot_json.as_str())
+            {
+                last_snapshot_json = Some(snapshot_json.clone());
+                if tx
+                    .send(Ok::<_, Infallible>(
+                        Event::default()
+                            .event("instances.snapshot")
+                            .data(snapshot_json),
+                    ))
+                    .await
+                    .is_err()
+                {
+                    return;
+                }
+            }
+            interval.tick().await;
+        }
+    });
+
+    Ok(Sse::new(ReceiverStream::new(rx))
+        .keep_alive(axum::response::sse::KeepAlive::new().interval(Duration::from_secs(15))))
+}
+
 /// Get one job instance.
 ///
 /// # Errors
@@ -1130,6 +1195,63 @@ impl From<tikeo_storage::JobSummary> for JobSummary {
             retry_policy: value.retry_policy,
         }
     }
+}
+
+async fn instance_list_stream_snapshot(
+    state: &AppState,
+    principal: &crate::http::dto::MeResponse,
+) -> Result<JobInstanceListStreamSnapshot, ApiError> {
+    let jobs = state
+        .jobs
+        .list_jobs()
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .into_iter()
+        .filter(|job| {
+            crate::http::access_scope::allows_resource(
+                &principal.scope_bindings,
+                &job.namespace,
+                &job.app,
+                None,
+            )
+        })
+        .map(JobSummary::from)
+        .collect::<Vec<_>>();
+
+    let mut instances = Vec::new();
+    for job in &jobs {
+        for instance in state
+            .instances
+            .list_by_job(&job.id)
+            .await
+            .map_err(|error| ApiError::storage(&error))?
+        {
+            instances.push(instance_summary_with_latest_log(state, instance).await?);
+        }
+    }
+    instances.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+
+    let mut attempts = Vec::new();
+    for instance in &instances {
+        let items = state
+            .attempts
+            .list_by_instance(&instance.id)
+            .await
+            .map_err(|error| ApiError::storage(&error))?
+            .into_iter()
+            .map(JobInstanceAttemptSummary::from)
+            .collect();
+        attempts.push(JobInstanceListStreamAttemptGroup {
+            instance_id: instance.id.clone(),
+            items,
+        });
+    }
+
+    Ok(JobInstanceListStreamSnapshot {
+        jobs,
+        instances,
+        attempts,
+    })
 }
 
 async fn instance_summary_with_latest_log(
