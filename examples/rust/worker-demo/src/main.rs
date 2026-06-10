@@ -392,13 +392,29 @@ fn sandbox_tool_path_entries(
     interpreter: &std::path::Path,
     sandbox_tools: &SandboxToolResolver,
 ) -> Vec<std::path::PathBuf> {
+    sandbox_tool_path_entries_with_runtime_dependencies(
+        srt,
+        rg,
+        interpreter,
+        sandbox_tools.resolve_node(),
+        sandbox_tools.resolve_npm(),
+    )
+}
+
+fn sandbox_tool_path_entries_with_runtime_dependencies(
+    srt: &std::path::Path,
+    rg: &std::path::Path,
+    interpreter: &std::path::Path,
+    node: Option<std::path::PathBuf>,
+    npm: Option<std::path::PathBuf>,
+) -> Vec<std::path::PathBuf> {
     let mut entries = Vec::new();
     for command in [
         Some(srt.to_path_buf()),
         Some(rg.to_path_buf()),
         Some(interpreter.to_path_buf()),
-        sandbox_tools.resolve_node(),
-        sandbox_tools.resolve_npm(),
+        node,
+        npm,
     ]
     .into_iter()
     .flatten()
@@ -586,14 +602,17 @@ mod tests {
         ));
         let srt_dir = temp_root.join("srt-bin");
         let rg_dir = temp_root.join("rg-bin");
+        let node_dir = temp_root.join("node-bin");
         std::fs::create_dir_all(&srt_dir).expect("create fake srt dir");
         std::fs::create_dir_all(&rg_dir).expect("create fake rg dir");
+        std::fs::create_dir_all(&node_dir).expect("create fake node dir");
 
-        let entries = sandbox_tool_path_entries(
+        let entries = sandbox_tool_path_entries_with_runtime_dependencies(
             &srt_dir.join("srt"),
             &rg_dir.join("rg"),
             &srt_dir.join("sh"),
-            &SandboxToolResolver::default(),
+            Some(node_dir.join("node")),
+            Some(node_dir.join("npm")),
         );
 
         assert!(
@@ -605,16 +624,10 @@ mod tests {
             "ripgrep directory must be injected into sanitized PATH: {entries:?}"
         );
 
-        for optional_command in ["node", "npm"] {
-            if let Some(command) = find_command_on_path(optional_command)
-                && let Some(parent) = command.parent()
-            {
-                assert!(
-                    entries.iter().any(|entry| entry == parent),
-                    "{optional_command} directory must be preserved for npm-installed SRT launchers: {entries:?}"
-                );
-            }
-        }
+        assert!(
+            entries.iter().any(|entry| entry == &node_dir),
+            "node/npm directory must be preserved for npm-installed SRT launchers: {entries:?}"
+        );
 
         let _ = std::fs::remove_dir_all(temp_root);
     }
@@ -637,12 +650,5 @@ mod tests {
         assert!(!source.contains(
             "ScriptRunnerKind::PowerShell => sandbox_tools.resolve_interpreter(\"pwsh\")"
         ));
-    }
-
-    fn find_command_on_path(binary: &str) -> Option<std::path::PathBuf> {
-        let path = std::env::var_os("PATH")?;
-        std::env::split_paths(&path)
-            .map(|entry| entry.join(binary))
-            .find(|candidate| candidate.exists())
     }
 }
