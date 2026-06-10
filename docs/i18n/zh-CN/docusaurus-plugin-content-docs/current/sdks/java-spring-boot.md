@@ -1,126 +1,41 @@
 ---
 title: Java SDK and Spring Boot Starter
-description: Java SDK artifact、Maven/Gradle 依赖选择、Spring Boot、原生 Java 与非 Boot Spring 集成。
+description: Java SDK artifact、Spring Boot Starter、Management helper 与 Worker demo 的 operator-grade 验收入口。
 ---
 
 # Java SDK and Spring Boot Starter
 
-Java SDK 以 Maven Central artifact 发布，group 为 `net.tikeo`。新 Java 服务默认选择 **Spring Boot 4** 的 `net.tikeo:tikeo-spring-boot-starter`。每个服务只添加 **一个** Tikeo 依赖；不要显式添加该依赖已经传递带入的上游 Tikeo 模块。
+Java SDK 位于 `sdks/java`，Spring Boot demo 位于 `examples/java/spring-boot{2,3,4}-worker-demo`。本文以 starter properties、auto-configuration、core management client、`@TikeoProcessor` adapter 和 demo 源码为事实来源。Java Worker 同样是 **outbound-only**：应用进程通过 `GrpcTikeoWorkerClient` 主动连接 Worker Tunnel，注册 capabilities，接收 `DispatchTask`，并通过 tunnel 回传 task log/result；不要把业务 Worker 写成 inbound Service。demo 中的 `/demo/*` 端点只是运维演示和 management 示例，不是 Worker 派发入口。
 
-## 运行时与版本占位符
+## 依赖坐标
 
-- Java runtime：Java 17+。
-- 仓库 CI 使用 Temurin 21 验证 SDK。
-- 将 `${TIKEO_VERSION}` 替换为 README 顶部对应 artifact/package 徽标显示的版本号。
-- Java/Maven 使用不带 `v` 的 `${TIKEO_VERSION}`。
+Java group 来自 `sdks/java/build.gradle.kts`：`group = "net.tikeo"`，版本来自 Gradle property `tikeoVersion`。每个服务只选择一个 Tikeo artifact；starter 会传递所需 adapter/core SDK。
 
-## 只选择一个 Java artifact
-
-| Artifact | 什么时候使用 | 依赖行 |
+| Artifact | 使用场景 | Gradle Kotlin DSL |
 | --- | --- | --- |
-| `net.tikeo:tikeo-spring-boot-starter` | 新 Java 服务默认：Spring Boot 4 / Spring Framework 7 自动配置。 | `implementation("net.tikeo:tikeo-spring-boot-starter:${TIKEO_VERSION}")` |
-| `net.tikeo:tikeo-spring-boot3-starter` | Spring Boot 3 / Spring Framework 6 自动配置。 | `implementation("net.tikeo:tikeo-spring-boot3-starter:${TIKEO_VERSION}")` |
-| `net.tikeo:tikeo-spring-boot2-starter` | Spring Boot 2 / Spring Framework 5 自动配置。 | `implementation("net.tikeo:tikeo-spring-boot2-starter:${TIKEO_VERSION}")` |
-| `net.tikeo:tikeo` | 原生 Java Worker、management client、sandbox tooling 或低层 Worker Tunnel 集成。 | `implementation("net.tikeo:tikeo:${TIKEO_VERSION}")` |
-| `net.tikeo:tikeo-spring` | 不使用 Boot auto-configuration，手动接线 Spring Framework 7 adapter。 | `implementation("net.tikeo:tikeo-spring:${TIKEO_VERSION}")` |
-| `net.tikeo:tikeo-spring6` | 不使用 Boot auto-configuration，手动接线 Spring Framework 6 adapter。 | `implementation("net.tikeo:tikeo-spring6:${TIKEO_VERSION}")` |
-| `net.tikeo:tikeo-spring5` | 不使用 Boot auto-configuration，手动接线 Spring Framework 5 adapter。 | `implementation("net.tikeo:tikeo-spring5:${TIKEO_VERSION}")` |
+| `net.tikeo:tikeo-spring-boot-starter` | 新服务默认，Spring Boot 4 / Spring Framework 7 | `implementation("net.tikeo:tikeo-spring-boot-starter:${TIKEO_VERSION}")` |
+| `net.tikeo:tikeo-spring-boot3-starter` | Spring Boot 3 / Spring Framework 6 | `implementation("net.tikeo:tikeo-spring-boot3-starter:${TIKEO_VERSION}")` |
+| `net.tikeo:tikeo-spring-boot2-starter` | Spring Boot 2 / Spring Framework 5 | `implementation("net.tikeo:tikeo-spring-boot2-starter:${TIKEO_VERSION}")` |
+| `net.tikeo:tikeo` | 原生 Java Worker、Management helper、sandbox/wasm 工具 | `implementation("net.tikeo:tikeo:${TIKEO_VERSION}")` |
+| `net.tikeo:tikeo-spring` | 非 Boot，手动接线 Spring Framework 7 adapter | `implementation("net.tikeo:tikeo-spring:${TIKEO_VERSION}")` |
+| `net.tikeo:tikeo-spring6` | 非 Boot，手动接线 Spring Framework 6 adapter | `implementation("net.tikeo:tikeo-spring6:${TIKEO_VERSION}")` |
+| `net.tikeo:tikeo-spring5` | 非 Boot，手动接线 Spring Framework 5 adapter | `implementation("net.tikeo:tikeo-spring5:${TIKEO_VERSION}")` |
 
-Spring Boot starter 会传递包含匹配的 Spring adapter 和 core SDK。例如 Boot 3 服务只需要依赖 `tikeo-spring-boot3-starter`；不要再额外声明 `tikeo-spring6` 或 `tikeo`。
-
-## Gradle Kotlin DSL
-
-```kotlin
-repositories {
-    mavenCentral()
-}
-
-dependencies {
-    // 新 Java 服务默认：Spring Boot 4。
-    implementation("net.tikeo:tikeo-spring-boot-starter:${TIKEO_VERSION}")
-
-    // 运行时需要时，从下面替代项里只选择一个：
-    // implementation("net.tikeo:tikeo-spring-boot3-starter:${TIKEO_VERSION}") // Spring Boot 3
-    // implementation("net.tikeo:tikeo-spring-boot2-starter:${TIKEO_VERSION}") // Spring Boot 2
-    // implementation("net.tikeo:tikeo:${TIKEO_VERSION}")                      // 原生 Java
-    // implementation("net.tikeo:tikeo-spring:${TIKEO_VERSION}")               // 手动 Spring Framework 7
-    // implementation("net.tikeo:tikeo-spring6:${TIKEO_VERSION}")              // 手动 Spring Framework 6
-    // implementation("net.tikeo:tikeo-spring5:${TIKEO_VERSION}")              // 手动 Spring Framework 5
-}
-```
-
-## Maven POM
-
-只复制一个 dependency block。Maven 会从所选 artifact 解析传递的 Tikeo 模块。
+Maven 同样只复制一个 dependency block，例如 Boot 3：
 
 ```xml
-<dependencies>
-  <!-- 新 Java 服务默认：Spring Boot 4 / Spring Framework 7。 -->
-  <dependency>
-    <groupId>net.tikeo</groupId>
-    <artifactId>tikeo-spring-boot-starter</artifactId>
-    <version>${TIKEO_VERSION}</version>
-  </dependency>
-
-  <!-- Spring Boot 3 / Spring Framework 6。 -->
-  <!--
-  <dependency>
-    <groupId>net.tikeo</groupId>
-    <artifactId>tikeo-spring-boot3-starter</artifactId>
-    <version>${TIKEO_VERSION}</version>
-  </dependency>
-  -->
-
-  <!-- Spring Boot 2 / Spring Framework 5。 -->
-  <!--
-  <dependency>
-    <groupId>net.tikeo</groupId>
-    <artifactId>tikeo-spring-boot2-starter</artifactId>
-    <version>${TIKEO_VERSION}</version>
-  </dependency>
-  -->
-
-  <!-- 原生 Java core SDK。 -->
-  <!--
-  <dependency>
-    <groupId>net.tikeo</groupId>
-    <artifactId>tikeo</artifactId>
-    <version>${TIKEO_VERSION}</version>
-  </dependency>
-  -->
-
-  <!-- 非 Boot 手动 Spring Framework 7 adapter。 -->
-  <!--
-  <dependency>
-    <groupId>net.tikeo</groupId>
-    <artifactId>tikeo-spring</artifactId>
-    <version>${TIKEO_VERSION}</version>
-  </dependency>
-  -->
-
-  <!-- 非 Boot 手动 Spring Framework 6 adapter。 -->
-  <!--
-  <dependency>
-    <groupId>net.tikeo</groupId>
-    <artifactId>tikeo-spring6</artifactId>
-    <version>${TIKEO_VERSION}</version>
-  </dependency>
-  -->
-
-  <!-- 非 Boot 手动 Spring Framework 5 adapter。 -->
-  <!--
-  <dependency>
-    <groupId>net.tikeo</groupId>
-    <artifactId>tikeo-spring5</artifactId>
-    <version>${TIKEO_VERSION}</version>
-  </dependency>
-  -->
-</dependencies>
+<dependency>
+  <groupId>net.tikeo</groupId>
+  <artifactId>tikeo-spring-boot3-starter</artifactId>
+  <version>${TIKEO_VERSION}</version>
+</dependency>
 ```
 
-## Spring Boot starter 集成
+## Spring Boot 属性默认值
 
-Boot starter 使用属性配置。它会创建 processor registry、Worker Tunnel client、生命周期 hook、sandbox runner registry 和可选 management client。
+`TikeoWorkerProperties` 的 prefix 是 `tikeo.worker`。源码默认值：`enabled=true`，`auto-startup=true`，`endpoint="http://0.0.0.0:9998"`，`dry-run=false`，`heartbeat-interval-millis=10000`，`client-instance-id` 为空，`state-dir` 为空时使用 `~/.tikeo/workers` 生成稳定 identity，`namespace="default"`，`app="default"`，`cluster="default"`，`region="default"`，`capabilities=[]`，`labels={}`。election 默认 `enabled=true`、`domain=""`、`priority=100`。WASM 默认 `auto-install=true`、`install-version="latest"`、`install-timeout-millis=120000`。scripts 默认 `enabled=true`、`container-enabled=false`、`availability-check=true`、`runtime-command=""`、`auto-install-tools=true`，SRT/Deno/ripgrep 等 install version 多为 `latest`，PowerShell 默认 `7.5.4`，WasmEdge auto install 默认 false。
+
+`TikeoManagementProperties` 的 prefix 是 `tikeo.management`。源码默认值：`enabled=false`，`endpoint="http://127.0.0.1:9999"`，`api-key=""`，`namespace="default"`，`app="default"`。当 `tikeo.management.enabled=true` 时，auto-configuration 创建 `TikeoJobClient` bean，具体实现是 `HttpTikeoJobClient(endpoint, apiKey, namespace, app)`。
 
 ```yaml
 tikeo:
@@ -131,22 +46,25 @@ tikeo:
     endpoint: ${TIKEO_WORKER_ENDPOINT:http://127.0.0.1:9998}
     client-instance-id: ${TIKEO_WORKER_CLIENT_INSTANCE_ID:}
     state-dir: ${TIKEO_WORKER_STATE_DIR:}
-    namespace: ${TIKEO_WORKER_NAMESPACE:default}
-    app: ${TIKEO_WORKER_APP:default}
-    cluster: ${TIKEO_WORKER_CLUSTER:default}
-    region: ${TIKEO_WORKER_REGION:default}
+    namespace: ${TIKEO_WORKER_NAMESPACE:dev-alpha}
+    app: ${TIKEO_WORKER_APP:orders}
+    cluster: ${TIKEO_WORKER_CLUSTER:local}
+    region: ${TIKEO_WORKER_REGION:local}
     capabilities: [java, spring-boot]
     labels:
-      worker_pool: ${TIKEO_WORKER_POOL:java-blue}
+      worker_pool: ${TIKEO_WORKER_POOL:boot3-blue}
       runtime: java
-
   management:
     enabled: ${TIKEO_MANAGEMENT_ENABLED:false}
     endpoint: ${TIKEO_MANAGEMENT_ENDPOINT:http://127.0.0.1:9999}
     api-key: ${TIKEO_MANAGEMENT_API_KEY:}
-    namespace: ${TIKEO_MANAGEMENT_NAMESPACE:default}
-    app: ${TIKEO_MANAGEMENT_APP:default}
+    namespace: ${TIKEO_MANAGEMENT_NAMESPACE:dev-alpha}
+    app: ${TIKEO_MANAGEMENT_APP:orders}
 ```
+
+## @TikeoProcessor 与最小 Spring Worker
+
+Spring adapter 会扫描 Spring beans 中的 `@TikeoProcessor` 方法并注册到 `TikeoProcessorRegistry`。`TikeoWorkerAutoConfiguration` 创建 `WorkerRegistration`，合并 `properties.capabilities`、registry 中的 SDK/plugin processors、script runner registry 和 wasm runner registry，然后创建 `GrpcTikeoWorkerClient`；如果 `tikeo.worker.dry-run=true`，则创建 `NoopTikeoWorkerClient`。最小业务 Worker 只需要一个 Spring Boot 应用和 processor bean：
 
 ```java
 import net.tikeo.processor.TaskContext;
@@ -156,219 +74,121 @@ import org.springframework.stereotype.Component;
 
 @Component
 public final class BillingProcessors {
-    @TikeoProcessor("billing.reconcile")
-    public TaskOutcome reconcile(TaskContext context, String payload) {
-        context.logInfo("billing reconcile started");
-        return new TaskOutcome(true, "processed:" + payload);
+    @TikeoProcessor("demo.echo")
+    public TaskOutcome echo(TaskContext context, String payload) {
+        context.logInfo("[demo.echo] received payload='" + payload + "'");
+        return new TaskOutcome(true, "echo:" + payload);
     }
 }
 ```
 
-## 原生 Java core SDK 集成
-
-原生 Java 不使用 `application.yml`。你需要自己构造 `WorkerRegistration`、提供 `TaskProcessor`，并启动 `GrpcTikeoWorkerClient`。
+plugin processor 使用源码中的属性：
 
 ```java
-import net.tikeo.processor.TaskOutcome;
-import net.tikeo.processor.TaskProcessor;
-import net.tikeo.worker.WorkerCapabilitySet;
-import net.tikeo.worker.WorkerClusterElection;
-import net.tikeo.worker.WorkerRegistration;
-import net.tikeo.worker.client.GrpcTikeoWorkerClient;
-import java.time.Duration;
-import java.util.List;
-import java.util.Map;
+import net.tikeo.processor.TikeoProcessor;
+import net.tikeo.processor.TikeoProcessorKind;
 
-public final class TikeoPlainJavaWorker {
-    public static void main(String[] args) {
-        var registration = new WorkerRegistration(
-            "orders-java-1",
-            "default",
-            "orders",
-            "local",
-            "local",
-            List.of("java"),
-            new WorkerCapabilitySet(
-                List.of("java"),
-                List.of("billing.reconcile"),
-                List.of(),
-                List.of()
-            ),
-            WorkerClusterElection.enabledByDefault(),
-            Map.of("worker_pool", "java-core")
-        );
-
-        TaskProcessor processor = context -> {
-            context.logInfo("plain Java task started");
-            return new TaskOutcome(true, "ok:" + context.processorName());
-        };
-
-        var client = new GrpcTikeoWorkerClient(
-            System.getenv().getOrDefault("TIKEO_WORKER_ENDPOINT", "http://127.0.0.1:9998"),
-            registration,
-            processor,
-            Duration.ofSeconds(10)
-        );
-        Runtime.getRuntime().addShutdownHook(new Thread(client::close));
-        client.start();
-    }
+@TikeoProcessor(value = "billing.sql-sync", kind = TikeoProcessorKind.PLUGIN, pluginType = "sql")
+public String run(TaskContext context, String payload) {
+    context.logInfo("[billing.sql-sync] plugin SQL processor received payload='" + payload + "'");
+    return "sql-plugin-ok:" + payload;
 }
 ```
 
-原生 Java 使用 Management API 时，直接创建 `HttpTikeoJobClient(endpoint, apiKey, namespace, app)`，API key 从 Secret store 注入。
+demo processor 名称来自 `examples/java/spring-boot3-worker-demo/src/main/java/.../processor`：`demo.echo`、`demo.context`、`demo.bytes`、`demo.heartbeat`、`demo.report`、`demo.workflow.step`、`demo.fail` 和 plugin `billing.sql-sync`。这些是 Worker dispatch 能力，不是 HTTP handler。`DemoInfoController` 和 `DemoJobManagementController` 只用于检查注册状态和演示 job management。
 
+## 原生 Java Worker
 
-## Management API 创建并触发任务
+不使用 Boot 时，直接使用 core SDK：构造 `WorkerRegistration`、`WorkerCapabilitySet`、`TaskProcessor` 和 `GrpcTikeoWorkerClient`。这条路径没有 `application.yml` 属性绑定，也不会自动扫描 `@TikeoProcessor`。
 
-Java management helper 位于 core `net.tikeo:tikeo` artifact 的 `net.tikeo.management.*` 包；Spring Boot starter 只是在 `tikeo.management.enabled=true` 时自动配置同一个 client。`HttpTikeoJobClient` 会从 Secret（例如 `TIKEO_MANAGEMENT_API_KEY`）发送 app 级 `x-tikeo-api-key` header，不能绑定浏览器 session、OIDC cookie 或用户 bearer token。`CreateJobRequest.api(...)` 创建 API 调度的 processor job，`TriggerJobRequest.api()` 发送 `triggerType=api` 与默认 `executionMode=single`。
+```java
+var registration = new WorkerRegistration(
+    "orders-java-1",
+    "dev-alpha",
+    "orders",
+    "local",
+    "local",
+    List.of("java"),
+    new WorkerCapabilitySet(List.of("java"), List.of("demo.echo"), List.of(), List.of()),
+    WorkerClusterElection.enabledByDefault(),
+    Map.of("worker_pool", "java-core")
+);
+TaskProcessor processor = context -> {
+    context.logInfo("plain Java task started");
+    return new TaskOutcome(true, "ok:" + context.processorName());
+};
+var client = new GrpcTikeoWorkerClient(
+    System.getenv().getOrDefault("TIKEO_WORKER_ENDPOINT", "http://127.0.0.1:9998"),
+    registration,
+    processor,
+    Duration.ofSeconds(10)
+);
+client.start();
+```
+
+## Management API 与管理客户端凭证
+
+Java core Management helper 是 `HttpTikeoJobClient`，接口是 `TikeoJobClient`；其他语言页的 `ManagementClient` 在 Java 中对应这个 helper。构造函数 `HttpTikeoJobClient(endpoint, apiKey, namespace, app)` 会 trim endpoint，空 namespace/app 默认 `default`，请求 timeout 30 秒，connect timeout 10 秒，请求头固定包含 `x-tikeo-api-key` 与 `accept: application/json`。凭证应来自 `TIKEO_MANAGEMENT_API_KEY`；不要使用浏览器 session、OIDC cookie、人类 bearer token 或 demo 默认值作为生产凭证。
+
+源码 helper：`CreateJobRequest.api(name, processorName)` 创建 `scheduleType=api` processor job；`CreateJobRequest.apiPlugin(name, processorType, processorName)` 创建 plugin job；`CreateJobRequest.apiScript(name, scriptId)` 创建 script job；`TriggerJobRequest.api()` 发送 `triggerType=api` 与 `executionMode=single`；`TriggerJobRequest.broadcastApi(new BroadcastSelectorRequest(...))` 发送 `executionMode=broadcast` 与 `broadcastSelector`。
 
 ```java
 import net.tikeo.management.client.HttpTikeoJobClient;
-import net.tikeo.management.client.TikeoJobClient;
 import net.tikeo.management.model.BroadcastSelectorRequest;
 import net.tikeo.management.model.CreateJobRequest;
 import net.tikeo.management.model.TriggerJobRequest;
 import java.util.List;
 import java.util.Map;
 
-String endpoint = System.getenv().getOrDefault(
-    "TIKEO_MANAGEMENT_ENDPOINT",
-    "http://127.0.0.1:9090"
+var client = new HttpTikeoJobClient(
+    System.getenv().getOrDefault("TIKEO_MANAGEMENT_ENDPOINT", "http://127.0.0.1:9999"),
+    System.getenv("TIKEO_MANAGEMENT_API_KEY"),
+    "dev-alpha",
+    "orders"
 );
-String apiKey = System.getenv("TIKEO_MANAGEMENT_API_KEY");
-TikeoJobClient client = new HttpTikeoJobClient(endpoint, apiKey, "dev-alpha", "orders");
-
 var created = client.createJob(CreateJobRequest.api("java-echo-api", "demo.echo"));
 var instance = client.triggerJob(created.id(), TriggerJobRequest.api());
-
 if (!"api".equals(instance.triggerType()) || !"single".equals(instance.executionMode())) {
     throw new IllegalStateException("unexpected trigger response");
 }
-```
-
-广播被建模为另一个显式 helper。`TriggerJobRequest.broadcastApi(...)` 会序列化 `executionMode=broadcast` 和 `broadcastSelector`；只有被选中 Worker 集合都应执行本次 API 触发时才使用。
-
-```java
 var selector = new BroadcastSelectorRequest(
     List.of("manual-demo"),
     "us-east-1",
     null,
-    Map.of("worker_pool", "java-blue")
+    Map.of("worker_pool", "boot3-blue")
 );
 client.triggerJob(created.id(), TriggerJobRequest.broadcastApi(selector));
 ```
 
+参考锚点：[`POST /api/v1/jobs`](../reference/management-openapi#post-api-v1-jobs)、[`POST /api/v1/jobs/{job}:trigger`](../reference/management-openapi#post-api-v1-jobs-job-trigger)、[`GET /api/v1/instances/{instance}`](../reference/management-openapi#get-api-v1-instances-instance)、[`GET /api/v1/instances/{instance}/logs`](../reference/management-openapi#get-api-v1-instances-instance-logs)、[`DispatchTask`](../reference/worker-tunnel-protobuf#dispatchtask)。
 
-## Source-backed 参考链接
+## Demo 与运维边界
 
-SDK helper 文档必须锚定到从源码整理出的 API 与协议参考：
+Spring Boot 3 demo 的 `application.yml` 将 `tikeo.worker.endpoint` 默认设为 `http://127.0.0.1:9998`，`client-instance-id` 默认 `spring-boot3-worker-demo-${HOSTNAME:local}`，namespace/app 默认 `dev-alpha`/`orders`，label `worker_pool=boot3-blue`、`runtime=java`、`demo=spring-boot3-worker-demo`。`tikeo.management.enabled` 在 demo 中默认 true，生产服务应按最小权限显式开启，并从 Secret 注入 `TIKEO_MANAGEMENT_API_KEY`。脚本 runner 默认开启 WASM/SRT 工具解析，但 container scripts 默认关闭；只有可用运行时会被注册进 structured capabilities。
 
-- 创建 helper 端点：[`POST /api/v1/jobs`](../reference/management-openapi#post-api-v1-jobs)
-- 触发 helper 端点：[`POST /api/v1/jobs/{job}:trigger`](../reference/management-openapi#post-api-v1-jobs-job-trigger)
-- 实例轮询端点：[`GET /api/v1/instances/{instance}`](../reference/management-openapi#get-api-v1-instances-instance)
-- 实例日志端点：[`GET /api/v1/instances/{instance}/logs`](../reference/management-openapi#get-api-v1-instances-instance-logs)
-- Worker 派发消息：[`DispatchTask`](../reference/worker-tunnel-protobuf#dispatchtask)
+## 源码事实索引与排错边界
 
-## 非 Boot Spring Framework 集成
+核对 Java 集成时，先读对应 starter 的 `TikeoWorkerProperties` 与 `TikeoManagementProperties`，再读 `TikeoWorkerAutoConfiguration` 如何创建 `TikeoProcessorRegistry`、`ScriptRunnerRegistry`、`WasmRunnerRegistry`、`WorkerRegistration` 和 `GrpcTikeoWorkerClient`。`TikeoProcessorRegistry` 只扫描 Spring bean 上的 `@TikeoProcessor`，所以 processor 名称、`TikeoProcessorKind.PLUGIN` 和 `pluginType` 才是调度事实。`examples/java/spring-boot3-worker-demo` 同时包含 processor、dry-run 测试、management controller 和 `/demo/health` 运维检查；这些 HTTP endpoint 证明应用状态，不是 Worker inbound dispatch。排错顺序应是：确认 starter artifact 与 Spring Boot 版本匹配，确认 properties 最终值，确认 registry handlers，确认 Worker registration 的 structured capabilities，最后再检查 Management API 请求与 job instance 日志。
 
-已有 Spring Framework 应用但不使用 Boot auto-configuration 时，选择 `tikeo-spring`、`tikeo-spring6` 或 `tikeo-spring5`。你需要自己定义 registry 和 Worker client bean。
+## 生产上线检查
 
-```java
-import net.tikeo.spring.processor.TikeoProcessorRegistry;
-import net.tikeo.spring.worker.SpringTikeoTaskProcessor;
-import net.tikeo.worker.WorkerClusterElection;
-import net.tikeo.worker.WorkerRegistration;
-import net.tikeo.worker.client.GrpcTikeoWorkerClient;
-import net.tikeo.worker.client.TikeoWorkerClient;
-import java.time.Duration;
-import java.util.List;
-import java.util.Map;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+上线前确认 Java 服务选择了唯一 starter artifact，避免同时引入 Boot 2/3/4 starter 或手动 Spring adapter 造成重复 bean。`client-instance-id` 可以显式设置或由 state dir 持久化生成，但 Worker 权威身份仍是 Server 注册 ack 返回的 worker id、generation、lease 和 fencing token。多副本部署时，用 namespace、app、cluster、region、capabilities 和 labels 表达调度边界；不要把 `/demo/*` 运维端点暴露成任务入口。每次新增 `@TikeoProcessor` 方法、plugin type 或脚本能力，都应被视为调度面变更并进入发布评审。Management API key 只放在 Secret 配置中，不能写进 `application.yml` 的生产值、镜像层、Actuator 输出或普通业务日志。
 
-@Configuration
-class TikeoSpringWorkerConfiguration {
-    @Bean
-    TikeoProcessorRegistry tikeoProcessorRegistry() {
-        return new TikeoProcessorRegistry();
-    }
+生产观测还应覆盖 Spring lifecycle 启停、registry handlers 数量、tunnel 重连、heartbeat 延迟、任务失败分类和 management 请求错误率。滚动发布时先验证一个实例的 capabilities，再扩容，避免不同 Pod 因属性或工具差异广告出不同能力。
 
-    @Bean(initMethod = "start", destroyMethod = "close")
-    TikeoWorkerClient tikeoWorkerClient(
-        ApplicationContext applicationContext,
-        TikeoProcessorRegistry registry
-    ) {
-        registry.scanExistingBeans(applicationContext);
-        var registration = new WorkerRegistration(
-            "orders-spring-1",
-            "default",
-            "orders",
-            "local",
-            "local",
-            List.of("java", "spring"),
-            registry.workerCapabilities(),
-            WorkerClusterElection.enabledByDefault(),
-            Map.of("worker_pool", "spring-manual")
-        );
-        return new GrpcTikeoWorkerClient(
-            System.getenv().getOrDefault("TIKEO_WORKER_ENDPOINT", "http://127.0.0.1:9998"),
-            registration,
-            new SpringTikeoTaskProcessor(registry),
-            Duration.ofSeconds(10)
-        );
-    }
-}
-```
+如果使用 Actuator、集中日志或配置中心，还要确认 `tikeo.management.api-key` 被脱敏，`tikeo.worker.labels` 不包含租户秘密，`@TikeoProcessor` 方法不会把原始 payload 全量写入普通日志。灰度阶段保留 dry-run 配置样本，方便在不连接 live tunnel 的情况下复核自动配置和 processor 扫描结果。
 
-## Spring Boot 属性默认值
+对于 Boot 应用，建议把 Worker 专用 profile、Management 专用 profile 和普通 Web profile 分开维护。
 
-全局 Worker 字段见 [配置参考](../reference/configuration#sdk-与-worker-配置)。Spring Boot 额外提供 auto-configuration 开关和 Java sandbox-tool 属性：
+这能避免普通 Web 配置把 Worker 连接、processor 扫描或 management 凭证带到不该运行的进程里。
 
-| 配置项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `tikeo.worker.enabled` | `true` | 启用 worker auto-configuration。 |
-| `tikeo.worker.auto-startup` | `true` | 随 Spring 应用生命周期启动/停止 worker。 |
-| `tikeo.worker.endpoint` | `http://0.0.0.0:9998` | 部署时显式设置为可访问的 Worker Tunnel endpoint。 |
-| `tikeo.worker.dry-run` | `false` | 使用 `NoopTikeoWorkerClient`，不打开真实 tunnel。 |
-| `tikeo.worker.client-instance-id` | 空 | 可选；为空时 Boot 按 scope/runtime identity 生成并持久化。 |
-| `tikeo.worker.state-dir` | 空 → `~/.tikeo/workers` | 生成的 worker instance identity 状态目录。 |
-| `tikeo.worker.wasm.auto-install` | `true` | 缺少 Wasmtime 时自动安装。 |
-| `tikeo.worker.wasm.install-version` | `latest` | Wasmtime installer 版本。 |
-| `tikeo.worker.wasm.install-dir` | 空 → `~/.tikeo/sandbox-tools/wasmtime` | 持久化/缓存可避免重复下载。 |
-| `tikeo.worker.scripts.auto-install-tools` | `true` | 缺少脚本工具时自动安装；生产锁定镜像中建议关闭。 |
-| `tikeo.worker.scripts.power-shell-install-version` | `7.5.4` | 自动安装 PowerShell Core 的版本。 |
-| `tikeo.worker.scripts.power-shell-install-dir` | 空 → `~/.tikeo/sandbox-tools/pwsh` | 持久化/缓存可避免重复 archive 下载。 |
-| `tikeo.management.enabled` | `false` | 启用 `TikeoJobClient` auto-configuration。 |
-| `tikeo.management.endpoint` | `http://127.0.0.1:9999` | 显式设置；Compose 示例通常将 server HTTP 暴露在 `9090`。 |
-| `tikeo.management.api-key` | 空 | App-scoped API key；从 Secret store 注入。 |
+灰度时先只启动一个 Worker 实例。
 
-Java SDK 低层 PowerShell installer 覆盖项：`TIKEO_POWERSHELL_VERSION`、`TIKEO_POWERSHELL_DOWNLOAD_URL`、`TIKEO_POWERSHELL_INSTALL_TIMEOUT_MILLIS`。
+## 现场验收 runbook
 
-## 部署清单
-
-1. 添加一个且仅一个与运行时匹配的 Java 依赖；新 Boot 4 服务默认使用 `tikeo-spring-boot-starter`。
-2. 将 Worker Tunnel endpoint 设置为 Worker 进程可访问的地址。
-3. 按路由模型一致设置 namespace、app、cluster、region、labels 和 structured capabilities。
-4. Boot 场景中，需要稳定生成 instance identity 时持久化 `state-dir`。
-5. 不可变生产镜像中，预安装/缓存 sandbox tools，并按需关闭 auto-install。
-6. 如果启用 management client，显式设置 HTTP endpoint，并从 Secret store 注入 API key。
-7. 确认 Web 控制台能看到 worker，然后触发路由到 Java capability 的任务并检查日志/结果。
-
-## 本地验证命令
-
-```bash
-cd sdks/java
-./gradlew test --no-daemon
-./gradlew jar sourcesJar --no-daemon
-```
-
-```bash
-cd examples/java/spring-boot2-worker-demo && ./gradlew test --no-daemon
-cd examples/java/spring-boot3-worker-demo && ./gradlew test --no-daemon
-cd examples/java/spring-boot4-worker-demo && ./gradlew test --no-daemon
-```
-
-## 兼容性规则
-
-Java 模块必须保留明确的 source/resource/test 边界。不要用空模块或 source-set indirection 取代兼容模块。Boot 2、Boot 3、Boot 4 starter 分开存在，是为了让每条兼容线都有真实源码、资源、测试和依赖边界。
+1. SDK/starter 测试：在 `sdks/java` 下运行 `./gradlew test`，确认 core、Spring adapter、Boot 2/3/4 starter 测试都通过。
+2. demo dry-run：在对应 demo 目录运行 `TIKEO_WORKER_DRY_RUN=true ./gradlew bootRun`，确认 `NoopTikeoWorkerClient` 启动、`/demo/health` 返回 `connected=true`（dry-run 连接态）、processor 列表包含 `demo.echo` 和 `billing.sql-sync`。
+3. live tunnel：启动 Server，设置 `TIKEO_WORKER_ENDPOINT=http://127.0.0.1:9998`、namespace/app、cluster/region、`TIKEO_WORKER_POOL=boot3-blue`，关闭 dry-run，确认 Web 控制台出现 outbound Java Worker session。
+4. Management 验收：开启 `TIKEO_MANAGEMENT_ENABLED=true`，设置 `TIKEO_MANAGEMENT_ENDPOINT` 与 `TIKEO_MANAGEMENT_API_KEY`，调用 demo `/demo/jobs/echo` 或直接使用 `HttpTikeoJobClient`；确认请求携带 `x-tikeo-api-key`，响应 `triggerType=api` 与 `executionMode=single`。
+5. 广播验收：只在需要扇出时使用 `TriggerJobRequest.broadcastApi`，通过 `broadcastSelector` 限定 tag `manual-demo` 和 label `worker_pool=boot3-blue`。
+6. 失败与边界：触发 `demo.fail`，确认 instance 日志和失败状态；禁用脚本或移除 runtime 后确认不可用 runner 没有出现在 structured capabilities。不要把 `/demo/*` 运维端点当成 Worker inbound dispatch 面。

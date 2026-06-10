@@ -1,38 +1,74 @@
 ---
 title: Tikeo 是什么？
 slug: /
-description: Tikeo 是面向任务、工作流、Worker Tunnel、多语言 Worker 与受治理脚本的 Rust 原生编排平台。
+description: Tikeo 是 Rust 原生任务调度、工作流 DAG、出站 Worker Tunnel、多语言 SDK、脚本治理、RBAC、审计和部署自动化平台。
 ---
 
 # Tikeo 是什么？
 
-Tikeo 是用 Rust 构建的分布式任务调度与计算编排平台。它把 Server、Web 控制台、主动出站连接的 Worker、工作流 DAG、多语言 SDK、脚本治理、RBAC、审计日志与部署资产整合到同一个项目中，目标是成为企业内部统一调度底座，而不是另一个只能跑定时任务的小工具。
+Tikeo 是一个 Rust 原生的任务编排控制平面，目标不是只提供一个定时器，而是把计划任务、API 触发任务、工作流 DAG、出站 Worker Tunnel、多语言 SDK Processor、受治理脚本、RBAC、审计证据、Web 运维控制台、Docker/Helm/Terraform 部署资产和可验证示例连接成一个系统。
 
-## 为什么值得评估
+README 只负责“为什么值得看”和“十分钟入口”。文档站负责“能不能照着搭起来、接入 SDK、部署、排错、验收”。阅读结果应该非常具体：你能安装工具链，启动 Server，创建首个 Owner，创建 namespace/app/worker pool，创建应用级 SDK API Key，让 Worker 通过 Worker Tunnel 主动出站连接，用 SDK 创建并触发任务，检查实例、日志和审计证据，并知道从本地 SQLite 迁到 PostgreSQL/MySQL、Compose 或 Helm 时哪些默认值发生了变化。
 
-许多传统调度系统默认中心服务可以直接回连业务执行器。这个模型在 Kubernetes 私有 namespace、跨 VPC、NAT、服务网格、企业防火墙或多集群场景下很容易失败。Tikeo 反转边界：Worker 通过 gRPC/HTTP2 Worker Tunnel 主动连接 Server，Server 复用这条长连接完成派发、取消、心跳、日志和结果回传。
+## 文档地图
 
-## 首次评估路径
+| 阶段 | 页面 | 你会得到什么 |
+| --- | --- | --- |
+| 1 | [安装](./getting-started/installation) | 工具链矩阵、版本基线、仓库工程面、构建/测试命令、首次初始化 Owner 的前置条件。 |
+| 2 | [快速开始](./getting-started/quickstart) | 本地 Server + Web + Worker + SDK Management API 的可验收路径。 |
+| 3 | [配置参考](./reference/configuration) | 完整默认值表、环境变量覆盖名、示例文件、TLS/mTLS、OIDC、日志、OTel、集群注意事项、Worker SDK 默认值。 |
+| 4 | [Worker Tunnel](./concepts/worker-tunnel) | Worker 为什么主动出站连接，注册携带什么，为什么不能创建业务 Worker 入站 Service。 |
+| 5 | SDK 页面 | 依赖坐标、WorkerConfig 默认值、最小 Worker、管理客户端凭证、现场验收 runbook。 |
+| 6 | 部署页面 | 单二进制、Docker Compose、Kubernetes/Helm、控制器差异和 smoke 脚本。 |
+| 7 | 参考页面 | 从源码派生的 Management OpenAPI 和 Worker Tunnel protobuf 参考。 |
+
+如果只想证明本地全链路仍然可用，运行快速开始里的 Management trigger smoke。如果要写生产 runbook，先读配置和部署，再选择服务团队要用的 SDK 页面。
+
+## 架构边界
+
+Tikeo 的核心边界必须保持清晰：Server 负责调度、治理、持久化、审计和派发；Worker 负责执行。Server 不执行用户业务代码。业务 Worker 不需要入站端口。Worker 主动连接 gRPC/HTTP2 Worker Tunnel，发送结构化 capability，收到 Server 分配的权威 `worker_id`，带 lease/fencing 元数据心跳，接收 `DispatchTask`，发送 `TaskLog`，并用 Server 下发的 assignment token 返回 `TaskResult`。
+
+这条边界直接影响部署和排障。Worker 可以在私有 namespace、客户 VPC、NAT 后面、另一朵云或 VM 上，只要能访问 Worker Tunnel endpoint。不要为了让调度器能调用 Worker 而暴露业务 Worker HTTP 服务。因此 Helm chart 只安装 Server 和 Web；业务 Worker 应作为独立 Deployment、DaemonSet、sidecar、VM/systemd 服务或嵌入式 SDK 客户端出站连接。
+
+## 仓库中已经存在的工程面
+
+- Rust workspace：配置、存储、服务端、协议和 WASM 边界。
+- 单一 `tikeo` 二进制，支持 `serve --config <path>` 和 `TIKEO_CONFIG`。
+- `config/` 中提供 dev/container/PostgreSQL/MySQL/raft shape 示例。
+- `web/` 是 React + TypeScript + Vite + Ant Design + Bun 的控制台。
+- `docs/` 是 Docusaurus 文档站模块，并可构建 docs Docker 镜像。
+- Rust、Go、Java/Spring Boot、Python、Node.js Worker SDK。
+- `examples/<language>/worker-demo` 中可运行 Worker demo，带结构化 processor capability。
+- SDK Management helper 可用应用级 `x-tikeo-api-key` 创建 API job 并触发。
+- Docker Compose、Helm、Kubernetes YAML、systemd、Terraform、GitOps diff 和 smoke 脚本。
+- `.github/tests/*` 防止文档、workflow、部署和 smoke 表面漂移。
+
+页面中的命令必须能对应到这些工程面。如果功能尚不适合生产，文档要明确写出限制。例如 raft mode 当前是经过校验的节点/peer 元数据形状，不应描述成已具备生产调度 HA 的 leader 路径。
+
+## 阅读结果
+
+本文档站服务四类读者：平台评估者、应用工程师、SRE/平台运维、贡献者。平台评估者要判断 Tikeo 是否能替代传统调度器，尤其是 Worker 不能开放入站端口的场景。应用工程师要知道如何添加 SDK 依赖、声明 processor、连接 Worker Tunnel、从应用级凭证触发任务。SRE 要知道如何部署 Server/Web、配置存储、TLS/mTLS、日志、OTel、ingress/gateway、备份、回滚和 smoke。贡献者要知道如何运行测试、让文档和源码绑定、避免幻想端点，并在工作后更新 memory/prompt 交接。
+
+因此这里优先使用表格、默认值、可复制命令、预期观察和失败排查，而不是营销段落。
+
+## 证据优先验收
+
+本地验收至少应该产生多层证据：
 
 ```bash
 cargo run --bin tikeo -- serve --config config/dev.toml
-curl -fsS http://0.0.0.0:9090/healthz
-(cd examples/rust/worker-demo && cargo run)
+curl -fsS http://127.0.0.1:9090/healthz
+curl -fsS http://127.0.0.1:9090/readyz
+cd web && bun install --frozen-lockfile && bun run typecheck && bun run build
+TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER=0 scripts/management-trigger-e2e-smoke.sh
 ```
 
-建议先验证 Server 和 Web，再启动 Rust、Go、Java、Python 或 Node.js Worker demo。这样可以确认评估覆盖了真正的 Worker Tunnel，而不仅仅是 HTTP API 能否响应。
+smoke 脚本比截图更强，因为它会启动隔离 Server，在 `.dev/reports/management-trigger-e2e-*` 下写入独立 SQLite 配置和 DB，初始化 scope，创建 service account 和 SDK API key，用 `TIKEO_WORKER_CONNECT=1` 启动 Node.js Worker demo，通过 SDK Management client 创建并触发任务，最后记录实例结果和日志证据。
 
-## 当前实现范围
+## source-backed 规则
 
-仓库当前包含 Rust Server、Web UI、Worker Tunnel、持久化 Worker 会话可见性、任务/实例/调度/attempt/log、工作流、脚本治理、告警、RBAC、OIDC、指标、审计和部署资产。Rust、Go、Java、Python、Node.js SDK/demo surface 已纳入 CI 或本地验证路径；文档只应宣传可以从仓库证据中追溯的能力。
+文档不得发明 API 名称、包坐标、配置项或部署参数。主要证据源包括 `crates/tikeo-config/src/lib.rs`、HTTP router/OpenAPI/route 文件、`crates/tikeo-proto/proto/worker.proto`、`sdks/*`、`examples/*`、`deploy/*`、Dockerfile、workflow 和 smoke 脚本。如果这些证据和文档冲突，应该修文档或代码，并加测试，而不是用含糊话术掩盖。
 
-## 适合关注的产品优势
+## 下一步
 
-Tikeo 最适合评估复杂运行环境：Worker 不能暴露入站端口、执行历史必须可审计、多语言团队需要统一协议、脚本需要审批和沙箱、工作流需要拓扑与回放、部署需要同时覆盖 Docker Compose 与 Kubernetes/Helm。
-
-## 阅读路线
-
-- [安装要求](./getting-started/installation)
-- [快速开始](./getting-started/quickstart)
-- [Worker Tunnel](./concepts/worker-tunnel)
-- [Kubernetes 与 Helm](./deployment/kubernetes)
+新评估者先读 [安装](./getting-started/installation) 和 [快速开始](./getting-started/quickstart)。SDK 接入者先读 [配置参考](./reference/configuration)，再读对应语言 SDK。Kubernetes 运维读 [Kubernetes 与 Helm](./deployment/kubernetes) 和 [Kubernetes 控制器 runbook](./deployment/kubernetes-controller-runbook)。排障时使用 [故障排查](./reference/troubleshooting)、smoke 报告目录和源码派生参考。

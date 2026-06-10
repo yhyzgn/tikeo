@@ -515,4 +515,4 @@ P2 after ecosystem expansion:
 
 ## 16. Immediate next action
 
-Phase A-D docs work is implemented in `docs/` for the current acceptance baseline. Next implementation step is release/manual publish verification for `yhyzgn/tikeo-docs` when credentials/tag are available, then record the Docker Hub digest. Keep provider-specific runtime claims source-backed and do not reintroduce `website/`.
+Phase A-D docs work is implemented in `docs/` for the current acceptance baseline. 2026-06-10 acceptance hardening upgraded the docs site from a README-adjacent overview into an operator-grade manual: critical English and zh-CN pages now cover documentation map, toolchains, runnable quickstart, complete configuration defaults, SDK dependency/config/management runbooks, source-backed verification evidence, and non-README depth contracts. Next implementation step is release/manual publish verification for `yhyzgn/tikeo-docs` when credentials/tag are available, then record the Docker Hub digest. Keep provider-specific runtime claims source-backed and do not reintroduce `website/`.

@@ -1,11 +1,13 @@
 # Tikeo docs for LLMs
 
-Tikeo is a Rust-native distributed task scheduling and workflow orchestration platform.
+Tikeo is a Rust-native distributed task scheduling and workflow orchestration platform. The docs site is the operator-grade manual; README remains only a concise project introduction. Prefer these source-backed pages over inferred behavior.
 
-High-value pages:
+High-value English pages:
 
-- /docs/ — overview
-- /docs/getting-started/quickstart — Server + Web + Worker quickstart
+- /docs/ — documentation map, reader outcomes, architecture boundary, and evidence-first evaluation path
+- /docs/getting-started/installation — toolchain matrix, version baselines, repository surfaces, Owner bootstrap prerequisites, and verification commands
+- /docs/getting-started/quickstart — Server + Web + outbound Worker + SDK Management API trigger acceptance runbook
+- /docs/reference/configuration — complete default-value table, environment overrides, TLS/mTLS, OIDC, observability, alerting, and Worker SDK defaults
 - /docs/concepts/worker-tunnel — outbound-only Worker Tunnel model
 - /docs/concepts/workflows — workflow DAG model
 - /docs/user-guide/dashboard — Dashboard operations guide
@@ -16,11 +18,11 @@ High-value pages:
 - /docs/user-guide/scripts — Script governance and diff workflow
 - /docs/user-guide/audit — Audit evidence and export workflow
 - /docs/user-guide/settings — Settings, API-Key, and RBAC governance guide
-- /docs/sdks/rust — Rust Worker SDK
-- /docs/sdks/go — Go Worker SDK
-- /docs/sdks/java-spring-boot — Java Boot, plain Java, non-Boot Spring, and single-dependency rule
-- /docs/sdks/python — Python Worker SDK
-- /docs/sdks/nodejs — Node.js Worker SDK
+- /docs/sdks/rust — Rust Worker SDK dependency coordinates, WorkerConfig defaults, Minimal Worker, ManagementClient, and live runbook
+- /docs/sdks/go — Go Worker SDK dependency coordinates, WorkerConfig defaults, Minimal Worker, NewManagementClient, and live runbook
+- /docs/sdks/java-spring-boot — Java Boot/plain Java/Spring dependency selection, Spring Boot property defaults, @TikeoProcessor, HttpTikeoJobClient, and live runbook
+- /docs/sdks/python — Python Worker SDK dependency coordinates, WorkerConfig defaults, Minimal Worker, ManagementClient, and live runbook
+- /docs/sdks/nodejs — Node.js Worker SDK dependency coordinates, WorkerConfig defaults, Minimal Worker, ManagementClient, and Bun/Node live runbook
 - /docs/deployment/docker-compose — Docker Compose path
 - /docs/deployment/kubernetes — Kubernetes and Helm boundaries
 - /docs/deployment/kubernetes-controller-runbook — Nginx Ingress, Envoy Gateway, Traefik, Gateway API, TLS/mTLS, and smoke runbook
@@ -28,5 +30,6 @@ High-value pages:
 - /docs/deployment/sse-realtime — SSE proxy, LB, WAF, and Ingress requirements
 - /docs/reference/management-openapi — Management OpenAPI reference
 - /docs/reference/worker-tunnel-protobuf — Worker Tunnel protobuf reference
-- /docs/reference/configuration — configuration reference
 - /docs/reference/troubleshooting — troubleshooting
+
+High-value zh-CN pages mirror the critical operator path under /zh-CN/docs/, especially /zh-CN/docs/getting-started/installation, /zh-CN/docs/getting-started/quickstart, /zh-CN/docs/reference/configuration, and /zh-CN/docs/sdks/*.

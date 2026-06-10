@@ -1,27 +1,32 @@
 ---
 title: Rust Worker SDK
-description: Verified Rust SDK and Worker demo entry points.
+description: Rust SDK dependency coordinates, WorkerConfig defaults, minimal Worker, Management API helpers, and live verification runbook.
 ---
 
 # Rust Worker SDK
 
-The Rust SDK lives under `sdks/rust/tikeo`, and the runnable worker demo lives under `examples/rust/worker-demo`.
+The Rust SDK is the closest language surface to the Server protocol. It lives in `sdks/rust/tikeo` and re-exports `WorkerConfig`, `WorkerClient`, `TaskProcessor`, `TaskContext`, `TaskOutcome`, script runners, WASM helpers, and Management client types from `sdks/rust/tikeo/src/lib.rs`. The runnable demo lives in `examples/rust/worker-demo`.
 
+## Dependency coordinates
 
-## Install from crates.io
+Source package metadata is in `sdks/rust/tikeo/Cargo.toml`:
 
-Replace `${TIKEO_VERSION}` with the version shown by the top README `Rust SDK` badge. Rust uses the plain version string without a leading `v`.
+| Field | Value |
+| --- | --- |
+| Crate name | `tikeo` |
+| Version in repo | `0.2.0` |
+| Rust edition | `2024` |
+| Rust baseline | `1.95` |
+| Optional feature | `wasm` enables `wasmtime` |
+| Important runtime deps | `tonic`, `prost`, `tokio`, `reqwest`, `serde`, `sha2` |
+
+Install from crates.io when a release is published:
 
 ```bash
 cargo add tikeo@${TIKEO_VERSION}
 ```
 
-```toml
-[dependencies]
-tikeo = "${TIKEO_VERSION}"
-```
-
-## Verify the SDK
+Repository-local examples use the checked-out SDK. Verify it directly:
 
 ```bash
 cargo fmt --manifest-path sdks/rust/tikeo/Cargo.toml -- --check
@@ -29,31 +34,98 @@ cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-feat
 cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
 ```
 
-## Run the demo
+## WorkerConfig defaults
+
+`sdks/rust/tikeo/src/config.rs` defines `WorkerConfig::local(endpoint, client_instance_id)`.
+
+| Field | Default from helper | Notes |
+| --- | --- | --- |
+| `endpoint` | caller-provided | Demos use `http://127.0.0.1:9998`. |
+| `client_instance_id` | caller-provided | Stable client hint; Server assigns authoritative `worker_id`. |
+| `namespace` | `default` | Demo overrides to `dev-alpha`. |
+| `app` | `default` | Demo overrides to `orders`. |
+| `cluster` | `local` | Worker cluster metadata. |
+| `region` | `local` | Worker region metadata. |
+| `capabilities` | `[]` | Legacy metadata only. |
+| `structured_capabilities` | empty `WorkerCapabilities` | Routing uses this. |
+| `labels` | `{}` | Demo adds `worker_pool`. |
+| `election.enabled` | `true` in register message | Sent as `WorkerClusterElection`. |
+| `election.domain` | empty | Blank means namespace/app/cluster/region domain. |
+| `election.priority` | `100` | Lower wins. |
+
+Structured helpers include `add_tag`, `add_sdk_processor`, `add_script_runner`, and `add_plugin_processor`. These deduplicate and ignore blank values.
+
+## Minimal Worker
+
+```rust
+use async_trait::async_trait;
+use tikeo::{TaskContext, TaskOutcome, TaskProcessor, WorkerClient, WorkerConfig, WorkerSdkError};
+
+struct Echo;
+
+#[async_trait]
+impl TaskProcessor for Echo {
+    async fn process(&self, task: TaskContext) -> TaskOutcome {
+        task.log_info(format!("processor={} instance={}", task.processor_name, task.instance_id)).await;
+        TaskOutcome { success: true, message: "rust echo processed".to_owned() }
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), WorkerSdkError> {
+    let mut config = WorkerConfig::local("http://127.0.0.1:9998", "rust-worker-1");
+    config.namespace = "sdk-smoke".to_owned();
+    config.app = "management".to_owned();
+    config.add_sdk_processor("demo.echo");
+    config.labels.insert("worker_pool".to_owned(), "rust-blue".to_owned());
+
+    let client = WorkerClient::new(config);
+    let mut session = client.connect().await?;
+    loop {
+        session.process_next(&Echo).await?;
+    }
+}
+```
+
+Use `process_next_with_script_runners` only when you have registered real script runners. The SDK sends logs/results with the assignment token received from `DispatchTask`; do not invent your own token.
+
+## Demo environment variables
+
+`examples/rust/worker-demo/src/main.rs` documents the live demo shape:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `TIKEO_WORKER_ENDPOINT` | `http://127.0.0.1:9998` | Worker Tunnel endpoint. |
+| `TIKEO_WORKER_INSTANCE_ID` / `TIKEO_WORKER_CLIENT_INSTANCE_ID` | `rust-worker-demo-local` | Stable client hint. |
+| `TIKEO_WORKER_NAMESPACE` | `dev-alpha` | Demo namespace. |
+| `TIKEO_WORKER_APP` | `orders` | Demo app. |
+| `TIKEO_WORKER_CLUSTER` | `local` | Demo cluster. |
+| `TIKEO_WORKER_REGION` | `local` | Demo region. |
+| `TIKEO_WORKER_SDK_PROCESSORS` | `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail` | Structured SDK processors. |
+| `TIKEO_WORKER_POOL` | `rust-blue` | Stored as label `worker_pool`. |
+| `TIKEO_WORKER_DRY_RUN` | unset | Set to `1` to avoid live tunnel. |
+| `TIKEO_WORKER_ONESHOT` | unset | Exit after one processed task. |
+| `TIKEO_SANDBOX_AUTO_INSTALL` | enabled unless disabled | Controls sandbox tool auto-install. |
+
+Run:
 
 ```bash
+TIKEO_WORKER_CONNECT=1 \
+TIKEO_WORKER_NAMESPACE=sdk-smoke \
+TIKEO_WORKER_APP=management \
+TIKEO_WORKER_SDK_PROCESSORS=demo.echo \
 cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
 ```
 
-The demo is expected to connect to the Worker Tunnel endpoint from local configuration when run in live mode.
-
-
 ## Management API create + trigger
 
-The Rust management client is source-backed by `sdks/rust/tikeo/src/management.rs`. It is for app-scoped service credentials only: the SDK sends `x-tikeo-api-key`, normally loaded from `TIKEO_MANAGEMENT_API_KEY`, and does not reuse browser sessions, OIDC cookies, or user-scoped bearer tokens. A created API job uses `scheduleType=api`; the default trigger helper sends `triggerType=api` and `executionMode=single`.
-
 ```rust
-use tikeo::{
-    ManagementBroadcastSelectorRequest,
-    ManagementClient,
-    ManagementCreateJobRequest,
-    ManagementTriggerJobRequest,
-};
+use tikeo::{ManagementClient, ManagementCreateJobRequest, ManagementTriggerJobRequest};
 
 let endpoint = std::env::var("TIKEO_MANAGEMENT_ENDPOINT")
     .unwrap_or_else(|_| "http://127.0.0.1:9090".to_owned());
 let api_key = std::env::var("TIKEO_MANAGEMENT_API_KEY")?;
-let management = ManagementClient::new(endpoint, api_key, "dev-alpha", "orders");
+let management = ManagementClient::new(endpoint, api_key, "sdk-smoke", "management");
 
 let created = management
     .create_job(ManagementCreateJobRequest::api("rust-echo-api", "demo.echo"))
@@ -66,23 +138,34 @@ assert_eq!(instance.trigger_type, "api");
 assert_eq!(instance.execution_mode, "single");
 ```
 
-Broadcast is intentionally not the default. Use the explicit selector helper only when one API trigger should fan out to multiple matching workers; it serializes `broadcastSelector` with `executionMode=broadcast`.
+Broadcast is explicit:
 
 ```rust
-let broadcast = ManagementTriggerJobRequest::broadcast_api(Some(
-    ManagementBroadcastSelectorRequest {
-        tags: Some(vec!["manual-demo".to_owned()]),
-        region: Some("us-east-1".to_owned()),
-        cluster: None,
-        labels: Some(std::collections::HashMap::from([(
-            "worker_pool".to_owned(),
-            "rust-blue".to_owned(),
-        )])),
-    },
-));
-let _instance = management.trigger_job(&created.id, broadcast).await?;
+use tikeo::ManagementBroadcastSelectorRequest;
+
+let selector = ManagementBroadcastSelectorRequest {
+    tags: Some(vec!["manual-demo".to_owned()]),
+    region: Some("local".to_owned()),
+    cluster: Some("local".to_owned()),
+    labels: Some(std::collections::HashMap::from([("worker_pool".to_owned(), "rust-blue".to_owned())])),
+};
+let request = ManagementTriggerJobRequest::broadcast_api(Some(selector));
 ```
 
+## Management client credentials
+
+All SDK Management clients use app-scoped service credentials. They send the `x-tikeo-api-key` header, normally sourced from `TIKEO_MANAGEMENT_API_KEY`. Do not confuse this key with a human bearer token from `/api/v1/auth/login`, and do not reuse browser sessions or OIDC provider tokens in SDK services.
+
+The common create+trigger default is:
+
+| Field | Default helper behavior |
+| --- | --- |
+| Job schedule | `scheduleType=api` |
+| Job enabled | `true` |
+| Retry policy | `enabled=true`, `maxAttempts=3`, `initialDelaySeconds=5`, `backoffMultiplier=2`, `maxDelaySeconds=60` |
+| Trigger source | `triggerType=api` |
+| Trigger execution mode | `executionMode=single` |
+| Broadcast | Opt-in only through explicit broadcast helper and `broadcastSelector` |
 
 ## Source-backed reference links
 
@@ -94,26 +177,18 @@ Keep SDK helper docs anchored to source-derived API and protocol references:
 - Instance log endpoint: [`GET /api/v1/instances/{instance}/logs`](../reference/management-openapi#get-api-v1-instances-instance-logs)
 - Worker dispatch message: [`DispatchTask`](../reference/worker-tunnel-protobuf#dispatchtask)
 
-## Minimal worker mental model
+## Live verification runbook
 
-A Rust worker owns three responsibilities: connect to the Server tunnel, advertise only the capabilities it can really execute, and return logs/results with the assignment token supplied by the Server. This keeps scheduling, audit, and stale-worker fencing aligned.
+1. Start the Server with `cargo run --bin tikeo -- serve --config config/dev.toml`.
+2. Bootstrap an Owner or login to an existing local Owner.
+3. Create namespace/app/worker pool, service account, and SDK API key as shown in the quickstart.
+4. Start the language demo Worker with matching namespace/app and `TIKEO_WORKER_CONNECT=1` when the demo supports live mode.
+5. Create and trigger an API job through the language Management client.
+6. Inspect `/api/v1/workers`, `/api/v1/instances`, instance logs, and audit logs.
+7. Preserve smoke evidence. For a maintained end-to-end proof, run `TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER=0 scripts/management-trigger-e2e-smoke.sh`.
+
+Expected acceptance evidence includes an online worker with the requested structured processor, an API-triggered instance with `executionMode=single`, task logs from the Worker, and a successful processor message. Missing sandbox tools or unsupported processors must fail closed and be visible in task/diagnostic logs.
 
 ## Capability discipline
 
-Do not advertise a processor, script backend, or plugin capability unless the worker can execute it. Unsupported runtimes should fail closed. This rule is important because the Server schedules work from capability snapshots and persisted worker session state.
-
-## Evaluation checklist
-
-- Run SDK tests with all enabled features.
-- Run the worker demo while the Server is listening on the Worker Tunnel port.
-- Confirm the Web console shows the worker session and capability snapshot.
-- Trigger a job that routes to the demo processor.
-- Inspect instance logs and result status.
-
-## Production notes
-
-For production, package workers independently from the Server image. Worker identity should be scoped through namespace, app, worker pool, labels, and structured capabilities, not ad-hoc naming conventions.
-
-## Version and packaging notes
-
-The public README declares the Rust runtime baseline. Keep SDK docs, demo manifests, and CI toolchain setup aligned when that baseline changes.
+The dispatch contract uses structured capabilities, not folklore or only string naming conventions. A Worker should advertise SDK processors, plugin processors, script runners, labels, and tags only when the runtime can really execute them. Do not advertise SQL, shell, Python, Node.js, WASM, SRT, Deno, Docker, or Podman support just because a package exists; advertise it after the demo or service has resolved the tool and can fail safely.

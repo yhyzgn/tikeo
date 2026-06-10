@@ -213,8 +213,11 @@ class DocsSiteContractTest(unittest.TestCase):
         self.assertTrue(nginx_conf.exists(), "docs/nginx/nginx.conf must be copied into the image")
         self.assertTrue(default_conf.exists(), "docs/nginx/default.conf must be copied into the image")
         default_text = default_conf.read_text()
+        self.assertIn("absolute_redirect off", default_text)
+        self.assertIn("port_in_redirect off", default_text)
         self.assertIn("try_files $uri $uri/ /index.html", default_text)
         self.assertIn("location /healthz", default_text)
+
     def test_docs_site_scaffold_has_required_build_contract(self):
         package_json = DOCS_SITE / "package.json"
         self.assertTrue(package_json.exists(), "docs/package.json must exist")
@@ -505,6 +508,168 @@ class DocsSiteContractTest(unittest.TestCase):
                 self.assertGreaterEqual(len(headings), 4, f"{root.relative_to(DOCS_SITE)} / {relative_path} lacks sections")
                 for token in tokens:
                     self.assertIn(token, text, f"{root.relative_to(DOCS_SITE)} / {relative_path} missing {token!r}")
+
+
+    def test_quickstart_manual_path_uses_real_bootstrap_fields_and_runnable_sdk_script(self):
+        source_bundle = "\n".join(
+            path.read_text()
+            for path in [
+                ROOT / "crates/tikeo-server/src/http/dto.rs",
+                ROOT / "crates/tikeo-server/src/http/auth.rs",
+                ROOT / "sdks/nodejs/tikeo/src/management.ts",
+                ROOT / "sdks/nodejs/tikeo/src/index.ts",
+            ]
+        )
+        for source_token in [
+            "registration_open",
+            "AuthSession",
+            "token",
+            "export * from \"./management.js\"",
+            "apiJob",
+            "apiTrigger",
+        ]:
+            self.assertIn(source_token, source_bundle)
+
+        zh_root = DOCS_SITE / "i18n/zh-CN/docusaurus-plugin-content-docs/current"
+        for root in [DOCS_SITE / "docs", zh_root]:
+            text = (root / "getting-started/quickstart.md").read_text()
+            self.assertIn("data.registrationOpen", text, f"{root.relative_to(DOCS_SITE)} quickstart must use real bootstrap status field")
+            self.assertNotIn("bootstrapRequired", text, f"{root.relative_to(DOCS_SITE)} quickstart must not document nonexistent bootstrapRequired field")
+            self.assertIn('TOKEN="$(curl -fsS -X POST http://127.0.0.1:9090/api/v1/auth/bootstrap/register', text)
+            self.assertIn("jq -r .data.token", text)
+            self.assertIn("cat >tikeo-quickstart-trigger.ts", text)
+            self.assertIn('from "./sdks/nodejs/tikeo/src/index"', text)
+            self.assertIn("bun tikeo-quickstart-trigger.ts", text)
+            self.assertNotIn("/tmp/tikeo-quickstart-trigger.ts", text)
+
+    def test_operator_grade_docs_are_not_readme_rehash(self):
+        """Critical docs must be deep enough to install, configure, connect SDKs, deploy, and verify from source-backed instructions."""
+        critical = {
+            "index.md": {
+                "min_words": 900,
+                "tokens": [
+                    "Documentation map",
+                    "Reader outcome",
+                    "Architecture boundary",
+                    "Evidence-first evaluation",
+                    "source-backed",
+                ],
+            },
+            "getting-started/installation.md": {
+                "min_words": 950,
+                "tokens": [
+                    "Toolchain matrix",
+                    "Version baselines",
+                    "Repository surfaces",
+                    "First-time bootstrap",
+                    "Verification commands",
+                ],
+            },
+            "getting-started/quickstart.md": {
+                "min_words": 1300,
+                "tokens": [
+                    "Phase 0",
+                    "Bootstrap the first Owner",
+                    "Create an app-scoped SDK API key",
+                    "TIKEO_WORKER_CONNECT=1",
+                    "management-trigger-e2e-smoke.sh",
+                    "Acceptance evidence",
+                ],
+            },
+            "reference/configuration.md": {
+                "min_words": 1800,
+                "tokens": [
+                    "Complete default-value table",
+                    "storage.timestamp_offset",
+                    "cluster.transport_token",
+                    "transport_security.worker_tunnel.client_ca_path",
+                    "observability.tracing.otlp_endpoint",
+                    "TIKEO__AUTH__OIDC__ISSUER_URL",
+                    "Worker SDK defaults",
+                ],
+            },
+            "sdks/rust.md": {
+                "min_words": 1000,
+                "tokens": [
+                    "Dependency coordinates",
+                    "WorkerConfig defaults",
+                    "Minimal Worker",
+                    "Management client credentials",
+                    "Live verification runbook",
+                    "sdks/rust/tikeo/src/config.rs",
+                ],
+            },
+            "sdks/go.md": {
+                "min_words": 1000,
+                "tokens": [
+                    "Dependency coordinates",
+                    "WorkerConfig defaults",
+                    "Minimal Worker",
+                    "Management client credentials",
+                    "Live verification runbook",
+                    "sdks/go/tikeo/config.go",
+                ],
+            },
+            "sdks/java-spring-boot.md": {
+                "min_words": 1300,
+                "tokens": [
+                    "Dependency coordinates",
+                    "Spring Boot property defaults",
+                    "@TikeoProcessor",
+                    "Management client credentials",
+                    "Live verification runbook",
+                    "sdks/java/settings.gradle.kts",
+                ],
+            },
+            "sdks/python.md": {
+                "min_words": 1000,
+                "tokens": [
+                    "Dependency coordinates",
+                    "WorkerConfig defaults",
+                    "Minimal Worker",
+                    "Management client credentials",
+                    "Live verification runbook",
+                    "sdks/python/tikeo/pyproject.toml",
+                ],
+            },
+            "sdks/nodejs.md": {
+                "min_words": 1000,
+                "tokens": [
+                    "Dependency coordinates",
+                    "WorkerConfig defaults",
+                    "Minimal Worker",
+                    "Management client credentials",
+                    "Live verification runbook",
+                    "sdks/nodejs/tikeo/src/config.ts",
+                ],
+            },
+        }
+        for relative_path, rule in critical.items():
+            text = (DOCS_SITE / "docs" / relative_path).read_text()
+            words = [word for word in re.split(r"\s+", text) if word.strip()]
+            self.assertGreaterEqual(len(words), rule["min_words"], f"critical doc is still too shallow: {relative_path}")
+            for token in rule["tokens"]:
+                self.assertIn(token, text, f"{relative_path} missing operator-grade token {token!r}")
+
+    def test_zh_operator_grade_docs_mirror_critical_depth(self):
+        zh_root = DOCS_SITE / "i18n/zh-CN/docusaurus-plugin-content-docs/current"
+        critical = {
+            "index.md": ["文档地图", "阅读结果", "架构边界", "证据优先验收"],
+            "getting-started/installation.md": ["工具链矩阵", "版本基线", "仓库工程面", "首次初始化 Owner"],
+            "getting-started/quickstart.md": ["阶段 0", "创建首个 Owner", "创建应用级 SDK API Key", "TIKEO_WORKER_CONNECT=1", "验收证据"],
+            "reference/configuration.md": ["完整默认值表", "storage.timestamp_offset", "cluster.transport_token", "Worker SDK 默认值"],
+            "sdks/rust.md": ["依赖坐标", "WorkerConfig 默认值", "最小 Worker", "管理客户端凭证", "现场验收 runbook"],
+            "sdks/go.md": ["依赖坐标", "WorkerConfig 默认值", "最小 Worker", "管理客户端凭证", "现场验收 runbook"],
+            "sdks/java-spring-boot.md": ["依赖坐标", "Spring Boot 属性默认值", "@TikeoProcessor", "管理客户端凭证", "现场验收 runbook"],
+            "sdks/python.md": ["依赖坐标", "WorkerConfig 默认值", "最小 Worker", "管理客户端凭证", "现场验收 runbook"],
+            "sdks/nodejs.md": ["依赖坐标", "WorkerConfig 默认值", "最小 Worker", "管理客户端凭证", "现场验收 runbook"],
+        }
+        for relative_path, tokens in critical.items():
+            text = (zh_root / relative_path).read_text()
+            cjk_chars = re.findall(r"[\u4e00-\u9fff]", text)
+            self.assertGreaterEqual(len(cjk_chars), 900, f"zh critical doc is still too shallow: {relative_path}")
+            for token in tokens:
+                self.assertIn(token, text, f"zh {relative_path} missing operator-grade token {token!r}")
 
 
 if __name__ == "__main__":

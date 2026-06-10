@@ -113,3 +113,10 @@
 
 - Docs publish workflow and docs Docker image build are implemented and locally verified. `Publish / Docker server` and `Publish / Docker web` have already succeeded in GitHub Actions, so new Docker Hub credentials are not expected; the remaining gap is to trigger `Publish / Docker docs` on a current ref/tag and record the pushed `yhyzgn/tikeo-docs` digest.
 - Kubernetes controller-specific runbooks are source-backed by committed Helm values/templates and include smoke commands for Nginx Ingress, Envoy Gateway, Traefik, and Gateway API; live controller acceptance still depends on an external cluster with the corresponding controllers/CRDs installed.
+
+## 2026-06-10 — Docs manual depth and runnable quickstart risk mitigated
+
+- Risk that the docs site was only a README rehash is mitigated by operator-grade contracts over critical English and zh-CN pages.
+- Risk that quickstart runbooks could hallucinate bootstrap fields or provide unrunnable SDK scripts is mitigated by contracts checking `data.registrationOpen`, exported `TOKEN`, repository-root `tikeo-quickstart-trigger.ts`, real Node.js SDK exports, and Docusaurus build.
+- Risk that docs containers behind local port mapping or reverse proxies redirect no-trailing-slash docs URLs to port 80 is mitigated by `absolute_redirect off` and `port_in_redirect off` in docs nginx config plus container route smoke.
+- Remaining risk: live Docker Hub digest for `yhyzgn/tikeo-docs` is still workflow-trigger-gated; live Kubernetes controller smokes still require external clusters/controllers.

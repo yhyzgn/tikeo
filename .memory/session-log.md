@@ -2763,3 +2763,31 @@ Verification:
 Notes:
 - Live Nginx/Envoy Gateway/Traefik/Gateway API controller smoke requires a Kubernetes cluster with those controllers/CRDs installed. This environment does not currently have `helm` / `.dev/tools/helm`, so local controller verification is source-backed docs contract plus deploy bootstrap/artifact contract tests rather than Helm render output.
 - Live Docker Hub digest for `yhyzgn/tikeo-docs` remains workflow-trigger-gated rather than newly credential-gated: server/web Docker publish workflows have already succeeded, so the next step is dispatching `Publish / Docker docs` on a current ref/tag and recording the digest.
+
+## 2026-06-10 — Operator-grade docs deep rewrite and acceptance hardening
+
+Agent:
+- Codex, with writer/verifier subagents for Chinese SDK expansion and source-fact review.
+
+Work:
+- Rewrote/expanded critical English docs beyond README scope: docs overview, installation, quickstart, configuration reference, and Rust/Go/Java/Python/Node SDK pages.
+- Rewrote/expanded critical zh-CN docs: overview, installation, quickstart, configuration, and all five SDK pages.
+- Added docs contract tests requiring operator-grade depth and exact source-backed tokens for install/config/quickstart/SDK pages.
+- Fixed verifier-found quickstart defects: `data.registrationOpen` is now the documented bootstrap status field, bootstrap registration exports `TOKEN`, and the Node.js SDK trigger script is written/run from the repository root so relative imports work.
+- Refreshed `docs/static/search-index.json`, `docs/static/llms.txt`, and `docs/static/llms-full.txt` for the deeper operator pages.
+- Fixed docs nginx runtime behavior for local/Compose/K8s port mappings by disabling absolute/port redirects, then verified no-trailing-slash docs routes via container smoke.
+
+Verification:
+- `python3 .github/tests/docs_site_contract_test.py` ✅ (23 tests)
+- `python3 .github/tests/workflow_contract_test.py` ✅ (15 tests)
+- `python3 .github/tests/management_smoke_contract_test.py` ✅
+- `cd docs && bun run docs:typecheck && bun run docs:build` ✅
+- `python3 scripts/check-source-size.py` ✅
+- `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` ✅
+- `git diff --check` ✅
+- `docker pull oven/bun:1.3.13` refreshed a local corrupted metadata pull; `docker build -f docs/Dockerfile docs -t tikeo-docs:local` ✅
+- Docs container smoke ✅ on port 13036: `/healthz`, `/docs/`, `/zh-CN/docs/`, no-trailing-slash `/docs/reference/configuration`, no-trailing-slash `/zh-CN/docs/sdks/rust`, and `/search-index.json`.
+
+Notes:
+- Live Docker Hub publish for `yhyzgn/tikeo-docs` remains the next release/workflow verification step.
+- Worker docs continue to preserve outbound-only boundaries; no business Worker inbound Service was documented.

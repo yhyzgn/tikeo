@@ -1,171 +1,117 @@
 ---
 title: 配置参考
-description: Tikeo 配置文件、环境变量覆盖、端口、存储 URL、TLS/mTLS、观测性、告警重试与脚本治理参数。
+description: Tikeo 的完整默认值、环境变量覆盖、示例 TOML、安全、观测、存储和 Worker SDK 默认值。
 ---
 
 # 配置参考
 
-Tikeo 通过 `tikeo serve --config <path>` 读取 TOML 配置。部署层可以用环境变量覆盖嵌套配置，例如 `TIKEO__STORAGE__DATABASE_URL`。非敏感默认值可以提交到 TOML；生产凭据必须放到 Secret store。
+Tikeo Server 配置由 `crates/tikeo-config/src/lib.rs` 中的类型加载。运行 `tikeo serve --config <path>` 或设置 `TIKEO_CONFIG` 指定 TOML 文件，然后用 `TIKEO` 前缀和双下划线覆盖嵌套字段，例如 `storage.database_url` 对应 `TIKEO__STORAGE__DATABASE_URL`。
 
-## 本地复制即跑
+## 加载顺序
+
+加载顺序是 Rust 默认值、可选 TOML 文件、环境变量覆盖。生产建议把非敏感默认值写入 TOML，把 DB URL、证书路径、OIDC secret、OTel 凭证和集群 token 放到平台 Secret 或环境变量中。
 
 ```bash
+TIKEO__SERVER__LISTEN_ADDR=0.0.0.0:19090 \
+TIKEO__SERVER__WORKER_TUNNEL_ADDR=0.0.0.0:19998 \
+TIKEO__STORAGE__DATABASE_URL='sqlite:///tmp/tikeo-smoke.db?mode=rwc' \
 cargo run --bin tikeo -- serve --config config/dev.toml
-curl -fsS http://127.0.0.1:9090/healthz
-curl -fsS http://127.0.0.1:9090/readyz
 ```
 
-## 已提交配置文件
+## 配置文件用途
 
-| 文件 | 用途 | 存储 |
-|---|---|---|
-| `config/dev.toml` | 本地源码评估 | SQLite `tikeo-dev.db` |
-| `config/container.toml` | 容器默认 | SQLite `/data/tikeo.db` |
-| `config/postgres.toml` | PostgreSQL/CockroachDB 示例 | `postgres://...` |
-| `config/mysql.toml` | MySQL 示例 | `mysql://...` |
-| `config/raft.toml` | 集群/raft 规划示例 | 见文件 |
-
-## Server 端口
-
-| 配置项 | 示例默认 | 含义 |
-|---|---|---|
-| `server.listen_addr` | `0.0.0.0:9090` | HTTP API、health、ready、metrics 与 gateway surface。 |
-| `server.worker_tunnel_addr` | `0.0.0.0:9998` | Worker Tunnel gRPC/HTTP2 listener；Worker 主动出站连接。 |
-
-Docker Compose 使用 `TIKEO_HTTP_PORT` / `TIKEO_WORKER_TUNNEL_PORT` 映射；Helm 使用 `server.httpPort` / `server.workerTunnelPort`。
-
-## Storage URL
-
-| 后端 | 示例 |
-|---|---|
-| SQLite dev | `sqlite://tikeo-dev.db?mode=rwc` |
-| SQLite container | `sqlite:///data/tikeo.db?mode=rwc` |
-| PostgreSQL | `postgres://tikeo:change-me@postgres.example:5432/tikeo?sslmode=require` |
-| CockroachDB | `postgres://root@cockroach:26257/tikeo?sslmode=disable` |
-| MySQL | `mysql://tikeo:change-me@mysql.example:3306/tikeo` |
-
-环境变量覆盖：
-
-```bash
-TIKEO__STORAGE__DATABASE_URL='postgres://tikeo:change-me@postgres:5432/tikeo?sslmode=require' \
-  ./target/release/tikeo serve --config config/container.toml
-```
-
-schema 变化必须通过显式 SeaORM migration，不要把手工改表写成支持路径。
-
-## 认证与 API Token
-
-```toml
-[auth]
-local_login_enabled = true
-
-[auth.api_tokens]
-default_ttl_seconds = 43200
-min_ttl_seconds = 300
-max_ttl_seconds = 2592000
-```
-
-开发环境可以使用本地登录；共享环境应配置 OIDC，并把 API-Key / Service Account 限制在 app scope 内。
-
-## Transport security
-
-```toml
-[transport_security.http]
-tls_enabled = false
-mtls_required = false
-
-[transport_security.worker_tunnel]
-tls_enabled = false
-mtls_required = false
-```
-
-直接暴露 API 时启用 HTTP TLS；Worker 跨主机、跨集群、跨 VPC 或跨信任边界时启用 Worker Tunnel TLS/mTLS。Helm 通过 Secret mount 生成对应配置。
-
-## 观测性
-
-```toml
-[observability.logging]
-level = "info"
-# log_dir = "./logs"
-
-[observability.tracing]
-enabled = false
-headers = []
-# otlp_endpoint = "http://otel-collector:4318/v1/traces"
-```
-
-运维默认保持 `info`。VM/systemd 部署建议设置 `log_dir`。OTLP 只有在 collector 可达并被批准时开启。
-
-## 告警重试与 Secret 引用
-
-```toml
-[alert_retry]
-enabled = true
-interval_seconds = 60
-batch_size = 50
-max_attempts = 3
-backoff_seconds = 300
-
-[alert_secrets]
-allow_env_refs = true
-env_prefix = "TIKEO_ALERT_SECRET_"
-```
-
-告警 channel JSON 可以通过 `env:NAME` 引用 SMTP、Webhook 或 API credential，不能把明文凭据提交到仓库。
-
-## 脚本治理
-
-```toml
-[script_governance]
-# release_signature_secret_ref = "env:TIKEO_SCRIPT_RELEASE_SECRET"
-```
-
-启用脚本发布签名时，把 secret 存在部署平台中，只把 reference 注入配置。
-
-
-## SDK 与 Worker 配置
-
-服务端配置只覆盖部署的一半。Worker 服务还需要 SDK 依赖选择、Worker Tunnel endpoint、身份 scope、capabilities、labels、sandbox 工具缓存路径，以及可选 management-client 凭证。
-
-Java 的 Boot、原生 Java、非 Boot Spring 示例见 [Java SDK and Spring Boot Starter](../sdks/java-spring-boot)。
-
-### 所有 SDK 通用的 Worker runtime 字段
-
-这些字段是 Java、Rust、Go、Python、Node.js Worker SDK 共有的。不同语言可能以 Java record/property、Rust struct、Go struct、Python dataclass、TypeScript class 或 Spring Boot 配置项暴露。
-
-| 字段 | SDK helper 默认值 | 说明 |
+| 文件 | 用途 | 关键值 |
 | --- | --- | --- |
-| `endpoint` | demo 通常为 `http://127.0.0.1:9998` | Worker 进程可访问到的 Worker Tunnel endpoint。真实部署应使用 Service/LB/DNS 名称，不一定是服务端 bind 地址。 |
-| `clientInstanceId` / `client_instance_id` | core SDK helper 通常必填；Java Boot 可生成并持久化 | 稳定客户端 hint；服务端仍会分配权威 `worker_id`。 |
-| `namespace` | `default` | 用于派发和 management scope 的租户/环境 namespace。 |
-| `app` | `default` | 用于路由和 management 操作的应用 scope。 |
-| `cluster` | Rust/Go/Python/Node helper 通常为 `local`；Java Boot 默认 `default` | Worker cluster 或环境分片。 |
-| `region` | Rust/Go/Python/Node helper 通常为 `local`；Java Boot 默认 `default` | Worker region/zone。 |
-| `name` | 通常为 client instance id | SDK 暴露时的运维可见 worker 名称。 |
-| `version` | Go/Python/Node helper 为 `dev` | SDK 暴露时的 worker/application build version。 |
-| `heartbeatEvery` / `heartbeat-interval-millis` | `10s` / `10000` | Worker lease renewal cadence。 |
-| `capabilities` | `[]` | 旧式/运维 metadata；支持 structured capabilities 时路由优先使用 structured。 |
-| `structuredCapabilities` | empty | 用于路由的 SDK processors、script runners、plugin processors 和 structured tags。 |
-| `labels` | `{}` | 自由运维 metadata，例如 `worker_pool`、`runtime`、`team`、`tier`。 |
-| `election.enabled` | `true` | registration 中的 worker-cluster master election 开关。 |
-| `election.domain` | 空 | 空表示 `namespace/app/cluster/region`。 |
-| `election.priority` | `100` | 确定性选主优先级；数值越小越优先。 |
+| `config/dev.toml` | 本地源码评估 | HTTP `0.0.0.0:9090`、Worker Tunnel `0.0.0.0:9998`、SQLite `tikeo-dev.db`、`timestamp_offset="+08:00"`、OIDC/TLS/OTel 关闭。 |
+| `config/container.toml` | root Dockerfile 默认 | SQLite `/data/tikeo.db`、日志 info、alert retry 开启、alert env refs 开启。 |
+| `config/postgres.toml` | PostgreSQL/Cockroach 示例 | `postgres://tikeo:tikeo@postgres:5432/tikeo`，注释说明 `TIKEO__STORAGE__DATABASE_URL`。 |
+| `config/mysql.toml` | MySQL 示例 | `mysql://tikeo:tikeo@mysql:3306/tikeo`，提醒使用 `utf8mb4`。 |
+| `config/raft.toml` | raft shape 示例 | `mode="raft"`、静态 peers、`transport_token` 从 Secret 注入。 |
 
-### Worker 部署清单
+## 完整默认值表
 
-- 每个服务只添加一个 SDK 依赖，让包管理器解析传递的 Tikeo 模块。
-- Worker SDK 应连接到能访问 `server.worker_tunnel_addr` 的 Service/LB/DNS 名称，而不一定是服务端 bind 地址。
-- 在 worker 和 management client 中一致设置 namespace/app/cluster/region。
-- 只广告真实 runtime 支持的 capability；缺失工具应 fail closed，而不是被广告成可用能力。
-- 如果需要稳定身份或离线启动，持久化 SDK state/tool cache 目录，例如 `~/.tikeo/workers` 与 `~/.tikeo/sandbox-tools/*`。
-- API key 与内部镜像 installer URL 应通过平台 Secret/config 注入，不要提交到配置文件。
+| Config key | 默认值 | 环境变量 | 说明 |
+| --- | --- | --- | --- |
+| `server.listen_addr` | `0.0.0.0:9090` | `TIKEO__SERVER__LISTEN_ADDR` | HTTP API、health、ready、metrics、OpenAPI。 |
+| `server.worker_tunnel_addr` | `0.0.0.0:9998` | `TIKEO__SERVER__WORKER_TUNNEL_ADDR` | gRPC/HTTP2 Worker Tunnel，Worker 主动连接。 |
+| `storage.database_url` | `sqlite://tikeo-dev.db?mode=rwc` | `TIKEO__STORAGE__DATABASE_URL` | SeaORM/sqlx URL；生产用 PostgreSQL/MySQL。 |
+| `storage.timestamp_offset` | `+00:00` | `TIKEO__STORAGE__TIMESTAMP_OFFSET` | 启动时解析；dev/mysql 示例为 `+08:00`。 |
+| `cluster.mode` | `standalone` | `TIKEO__CLUSTER__MODE` | `standalone` 或 `raft`；raft 当前是受限 shape。 |
+| `cluster.node_id` | `standalone` | `TIKEO__CLUSTER__NODE_ID` | 集群状态和 raft 元数据节点 ID。 |
+| `cluster.peers` | `[]` | `TIKEO__CLUSTER__PEERS` | peer 数组建议用 TOML/Helm 表达。 |
+| `cluster.transport_token` | 未设置 | `TIKEO__CLUSTER__TRANSPORT_TOKEN` | 内部 raft HTTP token，不要提交真实值。 |
+| `auth.local_login_enabled` | `true` | `TIKEO__AUTH__LOCAL_LOGIN_ENABLED` | 本地用户名密码登录开关。 |
+| `auth.api_tokens.default_ttl_seconds` | `43200` | `TIKEO__AUTH__API_TOKENS__DEFAULT_TTL_SECONDS` | 默认 12 小时。 |
+| `auth.api_tokens.min_ttl_seconds` | `300` | `TIKEO__AUTH__API_TOKENS__MIN_TTL_SECONDS` | 最小 5 分钟。 |
+| `auth.api_tokens.max_ttl_seconds` | `2592000` | `TIKEO__AUTH__API_TOKENS__MAX_TTL_SECONDS` | 最大 30 天。 |
+| `auth.oidc.enabled` | `false` | `TIKEO__AUTH__OIDC__ENABLED` | OIDC 默认关闭。 |
+| `auth.oidc.issuer_url` | 未设置 | `TIKEO__AUTH__OIDC__ISSUER_URL` | OIDC issuer。 |
+| `auth.oidc.client_id` | 未设置 | `TIKEO__AUTH__OIDC__CLIENT_ID` | OIDC client id。 |
+| `auth.oidc.client_secret` | 未设置 | `TIKEO__AUTH__OIDC__CLIENT_SECRET` | Secret 存平台 Secret。 |
+| `auth.oidc.scopes` | `openid, profile, email` | `TIKEO__AUTH__OIDC__SCOPES` | 列表形状不确定时用 TOML。 |
+| `transport_security.http.tls_enabled` | `false` | `TIKEO__TRANSPORT_SECURITY__HTTP__TLS_ENABLED` | HTTP listener 进程内 TLS。 |
+| `transport_security.http.mtls_required` | `false` | `TIKEO__TRANSPORT_SECURITY__HTTP__MTLS_REQUIRED` | HTTP mTLS。 |
+| `transport_security.http.cert_path` | 未设置 | `TIKEO__TRANSPORT_SECURITY__HTTP__CERT_PATH` | 证书路径。 |
+| `transport_security.http.key_path` | 未设置 | `TIKEO__TRANSPORT_SECURITY__HTTP__KEY_PATH` | 私钥路径。 |
+| `transport_security.http.client_ca_path` | 未设置 | `TIKEO__TRANSPORT_SECURITY__HTTP__CLIENT_CA_PATH` | mTLS 客户端 CA。 |
+| `transport_security.worker_tunnel.tls_enabled` | `false` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__TLS_ENABLED` | Worker Tunnel TLS。 |
+| `transport_security.worker_tunnel.mtls_required` | `false` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__MTLS_REQUIRED` | Worker 客户端证书。 |
+| `transport_security.worker_tunnel.cert_path` | 未设置 | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__CERT_PATH` | Tunnel 证书。 |
+| `transport_security.worker_tunnel.key_path` | 未设置 | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__KEY_PATH` | Tunnel 私钥。 |
+| `transport_security.worker_tunnel.client_ca_path` | 未设置 | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__CLIENT_CA_PATH` | Worker 客户端 CA。 |
+| `observability.logging.level` | `info` | `TIKEO__OBSERVABILITY__LOGGING__LEVEL` | `RUST_LOG` 未设置时使用。 |
+| `observability.logging.log_dir` | 未设置 | `TIKEO__OBSERVABILITY__LOGGING__LOG_DIR` | 设置后写 `tikeo.log`。 |
+| `observability.tracing.enabled` | `false` | `TIKEO__OBSERVABILITY__TRACING__ENABLED` | OTel trace export 开关。 |
+| `observability.tracing.otlp_endpoint` | 未设置 | `TIKEO__OBSERVABILITY__TRACING__OTLP_ENDPOINT` | 开启 tracing 时必须设置。 |
+| `observability.tracing.headers` | `[]` | `TIKEO__OBSERVABILITY__TRACING__HEADERS` | header 名称，值不进 status API。 |
+| `alert_retry.enabled` | `true` | `TIKEO__ALERT_RETRY__ENABLED` | 告警投递重试 worker。 |
+| `alert_retry.interval_seconds` | `60` | `TIKEO__ALERT_RETRY__INTERVAL_SECONDS` | 扫描间隔。 |
+| `alert_retry.batch_size` | `50` | `TIKEO__ALERT_RETRY__BATCH_SIZE` | 每轮最大数量。 |
+| `alert_retry.max_attempts` | `3` | `TIKEO__ALERT_RETRY__MAX_ATTEMPTS` | 死信前最大次数。 |
+| `alert_retry.backoff_seconds` | `300` | `TIKEO__ALERT_RETRY__BACKOFF_SECONDS` | 重试退避。 |
+| `alert_secrets.allow_env_refs` | `true` | `TIKEO__ALERT_SECRETS__ALLOW_ENV_REFS` | 允许 `env:NAME` 引用。 |
+| `alert_secrets.env_prefix` | `TIKEO_ALERT_SECRET_` | `TIKEO__ALERT_SECRETS__ENV_PREFIX` | 告警 Secret 前缀。 |
+| `script_governance.release_signature_secret_ref` | 未设置 | `TIKEO__SCRIPT_GOVERNANCE__RELEASE_SIGNATURE_SECRET_REF` | 脚本发布签名 Secret 引用。 |
 
-## 环境变量覆盖规则
+## 存储、认证和安全
 
-| 环境变量 | 配置项 |
-|---|---|
-| `TIKEO__STORAGE__DATABASE_URL` | `storage.database_url` |
-| `TIKEO__ALERT_SECRETS__ALLOW_ENV_REFS` | `alert_secrets.allow_env_refs` |
-| `TIKEO__ALERT_SECRETS__ENV_PREFIX` | `alert_secrets.env_prefix` |
+SQLite 适合本地，容器里要持久化 `/data`。生产建议使用 PostgreSQL 或 MySQL，并通过 `TIKEO__STORAGE__DATABASE_URL` 从 Secret 注入。SQLite 启动会设置 WAL、busy timeout、foreign keys，但 schema 变更仍必须走显式 SeaORM migration。
 
-非敏感默认值用 TOML；凭据、外部 endpoint、生产差异用环境变量或 Secret 注入。
+本地登录默认开启。首个部署 Owner 通过 `/api/v1/auth/bootstrap/register` 创建。OIDC 默认关闭；开启后需要 issuer、client_id、client_secret，并且外部身份需要先映射到本地用户。SDK API Key 与人类 bearer token 不同，SDK 使用 `x-tikeo-api-key`，通常来自 `TIKEO_MANAGEMENT_API_KEY`。
+
+TLS/mTLS 默认关闭。跨主机、跨集群、跨 VPC 或不可信网络时，应给 HTTP 和 Worker Tunnel 分别配置 TLS。mTLS 需要 `tls_enabled=true`、`cert_path`、`key_path` 和 `client_ca_path`。Ingress TLS 与 Tikeo 进程内 TLS 是两层不同配置。
+
+## 观测和集群
+
+日志默认 console + `info`。设置 `observability.logging.log_dir` 后会写 `tikeo.log`。开启 OTel 时必须设置 `observability.tracing.otlp_endpoint`，并把凭证放环境变量或 Secret。
+
+`standalone` 是当前可调度默认模式。`raft` 目前是安全的节点/peer 元数据形状，会暴露状态和校验，但不要把它写成已经具备生产调度 HA 的 leader 路径。配置了 `cluster.transport_token` 时，内部 raft append 流量需要 `x-tikeo-raft-token`。
+
+## Worker SDK 默认值
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `endpoint` | 调用方提供，demo 多用 `http://127.0.0.1:9998` | 可达的 Worker Tunnel endpoint。 |
+| `clientInstanceId` / `client_instance_id` | 必填或由 Java Boot 生成 | 稳定客户端提示；Server 分配权威 `worker_id`。 |
+| `namespace` | SDK helper 通常是 `default` | 调度和管理 scope。 |
+| `app` | SDK helper 通常是 `default` | 应用 scope。 |
+| `cluster` | Rust/Go/Python/Node 多为 `local`，Java Boot 默认为 `default` | Worker 集群元数据。 |
+| `region` | Rust/Go/Python/Node 多为 `local`，Java Boot 默认为 `default` | 区域元数据。 |
+| `heartbeatEvery` | 10 秒或 10000 ms | lease 续约频率。 |
+| `capabilities` | 空 | legacy metadata，路由应使用 structured。 |
+| `structuredCapabilities` | 空 | SDK processors、script runners、plugin processors、tags。 |
+| `labels` | 空 | 如 `worker_pool`。 |
+| `election.enabled` | true | Worker 集群选主元数据。 |
+| `election.priority` | 100 | 数值越小优先级越高。 |
+
+只广告真实可执行能力。缺少 SRT、Deno、Docker、Podman、SQL 或 plugin 工具时要 fail-closed，不要为了展示而广告能力。
+
+## 部署检查清单
+
+选择存储并确认备份；用 Secret 注入 DB URL；决定 API 和 Worker Tunnel 的 TLS/mTLS；业务 Worker 不放进 Helm chart，而是独立部署并出站连接；初始化 Owner 后创建 service account 和 SDK API Key；确认日志/OTel 目标存在；运行对应 smoke 并保存 `.dev/reports` 或 CI artifact。
+
+## 环境变量覆盖 runbook
+
+现场改配置时优先遵循“可公开默认值进 TOML、敏感值进 Secret、临时排障值进环境变量”的顺序。示例：数据库 URL 用 `TIKEO__STORAGE__DATABASE_URL` 覆盖；OIDC issuer 用 `TIKEO__AUTH__OIDC__ISSUER_URL`，client secret 用 `TIKEO__AUTH__OIDC__CLIENT_SECRET`；Worker Tunnel 客户端 CA 用 `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__CLIENT_CA_PATH`。如果数组或 map 的环境变量表达不清楚，例如 `cluster.peers`、`observability.tracing.headers`，应写入 TOML 或 Helm values，避免 shell 转义导致启动成功但运行语义错误。
+
+每次变更后至少执行三类检查：`/healthz` 证明进程存活，`/readyz` 证明存储和运行依赖可用，`/api-docs/openapi.json` 证明 HTTP router 已加载；Worker 侧再用一个 outbound demo Worker 连接 `server.worker_tunnel_addr`，确认注册、心跳、`DispatchTask`、任务日志和结果回传。若启用 mTLS，先用短期证书在 staging 验证证书链，再切生产 Secret；若启用 OTel，确认 collector 收到 span 后再把 tracing 当作上线证据。

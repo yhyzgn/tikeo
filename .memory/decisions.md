@@ -586,3 +586,17 @@ Decision:
 Constraint:
 - Future docs may add controller-specific overlays only when they cite committed values/templates or clearly mark operator-owned custom resources as external overlays.
 - Do not document business Worker inbound Services as a Tikeo deployment pattern.
+
+## 2026-06-10 — Docs site must be an operator-grade manual, not a README rehash
+
+Decision:
+- The `docs/` Docusaurus site owns install, configuration, SDK integration, deployment, troubleshooting, and acceptance evidence depth. README remains a concise project introduction.
+- Critical English and zh-CN docs must be source-backed and runnable enough for a new operator to start Server/Web, bootstrap Owner auth, create app-scoped SDK credentials, connect outbound Workers, trigger jobs, deploy the docs image, and verify evidence.
+- Contract tests now reject shallow critical docs and guard real bootstrap fields, exported `TOKEN`, runnable repository-root Node.js SDK quickstart script, and nginx relative redirect behavior for container port mappings.
+
+Rejected:
+- Copying README prose into docs pages | would leave operators unable to build, configure, integrate SDKs, or troubleshoot.
+- Documenting plausible but nonexistent API fields or helper names | creates hallucinated runbooks.
+
+Constraint:
+- Future docs updates must cite/source-check code paths, config defaults, SDK helpers, deploy scripts, Helm values, or smoke evidence before claiming behavior.

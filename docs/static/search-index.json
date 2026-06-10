@@ -1,5 +1,59 @@
 [
   {
+    "title": "Tikeo documentation map",
+    "url": "/docs/",
+    "locale": "en",
+    "summary": "Operator-grade documentation map, reader outcomes, architecture boundaries, and source-backed evaluation path."
+  },
+  {
+    "title": "Installation and toolchain matrix",
+    "url": "/docs/getting-started/installation",
+    "locale": "en",
+    "summary": "Toolchain matrix, version baselines, repository surfaces, first-time bootstrap prerequisites, and verification commands."
+  },
+  {
+    "title": "Quickstart: Server, Web, Worker, SDK trigger",
+    "url": "/docs/getting-started/quickstart",
+    "locale": "en",
+    "summary": "Phase-based local runbook covering Owner bootstrap, app-scoped SDK API key creation, outbound Worker, API trigger, and acceptance evidence."
+  },
+  {
+    "title": "Configuration reference",
+    "url": "/docs/reference/configuration",
+    "locale": "en",
+    "summary": "Complete default-value table for server, storage, cluster, auth, TLS/mTLS, observability, alerting, and Worker SDK defaults."
+  },
+  {
+    "title": "Rust Worker SDK",
+    "url": "/docs/sdks/rust",
+    "locale": "en",
+    "summary": "Dependency coordinates, WorkerConfig defaults, Minimal Worker, ManagementClient credentials, broadcast selector, and live verification runbook."
+  },
+  {
+    "title": "Go Worker SDK",
+    "url": "/docs/sdks/go",
+    "locale": "en",
+    "summary": "Go module dependency coordinates, WorkerConfig defaults, Minimal Worker, NewManagementClient usage, and live verification runbook."
+  },
+  {
+    "title": "Java SDK and Spring Boot Starter",
+    "url": "/docs/sdks/java-spring-boot",
+    "locale": "en",
+    "summary": "Single-artifact selection, Spring Boot property defaults, @TikeoProcessor, HttpTikeoJobClient, and live verification runbook."
+  },
+  {
+    "title": "Python Worker SDK",
+    "url": "/docs/sdks/python",
+    "locale": "en",
+    "summary": "PyPI dependency coordinates, WorkerConfig defaults, Minimal Worker, ManagementClient credentials, and live verification runbook."
+  },
+  {
+    "title": "Node.js Worker SDK",
+    "url": "/docs/sdks/nodejs",
+    "locale": "en",
+    "summary": "npm package coordinates, WorkerConfig defaults, Minimal Worker, ManagementClient credentials, and Bun/Node live verification runbook."
+  },
+  {
     "title": "Management OpenAPI reference",
     "url": "/docs/reference/management-openapi",
     "locale": "en",
@@ -34,6 +88,60 @@
     "url": "/docs/user-guide/workers",
     "locale": "en",
     "summary": "How to read Worker Tunnel status, persisted Worker snapshots, lifecycle history, and dispatch capacity."
+  },
+  {
+    "title": "Tikeo 文档地图",
+    "url": "/zh-CN/docs/",
+    "locale": "zh-CN",
+    "summary": "中文文档地图、阅读结果、架构边界与证据优先验收路径。"
+  },
+  {
+    "title": "安装与工具链矩阵",
+    "url": "/zh-CN/docs/getting-started/installation",
+    "locale": "zh-CN",
+    "summary": "工具链矩阵、版本基线、仓库工程面、首次初始化 Owner 与验证命令。"
+  },
+  {
+    "title": "快速开始：Server、Web、Worker、SDK 触发",
+    "url": "/zh-CN/docs/getting-started/quickstart",
+    "locale": "zh-CN",
+    "summary": "阶段化本地 runbook：创建首个 Owner、应用级 SDK API Key、出站 Worker、API 触发与验收证据。"
+  },
+  {
+    "title": "配置参考",
+    "url": "/zh-CN/docs/reference/configuration",
+    "locale": "zh-CN",
+    "summary": "完整默认值表，覆盖 server、storage、cluster、auth、TLS/mTLS、观测、告警和 Worker SDK 默认值。"
+  },
+  {
+    "title": "Rust Worker SDK 中文指南",
+    "url": "/zh-CN/docs/sdks/rust",
+    "locale": "zh-CN",
+    "summary": "依赖坐标、WorkerConfig 默认值、最小 Worker、管理客户端凭证与现场验收 runbook。"
+  },
+  {
+    "title": "Go Worker SDK 中文指南",
+    "url": "/zh-CN/docs/sdks/go",
+    "locale": "zh-CN",
+    "summary": "依赖坐标、WorkerConfig 默认值、最小 Worker、管理客户端凭证与现场验收 runbook。"
+  },
+  {
+    "title": "Java Spring Boot SDK 中文指南",
+    "url": "/zh-CN/docs/sdks/java-spring-boot",
+    "locale": "zh-CN",
+    "summary": "依赖坐标、Spring Boot 属性默认值、@TikeoProcessor、管理客户端凭证与现场验收 runbook。"
+  },
+  {
+    "title": "Python Worker SDK 中文指南",
+    "url": "/zh-CN/docs/sdks/python",
+    "locale": "zh-CN",
+    "summary": "依赖坐标、WorkerConfig 默认值、最小 Worker、管理客户端凭证与现场验收 runbook。"
+  },
+  {
+    "title": "Node.js Worker SDK 中文指南",
+    "url": "/zh-CN/docs/sdks/nodejs",
+    "locale": "zh-CN",
+    "summary": "依赖坐标、WorkerConfig 默认值、最小 Worker、管理客户端凭证与现场验收 runbook。"
   },
   {
     "title": "Kubernetes 控制器专项运行手册",

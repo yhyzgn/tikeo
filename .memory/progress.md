@@ -1489,3 +1489,10 @@ Verification evidence:
 - `python3 .github/tests/docs_site_contract_test.py` passed after implementation.
 - `cd docs && bun run docs:typecheck && bun run docs:build` passed with no `broken anchor` output.
 - `TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER=0 scripts/management-trigger-e2e-smoke.sh` passed; evidence directory `.dev/reports/management-trigger-e2e-20260610T153458Z-230214/`, report `.dev/reports/management-trigger-e2e-20260610T153458Z-230214/management-trigger-e2e-20260610T153458Z-230214.json`.
+
+### 2026-06-10 — Operator-grade docs manual depth completed
+- Critical docs are no longer README-adjacent summaries. English overview/installation/quickstart/configuration/SDK pages and zh-CN mirrors now include source-backed operator detail for toolchains, repository surfaces, Owner bootstrap, app-scoped SDK API keys, outbound Worker setup, complete config defaults, SDK dependency coordinates, WorkerConfig defaults, Management clients, and live verification runbooks.
+- Added docs contracts to prevent shallow critical pages, nonexistent bootstrap fields, non-exported `TOKEN`, unrunnable `/tmp` Node.js SDK scripts, and nginx port-mapping redirect regressions.
+- Verifier found three real quickstart defects; all were fixed and reverified.
+- Search and LLM static entrypoints now point at the deeper operator pages.
+Verification evidence: docs contract, workflow contract, management-smoke contract, Docusaurus typecheck/build, source-size audit, GitHub Actions runtime policy, diff whitespace check, docs Docker build, and docs container route smoke all passed.

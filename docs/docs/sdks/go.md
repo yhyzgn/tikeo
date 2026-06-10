@@ -1,94 +1,186 @@
 ---
 title: Go Worker SDK
-description: Verified Go SDK and Worker demo entry points.
+description: Go SDK dependency coordinates, WorkerConfig defaults, minimal Worker, Management API helpers, and live verification runbook.
 ---
 
 # Go Worker SDK
 
-The Go SDK lives under `sdks/go/tikeo`, and the runnable worker demo lives under `examples/go/worker-demo`.
+The Go SDK lives in `sdks/go/tikeo`. Its module path is `github.com/yhyzgn/tikeo/sdks/go/tikeo`; the runnable demo is `examples/go/worker-demo`. The SDK exposes Worker configuration, a Worker Tunnel client, structured capabilities, script runner helpers, task models, and Management client helpers.
 
+## Dependency coordinates
 
-## Install from the Go module proxy
+`sdks/go/tikeo/go.mod` declares:
 
-Replace `${TIKEO_VERSION}` with the version shown by the top README `Go SDK` badge. Go commands use tag syntax, so include the leading `v` as `v${TIKEO_VERSION}`.
+| Field | Value |
+| --- | --- |
+| Module | `github.com/yhyzgn/tikeo/sdks/go/tikeo` |
+| Go baseline | `1.26` |
+| gRPC | `google.golang.org/grpc v1.81.0` |
+| Protobuf | `google.golang.org/protobuf v1.36.11` |
+
+Install from a tagged repository release:
 
 ```bash
-go get github.com/yhyzgn/tikeo/sdks/go/tikeo@v${TIKEO_VERSION}
+go get github.com/yhyzgn/tikeo/sdks/go/tikeo@${TIKEO_VERSION}
 ```
 
-```go
-import "github.com/yhyzgn/tikeo/sdks/go/tikeo"
-```
-
-## Verify the SDK
+Verify locally:
 
 ```bash
 cd sdks/go/tikeo
 go test ./... -count=1
 ```
 
-## Verify the demo
+## WorkerConfig defaults
 
-```bash
-cd examples/go/worker-demo
-go test ./... -count=1
-```
+`sdks/go/tikeo/config.go` defines `LocalConfig(endpoint, clientInstanceID)`.
 
-Go workers should advertise only capabilities backed by real runtime support. Unsupported sandbox runners must fail closed instead of appearing as available capabilities.
+| Field | Default from helper | Notes |
+| --- | --- | --- |
+| `Endpoint` | caller-provided | Worker Tunnel endpoint. |
+| `ClientInstanceID` | caller-provided | Stable client hint. |
+| `Namespace` | `default` | Demo overrides to `dev-alpha`. |
+| `App` | `default` | Demo overrides to `orders`. |
+| `Name` | `clientInstanceID` | Operator-facing name. |
+| `Region` | `local` | Region metadata. |
+| `Version` | `dev` | Worker build/version. |
+| `Cluster` | `local` | Cluster metadata. |
+| `Capabilities` | empty | Legacy metadata. |
+| `Labels` | empty map | Demo adds `worker_pool`. |
+| `Structured` | empty `WorkerCapabilities` | Routing uses this. |
+| `HeartbeatEvery` | `10 * time.Second` | Lease renewal cadence. |
 
+Use `AddTag`, `AddSDKProcessor`, `AddScriptRunner`, and `AddPluginProcessor` for structured registration.
 
-## Management API create + trigger
-
-The Go management client is implemented in `sdks/go/tikeo/management.go`. It is scoped to one namespace/app and authenticates with `x-tikeo-api-key`, typically read from `TIKEO_MANAGEMENT_API_KEY`; do not pass a human OIDC session or UI bearer token into SDK workers. The `APIJob` helper creates an API-scheduled processor job, while `APITrigger` sends `triggerType=api` with the default `executionMode=single`.
+## Minimal Worker
 
 ```go
 package main
 
 import (
-    "context"
-    "os"
+  "context"
+  "log"
 
-    tikeo "github.com/yhyzgn/tikeo/sdks/go/tikeo"
+  tikeo "github.com/yhyzgn/tikeo/sdks/go/tikeo"
 )
 
-func createAndTrigger(ctx context.Context) error {
-    endpoint := os.Getenv("TIKEO_MANAGEMENT_ENDPOINT")
-    if endpoint == "" {
-        endpoint = "http://127.0.0.1:9090"
-    }
-    client := tikeo.NewManagementClient(
-        endpoint,
-        os.Getenv("TIKEO_MANAGEMENT_API_KEY"),
-        "dev-alpha",
-        "orders",
-    )
+func main() {
+  cfg := tikeo.LocalConfig("http://127.0.0.1:9998", "go-worker-1")
+  cfg.Namespace = "sdk-smoke"
+  cfg.App = "management"
+  cfg.AddSDKProcessor("demo.echo")
+  cfg.Labels["worker_pool"] = "go-blue"
 
-    created, err := client.CreateJob(ctx, tikeo.APIJob("go-echo-api", "demo.echo"))
-    if err != nil {
-        return err
-    }
-    instance, err := client.TriggerJob(ctx, created.ID, tikeo.APITrigger())
-    if err != nil {
-        return err
-    }
-    if instance.TriggerType != "api" || instance.ExecutionMode != "single" {
-        panic("unexpected trigger response")
-    }
-    return nil
+  client, err := tikeo.NewClient(cfg)
+  if err != nil { log.Fatal(err) }
+
+  processor := tikeo.TaskProcessorFunc(func(_ context.Context, task tikeo.TaskContext) (tikeo.TaskOutcome, error) {
+    task.LogInfo("go echo processor=" + task.ProcessorName)
+    return tikeo.TaskOutcome{Success: true, Message: "go echo processed"}, nil
+  })
+
+  for {
+    session, err := client.Connect(context.Background())
+    if err != nil { log.Printf("connect failed: %v", err); continue }
+    stop := session.StartHeartbeat(context.Background())
+    _, _ = session.ProcessNext(context.Background(), processor)
+    stop()
+    _ = session.Close()
+  }
 }
 ```
 
-Broadcast fan-out is explicit. `BroadcastAPITrigger` serializes `executionMode=broadcast` plus `broadcastSelector`; keep this separate from the single-worker default so accidental API triggers do not run on every matching worker.
+Keep the reconnect loop conservative in services; a Worker Tunnel can close due to Server restart, network churn, fencing, or rollout.
 
-```go
-broadcast := tikeo.BroadcastAPITrigger(&tikeo.BroadcastSelectorRequest{
-    Tags:   []string{"manual-demo"},
-    Region: "us-east-1",
-    Labels: map[string]string{"worker_pool": "go-blue"},
-})
-_, err := client.TriggerJob(ctx, created.ID, broadcast)
+## Demo environment variables
+
+`examples/go/worker-demo/main.go` uses:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `TIKEO_WORKER_ENDPOINT` | `http://127.0.0.1:9998` | Worker Tunnel endpoint. |
+| `TIKEO_WORKER_CLIENT_INSTANCE_ID` | `go-worker-demo-local` | Stable client hint. |
+| `TIKEO_WORKER_NAMESPACE` | `dev-alpha` | Demo namespace. |
+| `TIKEO_WORKER_APP` | `orders` | Demo app. |
+| `TIKEO_WORKER_CLUSTER` | `local` | Demo cluster. |
+| `TIKEO_WORKER_REGION` | `local` | Demo region. |
+| `TIKEO_WORKER_SDK_PROCESSORS` | `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail` | Structured SDK processors. |
+| `TIKEO_WORKER_POOL` | `go-blue` | `worker_pool` label. |
+| `TIKEO_WORKER_DRY_RUN` / `TIKEO_WORKER_CONNECT=0` | dry-run | Avoids live tunnel. |
+| `TIKEO_WORKER_ONESHOT` | unset | Exit after one task. |
+
+Run dry-run:
+
+```bash
+cd examples/go/worker-demo
+TIKEO_WORKER_DRY_RUN=1 go run .
 ```
 
+Run live:
+
+```bash
+TIKEO_WORKER_CONNECT=1 \
+TIKEO_WORKER_NAMESPACE=sdk-smoke \
+TIKEO_WORKER_APP=management \
+TIKEO_WORKER_SDK_PROCESSORS=demo.echo \
+go run .
+```
+
+## Management API create + trigger
+
+```go
+package main
+
+import (
+  "context"
+  "os"
+
+  tikeo "github.com/yhyzgn/tikeo/sdks/go/tikeo"
+)
+
+func main() {
+  client := tikeo.NewManagementClient(
+    env("TIKEO_MANAGEMENT_ENDPOINT", "http://127.0.0.1:9090"),
+    os.Getenv("TIKEO_MANAGEMENT_API_KEY"),
+    "sdk-smoke",
+    "management",
+  )
+  created, err := client.CreateJob(context.Background(), tikeo.APIJob("go-echo-api", "demo.echo"))
+  if err != nil { panic(err) }
+  instance, err := client.TriggerJob(context.Background(), created.ID, tikeo.APITrigger())
+  if err != nil { panic(err) }
+  if instance.TriggerType != "api" || instance.ExecutionMode != "single" { panic("unexpected trigger") }
+}
+
+func env(key, fallback string) string { if v := os.Getenv(key); v != "" { return v }; return fallback }
+```
+
+Broadcast is explicit:
+
+```go
+selector := &tikeo.BroadcastSelectorRequest{
+  Tags: []string{"manual-demo"},
+  Region: "local",
+  Cluster: "local",
+  Labels: map[string]string{"worker_pool": "go-blue"},
+}
+request := tikeo.BroadcastAPITrigger(selector)
+```
+
+## Management client credentials
+
+All SDK Management clients use app-scoped service credentials. They send the `x-tikeo-api-key` header, normally sourced from `TIKEO_MANAGEMENT_API_KEY`. Do not confuse this key with a human bearer token from `/api/v1/auth/login`, and do not reuse browser sessions or OIDC provider tokens in SDK services.
+
+The common create+trigger default is:
+
+| Field | Default helper behavior |
+| --- | --- |
+| Job schedule | `scheduleType=api` |
+| Job enabled | `true` |
+| Retry policy | `enabled=true`, `maxAttempts=3`, `initialDelaySeconds=5`, `backoffMultiplier=2`, `maxDelaySeconds=60` |
+| Trigger source | `triggerType=api` |
+| Trigger execution mode | `executionMode=single` |
+| Broadcast | Opt-in only through explicit broadcast helper and `broadcastSelector` |
 
 ## Source-backed reference links
 
@@ -100,26 +192,26 @@ Keep SDK helper docs anchored to source-derived API and protocol references:
 - Instance log endpoint: [`GET /api/v1/instances/{instance}/logs`](../reference/management-openapi#get-api-v1-instances-instance-logs)
 - Worker dispatch message: [`DispatchTask`](../reference/worker-tunnel-protobuf#dispatchtask)
 
-## Minimal worker mental model
+## Live verification runbook
 
-The Go SDK follows the same Worker Tunnel model as Rust and Java. A worker connects out to the Server, registers metadata, heartbeats, receives dispatches, and reports logs/results back through the tunnel.
+1. Start the Server with `cargo run --bin tikeo -- serve --config config/dev.toml`.
+2. Bootstrap an Owner or login to an existing local Owner.
+3. Create namespace/app/worker pool, service account, and SDK API key as shown in the quickstart.
+4. Start the language demo Worker with matching namespace/app and `TIKEO_WORKER_CONNECT=1` when the demo supports live mode.
+5. Create and trigger an API job through the language Management client.
+6. Inspect `/api/v1/workers`, `/api/v1/instances`, instance logs, and audit logs.
+7. Preserve smoke evidence. For a maintained end-to-end proof, run `TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER=0 scripts/management-trigger-e2e-smoke.sh`.
+
+Expected acceptance evidence includes an online worker with the requested structured processor, an API-triggered instance with `executionMode=single`, task logs from the Worker, and a successful processor message. Missing sandbox tools or unsupported processors must fail closed and be visible in task/diagnostic logs.
 
 ## Capability discipline
 
-Go workers should advertise structured processor and script capabilities only when backed by real runtime support. If a runner is unavailable, the worker should expose a safe error boundary rather than pretending the capability exists.
+The dispatch contract uses structured capabilities, not folklore or only string naming conventions. A Worker should advertise SDK processors, plugin processors, script runners, labels, and tags only when the runtime can really execute them. Do not advertise SQL, shell, Python, Node.js, WASM, SRT, Deno, Docker, or Podman support just because a package exists; advertise it after the demo or service has resolved the tool and can fail safely.
 
-## Evaluation checklist
+## Operational notes
 
-- Run `go test ./... -count=1` in both SDK and demo directories.
-- Start the Server locally and connect a Go worker in live mode when validating tunnel behavior.
-- Confirm session visibility survives expected Server-side persistence boundaries.
-- Trigger a job that maps to the Go processor binding.
-- Inspect logs, result payload, and audit evidence.
+A Go service should usually construct `WorkerConfig` from its own application configuration rather than reading every environment variable directly in business code. Keep the mapping explicit: endpoint from service discovery or a Secret-backed config map, namespace/app from the deployment environment, `ClientInstanceID` from a stable pod/VM identity if you want reconnect correlation, and `Labels["worker_pool"]` from your capacity planning model.
 
-## Production notes
+The demo's `runWorkerSession` pattern intentionally reconnects after `Connect` or `ProcessNextWithScriptRunners` errors. Keep that behavior in production services unless your supervisor is responsible for restart policy. A Worker Tunnel can close during Server restarts, load balancer rotation, lease fencing, TLS certificate reloads, or network churn; treating every close as a permanent crash makes rollouts noisier than necessary.
 
-Use Go workers when teams want lightweight static binaries or Go-native integrations. Keep deployment identity explicit through worker pool and capability metadata.
-
-## Version and packaging notes
-
-Repository builds currently exercise the Go surface with the Go toolchain declared by CI and README badges. Keep `go.mod` and demo documentation aligned before publishing external examples. For containerized workers, prefer small images that include only the worker binary, configuration, and trusted certificates needed to dial the Tikeo tunnel.
+For script support, `examples/go/worker-demo/main.go` resolves SRT and ripgrep for native scripts and Deno for JavaScript/TypeScript when `TIKEO_WORKER_SCRIPT_SANDBOX=auto`. If those tools are missing, the demo skips advertising that script runner unless `TIKEO_ENABLE_UNAVAILABLE_SCRIPT_ADAPTERS` is enabled for explicit fail-closed demonstration. Production Workers should follow the same rule: no capability advertisement without a working runtime.

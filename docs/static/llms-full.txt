@@ -1,6 +1,21 @@
 # Tikeo docs snapshot
 
-Generated from docs/docs and zh-CN docs. This curated snapshot lists the source-backed public documentation entrypoints that are safe for LLM and search ingestion. The canonical pages remain the markdown sources in docs/docs and docs/i18n/zh-CN/docusaurus-plugin-content-docs/current.
+Generated from docs/docs and zh-CN docs. This curated snapshot lists source-backed public documentation entrypoints that are safe for LLM and search ingestion. The canonical pages remain the markdown sources in docs/docs and docs/i18n/zh-CN/docusaurus-plugin-content-docs/current. README is intentionally brief; the docs site owns install, configure, SDK integration, deployment, troubleshooting, and acceptance evidence.
+
+## Operator-grade entry path
+
+- Overview: /docs/ gives the Documentation map, Reader outcome, Architecture boundary, and Evidence-first evaluation contract.
+- Installation: /docs/getting-started/installation covers the Toolchain matrix, Version baselines, Repository surfaces, First-time bootstrap, and Verification commands needed before local evaluation.
+- Quickstart: /docs/getting-started/quickstart walks Phase 0 through Server, Web, Bootstrap the first Owner, Create an app-scoped SDK API key, start an outbound Worker with TIKEO_WORKER_CONNECT=1, trigger through the Management API, and capture Acceptance evidence.
+- Configuration: /docs/reference/configuration contains the Complete default-value table from crates/tikeo-config/src/lib.rs, including storage.timestamp_offset, cluster.transport_token, transport_security.worker_tunnel.client_ca_path, observability.tracing.otlp_endpoint, TIKEO__AUTH__OIDC__ISSUER_URL, and Worker SDK defaults.
+
+## SDK pages
+
+- Rust Worker SDK: /docs/sdks/rust documents Dependency coordinates, WorkerConfig defaults from sdks/rust/tikeo/src/config.rs, Minimal Worker, ManagementClient::new, ManagementCreateJobRequest::api, ManagementTriggerJobRequest::api, ManagementTriggerJobRequest::broadcast_api, ManagementBroadcastSelectorRequest, x-tikeo-api-key, TIKEO_MANAGEMENT_API_KEY, triggerType=api, executionMode=single, broadcastSelector, and Live verification runbook.
+- Go Worker SDK: /docs/sdks/go documents Dependency coordinates, WorkerConfig defaults from sdks/go/tikeo/config.go, Minimal Worker, NewManagementClient, APIJob, APITrigger, BroadcastAPITrigger, BroadcastSelectorRequest, and Live verification runbook.
+- Java SDK and Spring Boot Starter: /docs/sdks/java-spring-boot documents Dependency coordinates, single-artifact dependency selection from sdks/java/settings.gradle.kts, Spring Boot property defaults, @TikeoProcessor, HttpTikeoJobClient, CreateJobRequest.api, TriggerJobRequest.api, TriggerJobRequest.broadcastApi, BroadcastSelectorRequest, and Live verification runbook.
+- Python Worker SDK: /docs/sdks/python documents Dependency coordinates from sdks/python/tikeo/pyproject.toml, WorkerConfig defaults, Minimal Worker, ManagementClient, api_job, api_trigger, broadcast_api_trigger, BroadcastSelectorRequest, and Live verification runbook.
+- Node.js Worker SDK: /docs/sdks/nodejs documents Dependency coordinates from sdks/nodejs/tikeo/src/config.ts and package metadata, WorkerConfig defaults, Minimal Worker, ManagementClient, apiJob, apiTrigger, broadcastApiTrigger, BroadcastSelectorRequest, and Live verification runbook.
 
 ## Reference pages
 
@@ -18,8 +33,13 @@ Generated from docs/docs and zh-CN docs. This curated snapshot lists the source-
 - Audit user guide: /docs/user-guide/audit explains web/src/pages/AuditLogsPage.tsx, /api/v1/audit-logs, /api/v1/audit-logs:export, filters, before/after snapshots, and trace evidence.
 - Settings guide: /docs/user-guide/settings explains web/src/routes.tsx, API-Key management, RBAC, tenant scopes, users, roles, calendars, and GitOps/IaC route boundaries.
 
-## 中文用户指南
+## 中文关键页面
 
+- 中文概览: /zh-CN/docs/ 包含文档地图、阅读结果、架构边界、证据优先验收。
+- 中文安装: /zh-CN/docs/getting-started/installation 包含工具链矩阵、版本基线、仓库工程面、首次初始化 Owner。
+- 中文快速开始: /zh-CN/docs/getting-started/quickstart 包含阶段 0、创建首个 Owner、创建应用级 SDK API Key、TIKEO_WORKER_CONNECT=1、验收证据。
+- 中文配置: /zh-CN/docs/reference/configuration 包含完整默认值表、storage.timestamp_offset、cluster.transport_token、Worker SDK 默认值。
+- 中文 SDK: /zh-CN/docs/sdks/rust、/go、/java-spring-boot、/python、/nodejs 分别覆盖依赖坐标、WorkerConfig 默认值或 Spring Boot 属性默认值、最小 Worker、管理客户端凭证、现场验收 runbook。
 - 作业用户指南: /zh-CN/docs/user-guide/jobs 说明 Jobs 页面、API 触发、广播选择器、版本历史和调度建议。
 - Worker 用户指南: /zh-CN/docs/user-guide/workers 说明 Worker Tunnel、DispatchTask、structured capabilities、生命周期历史和出站连接边界。
 - 审计用户指南: /zh-CN/docs/user-guide/audit 说明 /api/v1/audit-logs 与 /api/v1/audit-logs:export 的治理证据流。
