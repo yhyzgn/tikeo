@@ -63,6 +63,19 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertNotIn("  go-deploy-tools:", CI)
         self.assertNotIn("  cross-language-smoke:", CI)
 
+
+    def test_cross_language_job_runs_management_trigger_e2e_smoke(self):
+        smoke_job = workflow_job_block(CI, "other-cross-language-smoke")
+        self.assertIn("Run Management API trigger e2e smoke", smoke_job)
+        self.assertIn("TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER", smoke_job)
+        self.assertIn("scripts/management-trigger-e2e-smoke.sh", smoke_job)
+        self.assertIn("management-trigger-e2e-smoke", smoke_job)
+        self.assertIn(".dev/reports/management-trigger-e2e-*/*", smoke_job)
+        self.assertLess(
+            smoke_job.index("Run cross-language worker parity smoke"),
+            smoke_job.index("Run Management API trigger e2e smoke"),
+        )
+
     def test_docker_validation_is_split_and_cached(self):
         self.assertNotIn("  docker-build:", CI)
         self.assertIn("  other-docker-build-server:", CI)
@@ -107,6 +120,17 @@ class WorkflowContractTest(unittest.TestCase):
         ]:
             job_block = workflow_job_block(CI, job)
             self.assertIn("needs: workflow-policy", job_block)
+
+
+    def test_workflow_policy_runs_repository_contract_tests(self):
+        policy_job = CI.split("  workflow-policy:", 1)[1].split("\n  server:", 1)[0]
+        self.assertIn("Validate repository contract tests", policy_job)
+        self.assertIn("python3 .github/tests/workflow_contract_test.py", policy_job)
+        self.assertIn("python3 .github/tests/management_smoke_contract_test.py", policy_job)
+        self.assertLess(
+            policy_job.index("Reject deprecated GitHub Actions Node runtimes"),
+            policy_job.index("Validate repository contract tests"),
+        )
 
     def test_ci_runs_docs_site_verification(self):
         docs_job = workflow_job_block(CI, "docs-site")

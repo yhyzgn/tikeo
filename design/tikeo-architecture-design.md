@@ -2374,7 +2374,7 @@ Worker 集群与 tikeo server 集群都必须具备 master 选举能力。Server
 
 - [x] Worker 身份与会话生命周期治理（Worker Pool / Logical Worker / Worker Session 三层身份；兼容 K8s/Docker 与裸机/VM/systemd；generation + fencing token；graceful/replaced/heartbeat_timeout/transport_error 证据分级；历史归档与 Worker UI 分层，详见 `design/worker-identity-lifecycle-design.md`）
 - [x] 部署与运维 bootstrap（Compose/systemd/裸机模板与 K8s Helm Chart baseline；包含 Worker identity env、systemd worker 模板、readyz/Worker dry-run smoke、外部 DB Secret、TLS/mTLS Secret、Ingress、探针、资源参数、PodDisruptionBudget、NetworkPolicy、ServiceMonitor、Gateway API GRPCRoute、values.schema.json 与 rollback runbook）
-- [x] 独立文档站与 CI 验证（2026-06-10：`website/` Docusaurus 文档站已接入主 CI `Docs site` job，运行 docs contract、Bun frozen install、typecheck 与 build；`website/bun.lock` 使用公开 npm registry tarball URL，避免 GitHub Actions 依赖私有 npm 代理凭证；Rust/Go/Java/Python/Node SDK 页面已补 source-backed Management API create+trigger 示例，覆盖 `x-tikeo-api-key`、`triggerType=api`、默认 `executionMode=single` 与显式 broadcast selector helpers）
+- [x] 独立文档站与 CI 验证（2026-06-10：`website/` Docusaurus 文档站已接入主 CI `Docs site` job，运行 docs contract、Bun frozen install、typecheck 与 build；`website/bun.lock` 使用公开 npm registry tarball URL，避免 GitHub Actions 依赖私有 npm 代理凭证；Rust/Go/Java/Python/Node SDK 页面已补 source-backed Management API create+trigger 示例，覆盖 `x-tikeo-api-key`、`triggerType=api`、默认 `executionMode=single` 与显式 broadcast selector helpers；`scripts/management-trigger-e2e-smoke.sh` 已补真实 server + Node.js demo worker + Node.js SDK ManagementClient create/trigger e2e smoke，并接入 cross-language CI smoke job 产出 artifact）
 - [x] 多租户隔离增强（tenant/app/worker-pool scope policy 与 OIDC tenant binding 对齐；131：OIDC identity mapping API/UI 复用 scope binding，未映射 external subject 不签发本地 session）
 
 **P1 — 常见接入与生产治理**

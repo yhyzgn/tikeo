@@ -1444,3 +1444,9 @@ Verification evidence:
 - Docs and tests preserve the helper contract: API triggers use `triggerType=api`, default `executionMode=single`, and broadcast fan-out is only through explicit helpers/selectors with `broadcastSelector`.
 - Java management SDK gained the missing explicit broadcast helper: `BroadcastSelectorRequest` plus `TriggerJobRequest.broadcastApi(...)`.
 - Verification passed: RED->GREEN docs contract, RED->GREEN Java helper test, full docs contract, workflow contract, source-size audit, GitHub Actions runtime policy, full Java SDK tests, and Docusaurus frozen install/typecheck/build.
+
+### 2026-06-10 — Management API trigger e2e smoke
+- Added `scripts/management-trigger-e2e-smoke.sh`, a repeatable local/CI smoke that starts tikeo with an isolated SQLite DB/config under `.dev/reports/management-trigger-e2e-*`, bootstraps admin auth, seeds namespace/app/worker-pool, creates an app-scoped Service Account + `x-tikeo-api-key`, starts the Node.js demo worker over outbound Worker Tunnel, uses the Node.js SDK `ManagementClient` with `apiJob`/`apiTrigger` to create and trigger a job, then asserts `/api/v1/instances/{id}` reaches `succeeded` with `result.success=true` and `/logs` contains `nodejs demo echo processed`.
+- Added `.github/tests/management_smoke_contract_test.py` and workflow contract coverage for the smoke script, repository contract-test CI policy, CI smoke execution, and management-trigger artifact upload.
+- Main CI `workflow-policy` now runs repository contract tests, and `other-cross-language-smoke` now runs the management trigger e2e smoke after the cross-language worker parity smoke using the already-built server binary.
+- Verification passed: RED->GREEN management smoke contract, RED->GREEN workflow contract for CI wiring, real management trigger e2e smoke, full workflow/docs contracts, source-size audit, GitHub Actions Node runtime policy, YAML parse, `git diff --check`, and Rust workspace fmt/clippy/test/build.

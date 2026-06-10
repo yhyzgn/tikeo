@@ -2644,3 +2644,35 @@ Verification:
 
 Notes:
 - The docs slice did not change Docusaurus routing/baseUrl behavior, so route serve smoke was not required for this slice.
+
+## 2026-06-10 — Management API trigger e2e smoke
+
+Agent:
+- Codex
+
+Work:
+- Added `scripts/management-trigger-e2e-smoke.sh` for a repeatable server + worker + SDK Management API trigger smoke.
+- The smoke writes an isolated temp config and SQLite DB in `.dev/reports/management-trigger-e2e-*`, starts the local server, bootstraps an admin session, seeds namespace/app/worker pool, creates a Service Account and SDK API key, starts the Node.js demo worker over outbound Worker Tunnel, creates and triggers a job through the Node.js SDK `ManagementClient`, and validates instance result/log evidence.
+- Added `.github/tests/management_smoke_contract_test.py` plus workflow-contract checks so the script, CI policy contract tests, CI smoke step, and artifact upload remain wired.
+- Updated main CI to run repository contract tests in `workflow-policy` and to run the Management API trigger smoke in the cross-language smoke job after the existing parity smoke.
+
+Verification:
+- RED observed before script implementation: `python3 .github/tests/management_smoke_contract_test.py -k test_management_trigger_smoke_script_is_repeatable_and_source_backed` failed because `scripts/management-trigger-e2e-smoke.sh` did not exist.
+- RED observed before CI wiring: `python3 .github/tests/workflow_contract_test.py -k test_cross_language_job_runs_management_trigger_e2e_smoke` failed because the cross-language job did not run the new smoke.
+- RED observed before policy wiring: `python3 .github/tests/workflow_contract_test.py -k test_workflow_policy_runs_repository_contract_tests` failed because `workflow-policy` did not run repository contract tests.
+- `python3 .github/tests/management_smoke_contract_test.py` ✅
+- `python3 .github/tests/workflow_contract_test.py` ✅
+- `python3 .github/tests/docs_site_contract_test.py` ✅
+- `TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER=0 scripts/management-trigger-e2e-smoke.sh` ✅; latest evidence directory `.dev/reports/management-trigger-e2e-20260610T141518Z-129257/`, report `.dev/reports/management-trigger-e2e-20260610T141518Z-129257/management-trigger-e2e-20260610T141518Z-129257.json`.
+- `python3 scripts/check-source-size.py` ✅
+- `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` ✅
+- `.github/workflows/*.yml` YAML parse ✅
+- `git diff --check` ✅
+- `cargo fmt --all -- --check` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features -- --test-threads=1` ✅
+- `cargo build --workspace --all-features` ✅
+
+Notes:
+- The smoke uses app-scoped `x-tikeo-api-key` credentials only; no OIDC/browser session is used for SDK create/trigger.
+- The worker remains outbound-only via Worker Tunnel; no worker inbound port is opened.

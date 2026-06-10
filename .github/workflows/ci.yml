@@ -27,6 +27,10 @@ jobs:
           git remote set-url origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
       - name: Reject deprecated GitHub Actions Node runtimes
         run: python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24
+      - name: Validate repository contract tests
+        run: |
+          python3 .github/tests/workflow_contract_test.py
+          python3 .github/tests/management_smoke_contract_test.py
       - name: Enforce source file size budget
         run: python3 scripts/check-source-size.py
 
@@ -293,12 +297,23 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Run cross-language worker parity smoke
         run: deploy/smoke/cross-language-worker-parity-smoke.sh
+      - name: Run Management API trigger e2e smoke
+        env:
+          TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER: "0"
+        run: scripts/management-trigger-e2e-smoke.sh
       - name: Upload cross-language smoke report
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: cross-language-worker-smoke
           path: .dev/reports/cross-language-workers-*/*
+          if-no-files-found: warn
+      - name: Upload management trigger e2e smoke report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: management-trigger-e2e-smoke
+          path: .dev/reports/management-trigger-e2e-*/*
           if-no-files-found: warn
 
   other-docker-build-server:
