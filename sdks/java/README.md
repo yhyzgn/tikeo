@@ -2,9 +2,11 @@
 
 [🇨🇳 中文 SDK 文档](../../README.zh-CN.md#行为一致的-sdk) · [Full docs site page](../../website/docs/sdks/java-spring-boot.md) · [Shared configuration reference](../../website/docs/reference/configuration.md#sdk-and-worker-configuration)
 
-Tikeo Java SDK artifacts are published to Maven Central under group `net.tikeo`. The default choice for new Java services is **Spring Boot 4** with `net.tikeo:tikeo-spring-boot-starter`.
+Tikeo Java SDK artifacts are published to Maven Central under group `net.tikeo`. The default choice for new Java services is **Spring Boot 4** with `net.tikeo:tikeo-spring-boot-starter`, the primary Spring Boot 4.x starter.
 
 Add **exactly one** Tikeo dependency to each service. Starters and adapters already declare their upstream Tikeo modules transitively, so do not also add `tikeo`, `tikeo-spring*`, or another starter unless you are intentionally replacing the selected artifact.
+
+Use `tikeo-spring-boot3-starter` for Spring Boot 3.x projects and `tikeo-spring-boot2-starter` for Spring Boot 2.x projects; these compatibility lines have separate source, resource, dependency, and test boundaries.
 
 ## Runtime and version placeholder
 
