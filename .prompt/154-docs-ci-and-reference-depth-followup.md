@@ -12,18 +12,21 @@ The standalone docs site has a verified P0 content/localization/deployment basel
 - SDK docs cover Rust, Go, Java Spring Boot, Python, and Node.js.
 - Deployment docs include copy-paste runbooks for single binary/systemd, full Docker Compose SQLite/PostgreSQL/MySQL YAML files, Helm dev/prod/TLS/ops overlays, and configuration parameters.
 - Local root `/` and optional `/tikeo/` builds/serve smokes are green for zh-CN language-switch routes; locale-isolation smoke confirms `/` remains English and `/zh-CN/` is Chinese.
+- Main CI now has a dedicated `Docs site` job that runs docs contract, frozen Bun install, Docusaurus typecheck, and Docusaurus build.
+- `website/bun.lock` uses public `https://registry.npmjs.org/` tarball URLs and docs contract tests reject private registry hosts, so CI docs verification does not need private npm proxy credentials.
 
 ## Recommended next slice
 
-1. Add docs verification to CI.
-   - Decide whether to extend main CI or create a docs-specific workflow.
-   - Minimum commands: `python3 .github/tests/docs_site_contract_test.py`, `cd website && bun install --frozen-lockfile`, `bun run docs:typecheck`, and `bun run docs:build`.
-   - For standalone docs deployment, keep the default `TIKEO_DOCS_BASE_URL=/`; for GitHub Pages project hosting, set `TIKEO_DOCS_BASE_URL=/tikeo/`.
+1. Extend SDK and reference depth with source-backed examples.
+   - Add all-language Management API create+trigger examples (`triggerType=api`, default `executionMode=single`, explicit broadcast selector helpers).
+   - Link SDK helpers to `POST /api/v1/jobs/{job}:trigger` and app-scoped `x-tikeo-api-key` behavior.
+   - Keep Java Spring Boot 2/3/4 controller examples aligned with the existing demo endpoints.
 2. Select and document final docs hosting.
    - If using a standalone domain: verify `/zh-CN/...` after deployment.
    - If using GitHub Pages project hosting: set `TIKEO_DOCS_URL=https://yhyzgn.github.io`, `TIKEO_DOCS_BASE_URL=/tikeo/`, and verify `/tikeo/zh-CN/...`.
-3. Expand source-backed reference depth.
-   - SDK overview and cross-language parity guide.
+3. Add docs search/publish readiness.
+   - Canonical URL, robots policy, OpenGraph image, local search or DocSearch plan, and maintained `llms.txt` strategy.
+4. Expand user/reference depth.
    - User guide pages for Dashboard, Jobs, Instances, Workers, Workflows, Scripts, Audit, and Settings.
    - Generated or source-derived OpenAPI/protobuf references.
    - Configuration/environment variable matrix generated from committed config structures or examples.
@@ -42,6 +45,7 @@ Before committing any next docs slice, run:
 
 ```bash
 python3 .github/tests/docs_site_contract_test.py
+python3 .github/tests/workflow_contract_test.py
 python3 scripts/check-source-size.py
 cd website
 bun install --frozen-lockfile
@@ -50,3 +54,11 @@ bun run docs:build
 ```
 
 For route/baseUrl changes, also run `bun run docs:serve` and curl affected English and zh-CN routes under both `/tikeo/` and `/` when relevant.
+
+Also keep `website/bun.lock` free of private registry tarball URLs before pushing:
+
+```bash
+rg "nexus3\\.recycloud\\.cn|repository/npm-public" website/bun.lock
+```
+
+Expected: no matches.

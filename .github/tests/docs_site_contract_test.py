@@ -38,6 +38,12 @@ class DocsSiteContractTest(unittest.TestCase):
         self.assertIn("@docusaurus/core", package.get("dependencies", {}))
         self.assertIn("@docusaurus/preset-classic", package.get("dependencies", {}))
 
+    def test_docs_lockfile_uses_public_registry_for_ci(self):
+        lockfile = (WEBSITE / "bun.lock").read_text()
+        self.assertNotIn("nexus3.recycloud.cn", lockfile)
+        self.assertNotIn("repository/npm-public", lockfile)
+        self.assertIn("https://registry.npmjs.org/", lockfile)
+
     def test_website_config_exposes_bilingual_tikeo_navigation(self):
         config = (WEBSITE / "docusaurus.config.ts").read_text()
         self.assertIn("title: 'Tikeo'", config)

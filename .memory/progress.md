@@ -1430,3 +1430,10 @@ Verification evidence:
 - `PATCH /api/v1/jobs/{job}` persists namespace/app changes into `namespace_id`/`app_id`, creates a job version snapshot for scope moves, and checks both source and target scope bindings.
 - Canary targets are constrained to the destination namespace/app during job updates; Web create/edit selectors filter canary candidates by selected scope and clear stale selections when scope changes.
 - Verification passed: targeted backend/Web RED->GREEN tests, workspace Rust fmt/clippy/test/build, Web typecheck/test/build, source-size audit, and diff whitespace check.
+
+### 2026-06-10 — Docs site CI verification gate
+- Main CI now includes a dedicated `Docs site` job after `workflow-policy`.
+- The job runs `python3 .github/tests/docs_site_contract_test.py`, `cd website && bun install --frozen-lockfile`, `bun run docs:typecheck`, and `bun run docs:build`.
+- `website/bun.lock` now uses public `https://registry.npmjs.org/` tarball URLs instead of the previous private Nexus tarball host, so GitHub Actions docs verification does not require private npm proxy credentials.
+- Workflow/docs contract tests now guard both the CI job shape and public-registry lockfile requirement.
+- Verification passed locally: workflow contract, docs contract, source-size audit, GitHub Actions Node runtime policy, workflow YAML parse, git diff whitespace check, and the full website Bun install/typecheck/build sequence.

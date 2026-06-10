@@ -42,6 +42,7 @@ class WorkflowContractTest(unittest.TestCase):
         expected_job_names = {
             "server": "name: Server",
             "web": "name: Web",
+            "docs-site": "name: Docs site",
             "java-sdk-demo": "name: Java SDK + demo",
             "rust-sdk-demo": "name: Rust SDK + demo",
             "go-sdk-demo": "name: Go SDK + demo",
@@ -96,6 +97,7 @@ class WorkflowContractTest(unittest.TestCase):
         for job in [
             "server",
             "web",
+            "docs-site",
             "java-sdk-demo",
             "go-sdk-demo",
             "other-deploy-tools",
@@ -106,6 +108,17 @@ class WorkflowContractTest(unittest.TestCase):
             job_block = workflow_job_block(CI, job)
             self.assertIn("needs: workflow-policy", job_block)
 
+    def test_ci_runs_docs_site_verification(self):
+        docs_job = workflow_job_block(CI, "docs-site")
+        self.assertIn("name: Docs site", docs_job)
+        self.assertIn("needs: workflow-policy", docs_job)
+        self.assertIn("uses: oven-sh/setup-bun@v2", docs_job)
+        self.assertIn("bun-version: latest", docs_job)
+        self.assertIn("python3 .github/tests/docs_site_contract_test.py", docs_job)
+        self.assertIn("working-directory: website", docs_job)
+        self.assertIn("bun install --frozen-lockfile", docs_job)
+        self.assertIn("bun run docs:typecheck", docs_job)
+        self.assertIn("bun run docs:build", docs_job)
 
     def test_ci_enforces_source_size_before_runtime_jobs(self):
         self.assertTrue((ROOT / "scripts/check-source-size.py").exists())

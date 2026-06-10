@@ -2581,3 +2581,35 @@ Git:
 Git result for job scope edit slice:
 - Code/docs/memory commit pushed: `5913259` (`Allow job scope moves without breaking tenant boundaries`)
 - Remote push: `git push origin main` succeeded (`339942a..5913259 main -> main`).
+
+## 2026-06-10 — Docs site CI verification gate
+
+Agent:
+- Codex
+
+Work:
+- Added a dedicated `Docs site` job to the main `.github/workflows/ci.yml`, gated by `workflow-policy`.
+- The job validates docs with `.github/tests/docs_site_contract_test.py`, frozen Bun dependency install, Docusaurus TypeScript check, and Docusaurus build.
+- Added workflow contract coverage for the new job and docs contract coverage to prevent `website/bun.lock` from depending on private registry tarball URLs.
+- Rewrote docs lockfile tarball URLs from the private Nexus host to `https://registry.npmjs.org/` while preserving locked versions and integrity hashes.
+- Updated architecture roadmap, memory, and follow-up prompt so the next docs work can focus on SDK/reference depth and publishing/search readiness.
+
+Verification:
+- RED observed before CI wiring: `python3 .github/tests/workflow_contract_test.py -k test_ci_runs_docs_site_verification` failed with `job not found: docs-site`.
+- RED observed before lockfile fix: `python3 .github/tests/docs_site_contract_test.py -k test_docs_lockfile_uses_public_registry_for_ci` failed because `website/bun.lock` contained `nexus3.recycloud.cn`.
+- `python3 .github/tests/workflow_contract_test.py -k test_ci_runs_docs_site_verification` ✅
+- `python3 .github/tests/docs_site_contract_test.py -k test_docs_lockfile_uses_public_registry_for_ci` ✅
+- `python3 .github/tests/workflow_contract_test.py` ✅
+- `python3 .github/tests/docs_site_contract_test.py` ✅
+- `python3 scripts/check-source-size.py` ✅
+- `python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24` ✅
+- `.github/workflows/*.yml` YAML parse ✅
+- `cd website && bun install --frozen-lockfile && bun run docs:typecheck && bun run docs:build` ✅
+- `git diff --check` ✅
+
+Notes:
+- Initial local `bun install --frozen-lockfile` failed with 401 responses from the private Nexus host recorded in the docs lockfile; this is the failure mode the new public-registry lockfile contract prevents for CI.
+
+Git result for docs CI gate slice:
+- Code/docs/memory commit prepared: `709283d` (`Keep docs verification from depending on private registries`)
+- Remote push: pending.

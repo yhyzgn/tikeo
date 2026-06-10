@@ -75,6 +75,27 @@ jobs:
         working-directory: web
         run: bun run build
 
+  docs-site:
+    name: Docs site
+    runs-on: ubuntu-latest
+    needs: workflow-policy
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Validate docs site contract
+        run: python3 .github/tests/docs_site_contract_test.py
+      - name: Install docs dependencies
+        working-directory: website
+        run: bun install --frozen-lockfile
+      - name: Typecheck docs site
+        working-directory: website
+        run: bun run docs:typecheck
+      - name: Build docs site
+        working-directory: website
+        run: bun run docs:build
+
   java-sdk-demo:
     name: Java SDK + demo
     runs-on: ubuntu-latest

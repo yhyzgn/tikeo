@@ -631,6 +631,7 @@ python3 scripts/check-source-size.py
 ## 2026-06-08 docs site verification
 
 ```bash
+python3 .github/tests/docs_site_contract_test.py
 cd website
 bun install --frozen-lockfile
 bun run docs:typecheck
@@ -642,3 +643,28 @@ curl -fsS http://127.0.0.1:13030/zh-CN/docs/
 curl -fsS http://127.0.0.1:13030/docs/getting-started/quickstart
 curl -fsS http://127.0.0.1:13030/llms.txt
 ```
+
+## 2026-06-10 docs CI verification
+
+Main CI now runs the docs site as a dedicated `Docs site` job. Local equivalent:
+
+```bash
+python3 .github/tests/workflow_contract_test.py
+python3 .github/tests/docs_site_contract_test.py
+python3 scripts/check-source-size.py
+python3 scripts/verify-github-actions-node-runtime.py --min-node-major 24
+python3 - <<'PY'
+from pathlib import Path
+import yaml
+for path in sorted(Path('.github/workflows').glob('*.yml')):
+    with path.open() as fh:
+        yaml.safe_load(fh)
+print('workflow YAML parse OK')
+PY
+cd website
+bun install --frozen-lockfile
+bun run docs:typecheck
+bun run docs:build
+```
+
+Docs lockfile guard: `website/bun.lock` must use public `https://registry.npmjs.org/` tarball URLs so GitHub Actions docs verification does not depend on private npm proxy credentials.
