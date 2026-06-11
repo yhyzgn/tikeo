@@ -1258,4 +1258,10 @@ export const messages: Record<string, string> = {
     "开启替换渠道配置后才能修改消息类型和 inline 模板字段。": "开启替换渠道配置后才能修改消息类型和 inline 模板字段。",
     "开启替换渠道配置后才能修改高级配置 JSON。": "开启替换渠道配置后才能修改高级配置 JSON。",
     "开启替换密钥引用后才能修改高级密钥引用对象。": "开启替换密钥引用后才能修改高级密钥引用对象。",
+    "通知节点会写入 Notification Center": "通知节点会写入 Notification Center",
+    "默认不阻塞工作流。选择渠道后保存为 config.channelRefs；不选择渠道时必须开启 usePolicies，由已有 workflow/workflow_node 策略匹配。": "默认不阻塞工作流。选择渠道后保存为 config.channelRefs；不选择渠道时必须开启 usePolicies，由已有 workflow/workflow_node 策略匹配。",
+    "选择通知渠道": "选择通知渠道",
+    "选择通知模板（可选）": "选择通知模板（可选）",
+    "消息标题 subject": "消息标题 subject",
+    "消息正文 body": "消息正文 body",
 };

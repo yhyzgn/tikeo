@@ -2938,3 +2938,41 @@ Constraints preserved:
 - Use bun/bunx for docs/frontend commands.
 - Do not overclaim live external SaaS notification smoke or a real channel test-send endpoint.
 - Keep `.memory`, `.prompt`, and project memory fresh after meaningful work.
+
+## 2026-06-12 — Notification Center workflow notification ref validation hardening
+
+Agent:
+- Codex
+
+Work:
+- Completed the acceptance-stage hardening for workflow notification nodes after code review found a real fail-open gap.
+- Workflow `notification` nodes now use registered Notification Center channel/template selectors instead of legacy raw `channel/target/template` fields.
+- HTTP workflow dry-run/create/update/validate paths now add storage-aware validation for notification nodes:
+  - every `config.channelRefs[].channelId` must exist;
+  - referenced channels must be enabled;
+  - `config.templateRef` must exist and be enabled;
+  - template provider must match all selected channel providers.
+- Runtime inline workflow notification policy materialization validates the same refs fail-closed, so stale/deleted/disabled refs do not create a successful-looking message without delivery attempts.
+- Alert `alert.firing` / `alert.recovered` docs were corrected to match implementation: alert events are materialized by Notification Center for matching `global` / `alert_rule` policies.
+- English/zh-CN workflow docs now describe inline channel refs, policy mode, and rejection of old raw target nodes.
+
+Verification:
+- RED: `cargo test -p tikeo-server workflow_notification_node_validates_registered_channel_and_template_refs -- --nocapture` failed before implementation because missing channel refs produced no validation errors.
+- GREEN targeted: `cargo test -p tikeo-server workflow_notification_node_validates_registered_channel_and_template_refs -- --nocapture` passed after implementation.
+- Targeted regression: `cargo test -p tikeo-server workflow_notification_node -- --nocapture` passed.
+- Policy regression: `cargo test -p tikeo-server notification_center_api_redacts_channels_and_validates_policies -- --nocapture` passed.
+- Full backend/frontend/docs chain passed fresh after the fix:
+  - `cargo fmt --all -- --check`
+  - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+  - `cargo test --workspace --all-features` (server 199 tests; all workspace tests passed)
+  - `cargo build --workspace --all-features`
+  - `bun run --cwd web lint`
+  - `bun run --cwd web typecheck`
+  - `bun test web/src` (140 passed)
+  - `bun run --cwd web build`
+  - `bun run --cwd docs docs:build`
+  - `python3 -m pytest .github/tests -q` (47 passed, 8 subtests)
+- Docker builds before the final code-review fix passed locally for server/web/docs; rerun release image builds before final commit if source/docs changed after that point.
+
+Git:
+- Pending final review, commit, push, tag, and GitHub Actions monitoring.

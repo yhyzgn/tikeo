@@ -1,8 +1,17 @@
 //! Script execution governance audit materialization helpers.
 
-use crate::alert::{AlertDispatcher, AlertPayload, Severity, notification_channels_from_json};
+use crate::{
+    alert::{AlertDispatcher, AlertPayload, Severity, notification_channels_from_json},
+    notification::{
+        NotificationCenter, emit_alert_event_best_effort,
+        ensure_alert_rule_notification_policy_from_channels,
+    },
+};
 use tikeo_storage::{
-    AlertRepository, AuditLogRepository, CreateAuditLog, RecordAlertDeliveryAttempt,
+    AlertRepository, AuditLogRepository, CreateAuditLog, JobRepository,
+    NotificationChannelRepository, NotificationDeliveryAttemptRepository,
+    NotificationMessageRepository, NotificationPolicyRepository, NotificationTemplateRepository,
+    RecordAlertDeliveryAttempt,
 };
 
 const GOVERNANCE_EVENT: &str = "script_execution_governance";
@@ -47,6 +56,7 @@ pub async fn materialize_script_governance_audit(
     let events = alerts
         .record_script_governance_failure(instance_id, failure_class, message)
         .await?;
+    let notifications = notification_center_from_audit(audit);
     for event in events.into_iter().filter(|event| event.status == "firing") {
         let Some(rule) = alerts.get_rule(&event.rule_id).await? else {
             continue;
@@ -58,6 +68,14 @@ pub async fn materialize_script_governance_audit(
             .filter(|plugin| plugin.enabled)
             .flat_map(|plugin| plugin.alert_channel_types)
             .collect::<Vec<_>>();
+        let _policy = ensure_alert_rule_notification_policy_from_channels(
+            &rule,
+            &NotificationChannelRepository::new(audit.db()),
+            &NotificationPolicyRepository::new(audit.db()),
+            &plugins,
+        )
+        .await?;
+        emit_alert_event_best_effort(&notifications, &event).await;
         let channels = notification_channels_from_json(&rule.channels_json, &plugins);
         let payload = AlertPayload {
             rule_name: event.rule_name,
@@ -99,6 +117,18 @@ pub async fn materialize_script_governance_audit(
         }
     }
     Ok(())
+}
+
+fn notification_center_from_audit(audit: &AuditLogRepository) -> NotificationCenter {
+    let db = audit.db();
+    NotificationCenter::new(
+        NotificationChannelRepository::new(db.clone()),
+        NotificationPolicyRepository::new(db.clone()),
+        NotificationMessageRepository::new(db.clone()),
+        NotificationDeliveryAttemptRepository::new(db.clone()),
+        NotificationTemplateRepository::new(db.clone()),
+        JobRepository::new(db),
+    )
 }
 
 /// Build the canonical governance event payload shared by instance logs and audit rows.

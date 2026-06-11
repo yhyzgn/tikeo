@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { Alert, Button, Card, Form, Input, List, Popconfirm, Segmented, Select, Space, Tag, Timeline, Typography, message } from 'antd';
+import { Alert, Button, Card, Form, Input, List, Popconfirm, Segmented, Select, Space, Switch, Tag, Timeline, Typography, message } from 'antd';
 import {
   advanceWorkflowInstance,
   createWorkflow,
@@ -30,6 +30,13 @@ import {
   type WorkflowShardSummary,
   type WorkflowSummary,
 } from '../api/client';
+import {
+  listNotificationChannels,
+  listNotificationTemplates,
+  type NotificationChannelSummary,
+  type NotificationTemplateSummary,
+} from '../api/notifications';
+import { notificationTemplateOptions, selectedPolicyProviders } from './notifications/templateCatalog';
 import { PermissionGate, useCan } from '../components/Permission';
 import { useRouteActive } from '../hooks/useRouteActivation';
 import { useUrlQueryState } from '../hooks/useUrlQueryState';
@@ -201,7 +208,7 @@ function makeNode(kind: string, index: number): WorkflowNodeSpec {
     join: { quorum: 'all' },
     delay: { seconds: '60' },
     approval: { approvers: 'role:ops', timeout: '24h' },
-    notification: { channel: 'webhook', target: '', template: '' },
+    notification: { usePolicies: true, channelRefs: [], templateRef: undefined, severity: 'info', subject: '', body: '' },
     compensation: { compensates: '', strategy: 'saga' },
     file_cleanup: { paths: [], allowedRoots: [], dryRun: true, recursive: false },
   };
@@ -292,7 +299,7 @@ function edgeConditionMeta(condition: string | null | undefined, fromNode?: Work
     ?? { label: value, value, color: '#2563eb' };
 }
 
-function DagPreview({ definition, instance, jobs = [], workflows = [], currentWorkflowId, editable = false, onChange }: { definition: WorkflowDefinition; instance?: WorkflowInstanceSummary | null; jobs?: JobSummary[]; workflows?: WorkflowSummary[]; currentWorkflowId?: string | null; editable?: boolean; onChange?: (definition: WorkflowDefinition) => void }) {
+function DagPreview({ definition, instance, jobs = [], workflows = [], notificationChannels = [], notificationTemplates = [], currentWorkflowId, editable = false, onChange }: { definition: WorkflowDefinition; instance?: WorkflowInstanceSummary | null; jobs?: JobSummary[]; workflows?: WorkflowSummary[]; notificationChannels?: NotificationChannelSummary[]; notificationTemplates?: NotificationTemplateSummary[]; currentWorkflowId?: string | null; editable?: boolean; onChange?: (definition: WorkflowDefinition) => void }) {
   const [dragging, setDragging] = useState<{ key: string; offsetX: number; offsetY: number } | null>(null);
   const [linkDrag, setLinkDrag] = useState<{ from: string; x: number; y: number } | null>(null);
   const [edgeDrag, setEdgeDrag] = useState<{ index: number; side: 'from' | 'to'; anchorKey: string; x: number; y: number } | null>(null);
@@ -326,6 +333,15 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], currentWo
   const workflowOptions = workflows
     .filter((workflow) => workflow.id !== currentWorkflowId)
     .map((workflow) => ({ label: `${workflow.name} · ${workflow.status} · ${workflow.id}`, value: workflow.id }));
+  const enabledNotificationChannels = notificationChannels.filter((channel) => channel.enabled);
+  const notificationChannelOptions = enabledNotificationChannels.map((channel) => ({
+    label: `${channel.name} · ${channel.provider} · ${channel.targetRedacted}`,
+    value: channel.id,
+  }));
+  const notificationTemplateOptionForChannels = (channelIds: string[]) => notificationTemplateOptions(
+    notificationTemplates,
+    selectedPolicyProviders(enabledNotificationChannels, channelIds),
+  );
 
   const update = (next: WorkflowDefinition) => onChange?.(next);
   const toCanvasPoint = (event: PointerEvent<Element>) => {
@@ -352,6 +368,17 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], currentWo
       const config = (typeof node.config === 'object' && node.config !== null ? node.config : {}) as Record<string, unknown>;
       return { ...node, config: { ...config, ...patch } };
     }),
+  });
+  const selectedNotificationChannelIds = (node: WorkflowNodeSpec | null): string[] => {
+    const refs = ((node?.config as { channelRefs?: Array<{ channelId?: string } | string> } | undefined)?.channelRefs ?? []) as Array<{ channelId?: string } | string>;
+    return refs.flatMap((item) => {
+      if (typeof item === 'string') return item.trim() ? [item] : [];
+      return item.channelId?.trim() ? [item.channelId] : [];
+    });
+  };
+  const updateNotificationChannelRefs = (key: string, channelIds: string[]) => updateNodeConfig(key, {
+    usePolicies: channelIds.length === 0,
+    channelRefs: channelIds.map((channelId) => ({ channelId })),
   });
   const updateMapItems = (key: string, raw: string) => {
     try {
@@ -748,11 +775,18 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], currentWo
             {nodeKind(selectedNode) === 'notification' ? (
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Typography.Text strong>通知节点</Typography.Text>
-                <Space wrap>
-                  <Select value={(selectedNode.config as { channel?: string } | undefined)?.channel ?? 'webhook'} style={{ width: 160 }} options={['webhook', 'email', 'lark', 'dingtalk'].map((value) => ({ value, label: value }))} onChange={(value) => updateNodeConfig(selectedNode.key, { channel: value })} />
-                  <Input placeholder="目标地址 / 群 / 收件人" value={(selectedNode.config as { target?: string } | undefined)?.target ?? ''} style={{ width: 360 }} onChange={(event) => updateNodeConfig(selectedNode.key, { target: event.target.value })} />
+                <Alert type="info" showIcon message="通知节点会写入 Notification Center" description="默认不阻塞工作流。选择渠道后保存为 config.channelRefs；不选择渠道时必须开启 usePolicies，由已有 workflow/workflow_node 策略匹配。" />
+                <Space wrap align="center">
+                  <Typography.Text>策略模式</Typography.Text>
+                  <Switch checked={Boolean((selectedNode.config as { usePolicies?: boolean } | undefined)?.usePolicies ?? selectedNotificationChannelIds(selectedNode).length === 0)} onChange={(checked) => updateNodeConfig(selectedNode.key, { usePolicies: checked, channelRefs: checked ? [] : ((selectedNode.config as { channelRefs?: unknown } | undefined)?.channelRefs ?? []) })} />
+                  <Select mode="multiple" allowClear placeholder="选择通知渠道" value={selectedNotificationChannelIds(selectedNode)} style={{ minWidth: 360 }} options={notificationChannelOptions} disabled={Boolean((selectedNode.config as { usePolicies?: boolean } | undefined)?.usePolicies)} onChange={(values) => updateNotificationChannelRefs(selectedNode.key, values)} />
                 </Space>
-                <Input.TextArea rows={3} placeholder="通知模板" value={(selectedNode.config as { template?: string } | undefined)?.template ?? ''} onChange={(event) => updateNodeConfig(selectedNode.key, { template: event.target.value })} />
+                <Select allowClear showSearch placeholder="选择通知模板（可选）" value={(selectedNode.config as { templateRef?: string } | undefined)?.templateRef ?? undefined} style={{ width: '100%' }} options={notificationTemplateOptionForChannels(selectedNotificationChannelIds(selectedNode))} filterOption={(input, option) => String(option?.label ?? option?.value ?? '').toLowerCase().includes(input.toLowerCase())} onChange={(value) => updateNodeConfig(selectedNode.key, { templateRef: value })} />
+                <Space wrap>
+                  <Select value={(selectedNode.config as { severity?: string } | undefined)?.severity ?? 'info'} style={{ width: 160 }} options={['info', 'warning', 'critical'].map((value) => ({ value, label: value }))} onChange={(value) => updateNodeConfig(selectedNode.key, { severity: value })} />
+                  <Input placeholder="消息标题 subject" value={(selectedNode.config as { subject?: string } | undefined)?.subject ?? ''} style={{ width: 420 }} onChange={(event) => updateNodeConfig(selectedNode.key, { subject: event.target.value })} />
+                </Space>
+                <Input.TextArea rows={3} placeholder="消息正文 body" value={(selectedNode.config as { body?: string } | undefined)?.body ?? ''} onChange={(event) => updateNodeConfig(selectedNode.key, { body: event.target.value })} />
               </Space>
             ) : null}
 
@@ -1027,6 +1061,8 @@ export function WorkflowsPage() {
 export function WorkflowEditorPage() {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
+  const [notificationChannels, setNotificationChannels] = useState<NotificationChannelSummary[]>([]);
+  const [notificationTemplates, setNotificationTemplates] = useState<NotificationTemplateSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [previewMode, setPreviewMode] = useState<'visual' | 'json' | 'yaml' | 'diff'>('visual');
   const [draft, setDraft] = useState(DEFAULT_DEFINITION);
@@ -1041,9 +1077,16 @@ export function WorkflowEditorPage() {
   const fetchEditorData = async () => {
     setLoading(true);
     try {
-      const [jobPage, workflowItems] = await Promise.all([listJobs(), listWorkflows()]);
+      const [jobPage, workflowItems, notificationChannelItems, notificationTemplateItems] = await Promise.all([
+        listJobs(),
+        listWorkflows(),
+        listNotificationChannels({ enabled: true }),
+        listNotificationTemplates({ enabled: true }),
+      ]);
       setJobs(jobPage.items);
       setWorkflows(workflowItems);
+      setNotificationChannels(notificationChannelItems);
+      setNotificationTemplates(notificationTemplateItems);
       if (workflowId) {
         const workflow = await getWorkflow(workflowId);
         form.setFieldsValue({ name: workflow.name });
@@ -1116,7 +1159,7 @@ export function WorkflowEditorPage() {
           <Form.Item><Button type="primary" htmlType="submit">{isEdit ? '保存工作流' : '创建工作流'}</Button></Form.Item>
           {dryRun ? <Alert type={dryRun.validation.valid ? 'success' : 'error'} message={dryRun.validation.valid ? 'Dry-run 通过' : 'Dry-run 失败'} description={`start: ${dryRun.startNodes.join(', ') || '-'} · nodes: ${dryRun.nodeCount} · edges: ${dryRun.edgeCount}${dryRun.validation.errors.length ? ` · ${dryRun.validation.errors.join('; ')}` : ''}`} /> : null}
         </Form>
-        {previewDefinition && previewMode === 'visual' ? <DagPreview definition={previewDefinition} jobs={jobs} workflows={workflows} currentWorkflowId={workflowId ?? null} editable onChange={updateDefinition} /> : null}
+        {previewDefinition && previewMode === 'visual' ? <DagPreview definition={previewDefinition} jobs={jobs} workflows={workflows} notificationChannels={notificationChannels} notificationTemplates={notificationTemplates} currentWorkflowId={workflowId ?? null} editable onChange={updateDefinition} /> : null}
         {previewMode === 'json' ? <Input.TextArea className="workflow-definition-preview" rows={18} spellCheck={false} value={draft} onChange={(event) => { setDraft(event.target.value); setDryRun(null); }} /> : null}
         {previewMode === 'yaml' ? <Input.TextArea className="workflow-definition-preview" rows={18} spellCheck={false} value={yamlPreview || 'JSON 解析失败，无法生成 YAML'} readOnly /> : null}
         {previewMode === 'diff' ? <WorkflowDefinitionDiff baseline={baselineDraft} draft={draft} /> : null}

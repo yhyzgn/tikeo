@@ -48,7 +48,7 @@ Still not implemented unless a later slice adds it:
 
 1. `POST /api/v1/notification-channels/{id}:test`; metadata must remain `supportsTestSend=false` until implemented with persisted attempts and redacted results.
 2. Alert rule automatic migration/dual-write to Notification Center policies.
-3. Workflow `notification` node migration to registered channel/template refs.
+3. Workflow `notification` node migration is now implemented after this handoff: use registered Notification Center channel/template refs with fail-closed validation. Future work should focus on richer UI interaction tests and policy-mode observability, not raw target migration.
 4. Live SaaS smoke against Slack/DingTalk/Feishu/WeCom/PagerDuty; credentials are not present.
 5. Email HTML/MIME delivery runtime. The drawer stores an HTML template shape, but runtime still uses the existing text/plain SMTP adapter.
 6. Template policy impact preview/cascade guard on delete. `templateRef` is a soft link; deleting templates should be operationally guarded in a future slice.

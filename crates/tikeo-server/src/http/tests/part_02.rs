@@ -411,6 +411,22 @@
             json["data"]["condition"]["type"],
             "script_governance_failure"
         );
+        let created_text = json["data"]["channels"].to_string();
+        assert!(!created_text.contains("token=secret"));
+        assert_eq!(json["data"]["channels"][0]["target_redacted"], "http://127.0.0.1:9/...");
+        let listed = app
+            .clone()
+            .oneshot(admin_request_builder(app.clone(), "GET", "/api/v1/alert-rules").await)
+            .await
+            .unwrap_or_else(|error| panic!("alert rule list should respond: {error}"));
+        let body = axum::body::to_bytes(listed.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let listed_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        let listed_text = listed_json["data"].to_string();
+        assert!(!listed_text.contains("token=secret"));
+        assert_eq!(listed_json["data"][0]["channels"][0]["target_redacted"], "http://127.0.0.1:9/...");
 
         crate::tunnel::governance::materialize_script_governance_audit(
             &AuditLogRepository::new(db.clone()),

@@ -20,6 +20,10 @@ use crate::{
         },
         error::ApiError,
     },
+    notification::{
+        NotificationCenter, emit_alert_event_best_effort,
+        ensure_alert_rule_notification_policy_from_channels,
+    },
 };
 
 #[derive(Debug, Clone, Default, Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
@@ -59,20 +63,10 @@ pub async fn list_alert_rules(
         .list_rules()
         .await
         .map_err(|error| ApiError::storage(&error))?
-        .into_iter()
-        .map(|rule| AlertRuleSummary {
-            id: rule.id,
-            name: rule.name,
-            severity: rule.severity,
-            condition: serde_json::from_str(&rule.condition_json)
-                .unwrap_or(serde_json::Value::Null),
-            channels: serde_json::from_str(&rule.channels_json).unwrap_or_default(),
-            enabled: rule.enabled,
-            dedupe_seconds: u64::try_from(rule.dedupe_seconds).unwrap_or(0),
-            silenced_until: rule.silenced_until,
-            created_at: rule.created_at,
-            updated_at: rule.updated_at,
-        })
+        .into_iter();
+    let plugin_channel_types = enabled_plugin_alert_channel_types(&state).await?;
+    let items = items
+        .map(|rule| alert_rule_response(rule, &plugin_channel_types))
         .collect();
     Ok(Json(ApiResponse::success(items)))
 }
@@ -166,6 +160,51 @@ fn channel_status(
         target_redacted,
         transport_security,
         issues,
+    }
+}
+
+async fn enabled_plugin_alert_channel_types(
+    state: &AppState,
+) -> Result<Vec<tikeo_storage::PluginAlertChannelTypeSummary>, ApiError> {
+    state
+        .plugins
+        .list_plugins()
+        .await
+        .map_err(|error| ApiError::storage(&error))
+        .map(|plugins| {
+            plugins
+                .into_iter()
+                .filter(|plugin| plugin.enabled)
+                .flat_map(|plugin| plugin.alert_channel_types)
+                .collect()
+        })
+}
+
+fn alert_rule_response(
+    rule: tikeo_storage::AlertRuleSummary,
+    plugin_channel_types: &[tikeo_storage::PluginAlertChannelTypeSummary],
+) -> AlertRuleSummary {
+    let channel_values: Vec<serde_json::Value> =
+        serde_json::from_str(&rule.channels_json).unwrap_or_default();
+    let channels = channel_values
+        .iter()
+        .enumerate()
+        .map(|(index, value)| {
+            serde_json::to_value(channel_status(index, value, plugin_channel_types))
+                .unwrap_or_else(|_| serde_json::json!({}))
+        })
+        .collect();
+    AlertRuleSummary {
+        id: rule.id,
+        name: rule.name,
+        severity: rule.severity,
+        condition: serde_json::from_str(&rule.condition_json).unwrap_or(serde_json::Value::Null),
+        channels,
+        enabled: rule.enabled,
+        dedupe_seconds: u64::try_from(rule.dedupe_seconds).unwrap_or(0),
+        silenced_until: rule.silenced_until,
+        created_at: rule.created_at,
+        updated_at: rule.updated_at,
     }
 }
 
@@ -319,18 +358,19 @@ pub async fn create_alert_rule(
         })
         .await
         .map_err(|error| ApiError::storage(&error))?;
-    Ok(Json(ApiResponse::success(AlertRuleSummary {
-        id: created.id,
-        name: created.name,
-        severity: created.severity,
-        condition: serde_json::from_str(&created.condition_json).unwrap_or(serde_json::Value::Null),
-        channels: serde_json::from_str(&created.channels_json).unwrap_or_default(),
-        enabled: created.enabled,
-        dedupe_seconds: u64::try_from(created.dedupe_seconds).unwrap_or(0),
-        silenced_until: created.silenced_until,
-        created_at: created.created_at,
-        updated_at: created.updated_at,
-    })))
+    let plugin_channel_types = enabled_plugin_alert_channel_types(&state).await?;
+    let _policy = ensure_alert_rule_notification_policy_from_channels(
+        &created,
+        &state.notification_channels,
+        &state.notification_policies,
+        &plugin_channel_types,
+    )
+    .await
+    .map_err(|error| ApiError::storage(&error))?;
+    Ok(Json(ApiResponse::success(alert_rule_response(
+        created,
+        &plugin_channel_types,
+    ))))
 }
 
 #[utoipa::path(
@@ -526,6 +566,31 @@ pub async fn resolve_alert_event(
         .await
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| ApiError::not_found("alert event not found"))?;
+    if let Some(rule) = state
+        .alerts
+        .get_rule(&resolved.rule_id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+    {
+        let plugin_channel_types = enabled_plugin_alert_channel_types(&state).await?;
+        let _policy = ensure_alert_rule_notification_policy_from_channels(
+            &rule,
+            &state.notification_channels,
+            &state.notification_policies,
+            &plugin_channel_types,
+        )
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    }
+    let notifications = NotificationCenter::new(
+        state.notification_channels.clone(),
+        state.notification_policies.clone(),
+        state.notification_messages.clone(),
+        state.notification_delivery_attempts.clone(),
+        state.notification_templates.clone(),
+        state.jobs.clone(),
+    );
+    emit_alert_event_best_effort(&notifications, &resolved).await;
     Ok(Json(ApiResponse::success(AlertEventSummary {
         id: resolved.id,
         rule_id: resolved.rule_id,

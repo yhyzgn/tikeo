@@ -119,9 +119,26 @@ fn validate_node_required_config(kind: &str, node: &WorkflowNodeSpec, errors: &m
                 node.key
             ));
         }
+        "notification" => validate_notification_node(node, errors),
         "file_cleanup" => validate_file_cleanup_node(node, errors),
         _ => {}
     }
+}
+
+fn validate_notification_node(node: &WorkflowNodeSpec, errors: &mut Vec<String>) {
+    if workflow_config_bool(node, "usePolicies")
+        .or_else(|| workflow_config_bool(node, "use_policies"))
+        .unwrap_or(false)
+    {
+        return;
+    }
+    if config_array_non_empty(node, "channelRefs") || config_array_non_empty(node, "channel_refs") {
+        return;
+    }
+    errors.push(format!(
+        "notification node {} requires config.channelRefs or config.usePolicies=true",
+        node.key
+    ));
 }
 
 fn validate_required_fields(node: &WorkflowNodeSpec, fields: &[&str], errors: &mut Vec<String>) {

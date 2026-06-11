@@ -31,6 +31,31 @@ curl -fsS http://127.0.0.1:9090/api/v1/workflows \
 
 Start with a job-backed node and explicit edges. Add condition, parallel, join, delay, approval, notification, compensation, map, map_reduce, or sub_workflow nodes only when the operational behavior is clear.
 
+### Add a notification node
+
+A notification node is no longer a raw webhook target. It materializes a `workflow_node.notification_requested` message in Notification Center and creates delivery attempts for the selected channels. Use one of these two modes:
+
+- **Inline channel refs**: set `config.channelRefs` to Notification Center channel ids and optionally `config.templateRef`, `subject`, `body`, and `severity`.
+- **Policy mode**: set `config.usePolicies=true` and create a `workflow` or `workflow_node` notification policy that matches the workflow id/node key.
+
+Example:
+
+```json
+{
+  "key": "notify_ops",
+  "kind": "notification",
+  "config": {
+    "channelRefs": [{"channelId": "notification-channel-ops"}],
+    "templateRef": "workflow.node.notice",
+    "subject": "Workflow notification requested",
+    "body": "A workflow notification node was materialized",
+    "severity": "warning"
+  }
+}
+```
+
+Validation rejects legacy `channel/target/template`-only nodes because they would look successful without reaching any configured channel. Delivery is asynchronous and non-blocking by default; the node records the normalized message and retryable attempts while workflow progression continues.
+
 ### Validate and dry-run
 
 Validation checks structure. Dry-run checks expected start nodes, node count, and edge count before materializing runtime work. Fix validation errors before execution.
@@ -55,12 +80,12 @@ Running creates a workflow instance. Inspect node status, shards, and underlying
 | Dry-run differs from canvas | Compare JSON/YAML definition with visual layout. |
 | Job node pending | Check referenced Job and Worker eligibility. |
 | Recovery unsafe | Stop and get business approval before skip/fail. |
-| Notification node surprises operators | Use Notification Center channel/template/policy references, not inline secrets. |
+| Notification node surprises operators | Check Notification Center messages and delivery attempts for `workflow_node.notification_requested`; use `channelRefs` or `usePolicies=true`, never raw `target` secrets. |
 
 ## Production checklist
 
 - [ ] Workflow definitions are reviewed as code or change records.
 - [ ] Every job node has an eligible Worker path.
 - [ ] Recovery procedures are documented per node type.
-- [ ] Notification nodes do not contain raw secrets.
+- [ ] Notification nodes use `channelRefs`/`templateRef` or `usePolicies=true`; they do not contain raw targets or secrets.
 - [ ] Replay evidence is kept for incidents.

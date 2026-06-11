@@ -403,7 +403,7 @@ impl AlertRepository {
         let Some(previous) = self.get_event(event_id).await? else {
             return Ok(None);
         };
-        let _ = alert_event::ActiveModel {
+        let recovered = alert_event::ActiveModel {
             id: Set(new_id("alert-event")),
             rule_id: Set(previous.rule_id.clone()),
             rule_name: Set(previous.rule_name.clone()),
@@ -422,7 +422,7 @@ impl AlertRepository {
         }
         .insert(&self.db)
         .await?;
-        Ok(Some(previous))
+        Ok(Some(AlertEventSummary::from(recovered)))
     }
 
     pub async fn record_script_governance_failure(

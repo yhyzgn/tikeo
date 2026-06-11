@@ -143,11 +143,11 @@ Provider validation：
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `ownerType` | string | 是 | API 接受 `global`、`namespace`、`app`、`job`、`workflow`、`workflow_node`、`alert_rule`、`worker_pool`；当前运行时只为 `job_instance` 匹配 `global`、`namespace`、`app`、`job`。 |
+| `ownerType` | string | 是 | API 接受 `global`、`namespace`、`app`、`job`、`workflow`、`workflow_node`、`alert_rule`、`worker_pool`；当前运行时为 `job_instance` 匹配 `global`/`namespace`/`app`/`job`，为 `alert` 匹配 `global`/`alert_rule`，为 workflow notification 节点匹配 `global`/`workflow`/`workflow_node`。 |
 | `ownerId` | string/null | 否 | Soft-linked owner。 |
 | `name` | string | 是 | 不能为空。 |
-| `eventFamily` | string | 是 | API 接受 `job_instance`、`workflow`、`alert`、`worker`、`script_governance`；当前运行时物化只实现 `job_instance`。 |
-| `eventFilter` | object | 否 | 作业 materializer 支持 `statuses` 和 `eventTypes`/`event_types`。 |
+| `eventFamily` | string | 是 | API 接受 `job_instance`、`workflow`、`alert`、`worker`、`script_governance`；当前运行时已实现 job instance、alert event 与 workflow notification-node request 物化。 |
+| `eventFilter` | object | 否 | 作业 materializer 支持 `statuses` 和 `eventTypes`/`event_types`；workflow notification-node materializer 还支持 `workflowIds` 和 `nodeKeys`。 |
 | `channelRefs` | array | 是 | 有序渠道引用，不能为空。 |
 | `templateRef` | string/null | 否 | 指向 `notification_templates.id` 或 `templateKey` 的 soft link。`job_instance` 物化时会加载 enabled 的存储模板，可覆盖 subject/body 并写入 `payload.template`；缺失/disabled 引用为兼容性会被忽略。 |
 | `severity` | string | 是 | 为空时 service 侧会从事件推导默认 severity。 |

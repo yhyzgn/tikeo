@@ -24,7 +24,7 @@ Use Notification Center for outbound messages that are not necessarily incidents
 | Broadcast work partially fails | `job_instance` | `job_instance.partial_failed` |
 | Dispatch cannot find a matching worker | `job_instance` | `job_instance.no_eligible_worker` |
 | Script governance blocks execution | `job_instance` or `script_governance` | `job_instance.script_governance_failure` |
-| Alerting produces an incident event | `alert` | `alert.firing`, `alert.recovered` are accepted policy-family concepts but not yet materialized by Notification Center. |
+| Alerting produces an incident event | `alert` | `alert.firing` and `alert.recovered` are materialized into Notification Center messages and delivery attempts for matching `global` or `alert_rule` policies. |
 
 Use Alerts instead when you need condition evaluation, dedupe/silence/recovery behavior, abnormal-condition history, or incident review.
 
@@ -256,7 +256,7 @@ Validation returns `valid`, `channelCount`, `missingChannelIds`, `disabledChanne
 
 ## Owner and event semantics
 
-The API currently accepts owner types `global`, `namespace`, `app`, `job`, `workflow`, `workflow_node`, `alert_rule`, and `worker_pool`, and event families `job_instance`, `workflow`, `alert`, `worker`, and `script_governance`. Current runtime materialization is implemented for `job_instance` policies only, matching `global`, `namespace`, `app`, and `job` owners.
+The API currently accepts owner types `global`, `namespace`, `app`, `job`, `workflow`, `workflow_node`, `alert_rule`, and `worker_pool`, and event families `job_instance`, `workflow`, `alert`, `worker`, and `script_governance`. Runtime materialization is implemented for `job_instance` policies (`global`, `namespace`, `app`, `job` owners), alert events (`global`, `alert_rule` owners), and workflow notification nodes (`global`, `workflow`, `workflow_node` owners).
 
 For job-instance notifications, the materializer currently matches:
 
@@ -266,6 +266,8 @@ For job-instance notifications, the materializer currently matches:
 - `job` policies when `ownerId` equals the job id.
 
 The filter checks `eventFilter.statuses` against the stable status token and `eventFilter.eventTypes` or `eventFilter.event_types` against the full event type. Empty `statuses` or `eventTypes` arrays mean that dimension is not restricted.
+
+For workflow notification nodes, the runtime emits `workflow_node.notification_requested` with filter status `notification_requested`. `workflow` policies match `ownerId=<workflow id>`. `workflow_node` policies match `ownerId=<workflow id>:<node key>` (the inline node compiler uses this shape), the node instance id, or the node key. Optional `eventFilter.workflowIds` and `eventFilter.nodeKeys` further narrow matching. A notification node can also carry inline `config.channelRefs`; at materialization time Tikeo compiles/updates a workflow-node policy and creates the message plus delivery attempts.
 
 ## Implemented job event types
 

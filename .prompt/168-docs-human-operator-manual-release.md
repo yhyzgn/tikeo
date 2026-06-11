@@ -33,8 +33,8 @@ All commands above passed locally before commit in the 2026-06-12 session.
 - Live Docker Hub publication is only complete after the tag-triggered `Publish / Docker docs` workflow succeeds and `yhyzgn/tikeo-docs` digest is visible.
 - Live external SaaS notification delivery remains credential-gated; docs describe configuration and local/provider contracts but do not claim live Slack/DingTalk/Feishu/WeCom/PagerDuty smoke.
 - `POST /api/v1/notification-channels/{id}:test` is still not implemented; `supportsTestSend=false` is correct.
-- Alert-rule dual-write/backfill and workflow notification-node migration remain future work.
+- Alert-rule dual-write/backfill remains future work. Workflow notification-node raw-target migration has since been implemented with registered channel/template refs and fail-closed validation.
 
 ## Next action
 
-Commit this docs rewrite, push `main`, create/push `v0.2.6`, then monitor GitHub Actions until main CI/Coverage and tag-triggered release/Docker/SDK workflows are green.
+Commit the current Notification Center/workflow notification hardening plus docs/manual updates, push `main`, create the next `v0.2.x` tag, then monitor GitHub Actions until main CI/Coverage and tag-triggered release/Docker/SDK workflows are green.

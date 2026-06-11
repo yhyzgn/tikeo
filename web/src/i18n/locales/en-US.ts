@@ -1258,4 +1258,10 @@ export const messages: Record<string, string> = {
     "开启替换渠道配置后才能修改消息类型和 inline 模板字段。": "Enable Replace channel configuration before editing message type or inline template fields.",
     "开启替换渠道配置后才能修改高级配置 JSON。": "Enable Replace channel configuration before editing advanced config JSON.",
     "开启替换密钥引用后才能修改高级密钥引用对象。": "Enable Replace secret references before editing advanced secret refs.",
+    "通知节点会写入 Notification Center": "Notification nodes write to Notification Center",
+    "默认不阻塞工作流。选择渠道后保存为 config.channelRefs；不选择渠道时必须开启 usePolicies，由已有 workflow/workflow_node 策略匹配。": "Non-blocking by default. Selected channels are saved as config.channelRefs; without channels, enable usePolicies so existing workflow/workflow_node policies match.",
+    "选择通知渠道": "Select notification channels",
+    "选择通知模板（可选）": "Select notification template (optional)",
+    "消息标题 subject": "Message subject",
+    "消息正文 body": "Message body",
 };

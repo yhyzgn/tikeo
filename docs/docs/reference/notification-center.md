@@ -148,11 +148,11 @@ Provider validation:
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `ownerType` | string | yes | API accepts `global`, `namespace`, `app`, `job`, `workflow`, `workflow_node`, `alert_rule`, or `worker_pool`; current runtime materialization only matches `global`, `namespace`, `app`, and `job` for `job_instance`. |
+| `ownerType` | string | yes | API accepts `global`, `namespace`, `app`, `job`, `workflow`, `workflow_node`, `alert_rule`, or `worker_pool`; runtime materialization currently matches `global`/`namespace`/`app`/`job` for `job_instance`, `global`/`alert_rule` for `alert`, and `global`/`workflow`/`workflow_node` for workflow notification nodes. |
 | `ownerId` | string/null | no | Soft-linked owner; `global` often omits it. |
 | `name` | string | yes | Must not be blank. |
-| `eventFamily` | string | yes | API accepts `job_instance`, `workflow`, `alert`, `worker`, or `script_governance`; current runtime materialization is implemented for `job_instance` only. |
-| `eventFilter` | object | no | Job materializer supports `statuses` and `eventTypes`/`event_types`. |
+| `eventFamily` | string | yes | API accepts `job_instance`, `workflow`, `alert`, `worker`, or `script_governance`; runtime materialization is implemented for job instance events, alert events, and workflow notification-node requests. |
+| `eventFilter` | object | no | Job materializer supports `statuses` and `eventTypes`/`event_types`; workflow notification-node materializer also supports `workflowIds` and `nodeKeys`. |
 | `channelRefs` | array | yes | Ordered channel refs. Empty list is rejected. |
 | `templateRef` | string/null | no | Soft link to `notification_templates.id` or `templateKey`. Enabled stored templates are loaded during `job_instance` materialization and can override subject/body plus `payload.template`. Missing/disabled refs are ignored for compatibility. |
 | `severity` | string | yes | If blank in service materialization, default severity is derived from event. |

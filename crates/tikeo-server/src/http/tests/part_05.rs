@@ -215,6 +215,210 @@
     }
 
 
+
+    #[tokio::test]
+    async fn workflow_notification_node_requires_channel_refs_or_policy_mode() {
+        let app = router().await;
+        let invalid = post_json(
+            app.clone(),
+            "/api/v1/workflows/dry-run",
+            r#"{"nodes":[{"key":"notify","kind":"notification","config":{"channel":"webhook","target":"https://hooks.example.com/legacy","template":"legacy raw target"}}],"edges":[]}"#,
+        )
+        .await;
+        assert_eq!(invalid["code"], 0);
+        assert_eq!(invalid["data"]["validation"]["valid"], false);
+        assert!(invalid["data"]["validation"]["errors"]
+            .as_array()
+            .unwrap_or_else(|| panic!("validation errors should be an array"))
+            .iter()
+            .any(|error| error.as_str().is_some_and(|message| {
+                message.contains(
+                    "notification node notify requires config.channelRefs or config.usePolicies=true",
+                )
+            })));
+
+        let policy_mode = post_json(
+            app,
+            "/api/v1/workflows/dry-run",
+            r#"{"nodes":[{"key":"notify","kind":"notification","config":{"usePolicies":true}}],"edges":[]}"#,
+        )
+        .await;
+        assert_eq!(policy_mode["code"], 0);
+        assert_eq!(policy_mode["data"]["validation"]["valid"], true);
+    }
+
+
+
+    #[tokio::test]
+    async fn workflow_notification_node_validates_registered_channel_and_template_refs() {
+        let app = router().await;
+        let enabled_channel = post_json(
+            app.clone(),
+            "/api/v1/notification-channels",
+            r#"{"scopeType":"global","name":"Workflow Slack","provider":"slack","enabled":true,"config":{"url":"https://hooks.slack.com/services/T000/B000/enabled","messageType":"text","template":{"text":"{{subject}}"}}}"#,
+        )
+        .await;
+        assert_eq!(enabled_channel["code"], 0);
+        let channel_id = enabled_channel["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("enabled channel id should exist"));
+
+        let disabled_channel = post_json(
+            app.clone(),
+            "/api/v1/notification-channels",
+            r#"{"scopeType":"global","name":"Disabled Workflow Slack","provider":"slack","enabled":false,"config":{"url":"https://hooks.slack.com/services/T000/B000/disabled","messageType":"text","template":{"text":"{{subject}}"}}}"#,
+        )
+        .await;
+        assert_eq!(disabled_channel["code"], 0);
+        let disabled_channel_id = disabled_channel["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("disabled channel id should exist"));
+
+        let enabled_template = post_json(
+            app.clone(),
+            "/api/v1/notification-templates",
+            r#"{"templateKey":"workflow.slack.enabled","name":"Workflow Slack enabled","provider":"slack","messageType":"text","enabled":true,"body":{"text":"{{subject}}"}}"#,
+        )
+        .await;
+        assert_eq!(enabled_template["code"], 0);
+
+        let disabled_template = post_json(
+            app.clone(),
+            "/api/v1/notification-templates",
+            r#"{"templateKey":"workflow.slack.disabled","name":"Workflow Slack disabled","provider":"slack","messageType":"text","enabled":false,"body":{"text":"{{subject}}"}}"#,
+        )
+        .await;
+        assert_eq!(disabled_template["code"], 0);
+
+        let mismatched_template = post_json(
+            app.clone(),
+            "/api/v1/notification-templates",
+            r#"{"templateKey":"workflow.feishu.mismatch","name":"Workflow Feishu mismatch","provider":"feishu","messageType":"text","enabled":true,"body":{"text":"{{subject}}"}}"#,
+        )
+        .await;
+        assert_eq!(mismatched_template["code"], 0);
+
+        for (body, expected) in [
+            (
+                r#"{"nodes":[{"key":"notify","kind":"notification","config":{"channelRefs":[{"channelId":"notification-channel-missing"}]}}],"edges":[]}"#.to_owned(),
+                "notification node notify channel does not exist: notification-channel-missing",
+            ),
+            (
+                format!(
+                    r#"{{"nodes":[{{"key":"notify","kind":"notification","config":{{"channelRefs":[{{"channelId":"{disabled_channel_id}"}}]}}}}],"edges":[]}}"#
+                ),
+                "notification node notify channel is disabled",
+            ),
+            (
+                format!(
+                    r#"{{"nodes":[{{"key":"notify","kind":"notification","config":{{"channelRefs":[{{"channelId":"{channel_id}"}}],"templateRef":"workflow.template.missing"}}}}],"edges":[]}}"#
+                ),
+                "notification node notify template does not exist: workflow.template.missing",
+            ),
+            (
+                format!(
+                    r#"{{"nodes":[{{"key":"notify","kind":"notification","config":{{"channelRefs":[{{"channelId":"{channel_id}"}}],"templateRef":"workflow.slack.disabled"}}}}],"edges":[]}}"#
+                ),
+                "notification node notify template is disabled: workflow.slack.disabled",
+            ),
+            (
+                format!(
+                    r#"{{"nodes":[{{"key":"notify","kind":"notification","config":{{"channelRefs":[{{"channelId":"{channel_id}"}}],"templateRef":"workflow.feishu.mismatch"}}}}],"edges":[]}}"#
+                ),
+                "notification node notify template provider feishu does not match channel provider(s): slack",
+            ),
+        ] {
+            let dry_run = post_json(app.clone(), "/api/v1/workflows/dry-run", &body).await;
+            assert_eq!(dry_run["code"], 0);
+            let errors = dry_run["data"]["validation"]["errors"]
+                .as_array()
+                .unwrap_or_else(|| panic!("validation errors should be an array"));
+            assert!(
+                errors.iter().any(|error| error.as_str().is_some_and(|message| message.contains(expected))),
+                "dry-run should report {expected}; got {errors:?}"
+            );
+
+            let create_body = format!(r#"{{"name":"invalid-notification-ref","definition":{body}}}"#);
+            let create = app
+                .clone()
+                .oneshot(
+                    admin_json_request_builder(
+                        app.clone(),
+                        "POST",
+                        "/api/v1/workflows",
+                        &create_body,
+                    )
+                    .await,
+                )
+                .await
+                .unwrap_or_else(|error| panic!("workflow create should respond: {error}"));
+            assert_eq!(create.status(), axum::http::StatusCode::BAD_REQUEST);
+            let create_body_bytes = axum::body::to_bytes(create.into_body(), usize::MAX)
+                .await
+                .unwrap_or_else(|error| panic!("create body should collect: {error}"));
+            let create_json: Value = serde_json::from_slice(&create_body_bytes)
+                .unwrap_or_else(|error| panic!("create body should be JSON: {error}"));
+            assert!(
+                create_json["message"]
+                    .as_str()
+                    .is_some_and(|message| message.contains(expected)),
+                "create should reject {expected}; got {create_json}"
+            );
+        }
+
+        let valid_definition = format!(
+            r#"{{"nodes":[{{"key":"notify","kind":"notification","config":{{"channelRefs":[{{"channelId":"{channel_id}"}}],"templateRef":"workflow.slack.enabled"}}}}],"edges":[]}}"#
+        );
+        let created = post_json(
+            app.clone(),
+            "/api/v1/workflows",
+            &format!(r#"{{"name":"valid-notification-ref","definition":{valid_definition}}}"#),
+        )
+        .await;
+        assert_eq!(created["code"], 0);
+        let workflow_id = created["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("workflow id should exist"));
+
+        let validate = post_json(
+            app.clone(),
+            &format!("/api/v1/workflows/{workflow_id}/validate"),
+            "{}",
+        )
+        .await;
+        assert_eq!(validate["code"], 0);
+        assert_eq!(validate["data"]["valid"], true);
+
+        let invalid_update_definition = format!(
+            r#"{{"nodes":[{{"key":"notify","kind":"notification","config":{{"channelRefs":[{{"channelId":"{channel_id}"}}],"templateRef":"workflow.feishu.mismatch"}}}}],"edges":[]}}"#
+        );
+        let update = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "PATCH",
+                    &format!("/api/v1/workflows/{workflow_id}"),
+                    &format!(
+                        r#"{{"name":"invalid-update","definition":{invalid_update_definition}}}"#
+                    ),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("workflow update should respond: {error}"));
+        assert_eq!(update.status(), axum::http::StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(update.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("update body should collect: {error}"));
+        let update_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("update body should be JSON: {error}"));
+        assert!(update_json["message"].as_str().is_some_and(|message| {
+            message.contains("notification node notify template provider feishu does not match channel provider(s): slack")
+        }));
+    }
+
+
     #[tokio::test]
     async fn workflow_approval_advance_records_audit_log() {
         let app = router().await;

@@ -128,13 +128,21 @@ async fn dispatch_once(
         warn!(recovered, "requeued stale running job dispatches");
     }
     let _expired = workflows.clear_expired_dispatch_queue_leases().await?;
-    let _ = workflows
+    if let Some(materialized) = workflows
         .materialize_next_queued_node_with_fencing(
             DISPATCHER_LEASE_OWNER,
             DISPATCH_LEASE_SECONDS,
             fencing_token,
         )
-        .await?;
+        .await?
+    {
+        crate::notification::emit_workflow_notification_node_requested_best_effort(
+            notifications,
+            workflows,
+            &materialized,
+        )
+        .await;
+    }
     dispatch_broadcast_attempts(
         jobs, instances, attempts, workflows, scripts, logs, audit, registry,
     )

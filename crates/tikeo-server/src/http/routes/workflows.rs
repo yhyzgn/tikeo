@@ -1,6 +1,6 @@
 #![allow(missing_docs, clippy::missing_errors_doc)]
 
-use std::{convert::Infallible, sync::Arc, time::Duration};
+use std::{collections::HashSet, convert::Infallible, sync::Arc, time::Duration};
 
 use axum::{
     Json,
@@ -11,7 +11,8 @@ use axum::{
 use serde::Deserialize;
 use tikeo_storage::{
     AdvanceWorkflowInput, CompleteWorkflowShardInput, CreateWorkflow, RebalanceWorkflowShardsInput,
-    RecoverWorkflowNodeInput, UpdateWorkflow, WorkflowDefinition, validate_workflow_definition,
+    RecoverWorkflowNodeInput, UpdateWorkflow, WorkflowDefinition, WorkflowNodeSpec,
+    WorkflowValidationResult, validate_workflow_definition,
 };
 use tokio::{sync::mpsc, time};
 use tokio_stream::{Stream, wrappers::ReceiverStream};
@@ -54,6 +55,11 @@ pub async fn create_workflow(
     if request.name.trim().is_empty() {
         return Err(ApiError::bad_request("workflow name cannot be empty"));
     }
+    let validation =
+        validate_workflow_definition_with_notification_refs(&state, &request.definition).await?;
+    if !validation.valid {
+        return Err(ApiError::bad_request(validation.errors.join("; ")));
+    }
     let created = state
         .workflows
         .create_workflow(CreateWorkflow {
@@ -86,6 +92,11 @@ pub async fn update_workflow(
     let principal = auth::require_permission(&headers, &state, "workflows", "manage").await?;
     if request.name.trim().is_empty() {
         return Err(ApiError::bad_request("workflow name cannot be empty"));
+    }
+    let validation =
+        validate_workflow_definition_with_notification_refs(&state, &request.definition).await?;
+    if !validation.valid {
+        return Err(ApiError::bad_request(validation.errors.join("; ")));
     }
     let updated = state
         .workflows
@@ -133,7 +144,9 @@ pub async fn dry_run_workflow(
     Json(definition): Json<WorkflowDefinition>,
 ) -> Result<Json<WorkflowDryRunApiResponse>, ApiError> {
     let principal = auth::require_permission(&headers, &state, "workflows", "read").await?;
-    let target_nodes: std::collections::HashSet<&str> = definition
+    let validation =
+        validate_workflow_definition_with_notification_refs(&state, &definition).await?;
+    let target_nodes: HashSet<&str> = definition
         .edges
         .iter()
         .map(|edge| edge.to.as_str())
@@ -145,7 +158,7 @@ pub async fn dry_run_workflow(
         .map(|node| node.key.clone())
         .collect();
     let response = WorkflowDryRunResponse {
-        validation: validate_workflow_definition(&definition),
+        validation,
         start_nodes,
         node_count: definition.nodes.len(),
         edge_count: definition.edges.len(),
@@ -195,7 +208,8 @@ pub async fn validate_workflow(
         .await
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| ApiError::not_found(format!("workflow not found: {id}")))?;
-    let validation = validate_workflow_definition(&item.definition);
+    let validation =
+        validate_workflow_definition_with_notification_refs(&state, &item.definition).await?;
     audit(
         &state,
         &principal.username,
@@ -312,6 +326,20 @@ pub async fn materialize_next_workflow_node(
         .await
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| ApiError::not_found("no queued workflow node found"))?;
+    let notifications = crate::notification::NotificationCenter::new(
+        state.notification_channels.clone(),
+        state.notification_policies.clone(),
+        state.notification_messages.clone(),
+        state.notification_delivery_attempts.clone(),
+        state.notification_templates.clone(),
+        state.jobs.clone(),
+    );
+    crate::notification::emit_workflow_notification_node_requested_best_effort(
+        &notifications,
+        &state.workflows,
+        &item,
+    )
+    .await;
     audit(
         &state,
         &principal.username,
@@ -508,4 +536,158 @@ pub async fn stream_instance_events(
     });
     Ok(Sse::new(ReceiverStream::new(rx))
         .keep_alive(axum::response::sse::KeepAlive::new().interval(Duration::from_secs(15))))
+}
+
+async fn validate_workflow_definition_with_notification_refs(
+    state: &AppState,
+    definition: &WorkflowDefinition,
+) -> Result<WorkflowValidationResult, ApiError> {
+    let mut validation = validate_workflow_definition(definition);
+    append_notification_ref_validation_errors(state, definition, &mut validation.errors).await?;
+    validation.valid = validation.errors.is_empty();
+    Ok(validation)
+}
+
+async fn append_notification_ref_validation_errors(
+    state: &AppState,
+    definition: &WorkflowDefinition,
+    errors: &mut Vec<String>,
+) -> Result<(), ApiError> {
+    let notification_nodes = definition
+        .nodes
+        .iter()
+        .filter(|node| node.kind.as_deref().unwrap_or("job") == "notification")
+        .collect::<Vec<_>>();
+    if notification_nodes.is_empty() {
+        return Ok(());
+    }
+    let channels = state
+        .notification_channels
+        .list_channels(tikeo_storage::NotificationChannelFilters::default())
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    for node in notification_nodes {
+        if notification_node_uses_policies(node) {
+            continue;
+        }
+        let channel_ids = notification_node_channel_ref_ids(node);
+        if channel_ids.is_empty() {
+            continue;
+        }
+        let mut providers = Vec::new();
+        for channel_id in &channel_ids {
+            match channels.iter().find(|channel| channel.id == *channel_id) {
+                Some(channel) if !channel.enabled => errors.push(format!(
+                    "notification node {} channel is disabled: {channel_id}",
+                    node.key
+                )),
+                Some(channel) => providers.push(channel.provider.clone()),
+                None => errors.push(format!(
+                    "notification node {} channel does not exist: {channel_id}",
+                    node.key
+                )),
+            }
+        }
+        let Some(template_ref) =
+            notification_node_config_string(node, &["templateRef", "template_ref"])
+        else {
+            continue;
+        };
+        let Some(template) = state
+            .notification_templates
+            .get_template(template_ref)
+            .await
+            .map_err(|error| ApiError::storage(&error))?
+        else {
+            errors.push(format!(
+                "notification node {} template does not exist: {template_ref}",
+                node.key
+            ));
+            continue;
+        };
+        if !template.enabled {
+            errors.push(format!(
+                "notification node {} template is disabled: {template_ref}",
+                node.key
+            ));
+            continue;
+        }
+        let mismatched = providers
+            .iter()
+            .filter(|provider| provider.as_str() != template.provider)
+            .cloned()
+            .collect::<HashSet<_>>();
+        if !mismatched.is_empty() {
+            let mut mismatched = mismatched.into_iter().collect::<Vec<_>>();
+            mismatched.sort();
+            errors.push(format!(
+                "notification node {} template provider {} does not match channel provider(s): {}",
+                node.key,
+                template.provider,
+                mismatched.join(", ")
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn notification_node_uses_policies(node: &WorkflowNodeSpec) -> bool {
+    notification_node_config_bool(node, "usePolicies")
+        .or_else(|| notification_node_config_bool(node, "use_policies"))
+        .unwrap_or(false)
+}
+
+fn notification_node_channel_ref_ids(node: &WorkflowNodeSpec) -> Vec<String> {
+    let Some(config) = node.config.as_ref() else {
+        return Vec::new();
+    };
+    config
+        .get("channelRefs")
+        .or_else(|| config.get("channel_refs"))
+        .map(extract_notification_channel_ref_ids)
+        .unwrap_or_default()
+}
+
+fn extract_notification_channel_ref_ids(value: &serde_json::Value) -> Vec<String> {
+    match value {
+        serde_json::Value::Array(items) => items
+            .iter()
+            .filter_map(|item| {
+                item.as_str().map(ToOwned::to_owned).or_else(|| {
+                    item.get("channelId")
+                        .or_else(|| item.get("channel_id"))
+                        .or_else(|| item.get("id"))
+                        .and_then(serde_json::Value::as_str)
+                        .map(ToOwned::to_owned)
+                })
+            })
+            .collect(),
+        serde_json::Value::String(item) if !item.trim().is_empty() => vec![item.clone()],
+        _ => Vec::new(),
+    }
+}
+
+fn notification_node_config_string<'a>(
+    node: &'a WorkflowNodeSpec,
+    keys: &[&str],
+) -> Option<&'a str> {
+    let config = node.config.as_ref()?;
+    keys.iter()
+        .find_map(|key| config.get(*key).and_then(serde_json::Value::as_str))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn notification_node_config_bool(node: &WorkflowNodeSpec, key: &str) -> Option<bool> {
+    node.config.as_ref()?.get(key).and_then(|value| {
+        value.as_bool().or_else(|| {
+            value
+                .as_str()
+                .and_then(|raw| match raw.trim().to_ascii_lowercase().as_str() {
+                    "true" | "yes" | "1" => Some(true),
+                    "false" | "no" | "0" => Some(false),
+                    _ => None,
+                })
+        })
+    })
 }

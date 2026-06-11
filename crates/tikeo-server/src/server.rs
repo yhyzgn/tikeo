@@ -55,14 +55,41 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
     let workflows = WorkflowRepository::new(db.clone());
     let audit = AuditLogRepository::new(db.clone());
     let alerts = tikeo_storage::AlertRepository::new(db.clone());
+    let notification_channels = NotificationChannelRepository::new(db.clone());
+    let notification_policies = NotificationPolicyRepository::new(db.clone());
     let notification_center = crate::notification::NotificationCenter::new(
-        NotificationChannelRepository::new(db.clone()),
-        NotificationPolicyRepository::new(db.clone()),
+        notification_channels.clone(),
+        notification_policies.clone(),
         NotificationMessageRepository::new(db.clone()),
         NotificationDeliveryAttemptRepository::new(db.clone()),
         tikeo_storage::NotificationTemplateRepository::new(db.clone()),
         jobs.clone(),
     );
+    let plugins = tikeo_storage::PluginRepository::new(db.clone())
+        .list_plugins()
+        .await
+        .context("failed to load plugin notification channel metadata for alert migration")?
+        .into_iter()
+        .filter(|plugin| plugin.enabled)
+        .flat_map(|plugin| plugin.alert_channel_types)
+        .collect::<Vec<_>>();
+    let alert_backfill = crate::notification::backfill_alert_rule_notification_policies(
+        &alerts,
+        &notification_channels,
+        &notification_policies,
+        &plugins,
+    )
+    .await
+    .context("failed to backfill legacy alert notification policies")?;
+    if alert_backfill.policies_created > 0 || alert_backfill.already_backfilled > 0 {
+        info!(
+            rules_seen = alert_backfill.rules_seen,
+            policies_created = alert_backfill.policies_created,
+            channels_created = alert_backfill.channels_created,
+            already_backfilled = alert_backfill.already_backfilled,
+            "alert notification policy backfill completed"
+        );
+    }
     let worker_lifecycle = WorkerLifecycleRepository::new(db.clone());
     let registry = tunnel::WorkerRegistry::with_lifecycle(worker_lifecycle.clone());
     let http_router = build_http_router(HttpRouterParts {

@@ -1208,3 +1208,173 @@ fn assert_provider_template_has_field(
         "{provider} provider template should include field {expected_field}"
     );
 }
+
+
+    #[tokio::test]
+    #[allow(clippy::too_many_lines)]
+    async fn workflow_notification_node_materializes_notification_center_message_and_attempt() {
+        let app = router().await;
+        let channel_created = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/notification-channels",
+                    r#"{"scopeType":"global","name":"Workflow webhook","provider":"webhook","enabled":true,"config":{"url":"https://hooks.example.com/services/workflow-token","messageType":"json","template":{"body":{"text":"{{subject}}"}}}}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("notification channel create should respond: {error}"));
+        assert!(channel_created.status().is_success());
+        let body = axum::body::to_bytes(channel_created.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let channel_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        let channel_id = channel_json["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("channel id should exist"));
+
+        let template_created = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/notification-templates",
+                    r#"{"templateKey":"workflow.node.notice","name":"Workflow node notice","provider":"webhook","messageType":"json","enabled":true,"body":{"body":{"text":"Workflow {{resourceId}} notification","node":"{{resourceId}}","event":"{{eventType}}"}}}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("notification template create should respond: {error}"));
+        assert!(template_created.status().is_success());
+        let body = axum::body::to_bytes(template_created.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("template body should collect: {error}"));
+        let template_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("template body should be JSON: {error}"));
+        let template_id = template_json["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("template id should exist"));
+
+        let workflow_body = serde_json::json!({
+            "name": "workflow-notify",
+            "definition": {
+                "nodes": [
+                    {
+                        "key": "notify",
+                        "name": "Notify",
+                        "kind": "notification",
+                        "config": {
+                            "channelRefs": [{"channelId": channel_id}],
+                            "templateRef": template_id,
+                            "subject": "Workflow notification requested",
+                            "body": "A workflow notification node was materialized",
+                            "severity": "warning"
+                        }
+                    }
+                ],
+                "edges": []
+            }
+        })
+        .to_string();
+        let workflow = post_json(app.clone(), "/api/v1/workflows", &workflow_body).await;
+        assert_eq!(workflow["code"], 0);
+        let workflow_id = workflow["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("workflow id should exist"));
+
+        let run = post_json(
+            app.clone(),
+            &format!("/api/v1/workflows/{workflow_id}/run"),
+            r#"{"triggerType":"api"}"#,
+        )
+        .await;
+        assert_eq!(run["code"], 0);
+        assert!(run["data"]["id"].as_str().is_some_and(|value| !value.is_empty()));
+
+        let materialized = post_json(
+            app.clone(),
+            "/api/v1/workflow-instances/materialize-next",
+            "{}",
+        )
+        .await;
+        assert_eq!(materialized["code"], 0);
+        assert_eq!(materialized["data"]["node"]["nodeKey"], "notify");
+        assert_eq!(materialized["data"]["node"]["status"], "succeeded");
+
+        let workflow_node_instance_id = materialized["data"]["node"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("workflow node instance id should exist"));
+
+        let messages = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app.clone(),
+                    "GET",
+                    format!("/api/v1/notification-messages?source_id={workflow_node_instance_id}&event_type=workflow_node.notification_requested"),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("notification messages should respond: {error}"));
+        assert!(messages.status().is_success());
+        let body = axum::body::to_bytes(messages.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("messages body should collect: {error}"));
+        let messages_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("messages body should be JSON: {error}"));
+        assert_eq!(messages_json["code"], 0);
+        let messages = messages_json["data"]
+            .as_array()
+            .unwrap_or_else(|| panic!("messages should be an array"));
+        assert_eq!(messages.len(), 1, "expected one workflow notification message: {messages_json}");
+        let message = &messages[0];
+        assert_eq!(message["sourceType"], "workflow_node_instance");
+        assert_eq!(message["sourceId"], workflow_node_instance_id);
+        assert_eq!(message["eventType"], "workflow_node.notification_requested");
+        assert_eq!(message["resourceType"], "workflow_node");
+        assert_eq!(message["resourceId"], "notify");
+        assert_eq!(message["severity"], "warning");
+        assert_eq!(message["subject"], "Workflow notification requested");
+        assert_eq!(message["body"], "A workflow notification node was materialized");
+        let payload = message["payloadJson"]
+            .as_str()
+            .and_then(|payload| serde_json::from_str::<Value>(payload).ok())
+            .unwrap_or_else(|| panic!("payloadJson should be JSON: {}", message["payloadJson"]));
+        assert_eq!(payload["workflowNodeInstanceId"], workflow_node_instance_id);
+        assert_eq!(payload["templateRef"], template_id);
+        assert_eq!(payload["templateKey"], "workflow.node.notice");
+        let policy_id = message["policyId"]
+            .as_str()
+            .unwrap_or_else(|| panic!("message policy id should exist"));
+
+        let attempts = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app,
+                    "GET",
+                    format!("/api/v1/notification-delivery-attempts?policy_id={policy_id}"),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("delivery attempts should respond: {error}"));
+        assert!(attempts.status().is_success());
+        let body = axum::body::to_bytes(attempts.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("attempts body should collect: {error}"));
+        let attempts_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("attempts body should be JSON: {error}"));
+        let attempts = attempts_json["data"]
+            .as_array()
+            .unwrap_or_else(|| panic!("attempts should be an array"));
+        assert_eq!(attempts.len(), 1, "expected one delivery attempt: {attempts_json}");
+        assert_eq!(attempts[0]["channelId"], channel_id);
+        assert_eq!(attempts[0]["retryState"], "retry_pending");
+    }

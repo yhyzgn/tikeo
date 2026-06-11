@@ -2,8 +2,19 @@
 
 use std::time::Duration;
 
+mod alert_events;
 mod provider_templates;
 mod signing;
+mod workflow_events;
+
+pub use alert_events::{
+    AlertRuleNotificationBackfillSummary, backfill_alert_rule_notification_policies,
+    ensure_alert_rule_notification_policy_from_channels,
+};
+pub use workflow_events::{
+    emit_workflow_notification_node_requested,
+    emit_workflow_notification_node_requested_best_effort,
+};
 
 use serde::{Deserialize, Serialize};
 use tikeo_core::InstanceStatus;
@@ -246,6 +257,8 @@ impl NotificationCenter {
                 "eventType": event.event_type(),
                 "jobId": job.id,
                 "jobName": job.name,
+                "resourceType": "job",
+                "resourceId": job.id,
                 "namespace": job.namespace,
                 "app": job.app,
                 "instanceId": instance.id,
@@ -537,6 +550,17 @@ pub async fn emit_job_instance_event_best_effort(
     }
 }
 
+/// Best-effort wrapper for alerting paths that must preserve legacy alert behavior even if
+/// Notification Center ledger materialization fails.
+pub async fn emit_alert_event_best_effort(
+    center: &NotificationCenter,
+    event: &tikeo_storage::AlertEventSummary,
+) {
+    if let Err(error) = center.emit_alert_event(event).await {
+        warn!(%error, alert_event_id = %event.id, "failed to materialize alert notification event");
+    }
+}
+
 async fn load_policy_template(
     templates: &NotificationTemplateRepository,
     policy: &NotificationPolicySummary,
@@ -564,12 +588,21 @@ fn apply_message_template(
 ) {
     let body_json = serde_json::from_str::<serde_json::Value>(&template.body_json)
         .unwrap_or_else(|_| serde_json::json!({}));
+    let resource_type = payload
+        .get("resourceType")
+        .cloned()
+        .unwrap_or_else(|| serde_json::Value::String("job".to_owned()));
+    let resource_id = payload
+        .get("resourceId")
+        .or_else(|| payload.get("jobId"))
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
     let sample = serde_json::json!({
         "subject": subject.as_str(),
         "body": body.as_str(),
         "eventType": payload.get("eventType"),
-        "resourceType": "job",
-        "resourceId": payload.get("jobId"),
+        "resourceType": resource_type,
+        "resourceId": resource_id,
         "severity": payload.get("severity"),
         "messageId": "pending",
         "policyId": policy_id,
