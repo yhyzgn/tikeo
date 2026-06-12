@@ -6,6 +6,71 @@ use crate::repository::{
 };
 
 #[tokio::test]
+async fn notification_channel_examples_are_seeded_as_normal_disabled_channels() {
+    let db = crate::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let channels = NotificationChannelRepository::new(db);
+
+    let listed = channels
+        .list_channels(NotificationChannelFilters::default())
+        .await
+        .unwrap_or_else(|error| panic!("channels should list: {error}"));
+
+    for (provider, message_type) in [
+        ("webhook", "json"),
+        ("slack", "text"),
+        ("slack", "blockKit"),
+        ("slack", "attachments"),
+        ("dingtalk", "text"),
+        ("dingtalk", "markdown"),
+        ("dingtalk", "link"),
+        ("dingtalk", "actionCard"),
+        ("dingtalk", "feedCard"),
+        ("feishu", "text"),
+        ("feishu", "post"),
+        ("feishu", "image"),
+        ("feishu", "share_chat"),
+        ("feishu", "interactive"),
+        ("wechat_work", "text"),
+        ("wechat_work", "markdown"),
+        ("wechat_work", "markdown_v2"),
+        ("wechat_work", "image"),
+        ("wechat_work", "news"),
+        ("wechat_work", "file"),
+        ("wechat_work", "voice"),
+        ("wechat_work", "template_card"),
+        ("pagerduty", "trigger"),
+        ("pagerduty", "acknowledge"),
+        ("pagerduty", "resolve"),
+        ("email", "plain"),
+        ("email", "html"),
+    ] {
+        let matches = listed
+            .iter()
+            .filter(|item| item.provider == provider && item.name.contains(message_type))
+            .collect::<Vec<_>>();
+        assert!(
+            (1..=2).contains(&matches.len()),
+            "seeded channel examples should include 1-2 normal rows for {provider}/{message_type}, got {}",
+            matches.len()
+        );
+        let channel = listed
+            .iter()
+            .find(|item| item.provider == provider && item.name.contains(message_type))
+            .unwrap_or_else(|| panic!("seeded channel example should exist for {provider}/{message_type}"));
+        assert!(!channel.enabled, "seeded example channels must be disabled until configured");
+        assert_eq!(channel.scope_type, "global");
+        assert!(channel.config_json.contains(message_type));
+        assert!(channel.secret_configured, "{provider}/{message_type} should carry env secret refs");
+        assert!(channel.target_configured, "{provider}/{message_type} should show a configured redacted target");
+        assert!(!channel.config_json.contains("hooks.slack.com/services/"));
+        assert!(!channel.config_json.contains("top-secret"));
+        assert!(!channel.config_json.contains("xoxb-"));
+    }
+}
+
+#[tokio::test]
 async fn notification_channels_are_reusable_redacted_and_policy_referenced() {
     let db = crate::connect_and_migrate("sqlite::memory:")
         .await
@@ -61,12 +126,15 @@ async fn notification_channels_are_reusable_redacted_and_policy_referenced() {
         .list_channels(NotificationChannelFilters::default())
         .await
         .unwrap_or_else(|error| panic!("channels should list: {error}"));
-    assert_eq!(listed.len(), 1);
-    assert_eq!(listed[0].target_redacted, "https://open.feishu.cn/...");
-    assert!(!listed[0].config_json.contains("super-secret-token"));
+    let listed_created = listed
+        .iter()
+        .find(|item| item.id == created.id)
+        .unwrap_or_else(|| panic!("created channel should be listed alongside seeded examples"));
+    assert_eq!(listed_created.target_redacted, "https://open.feishu.cn/...");
+    assert!(!listed_created.config_json.contains("super-secret-token"));
 
     let delete_result = channels
-        .delete_channel(&listed[0].id)
+        .delete_channel(&listed_created.id)
         .await
         .unwrap_or_else(|error| panic!("delete should return a governed result: {error}"));
     assert!(!delete_result.deleted);

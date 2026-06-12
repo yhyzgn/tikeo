@@ -89,22 +89,13 @@ describe('notification center console page', () => {
     expect(channelDrawerSource).toContain('clearScopeDependents');
   });
 
-  test('exposes configured channel use-case data as a first-class notification center tab', () => {
-    for (const token of [
-      'channelExampleRows',
-      '用例数据',
-      '通知配置用例',
-      '套用为新渠道',
-      'applyChannelExample',
-      'selectedChannelExample',
-      'channelExamples',
-      'configPreview',
-      'secretRefsPreview',
-      'templatePreview',
-      'samplePreview',
-    ]) {
-      expect(pageSource + channelDrawerSource).toContain(token);
-    }
+  test('keeps channel examples as normal channel rows instead of a separate use-case data tab', () => {
+    expect(pageSource).toContain('通知渠道');
+    expect(pageSource + channelDrawerSource).not.toContain('用例数据');
+    expect(pageSource + channelDrawerSource).not.toContain('通知配置用例');
+    expect(pageSource + channelDrawerSource).not.toContain('套用为新渠道');
+    expect(pageSource + channelDrawerSource).not.toContain('channelExampleRows');
+    expect(pageSource + channelDrawerSource).not.toContain('selectedChannelExample');
   });
 
   test('has built-in provider schema fallbacks for rich message types and templates', () => {

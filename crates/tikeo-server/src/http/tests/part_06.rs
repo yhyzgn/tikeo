@@ -396,7 +396,19 @@
             .unwrap_or_else(|error| panic!("body should collect: {error}"));
         let listed_json: Value = serde_json::from_slice(&body)
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
-        assert_eq!(listed_json["data"].as_array().map(Vec::len), Some(5));
+        let listed_channels = listed_json["data"]
+            .as_array()
+            .unwrap_or_else(|| panic!("notification channels list should be an array"));
+        assert!(
+            listed_channels.len() >= 5,
+            "list should include user-created channels and seeded normal channel rows: {listed_json}"
+        );
+        assert!(listed_channels
+            .iter()
+            .any(|item| item["id"] == "notification-channel-example-slack-text"));
+        assert!(listed_channels
+            .iter()
+            .any(|item| item["id"] == channel_id));
         assert!(!listed_json.to_string().contains("super-secret-token"));
         assert!(!listed_json.to_string().contains("FEISHU_BOT_SECRET"));
 

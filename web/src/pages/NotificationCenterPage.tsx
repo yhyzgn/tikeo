@@ -28,7 +28,6 @@ import {
 import { blankToNull, formatJson, parseJsonObject } from './notifications/jsonUtils';
 import { ChannelDrawer } from './notifications/ChannelDrawer';
 import { TemplateDrawer } from './notifications/TemplateDrawer';
-import { channelExampleRows, type ChannelConfigExampleRow } from './notifications/channelExamples';
 import { notificationTemplateOptions, selectedPolicyProviders } from './notifications/templateCatalog';
 import { PermissionGate } from '../components/Permission';
 import { useRouteActive } from '../hooks/useRouteActivation';
@@ -110,7 +109,6 @@ export function NotificationCenterPage() {
   const [editingChannel, setEditingChannel] = useState<NotificationChannelSummary | null>(null);
   const [editingPolicy, setEditingPolicy] = useState<NotificationPolicySummary | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<NotificationTemplateSummary | null>(null);
-  const [selectedChannelExample, setSelectedChannelExample] = useState<ChannelConfigExampleRow | null>(null);
 
   const refresh = useMemo(() => async () => {
     const [typesData, channelsData, policiesData, templatesData, messagesData, statusData] = await Promise.all([
@@ -157,27 +155,17 @@ export function NotificationCenterPage() {
 
   const openCreateChannel = () => {
     setEditingChannel(null);
-    setSelectedChannelExample(null);
     setChannelDrawerOpen(true);
-  };
-
-  const applyChannelExample = (example: ChannelConfigExampleRow) => {
-    setEditingChannel(null);
-    setSelectedChannelExample(example);
-    setChannelDrawerOpen(true);
-    message.info(`${t('已加载通知配置用例')}：${example.name}`);
   };
 
   const openEditChannel = (channel: NotificationChannelSummary) => {
     setEditingChannel(channel);
-    setSelectedChannelExample(null);
     setChannelDrawerOpen(true);
   };
 
   const closeChannelDrawer = () => {
     setChannelDrawerOpen(false);
     setEditingChannel(null);
-    setSelectedChannelExample(null);
   };
 
   const handleDeleteChannel = async (channel: NotificationChannelSummary) => {
@@ -339,7 +327,6 @@ export function NotificationCenterPage() {
   }));
   const policyProviderFilter = selectedPolicyProviders(channels, selectedPolicyChannelIds);
   const templateRefOptions = notificationTemplateOptions(templates, policyProviderFilter);
-  const channelExamples = channelExampleRows(channelTypes);
 
   return (
     <Space direction="vertical" size={20} style={{ width: '100%' }}>
@@ -359,53 +346,6 @@ export function NotificationCenterPage() {
       </Row>
       <Tabs
         items={[
-          {
-            key: 'examples',
-            label: t('用例数据'),
-            children: (
-              <Card
-                title={t('通知配置用例')}
-                extra={<Space wrap><Tag>{channelExamples.length} {t('条用例')}</Tag><Typography.Text type="secondary">{t('用例只包含 env: 密钥引用，不包含真实 token。')}</Typography.Text></Space>}
-              >
-                <Table<ChannelConfigExampleRow>
-                  rowKey="key"
-                  dataSource={channelExamples}
-                  pagination={{ pageSize: 10 }}
-                  expandable={{
-                    expandedRowRender: (row) => {
-                      const configPreview = JSON.stringify(row.config, null, 2);
-                      const secretRefsPreview = JSON.stringify(row.secretRefs, null, 2);
-                      const templatePreview = JSON.stringify(row.template, null, 2);
-                      const samplePreview = JSON.stringify(row.sample, null, 2);
-                      return (
-                        <Row gutter={[16, 16]}>
-                          <Col xs={24} md={12}><Card size="small" title="config"><Input.TextArea rows={8} readOnly value={configPreview} /></Card></Col>
-                          <Col xs={24} md={12}><Card size="small" title="secretRefs"><Input.TextArea rows={8} readOnly value={secretRefsPreview} /></Card></Col>
-                          <Col xs={24} md={12}><Card size="small" title="template"><Input.TextArea rows={10} readOnly value={templatePreview} /></Card></Col>
-                          <Col xs={24} md={12}><Card size="small" title="sample"><Input.TextArea rows={10} readOnly value={samplePreview} /></Card></Col>
-                        </Row>
-                      );
-                    },
-                  }}
-                  columns={[
-                    { title: t('用例名称'), dataIndex: 'name', ellipsis: true },
-                    { title: t('提供方'), dataIndex: 'provider', render: (value: string, row) => <Space><Tag>{value}</Tag><Typography.Text type="secondary">{row.providerLabel}</Typography.Text></Space> },
-                    { title: t('消息类型'), dataIndex: 'messageType', render: (value: string, row) => <Space><Tag color="blue">{value}</Tag><Typography.Text type="secondary">{row.messageTypeLabel}</Typography.Text></Space> },
-                    { title: t('推荐渠道名'), dataIndex: 'suggestedChannelName', ellipsis: true },
-                    { title: t('说明'), dataIndex: 'description', ellipsis: true },
-                    {
-                      title: t('操作'),
-                      render: (_, row) => (
-                        <PermissionGate resource="notifications" action="manage">
-                          <Button size="small" onClick={() => applyChannelExample(row)}>{t('套用为新渠道')}</Button>
-                        </PermissionGate>
-                      ),
-                    },
-                  ]}
-                />
-              </Card>
-            ),
-          },
           {
             key: 'channels',
             label: t('渠道'),
@@ -572,7 +512,6 @@ export function NotificationCenterPage() {
         open={channelDrawerOpen}
         channelTypes={channelTypes}
         editingChannel={editingChannel}
-        selectedChannelExample={selectedChannelExample}
         onClose={closeChannelDrawer}
         onSaved={refresh}
       />

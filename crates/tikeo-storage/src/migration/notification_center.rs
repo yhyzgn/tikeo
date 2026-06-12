@@ -1,3 +1,4 @@
+use sea_orm::{ConnectionTrait, Statement};
 use sea_orm_migration::prelude::{
     DbErr, IntoIden, MigrationName, MigrationTrait, SchemaManager, Table, async_trait, sea_query,
 };
@@ -13,6 +14,8 @@ use super::{
 pub(super) struct NotificationCenterMigration;
 
 pub(super) struct NotificationTemplatesMigration;
+
+pub(super) struct NotificationChannelExamplesMigration;
 
 impl MigrationName for NotificationCenterMigration {
     fn name(&self) -> &'static str {
@@ -68,6 +71,23 @@ impl MigrationTrait for NotificationTemplatesMigration {
                     .to_owned(),
             )
             .await
+    }
+}
+
+impl MigrationName for NotificationChannelExamplesMigration {
+    fn name(&self) -> &'static str {
+        "m20260612_000001_notification_channel_examples"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for NotificationChannelExamplesMigration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        seed_notification_channel_examples(manager).await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        delete_seed_notification_channel_examples(manager).await
     }
 }
 
@@ -278,6 +298,326 @@ async fn create_notification_template_indexes(manager: &SchemaManager<'_>) -> Re
         .await
 }
 
+async fn seed_notification_channel_examples(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    let now = now_rfc3339();
+    for &(provider, message_type) in NOTIFICATION_CHANNEL_EXAMPLE_TYPES {
+        let id = notification_channel_example_id(provider, message_type);
+        let config = notification_channel_example_config(provider, message_type).to_string();
+        let secret_refs = notification_channel_example_secret_refs(provider).to_string();
+        let target_redacted = notification_channel_example_target_redacted(provider);
+        let insert = sea_query::Query::insert()
+            .into_table(NotificationChannels::Table)
+            .columns([
+                NotificationChannels::Id,
+                NotificationChannels::ScopeType,
+                NotificationChannels::Namespace,
+                NotificationChannels::App,
+                NotificationChannels::WorkerPool,
+                NotificationChannels::Name,
+                NotificationChannels::Provider,
+                NotificationChannels::Enabled,
+                NotificationChannels::ConfigJson,
+                NotificationChannels::SecretRefsJson,
+                NotificationChannels::TargetRedacted,
+                NotificationChannels::SafetyPolicyJson,
+                NotificationChannels::CreatedBy,
+                NotificationChannels::UpdatedBy,
+                NotificationChannels::CreatedAt,
+                NotificationChannels::UpdatedAt,
+            ])
+            .values_panic([
+                id.clone().into(),
+                "global".into(),
+                Option::<String>::None.into(),
+                Option::<String>::None.into(),
+                Option::<String>::None.into(),
+                format!("{provider} {message_type} smoke channel").into(),
+                provider.into(),
+                false.into(),
+                config.into(),
+                secret_refs.into(),
+                target_redacted.into(),
+                Option::<String>::None.into(),
+                Some("system".to_owned()).into(),
+                Some("system".to_owned()).into(),
+                now.clone().into(),
+                now.clone().into(),
+            ])
+            .to_owned();
+        exec_seed_insert_if_missing(manager, "notification_channels", &id, insert).await?;
+    }
+    Ok(())
+}
+
+async fn delete_seed_notification_channel_examples(
+    manager: &SchemaManager<'_>,
+) -> Result<(), DbErr> {
+    for &(provider, message_type) in NOTIFICATION_CHANNEL_EXAMPLE_TYPES {
+        let id = notification_channel_example_id(provider, message_type).replace('\'', "''");
+        manager
+            .get_connection()
+            .execute(Statement::from_string(
+                manager.get_database_backend(),
+                format!("DELETE FROM notification_channels WHERE id = '{id}'"),
+            ))
+            .await?;
+    }
+    Ok(())
+}
+
+fn notification_channel_example_id(provider: &str, message_type: &str) -> String {
+    let suffix = message_type
+        .chars()
+        .flat_map(char::to_lowercase)
+        .map(|item| {
+            if item.is_ascii_alphanumeric() {
+                item
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    format!("notification-channel-example-{provider}-{suffix}")
+}
+
+fn notification_channel_example_config(provider: &str, message_type: &str) -> serde_json::Value {
+    let template = notification_channel_example_template(provider, message_type);
+    match provider {
+        "dingtalk" => serde_json::json!({
+            "messageType": message_type,
+            "isAtAll": false,
+            "atMobiles": [],
+            "atUserIds": [],
+            "template": template
+        }),
+        "wechat_work" => serde_json::json!({
+            "messageType": message_type,
+            "mentionedList": [],
+            "mentionedMobileList": [],
+            "template": template
+        }),
+        "pagerduty" => serde_json::json!({
+            "messageType": message_type,
+            "source": "tikeo",
+            "severity": "critical",
+            "dedupKey": "{{dedupeKey}}",
+            "component": "{{resourceType}}",
+            "class": "{{eventType}}",
+            "client": "tikeo",
+            "clientUrl": "https://tikeo.example.com/instances/{{resourceId}}",
+            "template": template
+        }),
+        "email" => serde_json::json!({
+            "messageType": message_type,
+            "to": ["ops@example.com"],
+            "from": "tikeo@example.com",
+            "template": template
+        }),
+        _ => serde_json::json!({
+            "messageType": message_type,
+            "template": template
+        }),
+    }
+}
+
+fn notification_channel_example_secret_refs(provider: &str) -> serde_json::Value {
+    match provider {
+        "slack" => serde_json::json!({ "url": "env:SLACK_WEBHOOK_URL" }),
+        "dingtalk" => serde_json::json!({
+            "url": "env:DINGTALK_WEBHOOK_URL",
+            "signingKey": "env:DINGTALK_SIGNING_SECRET"
+        }),
+        "feishu" => serde_json::json!({
+            "url": "env:FEISHU_WEBHOOK_URL",
+            "signingKey": "env:FEISHU_BOT_SECRET"
+        }),
+        "wechat_work" => serde_json::json!({ "url": "env:WECOM_WEBHOOK_URL" }),
+        "pagerduty" => serde_json::json!({ "routingKey": "env:PAGERDUTY_ROUTING_KEY" }),
+        "email" => serde_json::json!({
+            "smtpUrl": "env:TIKEO_SMTP_URL",
+            "password": "env:TIKEO_SMTP_PASSWORD"
+        }),
+        _ => serde_json::json!({
+            "url": "env:TIKEO_NOTIFICATION_WEBHOOK_URL",
+            "authorization": "env:TIKEO_NOTIFICATION_AUTHORIZATION"
+        }),
+    }
+}
+
+fn notification_channel_example_target_redacted(provider: &str) -> String {
+    if provider == "email" {
+        "ops@example.com".to_owned()
+    } else if provider == "pagerduty" {
+        "pagerduty:secret-ref".to_owned()
+    } else {
+        format!("{provider}:secret-ref")
+    }
+}
+
+fn notification_channel_example_template(provider: &str, message_type: &str) -> serde_json::Value {
+    match (provider, message_type) {
+        ("slack", "blockKit") => serde_json::json!({
+            "messageType": message_type,
+            "text": "[tikeo] {{subject}}",
+            "blocks": [
+                { "type": "section", "text": { "type": "mrkdwn", "text": "*{{subject}}*\n{{body}}" } }
+            ]
+        }),
+        ("slack", "attachments") => serde_json::json!({
+            "messageType": message_type,
+            "text": "[tikeo] {{subject}}",
+            "attachments": [
+                { "color": "#439FE0", "title": "{{subject}}", "text": "{{body}}" }
+            ]
+        }),
+        ("slack", _) => serde_json::json!({
+            "messageType": "text",
+            "text": "[tikeo/{{severity}}] {{subject}}\n{{body}}"
+        }),
+        ("dingtalk", "markdown") => serde_json::json!({
+            "messageType": message_type,
+            "title": "{{subject}}",
+            "text": "### {{subject}}\n\n{{body}}"
+        }),
+        ("dingtalk", "link") => serde_json::json!({
+            "messageType": message_type,
+            "title": "{{subject}}",
+            "text": "{{body}}",
+            "messageUrl": "https://tikeo.example.com/instances/{{resourceId}}",
+            "picUrl": "https://tikeo.example.com/logo.png"
+        }),
+        ("dingtalk", "actionCard") => serde_json::json!({
+            "messageType": message_type,
+            "title": "{{subject}}",
+            "text": "### {{subject}}\n\n{{body}}",
+            "singleTitle": "Open Tikeo",
+            "singleURL": "https://tikeo.example.com/instances/{{resourceId}}"
+        }),
+        ("dingtalk", "feedCard") => serde_json::json!({
+            "messageType": message_type,
+            "links": [
+                {
+                    "title": "{{subject}}",
+                    "messageURL": "https://tikeo.example.com/instances/{{resourceId}}",
+                    "picURL": "https://tikeo.example.com/logo.png"
+                }
+            ]
+        }),
+        ("dingtalk", _) => serde_json::json!({
+            "messageType": "text",
+            "content": "{{subject}}\n{{body}}"
+        }),
+        ("feishu", "post") => serde_json::json!({
+            "messageType": message_type,
+            "title": "{{subject}}",
+            "content": [[{ "tag": "text", "text": "{{body}}" }]]
+        }),
+        ("feishu", "image") => serde_json::json!({
+            "messageType": message_type,
+            "imageKey": "img_v3_example_key"
+        }),
+        ("feishu", "share_chat") => serde_json::json!({
+            "messageType": message_type,
+            "shareChatId": "oc_example_chat_id"
+        }),
+        ("feishu", "interactive") => serde_json::json!({
+            "messageType": message_type,
+            "card": {
+                "header": { "title": { "tag": "plain_text", "content": "{{subject}}" } },
+                "elements": [
+                    { "tag": "div", "text": { "tag": "lark_md", "content": "{{body}}" } }
+                ]
+            }
+        }),
+        ("feishu", _) => serde_json::json!({
+            "messageType": "text",
+            "text": "{{subject}}\n{{body}}"
+        }),
+        ("wechat_work", "markdown") => serde_json::json!({
+            "messageType": message_type,
+            "content": "### {{subject}}\n{{body}}"
+        }),
+        ("wechat_work", "markdown_v2") => serde_json::json!({
+            "messageType": message_type,
+            "content": "# {{subject}}\n{{body}}"
+        }),
+        ("wechat_work", "image") => serde_json::json!({
+            "messageType": message_type,
+            "base64": "iVBORw0KGgo=",
+            "md5": "d41d8cd98f00b204e9800998ecf8427e"
+        }),
+        ("wechat_work", "news") => serde_json::json!({
+            "messageType": message_type,
+            "articles": [
+                {
+                    "title": "{{subject}}",
+                    "description": "{{body}}",
+                    "url": "https://tikeo.example.com/instances/{{resourceId}}"
+                }
+            ]
+        }),
+        ("wechat_work", "file" | "voice") => serde_json::json!({
+            "messageType": message_type,
+            "media_id": "MEDIA_ID_FROM_WECOM_UPLOAD"
+        }),
+        ("wechat_work", "template_card") => serde_json::json!({
+            "messageType": message_type,
+            "templateCard": {
+                "card_type": "text_notice",
+                "main_title": { "title": "{{subject}}", "desc": "{{body}}" },
+                "card_action": {
+                    "type": 1,
+                    "url": "https://tikeo.example.com/instances/{{resourceId}}"
+                }
+            }
+        }),
+        ("wechat_work", _) => serde_json::json!({
+            "messageType": "text",
+            "content": "{{subject}}\n{{body}}"
+        }),
+        ("pagerduty", "acknowledge" | "resolve") => serde_json::json!({
+            "messageType": message_type,
+            "dedupKey": "{{dedupeKey}}",
+            "customDetails": {
+                "eventType": "{{eventType}}",
+                "resourceId": "{{resourceId}}"
+            }
+        }),
+        ("pagerduty", _) => serde_json::json!({
+            "messageType": "trigger",
+            "summary": "{{subject}}",
+            "customDetails": {
+                "body": "{{body}}",
+                "eventType": "{{eventType}}"
+            }
+        }),
+        ("email", "html") => serde_json::json!({
+            "messageType": message_type,
+            "subject": "[tikeo/{{severity}}] {{subject}}",
+            "html": "<h1>{{subject}}</h1><p>{{body}}</p>",
+            "body": "{{body}}"
+        }),
+        ("email", _) => serde_json::json!({
+            "messageType": "plain",
+            "subject": "[tikeo/{{severity}}] {{subject}}",
+            "body": "{{body}}\n\nResource: {{resourceType}}/{{resourceId}}"
+        }),
+        ("webhook", _) => serde_json::json!({
+            "messageType": "json",
+            "body": {
+                "text": "{{subject}}",
+                "body": "{{body}}",
+                "eventType": "{{eventType}}",
+                "resourceId": "{{resourceId}}"
+            }
+        }),
+        _ => serde_json::json!({
+            "messageType": message_type,
+            "text": "{{subject}}\n{{body}}"
+        }),
+    }
+}
+
 async fn seed_notification_permissions(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     let now = now_rfc3339();
     for (id, resource, action, description) in RBAC_BACKFILL_PERMISSIONS {
@@ -375,4 +715,34 @@ const RBAC_BACKFILL_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
         "test",
         "Send notification channel test messages",
     ),
+];
+
+const NOTIFICATION_CHANNEL_EXAMPLE_TYPES: &[(&str, &str)] = &[
+    ("webhook", "json"),
+    ("slack", "text"),
+    ("slack", "blockKit"),
+    ("slack", "attachments"),
+    ("dingtalk", "text"),
+    ("dingtalk", "markdown"),
+    ("dingtalk", "link"),
+    ("dingtalk", "actionCard"),
+    ("dingtalk", "feedCard"),
+    ("feishu", "text"),
+    ("feishu", "post"),
+    ("feishu", "image"),
+    ("feishu", "share_chat"),
+    ("feishu", "interactive"),
+    ("wechat_work", "text"),
+    ("wechat_work", "markdown"),
+    ("wechat_work", "markdown_v2"),
+    ("wechat_work", "image"),
+    ("wechat_work", "news"),
+    ("wechat_work", "file"),
+    ("wechat_work", "voice"),
+    ("wechat_work", "template_card"),
+    ("pagerduty", "trigger"),
+    ("pagerduty", "acknowledge"),
+    ("pagerduty", "resolve"),
+    ("email", "plain"),
+    ("email", "html"),
 ];

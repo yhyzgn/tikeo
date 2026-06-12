@@ -198,9 +198,11 @@ async fn alert_rule_create_backfills_notification_policy_for_legacy_channels() {
         .list_channels(tikeo_storage::NotificationChannelFilters::default())
         .await
         .unwrap_or_else(|error| panic!("channels should list: {error}"));
-    assert_eq!(migrated_channels.len(), 1);
-    assert_eq!(migrated_channels[0].target_redacted, "https://legacy.example.com/...");
-    assert!(!migrated_channels[0].config_json.contains("create-token"));
+    let migrated_channel = migrated_channels
+        .iter()
+        .find(|channel| channel.target_redacted == "https://legacy.example.com/...")
+        .unwrap_or_else(|| panic!("legacy alert channel should be listed alongside seeded examples"));
+    assert!(!migrated_channel.config_json.contains("create-token"));
 }
 
 
@@ -454,9 +456,11 @@ async fn governance_alert_materialization_backfills_legacy_policy_and_attempt() 
         .list_channels(tikeo_storage::NotificationChannelFilters::default())
         .await
         .unwrap_or_else(|error| panic!("channels should list: {error}"));
-    assert_eq!(migrated_channels.len(), 1);
-    assert_eq!(migrated_channels[0].provider, "webhook");
-    assert_eq!(migrated_channels[0].target_redacted, "http://localhost/...");
+    let migrated_channel = migrated_channels
+        .iter()
+        .find(|channel| channel.target_redacted == "http://localhost/...")
+        .unwrap_or_else(|| panic!("legacy governance channel should be listed alongside seeded examples"));
+    assert_eq!(migrated_channel.provider, "webhook");
 
     let timeline = messages
         .list_messages(NotificationMessageFilters {

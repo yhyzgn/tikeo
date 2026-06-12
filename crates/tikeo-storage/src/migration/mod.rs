@@ -46,11 +46,15 @@ impl MigratorTrait for Migrator {
             Box::new(RbacRoleManagementMigration),
             Box::new(NotificationCenterMigration),
             Box::new(NotificationTemplatesMigration),
+            Box::new(NotificationChannelExamplesMigration),
         ]
     }
 }
 
-use notification_center::{NotificationCenterMigration, NotificationTemplatesMigration};
+use notification_center::{
+    NotificationCenterMigration, NotificationChannelExamplesMigration,
+    NotificationTemplatesMigration,
+};
 use rbac_role_management::RbacRoleManagementMigration;
 
 #[derive(DeriveMigrationName)]
