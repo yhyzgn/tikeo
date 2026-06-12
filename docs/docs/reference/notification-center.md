@@ -102,12 +102,47 @@ Examples in this reference use placeholders. Do not include real tokens, webhook
 | `PATCH /api/v1/notification-templates/{id}` | Update template metadata, body, variables, or enabled state. | `notifications:manage` |
 | `DELETE /api/v1/notification-templates/{id}` | Delete a template row. Policies are soft-linked and should be updated first. | `notifications:manage` |
 | `POST /api/v1/notification-templates/{id}/render` | Render a stored or unsaved draft template against sample JSON without provider delivery. The `{id}` value may be a generated id, `templateKey`, or draft key when the request body supplies `provider`, `messageType`, and `template`. | `notifications:read` |
+| `GET /api/v1/jobs/{job}/notification-bindings` | List job-facing notification bindings backed by job-owned `notification_policies`. | `jobs:read` + `notifications:read` |
+| `POST /api/v1/jobs/{job}/notification-bindings` | Create a job notification binding for success/failure/always/cancel/retry presets or advanced event lists. | `jobs:write` + `notifications:manage` |
+| `GET/PATCH/DELETE /api/v1/jobs/{job}/notification-bindings/{binding}` | Read, update, or delete one job-owned notification binding; wrong-owner bindings return 404. | `jobs:read/write` + `notifications:read/manage` |
+| `POST /api/v1/jobs/{job}/notification-bindings:validate` | Validate selected channels, template provider compatibility, and expanded job event types. | `jobs:read` + `notifications:read` |
+| `POST /api/v1/jobs/{job}/notification-bindings:preview` | Render a sample job-instance payload against the selected template without delivery. | `jobs:read` + `notifications:read` |
 | `GET /api/v1/notification-messages` | List normalized messages. | `notifications:read` |
+| `GET /api/v1/notification-messages/{id}/trace` | Return one message with policy, delivery attempts, job/instance context, and a redacted execution log excerpt. | `notifications:read` plus tenant scope check when a job can be resolved |
 | `GET /api/v1/notification-delivery-attempts` | List delivery attempts. | `notifications:read` |
 | `GET /api/v1/notification-delivery-attempts:queue-status` | Count retry/DLQ state and return recent dead letters. | `notifications:read` |
 | `POST /api/v1/notification-delivery-attempts:retry-due` | Process due attempts in a bounded scan. | `notifications:test` |
 
 Built-in channel type metadata reports `supportsTestSend=true`. Use `POST /api/v1/notification-channels/{id}/test-send` or the edit drawer **Send a test** action to exercise one saved enabled channel; use `POST /api/v1/notification-delivery-attempts:retry-due` for the generic due-attempt worker scan.
+
+## Job notification bindings
+
+The job drawer in `web/src/pages/notifications/JobNotificationConfigDrawer.tsx` is a job-facing configuration layer over `notification_policies`; it does not create a second delivery system. A binding stores:
+
+| Field | Meaning |
+| --- | --- |
+| `trigger` | Preset: `success`, `failure`, `always`, `cancelled`, `retry_scheduled`, `retry_exhausted`, or `advanced`. |
+| `eventTypes` | Advanced explicit events, validated against supported `job_instance.*` event names. Presets expand server-side. |
+| `channelIds` | Existing enabled notification channels. At least one is required. |
+| `templateRef` | Optional enabled `notification_templates` id or `templateKey`; provider must match at least one selected channel provider. |
+| `includeLogLink` / `includeLogExcerpt` / `logExcerptLines` | Controls whether job messages include log navigation metadata and how much log context the operator expects to inspect. |
+| `dedupeSeconds` | Reuses Notification Center dedupe; default is `300`. |
+
+Runtime materialization still flows through `NotificationCenter::emit_job_instance_event`: matching job-owned policies create normalized `notification_messages` and delivery attempts. Message payloads include flat and nested context keys such as `jobId`, `jobName`, `namespace`, `app`, `instanceId`, `status`, `triggerType`, `executionMode`, `startedAt`, `finishedAt`, `workerId`, `operatorName`, `operatorType`, and `logsUrl`.
+
+Supported template variables for job messages include the generic variables plus `{{jobId}}`, `{{jobName}}`, `{{namespace}}`, `{{app}}`, `{{instanceId}}`, `{{status}}`, `{{triggerType}}`, `{{executionMode}}`, `{{startedAt}}`, `{{finishedAt}}`, `{{workerId}}`, `{{operatorName}}`, `{{operatorType}}`, and `{{logsUrl}}`.
+
+## Message trace and execution-log passthrough
+
+Use `GET /api/v1/notification-messages/{id}/trace` or the **Details** action in the Notification Center messages tab when an operator needs to answer “which job instance produced this outbound message and what happened during execution?”. The response contains:
+
+- `message`: normalized Notification Center message.
+- `policy`: source policy when still present.
+- `attempts`: provider attempts with redacted targets, HTTP status, retry state, and errors.
+- `job` / `instance`: resolved execution context when the message is job-related.
+- `logs`: `/instances/{instance}/logs` URL plus the latest 80 log lines; sensitive fragments containing password/token/secret/authorization/routingKey/signingKey key-value patterns are redacted for display.
+
+Trace is read-only. It never calls external providers and never reveals stored channel `secretRefs`.
 
 ## Channel request fields
 

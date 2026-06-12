@@ -638,3 +638,17 @@ Decision:
 Rationale:
 - Policies that subscribe to normal failed jobs must not miss failures just because a job has no retry budget.
 - `retry_exhausted` should mean retry exhaustion, not any failed terminal status.
+
+## 2026-06-13 — Job notification bindings are a job-facing policy projection
+
+Decision:
+- Job-specific success/failure/always/retry notifications are configured through `/jobs/{job}/notification-bindings`, but persisted as `notification_policies` with `owner_type=job`, `owner_id=<job id>`, and `event_family=job_instance`.
+- Notification message troubleshooting is handled by `/notification-messages/{id}/trace`, which joins message, policy, attempts, job/instance context, and redacted execution logs rather than adding a separate notification log store.
+- Server release workflows must run `scripts/set-release-version.py --scope workspace` before building server binaries/images so `CARGO_PKG_VERSION` matches the release tag.
+
+Rejected:
+- A second task-notification delivery subsystem | duplicates channels/templates/policies/delivery state already owned by Notification Center.
+- Inferring server binary version only from Docker/Git tag metadata | `env!(CARGO_PKG_VERSION)` is compiled from Cargo manifests and must be updated before build.
+
+Constraint:
+- Trace must not reveal channel secrets or cross-tenant execution context; it redacts log key-value fragments and applies tenant-scope checks when a job is resolved.

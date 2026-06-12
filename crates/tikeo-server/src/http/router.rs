@@ -328,6 +328,25 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
         .route("/jobs/topology", get(routes::job_topology))
         .route("/jobs/{job}/impact", get(routes::job_impact))
         .route(
+            "/jobs/{job}/notification-bindings",
+            get(routes::list_job_notification_bindings)
+                .post(routes::create_job_notification_binding),
+        )
+        .route(
+            "/jobs/{job}/notification-bindings:validate",
+            axum::routing::post(routes::validate_job_notification_binding),
+        )
+        .route(
+            "/jobs/{job}/notification-bindings:preview",
+            axum::routing::post(routes::preview_job_notification_binding),
+        )
+        .route(
+            "/jobs/{job}/notification-bindings/{binding}",
+            get(routes::get_job_notification_binding)
+                .patch(routes::update_job_notification_binding)
+                .delete(routes::delete_job_notification_binding),
+        )
+        .route(
             "/jobs/{job_action}",
             axum::routing::post(routes::trigger_job)
                 .patch(routes::update_job)
@@ -419,6 +438,10 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
         .route(
             "/notification-messages",
             get(routes::list_notification_messages),
+        )
+        .route(
+            "/notification-messages/{id}/trace",
+            get(routes::get_notification_message_trace),
         )
         .route(
             "/notification-delivery-attempts",

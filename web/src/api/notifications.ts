@@ -241,6 +241,72 @@ export interface NotificationDeliveryRetryResult {
   skipped: number;
 }
 
+export interface JobNotificationBindingSummary {
+  id: string;
+  jobId: string;
+  name: string;
+  trigger: string;
+  eventTypes: string[];
+  channelIds: string[];
+  templateRef: string | null;
+  enabled: boolean;
+  severity: string;
+  dedupeSeconds: number;
+  includeLogLink: boolean;
+  includeLogExcerpt: boolean;
+  logExcerptLines: number;
+  policy: NotificationPolicySummary;
+}
+
+export interface SaveJobNotificationBindingRequest {
+  name: string;
+  trigger: string;
+  eventTypes?: string[];
+  channelIds: string[];
+  templateRef?: string | null;
+  enabled?: boolean;
+  severity?: string;
+  dedupeSeconds?: number;
+  includeLogLink?: boolean;
+  includeLogExcerpt?: boolean;
+  logExcerptLines?: number;
+}
+
+export interface JobNotificationBindingValidationSummary {
+  valid: boolean;
+  eventTypes: string[];
+  channelCount: number;
+  missingChannelIds: string[];
+  disabledChannelIds: string[];
+  issues: string[];
+}
+
+export interface JobNotificationBindingPreview {
+  jobId: string;
+  trigger: string;
+  eventTypes: string[];
+  sampleContext: Record<string, unknown>;
+  renderedTemplate: Record<string, unknown> | unknown[] | string | number | boolean | null;
+  validation: JobNotificationBindingValidationSummary;
+}
+
+export interface NotificationTraceLogLine {
+  level: string;
+  workerId: string;
+  sequence: number;
+  message: string;
+  createdAt: string;
+}
+
+export interface NotificationMessageTrace {
+  message: NotificationMessageSummary;
+  policy: NotificationPolicySummary | null;
+  attempts: NotificationDeliveryAttemptSummary[];
+  job: { id: string; namespace: string; app: string; name: string } | null;
+  instance: { id: string; jobId: string; status: string; triggerType: string; executionMode: string; createdAt: string; updatedAt: string; workerId: string | null } | null;
+  logs: { url: string | null; excerpt: NotificationTraceLogLine[]; truncated: boolean };
+}
+
 function queryString(params: Record<string, string | boolean | undefined> = {}): string {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -358,4 +424,44 @@ export function retryDueNotificationDeliveryAttempts(params: { limit?: number; m
     method: 'POST',
     body: JSON.stringify(params),
   });
+}
+
+export function listJobNotificationBindings(jobId: string): Promise<JobNotificationBindingSummary[]> {
+  return request<JobNotificationBindingSummary[]>(`/api/v1/jobs/${encodeURIComponent(jobId)}/notification-bindings`);
+}
+
+export function createJobNotificationBinding(jobId: string, payload: SaveJobNotificationBindingRequest): Promise<JobNotificationBindingSummary> {
+  return request<JobNotificationBindingSummary>(`/api/v1/jobs/${encodeURIComponent(jobId)}/notification-bindings`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateJobNotificationBinding(jobId: string, bindingId: string, payload: Partial<SaveJobNotificationBindingRequest>): Promise<JobNotificationBindingSummary> {
+  return request<JobNotificationBindingSummary>(`/api/v1/jobs/${encodeURIComponent(jobId)}/notification-bindings/${encodeURIComponent(bindingId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteJobNotificationBinding(jobId: string, bindingId: string): Promise<void> {
+  await request<Record<string, never>>(`/api/v1/jobs/${encodeURIComponent(jobId)}/notification-bindings/${encodeURIComponent(bindingId)}`, { method: 'DELETE' });
+}
+
+export function validateJobNotificationBinding(jobId: string, payload: SaveJobNotificationBindingRequest): Promise<JobNotificationBindingValidationSummary> {
+  return request<JobNotificationBindingValidationSummary>(`/api/v1/jobs/${encodeURIComponent(jobId)}/notification-bindings:validate`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function previewJobNotificationBinding(jobId: string, payload: SaveJobNotificationBindingRequest): Promise<JobNotificationBindingPreview> {
+  return request<JobNotificationBindingPreview>(`/api/v1/jobs/${encodeURIComponent(jobId)}/notification-bindings:preview`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getNotificationMessageTrace(messageId: string): Promise<NotificationMessageTrace> {
+  return request<NotificationMessageTrace>(`/api/v1/notification-messages/${encodeURIComponent(messageId)}/trace`);
 }

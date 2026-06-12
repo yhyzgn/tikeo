@@ -96,12 +96,27 @@ Web route `/notifications` 同样要求 `notifications:read`。
 | `PATCH /api/v1/notification-templates/{id}` | 更新模板元数据、body、variables 或 enabled。 | `notifications:manage` |
 | `DELETE /api/v1/notification-templates/{id}` | 删除模板行；policy 是 soft link，删除前应先更新引用策略。 | `notifications:manage` |
 | `POST /api/v1/notification-templates/{id}/render` | 用 sample JSON 渲染已存储模板或未保存草稿，不执行 provider 投递；`{id}` 可为生成 id、`templateKey`，或在请求体提供 `provider`、`messageType`、`template` 时作为草稿 key。 | `notifications:read` |
+| `GET /api/v1/jobs/{job}/notification-bindings` | 列出 Job 级通知绑定，底层为 Job-owned `notification_policies`。 | `jobs:read` + `notifications:read` |
+| `POST /api/v1/jobs/{job}/notification-bindings` | 创建 Job 通知绑定，支持成功、失败、总是、取消、重试和高级事件列表。 | `jobs:write` + `notifications:manage` |
+| `GET/PATCH/DELETE /api/v1/jobs/{job}/notification-bindings/{binding}` | 读取、更新或删除 Job 通知绑定；owner 不匹配返回 404。 | `jobs:read/write` + `notifications:read/manage` |
+| `POST /api/v1/jobs/{job}/notification-bindings:validate` | 校验渠道、模板 provider 兼容性和展开后的 Job 事件类型。 | `jobs:read` + `notifications:read` |
+| `POST /api/v1/jobs/{job}/notification-bindings:preview` | 对样例 Job 实例上下文渲染模板，不发送消息。 | `jobs:read` + `notifications:read` |
 | `GET /api/v1/notification-messages` | 列出标准化消息。 | `notifications:read` |
+| `GET /api/v1/notification-messages/{id}/trace` | 查看消息、policy、投递 attempts、Job/实例上下文和脱敏执行日志摘要。 | `notifications:read`，可解析 Job 时还会做租户 scope 检查 |
 | `GET /api/v1/notification-delivery-attempts` | 列出投递尝试。 | `notifications:read` |
 | `GET /api/v1/notification-delivery-attempts:queue-status` | 统计 retry/DLQ 并返回最近 dead letters。 | `notifications:read` |
 | `POST /api/v1/notification-delivery-attempts:retry-due` | 处理 due attempts。 | `notifications:test` |
 
 内置 channel type metadata 返回 `supportsTestSend=true`。使用 `POST /api/v1/notification-channels/{id}/test-send` 或编辑抽屉 **发一条试试** 来验证某条已保存、已启用渠道；`POST /api/v1/notification-delivery-attempts:retry-due` 则用于 generic due-attempt worker scan。
+
+## Job 通知绑定与消息 Trace
+
+Job 通知绑定是面向任务操作者的配置层，不是新的投递系统。它复用 `notification_policies(owner_type='job', owner_id=job.id, event_family='job_instance')`，并把 `trigger`、`eventTypes`、`channelIds`、`templateRef`、日志链接/摘要配置写入 policy filter/channel refs。
+
+运行时仍由 `NotificationCenter::emit_job_instance_event` 物化消息和投递 attempts。Job 消息 payload 会携带 `jobId`、`jobName`、`namespace`、`app`、`instanceId`、`status`、`triggerType`、`executionMode`、`startedAt`、`finishedAt`、`workerId`、`operatorName`、`operatorType`、`logsUrl` 以及嵌套 `job` / `instance` / `operator` / `logs` 对象。
+
+`GET /api/v1/notification-messages/{id}/trace` 用于排障某条通知消息：响应包含标准化 message、policy、delivery attempts、Job/实例上下文，以及最近 80 行执行日志摘要。日志展示层会对 password/token/secret/authorization/routingKey/signingKey 等常见 key-value 片段做脱敏；trace 不会调用外部 provider，也不会回显渠道私密配置。
+
 
 ## Channel 字段
 

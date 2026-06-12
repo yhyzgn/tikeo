@@ -125,7 +125,12 @@ Notification Center routes are mounted under `/api/v1` and are included in `/api
 | `GET/POST /api/v1/notification-policies` | List or create owner/event subscriptions. | `notifications:read` for GET, `notifications:manage` for POST |
 | `GET/PATCH/DELETE /api/v1/notification-policies/{id}` | Read, update, or delete one policy. | `notifications:read` for GET, `notifications:manage` for PATCH/DELETE |
 | `POST /api/v1/notification-policies/{id}:validate` | Validate channel references and enabled state. | `notifications:read` |
+| `GET/POST /api/v1/jobs/{job}/notification-bindings` | List or create job-facing bindings backed by job-owned notification policies. | `jobs:read/write` + `notifications:read/manage` |
+| `GET/PATCH/DELETE /api/v1/jobs/{job}/notification-bindings/{binding}` | Read/update/delete one job binding. | `jobs:read/write` + `notifications:read/manage` |
+| `POST /api/v1/jobs/{job}/notification-bindings:validate` | Validate a draft binding. | `jobs:read` + `notifications:read` |
+| `POST /api/v1/jobs/{job}/notification-bindings:preview` | Render a draft binding sample payload/template. | `jobs:read` + `notifications:read` |
 | `GET /api/v1/notification-messages` | List normalized outbound messages. | `notifications:read` |
+| `GET /api/v1/notification-messages/{id}/trace` | Inspect one message with delivery attempts, job/instance context, and redacted execution logs. | `notifications:read` plus tenant scope check when job context resolves |
 | `GET /api/v1/notification-delivery-attempts` | List delivery attempts. | `notifications:read` |
 | `GET /api/v1/notification-delivery-attempts:queue-status` | Return delivered/retry/DLQ counters and recent dead letters. | `notifications:read` |
 | `POST /api/v1/notification-delivery-attempts:retry-due` | Run a bounded due-attempt delivery scan. | `notifications:test` |

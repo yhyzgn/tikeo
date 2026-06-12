@@ -140,3 +140,10 @@
 - Built-in provider payload shapes are source-backed and locally tested against loopback HTTP receivers, but live Slack/DingTalk/Feishu/WeCom/PagerDuty acceptance remains credential-gated.
 - Channel test-send is still not implemented. Metadata must remain `supportsTestSend=false` until a real endpoint persists attempts and redacts results.
 - Email exposes an HTML template shape for future compatibility, but the current SMTP adapter sends text/plain only; do not claim HTML/MIME email delivery until implemented and tested.
+
+## 2026-06-13 — Job notification binding remaining risks
+
+- Live external provider delivery remains credential-gated; local tests cover API validation, payload/trace materialization, redaction, and UI wiring but not real Slack/DingTalk/Feishu/WeCom/PagerDuty SaaS acceptance.
+- Message trace log redaction is display-layer key-value redaction for common sensitive names; future work should centralize structured JSON log redaction if logs start storing rich secret-bearing objects.
+- Alert rule automatic migration/dual-write to Notification Center policies is still open; do not claim alert delivery is fully unified until that compatibility migration lands.
+- Generic notification delivery remains at-least-once; lease/idempotency hardening is still a future mitigation.

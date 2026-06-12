@@ -6,7 +6,7 @@
 
 ## Current priority direction
 
-当前仍是功能/模块测试验收与发布阶段，不收缩、不臆造。Notification Center 的渠道、策略、模板、消息、投递、provider schema、告警事件物化、普通 Job 生命周期物化、Workflow notification inline channel/template refs 已落地并通过本地验收。Alert rule 自动迁移/dual-write、真实 channel test-send endpoint、外部 SaaS live smoke、delivery idempotency lease hardening 仍不能说成完成。
+当前仍是功能/模块测试验收与发布阶段，不收缩、不臆造。Notification Center 的渠道、策略、模板、消息、投递、provider schema、告警事件物化、普通 Job 生命周期物化、Workflow notification inline channel/template refs 已落地并通过本地验收。Alert rule 自动迁移/dual-write、外部 SaaS live smoke、delivery idempotency lease hardening 仍不能说成完成。
 
 ## Immediate next slice after this release
 
@@ -15,7 +15,6 @@
 3. If docs human-operator manual work is not already in the pushed branch/tag, continue/re-run the docs-site humanization task immediately after this notification phase: human-readable deployment/configuration/SDK/integration runbooks, not README rehashes and not AI-facing notes.
 4. Implement alert-rule dual-write/backfill to Notification Center policies while preserving legacy alert APIs.
 5. Add delivery lease/idempotency hardening so crash recovery avoids both lost notifications and duplicate provider calls.
-6. Add real channel `:test` endpoint only when it persists attempts and redacts results; until then `supportsTestSend=false` is correct.
 
 ## Current verified baseline
 
@@ -37,3 +36,7 @@
 - Helm chart 不能部署业务 Worker 或创建业务 Worker 入站 Service；Worker 只能主动出站连接 Tikeo Worker Tunnel。
 - 源文件 <=1500 行；`mod.rs` / `lib.rs` 等入口文件只做声明和 re-export。
 - Web/frontend/docs package management and command execution must use `bun` / `bunx` unless explicitly overridden.
+
+## Job notification binding release closeout
+
+Current slice is implemented locally and needs release closeout: run full verification, commit, push `main`, create the next available `v0.2.x` tag after `v0.2.7`, monitor GitHub Actions for CI/Coverage/Release/Docker/SDK workflows, and record release evidence. Server binary/image versioning must be confirmed from the tag-synced workspace version path, not assumed from Docker image labels.

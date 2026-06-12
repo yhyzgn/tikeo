@@ -194,3 +194,13 @@ describe('job topology canvas impact replay upgrade', () => {
     expect(stylesSource).toContain('@keyframes topology-flow');
   });
 });
+
+
+describe('job notification binding console', () => {
+  test('exposes a production job notification configuration drawer from job actions', () => {
+    expect(source).toContain('JobNotificationConfigDrawer');
+    expect(source).toContain('notificationJob');
+    expect(source).toContain('通知配置');
+    expect(source).toContain('setNotificationJob(job)');
+  });
+});

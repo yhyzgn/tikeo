@@ -7,6 +7,7 @@ pub(crate) mod calendars;
 pub(crate) mod common;
 pub(crate) mod event_sources;
 pub(crate) mod gitops;
+pub(crate) mod job_notifications;
 pub(crate) mod jobs;
 pub(crate) mod metrics;
 pub(crate) mod notification_providers;
@@ -37,6 +38,11 @@ pub use audit::{export_audit_logs, list_audit_logs};
 pub use calendars::{delete_calendar, list_calendars, upsert_calendar};
 pub use event_sources::trigger_inbound_webhook;
 pub use gitops::{diff_gitops_manifest, export_gitops_manifest};
+pub use job_notifications::{
+    create_job_notification_binding, delete_job_notification_binding, get_job_notification_binding,
+    list_job_notification_bindings, preview_job_notification_binding,
+    update_job_notification_binding, validate_job_notification_binding,
+};
 pub use jobs::{
     cancel_job_instance, create_job, delete_job, get_job_instance, list_instance_attempts,
     list_instance_logs, list_job_instances, list_job_versions, list_jobs, rollback_job,
@@ -50,8 +56,8 @@ pub use notification_templates::{
 };
 pub use notifications::{
     create_notification_channel, create_notification_policy, delete_notification_channel,
-    delete_notification_policy, get_notification_channel, get_notification_policy,
-    list_notification_channel_types, list_notification_channels,
+    delete_notification_policy, get_notification_channel, get_notification_message_trace,
+    get_notification_policy, list_notification_channel_types, list_notification_channels,
     list_notification_delivery_attempts, list_notification_messages, list_notification_policies,
     notification_delivery_queue_status, retry_due_notification_delivery_attempts,
     test_notification_channel, update_notification_channel, update_notification_policy,

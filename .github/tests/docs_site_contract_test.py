@@ -259,7 +259,7 @@ NOTIFICATION_CENTER_DOC_TOKENS = [
     "markdown_v2",
     "template_card",
     "PagerDuty",
-    "supportsTestSend=false",
+    "supportsTestSend=true",
 ]
 
 NOTIFICATION_CENTER_SOURCE_TOKENS = [
@@ -651,7 +651,7 @@ class DocsSiteContractTest(unittest.TestCase):
                 "POLICY_ID=\"$(curl -fsS -X POST",
                 "jq -r '.data.id'",
                 "secretRefs",
-                "supportsTestSend=false",
+                "supportsTestSend=true",
             ]:
                 self.assertIn(token, text, f"{root.relative_to(DOCS_SITE)} notifications guide missing chainable quick-path token {token!r}")
             self.assertNotIn("notification-channel-example", text)

@@ -454,7 +454,7 @@ async fn refresh_seed_notification_channel_examples(
     manager: &SchemaManager<'_>,
     enabled: bool,
 ) -> Result<(), DbErr> {
-    let enabled_sql = if enabled { 1 } else { 0 };
+    let enabled_sql = i32::from(enabled);
     for &(provider, message_type) in NOTIFICATION_CHANNEL_EXAMPLE_TYPES {
         let id = notification_channel_example_id(provider, message_type).replace('\'', "''");
         let name = notification_channel_example_name(provider, message_type).replace('\'', "''");
@@ -650,15 +650,12 @@ fn notification_channel_example_env_secret_refs(
     message_type: &str,
 ) -> serde_json::Value {
     match provider {
-        "slack" => serde_json::json!({
+        "slack" | "wechat_work" => serde_json::json!({
             "url": notification_channel_example_env_secret_ref(provider, message_type, "WEBHOOK_URL")
         }),
         "dingtalk" | "feishu" => serde_json::json!({
             "url": notification_channel_example_env_secret_ref(provider, message_type, "WEBHOOK_URL"),
             "signingKey": notification_channel_example_env_secret_ref(provider, message_type, "SIGNING_KEY")
-        }),
-        "wechat_work" => serde_json::json!({
-            "url": notification_channel_example_env_secret_ref(provider, message_type, "WEBHOOK_URL")
         }),
         "pagerduty" => serde_json::json!({
             "routingKey": notification_channel_example_env_secret_ref(provider, message_type, "ROUTING_KEY")
@@ -718,15 +715,12 @@ fn notification_channel_example_secret_refs(
     message_type: &str,
 ) -> serde_json::Value {
     match provider {
-        "slack" => serde_json::json!({
+        "slack" | "wechat_work" => serde_json::json!({
             "url": notification_channel_example_webhook_url(provider, message_type)
         }),
         "dingtalk" | "feishu" => serde_json::json!({
             "url": notification_channel_example_webhook_url(provider, message_type),
             "signingKey": notification_channel_example_signing_secret(provider, message_type)
-        }),
-        "wechat_work" => serde_json::json!({
-            "url": notification_channel_example_webhook_url(provider, message_type)
         }),
         "pagerduty" => serde_json::json!({
             "routingKey": format!("PAGERDUTY_{}_ROUTING_KEY", notification_channel_example_suffix(message_type))
@@ -800,10 +794,6 @@ fn notification_channel_example_template(provider: &str, message_type: &str) -> 
                 }
             ]
         }),
-        ("dingtalk", _) => serde_json::json!({
-            "messageType": "text",
-            "content": "{{subject}}\n{{body}}"
-        }),
         ("feishu", "post") => serde_json::json!({
             "messageType": message_type,
             "title": "{{subject}}",
@@ -868,9 +858,10 @@ fn notification_channel_example_template(provider: &str, message_type: &str) -> 
                 }
             }
         }),
-        ("wechat_work", _) => serde_json::json!({
+        ("dingtalk" | "wechat_work", _) => serde_json::json!({
             "messageType": "text",
-            "content": "{{subject}}\n{{body}}"
+            "content": "{{subject}}
+        {{body}}"
         }),
         ("pagerduty", "acknowledge" | "resolve") => serde_json::json!({
             "messageType": message_type,

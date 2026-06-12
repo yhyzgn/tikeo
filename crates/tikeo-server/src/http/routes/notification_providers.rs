@@ -315,12 +315,13 @@ fn direct_signing_secret(provider: &str, message_type: &str) -> String {
 
 fn builtin_example_secret_refs(provider: &str, message_type: &str) -> serde_json::Value {
     match provider {
-        "slack" => serde_json::json!({"url": direct_webhook_url(provider, message_type)}),
+        "slack" | "wechat_work" => {
+            serde_json::json!({"url": direct_webhook_url(provider, message_type)})
+        }
         "dingtalk" | "feishu" => serde_json::json!({
             "url": direct_webhook_url(provider, message_type),
             "signingKey": direct_signing_secret(provider, message_type)
         }),
-        "wechat_work" => serde_json::json!({"url": direct_webhook_url(provider, message_type)}),
         "pagerduty" => serde_json::json!({
             "routingKey": format!("PAGERDUTY_{}_ROUTING_KEY", notification_channel_example_suffix(message_type))
         }),
@@ -389,9 +390,6 @@ fn builtin_example_template(provider: &str, message_type: &str) -> serde_json::V
         ("dingtalk", "feedCard") => {
             serde_json::json!({"messageType":"feedCard","links":[{"title":"{{subject}}","messageURL":"https://tikeo.example.com/instances/{{resourceId}}","picURL":"https://tikeo.example.com/logo.png"}]})
         }
-        ("dingtalk", _) => {
-            serde_json::json!({"messageType":"text","content":"{{subject}}\n{{body}}"})
-        }
         ("feishu", "post") => {
             serde_json::json!({"messageType":"post","title":"{{subject}}","content":[[{"tag":"text","text":"{{body}}"}]]})
         }
@@ -426,8 +424,9 @@ fn builtin_example_template(provider: &str, message_type: &str) -> serde_json::V
         ("wechat_work", "template_card") => {
             serde_json::json!({"messageType":"template_card","templateCard":{"card_type":"text_notice","main_title":{"title":"{{subject}}","desc":"{{body}}"},"card_action":{"type":1,"url":"https://tikeo.example.com/instances/{{resourceId}}"}}})
         }
-        ("wechat_work", _) => {
-            serde_json::json!({"messageType":"text","content":"{{subject}}\n{{body}}"})
+        ("dingtalk" | "wechat_work", _) => {
+            serde_json::json!({"messageType":"text","content":"{{subject}}
+{{body}}"})
         }
         ("pagerduty", "acknowledge") => {
             serde_json::json!({"messageType":"acknowledge","customDetails":{"eventType":"{{eventType}}","resourceId":"{{resourceId}}"}})

@@ -152,6 +152,23 @@ curl -fsS http://127.0.0.1:9090/api/v1/notification-delivery-attempts:queue-stat
 
 验收完成的标志：策略校验返回 `valid=true`，匹配事件生成标准化 message，delivery attempt 引用 `${CHANNEL_ID}`，attempt 状态进入 `delivered`、`retry_pending` 或 `dead_letter`，且目标信息保持脱敏。
 
+
+## Job 级通知绑定
+
+如果规则只属于某个具体 Job，优先在 **任务 → 通知配置** 抽屉中配置。抽屉底层仍写入 `ownerType=job` 的 Notification Center policy，但操作者不需要手动拼 owner、job id 和 `job_instance.*` 事件列表。
+
+推荐流程：
+
+1. 在 **通知中心 → 通知渠道** 创建并测试可复用渠道。
+2. 如需富文本卡片，在 **通知中心 → 模板** 创建启用的 provider 模板。
+3. 打开 **任务** 页面，在目标任务行点击 **通知配置**。
+4. 选择触发预设：失败、成功、总是、取消、重试中、重试耗尽，或高级事件列表。
+5. 选择渠道和模板。抽屉会按渠道 provider 过滤模板，服务端也会再次校验模板 provider 与渠道是否兼容。
+6. 保存前先执行 **校验** 和 **预览**。预览只渲染样例 payload，不会真正发送外部消息。
+7. 真实运行后，在 **通知中心 → 消息 → 详情** 查看标准化消息、投递 attempts、Job/实例上下文和执行日志透传。
+
+Job 消息模板除通用变量外，还支持 `{{jobId}}`、`{{jobName}}`、`{{namespace}}`、`{{app}}`、`{{instanceId}}`、`{{status}}`、`{{triggerType}}`、`{{executionMode}}`、`{{startedAt}}`、`{{finishedAt}}`、`{{workerId}}`、`{{operatorName}}`、`{{operatorType}}` 和 `{{logsUrl}}`。
+
 ## 安全渠道创建示例
 
 响应统一使用 `{code,message,data}` envelope。上面的快速路径是推荐复制流程；下面只保留核心安全形状：凭据放在 `secretRefs`，不要写进 `config`。

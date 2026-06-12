@@ -1533,3 +1533,24 @@ Verification evidence: docs contract, workflow contract, management-smoke contra
 - Notification docs now document the real `channel → template → policy → event → delivery` chain with `CHANNEL_ID` / `TEMPLATE_ID` / `POLICY_ID`, `secretRefs`, `supportsTestSend=false`, retry/DLQ, and the Alerts-vs-Notifications boundary.
 - Added docs contract tests that reject public AI handoff wording, `0.0.0.0` client URLs, README-rehash depth, unchainable notification examples, and malformed Notification Center provider tables.
 - Final local evidence passed: docs contract/workflow/management smoke tests, source-size audit, whitespace check, `cd docs && bun run docs:typecheck && bun run docs:build`, `docker build -f docs/Dockerfile docs -t tikeo-docs:local`, and docs container smoke on `127.0.0.1:13036` for `/healthz`, `/docs/`, `/zh-CN/docs/`, notification reference, and search index.
+
+## 2026-06-13 — Job notification bindings and message trace acceptance slice
+
+- Added `design/job-notification-bindings-plan.md` and implemented the job-facing notification binding layer over existing Notification Center policies.
+- Backend now exposes `/api/v1/jobs/{job}/notification-bindings` CRUD plus `:validate` and `:preview`; bindings require both jobs and notifications permissions, validate enabled channels, validate template/provider compatibility, and preserve job ownership boundaries.
+- Job instance notification payloads now include production template context such as job/instance IDs, status, trigger/execution mode, operator fields, worker id, and `logsUrl`.
+- Notification Center now exposes `/api/v1/notification-messages/{id}/trace`, including message, policy, delivery attempts, resolved job/instance context, and a redacted latest-log excerpt with tenant-scope guard when job context is resolvable.
+- Web Jobs page now has a notification configuration drawer; Notification Center messages now have a detail drawer with delivery and execution-log passthrough.
+- Release workflows now sync the workspace version from tag before building server binaries and Docker server images, preventing `tikeo-server` from staying at `0.2.0` after `v0.2.x` tags.
+
+Verification so far:
+- `cargo fmt --all -- --check` ✅
+- `cargo test -p tikeo-server job_notification_binding_api_compiles_to_job_owned_policy_and_preview --all-features -- --nocapture` ✅
+- `cargo test -p tikeo-server notification_message_trace_includes_job_instance_attempts_and_redacted_logs --all-features -- --nocapture` ✅
+- `cargo test -p tikeo-server job_notification_binding_validation_rejects_empty_advanced_events_and_provider_mismatch --all-features -- --nocapture` ✅
+- `bun run --cwd web typecheck` ✅
+- `bun test --cwd web src/api/notifications.test.ts src/pages/__tests__/JobsPage.test.tsx src/pages/__tests__/NotificationCenterPage.test.tsx` ✅
+- `python3 .github/tests/workflow_contract_test.py` ✅
+- `python3 scripts/check-source-size.py` ✅
+
+Pending before release: full workspace clippy/test/build, web/docs lint/build, Docker builds, commit/push/tag, and GitHub Actions monitoring.

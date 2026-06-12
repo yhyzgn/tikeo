@@ -11,6 +11,7 @@ const channelDrawerSource = readFileSync(new URL('../notifications/ChannelDrawer
 const providerSchemaSource = readFileSync(new URL('../notifications/providerSchema.ts', import.meta.url), 'utf8');
 const templateDrawerSource = readFileSync(new URL('../notifications/TemplateDrawer.tsx', import.meta.url), 'utf8');
 const templateCatalogSource = readFileSync(new URL('../notifications/templateCatalog.ts', import.meta.url), 'utf8');
+const messageDetailDrawerSource = readFileSync(new URL('../notifications/NotificationMessageDetailDrawer.tsx', import.meta.url), 'utf8');
 
 describe('notification center console page', () => {
   test('wires Notification Center as a first-class observability menu route', () => {
@@ -308,6 +309,18 @@ describe('notification center console page', () => {
     expect(pageSource).not.toContain('AutoComplete');
     expect(pageSource).not.toContain('手工输入外部系统已同步');
     expect(pageSource).not.toContain("name=\"templateRef\" label={t('模板引用')}><Input");
+  });
+
+
+  test('lets operators open notification message trace with delivery attempts and job logs', () => {
+    expect(clientSource).toContain('getNotificationMessageTrace');
+    expect(clientSource).toContain('/api/v1/notification-messages/${encodeURIComponent(messageId)}/trace');
+    expect(pageSource).toContain('NotificationMessageDetailDrawer');
+    expect(pageSource).toContain('setDetailMessage');
+    expect(pageSource).toContain('详情');
+    for (const token of ['执行日志透传', 'Delivery attempts', 'trace?.attempts', 'trace?.instance']) {
+      expect(messageDetailDrawerSource).toContain(token);
+    }
   });
 
 });

@@ -10,6 +10,7 @@ import { ROUTE_META } from '../routes';
 import { useRouteActive } from '../hooks/useRouteActivation';
 import { useUrlQueryState } from '../hooks/useUrlQueryState';
 import { TABLE_PAGE_SIZE_OPTIONS, usePersistentTablePageSize } from '../utils/pagination';
+import { JobNotificationConfigDrawer } from './notifications/JobNotificationConfigDrawer';
 import { durationExpr, parseFixedRate } from './jobs/jobSchedule';
 
 const DEFAULT_RETRY_POLICY: JobRetryPolicy = {
@@ -69,6 +70,7 @@ export function JobsPage() {
   const [jobVersions, setJobVersions] = useState<JobVersionSummary[]>([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [adviceJob, setAdviceJob] = useState<JobSummary | null>(null);
+  const [notificationJob, setNotificationJob] = useState<JobSummary | null>(null);
   const [schedulingAdvice, setSchedulingAdvice] = useState<JobSchedulingAdvice | null>(null);
   const [adviceLoading, setAdviceLoading] = useState(false);
   const [broadcastJob, setBroadcastJob] = useState<JobSummary | null>(null);
@@ -496,6 +498,7 @@ export function JobsPage() {
           ) : null}
           <Button size="small" type="link" onClick={() => void openAdviceDrawer(job)}>调度建议</Button>
           <Button size="small" type="link" onClick={() => void openVersionDrawer(job)}>版本</Button>
+          <Button size="small" type="link" onClick={() => setNotificationJob(job)}>通知配置</Button>
           <PermissionGate resource="jobs" action="write">
             <Button size="small" type="link" onClick={() => openEditDrawer(job)}>编辑</Button>
           </PermissionGate>
@@ -511,6 +514,7 @@ export function JobsPage() {
 
   return (
     <div className="page-stack">
+      <JobNotificationConfigDrawer job={notificationJob} open={Boolean(notificationJob)} onClose={() => setNotificationJob(null)} />
       <Drawer
         title="创建任务"
         open={createDrawerOpen}

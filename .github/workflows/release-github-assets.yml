@@ -98,6 +98,18 @@ jobs:
           echo "$PROTOC_PATH_ENTRY" >> "$GITHUB_PATH"
           echo "PROTOC=$PROTOC_ENV" >> "$GITHUB_ENV"
           "$PROTOC_BIN" --version
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
+          VERSION="${RELEASE_TAG#v}"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Sync server workspace version
+        shell: bash
+        run: python scripts/set-release-version.py "${{ steps.version.outputs.version }}" --tag "${{ steps.version.outputs.tag }}" --scope workspace
       - name: Build server binary
         shell: bash
         run: |

@@ -207,6 +207,25 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("git log", GITHUB_RELEASE)
         self.assertIn("body_path: release-notes.md", GITHUB_RELEASE)
 
+
+    def test_server_release_and_docker_publish_sync_workspace_version_from_tag(self):
+        github_server_job = workflow_job_block(GITHUB_RELEASE, "server-binaries")
+        docker_server_job = workflow_job_block(DOCKER_SERVER, "publish")
+        for job_block in [github_server_job, docker_server_job]:
+            self.assertIn("Resolve release version", job_block)
+            self.assertIn("RELEASE_TAG", job_block)
+            self.assertIn('VERSION="${RELEASE_TAG#v}"', job_block)
+            self.assertIn("scripts/set-release-version.py", job_block)
+            self.assertIn("--scope workspace", job_block)
+        self.assertLess(
+            github_server_job.index("scripts/set-release-version.py"),
+            github_server_job.index("Build server binary"),
+        )
+        self.assertLess(
+            docker_server_job.index("scripts/set-release-version.py"),
+            docker_server_job.index("docker/build-push-action@v7"),
+        )
+
     def test_docker_publish_targets_are_split(self):
         self.assertIn("yhyzgn/tikeo-server", DOCKER_SERVER)
         self.assertIn("docker/login-action", DOCKER_SERVER)

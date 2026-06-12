@@ -30,6 +30,7 @@ import {
 import { blankToNull, formatJson, parseJsonObject } from './notifications/jsonUtils';
 import { ChannelDrawer } from './notifications/ChannelDrawer';
 import { TemplateDrawer } from './notifications/TemplateDrawer';
+import { NotificationMessageDetailDrawer } from './notifications/NotificationMessageDetailDrawer';
 import { notificationTemplateOptions, selectedPolicyProviders } from './notifications/templateCatalog';
 import { PermissionGate } from '../components/Permission';
 import { useRouteActive } from '../hooks/useRouteActivation';
@@ -133,6 +134,7 @@ export function NotificationCenterPage() {
   const [validatingPolicyId, setValidatingPolicyId] = useState<string | null>(null);
   const [testingChannelId, setTestingChannelId] = useState<string | null>(null);
   const [channelTestResult, setChannelTestResult] = useState<TestNotificationChannelResult | null>(null);
+  const [detailMessage, setDetailMessage] = useState<NotificationMessageSummary | null>(null);
   const [channelDrawerOpen, setChannelDrawerOpen] = useState(false);
   const [policyDrawerOpen, setPolicyDrawerOpen] = useState(false);
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false);
@@ -585,6 +587,7 @@ export function NotificationCenterPage() {
                     { title: t('主题'), dataIndex: 'subject', ellipsis: true },
                     { title: t('状态'), dataIndex: 'status', render: (value: string) => <Tag color={stateColor[value] ?? 'default'}>{value}</Tag> },
                     { title: t('创建时间'), dataIndex: 'createdAt' },
+                    { title: t('操作'), width: 90, render: (_, row) => <Button size="small" type="link" onClick={() => setDetailMessage(row)}>{t('详情')}</Button> },
                   ]}
                 />
               </Card>
@@ -616,6 +619,8 @@ export function NotificationCenterPage() {
           </Space>
         ) : null}
       </Modal>
+
+      <NotificationMessageDetailDrawer message={detailMessage} open={Boolean(detailMessage)} onClose={() => setDetailMessage(null)} />
 
       <ChannelDrawer
         open={channelDrawerOpen}

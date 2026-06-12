@@ -4,7 +4,7 @@ use tikeo_storage::NotificationMessageSummary;
 
 use crate::alert::AlertPayload;
 
-use super::{
+use super::delivery::{
     alert_payload_from_message, notification_payload, notification_text, optional_string,
     pagerduty_severity,
 };
@@ -665,7 +665,7 @@ fn render_template(template: &str, message: &NotificationMessageSummary) -> Stri
         };
         let token = after_start[..end].trim();
         if let Some(value) = template_token_value(token, message) {
-            rendered.push_str(value);
+            rendered.push_str(&value);
         } else {
             rendered.push_str("{{");
             rendered.push_str(&after_start[..end]);
@@ -719,25 +719,67 @@ fn template_token_value_for_validation(token: &str) -> Option<()> {
             | "dedupeKey"
             | "triggeredAt"
             | "createdAt"
+            | "jobId"
+            | "jobName"
+            | "namespace"
+            | "app"
+            | "instanceId"
+            | "status"
+            | "triggerType"
+            | "executionMode"
+            | "startedAt"
+            | "finishedAt"
+            | "workerId"
+            | "operatorName"
+            | "operatorType"
+            | "logsUrl"
     )
     .then_some(())
 }
 
-fn template_token_value<'a>(
-    token: &str,
-    message: &'a NotificationMessageSummary,
-) -> Option<&'a str> {
+fn template_token_value(token: &str, message: &NotificationMessageSummary) -> Option<String> {
     match token {
-        "subject" => Some(&message.subject),
-        "body" => Some(&message.body),
-        "eventType" => Some(&message.event_type),
-        "resourceType" => Some(&message.resource_type),
-        "resourceId" => Some(&message.resource_id),
-        "severity" => Some(&message.severity),
-        "messageId" => Some(&message.id),
-        "policyId" => Some(&message.policy_id),
-        "dedupeKey" => Some(&message.dedupe_key),
-        "triggeredAt" | "createdAt" => Some(&message.created_at),
+        "subject" => Some(message.subject.clone()),
+        "body" => Some(message.body.clone()),
+        "eventType" => Some(message.event_type.clone()),
+        "resourceType" => Some(message.resource_type.clone()),
+        "resourceId" => Some(message.resource_id.clone()),
+        "severity" => Some(message.severity.clone()),
+        "messageId" => Some(message.id.clone()),
+        "policyId" => Some(message.policy_id.clone()),
+        "dedupeKey" => Some(message.dedupe_key.clone()),
+        "triggeredAt" | "createdAt" => Some(message.created_at.clone()),
+        other => payload_string_field(message, other),
+    }
+}
+
+fn payload_string_field(message: &NotificationMessageSummary, key: &str) -> Option<String> {
+    let payload = serde_json::from_str::<serde_json::Value>(&message.payload_json).ok()?;
+    payload
+        .get(key)
+        .and_then(value_to_template_string)
+        .or_else(|| match key {
+            "operatorName" => payload
+                .pointer("/operator/name")
+                .and_then(value_to_template_string),
+            "operatorType" => payload
+                .pointer("/operator/type")
+                .and_then(value_to_template_string),
+            "logsUrl" => payload
+                .pointer("/logs/url")
+                .and_then(value_to_template_string),
+            "workerId" => payload
+                .pointer("/instance/workerId")
+                .and_then(value_to_template_string),
+            _ => None,
+        })
+}
+
+fn value_to_template_string(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(item) => Some(item.clone()),
+        serde_json::Value::Number(item) => Some(item.to_string()),
+        serde_json::Value::Bool(item) => Some(item.to_string()),
         _ => None,
     }
 }

@@ -155,6 +155,23 @@ curl -fsS http://127.0.0.1:9090/api/v1/notification-delivery-attempts:queue-stat
 
 Verification is complete when policy validation reports `valid=true`, a matching event creates a normalized message, the delivery attempt references `${CHANNEL_ID}`, and the attempt reaches `delivered`, `retry_pending`, or `dead_letter` with a redacted target.
 
+
+## Job-level notification bindings
+
+For day-to-day operations, prefer the **Jobs → Notification config** drawer when the rule belongs to one specific job. The drawer still writes job-owned Notification Center policies, but it removes the ambiguity of asking an operator to manually remember `ownerType=job`, the job id, and the right `job_instance.*` event list.
+
+Recommended workflow:
+
+1. Create and test a reusable channel in **Notification Center → Channels**.
+2. Create an enabled provider template in **Notification Center → Templates** if the provider needs a rich card/body.
+3. Open **Jobs**, choose a job, and click **Notification config**.
+4. Pick a trigger preset: **Failure**, **Success**, **Always**, cancellation, retry scheduling/exhaustion, or **Advanced** exact event types.
+5. Select channels and an enabled template. The drawer filters template options by selected channel provider and the server revalidates provider compatibility.
+6. Use **Validate** and **Preview** before saving. Preview renders a sample payload with job, instance, operator, and `logsUrl` fields; it does not send a provider message.
+7. After a real run, open **Notification Center → Messages → Details** to inspect the normalized message, attempts, job/instance context, and execution log passthrough.
+
+A production message can carry these template variables: `{{jobId}}`, `{{jobName}}`, `{{namespace}}`, `{{app}}`, `{{instanceId}}`, `{{status}}`, `{{triggerType}}`, `{{executionMode}}`, `{{startedAt}}`, `{{finishedAt}}`, `{{workerId}}`, `{{operatorName}}`, `{{operatorType}}`, and `{{logsUrl}}`, in addition to the generic `{{subject}}`, `{{body}}`, `{{eventType}}`, `{{resourceId}}`, and `{{severity}}` variables.
+
 ## Safe channel creation example
 
 The API uses the shared `{code,message,data}` envelope. The quick path above is the preferred copy-paste flow. This abbreviated body shows the important channel safety rule: credentials belong in `secretRefs`, not in `config`.
