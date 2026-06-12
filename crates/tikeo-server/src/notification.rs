@@ -841,12 +841,13 @@ fn dedupe_window_elapsed(message: &NotificationMessageSummary, dedupe_seconds: i
 }
 
 #[derive(Debug, Clone)]
-struct NotificationProviderDeliveryResult {
-    provider: String,
-    target_redacted: String,
-    delivered: bool,
-    status_code: Option<u16>,
-    error: Option<String>,
+pub(crate) struct NotificationProviderDeliveryResult {
+    pub(crate) provider: String,
+    pub(crate) target_redacted: String,
+    pub(crate) delivered: bool,
+    pub(crate) status_code: Option<u16>,
+    pub(crate) error: Option<String>,
+    pub(crate) rendered_payload: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -881,6 +882,7 @@ impl NotificationProviderClient {
                 delivered: false,
                 status_code: None,
                 error: Some("notification channel configuration is incomplete".to_owned()),
+                rendered_payload: None,
             };
         };
         if let Some(error) = missing_required_template_reason(&channel.provider, message, &config) {
@@ -890,6 +892,7 @@ impl NotificationProviderClient {
                 delivered: false,
                 status_code: None,
                 error: Some(error),
+                rendered_payload: None,
             };
         }
         match notification_channel {
@@ -967,6 +970,7 @@ impl NotificationProviderClient {
                         delivered: false,
                         status_code: None,
                         error: Some("email provider returned no delivery result".to_owned()),
+                        rendered_payload: None,
                     },
                     |result| NotificationProviderDeliveryResult {
                         provider: result.provider,
@@ -974,6 +978,10 @@ impl NotificationProviderClient {
                         delivered: result.delivered,
                         status_code: result.status,
                         error: result.error,
+                        rendered_payload: Some(serde_json::json!({
+                            "subject": email_alert_payload_from_message(message, &config).rule_name,
+                            "body": email_alert_payload_from_message(message, &config).message,
+                        })),
                     },
                 )
             }
@@ -999,6 +1007,7 @@ impl NotificationProviderClient {
                 delivered: false,
                 status_code: None,
                 error: Some(error.to_owned()),
+                rendered_payload: Some(body.clone()),
             };
         }
         let mut request = self.http.post(url).json(body);
@@ -1019,6 +1028,7 @@ impl NotificationProviderClient {
                     } else {
                         Some(format!("{provider} returned HTTP {status}"))
                     },
+                    rendered_payload: Some(body.clone()),
                 }
             }
             Err(error) => {
@@ -1030,10 +1040,24 @@ impl NotificationProviderClient {
                     delivered: false,
                     status_code: None,
                     error: Some(format!("{provider} request failed")),
+                    rendered_payload: Some(body.clone()),
                 }
             }
         }
     }
+}
+
+/// Deliver one notification message through one already-loaded channel using the same provider
+/// adapters as the retry worker.
+#[must_use]
+pub(crate) async fn deliver_notification_channel_once(
+    channel: &NotificationChannelDeliveryConfig,
+    message: &NotificationMessageSummary,
+    delivery_policy: AlertDeliveryPolicy,
+) -> NotificationProviderDeliveryResult {
+    NotificationProviderClient::new(delivery_policy)
+        .deliver(channel, message)
+        .await
 }
 
 fn notification_channel_from_delivery_config(

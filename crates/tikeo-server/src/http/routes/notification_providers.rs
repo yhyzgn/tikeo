@@ -113,7 +113,7 @@ pub(super) fn builtin_channel_types() -> Vec<NotificationChannelTypeSummary> {
                 required_config_keys: required.into_iter().map(str::to_owned).collect(),
                 required_target_keys: required_target.into_iter().map(str::to_owned).collect(),
                 secret_config_keys: secret.into_iter().map(str::to_owned).collect(),
-                supports_test_send: false,
+                supports_test_send: true,
                 plugin_provided: false,
                 template: builtin_channel_template(r#type),
             }
@@ -136,7 +136,7 @@ fn builtin_channel_template(provider: &str) -> serde_json::Value {
         "{{triggeredAt}}",
         "{{createdAt}}"
     ]);
-    match provider {
+    let mut template = match provider {
         "slack" => serde_json::json!({
             "defaultMessageType": "text",
             "messageTypes": [
@@ -225,6 +225,162 @@ fn builtin_channel_template(provider: &str) -> serde_json::Value {
             "templateVariables": variables,
             "docs": [{"label":"HTTP semantics RFC 9110","url":"https://datatracker.ietf.org/doc/rfc9110/"}]
         }),
+    };
+    attach_builtin_examples(provider, &mut template);
+    template
+}
+
+fn attach_builtin_examples(provider: &str, template: &mut serde_json::Value) {
+    let Some(message_types) = template
+        .get_mut("messageTypes")
+        .and_then(serde_json::Value::as_array_mut)
+    else {
+        return;
+    };
+    for message_type in message_types {
+        let Some(id) = message_type
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .map(ToOwned::to_owned)
+        else {
+            continue;
+        };
+        if let Some(object) = message_type.as_object_mut() {
+            object.insert(
+                "examples".to_owned(),
+                serde_json::json!([builtin_example(provider, &id)]),
+            );
+        }
+    }
+}
+
+fn builtin_example(provider: &str, message_type: &str) -> serde_json::Value {
+    let secret_refs = match provider {
+        "slack" => serde_json::json!({"url":"env:SLACK_WEBHOOK_URL"}),
+        "dingtalk" => {
+            serde_json::json!({"url":"env:DINGTALK_WEBHOOK_URL","signingKey":"env:DINGTALK_SIGNING_SECRET"})
+        }
+        "feishu" => {
+            serde_json::json!({"url":"env:FEISHU_WEBHOOK_URL","signingKey":"env:FEISHU_BOT_SECRET"})
+        }
+        "wechat_work" => serde_json::json!({"url":"env:WECOM_WEBHOOK_URL"}),
+        "pagerduty" => serde_json::json!({"routingKey":"env:PAGERDUTY_ROUTING_KEY"}),
+        "email" => {
+            serde_json::json!({"smtpUrl":"env:TIKEO_SMTP_URL","password":"env:TIKEO_SMTP_PASSWORD"})
+        }
+        _ => serde_json::json!({"url":"env:TIKEO_NOTIFICATION_WEBHOOK_URL"}),
+    };
+    let config = match provider {
+        "dingtalk" => serde_json::json!({"messageType":message_type,"isAtAll":false}),
+        "wechat_work" => {
+            serde_json::json!({"messageType":message_type,"mentionedList":[],"mentionedMobileList":[]})
+        }
+        "pagerduty" => {
+            serde_json::json!({"messageType":message_type,"source":"tikeo","severity":"critical","dedupKey":"{{dedupeKey}}"})
+        }
+        "email" => {
+            serde_json::json!({"messageType":message_type,"to":["ops@example.com"],"from":"tikeo@example.com"})
+        }
+        _ => serde_json::json!({"messageType":message_type}),
+    };
+    serde_json::json!({
+        "name": format!("{} {} smoke", provider, message_type),
+        "description": "Safe smoke-test example. Replace env: references with deployment secrets before sending.",
+        "config": config,
+        "secretRefs": secret_refs,
+        "template": builtin_example_template(provider, message_type),
+        "sample": {
+            "subject": "Tikeo smoke test",
+            "body": "A notification channel test was sent from the configuration drawer.",
+            "eventType": "notification.channel_test",
+            "resourceType": "notification_channel",
+            "resourceId": "channel-example",
+            "severity": "info"
+        }
+    })
+}
+
+fn builtin_example_template(provider: &str, message_type: &str) -> serde_json::Value {
+    match (provider, message_type) {
+        ("slack", "blockKit") => {
+            serde_json::json!({"messageType":"blockKit","text":"[tikeo] {{subject}}","blocks":[{"type":"section","text":{"type":"mrkdwn","text":"*{{subject}}*\n{{body}}"}}]})
+        }
+        ("slack", "attachments") => {
+            serde_json::json!({"messageType":"attachments","text":"[tikeo] {{subject}}","attachments":[{"color":"#439FE0","title":"{{subject}}","text":"{{body}}"}]})
+        }
+        ("slack", _) => {
+            serde_json::json!({"messageType":"text","text":"[tikeo/{{severity}}] {{subject}}\n{{body}}"})
+        }
+        ("dingtalk", "markdown") => {
+            serde_json::json!({"messageType":"markdown","title":"{{subject}}","text":"### {{subject}}\n\n{{body}}"})
+        }
+        ("dingtalk", "link") => {
+            serde_json::json!({"messageType":"link","title":"{{subject}}","text":"{{body}}","messageUrl":"https://tikeo.example.com/instances/{{resourceId}}","picUrl":"https://tikeo.example.com/logo.png"})
+        }
+        ("dingtalk", "actionCard") => {
+            serde_json::json!({"messageType":"actionCard","title":"{{subject}}","text":"### {{subject}}\n\n{{body}}","singleTitle":"Open Tikeo","singleURL":"https://tikeo.example.com/instances/{{resourceId}}"})
+        }
+        ("dingtalk", "feedCard") => {
+            serde_json::json!({"messageType":"feedCard","links":[{"title":"{{subject}}","messageURL":"https://tikeo.example.com/instances/{{resourceId}}","picURL":"https://tikeo.example.com/logo.png"}]})
+        }
+        ("dingtalk", _) => {
+            serde_json::json!({"messageType":"text","content":"{{subject}}\n{{body}}"})
+        }
+        ("feishu", "post") => {
+            serde_json::json!({"messageType":"post","title":"{{subject}}","content":[[{"tag":"text","text":"{{body}}"}]]})
+        }
+        ("feishu", "image") => {
+            serde_json::json!({"messageType":"image","imageKey":"img_v3_example_key"})
+        }
+        ("feishu", "share_chat") => {
+            serde_json::json!({"messageType":"share_chat","shareChatId":"oc_example_chat_id"})
+        }
+        ("feishu", "interactive") => {
+            serde_json::json!({"messageType":"interactive","card":{"header":{"title":{"tag":"plain_text","content":"{{subject}}"}},"elements":[{"tag":"div","text":{"tag":"lark_md","content":"{{body}}"}}]}})
+        }
+        ("feishu", _) => serde_json::json!({"messageType":"text","text":"{{subject}}\n{{body}}"}),
+        ("wechat_work", "markdown") => {
+            serde_json::json!({"messageType":"markdown","content":"### {{subject}}\n{{body}}"})
+        }
+        ("wechat_work", "markdown_v2") => {
+            serde_json::json!({"messageType":"markdown_v2","content":"# {{subject}}\n{{body}}"})
+        }
+        ("wechat_work", "image") => {
+            serde_json::json!({"messageType":"image","base64":"iVBORw0KGgo=","md5":"d41d8cd98f00b204e9800998ecf8427e"})
+        }
+        ("wechat_work", "news") => {
+            serde_json::json!({"messageType":"news","articles":[{"title":"{{subject}}","description":"{{body}}","url":"https://tikeo.example.com/instances/{{resourceId}}"}]})
+        }
+        ("wechat_work", "file") => {
+            serde_json::json!({"messageType":"file","media_id":"MEDIA_ID_FROM_WECOM_UPLOAD"})
+        }
+        ("wechat_work", "voice") => {
+            serde_json::json!({"messageType":"voice","media_id":"MEDIA_ID_FROM_WECOM_UPLOAD"})
+        }
+        ("wechat_work", "template_card") => {
+            serde_json::json!({"messageType":"template_card","templateCard":{"card_type":"text_notice","main_title":{"title":"{{subject}}","desc":"{{body}}"},"card_action":{"type":1,"url":"https://tikeo.example.com/instances/{{resourceId}}"}}})
+        }
+        ("wechat_work", _) => {
+            serde_json::json!({"messageType":"text","content":"{{subject}}\n{{body}}"})
+        }
+        ("pagerduty", "acknowledge") => {
+            serde_json::json!({"messageType":"acknowledge","customDetails":{"eventType":"{{eventType}}","resourceId":"{{resourceId}}"}})
+        }
+        ("pagerduty", "resolve") => {
+            serde_json::json!({"messageType":"resolve","customDetails":{"eventType":"{{eventType}}","resourceId":"{{resourceId}}"}})
+        }
+        ("pagerduty", _) => {
+            serde_json::json!({"messageType":"trigger","summary":"{{subject}}","customDetails":{"body":"{{body}}","eventType":"{{eventType}}"}})
+        }
+        ("email", "html") => {
+            serde_json::json!({"messageType":"html","subject":"[tikeo/{{severity}}] {{subject}}","html":"<h1>{{subject}}</h1><p>{{body}}</p>","body":"{{body}}"})
+        }
+        ("email", _) => {
+            serde_json::json!({"messageType":"plain","subject":"[tikeo/{{severity}}] {{subject}}","body":"{{body}}\n\nResource: {{resourceType}}/{{resourceId}}"})
+        }
+        _ => {
+            serde_json::json!({"messageType":"json","body":{"text":"{{subject}}","body":"{{body}}","eventType":"{{eventType}}"}})
+        }
     }
 }
 
@@ -554,7 +710,7 @@ fn validate_provider_message_template_from_metadata(
     Ok(())
 }
 
-fn is_builtin_provider(provider: &str) -> bool {
+pub(super) fn is_builtin_provider(provider: &str) -> bool {
     builtin_channel_types()
         .iter()
         .any(|item| item.r#type == provider)

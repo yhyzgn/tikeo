@@ -54,7 +54,8 @@ pub use notifications::{
     list_notification_channel_types, list_notification_channels,
     list_notification_delivery_attempts, list_notification_messages, list_notification_policies,
     notification_delivery_queue_status, retry_due_notification_delivery_attempts,
-    update_notification_channel, update_notification_policy, validate_notification_policy,
+    test_notification_channel, update_notification_channel, update_notification_policy,
+    validate_notification_policy,
 };
 pub use observability::observability_status;
 pub use oidc_identity::{delete_oidc_identity, list_oidc_identities, upsert_oidc_identity};

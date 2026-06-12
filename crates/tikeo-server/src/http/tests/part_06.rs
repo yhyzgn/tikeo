@@ -30,7 +30,8 @@
             .as_array()
             .unwrap_or_else(|| panic!("types should be an array"))
             .iter()
-            .all(|item| item["supportsTestSend"] == false));
+            .filter(|item| item["pluginProvided"] == false)
+            .all(|item| item["supportsTestSend"] == true));
         let email_type = types_json["data"]
             .as_array()
             .unwrap_or_else(|| panic!("types should be an array"))
@@ -69,6 +70,9 @@
         );
         assert_provider_template(channel_types, "email", &["plain", "html"]);
         assert_provider_template(channel_types, "webhook", &["json"]);
+        for provider in ["slack", "dingtalk", "feishu", "wechat_work", "pagerduty", "email", "webhook"] {
+            assert_provider_template_examples(channel_types, provider);
+        }
         assert_provider_template_has_field(channel_types, "dingtalk", "atUserIds");
         assert_provider_template_has_field(channel_types, "wechat_work", "mentionedList");
         assert_provider_template_has_field(channel_types, "wechat_work", "mentionedMobileList");
@@ -675,6 +679,171 @@
     }
 
 
+    #[tokio::test]
+    async fn notification_channel_test_send_delivers_and_records_detailed_result() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .unwrap_or_else(|error| panic!("webhook listener should bind: {error}"));
+        let address = listener
+            .local_addr()
+            .unwrap_or_else(|error| panic!("webhook listener should expose addr: {error}"));
+        let received = std::sync::Arc::new(tokio::sync::Mutex::new(String::new()));
+        let received_server = received.clone();
+        let server = tokio::spawn(async move {
+            let app = axum::Router::new().route(
+                "/notify",
+                axum::routing::post(move |body: String| {
+                    let received = received_server.clone();
+                    async move {
+                        *received.lock().await = body;
+                        axum::http::StatusCode::ACCEPTED
+                    }
+                }),
+            );
+            axum::serve(listener, app)
+                .await
+                .unwrap_or_else(|error| panic!("webhook listener should serve: {error}"));
+        });
+
+        let app = router().await;
+        let create_body = format!(
+            r#"{{"scopeType":"global","name":"Loopback smoke webhook","provider":"webhook","enabled":true,"config":{{"url":"http://{address}/notify","messageType":"json","template":{{"body":{{"subject":"{{{{subject}}}}","body":"{{{{body}}}}","event":"{{{{eventType}}}}"}}}}}},"safetyPolicy":{{"allowInsecureLoopback":true}}}}"#
+        );
+        let created = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/notification-channels",
+                    &create_body,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("notification channel create should respond: {error}"));
+        assert!(created.status().is_success());
+        let body = axum::body::to_bytes(created.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let created_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        let channel_id = created_json["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("channel id should be present"));
+
+        let tested = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    format!("/api/v1/notification-channels/{channel_id}/test-send"),
+                    r#"{"subject":"Smoke subject","body":"Smoke body","severity":"info","eventType":"notification.test"}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("notification channel test send should respond: {error}"));
+        assert!(tested.status().is_success());
+        let body = axum::body::to_bytes(tested.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let tested_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(tested_json["code"], 0);
+        let result = &tested_json["data"];
+        assert_eq!(result["channelId"], channel_id);
+        assert_eq!(result["provider"], "webhook");
+        assert_eq!(result["delivered"], true);
+        assert_eq!(result["statusCode"], 202);
+        assert_eq!(result["retryState"], "delivered");
+        assert!(
+            result["messageId"]
+                .as_str()
+                .is_some_and(|value| value.starts_with("notification-message_"))
+        );
+        assert!(
+            result["attemptId"]
+                .as_str()
+                .is_some_and(|value| value.starts_with("notification-delivery_"))
+        );
+        assert_eq!(result["renderedPayload"]["subject"], "Smoke subject");
+        assert!(result["targetRedacted"].as_str().is_some_and(|value| value.starts_with("http://127.0.0.1:") && value.ends_with("/...")));
+        assert!(!tested_json.to_string().contains("/notify"));
+
+        let delivered_body = received.lock().await.clone();
+        assert!(delivered_body.contains("Smoke subject"), "provider should receive rendered test body: {delivered_body}");
+        assert!(!delivered_body.contains("secretRefsJson"));
+
+        let messages = app
+            .clone()
+            .oneshot(admin_request_builder(app.clone(), "GET", format!("/api/v1/notification-messages?source_id={channel_id}&event_type=notification.test")).await)
+            .await
+            .unwrap_or_else(|error| panic!("notification messages should respond: {error}"));
+        assert!(messages.status().is_success());
+        let body = axum::body::to_bytes(messages.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let messages_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(messages_json["data"].as_array().map(Vec::len), Some(1));
+        assert_eq!(messages_json["data"][0]["status"], "delivered");
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn notification_channel_test_send_fails_closed_for_disabled_channel() {
+        let app = router().await;
+        let created = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/notification-channels",
+                    r#"{"scopeType":"global","name":"Disabled test webhook","provider":"webhook","enabled":false,"config":{"url":"https://hooks.example.com/services/test-token","messageType":"json","template":{"body":{"text":"{{subject}}"}}}}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("disabled notification channel create should respond: {error}"));
+        assert!(created.status().is_success());
+        let body = axum::body::to_bytes(created.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let created_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        let channel_id = created_json["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("channel id should be present"));
+
+        let tested = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app,
+                    "POST",
+                    format!("/api/v1/notification-channels/{channel_id}/test-send"),
+                    "{}",
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("disabled notification channel test should respond: {error}"));
+        assert_eq!(tested.status(), axum::http::StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(tested.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let tested_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert!(tested_json["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("disabled")));
+        assert!(!tested_json.to_string().contains("test-token"));
+    }
+
 
     #[tokio::test]
     async fn notification_template_api_crud_render_and_policy_linkage_are_validated() {
@@ -1032,6 +1201,103 @@
     }
 
     #[tokio::test]
+    async fn notification_channel_test_send_rejects_plugin_provider_until_explicitly_supported() {
+        let app = router().await;
+        let plugin_created = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/plugins",
+                    r#"{
+                      "name":"Ops Bridge Test Send",
+                      "kind":"notification",
+                      "processorTypes":[],
+                      "alertChannelTypes":[{
+                        "type":"ops_bridge_test",
+                        "label":"Ops Bridge Test",
+                        "targetKind":"webhook",
+                        "description":"Webhook-compatible notification bridge",
+                        "template":{
+                          "defaultMessageType":"ticket",
+                          "messageTypes":[{
+                            "id":"ticket",
+                            "label":"Ticket",
+                            "description":"Create an external incident ticket",
+                            "templateFields":[
+                              {"key":"title","label":"Title","type":"string","required":true}
+                            ]
+                          }],
+                          "secretFields":[{"key":"url","label":"Webhook URL secret ref","type":"string","required":true,"secret":true}],
+                          "templateVariables":["{{subject}}"],
+                          "docs":[]
+                        }
+                      }],
+                      "enabled":true
+                    }"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("plugin create should respond: {error}"));
+        assert!(plugin_created.status().is_success());
+
+        let channel_created = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/notification-channels",
+                    r#"{
+                      "scopeType":"global",
+                      "name":"Ops bridge test",
+                      "provider":"ops_bridge_test",
+                      "enabled":true,
+                      "config":{"url":"https://ops.example.invalid/hook","messageType":"ticket","template":{"title":"{{subject}}"}}
+                    }"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("plugin channel create should respond: {error}"));
+        assert!(channel_created.status().is_success());
+        let body = axum::body::to_bytes(channel_created.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let created_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        let channel_id = created_json["data"]["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("channel id should be present"));
+
+        let tested = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app,
+                    "POST",
+                    format!("/api/v1/notification-channels/{channel_id}/test-send"),
+                    "{}",
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("plugin channel test send should respond: {error}"));
+        assert_eq!(tested.status(), axum::http::StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(tested.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let tested_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert!(tested_json["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("does not support test send")));
+        assert!(!tested_json.to_string().contains("ops.example.invalid"));
+    }
+
+    #[tokio::test]
     async fn plugin_provider_template_metadata_drives_channel_and_template_validation() {
         let app = router().await;
         let plugin_created = app
@@ -1207,6 +1473,43 @@ fn assert_provider_template_has_field(
         provider_type["template"].to_string().contains(expected_field),
         "{provider} provider template should include field {expected_field}"
     );
+}
+
+fn assert_provider_template_examples(channel_types: &[Value], provider: &str) {
+    let provider_type = channel_types
+        .iter()
+        .find(|item| item["type"] == provider)
+        .unwrap_or_else(|| panic!("{provider} provider should be present"));
+    let message_types = provider_type["template"]["messageTypes"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{provider} messageTypes should be an array"));
+    for message_type in message_types {
+        let message_type_id = message_type["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{provider} message type should have id"));
+        let examples = message_type["examples"].as_array().unwrap_or_else(|| {
+            panic!("{provider}/{message_type_id} should expose examples")
+        });
+        assert!(
+            (1..=2).contains(&examples.len()),
+            "{provider}/{message_type_id} should expose 1-2 examples"
+        );
+        for example in examples {
+            assert!(
+                example["name"].as_str().is_some_and(|value| !value.trim().is_empty()),
+                "{provider}/{message_type_id} example should have a name"
+            );
+            assert!(
+                example.get("template").is_some() || example.get("config").is_some(),
+                "{provider}/{message_type_id} example should provide template or config"
+            );
+            let rendered = example.to_string();
+            assert!(
+                !rendered.contains("***redacted***") && !rendered.contains("xoxb-"),
+                "{provider}/{message_type_id} example must not contain redacted markers or raw tokens"
+            );
+        }
+    }
 }
 
 

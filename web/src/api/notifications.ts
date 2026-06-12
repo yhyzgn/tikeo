@@ -199,6 +199,30 @@ export interface NotificationDeliveryAttemptSummary {
   createdAt: string;
 }
 
+export interface TestNotificationChannelRequest {
+  subject?: string;
+  body?: string;
+  eventType?: string;
+  resourceType?: string;
+  resourceId?: string;
+  severity?: string;
+  payload?: Record<string, unknown>;
+}
+
+export interface TestNotificationChannelResult {
+  channelId: string;
+  messageId: string;
+  attemptId: string;
+  provider: string;
+  targetRedacted: string;
+  delivered: boolean;
+  statusCode: number | null;
+  retryState: string;
+  error: string | null;
+  renderedPayload: Record<string, unknown> | unknown[] | string | number | boolean | null;
+  createdAt: string;
+}
+
 export interface NotificationDeliveryQueueStatus {
   totalAttempts: number;
   delivered: number;
@@ -244,6 +268,13 @@ export function createNotificationChannel(payload: CreateNotificationChannelRequ
 export function updateNotificationChannel(id: string, payload: UpdateNotificationChannelRequest): Promise<NotificationChannelSummary> {
   return request<NotificationChannelSummary>(`/api/v1/notification-channels/${encodeURIComponent(id)}`, {
     method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function testNotificationChannel(id: string, payload: TestNotificationChannelRequest = {}): Promise<TestNotificationChannelResult> {
+  return request<TestNotificationChannelResult>(`/api/v1/notification-channels/${encodeURIComponent(id)}/test-send`, {
+    method: 'POST',
     body: JSON.stringify(payload),
   });
 }

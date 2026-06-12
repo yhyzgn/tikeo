@@ -387,6 +387,10 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
                 .delete(routes::delete_notification_channel),
         )
         .route(
+            "/notification-channels/{id}/test-send",
+            axum::routing::post(routes::test_notification_channel),
+        )
+        .route(
             "/notification-policies",
             get(routes::list_notification_policies).post(routes::create_notification_policy),
         )

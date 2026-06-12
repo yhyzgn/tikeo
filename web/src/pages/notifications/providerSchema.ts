@@ -20,12 +20,22 @@ export interface ProviderFieldSchema {
   rows?: number;
 }
 
+export interface ProviderMessageTypeExample {
+  name: string;
+  description?: string;
+  config?: Record<string, unknown>;
+  secretRefs?: Record<string, unknown>;
+  template?: Record<string, unknown>;
+  sample?: Record<string, unknown>;
+}
+
 export interface ProviderMessageTypeSchema {
   id: string;
   label: string;
   description: string;
   templateFields: ProviderFieldSchema[];
   preview?: Record<string, unknown>;
+  examples?: ProviderMessageTypeExample[];
 }
 
 export interface ProviderDocLink {
@@ -258,6 +268,80 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+
+function exampleTemplate(provider: string, messageType: string): Record<string, unknown> {
+  if (provider === 'slack' && messageType === 'blockKit') return { messageType, text: '[tikeo] {{subject}}', blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '*{{subject}}*\n{{body}}' } }] };
+  if (provider === 'slack' && messageType === 'attachments') return { messageType, text: '[tikeo] {{subject}}', attachments: [{ color: '#439FE0', title: '{{subject}}', text: '{{body}}' }] };
+  if (provider === 'slack') return { messageType: 'text', text: '[tikeo/{{severity}}] {{subject}}\n{{body}}' };
+  if (provider === 'dingtalk' && messageType === 'markdown') return { messageType, title: '{{subject}}', text: '### {{subject}}\n\n{{body}}' };
+  if (provider === 'dingtalk' && messageType === 'link') return { messageType, title: '{{subject}}', text: '{{body}}', messageUrl: 'https://tikeo.example.com/instances/{{resourceId}}', picUrl: 'https://tikeo.example.com/logo.png' };
+  if (provider === 'dingtalk' && messageType === 'actionCard') return { messageType, title: '{{subject}}', text: '### {{subject}}\n\n{{body}}', singleTitle: 'Open Tikeo', singleURL: 'https://tikeo.example.com/instances/{{resourceId}}' };
+  if (provider === 'dingtalk' && messageType === 'feedCard') return { messageType, links: [{ title: '{{subject}}', messageURL: 'https://tikeo.example.com/instances/{{resourceId}}', picURL: 'https://tikeo.example.com/logo.png' }] };
+  if (provider === 'dingtalk') return { messageType: 'text', content: '{{subject}}\n{{body}}' };
+  if (provider === 'feishu' && messageType === 'post') return { messageType, title: '{{subject}}', content: [[{ tag: 'text', text: '{{body}}' }]] };
+  if (provider === 'feishu' && messageType === 'image') return { messageType, imageKey: 'img_v3_example_key' };
+  if (provider === 'feishu' && messageType === 'share_chat') return { messageType, shareChatId: 'oc_example_chat_id' };
+  if (provider === 'feishu' && messageType === 'interactive') return { messageType, card: { header: { title: { tag: 'plain_text', content: '{{subject}}' } }, elements: [{ tag: 'div', text: { tag: 'lark_md', content: '{{body}}' } }] } };
+  if (provider === 'feishu') return { messageType: 'text', text: '{{subject}}\n{{body}}' };
+  if (provider === 'wechat_work' && messageType === 'markdown') return { messageType, content: '### {{subject}}\n{{body}}' };
+  if (provider === 'wechat_work' && messageType === 'markdown_v2') return { messageType, content: '# {{subject}}\n{{body}}' };
+  if (provider === 'wechat_work' && messageType === 'image') return { messageType, base64: 'iVBORw0KGgo=', md5: 'd41d8cd98f00b204e9800998ecf8427e' };
+  if (provider === 'wechat_work' && messageType === 'news') return { messageType, articles: [{ title: '{{subject}}', description: '{{body}}', url: 'https://tikeo.example.com/instances/{{resourceId}}' }] };
+  if (provider === 'wechat_work' && (messageType === 'file' || messageType === 'voice')) return { messageType, media_id: 'MEDIA_ID_FROM_WECOM_UPLOAD' };
+  if (provider === 'wechat_work' && messageType === 'template_card') return { messageType, templateCard: { card_type: 'text_notice', main_title: { title: '{{subject}}', desc: '{{body}}' }, card_action: { type: 1, url: 'https://tikeo.example.com/instances/{{resourceId}}' } } };
+  if (provider === 'wechat_work') return { messageType: 'text', content: '{{subject}}\n{{body}}' };
+  if (provider === 'pagerduty' && messageType === 'acknowledge') return { messageType, customDetails: { eventType: '{{eventType}}', resourceId: '{{resourceId}}' } };
+  if (provider === 'pagerduty' && messageType === 'resolve') return { messageType, customDetails: { eventType: '{{eventType}}', resourceId: '{{resourceId}}' } };
+  if (provider === 'pagerduty') return { messageType: 'trigger', summary: '{{subject}}', customDetails: { body: '{{body}}', eventType: '{{eventType}}' } };
+  if (provider === 'email' && messageType === 'html') return { messageType, subject: '[tikeo/{{severity}}] {{subject}}', html: '<h1>{{subject}}</h1><p>{{body}}</p>', body: '{{body}}' };
+  if (provider === 'email') return { messageType: 'plain', subject: '[tikeo/{{severity}}] {{subject}}', body: '{{body}}\n\nResource: {{resourceType}}/{{resourceId}}' };
+  return { messageType: 'json', body: { text: '{{subject}}', body: '{{body}}', eventType: '{{eventType}}' } };
+}
+
+function exampleSecretRefs(provider: string): Record<string, unknown> {
+  if (provider === 'slack') return { url: 'env:SLACK_WEBHOOK_URL' };
+  if (provider === 'dingtalk') return { url: 'env:DINGTALK_WEBHOOK_URL', signingKey: 'env:DINGTALK_SIGNING_SECRET' };
+  if (provider === 'feishu') return { url: 'env:FEISHU_WEBHOOK_URL', signingKey: 'env:FEISHU_BOT_SECRET' };
+  if (provider === 'wechat_work') return { url: 'env:WECOM_WEBHOOK_URL' };
+  if (provider === 'pagerduty') return { routingKey: 'env:PAGERDUTY_ROUTING_KEY' };
+  if (provider === 'email') return { smtpUrl: 'env:TIKEO_SMTP_URL', password: 'env:TIKEO_SMTP_PASSWORD' };
+  return { url: 'env:TIKEO_NOTIFICATION_WEBHOOK_URL' };
+}
+
+function exampleConfig(provider: string, messageType: string): Record<string, unknown> {
+  if (provider === 'dingtalk') return { messageType, isAtAll: false };
+  if (provider === 'wechat_work') return { messageType, mentionedList: [], mentionedMobileList: [] };
+  if (provider === 'pagerduty') return { messageType, source: 'tikeo', severity: 'critical', dedupKey: '{{dedupeKey}}' };
+  if (provider === 'email') return { messageType, to: ['ops@example.com'], from: 'tikeo@example.com' };
+  return { messageType };
+}
+
+function generatedExample(provider: string, messageType: string): ProviderMessageTypeExample {
+  return {
+    name: `${provider} ${messageType} smoke`,
+    description: '示例：安全冒烟配置。发送前请用部署环境中的 Secret 替换 env: 引用。',
+    config: exampleConfig(provider, messageType),
+    secretRefs: exampleSecretRefs(provider),
+    template: exampleTemplate(provider, messageType),
+    sample: {
+      subject: 'Tikeo smoke test',
+      body: 'A notification channel test was sent from the configuration drawer.',
+      eventType: 'notification.channel_test',
+      resourceType: 'notification_channel',
+      resourceId: 'channel-example',
+      severity: 'info',
+    },
+  };
+}
+
+function parseExamples(value: unknown): ProviderMessageTypeExample[] {
+  return asArray(value).filter((item): item is ProviderMessageTypeExample => Boolean(item && typeof item === 'object' && 'name' in item));
+}
+
+export function channelExampleCount(schema: ProviderSchema): number {
+  return schema.messageTypes.reduce((total, item) => total + (item.examples?.length ?? 0), 0);
+}
+
 function parseFields(value: unknown): ProviderFieldSchema[] {
   return asArray(value).filter((item): item is ProviderFieldSchema => Boolean(item && typeof item === 'object' && 'key' in item && 'label' in item));
 }
@@ -278,7 +362,11 @@ export function providerSchemaFor(type?: NotificationChannelTypeSummary | null, 
   const key = type?.type ?? provider ?? 'webhook';
   const fallback = fallbackSchemas[key] ?? fallbackSchemas.webhook;
   const template = templateRecord(type ?? undefined);
-  const messageTypes = parseMessageTypes(template.messageTypes).length > 0 ? parseMessageTypes(template.messageTypes) : fallback.messageTypes;
+  const rawMessageTypes = parseMessageTypes(template.messageTypes).length > 0 ? parseMessageTypes(template.messageTypes) : fallback.messageTypes;
+  const messageTypes = rawMessageTypes.map((item) => {
+    const examples = parseExamples(item.examples);
+    return { ...item, examples: examples.length > 0 ? examples : [generatedExample(key, item.id)] };
+  });
   return {
     ...fallback,
     provider: key,

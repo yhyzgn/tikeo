@@ -11,17 +11,21 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
+    alert::AlertDeliveryPolicy,
     http::{
         AppState, auth,
         dto::{ApiResponse, EmptyData},
         error::ApiError,
     },
-    notification::{NotificationDeliveryPolicy, process_due_notification_delivery_attempts},
+    notification::{
+        NotificationDeliveryPolicy, deliver_notification_channel_once,
+        process_due_notification_delivery_attempts,
+    },
 };
 
 use super::notification_providers::{
-    ChannelValidationInput, NotificationChannelTypeSummary, builtin_channel_types, json_to_string,
-    validate_channel_request,
+    ChannelValidationInput, NotificationChannelTypeSummary, builtin_channel_types,
+    is_builtin_provider, json_to_string, validate_channel_request,
 };
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
@@ -147,6 +151,35 @@ pub struct NotificationDeliveryQueueStatusResponse {
     pub retry_consumed: u64,
     pub failed: u64,
     pub recent_dead_letters: Vec<tikeo_storage::NotificationDeliveryAttemptSummary>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TestNotificationChannelRequest {
+    pub subject: Option<String>,
+    pub body: Option<String>,
+    pub event_type: Option<String>,
+    pub resource_type: Option<String>,
+    pub resource_id: Option<String>,
+    pub severity: Option<String>,
+    #[serde(default)]
+    pub payload: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TestNotificationChannelResponse {
+    pub channel_id: String,
+    pub message_id: String,
+    pub attempt_id: String,
+    pub provider: String,
+    pub target_redacted: String,
+    pub delivered: bool,
+    pub status_code: Option<u16>,
+    pub retry_state: String,
+    pub error: Option<String>,
+    pub rendered_payload: Option<serde_json::Value>,
+    pub created_at: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]
@@ -422,6 +455,158 @@ pub async fn delete_notification_channel(
     )
     .await;
     Ok(Json(ApiResponse::success(EmptyData {})))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/notification-channels/{id}/test-send",
+    tag = "notifications",
+    request_body = TestNotificationChannelRequest
+)]
+pub async fn test_notification_channel(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<TestNotificationChannelRequest>,
+) -> Result<Json<ApiResponse<TestNotificationChannelResponse>>, ApiError> {
+    let principal = auth::require_permission(&headers, &state, "notifications", "test").await?;
+    let channel = state
+        .notification_channels
+        .get_channel_delivery_config(&id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?
+        .ok_or_else(|| ApiError::not_found("notification channel not found"))?;
+    if !channel.enabled {
+        return Err(ApiError::bad_request("notification channel is disabled"));
+    }
+    if !is_builtin_provider(&channel.provider) {
+        return Err(ApiError::bad_request(format!(
+            "notification provider does not support test send: {}",
+            channel.provider
+        )));
+    }
+
+    let event_type =
+        clean_string(request.event_type).unwrap_or_else(|| "notification.channel_test".to_owned());
+    let resource_type =
+        clean_string(request.resource_type).unwrap_or_else(|| "notification_channel".to_owned());
+    let resource_id = clean_string(request.resource_id).unwrap_or_else(|| channel.id.clone());
+    let severity = clean_string(request.severity).unwrap_or_else(|| "info".to_owned());
+    let subject = clean_string(request.subject)
+        .unwrap_or_else(|| format!("Tikeo notification channel test: {}", channel.provider));
+    let body = clean_string(request.body).unwrap_or_else(|| {
+        format!(
+            "This is a test notification sent through channel {}.",
+            channel.id
+        )
+    });
+    let payload = test_notification_payload(
+        &request.payload,
+        &channel.id,
+        &channel.provider,
+        &event_type,
+        &resource_type,
+        &resource_id,
+        &severity,
+        &subject,
+        &body,
+        &principal.username,
+    );
+    let dedupe_key = format!(
+        "notification-channel-test:{}:{}",
+        channel.id,
+        time::OffsetDateTime::now_utc().unix_timestamp_nanos()
+    );
+    let message = state
+        .notification_messages
+        .create_message(tikeo_storage::CreateNotificationMessage {
+            source_type: "channel_test".to_owned(),
+            source_id: channel.id.clone(),
+            policy_id: "notification-channel-test".to_owned(),
+            event_type,
+            resource_type,
+            resource_id,
+            severity,
+            subject,
+            body,
+            payload_json: payload.to_string(),
+            dedupe_key,
+            trace_id: headers
+                .get("x-request-id")
+                .and_then(|value| value.to_str().ok())
+                .map(ToOwned::to_owned),
+            status: "pending".to_owned(),
+        })
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    let delivery_result =
+        deliver_notification_channel_once(&channel, &message, AlertDeliveryPolicy::production())
+            .await;
+    let retry_state = if delivery_result.delivered {
+        "delivered"
+    } else {
+        "dead_letter"
+    }
+    .to_owned();
+    let attempt = state
+        .notification_delivery_attempts
+        .record_attempt(tikeo_storage::RecordNotificationDeliveryAttempt {
+            message_id: message.id.clone(),
+            policy_id: message.policy_id.clone(),
+            channel_id: channel.id.clone(),
+            provider: delivery_result.provider.clone(),
+            target_redacted: delivery_result.target_redacted.clone(),
+            attempt: 1,
+            delivered: delivery_result.delivered,
+            status_code: delivery_result.status_code.map(i32::from),
+            error: delivery_result.error.clone(),
+            retry_state: retry_state.clone(),
+            next_retry_at: None,
+        })
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    let _message = state
+        .notification_messages
+        .update_message_status(
+            &message.id,
+            if delivery_result.delivered {
+                "delivered"
+            } else {
+                "dead_letter"
+            },
+        )
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    super::common::audit(
+        &state,
+        &principal.username,
+        "test",
+        "notification_channel",
+        &channel.id,
+        Some(format!(
+            "provider={}, delivered={}",
+            delivery_result.provider, delivery_result.delivered
+        )),
+        &headers,
+    )
+    .await;
+    Ok(Json(ApiResponse::success(
+        TestNotificationChannelResponse {
+            channel_id: channel.id,
+            message_id: message.id,
+            attempt_id: attempt.id,
+            provider: delivery_result.provider,
+            target_redacted: delivery_result.target_redacted,
+            delivered: delivery_result.delivered,
+            status_code: delivery_result.status_code,
+            retry_state,
+            error: delivery_result.error,
+            rendered_payload: delivery_result
+                .rendered_payload
+                .map(redact_notification_test_payload),
+            created_at: attempt.created_at,
+        },
+    )))
 }
 
 #[utoipa::path(post, path = "/api/v1/notification-policies", tag = "notifications", request_body = CreateNotificationPolicyRequest)]
@@ -798,6 +983,101 @@ pub async fn retry_due_notification_delivery_attempts(
     .await
     .map_err(|error| ApiError::storage(&error))?;
     Ok(Json(ApiResponse::success(summary)))
+}
+
+fn clean_string(value: Option<String>) -> Option<String> {
+    value
+        .map(|item| item.trim().to_owned())
+        .filter(|item| !item.is_empty())
+}
+
+fn test_notification_payload(
+    payload: &serde_json::Value,
+    channel_id: &str,
+    provider: &str,
+    event_type: &str,
+    resource_type: &str,
+    resource_id: &str,
+    severity: &str,
+    subject: &str,
+    body: &str,
+    requested_by: &str,
+) -> serde_json::Value {
+    let mut value = payload
+        .as_object()
+        .cloned()
+        .map(serde_json::Value::Object)
+        .unwrap_or_else(|| serde_json::json!({}));
+    value = redact_notification_test_payload(value);
+    if let Some(map) = value.as_object_mut() {
+        for (key, item) in [
+            ("kind", serde_json::Value::String("channel_test".to_owned())),
+            (
+                "channelId",
+                serde_json::Value::String(channel_id.to_owned()),
+            ),
+            ("provider", serde_json::Value::String(provider.to_owned())),
+            (
+                "eventType",
+                serde_json::Value::String(event_type.to_owned()),
+            ),
+            (
+                "resourceType",
+                serde_json::Value::String(resource_type.to_owned()),
+            ),
+            (
+                "resourceId",
+                serde_json::Value::String(resource_id.to_owned()),
+            ),
+            ("severity", serde_json::Value::String(severity.to_owned())),
+            ("subject", serde_json::Value::String(subject.to_owned())),
+            ("body", serde_json::Value::String(body.to_owned())),
+            (
+                "requestedBy",
+                serde_json::Value::String(requested_by.to_owned()),
+            ),
+        ] {
+            map.insert(key.to_owned(), item);
+        }
+    }
+    value
+}
+
+fn redact_notification_test_payload(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Array(items) => serde_json::Value::Array(
+            items
+                .into_iter()
+                .map(redact_notification_test_payload)
+                .collect(),
+        ),
+        serde_json::Value::Object(map) => serde_json::Value::Object(
+            map.into_iter()
+                .map(|(key, value)| {
+                    if sensitive_notification_payload_key(&key) {
+                        (key, serde_json::Value::String("***redacted***".to_owned()))
+                    } else {
+                        (key, redact_notification_test_payload(value))
+                    }
+                })
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
+fn sensitive_notification_payload_key(key: &str) -> bool {
+    let normalized = key.to_ascii_lowercase().replace(['_', '-'], "");
+    normalized.contains("secret")
+        || normalized.contains("token")
+        || normalized.contains("password")
+        || normalized.contains("authorization")
+        || normalized == "sign"
+        || normalized.contains("signature")
+        || normalized == "routingkey"
+        || normalized == "integrationkey"
+        || normalized == "signingkey"
+        || normalized == "smtpurl"
 }
 
 fn validate_policy_request(

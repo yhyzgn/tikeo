@@ -99,6 +99,12 @@ describe('notification center console page', () => {
     for (const token of ['{{subject}}', '{{body}}', '{{eventType}}', '{{resourceId}}', '{{severity}}']) {
       expect(providerSchemaSource).toContain(token);
     }
+    for (const token of ['examples', 'channelExampleCount', 'applyExample', '套用示例', '示例：']) {
+      expect(providerSchemaSource + channelDrawerSource).toContain(token);
+    }
+    for (const token of ['env:TIKEO_NOTIFICATION_WEBHOOK_URL', 'env:SLACK_WEBHOOK_URL', 'env:DINGTALK_WEBHOOK_URL', 'env:FEISHU_WEBHOOK_URL', 'env:WECOM_WEBHOOK_URL', 'env:PAGERDUTY_ROUTING_KEY', 'env:TIKEO_SMTP_URL']) {
+      expect(providerSchemaSource).toContain(token);
+    }
   });
 
   test('covers official built-in provider variants and linked drawer affordances', () => {
@@ -139,6 +145,50 @@ describe('notification center console page', () => {
     expect(channelDrawerSource).toContain('保持现有密钥引用');
   });
 
+  test('lets operators send one test notification from the channel edit drawer and inspect detailed results', () => {
+    for (const token of [
+      'testNotificationChannel',
+      '/test-send',
+      '发一条试试',
+      'testingChannel',
+      'testResult',
+      '测试结果',
+      'delivered',
+      'provider',
+      'targetRedacted',
+      'statusCode',
+      'retryState',
+      'messageId',
+      'attemptId',
+      'renderedPayload',
+      'error',
+    ]) {
+      expect(clientSource + channelDrawerSource).toContain(token);
+    }
+    expect(channelDrawerSource).toContain('返回结果只展示脱敏目标和脱敏后的渲染 payload');
+  });
+
+  test('guards channel test send with provider support and keeps example selection safe', () => {
+    for (const token of [
+      'testSendSupported',
+      'currentType?.supportsTestSend === true',
+      'disabled={!testSendSupported || testingChannel}',
+      '该渠道类型不支持测试发送',
+      'selectedMessageType?.id',
+    ]) {
+      expect(channelDrawerSource).toContain(token);
+    }
+  });
+
+  test('normalizes generated example textarea values into JSON strings before applying them', () => {
+    for (const token of [
+      'exampleFieldValue',
+      "field.type === 'textarea'",
+      'JSON.stringify(value, null, 2)',
+    ]) {
+      expect(channelDrawerSource).toContain(token);
+    }
+  });
 
   test('wires first-class notification template endpoints and page tab', () => {
     for (const token of [

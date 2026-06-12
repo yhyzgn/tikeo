@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
-import { createNotificationChannel, renderNotificationTemplate, updateNotificationChannel } from './notifications';
+import { createNotificationChannel, renderNotificationTemplate, testNotificationChannel, updateNotificationChannel } from './notifications';
 
 const originalFetch = globalThis.fetch;
 
@@ -51,5 +51,45 @@ describe('notification api client', () => {
 
     expect(payload as unknown).toMatchObject({ config: { messageType: 'json' }, secretRefs: { url: 'env:TIKEO_NOTIFICATION_WEBHOOK_URL' } });
     expect(payload as unknown).not.toHaveProperty('secretRefsJson');
+  });
+
+  test('channel test send posts a sample notification to the path-safe test-send endpoint', async () => {
+    let calledUrl = '';
+    let payload: Record<string, unknown> | null = null;
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      calledUrl = String(url);
+      payload = init?.body ? JSON.parse(String(init.body)) : null;
+      return new Response(JSON.stringify({
+        code: 0,
+        message: 'success',
+        data: {
+          channelId: 'channel.1',
+          messageId: 'notification-message-1',
+          attemptId: 'notification-delivery-1',
+          provider: 'webhook',
+          targetRedacted: 'http://127.0.0.1:1/...',
+          delivered: true,
+          statusCode: 202,
+          retryState: 'delivered',
+          error: null,
+          renderedPayload: { text: 'ok' },
+          createdAt: 'now',
+        },
+      }));
+    }) as unknown as typeof fetch;
+
+    await expect(testNotificationChannel('channel.1', {
+      subject: 'Smoke test',
+      body: 'Verify notification channel delivery',
+      severity: 'info',
+    })).resolves.toMatchObject({ delivered: true, statusCode: 202, provider: 'webhook' });
+
+    expect(calledUrl).toBe('/api/v1/notification-channels/channel.1/test-send');
+    expect(calledUrl).not.toContain(':test');
+    expect(payload as unknown).toMatchObject({
+      subject: 'Smoke test',
+      body: 'Verify notification channel delivery',
+      severity: 'info',
+    });
   });
 });
