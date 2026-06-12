@@ -131,7 +131,7 @@ Provider validation:
 - Webhook-style providers require `url`, `webhookUrl`, or `webhook_url`.
 - PagerDuty requires `routingKey`, `routing_key`, `integrationKey`, or `integration_key`.
 - Email requires `to` or `recipients`, plus SMTP URL/config through direct config or secret ref. Runtime accepts `secretRefs.password` as the metadata-aligned SMTP password reference alias, along with `passwordSecretRef` / `password_secret_ref`; SMTP URL reference aliases include `smtpUrl`, `smtp_url`, `url`, `smtpUrlSecretRef`, and `smtp_url_secret_ref`.
-- Secret resolution is environment-backed in this implementation: `env:NAME` and bare `NAME` are read from the Server process environment. Use separate names per channel row; do not rely on one shared provider-wide env variable for production channels.
+- Secret resolution supports direct values configured in the drawer, which are stored server-side and take effect immediately without restarting the service. For backward/deployment compatibility, `env:NAME` and bare `NAME` can also be read from the Server process environment.
 
 ## Channel response and redaction
 

@@ -6,7 +6,7 @@ use crate::repository::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-fn notification_channel_env_suffix(value: &str) -> String {
+fn notification_channel_example_suffix(value: &str) -> String {
     let mut normalized = String::new();
     let mut previous_was_separator = true;
     for item in value.chars() {
@@ -106,25 +106,53 @@ async fn notification_channel_examples_are_seeded_as_normal_disabled_channels() 
         assert!(!channel.enabled, "seeded example channels must be disabled until configured");
         assert_eq!(channel.scope_type, "global");
         assert!(channel.config_json.contains(message_type));
-        assert!(channel.secret_configured, "{provider}/{message_type} should carry env secret refs");
+        assert!(channel.secret_configured, "{provider}/{message_type} should carry channel-private credentials");
         assert!(channel.target_configured, "{provider}/{message_type} should show a configured redacted target");
         let secret_refs: serde_json::Value = serde_json::from_str(&channel.secret_refs_json)
             .unwrap_or_else(|error| panic!("{provider}/{message_type} secretRefs should parse: {error}"));
         let secret_ref_values = notification_secret_ref_values(&secret_refs);
         assert!(
             !secret_ref_values.is_empty(),
-            "{provider}/{message_type} should include concrete secret ref values"
+            "{provider}/{message_type} should include concrete private credential values"
         );
-        let provider_suffix = notification_channel_env_suffix(provider);
-        let message_type_suffix = notification_channel_env_suffix(message_type);
-        for secret_ref in &secret_ref_values {
+        let message_type_suffix = notification_channel_example_suffix(message_type);
+        assert!(
+            !secret_ref_values.iter().any(|value| value.starts_with("env:TIKEO_NOTIFICATION_CHANNEL_")),
+            "{provider}/{message_type} seed secretRefs should demonstrate direct private values"
+        );
+        match provider {
+            "slack" | "dingtalk" | "feishu" | "wechat_work" | "webhook" => assert!(
+                secret_refs["url"]
+                    .as_str()
+                    .is_some_and(|value| value.starts_with("https://")),
+                "{provider}/{message_type} should include a direct webhook URL"
+            ),
+            "pagerduty" => assert!(
+                secret_refs["routingKey"]
+                    .as_str()
+                    .is_some_and(|value| value.contains("PAGERDUTY") && value.contains(&message_type_suffix)),
+                "{provider}/{message_type} should include a direct routing key placeholder"
+            ),
+            "email" => {
+                assert_eq!(
+                    secret_refs["smtpUrl"].as_str(),
+                    Some("smtp+starttls://smtp.example.com:587")
+                );
+                assert!(
+                    secret_refs["password"]
+                        .as_str()
+                        .is_some_and(|value| value.contains("SMTP") && value.contains(&message_type_suffix)),
+                    "email/{message_type} should include a direct SMTP password placeholder"
+                );
+            }
+            _ => {}
+        }
+        if matches!(provider, "dingtalk" | "feishu") {
             assert!(
-                secret_ref.starts_with("env:TIKEO_NOTIFICATION_CHANNEL_"),
-                "{provider}/{message_type} secret ref {secret_ref} should be channel-scoped"
-            );
-            assert!(
-                secret_ref.contains(&provider_suffix) && secret_ref.contains(&message_type_suffix),
-                "{provider}/{message_type} secret ref {secret_ref} should include provider and message-type scope"
+                secret_refs["signingKey"]
+                    .as_str()
+                    .is_some_and(|value| value.contains("SEC_") && value.contains(&message_type_suffix)),
+                "{provider}/{message_type} should include a direct signing secret placeholder"
             );
         }
         for global_ref in [
@@ -172,12 +200,12 @@ async fn notification_channel_examples_are_seeded_as_normal_disabled_channels() 
         ("feishu", 5),
         ("wechat_work", 8),
         ("pagerduty", 3),
-        ("email", 2),
+        ("email", 1),
     ] {
         assert_eq!(
             provider_targets.get(provider).map(BTreeSet::len),
             Some(expected_count),
-            "{provider} example rows should not share one global target secret ref"
+            "{provider} example rows should not share one global target credential"
         );
     }
 }

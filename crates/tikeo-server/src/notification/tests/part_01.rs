@@ -356,6 +356,43 @@ async fn webhook_delivery_injects_authorization_from_secret_refs_without_leaking
 }
 
 #[test]
+fn email_channel_uses_direct_secret_refs_without_env_lookup() {
+    let channel = NotificationChannelDeliveryConfig {
+        id: "notification-channel-email".to_owned(),
+        provider: "email".to_owned(),
+        enabled: true,
+        config_json: serde_json::json!({
+            "to": ["ops@example.com"],
+            "username": "tikeo"
+        })
+        .to_string(),
+        secret_refs_json: serde_json::json!({
+            "smtpUrl": "smtp+starttls://smtp.example.com:587",
+            "password": "direct-smtp-password"
+        })
+        .to_string(),
+        target_redacted: "email".to_owned(),
+        safety_policy_json: None,
+    };
+
+    let resolved = notification_channel_from_delivery_config(&channel)
+        .unwrap_or_else(|| panic!("email channel should resolve from direct secretRefs values"));
+    match resolved {
+        NotificationChannel::Email {
+            smtp_url,
+            password,
+            password_secret_ref,
+            ..
+        } => {
+            assert_eq!(smtp_url.as_deref(), Some("smtp+starttls://smtp.example.com:587"));
+            assert_eq!(password.as_deref(), Some("direct-smtp-password"));
+            assert_eq!(password_secret_ref, None);
+        }
+        other => panic!("expected email channel, got {other:?}"),
+    }
+}
+
+#[test]
 fn email_channel_accepts_metadata_secret_refs_password_alias() {
     let channel = NotificationChannelDeliveryConfig {
         id: "notification-channel-email".to_owned(),

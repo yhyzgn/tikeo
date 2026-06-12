@@ -45,7 +45,7 @@ The implemented built-in channel types come from `builtin_channel_types()` in `c
 
 Webhook-style providers accept `url`, `webhookUrl`, or `webhook_url` as target keys, but for built-ins the UI and validation prefer `secretRefs`. PagerDuty accepts `routingKey`, `routing_key`, `integrationKey`, or `integration_key` through `secretRefs`. Email accepts `to` or `recipients`; its SMTP endpoint can come from `secretRefs.smtpUrl`, `secretRefs.smtp_url`, `secretRefs.url`, `config.smtpUrlSecretRef`, `config.smtp_url_secret_ref`, `secretRefs.smtpUrlSecretRef`, or `secretRefs.smtp_url_secret_ref`. SMTP auth passwords use `config.passwordSecretRef`, `config.password_secret_ref`, `secretRefs.password`, `secretRefs.passwordSecretRef`, or `secretRefs.password_secret_ref`.
 
-Runtime secret resolution for Notification Center currently resolves `env:` references or bare environment variable names through the process environment. Do not enter raw secret values in `config` or `secretRefs`.
+Runtime secret resolution for Notification Center supports direct values configured in the drawer, which are stored server-side and take effect immediately without restarting the service. For deployment compatibility, you can also use `env:NAME` references or bare environment variable names to resolve values from the Server process environment.
 
 ### Per-channel secretRefs
 

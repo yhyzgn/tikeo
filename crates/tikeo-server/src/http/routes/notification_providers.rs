@@ -145,7 +145,7 @@ fn builtin_channel_template(provider: &str) -> serde_json::Value {
                 {"id": "attachments", "label": "Attachments", "description": "Slack legacy attachments payload with fallback text.", "templateFields": [{"key":"text","label":"Fallback text","type":"textarea","required":true},{"key":"attachments","label":"Attachments JSON template","type":"textarea","required":true}]}
             ],
             "configFields": [{"key":"threadTs","label":"Thread timestamp","type":"string"}],
-            "secretFields": [{"key":"url","label":"Webhook URL secret ref","type":"string","required":true,"secret":true}],
+            "secretFields": [{"key":"url","label":"Webhook URL","type":"string","required":true,"secret":true}],
             "templateVariables": variables,
             "docs": [{"label":"Slack Incoming Webhooks","url":"https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/"}]
         }),
@@ -159,7 +159,7 @@ fn builtin_channel_template(provider: &str) -> serde_json::Value {
                 {"id":"feedCard","label":"FeedCard","description":"DingTalk feed card message.","templateFields":[{"key":"links","label":"Links JSON template","type":"textarea","required":true}]}
             ],
             "configFields": [{"key":"atMobiles","label":"@ mobile numbers","type":"tags"},{"key":"atUserIds","label":"@ user IDs","type":"tags"},{"key":"isAtAll","label":"@ all members","type":"boolean","defaultValue":false}],
-            "secretFields": [{"key":"url","label":"Webhook URL secret ref","type":"string","required":true,"secret":true},{"key":"signingKey","label":"Signing secret ref","type":"string","secret":true}],
+            "secretFields": [{"key":"url","label":"Webhook URL","type":"string","required":true,"secret":true},{"key":"signingKey","label":"Signing secret","type":"string","secret":true}],
             "templateVariables": variables,
             "docs": [{"label":"DingTalk custom robot","url":"https://open.dingtalk.com/document/group/custom-robot-access"},{"label":"DingTalk robot message types","url":"https://open.dingtalk.com/document/development/robot-message-type"}]
         }),
@@ -173,7 +173,7 @@ fn builtin_channel_template(provider: &str) -> serde_json::Value {
                 {"id":"interactive","label":"Interactive card","description":"Feishu/Lark card message sent through a custom bot.","templateFields":[{"key":"card","label":"Card JSON template","type":"textarea","required":true}]}
             ],
             "configFields": [],
-            "secretFields": [{"key":"url","label":"Webhook URL secret ref","type":"string","required":true,"secret":true},{"key":"signingKey","label":"Signing secret ref","type":"string","secret":true}],
+            "secretFields": [{"key":"url","label":"Webhook URL","type":"string","required":true,"secret":true},{"key":"signingKey","label":"Signing secret","type":"string","secret":true}],
             "templateVariables": variables,
             "docs": [{"label":"Feishu custom bot","url":"https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot"},{"label":"Feishu card with custom bot","url":"https://open.feishu.cn/document/common-capabilities/message-card/getting-started/send-message-cards-with-a-custom-bot"}]
         }),
@@ -190,7 +190,7 @@ fn builtin_channel_template(provider: &str) -> serde_json::Value {
                 {"id":"template_card","label":"Template card","description":"WeCom template_card rich notice message.","templateFields":[{"key":"templateCard","label":"Template card JSON template","type":"textarea","required":true}]}
             ],
             "configFields": [{"key":"mentionedList","label":"Mentioned user IDs","type":"tags"},{"key":"mentionedMobileList","label":"Mentioned mobile numbers","type":"tags"}],
-            "secretFields": [{"key":"url","label":"Webhook URL secret ref","type":"string","required":true,"secret":true}],
+            "secretFields": [{"key":"url","label":"Webhook URL","type":"string","required":true,"secret":true}],
             "templateVariables": variables,
             "docs": [{"label":"WeCom group robot","url":"https://developer.work.weixin.qq.com/document/path/91770"}]
         }),
@@ -202,7 +202,7 @@ fn builtin_channel_template(provider: &str) -> serde_json::Value {
                 {"id":"resolve","label":"Resolve","description":"Resolve an existing PagerDuty event by dedup key.","templateFields":[]}
             ],
             "configFields": [{"key":"dedupKey","label":"Dedup key template","type":"string"},{"key":"source","label":"Source template","type":"string","defaultValue":"tikeo"},{"key":"severity","label":"PagerDuty severity","type":"select","options":[{"value":"info","label":"Info"},{"value":"warning","label":"Warning"},{"value":"error","label":"Error"},{"value":"critical","label":"Critical"}]},{"key":"timestamp","label":"Event timestamp template","type":"string"},{"key":"component","label":"Component template","type":"string"},{"key":"group","label":"Group template","type":"string"},{"key":"class","label":"Class template","type":"string"},{"key":"client","label":"Client template","type":"string"},{"key":"clientUrl","label":"Client URL template","type":"url"},{"key":"links","label":"Links JSON template","type":"textarea"},{"key":"images","label":"Images JSON template","type":"textarea"},{"key":"customDetails","label":"Custom details JSON template","type":"textarea"}],
-            "secretFields": [{"key":"routingKey","label":"Routing / integration key ref","type":"string","required":true,"secret":true}],
+            "secretFields": [{"key":"routingKey","label":"Routing / integration key","type":"string","required":true,"secret":true}],
             "templateVariables": variables,
             "docs": [{"label":"PagerDuty Events API v2","url":"https://developer.pagerduty.com/docs/events-api-v2-overview"},{"label":"Send an alert event","url":"https://developer.pagerduty.com/docs/send-alert-event"}]
         }),
@@ -213,7 +213,7 @@ fn builtin_channel_template(provider: &str) -> serde_json::Value {
                 {"id":"html","label":"HTML template","description":"Schema-only HTML shape; current runtime falls back to text body.","templateFields":[{"key":"subject","label":"Subject template","type":"string","required":true},{"key":"html","label":"HTML template","type":"textarea"},{"key":"body","label":"Text fallback template","type":"textarea","required":true}]}
             ],
             "configFields": [{"key":"to","label":"Recipients","type":"emailList","required":true},{"key":"from","label":"From address","type":"string"},{"key":"username","label":"SMTP username","type":"string"}],
-            "secretFields": [{"key":"smtpUrl","label":"SMTP URL ref","type":"string","required":true,"secret":true},{"key":"password","label":"SMTP password ref","type":"string","secret":true}],
+            "secretFields": [{"key":"smtpUrl","label":"SMTP URL","type":"string","required":true,"secret":true},{"key":"password","label":"SMTP password","type":"string","secret":true}],
             "templateVariables": variables,
             "docs": [{"label":"SMTP RFC 5321","url":"https://datatracker.ietf.org/doc/rfc5321/"},{"label":"Internet Message Format RFC 5322","url":"https://datatracker.ietf.org/doc/rfc5322/"}]
         }),
@@ -221,7 +221,7 @@ fn builtin_channel_template(provider: &str) -> serde_json::Value {
             "defaultMessageType": "json",
             "messageTypes": [{"id":"json","label":"JSON payload","description":"Provider-neutral JSON webhook body.","templateFields":[{"key":"body","label":"JSON body template","type":"textarea","required":true}]}],
             "configFields": [],
-            "secretFields": [{"key":"url","label":"Webhook URL secret ref","type":"string","required":true,"secret":true},{"key":"authorization","label":"Authorization header secret ref","type":"string","secret":true}],
+            "secretFields": [{"key":"url","label":"Webhook URL","type":"string","required":true,"secret":true},{"key":"authorization","label":"Authorization header","type":"string","secret":true}],
             "templateVariables": variables,
             "docs": [{"label":"HTTP semantics RFC 9110","url":"https://datatracker.ietf.org/doc/rfc9110/"}]
         }),
@@ -254,7 +254,7 @@ fn attach_builtin_examples(provider: &str, template: &mut serde_json::Value) {
     }
 }
 
-fn notification_channel_env_suffix(value: &str) -> String {
+fn notification_channel_example_suffix(value: &str) -> String {
     let mut normalized = String::new();
     let mut previous_was_separator = true;
     for item in value.chars() {
@@ -280,41 +280,45 @@ fn notification_channel_env_suffix(value: &str) -> String {
     }
 }
 
-fn channel_secret_ref(provider: &str, message_type: &str, purpose: &str) -> String {
+fn direct_webhook_url(provider: &str, message_type: &str) -> String {
+    match provider {
+        "slack" => format!(
+            "https://hooks.slack.com/services/T00000000/B00000000/{}_WEBHOOK",
+            notification_channel_example_suffix(message_type)
+        ),
+        "dingtalk" => "https://oapi.dingtalk.com/robot/send?access_token=xxxxxxxx".to_owned(),
+        "feishu" => "https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx".to_owned(),
+        "wechat_work" => "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx".to_owned(),
+        _ => format!("https://hooks.example.com/tikeo/{provider}/{message_type}"),
+    }
+}
+
+fn direct_signing_secret(provider: &str, message_type: &str) -> String {
     format!(
-        "env:TIKEO_NOTIFICATION_CHANNEL_{}_{}_{}",
-        notification_channel_env_suffix(provider),
-        notification_channel_env_suffix(message_type),
-        purpose
+        "SEC_{}_{}_SIGNING_SECRET",
+        provider.to_ascii_uppercase(),
+        notification_channel_example_suffix(message_type)
     )
 }
 
 fn builtin_example_secret_refs(provider: &str, message_type: &str) -> serde_json::Value {
     match provider {
-        "slack" => {
-            serde_json::json!({"url": channel_secret_ref(provider, message_type, "WEBHOOK_URL")})
-        }
-        "dingtalk" => serde_json::json!({
-            "url": channel_secret_ref(provider, message_type, "WEBHOOK_URL"),
-            "signingKey": channel_secret_ref(provider, message_type, "SIGNING_KEY")
+        "slack" => serde_json::json!({"url": direct_webhook_url(provider, message_type)}),
+        "dingtalk" | "feishu" => serde_json::json!({
+            "url": direct_webhook_url(provider, message_type),
+            "signingKey": direct_signing_secret(provider, message_type)
         }),
-        "feishu" => serde_json::json!({
-            "url": channel_secret_ref(provider, message_type, "WEBHOOK_URL"),
-            "signingKey": channel_secret_ref(provider, message_type, "SIGNING_KEY")
+        "wechat_work" => serde_json::json!({"url": direct_webhook_url(provider, message_type)}),
+        "pagerduty" => serde_json::json!({
+            "routingKey": format!("PAGERDUTY_{}_ROUTING_KEY", notification_channel_example_suffix(message_type))
         }),
-        "wechat_work" => {
-            serde_json::json!({"url": channel_secret_ref(provider, message_type, "WEBHOOK_URL")})
-        }
-        "pagerduty" => {
-            serde_json::json!({"routingKey": channel_secret_ref(provider, message_type, "ROUTING_KEY")})
-        }
         "email" => serde_json::json!({
-            "smtpUrl": channel_secret_ref(provider, message_type, "SMTP_URL"),
-            "password": channel_secret_ref(provider, message_type, "SMTP_PASSWORD")
+            "smtpUrl": "smtp+starttls://smtp.example.com:587",
+            "password": format!("SMTP_{}_PASSWORD", notification_channel_example_suffix(message_type))
         }),
         _ => serde_json::json!({
-            "url": channel_secret_ref(provider, message_type, "WEBHOOK_URL"),
-            "authorization": channel_secret_ref(provider, message_type, "AUTHORIZATION")
+            "url": direct_webhook_url(provider, message_type),
+            "authorization": "Bearer direct-channel-token"
         }),
     }
 }
@@ -336,7 +340,7 @@ fn builtin_example(provider: &str, message_type: &str) -> serde_json::Value {
     };
     serde_json::json!({
         "name": format!("{} {} smoke", provider, message_type),
-        "description": "Safe smoke-test example. Replace env: references with deployment secrets before sending.",
+        "description": "Safe smoke-test example. Channel-private secretRefs accept direct values immediately after save; env:NAME remains supported for compatibility.",
         "config": config,
         "secretRefs": secret_refs,
         "template": builtin_example_template(provider, message_type),

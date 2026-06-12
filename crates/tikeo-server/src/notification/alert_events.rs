@@ -398,6 +398,7 @@ fn legacy_channel_config(channel: &NotificationChannel) -> LegacyChannelConfig {
             smtp_url_secret_ref,
             from,
             username,
+            password: _,
             password_secret_ref,
         } => serde_json::json!({
             "recipients": recipients,

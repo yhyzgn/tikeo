@@ -89,7 +89,7 @@ function renderFieldInput(field: ProviderFieldSchema, disabled = false) {
 
 function keepExistingPlaceholder(field: ProviderFieldSchema, replacing: boolean | undefined): string | undefined {
   if (replacing) return field.placeholder;
-  return field.secret ? '保持现有密钥引用' : '保持现有渠道配置';
+  return field.secret ? '保持现有私密配置' : '保持现有渠道配置';
 }
 
 function fieldRequired(
@@ -108,7 +108,7 @@ function previewValue(value: unknown): string {
 function assertNoRedactedValue(value: unknown, fieldLabel: string) {
   if (typeof value === 'string') {
     if (value.includes('***redacted***') || /^https?:\/\/[^/]+\/\.\.\.$/.test(value) || value.endsWith(':secret-ref')) {
-      throw new Error(`${fieldLabel} 包含脱敏占位符；编辑时请启用替换并填写完整新值，或保持现有渠道配置/保持现有密钥引用。`);
+      throw new Error(`${fieldLabel} 包含脱敏占位符；编辑时请启用替换并填写完整新值，或保持现有渠道配置/保持现有私密配置。`);
     }
     return;
   }
@@ -133,7 +133,7 @@ function scopeHelp(scopeType: string | undefined): string {
   if (scopeType === 'namespace') return '先选择 Namespace；渠道只服务该命名空间下的策略。';
   if (scopeType === 'app') return '先选择 Namespace，再从该 Namespace 下联动选择 App。';
   if (scopeType === 'worker_pool') return '先选择 Namespace 和 App，再联动选择 Worker Pool。';
-  return '选择作用域后，Namespace、App、Worker Pool 与 Secret 候选会自动联动过滤。';
+  return '选择作用域后，Namespace、App、Worker Pool 与可选 Secret 候选会自动联动过滤。';
 }
 
 function mergeFieldValues(fields: ProviderFieldSchema[], values: Record<string, unknown> | undefined): Record<string, unknown> {
@@ -351,7 +351,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
     setSaving(true);
     try {
       if (editingChannel && values.provider !== editingChannel.provider && (!values.replaceConfig || !values.replaceSecretRefs)) {
-        throw new Error(t('切换提供方时必须同时替换渠道配置和密钥引用，避免旧 provider 配置误用。'));
+        throw new Error(t('切换提供方时必须同时替换渠道配置和私密配置，避免旧 provider 配置误用。'));
       }
       const fieldConfig = mergeFieldValues(schema.configFields, values.config);
       const secretRefs = mergeFieldValues(schema.secretFields, values.secretRefs);
@@ -364,11 +364,11 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
       if (!values.useInlineTemplate) {
         delete advancedConfig.template;
       }
-      const advancedSecretRefs = parseJsonObject(values.advancedSecretRefsJsonText, t('高级密钥引用对象'), {}) ?? {};
+      const advancedSecretRefs = parseJsonObject(values.advancedSecretRefsJsonText, t('高级私密配置 JSON'), {}) ?? {};
       assertNoRedactedMarker(values.advancedConfigJsonText, t('高级配置 JSON'));
-      assertNoRedactedMarker(values.advancedSecretRefsJsonText, t('高级密钥引用对象'));
+      assertNoRedactedMarker(values.advancedSecretRefsJsonText, t('高级私密配置 JSON'));
       if (!editingChannel || values.replaceConfig) assertNoRedactedValue({ ...advancedConfig, ...config }, t('渠道配置'));
-      if (!editingChannel || values.replaceSecretRefs) assertNoRedactedValue({ ...advancedSecretRefs, ...secretRefs }, t('密钥引用'));
+      if (!editingChannel || values.replaceSecretRefs) assertNoRedactedValue({ ...advancedSecretRefs, ...secretRefs }, t('私密配置'));
       const payloadBase = {
         scopeType: values.scopeType,
         namespace: blankToNull(values.namespace),
@@ -409,15 +409,15 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
 
   return (
     <Drawer title={editingChannel ? t('编辑通知渠道') : t('新建渠道')} open={open} onClose={close} width={980} destroyOnClose>
-      <Alert type="info" showIcon style={{ marginBottom: 16 }} message={t('Schema 驱动渠道配置')} description={t('内置提供方按官方机器人/Webhook 结构生成字段；每条渠道配置都维护自己的 secretRefs，密钥只保存引用，当前运行时解析 env: 前缀或环境变量名，不要填写真实密钥值，也不要把多个生产渠道共用成一个全局引用。')} />
+      <Alert type="info" showIcon style={{ marginBottom: 16 }} message={t('Schema 驱动渠道配置')} description={t('内置提供方按官方机器人/Webhook 结构生成字段；每条渠道配置都维护自己的 secretRefs 私密配置，可直接填写真实 URL/token/secret，保存后立即生效且响应不会回显；也可填写 env:NAME 作为兼容引用。')} />
       <Form form={form} layout="vertical" onFinish={(values) => void submit(values)}>
         {editingChannel ? (
           <Alert
             type="warning"
             showIcon
             style={{ marginBottom: 16 }}
-            message={t('编辑保护：默认保持现有渠道配置和保持现有密钥引用')}
-            description={t('渠道详情只返回脱敏配置且不返回 secretRefsJson；如果只改名称、作用域或启用状态，请不要打开替换开关。需要更换 URL、routing key、签名密钥或 SMTP 密码时，再打开对应开关并填写完整新值。')}
+            message={t('编辑保护：默认保持现有渠道配置和私密配置')}
+            description={t('渠道详情只返回脱敏配置且不返回 secretRefsJson；如果只改名称、作用域或启用状态，请不要打开替换开关。需要更换 URL、routing key、签名密钥或 SMTP 密码时，再打开对应开关并填写完整新值，保存后立即生效，无需重启服务。')}
           />
         ) : null}
         <Row gutter={16}>
@@ -451,19 +451,19 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
           ))}
         </Row>
 
-        <Typography.Title level={5}>{t('机器人地址 / 凭据引用')}</Typography.Title>
+        <Typography.Title level={5}>{t('机器人地址 / 私密凭据')}</Typography.Title>
         <Alert
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message={t('机器人/Webhook 地址引用')}
-          description={t('每条渠道都在这里配置自己的机器人/Webhook 地址、routing key、SMTP URL/password、签名密钥或 appId/appSecret 引用；真实值放在部署环境变量或 Secret 中，不是全局共享。')}
+          message={t('机器人/Webhook 地址')}
+          description={t('每条渠道都在这里配置自己的机器人/Webhook 地址、routing key、SMTP URL/password、签名密钥或 appId/appSecret。可直接填写真实值，保存后立即生效且响应不会回显；如需环境变量托管，也可填写 env:NAME 兼容引用。')}
         />
-        {editingChannel ? <Form.Item name="replaceSecretRefs" label={t('替换密钥引用')} valuePropName="checked"><Switch /></Form.Item> : null}
+        {editingChannel ? <Form.Item name="replaceSecretRefs" label={t('替换私密配置')} valuePropName="checked"><Switch /></Form.Item> : null}
         <Row gutter={16}>
           {schema.secretFields.map((field) => (
             <Col xs={24} md={12} key={field.key}>
-              <Form.Item name={['secretRefs', field.key]} label={t(field.label)} rules={[{ required: fieldRequired(field, Boolean(editingChannel), replaceSecretRefs), message: t('请填写密钥引用') }]} extra={field.help ? t(field.help) : t('按当前 scope 过滤 Secret 引用；可选择 env 类型 Secret 引用，或手工填写这条渠道自己的 env:NAME。')}>
+              <Form.Item name={['secretRefs', field.key]} label={t(field.label)} rules={[{ required: fieldRequired(field, Boolean(editingChannel), replaceSecretRefs), message: t('请填写私密配置') }]} extra={field.help ? t(field.help) : t('直接填写这条渠道自己的 URL/token/secret；也可从当前 scope 的 Secret 候选选择 env:NAME。保存后立即生效，无需重启服务。')}>
                 <AutoComplete allowClear disabled={secretControlsDisabled} options={scopedSecretOptions} placeholder={keepExistingPlaceholder(field, !editingChannel || replaceSecretRefs)} filterOption={(input, option) => String(option?.label ?? option?.value ?? '').toLowerCase().includes(input.toLowerCase())} />
               </Form.Item>
             </Col>
@@ -519,7 +519,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
         <Typography.Title level={5}>{t('高级选项')}</Typography.Title>
         <Row gutter={16}>
           <Col xs={24} md={12}><Form.Item name="advancedConfigJsonText" label={t('高级配置 JSON')} extra={t(configControlsDisabled ? '开启替换渠道配置后才能修改高级配置 JSON。' : '仅用于保留 provider 特殊字段；表单字段会覆盖同名键。')}><Input.TextArea rows={4} spellCheck={false} disabled={configControlsDisabled} onBlur={(event) => { const value = parseMaybeJson(event.target.value); if (value && typeof value === 'object') form.setFieldValue('advancedConfigJsonText', JSON.stringify(value, null, 2)); }} /></Form.Item></Col>
-          <Col xs={24} md={12}><Form.Item name="advancedSecretRefsJsonText" label={t('高级密钥引用对象')} extra={t(secretControlsDisabled ? '开启替换密钥引用后才能修改高级密钥引用对象。' : '仅填写密钥引用，不填写真实密钥值。')}><Input.TextArea rows={4} spellCheck={false} disabled={secretControlsDisabled} placeholder="{}" /></Form.Item></Col>
+          <Col xs={24} md={12}><Form.Item name="advancedSecretRefsJsonText" label={t('高级私密配置 JSON')} extra={t(secretControlsDisabled ? '开启替换私密配置后才能修改高级私密配置 JSON。' : '填写本渠道私密配置；可直接填写真实值，也可填写 env:NAME 兼容引用。响应不会回显 secretRefsJson。')}><Input.TextArea rows={4} spellCheck={false} disabled={secretControlsDisabled} placeholder="{}" /></Form.Item></Col>
           <Col xs={24}><Form.Item name="safetyPolicyJsonText" label={t('安全策略 JSON')}><Input.TextArea rows={4} spellCheck={false} placeholder="{}" /></Form.Item></Col>
         </Row>
         <Space>

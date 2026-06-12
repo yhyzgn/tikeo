@@ -17,6 +17,8 @@ pub(super) struct NotificationTemplatesMigration;
 
 pub(super) struct NotificationChannelExamplesMigration;
 
+pub(super) struct NotificationChannelDirectCredentialExamplesMigration;
+
 impl MigrationName for NotificationCenterMigration {
     fn name(&self) -> &'static str {
         "m20260611_000001_notification_center"
@@ -88,6 +90,23 @@ impl MigrationTrait for NotificationChannelExamplesMigration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         delete_seed_notification_channel_examples(manager).await
+    }
+}
+
+impl MigrationName for NotificationChannelDirectCredentialExamplesMigration {
+    fn name(&self) -> &'static str {
+        "m20260612_000002_notification_channel_direct_credentials"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for NotificationChannelDirectCredentialExamplesMigration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        update_seed_notification_channel_example_credentials(manager, true).await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        update_seed_notification_channel_example_credentials(manager, false).await
     }
 }
 
@@ -366,6 +385,32 @@ async fn delete_seed_notification_channel_examples(
     Ok(())
 }
 
+async fn update_seed_notification_channel_example_credentials(
+    manager: &SchemaManager<'_>,
+    direct_values: bool,
+) -> Result<(), DbErr> {
+    for &(provider, message_type) in NOTIFICATION_CHANNEL_EXAMPLE_TYPES {
+        let id = notification_channel_example_id(provider, message_type).replace('\'', "''");
+        let secret_refs = if direct_values {
+            notification_channel_example_secret_refs(provider, message_type)
+        } else {
+            notification_channel_example_env_secret_refs(provider, message_type)
+        }
+        .to_string()
+        .replace('\'', "''");
+        manager
+            .get_connection()
+            .execute(Statement::from_string(
+                manager.get_database_backend(),
+                format!(
+                    "UPDATE notification_channels SET secret_refs_json = '{secret_refs}' WHERE id = '{id}'"
+                ),
+            ))
+            .await?;
+    }
+    Ok(())
+}
+
 fn notification_channel_example_id(provider: &str, message_type: &str) -> String {
     let suffix = message_type
         .chars()
@@ -421,7 +466,7 @@ fn notification_channel_example_config(provider: &str, message_type: &str) -> se
     }
 }
 
-fn notification_channel_example_env_suffix(value: &str) -> String {
+fn notification_channel_example_suffix(value: &str) -> String {
     let mut normalized = String::new();
     let mut previous_was_separator = true;
     for item in value.chars() {
@@ -447,16 +492,66 @@ fn notification_channel_example_env_suffix(value: &str) -> String {
     }
 }
 
-fn notification_channel_example_secret_ref(
+fn notification_channel_example_env_secret_ref(
     provider: &str,
     message_type: &str,
     purpose: &str,
 ) -> String {
     format!(
         "env:TIKEO_NOTIFICATION_CHANNEL_{}_{}_{}",
-        notification_channel_example_env_suffix(provider),
-        notification_channel_example_env_suffix(message_type),
+        notification_channel_example_suffix(provider),
+        notification_channel_example_suffix(message_type),
         purpose
+    )
+}
+
+fn notification_channel_example_env_secret_refs(
+    provider: &str,
+    message_type: &str,
+) -> serde_json::Value {
+    match provider {
+        "slack" => serde_json::json!({
+            "url": notification_channel_example_env_secret_ref(provider, message_type, "WEBHOOK_URL")
+        }),
+        "dingtalk" | "feishu" => serde_json::json!({
+            "url": notification_channel_example_env_secret_ref(provider, message_type, "WEBHOOK_URL"),
+            "signingKey": notification_channel_example_env_secret_ref(provider, message_type, "SIGNING_KEY")
+        }),
+        "wechat_work" => serde_json::json!({
+            "url": notification_channel_example_env_secret_ref(provider, message_type, "WEBHOOK_URL")
+        }),
+        "pagerduty" => serde_json::json!({
+            "routingKey": notification_channel_example_env_secret_ref(provider, message_type, "ROUTING_KEY")
+        }),
+        "email" => serde_json::json!({
+            "smtpUrl": notification_channel_example_env_secret_ref(provider, message_type, "SMTP_URL"),
+            "password": notification_channel_example_env_secret_ref(provider, message_type, "SMTP_PASSWORD")
+        }),
+        _ => serde_json::json!({
+            "url": notification_channel_example_env_secret_ref(provider, message_type, "WEBHOOK_URL"),
+            "authorization": notification_channel_example_env_secret_ref(provider, message_type, "AUTHORIZATION")
+        }),
+    }
+}
+
+fn notification_channel_example_webhook_url(provider: &str, message_type: &str) -> String {
+    let suffix = notification_channel_example_suffix(message_type);
+    match provider {
+        "slack" => format!("https://hooks.slack.com/services/T00000000/B00000000/{suffix}_WEBHOOK"),
+        "dingtalk" => format!("https://oapi.dingtalk.com/robot/send?access_token={suffix}"),
+        "feishu" => format!("https://open.feishu.cn/open-apis/bot/v2/hook/{suffix}-xxxxxxxx"),
+        "wechat_work" => {
+            format!("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={suffix}-xxxxxxxx")
+        }
+        _ => format!("https://hooks.example.com/tikeo/{provider}/{message_type}"),
+    }
+}
+
+fn notification_channel_example_signing_secret(provider: &str, message_type: &str) -> String {
+    format!(
+        "SEC_{}_{}_SIGNING_SECRET",
+        provider.to_ascii_uppercase(),
+        notification_channel_example_suffix(message_type)
     )
 }
 
@@ -466,29 +561,25 @@ fn notification_channel_example_secret_refs(
 ) -> serde_json::Value {
     match provider {
         "slack" => serde_json::json!({
-            "url": notification_channel_example_secret_ref(provider, message_type, "WEBHOOK_URL")
+            "url": notification_channel_example_webhook_url(provider, message_type)
         }),
-        "dingtalk" => serde_json::json!({
-            "url": notification_channel_example_secret_ref(provider, message_type, "WEBHOOK_URL"),
-            "signingKey": notification_channel_example_secret_ref(provider, message_type, "SIGNING_KEY")
-        }),
-        "feishu" => serde_json::json!({
-            "url": notification_channel_example_secret_ref(provider, message_type, "WEBHOOK_URL"),
-            "signingKey": notification_channel_example_secret_ref(provider, message_type, "SIGNING_KEY")
+        "dingtalk" | "feishu" => serde_json::json!({
+            "url": notification_channel_example_webhook_url(provider, message_type),
+            "signingKey": notification_channel_example_signing_secret(provider, message_type)
         }),
         "wechat_work" => serde_json::json!({
-            "url": notification_channel_example_secret_ref(provider, message_type, "WEBHOOK_URL")
+            "url": notification_channel_example_webhook_url(provider, message_type)
         }),
         "pagerduty" => serde_json::json!({
-            "routingKey": notification_channel_example_secret_ref(provider, message_type, "ROUTING_KEY")
+            "routingKey": format!("PAGERDUTY_{}_ROUTING_KEY", notification_channel_example_suffix(message_type))
         }),
         "email" => serde_json::json!({
-            "smtpUrl": notification_channel_example_secret_ref(provider, message_type, "SMTP_URL"),
-            "password": notification_channel_example_secret_ref(provider, message_type, "SMTP_PASSWORD")
+            "smtpUrl": "smtp+starttls://smtp.example.com:587",
+            "password": format!("SMTP_{}_PASSWORD", notification_channel_example_suffix(message_type))
         }),
         _ => serde_json::json!({
-            "url": notification_channel_example_secret_ref(provider, message_type, "WEBHOOK_URL"),
-            "authorization": notification_channel_example_secret_ref(provider, message_type, "AUTHORIZATION")
+            "url": notification_channel_example_webhook_url(provider, message_type),
+            "authorization": "Bearer direct-channel-token"
         }),
     }
 }

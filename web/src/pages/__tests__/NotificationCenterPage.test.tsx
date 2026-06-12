@@ -61,8 +61,12 @@ describe('notification center console page', () => {
     expect(pageSource).toContain('删除');
   });
 
-  test('does not overclaim vault secret resolution for notification channels', () => {
-    expect(channelDrawerSource).toContain('当前运行时解析 env: 前缀或环境变量名');
+  test('frames channel secretRefs as direct private credentials with optional env compatibility', () => {
+    expect(channelDrawerSource).toContain('保存后立即生效');
+    expect(channelDrawerSource).toContain('可直接填写真实值');
+    expect(channelDrawerSource).toContain('env:NAME');
+    expect(channelDrawerSource).not.toContain('当前运行时解析 env: 前缀或环境变量名');
+    expect(channelDrawerSource).not.toContain('真实值放在部署环境变量或 Secret 中');
     expect(pageSource + channelDrawerSource).not.toContain('env 或 vault');
     expect(pageSource + channelDrawerSource).not.toContain('vault 路径');
   });
@@ -130,15 +134,15 @@ describe('notification center console page', () => {
       return JSON.stringify(selected?.examples?.[0]?.secretRefs ?? {});
     };
     for (const [provider, messageType, expected] of [
-      ['webhook', 'json', 'env:TIKEO_NOTIFICATION_CHANNEL_WEBHOOK_JSON_WEBHOOK_URL'],
-      ['slack', 'text', 'env:TIKEO_NOTIFICATION_CHANNEL_SLACK_TEXT_WEBHOOK_URL'],
-      ['slack', 'blockKit', 'env:TIKEO_NOTIFICATION_CHANNEL_SLACK_BLOCK_KIT_WEBHOOK_URL'],
-      ['dingtalk', 'markdown', 'env:TIKEO_NOTIFICATION_CHANNEL_DINGTALK_MARKDOWN_SIGNING_KEY'],
-      ['feishu', 'interactive', 'env:TIKEO_NOTIFICATION_CHANNEL_FEISHU_INTERACTIVE_SIGNING_KEY'],
-      ['wechat_work', 'markdown_v2', 'env:TIKEO_NOTIFICATION_CHANNEL_WECHAT_WORK_MARKDOWN_V2_WEBHOOK_URL'],
-      ['pagerduty', 'trigger', 'env:TIKEO_NOTIFICATION_CHANNEL_PAGERDUTY_TRIGGER_ROUTING_KEY'],
-      ['email', 'plain', 'env:TIKEO_NOTIFICATION_CHANNEL_EMAIL_PLAIN_SMTP_URL'],
-      ['email', 'plain', 'env:TIKEO_NOTIFICATION_CHANNEL_EMAIL_PLAIN_SMTP_PASSWORD'],
+      ['webhook', 'json', 'https://hooks.example.com/tikeo/webhook/json'],
+      ['slack', 'text', 'https://hooks.slack.com/services/'],
+      ['slack', 'blockKit', 'https://hooks.slack.com/services/'],
+      ['dingtalk', 'markdown', 'SEC_DINGTALK_MARKDOWN_SIGNING_SECRET'],
+      ['feishu', 'interactive', 'SEC_FEISHU_INTERACTIVE_SIGNING_SECRET'],
+      ['wechat_work', 'markdown_v2', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key='],
+      ['pagerduty', 'trigger', 'PAGERDUTY_TRIGGER_ROUTING_KEY'],
+      ['email', 'plain', 'smtp+starttls://smtp.example.com:587'],
+      ['email', 'plain', 'SMTP_PLAIN_PASSWORD'],
     ]) {
       expect(exampleSecretRefs(provider, messageType)).toContain(expected);
     }
@@ -168,12 +172,12 @@ describe('notification center console page', () => {
       expect(channelDrawerSource).toContain(token);
     }
     expect(channelDrawerSource).toContain('先选择 Namespace');
-    expect(channelDrawerSource).toContain('机器人地址 / 凭据引用');
-    expect(channelDrawerSource).toContain('机器人/Webhook 地址引用');
-    expect(channelDrawerSource).toContain('真实值放在部署环境变量或 Secret 中');
-    expect(channelDrawerSource).toContain('按当前 scope 过滤 Secret 引用');
+    expect(channelDrawerSource).toContain('机器人地址 / 私密凭据');
+    expect(channelDrawerSource).toContain('机器人/Webhook 地址');
+    expect(channelDrawerSource).toContain('保存后立即生效');
+    expect(channelDrawerSource).toContain('可直接填写真实值');
     expect(channelDrawerSource).toContain('保持现有渠道配置');
-    expect(channelDrawerSource).toContain('保持现有密钥引用');
+    expect(channelDrawerSource).toContain('保持现有私密配置');
 
     const metadataSchema = providerSchemaFor({
       type: 'feishu',
@@ -195,9 +199,9 @@ describe('notification center console page', () => {
       },
     }, 'feishu');
     const urlSecretField = metadataSchema.secretFields.find((item) => item.key === 'url');
-    expect(urlSecretField?.label).toBe('机器人/Webhook 地址引用');
-    expect(urlSecretField?.placeholder).toContain('TIKEO_NOTIFICATION_CHANNEL_<CHANNEL>_WEBHOOK_URL');
-    expect(urlSecretField?.help).toContain('真实值放在部署环境变量或 Secret 中');
+    expect(urlSecretField?.label).toBe('机器人/Webhook 地址');
+    expect(urlSecretField?.placeholder).toContain('https://');
+    expect(urlSecretField?.help).toContain('可直接填写真实值');
   });
 
   test('allows metadata-only channel edits without re-entering preserved secrets', () => {
@@ -209,9 +213,9 @@ describe('notification center console page', () => {
     expect(channelDrawerSource).toContain('secretControlsDisabled');
     expect(channelDrawerSource).toContain('开启替换渠道配置后才能修改消息类型和 inline 模板字段。');
     expect(channelDrawerSource).toContain('开启替换渠道配置后才能修改高级配置 JSON。');
-    expect(channelDrawerSource).toContain('开启替换密钥引用后才能修改高级密钥引用对象。');
+    expect(channelDrawerSource).toContain('开启替换私密配置后才能修改高级私密配置 JSON。');
     expect(channelDrawerSource).toContain('保持现有渠道配置');
-    expect(channelDrawerSource).toContain('保持现有密钥引用');
+    expect(channelDrawerSource).toContain('保持现有私密配置');
   });
 
   test('lets operators send one test notification from the channel edit drawer and inspect detailed results', () => {

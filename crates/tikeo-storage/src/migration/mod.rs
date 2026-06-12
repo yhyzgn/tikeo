@@ -47,13 +47,14 @@ impl MigratorTrait for Migrator {
             Box::new(NotificationCenterMigration),
             Box::new(NotificationTemplatesMigration),
             Box::new(NotificationChannelExamplesMigration),
+            Box::new(NotificationChannelDirectCredentialExamplesMigration),
         ]
     }
 }
 
 use notification_center::{
-    NotificationCenterMigration, NotificationChannelExamplesMigration,
-    NotificationTemplatesMigration,
+    NotificationCenterMigration, NotificationChannelDirectCredentialExamplesMigration,
+    NotificationChannelExamplesMigration, NotificationTemplatesMigration,
 };
 use rbac_role_management::RbacRoleManagementMigration;
 

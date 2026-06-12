@@ -755,13 +755,8 @@ SMTP password, authorization header, or app-style credential reference in that c
   }
 }
 ```
-
-Use different env names for different Slack/DingTalk/Feishu/WeCom/PagerDuty/email/webhook rows.
-If a plugin or app-style provider needs `appId`/`appSecret`, store those refs in the same channel
-row's `secretRefs`; the current built-in Feishu/Lark custom bot uses `url` plus optional
-`signingKey`. Notification delivery currently resolves `env:NAME` or bare `NAME` from the Server
-process environment, so map those per-channel env vars from your platform secret store at deploy
-time.
+Use direct credentials for webhook URLs, tokens, and passwords in the drawer for convenience. Direct values are stored server-side and take effect immediately without service restarts. For deployment flexibility, you can also use `env:NAME` or bare `NAME` variables to resolve from the Server process environment.
+If a plugin or app-style provider needs `appId`/`appSecret`, store those values or refs in the same channel row's `secretRefs`; the current built-in Feishu/Lark custom bot uses `url` plus optional `signingKey`.
 
 ### Docker Compose: SQLite default
 

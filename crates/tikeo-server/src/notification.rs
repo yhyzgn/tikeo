@@ -1113,15 +1113,19 @@ fn notification_channel_from_delivery_config(
             .or_else(|| secret_ref_string(&secrets, &["smtpUrlSecretRef", "smtp_url_secret_ref"])),
             from: optional_string(&config, &["from"]),
             username: optional_string(&config, &["username"]),
+            password: secret_ref_string(
+                &secrets,
+                &["password", "passwordSecretRef", "password_secret_ref"],
+            )
+            .and_then(|value| resolve_channel_secret_value(Some(&value))),
             password_secret_ref: optional_string(
                 &config,
                 &["passwordSecretRef", "password_secret_ref"],
             )
+            .or_else(|| secret_ref_string(&secrets, &["passwordSecretRef", "password_secret_ref"]))
             .or_else(|| {
-                secret_ref_string(
-                    &secrets,
-                    &["password", "passwordSecretRef", "password_secret_ref"],
-                )
+                secret_ref_string(&secrets, &["password"])
+                    .filter(|reference| is_env_secret_ref(reference))
             }),
         }),
         other => resolved_url(&config, &secrets).map(|url| NotificationChannel::PluginWebhook {
@@ -1184,7 +1188,8 @@ fn optional_secret(
     map: &serde_json::Map<String, serde_json::Value>,
     keys: &[&str],
 ) -> Option<String> {
-    secret_ref_string(map, keys).and_then(|reference| alert::resolve_secret_ref(Some(&reference)))
+    secret_ref_string(map, keys)
+        .and_then(|reference| resolve_channel_secret_value(Some(&reference)))
 }
 
 fn optional_signing_secret(
@@ -1231,6 +1236,23 @@ fn secret_ref_string(
             _ => None,
         })
     })
+}
+
+fn resolve_channel_secret_value(value: Option<&str>) -> Option<String> {
+    let value = value?.trim();
+    if value.is_empty() {
+        return None;
+    }
+    if let Some(env_name) = value.strip_prefix("env:") {
+        return std::env::var(env_name.trim())
+            .ok()
+            .filter(|resolved| !resolved.trim().is_empty());
+    }
+    Some(value.to_owned())
+}
+
+fn is_env_secret_ref(value: &str) -> bool {
+    value.trim().starts_with("env:")
 }
 
 fn recipients_from_config(map: &serde_json::Map<String, serde_json::Value>) -> Vec<String> {
@@ -1370,13 +1392,15 @@ fn webhook_headers(
                 continue;
             }
             let resolved = match value {
-                serde_json::Value::String(reference) => alert::resolve_secret_ref(Some(reference)),
+                serde_json::Value::String(reference) => {
+                    resolve_channel_secret_value(Some(reference))
+                }
                 serde_json::Value::Object(object) => object
                     .get("ref")
                     .or_else(|| object.get("secretRef"))
                     .or_else(|| object.get("secret_ref"))
                     .and_then(serde_json::Value::as_str)
-                    .and_then(|reference| alert::resolve_secret_ref(Some(reference))),
+                    .and_then(|reference| resolve_channel_secret_value(Some(reference))),
                 _ => None,
             };
             if let Some(resolved) = resolved {

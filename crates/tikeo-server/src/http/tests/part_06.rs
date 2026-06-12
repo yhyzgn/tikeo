@@ -73,7 +73,7 @@
         for provider in ["slack", "dingtalk", "feishu", "wechat_work", "pagerduty", "email", "webhook"] {
             assert_provider_template_examples(channel_types, provider);
         }
-        assert_provider_template_example_secret_refs_are_channel_scoped(channel_types);
+        assert_provider_template_example_secret_refs_are_channel_private_values(channel_types);
         assert_provider_template_has_field(channel_types, "dingtalk", "atUserIds");
         assert_provider_template_has_field(channel_types, "wechat_work", "mentionedList");
         assert_provider_template_has_field(channel_types, "wechat_work", "mentionedMobileList");
@@ -1473,7 +1473,7 @@ fn assert_provider_template(channel_types: &[Value], provider: &str, expected_me
     }
 }
 
-fn notification_channel_env_suffix(value: &str) -> String {
+fn notification_channel_example_suffix(value: &str) -> String {
     let mut normalized = String::new();
     let mut previous_was_separator = true;
     for item in value.chars() {
@@ -1499,7 +1499,7 @@ fn notification_channel_env_suffix(value: &str) -> String {
     }
 }
 
-fn assert_provider_template_example_secret_refs_are_channel_scoped(channel_types: &[Value]) {
+fn assert_provider_template_example_secret_refs_are_channel_private_values(channel_types: &[Value]) {
     for provider_type in channel_types.iter().filter(|item| {
         item["type"] == "slack"
             || item["type"] == "dingtalk"
@@ -1526,14 +1526,56 @@ fn assert_provider_template_example_secret_refs_are_channel_scoped(channel_types
                 let secret_refs = &example["secretRefs"];
                 let rendered = secret_refs.to_string();
                 assert!(
-                    rendered.contains("env:TIKEO_NOTIFICATION_CHANNEL_"),
-                    "{provider}/{message_type_id} example secretRefs should be channel-scoped"
+                    !rendered.contains("env:TIKEO_NOTIFICATION_CHANNEL_"),
+                    "{provider}/{message_type_id} example secretRefs should demonstrate direct channel-private values"
                 );
                 assert!(
-                    rendered.contains(&provider.to_ascii_uppercase())
-                        && rendered.contains(&notification_channel_env_suffix(message_type_id)),
-                    "{provider}/{message_type_id} example secretRefs should include provider and message type"
+                    example["description"]
+                        .as_str()
+                        .is_some_and(|description| description.contains("direct values")
+                            && description.contains("env:NAME")),
+                    "{provider}/{message_type_id} example should document direct values and env compatibility"
                 );
+                match provider {
+                    "slack" | "dingtalk" | "feishu" | "wechat_work" | "webhook" => {
+                        assert!(
+                            secret_refs["url"]
+                                .as_str()
+                                .is_some_and(|value| value.starts_with("https://")),
+                            "{provider}/{message_type_id} should include a direct webhook URL"
+                        );
+                    }
+                    "pagerduty" => assert!(
+                        secret_refs["routingKey"].as_str().is_some_and(|value| {
+                            value.contains("PAGERDUTY")
+                                && value.contains(&notification_channel_example_suffix(message_type_id))
+                        }),
+                        "{provider}/{message_type_id} should include a direct routing key placeholder"
+                    ),
+                    "email" => {
+                        assert_eq!(
+                            secret_refs["smtpUrl"].as_str(),
+                            Some("smtp+starttls://smtp.example.com:587")
+                        );
+                        assert!(
+                            secret_refs["password"].as_str().is_some_and(|value| {
+                                value.contains("SMTP")
+                                    && value.contains(&notification_channel_example_suffix(message_type_id))
+                            }),
+                            "email/{message_type_id} should include a direct SMTP password placeholder"
+                        );
+                    }
+                    _ => {}
+                }
+                if matches!(provider, "dingtalk" | "feishu") {
+                    assert!(
+                        secret_refs["signingKey"].as_str().is_some_and(|value| {
+                            value.contains("SEC_")
+                                && value.contains(&notification_channel_example_suffix(message_type_id))
+                        }),
+                        "{provider}/{message_type_id} should include a direct signing secret placeholder"
+                    );
+                }
                 for global_ref in [
                     "TIKEO_NOTIFICATION_WEBHOOK_URL",
                     "SLACK_WEBHOOK_URL",

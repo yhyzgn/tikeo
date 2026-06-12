@@ -135,6 +135,9 @@ pub enum NotificationChannel {
         /// SMTP username or user secret/env reference.
         #[serde(default)]
         username: Option<String>,
+        /// SMTP password value supplied by Notification Center channel-private credentials.
+        #[serde(default, skip)]
+        password: Option<String>,
         /// SMTP password secret/env reference.
         #[serde(default)]
         password_secret_ref: Option<String>,
@@ -486,12 +489,15 @@ impl AlertDispatcher {
                     smtp_url_secret_ref,
                     from,
                     username,
+                    password,
                     password_secret_ref,
                 } => {
                     let smtp_url = smtp_url
                         .clone()
                         .or_else(|| resolve_secret_ref(smtp_url_secret_ref.as_deref()));
-                    let password = resolve_secret_ref(password_secret_ref.as_deref());
+                    let password = password
+                        .clone()
+                        .or_else(|| resolve_secret_ref(password_secret_ref.as_deref()));
                     results.push(
                         self.deliver_email(
                             recipients,
@@ -924,6 +930,7 @@ mod tests {
                     smtp_url_secret_ref: None,
                     from: Some("tikeo@example.com".to_owned()),
                     username: None,
+                    password: None,
                     password_secret_ref: None,
                 }],
             }],

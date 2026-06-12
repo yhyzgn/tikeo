@@ -125,7 +125,7 @@ Provider validation：
 - Webhook-style provider 需要 `url`、`webhookUrl` 或 `webhook_url`。
 - PagerDuty 需要 `routingKey`、`routing_key`、`integrationKey` 或 `integration_key`。
 - Email 需要 `to` 或 `recipients`，并通过直接配置或 secret ref 提供 SMTP URL/config。运行时接受与 metadata 对齐的 `secretRefs.password` 作为 SMTP password reference alias，也接受 `passwordSecretRef` / `password_secret_ref`；SMTP URL reference alias 包括 `smtpUrl`、`smtp_url`、`url`、`smtpUrlSecretRef` 和 `smtp_url_secret_ref`。
-- 本实现中的 secret 解析基于环境变量：`env:NAME` 和裸 `NAME` 都会从 Server 进程环境变量读取。生产中应为每条渠道记录使用独立名称，不要依赖一个 provider-wide 的共享环境变量。
+- Secret 解析支持直接配置私密值，保存在服务端并立即生效而无需重启服务。同时为了部署兼容性，也支持通过 `env:NAME` 引用或裸环境变量名从 Server 进程环境变量中读取。
 
 ## 脱敏行为
 
