@@ -245,15 +245,20 @@ const fallbackSchemas: Record<string, ProviderSchema> = {
     provider: 'email',
     label: 'SMTP Email',
     category: 'email',
-    description: 'SMTP email delivery. Runtime currently sends text/plain mail.',
+    description: 'SMTP email delivery. Configure host/port/SSL/STARTTLS directly or keep the compatible SMTP URL field.',
     configFields: [
       { key: 'to', label: 'Recipients', type: 'emailList', required: true, placeholder: 'ops@example.com' },
       { key: 'from', label: 'From address', type: 'string', placeholder: 'tikeo@example.com' },
-      { key: 'username', label: 'SMTP username', type: 'string' },
+      { key: 'host', label: 'SMTP host', type: 'string', required: true, placeholder: 'smtp.feishu.cn' },
+      { key: 'port', label: 'SMTP port', type: 'string', required: true, placeholder: '465', defaultValue: '465' },
+      { key: 'username', label: 'SMTP username', type: 'string', placeholder: 'ailink@recycloud.cn' },
+      { key: 'auth', label: 'SMTP auth', type: 'boolean', defaultValue: true },
+      { key: 'ssl', label: 'SSL/TLS', type: 'boolean', defaultValue: true },
+      { key: 'starttls', label: 'STARTTLS', type: 'boolean', defaultValue: false },
     ],
     secretFields: [
-      { key: 'smtpUrl', label: 'SMTP URL', type: 'string', required: true, secret: true, placeholder: 'smtp+starttls://smtp.example.com:587' },
-      { key: 'password', label: 'SMTP password', type: 'string', secret: true, placeholder: 'SMTP password' },
+      { key: 'password', label: 'SMTP password', type: 'string', secret: true, placeholder: '${FEISHU_MAIL_PASSWORD}' },
+      { key: 'smtpUrl', label: 'SMTP URL (optional compatible override)', type: 'string', secret: true, placeholder: 'smtps://smtp.feishu.cn:465', help: '通常无需填写；仅用于兼容旧配置或需要完整 URL 覆盖 host/port/ssl/starttls 时。' },
     ],
     messageTypes: [
       { id: 'plain', label: 'Plain text', description: 'Text/plain email body.', templateFields: [{ key: 'subject', label: 'Subject template', type: 'string', required: true, placeholder: '[tikeo/{{severity}}] {{subject}}' }, { key: 'body', label: 'Body template', type: 'textarea', required: true, rows: 8, placeholder: '{{body}}\n\nResource: {{resourceType}}/{{resourceId}}' }] },
@@ -317,7 +322,7 @@ function exampleSecretRefs(provider: string, messageType: string): Record<string
   if (provider === 'feishu') return { url: directWebhookUrl(provider, messageType), signingKey: directSigningSecret(provider, messageType) };
   if (provider === 'wechat_work') return { url: directWebhookUrl(provider, messageType) };
   if (provider === 'pagerduty') return { routingKey: `PAGERDUTY_${messageType.replace(/[^A-Za-z0-9]+/g, '_').toUpperCase()}_ROUTING_KEY` };
-  if (provider === 'email') return { smtpUrl: 'smtp+starttls://smtp.example.com:587', password: `SMTP_${messageType.replace(/[^A-Za-z0-9]+/g, '_').toUpperCase()}_PASSWORD` };
+  if (provider === 'email') return { password: `SMTP_${messageType.replace(/[^A-Za-z0-9]+/g, '_').toUpperCase()}_PASSWORD` };
   return { url: directWebhookUrl(provider, messageType), authorization: 'Bearer direct-channel-token' };
 }
 
@@ -325,7 +330,7 @@ function exampleConfig(provider: string, messageType: string): Record<string, un
   if (provider === 'dingtalk') return { messageType, isAtAll: false };
   if (provider === 'wechat_work') return { messageType, mentionedList: [], mentionedMobileList: [] };
   if (provider === 'pagerduty') return { messageType, source: 'tikeo', severity: 'critical', dedupKey: '{{dedupeKey}}' };
-  if (provider === 'email') return { messageType, to: ['ops@example.com'], from: 'tikeo@example.com' };
+  if (provider === 'email') return { messageType, to: ['ops@example.com'], from: 'tikeo@example.com', host: 'smtp.feishu.cn', port: '465', username: 'tikeo@example.com', auth: true, ssl: true, starttls: false };
   return { messageType };
 }
 

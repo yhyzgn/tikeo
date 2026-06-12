@@ -86,8 +86,8 @@ pub(super) fn builtin_channel_types() -> Vec<NotificationChannelTypeSummary> {
             "SMTP Email",
             "email",
             "SMTP email delivery",
-            vec!["to"],
-            vec!["smtpUrl"],
+            vec!["to", "host"],
+            vec!["host"],
             vec![
                 "password",
                 "passwordSecretRef",
@@ -212,8 +212,20 @@ fn builtin_channel_template(provider: &str) -> serde_json::Value {
                 {"id":"plain","label":"Plain text","description":"Text/plain email body.","templateFields":[{"key":"subject","label":"Subject template","type":"string","required":true},{"key":"body","label":"Body template","type":"textarea","required":true}]},
                 {"id":"html","label":"HTML template","description":"Schema-only HTML shape; current runtime falls back to text body.","templateFields":[{"key":"subject","label":"Subject template","type":"string","required":true},{"key":"html","label":"HTML template","type":"textarea"},{"key":"body","label":"Text fallback template","type":"textarea","required":true}]}
             ],
-            "configFields": [{"key":"to","label":"Recipients","type":"emailList","required":true},{"key":"from","label":"From address","type":"string"},{"key":"username","label":"SMTP username","type":"string"}],
-            "secretFields": [{"key":"smtpUrl","label":"SMTP URL","type":"string","required":true,"secret":true},{"key":"password","label":"SMTP password","type":"string","secret":true}],
+            "configFields": [
+                {"key":"to","label":"Recipients","type":"emailList","required":true},
+                {"key":"from","label":"From address","type":"string"},
+                {"key":"host","label":"SMTP host","type":"string","required":true},
+                {"key":"port","label":"SMTP port","type":"string","required":true,"defaultValue":"465"},
+                {"key":"username","label":"SMTP username","type":"string"},
+                {"key":"auth","label":"SMTP auth","type":"boolean","defaultValue":true},
+                {"key":"ssl","label":"SSL/TLS","type":"boolean","defaultValue":true},
+                {"key":"starttls","label":"STARTTLS","type":"boolean","defaultValue":false}
+            ],
+            "secretFields": [
+                {"key":"password","label":"SMTP password","type":"string","secret":true},
+                {"key":"smtpUrl","label":"SMTP URL (optional compatible override)","type":"string","secret":true}
+            ],
             "templateVariables": variables,
             "docs": [{"label":"SMTP RFC 5321","url":"https://datatracker.ietf.org/doc/rfc5321/"},{"label":"Internet Message Format RFC 5322","url":"https://datatracker.ietf.org/doc/rfc5322/"}]
         }),
@@ -313,7 +325,6 @@ fn builtin_example_secret_refs(provider: &str, message_type: &str) -> serde_json
             "routingKey": format!("PAGERDUTY_{}_ROUTING_KEY", notification_channel_example_suffix(message_type))
         }),
         "email" => serde_json::json!({
-            "smtpUrl": "smtp+starttls://smtp.example.com:587",
             "password": format!("SMTP_{}_PASSWORD", notification_channel_example_suffix(message_type))
         }),
         _ => serde_json::json!({
@@ -504,9 +515,10 @@ pub(super) async fn validate_channel_request(
             && !json_field_present_any(secret_refs, &["smtpUrl", "smtp_url", "url"])
             && !json_field_present_any(config, &["smtpUrlSecretRef", "smtp_url_secret_ref"])
             && !json_field_present_any(secret_refs, &["smtpUrlSecretRef", "smtp_url_secret_ref"])
+            && !json_field_present(config, "host")
         {
             return Err(ApiError::bad_request(
-                "email channel requires smtpUrl or smtpUrlSecretRef",
+                "email channel requires host or smtpUrl/smtpUrlSecretRef",
             ));
         }
         return Ok(());

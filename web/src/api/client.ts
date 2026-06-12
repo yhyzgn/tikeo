@@ -1401,7 +1401,24 @@ export async function request<T>(path: string, init: TikeoRequestInit = {}): Pro
     ...fetchInit,
     headers: mergedHeaders,
   });
-  const envelope = (await response.json()) as ApiResponse<T | null>;
+  const rawBody = await response.text();
+  if (rawBody.trim() === '') {
+    throw new ApiClientError(
+      response.ok ? -1 : response.status,
+      `API returned an empty response body for ${path}`,
+      response.status,
+    );
+  }
+  let envelope: ApiResponse<T | null>;
+  try {
+    envelope = JSON.parse(rawBody) as ApiResponse<T | null>;
+  } catch {
+    throw new ApiClientError(
+      response.ok ? -1 : response.status,
+      `API returned a non-JSON response for ${path}`,
+      response.status,
+    );
+  }
 
   if (response.status === 401) {
     setAuthToken(null);

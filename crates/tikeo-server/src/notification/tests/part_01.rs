@@ -428,6 +428,41 @@ fn email_channel_accepts_metadata_secret_refs_password_alias() {
     }
 }
 
+#[test]
+fn email_channel_prefers_split_smtp_fields_when_legacy_smtp_url_is_bare_host() {
+    let channel = NotificationChannelDeliveryConfig {
+        id: "notification-channel-email".to_owned(),
+        provider: "email".to_owned(),
+        enabled: true,
+        config_json: serde_json::json!({
+            "to": ["ops@example.com"],
+            "host": "smtp.feishu.cn",
+            "port": "465",
+            "ssl": true,
+            "starttls": false,
+            "username": "ailink@recycloud.cn"
+        })
+        .to_string(),
+        secret_refs_json: serde_json::json!({
+            "smtpUrl": "smtp.feishu.cn",
+            "password": "direct-smtp-password"
+        })
+        .to_string(),
+        target_redacted: "ops@example.com".to_owned(),
+        safety_policy_json: None,
+    };
+
+    let resolved = notification_channel_from_delivery_config(&channel)
+        .unwrap_or_else(|| panic!("email channel should resolve from split SMTP config"));
+    match resolved {
+        NotificationChannel::Email { smtp_url, password, .. } => {
+            assert_eq!(smtp_url.as_deref(), Some("smtps://smtp.feishu.cn:465"));
+            assert_eq!(password.as_deref(), Some("direct-smtp-password"));
+        }
+        other => panic!("expected email channel, got {other:?}"),
+    }
+}
+
 #[tokio::test]
 async fn job_instance_event_materializes_message_and_delivery_attempts() {
     let db = connect_and_migrate("sqlite::memory:")

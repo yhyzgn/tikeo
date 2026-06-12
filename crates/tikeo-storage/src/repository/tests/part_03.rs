@@ -32,6 +32,12 @@ fn notification_channel_example_suffix(value: &str) -> String {
     }
 }
 
+fn notification_channel_message_type(config_json: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(config_json)
+        .ok()
+        .and_then(|value| value.get("messageType").and_then(serde_json::Value::as_str).map(str::to_owned))
+}
+
 fn notification_secret_ref_values(value: &serde_json::Value) -> Vec<String> {
     match value {
         serde_json::Value::String(item) => vec![item.clone()],
@@ -50,7 +56,7 @@ fn notification_secret_ref_values(value: &serde_json::Value) -> Vec<String> {
 }
 
 #[tokio::test]
-async fn notification_channel_examples_are_seeded_as_normal_disabled_channels() {
+async fn notification_channel_examples_are_seeded_as_normal_enabled_channels() {
     let db = crate::connect_and_migrate("sqlite::memory:")
         .await
         .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
@@ -92,7 +98,7 @@ async fn notification_channel_examples_are_seeded_as_normal_disabled_channels() 
     ] {
         let matches = listed
             .iter()
-            .filter(|item| item.provider == provider && item.name.contains(message_type))
+            .filter(|item| item.provider == provider && notification_channel_message_type(&item.config_json).as_deref() == Some(message_type))
             .collect::<Vec<_>>();
         assert!(
             (1..=2).contains(&matches.len()),
@@ -101,9 +107,9 @@ async fn notification_channel_examples_are_seeded_as_normal_disabled_channels() 
         );
         let channel = listed
             .iter()
-            .find(|item| item.provider == provider && item.name.contains(message_type))
+            .find(|item| item.provider == provider && notification_channel_message_type(&item.config_json).as_deref() == Some(message_type))
             .unwrap_or_else(|| panic!("seeded channel example should exist for {provider}/{message_type}"));
-        assert!(!channel.enabled, "seeded example channels must be disabled until configured");
+        assert!(channel.enabled, "seeded example channels should be ready-to-test normal rows with rich message types");
         assert_eq!(channel.scope_type, "global");
         assert!(channel.config_json.contains(message_type));
         assert!(channel.secret_configured, "{provider}/{message_type} should carry channel-private credentials");
@@ -134,9 +140,11 @@ async fn notification_channel_examples_are_seeded_as_normal_disabled_channels() 
                 "{provider}/{message_type} should include a direct routing key placeholder"
             ),
             "email" => {
-                assert_eq!(
-                    secret_refs["smtpUrl"].as_str(),
-                    Some("smtp+starttls://smtp.example.com:587")
+                assert!(
+                    channel.config_json.contains("smtp.feishu.cn")
+                        && channel.config_json.contains("\"ssl\":true")
+                        && channel.config_json.contains("\"starttls\":false"),
+                    "email/{message_type} should include host/port/ssl/starttls SMTP config"
                 );
                 assert!(
                     secret_refs["password"]
@@ -186,6 +194,7 @@ async fn notification_channel_examples_are_seeded_as_normal_disabled_channels() 
             .get("url")
             .or_else(|| secret_refs.get("routingKey"))
             .or_else(|| secret_refs.get("smtpUrl"))
+            .or_else(|| secret_refs.get("password"))
             .and_then(serde_json::Value::as_str);
         if let Some(target_ref) = target_ref {
             provider_targets
@@ -200,7 +209,7 @@ async fn notification_channel_examples_are_seeded_as_normal_disabled_channels() 
         ("feishu", 5),
         ("wechat_work", 8),
         ("pagerduty", 3),
-        ("email", 1),
+        ("email", 2),
     ] {
         assert_eq!(
             provider_targets.get(provider).map(BTreeSet::len),

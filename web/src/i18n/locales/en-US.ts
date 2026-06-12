@@ -25,7 +25,6 @@ export const messages: Record<string, string> = {
     "管理可复用出站渠道、策略、消息与通用投递队列；Provider target 已脱敏，secretRefs 不在响应中展示。": "Manage reusable outbound channels, policies, messages, and the generic delivery queue. Provider targets are redacted and secretRefs are not shown in responses.",
     "管理可复用出站渠道、策略、消息与通用投递队列；提供方目标已脱敏，密钥引用不会在响应中展示。": "Manage reusable outbound channels, policies, messages, and the generic delivery queue. Provider targets are redacted and credentials are not shown in responses.",
     "通知中心加载失败": "Failed to load Notification Center",
-    "管理可复用出站渠道、策略、消息与通用投递队列；提供方目标已脱敏，密钥引用不会在响应中展示。": "Manage reusable outbound channels, policies, messages, and the generic delivery queue. Provider targets are redacted and secret references are not shown in responses.",
     "通知中心重试扫描完成": "Notification Center retry scan completed",
     "扫描": "Scanned",
     "渠道": "Channels",

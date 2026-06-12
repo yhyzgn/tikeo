@@ -1017,7 +1017,9 @@ impl NotificationProviderClient {
         match request.send().await {
             Ok(response) => {
                 let status = response.status();
-                let delivered = status.is_success();
+                let response_body = response.text().await.unwrap_or_default();
+                let provider_error = provider_response_error(provider, &response_body);
+                let delivered = status.is_success() && provider_error.is_none();
                 NotificationProviderDeliveryResult {
                     provider: provider.to_owned(),
                     target_redacted,
@@ -1025,6 +1027,8 @@ impl NotificationProviderClient {
                     status_code: Some(status.as_u16()),
                     error: if delivered {
                         None
+                    } else if let Some(error) = provider_error {
+                        Some(error)
                     } else {
                         Some(format!("{provider} returned HTTP {status}"))
                     },
@@ -1045,6 +1049,73 @@ impl NotificationProviderClient {
             }
         }
     }
+}
+
+fn provider_response_error(provider: &str, response_body: &str) -> Option<String> {
+    if response_body.trim().is_empty() {
+        return None;
+    }
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(response_body) else {
+        return None;
+    };
+    match provider {
+        "feishu" => {
+            provider_numeric_code_error(provider, &value, &["code"], &[0], &["msg", "message"])
+        }
+        "dingtalk" | "wechat_work" => provider_numeric_code_error(
+            provider,
+            &value,
+            &["errcode"],
+            &[0],
+            &["errmsg", "message"],
+        ),
+        "slack" => {
+            if value.get("ok").and_then(serde_json::Value::as_bool) == Some(false) {
+                Some(format!(
+                    "slack returned error: {}",
+                    value
+                        .get("error")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("unknown")
+                ))
+            } else {
+                None
+            }
+        }
+        "pagerduty" => {
+            if value.get("status").and_then(serde_json::Value::as_str) == Some("success") {
+                None
+            } else {
+                value
+                    .get("message")
+                    .or_else(|| value.get("error"))
+                    .and_then(serde_json::Value::as_str)
+                    .map(|message| format!("pagerduty returned error: {message}"))
+            }
+        }
+        _ => None,
+    }
+}
+
+fn provider_numeric_code_error(
+    provider: &str,
+    value: &serde_json::Value,
+    code_keys: &[&str],
+    success_codes: &[i64],
+    message_keys: &[&str],
+) -> Option<String> {
+    let code = code_keys
+        .iter()
+        .find_map(|key| value.get(*key))
+        .and_then(|item| item.as_i64().or_else(|| item.as_str()?.parse::<i64>().ok()));
+    if code.is_some_and(|item| success_codes.contains(&item)) {
+        return None;
+    }
+    let message = message_keys
+        .iter()
+        .find_map(|key| value.get(*key).and_then(serde_json::Value::as_str))
+        .unwrap_or("provider returned an application-level error");
+    code.map(|item| format!("{provider} returned code {item}: {message}"))
 }
 
 /// Deliver one notification message through one already-loaded channel using the same provider
@@ -1104,20 +1175,25 @@ fn notification_channel_from_delivery_config(
         }
         "email" => Some(NotificationChannel::Email {
             recipients: recipients_from_config(&config),
-            smtp_url: optional_string(&config, &["smtpUrl", "smtp_url", "url"])
-                .or_else(|| optional_secret(&secrets, &["smtpUrl", "smtp_url", "url"])),
+            smtp_url: optional_smtp_url(&config, &secrets)
+                .or_else(|| smtp_url_from_config(&config)),
             smtp_url_secret_ref: optional_string(
                 &config,
                 &["smtpUrlSecretRef", "smtp_url_secret_ref"],
             )
             .or_else(|| secret_ref_string(&secrets, &["smtpUrlSecretRef", "smtp_url_secret_ref"])),
             from: optional_string(&config, &["from"]),
-            username: optional_string(&config, &["username"]),
-            password: secret_ref_string(
-                &secrets,
-                &["password", "passwordSecretRef", "password_secret_ref"],
-            )
-            .and_then(|value| resolve_channel_secret_value(Some(&value))),
+            username: smtp_auth_enabled(&config)
+                .then(|| optional_string(&config, &["username"]))
+                .flatten(),
+            password: smtp_auth_enabled(&config)
+                .then(|| {
+                    optional_secret(
+                        &secrets,
+                        &["password", "passwordSecretRef", "password_secret_ref"],
+                    )
+                })
+                .flatten(),
             password_secret_ref: optional_string(
                 &config,
                 &["passwordSecretRef", "password_secret_ref"],
@@ -1137,6 +1213,45 @@ fn notification_channel_from_delivery_config(
                 .unwrap_or_else(|| serde_json::json!({})),
         }),
     }
+}
+
+fn smtp_url_from_config(config: &serde_json::Map<String, serde_json::Value>) -> Option<String> {
+    let host = optional_string(config, &["host", "smtpHost", "smtp_host"])?;
+    let port = optional_u16(config, &["port", "smtpPort", "smtp_port"]).unwrap_or_else(|| {
+        if optional_bool(config, &["ssl"]).unwrap_or(false) {
+            465
+        } else if optional_bool(config, &["starttls", "startTls", "start_tls"]).unwrap_or(false) {
+            587
+        } else {
+            25
+        }
+    });
+    let scheme = if optional_bool(config, &["ssl"]).unwrap_or(false) {
+        "smtps"
+    } else if optional_bool(config, &["starttls", "startTls", "start_tls"]).unwrap_or(false) {
+        "smtp+starttls"
+    } else {
+        "smtp"
+    };
+    Some(format!("{scheme}://{host}:{port}"))
+}
+
+fn optional_smtp_url(
+    config: &serde_json::Map<String, serde_json::Value>,
+    secrets: &serde_json::Map<String, serde_json::Value>,
+) -> Option<String> {
+    optional_string(config, &["smtpUrl", "smtp_url", "url"])
+        .or_else(|| optional_secret(secrets, &["smtpUrl", "smtp_url", "url"]))
+        .filter(|value| smtp_url_has_scheme(value))
+}
+
+fn smtp_url_has_scheme(value: &str) -> bool {
+    value.contains("://")
+}
+
+fn smtp_auth_enabled(config: &serde_json::Map<String, serde_json::Value>) -> bool {
+    optional_bool(config, &["auth", "smtpAuth", "smtp_auth"])
+        .unwrap_or_else(|| optional_string(config, &["username"]).is_some())
 }
 
 fn alert_payload_from_message(message: &NotificationMessageSummary) -> AlertPayload {
@@ -1182,6 +1297,32 @@ fn optional_string(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
+}
+
+fn optional_bool(map: &serde_json::Map<String, serde_json::Value>, keys: &[&str]) -> Option<bool> {
+    keys.iter().find_map(|key| {
+        map.get(*key).and_then(|value| match value {
+            serde_json::Value::Bool(item) => Some(*item),
+            serde_json::Value::String(item) => match item.trim().to_ascii_lowercase().as_str() {
+                "true" | "1" | "yes" | "on" => Some(true),
+                "false" | "0" | "no" | "off" => Some(false),
+                _ => None,
+            },
+            _ => None,
+        })
+    })
+}
+
+fn optional_u16(map: &serde_json::Map<String, serde_json::Value>, keys: &[&str]) -> Option<u16> {
+    keys.iter().find_map(|key| {
+        map.get(*key).and_then(|value| match value {
+            serde_json::Value::Number(item) => {
+                item.as_u64().and_then(|value| u16::try_from(value).ok())
+            }
+            serde_json::Value::String(item) => item.trim().parse::<u16>().ok(),
+            _ => None,
+        })
+    })
 }
 
 fn optional_secret(

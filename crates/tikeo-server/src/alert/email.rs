@@ -4,12 +4,14 @@ use super::{AlertDeliveryPolicy, AlertDeliveryResult, AlertPayload, Severity, is
 use rustls::pki_types::ServerName;
 use serde::Deserialize;
 use std::sync::Arc;
+use time::{OffsetDateTime, format_description::well_known::Rfc2822};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
 use tokio_rustls::{TlsConnector, client::TlsStream};
 use url::Url;
+use uuid::Uuid;
 
 pub async fn deliver_email_channel(
     smtp_url: &str,
@@ -106,9 +108,13 @@ async fn connect_smtp_tls(stream: TcpStream, host: &str) -> Result<TlsStream<Tcp
             .add(cert)
             .map_err(|error| format!("smtp tls root cert load failed: {error}"))?;
     }
-    let config = rustls::ClientConfig::builder()
-        .with_root_certificates(roots)
-        .with_no_client_auth();
+    let config = rustls::ClientConfig::builder_with_provider(
+        rustls::crypto::ring::default_provider().into(),
+    )
+    .with_safe_default_protocol_versions()
+    .map_err(|error| format!("smtp tls protocol setup failed: {error}"))?
+    .with_root_certificates(roots)
+    .with_no_client_auth();
     let server_name = ServerName::try_from(host.to_owned())
         .map_err(|_| "smtp tls server name is invalid".to_owned())?;
     TlsConnector::from(Arc::new(config))
@@ -175,13 +181,19 @@ where
         severity_label(&payload.severity),
         payload.rule_name
     );
+    let date = OffsetDateTime::now_utc()
+        .format(&Rfc2822)
+        .unwrap_or_else(|_| payload.triggered_at.clone());
+    let message_id = format!("<{}@tikeo.local>", Uuid::now_v7());
+    let body_text = format!(
+        "{}\r\nResource: {}/{}\r\nTriggered-At: {}\r\n",
+        payload.message, payload.resource_type, payload.resource_id, payload.triggered_at,
+    );
     let body = format!(
-        "From: {from}\r\nTo: {}\r\nSubject: {subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{}\r\nResource: {}/{}\r\nTriggered-At: {}\r\n.",
+        "Date: {date}\r\nMessage-ID: {message_id}\r\nFrom: {from}\r\nTo: {}\r\nSubject: {}\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n{}\r\n.",
         recipients.join(", "),
-        payload.message,
-        payload.resource_type,
-        payload.resource_id,
-        payload.triggered_at,
+        encoded_subject(&subject),
+        dot_stuffed_body(&body_text),
     );
     write_smtp_command(stream, &body).await?;
     read_smtp_response(stream).await?;
@@ -205,6 +217,29 @@ fn validate_smtp_url(value: &str, policy: AlertDeliveryPolicy) -> Result<Url, St
 fn base64_encode(value: &str) -> String {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     STANDARD.encode(value.as_bytes())
+}
+
+fn encoded_subject(value: &str) -> String {
+    if value.is_ascii() {
+        return value.to_owned();
+    }
+    format!("=?UTF-8?B?{}?=", base64_encode(value))
+}
+
+fn dot_stuffed_body(value: &str) -> String {
+    value
+        .replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .split('\n')
+        .map(|line| {
+            if line.starts_with('.') {
+                format!(".{line}")
+            } else {
+                line.to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\r\n")
 }
 
 async fn write_smtp_command<S>(stream: &mut S, command: &str) -> Result<(), String>

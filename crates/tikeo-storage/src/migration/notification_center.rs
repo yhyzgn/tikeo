@@ -19,6 +19,10 @@ pub(super) struct NotificationChannelExamplesMigration;
 
 pub(super) struct NotificationChannelDirectCredentialExamplesMigration;
 
+pub(super) struct NotificationChannelRichExamplesMigration;
+
+pub(super) struct NotificationChannelEmailSmtpExamplesMigration;
+
 impl MigrationName for NotificationCenterMigration {
     fn name(&self) -> &'static str {
         "m20260611_000001_notification_center"
@@ -107,6 +111,40 @@ impl MigrationTrait for NotificationChannelDirectCredentialExamplesMigration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         update_seed_notification_channel_example_credentials(manager, false).await
+    }
+}
+
+impl MigrationName for NotificationChannelRichExamplesMigration {
+    fn name(&self) -> &'static str {
+        "m20260612_000003_notification_channel_rich_examples"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for NotificationChannelRichExamplesMigration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        refresh_seed_notification_channel_examples(manager, true).await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        refresh_seed_notification_channel_examples(manager, false).await
+    }
+}
+
+impl MigrationName for NotificationChannelEmailSmtpExamplesMigration {
+    fn name(&self) -> &'static str {
+        "m20260612_000004_notification_channel_email_smtp_examples"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for NotificationChannelEmailSmtpExamplesMigration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        refresh_seed_notification_channel_email_smtp_examples(manager, true).await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        refresh_seed_notification_channel_email_smtp_examples(manager, false).await
     }
 }
 
@@ -351,9 +389,9 @@ async fn seed_notification_channel_examples(manager: &SchemaManager<'_>) -> Resu
                 Option::<String>::None.into(),
                 Option::<String>::None.into(),
                 Option::<String>::None.into(),
-                format!("{provider} {message_type} smoke channel").into(),
+                notification_channel_example_name(provider, message_type).into(),
                 provider.into(),
-                false.into(),
+                true.into(),
                 config.into(),
                 secret_refs.into(),
                 target_redacted.into(),
@@ -403,12 +441,108 @@ async fn update_seed_notification_channel_example_credentials(
             .execute(Statement::from_string(
                 manager.get_database_backend(),
                 format!(
-                    "UPDATE notification_channels SET secret_refs_json = '{secret_refs}' WHERE id = '{id}'"
+                    "UPDATE notification_channels SET secret_refs_json = '{secret_refs}', enabled = 1, name = '{}' WHERE id = '{id}'",
+                    notification_channel_example_name(provider, message_type).replace('\'', "''")
                 ),
             ))
             .await?;
     }
     Ok(())
+}
+
+async fn refresh_seed_notification_channel_examples(
+    manager: &SchemaManager<'_>,
+    enabled: bool,
+) -> Result<(), DbErr> {
+    let enabled_sql = if enabled { 1 } else { 0 };
+    for &(provider, message_type) in NOTIFICATION_CHANNEL_EXAMPLE_TYPES {
+        let id = notification_channel_example_id(provider, message_type).replace('\'', "''");
+        let name = notification_channel_example_name(provider, message_type).replace('\'', "''");
+        let config = notification_channel_example_config(provider, message_type)
+            .to_string()
+            .replace('\'', "''");
+        let secret_refs = notification_channel_example_secret_refs(provider, message_type)
+            .to_string()
+            .replace('\'', "''");
+        let target_redacted =
+            notification_channel_example_target_redacted(provider).replace('\'', "''");
+        manager
+            .get_connection()
+            .execute(Statement::from_string(
+                manager.get_database_backend(),
+                format!(
+                    "UPDATE notification_channels SET name = '{name}', enabled = {enabled_sql}, config_json = '{config}', secret_refs_json = '{secret_refs}', target_redacted = '{target_redacted}' WHERE id = '{id}'"
+                ),
+            ))
+            .await?;
+    }
+    Ok(())
+}
+
+async fn refresh_seed_notification_channel_email_smtp_examples(
+    manager: &SchemaManager<'_>,
+    split_fields: bool,
+) -> Result<(), DbErr> {
+    for &(provider, message_type) in NOTIFICATION_CHANNEL_EXAMPLE_TYPES {
+        if provider != "email" {
+            continue;
+        }
+        let id = notification_channel_example_id(provider, message_type).replace('\'', "''");
+        let config = if split_fields {
+            notification_channel_example_config(provider, message_type)
+        } else {
+            notification_channel_example_legacy_email_config(message_type)
+        }
+        .to_string()
+        .replace('\'', "''");
+        let secret_refs = if split_fields {
+            notification_channel_example_secret_refs(provider, message_type)
+        } else {
+            notification_channel_example_legacy_email_secret_refs()
+        }
+        .to_string()
+        .replace('\'', "''");
+        let target_redacted =
+            notification_channel_example_target_redacted(provider).replace('\'', "''");
+        manager
+            .get_connection()
+            .execute(Statement::from_string(
+                manager.get_database_backend(),
+                format!(
+                    "UPDATE notification_channels SET config_json = '{config}', secret_refs_json = '{secret_refs}', target_redacted = '{target_redacted}' WHERE id = '{id}'"
+                ),
+            ))
+            .await?;
+    }
+    Ok(())
+}
+
+fn notification_channel_example_name(provider: &str, message_type: &str) -> String {
+    let provider_label = match provider {
+        "feishu" => "飞书",
+        "dingtalk" => "钉钉",
+        "wechat_work" => "企业微信",
+        "slack" => "Slack",
+        "pagerduty" => "PagerDuty",
+        "email" => "Email",
+        "webhook" => "Webhook",
+        _ => provider,
+    };
+    let message_label = match (provider, message_type) {
+        ("feishu", "interactive") => "卡片消息",
+        ("feishu", "post") => "富文本消息",
+        ("feishu", "text") => "文本消息",
+        ("dingtalk", "markdown") => "Markdown 消息",
+        ("dingtalk", "actionCard") => "ActionCard 消息",
+        ("dingtalk", "feedCard") => "FeedCard 消息",
+        ("slack", "blockKit") => "Block Kit 消息",
+        ("slack", "attachments") => "附件消息",
+        ("wechat_work", "template_card") => "模板卡片",
+        ("wechat_work", "news") => "图文消息",
+        ("email", "html") => "HTML 邮件",
+        _ => message_type,
+    };
+    format!("{provider_label} {message_label} 示例渠道")
 }
 
 fn notification_channel_example_id(provider: &str, message_type: &str) -> String {
@@ -457,6 +591,12 @@ fn notification_channel_example_config(provider: &str, message_type: &str) -> se
             "messageType": message_type,
             "to": ["ops@example.com"],
             "from": "tikeo@example.com",
+            "host": "smtp.feishu.cn",
+            "port": "465",
+            "username": "tikeo@example.com",
+            "auth": true,
+            "ssl": true,
+            "starttls": false,
             "template": template
         }),
         _ => serde_json::json!({
@@ -534,6 +674,24 @@ fn notification_channel_example_env_secret_refs(
     }
 }
 
+fn notification_channel_example_legacy_email_config(message_type: &str) -> serde_json::Value {
+    let template = notification_channel_example_template("email", message_type);
+    serde_json::json!({
+        "messageType": message_type,
+        "to": ["ops@example.com"],
+        "from": "tikeo@example.com",
+        "username": "tikeo@example.com",
+        "template": template
+    })
+}
+
+fn notification_channel_example_legacy_email_secret_refs() -> serde_json::Value {
+    serde_json::json!({
+        "smtpUrl": "smtp+starttls://smtp.example.com:587",
+        "password": "SMTP_PASSWORD"
+    })
+}
+
 fn notification_channel_example_webhook_url(provider: &str, message_type: &str) -> String {
     let suffix = notification_channel_example_suffix(message_type);
     match provider {
@@ -574,7 +732,6 @@ fn notification_channel_example_secret_refs(
             "routingKey": format!("PAGERDUTY_{}_ROUTING_KEY", notification_channel_example_suffix(message_type))
         }),
         "email" => serde_json::json!({
-            "smtpUrl": "smtp+starttls://smtp.example.com:587",
             "password": format!("SMTP_{}_PASSWORD", notification_channel_example_suffix(message_type))
         }),
         _ => serde_json::json!({

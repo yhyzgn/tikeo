@@ -1553,10 +1553,7 @@ fn assert_provider_template_example_secret_refs_are_channel_private_values(chann
                         "{provider}/{message_type_id} should include a direct routing key placeholder"
                     ),
                     "email" => {
-                        assert_eq!(
-                            secret_refs["smtpUrl"].as_str(),
-                            Some("smtp+starttls://smtp.example.com:587")
-                        );
+                        assert!(secret_refs.get("smtpUrl").is_none());
                         assert!(
                             secret_refs["password"].as_str().is_some_and(|value| {
                                 value.contains("SMTP")

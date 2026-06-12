@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Col, Drawer, Form, Input, InputNumber, Popconfirm, Row, Select, Space, Statistic, Switch, Table, Tabs, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Col, Descriptions, Drawer, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, Space, Statistic, Switch, Table, Tabs, Tag, Typography, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 
 import {
@@ -13,6 +13,7 @@ import {
   listNotificationPolicies,
   listNotificationTemplates,
   retryDueNotificationDeliveryAttempts,
+  testNotificationChannel,
   updateNotificationPolicy,
   validateNotificationPolicy,
   type CreateNotificationPolicyRequest,
@@ -23,6 +24,7 @@ import {
   type NotificationMessageSummary,
   type NotificationPolicySummary,
   type NotificationTemplateSummary,
+  type TestNotificationChannelResult,
   type UpdateNotificationPolicyRequest,
 } from '../api/notifications';
 import { blankToNull, formatJson, parseJsonObject } from './notifications/jsonUtils';
@@ -61,6 +63,32 @@ interface PolicyFormValues {
   throttleJsonText?: string;
   quietHoursJsonText?: string;
   escalationJsonText?: string;
+}
+
+function channelMessageType(channel: NotificationChannelSummary): string {
+  try {
+    const config = JSON.parse(channel.configJson || '{}') as unknown;
+    if (config && typeof config === 'object' && !Array.isArray(config)) {
+      const value = (config as Record<string, unknown>).messageType;
+      if (typeof value === 'string' && value.trim()) return value;
+    }
+  } catch {
+    // Ignore malformed/legacy config; table falls back to unknown.
+  }
+  return '-';
+}
+
+function channelTestDisabledReason(channel: NotificationChannelSummary): string | null {
+  const messageType = channelMessageType(channel);
+  if (!channel.enabled) return '渠道未启用，不能发送测试通知。';
+  if (!channel.targetConfigured) return '渠道目标未配置，不能发送测试通知。';
+  if (channel.provider === 'feishu' && ['image', 'share_chat'].includes(messageType)) {
+    return '飞书 image/share_chat 需要真实 image_key/share_chat_id，示例占位值不适合直接测试。';
+  }
+  if (channel.provider === 'wechat_work' && ['image', 'file', 'voice'].includes(messageType)) {
+    return '企业微信 image/file/voice 需要真实素材内容或 media_id，示例占位值不适合直接测试。';
+  }
+  return null;
 }
 
 function extractChannelIds(raw: string): string[] {
@@ -103,6 +131,8 @@ export function NotificationCenterPage() {
   const [retrying, setRetrying] = useState(false);
   const [savingPolicy, setSavingPolicy] = useState(false);
   const [validatingPolicyId, setValidatingPolicyId] = useState<string | null>(null);
+  const [testingChannelId, setTestingChannelId] = useState<string | null>(null);
+  const [channelTestResult, setChannelTestResult] = useState<TestNotificationChannelResult | null>(null);
   const [channelDrawerOpen, setChannelDrawerOpen] = useState(false);
   const [policyDrawerOpen, setPolicyDrawerOpen] = useState(false);
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false);
@@ -293,6 +323,50 @@ export function NotificationCenterPage() {
     }
   };
 
+  const handleTestChannel = async (channel: NotificationChannelSummary) => {
+    const disabledReason = channelTestDisabledReason(channel);
+    if (disabledReason) {
+      message.warning(t(disabledReason));
+      return;
+    }
+    setTestingChannelId(channel.id);
+    setChannelTestResult(null);
+    try {
+      const result = await testNotificationChannel(channel.id, {
+        subject: `Tikeo ${channelMessageType(channel)} channel test`,
+        body: `Test notification sent from channel list for ${channel.name}.`,
+        eventType: 'notification.channel_list_test',
+        resourceType: 'notification_channel',
+        resourceId: channel.id,
+        severity: 'info',
+        payload: { channelId: channel.id, provider: channel.provider, messageType: channelMessageType(channel) },
+      });
+      setChannelTestResult(result);
+      if (result.delivered) {
+        message.success(t('测试通知已被提供方接收'));
+      } else {
+        message.warning(t('测试通知未送达，请查看测试结果详情'));
+      }
+    } catch (cause) {
+      setChannelTestResult({
+        channelId: channel.id,
+        messageId: '-',
+        attemptId: '-',
+        provider: channel.provider,
+        targetRedacted: channel.targetRedacted,
+        delivered: false,
+        statusCode: null,
+        retryState: 'request_failed',
+        error: cause instanceof Error ? cause.message : String(cause),
+        renderedPayload: null,
+        createdAt: new Date().toISOString(),
+      });
+      message.error(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setTestingChannelId(null);
+    }
+  };
+
   const handleDeletePolicy = async (policy: NotificationPolicySummary) => {
     try {
       await deleteNotificationPolicy(policy.id);
@@ -361,18 +435,24 @@ export function NotificationCenterPage() {
                   columns={[
                     { title: t('名称'), dataIndex: 'name' },
                     { title: t('提供方'), dataIndex: 'provider', render: (value: string) => <Tag>{value}</Tag> },
+                    { title: t('消息类型'), render: (_, row) => <Tag color={channelMessageType(row) === 'text' ? 'default' : 'blue'}>{channelMessageType(row)}</Tag> },
                     { title: t('作用域'), render: (_, row) => `${row.scopeType}${row.namespace ? `/${row.namespace}` : ''}${row.app ? `/${row.app}` : ''}` },
                     { title: t('目标'), dataIndex: 'targetRedacted' },
                     { title: t('密钥'), dataIndex: 'secretConfigured', render: (value: boolean) => <Tag color={value ? 'green' : 'default'}>{value ? t('已配置') : t('未配置')}</Tag> },
                     { title: t('启用'), dataIndex: 'enabled', render: (value: boolean) => <Tag color={value ? 'green' : 'red'}>{value ? t('是') : t('否')}</Tag> },
                     {
                       title: t('操作'),
+                      width: 150,
+                      align: 'right',
                       render: (_, row) => (
-                        <Space>
-                          <PermissionGate resource="notifications" action="manage"><Button size="small" onClick={() => openEditChannel(row)}>{t('编辑')}</Button></PermissionGate>
+                        <Space size={4} wrap={false}>
+                          <PermissionGate resource="notifications" action="test">
+                            <Button size="small" type="link" title={t(channelTestDisabledReason(row) ?? '测试')} loading={testingChannelId === row.id} disabled={Boolean(channelTestDisabledReason(row))} onClick={() => void handleTestChannel(row)}>{t('测试')}</Button>
+                          </PermissionGate>
+                          <PermissionGate resource="notifications" action="manage"><Button size="small" type="link" onClick={() => openEditChannel(row)}>{t('编辑')}</Button></PermissionGate>
                           <PermissionGate resource="notifications" action="manage">
                             <Popconfirm title={t('删除通知渠道')} description={t('被策略引用的渠道会被后端拒绝删除。')} onConfirm={() => void handleDeleteChannel(row)}>
-                              <Button size="small" danger>{t('删除')}</Button>
+                              <Button size="small" type="link" danger>{t('删除')}</Button>
                             </Popconfirm>
                           </PermissionGate>
                         </Space>
@@ -401,8 +481,10 @@ export function NotificationCenterPage() {
                     { title: t('创建时间'), dataIndex: 'createdAt' },
                     {
                       title: t('操作'),
+                      width: 150,
+                      align: 'right',
                       render: (_, row) => (
-                        <Space>
+                        <Space size={4} wrap={false}>
                           <PermissionGate resource="notifications" action="manage"><Button size="small" onClick={() => openEditTemplate(row)}>{t('预览')}</Button></PermissionGate>
                           <PermissionGate resource="notifications" action="manage"><Button size="small" onClick={() => openEditTemplate(row)}>{t('编辑')}</Button></PermissionGate>
                           <PermissionGate resource="notifications" action="manage">
@@ -436,8 +518,10 @@ export function NotificationCenterPage() {
                     { title: t('启用'), dataIndex: 'enabled', render: (value: boolean) => <Tag color={value ? 'green' : 'red'}>{value ? t('是') : t('否')}</Tag> },
                     {
                       title: t('操作'),
+                      width: 150,
+                      align: 'right',
                       render: (_, row) => (
-                        <Space>
+                        <Space size={4} wrap={false}>
                           <Button size="small" loading={validatingPolicyId === row.id} onClick={() => void handleValidatePolicy(row)}>{t('校验')}</Button>
                           <PermissionGate resource="notifications" action="manage"><Button size="small" onClick={() => openEditPolicy(row)}>{t('编辑')}</Button></PermissionGate>
                           <PermissionGate resource="notifications" action="manage">
@@ -508,6 +592,31 @@ export function NotificationCenterPage() {
           },
         ]}
       />
+      <Modal
+        title={t('测试结果')}
+        open={Boolean(channelTestResult)}
+        onCancel={() => setChannelTestResult(null)}
+        footer={<Button type="primary" onClick={() => setChannelTestResult(null)}>{t('确认')}</Button>}
+        width={760}
+      >
+        {channelTestResult ? (
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Descriptions size="small" bordered column={1} items={[
+              { key: 'delivered', label: t('delivered'), children: String(channelTestResult.delivered) },
+              { key: 'provider', label: t('provider'), children: channelTestResult.provider },
+              { key: 'targetRedacted', label: t('targetRedacted'), children: channelTestResult.targetRedacted },
+              { key: 'statusCode', label: t('statusCode'), children: channelTestResult.statusCode ?? '-' },
+              { key: 'retryState', label: t('retryState'), children: channelTestResult.retryState },
+              { key: 'messageId', label: t('messageId'), children: channelTestResult.messageId },
+              { key: 'attemptId', label: t('attemptId'), children: channelTestResult.attemptId },
+              { key: 'createdAt', label: t('createdAt'), children: channelTestResult.createdAt },
+              { key: 'error', label: t('error'), children: channelTestResult.error ?? '-' },
+            ]} />
+            <Input.TextArea rows={8} readOnly value={formatJson(JSON.stringify({ renderedPayload: channelTestResult.renderedPayload }))} />
+          </Space>
+        ) : null}
+      </Modal>
+
       <ChannelDrawer
         open={channelDrawerOpen}
         channelTypes={channelTypes}

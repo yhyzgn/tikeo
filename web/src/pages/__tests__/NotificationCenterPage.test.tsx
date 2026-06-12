@@ -141,7 +141,6 @@ describe('notification center console page', () => {
       ['feishu', 'interactive', 'SEC_FEISHU_INTERACTIVE_SIGNING_SECRET'],
       ['wechat_work', 'markdown_v2', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key='],
       ['pagerduty', 'trigger', 'PAGERDUTY_TRIGGER_ROUTING_KEY'],
-      ['email', 'plain', 'smtp+starttls://smtp.example.com:587'],
       ['email', 'plain', 'SMTP_PLAIN_PASSWORD'],
     ]) {
       expect(exampleSecretRefs(provider, messageType)).toContain(expected);
@@ -222,7 +221,7 @@ describe('notification center console page', () => {
     for (const token of [
       'testNotificationChannel',
       '/test-send',
-      '发一条试试',
+      '测试',
       'testingChannel',
       'testResult',
       '测试结果',
@@ -245,7 +244,7 @@ describe('notification center console page', () => {
     for (const token of [
       'testSendSupported',
       'currentType?.supportsTestSend === true',
-      'disabled={!testSendSupported || testingChannel}',
+      'testDisabledReason',
       '该渠道类型不支持测试发送',
       'selectedMessageType?.examples?.[0]?.sample',
     ]) {
