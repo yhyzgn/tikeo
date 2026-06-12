@@ -89,6 +89,24 @@ describe('notification center console page', () => {
     expect(channelDrawerSource).toContain('clearScopeDependents');
   });
 
+  test('exposes configured channel use-case data as a first-class notification center tab', () => {
+    for (const token of [
+      'channelExampleRows',
+      '用例数据',
+      '通知配置用例',
+      '套用为新渠道',
+      'applyChannelExample',
+      'selectedChannelExample',
+      'channelExamples',
+      'configPreview',
+      'secretRefsPreview',
+      'templatePreview',
+      'samplePreview',
+    ]) {
+      expect(pageSource + channelDrawerSource).toContain(token);
+    }
+  });
+
   test('has built-in provider schema fallbacks for rich message types and templates', () => {
     for (const token of ['slack', 'dingtalk', 'feishu', 'wechat_work', 'pagerduty', 'email', 'webhook']) {
       expect(providerSchemaSource).toContain(token);

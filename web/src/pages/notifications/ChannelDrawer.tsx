@@ -24,6 +24,7 @@ import {
 import { PermissionGate } from '../../components/Permission';
 import { useI18n } from '../../i18n';
 import { assertNoRedactedMarker, blankToNull, compactObject, formatJson, parseJsonObject, parseMaybeJson } from './jsonUtils';
+import type { ChannelConfigExample } from './channelExamples';
 import { channelExampleCount, findMessageType, providerSchemaFor, type ProviderFieldSchema, type ProviderMessageTypeExample, type ProviderSchema } from './providerSchema';
 
 const CHANNEL_SCOPE_OPTIONS = ['global', 'namespace', 'app', 'worker_pool'];
@@ -32,6 +33,7 @@ interface ChannelDrawerProps {
   open: boolean;
   channelTypes: NotificationChannelTypeSummary[];
   editingChannel: NotificationChannelSummary | null;
+  selectedChannelExample?: ChannelConfigExample | null;
   onClose: () => void;
   onSaved: () => Promise<void>;
 }
@@ -147,12 +149,16 @@ function buildTemplate(messageType: string, schema: ProviderSchema, values: Reco
   return compactObject({ ...fieldValues, messageType });
 }
 
-function exampleFieldValue(field: ProviderFieldSchema, example: ProviderMessageTypeExample): unknown {
-  const value = example.template?.[field.key] ?? field.defaultValue;
+function exampleTemplateFieldValue(field: ProviderFieldSchema, template: Record<string, unknown>): unknown {
+  const value = template[field.key] ?? field.defaultValue;
   if (field.type === 'textarea' && value !== undefined && typeof value !== 'string') {
     return JSON.stringify(value, null, 2);
   }
   return value;
+}
+
+function exampleFieldValue(field: ProviderFieldSchema, example: ProviderMessageTypeExample): unknown {
+  return exampleTemplateFieldValue(field, example.template ?? {});
 }
 
 function applyDefaults(form: ReturnType<typeof Form.useForm<ChannelFormValues>>[0], schema: ProviderSchema, config: Record<string, unknown> = {}, secretRefs: Record<string, unknown> = {}, template: Record<string, unknown> = {}) {
@@ -185,7 +191,7 @@ function secretRuntimeRef(secret: SecretSummary): string | null {
   return null;
 }
 
-export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onSaved }: ChannelDrawerProps) {
+export function ChannelDrawer({ open, channelTypes, editingChannel, selectedChannelExample, onClose, onSaved }: ChannelDrawerProps) {
   const { t } = useI18n();
   const [form] = Form.useForm<ChannelFormValues>();
   const provider = Form.useWatch('provider', form);
@@ -278,6 +284,25 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
           useInlineTemplate: Boolean(config.template),
         });
       applyDefaults(form, providerSchemaFor(channelTypes.find((item) => item.type === editingChannel.provider), editingChannel.provider), config, {}, template);
+    } else if (selectedChannelExample) {
+      const exampleType = channelTypes.find((item) => item.type === selectedChannelExample.provider);
+      const exampleSchema = providerSchemaFor(exampleType, selectedChannelExample.provider);
+      form.setFieldsValue({
+        scopeType: 'global',
+        name: selectedChannelExample.suggestedChannelName,
+        provider: selectedChannelExample.provider,
+        enabled: true,
+        messageType: selectedChannelExample.messageType,
+        config: selectedChannelExample.config,
+        secretRefs: selectedChannelExample.secretRefs,
+        template: Object.fromEntries(findMessageType(exampleSchema, selectedChannelExample.messageType).templateFields.map((field) => [field.key, exampleTemplateFieldValue(field, selectedChannelExample.template)])),
+        safetyPolicyJsonText: '',
+        advancedConfigJsonText: '{}',
+        advancedSecretRefsJsonText: '{}',
+        replaceConfig: true,
+        replaceSecretRefs: true,
+        useInlineTemplate: true,
+      });
     } else {
       const defaultType = channelTypes[0]?.type ?? 'webhook';
       const defaultSchema = providerSchemaFor(channelTypes[0], defaultType);
@@ -294,7 +319,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
       });
       applyDefaults(form, defaultSchema);
     }
-  }, [channelTypes, editingChannel, form, open]);
+  }, [channelTypes, editingChannel, form, open, selectedChannelExample]);
 
   useEffect(() => {
     if (!open || !provider) return;
