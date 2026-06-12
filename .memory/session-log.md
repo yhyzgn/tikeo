@@ -2997,3 +2997,18 @@ Verification so far:
 - `python3 scripts/check-source-size.py` ✅
 
 Pending before release: full workspace clippy/test/build, web/docs lint/build, Docker builds, commit/push/tag, and GitHub Actions monitoring.
+
+## 2026-06-13 — Release version sync lockfile follow-up
+
+- Pushed `v0.2.8` for commit `0283ca562b7c8f90759618b9929d117110883f6c`; tag-triggered `Publish / Docker server` failed in GitHub Actions before image push.
+- Root cause: release workflow correctly updated Cargo workspace manifests to `0.2.8`, but `Cargo.lock` still contained local workspace package versions at `0.2.0`; clean Docker build then failed at `cargo fetch --locked` because the lockfile needed mutation.
+- Fix in progress: `scripts/set-release-version.py --scope workspace` now updates `Cargo.lock` local workspace package versions together with `Cargo.toml` and Helm metadata, and `.github/tests/release_version_script_test.py` covers this clean locked-release-build failure mode.
+- Decision: do not reuse the partially failed `v0.2.8` tag as the final release; publish the corrected formal release as `v0.2.9` after the follow-up commit passes local and GitHub validation.
+
+Verification for fix so far:
+- `python3 -m pytest .github/tests/release_version_script_test.py -q` ✅
+- `python3 scripts/set-release-version.py 0.2.9 --tag v0.2.9 --scope workspace --dry-run` ✅
+- Isolated archive simulation: sync `0.2.9` then `cargo fetch --locked` ✅
+- `python3 -m pytest .github/tests -q` ✅ (49 passed, 8 subtests)
+- `python3 scripts/check-source-size.py` ✅
+- `git diff --check` ✅

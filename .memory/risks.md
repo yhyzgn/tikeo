@@ -147,3 +147,9 @@
 - Message trace log redaction is display-layer key-value redaction for common sensitive names; future work should centralize structured JSON log redaction if logs start storing rich secret-bearing objects.
 - Alert rule automatic migration/dual-write to Notification Center policies is still open; do not claim alert delivery is fully unified until that compatibility migration lands.
 - Generic notification delivery remains at-least-once; lease/idempotency hardening is still a future mitigation.
+
+## 2026-06-13 — Release-only lockfile drift risk closed
+
+- Risk observed on `v0.2.8`: manifest-only release version sync made Docker server release fail under `cargo fetch --locked`.
+- Mitigation: `scripts/set-release-version.py --scope workspace` now updates `Cargo.lock` local workspace package versions and has a pytest contract plus isolated `cargo fetch --locked` simulation.
+- Remaining risk: already-pushed `v0.2.8` remains a failed release attempt in Actions history; final release should be `v0.2.9` and memory should record both attempts.

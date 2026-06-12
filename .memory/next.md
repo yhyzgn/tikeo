@@ -40,3 +40,9 @@
 ## Job notification binding release closeout
 
 Current slice is implemented locally and needs release closeout: run full verification, commit, push `main`, create the next available `v0.2.x` tag after `v0.2.7`, monitor GitHub Actions for CI/Coverage/Release/Docker/SDK workflows, and record release evidence. Server binary/image versioning must be confirmed from the tag-synced workspace version path, not assumed from Docker image labels.
+
+## 2026-06-13 immediate release closeout update
+
+1. Commit and push the lockfile-aware release version sync fix.
+2. Create/push `v0.2.9` for the corrected formal release; do not treat `v0.2.8` as the final release because Docker server failed before publication.
+3. Monitor main CI/Coverage and tag-triggered Release/Docker/SDK workflows for `v0.2.9` until green; record run URLs, release URL, and Docker image tags in session log.

@@ -205,7 +205,7 @@ The release binary currently still reports `0.2.0` after newer `v0.2.x` releases
 2. `GITHUB_REF_NAME` when it is a `v*` tag.
 3. `CARGO_PKG_VERSION` plus short git commit for non-release builds.
 
-CI/release workflows must export `TIKEO_VERSION=${GITHUB_REF_NAME#v}` for tag builds so `tikeo --version`, `/api/v1/system/info`, and release artifacts agree with the tag.
+CI/release workflows must synchronize the workspace from the tag before server builds so `tikeo --version`, `/api/v1/system/info`, and release artifacts agree with the tag. This sync updates Cargo workspace manifests and the local workspace package entries in `Cargo.lock`; release builds must keep `--locked` enabled so dependency drift is still rejected.
 
 ## 11. Acceptance criteria
 

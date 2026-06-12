@@ -652,3 +652,10 @@ Rejected:
 
 Constraint:
 - Trace must not reveal channel secrets or cross-tenant execution context; it redacts log key-value fragments and applies tenant-scope checks when a job is resolved.
+
+## 2026-06-13 — Release workspace version sync must include Cargo.lock
+
+- Server release version sync must update both Cargo workspace manifests and `Cargo.lock` local workspace package versions before any `cargo fetch --locked` / `cargo build --locked` release step.
+- Reason: release workflows mutate `Cargo.toml` in the checked-out workspace at tag time. If `Cargo.lock` remains at the repository baseline version, clean Docker/GitHub runners correctly reject the build because `--locked` forbids lockfile mutation.
+- Rejected: removing `--locked` from release builds | this would hide dependency drift and weaken reproducibility.
+- Rejected: reusing failed tag `v0.2.8` as final release | it already produced a failed Docker server run; use `v0.2.9` for the corrected formal release evidence.

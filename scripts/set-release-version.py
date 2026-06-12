@@ -46,6 +46,54 @@ def set_json_version(path: Path, version: str, *, dry_run: bool, label: str) -> 
     print(f"set {label}: {path.relative_to(ROOT)}")
 
 
+def workspace_package_names() -> list[str]:
+    try:
+        import tomllib
+    except ModuleNotFoundError as exc:  # pragma: no cover - CI uses Python 3.11+
+        raise SystemExit("Python 3.11+ is required to parse Cargo manifests") from exc
+
+    names: list[str] = []
+    manifest_paths = [ROOT / "Cargo.toml", *sorted((ROOT / "crates").glob("*/Cargo.toml"))]
+    for manifest in manifest_paths:
+        data = tomllib.loads(read(manifest))
+        package = data.get("package")
+        if not package or "name" not in package:
+            continue
+        names.append(str(package["name"]))
+    return names
+
+
+def sync_workspace_lock_versions(version: str, *, dry_run: bool) -> None:
+    lock = ROOT / "Cargo.lock"
+    text = read(lock)
+    names = set(workspace_package_names())
+    if not names:
+        raise SystemExit("Cargo.lock workspace version sync: no workspace packages found")
+
+    package_header = "[[package]]"
+    parts = text.split(package_header)
+    updated_parts = [parts[0]]
+    changed: list[str] = []
+    for part in parts[1:]:
+        block = package_header + part
+        name_match = re.search(r'(?m)^name = "([^"]+)"$', block)
+        if name_match and name_match.group(1) in names and "\nsource = " not in block:
+            block, count = re.subn(r'(?m)^version = "[^"]+"$', f'version = "{version}"', block, count=1)
+            if count != 1:
+                raise SystemExit(f"Cargo.lock workspace version sync: missing version for {name_match.group(1)}")
+            changed.append(name_match.group(1))
+        updated_parts.append(block)
+
+    missing = names.difference(changed)
+    if missing:
+        raise SystemExit(
+            "Cargo.lock workspace version sync: missing workspace packages in lockfile: "
+            + ", ".join(sorted(missing))
+        )
+    write(lock, "".join(updated_parts), dry_run=dry_run)
+    print(f"set Rust workspace lock versions: {lock.relative_to(ROOT)} ({len(changed)} packages)")
+
+
 def sync_java_version(version: str, *, dry_run: bool) -> None:
     replace_once(
         ROOT / "sdks/java/gradle.properties",
@@ -104,6 +152,7 @@ def sync_workspace_versions(version: str, tag: str, *, dry_run: bool) -> None:
         dry_run=dry_run,
         label="Rust workspace version",
     )
+    sync_workspace_lock_versions(version, dry_run=dry_run)
     replace_once(
         ROOT / "deploy/helm/tikeo/Chart.yaml",
         r"^version: .+$",
