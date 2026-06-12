@@ -73,6 +73,7 @@
         for provider in ["slack", "dingtalk", "feishu", "wechat_work", "pagerduty", "email", "webhook"] {
             assert_provider_template_examples(channel_types, provider);
         }
+        assert_provider_template_example_secret_refs_are_channel_scoped(channel_types);
         assert_provider_template_has_field(channel_types, "dingtalk", "atUserIds");
         assert_provider_template_has_field(channel_types, "wechat_work", "mentionedList");
         assert_provider_template_has_field(channel_types, "wechat_work", "mentionedMobileList");
@@ -1469,6 +1470,87 @@ fn assert_provider_template(channel_types: &[Value], provider: &str, expected_me
                 .any(|item| item == variable || item == &format!("{{{{{variable}}}}}")),
             "{provider} templateVariables should include {variable}"
         );
+    }
+}
+
+fn notification_channel_env_suffix(value: &str) -> String {
+    let mut normalized = String::new();
+    let mut previous_was_separator = true;
+    for item in value.chars() {
+        if item.is_ascii_uppercase() {
+            if !previous_was_separator {
+                normalized.push('_');
+            }
+            normalized.push(item);
+            previous_was_separator = false;
+        } else if item.is_ascii_alphanumeric() {
+            normalized.push(item.to_ascii_uppercase());
+            previous_was_separator = false;
+        } else if !previous_was_separator {
+            normalized.push('_');
+            previous_was_separator = true;
+        }
+    }
+    let trimmed = normalized.trim_matches('_').to_owned();
+    if trimmed.is_empty() {
+        "CUSTOM".to_owned()
+    } else {
+        trimmed
+    }
+}
+
+fn assert_provider_template_example_secret_refs_are_channel_scoped(channel_types: &[Value]) {
+    for provider_type in channel_types.iter().filter(|item| {
+        item["type"] == "slack"
+            || item["type"] == "dingtalk"
+            || item["type"] == "feishu"
+            || item["type"] == "wechat_work"
+            || item["type"] == "pagerduty"
+            || item["type"] == "email"
+            || item["type"] == "webhook"
+    }) {
+        let provider = provider_type["type"]
+            .as_str()
+            .unwrap_or_else(|| panic!("provider type should be a string"));
+        let message_types = provider_type["template"]["messageTypes"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{provider} messageTypes should be an array"));
+        for message_type in message_types {
+            let message_type_id = message_type["id"]
+                .as_str()
+                .unwrap_or_else(|| panic!("{provider} message type should have id"));
+            let examples = message_type["examples"].as_array().unwrap_or_else(|| {
+                panic!("{provider}/{message_type_id} should expose examples")
+            });
+            for example in examples {
+                let secret_refs = &example["secretRefs"];
+                let rendered = secret_refs.to_string();
+                assert!(
+                    rendered.contains("env:TIKEO_NOTIFICATION_CHANNEL_"),
+                    "{provider}/{message_type_id} example secretRefs should be channel-scoped"
+                );
+                assert!(
+                    rendered.contains(&provider.to_ascii_uppercase())
+                        && rendered.contains(&notification_channel_env_suffix(message_type_id)),
+                    "{provider}/{message_type_id} example secretRefs should include provider and message type"
+                );
+                for global_ref in [
+                    "TIKEO_NOTIFICATION_WEBHOOK_URL",
+                    "SLACK_WEBHOOK_URL",
+                    "DINGTALK_WEBHOOK_URL",
+                    "FEISHU_WEBHOOK_URL",
+                    "FEISHU_BOT_SECRET",
+                    "WECOM_WEBHOOK_URL",
+                    "PAGERDUTY_ROUTING_KEY",
+                    "TIKEO_SMTP_URL",
+                ] {
+                    assert!(
+                        !rendered.contains(global_ref),
+                        "{provider}/{message_type_id} example should not use shared ref {global_ref}"
+                    );
+                }
+            }
+        }
     }
 }
 

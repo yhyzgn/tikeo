@@ -76,7 +76,7 @@ const webhookUrlField: ProviderFieldSchema = {
   type: 'string',
   required: true,
   secret: true,
-  placeholder: 'env:TIKEO_NOTIFICATION_WEBHOOK_URL',
+  placeholder: 'env:TIKEO_NOTIFICATION_CHANNEL_<CHANNEL>_WEBHOOK_URL',
   help: 'Prefer env: references. Do not paste the actual webhook URL into the drawer.',
 };
 
@@ -85,7 +85,7 @@ const authorizationField: ProviderFieldSchema = {
   label: 'Authorization header secret ref',
   type: 'string',
   secret: true,
-  placeholder: 'env:TIKEO_NOTIFICATION_AUTHORIZATION',
+  placeholder: 'env:TIKEO_NOTIFICATION_CHANNEL_<CHANNEL>_AUTHORIZATION',
 };
 
 const fallbackSchemas: Record<string, ProviderSchema> = {
@@ -157,7 +157,7 @@ const fallbackSchemas: Record<string, ProviderSchema> = {
       { key: 'atUserIds', label: '@ user IDs', type: 'tags', placeholder: 'manager001' },
       { key: 'isAtAll', label: '@ all members', type: 'boolean', defaultValue: false },
     ],
-    secretFields: [webhookUrlField, { key: 'signingKey', label: 'Signing secret ref', type: 'string', secret: true, placeholder: 'env:DINGTALK_SIGNING_SECRET' }],
+    secretFields: [webhookUrlField, { key: 'signingKey', label: 'Signing secret ref', type: 'string', secret: true, placeholder: 'env:TIKEO_NOTIFICATION_CHANNEL_DINGTALK_<MESSAGE_TYPE>_SIGNING_KEY' }],
     messageTypes: [
       { id: 'text', label: 'Text', description: 'DingTalk text message.', templateFields: [{ key: 'content', label: 'Content template', type: 'textarea', required: true, rows: 5, placeholder: '{{subject}}\n{{body}}' }] },
       { id: 'markdown', label: 'Markdown', description: 'DingTalk markdown message.', templateFields: [{ key: 'title', label: 'Title template', type: 'string', required: true, placeholder: '{{subject}}' }, { key: 'text', label: 'Markdown template', type: 'textarea', required: true, rows: 8, placeholder: '### {{subject}}\n\n{{body}}' }] },
@@ -175,7 +175,7 @@ const fallbackSchemas: Record<string, ProviderSchema> = {
     category: 'office_bot',
     description: 'Feishu/Lark custom bot webhook messages.',
     configFields: [],
-    secretFields: [webhookUrlField, { key: 'signingKey', label: 'Signing secret ref', type: 'string', secret: true, placeholder: 'env:FEISHU_BOT_SECRET' }],
+    secretFields: [webhookUrlField, { key: 'signingKey', label: 'Signing secret ref', type: 'string', secret: true, placeholder: 'env:TIKEO_NOTIFICATION_CHANNEL_FEISHU_<MESSAGE_TYPE>_SIGNING_KEY' }],
     messageTypes: [
       { id: 'text', label: 'Text', description: 'Plain text custom bot message.', templateFields: [{ key: 'text', label: 'Text template', type: 'textarea', required: true, rows: 5, placeholder: '{{subject}}\n{{body}}' }] },
       { id: 'post', label: 'Rich text post', description: 'Feishu/Lark post message.', templateFields: [{ key: 'title', label: 'Title template', type: 'string', required: true, placeholder: '{{subject}}' }, { key: 'content', label: 'Post content JSON template', type: 'textarea', required: true, rows: 10, placeholder: '[[{"tag":"text","text":"{{body}}"}]]' }] },
@@ -230,7 +230,7 @@ const fallbackSchemas: Record<string, ProviderSchema> = {
       { key: 'images', label: 'Images JSON template', type: 'textarea', rows: 6, placeholder: '[{"src":"https://example.invalid/chart.png","href":"https://tikeo.example.com","alt":"chart"}]' },
       { key: 'customDetails', label: 'Custom details JSON template', type: 'textarea', rows: 8, placeholder: '{"eventType":"{{eventType}}","resourceId":"{{resourceId}}"}' },
     ],
-    secretFields: [{ key: 'routingKey', label: 'Routing / integration key ref', type: 'string', required: true, secret: true, placeholder: 'env:PAGERDUTY_ROUTING_KEY' }],
+    secretFields: [{ key: 'routingKey', label: 'Routing / integration key ref', type: 'string', required: true, secret: true, placeholder: 'env:TIKEO_NOTIFICATION_CHANNEL_PAGERDUTY_<MESSAGE_TYPE>_ROUTING_KEY' }],
     messageTypes: [
       { id: 'trigger', label: 'Trigger', description: 'Create or update a PagerDuty alert.', templateFields: [{ key: 'summary', label: 'Summary template', type: 'string', required: true, placeholder: '{{subject}}' }] },
       { id: 'acknowledge', label: 'Acknowledge', description: 'Acknowledge an existing event by dedup key.', templateFields: [] },
@@ -251,8 +251,8 @@ const fallbackSchemas: Record<string, ProviderSchema> = {
       { key: 'username', label: 'SMTP username', type: 'string' },
     ],
     secretFields: [
-      { key: 'smtpUrl', label: 'SMTP URL ref', type: 'string', required: true, secret: true, placeholder: 'env:TIKEO_SMTP_URL' },
-      { key: 'password', label: 'SMTP password ref', type: 'string', secret: true, placeholder: 'env:TIKEO_SMTP_PASSWORD' },
+      { key: 'smtpUrl', label: 'SMTP URL ref', type: 'string', required: true, secret: true, placeholder: 'env:TIKEO_NOTIFICATION_CHANNEL_EMAIL_<MESSAGE_TYPE>_SMTP_URL' },
+      { key: 'password', label: 'SMTP password ref', type: 'string', secret: true, placeholder: 'env:TIKEO_NOTIFICATION_CHANNEL_EMAIL_<MESSAGE_TYPE>_SMTP_PASSWORD' },
     ],
     messageTypes: [
       { id: 'plain', label: 'Plain text', description: 'Text/plain email body.', templateFields: [{ key: 'subject', label: 'Subject template', type: 'string', required: true, placeholder: '[tikeo/{{severity}}] {{subject}}' }, { key: 'body', label: 'Body template', type: 'textarea', required: true, rows: 8, placeholder: '{{body}}\n\nResource: {{resourceType}}/{{resourceId}}' }] },
@@ -298,14 +298,26 @@ function exampleTemplate(provider: string, messageType: string): Record<string, 
   return { messageType: 'json', body: { text: '{{subject}}', body: '{{body}}', eventType: '{{eventType}}' } };
 }
 
-function exampleSecretRefs(provider: string): Record<string, unknown> {
-  if (provider === 'slack') return { url: 'env:SLACK_WEBHOOK_URL' };
-  if (provider === 'dingtalk') return { url: 'env:DINGTALK_WEBHOOK_URL', signingKey: 'env:DINGTALK_SIGNING_SECRET' };
-  if (provider === 'feishu') return { url: 'env:FEISHU_WEBHOOK_URL', signingKey: 'env:FEISHU_BOT_SECRET' };
-  if (provider === 'wechat_work') return { url: 'env:WECOM_WEBHOOK_URL' };
-  if (provider === 'pagerduty') return { routingKey: 'env:PAGERDUTY_ROUTING_KEY' };
-  if (provider === 'email') return { smtpUrl: 'env:TIKEO_SMTP_URL', password: 'env:TIKEO_SMTP_PASSWORD' };
-  return { url: 'env:TIKEO_NOTIFICATION_WEBHOOK_URL' };
+function envSuffix(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toUpperCase() || 'CUSTOM';
+}
+
+function channelSecretRef(provider: string, messageType: string, purpose: string): string {
+  return `env:TIKEO_NOTIFICATION_CHANNEL_${envSuffix(provider)}_${envSuffix(messageType)}_${purpose}`;
+}
+
+function exampleSecretRefs(provider: string, messageType: string): Record<string, unknown> {
+  if (provider === 'slack') return { url: channelSecretRef(provider, messageType, 'WEBHOOK_URL') };
+  if (provider === 'dingtalk') return { url: channelSecretRef(provider, messageType, 'WEBHOOK_URL'), signingKey: channelSecretRef(provider, messageType, 'SIGNING_KEY') };
+  if (provider === 'feishu') return { url: channelSecretRef(provider, messageType, 'WEBHOOK_URL'), signingKey: channelSecretRef(provider, messageType, 'SIGNING_KEY') };
+  if (provider === 'wechat_work') return { url: channelSecretRef(provider, messageType, 'WEBHOOK_URL') };
+  if (provider === 'pagerduty') return { routingKey: channelSecretRef(provider, messageType, 'ROUTING_KEY') };
+  if (provider === 'email') return { smtpUrl: channelSecretRef(provider, messageType, 'SMTP_URL'), password: channelSecretRef(provider, messageType, 'SMTP_PASSWORD') };
+  return { url: channelSecretRef(provider, messageType, 'WEBHOOK_URL'), authorization: channelSecretRef(provider, messageType, 'AUTHORIZATION') };
 }
 
 function exampleConfig(provider: string, messageType: string): Record<string, unknown> {
@@ -321,7 +333,7 @@ function generatedExample(provider: string, messageType: string): ProviderMessag
     name: `${provider} ${messageType} smoke`,
     description: '示例：安全冒烟配置。发送前请用部署环境中的 Secret 替换 env: 引用。',
     config: exampleConfig(provider, messageType),
-    secretRefs: exampleSecretRefs(provider),
+    secretRefs: exampleSecretRefs(provider, messageType),
     template: exampleTemplate(provider, messageType),
     sample: {
       subject: 'Tikeo smoke test',

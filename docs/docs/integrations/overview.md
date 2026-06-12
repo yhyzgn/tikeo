@@ -77,7 +77,7 @@ GET  /api/v1/notification-delivery-attempts:queue-status
 POST /api/v1/notification-delivery-attempts:retry-due
 ```
 
-Store provider targets and credentials in `secretRefs`, for example `env:TIKEO_NOTIFICATION_WEBHOOK_URL` or `env:TIKEO_NOTIFICATION_WEBHOOK_AUTH`. Do not store provider tokens inside examples, templates, tickets, screenshots, or channel `config` JSON.
+Store provider targets and credentials in each channel row's `secretRefs`, for example `env:TIKEO_NOTIFICATION_CHANNEL_BILLING_FEISHU_WEBHOOK_URL`, `env:TIKEO_NOTIFICATION_CHANNEL_BILLING_FEISHU_SIGNING_KEY`, or `env:TIKEO_NOTIFICATION_CHANNEL_ONCALL_PAGERDUTY_ROUTING_KEY`. Use different refs for different Slack/DingTalk/Feishu/WeCom/PagerDuty/email/webhook channels; do not store provider tokens inside examples, templates, tickets, screenshots, or channel `config` JSON.
 
 ## Step-by-step local integration checks
 

@@ -4,6 +4,50 @@ use crate::repository::{
     NotificationTemplateFilters, NotificationTemplateRepository, UpdateNotificationChannel,
     UpdateNotificationTemplate,
 };
+use std::collections::{BTreeMap, BTreeSet};
+
+fn notification_channel_env_suffix(value: &str) -> String {
+    let mut normalized = String::new();
+    let mut previous_was_separator = true;
+    for item in value.chars() {
+        if item.is_ascii_uppercase() {
+            if !previous_was_separator {
+                normalized.push('_');
+            }
+            normalized.push(item);
+            previous_was_separator = false;
+        } else if item.is_ascii_alphanumeric() {
+            normalized.push(item.to_ascii_uppercase());
+            previous_was_separator = false;
+        } else if !previous_was_separator {
+            normalized.push('_');
+            previous_was_separator = true;
+        }
+    }
+    let trimmed = normalized.trim_matches('_').to_owned();
+    if trimmed.is_empty() {
+        "CUSTOM".to_owned()
+    } else {
+        trimmed
+    }
+}
+
+fn notification_secret_ref_values(value: &serde_json::Value) -> Vec<String> {
+    match value {
+        serde_json::Value::String(item) => vec![item.clone()],
+        serde_json::Value::Array(items) => items
+            .iter()
+            .flat_map(notification_secret_ref_values)
+            .collect(),
+        serde_json::Value::Object(items) => items
+            .values()
+            .flat_map(notification_secret_ref_values)
+            .collect(),
+        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {
+            Vec::new()
+        }
+    }
+}
 
 #[tokio::test]
 async fn notification_channel_examples_are_seeded_as_normal_disabled_channels() {
@@ -64,9 +108,77 @@ async fn notification_channel_examples_are_seeded_as_normal_disabled_channels() 
         assert!(channel.config_json.contains(message_type));
         assert!(channel.secret_configured, "{provider}/{message_type} should carry env secret refs");
         assert!(channel.target_configured, "{provider}/{message_type} should show a configured redacted target");
+        let secret_refs: serde_json::Value = serde_json::from_str(&channel.secret_refs_json)
+            .unwrap_or_else(|error| panic!("{provider}/{message_type} secretRefs should parse: {error}"));
+        let secret_ref_values = notification_secret_ref_values(&secret_refs);
+        assert!(
+            !secret_ref_values.is_empty(),
+            "{provider}/{message_type} should include concrete secret ref values"
+        );
+        let provider_suffix = notification_channel_env_suffix(provider);
+        let message_type_suffix = notification_channel_env_suffix(message_type);
+        for secret_ref in &secret_ref_values {
+            assert!(
+                secret_ref.starts_with("env:TIKEO_NOTIFICATION_CHANNEL_"),
+                "{provider}/{message_type} secret ref {secret_ref} should be channel-scoped"
+            );
+            assert!(
+                secret_ref.contains(&provider_suffix) && secret_ref.contains(&message_type_suffix),
+                "{provider}/{message_type} secret ref {secret_ref} should include provider and message-type scope"
+            );
+        }
+        for global_ref in [
+            "env:TIKEO_NOTIFICATION_WEBHOOK_URL",
+            "env:TIKEO_NOTIFICATION_AUTHORIZATION",
+            "env:SLACK_WEBHOOK_URL",
+            "env:DINGTALK_WEBHOOK_URL",
+            "env:DINGTALK_SIGNING_SECRET",
+            "env:FEISHU_WEBHOOK_URL",
+            "env:FEISHU_BOT_SECRET",
+            "env:WECOM_WEBHOOK_URL",
+            "env:PAGERDUTY_ROUTING_KEY",
+            "env:TIKEO_SMTP_URL",
+            "env:TIKEO_SMTP_PASSWORD",
+        ] {
+            assert!(
+                !secret_ref_values.iter().any(|value| value == global_ref),
+                "{provider}/{message_type} should not reuse global secret ref {global_ref}"
+            );
+        }
         assert!(!channel.config_json.contains("hooks.slack.com/services/"));
         assert!(!channel.config_json.contains("top-secret"));
         assert!(!channel.config_json.contains("xoxb-"));
+    }
+
+    let mut provider_targets = BTreeMap::<String, BTreeSet<String>>::new();
+    for channel in listed {
+        let secret_refs: serde_json::Value = serde_json::from_str(&channel.secret_refs_json)
+            .unwrap_or_else(|error| panic!("{} secretRefs should parse: {error}", channel.name));
+        let target_ref = secret_refs
+            .get("url")
+            .or_else(|| secret_refs.get("routingKey"))
+            .or_else(|| secret_refs.get("smtpUrl"))
+            .and_then(serde_json::Value::as_str);
+        if let Some(target_ref) = target_ref {
+            provider_targets
+                .entry(channel.provider.clone())
+                .or_default()
+                .insert(target_ref.to_owned());
+        }
+    }
+    for (provider, expected_count) in [
+        ("slack", 3),
+        ("dingtalk", 5),
+        ("feishu", 5),
+        ("wechat_work", 8),
+        ("pagerduty", 3),
+        ("email", 2),
+    ] {
+        assert_eq!(
+            provider_targets.get(provider).map(BTreeSet::len),
+            Some(expected_count),
+            "{provider} example rows should not share one global target secret ref"
+        );
     }
 }
 

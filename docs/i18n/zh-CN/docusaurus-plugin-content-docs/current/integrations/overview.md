@@ -213,7 +213,7 @@ curl -fsS -X POST "http://127.0.0.1:9090/api/v1/events/webhooks/${TIKEO_JOB_ID}:
 | 队列状态 | `GET /api/v1/notification-delivery-attempts:queue-status` |
 | 处理 due attempts | `POST /api/v1/notification-delivery-attempts:retry-due` |
 
-生产检查：Webhook URL、Slack incoming webhook、PagerDuty routing key、SMTP URL/password 等都放在 `secretRefs` 或环境变量引用中；UI 和 API 返回值只应展示脱敏目标。
+生产检查：Webhook URL、Slack incoming webhook、PagerDuty routing key、SMTP URL/password、飞书/钉钉签名密钥、插件型 `appId`/`appSecret` 等都放在每条渠道记录自己的 `secretRefs`/env 引用中；不同渠道使用不同引用名，UI 和 API 返回值只应展示脱敏目标。
 
 ## 排障
 

@@ -446,7 +446,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
 
   return (
     <Drawer title={editingChannel ? t('编辑通知渠道') : t('新建渠道')} open={open} onClose={close} width={980} destroyOnClose>
-      <Alert type="info" showIcon style={{ marginBottom: 16 }} message={t('Schema 驱动渠道配置')} description={t('内置提供方按官方机器人/Webhook 结构生成字段；密钥只保存引用，当前运行时解析 env: 前缀或环境变量名，不要填写真实密钥值。')} />
+      <Alert type="info" showIcon style={{ marginBottom: 16 }} message={t('Schema 驱动渠道配置')} description={t('内置提供方按官方机器人/Webhook 结构生成字段；每条渠道配置都维护自己的 secretRefs，密钥只保存引用，当前运行时解析 env: 前缀或环境变量名，不要填写真实密钥值，也不要把多个生产渠道共用成一个全局引用。')} />
       <Form form={form} layout="vertical" onFinish={(values) => void submit(values)}>
         {editingChannel ? (
           <Alert
@@ -484,7 +484,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
           extra={<Button disabled={configControlsDisabled || !selectedExample} onClick={() => applyExample(selectedExample)}>{t('套用示例')}</Button>}
         >
           <Space direction="vertical" style={{ width: '100%' }}>
-            <Typography.Paragraph type="secondary">{t('每种渠道的每种消息类型都提供 1-2 条安全示例；示例只写入 env: 密钥引用，不包含真实 token。')}</Typography.Paragraph>
+            <Typography.Paragraph type="secondary">{t('每种渠道的每种消息类型都提供 1-2 条安全示例；示例只写入 channel-scoped env: 密钥引用，不包含真实 token。生产中请为每条渠道替换成自己的 env 名称。')}</Typography.Paragraph>
             <Select
               value={selectedExample?.name}
               onChange={setSelectedExampleName}
@@ -512,7 +512,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
         <Row gutter={16}>
           {schema.secretFields.map((field) => (
             <Col xs={24} md={12} key={field.key}>
-              <Form.Item name={['secretRefs', field.key]} label={t(field.label)} rules={[{ required: fieldRequired(field, Boolean(editingChannel), replaceSecretRefs), message: t('请填写密钥引用') }]} extra={field.help ? t(field.help) : t('按当前 scope 过滤 Secret 引用；可选择 env 类型 Secret 引用，或手工填写 env:NAME。')}>
+              <Form.Item name={['secretRefs', field.key]} label={t(field.label)} rules={[{ required: fieldRequired(field, Boolean(editingChannel), replaceSecretRefs), message: t('请填写密钥引用') }]} extra={field.help ? t(field.help) : t('按当前 scope 过滤 Secret 引用；可选择 env 类型 Secret 引用，或手工填写这条渠道自己的 env:NAME。')}>
                 <AutoComplete allowClear disabled={secretControlsDisabled} options={scopedSecretOptions} placeholder={keepExistingPlaceholder(field, !editingChannel || replaceSecretRefs)} filterOption={(input, option) => String(option?.label ?? option?.value ?? '').toLowerCase().includes(input.toLowerCase())} />
               </Form.Item>
             </Col>

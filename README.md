@@ -737,6 +737,32 @@ CDN, or Kubernetes Ingress, configure the network path for long-lived `text/even
 See the full [SSE realtime deployment notes](docs/docs/deployment/sse-realtime.md) for nginx,
 load balancer, WAF, and Kubernetes Ingress examples.
 
+### Notification channel secret references
+
+Notification provider credentials are configured on each Notification Center channel row, not as one
+shared global provider setting. Put each row's webhook URL, signing key, routing key, SMTP URL,
+SMTP password, authorization header, or app-style credential reference in that channel's
+`secretRefs` object:
+
+```json
+{
+  "name": "billing-feishu-prod",
+  "provider": "feishu",
+  "config": {"messageType": "interactive"},
+  "secretRefs": {
+    "url": "env:TIKEO_NOTIFICATION_CHANNEL_BILLING_FEISHU_WEBHOOK_URL",
+    "signingKey": "env:TIKEO_NOTIFICATION_CHANNEL_BILLING_FEISHU_SIGNING_KEY"
+  }
+}
+```
+
+Use different env names for different Slack/DingTalk/Feishu/WeCom/PagerDuty/email/webhook rows.
+If a plugin or app-style provider needs `appId`/`appSecret`, store those refs in the same channel
+row's `secretRefs`; the current built-in Feishu/Lark custom bot uses `url` plus optional
+`signingKey`. Notification delivery currently resolves `env:NAME` or bare `NAME` from the Server
+process environment, so map those per-channel env vars from your platform secret store at deploy
+time.
+
 ### Docker Compose: SQLite default
 
 Use this for the fastest local product evaluation. It builds the server and web images locally unless

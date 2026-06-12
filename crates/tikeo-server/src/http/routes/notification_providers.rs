@@ -254,22 +254,73 @@ fn attach_builtin_examples(provider: &str, template: &mut serde_json::Value) {
     }
 }
 
+fn notification_channel_env_suffix(value: &str) -> String {
+    let mut normalized = String::new();
+    let mut previous_was_separator = true;
+    for item in value.chars() {
+        if item.is_ascii_uppercase() {
+            if !previous_was_separator {
+                normalized.push('_');
+            }
+            normalized.push(item);
+            previous_was_separator = false;
+        } else if item.is_ascii_alphanumeric() {
+            normalized.push(item.to_ascii_uppercase());
+            previous_was_separator = false;
+        } else if !previous_was_separator {
+            normalized.push('_');
+            previous_was_separator = true;
+        }
+    }
+    let trimmed = normalized.trim_matches('_').to_owned();
+    if trimmed.is_empty() {
+        "CUSTOM".to_owned()
+    } else {
+        trimmed
+    }
+}
+
+fn channel_secret_ref(provider: &str, message_type: &str, purpose: &str) -> String {
+    format!(
+        "env:TIKEO_NOTIFICATION_CHANNEL_{}_{}_{}",
+        notification_channel_env_suffix(provider),
+        notification_channel_env_suffix(message_type),
+        purpose
+    )
+}
+
+fn builtin_example_secret_refs(provider: &str, message_type: &str) -> serde_json::Value {
+    match provider {
+        "slack" => {
+            serde_json::json!({"url": channel_secret_ref(provider, message_type, "WEBHOOK_URL")})
+        }
+        "dingtalk" => serde_json::json!({
+            "url": channel_secret_ref(provider, message_type, "WEBHOOK_URL"),
+            "signingKey": channel_secret_ref(provider, message_type, "SIGNING_KEY")
+        }),
+        "feishu" => serde_json::json!({
+            "url": channel_secret_ref(provider, message_type, "WEBHOOK_URL"),
+            "signingKey": channel_secret_ref(provider, message_type, "SIGNING_KEY")
+        }),
+        "wechat_work" => {
+            serde_json::json!({"url": channel_secret_ref(provider, message_type, "WEBHOOK_URL")})
+        }
+        "pagerduty" => {
+            serde_json::json!({"routingKey": channel_secret_ref(provider, message_type, "ROUTING_KEY")})
+        }
+        "email" => serde_json::json!({
+            "smtpUrl": channel_secret_ref(provider, message_type, "SMTP_URL"),
+            "password": channel_secret_ref(provider, message_type, "SMTP_PASSWORD")
+        }),
+        _ => serde_json::json!({
+            "url": channel_secret_ref(provider, message_type, "WEBHOOK_URL"),
+            "authorization": channel_secret_ref(provider, message_type, "AUTHORIZATION")
+        }),
+    }
+}
+
 fn builtin_example(provider: &str, message_type: &str) -> serde_json::Value {
-    let secret_refs = match provider {
-        "slack" => serde_json::json!({"url":"env:SLACK_WEBHOOK_URL"}),
-        "dingtalk" => {
-            serde_json::json!({"url":"env:DINGTALK_WEBHOOK_URL","signingKey":"env:DINGTALK_SIGNING_SECRET"})
-        }
-        "feishu" => {
-            serde_json::json!({"url":"env:FEISHU_WEBHOOK_URL","signingKey":"env:FEISHU_BOT_SECRET"})
-        }
-        "wechat_work" => serde_json::json!({"url":"env:WECOM_WEBHOOK_URL"}),
-        "pagerduty" => serde_json::json!({"routingKey":"env:PAGERDUTY_ROUTING_KEY"}),
-        "email" => {
-            serde_json::json!({"smtpUrl":"env:TIKEO_SMTP_URL","password":"env:TIKEO_SMTP_PASSWORD"})
-        }
-        _ => serde_json::json!({"url":"env:TIKEO_NOTIFICATION_WEBHOOK_URL"}),
-    };
+    let secret_refs = builtin_example_secret_refs(provider, message_type);
     let config = match provider {
         "dingtalk" => serde_json::json!({"messageType":message_type,"isAtAll":false}),
         "wechat_work" => {

@@ -47,6 +47,12 @@ Webhook-style providers accept `url`, `webhookUrl`, or `webhook_url` as target k
 
 Runtime secret resolution for Notification Center currently resolves `env:` references or bare environment variable names through the process environment. Do not enter raw secret values in `config` or `secretRefs`.
 
+### Per-channel secretRefs
+
+Every notification channel row owns its own `secretRefs` object. Do not configure one global `FEISHU_WEBHOOK_URL`, Slack webhook, PagerDuty routing key, or SMTP credential and reuse it for all channels. Use stable names that encode the business destination or provider/message type, for example `env:TIKEO_NOTIFICATION_CHANNEL_BILLING_FEISHU_WEBHOOK_URL`, `env:TIKEO_NOTIFICATION_CHANNEL_BILLING_FEISHU_SIGNING_KEY`, or `env:TIKEO_NOTIFICATION_CHANNEL_ONCALL_PAGERDUTY_ROUTING_KEY`. The built-in seed/generated examples use the pattern `env:TIKEO_NOTIFICATION_CHANNEL_<PROVIDER>_<MESSAGE_TYPE>_<PURPOSE>` to make this scoping visible.
+
+For app-style providers or plugins that require credentials such as `appId` and `appSecret`, keep those references in the same channel's `secretRefs` as well; do not move them into server-wide config. The current built-in Feishu/Lark custom bot uses `secretRefs.url` and optional `secretRefs.signingKey`.
+
 ## Quick path: channel → template → policy → event → delivery
 
 Use this path when you want one job failure policy to deliver through one reusable outbound channel. It is intentionally chainable: each command stores the ID returned by the previous command. Keep real URLs and auth values in environment variables referenced by `secretRefs`; do not put raw provider tokens in channel `config`, templates, tickets, screenshots, or examples.
@@ -54,9 +60,9 @@ Use this path when you want one job failure policy to deliver through one reusab
 Prerequisites:
 
 - You have a bearer token with `notifications:manage` and `notifications:test` when using retry scan.
-- The Server process can resolve `env:TIKEO_NOTIFICATION_WEBHOOK_URL` and any optional `env:TIKEO_NOTIFICATION_WEBHOOK_AUTH` value from its own environment.
+- The Server process can resolve this channel's `env:TIKEO_NOTIFICATION_CHANNEL_BILLING_OPS_WEBHOOK_URL` and optional `env:TIKEO_NOTIFICATION_CHANNEL_BILLING_OPS_WEBHOOK_AUTH` from its own environment.
 - You know the namespace/app or job owner that should emit the event.
-- `supportsTestSend=false` is expected today; use policy validation, generated messages, delivery attempts, and retry/DLQ state as the verification path until a persisted redacted channel test endpoint exists.
+- Built-in providers report `supportsTestSend=true`; after saving a channel, use the edit drawer **Send a test** action or `POST /api/v1/notification-channels/{id}/test-send` to validate the saved channel with redacted output. Also keep policy validation, generated messages, delivery attempts, and retry/DLQ state in the rollout checklist.
 
 ```bash
 export TOKEN='<operator-bearer-token>'
@@ -73,8 +79,8 @@ CHANNEL_ID="$(curl -fsS -X POST http://127.0.0.1:9090/api/v1/notification-channe
     "enabled": true,
     "config": {"messageType": "json"},
     "secretRefs": {
-      "url": "env:TIKEO_NOTIFICATION_WEBHOOK_URL",
-      "authorization": "env:TIKEO_NOTIFICATION_WEBHOOK_AUTH"
+      "url": "env:TIKEO_NOTIFICATION_CHANNEL_BILLING_OPS_WEBHOOK_URL",
+      "authorization": "env:TIKEO_NOTIFICATION_CHANNEL_BILLING_OPS_WEBHOOK_AUTH"
     }
   }' | jq -r '.data.id')"
 
@@ -163,8 +169,8 @@ The API uses the shared `{code,message,data}` envelope. The quick path above is 
   "enabled": true,
   "config": {"messageType": "json"},
   "secretRefs": {
-    "url": "env:TIKEO_NOTIFICATION_WEBHOOK_URL",
-    "authorization": "env:TIKEO_NOTIFICATION_WEBHOOK_AUTH"
+    "url": "env:TIKEO_NOTIFICATION_CHANNEL_BILLING_OPS_WEBHOOK_URL",
+    "authorization": "env:TIKEO_NOTIFICATION_CHANNEL_BILLING_OPS_WEBHOOK_AUTH"
   }
 }
 ```
@@ -213,7 +219,7 @@ curl -fsS -X POST \
 
 Set a policy `templateRef` to the stored template `id` or `templateKey`. During job-instance materialization, enabled templates can override the normalized message `subject` and `body`, and the rendered provider body is stored under `payload.template`. Provider delivery then uses that rendered template before any channel inline `config.template`, so policy-selected enabled storage templates are not silently shadowed by channel defaults. Missing or disabled template refs are ignored for compatibility, so production policies should reference existing enabled templates and be checked in the UI before rollout.
 
-Template bodies are not secret stores. Keep webhook URLs, signing keys, PagerDuty routing keys, SMTP URLs/passwords, authorization headers, and custom header values in channel `secretRefs`.
+Template bodies are not secret stores. Keep webhook URLs, signing keys, PagerDuty routing keys, SMTP URLs/passwords, authorization headers, and custom header values in that channel row's own `secretRefs`.
 
 Rich message types that need provider-specific fields fail closed when no channel inline template or enabled policy template is available. DingTalk `link`/`actionCard`/`feedCard`, Feishu `image`/`share_chat`, and WeCom `image`/`news`/`file`/`voice`/`template_card` must be backed by real operator-supplied template fields; Tikeo does not synthesize placeholder URLs or fake media IDs for production delivery.
 
@@ -359,7 +365,7 @@ After creating or editing a notification flow, verify the full chain rather than
 4. The delivery attempt references the selected channel and reaches `delivered`, `retry_pending`, or `dead_letter` with an inspectable reason.
 5. UI tabs show the same channel, template, policy, message, and attempt state without exposing `secretRefs` values.
 
-Current `supportsTestSend=false` is expected. Until a persisted redacted channel test endpoint exists, use policy validation, real matching events, message rows, delivery attempts, and retry/DLQ status as the acceptance path.
+For a saved built-in channel, run the edit drawer **Send a test** action or `POST /api/v1/notification-channels/${CHANNEL_ID}/test-send` with `notifications:test` permission. The response shows delivered/retry state, status code, rendered payload, and redacted target; it does not expose `secretRefs`. Keep policy validation, real matching events, message rows, delivery attempts, and retry/DLQ status as the broader acceptance path.
 
 
 ## Production checklist

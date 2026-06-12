@@ -89,6 +89,7 @@ Examples in this reference use placeholders. Do not include real tokens, webhook
 | `GET /api/v1/notification-channels/{id}` | Read one redacted channel summary. | `notifications:read` |
 | `PATCH /api/v1/notification-channels/{id}` | Update channel config/scope/provider/enabled/safety policy. | `notifications:manage` |
 | `DELETE /api/v1/notification-channels/{id}` | Delete only when no policy references the channel. | `notifications:manage` |
+| `POST /api/v1/notification-channels/{id}/test-send` | Send one test notification through a saved enabled built-in channel and return redacted delivery evidence. | `notifications:test` |
 | `GET /api/v1/notification-policies` | List policies with owner/event/enabled filters. | `notifications:read` |
 | `POST /api/v1/notification-policies` | Create a policy. | `notifications:manage` |
 | `GET /api/v1/notification-policies/{id}` | Read one policy. | `notifications:read` |
@@ -106,7 +107,7 @@ Examples in this reference use placeholders. Do not include real tokens, webhook
 | `GET /api/v1/notification-delivery-attempts:queue-status` | Count retry/DLQ state and return recent dead letters. | `notifications:read` |
 | `POST /api/v1/notification-delivery-attempts:retry-due` | Process due attempts in a bounded scan. | `notifications:test` |
 
-The current source does **not** expose a separate `POST /api/v1/notification-channels/{id}:test` endpoint. Channel type metadata now reports `supportsTestSend=false`; the implemented operator action is the generic retry-due scan.
+Built-in channel type metadata reports `supportsTestSend=true`. Use `POST /api/v1/notification-channels/{id}/test-send` or the edit drawer **Send a test** action to exercise one saved enabled channel; use `POST /api/v1/notification-delivery-attempts:retry-due` for the generic due-attempt worker scan.
 
 ## Channel request fields
 
@@ -122,7 +123,7 @@ The current source does **not** expose a separate `POST /api/v1/notification-cha
 | `provider` | string | yes | Lowercase slug, built-in or enabled plugin type. |
 | `enabled` | boolean | no | Defaults to `true`. Disabled channels do not deliver. |
 | `config` | object | no | Provider config. API summaries redact sensitive keys and URL-like values. |
-| `secretRefs` | object | no | Secret references. `secretRefsJson` is skipped in API serialization. |
+| `secretRefs` | object | no | Secret references owned by this channel row. `secretRefsJson` is skipped in API serialization. |
 | `safetyPolicy` | object/null | no | Optional local-smoke transport override. |
 
 Provider validation:
@@ -130,7 +131,7 @@ Provider validation:
 - Webhook-style providers require `url`, `webhookUrl`, or `webhook_url`.
 - PagerDuty requires `routingKey`, `routing_key`, `integrationKey`, or `integration_key`.
 - Email requires `to` or `recipients`, plus SMTP URL/config through direct config or secret ref. Runtime accepts `secretRefs.password` as the metadata-aligned SMTP password reference alias, along with `passwordSecretRef` / `password_secret_ref`; SMTP URL reference aliases include `smtpUrl`, `smtp_url`, `url`, `smtpUrlSecretRef`, and `smtp_url_secret_ref`.
-- Secret resolution is environment-backed in this implementation: `env:NAME` and bare `NAME` are read from process environment variables.
+- Secret resolution is environment-backed in this implementation: `env:NAME` and bare `NAME` are read from the Server process environment. Use separate names per channel row; do not rely on one shared provider-wide env variable for production channels.
 
 ## Channel response and redaction
 
@@ -182,7 +183,7 @@ The renderer is fail-closed for template syntax: unknown tokens such as `{{env.S
 
 When a job-instance policy references an enabled stored template by `id` or `templateKey`, the materializer renders the template before message insertion. `subject`/`title` can override the normalized message subject; `body`/`text`/`content` can override the normalized message body; the complete rendered JSON is stored under `payload.template` together with `templateRef` and `templateKey`. Provider renderers prefer `payload.template` over channel inline `config.template`, so one enabled stored template can drive Slack/DingTalk/Feishu/WeCom/PagerDuty/webhook/email payload shape without duplicating channel secrets or being shadowed by channel defaults.
 
-Template rows never store provider credentials. Webhook URLs, signing keys, PagerDuty routing keys, SMTP URLs, SMTP passwords, authorization headers, and custom secret headers remain channel `secretRefs` only.
+Template rows never store provider credentials. Webhook URLs, signing keys, PagerDuty routing keys, SMTP URLs, SMTP passwords, authorization headers, custom secret headers, and app-style credentials such as `appId`/`appSecret` remain on the owning channel row's `secretRefs` only.
 
 ## Message fields
 
@@ -232,19 +233,19 @@ Worker-result failure semantics are retry-aware: a failure that schedules anothe
 
 ## Provider schema and delivery behavior
 
-`GET /api/v1/notification-channel-types` returns schema metadata used by the channel drawer. The metadata separates non-secret `requiredConfigKeys` from `requiredTargetKeys`, because built-in targets such as webhook URLs, PagerDuty routing keys, and SMTP URLs should normally be supplied through `secretRefs` rather than raw config. Server validation also enforces provider `messageType` values and required template fields for built-in providers.
+`GET /api/v1/notification-channel-types` returns schema metadata used by the channel drawer. The metadata separates non-secret `requiredConfigKeys` from `requiredTargetKeys`, because built-in targets such as webhook URLs, PagerDuty routing keys, and SMTP URLs should normally be supplied through the channel row's `secretRefs` rather than raw config. Server validation also enforces provider `messageType` values and required template fields for built-in providers. Built-in seed/API examples use channel-scoped refs such as `env:TIKEO_NOTIFICATION_CHANNEL_FEISHU_INTERACTIVE_WEBHOOK_URL`, not shared refs like `env:FEISHU_WEBHOOK_URL`.
 
 Official-document-backed built-in variants currently exposed by the drawer and delivery renderer:
 
 | Provider | Message types and notable fields | Secret/ref behavior |
 | --- | --- | --- |
-| `webhook` | `json` body template. | `secretRefs.url`, optional `secretRefs.authorization` or `secretRefs.headers.*`. |
-| `slack` | `text`, `blockKit` (`blocks`), `attachments`; optional `threadTs` maps to Slack `thread_ts` for webhook thread replies when the parent message timestamp is known. | Incoming webhook URL should be a secret reference. |
-| `dingtalk` | `text`, `markdown`, `link`, `actionCard` with single-button or `btns` JSON, and `feedCard`; `atMobiles`, `atUserIds`, `isAtAll`. | Webhook URL as secret ref; optional `signingKey` signs URL with timestamp/HMAC. |
-| `feishu` | `text`, `post`, `image` (`image_key`), `share_chat` (`share_chat_id`), and `interactive` card. | Webhook URL as secret ref; optional `signingKey` adds body `timestamp`/`sign`. |
-| `wechat_work` | `text`, `markdown`, `markdown_v2`, `image`, `news`, `file`, `voice`, and `template_card`; mentions for text-compatible messages. | Webhook URL as secret ref. |
-| `pagerduty` | Events API `trigger`, `acknowledge`, `resolve`; payload fields include `source`, `component`, `group`, `class`, `client`, `client_url`, `links`, `images`, and `custom_details`. | Routing/integration key must be supplied through `secretRefs.routingKey` / aliases. |
-| `email` | `plain` text and stored `html` template shape. Runtime still sends text/plain through the SMTP adapter. | SMTP URL/password should be secret refs. |
+| `webhook` | `json` body template. | Per-channel `secretRefs.url`, optional `secretRefs.authorization` or `secretRefs.headers.*`. |
+| `slack` | `text`, `blockKit` (`blocks`), `attachments`; optional `threadTs` maps to Slack `thread_ts` for webhook thread replies when the parent message timestamp is known. | Incoming webhook URL should be a per-channel secret reference. |
+| `dingtalk` | `text`, `markdown`, `link`, `actionCard` with single-button or `btns` JSON, and `feedCard`; `atMobiles`, `atUserIds`, `isAtAll`. | Per-channel webhook URL; optional per-channel `signingKey` signs URL with timestamp/HMAC. |
+| `feishu` | `text`, `post`, `image` (`image_key`), `share_chat` (`share_chat_id`), and `interactive` card. | Per-channel webhook URL; optional per-channel `signingKey` adds body `timestamp`/`sign`. App-style `appId`/`appSecret` for plugins belongs in the same row's `secretRefs`. |
+| `wechat_work` | `text`, `markdown`, `markdown_v2`, `image`, `news`, `file`, `voice`, and `template_card`; mentions for text-compatible messages. | Webhook URL as a per-channel secret ref. |
+| `pagerduty` | Events API `trigger`, `acknowledge`, `resolve`; payload fields include `source`, `component`, `group`, `class`, `client`, `client_url`, `links`, `images`, and `custom_details`. | Routing/integration key must be supplied through this channel's `secretRefs.routingKey` / aliases. |
+| `email` | `plain` text and stored `html` template shape. Runtime still sends text/plain through the SMTP adapter. | SMTP URL/password should be per-channel secret refs. |
 | plugin webhook | Provider-neutral JSON unless plugin metadata supplies a custom template. | Plugin-defined. |
 
 Rich provider families that require URLs, media IDs, cards, links, or image/chat identifiers fail closed unless the delivery has a channel inline `config.template` or an enabled policy `templateRef` rendered into `payload.template`. This covers DingTalk `link`/`actionCard`/`feedCard`, Feishu `image`/`share_chat`, and WeCom `image`/`news`/`file`/`voice`/`template_card`; placeholder provider payloads are not generated.

@@ -46,10 +46,10 @@ describe('notification api client', () => {
       name: 'webhook',
       provider: 'webhook',
       config: { messageType: 'json' },
-      secretRefs: { url: 'env:TIKEO_NOTIFICATION_WEBHOOK_URL' },
+      secretRefs: { url: 'env:TIKEO_NOTIFICATION_CHANNEL_WEBHOOK_JSON_WEBHOOK_URL' },
     });
 
-    expect(payload as unknown).toMatchObject({ config: { messageType: 'json' }, secretRefs: { url: 'env:TIKEO_NOTIFICATION_WEBHOOK_URL' } });
+    expect(payload as unknown).toMatchObject({ config: { messageType: 'json' }, secretRefs: { url: 'env:TIKEO_NOTIFICATION_CHANNEL_WEBHOOK_JSON_WEBHOOK_URL' } });
     expect(payload as unknown).not.toHaveProperty('secretRefsJson');
   });
 

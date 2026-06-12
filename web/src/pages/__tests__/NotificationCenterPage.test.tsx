@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 
+import { providerSchemaFor } from '../notifications/providerSchema';
+
 const appSource = readFileSync(new URL('../../App.tsx', import.meta.url), 'utf8');
 const routesSource = readFileSync(new URL('../../routes.tsx', import.meta.url), 'utf8');
 const clientSource = readFileSync(new URL('../../api/notifications.ts', import.meta.url), 'utf8');
@@ -111,8 +113,28 @@ describe('notification center console page', () => {
     for (const token of ['examples', 'channelExampleCount', 'applyExample', '套用示例', '示例：']) {
       expect(providerSchemaSource + channelDrawerSource).toContain(token);
     }
+    const exampleSecretRefs = (provider: string, messageType: string) => {
+      const schema = providerSchemaFor(null, provider);
+      const selected = schema.messageTypes.find((item) => item.id === messageType);
+      return JSON.stringify(selected?.examples?.[0]?.secretRefs ?? {});
+    };
+    for (const [provider, messageType, expected] of [
+      ['webhook', 'json', 'env:TIKEO_NOTIFICATION_CHANNEL_WEBHOOK_JSON_WEBHOOK_URL'],
+      ['slack', 'text', 'env:TIKEO_NOTIFICATION_CHANNEL_SLACK_TEXT_WEBHOOK_URL'],
+      ['slack', 'blockKit', 'env:TIKEO_NOTIFICATION_CHANNEL_SLACK_BLOCK_KIT_WEBHOOK_URL'],
+      ['dingtalk', 'markdown', 'env:TIKEO_NOTIFICATION_CHANNEL_DINGTALK_MARKDOWN_SIGNING_KEY'],
+      ['feishu', 'interactive', 'env:TIKEO_NOTIFICATION_CHANNEL_FEISHU_INTERACTIVE_SIGNING_KEY'],
+      ['wechat_work', 'markdown_v2', 'env:TIKEO_NOTIFICATION_CHANNEL_WECHAT_WORK_MARKDOWN_V2_WEBHOOK_URL'],
+      ['pagerduty', 'trigger', 'env:TIKEO_NOTIFICATION_CHANNEL_PAGERDUTY_TRIGGER_ROUTING_KEY'],
+      ['email', 'plain', 'env:TIKEO_NOTIFICATION_CHANNEL_EMAIL_PLAIN_SMTP_URL'],
+      ['email', 'plain', 'env:TIKEO_NOTIFICATION_CHANNEL_EMAIL_PLAIN_SMTP_PASSWORD'],
+    ]) {
+      expect(exampleSecretRefs(provider, messageType)).toContain(expected);
+    }
+    expect(exampleSecretRefs('slack', 'text')).not.toBe(exampleSecretRefs('slack', 'blockKit'));
+    expect(exampleSecretRefs('feishu', 'text')).not.toBe(exampleSecretRefs('feishu', 'interactive'));
     for (const token of ['env:TIKEO_NOTIFICATION_WEBHOOK_URL', 'env:SLACK_WEBHOOK_URL', 'env:DINGTALK_WEBHOOK_URL', 'env:FEISHU_WEBHOOK_URL', 'env:WECOM_WEBHOOK_URL', 'env:PAGERDUTY_ROUTING_KEY', 'env:TIKEO_SMTP_URL']) {
-      expect(providerSchemaSource).toContain(token);
+      expect(providerSchemaSource).not.toContain(token);
     }
   });
 

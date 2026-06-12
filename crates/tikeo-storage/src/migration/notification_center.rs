@@ -303,7 +303,8 @@ async fn seed_notification_channel_examples(manager: &SchemaManager<'_>) -> Resu
     for &(provider, message_type) in NOTIFICATION_CHANNEL_EXAMPLE_TYPES {
         let id = notification_channel_example_id(provider, message_type);
         let config = notification_channel_example_config(provider, message_type).to_string();
-        let secret_refs = notification_channel_example_secret_refs(provider).to_string();
+        let secret_refs =
+            notification_channel_example_secret_refs(provider, message_type).to_string();
         let target_redacted = notification_channel_example_target_redacted(provider);
         let insert = sea_query::Query::insert()
             .into_table(NotificationChannels::Table)
@@ -420,26 +421,74 @@ fn notification_channel_example_config(provider: &str, message_type: &str) -> se
     }
 }
 
-fn notification_channel_example_secret_refs(provider: &str) -> serde_json::Value {
+fn notification_channel_example_env_suffix(value: &str) -> String {
+    let mut normalized = String::new();
+    let mut previous_was_separator = true;
+    for item in value.chars() {
+        if item.is_ascii_uppercase() {
+            if !previous_was_separator {
+                normalized.push('_');
+            }
+            normalized.push(item);
+            previous_was_separator = false;
+        } else if item.is_ascii_alphanumeric() {
+            normalized.push(item.to_ascii_uppercase());
+            previous_was_separator = false;
+        } else if !previous_was_separator {
+            normalized.push('_');
+            previous_was_separator = true;
+        }
+    }
+    let trimmed = normalized.trim_matches('_').to_owned();
+    if trimmed.is_empty() {
+        "CUSTOM".to_owned()
+    } else {
+        trimmed
+    }
+}
+
+fn notification_channel_example_secret_ref(
+    provider: &str,
+    message_type: &str,
+    purpose: &str,
+) -> String {
+    format!(
+        "env:TIKEO_NOTIFICATION_CHANNEL_{}_{}_{}",
+        notification_channel_example_env_suffix(provider),
+        notification_channel_example_env_suffix(message_type),
+        purpose
+    )
+}
+
+fn notification_channel_example_secret_refs(
+    provider: &str,
+    message_type: &str,
+) -> serde_json::Value {
     match provider {
-        "slack" => serde_json::json!({ "url": "env:SLACK_WEBHOOK_URL" }),
+        "slack" => serde_json::json!({
+            "url": notification_channel_example_secret_ref(provider, message_type, "WEBHOOK_URL")
+        }),
         "dingtalk" => serde_json::json!({
-            "url": "env:DINGTALK_WEBHOOK_URL",
-            "signingKey": "env:DINGTALK_SIGNING_SECRET"
+            "url": notification_channel_example_secret_ref(provider, message_type, "WEBHOOK_URL"),
+            "signingKey": notification_channel_example_secret_ref(provider, message_type, "SIGNING_KEY")
         }),
         "feishu" => serde_json::json!({
-            "url": "env:FEISHU_WEBHOOK_URL",
-            "signingKey": "env:FEISHU_BOT_SECRET"
+            "url": notification_channel_example_secret_ref(provider, message_type, "WEBHOOK_URL"),
+            "signingKey": notification_channel_example_secret_ref(provider, message_type, "SIGNING_KEY")
         }),
-        "wechat_work" => serde_json::json!({ "url": "env:WECOM_WEBHOOK_URL" }),
-        "pagerduty" => serde_json::json!({ "routingKey": "env:PAGERDUTY_ROUTING_KEY" }),
+        "wechat_work" => serde_json::json!({
+            "url": notification_channel_example_secret_ref(provider, message_type, "WEBHOOK_URL")
+        }),
+        "pagerduty" => serde_json::json!({
+            "routingKey": notification_channel_example_secret_ref(provider, message_type, "ROUTING_KEY")
+        }),
         "email" => serde_json::json!({
-            "smtpUrl": "env:TIKEO_SMTP_URL",
-            "password": "env:TIKEO_SMTP_PASSWORD"
+            "smtpUrl": notification_channel_example_secret_ref(provider, message_type, "SMTP_URL"),
+            "password": notification_channel_example_secret_ref(provider, message_type, "SMTP_PASSWORD")
         }),
         _ => serde_json::json!({
-            "url": "env:TIKEO_NOTIFICATION_WEBHOOK_URL",
-            "authorization": "env:TIKEO_NOTIFICATION_AUTHORIZATION"
+            "url": notification_channel_example_secret_ref(provider, message_type, "WEBHOOK_URL"),
+            "authorization": notification_channel_example_secret_ref(provider, message_type, "AUTHORIZATION")
         }),
     }
 }
