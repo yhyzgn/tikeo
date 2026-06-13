@@ -592,7 +592,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
           <main className="channel-drawer-main">
             <DomainPanel
               accent="primary"
-              eyebrow={t('领域 01 · 身份与作用域')}
+              eyebrow={t('01 · 基础配置')}
               title={t('身份与作用域')}
               description={t('命名渠道、控制启用状态，并确定它能被哪些策略或任务引用。')}
               extra={<Form.Item name="enabled" label={t('启用')} valuePropName="checked" style={{ marginBottom: 0 }}><Switch /></Form.Item>}
@@ -617,7 +617,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
 
             <DomainPanel
               accent="secure"
-              eyebrow={t('领域 02 · 连接配置')}
+              eyebrow={t('02 · 连接层')}
               title={t('投递目标与私密凭据')}
               description={t('连接层只处理目标、凭据和 provider 参数；私密配置与渠道参数分别替换。')}
             >
@@ -669,7 +669,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
 
             <DomainPanel
               accent="message"
-              eyebrow={t('领域 03 · 消息形态')}
+              eyebrow={t('03 · 消息层')}
               title={t('提供方与消息形态')}
               description={t('选择消息类型，并决定是否用渠道级 inline 模板覆盖策略模板。')}
             >
@@ -726,7 +726,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
 
             <DomainPanel
               accent="governance"
-              eyebrow={t('领域 04 · 治理与扩展')}
+              eyebrow={t('04 · 治理层')}
               title={t('扩展 JSON 与安全策略')}
               description={t('高级 JSON 仅用于表单未覆盖字段；安全策略用于约束发送行为。')}
             >
