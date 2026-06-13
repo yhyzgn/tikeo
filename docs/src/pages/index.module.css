@@ -77,9 +77,8 @@
 }
 
 .heroLogo {
-  height: min(220px, 52vw);
+  --tikeo-logo-size: min(220px, 52vw);
   position: relative;
-  width: min(220px, 52vw);
   z-index: 1;
 }
 
@@ -212,8 +211,7 @@
   }
 
   .heroLogo {
-    height: 164px;
-    width: 164px;
+    --tikeo-logo-size: 164px;
   }
 
   .cards {

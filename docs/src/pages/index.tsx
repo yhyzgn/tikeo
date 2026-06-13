@@ -3,6 +3,7 @@ import Link from '@docusaurus/Link';
 import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
 import useBaseUrl from '@docusaurus/useBaseUrl';
+import {TikeoLogo} from '../components/TikeoLogo';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 
 import styles from './index.module.css';
@@ -117,7 +118,6 @@ export default function Home(): ReactNode {
   const {i18n} = useDocusaurusContext();
   const localeCopy = i18n.currentLocale === 'zh-CN' ? copy['zh-CN'] : copy.en;
   const localeSuffix = i18n.currentLocale === 'zh-CN' ? 'zh-CN' : 'en';
-  const logoUrl = useBaseUrl('/img/tikeo-logo.svg');
   const architectureUrl = useBaseUrl(`/img/tikeo-architecture.${localeSuffix}.svg`);
 
   return (
@@ -145,7 +145,7 @@ export default function Home(): ReactNode {
                 </div>
               </div>
               <div className={styles.logoCard} aria-label={localeCopy.logoAlt}>
-                <img className={styles.heroLogo} src={logoUrl} alt={localeCopy.logoAlt} />
+                <TikeoLogo className={`tikeo-logo--hero ${styles.heroLogo}`} size={220} ariaLabel={localeCopy.logoAlt} />
                 <span>{localeCopy.logoCaption}</span>
               </div>
             </div>

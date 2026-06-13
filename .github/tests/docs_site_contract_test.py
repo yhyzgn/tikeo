@@ -356,6 +356,7 @@ class DocsSiteContractTest(unittest.TestCase):
         self.assertIn("?? '/'", config)
         self.assertIn("useBaseUrl", homepage)
         self.assertNotIn("TikeoLogoMark", homepage)
+        self.assertIn("TikeoLogo", homepage)
         self.assertIn("i18n.currentLocale === 'zh-CN'", homepage)
         self.assertNotIn("tikeo-logo-breathe.gif", config + homepage)
         self.assertNotIn("照着部署、接入 Worker、配置系统", homepage)
@@ -367,9 +368,29 @@ class DocsSiteContractTest(unittest.TestCase):
         web_logo = (ROOT / "web/src/assets/tikeo-logo.svg").read_text()
         docs_logo = (DOCS_SITE / "static/img/tikeo-logo.svg").read_text()
         readme_logo = (ROOT / "assets/docs/tikeo-logo.svg").read_text()
+        logo_component = (DOCS_SITE / "src/components/TikeoLogo/index.tsx").read_text()
+        logo_styles = (DOCS_SITE / "src/components/TikeoLogo/styles.css").read_text()
         self.assertIn("img/tikeo-logo.svg", config)
-        self.assertIn("/img/tikeo-logo.svg", homepage)
+        self.assertIn("TikeoLogo", homepage)
         self.assertNotIn("TikeoLogoMark", homepage)
+        for token in [
+            'viewBox="4 4 56 56"',
+            'M32 5.5L54.5 18.5V45.5L32 58.5L9.5 45.5V18.5L32 5.5Z',
+            'M32 13L47 21.5V42.5L32 51L17 42.5V21.5L32 13Z',
+            'M19 25.5H44',
+            'M32 25.5V45',
+            'M32 35.5H46',
+            'M41 31L47 35.5L41 40',
+        ]:
+            self.assertIn(token, logo_component)
+        for token in [
+            "tikeo-logo-flow 2s cubic-bezier(0.45, 0, 0.2, 1) infinite",
+            "tikeo-logo-node-pulse 2s ease-in-out infinite",
+            "tikeo-logo-arrow 2s cubic-bezier(0.45, 0, 0.2, 1) infinite",
+            "tikeo-logo-breathe 5.2s ease-in-out infinite",
+            "prefers-reduced-motion: reduce",
+        ]:
+            self.assertIn(token, logo_styles)
         self.assertEqual(docs_logo, web_logo)
         self.assertEqual(readme_logo, web_logo)
         self.assertIn("assets/docs/tikeo-logo.svg", readme)
