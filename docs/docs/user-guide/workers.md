@@ -1,66 +1,78 @@
+---
+title: Workers user guide
+description: Human operator guide for the Tikeo workers console page.
+---
+
 # Workers user guide
 
-## Overview
+Use Workers to verify private execution capacity: online tunnel sessions, processor capabilities, lease freshness, lost reasons, and whether a Job selector can actually match real Workers.
 
-The Workers page shows execution capacity: active outbound Worker Tunnel sessions, structured capabilities, lifecycle history, and dispatch queue context. It is the first page to open when instances are pending or a processor cannot be found.
-
-Implementation anchors: `web/src/pages/WorkersPage.tsx` reads `/api/v1/workers`, `/api/v1/workers/history`, `/api/v1/workers/stream`, and dispatch queue views. Runtime execution uses `Worker Tunnel`, `WorkerTunnelService`, `OpenTunnel`, `RegisterWorker`, `Heartbeat`, `DispatchTask`, `TaskLog`, `TaskResult`, and `TaskCheckpoint`.
+![Workers user guide screenshot](pathname:///img/screenshots/workers.svg)
 
 ## Prerequisites
 
-- `workers:read` permission.
-- A Worker process can reach the Server Worker Tunnel endpoint outbound.
-- Worker registration has correct namespace, app, cluster, region, worker pool, labels, and capabilities.
-- Jobs reference capabilities that the Worker can actually execute.
+- You can sign in to the Tikeo console and your role grants read access to this page.
+- The target namespace/app is known before you change runtime objects.
+- At least one recent instance, worker session, or audit event exists when you are verifying live behavior.
+- For production changes, prepare a rollback note and an expected observation before saving.
 
-```bash
-curl -fsS http://127.0.0.1:9090/api/v1/workers \
-  -H "authorization: Bearer $TIKEO_TOKEN" | jq '.data.items[] | {workerId,status,namespace,app,structuredCapabilities}'
-```
+## When to use
 
-## Open the page
+- Before binding a Job to a new processor.
+- When Jobs remain pending.
+- After rotating Worker credentials or gateway configuration.
+- When a broadcast selector might target too many machines.
 
-1. Select **Workers** or open `/workers`.
-2. Review summary counts, Worker table, and lifecycle history.
-3. Open dispatch queue when pending work needs deeper triage.
-4. Compare Worker metadata with the Job that is waiting.
+## Key areas
 
-## Common tasks
+| Area | What to read first |
+| --- | --- |
+| Session list | Worker id, display name, generation, online/lost state, heartbeat age, and tunnel endpoint. |
+| Capability matrix | Processor names, script/plugin support, tags, region, cluster, and runtime metadata. |
+| Diagnostics | Transport errors, last lost reason, reconnect count, and session history. |
+| Dispatch evidence | Recent DispatchTask records and links to Instances that used this Worker. |
 
-### Confirm outbound connectivity
+## Typical workflow
 
-Workers dial the Server; the Server does not call business Workers. If a Worker is missing, check endpoint, TLS mode, network egress, namespace/app, and logs in the Worker process.
+1. Open Workers before creating a selector-heavy Job.
+2. Verify the needed processor appears exactly as the Job will reference it.
+3. Check heartbeat age; stale sessions should not be used for new production rollouts.
+4. Compare tags, region, and cluster before enabling broadcast.
+5. If a Worker is lost, open related Instances and Audit before restarting blindly.
 
-### Verify capabilities
+## Decision table
 
-Inspect `sdkProcessors`, `scriptRunners`, `pluginProcessors`, tags, labels, region, cluster, and worker pool. Do not advertise a runner or processor unless the runtime can execute it safely.
-
-### Diagnose no eligible worker
-
-Take the processor/script/plugin from the Job, then match it against Worker capabilities in the same namespace/app. For broadcast, also match selector labels/region/cluster.
+| Situation | Human decision | Evidence to collect |
+| --- | --- | --- |
+| First setup | Use narrow scope and one small verification run. | Screenshot, object id, instance id, audit event. |
+| Incident | Freeze risky changes until the failing object is understood. | Timeline, attempts, logs, delivery attempts. |
+| Production rollout | Change one dimension at a time and compare before/after. | Version diff, Dashboard health, audit trail. |
+| Rollback | Prefer reverting to a known version over ad-hoc edits. | Previous version id, rollback audit, new verification run. |
 
 ## Verify
 
-- Online count increases when a Worker connects through the outbound tunnel.
-- Lifecycle history records disconnects/reconnects.
-- Structured capabilities match the runtime and selected jobs.
-- Dispatch queue explains pending, running, done, or failed handoff states.
-- No business Worker inbound Service is required.
+- The page shows a current object, not stale browser state.
+- A user with read-only permissions can inspect evidence but cannot make privileged changes.
+- A real operation produces a visible audit event and, when relevant, an instance or delivery record.
+- The console link can be copied into an incident note and still identifies the same object.
 
 ## Troubleshooting
 
-| Symptom | Action |
+| Symptom | Response |
 | --- | --- |
-| Worker invisible | Verify `TIKEO_WORKER_ENDPOINT`, TLS/plaintext mode, and network egress. |
-| Worker reconnects repeatedly | Inspect lifecycle history and Worker logs for heartbeat or auth errors. |
-| Job cannot dispatch | Match namespace/app and structured capabilities. |
-| Script job pending | Confirm script runner language/backend is advertised and installed. |
-| Broadcast selects too many Workers | Tighten labels, tags, region, or cluster. |
+| Page looks empty | Check namespace/app filters and role permissions before assuming data loss. |
+| Object exists but action is disabled | Confirm RBAC, object state, and whether the action would cross scope boundaries. |
+| UI result differs from chat/email | Trust Tikeo delivery attempts and instance evidence first, then compare provider history. |
+| Time order is confusing | Use server timestamps, attempt numbers, and audit request ids instead of local browser order. |
+
+## Reference anchors
+
+This guide intentionally keeps API details in the appendix. If you need to inspect implementation or automate the same workflow, use these anchors: `Workers`, `web/src/pages/WorkersPage.tsx`, `Worker Tunnel`, `DispatchTask`.
 
 ## Production checklist
 
-- [ ] Worker identity uses namespace/app/cluster/region/worker pool/labels.
-- [ ] Capabilities are derived from installed and tested runtime support.
-- [ ] Worker Tunnel uses the expected TLS/mTLS policy.
-- [ ] Lifecycle history survives routine restarts enough for operators to diagnose.
-- [ ] Workers are deployed as outbound clients, not inbound scheduler targets.
+- [ ] Owner scope and operational responsibility are clear.
+- [ ] The change has a small verification path and rollback note.
+- [ ] Evidence includes object id, time, operator, status, and related instance or delivery id.
+- [ ] Public links use the configured platform URL when they leave the console.
+- [ ] The team knows whether this page is describing execution, notification, alerting, or governance semantics.

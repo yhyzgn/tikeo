@@ -7,6 +7,9 @@ description: Rust SDK dependency coordinates, WorkerConfig defaults, minimal Wor
 
 The Rust SDK is the closest language surface to the Server protocol. It lives in `sdks/rust/tikeo` and re-exports `WorkerConfig`, `WorkerClient`, `TaskProcessor`, `TaskContext`, `TaskOutcome`, script runners, WASM helpers, and Management client types from `sdks/rust/tikeo/src/lib.rs`. The runnable demo lives in `examples/rust/worker-demo`.
 
+
+Shared SDK/API contract: see [SDK and API integration guide](../integrations/sdk-and-api) for common concepts, unified configuration parameters, Management API semantics, Worker connection parameters, trigger types, errors/retries, and the language difference table. This language page stays focused on installation, minimal Worker code, exception behavior, and Management client syntax.
+
 ## Dependency coordinates
 
 Source package metadata is in `sdks/rust/tikeo/Cargo.toml`:

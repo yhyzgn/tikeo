@@ -1,157 +1,171 @@
 ---
 title: Python Worker SDK
-description: Python SDK 与 Worker demo 的 operator-grade 验收入口。
+description: Python 依赖、最小 Worker、异常处理和 Management client 写法。
 ---
 
 # Python Worker SDK
 
-Python SDK 位于 `sdks/python/tikeo`，可运行 Worker demo 位于 `examples/python/worker-demo`。本文只使用源码可验证事实：配置来自 `src/tikeo/config.py`，Worker Tunnel 来自 `client.py`，Management helper 来自 `management.py`，demo 行为来自 worker-demo 包。Python Worker 是 **outbound-only**：进程主动拨出到 Worker Tunnel，注册 metadata 与 structured capabilities，接收 `DispatchTask`，再回传 task log 和 result；不要把业务 Worker 写成 inbound HTTP Service。
-
-## 依赖坐标
-
-Python 包坐标来自 `sdks/python/tikeo/pyproject.toml`：`name = "tikeo"`、`version = "0.2.0"`、`requires-python = ">=3.11"`。安装发布包时使用不带 `v` 的版本：
-
-```bash
-python -m pip install "tikeo==${TIKEO_VERSION}"
-```
-
-本仓库 demo 使用 editable 安装：
-
-```bash
-cd examples/python/worker-demo
-python -m pip install -e ../../../sdks/python/tikeo
-python -m pip install -e .
-```
-
-SDK 导出 `WorkerConfig`、`local_config`、`Client`、`TaskContext`、`TaskOutcome`、`ManagementClient`、`api_job`、`plugin_api_job`、`script_api_job`、`api_trigger`、`broadcast_api_trigger`、`BroadcastSelectorRequest`、`API_KEY_HEADER` 等符号。
-
-## WorkerConfig 默认值
-
-`local_config(endpoint, client_instance_id)` 返回 `WorkerConfig(endpoint=endpoint, client_instance_id=client_instance_id)`。`WorkerConfig` dataclass 的默认值是：`namespace="default"`，`app="default"`，`name=""` 但 `__post_init__` 会把空 name 改为 `client_instance_id`，`region="local"`，`version="dev"`，`cluster="local"`，`capabilities=[]`，`labels={}`，`structured=WorkerCapabilities()`，`heartbeat_every=timedelta(seconds=10)`。`validate()` 会拒绝空 endpoint、client_instance_id、namespace、app、name、cluster，以及非正 heartbeat。
-
-Python demo 覆盖 operator scope：`TIKEO_WORKER_ENDPOINT` 默认 `http://127.0.0.1:9998`，`TIKEO_WORKER_CLIENT_INSTANCE_ID` 默认 `python-worker-demo-local`，namespace/app 默认 `dev-alpha`/`orders`，cluster/region 默认 `local`，tag 包含 `python` 和 `manual-demo`，默认 processor 为 `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception`，`worker_pool` 默认 `python-blue`。插件 SQL 默认启用时，会广告 plugin type `sql` 与 processor `billing.sql-sync`。
-
-## 最小 Worker
-
-最小 Python Worker 只需要 config、processor、client 与 outbound session。下面片段保留源码 API，但省略 demo 中的 script runner registry；实际环境只有在工具真实存在时才注册 SRT、Deno、container 或 local command runner。
-
-```python
-import os
-import time
-import tikeo
-
-config = tikeo.local_config(
-    os.getenv("TIKEO_WORKER_ENDPOINT", "http://127.0.0.1:9998"),
-    os.getenv("TIKEO_WORKER_CLIENT_INSTANCE_ID", "python-worker-demo-local"),
-)
-config.namespace = "dev-alpha"
-config.app = "orders"
-config.add_tag("python")
-config.add_sdk_processor("demo.echo")
-
-client = tikeo.Client(config)
-
-def process(task: tikeo.TaskContext) -> tikeo.TaskOutcome:
-    task.log_info("python echo started")
-    return tikeo.succeeded("python demo echo processed")
-
-while True:
-    try:
-        session = client.connect()
-        stop = session.start_heartbeat()
-        try:
-            session.process_next(process)
-        finally:
-            stop.set()
-            session.close()
-    except Exception as exc:
-        print(f"worker tunnel ended, reconnecting: {exc}")
-        time.sleep(2)
-```
-
-能力广告必须保守：`add_sdk_processor`、`add_script_runner`、`add_plugin_processor` 会进入 `structured_capabilities`，调度器会据此选择 Worker。Python 易于调用本地命令，因此更要保证 sandbox runner 来源、PATH、timeout、输出大小、网络权限和 secret refs 都受控。业务任务日志使用 `TaskContext.log_info/log_error`，SDK 诊断日志使用 `configure_logging(LogConfig.from_env())`，两者不要混淆。
-
-## Management API 与管理客户端凭证
-
-Python management helper 位于 `sdks/python/tikeo/src/tikeo/management.py`。`ManagementClient(endpoint, api_key, namespace="default", app="default")` 会 trim endpoint，空 namespace/app 默认 `default`，用 `requests.Session` 注入 `accept: application/json` 和 `x-tikeo-api-key`。凭证必须来自 `TIKEO_MANAGEMENT_API_KEY` 或 Secret store；不要把浏览器 session、OIDC cookie 或人类 bearer token 包装成 SDK key。
-
-helper 名称与语义：`api_job(name, processor_name)` 创建 `scheduleType=api` job，默认 retry policy 为 enabled、3 次、5 秒、2 倍退避、60 秒；`plugin_api_job` 写入 `processorType`；`script_api_job` 写入 `scriptId`；`api_trigger()` 输出 `triggerType=api`、`executionMode=single`；`broadcast_api_trigger(selector)` 输出 `triggerType=api`、`executionMode=broadcast` 和 `broadcastSelector`。
-
-```python
-import os
-import tikeo
-
-management = tikeo.ManagementClient(
-    os.getenv("TIKEO_MANAGEMENT_ENDPOINT", "http://127.0.0.1:9090"),
-    os.environ["TIKEO_MANAGEMENT_API_KEY"],
-    "dev-alpha",
-    "orders",
-)
-created = management.create_job(tikeo.api_job("python-echo-api", "demo.echo"))
-instance = management.trigger_job(created.id, tikeo.api_trigger())
-assert instance.trigger_type == "api"
-assert instance.execution_mode == "single"
-
-selector = tikeo.BroadcastSelectorRequest(
-    tags=["manual-demo"],
-    region="us-east-1",
-    labels={"worker_pool": "python-blue"},
-)
-management.trigger_job(created.id, tikeo.broadcast_api_trigger(selector))
-```
-
-参考锚点：[`POST /api/v1/jobs`](../reference/management-openapi#post-api-v1-jobs)、[`POST /api/v1/jobs/{job}:trigger`](../reference/management-openapi#post-api-v1-jobs-job-trigger)、[`GET /api/v1/instances/{instance}`](../reference/management-openapi#get-api-v1-instances-instance)、[`GET /api/v1/instances/{instance}/logs`](../reference/management-openapi#get-api-v1-instances-instance-logs)、[`DispatchTask`](../reference/worker-tunnel-protobuf#dispatchtask)。
-
-## Demo 行为与脚本边界
-
-Python demo 会按环境变量注册多语言脚本 runner：默认语言集合通常包括 shell、python、javascript、typescript、powershell、php、groovy、rhai；auto sandbox 下 JS/TS 走 Deno，其它语言优先 SRT。`TIKEO_SANDBOX_AUTO_INSTALL` 可关闭工具自动安装。验收时要检查 runner 注册日志和最终 registration，确保只广告真正可执行的 `script_runners`。如果某个 runner 缺失，任务应返回可诊断失败，而不是被静默伪成功。
-
-## 失败与异常 demo
-
-所有语言 demo 都区分业务失败和运行时异常。`demo.fail` 返回正常的 failed `TaskOutcome`，用于验证业务规则失败；`demo.exception` 会 throw、panic、raise 或返回 processor error，用于验证 SDK 能把真实异常栈作为任务日志透传，同时仍把实例结果标记为失败。验收时两个 processor 都要触发：前者证明业务失败语义，后者证明异常堆栈能穿过 Worker Tunnel 并出现在 Notification Center 的执行透传页面。
-
-## 运维依据与排错边界
-
-核对 Python 集成时，先读 `sdks/python/tikeo/src/tikeo/config.py` 中 dataclass 默认值、`validate()` 和 `normalize()`，再读 `client.py` 中 `_register_message`、`Session.start_heartbeat`、`process_next` 和 `TaskResult` 写回。`task.py` 规定 processor 是接收 `TaskContext` 并返回 `TaskOutcome` 的 callable，实例日志只能通过 `log_info` 和 `log_error` 进入任务审计。demo 包把脚本 runner、plugin SQL、dry-run 与 live tunnel 都拆成环境变量，适合现场证明每个开关的影响。排错时先打印或检查 registration，确认 namespace/app、cluster/region、`worker_pool`、`structured.sdk_processors` 与目标 job 匹配，再看 `broadcastSelector` 是否过窄或过宽。Python 能快速调用本地命令，但文档和运维都应坚持最小能力广告，避免把工具缺失误判成业务失败。
-
-## 生产上线检查
-
-上线前把 Python Worker 运行在固定 virtualenv 或不可变容器镜像中，锁定依赖版本，并把 sandbox 工具安装路径纳入变更管理。`client_instance_id` 只用于稳定观测，真正的 Worker 身份、租约、generation 和 fencing token 都来自 Server 注册响应。Python 生态灵活但风险更高：新增本地命令、脚本语言、网络访问或 writable path 前，应先定义审计范围和回滚方式。Management API key 应由 Secret store 注入到 `TIKEO_MANAGEMENT_API_KEY`，只给当前 namespace/app 所需权限；异常处理、SDK debug 日志和任务 payload 日志都不能泄露密钥、secret refs 或敏感输入。
-
-生产观测还应覆盖进程内存、虚拟环境依赖漂移、sandbox 工具解析结果、heartbeat 延迟、任务失败分类和 management 请求错误率。发布后先用单副本连接 live tunnel，再扩容 worker pool，确认能力快照没有因为本机工具差异而变化。
-
-如果 Python Worker 还执行数据处理脚本，建议把输入样本、最大输出、临时目录清理、依赖缓存和网络白名单写入发布检查表，避免同一 processor 在不同主机上表现不一致。
-
-灰度期间保留 dry-run 与单任务运行脚本，便于在不扩大调度范围的情况下复核一个 job instance 的完整生命周期。
-
-灰度完成后再扩大副本数量。
-
-上线复核必须记录版本、配置和命令。
-
-## 现场验收 runbook
-
-1. SDK 测试：`cd sdks/python/tikeo && python -m pip install -e .[test] && python -m pytest`。demo dry-run：`cd examples/python/worker-demo && python -m pip install -e ../../../sdks/python/tikeo && python -m pip install -e . && TIKEO_WORKER_DRY_RUN=1 python -m tikeo_python_worker_demo`。
-2. dry-run 期望：输出 registration、structured capabilities、heartbeat sequence；进程不监听业务 HTTP 端口，也不会要求 Server inbound 调用 Worker。
-3. live 验收：启动 Server，设置 `TIKEO_WORKER_ENDPOINT=http://127.0.0.1:9998`、namespace/app、cluster/region 和 `TIKEO_WORKER_POOL=python-blue`，运行 demo，确认 Web 控制台显示 outbound Worker session。
-4. Management 验收：用 `ManagementClient` 创建 `api_job("python-echo-api", "demo.echo")` 并 `api_trigger()`；Server 侧确认 `x-tikeo-api-key` 来源为 `TIKEO_MANAGEMENT_API_KEY`，响应 `triggerType=api` 与 `executionMode=single`。
-5. 广播验收：只在需要 fan-out 时使用 `broadcast_api_trigger`，用 `broadcastSelector` 限定 tag `manual-demo` 与 label `worker_pool=python-blue`。
-6. 安全验收：禁用或移除 SRT/Deno 后重新启动，确认不可用 runner 不被广告；触发 `demo.fail`，确认失败可见且 Worker 仍保持或重建 tunnel。
+先读 [SDK 与 API 集成指南](../integrations/sdk-and-api)。本文只说明 Python 特有的依赖安装、最小 Worker、异常捕获和 Management client 写法。Python SDK 位于 `sdks/python/tikeo`；demo 位于 `examples/python/worker-demo`。
 
 ## 前置条件
 
-执行本页命令前，请先满足页面列出的安装、认证和权限要求。本地示例默认 Server 使用 `config/dev.toml`，客户端访问 `127.0.0.1`，令牌保存在 shell 变量中，不写入文件或截图。
+| Requirement | Value |
+| --- | --- |
+| Package | `tikeo` |
+| 仓库版本 | `0.2.0` |
+| Python baseline | `>=3.11` |
+| Runtime deps | `grpcio>=1.76.0`, `grpcio-tools>=1.76.0`, `protobuf>=6.0.0`, `requests>=2.32.0` |
+| Test extra | `pytest>=9.0.0` |
+
+```bash
+python3 -m pip install "tikeo==${TIKEO_VERSION}"
+cd sdks/python/tikeo
+python3 -m pip install -e '.[test]'
+python3 -m pytest
+```
+
+## 最小 Worker
+
+`local_config(endpoint, client_instance_id)` 将 namespace/app 默认成 `default`，cluster/region 默认成 `local`，version 默认 `dev`，heartbeat 默认 10 秒。只添加 Worker 真正能运行的 processor。
+
+```python
+import tikeo
+
+
+def process(task: tikeo.TaskContext) -> tikeo.TaskOutcome:
+    task.log_info(f"python echo processor={task.processor_name}")
+    return tikeo.succeeded("python echo processed")
+
+
+def main() -> None:
+    config = tikeo.local_config("http://127.0.0.1:9998", "python-worker-1")
+    config.namespace = "sdk-smoke"
+    config.app = "management"
+    config.add_sdk_processor("demo.echo")
+    config.labels["worker_pool"] = "python-blue"
+    client = tikeo.Client(config)
+    client.register_processor("demo.echo", process)
+    client.run()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+## 异常捕获
+
+| Case | Python 行为 |
+| --- | --- |
+| 预期业务失败 | 返回 `tikeo.failed("message")`。 |
+| Processor exception | 抛异常；SDK 上报 task failure 并记录错误路径。 |
+| 不支持的 processor | 返回 `tikeo.failed(...)`，不要广告未实现 processor。 |
+| Task logs | 使用 `TaskContext.log_info` / `log_error`；日志可通过 Management API logs endpoint 查看。 |
+
+## Management client 写法
+
+```python
+import os
+import tikeo
+
+client = tikeo.ManagementClient(
+    "http://127.0.0.1:9090",
+    os.environ["TIKEO_MANAGEMENT_API_KEY"],
+    "sdk-smoke",
+    "management",
+)
+job = client.create_job(tikeo.api_job("python-echo-api", "demo.echo"))
+instance = client.trigger_job(job.id, tikeo.api_trigger())
+broadcast = tikeo.broadcast_api_trigger(tikeo.BroadcastSelectorRequest(labels={"worker_pool": "python-blue"}))
+print(f"instance={instance.id} triggerType=api executionMode=single")
+print(f"broadcastSelector={broadcast.broadcast_selector}")
+```
+
+`ManagementClient` 发送 `x-tikeo-api-key`，trim endpoint，空 namespace/app 默认 `default`，并提供 `api_job`、`api_trigger`、`broadcast_api_trigger`、`BroadcastSelectorRequest`：
+
+- Create helper → [`POST /api/v1/jobs`](../reference/management-openapi#post-api-v1-jobs)
+- Trigger helper → [`POST /api/v1/jobs/{job}:trigger`](../reference/management-openapi#post-api-v1-jobs-job-trigger)
+- Instance polling → [`GET /api/v1/instances/{instance}`](../reference/management-openapi#get-api-v1-instances-instance)
+- Log inspection → [`GET /api/v1/instances/{instance}/logs`](../reference/management-openapi#get-api-v1-instances-instance-logs)
+- Worker dispatch → [`DispatchTask`](../reference/worker-tunnel-protobuf#dispatchtask)
 
 ## 验收
 
-完成本页步骤后，用对应 API、UI、构建、smoke 或部署检查验证结果。有效验收至少包含执行的命令、检查的路由或文件，以及观察到的状态或产物。
+| Check | Command or evidence |
+| --- | --- |
+| SDK tests | `cd sdks/python/tikeo && python3 -m pytest` |
+| Worker registration | Worker 带 `demo.echo` 和 `worker_pool=python-blue`。 |
+| API trigger | Instance 显示 `triggerType=api` 和 `executionMode=single`。 |
+| Worker logs | Instance logs 包含 `python echo processed`。 |
 
 ## 故障排查
 
-步骤失败时，先保留完整命令、响应状态和 Server 日志时间窗口，再检查认证、namespace/app scope、Worker 匹配、存储 readiness 和代理行为，不要直接修改生产配置。
+| 现象 | 修复 |
+| --- | --- |
+| `requests` call unauthorized | 检查 `TIKEO_MANAGEMENT_API_KEY` 和 `x-tikeo-api-key`。 |
+| Worker 无法 import SDK | 安装 package 或运行仓库 editable install。 |
+| 没有匹配 Worker | 比对 namespace/app、processor name、`worker_pool`。 |
+| Broadcast 到错误 pool | 使用带 labels/tags/cluster/region 的 `BroadcastSelectorRequest`。 |
 
 ## 生产检查清单
 
-- [ ] 密钥通过环境变量或平台 Secret 引用管理，不写入示例。
-- [ ] 已把本地 `127.0.0.1` 命令替换成真实域名、TLS 和认证方式。
-- [ ] 已记录变更面的回滚和证据采集方式。
-- [ ] 运维人员可以在没有隐藏 shell 历史或隐式状态的情况下复现验收。
+- [ ] 使用 Python 3.11+ runtime image。
+- [ ] Function 注册前不要广告 processor。
+- [ ] API key 从环境或 secret manager 注入。
+- [ ] Exception 日志包含足够 task context。
+- [ ] 非幂等 Python job 已审查 retry policy。
+
+
+## 统一配置参数与默认值
+
+不同语言 SDK 的代码写法不同，但接入 Tikeo 时面对的是同一组语义。不要把这些参数理解成各语言私有字段；它们最终都会进入 Worker Tunnel 注册、任务派发、Management API 创建任务和实例触发链路。
+
+| 参数 | 默认值 | 生产建议 |
+| --- | --- | --- |
+| `endpoint` | 本地 Worker Tunnel 通常是 `http://127.0.0.1:9998` | 生产必须指向 Server 暴露的 Worker Tunnel 地址，并与 TLS/mTLS 配置一致。 |
+| `namespace` | `default` 或示例中的 `sdk-smoke` | 每个团队、租户或环境应使用清晰命名，不要把生产任务混进 default。 |
+| `app` | `default` 或示例中的 `management` | 与 Management API Key 的 app scope 保持一致。 |
+| `clientInstanceId` | 示例手工指定 | 生产中应唯一且稳定，便于 Worker 页面和审计定位。 |
+| `cluster` / `region` | `local` | 多机房部署必须真实填写，广播和选择器会使用这些信息。 |
+| `labels` | 空 map | 用 `worker_pool`、`region`、`cluster` 等标签表达调度边界。 |
+| `sdkProcessors` | 空列表 | 只声明当前进程真实实现的 processor，避免实例被派发后失败。 |
+| `heartbeat` | 约 10 秒 | 保持默认即可；高延迟网络再根据运维策略调整。 |
+
+## 管理客户端凭证
+
+Management client 使用应用级 API Key，不使用浏览器里的人工登录 token。创建 key 时要绑定 namespace/app，运行时通过 `TIKEO_MANAGEMENT_API_KEY` 注入。所有语言的请求都会发送 `x-tikeo-api-key`，创建任务时应明确 `triggerType=api`、`executionMode=single`，需要广播时再设置 `broadcastSelector`。
+
+| 决策 | 推荐做法 | 风险 |
+| --- | --- | --- |
+| API Key 保存位置 | Secret Manager、Kubernetes Secret 或 CI secret | 不要写进代码、README、截图或 shell 历史。 |
+| 权限范围 | app-scoped service account | 不要用 Owner 或全局管理账号跑 SDK。 |
+| 轮换 | 发布窗口内双写新旧 key | 直接删除旧 key 会让 Worker 或自动化立即失败。 |
+| 验证 | 先创建 API 手动触发任务，再触发一次 | 只构建通过不能证明 Management API 可用。 |
+
+## 现场验收 runbook
+
+1. 确认 Server `/readyz` 通过，Web 控制台能看到目标 namespace/app。
+2. 使用当前语言启动一个只声明 `demo.echo` 的 Worker。
+3. 在 Worker 页面确认 `clientInstanceId`、region、cluster、labels 和 processor 列表正确。
+4. 使用 Management client 创建 API 触发任务，确认返回 job id。
+5. 触发一次 single instance，进入 Instances 页面查看状态、Worker、日志和 result。
+6. 如果要验证广播，设置 `broadcastSelector`，确认多个符合标签的 Worker 都生成 attempt 或广播实例证据。
+7. 制造一次业务失败和一次运行时异常，确认日志中能看到 message、stack 或错误路径。
+8. 给失败事件绑定通知渠道，确认消息中的实例 ID、时间、状态、操作人、执行类型可以追溯。
+
+## 故障排查表
+
+| 现象 | 可能原因 | 处理方式 |
+| --- | --- | --- |
+| Worker 页面看不到进程 | endpoint/TLS/mTLS 或 token 不匹配 | 先看 Worker 启动日志，再看 Server Worker Tunnel 日志。 |
+| 实例一直等待 | processorName、标签或 region/cluster 不匹配 | 对照 Jobs 页和 Workers 页的 capability。 |
+| 触发 API 返回 401/403 | `TIKEO_MANAGEMENT_API_KEY` 无效或 scope 不对 | 重新创建 app-scoped key，确认 header 是 `x-tikeo-api-key`。 |
+| 执行失败但没有日志 | processor 异常未被 SDK 捕获或进程崩溃 | 升级 SDK，确保 task log API 被调用，并查看 Worker 本地日志。 |
+| 广播没有命中目标 | `broadcastSelector` 标签与 Worker labels 不一致 | 先用单实例验证，再逐步加 selector。 |
+
+## 生产检查清单
+
+- [ ] 依赖坐标固定到发布版本，而不是随意使用本地源码路径。
+- [ ] WorkerConfig 默认值已经被生产环境显式覆盖。
+- [ ] 最小 Worker 在目标环境成功注册并展示能力。
+- [ ] 管理客户端凭证来自 Secret，不来自人工账号。
+- [ ] 现场验收 runbook 的创建、触发、日志、失败、通知链路均通过。

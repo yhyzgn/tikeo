@@ -1,70 +1,78 @@
+---
+title: Jobs user guide
+description: Human operator guide for the Tikeo jobs console page.
+---
+
 # Jobs user guide
 
-## Overview
+Use Jobs to define reusable execution contracts: owner scope, processor or script binding, schedule, retry behavior, worker eligibility, notification bindings, version history, and manual or API triggers.
 
-The Jobs page manages job definitions: schedule type, namespace/app ownership, SDK processor/script/plugin binding, retry policy, calendars, canary target, version history, rollback, single execution, broadcast execution, and scheduling advice. Treat a Job as the contract that tells Tikeo what should run and which Workers are eligible to run it.
-
-Implementation anchors: `web/src/pages/JobsPage.tsx` uses `/api/v1/jobs`, `/api/v1/jobs/{job}`, `/api/v1/jobs/{job}:trigger`, `/api/v1/jobs/{job}/versions`, `/api/v1/jobs/{job}/rollback`, `/api/v1/jobs/{job}/scheduling-advice`, `/api/v1/jobs/topology`, and `/api/v1/jobs/{job}/impact`.
+![Jobs user guide screenshot](pathname:///img/screenshots/jobs.svg)
 
 ## Prerequisites
 
-- `jobs:read` to view Jobs; `jobs:write` to create, edit, delete, or rollback.
-- `instances:execute` to trigger work.
-- Namespace, app, Worker pool, processor, script, plugin processor, and calendar are already prepared.
-- Workers advertise matching structured capabilities; job names are not routing rules.
+- You can sign in to the Tikeo console and your role grants read access to this page.
+- The target namespace/app is known before you change runtime objects.
+- At least one recent instance, worker session, or audit event exists when you are verifying live behavior.
+- For production changes, prepare a rollback note and an expected observation before saving.
 
-```bash
-curl -fsS http://127.0.0.1:9090/api/v1/jobs \
-  -H "authorization: Bearer $TIKEO_TOKEN" | jq '.data.items[] | {id,name,namespace,app,enabled}'
-```
+## When to use
 
-## Open the page
+- Create a new API, cron, fixed-rate, or one-shot task.
+- Change retry, schedule, or worker targeting.
+- Trigger a manual single execution or broadcast execution.
+- Review impact before modifying a widely used task.
 
-1. Log in to the console.
-2. Select **Jobs** or open `/jobs`.
-3. Filter by keyword, namespace, app, or schedule type.
-4. Use topology or impact views before changing high-fan-out jobs.
+## Key areas
 
-## Common tasks
+| Area | What to read first |
+| --- | --- |
+| Definition form | Name, namespace, app, schedule type, processor/script/plugin binding, timeout, retry, and misfire settings. |
+| Targeting panel | Worker pool, tags, region, cluster, broadcastSelector, and scheduling advice. |
+| Version drawer | Immutable change history, author, created time, diff, rollback entry point. |
+| Trigger panel | single trigger, broadcast trigger, API parameters, and result link to the created instance. |
 
-### Create a job
+## Typical workflow
 
-Choose namespace/app first. Select API, cron, fixed rate, fixed delay, once, or daily time interval. Bind the executor: SDK processor, approved script, or enabled plugin processor. Configure retry policy, misfire policy, calendar, worker pool, and optional canary target. Save, then open scheduling advice.
+1. Choose namespace and app before any execution details.
+2. Select the executor binding and verify at least one Worker advertises that capability.
+3. Set retry and timeout based on failure class, not by copying another Job blindly.
+4. Save, inspect version history, then open scheduling advice.
+5. Trigger a single run first; use broadcast only after selector preview is correct.
 
-### Edit and version a job
+## Decision table
 
-Changing scope, processor, script, calendar, or retry policy creates operational impact. Confirm authorization for both source and destination scope when moving a job. After saving, inspect versions and note the version number for rollback.
-
-### Trigger single execution
-
-API triggers use `triggerType=api` and `executionMode=single`. After triggering, open Instances and inspect `/api/v1/instances/{instance}` and `/api/v1/instances/{instance}/logs`.
-
-### Trigger broadcast execution
-
-Broadcast is opt-in and requires `broadcastSelector`. Use tags, region, cluster, or labels only if Workers actually advertise them. Inspect every execution node; one failed node can produce `partial_failed`.
+| Situation | Human decision | Evidence to collect |
+| --- | --- | --- |
+| First setup | Use narrow scope and one small verification run. | Screenshot, object id, instance id, audit event. |
+| Incident | Freeze risky changes until the failing object is understood. | Timeline, attempts, logs, delivery attempts. |
+| Production rollout | Change one dimension at a time and compare before/after. | Version diff, Dashboard health, audit trail. |
+| Rollback | Prefer reverting to a known version over ad-hoc edits. | Previous version id, rollback audit, new verification run. |
 
 ## Verify
 
-- You can create an API job and trigger it through `/api/v1/jobs/{job}:trigger`.
-- Versions show changes after edits and rollback restores a selected version.
-- Scheduling advice shows eligible Workers or explains why none match.
-- Instance logs prove processor execution after a trigger.
-- Broadcast selectors target only expected Workers.
+- The page shows a current object, not stale browser state.
+- A user with read-only permissions can inspect evidence but cannot make privileged changes.
+- A real operation produces a visible audit event and, when relevant, an instance or delivery record.
+- The console link can be copied into an incident note and still identifies the same object.
 
 ## Troubleshooting
 
-| Symptom | Action |
+| Symptom | Response |
 | --- | --- |
-| Job remains pending | Compare processor, namespace/app, and selector with Workers. |
-| Trigger unauthorized | Check `instances:execute` and the credential type. |
-| Processor options are missing | Start a Worker that advertises the processor or plugin. |
-| Rollback changes too much | Re-open version history and compare created time/author before retrying. |
-| Broadcast hits wrong nodes | Tighten selector labels/region/cluster and verify Worker metadata. |
+| Page looks empty | Check namespace/app filters and role permissions before assuming data loss. |
+| Object exists but action is disabled | Confirm RBAC, object state, and whether the action would cross scope boundaries. |
+| UI result differs from chat/email | Trust Tikeo delivery attempts and instance evidence first, then compare provider history. |
+| Time order is confusing | Use server timestamps, attempt numbers, and audit request ids instead of local browser order. |
+
+## Reference anchors
+
+This guide intentionally keeps API details in the appendix. If you need to inspect implementation or automate the same workflow, use these anchors: `Jobs`, `web/src/pages/JobsPage.tsx`, `/api/v1/jobs`, `/api/v1/jobs/{job}:trigger`, `triggerType=api`, `executionMode=single`, `broadcastSelector`.
 
 ## Production checklist
 
-- [ ] Every production Job has an owner namespace/app and a clear processor binding.
-- [ ] Retry and misfire policies are deliberate, not defaults copied blindly.
-- [ ] Broadcast selectors are tested against live Worker metadata.
-- [ ] Version history and rollback are part of release procedures.
-- [ ] Trigger evidence includes instance ID, logs, and audit entries.
+- [ ] Owner scope and operational responsibility are clear.
+- [ ] The change has a small verification path and rollback note.
+- [ ] Evidence includes object id, time, operator, status, and related instance or delivery id.
+- [ ] Public links use the configured platform URL when they leave the console.
+- [ ] The team knows whether this page is describing execution, notification, alerting, or governance semantics.

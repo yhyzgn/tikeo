@@ -1,38 +1,40 @@
 ---
 title: Rust Worker SDK
-description: Rust SDK 与 Worker demo 的 operator-grade 验收入口。
+description: Rust 依赖、最小 Worker、异常处理和 Management client 写法。
 ---
 
 # Rust Worker SDK
 
-Rust SDK 位于 `sdks/rust/tikeo`，可运行 Worker demo 位于 `examples/rust/worker-demo`。本文只记录源码中能核对的事实：配置来自 `src/config.rs`，Management helper 来自 `src/management.rs`，demo 行为来自 `examples/rust/worker-demo/src/main.rs`。Worker 是 **outbound-only**：进程主动连接 Server 的 Worker Tunnel、注册能力、接收 `DispatchTask`，再通过同一 tunnel 回传日志和结果；不要把业务 Worker 写成 inbound HTTP Service，也不要要求 Server 主动回调 Worker。
+先读 [SDK 与 API 集成指南](../integrations/sdk-and-api)。本文只说明 Rust 特有的依赖、最小 Worker、异常捕获和 Management client 写法。Rust SDK 位于 `sdks/rust/tikeo`；demo 位于 `examples/rust/worker-demo`。
 
-## 依赖坐标
+## 前置条件
 
-发布 crate 名称是 `tikeo`，当前源码 manifest 是 `sdks/rust/tikeo/Cargo.toml`：`name = "tikeo"`、`version = "0.2.0"`、`edition = "2024"`、`rust-version = "1.95"`。安装时使用不带 `v` 的版本号：
+| Requirement | Value |
+| --- | --- |
+| Crate | `tikeo` |
+| 仓库版本 | `0.2.0` |
+| Rust edition | `2024` |
+| Rust baseline | `1.95` |
+| Optional feature | `wasm` 启用 `wasmtime` |
+| 主要 runtime deps | `tonic`, `prost`, `tokio`, `reqwest`, `serde`, `sha2` |
+
+安装发布版：
 
 ```bash
 cargo add tikeo@${TIKEO_VERSION}
 ```
 
-或在 `Cargo.toml` 中声明：
+验证仓库内 SDK：
 
-```toml
-[dependencies]
-tikeo = "${TIKEO_VERSION}"
+```bash
+cargo fmt --manifest-path sdks/rust/tikeo/Cargo.toml -- --check
+cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings
+cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
 ```
-
-本仓库内 demo 使用路径依赖，实际集成时应切换到发布版本或内部 registry 固定版本。Rust SDK 导出 `WorkerConfig`、`WorkerClient`、`TaskContext`、`TaskOutcome`、`TaskProcessor`、`ManagementClient`、`ManagementCreateJobRequest`、`ManagementTriggerJobRequest`、`ManagementBroadcastSelectorRequest` 等符号。
-
-## WorkerConfig 默认值
-
-`WorkerConfig::local(endpoint, client_instance_id)` 是源码里的最小开发配置。它不会猜测生产 scope，只填入可本地启动的默认值：`endpoint` 来自参数，`client_instance_id` 来自参数，`app="default"`，`namespace="default"`，`cluster="local"`，`region="local"`，`capabilities=[]`，`structured_capabilities=WorkerCapabilities::default()`，`labels={}`。注册消息会把 `WorkerClusterElection` 写为 `enabled=true`、`domain=""`、`priority=100`。
-
-`examples/rust/worker-demo/src/main.rs` 在 demo 层覆盖这些默认值：`TIKEO_WORKER_ENDPOINT` 默认 `http://127.0.0.1:9998`，`TIKEO_WORKER_CLIENT_INSTANCE_ID` 默认 `rust-worker-demo-local`，`TIKEO_WORKER_NAMESPACE` 默认 `dev-alpha`，`TIKEO_WORKER_APP` 默认 `orders`，`TIKEO_WORKER_CLUSTER` 和 `TIKEO_WORKER_REGION` 默认 `local`，`worker_pool` 默认 `rust-blue`。demo 会添加 tag `rust`、`manual-demo`，并默认广告 `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception` 这些 SDK processor。插件 SQL 默认启用路径来自 `enabled_by_default("TIKEO_ENABLE_PLUGIN_SQL")`，会添加 plugin processor `type=sql`、`processorName=billing.sql-sync`，并标记 label `plugin_sql=enabled`。
 
 ## 最小 Worker
 
-最小 Worker 只需要创建 config、声明真实 processor、构造 client，并在 outbound tunnel 上处理任务。下面代码保留了源码符号，但省略了 demo 中的多语言脚本 runner；生产时只有当 runner 真的可用时才调用 `add_script_runner`。
+`WorkerConfig::local(endpoint, client_instance_id)` 将 namespace/app 默认成 `default`，cluster/region 默认成 `local`，labels 和 structured capabilities 为空。只添加 Worker 真正能运行的 processor。
 
 ```rust
 use async_trait::async_trait;
@@ -42,118 +44,150 @@ struct Echo;
 
 #[async_trait]
 impl TaskProcessor for Echo {
-    async fn process(&self, context: TaskContext) -> Result<TaskOutcome, WorkerSdkError> {
-        context.log_info("rust echo started");
-        Ok(TaskOutcome::Success("rust demo echo processed".to_owned()))
+    async fn process(&self, task: TaskContext) -> TaskOutcome {
+        task.log_info(format!("processor={} instance={}", task.processor_name, task.instance_id)).await;
+        TaskOutcome { success: true, message: "rust echo processed".to_owned() }
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), WorkerSdkError> {
-    let endpoint = std::env::var("TIKEO_WORKER_ENDPOINT")
-        .unwrap_or_else(|_| "http://127.0.0.1:9998".to_owned());
-    let mut config = WorkerConfig::local(endpoint, "rust-worker-demo-local");
-    config.namespace = "dev-alpha".to_owned();
-    config.app = "orders".to_owned();
-    config.add_tag("rust");
+    let mut config = WorkerConfig::local("http://127.0.0.1:9998", "rust-worker-1");
+    config.namespace = "sdk-smoke".to_owned();
+    config.app = "management".to_owned();
     config.add_sdk_processor("demo.echo");
+    config.labels.insert("worker_pool".to_owned(), "rust-blue".to_owned());
 
-    let client = WorkerClient::new(config);
-    let mut session = client.connect().await?;
-    let _outcome = session.process_next(&Echo).await?;
-    session.close().await?;
+    let mut client = WorkerClient::connect(config).await?;
+    client.register_processor("demo.echo", Echo).await?;
+    client.run().await
+}
+```
+
+## 异常捕获
+
+| Case | Rust 行为 |
+| --- | --- |
+| 预期业务失败 | 返回 `TaskOutcome { success: false, message }`；instance 记录失败，job retry policy 可重试。 |
+| Worker/client 失败 | 返回或传播 `WorkerSdkError`；退出或重连前记录上下文。 |
+| 不支持的 processor | 返回 failed `TaskOutcome`，不要广告未实现 processor。 |
+| Task logs | 使用 `TaskContext::log_info` / `log_error`；日志可通过 Management API logs endpoint 查看。 |
+
+## Management client 写法
+
+```rust
+use tikeo::{ManagementBroadcastSelectorRequest, ManagementClient, ManagementCreateJobRequest, ManagementTriggerJobRequest};
+
+#[tokio::main]
+async fn main() -> Result<(), tikeo::WorkerSdkError> {
+    let client = ManagementClient::new(
+        "http://127.0.0.1:9090",
+        std::env::var("TIKEO_MANAGEMENT_API_KEY").expect("TIKEO_MANAGEMENT_API_KEY"),
+        "sdk-smoke",
+        "management",
+    );
+
+    let job = client.create_job(ManagementCreateJobRequest::api("rust-echo-api", "demo.echo")).await?;
+    let instance = client.trigger_job(&job.id, ManagementTriggerJobRequest::api()).await?;
+    let broadcast = ManagementTriggerJobRequest::broadcast_api(Some(ManagementBroadcastSelectorRequest {
+        tags: None,
+        region: None,
+        cluster: None,
+        labels: Some(std::collections::HashMap::from([("worker_pool".to_owned(), "rust-blue".to_owned())])),
+    }));
+
+    println!("instance={} triggerType=api executionMode=single", instance.id);
+    println!("broadcastSelector={:?}", broadcast.broadcast_selector);
     Ok(())
 }
 ```
 
-操作约束：`add_sdk_processor`、`add_script_runner`、`add_plugin_processor` 只是能力广告，不会自动让宿主具备能力。缺少 SRT、Deno、container、WASM 或插件运行时的时候，应 fail closed，不要把不可执行能力发布给调度器。任务日志必须通过 `TaskContext` 发送，才能绑定到 job instance 与 assignment token；SDK 诊断日志用于连接、注册、心跳、sandbox 解析，不等于业务任务日志。
+`ManagementClient::new` 发送 `x-tikeo-api-key`，trim endpoint，空 namespace/app 默认 `default`，并把 helper payload 映射到这些 anchor：
 
-## Management API 与管理客户端凭证
-
-Rust management client 的事实来源是 `sdks/rust/tikeo/src/management.rs`。`ManagementClient::new(endpoint, api_key, namespace, app)` 会 trim endpoint 尾部斜杠，把空 namespace/app 变成 `default`，HTTP timeout 为 30 秒，并在每次请求发送 `x-tikeo-api-key` 与 `accept: application/json`。凭证应来自 Secret store 或环境变量 `TIKEO_MANAGEMENT_API_KEY`；不要把浏览器 session、OIDC cookie 或人类 bearer token 传给 Worker。源码 helper 名称如下：
-
-- `ManagementCreateJobRequest::api(name, processor_name)`：创建 `scheduleType=api` 的 SDK processor job，默认 `enabled=true`，`retryPolicy` 为 enabled、3 次、5 秒初始延迟、2 倍退避、60 秒上限。
-- `ManagementCreateJobRequest::plugin_api(name, processor_type, processor_name)`：创建 plugin job，写入 `processorType` 和 `processorName`。
-- `ManagementCreateJobRequest::script_api(name, script_id)`：创建 script job，写入 `scriptId`。
-- `ManagementTriggerJobRequest::api()`：发送 `triggerType=api` 和 `executionMode=single`。
-- `ManagementTriggerJobRequest::broadcast_api(selector)`：发送 `triggerType=api`、`executionMode=broadcast` 与可选 `broadcastSelector`。
-
-```rust
-use tikeo::{
-    ManagementBroadcastSelectorRequest,
-    ManagementClient,
-    ManagementCreateJobRequest,
-    ManagementTriggerJobRequest,
-};
-
-let management = ManagementClient::new(
-    std::env::var("TIKEO_MANAGEMENT_ENDPOINT").unwrap_or_else(|_| "http://127.0.0.1:9090".to_owned()),
-    std::env::var("TIKEO_MANAGEMENT_API_KEY")?,
-    "dev-alpha",
-    "orders",
-);
-let created = management
-    .create_job(ManagementCreateJobRequest::api("rust-echo-api", "demo.echo"))
-    .await?;
-let instance = management
-    .trigger_job(&created.id, ManagementTriggerJobRequest::api())
-    .await?;
-assert_eq!(instance.trigger_type, "api");
-assert_eq!(instance.execution_mode, "single");
-
-let selector = ManagementBroadcastSelectorRequest {
-    tags: Some(vec!["manual-demo".to_owned()]),
-    region: Some("us-east-1".to_owned()),
-    cluster: None,
-    labels: Some(std::collections::HashMap::from([("worker_pool".to_owned(), "rust-blue".to_owned())])),
-};
-let _ = management
-    .trigger_job(&created.id, ManagementTriggerJobRequest::broadcast_api(Some(selector)))
-    .await?;
-```
-
-参考锚点：[`POST /api/v1/jobs`](../reference/management-openapi#post-api-v1-jobs)、[`POST /api/v1/jobs/{job}:trigger`](../reference/management-openapi#post-api-v1-jobs-job-trigger)、[`GET /api/v1/instances/{instance}`](../reference/management-openapi#get-api-v1-instances-instance)、[`GET /api/v1/instances/{instance}/logs`](../reference/management-openapi#get-api-v1-instances-instance-logs)、[`DispatchTask`](../reference/worker-tunnel-protobuf#dispatchtask)。
-
-## Demo 行为与能力边界
-
-Rust demo 默认配置 SDK processor、插件 SQL processor，以及可选脚本 runner。脚本 runner 的 sandbox 后端由 `TIKEO_WORKER_SCRIPT_SANDBOX` 控制；auto 模式会按语言选择 SRT、Deno、container 或 unavailable adapter。`TIKEO_SANDBOX_AUTO_INSTALL=0/false/no/off` 会关闭工具自动安装。`TIKEO_ENABLE_UNAVAILABLE_SCRIPT_ADAPTERS` 只有在显式打开时才注册不可用 adapter；正常验收应要求不可用运行时不被广告。`TIKEO_WORKER_DRY_RUN=1` 或关闭连接时，demo 只验证本地注册与 heartbeat，不会连 live tunnel。
-
-## 失败与异常 demo
-
-所有语言 demo 都区分业务失败和运行时异常。`demo.fail` 返回正常的 failed `TaskOutcome`，用于验证业务规则失败；`demo.exception` 会 throw、panic、raise 或返回 processor error，用于验证 SDK 能把真实异常栈作为任务日志透传，同时仍把实例结果标记为失败。验收时两个 processor 都要触发：前者证明业务失败语义，后者证明异常堆栈能穿过 Worker Tunnel 并出现在 Notification Center 的执行透传页面。
-
-## 运维依据与排错边界
-
-核对 Rust 集成时，先看 `sdks/rust/tikeo/src/config.rs` 中注册消息如何序列化，再看 `src/session.rs` 中 heartbeat、`process_next_with_script_runners`、assignment token 日志和 `TaskResult` 的发送顺序。`src/task.rs` 说明 `TaskOutcome::Succeeded`、`TaskOutcome::Success` 与 `TaskOutcome::Failed` 才是 Worker 结果边界；普通 stdout 只能辅助排错，不能替代实例日志。`examples/rust/worker-demo/src/main.rs` 是 operator demo，不是框架模板：它把 namespace、app、cluster、region、labels、plugin SQL 和脚本 runner 都放到环境变量后面，方便现场逐项开关。遇到任务未派发时，不要先修改业务 processor；先核对 Worker 是否注册到了同一 namespace/app，`structured_capabilities.sdk_processors` 是否包含目标 processor，label 和 `broadcastSelector` 是否收敛到预期池，脚本 runner 是否因为工具缺失而没有广告。
-
-## 生产上线检查
-
-上线前把 Rust Worker 当作独立运行单元管理。配置应由部署系统注入，而不是写死在二进制里；`client_instance_id` 可以稳定关联重连，但 Server 分配的 `worker_id` 才是权威运行身份。多副本部署时，用 namespace、app、cluster、region 和 `worker_pool` label 描述调度边界，不要依赖临时主机名。脚本能力、插件能力和 SDK processor 都应经过发布评审：新增一个 processor 名称等同于扩大调度入口，新增一个 script runner 等同于扩大宿主执行面。Management API key 应只授予对应 namespace/app 的控制面动作，轮换后重启 Worker 或刷新注入配置；任何日志、panic、debug dump 都不得输出密钥值。
-
-## 现场验收 runbook
-
-1. 构建 SDK：`cargo fmt --manifest-path sdks/rust/tikeo/Cargo.toml -- --check`，再执行 `cargo clippy --manifest-path sdks/rust/tikeo/Cargo.toml --all-targets --all-features -- -D warnings` 和 `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features`。
-2. 验证 demo dry-run：`TIKEO_WORKER_DRY_RUN=1 cargo run --manifest-path examples/rust/worker-demo/Cargo.toml`，确认输出包含 registration、`dry_run_heartbeat_sequence`，且没有尝试监听业务 HTTP 端口。
-3. 启动 Server 后跑 live：设置 `TIKEO_WORKER_ENDPOINT=http://127.0.0.1:9998`、namespace/app/cluster/region、`TIKEO_WORKER_POOL=rust-blue`，启动 demo，确认 Web 控制台能看到 outbound Worker session。
-4. 用 management helper 创建 `demo.echo` API job，确认请求携带 `x-tikeo-api-key`，密钥来自 `TIKEO_MANAGEMENT_API_KEY`，触发响应为 `triggerType=api` 与 `executionMode=single`。
-5. 只在需要 fan-out 时测试 `broadcastSelector`；选择 tag `manual-demo` 和 label `worker_pool=rust-blue`，确认只匹配预期 Worker。
-6. 查看实例日志和结果，确认 processor 日志通过 `TaskContext` 绑定到 instance；断开 Worker 后确认 Server stale worker fencing、重连、注销路径符合预期。
-
-## 前置条件
-
-执行本页命令前，请先满足页面列出的安装、认证和权限要求。本地示例默认 Server 使用 `config/dev.toml`，客户端访问 `127.0.0.1`，令牌保存在 shell 变量中，不写入文件或截图。
+- Create helper → [`POST /api/v1/jobs`](../reference/management-openapi#post-api-v1-jobs)
+- Trigger helper → [`POST /api/v1/jobs/{job}:trigger`](../reference/management-openapi#post-api-v1-jobs-job-trigger)
+- Instance polling → [`GET /api/v1/instances/{instance}`](../reference/management-openapi#get-api-v1-instances-instance)
+- Log inspection → [`GET /api/v1/instances/{instance}/logs`](../reference/management-openapi#get-api-v1-instances-instance-logs)
+- Worker dispatch → [`DispatchTask`](../reference/worker-tunnel-protobuf#dispatchtask)
 
 ## 验收
 
-完成本页步骤后，用对应 API、UI、构建、smoke 或部署检查验证结果。有效验收至少包含执行的命令、检查的路由或文件，以及观察到的状态或产物。
+| Check | Command or evidence |
+| --- | --- |
+| SDK tests | `cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features` |
+| Worker registration | Worker 带 `demo.echo` 和 `worker_pool=rust-blue`。 |
+| API trigger | Instance 显示 `triggerType=api` 和 `executionMode=single`。 |
+| Worker logs | Instance logs 包含 `rust echo processed` 或 processor-specific log。 |
 
 ## 故障排查
 
-步骤失败时，先保留完整命令、响应状态和 Server 日志时间窗口，再检查认证、namespace/app scope、Worker 匹配、存储 readiness 和代理行为，不要直接修改生产配置。
+| 现象 | 修复 |
+| --- | --- |
+| Management request unauthorized | 检查 `TIKEO_MANAGEMENT_API_KEY` 和 `x-tikeo-api-key`。 |
+| 没有 Worker 被选中 | 对齐 namespace/app、processor name、`worker_pool` label。 |
+| Broadcast 范围太宽 | 使用 `ManagementTriggerJobRequest::broadcast_api` 和 `ManagementBroadcastSelectorRequest`。 |
+| Worker 因 tunnel error 退出 | 在 demo 式 `WorkerClient` loop 外加 supervisor 和 reconnect policy。 |
 
 ## 生产检查清单
 
-- [ ] 密钥通过环境变量或平台 Secret 引用管理，不写入示例。
-- [ ] 已把本地 `127.0.0.1` 命令替换成真实域名、TLS 和认证方式。
-- [ ] 已记录变更面的回滚和证据采集方式。
-- [ ] 运维人员可以在没有隐藏 shell 历史或隐式状态的情况下复现验收。
+- [ ] `WorkerConfig` 来自部署配置，不写死本地值。
+- [ ] Worker 只广告已实现 processor。
+- [ ] Management key 从 `TIKEO_MANAGEMENT_API_KEY` 或 secret manager 加载。
+- [ ] 非幂等 processor 在使用 `ManagementCreateJobRequest::api` 前审查默认 retry policy。
+- [ ] Broadcast trigger 必须审查 selector。
+
+
+## 统一配置参数与默认值
+
+不同语言 SDK 的代码写法不同，但接入 Tikeo 时面对的是同一组语义。不要把这些参数理解成各语言私有字段；它们最终都会进入 Worker Tunnel 注册、任务派发、Management API 创建任务和实例触发链路。
+
+| 参数 | 默认值 | 生产建议 |
+| --- | --- | --- |
+| `endpoint` | 本地 Worker Tunnel 通常是 `http://127.0.0.1:9998` | 生产必须指向 Server 暴露的 Worker Tunnel 地址，并与 TLS/mTLS 配置一致。 |
+| `namespace` | `default` 或示例中的 `sdk-smoke` | 每个团队、租户或环境应使用清晰命名，不要把生产任务混进 default。 |
+| `app` | `default` 或示例中的 `management` | 与 Management API Key 的 app scope 保持一致。 |
+| `clientInstanceId` | 示例手工指定 | 生产中应唯一且稳定，便于 Worker 页面和审计定位。 |
+| `cluster` / `region` | `local` | 多机房部署必须真实填写，广播和选择器会使用这些信息。 |
+| `labels` | 空 map | 用 `worker_pool`、`region`、`cluster` 等标签表达调度边界。 |
+| `sdkProcessors` | 空列表 | 只声明当前进程真实实现的 processor，避免实例被派发后失败。 |
+| `heartbeat` | 约 10 秒 | 保持默认即可；高延迟网络再根据运维策略调整。 |
+
+## 管理客户端凭证
+
+Management client 使用应用级 API Key，不使用浏览器里的人工登录 token。创建 key 时要绑定 namespace/app，运行时通过 `TIKEO_MANAGEMENT_API_KEY` 注入。所有语言的请求都会发送 `x-tikeo-api-key`，创建任务时应明确 `triggerType=api`、`executionMode=single`，需要广播时再设置 `broadcastSelector`。
+
+| 决策 | 推荐做法 | 风险 |
+| --- | --- | --- |
+| API Key 保存位置 | Secret Manager、Kubernetes Secret 或 CI secret | 不要写进代码、README、截图或 shell 历史。 |
+| 权限范围 | app-scoped service account | 不要用 Owner 或全局管理账号跑 SDK。 |
+| 轮换 | 发布窗口内双写新旧 key | 直接删除旧 key 会让 Worker 或自动化立即失败。 |
+| 验证 | 先创建 API 手动触发任务，再触发一次 | 只构建通过不能证明 Management API 可用。 |
+
+## 现场验收 runbook
+
+1. 确认 Server `/readyz` 通过，Web 控制台能看到目标 namespace/app。
+2. 使用当前语言启动一个只声明 `demo.echo` 的 Worker。
+3. 在 Worker 页面确认 `clientInstanceId`、region、cluster、labels 和 processor 列表正确。
+4. 使用 Management client 创建 API 触发任务，确认返回 job id。
+5. 触发一次 single instance，进入 Instances 页面查看状态、Worker、日志和 result。
+6. 如果要验证广播，设置 `broadcastSelector`，确认多个符合标签的 Worker 都生成 attempt 或广播实例证据。
+7. 制造一次业务失败和一次运行时异常，确认日志中能看到 message、stack 或错误路径。
+8. 给失败事件绑定通知渠道，确认消息中的实例 ID、时间、状态、操作人、执行类型可以追溯。
+
+## 故障排查表
+
+| 现象 | 可能原因 | 处理方式 |
+| --- | --- | --- |
+| Worker 页面看不到进程 | endpoint/TLS/mTLS 或 token 不匹配 | 先看 Worker 启动日志，再看 Server Worker Tunnel 日志。 |
+| 实例一直等待 | processorName、标签或 region/cluster 不匹配 | 对照 Jobs 页和 Workers 页的 capability。 |
+| 触发 API 返回 401/403 | `TIKEO_MANAGEMENT_API_KEY` 无效或 scope 不对 | 重新创建 app-scoped key，确认 header 是 `x-tikeo-api-key`。 |
+| 执行失败但没有日志 | processor 异常未被 SDK 捕获或进程崩溃 | 升级 SDK，确保 task log API 被调用，并查看 Worker 本地日志。 |
+| 广播没有命中目标 | `broadcastSelector` 标签与 Worker labels 不一致 | 先用单实例验证，再逐步加 selector。 |
+
+## 生产检查清单
+
+- [ ] 依赖坐标固定到发布版本，而不是随意使用本地源码路径。
+- [ ] WorkerConfig 默认值已经被生产环境显式覆盖。
+- [ ] 最小 Worker 在目标环境成功注册并展示能力。
+- [ ] 管理客户端凭证来自 Secret，不来自人工账号。
+- [ ] 现场验收 runbook 的创建、触发、日志、失败、通知链路均通过。

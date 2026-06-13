@@ -1,80 +1,78 @@
-# Instances 运维手册
+---
+title: 实例用户指南
+description: Tikeo instances 控制台页面的人类操作指南。
+---
 
-## 概览
+# 实例用户指南
 
-Instances 页面用于查看 Job 和 Workflow 产生的执行记录。这里是确认执行结果、attempt、日志、广播节点和取消状态的主要入口。遇到任务失败、长时间 pending 或广播部分失败时，应先在这里收集证据。
+把 Instances 当作执行证据中心。这里展示谁触发、哪个 Worker 尝试执行、状态流转、重试间隔、stdout/stderr、业务 payload、运行时异常堆栈、通知投递和审计上下文。
 
-运维依据：页面由 `web/src/pages/InstancesPage.tsx` 提供；主要接口包括 `/api/v1/jobs`、`/api/v1/jobs/{job}/instances`、`/api/v1/instances/{instance}`、`/api/v1/instances/{instance}/attempts`、`/api/v1/instances/{instance}/logs`、`/api/v1/instances/{instance}/cancel`、`/api/v1/instances/stream` 和 `/api/v1/instances/{instance}/logs/stream`。
+![实例用户指南 截图](pathname:///img/screenshots/instances.svg)
 
 ## 前置条件
 
-- 具备查看实例的权限；取消实例需要执行控制权限。
-- 已知道 Job、Workflow 或 instance ID。
-- Worker 通过出站 Tunnel 上报日志和结果。
-- 浏览器允许控制台接收 SSE；若 stream 不可用，仍可用普通接口刷新。
+- 你可以登录 Tikeo 控制台，并且当前角色拥有此页面的读取权限。
+- 在变更运行时对象前，已经明确目标 namespace/app。
+- 做现场验收时，至少存在一个近期实例、Worker session 或审计事件。
+- 生产变更前，先写好回滚说明和期望观察结果，再保存。
 
-```bash
-curl -fsS http://127.0.0.1:9090/api/v1/instances/INSTANCE_ID \
-  -H "authorization: Bearer $TIKEO_TOKEN" | jq '.data | {id,status,result}'
-```
+## When to use / 何时使用
 
-## 打开页面
+- Job 或 Workflow 失败时。
+- 任务看起来卡在等待或重试时。
+- 通知模板需要准确 instance ID 时。
+- 需要给外部人员一个免登录控制台链接时。
 
-1. 登录控制台。
-2. 在左侧菜单选择 **实例**，或打开 `/instances`。
-3. 按 Job、状态或时间定位目标实例。
-4. 点击实例行打开详情，查看 attempts、logs 和执行结果。
+## Key areas / 关键区域
 
-## 常见操作
+| 区域 | 先看什么 |
+| --- | --- |
+| 时间线 | 创建、等待、运行、重试中、成功、失败、取消及时间戳。 |
+| Attempts | 尝试次数、worker id、assignment token、耗时、重试原因与终态错误。 |
+| 控制台 | 日志、检查点、stdout、stderr、结构化 payload 和异常堆栈。 |
+| 投递证据 | running、success、failure、retry、always 等事件对应的通知消息。 |
 
-### 查看实例状态
+## Typical workflow / 典型流程
 
-- `pending`：调度器尚未完成派发，通常要核对 Worker 匹配条件。
-- `running`：Worker 已接收任务，等待日志或结果。
-- `succeeded`：执行成功，是终态。
-- `failed`：执行失败，是终态，需要查看日志和 attempt。
-- `partial_failed`：广播执行中至少一个节点失败，需要逐节点检查。
+1. Filter by job, status, owner, or time range.
+2. Open the newest failed or retrying instance first.
+3. Read attempts before logs so you know which retry generated which output.
+4. Use the console tab to copy stack traces and payload IDs.
+5. Confirm notification delivery links point to the public console URL.
 
-### 查看日志
+## 决策表
 
-1. 打开实例详情。
-2. 查看持久化日志列表。
-3. 如日志正在写入，保持详情抽屉打开观察日志流。
-4. 复制 Worker ID、attempt 编号、trace ID 和错误消息，用于跨页面排查。
+| 场景 | 人的判断 | 需要收集的证据 |
+| --- | --- | --- |
+| 首次配置 | 使用最小作用域，并只跑一次小规模验收。 | 截图、对象 id、实例 id、审计事件。 |
+| 事故处理 | 在理解失败对象前，暂停高风险变更。 | 时间线、attempt、日志、投递记录。 |
+| 生产发布 | 一次只改一个维度，并对比前后状态。 | 版本 diff、Dashboard 健康、审计链路。 |
+| 回滚 | 优先回到已知版本，而不是临场乱改。 | 旧版本 id、回滚审计、新验收运行。 |
 
-### 查看广播执行节点
+## 验收 Verify
 
-广播实例会按 Worker 或执行节点展示结果。逐个检查节点状态，不要只看实例总状态。出现 partial_failed 时，记录成功节点和失败节点的差异，例如 region、cluster、labels 或 runner 能力。
-
-### 取消实例
-
-1. 确认实例仍处于 active 状态。
-2. 确认当前账号有取消权限。
-3. 点击取消后刷新详情。
-4. Worker 可能继续上报 cleanup 日志；以最终状态和日志为准。
-
-## 验收
-
-- 可以打开一个 succeeded 实例并看到 result、attempt 和日志。
-- 可以打开一个 failed 实例并看到失败原因或日志证据。
-- 广播或 partial_failed 实例能展示多个执行节点。
-- 取消按钮只在有权限且实例可取消时出现。
-- `/api/v1/instances/stream` 或刷新后的详情能反映状态变化。
+- 页面展示的是当前对象，而不是浏览器缓存中的旧状态。
+- 只读用户可以查看证据，但不能执行特权变更。
+- 一次真实操作会产生可见审计事件，并在相关场景产生实例或投递记录。
+- 控制台链接复制到事故记录后，仍能定位同一个对象。
 
 ## 故障排查
 
-| 现象 | 处理 |
+| 现象 | 处理方式 |
 | --- | --- |
-| 实例一直 pending | 检查 Job selector、Worker structured capabilities 和 dispatch queue。 |
-| 没有日志 | 检查 Worker 是否在线、是否通过 Tunnel 上报 `TaskLog`。 |
-| 状态与日志不一致 | 以详情接口和最新 attempt 为准，必要时刷新页面。 |
-| 取消无效 | 确认实例是否已进入终态，或 Worker 是否仍在执行 cleanup。 |
-| 广播部分失败 | 对比成功和失败 Worker 的 labels、region、cluster、runner 和版本。 |
+| 页面看起来为空 | 先检查 namespace/app 过滤和角色权限，不要直接判断数据丢失。 |
+| 对象存在但按钮禁用 | 检查 RBAC、对象状态以及操作是否跨越作用域边界。 |
+| UI 结果与聊天/邮件不一致 | 先相信 Tikeo 投递记录和实例证据，再对比提供方历史。 |
+| 时间顺序混乱 | 使用 Server 时间戳、attempt 编号和审计 request id，而不是本地浏览器顺序。 |
+
+## 参考锚点
+
+本指南刻意把 API 细节放在附录中。如果需要排查实现或自动化相同流程，可使用这些锚点：`Instances`、`web/src/pages/InstancesPage.tsx`、`/api/v1/instances/{instance}`、`/api/v1/instances/{instance}/logs`。
 
 ## 生产检查清单
 
-- [ ] 每次生产失败都记录 instance ID、Job ID、Worker ID、attempt 和时间。
-- [ ] failed 或 partial_failed 必须附带日志或明确的无日志原因。
-- [ ] 取消生产实例前确认业务影响。
-- [ ] 广播执行按节点验收，不用单一总状态替代节点结果。
-- [ ] 工单中不粘贴令牌、密钥值或未脱敏环境变量。
+- [ ] 归属作用域和运维责任人明确。
+- [ ] 变更有小规模验收路径和回滚说明。
+- [ ] 证据包含对象 id、时间、操作人、状态以及相关实例或投递 id。
+- [ ] 离开控制台的公开链接使用已配置平台 URL。
+- [ ] 团队清楚本页描述的是执行、通知、告警还是治理语义。

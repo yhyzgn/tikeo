@@ -1,195 +1,154 @@
 ---
 title: SDK and API integration guide
-description: Step-by-step integration guide for connecting application Workers, creating API jobs, triggering tasks, wiring notifications, and verifying execution evidence.
-keywords: [tikeo sdk integration, management api, worker tunnel, api trigger, notification integration]
+description: Unified SDK and Management API guide for Worker connections, API-triggered jobs, credentials, retries, errors, and language-specific SDK differences.
+keywords: [tikeo sdk integration, management api, worker tunnel, api trigger, worker sdk]
 ---
 
 # SDK and API integration guide
 
-This page is for application teams integrating Tikeo into a service. It tells you what to build, which credentials to request, how Workers connect, how jobs are created and triggered, and what evidence proves the integration works.
+Use this page as the shared contract for every Tikeo SDK. It defines the concepts and wire semantics once; the language pages only show dependency installation, a minimal Worker, exception capture, and the Management client syntax for that language.
 
-## Integration model
+## Prerequisites
 
-A typical integration has two independent clients:
-
-| Client | Credential | Direction | Purpose |
+| Value | Example | Used by | Notes |
 | --- | --- | --- | --- |
-| Worker SDK | Worker identity/config | Worker → Worker Tunnel | Registers processors, receives `DispatchTask`, streams `TaskLog`, returns `TaskResult`. |
-| Management SDK/API client | `x-tikeo-api-key` | Application → Server HTTP API | Creates API-triggered jobs, triggers jobs, reads instances/logs. |
+| Management HTTP endpoint | `https://tikeo.example.com` | Management client | Base URL for `/api/v1` and `/api-docs/openapi.json`. |
+| Worker Tunnel endpoint | `https://tikeo-worker.example.com` | Worker SDK | Outbound Worker target; local demos use `http://127.0.0.1:9998`. |
+| `namespace` / `app` | `billing` / `invoices` | Both | Must match Worker registration, job scope, and API-key scope. |
+| SDK API key | `TIKEO_MANAGEMENT_API_KEY` | Management client | Sent as `x-tikeo-api-key`; never use browser/OIDC sessions. |
+| Processor name | `invoice.send-reminder` | Both | Job binding must match Worker-advertised SDK processor. |
+| Worker pool label | `worker_pool=blue` | Worker routing | Used by selectors, canary, and runbooks. |
 
-Do not use the Worker Tunnel for management calls, and do not use human Web session tokens in application services.
+## Common concepts
 
-## Before writing code
+Tikeo integrations use two independent clients:
 
-Ask your platform operator for:
+| Client | Direction | Credential | Responsibility |
+| --- | --- | --- | --- |
+| Worker SDK client | Worker → Worker Tunnel | Worker identity/config | Register capabilities, receive `DispatchTask`, stream `TaskLog`, return `TaskResult`. |
+| Management SDK/API client | App service → Server HTTP API | `x-tikeo-api-key` | Create jobs, trigger jobs, read instances, inspect logs. |
 
-- Server HTTP base URL, for example `https://tikeo.example.com`.
-- Worker Tunnel endpoint, for example `https://tikeo-worker.example.com` or `http://tikeo-server:9998` inside a private network.
-- `namespace`, `app`, and `workerPool` naming convention.
-- One app-scoped SDK API key for `x-tikeo-api-key`.
-- Expected processor names and payload schema.
-- Notification channel/template/policy expectations if task status must notify humans.
+Keep the boundary strict. Workers do not make management calls through the tunnel, and application services do not use Worker Tunnel assignment tokens.
 
-## Step 1: choose a language SDK
+```mermaid
+sequenceDiagram
+    participant App as App service
+    participant API as Tikeo HTTP API
+    participant Tunnel as Worker Tunnel
+    participant Worker as SDK Worker
+    Worker->>Tunnel: OpenTunnel + RegisterWorker(capabilities, labels)
+    App->>API: create job with x-tikeo-api-key
+    App->>API: triggerType=api, executionMode=single
+    API->>Tunnel: DispatchTask(processorName, assignment_token)
+    Tunnel->>Worker: DispatchTask
+    Worker->>Tunnel: TaskLog + TaskResult
+    App->>API: read instance and logs
+```
 
-| Language | Page | Best fit |
+## Unified configuration parameters
+
+| Parameter | Rust | Go | Java/Spring Boot | Python | Node.js | Meaning |
+| --- | --- | --- | --- | --- | --- | --- |
+| Worker endpoint | `WorkerConfig::local(endpoint, ...)` | `LocalConfig(endpoint, ...)` | `tikeo.worker.endpoint` | `local_config(endpoint, ...)` | `localConfig(endpoint, ...)` | Worker Tunnel URL. |
+| Management endpoint | `ManagementClient::new(endpoint, ...)` | `NewManagementClient(endpoint, ...)` | `HttpTikeoJobClient` / `tikeo.management.endpoint` | `ManagementClient(endpoint, ...)` | `new ManagementClient(endpoint, ...)` | Server HTTP URL, without `/api/v1`. |
+| API key | `api_key` | `apiKey` | `tikeo.management.api-key` | `api_key` | `apiKey` | Sends `x-tikeo-api-key`; source from `TIKEO_MANAGEMENT_API_KEY`. |
+| Namespace/app | `namespace`, `app` | `Namespace`, `App` | `tikeo.worker.*`, `tikeo.management.*` | `namespace`, `app` | `namespace`, `app` | Shared scope for key, Worker, job, and instance. |
+| Client instance id | `client_instance_id` | `ClientInstanceID` | `tikeo.worker.client-instance-id` | `client_instance_id` | `clientInstanceId` | Stable Worker identity hint. |
+| Labels | `labels` | `Labels` | `tikeo.worker.labels` | `labels` | `labels` | Include `worker_pool` when routing depends on it. |
+| SDK processors | `add_sdk_processor` | `AddSDKProcessor` | `@TikeoProcessor` | `add_sdk_processor` | `addSDKProcessor` | Advertised processor names. |
+
+## Authentication and Management API semantics
+
+Management SDK helpers are thin HTTP clients over the Management API. They authenticate with app-scoped service credentials, not human sessions.
+
+| Rule | Contract |
+| --- | --- |
+| Header | Every SDK Management client sends `x-tikeo-api-key`. |
+| Source | Load the key from `TIKEO_MANAGEMENT_API_KEY` or a secret manager. |
+| Scope | Key is bound to namespace/app and optional worker-pool policy. |
+| Response | HTTP routes return `ApiResponse` with `code`, `message`, and `data`. |
+| Default helper behavior | Create helpers build API-scheduled jobs; trigger helpers send `triggerType=api` and default `executionMode=single`. |
+
+Reference anchors used by the SDK pages:
+
+| Operation | Reference anchor |
+| --- | --- |
+| Create job | [`POST /api/v1/jobs`](../reference/management-openapi#post-api-v1-jobs) |
+| Trigger job | [`POST /api/v1/jobs/{job}:trigger`](../reference/management-openapi#post-api-v1-jobs-job-trigger) |
+| Poll instance | [`GET /api/v1/instances/{instance}`](../reference/management-openapi#get-api-v1-instances-instance) |
+| Inspect logs | [`GET /api/v1/instances/{instance}/logs`](../reference/management-openapi#get-api-v1-instances-instance-logs) |
+| Worker dispatch | [`DispatchTask`](../reference/worker-tunnel-protobuf#dispatchtask) |
+
+## Worker connection parameters
+
+A Worker is outbound-only. It connects to the Worker Tunnel, registers metadata, and waits for work. Do not expose business processors as inbound HTTP routes just to let Tikeo reach them.
+
+| Parameter | Dispatch impact | Good default |
 | --- | --- | --- |
-| Rust | [Rust SDK](../sdks/rust) | Native Rust services and high-throughput Workers. |
-| Go | [Go SDK](../sdks/go) | Small static Worker services and platform agents. |
-| Java/Spring Boot | [Java SDK and Spring Boot](../sdks/java-spring-boot) | Spring services and annotation-driven processors. |
-| Python | [Python SDK](../sdks/python) | Data/automation jobs and Python service teams. |
-| Node.js | [Node.js SDK](../sdks/nodejs) | TypeScript/JavaScript services and quick demos. |
+| `endpoint` | Must point at Worker Tunnel listener, not Management HTTP. | `http://127.0.0.1:9998` locally. |
+| `namespace` + `app` | Job scope must match Worker scope. | Same as Management client scope. |
+| `cluster` + `region` | Broadcast selector and operator filters can match them. | `local` for development. |
+| `labels.worker_pool` | Common selector for pools, canary, and runbooks. | Explicit value per deployment. |
+| SDK processors | Scheduler routes SDK jobs by processor name. | Add only implemented processors. |
+| Script/plugin capabilities | Scheduler can route script/plugin jobs. | Advertise only when runtime exists. |
 
-Each SDK page documents dependency coordinates, WorkerConfig defaults, minimal Worker code, Management client credentials, and a live verification runbook.
+## Trigger types
 
-## Step 2: implement a Worker processor
+| Trigger source | Who creates it | Request semantics | Execution mode |
+| --- | --- | --- | --- |
+| API/manual | SDK Management client or operator | `triggerType=api` | Default `executionMode=single`. |
+| Broadcast API | SDK Management client, explicit fan-out | `triggerType=api` with `broadcastSelector` | `executionMode=broadcast`. |
+| Webhook event | External event source route | Webhook route creates event-backed instance | Webhook semantics. |
+| Cron/schedule | Server scheduler | Schedule expression wakes the job | Scheduler-selected. |
 
-Your Worker should declare the exact processors it can run. Example processor naming convention:
+## Errors and retries
 
-```text
-namespace: billing
-app: invoices
-workerPool: default
-processorName: invoice.send-reminder
-```
+| Failure point | Where it appears | Retry owner | Inspect |
+| --- | --- | --- | --- |
+| Bad API key or scope | Management client exception/error | Caller | `x-tikeo-api-key`, namespace/app, service-account scopes. |
+| Invalid job payload | Management client exception/error | Caller | Create/trigger request fields and OpenAPI anchor. |
+| No matching Worker | Instance status and scheduler logs | Operator/deployment | Worker online state, processor name, labels, `worker_pool`. |
+| Processor returns failure | Instance result and logs | Job retry policy | Worker task return value. |
+| Processor throws exception | Instance result and logs | Job retry policy | Language exception capture and Worker logs. |
+| Tunnel disconnect | Worker reconnect loop | Worker supervisor | Tunnel endpoint, network, heartbeat/lease logs. |
 
-The Worker connects outbound and advertises capabilities. Keep capability declarations honest: do not advertise a processor, script backend, or plugin type until that Worker can actually execute it and report a safe failure.
+Create helpers in all SDKs attach the same default job retry policy: enabled, `maxAttempts=3`, `initialDelaySeconds=5`, `backoffMultiplier=2`, and `maxDelaySeconds=60`. `maxAttempts` includes the first execution.
 
-## Step 3: create an API-triggered job
+## Language difference table
 
-Use the Management SDK or raw HTTP API. The important fields are:
+| Language | Dependency | Minimal Worker shape | Exception capture | Management client |
+| --- | --- | --- | --- | --- |
+| Rust | `tikeo` crate | Implement `TaskProcessor`, connect `WorkerClient`. | Return `TaskOutcome`; client errors use `WorkerSdkError`. | `ManagementClient::new`, `ManagementCreateJobRequest::api`, `ManagementTriggerJobRequest::api`, `ManagementTriggerJobRequest::broadcast_api`, `ManagementBroadcastSelectorRequest`. |
+| Go | `github.com/yhyzgn/tikeo/sdks/go/tikeo` | `TaskProcessorFunc`, `NewClient`, `RegisterProcessor`. | Return `error` or failed `TaskOutcome`. | `NewManagementClient`, `APIJob`, `APITrigger`, `BroadcastAPITrigger`, `BroadcastSelectorRequest`. |
+| Java/Spring Boot | `net.tikeo` artifacts | `@TikeoProcessor` or `GrpcTikeoWorkerClient`. | Throw exceptions or return failure model. | `HttpTikeoJobClient`, `CreateJobRequest.api`, `TriggerJobRequest.api`, `TriggerJobRequest.broadcastApi`, `BroadcastSelectorRequest`. |
+| Python | `tikeo` package | Function processor with `Client`. | Raise exception or return `failed(...)`. | `ManagementClient`, `api_job`, `api_trigger`, `broadcast_api_trigger`, `BroadcastSelectorRequest`. |
+| Node.js | `@yhyzgn/tikeo` package | `Client`, `localConfig`, processor function. | Throw `Error` or return `failed(...)`. | `ManagementClient`, `apiJob`, `apiTrigger`, `broadcastApiTrigger`, `BroadcastSelectorRequest`. |
 
-- `triggerType=api`
-- `executionMode=single` for one selected Worker result, or broadcast helpers when every matching Worker should run.
-- Processor name matching what Workers advertise.
-- Namespace/app scope matching the app-scoped API key.
+## Verify
 
-HTTP shape:
-
-```bash
-curl -fsS -X POST "$TIKEO_URL/api/v1/jobs" \
-  -H "x-tikeo-api-key: $TIKEO_MANAGEMENT_API_KEY" \
-  -H 'content-type: application/json' \
-  -d '{
-    "name":"send invoice reminder",
-    "namespace":"billing",
-    "app":"invoices",
-    "processorType":"sdk",
-    "processorName":"invoice.send-reminder",
-    "triggerType":"api",
-    "executionMode":"single",
-    "enabled":true
-  }' | jq .
-```
-
-For exact typed helper names, see the SDK pages: `ManagementClient`, `NewManagementClient`, `HttpTikeoJobClient`, `apiJob`, `apiTrigger`, `broadcastApiTrigger`, and `BroadcastSelectorRequest`.
-
-## Step 4: trigger and inspect an instance
-
-```bash
-INSTANCE_ID="$(curl -fsS -X POST "$TIKEO_URL/api/v1/jobs/$JOB_ID:trigger" \
-  -H "x-tikeo-api-key: $TIKEO_MANAGEMENT_API_KEY" \
-  -H 'content-type: application/json' \
-  -d '{"payload":{"invoiceId":"inv_123"}}' | jq -r .data.instanceId)"
-
-curl -fsS "$TIKEO_URL/api/v1/instances/$INSTANCE_ID" \
-  -H "x-tikeo-api-key: $TIKEO_MANAGEMENT_API_KEY" | jq .
-
-curl -fsS "$TIKEO_URL/api/v1/instances/$INSTANCE_ID/logs" \
-  -H "x-tikeo-api-key: $TIKEO_MANAGEMENT_API_KEY" | jq .
-```
-
-Expected evidence:
-
-- Instance status becomes `success` or a deliberate failure with clear logs.
-- Logs include Worker-emitted task log lines.
-- Worker table shows the Worker online and recently heartbeating.
-- Audit logs show job or trigger operations where applicable.
-
-## Broadcast integration
-
-Broadcast jobs are for “run on every matching Worker” cases. They require deliberate selector design:
-
-- Match by namespace/app/workerPool.
-- Optionally match labels/tags/capabilities.
-- Expect multiple child attempts and per-Worker result rows.
-- Use `broadcastSelector` and SDK helper `BroadcastSelectorRequest` instead of custom JSON conventions.
-
-Do not use broadcast when the business operation must run exactly once.
-
-## Notification integration
-
-For task success/failure/always notifications, do not hardcode provider calls inside Workers. Use Notification Center:
-
-1. Operator creates a channel with provider credentials.
-2. Operator creates or selects a template.
-3. Job owner creates a job notification binding for success/failure/always.
-4. Runtime materializes message payload with fields such as `jobId`, `instanceId`, `status`, `operatorName`, `executionMode`, and `logsUrl`.
-5. Operator verifies delivery attempts and message trace.
-
-See [Notifications](../user-guide/notifications) and [Notification Center reference](../reference/notification-center).
-
-## Error handling contract
-
-Worker processors should:
-
-- Validate payloads at the boundary and return actionable errors.
-- Emit task logs before and after external calls.
-- Avoid logging secrets, tokens, provider URLs, passwords, or authorization headers.
-- Use idempotency keys in downstream systems if Tikeo retry can call the processor again.
-- Treat cancellation and timeout as normal operational states.
-
-Management clients should:
-
-- Store `TIKEO_MANAGEMENT_API_KEY` in secret management.
-- Retry only idempotent reads or explicitly idempotent triggers.
-- Record `instanceId` in business logs so operators can correlate evidence.
-
-## Local integration smoke
-
-The fastest complete integration check is:
+A complete SDK/API integration proves Worker registration, API job creation, trigger execution, Worker logs, and credential scope. Prefer the full smoke script over copied curl fragments:
 
 ```bash
 TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER=0 scripts/management-trigger-e2e-smoke.sh
 ```
 
-It starts an isolated environment, creates app-scoped credentials, starts the Node.js Worker demo with `TIKEO_WORKER_CONNECT=1`, creates and triggers an API job, and stores evidence under `.dev/reports/management-trigger-e2e-*`.
-
-## Prerequisites
-
-- A reachable Server HTTP API and Worker Tunnel endpoint.
-- Namespace/app/workerPool approved by the platform owner.
-- App-scoped SDK API key in `TIKEO_MANAGEMENT_API_KEY`.
-- At least one Worker SDK dependency installed.
-- A payload schema and processor naming convention.
-
-## Verify
-
-A successful integration has these artifacts:
-
-```bash
-curl -fsS "$TIKEO_URL/api/v1/jobs/$JOB_ID" -H "x-tikeo-api-key: $TIKEO_MANAGEMENT_API_KEY"
-curl -fsS "$TIKEO_URL/api/v1/instances/$INSTANCE_ID" -H "x-tikeo-api-key: $TIKEO_MANAGEMENT_API_KEY"
-curl -fsS "$TIKEO_URL/api/v1/instances/$INSTANCE_ID/logs" -H "x-tikeo-api-key: $TIKEO_MANAGEMENT_API_KEY"
-```
-
-The Web console should show the Worker online, the job enabled, the instance completed, and logs attached to the instance.
+The script creates service-account credentials, sets `TIKEO_MANAGEMENT_API_KEY`, starts a real Node.js Worker with `TIKEO_WORKER_CONNECT=1`, creates an API job, triggers it, and checks instance logs for `nodejs demo echo processed`.
 
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| API key returns 401/403 | Wrong key, wrong app scope, disabled service account | Reissue app-scoped key and confirm namespace/app. |
-| Job triggers but stays pending | No Worker advertises matching processor/scope | Check Worker capabilities and namespace/app/workerPool. |
-| Worker connects but receives no tasks | Processor name mismatch or disabled job | Compare job processor fields with Worker registration. |
-| Logs missing | Worker does not stream task logs or failed before handler | Add log emission around handler start/end. |
-| Duplicate downstream effect | Retry without idempotency | Add idempotency key using `instanceId` or business key. |
+| Management calls return unauthorized | Wrong credential type or missing scope | Use `x-tikeo-api-key`, not a bearer token. |
+| Job triggers but no Worker runs | Processor or scope mismatch | Compare job processor name, namespace/app, `worker_pool`, and Worker registration. |
+| Broadcast reaches too many Workers | Selector too broad | Add `broadcastSelector` labels/tags/cluster/region. |
+| Script/plugin job fails immediately | Capability advertised without runtime | Remove capability or install runtime before advertising it. |
+| Worker reconnects repeatedly | Tunnel URL or network is wrong | Verify the Worker Tunnel endpoint, not just HTTP Management. |
 
 ## Production checklist
 
-- [ ] Worker and Management clients use separate credentials/config.
-- [ ] Processor names and payload schemas are documented with the service team.
-- [ ] API jobs use `triggerType=api` and expected `executionMode`.
-- [ ] Instance ID is stored in business logs.
-- [ ] Worker logs do not contain secrets.
-- [ ] Notification bindings are configured through Notification Center, not ad-hoc provider code.
+- [ ] Worker SDK and Management client use separate configuration blocks.
+- [ ] API key is loaded from `TIKEO_MANAGEMENT_API_KEY` or a secret manager and sent as `x-tikeo-api-key`.
+- [ ] API-created jobs use `triggerType=api`; default calls use `executionMode=single`.
+- [ ] Broadcast calls require a reviewed `broadcastSelector`.
+- [ ] Worker advertises only processors, scripts, and plugins it can execute.
+- [ ] Retry policy is intentional for non-idempotent processors.

@@ -1,91 +1,78 @@
+---
+title: Workflows user guide
+description: Human operator guide for the Tikeo workflows console page.
+---
+
 # Workflows user guide
 
-## Overview
+Use Workflows to design, validate, run, and replay DAG-based orchestration. The page is for humans who need to see dependency shape, not for dumping JSON into a text area.
 
-The Workflows page manages DAG definitions, visual editing, JSON/YAML definition views, validation, dry-run, execution, replay, shard inspection, and failed-node recovery. Use validation and dry-run before executing production workflows.
-
-Implementation anchors: `web/src/pages/WorkflowsPage.tsx` uses `/api/v1/workflows`, `/api/v1/workflows/{id}`, `/api/v1/workflows/{id}/validate`, `/api/v1/workflows/dry-run`, `/api/v1/workflows/{id}/run`, workflow-instance routes, and event streams. Workflows are `DAG` graphs whose job nodes ultimately create ordinary job instances.
+![Workflows user guide screenshot](pathname:///img/screenshots/workflows.svg)
 
 ## Prerequisites
 
-- `workflows:read` to view; manage/execute permissions for create, edit, run, or recover.
-- Referenced Jobs exist and have eligible Workers.
-- Test input and rollback/recovery expectations are known.
-- Operators understand which nodes can be retried, skipped, or failed.
+- You can sign in to the Tikeo console and your role grants read access to this page.
+- The target namespace/app is known before you change runtime objects.
+- At least one recent instance, worker session, or audit event exists when you are verifying live behavior.
+- For production changes, prepare a rollback note and an expected observation before saving.
 
-```bash
-curl -fsS http://127.0.0.1:9090/api/v1/workflows \
-  -H "authorization: Bearer $TIKEO_TOKEN" | jq '.data[] | {id,name}'
-```
+## When to use
 
-## Open the page
+- A business process has multiple dependent steps.
+- You need visual readiness and replay evidence.
+- A failure should block or skip downstream work deliberately.
+- Notification nodes should be part of the execution story.
 
-1. Select **Workflows** or open `/workflows`.
-2. Use `/workflows/new` for a new DAG or `/workflows/{id}/edit` to edit.
-3. Switch between visual canvas and definition view to verify graph shape.
-4. Validate before saving or running.
+## Key areas
 
-## Common tasks
+| Area | What to read first |
+| --- | --- |
+| Canvas | Node shape, dependency edges, validation markers, and selected-node details. |
+| Version panel | Published DAG versions, diff, author, and rollback/replay entry points. |
+| Run panel | Trigger source, input payload, dry-run result, and instance link. |
+| Replay | Node timeline, attempts, logs, downstream effects, and delivery attempts. |
 
-### Build a small DAG
+## Typical workflow
 
-Start with a job-backed node and explicit edges. Add condition, parallel, join, delay, approval, notification, compensation, map, map_reduce, or sub_workflow nodes only when the operational behavior is clear.
+1. Sketch the DAG from business order, not from implementation convenience.
+2. Validate before publishing and fix cycles or missing inputs.
+3. Run a dry-run when selectors or dynamic inputs are involved.
+4. Trigger a small real run and inspect replay before production scale.
+5. Use notification nodes or policies for success/failure/always events.
 
-### Add a notification node
+## Decision table
 
-A notification node is no longer a raw webhook target. It materializes a `workflow_node.notification_requested` message in Notification Center and creates delivery attempts for the selected channels. Use one of these two modes:
-
-- **Inline channel refs**: set `config.channelRefs` to Notification Center channel ids and optionally `config.templateRef`, `subject`, `body`, and `severity`.
-- **Policy mode**: set `config.usePolicies=true` and create a `workflow` or `workflow_node` notification policy that matches the workflow id/node key.
-
-Example:
-
-```json
-{
-  "key": "notify_ops",
-  "kind": "notification",
-  "config": {
-    "channelRefs": [{"channelId": "notification-channel-ops"}],
-    "templateRef": "workflow.node.notice",
-    "subject": "Workflow notification requested",
-    "body": "A workflow notification node was materialized",
-    "severity": "warning"
-  }
-}
-```
-
-Validation rejects legacy `channel/target/template`-only nodes because they would look successful without reaching any configured channel. Delivery is asynchronous and non-blocking by default; the node records the normalized message and retryable attempts while workflow progression continues.
-
-### Validate and dry-run
-
-Validation checks structure. Dry-run checks expected start nodes, node count, and edge count before materializing runtime work. Fix validation errors before execution.
-
-### Run and recover
-
-Running creates a workflow instance. Inspect node status, shards, and underlying job instances. Recovery is an operational action; confirm failed node, input context, and downstream effect before retry/skip/fail.
+| Situation | Human decision | Evidence to collect |
+| --- | --- | --- |
+| First setup | Use narrow scope and one small verification run. | Screenshot, object id, instance id, audit event. |
+| Incident | Freeze risky changes until the failing object is understood. | Timeline, attempts, logs, delivery attempts. |
+| Production rollout | Change one dimension at a time and compare before/after. | Version diff, Dashboard health, audit trail. |
+| Rollback | Prefer reverting to a known version over ad-hoc edits. | Previous version id, rollback audit, new verification run. |
 
 ## Verify
 
-- A small DAG can be saved and validated.
-- Dry-run returns expected graph metadata.
-- Running creates a workflow instance.
-- Job nodes can be traced to Instances and logs.
-- Replay and recovery actions are visible only to authorized operators.
+- The page shows a current object, not stale browser state.
+- A user with read-only permissions can inspect evidence but cannot make privileged changes.
+- A real operation produces a visible audit event and, when relevant, an instance or delivery record.
+- The console link can be copied into an incident note and still identifies the same object.
 
 ## Troubleshooting
 
-| Symptom | Action |
+| Symptom | Response |
 | --- | --- |
-| Validation fails | Fix missing nodes, invalid edges, duplicate keys, or bad node config. |
-| Dry-run differs from canvas | Compare JSON/YAML definition with visual layout. |
-| Job node pending | Check referenced Job and Worker eligibility. |
-| Recovery unsafe | Stop and get business approval before skip/fail. |
-| Notification node surprises operators | Check Notification Center messages and delivery attempts for `workflow_node.notification_requested`; use `channelRefs` or `usePolicies=true`, never raw `target` secrets. |
+| Page looks empty | Check namespace/app filters and role permissions before assuming data loss. |
+| Object exists but action is disabled | Confirm RBAC, object state, and whether the action would cross scope boundaries. |
+| UI result differs from chat/email | Trust Tikeo delivery attempts and instance evidence first, then compare provider history. |
+| Time order is confusing | Use server timestamps, attempt numbers, and audit request ids instead of local browser order. |
+
+## Reference anchors
+
+This guide intentionally keeps API details in the appendix. If you need to inspect implementation or automate the same workflow, use these anchors: `Workflows`, `web/src/pages/WorkflowsPage.tsx`, `/api/v1/workflows`, `DAG`.
 
 ## Production checklist
 
-- [ ] Workflow definitions are reviewed as code or change records.
-- [ ] Every job node has an eligible Worker path.
-- [ ] Recovery procedures are documented per node type.
-- [ ] Notification nodes use `channelRefs`/`templateRef` or `usePolicies=true`; they do not contain raw targets or secrets.
-- [ ] Replay evidence is kept for incidents.
+- [ ] Owner scope and operational responsibility are clear.
+- [ ] The change has a small verification path and rollback note.
+- [ ] Evidence includes object id, time, operator, status, and related instance or delivery id.
+- [ ] Public links use the configured platform URL when they leave the console.
+- [ ] The team knows whether this page is describing execution, notification, alerting, or governance semantics.

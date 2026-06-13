@@ -7,6 +7,9 @@ description: Go SDK dependency coordinates, WorkerConfig defaults, minimal Worke
 
 The Go SDK lives in `sdks/go/tikeo`. Its module path is `github.com/yhyzgn/tikeo/sdks/go/tikeo`; the runnable demo is `examples/go/worker-demo`. The SDK exposes Worker configuration, a Worker Tunnel client, structured capabilities, script runner helpers, task models, and Management client helpers.
 
+
+Shared SDK/API contract: see [SDK and API integration guide](../integrations/sdk-and-api) for common concepts, unified configuration parameters, Management API semantics, Worker connection parameters, trigger types, errors/retries, and the language difference table. This language page stays focused on installation, minimal Worker code, exception behavior, and Management client syntax.
+
 ## Dependency coordinates
 
 `sdks/go/tikeo/go.mod` declares:

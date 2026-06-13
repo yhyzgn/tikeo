@@ -1,91 +1,78 @@
-# Jobs 运维手册
+---
+title: 作业用户指南
+description: Tikeo jobs 控制台页面的人类操作指南。
+---
 
-## 概览
+# 作业用户指南
 
-Jobs 页面用于管理任务定义、调度方式、执行绑定、版本、回滚、手动触发、广播触发和容量建议。运维人员应把 Job 看作调度契约：它描述要运行什么、在哪个 namespace/app 下运行、由哪些 Worker 能力承接。
+用 Jobs 定义可复用执行契约：归属作用域、Processor 或脚本绑定、调度、重试行为、Worker 资格、通知绑定、版本历史以及手动/API 触发。
 
-运维依据：页面由 `web/src/pages/JobsPage.tsx` 提供；主要接口包括 `/api/v1/jobs`、`/api/v1/jobs/{job}`、`/api/v1/jobs/{job}:trigger`、`/api/v1/jobs/{job}/versions`、`/api/v1/jobs/{job}/rollback`、`/api/v1/jobs/{job}/scheduling-advice`、`/api/v1/jobs/topology` 和 `/api/v1/jobs/{job}/impact`。
+![作业用户指南 截图](pathname:///img/screenshots/jobs.svg)
 
 ## 前置条件
 
-- 具备 `jobs:read` 查看权限；创建、编辑、删除或回滚需要 `jobs:write`。
-- 手动触发实例需要 `instances:execute`。
-- 已准备 namespace、app、worker pool、calendar、processor、script 或 plugin processor。
-- Worker 必须已经声明匹配的 structured capabilities；Job 名称不能替代能力声明。
+- 你可以登录 Tikeo 控制台，并且当前角色拥有此页面的读取权限。
+- 在变更运行时对象前，已经明确目标 namespace/app。
+- 做现场验收时，至少存在一个近期实例、Worker session 或审计事件。
+- 生产变更前，先写好回滚说明和期望观察结果，再保存。
 
-```bash
-curl -fsS http://127.0.0.1:9090/api/v1/jobs \
-  -H "authorization: Bearer $TIKEO_TOKEN" | jq '.data.items[] | {id,name,namespace,app,enabled}'
-```
+## When to use / 何时使用
 
-## 打开页面
+- 创建新的 API、cron、fixed-rate 或一次性任务。
+- 调整重试、调度或 Worker 目标。
+- 手动触发单实例或广播执行。
+- 修改高影响任务前做影响审查。
 
-1. 登录控制台。
-2. 在左侧菜单选择 **任务**，或打开 `/jobs`。
-3. 使用搜索框按任务名、namespace 或 app 过滤。
-4. 如需查看依赖关系，点击 **任务拓扑**，对应路径为 `/jobs/topology`。
+## Key areas / 关键区域
 
-## 常见操作
+| 区域 | 先看什么 |
+| --- | --- |
+| 定义表单 | 名称、namespace、app、调度类型、processor/script/plugin 绑定、超时、重试与 misfire。 |
+| 目标面板 | Worker pool、标签、region、cluster、broadcastSelector 与调度建议。 |
+| 版本抽屉 | 不可变变更历史、作者、创建时间、diff 与回滚入口。 |
+| 触发面板 | 单实例触发、广播触发、API 参数以及创建后的实例链接。 |
 
-### 创建 Job
+## Typical workflow / 典型流程
 
-1. 点击 **新建任务**。
-2. 先选择 namespace 和 app。
-3. 选择调度类型：API 手动触发、Cron、固定频率、固定延迟、一次性未来任务或 Daily Time Interval。
-4. 选择执行方式：SDK processor、插件处理器或已发布脚本。
-5. 配置 retry policy、calendar、worker pool、canary target 和 misfire 策略。
-6. 保存后打开 scheduling advice，确认 eligible workers 不为空。
+1. Choose namespace and app before any execution details.
+2. Select the executor binding and verify at least one Worker advertises that capability.
+3. Set retry and timeout based on failure class, not by copying another Job blindly.
+4. Save, inspect version history, then open scheduling advice.
+5. Trigger a single run first; use broadcast only after selector preview is correct.
 
-### 编辑 Job
+## 决策表
 
-1. 在任务列表中选择编辑。
-2. 修改 scope 时，同时确认源 scope 和目标 scope 都已授权。
-3. 修改 processor、script 或 plugin processor 后，重新检查调度建议。
-4. 保存后记录新版本号，必要时在版本列表中确认变更。
+| 场景 | 人的判断 | 需要收集的证据 |
+| --- | --- | --- |
+| 首次配置 | 使用最小作用域，并只跑一次小规模验收。 | 截图、对象 id、实例 id、审计事件。 |
+| 事故处理 | 在理解失败对象前，暂停高风险变更。 | 时间线、attempt、日志、投递记录。 |
+| 生产发布 | 一次只改一个维度，并对比前后状态。 | 版本 diff、Dashboard 健康、审计链路。 |
+| 回滚 | 优先回到已知版本，而不是临场乱改。 | 旧版本 id、回滚审计、新验收运行。 |
 
-### 手动触发单实例
+## 验收 Verify
 
-1. 确认 Job 已启用。
-2. 打开任务操作中的触发入口。
-3. 默认触发契约为 `triggerType=api` 与 `executionMode=single`。
-4. 触发后进入 Instances 页面查看 `/api/v1/instances/{instance}` 和 `/api/v1/instances/{instance}/logs`。
-
-### 广播触发
-
-1. 打开广播抽屉。
-2. 明确填写 `broadcastSelector`，例如 tags、region、cluster 或 labels。
-3. 只选择 Worker 已真实声明的条件。
-4. 触发后在 Instances 页面逐个检查执行节点，不能只看总状态。
-
-### 回滚版本
-
-1. 打开版本历史。
-2. 对照版本号、创建人和创建时间。
-3. 执行 rollback 后重新查看当前 Job 定义和调度建议。
-4. 如 Job 已被定时触发，按生产变更流程记录回滚时间。
-
-## 验收
-
-- 可以创建一个 API 手动触发 Job，并通过 `/api/v1/jobs/{job}:trigger` 生成实例。
-- 可以编辑 Job，并在版本列表中看到新版本。
-- 可以对一个已知版本执行 rollback，当前定义回到目标版本。
-- scheduling advice 能显示 eligible workers、近期实例和失败窗口。
-- 广播 Job 必须携带 `broadcastSelector`，并在实例详情中看到广播执行结果。
+- 页面展示的是当前对象，而不是浏览器缓存中的旧状态。
+- 只读用户可以查看证据，但不能执行特权变更。
+- 一次真实操作会产生可见审计事件，并在相关场景产生实例或投递记录。
+- 控制台链接复制到事故记录后，仍能定位同一个对象。
 
 ## 故障排查
 
-| 现象 | 处理 |
+| 现象 | 处理方式 |
 | --- | --- |
-| 保存失败 | 检查必填字段、namespace/app 授权、calendar 和 canary target。 |
-| eligible workers 为空 | 到 Workers 页面核对 structured capabilities、worker pool、namespace、app、labels。 |
-| 手动触发失败 | 确认用户具备 `instances:execute`，并检查 Job 是否启用。 |
-| 实例一直 pending | 对照 scheduling advice 和 Worker 在线状态，确认没有过窄的 selector。 |
-| 回滚后行为仍异常 | 打开版本历史和 Instances 日志，确认当前运行实例是否仍来自回滚前版本。 |
+| 页面看起来为空 | 先检查 namespace/app 过滤和角色权限，不要直接判断数据丢失。 |
+| 对象存在但按钮禁用 | 检查 RBAC、对象状态以及操作是否跨越作用域边界。 |
+| UI 结果与聊天/邮件不一致 | 先相信 Tikeo 投递记录和实例证据，再对比提供方历史。 |
+| 时间顺序混乱 | 使用 Server 时间戳、attempt 编号和审计 request id，而不是本地浏览器顺序。 |
+
+## 参考锚点
+
+本指南刻意把 API 细节放在附录中。如果需要排查实现或自动化相同流程，可使用这些锚点：`Jobs`、`web/src/pages/JobsPage.tsx`、`/api/v1/jobs`、`/api/v1/jobs/{job}:trigger`、`triggerType=api`、`executionMode=single`、`broadcastSelector`。
 
 ## 生产检查清单
 
-- [ ] Job scope、processor binding、worker pool 和 calendar 已复核。
-- [ ] 所有广播触发都显式使用 `broadcastSelector`。
-- [ ] 触发前已确认至少一个 eligible worker。
-- [ ] 回滚、删除、禁用等变更有审批或工单记录。
-- [ ] 排障命令只使用环境变量传入令牌，不记录明文凭据。
+- [ ] 归属作用域和运维责任人明确。
+- [ ] 变更有小规模验收路径和回滚说明。
+- [ ] 证据包含对象 id、时间、操作人、状态以及相关实例或投递 id。
+- [ ] 离开控制台的公开链接使用已配置平台 URL。
+- [ ] 团队清楚本页描述的是执行、通知、告警还是治理语义。

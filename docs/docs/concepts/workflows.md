@@ -1,40 +1,97 @@
 ---
 title: Workflow DAG model
-description: How Tikeo models jobs, workflow DAGs, replay, retries, and execution evidence.
+description: How Tikeo models jobs, workflow DAGs, retries, notifications, replay, and operational evidence.
 ---
 
 # Workflow DAG model
 
-Tikeo supports both simple scheduled jobs and workflow definitions. A workflow is a DAG of task nodes with explicit dependencies, dispatch constraints, retry behavior, and execution evidence.
+Tikeo supports simple Jobs and multi-step Workflows. A Job is a reusable execution contract. A Workflow is a directed acyclic graph (DAG) that composes execution nodes, dependency edges, input/output mappings, retry rules, notifications, and replay evidence. The goal is not just to draw a graph; it is to make every operational question answerable: what should run, why it was ready, who triggered it, which Worker executed it, what failed, which retry happened, and which downstream nodes were blocked.
 
-## Current concepts
+![Workflow DAG closed loop](pathname:///img/diagrams/workflow-dag-loop.svg)
 
-- **Job**: reusable execution definition.
-- **Instance**: one execution of a job or workflow.
-- **Attempt**: one run attempt for an instance.
-- **Workflow DAG**: nodes and edges for multi-step orchestration.
-- **Replay bundle**: data useful for incident review and visual replay.
+## Reader outcome
 
-## UI direction
+After this page you should understand where Jobs stop and Workflows begin, how a DAG reaches a runnable node, how instance and node attempts are related, why replay evidence matters, and how notifications fit without becoming a separate hidden workflow engine.
 
-The Web console includes workflow canvas and topology surfaces. Docs pages should teach the model before diving into JSON/YAML details.
+## Closed-loop DAG flow
 
-## Safety rule
+```mermaid
+flowchart LR
+  A[Draft workflow definition] --> B[Validate DAG]
+  B --> C{Cycles or missing inputs?}
+  C -- yes --> D[Return validation errors]
+  C -- no --> E[Create workflow version]
+  E --> F[Trigger workflow instance]
+  F --> G[Find ready nodes]
+  G --> H[Dispatch node task]
+  H --> I[Collect logs/result]
+  I --> J{Node terminal?}
+  J -- success --> K[Unlock downstream nodes]
+  J -- retryable failure --> L[Retry with policy]
+  J -- terminal failure --> M[Mark blocked/failed and notify]
+  K --> G
+  L --> H
+```
 
-Workflow docs must distinguish implemented runtime behavior from roadmap items. Do not claim a visual feature or migration tool is complete unless the repository contains verified tests or artifacts.
+This loop keeps the current环节 closed: definition validation prevents impossible graphs, execution only starts from ready nodes, every node attempt creates evidence, and the result feeds the next scheduling decision. A Workflow without replayable evidence is not operationally complete because humans cannot prove what happened after the graph becomes large.
 
-## Evaluation checklist
+## Job, instance, node, and attempt
 
-A workflow evaluation should prove more than graph rendering. Create or inspect a workflow definition, verify dependency order, trigger a run, inspect instance/attempt records, and confirm replay data contains enough evidence for incident review.
+| Term | Meaning | Operational question |
+| --- | --- | --- |
+| Job | Reusable single execution contract: processor, schedule, retry, selector, notification binding | “What can run and where?” |
+| Workflow | Versioned DAG made of nodes and edges | “Which steps depend on which other steps?” |
+| Workflow instance | One triggered run of a workflow version | “What happened in this run?” |
+| Node instance | One node execution inside a workflow instance | “Which step is ready, running, failed, or skipped?” |
+| Attempt | One try for a job or node | “Which retry produced this log/result?” |
+| Replay bundle | Timeline, inputs, outputs, logs, attempts, operator actions, delivery attempts | “Can we reconstruct the incident?” |
 
-## Failure handling model
+## Instance lifecycle and retry semantics
 
-Retries, cancellation, and downstream dependency behavior must be explicit. Public docs should avoid vague language like "self-healing" unless the exact retry, backoff, and rollback behavior is implemented and tested.
+![Job instance lifecycle](pathname:///img/diagrams/job-instance-lifecycle.svg)
 
-## Relationship to jobs
+```mermaid
+stateDiagram-v2
+  [*] --> Pending: trigger/schedule
+  Pending --> Running: worker claims task
+  Running --> Succeeded: result ok
+  Running --> Retrying: retryable error
+  Retrying --> Running: backoff elapsed
+  Retrying --> Failed: attempts exhausted
+  Running --> Cancelled: operator/system cancel
+  Failed --> [*]
+  Succeeded --> [*]
+  Cancelled --> [*]
+```
 
-Jobs are reusable execution definitions. Workflows compose jobs and workflow-local nodes into a DAG. Topology and impact pages help operators understand which jobs and workflows depend on one another before making changes.
+Retrying is a first-class state in operator language. It is different from Pending because a failed attempt already exists, and it is different from Running because no Worker may currently be executing during backoff. Notification policies should be able to distinguish initial running, retrying, terminal failure, success, and always events.
 
-## Future reference work
+## Notification and alert boundary
 
-A later docs phase should include YAML/JSON examples once the schema is generated or copied from verified fixtures. Until then, this page stays conceptual and points readers to the Web UI and API references.
+Workflow notifications answer “tell someone about this execution event.” Alerts answer “a rule observed an unhealthy condition and may fire/recover/silence.” A workflow node can send a notification, and an alert can use the same Notification Center channel, template, and delivery pipeline, but the semantics are different. Keep this boundary explicit to avoid duplicate delivery and confusing ownership.
+
+## Replay and incident review
+
+A replay view should show graph version, trigger source, operator, node order, instance IDs, attempt numbers, Worker IDs, logs, results, notification delivery attempts, and audit actions. Without that evidence, a Workflow UI becomes decoration. With it, operators can answer whether a failure came from dependency readiness, Worker eligibility, runtime exception, business exception, secret/config error, or downstream system failure.
+
+## Verify
+
+Create or inspect a small DAG with three nodes: extract, transform, notify. Validate it, run it, force one retryable failure, confirm the node enters retrying, then succeeds or fails terminally according to policy. Open the instance console and verify every node has an attempt record, logs, Worker identity, timestamps, and notification delivery result.
+
+## Troubleshooting
+
+| Symptom | Likely cause | What to inspect |
+| --- | --- | --- |
+| Node never starts | Upstream dependency failed or inputs missing | DAG readiness panel and node dependency table |
+| Workflow succeeds too early | Edge or terminal condition is wrong | Version diff and validation output |
+| Retry storms | Retry policy too aggressive or business failure marked retryable | Attempt timeline and error classification |
+| Notification missing | Policy not bound to workflow/node event, channel disabled, template render failed | Notification delivery attempts and template render preview |
+| Replay lacks detail | Logs/checkpoints not emitted by Worker or script runtime | Worker SDK instrumentation and script runner capture |
+
+## Production checklist
+
+- [ ] Workflows are versioned and changes are reviewed with a diff.
+- [ ] Every node has explicit retry, timeout, and downstream failure behavior.
+- [ ] Notifications are bound to clear execution events and templates include instance IDs.
+- [ ] Replay evidence is part of acceptance testing, not a later debugging wish.
+- [ ] High-risk Workflows have rollback or manual recovery instructions.

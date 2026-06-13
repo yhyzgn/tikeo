@@ -1,182 +1,123 @@
 ---
 title: Integrations overview
-description: Operator map for Tikeo HTTP, Worker Tunnel, inbound event, outbound notification, observability, identity, and deployment integrations.
+description: Operator map for Tikeo SDKs, Management API, Worker Tunnel, events, notifications, observability, identity, and deployment integrations.
 ---
 
 # Integrations overview
 
-Use this page to decide which Tikeo integration surface to operate, which component owns it, and which command proves the path is reachable. Keep inbound event triggers separate from outbound notification channels: they solve opposite traffic directions and use different routes.
+This page maps the integration surfaces. For SDK implementation details, start with [SDK and API integration guide](./sdk-and-api), then use the language page only for dependency and syntax differences.
+
+## Prerequisites
+
+| Need | Why it matters |
+| --- | --- |
+| Management HTTP endpoint | SDK Management clients and operators call `/api/v1` and `/api-docs/openapi.json`. |
+| Worker Tunnel endpoint | Worker SDKs connect outbound to the tunnel listener. |
+| Namespace/app model | SDK keys, Workers, jobs, and selectors share this scope. |
+| Service-account process | SDKs need `x-tikeo-api-key`; human bearer tokens are not service credentials. |
+| Worker pool naming | Selectors and runbooks need stable `worker_pool` labels. |
 
 ## Integration map
 
-| Integration surface | Direction | Owning component | Primary contract tokens | Verification entry point |
+| Surface | Direction | Owner | Contract tokens | Main document |
 | --- | --- | --- | --- | --- |
-| HTTP Management API / OpenAPI | Operator or SDK to Server | Server | `/api-docs/openapi.json`, `/api/v1/jobs`, `/api/v1/workers` | `curl http://127.0.0.1:9090/api-docs/openapi.json` |
-| Worker Tunnel | Worker to Server | Worker SDKs + Server | Worker Tunnel listener `:9998`, `WorkerTunnelService`, `OpenTunnel`, `DispatchTask`, `TaskLog`, `TaskResult` | Run a demo worker and check `/api/v1/workers` |
-| Inbound webhook triggers | External system to Server | Server event-source route | `POST /api/v1/events/webhooks/{job}:trigger` | Trigger a known job and inspect instance logs |
-| Outbound Notification Center | Server to external provider | Notification Center | `/api/v1/notification-channels`, `/api/v1/notification-policies`, `/api/v1/notification-delivery-attempts` | Create a channel with `secretRefs`, then validate a policy |
-| Alerts | Server to incident workflow | Alerting + optional delivery | `/api/v1/alert-rules`, `/api/v1/alert-events`, `/api/v1/alert-delivery-attempts` | Create/read alert rules and delivery status |
-| Prometheus metrics | Scraper to Server | Server observability | `/metrics` | `curl http://127.0.0.1:9090/metrics` |
-| OpenTelemetry traces | Server to collector | Server observability | `observability.tracing.enabled`, `observability.tracing.otlp_endpoint` | Check Server logs and collector intake |
-| OIDC login | Browser/API to identity provider and Server | Server auth | `auth.oidc.*`, `/api/v1/auth/oidc/*` | Check bootstrap/login and OIDC callback behavior |
-| Terraform / GitOps | IaC runner to Server | Deploy tooling + Server GitOps API | `deploy/terraform/`, `/api/v1/gitops/manifest`, `/api/v1/gitops/diff` | `deploy/smoke/terraform-provider-smoke.sh` |
-| Kubernetes / Helm | Cluster controller to workloads | Deploy assets | `deploy/helm/tikeo/`, `deploy/k8s/`, `TikeoManifest` CRD | `helm template` or k8s dry-run smoke |
+| SDK Worker | Worker → Worker Tunnel | Application team | `WorkerTunnelService`, `OpenTunnel`, `DispatchTask`, `TaskLog`, `TaskResult` | [SDK and API integration guide](./sdk-and-api) |
+| SDK Management client | App service → Server HTTP API | Application team | `x-tikeo-api-key`, `/api/v1/jobs`, `/api/v1/jobs/{job}:trigger` | [Management OpenAPI reference](../reference/management-openapi) |
+| Raw Management API | Operator/client → Server HTTP API | Platform/API team | `/api-docs/openapi.json`, `ApiResponse` | [Management OpenAPI reference](../reference/management-openapi) |
+| Inbound webhooks | External system → Server | Event-source owner | `POST /api/v1/events/webhooks/{job}:trigger` | Event trigger section below |
+| Notification Center | Server → external providers | Platform/notification owner | `/api/v1/notification-channels`, `/api/v1/notification-policies` | [Notification Center reference](../reference/notification-center) |
+| Alerts | Server → incident workflow | Platform/on-call owner | `/api/v1/alert-rules`, `/api/v1/alert-events` | Alert user guide |
+| Prometheus | Scraper → Server | Observability owner | `/metrics` | Deployment docs |
+| OpenTelemetry | Server → collector | Observability owner | `observability.tracing.*` | Configuration reference |
+| OIDC | Browser/API ↔ IdP/Server | Identity owner | `auth.oidc.*`, `/api/v1/auth/oidc/*` | Configuration reference |
+| Terraform/GitOps | IaC runner → Server | Platform owner | `/api/v1/gitops/manifest`, `/api/v1/gitops/diff` | Deployment docs |
+| Kubernetes/Helm | Cluster controller → workloads | Platform owner | `deploy/helm/tikeo/`, `TikeoManifest` | Kubernetes docs |
 
-## Traffic direction rules
+## Traffic direction model
 
-### Inbound event triggers
+```mermaid
+flowchart LR
+    Ext[External events] -->|webhook trigger| Server[Tikeo Server]
+    App[Application service] -->|Management API x-tikeo-api-key| Server
+    Worker[SDK Worker] -->|outbound Worker Tunnel| Server
+    Server -->|notifications| Provider[Slack / DingTalk / Feishu / WeCom / PagerDuty / Email / Webhook]
+    Scraper[Prometheus] -->|scrape /metrics| Server
+    Server -->|OTLP traces| Collector[OpenTelemetry collector]
+```
 
-Use inbound triggers when an external event should start a Tikeo job. The route is:
+Do not mix directions. Inbound webhooks start work. Worker Tunnel dispatches work to Workers. Notification channels send completed state or alerts out of Tikeo.
+
+## SDK/API integration path
+
+| Step | Owner | Output |
+| --- | --- | --- |
+| Pick SDK | Application team | Language page selected: Rust, Go, Java/Spring Boot, Python, or Node.js. |
+| Configure Worker | Application team | Outbound Worker connects with namespace/app, labels, and processor names. |
+| Configure Management client | Application team | App service sends `x-tikeo-api-key` to Management API. |
+| Create API job | Application team | Job uses API schedule and processor binding. |
+| Trigger job | Application team | Request uses `triggerType=api`; default helper uses `executionMode=single`. |
+| Inspect evidence | Application/platform | Instance and logs prove Worker execution. |
+
+## Inbound event triggers
+
+Inbound event triggers are not SDK Management triggers. Use them when an external event should start a known Tikeo job:
 
 ```text
 POST /api/v1/events/webhooks/{job}:trigger
 ```
 
-The request body accepts these fields:
+The body can include `source`, `eventType`, `payload`, `signature`, `timestamp`, `nonce`, and `secretRef`. Supported deployments can also accept signing values through `x-tikeo-webhook-secret-ref`, `x-tikeo-webhook-signature`, `x-tikeo-webhook-timestamp`, and `x-tikeo-webhook-nonce` headers. If signature fields are present, Tikeo validates timestamp freshness, nonce replay, and a `secretRef` resolved from the Server environment.
 
-- `source`
-- `eventType`
-- `payload`
-- `signature`
-- `timestamp`
-- `nonce`
-- `secretRef`
+## Outbound notification channels
 
-The same values can also be supplied through headers where supported:
+Notification Center sends messages from Tikeo to external providers. Use it for Slack, DingTalk, Feishu/Lark, WeCom, PagerDuty, email, generic webhooks, and enabled plugin webhook-compatible providers.
 
-- `x-tikeo-webhook-secret-ref`
-- `x-tikeo-webhook-signature`
-- `x-tikeo-webhook-timestamp`
-- `x-tikeo-webhook-nonce`
+| Route family | Purpose |
+| --- | --- |
+| `/api/v1/notification-channel-types` | Discover provider metadata. |
+| `/api/v1/notification-channels` | Store redacted reusable channels. |
+| `/api/v1/notification-templates` | Render provider-specific templates. |
+| `/api/v1/notification-policies` | Subscribe owners/events to channels. |
+| `/api/v1/notification-delivery-attempts` | Inspect retries, due work, and dead letters. |
+| `/api/v1/jobs/{job}/notification-bindings` | Bind notifications to job-owned events. |
 
-If signature fields are present, Tikeo validates timestamp freshness, nonce replay, and a `secretRef` resolved from the Server environment. Keep signing material in environment variables, not request examples or docs.
+Store provider credentials in channel `secretRefs`, for example `env:TIKEO_NOTIFICATION_CHANNEL_BILLING_FEISHU_WEBHOOK_URL`. Do not put provider secrets into examples, templates, screenshots, or channel config JSON.
 
-Minimal local shape for a trusted disposable test job:
+## Observability and identity integrations
 
-```bash
-curl -fsS -X POST http://127.0.0.1:9090/api/v1/events/webhooks/${JOB_ID}:trigger \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"source":"local-smoke","eventType":"demo.event","payload":{"example":true}}' | jq .
-```
-
-This creates a job instance with `triggerType=webhook` and appends an instance log containing `webhook_event_source`.
-
-### Outbound notification channels
-
-Use Notification Center when Tikeo must send messages to Slack, DingTalk, Feishu/Lark, WeCom, PagerDuty, email, generic webhooks, or plugin webhook-compatible providers.
-
-Key routes:
-
-```text
-GET  /api/v1/notification-channel-types
-POST /api/v1/notification-channels
-POST /api/v1/notification-policies
-GET  /api/v1/notification-delivery-attempts
-GET  /api/v1/notification-delivery-attempts:queue-status
-POST /api/v1/notification-delivery-attempts:retry-due
-```
-
-Store provider targets and credentials in each channel row's `secretRefs`, for example `env:TIKEO_NOTIFICATION_CHANNEL_BILLING_FEISHU_WEBHOOK_URL`, `env:TIKEO_NOTIFICATION_CHANNEL_BILLING_FEISHU_SIGNING_KEY`, or `env:TIKEO_NOTIFICATION_CHANNEL_ONCALL_PAGERDUTY_ROUTING_KEY`. Use different refs for different Slack/DingTalk/Feishu/WeCom/PagerDuty/email/webhook channels; do not store provider tokens inside examples, templates, tickets, screenshots, or channel `config` JSON.
-
-## Step-by-step local integration checks
-
-### 1. Verify the API and OpenAPI surface
-
-```bash
-curl -fsS http://127.0.0.1:9090/readyz
-curl -fsS http://127.0.0.1:9090/api-docs/openapi.json >/tmp/tikeo-openapi.json
-python3 -m json.tool /tmp/tikeo-openapi.json >/dev/null
-```
-
-If the OpenAPI document is unavailable, fix Server startup before debugging SDKs or UI calls.
-
-### 2. Verify Worker Tunnel connectivity
-
-Use one of the maintained demo workers. For the Node.js demo path, follow [Quickstart](../getting-started/quickstart). Then check:
-
-```bash
-curl -fsS http://127.0.0.1:9090/api/v1/workers \
-  -H "authorization: Bearer $TOKEN" \
-  | jq '.data.items[] | {clientInstanceId,status,namespace,app,structuredCapabilities}'
-```
-
-A worker that is missing from this list is not connected to the Server, even if its local process is running.
-
-### 3. Verify inbound webhook trigger routing
-
-Create or choose an API-scheduled job, export its ID as `JOB_ID`, then call:
-
-```bash
-curl -fsS -X POST http://127.0.0.1:9090/api/v1/events/webhooks/${JOB_ID}:trigger \
-  -H "authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"source":"local-smoke","eventType":"demo.event","payload":{"orderId":"demo-1"}}' | jq .data
-```
-
-Verify the instance:
-
-```bash
-curl -fsS 'http://127.0.0.1:9090/api/v1/instances?page=1&pageSize=20' \
-  -H "authorization: Bearer $TOKEN" | jq '.data.items[0]'
-```
-
-If a signature is required by your operating procedure, generate it outside the docs and pass only a `secretRef`, signature, timestamp, and nonce. Never write signing material into the request body or command history.
-
-### 4. Verify outbound notification metadata
-
-```bash
-curl -fsS http://127.0.0.1:9090/api/v1/notification-channel-types \
-  -H "authorization: Bearer $TOKEN" \
-  | jq '.data[] | {type, label, secretFields}'
-```
-
-This should list built-in providers such as `webhook`, `slack`, `dingtalk`, `feishu`, `wechat_work`, `pagerduty`, and `email`, plus enabled plugin channel types if configured.
-
-### 5. Verify deployment integration assets
-
-Use local render/dry-run checks before live cluster or IaC changes:
-
-```bash
-helm template tikeo deploy/helm/tikeo >/tmp/tikeo-helm.yaml
-kubectl apply --dry-run=client -f deploy/k8s/tikeo.yaml
-scripts/db-seed-api-compat-smoke.sh
-```
-
-For Terraform provider checks, start with:
-
-```bash
-deploy/smoke/terraform-provider-smoke.sh
-```
-
-Run live Terraform or Kubernetes smoke tests only against an environment you are allowed to modify.
-
-## Troubleshooting by integration
-
-| Symptom | Likely boundary | Operator check |
-| --- | --- | --- |
-| SDK calls return unauthorized | HTTP API auth | Bearer token versus `x-tikeo-api-key`, scopes, namespace/app binding. |
-| Worker process is running but no jobs execute | Worker Tunnel | Endpoint `http://127.0.0.1:9998`, TLS/plaintext match, namespace/app/worker pool, processor names. |
-| Webhook trigger returns replay or signature errors | Inbound trigger | Timestamp within 300 seconds, unique nonce, resolvable `secretRef`, matching payload when the signature was generated. |
-| Notifications do not leave Tikeo | Outbound channel | Channel enabled, `secretRefs` resolve, provider URL reachable, delivery queue status and retry/DLQ state. |
-| Alert rule pages for normal lifecycle messages | Alerting versus notifications | Move normal lifecycle messages to Notification Center policies; keep Alerts for abnormal conditions. |
-| Metrics scrape fails | Prometheus | Server reachable, `/metrics` path, network policy, service monitor target. |
-| OTel export has no traces | OpenTelemetry | `observability.tracing.enabled`, collector endpoint, headers, Server logs. |
-| Helm works but pods are not ready | Deployment | ConfigMap values, DB secret wiring, probes against `/readyz`, Worker Tunnel service exposure. |
-
-## Production checklist
-
-- Keep inbound webhook trigger credentials separate from outbound provider credentials.
-- Use `secretRefs` and environment-backed secrets for channels and signed webhook validation.
-- Document the owning team for each integration surface.
-- Record a verification command and expected failure mode for every enabled integration.
-- Use `/readyz` or `/healthz` for health checks; do not probe stream endpoints or job trigger routes.
-- Run local render/dry-run checks before applying Terraform, Helm, or Kubernetes changes to a shared environment.
-
-## Prerequisites
-
-Use the setup, authentication, and access requirements described in this page before running any command. For local examples, start the Server with `config/dev.toml`, use `127.0.0.1` as the client host, and keep tokens in shell variables rather than pasted into files.
+| Surface | Verification signal |
+| --- | --- |
+| Prometheus | `/metrics` responds and the scraper records Server metrics. |
+| OpenTelemetry | Server logs show tracing enabled and the collector receives spans. |
+| OIDC | Bootstrap/login routes complete the callback and RBAC scopes are visible. |
+| Audit | Management actions are visible in audit logs for operators. |
 
 ## Verify
 
-After following the page, verify the result with the documented API, UI, build, smoke, or deployment checks. A valid verification includes the command that was run, the route or file that was inspected, and the observed status or artifact.
+| Integration | Minimal evidence |
+| --- | --- |
+| SDK Worker | Online Worker record with expected namespace/app and processor. |
+| Management client | API-key call can list/create jobs in scope. |
+| API trigger | Instance has `triggerType=api` and expected execution mode. |
+| Worker execution | Instance logs include Worker-emitted task logs. |
+| Notification | Delivery attempt shows provider response or retry/DLQ status. |
+| Webhook | Event-created instance records the external event source. |
+
+## Troubleshooting
+
+| Symptom | Boundary to check |
+| --- | --- |
+| SDK calls return unauthorized | Service-account scope and `x-tikeo-api-key`. |
+| Worker is online but not selected | Namespace/app, processor name, cluster/region, labels, and `worker_pool`. |
+| Webhook creates no instance | Job id, webhook signature/nonce/timestamp, and `secretRef`. |
+| Notification does not deliver | Channel enabled state, `secretRefs`, template rendering, and delivery attempts. |
+| Metrics or traces are missing | Server config and collector/scraper reachability. |
+
+## Production checklist
+
+- [ ] SDK Worker traffic, Management API traffic, and notifications use separate credentials and routes.
+- [ ] Language SDK pages are treated as syntax guides, not separate behavior contracts.
+- [ ] Management automation uses `x-tikeo-api-key` and not human bearer tokens.
+- [ ] Event triggers and notification channels have separate runbooks.
+- [ ] Observability integrations produce operator-readable evidence before launch.
+- [ ] Secrets are referenced through environment or secret-manager refs only.

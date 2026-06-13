@@ -1,66 +1,78 @@
+---
+title: Scripts user guide
+description: Human operator guide for the Tikeo scripts console page.
+---
+
 # Scripts user guide
 
-## Overview
+Use Scripts to manage reviewed, versioned, auditable code snippets that Workers can execute through controlled runtimes. Drafts are editable; published versions are immutable and can be bound to Jobs.
 
-The Scripts page manages script drafts, execution policy, approval/publish flow, immutable versions, rollback, and content/policy `diff` previews. Jobs can bind only to approved script versions. The Server stores and dispatches script metadata; Workers execute inside controlled runtimes.
-
-Implementation anchors: `web/src/pages/ScriptsPage.tsx` uses `/api/v1/scripts`, `/api/v1/scripts/{id}`, `/api/v1/scripts/{id}/publish`, `/api/v1/scripts/{id}/rollback`, `/api/v1/scripts/{id}/versions`, and `/api/v1/scripts/{id}/diff`.
+![Scripts user guide screenshot](pathname:///img/screenshots/scripts.svg)
 
 ## Prerequisites
 
-- `scripts:read` to view; `scripts:manage` for create, edit, publish, rollback, or delete.
-- A Worker advertises the required script language and sandbox backend.
-- Release notes or approval evidence are ready for publish/rollback.
-- Policies contain only allowed env var names and secret references, never raw secrets.
+- You can sign in to the Tikeo console and your role grants read access to this page.
+- The target namespace/app is known before you change runtime objects.
+- At least one recent instance, worker session, or audit event exists when you are verifying live behavior.
+- For production changes, prepare a rollback note and an expected observation before saving.
 
-```bash
-curl -fsS http://127.0.0.1:9090/api/v1/scripts \
-  -H "authorization: Bearer $TIKEO_TOKEN" | jq '.data.items[] | {id,name,language,status,version}'
-```
+## When to use
 
-## Open the page
+- A small operational task is better expressed as a script than a compiled SDK processor.
+- You need reviewable diffs and rollback.
+- The same script version should be bound to multiple Jobs.
+- Operators need stdout/stderr and exception stack evidence.
 
-1. Select **Scripts** or open `/scripts`.
-2. Create a script or open `/scripts/{id}/edit`.
-3. Filter by language, status, or keyword.
-4. Use diff before publish or rollback.
+## Key areas
 
-## Common tasks
+| Area | What to read first |
+| --- | --- |
+| Draft editor | Language/runtime, parameters, validation notes, and saved draft state. |
+| Diff review | Line-level diff between draft and published version before release. |
+| Published versions | Immutable version id, author, checksum, created time, and rollback candidate. |
+| Bindings | Jobs that reference each version and recent instance evidence. |
 
-### Create a script
+## Typical workflow
 
-Enter name, language, content, timeout, memory, output limit, env allowlist, filesystem policy, network policy, secret refs, and sandbox backend. Keep network and filesystem denied unless explicitly approved.
+1. Write or edit a draft with a clear expected input/output contract.
+2. Review diff before publishing; do not publish hidden behavior changes.
+3. Publish an immutable version and copy its version id.
+4. Bind a Job to that exact version, then trigger a small run.
+5. If the run fails, inspect stdout/stderr, runtime exception, and rollback to the previous version.
 
-### Publish a version
+## Decision table
 
-Preview `diff`, record approval, then publish. Publishing creates an immutable approved version that Jobs can reference.
-
-### Roll back
-
-Select a known approved version, execute rollback, and treat the change as production-impacting because future job instances may use the restored version.
+| Situation | Human decision | Evidence to collect |
+| --- | --- | --- |
+| First setup | Use narrow scope and one small verification run. | Screenshot, object id, instance id, audit event. |
+| Incident | Freeze risky changes until the failing object is understood. | Timeline, attempts, logs, delivery attempts. |
+| Production rollout | Change one dimension at a time and compare before/after. | Version diff, Dashboard health, audit trail. |
+| Rollback | Prefer reverting to a known version over ad-hoc edits. | Previous version id, rollback audit, new verification run. |
 
 ## Verify
 
-- Draft creation saves content and policy fields.
-- `diff` shows both content and policy changes.
-- Publish creates an approved immutable version.
-- Rollback points the script to the selected approved version.
-- A matching Worker advertises the language/backend before jobs use the script.
+- The page shows a current object, not stale browser state.
+- A user with read-only permissions can inspect evidence but cannot make privileged changes.
+- A real operation produces a visible audit event and, when relevant, an instance or delivery record.
+- The console link can be copied into an incident note and still identifies the same object.
 
 ## Troubleshooting
 
-| Symptom | Action |
+| Symptom | Response |
 | --- | --- |
-| Save fails | Check required fields, limits, language, and permission. |
-| Publish fails | Check approval fields and policy validation. |
-| Script job pending | Verify Worker `scriptRunners`. |
-| Script execution fails | Inspect instance logs; do not look for execution on the Server. |
-| Rollback appears ignored | Confirm new instance creation time and released version pointer. |
+| Page looks empty | Check namespace/app filters and role permissions before assuming data loss. |
+| Object exists but action is disabled | Confirm RBAC, object state, and whether the action would cross scope boundaries. |
+| UI result differs from chat/email | Trust Tikeo delivery attempts and instance evidence first, then compare provider history. |
+| Time order is confusing | Use server timestamps, attempt numbers, and audit request ids instead of local browser order. |
+
+## Reference anchors
+
+This guide intentionally keeps API details in the appendix. If you need to inspect implementation or automate the same workflow, use these anchors: `Scripts`, `web/src/pages/ScriptsPage.tsx`, `/api/v1/scripts`, `diff`.
 
 ## Production checklist
 
-- [ ] Network/filesystem are denied by default.
-- [ ] Timeout, memory, and output limits are set.
-- [ ] Env vars are allowlisted by name only.
-- [ ] Worker runner matches language and sandbox backend.
-- [ ] Publish and rollback have approval records and version IDs.
+- [ ] Owner scope and operational responsibility are clear.
+- [ ] The change has a small verification path and rollback note.
+- [ ] Evidence includes object id, time, operator, status, and related instance or delivery id.
+- [ ] Public links use the configured platform URL when they leave the console.
+- [ ] The team knows whether this page is describing execution, notification, alerting, or governance semantics.

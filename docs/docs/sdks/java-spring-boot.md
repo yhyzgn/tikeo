@@ -7,6 +7,9 @@ description: Java SDK module coordinates, Spring Boot property defaults, @TikeoP
 
 The Java SDK lives in `sdks/java` as a Gradle multi-module build. It supports a core Worker/Management SDK, Spring Framework adapters, and Spring Boot starters for Boot 2, Boot 3, and Boot 4 compatibility lines. Runnable demos live under `examples/java/spring-boot{2,3,4}-worker-demo`.
 
+
+Shared SDK/API contract: see [SDK and API integration guide](../integrations/sdk-and-api) for common concepts, unified configuration parameters, Management API semantics, Worker connection parameters, trigger types, errors/retries, and the language difference table. This language page stays focused on installation, minimal Worker code, exception behavior, and Management client syntax.
+
 ## Dependency coordinates
 
 `sdks/java/settings.gradle.kts` declares these modules:

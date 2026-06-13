@@ -1,105 +1,78 @@
-# Workflows 运维手册
+---
+title: 工作流用户指南
+description: Tikeo workflows 控制台页面的人类操作指南。
+---
 
-## 概览
+# 工作流用户指南
 
-Workflows 页面用于管理 DAG 工作流，包括定义、可视化编辑、JSON/YAML 视图、校验、dry-run、执行、replay、shard 查看和失败节点恢复。运维人员应先校验和 dry-run，再执行会影响生产的工作流。
+用 Workflows 页面设计、校验、运行和回放 DAG 编排。这个页面面向需要理解依赖形态的人，而不是把 JSON 粘进文本框。
 
-运维依据：页面由 `web/src/pages/WorkflowsPage.tsx` 提供；主要接口包括 `/api/v1/workflows`、`/api/v1/workflows/{id}`、`/api/v1/workflows/{id}/validate`、`/api/v1/workflows/dry-run`、`/api/v1/workflows/{id}/run`、`/api/v1/workflow-instances/{instance}`、`/api/v1/workflow-instances/{instance}/replay`、`/api/v1/workflow-instances/{instance}/recover`、`/api/v1/workflow-instances/{instance}/shards` 和 `/api/v1/events/instances/{id}/stream`。
+![工作流用户指南 截图](pathname:///img/screenshots/workflows.svg)
 
 ## 前置条件
 
-- 具备 `workflows:read` 查看权限；创建、编辑、执行或恢复需要对应管理权限。
-- Workflow 中引用的 Job 已存在，并处于正确 namespace/app。
-- 相关 Worker 已声明 Job 所需 processor 或 runner。
-- 已准备测试输入、回滚方案和失败节点处理策略。
+- 你可以登录 Tikeo 控制台，并且当前角色拥有此页面的读取权限。
+- 在变更运行时对象前，已经明确目标 namespace/app。
+- 做现场验收时，至少存在一个近期实例、Worker session 或审计事件。
+- 生产变更前，先写好回滚说明和期望观察结果，再保存。
 
-```bash
-curl -fsS http://127.0.0.1:9090/api/v1/workflows \
-  -H "authorization: Bearer $TIKEO_TOKEN" | jq '.data[] | {id,name,status}'
-```
+## When to use / 何时使用
 
-## 打开页面
+- 业务流程包含多个依赖步骤。
+- 需要可视化 ready 状态与回放证据。
+- 失败需要明确阻塞或跳过下游。
+- 通知节点属于执行故事的一部分。
 
-1. 登录控制台。
-2. 在左侧菜单选择 **工作流**，或打开 `/workflows`。
-3. 新建工作流使用 `/workflows/new`；编辑现有工作流使用 `/workflows/{id}/edit`。
-4. 打开详情后，在画布和定义视图之间切换核对 DAG。
+## Key areas / 关键区域
 
-## 常见操作
+| 区域 | 先看什么 |
+| --- | --- |
+| 画布 | 节点形态、依赖边、校验标记与选中节点详情。 |
+| 版本面板 | 已发布 DAG 版本、diff、作者、回滚与回放入口。 |
+| 运行面板 | 触发来源、输入 payload、dry-run 结果与实例链接。 |
+| 回放 | 节点时间线、attempt、日志、下游影响与投递记录。 |
 
-### 新建小型 DAG
+## Typical workflow / 典型流程
 
-1. 从 start、job、condition、parallel、join、delay、approval、notification、compensation、map、map_reduce 或 sub_workflow 等节点中选择必要节点。
-2. 给每个节点设置稳定 key 和清晰名称。
-3. Job 节点必须绑定存在且可调度的 Job。
-4. 连接 edges，并确认 condition 使用 `always`、`on_success` 或 `on_failure`。
-5. 保存前运行 validation。
+1. Sketch the DAG from business order, not from implementation convenience.
+2. Validate before publishing and fix cycles or missing inputs.
+3. Run a dry-run when selectors or dynamic inputs are involved.
+4. Trigger a small real run and inspect replay before production scale.
+5. Use notification nodes or policies for success/failure/always events.
 
-### 添加通知节点
+## 决策表
 
-通知节点不再是 raw webhook target。它会在 Notification Center 中物化 `workflow_node.notification_requested` 消息，并为选中的渠道创建投递尝试。支持两种模式：
+| 场景 | 人的判断 | 需要收集的证据 |
+| --- | --- | --- |
+| 首次配置 | 使用最小作用域，并只跑一次小规模验收。 | 截图、对象 id、实例 id、审计事件。 |
+| 事故处理 | 在理解失败对象前，暂停高风险变更。 | 时间线、attempt、日志、投递记录。 |
+| 生产发布 | 一次只改一个维度，并对比前后状态。 | 版本 diff、Dashboard 健康、审计链路。 |
+| 回滚 | 优先回到已知版本，而不是临场乱改。 | 旧版本 id、回滚审计、新验收运行。 |
 
-- **内联渠道引用**：在 `config.channelRefs` 中选择已注册且启用的 Notification Center channel id；可选 `config.templateRef`、`subject`、`body` 和 `severity`。如果引用的渠道不存在、已禁用，或模板不存在、已禁用、provider 与渠道不匹配，validation/dry-run/create/update 会失败。
-- **策略模式**：设置 `config.usePolicies=true`，再创建 `workflow` 或 `workflow_node` 类型的通知策略，由策略匹配 workflow id / node key。
+## 验收 Verify
 
-示例：
-
-```json
-{
-  "key": "notify_ops",
-  "kind": "notification",
-  "config": {
-    "channelRefs": [{"channelId": "notification-channel-ops"}],
-    "templateRef": "workflow.node.notice",
-    "subject": "Workflow notification requested",
-    "body": "A workflow notification node was materialized",
-    "severity": "warning"
-  }
-}
-```
-
-旧的 `channel/target/template` raw 字段节点会被校验拒绝，因为它看起来会成功，但不会触达任何已治理渠道。默认投递异步且非阻塞；节点会记录标准化消息和可重试 attempt，工作流继续推进，投递失败进入 Notification Center retry/DLQ。
-
-### 校验和 dry-run
-
-先运行 `/api/v1/workflows/{id}/validate` 或页面校验；新定义可以先用 `/api/v1/workflows/dry-run` 检查 start nodes、node count 和 edge count。校验失败时，不要执行工作流。
-
-### 执行工作流
-
-1. 确认当前定义已保存。
-2. 确认引用 Job 有 eligible workers。
-3. 点击运行，触发契约为 `triggerType=api`。
-4. 记录 workflow instance ID。
-5. 到实例视图查看节点状态、shards 和底层 Job instance 日志。
-
-### replay 与节点恢复
-
-replay 用于复盘 workflow instance 的事件和图关系。recover 用于失败节点处理，支持 retry、skip 或 fail。执行前必须确认失败节点、输入 context、下游影响和业务审批。
-
-## 验收
-
-- 可以创建并保存一个包含 Job 节点的小型 DAG。
-- validation 能返回通过或明确错误。
-- dry-run 能返回 start nodes、node count 和 edge count。
-- run 能创建 workflow instance。
-- workflow instance 可以查看节点、shards、replay；失败节点可以按权限执行 recovery。
-- 每个 Job 节点都能追溯到底层 Instances 日志。
+- 页面展示的是当前对象，而不是浏览器缓存中的旧状态。
+- 只读用户可以查看证据，但不能执行特权变更。
+- 一次真实操作会产生可见审计事件，并在相关场景产生实例或投递记录。
+- 控制台链接复制到事故记录后，仍能定位同一个对象。
 
 ## 故障排查
 
-| 现象 | 处理 |
+| 现象 | 处理方式 |
 | --- | --- |
-| validation 失败 | 检查孤立节点、非法 edge、重复 key、缺失 Job、不支持的 condition，或 notification 节点缺少 `channelRefs/usePolicies`。 |
-| dry-run 结果不符合预期 | 对照定义视图，确认画布位置没有替代真实 DAG 定义。 |
-| run 后节点 pending | 到 Jobs 和 Workers 页面检查 Job 可调度性。 |
-| shard 失败 | 查看 shard 输入输出，再到 Instances 查底层 Job 日志。 |
-| recovery 风险不清楚 | 暂停操作，先导出 replay 证据并确认下游影响。 |
+| 页面看起来为空 | 先检查 namespace/app 过滤和角色权限，不要直接判断数据丢失。 |
+| 对象存在但按钮禁用 | 检查 RBAC、对象状态以及操作是否跨越作用域边界。 |
+| UI 结果与聊天/邮件不一致 | 先相信 Tikeo 投递记录和实例证据，再对比提供方历史。 |
+| 时间顺序混乱 | 使用 Server 时间戳、attempt 编号和审计 request id，而不是本地浏览器顺序。 |
+
+## 参考锚点
+
+本指南刻意把 API 细节放在附录中。如果需要排查实现或自动化相同流程，可使用这些锚点：`Workflows`、`web/src/pages/WorkflowsPage.tsx`、`/api/v1/workflows`、`DAG`。
 
 ## 生产检查清单
 
-- [ ] 生产工作流执行前已通过 validation 和 dry-run。
-- [ ] 每个 Job 节点都有可调度 Worker。
-- [ ] recovery 操作有明确的 retry、skip 或 fail 决策依据。
-- [ ] notification 节点使用 Notification Center 渠道/模板/策略引用，不包含 raw target 或密钥。
-- [ ] replay 证据已保存到工单或事故记录。
-- [ ] 不把画布展示当成唯一依据，最终以保存后的 DAG 定义和后端响应为准。
+- [ ] 归属作用域和运维责任人明确。
+- [ ] 变更有小规模验收路径和回滚说明。
+- [ ] 证据包含对象 id、时间、操作人、状态以及相关实例或投递 id。
+- [ ] 离开控制台的公开链接使用已配置平台 URL。
+- [ ] 团队清楚本页描述的是执行、通知、告警还是治理语义。

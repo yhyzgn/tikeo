@@ -1,79 +1,78 @@
-# Settings 与治理运维手册
+---
+title: 设置与治理指南
+description: Tikeo settings 控制台页面的人类操作指南。
+---
 
-## 概览
+# 设置与治理指南
 
-Settings 相关能力分布在多个治理页面，而不是一个单独页面。运维人员通常在这里管理用户、角色、tenant scopes、API-Key、service account、调度日历、GitOps/IaC，以及已启用的身份和观测治理入口。
+用 Settings 管理平台级治理：用户、角色、API-Key、RBAC、租户作用域、平台公开 URL，以及通知和外部控制台链接所使用的集成默认值。
 
-运维依据：路由和菜单元数据由 `web/src/routes.tsx` 提供。相关路径包括 `/users`、`/roles`、`/scopes`、`/api-keys`、`/calendars`、`/gitops`、`/notifications`、`/alerts` 和 `/audit`。菜单显示与操作按钮受 RBAC resource/action 控制。
+![设置与治理指南 截图](pathname:///img/screenshots/settings.svg)
 
 ## 前置条件
 
-- 已登录控制台。
-- 具备目标页面的 read 权限；变更用户、角色、scope、API-Key 或 calendar 需要对应 manage/write 权限。
-- 已明确变更所属 namespace、app、service account 和授权范围。
-- 创建 API-Key 后只在安全位置保存一次，后续不要要求系统再次显示明文。
+- 你可以登录 Tikeo 控制台，并且当前角色拥有此页面的读取权限。
+- 在变更运行时对象前，已经明确目标 namespace/app。
+- 做现场验收时，至少存在一个近期实例、Worker session 或审计事件。
+- 生产变更前，先写好回滚说明和期望观察结果，再保存。
 
-```bash
-curl -fsS http://127.0.0.1:9090/api/v1/jobs \
-  -H "x-tikeo-api-key: $TIKEO_MANAGEMENT_API_KEY" | jq '.code'
-```
+## When to use / 何时使用
 
-## 打开页面
+- 用户入职或离职。
+- 创建应用级 SDK API Key。
+- 修改通知按钮使用的平台公开 URL。
+- 生产上线前审查 RBAC。
 
-1. 登录控制台。
-2. 在左侧菜单找到 **治理配置** 分组。
-3. 按目标选择 **用户管理**、**角色管理**、**租户范围**、**调度日历**、**API-Key** 或 **GitOps/IaC**。
-4. 如果菜单项不可见，先检查账号角色和 route metadata 要求的 resource/action。
+## Key areas / 关键区域
 
-## 常见操作
+| 区域 | 先看什么 |
+| --- | --- |
+| 用户与角色 | Owner/admin/operator/viewer 类职责、邀请、禁用和审计。 |
+| API-Key | 应用级 key、过期时间、轮换与最小权限。 |
+| 租户作用域 | Jobs、Workers、Notifications、Audit 过滤使用的 namespace/app 层级。 |
+| 平台 URL | 投递模板和免登录控制台页面使用的公开控制台 base URL。 |
 
-### 管理用户和角色
+## Typical workflow / 典型流程
 
-1. 在 `/users` 查看用户和角色绑定。
-2. 在 `/roles` 查看 permission matrix、菜单权限和界面操作元素权限。
-3. 修改角色前，确认 read、write、execute、manage 的影响范围。
-4. 保存后用普通用户、operator 和 admin 三种视角验收。
+1. Review RBAC before adding powerful users or keys.
+2. Create API keys at the narrowest namespace/app scope that still works.
+3. Set the platform public URL before enabling external notification buttons.
+4. Rotate keys deliberately and confirm dependent Workers or automation have been updated.
+5. Use Audit to confirm every governance change.
 
-### 管理 tenant scopes
+## 决策表
 
-1. 在 `/scopes` 管理 namespace、app、worker pool 和受控引用。
-2. Job ownership、service accounts、Worker pools、密钥引用和 canary targets 都依赖 scope。
-3. 跨 scope 移动 Job 前，确认源 scope 与目标 scope 均授权。
+| 场景 | 人的判断 | 需要收集的证据 |
+| --- | --- | --- |
+| 首次配置 | 使用最小作用域，并只跑一次小规模验收。 | 截图、对象 id、实例 id、审计事件。 |
+| 事故处理 | 在理解失败对象前，暂停高风险变更。 | 时间线、attempt、日志、投递记录。 |
+| 生产发布 | 一次只改一个维度，并对比前后状态。 | 版本 diff、Dashboard 健康、审计链路。 |
+| 回滚 | 优先回到已知版本，而不是临场乱改。 | 旧版本 id、回滚审计、新验收运行。 |
 
-### 管理 API-Key 和 service account
+## 验收 Verify
 
-1. 在 `/api-keys` 创建 service account。
-2. 设置 namespace、app 和允许的 scopes。
-3. 创建 API-Key 后立即复制并保存到安全系统。
-4. 发生泄露、离职或服务下线时，执行 rotate 或 revoke。
-5. 后续页面只应显示 prefix，不应显示完整值。
-
-### 管理调度日历和 GitOps/IaC
-
-在 `/calendars` 维护调度窗口和假期策略；在 `/gitops` 管理配置交付入口。生产变更前，确认影响的 namespace/app 和关联 Job。
-
-## 验收
-
-- 普通用户只能看到被授权菜单和按钮。
-- operator 能执行日常运维操作，但不能越权管理高风险资源。
-- admin 能看到治理配置，并能管理 RBAC、scope 和 API-Key。
-- API-Key 创建后只展示一次完整值，后续只展示 prefix。
-- revoke 或 rotate 后，旧凭据不能继续调用 Management API。
+- 页面展示的是当前对象，而不是浏览器缓存中的旧状态。
+- 只读用户可以查看证据，但不能执行特权变更。
+- 一次真实操作会产生可见审计事件，并在相关场景产生实例或投递记录。
+- 控制台链接复制到事故记录后，仍能定位同一个对象。
 
 ## 故障排查
 
-| 现象 | 处理 |
+| 现象 | 处理方式 |
 | --- | --- |
-| 菜单不可见 | 检查 `web/src/routes.tsx` 中该 route 的 permission，再核对用户角色。 |
-| 按钮不可见 | 检查界面操作元素权限和后端 permission catalog。 |
-| API-Key 调用失败 | 检查 key 是否 revoked、service account scope 是否正确、请求头是否为 `x-tikeo-api-key`。 |
-| 跨 scope 操作失败 | 确认源 scope 和目标 scope 都已授权。 |
-| 普通用户看到高风险入口 | 立即回滚角色变更，并检查菜单权限和后端权限是否一致。 |
+| 页面看起来为空 | 先检查 namespace/app 过滤和角色权限，不要直接判断数据丢失。 |
+| 对象存在但按钮禁用 | 检查 RBAC、对象状态以及操作是否跨越作用域边界。 |
+| UI 结果与聊天/邮件不一致 | 先相信 Tikeo 投递记录和实例证据，再对比提供方历史。 |
+| 时间顺序混乱 | 使用 Server 时间戳、attempt 编号和审计 request id，而不是本地浏览器顺序。 |
+
+## 参考锚点
+
+本指南刻意把 API 细节放在附录中。如果需要排查实现或自动化相同流程，可使用这些锚点：`Settings`、`web/src/routes.tsx`、`API-Key`、`RBAC`。
 
 ## 生产检查清单
 
-- [ ] 所有治理变更有变更单或审批记录。
-- [ ] RBAC 同时覆盖菜单、按钮和后端接口。
-- [ ] API-Key 只保存到授权的安全系统，不写入文档、日志或工单正文。
-- [ ] service account scope 遵循最小权限。
-- [ ] rotate、revoke、角色变更后已用实际账号验收。
+- [ ] 归属作用域和运维责任人明确。
+- [ ] 变更有小规模验收路径和回滚说明。
+- [ ] 证据包含对象 id、时间、操作人、状态以及相关实例或投递 id。
+- [ ] 离开控制台的公开链接使用已配置平台 URL。
+- [ ] 团队清楚本页描述的是执行、通知、告警还是治理语义。

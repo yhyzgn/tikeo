@@ -1,74 +1,78 @@
-# Audit 运维手册
+---
+title: 审计用户指南
+description: Tikeo audit 控制台页面的人类操作指南。
+---
 
-## 概览
+# 审计用户指南
 
-Audit 页面用于查看平台写操作、认证事件、脚本治理动作、派发相关事件和失败原因。它是事故复盘、权限核查、发布审阅和合规导出的主要入口。
+用 Audit 重建谁在何时从哪里以什么作用域做了什么变更。审计是 Jobs、Workers、Scripts、Workflows、Notifications、Alerts、Settings 与认证的横向证据层。
 
-运维依据：页面由 `web/src/pages/AuditLogsPage.tsx` 提供；主要接口包括 `/api/v1/audit-logs` 和 `/api/v1/audit-logs:export`。导出格式为 JSON，并沿用当前筛选条件。
+![审计用户指南 截图](pathname:///img/screenshots/audit.svg)
 
 ## 前置条件
 
-- 具备 `audit:read` 权限。
-- 已知道调查时间窗口、actor、resource type、resource id、action 或 trace ID 中至少一项。
-- 导出文件应按敏感运维记录保存，不放入公开聊天、公开仓库或未授权工单。
-- 浏览器允许下载 JSON 文件。
+- 你可以登录 Tikeo 控制台，并且当前角色拥有此页面的读取权限。
+- 在变更运行时对象前，已经明确目标 namespace/app。
+- 做现场验收时，至少存在一个近期实例、Worker session 或审计事件。
+- 生产变更前，先写好回滚说明和期望观察结果，再保存。
 
-```bash
-curl -fsS 'http://127.0.0.1:9090/api/v1/audit-logs?pageSize=20' \
-  -H "authorization: Bearer $TIKEO_TOKEN" | jq '.data.items[] | {createdAt,actor,action,result}'
-```
+## When to use / 何时使用
 
-## 打开页面
+- 调查生产事故。
+- 准备变更评审或合规导出。
+- 确认回滚是否真的发生。
+- 确认谁修改了通知或 API-Key 配置。
 
-1. 登录控制台。
-2. 在左侧菜单选择 **审计日志**，或打开 `/audit`。
-3. 设置 actor、action、resource type、resource id、failure reason 或 page size。
-4. 复制 URL 可保留当前筛选视图。
+## Key areas / 关键区域
 
-## 常见操作
+| 区域 | 先看什么 |
+| --- | --- |
+| 搜索过滤 | actor、action、resource type、resource id、scope、时间范围和 request id。 |
+| 事件详情 | 变更摘要、IP/user agent、认证方式和关联 id。 |
+| 导出 | 面向复盘或合规的时间范围证据包。 |
+| 交叉链接 | 跳转到 Jobs、Instances、Workers、Scripts、Settings 与投递记录。 |
 
-### 过滤成功写操作
+## Typical workflow / 典型流程
 
-选择 resource type 和 action，确认 result 为 success。打开详情后记录 resource id、actor、trace ID、before/after snapshot 和 request identifiers。
+1. Filter by time first, then narrow by resource id or actor.
+2. Open the event detail and read correlation ids before drawing conclusions.
+3. Use cross-links to inspect the affected runtime object.
+4. Export only the bounded incident window needed for review.
+5. Store the export alongside incident notes and notification evidence.
 
-### 过滤失败操作
+## 决策表
 
-设置 failure reason 或 result 过滤，查看失败行中的 reason。用 trace ID 去关联 API 错误、服务端日志和用户操作时间。
+| 场景 | 人的判断 | 需要收集的证据 |
+| --- | --- | --- |
+| 首次配置 | 使用最小作用域，并只跑一次小规模验收。 | 截图、对象 id、实例 id、审计事件。 |
+| 事故处理 | 在理解失败对象前，暂停高风险变更。 | 时间线、attempt、日志、投递记录。 |
+| 生产发布 | 一次只改一个维度，并对比前后状态。 | 版本 diff、Dashboard 健康、审计链路。 |
+| 回滚 | 优先回到已知版本，而不是临场乱改。 | 旧版本 id、回滚审计、新验收运行。 |
 
-### 核查敏感变更
+## 验收 Verify
 
-重点关注 Job scope move、script publication、API-Key rotation、RBAC edits、service-account 变更和 Worker 相关派发事件。使用 before/after snapshot 确认实际变更内容。
-
-### 导出证据
-
-1. 设置好当前筛选条件。
-2. 点击导出。
-3. 下载 JSON 文件。
-4. 核对导出内的 filter metadata 和 `exported` 数量。
-5. 按内部安全要求存放导出文件。
-
-## 验收
-
-- 可以过滤至少一个成功写操作。
-- 可以过滤至少一个失败操作，并看到 failure reason。
-- 带 trace ID 的行可用于关联服务端日志。
-- 导出的 JSON 保留当前筛选条件。
-- 导出内容包含数量、筛选元数据、before/after 字段和必要请求信息。
+- 页面展示的是当前对象，而不是浏览器缓存中的旧状态。
+- 只读用户可以查看证据，但不能执行特权变更。
+- 一次真实操作会产生可见审计事件，并在相关场景产生实例或投递记录。
+- 控制台链接复制到事故记录后，仍能定位同一个对象。
 
 ## 故障排查
 
-| 现象 | 处理 |
+| 现象 | 处理方式 |
 | --- | --- |
-| 页面无数据 | 放宽时间或筛选条件，确认当前账号有 `audit:read`。 |
-| 找不到失败原因 | 检查服务端是否在失败路径写入 failure reason。 |
-| trace ID 无法关联 | 对照 API 网关、应用日志和请求时间，确认日志采集链路。 |
-| 导出为空 | 确认导出前的筛选结果非空，并检查 page size 或权限。 |
-| before/after 缺失 | 回到对应写操作路径，确认审计写入是否覆盖该资源类型。 |
+| 页面看起来为空 | 先检查 namespace/app 过滤和角色权限，不要直接判断数据丢失。 |
+| 对象存在但按钮禁用 | 检查 RBAC、对象状态以及操作是否跨越作用域边界。 |
+| UI 结果与聊天/邮件不一致 | 先相信 Tikeo 投递记录和实例证据，再对比提供方历史。 |
+| 时间顺序混乱 | 使用 Server 时间戳、attempt 编号和审计 request id，而不是本地浏览器顺序。 |
+
+## 参考锚点
+
+本指南刻意把 API 细节放在附录中。如果需要排查实现或自动化相同流程，可使用这些锚点：`Audit`、`web/src/pages/AuditLogsPage.tsx`、`/api/v1/audit-logs`、`/api/v1/audit-logs:export`。
 
 ## 生产检查清单
 
-- [ ] 生产变更至少能在 Audit 中查到 actor、action、resource 和时间。
-- [ ] 高风险失败操作必须记录 failure reason。
-- [ ] 导出文件只发给授权人员，并按敏感记录保存。
-- [ ] 审计调查记录 trace ID、resource ID 和时间窗口。
-- [ ] 不用截图替代 JSON 导出；截图只能作为辅助说明。
+- [ ] 归属作用域和运维责任人明确。
+- [ ] 变更有小规模验收路径和回滚说明。
+- [ ] 证据包含对象 id、时间、操作人、状态以及相关实例或投递 id。
+- [ ] 离开控制台的公开链接使用已配置平台 URL。
+- [ ] 团队清楚本页描述的是执行、通知、告警还是治理语义。

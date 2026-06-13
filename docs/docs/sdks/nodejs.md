@@ -7,6 +7,9 @@ description: Node.js SDK dependency coordinates, WorkerConfig defaults, minimal 
 
 The Node.js SDK lives in `sdks/nodejs/tikeo`; the runnable Bun demo lives in `examples/nodejs/worker-demo`. Repository commands use Bun, and the published package is `@yhyzgn/tikeo`.
 
+
+Shared SDK/API contract: see [SDK and API integration guide](../integrations/sdk-and-api) for common concepts, unified configuration parameters, Management API semantics, Worker connection parameters, trigger types, errors/retries, and the language difference table. This language page stays focused on installation, minimal Worker code, exception behavior, and Management client syntax.
+
 ## Dependency coordinates
 
 `sdks/nodejs/tikeo/package.json` declares:

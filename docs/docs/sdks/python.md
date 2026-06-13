@@ -7,6 +7,9 @@ description: Python SDK dependency coordinates, WorkerConfig defaults, minimal W
 
 The Python SDK lives in `sdks/python/tikeo`, with package source under `sdks/python/tikeo/src/tikeo`. The runnable demo lives in `examples/python/worker-demo`. The SDK exposes Worker configuration, a gRPC Worker Tunnel client, task models, script runners, sandbox tool resolution, and Management API helpers.
 
+
+Shared SDK/API contract: see [SDK and API integration guide](../integrations/sdk-and-api) for common concepts, unified configuration parameters, Management API semantics, Worker connection parameters, trigger types, errors/retries, and the language difference table. This language page stays focused on installation, minimal Worker code, exception behavior, and Management client syntax.
+
 ## Dependency coordinates
 
 `sdks/python/tikeo/pyproject.toml` declares:

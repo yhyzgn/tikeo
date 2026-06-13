@@ -67,6 +67,8 @@ const sidebars: SidebarsConfig = {
       label: 'Develop and extend',
       items: [
         'development/overview',
+        'development/script-support',
+        'development/plugin-development',
       ],
     },
     {

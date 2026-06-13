@@ -1,66 +1,78 @@
+---
+title: Settings and governance guide
+description: Human operator guide for the Tikeo settings console page.
+---
+
 # Settings and governance guide
 
-## Overview
+Use Settings to manage platform-level governance: users, roles, API-Key access, RBAC, tenant scopes, platform public URL, and integration defaults used by notifications and external console links.
 
-Settings are distributed across governance pages instead of one monolithic screen. Operators manage users, roles, tenant scopes, API-Key/service-account access, calendars, GitOps/IaC, notification governance, alert review, and audit through route-specific pages.
-
-Implementation anchors: `web/src/routes.tsx` defines the menu and permission metadata. Current governance paths include `/users`, `/roles`, `/scopes`, `/api-keys`, `/calendars`, `/gitops`, `/notifications`, `/alerts`, and `/audit`. Menu visibility and actions are controlled by `RBAC` resource/action rules.
+![Settings and governance guide screenshot](pathname:///img/screenshots/settings.svg)
 
 ## Prerequisites
 
-- You are logged in.
-- Your role has read/manage/write permission for the page you need.
-- Namespace/app/service-account scope is known before changing API-Key access.
-- Newly created API-Key values are captured once into a secure system; they are not shown again.
+- You can sign in to the Tikeo console and your role grants read access to this page.
+- The target namespace/app is known before you change runtime objects.
+- At least one recent instance, worker session, or audit event exists when you are verifying live behavior.
+- For production changes, prepare a rollback note and an expected observation before saving.
 
-```bash
-curl -fsS http://127.0.0.1:9090/api/v1/jobs \
-  -H "x-tikeo-api-key: $TIKEO_MANAGEMENT_API_KEY" | jq '.code'
-```
+## When to use
 
-## Open the page
+- Onboarding or offboarding users.
+- Creating app-scoped SDK API keys.
+- Changing the public console URL used in notification buttons.
+- Reviewing RBAC before production rollout.
 
-1. Log in to the console.
-2. Open the **Governance** menu group.
-3. Select Users, Roles, Scopes, Calendars, API-Key, GitOps/IaC, Notifications, Alerts, or Audit.
-4. If a menu item or button is missing, inspect the route permission and role catalog before assuming the feature is absent.
+## Key areas
 
-## Common tasks
+| Area | What to read first |
+| --- | --- |
+| Users and roles | Owner/admin/operator/viewer style responsibilities, invitation, disable, and audit. |
+| API-Key | App-scoped keys, expiration, rotation, and least privilege. |
+| Tenant scopes | Namespace/app hierarchy used by Jobs, Workers, Notifications, and Audit filters. |
+| Platform URL | Public console base URL for delivery templates and no-login console pages. |
 
-### Manage users and roles
+## Typical workflow
 
-Use Users for account assignment and Roles for permission matrices, menu permissions, and UI action permissions. Test changes with viewer, operator, and admin accounts.
+1. Review RBAC before adding powerful users or keys.
+2. Create API keys at the narrowest namespace/app scope that still works.
+3. Set the platform public URL before enabling external notification buttons.
+4. Rotate keys deliberately and confirm dependent Workers or automation have been updated.
+5. Use Audit to confirm every governance change.
 
-### Manage tenant scopes
+## Decision table
 
-Use Scopes to manage namespace, app, worker pool, and related references. Jobs, service accounts, Worker pools, secret references, and canary targets depend on scope.
-
-### Manage API-Key access
-
-Create service accounts and app-scoped API keys in `/api-keys`. SDK Management API uses `x-tikeo-api-key`, not browser bearer tokens. Rotate or revoke keys after exposure, service retirement, or ownership transfer.
+| Situation | Human decision | Evidence to collect |
+| --- | --- | --- |
+| First setup | Use narrow scope and one small verification run. | Screenshot, object id, instance id, audit event. |
+| Incident | Freeze risky changes until the failing object is understood. | Timeline, attempts, logs, delivery attempts. |
+| Production rollout | Change one dimension at a time and compare before/after. | Version diff, Dashboard health, audit trail. |
+| Rollback | Prefer reverting to a known version over ad-hoc edits. | Previous version id, rollback audit, new verification run. |
 
 ## Verify
 
-- A viewer sees only authorized menus/actions.
-- Operators can perform daily tasks without high-risk manage permissions.
-- Admins can manage roles, scopes, and API-Key entries.
-- Full API-Key values are displayed only at creation time.
-- Revoked or rotated keys stop working for Management API calls.
+- The page shows a current object, not stale browser state.
+- A user with read-only permissions can inspect evidence but cannot make privileged changes.
+- A real operation produces a visible audit event and, when relevant, an instance or delivery record.
+- The console link can be copied into an incident note and still identifies the same object.
 
 ## Troubleshooting
 
-| Symptom | Action |
+| Symptom | Response |
 | --- | --- |
-| Menu missing | Check `web/src/routes.tsx` permission and user role. |
-| Button hidden | Check UI action permission and backend catalog. |
-| API-Key unauthorized | Check key state, service-account scope, and `x-tikeo-api-key` header. |
-| Cross-scope operation fails | Confirm access to both source and destination scopes. |
-| User sees too much | Revert role change and audit permission catalog. |
+| Page looks empty | Check namespace/app filters and role permissions before assuming data loss. |
+| Object exists but action is disabled | Confirm RBAC, object state, and whether the action would cross scope boundaries. |
+| UI result differs from chat/email | Trust Tikeo delivery attempts and instance evidence first, then compare provider history. |
+| Time order is confusing | Use server timestamps, attempt numbers, and audit request ids instead of local browser order. |
+
+## Reference anchors
+
+This guide intentionally keeps API details in the appendix. If you need to inspect implementation or automate the same workflow, use these anchors: `Settings`, `web/src/routes.tsx`, `API-Key`, `RBAC`.
 
 ## Production checklist
 
-- [ ] Least privilege is enforced by roles and menu/action permissions.
-- [ ] Service accounts are app-scoped and owned by teams.
-- [ ] API keys are rotated and revoked on schedule.
-- [ ] Scope changes are reviewed for Job, Worker, and secret impact.
-- [ ] RBAC changes are validated with non-admin accounts and audit evidence.
+- [ ] Owner scope and operational responsibility are clear.
+- [ ] The change has a small verification path and rollback note.
+- [ ] Evidence includes object id, time, operator, status, and related instance or delivery id.
+- [ ] Public links use the configured platform URL when they leave the console.
+- [ ] The team knows whether this page is describing execution, notification, alerting, or governance semantics.
