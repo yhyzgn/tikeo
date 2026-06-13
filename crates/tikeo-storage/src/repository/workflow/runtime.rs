@@ -845,10 +845,15 @@ impl WorkflowRepository {
         active.updated_at = Set(now.clone());
         let updated = active.update(&self.db).await?;
         job_instance::Entity::update_many()
+            .col_expr(
+                job_instance::Column::Status,
+                Expr::value(InstanceStatus::Retrying.to_string()),
+            )
             .col_expr(job_instance::Column::UpdatedAt, Expr::value(now))
             .filter(job_instance::Column::Id.eq(instance_id.to_owned()))
             .filter(job_instance::Column::Status.is_in([
                 InstanceStatus::Running.to_string(),
+                InstanceStatus::Retrying.to_string(),
                 InstanceStatus::Dispatching.to_string(),
                 InstanceStatus::Failed.to_string(),
             ]))

@@ -32,6 +32,7 @@ const getStatusColor = (status: string) => {
     case 'failed': return 'error';
     case 'partial_failed': return 'warning';
     case 'running': return 'processing';
+    case 'retrying': return 'warning';
     case 'pending': return 'gold';
     default: return 'default';
   }
@@ -417,7 +418,7 @@ export function InstancesPage() {
       render: (_, instance) => (
         <Space size={4}>
           <Button type="link" onClick={() => void openLogs(instance)}>查看日志</Button>
-          {['pending', 'dispatching', 'running'].includes(instance.status) ? (
+          {['pending', 'dispatching', 'running', 'retrying'].includes(instance.status) ? (
             <Popconfirm title="取消实例" description="取消后会关闭对应队列项，Worker 后续结果会被视为过期。" onConfirm={() => void cancelRunningInstance(instance)}>
               <Button type="link" danger>取消</Button>
             </Popconfirm>

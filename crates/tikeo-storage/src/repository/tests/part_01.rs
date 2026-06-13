@@ -1088,7 +1088,7 @@
             .await
             .unwrap_or_else(|error| panic!("instance should reload: {error}"))
             .unwrap_or_else(|| panic!("instance should exist"));
-        assert_eq!(retrying_instance.status, InstanceStatus::Running);
+        assert_eq!(retrying_instance.status, InstanceStatus::Retrying);
         assert_eq!(requeued.attempt, 1);
         assert!(requeued.run_after > claim.item.run_after);
 

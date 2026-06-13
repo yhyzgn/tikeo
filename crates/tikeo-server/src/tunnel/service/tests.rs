@@ -542,7 +542,7 @@ async fn failed_single_task_result_schedules_retry_and_logs_result() {
         .await
         .unwrap_or_else(|error| panic!("instance should load: {error}"))
         .unwrap_or_else(|| panic!("instance should exist"));
-    assert_eq!(requeued_instance.status, InstanceStatus::Running);
+    assert_eq!(requeued_instance.status, InstanceStatus::Retrying);
     let result = requeued_instance
         .result
         .unwrap_or_else(|| panic!("result should persist"));

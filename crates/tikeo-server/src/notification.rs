@@ -106,7 +106,10 @@ impl JobNotificationEvent {
             InstanceStatus::Failed => Some(Self::Failed),
             InstanceStatus::PartialFailed => Some(Self::PartialFailed),
             InstanceStatus::Cancelled => Some(Self::Cancelled),
-            InstanceStatus::Pending | InstanceStatus::Dispatching | InstanceStatus::Running => None,
+            InstanceStatus::Pending
+            | InstanceStatus::Dispatching
+            | InstanceStatus::Running
+            | InstanceStatus::Retrying => None,
         }
     }
 }

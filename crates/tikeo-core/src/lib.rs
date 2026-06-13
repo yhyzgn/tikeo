@@ -253,6 +253,8 @@ pub enum InstanceStatus {
     Dispatching,
     /// Worker is executing the instance.
     Running,
+    /// A failed attempt is waiting for or entering a retry attempt.
+    Retrying,
     /// Instance completed successfully.
     Succeeded,
     /// Broadcast instance had at least one failed child execution.
@@ -271,6 +273,7 @@ impl InstanceStatus {
             Self::Pending => "pending",
             Self::Dispatching => "dispatching",
             Self::Running => "running",
+            Self::Retrying => "retrying",
             Self::Succeeded => "succeeded",
             Self::PartialFailed => "partial_failed",
             Self::Failed => "failed",
@@ -293,6 +296,7 @@ impl FromStr for InstanceStatus {
             "pending" => Ok(Self::Pending),
             "dispatching" => Ok(Self::Dispatching),
             "running" => Ok(Self::Running),
+            "retrying" => Ok(Self::Retrying),
             "succeeded" => Ok(Self::Succeeded),
             "partial_failed" | "partial-failed" | "partialfailed" => Ok(Self::PartialFailed),
             "failed" => Ok(Self::Failed),
@@ -1148,6 +1152,11 @@ mod tests {
         assert_eq!(TriggerType::FixedDelay.as_str(), "fixed_delay");
         assert_eq!(TriggerType::WorkflowShard.as_str(), "workflow_shard");
         assert_eq!(InstanceStatus::Pending.as_str(), "pending");
+        assert_eq!(InstanceStatus::Retrying.as_str(), "retrying");
+        assert_eq!(
+            InstanceStatus::from_str("retrying"),
+            Ok(InstanceStatus::Retrying)
+        );
         assert_eq!(
             InstanceStatus::from_str("partial_failed"),
             Ok(InstanceStatus::PartialFailed)

@@ -202,17 +202,18 @@ async fn dispatch_single_instances(
             warn!(queue_id = %claim.item.id, %instance_id, "closed dispatch queue item for missing job instance");
             continue;
         };
-        let retrying_running_instance =
-            instance.status == InstanceStatus::Running && claim.item.attempt > 1;
-        if instance.status != InstanceStatus::Pending && !retrying_running_instance {
+        let retrying_instance = matches!(
+            instance.status,
+            InstanceStatus::Running | InstanceStatus::Retrying
+        ) && claim.item.attempt > 1;
+        if instance.status != InstanceStatus::Pending && !retrying_instance {
             let _ = workflows
                 .mark_dispatch_queue_done_by_instance(&instance.id)
                 .await?;
             debug!(instance_id = %instance.id, status = %instance.status, "closed dispatch queue item for non-pending instance");
             continue;
         }
-        if !retrying_running_instance && !instances.claim_pending_for_dispatch(&instance.id).await?
-        {
+        if !retrying_instance && !instances.claim_pending_for_dispatch(&instance.id).await? {
             let _ = workflows
                 .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
                 .await?;
@@ -392,13 +393,23 @@ async fn dispatch_single_instances(
                 &format!("worker {worker_id}"),
             )
             .await?;
-            let instance_marked_running = instances
-                .update_status_if_current(
-                    &instance.id,
-                    InstanceStatus::Dispatching,
-                    InstanceStatus::Running,
-                )
-                .await?;
+            let instance_marked_running = if retrying_instance {
+                instances
+                    .update_status_if_current(
+                        &instance.id,
+                        InstanceStatus::Retrying,
+                        InstanceStatus::Running,
+                    )
+                    .await?
+            } else {
+                instances
+                    .update_status_if_current(
+                        &instance.id,
+                        InstanceStatus::Dispatching,
+                        InstanceStatus::Running,
+                    )
+                    .await?
+            };
             if instance_marked_running && let Some(updated) = instances.get(&instance.id).await? {
                 emit_job_instance_event_best_effort(
                     notifications,
