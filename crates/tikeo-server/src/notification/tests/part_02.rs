@@ -573,7 +573,12 @@ async fn policy_template_ref_materializes_and_drives_provider_payload() {
                     "summary": "{{subject}}",
                     "details": "{{body}}",
                     "event": "{{eventType}}",
-                    "resource": "{{resourceId}}"
+                    "resource": "{{resourceId}}",
+                    "jobId": "{{jobId}}",
+                    "instanceId": "{{instanceId}}",
+                    "operator": "{{operatorName}}",
+                    "logsUrl": "{{logsUrl}}",
+                    "templateKey": "{{templateKey}}"
                 }
             })
             .to_string(),
@@ -652,6 +657,11 @@ async fn policy_template_ref_materializes_and_drives_provider_payload() {
         .unwrap_or_else(|error| panic!("payload should be JSON: {error}"));
     assert_eq!(payload["templateKey"], "ops.webhook.failure");
     assert_eq!(payload["template"]["body"]["event"], "job_instance.failed");
+    assert_eq!(payload["template"]["body"]["jobId"], job.id);
+    assert_eq!(payload["template"]["body"]["instanceId"], instance.id);
+    assert_eq!(payload["template"]["body"]["operator"], "tikeo");
+    assert_eq!(payload["template"]["body"]["logsUrl"], format!("/instances/{}/logs", instance.id));
+    assert_eq!(payload["template"]["body"]["templateKey"], "ops.webhook.failure");
 
     let delivered = process_due_notification_delivery_attempts(
         &channels,

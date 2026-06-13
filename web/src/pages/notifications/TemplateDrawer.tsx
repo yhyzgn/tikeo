@@ -13,6 +13,7 @@ import {
 import { PermissionGate } from '../../components/Permission';
 import { useI18n } from '../../i18n';
 import { compactObject, formatJson, parseJsonObject, parseMaybeJson } from './jsonUtils';
+import { TemplateVariableCatalog } from './TemplateVariableCatalog';
 import { findMessageType, providerSchemaFor, type ProviderFieldSchema } from './providerSchema';
 
 interface TemplateDrawerProps {
@@ -199,7 +200,7 @@ export function TemplateDrawer({ open, channelTypes, editingTemplate, onClose, o
         <Card size="small" style={{ marginBottom: 16 }}>
           <Space direction="vertical" size={8}>
             <Space wrap><Tag>{schema.provider}</Tag><Tag>{selectedMessageType.id}</Tag><Typography.Text>{selectedMessageType.description}</Typography.Text></Space>
-            <Space wrap>{schema.templateVariables.map((variable) => <Tag key={variable}>{variable}</Tag>)}</Space>
+            <TemplateVariableCatalog variables={schema.templateVariables} compact t={t} />
           </Space>
         </Card>
 

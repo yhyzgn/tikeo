@@ -502,18 +502,59 @@ fn apply_message_template(
         .or_else(|| payload.get("jobId"))
         .cloned()
         .unwrap_or(serde_json::Value::Null);
-    let sample = serde_json::json!({
-        "subject": subject.as_str(),
-        "body": body.as_str(),
-        "eventType": payload.get("eventType"),
-        "resourceType": resource_type,
-        "resourceId": resource_id,
-        "severity": payload.get("severity"),
-        "messageId": "pending",
-        "policyId": policy_id,
-        "dedupeKey": dedupe_key,
-        "triggeredAt": payload.get("createdAt"),
-    });
+    let mut sample = payload.clone();
+    if !sample.is_object() {
+        sample = serde_json::json!({});
+    }
+    if let Some(object) = sample.as_object_mut() {
+        for (key, value) in [
+            (
+                "subject",
+                serde_json::Value::String(subject.as_str().to_owned()),
+            ),
+            ("body", serde_json::Value::String(body.as_str().to_owned())),
+            (
+                "eventType",
+                payload
+                    .get("eventType")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+            ),
+            ("resourceType", resource_type),
+            ("resourceId", resource_id),
+            (
+                "severity",
+                payload
+                    .get("severity")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+            ),
+            ("messageId", serde_json::Value::String("pending".to_owned())),
+            ("policyId", serde_json::Value::String(policy_id.to_owned())),
+            (
+                "dedupeKey",
+                serde_json::Value::String(dedupe_key.to_owned()),
+            ),
+            (
+                "triggeredAt",
+                payload
+                    .get("createdAt")
+                    .or_else(|| payload.get("startedAt"))
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
+            ),
+            (
+                "templateRef",
+                serde_json::Value::String(template.id.clone()),
+            ),
+            (
+                "templateKey",
+                serde_json::Value::String(template.template_key.clone()),
+            ),
+        ] {
+            object.insert(key.to_owned(), value);
+        }
+    }
 
     let preview = render_notification_template_preview_with_overlay(
         &body_json,

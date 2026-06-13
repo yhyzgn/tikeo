@@ -1567,3 +1567,5 @@ Code review follow-up completed for the drawer redesign: i18n gaps closed, Advan
 - 2026-06-13: Reworked notification channel drawer local UI hierarchy into configuration map + domain panels; pending final full build/git checks at time of note.
 
 - 2026-06-13: Refined notification channel drawer typography rhythm and copy density; reduced repeated explanations, normalized scoped text sizes/line heights, and kept changes limited to notification drawer UI.
+
+- 2026-06-13: Completed Notification Center template variable catalog/i18n hardening. Channel and template drawers now provide localized variable labels plus a `?` mapping table, built-in provider metadata exposes all currently supported job/payload variables, and stored template rendering now resolves payload variables like `jobId`, `instanceId`, `operatorName`, `logsUrl`, and `templateKey` against real event context. Local Rust/Web verification passed.

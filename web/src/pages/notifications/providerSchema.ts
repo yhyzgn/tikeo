@@ -68,6 +68,22 @@ export const DEFAULT_TEMPLATE_VARIABLES = [
   '{{dedupeKey}}',
   '{{triggeredAt}}',
   '{{createdAt}}',
+  '{{namespace}}',
+  '{{app}}',
+  '{{jobId}}',
+  '{{jobName}}',
+  '{{instanceId}}',
+  '{{status}}',
+  '{{triggerType}}',
+  '{{executionMode}}',
+  '{{startedAt}}',
+  '{{finishedAt}}',
+  '{{workerId}}',
+  '{{operatorName}}',
+  '{{operatorType}}',
+  '{{logsUrl}}',
+  '{{templateRef}}',
+  '{{templateKey}}',
 ];
 
 const webhookUrlField: ProviderFieldSchema = {

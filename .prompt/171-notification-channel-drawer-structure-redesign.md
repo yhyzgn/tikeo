@@ -16,3 +16,7 @@ The previous channel drawer still felt like stacked cards without a clear hierar
 
 ## Validation target
 - Web typecheck, lint, notification drawer tests, source-size check, and build must pass locally.
+
+## 2026-06-13 follow-up: template variable catalog
+
+The notification drawer/template editor no longer show raw placeholder-only tags. `web/src/pages/notifications/TemplateVariableCatalog.tsx` now owns the UI for localized variable labels and a `?` popover mapping table; `templateVariableDefinitions.ts` owns the catalog data. Backend stored-template rendering was corrected so the advertised payload variables are real runtime variables, not UI-only documentation.

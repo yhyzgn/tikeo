@@ -2922,3 +2922,39 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
     width: 100%;
   }
 }
+
+.template-variable-catalog__title {
+  line-height: 1.25;
+}
+
+.template-variable-catalog__help {
+  color: var(--app-primary-color);
+  cursor: help;
+  font-size: 14px;
+}
+
+.template-variable-catalog__tag {
+  align-items: center;
+  display: inline-flex;
+  line-height: 1.5;
+  margin-inline-end: 0;
+  max-width: 100%;
+  padding-block: 3px;
+  white-space: normal;
+}
+
+.template-variable-catalog__tag .ant-typography {
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.template-variable-catalog__popover {
+  max-width: min(860px, calc(100vw - 48px));
+}
+
+.template-variable-catalog__note.ant-typography {
+  font-size: 13px;
+  line-height: 1.65;
+  margin-bottom: 12px;
+}

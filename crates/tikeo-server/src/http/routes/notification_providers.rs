@@ -134,7 +134,23 @@ fn builtin_channel_template(provider: &str) -> serde_json::Value {
         "{{policyId}}",
         "{{dedupeKey}}",
         "{{triggeredAt}}",
-        "{{createdAt}}"
+        "{{createdAt}}",
+        "{{namespace}}",
+        "{{app}}",
+        "{{jobId}}",
+        "{{jobName}}",
+        "{{instanceId}}",
+        "{{status}}",
+        "{{triggerType}}",
+        "{{executionMode}}",
+        "{{startedAt}}",
+        "{{finishedAt}}",
+        "{{workerId}}",
+        "{{operatorName}}",
+        "{{operatorType}}",
+        "{{logsUrl}}",
+        "{{templateRef}}",
+        "{{templateKey}}"
     ]);
     let mut template = match provider {
         "slack" => serde_json::json!({

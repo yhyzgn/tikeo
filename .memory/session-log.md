@@ -3065,3 +3065,26 @@ Code review follow-up:
 ## 2026-06-13 - Notification channel drawer local structure redesign
 
 User rejected the prior drawer as still chaotic. Reworked the drawer information architecture from stacked cards into a two-column layout: left configuration map/scope ladder/test context, right domain panels for identity/scope, connection configuration, message shape, and governance/advanced JSON. Kept secret/config replacement behavior unchanged and advanced JSON collapsed as an escape hatch.
+
+## 2026-06-13 — Notification template variable catalog and i18n completion
+
+- Replaced raw notification template variable tag lists in channel/template drawers with a reusable variable catalog component.
+- The catalog now shows localized labels beside placeholders and exposes a `?` popover/click help table with placeholder, meaning, description, example, and source/notes.
+- Expanded built-in provider template metadata and Web fallback schema from only base message fields to the real supported job/payload variables: `namespace`, `app`, `jobId`, `jobName`, `instanceId`, `status`, `triggerType`, `executionMode`, `startedAt`, `finishedAt`, `workerId`, `operatorName`, `operatorType`, `logsUrl`, `templateRef`, and `templateKey`.
+- Fixed a real backend rendering gap: stored notification templates now render against the full event payload plus template metadata, so job/instance payload variables advertised by validation and UI actually resolve at runtime instead of remaining as `{{jobId}}`-style tokens.
+- Split Notification Center template/variable translations into dedicated zh-CN/en-US locale modules to avoid pushing the main locale files near the 1500-line source limit.
+
+Verification:
+- RED observed: `cargo test -p tikeo-server policy_template_ref_materializes_and_drives_provider_payload --all-features -- --nocapture` failed before the backend fix because `{{jobId}}` remained unrendered.
+- `cargo fmt --all -- --check` passed.
+- `cargo clippy -p tikeo-server --all-targets --all-features -- -D warnings` passed.
+- `cargo build -p tikeo-server --all-features` passed.
+- `cargo test -p tikeo-server policy_template_ref_materializes_and_drives_provider_payload --all-features -- --nocapture` passed.
+- `cargo test -p tikeo-server notification_center_api_redacts_channels_and_validates_policies --all-features -- --nocapture` passed.
+- `bun test web/src` passed: 156 tests.
+- `bun run --cwd web typecheck` passed.
+- `bun run --cwd web lint` passed.
+- `bun run --cwd web build` passed, with the existing Vite chunk-size warning only.
+- Notification Center i18n audit passed: 239 keys, 0 missing zh-CN, 0 missing en-US, no suspicious English Chinese residue.
+- `python3 scripts/check-source-size.py` passed.
+- `git diff --check` passed.

@@ -1,6 +1,9 @@
+import { notificationMessages } from './notifications-en-US';
+
 // Complete en-US UI dictionary. Add future translations here instead of scanning source code.
 
 export const messages: Record<string, string> = {
+    ...notificationMessages,
     "分布式任务调度平台": "Distributed Task Scheduling Platform",
     "轻量、容器友好、Worker 主动隧道连接": "Lightweight, container-friendly, with worker-initiated tunnel connections",
     "跟随系统": "Follow system",
@@ -379,7 +382,6 @@ export const messages: Record<string, string> = {
     "当前账号无权限创建任务": "The current account cannot create jobs",
     "任务已创建": "Job created",
     "创建失败": "Creation failed",
-    "任务名称": "Task name",
     "执行方式": "Execution method",
     "插件处理器": "Plugin processor",
     "脚本（沙箱自动执行）": "Script (sandbox execution)",
@@ -408,7 +410,6 @@ export const messages: Record<string, string> = {
     "天": "Days",
     "Jitter 抖动": "Jitter",
     "可选：用于分散同频任务触发，防止惊群。": "Optional: spread same-frequency task triggers to avoid a thundering herd.",
-    "触发时间": "Trigger time",
     "请输入 RFC3339 时间": "Please enter RFC3339 time",
     "格式：HH:MM-HH:MM/间隔@时区，例如 09:00-18:00/30m@Asia/Shanghai。": "Format: HH:MM-HH:MM/interval@time-zone, for example 09:00-18:00/30m@Asia/Shanghai.",
     "请输入 Daily Time Interval 表达式": "Please enter Daily Time Interval expression",
@@ -545,7 +546,6 @@ export const messages: Record<string, string> = {
     "请输入 JAR artifactRef": "Please enter JAR artifact Ref",
     "s3://tikeo-plugins/billing-sync-1.0.0.jar 或 maven:group:artifact:version": "S3://tikeo-plugins/billing-sync-1.0.0.jar maven:group:artifact:version",
     "请输入容器镜像": "Please enter",
-    "说明": "Description",
     "选择告警通道类型": "Alert",
     "Payload 模板": "Payload template",
     "保存插件": "Saveplugin",
@@ -567,7 +567,6 @@ export const messages: Record<string, string> = {
     "OIDC 映射已删除": "OIDC delete",
     "Worker Pool 配额已更新": "Worker Pool update",
     "命名空间": "Namespace",
-    "创建时间": "Createtime",
     "删除命名空间": "Delete namespace",
     "仅空命名空间可删除；含应用、Worker Pool 或任务时后端会拒绝。": "Namespace delete; app, Worker Pool task reject.",
     "应用": "App",

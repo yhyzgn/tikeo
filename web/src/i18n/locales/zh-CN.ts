@@ -1,6 +1,9 @@
+import { notificationMessages } from './notifications-zh-CN';
+
 // Complete zh-CN UI dictionary. Add future translations here instead of scanning source code.
 
 export const messages: Record<string, string> = {
+    ...notificationMessages,
     "分布式任务调度平台": "分布式任务调度平台",
     "轻量、容器友好、Worker 主动隧道连接": "轻量、容器友好、Worker 主动隧道连接",
     "跟随系统": "跟随系统",
@@ -379,7 +382,6 @@ export const messages: Record<string, string> = {
     "当前账号无权限创建任务": "当前账号无权限创建任务",
     "任务已创建": "任务已创建",
     "创建失败": "创建失败",
-    "任务名称": "任务名称",
     "执行方式": "执行方式",
     "插件处理器": "插件处理器",
     "脚本（沙箱自动执行）": "脚本（沙箱自动执行）",
@@ -408,7 +410,6 @@ export const messages: Record<string, string> = {
     "天": "天",
     "Jitter 抖动": "Jitter 抖动",
     "可选：用于分散同频任务触发，防止惊群。": "可选：用于分散同频任务触发，防止惊群。",
-    "触发时间": "触发时间",
     "请输入 RFC3339 时间": "请输入 RFC3339 时间",
     "格式：HH:MM-HH:MM/间隔@时区，例如 09:00-18:00/30m@Asia/Shanghai。": "格式：HH:MM-HH:MM/间隔@时区，例如 09:00-18:00/30m@Asia/Shanghai。",
     "请输入 Daily Time Interval 表达式": "请输入 Daily Time Interval 表达式",
@@ -545,7 +546,6 @@ export const messages: Record<string, string> = {
     "请输入 JAR artifactRef": "请输入 JAR artifactRef",
     "s3://tikeo-plugins/billing-sync-1.0.0.jar 或 maven:group:artifact:version": "s3://tikeo-plugins/billing-sync-1.0.0.jar 或 maven:group:artifact:version",
     "请输入容器镜像": "请输入容器镜像",
-    "说明": "说明",
     "选择告警通道类型": "选择告警通道类型",
     "Payload 模板": "Payload 模板",
     "保存插件": "保存插件",
@@ -567,7 +567,6 @@ export const messages: Record<string, string> = {
     "OIDC 映射已删除": "OIDC 映射已删除",
     "Worker Pool 配额已更新": "Worker Pool 配额已更新",
     "命名空间": "命名空间",
-    "创建时间": "创建时间",
     "删除命名空间": "删除命名空间",
     "仅空命名空间可删除；含应用、Worker Pool 或任务时后端会拒绝。": "仅空命名空间可删除；含应用、Worker Pool 或任务时后端会拒绝。",
     "应用": "应用",

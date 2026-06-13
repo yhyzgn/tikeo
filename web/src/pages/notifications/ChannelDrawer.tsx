@@ -25,6 +25,7 @@ import {
 import { PermissionGate } from '../../components/Permission';
 import { useI18n } from '../../i18n';
 import { assertNoRedactedMarker, blankToNull, compactObject, formatJson, parseJsonObject, parseMaybeJson } from './jsonUtils';
+import { TemplateVariableCatalog } from './TemplateVariableCatalog';
 import { findMessageType, providerSchemaFor, type ProviderFieldSchema, type ProviderSchema } from './providerSchema';
 
 const CHANNEL_SCOPE_OPTIONS = ['global', 'namespace', 'app', 'worker_pool'];
@@ -711,8 +712,8 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
                       </Card>
                     </Col>
                     <Col xs={24} md={12}>
-                      <Card size="small" title={t('可用模板变量')}>
-                        <Space wrap>{schema.templateVariables.map((variable) => <Tag key={variable}>{variable}</Tag>)}</Space>
+                      <Card size="small">
+                        <TemplateVariableCatalog variables={schema.templateVariables} compact t={t} />
                       </Card>
                     </Col>
                   </Row>

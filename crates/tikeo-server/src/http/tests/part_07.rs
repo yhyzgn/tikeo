@@ -769,6 +769,12 @@ fn assert_provider_template(channel_types: &[Value], provider: &str, expected_me
         "messageId",
         "policyId",
         "dedupeKey",
+        "jobId",
+        "jobName",
+        "instanceId",
+        "operatorName",
+        "logsUrl",
+        "templateKey",
     ] {
         assert!(
             variables

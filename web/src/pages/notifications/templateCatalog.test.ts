@@ -53,3 +53,20 @@ describe('notification template catalog helpers', () => {
     expect(options.some((item) => item.value === 'ops.slack.disabled')).toBe(false);
   });
 });
+
+
+import { templateVariableRows } from './TemplateVariableCatalog';
+
+describe('notification template variable catalog', () => {
+  test('maps supported placeholders to localized labels, examples, and source notes', () => {
+    const rows = templateVariableRows(['{{subject}}', '{{jobId}}', '{{instanceId}}', '{{logsUrl}}', '{{unknownCustom}}'], (value) => value);
+
+    expect(rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ placeholder: '{{subject}}', label: '通知主题', source: '标准消息字段' }),
+      expect.objectContaining({ placeholder: '{{jobId}}', label: '任务 ID', source: '事件 payload 顶层字段' }),
+      expect.objectContaining({ placeholder: '{{instanceId}}', label: '实例 ID', source: '事件 payload 顶层字段' }),
+      expect.objectContaining({ placeholder: '{{logsUrl}}', label: '执行日志链接', source: '事件 payload 顶层字段' }),
+      expect.objectContaining({ placeholder: '{{unknownCustom}}', label: '自定义变量', source: '提供方 metadata / 插件字段' }),
+    ]));
+  });
+});

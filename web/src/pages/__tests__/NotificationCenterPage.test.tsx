@@ -79,7 +79,7 @@ describe('notification center console page', () => {
     expect(channelDrawerSource).toContain('schema.configFields');
     expect(channelDrawerSource).toContain('schema.secretFields');
     expect(channelDrawerSource).toContain('schema.messageTypes');
-    expect(channelDrawerSource).toContain('模板变量');
+    expect(channelDrawerSource + readFileSync(new URL('../notifications/TemplateVariableCatalog.tsx', import.meta.url), 'utf8')).toContain('模板变量');
     expect(channelDrawerSource).toContain('官方文档');
     expect(channelDrawerSource).not.toContain('渠道配置 JSON');
     expect(channelDrawerSource).not.toContain('密钥引用 JSON');
@@ -151,6 +151,25 @@ describe('notification center console page', () => {
     for (const token of ['env:TIKEO_NOTIFICATION_WEBHOOK_URL', 'env:SLACK_WEBHOOK_URL', 'env:DINGTALK_WEBHOOK_URL', 'env:FEISHU_WEBHOOK_URL', 'env:WECOM_WEBHOOK_URL', 'env:PAGERDUTY_ROUTING_KEY', 'env:TIKEO_SMTP_URL']) {
       expect(providerSchemaSource).not.toContain(token);
     }
+  });
+
+
+  test('documents notification template variables with a localized mapping catalog instead of raw mixed tags', () => {
+    const variableCatalogSource = readFileSync(new URL('../notifications/TemplateVariableCatalog.tsx', import.meta.url), 'utf8');
+    expect(channelDrawerSource).toContain('TemplateVariableCatalog');
+    expect(templateDrawerSource).toContain('TemplateVariableCatalog');
+    expect(variableCatalogSource).toContain('QuestionCircleOutlined');
+    expect(variableCatalogSource).toContain('变量映射表');
+    expect(variableCatalogSource).toContain('占位符');
+    expect(variableCatalogSource).toContain('中文含义');
+    expect(variableCatalogSource).toContain('示例值');
+    expect(variableCatalogSource).toContain('来源/备注');
+    expect(variableCatalogSource).toContain('available-template-variables');
+    expect(variableCatalogSource).toContain('变量由消息标准字段与事件 payload 顶层字段共同提供');
+    expect(providerSchemaSource).toContain('{{jobId}}');
+    expect(providerSchemaSource).toContain('{{instanceId}}');
+    expect(providerSchemaSource).toContain('{{operatorName}}');
+    expect(providerSchemaSource).toContain('{{logsUrl}}');
   });
 
   test('covers official built-in provider variants and linked drawer affordances', () => {
