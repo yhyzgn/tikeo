@@ -2990,7 +2990,7 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  max-height: 136px;
+  max-height: 220px;
   overflow: auto;
   padding-right: 4px;
   overscroll-behavior: contain;
@@ -3215,6 +3215,6 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
   }
 
   .template-variable-catalog__preview {
-    max-height: 160px;
+    max-height: 240px;
   }
 }
