@@ -168,6 +168,18 @@ describe('notification center console page', () => {
   });
 
 
+
+  test('keeps job notification advanced event values canonical while displaying localized labels', () => {
+    const drawerSource = readFileSync(new URL('../notifications/JobNotificationConfigDrawer.tsx', import.meta.url), 'utf8');
+    expect(drawerSource).toContain('JOB_NOTIFICATION_EVENT_OPTIONS');
+    expect(drawerSource).toContain("value: 'job_instance.running'");
+    expect(drawerSource).toContain("label: '运行中'");
+    expect(drawerSource).toContain('normalizeJobNotificationEventTypes');
+    expect(drawerSource).toContain("'job_instance.运行中': 'job_instance.running'");
+    expect(drawerSource).toContain('payload = normalizeJobNotificationFormValues(values)');
+    expect(drawerSource).not.toContain('options={advancedEvents.map((value) => ({ value, label: value }))}');
+  });
+
   test('documents notification template variables with a localized mapping catalog instead of raw mixed tags', () => {
     const variableCatalogSource = readFileSync(new URL('../notifications/TemplateVariableCatalog.tsx', import.meta.url), 'utf8');
     expect(channelDrawerSource).toContain('TemplateVariableCatalog');

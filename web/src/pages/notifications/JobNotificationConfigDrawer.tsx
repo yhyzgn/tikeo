@@ -23,16 +23,39 @@ const triggerOptions = [
   { value: 'advanced', label: '高级' },
 ];
 
-const advancedEvents = [
-  'job_instance.succeeded',
-  'job_instance.failed',
-  'job_instance.partial_failed',
-  'job_instance.cancelled',
-  'job_instance.retry_scheduled',
-  'job_instance.retry_exhausted',
-  'job_instance.no_eligible_worker',
-  'job_instance.script_governance_failure',
+const JOB_NOTIFICATION_EVENT_OPTIONS = [
+  { value: 'job_instance.running', label: '运行中' },
+  { value: 'job_instance.succeeded', label: '成功' },
+  { value: 'job_instance.failed', label: '失败' },
+  { value: 'job_instance.partial_failed', label: '部分失败' },
+  { value: 'job_instance.cancelled', label: '取消' },
+  { value: 'job_instance.retry_scheduled', label: '重试中' },
+  { value: 'job_instance.retry_exhausted', label: '重试耗尽' },
+  { value: 'job_instance.no_eligible_worker', label: '无可用执行节点' },
+  { value: 'job_instance.script_governance_failure', label: '脚本治理失败' },
 ];
+
+const LOCALIZED_EVENT_ALIASES: Record<string, string> = {
+  'job_instance.运行中': 'job_instance.running',
+  'job_instance.成功': 'job_instance.succeeded',
+  'job_instance.失败': 'job_instance.failed',
+  'job_instance.部分失败': 'job_instance.partial_failed',
+  'job_instance.取消': 'job_instance.cancelled',
+  'job_instance.重试中': 'job_instance.retry_scheduled',
+  'job_instance.重试耗尽': 'job_instance.retry_exhausted',
+  'job_instance.无可用执行节点': 'job_instance.no_eligible_worker',
+  'job_instance.脚本治理失败': 'job_instance.script_governance_failure',
+};
+
+function normalizeJobNotificationEventTypes(eventTypes: string[] | undefined): string[] | undefined {
+  if (!eventTypes) return undefined;
+  const normalized = eventTypes.map((event) => LOCALIZED_EVENT_ALIASES[event] ?? event);
+  return Array.from(new Set(normalized));
+}
+
+function normalizeJobNotificationFormValues(values: FormValues): FormValues {
+  return { ...values, eventTypes: normalizeJobNotificationEventTypes(values.eventTypes) };
+}
 
 const triggerColor = (trigger: string) => trigger === 'success' ? 'green' : trigger === 'always' ? 'blue' : trigger.includes('retry') ? 'orange' : 'red';
 
@@ -87,12 +110,13 @@ export function JobNotificationConfigDrawer({ job, open, onClose }: Props) {
   const save = async () => {
     if (!job) return;
     const values = await form.validateFields();
+    const payload = normalizeJobNotificationFormValues(values);
     setSaving(true);
     try {
-      if (values.bindingId) {
-        await updateJobNotificationBinding(job.id, values.bindingId, values);
+      if (payload.bindingId) {
+        await updateJobNotificationBinding(job.id, payload.bindingId, payload);
       } else {
-        await createJobNotificationBinding(job.id, values);
+        await createJobNotificationBinding(job.id, payload);
       }
       message.success(t('通知配置已保存'));
       form.resetFields();
@@ -108,14 +132,16 @@ export function JobNotificationConfigDrawer({ job, open, onClose }: Props) {
   const runPreview = async () => {
     if (!job) return;
     const values = await form.validateFields();
-    const result = await previewJobNotificationBinding(job.id, values);
+    const payload = normalizeJobNotificationFormValues(values);
+    const result = await previewJobNotificationBinding(job.id, payload);
     setPreview(result as unknown as Record<string, unknown>);
   };
 
   const runValidate = async () => {
     if (!job) return;
     const values = await form.validateFields();
-    const result = await validateJobNotificationBinding(job.id, values);
+    const payload = normalizeJobNotificationFormValues(values);
+    const result = await validateJobNotificationBinding(job.id, payload);
     if (result.valid) message.success(t('通知规则校验通过'));
     else message.warning(result.issues.join('; '));
   };
@@ -150,7 +176,7 @@ export function JobNotificationConfigDrawer({ job, open, onClose }: Props) {
               <Form.Item name="trigger" label={t('触发条件')} rules={[{ required: true }]}><Select options={triggerOptions.map((item) => ({ ...item, label: t(item.label) }))} /></Form.Item>
               <Form.Item name="severity" label={t('严重级别')} rules={[{ required: true }]}><Select options={['info', 'warning', 'critical'].map((value) => ({ value, label: value }))} /></Form.Item>
             </div>
-            {trigger === 'advanced' ? <Form.Item name="eventTypes" label={t('高级事件')} rules={[{ required: true }]}><Select mode="multiple" options={advancedEvents.map((value) => ({ value, label: value }))} /></Form.Item> : null}
+            {trigger === 'advanced' ? <Form.Item name="eventTypes" label={t('高级事件')} rules={[{ required: true }]}><Select mode="multiple" optionLabelProp="title" options={JOB_NOTIFICATION_EVENT_OPTIONS.map((item) => ({ value: item.value, title: item.value, label: <Space direction="vertical" size={0}><Typography.Text code>{item.value}</Typography.Text><Typography.Text type="secondary">{t(item.label)}</Typography.Text></Space> }))} /></Form.Item> : null}
             <Form.Item name="channelIds" label={t('通知渠道')} rules={[{ required: true }]}><Select mode="multiple" options={channels.map((item) => ({ value: item.id, label: `${item.name} · ${item.provider} · ${item.targetRedacted}` }))} /></Form.Item>
             <Form.Item name="templateRef" label={t('通知模板')}><Select allowClear options={templateOptions} /></Form.Item>
             <div className="form-grid three">

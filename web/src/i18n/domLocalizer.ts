@@ -17,8 +17,14 @@ function shouldSkip(node: Node): boolean {
   return Boolean(element?.closest(TEXT_SKIP_SELECTOR));
 }
 
+function isMachineToken(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || /\s/.test(trimmed) || /[\u4e00-\u9fff]/.test(trimmed)) return false;
+  return /^[a-z][a-z0-9]*(?:[._:/-][a-z0-9]+)+$/.test(trimmed) || /^[a-z]+[A-Z][A-Za-z0-9]*$/.test(trimmed);
+}
+
 function applyMessages(value: string, messages: TranslationMessages): string {
-  if (!value.trim()) return value;
+  if (!value.trim() || isMachineToken(value)) return value;
   const exact = messages[value];
   if (exact) return exact;
   const compactCjk = value.replace(/([\u4e00-\u9fff])\s+([\u4e00-\u9fff])/g, '$1$2');

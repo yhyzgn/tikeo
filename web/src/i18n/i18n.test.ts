@@ -179,6 +179,15 @@ describe('i18n message dictionaries', () => {
     expect(translateString('Worker 集群', zhCN, true)).toBe('执行节点集群');
     expect(translateString('节点执行结果', enUS, true)).toBe('Node execution results');
     expect(translateString('等待 Worker 返回结果', enUS, true)).toBe('Waiting for Worker result');
+    expect(translateString('Running', zhCN, true)).toBe('运行中');
+  });
+
+
+  test('does not localize machine identifiers or canonical event names', () => {
+    for (const token of ['job_instance.running', 'job_instance.failed', 'job_instance.retry_scheduled', 'eventTypes', 'notification-policy-preview']) {
+      expect(translateString(token, zhCN, true)).toBe(token);
+      expect(translateString(token, enUS, true)).toBe(token);
+    }
   });
 
   test('normalizes unsupported locales to a supported locale', () => {

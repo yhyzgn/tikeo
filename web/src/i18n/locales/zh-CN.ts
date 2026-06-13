@@ -1414,4 +1414,7 @@ export const messages: Record<string, string> = {
   "Payload": "Payload",
   "Policy": "策略",
   "#": "#",
+    "部分失败": "部分失败",
+    "无可用执行节点": "无可用执行节点",
+    "脚本治理失败": "脚本治理失败",
 };

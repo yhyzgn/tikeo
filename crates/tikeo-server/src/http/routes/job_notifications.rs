@@ -577,6 +577,7 @@ fn expand_trigger(
             "job_instance.script_governance_failure",
         ],
         JobNotificationTrigger::Always => vec![
+            "job_instance.running",
             "job_instance.succeeded",
             "job_instance.failed",
             "job_instance.partial_failed",
@@ -592,30 +593,47 @@ fn expand_trigger(
     };
     let mut normalized = Vec::new();
     for event in events {
-        if !allowed_job_event(event) {
+        let Some(canonical) = canonical_job_event(event) else {
             return Err(ApiError::bad_request(format!(
                 "unsupported job notification event type: {event}"
             )));
-        }
-        if !normalized.iter().any(|item| item == event) {
-            normalized.push(event.to_owned());
+        };
+        if !normalized.iter().any(|item| item == canonical) {
+            normalized.push(canonical.to_owned());
         }
     }
     Ok(normalized)
 }
 
-fn allowed_job_event(value: &str) -> bool {
-    matches!(
-        value,
-        "job_instance.succeeded"
-            | "job_instance.failed"
-            | "job_instance.partial_failed"
-            | "job_instance.cancelled"
-            | "job_instance.retry_scheduled"
-            | "job_instance.retry_exhausted"
-            | "job_instance.no_eligible_worker"
-            | "job_instance.script_governance_failure"
-    )
+fn canonical_job_event(value: &str) -> Option<&'static str> {
+    match value.trim() {
+        "job_instance.running" | "job_instance.运行中" => Some("job_instance.running"),
+        "job_instance.succeeded" | "job_instance.success" | "job_instance.成功" => {
+            Some("job_instance.succeeded")
+        }
+        "job_instance.failed" | "job_instance.failure" | "job_instance.失败" => {
+            Some("job_instance.failed")
+        }
+        "job_instance.partial_failed" | "job_instance.部分失败" => {
+            Some("job_instance.partial_failed")
+        }
+        "job_instance.cancelled" | "job_instance.canceled" | "job_instance.取消" => {
+            Some("job_instance.cancelled")
+        }
+        "job_instance.retry_scheduled" | "job_instance.重试中" => {
+            Some("job_instance.retry_scheduled")
+        }
+        "job_instance.retry_exhausted" | "job_instance.重试耗尽" => {
+            Some("job_instance.retry_exhausted")
+        }
+        "job_instance.no_eligible_worker" | "job_instance.无可用执行节点" => {
+            Some("job_instance.no_eligible_worker")
+        }
+        "job_instance.script_governance_failure" | "job_instance.脚本治理失败" => {
+            Some("job_instance.script_governance_failure")
+        }
+        _ => None,
+    }
 }
 
 fn binding_filter_json(
@@ -668,7 +686,7 @@ fn event_types_from_filter(filter: &serde_json::Value) -> Vec<String> {
             items
                 .iter()
                 .filter_map(serde_json::Value::as_str)
-                .map(ToOwned::to_owned)
+                .map(|event| canonical_job_event(event).unwrap_or(event).to_owned())
                 .collect()
         })
         .unwrap_or_default()

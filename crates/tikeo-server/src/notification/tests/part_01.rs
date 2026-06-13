@@ -463,6 +463,127 @@ fn email_channel_prefers_split_smtp_fields_when_legacy_smtp_url_is_bare_host() {
     }
 }
 
+
+#[tokio::test]
+async fn running_job_instance_event_materializes_message_and_delivery_attempts() {
+    let db = connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+    let jobs = JobRepository::new(db.clone());
+    let instances = JobInstanceRepository::new(db.clone());
+    let channels = NotificationChannelRepository::new(db.clone());
+    let policies = NotificationPolicyRepository::new(db.clone());
+    let messages = NotificationMessageRepository::new(db.clone());
+    let attempts = NotificationDeliveryAttemptRepository::new(db.clone());
+    let job = jobs
+        .create_job(CreateJob {
+            created_by: None,
+            namespace: "default".to_owned(),
+            app: "billing".to_owned(),
+            name: "billing-running".to_owned(),
+            schedule_type: "api".to_owned(),
+            schedule_expr: None,
+            misfire_policy: "fire_once".to_owned(),
+            schedule_start_at: None,
+            schedule_end_at: None,
+            schedule_calendar_json: None,
+            processor_name: Some("demo.running".to_owned()),
+            processor_type: None,
+            script_id: None,
+            enabled: true,
+            canary_job_id: None,
+            canary_percent: 0,
+            retry_policy: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("job should create: {error}"));
+    let instance = instances
+        .create_pending(CreateJobInstance {
+            job_id: job.id.clone(),
+            trigger_type: TriggerType::Api,
+            execution_mode: ExecutionMode::Single,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("instance should create: {error}"))
+        .unwrap_or_else(|| panic!("instance should exist"));
+    let instance = instances
+        .update_status(&instance.id, InstanceStatus::Running)
+        .await
+        .unwrap_or_else(|error| panic!("status should update: {error}"))
+        .unwrap_or_else(|| panic!("instance should exist"));
+    let channel = channels
+        .create_channel(CreateNotificationChannel {
+            scope_type: "app".to_owned(),
+            namespace: Some("default".to_owned()),
+            app: Some("billing".to_owned()),
+            worker_pool: None,
+            name: "ops".to_owned(),
+            provider: "webhook".to_owned(),
+            enabled: true,
+            config_json: serde_json::json!({"url":"https://hooks.example.com/services/running-token"})
+                .to_string(),
+            secret_refs_json: "{}".to_owned(),
+            safety_policy_json: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("channel should create: {error}"));
+    policies
+        .create_policy(CreateNotificationPolicy {
+            owner_type: "job".to_owned(),
+            owner_id: Some(job.id.clone()),
+            name: "job running".to_owned(),
+            event_family: "job_instance".to_owned(),
+            event_filter_json: serde_json::json!({"statuses":["running"],"eventTypes":["job_instance.running"]}).to_string(),
+            channel_refs_json: serde_json::json!([{"channelId": channel.id}]).to_string(),
+            template_ref: None,
+            severity: "info".to_owned(),
+            enabled: true,
+            dedupe_seconds: 300,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("policy should create: {error}"));
+
+    let center = NotificationCenter::new(
+        channels.clone(),
+        policies,
+        messages.clone(),
+        attempts.clone(),
+        tikeo_storage::NotificationTemplateRepository::new(channels.db()),
+        jobs,
+    );
+    let emitted = center
+        .emit_job_instance_event(
+            &instance,
+            JobNotificationEvent::Running,
+            Some("dispatched to worker worker-1"),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("running notification should emit: {error}"));
+
+    assert_eq!(emitted.matched_policies, 1);
+    assert_eq!(emitted.messages_created, 1);
+    assert_eq!(emitted.delivery_attempts_created, 1);
+    let timeline = messages
+        .list_messages(NotificationMessageFilters {
+            source_type: Some("job_instance".to_owned()),
+            source_id: Some(instance.id.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap_or_else(|error| panic!("messages should list: {error}"));
+    assert_eq!(timeline[0].event_type, "job_instance.running");
+    assert_eq!(timeline[0].severity, "info");
+    let payload: serde_json::Value = serde_json::from_str(&timeline[0].payload_json)
+        .unwrap_or_else(|error| panic!("payload should parse: {error}"));
+    assert_eq!(payload["status"], "running");
+    assert_eq!(payload["eventType"], "job_instance.running");
+    let delivery = attempts
+        .list_attempts(NotificationDeliveryAttemptFilters::default())
+        .await
+        .unwrap_or_else(|error| panic!("attempts should list: {error}"));
+    assert_eq!(delivery[0].retry_state, "retry_pending");
+}
+
 #[tokio::test]
 async fn job_instance_event_materializes_message_and_delivery_attempts() {
     let db = connect_and_migrate("sqlite::memory:")

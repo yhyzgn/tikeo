@@ -144,7 +144,15 @@ async fn dispatch_once(
         .await;
     }
     dispatch_broadcast_attempts(
-        jobs, instances, attempts, workflows, scripts, logs, audit, registry,
+        jobs,
+        instances,
+        attempts,
+        workflows,
+        scripts,
+        logs,
+        audit,
+        registry,
+        notifications,
     )
     .await?;
     dispatch_single_instances(
@@ -381,13 +389,22 @@ async fn dispatch_single_instances(
                 &format!("worker {worker_id}"),
             )
             .await?;
-            instances
+            let instance_marked_running = instances
                 .update_status_if_current(
                     &instance.id,
                     InstanceStatus::Dispatching,
                     InstanceStatus::Running,
                 )
                 .await?;
+            if instance_marked_running && let Some(updated) = instances.get(&instance.id).await? {
+                emit_job_instance_event_best_effort(
+                    notifications,
+                    &updated,
+                    JobNotificationEvent::Running,
+                    Some(&format!("dispatched to worker {worker_id}")),
+                )
+                .await;
+            }
             let _ = workflows
                 .mark_dispatch_queue_running(&claim.item.id, DISPATCHER_LEASE_OWNER)
                 .await?;
@@ -605,6 +622,7 @@ async fn dispatch_broadcast_attempts(
     logs: &tikeo_storage::JobInstanceLogRepository,
     audit: &AuditLogRepository,
     registry: &WorkerRegistry,
+    notifications: &NotificationCenter,
 ) -> Result<(), tikeo_storage::DbErr> {
     let pending = attempts.list_pending(DISPATCH_BATCH_SIZE).await?;
 
@@ -677,13 +695,26 @@ async fn dispatch_broadcast_attempts(
                     InstanceStatus::Running,
                 )
                 .await?;
-            instances
+            let instance_marked_running = instances
                 .update_status_if_current(
                     &attempt.instance_id,
                     InstanceStatus::Pending,
                     InstanceStatus::Running,
                 )
                 .await?;
+            if instance_marked_running
+                && let Some(updated) = instances.get(&attempt.instance_id).await?
+            {
+                emit_job_instance_event_best_effort(
+                    notifications,
+                    &updated,
+                    JobNotificationEvent::Running,
+                    Some(&format!(
+                        "dispatched broadcast attempt to worker {worker_id}"
+                    )),
+                )
+                .await;
+            }
             debug!(%worker_id, instance_id = %attempt.instance_id, "dispatched broadcast attempt to worker");
         }
     }

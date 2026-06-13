@@ -264,6 +264,81 @@
         assert_eq!(listed_json["data"].as_array().unwrap_or_else(|| panic!("bindings should be array")).len(), 1);
     }
 
+
+    #[tokio::test]
+    async fn job_notification_binding_accepts_running_status_without_localized_event_leak() {
+        let app = router().await;
+        let _scope = post_json(
+            app.clone(),
+            "/api/v1/apps",
+            r#"{"namespace":"default","name":"ops"}"#,
+        )
+        .await;
+        let job = post_json(
+            app.clone(),
+            "/api/v1/jobs",
+            r#"{"namespace":"default","app":"ops","name":"running-job","scheduleType":"api","executionMode":"single"}"#,
+        )
+        .await;
+        assert_eq!(job["code"], 0);
+        let job_id = job["data"]["id"].as_str().unwrap_or_else(|| panic!("job id should exist"));
+        let channel = post_json(
+            app.clone(),
+            "/api/v1/notification-channels",
+            r#"{"scopeType":"global","name":"Ops webhook","provider":"webhook","enabled":true,"config":{"url":"https://hooks.example.com/services/running-token","messageType":"json","template":{"body":{"text":"{{jobName}} {{eventType}}"}}}}"#,
+        )
+        .await;
+        assert_eq!(channel["code"], 0);
+        let channel_id = channel["data"]["id"].as_str().unwrap_or_else(|| panic!("channel id should exist"));
+
+        let request = serde_json::json!({
+            "name": "Running notifications",
+            "trigger": "advanced",
+            "eventTypes": ["job_instance.running"],
+            "channelIds": [channel_id]
+        })
+        .to_string();
+        let validate = post_json(
+            app.clone(),
+            &format!("/api/v1/jobs/{job_id}/notification-bindings:validate"),
+            &request,
+        )
+        .await;
+        assert_eq!(validate["code"], 0);
+        assert_eq!(validate["data"]["valid"], true);
+        assert_eq!(validate["data"]["eventTypes"][0], "job_instance.running");
+
+        let localized_request = serde_json::json!({
+            "name": "Localized running notifications",
+            "trigger": "advanced",
+            "eventTypes": ["job_instance.运行中"],
+            "channelIds": [channel_id]
+        })
+        .to_string();
+        let localized_validate = post_json(
+            app.clone(),
+            &format!("/api/v1/jobs/{job_id}/notification-bindings:validate"),
+            &localized_request,
+        )
+        .await;
+        assert_eq!(localized_validate["code"], 0);
+        assert_eq!(localized_validate["data"]["valid"], true);
+        assert_eq!(localized_validate["data"]["eventTypes"][0], "job_instance.running");
+
+        let created = post_json(
+            app,
+            &format!("/api/v1/jobs/{job_id}/notification-bindings"),
+            &request,
+        )
+        .await;
+        assert_eq!(created["code"], 0);
+        assert_eq!(created["data"]["eventTypes"][0], "job_instance.running");
+        let filter: Value = serde_json::from_str(created["data"]["policy"]["eventFilterJson"].as_str().unwrap_or("{}"))
+            .unwrap_or_else(|error| panic!("event filter should be JSON: {error}"));
+        assert_eq!(filter["eventTypes"][0], "job_instance.running");
+        assert_eq!(filter["statuses"][0], "running");
+    }
+
     #[tokio::test]
     #[allow(clippy::too_many_lines)]
     async fn notification_message_trace_includes_job_instance_attempts_and_redacted_logs() {

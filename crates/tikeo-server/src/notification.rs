@@ -35,6 +35,8 @@ use provider_templates::{render_template_value, validate_template_tokens};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum JobNotificationEvent {
+    /// A worker accepted the instance and execution is now running.
+    Running,
     /// A retry has been scheduled after a failed attempt.
     RetryScheduled,
     /// All retry attempts have been exhausted.
@@ -58,6 +60,7 @@ impl JobNotificationEvent {
     #[must_use]
     pub const fn event_type(&self) -> &'static str {
         match self {
+            Self::Running => "job_instance.running",
             Self::RetryScheduled => "job_instance.retry_scheduled",
             Self::RetryExhausted => "job_instance.retry_exhausted",
             Self::Succeeded => "job_instance.succeeded",
@@ -71,6 +74,7 @@ impl JobNotificationEvent {
 
     const fn filter_status(&self) -> &'static str {
         match self {
+            Self::Running => "running",
             Self::RetryScheduled => "retry_scheduled",
             Self::RetryExhausted => "retry_exhausted",
             Self::Succeeded => "succeeded",
@@ -84,7 +88,7 @@ impl JobNotificationEvent {
 
     const fn default_severity(&self) -> &'static str {
         match self {
-            Self::Succeeded => "info",
+            Self::Running | Self::Succeeded => "info",
             Self::Cancelled | Self::RetryScheduled => "warning",
             Self::Failed
             | Self::PartialFailed
