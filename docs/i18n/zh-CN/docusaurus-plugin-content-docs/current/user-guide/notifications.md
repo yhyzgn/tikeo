@@ -167,7 +167,7 @@ curl -fsS http://127.0.0.1:9090/api/v1/notification-delivery-attempts:queue-stat
 6. 保存前先执行 **校验** 和 **预览**。预览只渲染样例 payload，不会真正发送外部消息。
 7. 真实运行后，在 **通知中心 → 消息 → 详情** 查看标准化消息、投递 attempts、Job/实例上下文和执行日志透传。
 
-Job 消息模板除通用变量外，还支持 `{{jobId}}`、`{{jobName}}`、`{{namespace}}`、`{{app}}`、`{{instanceId}}`、`{{status}}`、`{{triggerType}}`、`{{executionMode}}`、`{{startedAt}}`、`{{finishedAt}}`、`{{workerId}}`、`{{operatorName}}`、`{{operatorType}}` 和 `{{logsUrl}}`。
+Job 消息模板除通用变量外，还支持 `{{jobId}}`、`{{jobName}}`、`{{namespace}}`、`{{app}}`、`{{instanceId}}`、`{{status}}`、`{{triggerType}}`、`{{executionMode}}`、`{{startedAt}}`、`{{finishedAt}}`、`{{workerId}}`、`{{operatorName}}`、`{{operatorType}}`、`{{reason}}`、`{{logsUrl}}` 和 `{{consoleUrl}}`。
 
 ## 安全渠道创建示例
 
@@ -302,6 +302,7 @@ API 当前接受 owner 类型：`global`、`namespace`、`app`、`job`、`workfl
 | Key | 默认值 |
 | --- | --- |
 | `notification_delivery.enabled` | `true` |
+| `notification_delivery.public_console_base_url` | 未设置；当飞书/Lark 卡片按钮需要从浏览器源站外直接打开时，设置为外部可访问的 Web URL。 |
 | `notification_delivery.interval_seconds` | `60` |
 | `notification_delivery.batch_size` | `50` |
 | `notification_delivery.max_attempts` | `3` |

@@ -773,7 +773,10 @@ fn assert_provider_template(channel_types: &[Value], provider: &str, expected_me
         "jobName",
         "instanceId",
         "operatorName",
+        "operatorType",
+        "reason",
         "logsUrl",
+        "consoleUrl",
         "templateKey",
     ] {
         assert!(
@@ -808,6 +811,37 @@ fn notification_channel_example_suffix(value: &str) -> String {
         "CUSTOM".to_owned()
     } else {
         trimmed
+    }
+}
+
+fn assert_feishu_interactive_examples_include_failed_success_and_status_cards(channel_types: &[Value]) {
+    let provider_type = channel_types
+        .iter()
+        .find(|item| item["type"] == "feishu")
+        .unwrap_or_else(|| panic!("feishu provider should be present"));
+    let message_types = provider_type["template"]["messageTypes"]
+        .as_array()
+        .unwrap_or_else(|| panic!("feishu messageTypes should be an array"));
+    let interactive = message_types
+        .iter()
+        .find(|item| item["id"] == "interactive")
+        .unwrap_or_else(|| panic!("feishu interactive type should be present"));
+    let examples = interactive["examples"]
+        .as_array()
+        .unwrap_or_else(|| panic!("feishu interactive should expose examples"));
+    assert_eq!(examples.len(), 3, "feishu interactive should expose failed/success/status card examples");
+    let rendered = serde_json::Value::Array(examples.clone()).to_string();
+    for expected in [
+        "任务执行失败报警",
+        "任务执行成功通知",
+        "任务执行状态通知",
+        "查看控制台",
+        "{{consoleUrl}}",
+    ] {
+        assert!(
+            rendered.contains(expected),
+            "feishu interactive examples should contain {expected}: {rendered}"
+        );
     }
 }
 
@@ -936,8 +970,8 @@ fn assert_provider_template_examples(channel_types: &[Value], provider: &str) {
             panic!("{provider}/{message_type_id} should expose examples")
         });
         assert!(
-            (1..=2).contains(&examples.len()),
-            "{provider}/{message_type_id} should expose 1-2 examples"
+            (1..=3).contains(&examples.len()),
+            "{provider}/{message_type_id} should expose 1-3 examples"
         );
         for example in examples {
             assert!(

@@ -34,7 +34,9 @@ export const PAYLOAD_TEMPLATE_VARIABLES: TemplateVariableDefinition[] = [
   { placeholder: '{{workerId}}', label: 'Worker ID', description: '上报执行结果的 Worker ID；尚未分配时为空。', example: 'worker-prod-a-01', source: '事件 payload 顶层字段' },
   { placeholder: '{{operatorName}}', label: '操作人', description: '触发或物化通知的操作者名称；系统事件通常为 tikeo。', example: 'tikeo', source: '事件 payload 顶层字段' },
   { placeholder: '{{operatorType}}', label: '操作人类型', description: '操作者类型，例如 system、user 或 api_key。', example: 'system', source: '事件 payload 顶层字段' },
-  { placeholder: '{{logsUrl}}', label: '执行日志链接', description: '指向实例日志页面或日志接口的相对链接。', example: '/instances/inst_01HX/logs', source: '事件 payload 顶层字段' },
+  { placeholder: '{{reason}}', label: '失败/状态原因', description: '失败原因、重试说明或状态摘要；成功/普通状态可能为空或为短横线。', example: '参数不能为空 should not be empty', source: '事件 payload 顶层字段' },
+  { placeholder: '{{logsUrl}}', label: '执行日志链接', description: '兼容变量，当前指向免登录实例执行控制台。', example: '/public/instances/inst_01HX/console', source: '事件 payload 顶层字段' },
+  { placeholder: '{{consoleUrl}}', label: '公开控制台链接', description: '通知卡片“查看控制台”按钮使用的免登录执行透传页面链接。', example: '/public/instances/inst_01HX/console', source: '事件 payload 顶层字段' },
   { placeholder: '{{templateRef}}', label: '模板引用 ID', description: '策略引用的存储模板 ID；仅引用模板渲染后存在。', example: 'nttpl_01HX...', source: '事件 payload 顶层字段' },
   { placeholder: '{{templateKey}}', label: '模板 Key', description: '策略引用的存储模板业务 Key；仅引用模板渲染后存在。', example: 'ops.job.failure', source: '事件 payload 顶层字段' },
 ];

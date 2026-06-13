@@ -223,6 +223,10 @@ Keep SDK helper docs anchored to operator-verified API and protocol references:
 
 Expected acceptance evidence includes an online worker with the requested structured processor, an API-triggered instance with `executionMode=single`, task logs from the Worker, and a successful processor message. Missing sandbox tools or unsupported processors must fail closed and be visible in task/diagnostic logs.
 
+## Failure and exception demos
+
+The Spring Boot demos separate expected business failures from runtime exceptions. `demo.fail` returns a failed `TaskOutcome`; `demo.exception` throws an `IllegalStateException`. The Spring adapter records the Java stack trace through `TaskContext.logError`, so a live dispatched exception is visible in instance logs and in the public notification console link.
+
 ## Capability discipline
 
 The dispatch contract uses structured capabilities, not folklore or only string naming conventions. A Worker should advertise SDK processors, plugin processors, script runners, labels, and tags only when the runtime can really execute them. Do not advertise SQL, shell, Python, Node.js, WASM, SRT, Deno, Docker, or Podman support just because a package exists; advertise it after the demo or service has resolved the tool and can fail safely.

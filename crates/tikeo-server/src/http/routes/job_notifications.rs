@@ -723,7 +723,8 @@ fn sample_job_notification_context(
         "app": job.app,
         "instanceId": "preview-instance",
         "status": event_type.strip_prefix("job_instance.").unwrap_or(event_type),
-        "logsUrl": format!("/instances/{}/logs", "preview-instance"),
+        "logsUrl": "/public/instances/preview-instance/console",
+        "consoleUrl": "/public/instances/preview-instance/console",
     })
 }
 

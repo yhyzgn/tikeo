@@ -1,6 +1,6 @@
 # Latest completed slice
 
-- 2026-06-13: Docs site human operator manual rebuild is complete locally. Docusaurus remains the docs framework; the site now has production deployment, SDK/API integration, configuration cookbook, development/extension manuals, zh-CN mirrors, task-path homepage, updated sidebar IA, search index, and LLM entrypoints. Local docs contract/typecheck/build/source-size/diff-check/Docker image/container smoke passed.
+- 2026-06-13: Exception demos, SDK stack capture, Feishu/Lark job cards, public execution console, and externally configurable public console card URLs are complete locally. `demo.fail` covers business failure; `demo.exception` covers runtime exception/panic/error stack capture. Feishu interactive metadata now has failed/success/status card examples, and notification card buttons open `/public/instances/{id}/console` without login. Local Rust/Web/docs/SDK/demo verification passed.
 
 # Next Work
 
@@ -34,3 +34,7 @@
 - Helm chart 不能部署业务 Worker 或创建业务 Worker 入站 Service；Worker 只能主动出站连接 Tikeo Worker Tunnel。
 - 源文件 <=1500 行；`mod.rs` / `lib.rs` 等入口文件只做声明和 re-export。
 - Web/frontend/docs package management and command execution must use `bun` / `bunx` unless explicitly overridden.
+
+## New configuration note
+
+- For Feishu/Lark or other office-platform cards opened outside the Tikeo browser origin, set `notification_delivery.public_console_base_url` / `TIKEO__NOTIFICATION_DELIVERY__PUBLIC_CONSOLE_BASE_URL` to the externally reachable Web base URL so card buttons contain absolute public console links.

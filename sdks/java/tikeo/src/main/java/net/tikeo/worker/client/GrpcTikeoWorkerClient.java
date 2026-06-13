@@ -1,5 +1,7 @@
 package net.tikeo.worker.client;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import net.tikeo.processor.ProcessorCapabilityProvider;
 import net.tikeo.processor.TaskContext;
 import net.tikeo.processor.TaskOutcome;
@@ -732,7 +734,8 @@ public final class GrpcTikeoWorkerClient implements TikeoWorkerClient {
             try {
                 outcome = processDispatchedTask(task, assignedWorkerId);
             } catch (Exception error) {
-                outcome = TaskOutcome.failed(error.getMessage());
+                emitTaskLogSafely(task, assignedWorkerId, "error", stackTrace(error), true);
+                outcome = TaskOutcome.failed(errorMessage(error));
             }
             String level = outcome.success() ? "info" : "error";
             log.info(
@@ -824,7 +827,7 @@ public final class GrpcTikeoWorkerClient implements TikeoWorkerClient {
                     (level, message) -> emitTaskLogSafely(task, assignedWorkerId, level, message, true)
                 );
         } catch (Exception error) {
-            return TaskOutcome.failed(error.getMessage());
+            return TaskOutcome.failed(errorMessage(error));
         }
     }
 
@@ -877,7 +880,7 @@ public final class GrpcTikeoWorkerClient implements TikeoWorkerClient {
                     (level, message) -> emitTaskLogSafely(task, assignedWorkerId, level, message, true)
                 );
         } catch (Exception error) {
-            return TaskOutcome.failed(error.getMessage());
+            return TaskOutcome.failed(errorMessage(error));
         }
     }
 
@@ -925,6 +928,19 @@ public final class GrpcTikeoWorkerClient implements TikeoWorkerClient {
                 )
                 .build()
         );
+    }
+
+    private static String errorMessage(Throwable error) {
+        if (error == null || error.getMessage() == null || error.getMessage().isBlank()) {
+            return error == null ? "processor failed" : error.getClass().getName();
+        }
+        return error.getMessage();
+    }
+
+    private static String stackTrace(Throwable error) {
+        StringWriter writer = new StringWriter();
+        error.printStackTrace(new PrintWriter(writer));
+        return writer.toString();
     }
 
     private static void printTaskLogLocally(String level, String message) {

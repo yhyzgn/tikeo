@@ -457,6 +457,34 @@ fn feishu_post_content(
     })
 }
 
+pub fn builtin_feishu_job_card_template(status: &str) -> serde_json::Value {
+    let normalized = status.to_ascii_lowercase();
+    let (color, button_type, alarm_type) = match normalized.as_str() {
+        "failed" | "failure" | "error" | "critical" => ("red", "danger", "任务执行失败报警"),
+        "succeeded" | "success" | "ok" => ("green", "primary", "任务执行成功通知"),
+        _ => ("blue", "primary", "任务执行状态通知"),
+    };
+    let content = format!(
+        "**报警类型**：{alarm_type}\n**运行环境**：{{{{namespace}}}}\n**应用**：{{{{app}}}}\n**任务Handler**：{{{{jobId}}}}\n**任务名称**：{{{{jobName}}}}\n**触发时间**：{{{{startedAt}}}}\n**运行机器**：{{{{workerId}}}}\n**执行结果**：{{{{status}}}}\n**失败原因**：{{{{reason}}}}"
+    );
+    serde_json::json!({
+        "card": {
+            "config": {"wide_screen_mode": true},
+            "header": {
+                "template": color,
+                "title": {"tag": "plain_text", "content": "存证系统 - Tikeo Job 任务通知"}
+            },
+            "elements": [
+                {"tag": "div", "text": {"tag": "lark_md", "content": content}},
+                {"tag": "hr"},
+                {"tag": "action", "actions": [
+                    {"tag": "button", "text": {"tag": "plain_text", "content": "查看控制台"}, "type": button_type, "url": "{{consoleUrl}}"}
+                ]}
+            ]
+        }
+    })
+}
+
 fn feishu_card_payload(
     template: Option<&serde_json::Value>,
     default: serde_json::Value,
@@ -732,7 +760,9 @@ fn template_token_value_for_validation(token: &str) -> Option<()> {
             | "workerId"
             | "operatorName"
             | "operatorType"
+            | "reason"
             | "logsUrl"
+            | "consoleUrl"
     )
     .then_some(())
 }
@@ -768,6 +798,14 @@ fn payload_string_field(message: &NotificationMessageSummary, key: &str) -> Opti
             "logsUrl" => payload
                 .pointer("/logs/url")
                 .and_then(value_to_template_string),
+            "consoleUrl" => payload
+                .pointer("/console/url")
+                .and_then(value_to_template_string)
+                .or_else(|| {
+                    payload
+                        .pointer("/logs/url")
+                        .and_then(value_to_template_string)
+                }),
             "workerId" => payload
                 .pointer("/instance/workerId")
                 .and_then(value_to_template_string),

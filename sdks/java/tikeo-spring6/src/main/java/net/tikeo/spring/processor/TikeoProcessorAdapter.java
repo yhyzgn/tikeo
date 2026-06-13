@@ -1,5 +1,7 @@
 package net.tikeo.spring.processor;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import net.tikeo.processor.TaskContext;
 import net.tikeo.processor.TaskOutcome;
 import java.lang.reflect.InvocationTargetException;
@@ -32,11 +34,26 @@ final class TikeoProcessorAdapter implements TikeoProcessorHandler {
             Object result = method.invoke(bean, arguments(context));
             return toOutcome(result);
         } catch (InvocationTargetException error) {
-            Throwable target = error.getTargetException();
-            return TaskOutcome.failed(target == null ? error.getMessage() : target.getMessage());
+            Throwable target = error.getTargetException() == null ? error : error.getTargetException();
+            context.logError(stackTrace(target));
+            return TaskOutcome.failed(errorMessage(target));
         } catch (ReflectiveOperationException | IllegalArgumentException error) {
-            return TaskOutcome.failed(error.getMessage());
+            context.logError(stackTrace(error));
+            return TaskOutcome.failed(errorMessage(error));
         }
+    }
+
+    private static String errorMessage(Throwable error) {
+        if (error.getMessage() == null || error.getMessage().isBlank()) {
+            return error.getClass().getName();
+        }
+        return error.getMessage();
+    }
+
+    private static String stackTrace(Throwable error) {
+        StringWriter writer = new StringWriter();
+        error.printStackTrace(new PrintWriter(writer));
+        return writer.toString();
     }
 
     private Object[] arguments(TaskContext context) {

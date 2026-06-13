@@ -9,6 +9,7 @@ import net.tikeo.processor.TaskContext;
 import net.tikeo.processor.TaskOutcome;
 import net.tikeo.spring.worker.SpringTikeoTaskProcessor;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import org.junit.jupiter.api.Test;
 
 class TikeoProcessorRegistryTest {
@@ -43,6 +44,22 @@ class TikeoProcessorRegistryTest {
 
         assertThat(outcome.success()).isFalse();
         assertThat(outcome.message()).isEqualTo("boom");
+    }
+
+    @Test
+    void processorExceptionsEmitStackTraceToTaskLogs() {
+        TikeoProcessorRegistry registry = new TikeoProcessorRegistry();
+        registry.postProcessAfterInitialization(new FailingBean(), "failingBean");
+        java.util.List<String> logs = new ArrayList<>();
+
+        TaskOutcome outcome = registry.invoke("demo.fail", new TaskContext("demo.fail", "demo.fail", "instance-1", "hello".getBytes(StandardCharsets.UTF_8), (level, message) -> logs.add(level + ":" + message)));
+
+        assertThat(outcome.success()).isFalse();
+        assertThat(outcome.message()).isEqualTo("boom");
+        assertThat(logs).anySatisfy(line -> {
+            assertThat(line).startsWith("error:java.lang.IllegalStateException: boom");
+            assertThat(line).contains("FailingBean.run");
+        });
     }
 
     @Test

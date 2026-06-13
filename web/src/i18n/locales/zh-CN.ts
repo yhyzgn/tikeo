@@ -3,6 +3,19 @@ import { notificationMessages } from './notifications-zh-CN';
 // Complete zh-CN UI dictionary. Add future translations here instead of scanning source code.
 
 export const messages: Record<string, string> = {
+    "缺少实例 ID": "缺少实例 ID",
+    "正在加载执行控制台": "正在加载执行控制台",
+    "Tikeo 任务执行透传控制台": "Tikeo 任务执行透传控制台",
+    "实例 ID": "实例 ID",
+    "任务 ID": "任务 ID",
+    "开始时间": "开始时间",
+    "执行控制台加载失败": "执行控制台加载失败",
+    "没有可展示的执行信息": "没有可展示的执行信息",
+    "执行上下文": "执行上下文",
+    "投递记录": "投递记录",
+    "暂无日志摘要": "暂无日志摘要",
+    "日志仅展示最近 80 行，完整日志请在登录控制台内查看。": "日志仅展示最近 80 行，完整日志请在登录控制台内查看。",
+    "加载执行透传信息失败": "加载执行透传信息失败",
     ...notificationMessages,
     "分布式任务调度平台": "分布式任务调度平台",
     "轻量、容器友好、Worker 主动隧道连接": "轻量、容器友好、Worker 主动隧道连接",

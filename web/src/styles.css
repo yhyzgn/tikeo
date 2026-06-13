@@ -3288,3 +3288,13 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
     max-height: 240px;
   }
 }
+
+.public-console-page { min-height: 100vh; padding: 32px; background: linear-gradient(135deg, #f8fafc 0%, #eef4ff 100%); color: #172033; }
+.public-console-page--loading { display: flex; align-items: center; justify-content: center; }
+.public-console-page__hero { max-width: 1180px; margin: 0 auto 20px; padding: 28px; border-radius: 24px; background: rgba(255,255,255,0.82); box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08); }
+.public-console-page__eyebrow { color: #2563eb; font-weight: 700; letter-spacing: .08em; }
+.public-console-page__card { max-width: 1180px; margin: 0 auto 16px; border-radius: 18px; }
+.public-console-page__log { display: flex; align-items: flex-start; gap: 8px; line-height: 1.55; word-break: break-word; }
+.public-console-page__log code { color: #64748b; }
+html[data-theme="dark"] .public-console-page { background: linear-gradient(135deg, #0f172a 0%, #111827 100%); color: #e2e8f0; }
+html[data-theme="dark"] .public-console-page__hero { background: rgba(15, 23, 42, 0.86); }

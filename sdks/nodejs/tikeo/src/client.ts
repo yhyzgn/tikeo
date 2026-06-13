@@ -191,9 +191,22 @@ export async function processDispatchTask(processor: TaskProcessor, scripts: Scr
     }
     return await processor(new TaskContext(task.instanceId, task.jobId, task.processorName || task.jobId, task.payload ?? new Uint8Array(), log));
   } catch (error) {
-    sdkLog("error", `processor failed instance_id=${task.instanceId ?? ""} error=${(error as Error).message}`);
-    return failed((error as Error).message);
+    const message = processorErrorMessage(error);
+    const stack = processorErrorStack(error);
+    sdkLog("error", `processor failed instance_id=${task.instanceId ?? ""} error=${message}`);
+    log("error", stack);
+    return failed(message);
   }
+}
+
+function processorErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return String(error);
+}
+
+function processorErrorStack(error: unknown): string {
+  if (error instanceof Error && error.stack) return error.stack;
+  return `Error: ${processorErrorMessage(error)}`;
 }
 
 export function printTaskLogLocally(level: string, message: string): void {

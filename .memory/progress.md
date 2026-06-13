@@ -1623,3 +1623,39 @@ Verification:
 - [x] Homepage rewritten as a task-path portal for evaluation, deployment, integration, configuration, notifications, SDKs, development, and troubleshooting.
 - [x] Search index and LLM entrypoint surfaces updated for the new manuals.
 - [x] Docs typecheck/build, docs contract, source-size, diff-check, Docker image build, and container smoke all passed locally.
+
+## 2026-06-13 — 异常 demo、飞书卡片与公开执行控制台验收
+
+- 多语言 Worker demo 增加并测试 `demo.exception`：Node/Python 抛运行时异常，Go panic，Rust 返回 processor error，Java Spring Boot 2/3/4 抛 `IllegalStateException`；`demo.fail` 保持业务失败语义。
+- Node/Python/Go/Rust/Java SDK/Spring adapter 现在在 processor 异常路径把真实异常栈/traceback/backtrace 写入 task log，并返回 failed outcome。
+- Feishu/Lark interactive 卡片模板更新为截图风格，失败/成功/普通分别使用红/绿/蓝 header，底部“查看控制台”按钮跳转 `{{consoleUrl}}`。provider metadata 暴露失败、成功、普通三套卡片示例。
+- Notification payload 的 `logsUrl` / `consoleUrl` 统一指向 `/public/instances/{id}/console`；新增 `/api/v1/public/job-instances/{id}/trace` 与 Web `/public/instances/:id/console` 免登录执行透传页面，展示消息、投递、实例上下文和脱敏日志。
+- Trace 路由拆入 `notification_trace.rs`，保持所有源码文件 <=1500 行。
+
+Verification:
+- `cargo fmt --all -- --check` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features` ✅
+- `cargo build --workspace --all-features` ✅
+- `bun run --cwd web typecheck && bun run --cwd web lint && bun test --cwd web src && bun run --cwd web build` ✅
+- `bun run --cwd docs docs:typecheck && bun run --cwd docs docs:build` ✅
+- SDK/demo targeted and full tests for Node/Python/Go/Rust/Java ✅
+- `python3 scripts/check-source-size.py` ✅
+- `git diff --check` ✅
+## 2026-06-13 — 异常 demo、飞书卡片公开控制台收尾补强
+
+- 补强 Notification Center 公开控制台链接：新增 `notification_delivery.public_console_base_url`，未配置时保持 `/public/instances/{id}/console` 相对路径，配置后用于飞书/Lark 等外部办公平台卡片按钮生成绝对 URL。
+- Server 主路径、HTTP 管理路径、Worker Tunnel fallback 均复用带 public console base URL 的 `NotificationCenter`，避免不同事件入口生成不一致链接。
+- 公开执行透传页面接入现有 i18n，上线中文/英文词典覆盖，避免新增页面硬编码中文。
+- config/dev.toml、config/container.toml 与英文/中文 docs 同步新增 public console base URL 配置说明。
+
+Verification:
+- `cargo fmt --all -- --check` ✅
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` ✅
+- `cargo test --workspace --all-features` ✅
+- `cargo build --workspace --all-features` ✅
+- `bun run --cwd web typecheck && bun run --cwd web lint && bun test --cwd web src && bun run --cwd web build` ✅
+- `bun run --cwd docs docs:typecheck && bun run --cwd docs docs:build` ✅
+- SDK 全量：Node/Python/Go/Rust/Java ✅
+- Demo 全量：Node/Python/Go/Rust/Spring Boot 2/3/4 ✅
+- `python3 scripts/check-source-size.py && git diff --check` ✅

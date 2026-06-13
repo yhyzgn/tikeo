@@ -35,6 +35,7 @@ const PluginsPage = lazy(() => import('./pages/PluginsPage').then((module) => ({
 const ApiKeysPage = lazy(() => import('./pages/ApiKeysPage').then((module) => ({ default: module.ApiKeysPage })));
 const GitOpsPage = lazy(() => import('./pages/GitOpsPage').then((module) => ({ default: module.GitOpsPage })));
 const WorkersPage = lazy(() => import('./pages/WorkersPage').then((module) => ({ default: module.WorkersPage })));
+const PublicInstanceConsolePage = lazy(() => import('./pages/PublicInstanceConsolePage').then((module) => ({ default: module.PublicInstanceConsolePage })));
 const DispatchQueuePage = lazy(() => import('./pages/DispatchQueuePage').then((module) => ({ default: module.DispatchQueuePage })));
 
 const KEEP_ALIVE_ROUTES = [
@@ -235,6 +236,7 @@ export function App() {
               <Route path="/" element={<Navigate to={bootstrap.registrationOpen ? '/setup' : ROUTE_META.dashboard.path} replace />} />
               <Route path="/setup" element={<SetupRoute bootstrap={bootstrap} onRegistered={refreshBootstrap} />} />
               <Route path="/login" element={<LoginRoute bootstrap={bootstrap} />} />
+              <Route path="/public/instances/:id/console" element={<PublicInstanceConsolePage />} />
               <Route element={<AuthGuard />}>
                 <Route path="/*" element={<AppLayout />} />
               </Route>

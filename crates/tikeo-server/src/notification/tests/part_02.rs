@@ -626,7 +626,8 @@ async fn policy_template_ref_materializes_and_drives_provider_payload() {
         attempts.clone(),
         templates,
         jobs,
-    );
+    )
+    .with_public_console_base_url(Some("https://console.example.com/tikeo"));
     center
         .emit_job_instance_event(&instance, JobNotificationEvent::Failed, Some("exit 2"))
         .await
@@ -660,7 +661,10 @@ async fn policy_template_ref_materializes_and_drives_provider_payload() {
     assert_eq!(payload["template"]["body"]["jobId"], job.id);
     assert_eq!(payload["template"]["body"]["instanceId"], instance.id);
     assert_eq!(payload["template"]["body"]["operator"], "tikeo");
-    assert_eq!(payload["template"]["body"]["logsUrl"], format!("/instances/{}/logs", instance.id));
+    assert_eq!(
+        payload["template"]["body"]["logsUrl"],
+        format!("https://console.example.com/tikeo/public/instances/{}/console", instance.id)
+    );
     assert_eq!(payload["template"]["body"]["templateKey"], "ops.webhook.failure");
 
     let delivered = process_due_notification_delivery_attempts(
@@ -1298,6 +1302,57 @@ fn email_template_config_overrides_alert_payload_subject_and_body() {
     assert_eq!(payload.message, "Exited 2 / job_instance.failed");
     assert_eq!(payload.resource_type, "job");
     assert_eq!(config["template"]["html"], "<strong>{{body}}</strong>");
+}
+
+
+#[test]
+fn feishu_interactive_job_card_templates_include_status_variants_and_console_button() {
+    let message = NotificationMessageSummary {
+        payload_json: serde_json::json!({
+            "jobName": "按日期生成出入库单据PDF失败",
+            "namespace": "core_dev",
+            "app": "recycloud-erp",
+            "instanceId": "inst-feishu-card",
+            "status": "failed",
+            "triggerType": "api",
+            "executionMode": "single",
+            "startedAt": "2026-06-11T09:35:17Z",
+            "finishedAt": "2026-06-11T09:35:57Z",
+            "workerId": "172.16.103.25:9999",
+            "reason": "参数不能为空 should not be empty",
+            "consoleUrl": "/public/instances/inst-feishu-card/console",
+            "logs": {"url": "/public/instances/inst-feishu-card/console"}
+        }).to_string(),
+        ..sample_notification_message()
+    };
+    let config = serde_json::json!({"messageType":"interactive","template": builtin_feishu_job_card_template("failed")});
+    let payload = feishu_payload(&message, config.as_object().unwrap_or_else(|| panic!("config object")));
+
+    assert_eq!(payload["msg_type"], "interactive");
+    assert_eq!(payload["card"]["header"]["template"], "red");
+    assert_eq!(payload["card"]["header"]["title"]["content"], "存证系统 - Tikeo Job 任务通知");
+    let body = payload["card"]["elements"].to_string();
+    assert!(body.contains("报警类型"), "card should keep the operator field layout: {body}");
+    assert!(body.contains("任务执行失败报警"), "failed card should describe failed job alerts: {body}");
+    assert!(body.contains("参数不能为空 should not be empty"), "reason should render: {body}");
+    assert!(body.contains("查看控制台"), "console button should render: {body}");
+    assert!(body.contains("/public/instances/inst-feishu-card/console"), "button should use public console url: {body}");
+    assert_eq!(payload["card"]["elements"][0]["tag"], "div");
+    assert_eq!(payload["card"]["elements"][0]["text"]["tag"], "lark_md");
+    assert_eq!(payload["card"]["elements"][2]["actions"][0]["type"], "danger");
+
+    for (status, color, label, button_type) in [
+        ("succeeded", "green", "任务执行成功通知", "primary"),
+        ("running", "blue", "任务执行状态通知", "primary"),
+        ("info", "blue", "任务执行状态通知", "primary"),
+    ] {
+        let template = builtin_feishu_job_card_template(status);
+        let config = serde_json::json!({"messageType":"interactive","template": template});
+        let payload = feishu_payload(&message, config.as_object().unwrap_or_else(|| panic!("config object")));
+        assert_eq!(payload["card"]["header"]["template"], color);
+        assert_eq!(payload["card"]["elements"][2]["actions"][0]["type"], button_type);
+        assert!(payload.to_string().contains(label));
+    }
 }
 
 fn sample_notification_message() -> NotificationMessageSummary {

@@ -6,6 +6,8 @@ mod provider_templates;
 mod signing;
 mod workflow_events;
 
+pub(crate) use provider_templates::builtin_feishu_job_card_template;
+
 pub use alert_events::{
     AlertRuleNotificationBackfillSummary, backfill_alert_rule_notification_policies,
     ensure_alert_rule_notification_policy_from_channels,
@@ -160,6 +162,7 @@ pub struct NotificationCenter {
     attempts: NotificationDeliveryAttemptRepository,
     templates: NotificationTemplateRepository,
     jobs: JobRepository,
+    public_console_base_url: Option<String>,
 }
 
 impl NotificationCenter {
@@ -180,7 +183,18 @@ impl NotificationCenter {
             attempts,
             templates,
             jobs,
+            public_console_base_url: None,
         }
+    }
+
+    /// Attach an optional externally reachable base URL for public console links in outbound cards.
+    #[must_use]
+    pub fn with_public_console_base_url(mut self, base_url: Option<impl Into<String>>) -> Self {
+        self.public_console_base_url = base_url
+            .map(Into::into)
+            .map(|value| value.trim().trim_end_matches('/').to_owned())
+            .filter(|value| !value.is_empty());
+        self
     }
 
     /// Materialize notification messages and delivery attempt ledger rows for a job instance event.
@@ -239,7 +253,9 @@ impl NotificationCenter {
                 },
             );
             let dedupe_key = format!("{}:{}:{}", policy.id, instance.id, event.event_type());
-            let logs_url = format!("/instances/{}/logs", instance.id);
+            let logs_url =
+                public_instance_console_url(self.public_console_base_url.as_deref(), &instance.id);
+            let console_url = logs_url.clone();
             let mut payload = serde_json::json!({
                 "eventType": event.event_type(),
                 "jobId": job.id,
@@ -258,6 +274,7 @@ impl NotificationCenter {
                 "operatorType": "system",
                 "operatorName": "tikeo",
                 "logsUrl": logs_url,
+                "consoleUrl": console_url,
                 "reason": reason,
                 "severity": severity,
                 "policyId": policy.id,
@@ -279,7 +296,8 @@ impl NotificationCenter {
                     "workerId": instance.result.as_ref().map(|result| result.worker_id.clone())
                 },
                 "operator": {"type": "system", "name": "tikeo"},
-                "logs": {"url": format!("/instances/{}/logs", instance.id), "excerpt": serde_json::Value::Null}
+                "console": {"url": console_url},
+                "logs": {"url": console_url, "excerpt": serde_json::Value::Null}
             });
             if let Some(template) = load_policy_template(&self.templates, &policy).await? {
                 apply_message_template(
@@ -645,6 +663,14 @@ fn filter_matches(raw: &str, status: &str, event_type: &str) -> bool {
         .and_then(serde_json::Value::as_array)
         .is_none_or(|items| items.iter().any(|item| item.as_str() == Some(event_type)));
     status_match && event_match
+}
+
+fn public_instance_console_url(base_url: Option<&str>, instance_id: &str) -> String {
+    let path = format!("/public/instances/{instance_id}/console");
+    base_url.map_or_else(
+        || path.clone(),
+        |base| format!("{}{path}", base.trim_end_matches('/')),
+    )
 }
 
 fn extract_channel_refs(raw: &str) -> Vec<String> {

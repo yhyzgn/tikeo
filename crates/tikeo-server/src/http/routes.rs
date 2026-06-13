@@ -12,6 +12,7 @@ pub(crate) mod jobs;
 pub(crate) mod metrics;
 pub(crate) mod notification_providers;
 pub(crate) mod notification_templates;
+pub(crate) mod notification_trace;
 pub(crate) mod notifications;
 pub(crate) mod observability;
 pub(crate) mod oidc_identity;
@@ -54,10 +55,11 @@ pub use notification_templates::{
     list_notification_templates, render_notification_template, render_notification_template_by_id,
     update_notification_template,
 };
+pub use notification_trace::{get_notification_message_trace, get_public_job_instance_trace};
 pub use notifications::{
     create_notification_channel, create_notification_policy, delete_notification_channel,
-    delete_notification_policy, get_notification_channel, get_notification_message_trace,
-    get_notification_policy, list_notification_channel_types, list_notification_channels,
+    delete_notification_policy, get_notification_channel, get_notification_policy,
+    list_notification_channel_types, list_notification_channels,
     list_notification_delivery_attempts, list_notification_messages, list_notification_policies,
     notification_delivery_queue_status, retry_due_notification_delivery_attempts,
     test_notification_channel, update_notification_channel, update_notification_policy,

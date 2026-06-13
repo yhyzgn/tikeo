@@ -50,6 +50,7 @@ pub struct AppState {
     pub(crate) worker_lifecycle: WorkerLifecycleRepository,
     pub(crate) cluster: SharedClusterCoordinator,
     pub(crate) raft_transport_token: Option<String>,
+    pub(crate) notification_public_console_base_url: Option<String>,
 }
 
 impl AppState {
@@ -111,6 +112,7 @@ impl AppState {
             worker_lifecycle,
             cluster,
             raft_transport_token: None,
+            notification_public_console_base_url: None,
         }
     }
 
@@ -152,6 +154,15 @@ impl AppState {
     #[must_use]
     pub fn with_raft_transport_token(mut self, token: Option<String>) -> Self {
         self.raft_transport_token = token.filter(|value| !value.is_empty());
+        self
+    }
+
+    /// Attach the optional externally reachable public console base URL for notification links.
+    #[must_use]
+    pub fn with_notification_public_console_base_url(mut self, base_url: Option<String>) -> Self {
+        self.notification_public_console_base_url = base_url
+            .map(|value| value.trim().trim_end_matches('/').to_owned())
+            .filter(|value| !value.is_empty());
         self
     }
 }

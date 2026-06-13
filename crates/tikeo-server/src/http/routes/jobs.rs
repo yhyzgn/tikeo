@@ -1000,7 +1000,8 @@ pub async fn cancel_job_instance(
             state.notification_delivery_attempts.clone(),
             state.notification_templates.clone(),
             state.jobs.clone(),
-        );
+        )
+        .with_public_console_base_url(state.notification_public_console_base_url.clone());
         emit_job_instance_event_best_effort(
             &notifications,
             &summary,

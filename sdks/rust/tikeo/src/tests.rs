@@ -643,6 +643,41 @@ async fn worker_session_records_only_task_logger_lines_for_processors() {
 }
 
 #[tokio::test]
+async fn worker_session_reports_processor_errors_with_backtrace_task_log() {
+    let (addr, server, mut events) = start_mock_tunnel_server(Some(DispatchTask {
+        instance_id: "instance-rust-exception".to_owned(),
+        job_id: "job-rust-exception".to_owned(),
+        payload: b"hello".to_vec(),
+        processor_name: "demo.exception".to_owned(),
+        processor_binding: None,
+        assignment_token: "assign-token-exception".to_owned(),
+    }))
+    .await;
+    let config = WorkerConfig::local(format!("http://{addr}"), "worker-rust-exception");
+    let mut session = WorkerClient::new(config)
+        .connect()
+        .await
+        .unwrap_or_else(|error| panic!("worker should register: {error}"));
+
+    let outcome = session
+        .process_next(&ErrorProcessor)
+        .await
+        .unwrap_or_else(|error| panic!("processor error should become a task failure: {error}"));
+
+    assert!(
+        matches!(outcome, TaskOutcome::Failed(message) if message.contains("rust runtime boom"))
+    );
+    let logs = collect_until_result(&mut events).await;
+    assert!(
+        logs.iter().any(|log| log.level == "error"
+            && log.message.contains("rust runtime boom")
+            && log.message.contains("process_task")),
+        "missing rust processor error backtrace in task logs: {logs:?}"
+    );
+    server.abort();
+}
+
+#[tokio::test]
 async fn worker_session_records_script_runner_pipe_output_as_task_logs() {
     let dispatch = script_dispatch_task(
         "instance-rust-script-console",
@@ -1234,4 +1269,15 @@ fn wasm_dispatch_task(instance_id: &str, module: Vec<u8>, allow_network: bool) -
 
 fn wat_bytes(source: &str) -> Vec<u8> {
     wat::parse_str(source).unwrap_or_else(|error| panic!("wat fixture should compile: {error}"))
+}
+
+struct ErrorProcessor;
+
+#[async_trait::async_trait]
+impl TaskProcessor for ErrorProcessor {
+    async fn process(&self, _task: TaskContext) -> Result<TaskOutcome, WorkerSdkError> {
+        Err(WorkerSdkError::ManagementRequestFailed(
+            "rust runtime boom".to_owned(),
+        ))
+    }
 }

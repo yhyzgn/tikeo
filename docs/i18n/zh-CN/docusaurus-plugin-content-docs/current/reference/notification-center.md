@@ -36,6 +36,8 @@ description: Tikeo 通知中心 API、配置、存储、事件、脱敏、重试
 ```toml
 [notification_delivery]
 enabled = true
+# 可选。用于通知卡片按钮的外部可访问 Web 基地址。
+# public_console_base_url = "https://tikeo.example.com"
 interval_seconds = 60
 batch_size = 50
 max_attempts = 3
@@ -45,6 +47,7 @@ backoff_seconds = 300
 | Key | 默认值 | 环境变量 | 含义 |
 | --- | --- | --- | --- |
 | `notification_delivery.enabled` | `true` | `TIKEO__NOTIFICATION_DELIVERY__ENABLED` | 启动通用投递 worker。 |
+| `notification_delivery.public_console_base_url` | 未设置 | `TIKEO__NOTIFICATION_DELIVERY__PUBLIC_CONSOLE_BASE_URL` | 可选的外部可访问 Web 基地址，用于把 `/public/instances/{id}/console` 转成飞书/Lark 卡片按钮可直接打开的绝对 URL。 |
 | `notification_delivery.interval_seconds` | `60` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | due-attempt 扫描间隔。 |
 | `notification_delivery.batch_size` | `50` | `TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE` | 每轮最大扫描数量。 |
 | `notification_delivery.max_attempts` | `3` | `TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS` | 进入 dead-letter 前最大尝试次数。 |
@@ -113,7 +116,7 @@ Web route `/notifications` 同样要求 `notifications:read`。
 
 Job 通知绑定是面向任务操作者的配置层，不是新的投递系统。它复用 `notification_policies(owner_type='job', owner_id=job.id, event_family='job_instance')`，并把 `trigger`、`eventTypes`、`channelIds`、`templateRef`、日志链接/摘要配置写入 policy filter/channel refs。
 
-运行时仍由 `NotificationCenter::emit_job_instance_event` 物化消息和投递 attempts。Job 消息 payload 会携带 `jobId`、`jobName`、`namespace`、`app`、`instanceId`、`status`、`triggerType`、`executionMode`、`startedAt`、`finishedAt`、`workerId`、`operatorName`、`operatorType`、`logsUrl` 以及嵌套 `job` / `instance` / `operator` / `logs` 对象。
+运行时仍由 `NotificationCenter::emit_job_instance_event` 物化消息和投递 attempts。Job 消息 payload 会携带 `jobId`、`jobName`、`namespace`、`app`、`instanceId`、`status`、`triggerType`、`executionMode`、`startedAt`、`finishedAt`、`workerId`、`operatorName`、`operatorType`、`reason`、`logsUrl`、`consoleUrl` 以及嵌套 `job` / `instance` / `operator` / `logs` 对象。
 
 `GET /api/v1/notification-messages/{id}/trace` 用于排障某条通知消息：响应包含标准化 message、policy、delivery attempts、Job/实例上下文，以及最近 80 行执行日志摘要。日志展示层会对 password/token/secret/authorization/routingKey/signingKey 等常见 key-value 片段做脱敏；trace 不会调用外部 provider，也不会回显渠道私密配置。
 

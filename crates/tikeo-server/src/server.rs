@@ -34,6 +34,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
     let observability = config.observability;
     let alert_retry_config = config.alert_retry;
     let notification_delivery_config = config.notification_delivery;
+    let public_console_base_url = notification_delivery_config.public_console_base_url.clone();
     let script_governance = config.script_governance;
     let raft_transport_token = cluster_config.transport_token.clone();
     let offset = tikeo_storage::parse_timestamp_offset(&timestamp_offset)
@@ -64,7 +65,8 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
         NotificationDeliveryAttemptRepository::new(db.clone()),
         tikeo_storage::NotificationTemplateRepository::new(db.clone()),
         jobs.clone(),
-    );
+    )
+    .with_public_console_base_url(public_console_base_url.clone());
     let plugins = tikeo_storage::PluginRepository::new(db.clone())
         .list_plugins()
         .await
@@ -108,6 +110,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
         observability,
         script_governance,
         raft_transport_token,
+        notification_public_console_base_url: public_console_base_url,
     });
     let tunnel_instances = instances.clone();
     let tikeo_instances = instances.clone();
@@ -135,7 +138,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
                 attempts: tunnel_attempts,
                 workflows: workflows.clone(),
                 audit: audit.clone(),
-                notifications: None,
+                notifications: Some(notification_center.clone()),
                 log_broadcaster,
             }),
             &transport_security.worker_tunnel,
@@ -156,7 +159,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
                 audit,
                 registry,
                 dispatch_cluster,
-                notification_center,
+                notification_center.clone(),
             )
             .await;
             #[allow(unreachable_code)]
@@ -193,6 +196,7 @@ struct HttpRouterParts {
     observability: ObservabilityConfig,
     script_governance: ScriptGovernanceConfig,
     raft_transport_token: Option<String>,
+    notification_public_console_base_url: Option<String>,
 }
 
 fn build_http_router(parts: HttpRouterParts) -> axum::Router {
@@ -213,7 +217,8 @@ fn build_http_router(parts: HttpRouterParts) -> axum::Router {
         .with_transport_security_config(parts.transport_security)
         .with_observability_config(parts.observability)
         .with_script_governance_config(parts.script_governance)
-        .with_raft_transport_token(parts.raft_transport_token),
+        .with_raft_transport_token(parts.raft_transport_token)
+        .with_notification_public_console_base_url(parts.notification_public_console_base_url),
     )
 }
 

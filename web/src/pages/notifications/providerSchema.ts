@@ -81,7 +81,9 @@ export const DEFAULT_TEMPLATE_VARIABLES = [
   '{{workerId}}',
   '{{operatorName}}',
   '{{operatorType}}',
+  '{{reason}}',
   '{{logsUrl}}',
+  '{{consoleUrl}}',
   '{{templateRef}}',
   '{{templateKey}}',
 ];

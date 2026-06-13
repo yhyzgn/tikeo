@@ -18,4 +18,11 @@ public final class FailingTaskProcessor {
         log.warn("[demo.fail] returning expected failure message='{}'", outcome.message());
         return outcome;
     }
+
+    @TikeoProcessor("demo.exception")
+    public TaskOutcome exception(TaskContext context, String payload) {
+        log.info("[demo.exception] throwing runtime exception payload='{}'", payload);
+        context.logError("[demo.exception] throwing runtime exception payload='" + payload + "'");
+        throw new IllegalStateException("java demo runtime exception:" + payload);
+    }
 }

@@ -18,3 +18,10 @@ describe('route defaults and authenticated login bypass', () => {
     expect(appSource).toContain('to="/setup"');
   });
 });
+
+
+test('public instance console bypasses AuthGuard for notification card links', () => {
+  expect(appSource).toContain('path="/public/instances/:id/console"');
+  expect(appSource).toContain('<PublicInstanceConsolePage />');
+  expect(appSource.indexOf('path="/public/instances/:id/console"')).toBeLessThan(appSource.indexOf('<Route element={<AuthGuard />}>'));
+});

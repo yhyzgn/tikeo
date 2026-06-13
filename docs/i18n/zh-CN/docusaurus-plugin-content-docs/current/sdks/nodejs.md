@@ -23,7 +23,7 @@ pnpm add @yhyzgn/tikeo@${TIKEO_VERSION}
 
 `localConfig(endpoint, clientInstanceId)` 返回 `new WorkerConfig({ endpoint, clientInstanceId })`。`WorkerConfig` 默认值来自 `src/config.ts`：`namespace="default"`，`app="default"`，`name=input.name || input.clientInstanceId`，`region="local"`，`version="dev"`，`cluster="local"`，`capabilities=[]`，`labels={}`，`structured.tags=[]`，`structured.sdkProcessors=[]`，`structured.scriptRunners=[]`，`structured.pluginProcessors=[]`，`heartbeatEveryMs=10_000`。`validate()` 会拒绝空 endpoint、clientInstanceId、namespace、app、name、cluster，以及非正 heartbeat。
 
-Node.js demo 覆盖 operator scope：`TIKEO_WORKER_ENDPOINT` 默认 `http://127.0.0.1:9998`，`TIKEO_WORKER_CLIENT_INSTANCE_ID` 默认 `nodejs-worker-demo-local`，namespace/app 默认 `dev-alpha`/`orders`，cluster/region 默认 `local`，tag 包含 `nodejs` 与 `manual-demo`，默认 SDK processors 是 `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail`，`worker_pool` 默认 `nodejs-blue`。`TIKEO_ENABLE_PLUGIN_SQL` 默认启用时，会广告 plugin type `sql` 与 processor `billing.sql-sync`。
+Node.js demo 覆盖 operator scope：`TIKEO_WORKER_ENDPOINT` 默认 `http://127.0.0.1:9998`，`TIKEO_WORKER_CLIENT_INSTANCE_ID` 默认 `nodejs-worker-demo-local`，namespace/app 默认 `dev-alpha`/`orders`，cluster/region 默认 `local`，tag 包含 `nodejs` 与 `manual-demo`，默认 SDK processors 是 `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception`，`worker_pool` 默认 `nodejs-blue`。`TIKEO_ENABLE_PLUGIN_SQL` 默认启用时，会广告 plugin type `sql` 与 processor `billing.sql-sync`。
 
 ## 最小 Worker
 
@@ -100,6 +100,10 @@ await management.triggerJob(created.id, broadcastApiTrigger(selector));
 ## Demo 行为与 Bun 验证
 
 Node.js demo 脚本为 `bun src/main.ts`，测试为 `bun test`。`configureScripts(config)` 会按 `TIKEO_WORKER_SCRIPT_LANGUAGES` 默认尝试 `shell,python,javascript,typescript,powershell,php,groovy,rhai`。auto sandbox 下 JS/TS 使用 Deno，其它语言使用 SRT；也支持 Docker/Podman 与显式 local command。`TIKEO_SANDBOX_AUTO_INSTALL` 可关闭工具自动安装。验收时应比较启动日志、`client.registration()` JSON 和 Web 控制台，确保 structured capabilities 只包含实际注册成功的 runner。
+
+## 失败与异常 demo
+
+所有语言 demo 都区分业务失败和运行时异常。`demo.fail` 返回正常的 failed `TaskOutcome`，用于验证业务规则失败；`demo.exception` 会 throw、panic、raise 或返回 processor error，用于验证 SDK 能把真实异常栈作为任务日志透传，同时仍把实例结果标记为失败。验收时两个 processor 都要触发：前者证明业务失败语义，后者证明异常堆栈能穿过 Worker Tunnel 并出现在 Notification Center 的执行透传页面。
 
 ## 运维依据与排错边界
 

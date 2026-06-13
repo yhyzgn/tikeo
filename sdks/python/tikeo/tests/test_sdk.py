@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from types import SimpleNamespace
 import stat
 from pathlib import Path
 
@@ -143,6 +144,28 @@ def test_management_client_creates_structured_plugin_and_script_jobs():
         "broadcastSelector": {"region": "us-east-1"},
     }
 
+
+
+def test_processor_exceptions_are_reported_with_traceback_task_logs():
+    from tikeo.client import process_dispatch_task
+
+    logs = []
+    task = SimpleNamespace(
+        instance_id="inst-python-exception",
+        job_id="job-python-exception",
+        processor_name="demo.exception",
+        payload=b"",
+        processor_binding=None,
+    )
+
+    def processor(_task):
+        raise RuntimeError("python runtime boom")
+
+    outcome = process_dispatch_task(processor, None, task, lambda level, message: logs.append((level, message)))
+
+    assert not outcome.success
+    assert "python runtime boom" in outcome.message
+    assert any(level == "error" and "Traceback" in message and "python runtime boom" in message for level, message in logs)
 
 def test_local_command_script_runner_executes_released_shell_snapshot():
     runner = tikeo.LocalCommandScriptRunner("shell", "custom")

@@ -123,6 +123,7 @@ TLS/mTLS 默认关闭。跨主机、跨集群、跨 VPC 或不可信网络时，
 | Config key | 默认值 | 环境变量 | 说明 |
 | --- | --- | --- | --- |
 | `notification_delivery.enabled` | `true` | `TIKEO__NOTIFICATION_DELIVERY__ENABLED` | 启用通用通知中心投递 worker。 |
+| `notification_delivery.public_console_base_url` | 未设置 | `TIKEO__NOTIFICATION_DELIVERY__PUBLIC_CONSOLE_BASE_URL` | 可选的外部可访问 Web 基地址，用于 provider 卡片中的公开执行控制台链接。 |
 | `notification_delivery.interval_seconds` | `60` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | due-attempt 扫描间隔。 |
 | `notification_delivery.batch_size` | `50` | `TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE` | 每轮最大扫描数量。 |
 | `notification_delivery.max_attempts` | `3` | `TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS` | 进入 dead-letter 前最大尝试次数。 |

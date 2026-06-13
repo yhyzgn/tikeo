@@ -95,7 +95,7 @@ public String run(TaskContext context, String payload) {
 }
 ```
 
-demo processor 名称来自 `examples/java/spring-boot3-worker-demo/src/main/java/.../processor`：`demo.echo`、`demo.context`、`demo.bytes`、`demo.heartbeat`、`demo.report`、`demo.workflow.step`、`demo.fail` 和 plugin `billing.sql-sync`。这些是 Worker dispatch 能力，不是 HTTP handler。`DemoInfoController` 和 `DemoJobManagementController` 只用于检查注册状态和演示 job management。
+demo processor 名称来自 `examples/java/spring-boot3-worker-demo/src/main/java/.../processor`：`demo.echo`、`demo.context`、`demo.bytes`、`demo.heartbeat`、`demo.report`、`demo.workflow.step`、`demo.fail`、`demo.exception` 和 plugin `billing.sql-sync`。这些是 Worker dispatch 能力，不是 HTTP handler。`DemoInfoController` 和 `DemoJobManagementController` 只用于检查注册状态和演示 job management。
 
 ## 原生 Java Worker
 
@@ -165,6 +165,10 @@ client.triggerJob(created.id(), TriggerJobRequest.broadcastApi(selector));
 ## Demo 与运维边界
 
 Spring Boot 3 demo 的 `application.yml` 将 `tikeo.worker.endpoint` 默认设为 `http://127.0.0.1:9998`，`client-instance-id` 默认 `spring-boot3-worker-demo-${HOSTNAME:local}`，namespace/app 默认 `dev-alpha`/`orders`，label `worker_pool=boot3-blue`、`runtime=java`、`demo=spring-boot3-worker-demo`。`tikeo.management.enabled` 在 demo 中默认 true，生产服务应按最小权限显式开启，并从 Secret 注入 `TIKEO_MANAGEMENT_API_KEY`。脚本 runner 默认开启 WASM/SRT 工具解析，但 container scripts 默认关闭；只有可用运行时会被注册进 structured capabilities。
+
+## 失败与异常 demo
+
+Spring Boot demo 区分预期业务失败和运行时异常。`demo.fail` 返回 failed `TaskOutcome`；`demo.exception` 抛出 `IllegalStateException`。Spring adapter 会通过 `TaskContext.logError` 记录 Java 堆栈，因此 live 派发时异常栈会出现在实例日志和通知卡片跳转的公开执行控制台中。
 
 ## 运维依据与排错边界
 

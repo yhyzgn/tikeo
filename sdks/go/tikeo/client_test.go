@@ -56,6 +56,28 @@ func TestProcessDispatchTaskRecordsOnlyTaskLoggerLinesForProcessors(t *testing.T
 	}
 }
 
+func TestProcessDispatchTaskCapturesProcessorPanicStack(t *testing.T) {
+	collector := newCapturedTaskLogCollector()
+	outcome, err := processDispatchTaskWithLogs(context.Background(), TaskProcessorFunc(func(context.Context, TaskContext) (TaskOutcome, error) {
+		panic("go runtime boom")
+	}), nil, &workerpb.DispatchTask{
+		InstanceId:      "inst-go-exception",
+		JobId:           "job-go-exception",
+		ProcessorName:   "demo.exception",
+		AssignmentToken: "assign-token-exception",
+	}, collector.add)
+	logs := collector.logs()
+	if err != nil {
+		t.Fatalf("processDispatchTaskWithLogs() error = %v", err)
+	}
+	if outcome.Success || !strings.Contains(outcome.Message, "go runtime boom") {
+		t.Fatalf("outcome = %+v, want failed go runtime boom", outcome)
+	}
+	if !containsCapturedLogWithSubstring(logs, "error", "goroutine") || !containsCapturedLogWithSubstring(logs, "error", "go runtime boom") {
+		t.Fatalf("missing panic stack in task logs: %+v", logs)
+	}
+}
+
 func TestProcessDispatchTaskRecordsScriptRunnerPipeOutput(t *testing.T) {
 	content := []byte("printf 'go script stdout\\n'; printf 'go script stderr\\n' >&2\n")
 	runner, err := NewLocalCommandScriptRunner("shell", "custom")

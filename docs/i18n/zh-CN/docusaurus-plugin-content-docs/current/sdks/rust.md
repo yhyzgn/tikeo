@@ -28,7 +28,7 @@ tikeo = "${TIKEO_VERSION}"
 
 `WorkerConfig::local(endpoint, client_instance_id)` 是源码里的最小开发配置。它不会猜测生产 scope，只填入可本地启动的默认值：`endpoint` 来自参数，`client_instance_id` 来自参数，`app="default"`，`namespace="default"`，`cluster="local"`，`region="local"`，`capabilities=[]`，`structured_capabilities=WorkerCapabilities::default()`，`labels={}`。注册消息会把 `WorkerClusterElection` 写为 `enabled=true`、`domain=""`、`priority=100`。
 
-`examples/rust/worker-demo/src/main.rs` 在 demo 层覆盖这些默认值：`TIKEO_WORKER_ENDPOINT` 默认 `http://127.0.0.1:9998`，`TIKEO_WORKER_CLIENT_INSTANCE_ID` 默认 `rust-worker-demo-local`，`TIKEO_WORKER_NAMESPACE` 默认 `dev-alpha`，`TIKEO_WORKER_APP` 默认 `orders`，`TIKEO_WORKER_CLUSTER` 和 `TIKEO_WORKER_REGION` 默认 `local`，`worker_pool` 默认 `rust-blue`。demo 会添加 tag `rust`、`manual-demo`，并默认广告 `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail` 这些 SDK processor。插件 SQL 默认启用路径来自 `enabled_by_default("TIKEO_ENABLE_PLUGIN_SQL")`，会添加 plugin processor `type=sql`、`processorName=billing.sql-sync`，并标记 label `plugin_sql=enabled`。
+`examples/rust/worker-demo/src/main.rs` 在 demo 层覆盖这些默认值：`TIKEO_WORKER_ENDPOINT` 默认 `http://127.0.0.1:9998`，`TIKEO_WORKER_CLIENT_INSTANCE_ID` 默认 `rust-worker-demo-local`，`TIKEO_WORKER_NAMESPACE` 默认 `dev-alpha`，`TIKEO_WORKER_APP` 默认 `orders`，`TIKEO_WORKER_CLUSTER` 和 `TIKEO_WORKER_REGION` 默认 `local`，`worker_pool` 默认 `rust-blue`。demo 会添加 tag `rust`、`manual-demo`，并默认广告 `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception` 这些 SDK processor。插件 SQL 默认启用路径来自 `enabled_by_default("TIKEO_ENABLE_PLUGIN_SQL")`，会添加 plugin processor `type=sql`、`processorName=billing.sql-sync`，并标记 label `plugin_sql=enabled`。
 
 ## 最小 Worker
 
@@ -117,6 +117,10 @@ let _ = management
 ## Demo 行为与能力边界
 
 Rust demo 默认配置 SDK processor、插件 SQL processor，以及可选脚本 runner。脚本 runner 的 sandbox 后端由 `TIKEO_WORKER_SCRIPT_SANDBOX` 控制；auto 模式会按语言选择 SRT、Deno、container 或 unavailable adapter。`TIKEO_SANDBOX_AUTO_INSTALL=0/false/no/off` 会关闭工具自动安装。`TIKEO_ENABLE_UNAVAILABLE_SCRIPT_ADAPTERS` 只有在显式打开时才注册不可用 adapter；正常验收应要求不可用运行时不被广告。`TIKEO_WORKER_DRY_RUN=1` 或关闭连接时，demo 只验证本地注册与 heartbeat，不会连 live tunnel。
+
+## 失败与异常 demo
+
+所有语言 demo 都区分业务失败和运行时异常。`demo.fail` 返回正常的 failed `TaskOutcome`，用于验证业务规则失败；`demo.exception` 会 throw、panic、raise 或返回 processor error，用于验证 SDK 能把真实异常栈作为任务日志透传，同时仍把实例结果标记为失败。验收时两个 processor 都要触发：前者证明业务失败语义，后者证明异常堆栈能穿过 Worker Tunnel 并出现在 Notification Center 的执行透传页面。
 
 ## 运维依据与排错边界
 

@@ -29,7 +29,7 @@ SDK 导出 `WorkerConfig`、`local_config`、`Client`、`TaskContext`、`TaskOut
 
 `local_config(endpoint, client_instance_id)` 返回 `WorkerConfig(endpoint=endpoint, client_instance_id=client_instance_id)`。`WorkerConfig` dataclass 的默认值是：`namespace="default"`，`app="default"`，`name=""` 但 `__post_init__` 会把空 name 改为 `client_instance_id`，`region="local"`，`version="dev"`，`cluster="local"`，`capabilities=[]`，`labels={}`，`structured=WorkerCapabilities()`，`heartbeat_every=timedelta(seconds=10)`。`validate()` 会拒绝空 endpoint、client_instance_id、namespace、app、name、cluster，以及非正 heartbeat。
 
-Python demo 覆盖 operator scope：`TIKEO_WORKER_ENDPOINT` 默认 `http://127.0.0.1:9998`，`TIKEO_WORKER_CLIENT_INSTANCE_ID` 默认 `python-worker-demo-local`，namespace/app 默认 `dev-alpha`/`orders`，cluster/region 默认 `local`，tag 包含 `python` 和 `manual-demo`，默认 processor 为 `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail`，`worker_pool` 默认 `python-blue`。插件 SQL 默认启用时，会广告 plugin type `sql` 与 processor `billing.sql-sync`。
+Python demo 覆盖 operator scope：`TIKEO_WORKER_ENDPOINT` 默认 `http://127.0.0.1:9998`，`TIKEO_WORKER_CLIENT_INSTANCE_ID` 默认 `python-worker-demo-local`，namespace/app 默认 `dev-alpha`/`orders`，cluster/region 默认 `local`，tag 包含 `python` 和 `manual-demo`，默认 processor 为 `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception`，`worker_pool` 默认 `python-blue`。插件 SQL 默认启用时，会广告 plugin type `sql` 与 processor `billing.sql-sync`。
 
 ## 最小 Worker
 
@@ -105,6 +105,10 @@ management.trigger_job(created.id, tikeo.broadcast_api_trigger(selector))
 ## Demo 行为与脚本边界
 
 Python demo 会按环境变量注册多语言脚本 runner：默认语言集合通常包括 shell、python、javascript、typescript、powershell、php、groovy、rhai；auto sandbox 下 JS/TS 走 Deno，其它语言优先 SRT。`TIKEO_SANDBOX_AUTO_INSTALL` 可关闭工具自动安装。验收时要检查 runner 注册日志和最终 registration，确保只广告真正可执行的 `script_runners`。如果某个 runner 缺失，任务应返回可诊断失败，而不是被静默伪成功。
+
+## 失败与异常 demo
+
+所有语言 demo 都区分业务失败和运行时异常。`demo.fail` 返回正常的 failed `TaskOutcome`，用于验证业务规则失败；`demo.exception` 会 throw、panic、raise 或返回 processor error，用于验证 SDK 能把真实异常栈作为任务日志透传，同时仍把实例结果标记为失败。验收时两个 processor 都要触发：前者证明业务失败语义，后者证明异常堆栈能穿过 Worker Tunnel 并出现在 Notification Center 的执行透传页面。
 
 ## 运维依据与排错边界
 

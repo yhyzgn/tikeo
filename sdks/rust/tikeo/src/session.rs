@@ -1,4 +1,5 @@
 use std::{
+    backtrace::Backtrace,
     sync::{
         Arc, Mutex,
         atomic::{AtomicI64, Ordering},
@@ -263,7 +264,13 @@ impl WorkerSession {
         } else {
             match processor.process(context).await {
                 Ok(outcome) => outcome,
-                Err(error) => TaskOutcome::Failed(error.to_string()),
+                Err(error) => {
+                    (emit_log)(
+                        "error",
+                        format!("processor failed: {error}\n{}", Backtrace::force_capture()),
+                    );
+                    TaskOutcome::Failed(error.to_string())
+                }
             }
         };
         for entry in task_logs.drain() {

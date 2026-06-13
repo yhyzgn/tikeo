@@ -287,6 +287,10 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
             axum::routing::post(routes::trigger_inbound_webhook),
         )
         .route(
+            "/public/job-instances/{id}/trace",
+            get(routes::get_public_job_instance_trace),
+        )
+        .route(
             "/namespaces",
             get(routes::list_namespaces).post(routes::create_namespace),
         )

@@ -25,7 +25,7 @@ export async function main(): Promise<void> {
   config.region = envOr("TIKEO_WORKER_REGION", "local");
   config.addTag("nodejs");
   config.addTag("manual-demo");
-  for (const processor of csvOr("TIKEO_WORKER_SDK_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail")) config.addSDKProcessor(processor);
+  for (const processor of csvOr("TIKEO_WORKER_SDK_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception")) config.addSDKProcessor(processor);
   config.labels.worker_pool = envOr("TIKEO_WORKER_POOL", "nodejs-blue");
   if (enabledByDefault("TIKEO_ENABLE_PLUGIN_SQL")) {
     config.addPluginProcessor(envOr("TIKEO_PLUGIN_SQL_TYPE", "sql"), envOr("TIKEO_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"));
@@ -118,6 +118,7 @@ export function processTask(task: TaskContext): TaskOutcome {
     case "demo.heartbeat": task.logInfo(`[demo.heartbeat] tick jobId=${task.jobId} instanceId=${task.instanceId}`); return { success: true, message: "nodejs demo heartbeat processed" };
     case "billing.sql-sync": task.logInfo(`[billing.sql-sync] plugin SQL processor received payload='${payload}'`); return { success: true, message: "nodejs demo sql plugin processed" };
     case "demo.fail": task.logError(`[demo.fail] intentional failure payload='${payload}'`); return failed("nodejs demo intentional failure");
+    case "demo.exception": task.logError(`[demo.exception] throwing runtime exception payload='${payload}'`); throw new Error("nodejs demo runtime exception");
     default: task.logError(`[nodejs-worker] unsupported processor=${task.processorName}`); return failed(`unsupported nodejs demo processor: ${task.processorName}`);
   }
 }

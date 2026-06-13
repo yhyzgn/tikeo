@@ -37,6 +37,8 @@ Generic delivery worker settings are under `notification_delivery`.
 ```toml
 [notification_delivery]
 enabled = true
+# Optional. Set to the externally reachable Web base URL for notification card buttons.
+# public_console_base_url = "https://tikeo.example.com"
 interval_seconds = 60
 batch_size = 50
 max_attempts = 3
@@ -46,6 +48,7 @@ backoff_seconds = 300
 | Key | Default | Environment variable | Meaning |
 | --- | --- | --- | --- |
 | `notification_delivery.enabled` | `true` | `TIKEO__NOTIFICATION_DELIVERY__ENABLED` | Runs the generic delivery worker. |
+| `notification_delivery.public_console_base_url` | unset | `TIKEO__NOTIFICATION_DELIVERY__PUBLIC_CONSOLE_BASE_URL` | Optional externally reachable Web base URL used to turn `/public/instances/{id}/console` into an absolute Feishu/Lark card button URL. |
 | `notification_delivery.interval_seconds` | `60` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | Delay between due-attempt scans. |
 | `notification_delivery.batch_size` | `50` | `TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE` | Maximum due attempts scanned per worker iteration. |
 | `notification_delivery.max_attempts` | `3` | `TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS` | Attempts before dead-lettering. |
@@ -128,9 +131,9 @@ The job drawer in `web/src/pages/notifications/JobNotificationConfigDrawer.tsx` 
 | `includeLogLink` / `includeLogExcerpt` / `logExcerptLines` | Controls whether job messages include log navigation metadata and how much log context the operator expects to inspect. |
 | `dedupeSeconds` | Reuses Notification Center dedupe; default is `300`. |
 
-Runtime materialization still flows through `NotificationCenter::emit_job_instance_event`: matching job-owned policies create normalized `notification_messages` and delivery attempts. Message payloads include flat and nested context keys such as `jobId`, `jobName`, `namespace`, `app`, `instanceId`, `status`, `triggerType`, `executionMode`, `startedAt`, `finishedAt`, `workerId`, `operatorName`, `operatorType`, and `logsUrl`.
+Runtime materialization still flows through `NotificationCenter::emit_job_instance_event`: matching job-owned policies create normalized `notification_messages` and delivery attempts. Message payloads include flat and nested context keys such as `jobId`, `jobName`, `namespace`, `app`, `instanceId`, `status`, `triggerType`, `executionMode`, `startedAt`, `finishedAt`, `workerId`, `operatorName`, `operatorType`, `reason`, `logsUrl`, and `consoleUrl`.
 
-Supported template variables for job messages include the generic variables plus `{{jobId}}`, `{{jobName}}`, `{{namespace}}`, `{{app}}`, `{{instanceId}}`, `{{status}}`, `{{triggerType}}`, `{{executionMode}}`, `{{startedAt}}`, `{{finishedAt}}`, `{{workerId}}`, `{{operatorName}}`, `{{operatorType}}`, and `{{logsUrl}}`.
+Supported template variables for job messages include the generic variables plus `{{jobId}}`, `{{jobName}}`, `{{namespace}}`, `{{app}}`, `{{instanceId}}`, `{{status}}`, `{{triggerType}}`, `{{executionMode}}`, `{{startedAt}}`, `{{finishedAt}}`, `{{workerId}}`, `{{operatorName}}`, `{{operatorType}}`, `{{reason}}`, `{{logsUrl}}`, and `{{consoleUrl}}`.
 
 ## Message trace and execution-log passthrough
 
@@ -232,7 +235,7 @@ Template rows never store provider credentials. Webhook URLs, signing keys, Page
 - `dedupeKey` and optional `traceId`.
 - `status`, `createdAt`, and `updatedAt`.
 
-The job materializer creates subjects like `Tikeo job <name>: <status-token>` and payload fields including `eventType`, `jobId`, `jobName`, `namespace`, `app`, `instanceId`, `status`, and `reason`.
+The job materializer creates subjects like `Tikeo job <name>: <status-token>` and payload fields including `eventType`, `jobId`, `jobName`, `namespace`, `app`, `instanceId`, `status`, `reason`, `logsUrl`, and `consoleUrl`.
 
 ## Delivery attempt fields
 

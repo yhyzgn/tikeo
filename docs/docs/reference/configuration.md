@@ -265,6 +265,7 @@ Notification Center has its own generic delivery worker, separate from `alert_re
 | Config key | Default | Environment variable | Notes |
 | --- | --- | --- | --- |
 | `notification_delivery.enabled` | `true` | `TIKEO__NOTIFICATION_DELIVERY__ENABLED` | Enables the generic Notification Center delivery worker. |
+| `notification_delivery.public_console_base_url` | unset | `TIKEO__NOTIFICATION_DELIVERY__PUBLIC_CONSOLE_BASE_URL` | Optional externally reachable Web base URL for public execution console links in provider cards. |
 | `notification_delivery.interval_seconds` | `60` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | Interval between due-attempt scans. |
 | `notification_delivery.batch_size` | `50` | `TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE` | Maximum due attempts scanned per worker iteration. |
 | `notification_delivery.max_attempts` | `3` | `TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS` | Attempts before the generic delivery attempt is dead-lettered. |

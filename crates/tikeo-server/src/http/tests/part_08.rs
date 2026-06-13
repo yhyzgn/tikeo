@@ -145,7 +145,7 @@
             .clone()
             .oneshot(
                 admin_request_builder(
-                    app,
+                    app.clone(),
                     "GET",
                     format!("/api/v1/notification-delivery-attempts?policy_id={policy_id}"),
                 )
@@ -229,7 +229,8 @@
         .await;
         assert_eq!(preview["code"], 0);
         assert_eq!(preview["data"]["sampleContext"]["jobName"], "nightly-import");
-        assert_eq!(preview["data"]["renderedTemplate"]["body"]["logs"], "/instances/preview-instance/logs");
+        assert_eq!(preview["data"]["sampleContext"]["consoleUrl"], "/public/instances/preview-instance/console");
+        assert_eq!(preview["data"]["renderedTemplate"]["body"]["logs"], "/public/instances/preview-instance/console");
 
         let created = post_json(
             app.clone(),
@@ -412,7 +413,7 @@
             .clone()
             .oneshot(
                 admin_request_builder(
-                    app,
+                    app.clone(),
                     "GET",
                     format!("/api/v1/notification-messages/{}/trace", message.id),
                 )
@@ -433,6 +434,27 @@
         assert_eq!(trace["data"]["job"]["name"], "traceable-job");
         assert_eq!(trace["data"]["instance"]["id"], instance.id);
         assert_eq!(trace["data"]["logs"]["url"], format!("/instances/{}/logs", instance.id));
+        let public_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/api/v1/public/job-instances/{}/trace", instance.id))
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("public request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("public notification trace should respond without auth: {error}"));
+        let public_status = public_response.status();
+        assert!(public_status.is_success(), "public trace status should be success: {public_status}");
+        let public_body = axum::body::to_bytes(public_response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("public trace body should collect: {error}"));
+        let public_trace: Value = serde_json::from_slice(&public_body)
+            .unwrap_or_else(|error| panic!("public trace body should be JSON: {error}"));
+        assert_eq!(public_trace["code"], 0);
+        assert_eq!(public_trace["data"]["instance"]["id"], instance.id);
+        assert_eq!(public_trace["data"]["logs"]["url"], format!("/public/instances/{}/console", instance.id));
         let excerpt = trace["data"]["logs"]["excerpt"]
             .as_array()
             .unwrap_or_else(|| panic!("log excerpt should be array"));

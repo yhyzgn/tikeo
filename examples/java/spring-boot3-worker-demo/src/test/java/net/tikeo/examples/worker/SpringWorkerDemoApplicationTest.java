@@ -78,8 +78,8 @@ class SpringWorkerDemoApplicationTest {
         assertThat(health).contains("\"status\":\"ok\"");
         assertThat(health).contains("\"connected\":true");
         assertThat(health).contains("\"workerId\":\"dry-run-spring-boot3-worker-demo-test\"");
-        assertThat(health).contains("demo.echo", "demo.fail", "demo.workflow.step");
-        assertThat(processors).contains("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail", "billing.sql-sync");
+        assertThat(health).contains("demo.echo", "demo.fail", "demo.exception", "demo.workflow.step");
+        assertThat(processors).contains("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail", "demo.exception", "billing.sql-sync");
         assertThat(processors).doesNotContain("shell.test");
         log.info("[java-demo-plugin-test] /demo/health response={}", health);
         log.info("[java-demo-plugin-test] /demo/processors response={}", processors);
@@ -87,7 +87,7 @@ class SpringWorkerDemoApplicationTest {
 
     @Test
     void springRegistersEchoProcessorAndInvokesItThroughRegistry() {
-        assertThat(registry.handlers()).containsKeys("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail", "billing.sql-sync");
+        assertThat(registry.handlers()).containsKeys("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail", "demo.exception", "billing.sql-sync");
         assertThat(registry.handlers()).doesNotContainKey("shell.test");
 
         var outcome = registry.invoke("demo.echo", new TaskContext(

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -368,7 +369,17 @@ func processDispatchTask(ctx context.Context, processor TaskProcessor, scripts *
 	return processDispatchTaskWithLogs(ctx, processor, scripts, task, nil)
 }
 
-func processDispatchTaskWithLogs(ctx context.Context, processor TaskProcessor, scripts *ScriptRunnerRegistry, task *workerpb.DispatchTask, emitLog func(level, message string)) (TaskOutcome, error) {
+func processDispatchTaskWithLogs(ctx context.Context, processor TaskProcessor, scripts *ScriptRunnerRegistry, task *workerpb.DispatchTask, emitLog func(level, message string)) (outcome TaskOutcome, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			message := fmt.Sprintf("processor panic: %v", recovered)
+			if emitLog != nil {
+				emitLog("error", message+"\n"+string(debug.Stack()))
+			}
+			outcome = Failed(message)
+			err = nil
+		}
+	}()
 	if script := task.GetProcessorBinding().GetScript(); script != nil {
 		runner := scripts.get(script.GetLanguage())
 		if runner == nil {
@@ -377,11 +388,15 @@ func processDispatchTaskWithLogs(ctx context.Context, processor TaskProcessor, s
 		}
 		return runner.Run(ctx, scriptRunnerTask(task, script).withLogSink(emitLog))
 	}
-	return processor.Process(ctx, TaskContext{
+	outcome, err = processor.Process(ctx, TaskContext{
 		InstanceID:    task.GetInstanceId(),
 		JobID:         task.GetJobId(),
 		ProcessorName: task.GetProcessorName(),
 		Payload:       task.GetPayload(),
 		Log:           emitLog,
 	})
+	if err != nil && emitLog != nil {
+		emitLog("error", "processor error: "+err.Error()+"\n"+string(debug.Stack()))
+	}
+	return outcome, err
 }

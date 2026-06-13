@@ -333,7 +333,8 @@ pub async fn materialize_next_workflow_node(
         state.notification_delivery_attempts.clone(),
         state.notification_templates.clone(),
         state.jobs.clone(),
-    );
+    )
+    .with_public_console_base_url(state.notification_public_console_base_url.clone());
     crate::notification::emit_workflow_notification_node_requested_best_effort(
         &notifications,
         &state.workflows,

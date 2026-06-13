@@ -79,6 +79,14 @@ class EchoProcessorTest {
     }
 
     @Test
+    void exceptionTaskThrowsRuntimeException() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                new FailingTaskProcessor().exception(context("demo.exception", "bad-input"), "bad-input"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("java demo runtime exception:bad-input");
+    }
+
+    @Test
     void sqlPluginProcessorLogsAndReturnsPluginOutcome() {
         String payload = "{\"tenant\":\"billing\",\"batch\":\"2026-05-28T14:00:00+08:00\"}";
         log.info("[java-demo-plugin-test] invoking billing.sql-sync with payload={}", payload);

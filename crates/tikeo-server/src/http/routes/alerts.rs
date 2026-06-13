@@ -589,7 +589,8 @@ pub async fn resolve_alert_event(
         state.notification_delivery_attempts.clone(),
         state.notification_templates.clone(),
         state.jobs.clone(),
-    );
+    )
+    .with_public_console_base_url(state.notification_public_console_base_url.clone());
     emit_alert_event_best_effort(&notifications, &resolved).await;
     Ok(Json(ApiResponse::success(AlertEventSummary {
         id: resolved.id,

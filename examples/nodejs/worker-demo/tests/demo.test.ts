@@ -20,3 +20,15 @@ test("demo processors emit task logs", () => {
   expect(outcome.message).toBe("nodejs demo echo processed");
   expect(logs.some(([, message]) => message.includes("[demo.echo]"))).toBe(true);
 });
+
+test("demo fail returns business failure and demo exception throws runtime error", () => {
+  const failLogs: [string, string][] = [];
+  const failure = processTask(new TaskContext("inst-fail", "job-1", "demo.fail", new TextEncoder().encode("bad-input"), (level, message) => failLogs.push([level, message])));
+  expect(failure.success).toBe(false);
+  expect(failure.message).toBe("nodejs demo intentional failure");
+  expect(failLogs.some(([level, message]) => level === "error" && message.includes("[demo.fail]") && message.includes("bad-input"))).toBe(true);
+
+  const exceptionLogs: [string, string][] = [];
+  expect(() => processTask(new TaskContext("inst-exception", "job-1", "demo.exception", new TextEncoder().encode("bad-input"), (level, message) => exceptionLogs.push([level, message])))).toThrow("nodejs demo runtime exception");
+  expect(exceptionLogs.some(([level, message]) => level === "error" && message.includes("[demo.exception]") && message.includes("bad-input"))).toBe(true);
+});

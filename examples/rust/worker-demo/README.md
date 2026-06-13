@@ -34,7 +34,7 @@ Defaults:
 
 - scope: `dev-alpha/orders`
 - worker pool: `rust-blue`
-- SDK processors: `demo.echo`, `demo.context`, `demo.bytes`, `demo.heartbeat`, `demo.fail`
+- SDK processors: `demo.echo`, `demo.context`, `demo.bytes`, `demo.heartbeat`, `demo.fail`, `demo.exception`
 - plugin processor: `type=sql`, `processorName=billing.sql-sync`
 - script runners: shell, Python, JavaScript, TypeScript, PowerShell, PHP, Groovy, Rhai
 - default sandbox auto path: SRT for native scripts and Deno for JavaScript/TypeScript
@@ -42,3 +42,5 @@ Defaults:
 
 Operational cautions: `TIKEO_SANDBOX_AUTO_INSTALL=0` disables sandbox tool installation; leave runtime
 checks enabled in production so workers fail closed when required tools are missing.
+
+`demo.fail` returns an intentional business failure. `demo.exception` raises a runtime processor error so SDK task-log stack capture can be verified end to end.

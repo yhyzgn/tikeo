@@ -18,6 +18,7 @@ import {
   grpcTarget,
   localConfig,
   pluginApiJob,
+  processDispatchTask,
   scriptApiJob,
   type ScriptRunnerTask,
 } from "../src/index";
@@ -97,6 +98,26 @@ describe("node sdk parity", () => {
     expect(bodies[2].triggerType).toBe("api");
     expect(bodies[2].executionMode).toBe("single");
     expect(broadcastApiTrigger({ region: "us-east-1" })).toEqual({ triggerType: "api", executionMode: "broadcast", broadcastSelector: { region: "us-east-1" } });
+  });
+
+
+  test("processor exceptions are reported with stack trace task logs", async () => {
+    const logs: [string, string][] = [];
+    const task = {
+      instanceId: "inst-node-exception",
+      jobId: "job-node-exception",
+      processorName: "demo.exception",
+      payload: new Uint8Array(),
+      assignmentToken: "assign-node-exception",
+    };
+
+    const outcome = await processDispatchTask(() => {
+      throw new Error("nodejs runtime boom");
+    }, undefined, task, (level, message) => logs.push([level, message]));
+
+    expect(outcome.success).toBe(false);
+    expect(outcome.message).toContain("nodejs runtime boom");
+    expect(logs.some(([level, message]) => level === "error" && message.includes("nodejs runtime boom") && message.includes("at"))).toBe(true);
   });
 
   test("local shell runner executes immutable script snapshot", () => {

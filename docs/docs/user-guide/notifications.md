@@ -170,7 +170,7 @@ Recommended workflow:
 6. Use **Validate** and **Preview** before saving. Preview renders a sample payload with job, instance, operator, and `logsUrl` fields; it does not send a provider message.
 7. After a real run, open **Notification Center → Messages → Details** to inspect the normalized message, attempts, job/instance context, and execution log passthrough.
 
-A production message can carry these template variables: `{{jobId}}`, `{{jobName}}`, `{{namespace}}`, `{{app}}`, `{{instanceId}}`, `{{status}}`, `{{triggerType}}`, `{{executionMode}}`, `{{startedAt}}`, `{{finishedAt}}`, `{{workerId}}`, `{{operatorName}}`, `{{operatorType}}`, and `{{logsUrl}}`, in addition to the generic `{{subject}}`, `{{body}}`, `{{eventType}}`, `{{resourceId}}`, and `{{severity}}` variables.
+A production message can carry these template variables: `{{jobId}}`, `{{jobName}}`, `{{namespace}}`, `{{app}}`, `{{instanceId}}`, `{{status}}`, `{{triggerType}}`, `{{executionMode}}`, `{{startedAt}}`, `{{finishedAt}}`, `{{workerId}}`, `{{operatorName}}`, `{{operatorType}}`, `{{reason}}`, `{{logsUrl}}`, and `{{consoleUrl}}`, in addition to the generic `{{subject}}`, `{{body}}`, `{{eventType}}`, `{{resourceId}}`, and `{{severity}}` variables.
 
 ## Safe channel creation example
 
@@ -318,6 +318,7 @@ The generic delivery worker defaults come from `notification_delivery` in `crate
 | Key | Default |
 | --- | --- |
 | `notification_delivery.enabled` | `true` |
+| `notification_delivery.public_console_base_url` | unset; set this to the externally reachable Web URL when Feishu/Lark card buttons must open from outside the browser origin. |
 | `notification_delivery.interval_seconds` | `60` |
 | `notification_delivery.batch_size` | `50` |
 | `notification_delivery.max_attempts` | `3` |

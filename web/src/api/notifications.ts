@@ -465,3 +465,7 @@ export function previewJobNotificationBinding(jobId: string, payload: SaveJobNot
 export function getNotificationMessageTrace(messageId: string): Promise<NotificationMessageTrace> {
   return request<NotificationMessageTrace>(`/api/v1/notification-messages/${encodeURIComponent(messageId)}/trace`);
 }
+
+export function getPublicJobInstanceTrace(instanceId: string): Promise<NotificationMessageTrace> {
+  return request<NotificationMessageTrace>(`/api/v1/public/job-instances/${encodeURIComponent(instanceId)}/trace`, { auth: false });
+}

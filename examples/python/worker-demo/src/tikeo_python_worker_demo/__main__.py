@@ -20,7 +20,7 @@ def main() -> None:
     config.region = env_or("TIKEO_WORKER_REGION", "local")
     config.add_tag("python")
     config.add_tag("manual-demo")
-    for processor in csv_or("TIKEO_WORKER_SDK_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail"):
+    for processor in csv_or("TIKEO_WORKER_SDK_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception"):
         config.add_sdk_processor(processor)
     config.labels["worker_pool"] = env_or("TIKEO_WORKER_POOL", "python-blue")
     if enabled_by_default("TIKEO_ENABLE_PLUGIN_SQL"):
@@ -131,6 +131,9 @@ def process_task(task: tikeo.TaskContext) -> tikeo.TaskOutcome:
         case "demo.fail":
             task.log_error(f"[demo.fail] intentional failure payload='{payload}'")
             return tikeo.failed("python demo intentional failure")
+        case "demo.exception":
+            task.log_error(f"[demo.exception] raising runtime exception payload='{payload}'")
+            raise RuntimeError("python demo runtime exception")
         case other:
             task.log_error(f"[python-worker] unsupported processor={other}")
             return tikeo.failed("unsupported python demo processor: " + other)

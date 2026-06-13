@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 
 import { createJobNotificationBinding, createNotificationChannel, deleteJobNotificationBinding, getNotificationMessageTrace, previewJobNotificationBinding, renderNotificationTemplate, testNotificationChannel, updateJobNotificationBinding, updateNotificationChannel, validateJobNotificationBinding } from './notifications';
 
@@ -144,4 +145,12 @@ describe('notification api client', () => {
     expect(calledUrl).not.toContain(':trace');
   });
 
+});
+
+
+test('public job instance trace requests do not attach auth', () => {
+  const source = readFileSync(new URL('./notifications.ts', import.meta.url), 'utf8');
+  expect(source).toContain('getPublicJobInstanceTrace');
+  expect(source).toContain('/api/v1/public/job-instances/');
+  expect(source).toContain('{ auth: false }');
 });

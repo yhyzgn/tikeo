@@ -5,6 +5,7 @@ from __future__ import annotations
 import queue
 import sys
 import threading
+import traceback
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -229,7 +230,9 @@ def process_dispatch_task(processor: TaskProcessor, scripts: ScriptRunnerRegistr
             ))
         return processor(TaskContext(instance_id=task.instance_id, job_id=task.job_id, processor_name=task.processor_name or task.job_id, payload=bytes(task.payload), log=log))
     except Exception as exc:
+        stack = traceback.format_exc()
         sdk_logging.error("processor failed instance_id=%s error=%s", getattr(task, "instance_id", ""), exc)
+        log("error", stack)
         return failed(str(exc))
 
 

@@ -30,7 +30,7 @@ async fn main() -> Result<(), WorkerSdkError> {
     config.add_tag("manual-demo");
     for processor in csv_env_or(
         "TIKEO_WORKER_SDK_PROCESSORS",
-        "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail",
+        "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception",
     ) {
         config.add_sdk_processor(processor);
     }
@@ -506,6 +506,15 @@ impl TaskProcessor for DemoProcessor {
                 ));
                 TaskOutcome::Failed("rust demo intentional failure".to_owned())
             }
+            "demo.exception" => {
+                task.log_error(format!(
+                    "[demo.exception] returning runtime error payload='{}'",
+                    String::from_utf8_lossy(&task.payload)
+                ));
+                return Err(WorkerSdkError::ManagementRequestFailed(
+                    "rust demo runtime exception".to_owned(),
+                ));
+            }
             other => {
                 task.log_error(format!("[rust-worker] unsupported processor={other}"));
                 TaskOutcome::Failed(format!("unsupported rust demo processor: {other}"))
@@ -638,6 +647,65 @@ mod tests {
             SandboxToolResolver::default()
                 .resolve_interpreter("definitely-missing-tikeo-interpreter")
                 .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn demo_fail_returns_business_failure_and_exception_returns_processor_error() {
+        let processor = DemoProcessor;
+        let fail_logs = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let fail_sink = std::sync::Arc::clone(&fail_logs);
+        let failure = processor
+            .process(TaskContext {
+                job_id: "job-1".to_owned(),
+                processor_name: "demo.fail".to_owned(),
+                instance_id: "inst-fail".to_owned(),
+                payload: b"bad-input".to_vec(),
+                logger: std::sync::Arc::new(move |level, message| {
+                    fail_sink
+                        .lock()
+                        .expect("fail log lock")
+                        .push(format!("{level}:{message}"));
+                }),
+            })
+            .await
+            .expect("demo.fail should return a failed outcome, not a processor error");
+        assert_eq!(
+            failure,
+            TaskOutcome::Failed("rust demo intentional failure".to_owned())
+        );
+        assert!(
+            fail_logs
+                .lock()
+                .expect("fail log lock")
+                .iter()
+                .any(|line| line.contains("error:[demo.fail]") && line.contains("bad-input"))
+        );
+
+        let exception_logs = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let exception_sink = std::sync::Arc::clone(&exception_logs);
+        let error = processor
+            .process(TaskContext {
+                job_id: "job-1".to_owned(),
+                processor_name: "demo.exception".to_owned(),
+                instance_id: "inst-exception".to_owned(),
+                payload: b"bad-input".to_vec(),
+                logger: std::sync::Arc::new(move |level, message| {
+                    exception_sink
+                        .lock()
+                        .expect("exception log lock")
+                        .push(format!("{level}:{message}"));
+                }),
+            })
+            .await
+            .expect_err("demo.exception should return a runtime processor error");
+        assert!(error.to_string().contains("rust demo runtime exception"));
+        assert!(
+            exception_logs
+                .lock()
+                .expect("exception log lock")
+                .iter()
+                .any(|line| line.contains("error:[demo.exception]") && line.contains("bad-input"))
         );
     }
 

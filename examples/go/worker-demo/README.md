@@ -35,10 +35,12 @@ Defaults:
 
 - scope: `dev-alpha/orders`
 - worker pool: `go-blue`
-- SDK processors: `demo.echo`, `demo.context`, `demo.bytes`, `demo.heartbeat`, `demo.fail`
+- SDK processors: `demo.echo`, `demo.context`, `demo.bytes`, `demo.heartbeat`, `demo.fail`, `demo.exception`
 - plugin processor: `type=sql`, `processorName=billing.sql-sync`
 - script runners: shell, Python, JavaScript, TypeScript, PowerShell, PHP, Groovy, Rhai
 - sandbox auto path: SRT for native scripts and Deno for JavaScript/TypeScript
 
 Operational cautions: keep task logs task-scoped, keep SDK diagnostics at INFO unless debugging, and
 do not advertise script runners unless the sandbox backend is available.
+
+`demo.fail` returns an intentional business failure. `demo.exception` raises a runtime processor error so SDK task-log stack capture can be verified end to end.

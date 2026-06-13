@@ -21,3 +21,20 @@ def test_demo_processors_emit_task_logs():
     assert outcome.success
     assert outcome.message == "python demo echo processed"
     assert any("[demo.echo]" in message for _level, message in logs)
+
+
+def test_demo_fail_returns_business_failure_and_exception_raises_runtime_error():
+    fail_logs = []
+    failure = process_task(tikeo.TaskContext("inst-fail", "job-1", "demo.fail", b"bad-input", lambda level, message: fail_logs.append((level, message))))
+    assert not failure.success
+    assert failure.message == "python demo intentional failure"
+    assert any(level == "error" and "[demo.fail]" in message and "bad-input" in message for level, message in fail_logs)
+
+    exception_logs = []
+    try:
+        process_task(tikeo.TaskContext("inst-exception", "job-1", "demo.exception", b"bad-input", lambda level, message: exception_logs.append((level, message))))
+    except RuntimeError as exc:
+        assert "python demo runtime exception" in str(exc)
+    else:
+        raise AssertionError("demo.exception should raise RuntimeError")
+    assert any(level == "error" and "[demo.exception]" in message and "bad-input" in message for level, message in exception_logs)

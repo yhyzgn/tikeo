@@ -130,6 +130,7 @@ headers = []
 ```toml
 [notification_delivery]
 enabled = true
+# public_console_base_url = "https://tikeo.example.com"
 interval_seconds = 60
 batch_size = 50
 max_attempts = 3

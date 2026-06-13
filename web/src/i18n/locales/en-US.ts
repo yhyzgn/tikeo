@@ -3,6 +3,20 @@ import { notificationMessages } from './notifications-en-US';
 // Complete en-US UI dictionary. Add future translations here instead of scanning source code.
 
 export const messages: Record<string, string> = {
+    "缺少实例 ID": "Missing instance ID",
+    "正在加载执行控制台": "Loading execution console",
+    "Tikeo 任务执行透传控制台": "Tikeo public execution console",
+    "实例 ID": "Instance ID",
+    "任务 ID": "Job ID",
+    "开始时间": "Started at",
+    "更新时间": "Updated at",
+    "执行控制台加载失败": "Failed to load execution console",
+    "没有可展示的执行信息": "No execution information to show",
+    "执行上下文": "Execution context",
+    "投递记录": "Delivery records",
+    "暂无日志摘要": "No log excerpt yet",
+    "日志仅展示最近 80 行，完整日志请在登录控制台内查看。": "Only the latest 80 log lines are shown. Sign in to the console for complete logs.",
+    "加载执行透传信息失败": "Failed to load execution passthrough information",
     ...notificationMessages,
     "分布式任务调度平台": "Distributed Task Scheduling Platform",
     "轻量、容器友好、Worker 主动隧道连接": "Lightweight, container-friendly, with worker-initiated tunnel connections",
@@ -528,7 +542,6 @@ export const messages: Record<string, string> = {
     "自定义处理器类型会出现在任务创建/编辑的插件处理器选项中；任务保存时校验 processorName 必须来自该类型候选列表，调度时按 Worker 注册的 pluginProcessors.type + processorNames 结构化字段匹配。自定义告警通道用于告警规则投递状态检查，并在 webhook 投递时解析 body/headers 模板。": "Custom processor types appear in job create/edit plugin processor options. When saving a job, processorName must come from that type's candidate list. Scheduling matches the structured pluginProcessors.type + processorNames fields registered by Workers. Custom alert channels are used for alert-rule delivery checks and parse body/headers templates during webhook delivery.",
     "插件注册中心": "Plugin",
     "类型": "Type",
-    "更新时间": "Updatetime",
     "编辑插件 -": "Editplugin -",
     "插件名称": "Plugin name",
     "请输入插件名称": "Please enterplugin name",

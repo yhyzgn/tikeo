@@ -110,7 +110,7 @@ while (true) {
 | `TIKEO_WORKER_APP` | `orders` | Demo app. |
 | `TIKEO_WORKER_CLUSTER` | `local` | Demo cluster. |
 | `TIKEO_WORKER_REGION` | `local` | Demo region. |
-| `TIKEO_WORKER_SDK_PROCESSORS` | `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail` | Structured SDK processors. |
+| `TIKEO_WORKER_SDK_PROCESSORS` | `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception` | Structured SDK processors. |
 | `TIKEO_WORKER_POOL` | `nodejs-blue` | `worker_pool` label. |
 | `TIKEO_WORKER_SCRIPT_LANGUAGES` | `shell,python,javascript,typescript,powershell,php,groovy,rhai` | Candidate script languages. |
 | `TIKEO_WORKER_SCRIPT_SANDBOX` | `auto` | `deno` for JS/TS, `srt` for native languages. |
@@ -204,6 +204,10 @@ Keep SDK helper docs anchored to operator-verified API and protocol references:
 7. Preserve smoke evidence. For a maintained end-to-end proof, run `TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER=0 scripts/management-trigger-e2e-smoke.sh`.
 
 Expected acceptance evidence includes an online worker with the requested structured processor, an API-triggered instance with `executionMode=single`, task logs from the Worker, and a successful processor message. Missing sandbox tools or unsupported processors must fail closed and be visible in task/diagnostic logs.
+
+## Failure and exception demos
+
+All language demos now separate business failure from runtime exceptions. `demo.fail` returns a normal failed `TaskOutcome` and is used to verify business-rule failure handling. `demo.exception` throws, panics, raises, or returns a processor error so the SDK can capture a real runtime stack trace and send it as task logs while still reporting a failed task result. Use both processors during acceptance: the first proves expected business failure semantics; the second proves operator-visible stack traces survive the Worker Tunnel and Notification Center trace page.
 
 ## Capability discipline
 

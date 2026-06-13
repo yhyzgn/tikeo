@@ -260,6 +260,9 @@ pub struct NotificationDeliveryConfig {
     /// Run the background Notification Center delivery worker.
     #[serde(default = "default_true")]
     pub enabled: bool,
+    /// Optional externally reachable Web base URL used for notification card public-console links.
+    #[serde(default)]
+    pub public_console_base_url: Option<String>,
     /// Interval between due-attempt scans.
     #[serde(default = "default_notification_delivery_interval_seconds")]
     pub interval_seconds: u64,
@@ -278,6 +281,7 @@ impl Default for NotificationDeliveryConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            public_console_base_url: None,
             interval_seconds: default_notification_delivery_interval_seconds(),
             batch_size: default_notification_delivery_batch_size(),
             max_attempts: default_notification_delivery_max_attempts(),
@@ -513,6 +517,10 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeoConfig, ConfigError> {
         .set_default("alert_retry.max_attempts", 3)?
         .set_default("alert_retry.backoff_seconds", 300)?
         .set_default("notification_delivery.enabled", true)?
+        .set_default(
+            "notification_delivery.public_console_base_url",
+            Option::<String>::None,
+        )?
         .set_default("notification_delivery.interval_seconds", 60)?
         .set_default("notification_delivery.batch_size", 50)?
         .set_default("notification_delivery.max_attempts", 3)?
@@ -597,6 +605,12 @@ mod tests {
             load_config(None).unwrap_or_else(|error| panic!("default config should load: {error}"));
 
         assert!(config.notification_delivery.enabled);
+        assert!(
+            config
+                .notification_delivery
+                .public_console_base_url
+                .is_none()
+        );
         assert_eq!(config.notification_delivery.interval_seconds, 60);
         assert_eq!(config.notification_delivery.batch_size, 50);
         assert_eq!(config.notification_delivery.max_attempts, 3);
