@@ -285,7 +285,7 @@ class DocsSiteContractTest(unittest.TestCase):
         self.assertFalse(LEGACY_WEBSITE.exists(), "legacy website/ module must be removed after migration to docs/")
         self.assertFalse((DOCS_SITE / "assets").exists(), "legacy docs/assets must move out before docs/ becomes the docs site")
         for asset in [
-            "tikeo-logo-breathe.svg",
+            "tikeo-logo.svg",
             "tikeo-console-tour.gif",
             "tikeo-architecture.en.svg",
             "tikeo-architecture.zh-CN.svg",
@@ -366,13 +366,15 @@ class DocsSiteContractTest(unittest.TestCase):
         logo_component = (DOCS_SITE / "src/components/TikeoLogoMark/index.tsx").read_text()
         logo_styles = (DOCS_SITE / "src/components/TikeoLogoMark/styles.module.css").read_text()
         readme = (ROOT / "README.md").read_text() + (ROOT / "README.zh-CN.md").read_text()
-        self.assertIn("img/tikeo-logo-breathe.svg", config)
+        self.assertIn("img/tikeo-logo.svg", config)
         self.assertIn("TikeoLogoMark", homepage)
         self.assertIn("useId", logo_component)
+        self.assertIn("M32 5.5L54.5 18.5V45.5", logo_component)
         self.assertIn("--ifm-color-primary", logo_styles)
         self.assertIn("html[data-theme='dark']", logo_styles)
         self.assertIn("prefers-reduced-motion", logo_styles)
-        self.assertIn("assets/docs/tikeo-logo-breathe.svg", readme)
+        self.assertEqual((ROOT / "assets/docs/tikeo-logo.svg").read_text(), (ROOT / "web/src/assets/tikeo-logo.svg").read_text())
+        self.assertIn("assets/docs/tikeo-logo.svg", readme)
         self.assertNotIn("tikeo-logo-breathe.gif", config + homepage + logo_component + logo_styles + readme)
         self.assertNotIn("orbital", logo_component + readme)
 

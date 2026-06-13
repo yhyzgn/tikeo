@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/docs/tikeo-logo-breathe.svg" alt="Tikeo animated task-flow logo" width="148" height="148" />
+  <img src="assets/docs/tikeo-logo.svg" alt="Tikeo task orchestration logo" width="148" height="148" />
 </p>
 
 <h1 align="center">Tikeo</h1>

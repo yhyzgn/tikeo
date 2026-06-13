@@ -12,13 +12,13 @@ type Props = {
 
 export default function TikeoLogoMark({
   className,
-  title = 'Tikeo animated task-flow logo',
+  title = 'Tikeo task orchestration logo',
   decorative = false,
   size,
 }: Props): ReactNode {
   const reactId = useId().replace(/:/g, '');
-  const shellGradientId = `tikeo-logo-shell-${reactId}`;
-  const innerGradientId = `tikeo-logo-inner-${reactId}`;
+  const shellId = `tikeo-logo-shell-${reactId}`;
+  const lineId = `tikeo-logo-line-${reactId}`;
   const glowId = `tikeo-logo-glow-${reactId}`;
   const style = size ? ({'--tikeo-logo-size': `${size}px`} as CSSProperties) : undefined;
   const ariaProps: SVGProps<SVGSVGElement> = decorative ? {'aria-hidden': true} : {role: 'img', 'aria-label': title};
@@ -27,59 +27,41 @@ export default function TikeoLogoMark({
     <svg
       className={[styles.logo, className].filter(Boolean).join(' ')}
       style={style}
-      viewBox="0 0 220 220"
+      viewBox="4 4 56 56"
+      fill="none"
       xmlns="http://www.w3.org/2000/svg"
       {...ariaProps}
     >
       {!decorative && <title>{title}</title>}
       <defs>
-        <linearGradient id={shellGradientId} x1="50" y1="42" x2="170" y2="178" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="var(--tikeo-logo-primary)" />
-          <stop offset="54%" stopColor="var(--tikeo-logo-secondary)" />
-          <stop offset="100%" stopColor="var(--tikeo-logo-tertiary)" />
+        <linearGradient id={shellId} x1="12" y1="7" x2="53" y2="58" gradientUnits="userSpaceOnUse">
+          <stop stopColor="var(--app-primary-color)" />
+          <stop offset="0.55" stopColor="var(--app-info-color)" />
+          <stop offset="1" stopColor="var(--tikeo-logo-accent)" />
         </linearGradient>
-        <linearGradient id={innerGradientId} x1="74" y1="70" x2="148" y2="152" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="var(--tikeo-logo-inner-hot)" stopOpacity="0.36" />
-          <stop offset="100%" stopColor="var(--tikeo-logo-inner-cool)" stopOpacity="0.16" />
+        <linearGradient id={lineId} x1="17" y1="31" x2="50" y2="37" gradientUnits="userSpaceOnUse">
+          <stop stopColor="var(--tikeo-logo-line-start)" />
+          <stop offset="0.5" stopColor="var(--tikeo-logo-node-fill)" />
+          <stop offset="1" stopColor="var(--tikeo-logo-line-end)" />
         </linearGradient>
-        <filter id={glowId} x="-28%" y="-28%" width="156%" height="156%">
-          <feGaussianBlur stdDeviation="4.2" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
+        <filter id={glowId} x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+          <feDropShadow dx="0" dy="8" stdDeviation="6" floodColor="var(--app-primary-color)" floodOpacity="0.28" />
         </filter>
       </defs>
-
-      <g className={styles.breathShell}>
-        <path
-          className={styles.shadow}
-          d="M110 40 171 75v70l-61 35-61-35V75l61-35Z"
-        />
-        <path
-          className={styles.shell}
-          d="M110 40 171 75v70l-61 35-61-35V75l61-35Z"
-          fill={`url(#${shellGradientId})`}
-          filter={`url(#${glowId})`}
-        />
-        <path
-          className={styles.innerShell}
-          d="M110 62 151 86v48l-41 24-41-24V86l41-24Z"
-          fill={`url(#${innerGradientId})`}
-        />
-      </g>
-
-      <g className={styles.flow}>
-        <path className={styles.flowBackbone} d="M75 94H111V145" />
-        <path className={styles.flowArrow} d="M111 94H146" />
-        <path className={styles.arrowHead} d="M136 77 156 97 136 117" />
-        <circle className={styles.nodeHalo} cx="75" cy="94" r="16" />
-        <circle className={styles.nodeHalo} cx="111" cy="94" r="16" />
-        <circle className={styles.nodeHalo} cx="111" cy="145" r="16" />
-        <circle className={styles.node} cx="75" cy="94" r="7" />
-        <circle className={styles.nodeAccent} cx="111" cy="94" r="7" />
-        <circle className={styles.node} cx="111" cy="145" r="7" />
-      </g>
+      <path className={styles.shell} d="M32 5.5L54.5 18.5V45.5L32 58.5L9.5 45.5V18.5L32 5.5Z" fill={`url(#${shellId})`} filter={`url(#${glowId})`} />
+      <path className={styles.inner} d="M32 13L47 21.5V42.5L32 51L17 42.5V21.5L32 13Z" fill="var(--tikeo-logo-inner-fill)" stroke="var(--tikeo-logo-inner-stroke)" strokeWidth="1.6" />
+      <path className={styles.track} d="M19 25.5H44" stroke={`url(#${lineId})`} strokeWidth="3.8" strokeLinecap="round" />
+      <path className={styles.track} d="M32 25.5V45" stroke={`url(#${lineId})`} strokeWidth="3.8" strokeLinecap="round" />
+      <path className={styles.track} d="M32 35.5H46" stroke={`url(#${lineId})`} strokeWidth="3.8" strokeLinecap="round" />
+      <path className={`${styles.flow} ${styles.flowTop}`} d="M19 25.5H44" stroke="var(--tikeo-logo-node-fill)" strokeWidth="3.8" strokeLinecap="round" pathLength="100" />
+      <path className={`${styles.flow} ${styles.flowRight}`} d="M32 35.5H46" stroke="var(--tikeo-logo-node-fill)" strokeWidth="3.8" strokeLinecap="round" pathLength="100" />
+      <path className={styles.arrow} d="M41 31L47 35.5L41 40" stroke="var(--tikeo-logo-node-fill)" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+      <circle className={`${styles.node} ${styles.nodeOne}`} cx="19" cy="25.5" r="4.9" fill="var(--tikeo-logo-node-fill)" />
+      <circle className={`${styles.node} ${styles.nodeTwo}`} cx="32" cy="25.5" r="4.9" fill="var(--tikeo-logo-node-fill)" />
+      <circle className={`${styles.node} ${styles.nodeThree}`} cx="32" cy="45" r="4.9" fill="var(--tikeo-logo-node-fill)" />
+      <circle className={`${styles.core} ${styles.coreOne}`} cx="19" cy="25.5" r="2" fill="var(--app-primary-color)" />
+      <circle className={`${styles.core} ${styles.coreTwo}`} cx="32" cy="25.5" r="2" fill="var(--app-info-color)" />
+      <circle className={`${styles.core} ${styles.coreThree}`} cx="32" cy="45" r="2" fill="var(--tikeo-logo-accent)" />
     </svg>
   );
 }
