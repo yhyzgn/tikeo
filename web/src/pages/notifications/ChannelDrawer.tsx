@@ -1,4 +1,4 @@
-import { Alert, AutoComplete, Button, Card, Col, Descriptions, Drawer, Form, Input, Row, Select, Space, Switch, Tag, Tooltip, Typography, message } from 'antd';
+import { Alert, AutoComplete, Button, Card, Col, Collapse, Descriptions, Drawer, Form, Input, Row, Select, Space, Switch, Tag, Tooltip, Typography, message } from 'antd';
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -168,21 +168,41 @@ function replacementModeLabel(editing: boolean, replacing: boolean | undefined):
   return replacing ? '本次保存会替换' : '保持已保存值';
 }
 
-function SectionTitle({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
+
+function DomainPanel({ accent = 'neutral', children, description, extra, eyebrow, title }: { accent?: 'primary' | 'secure' | 'message' | 'governance' | 'neutral'; children: ReactNode; description: string; extra?: ReactNode; eyebrow: string; title: string }) {
   return (
-    <Space direction="vertical" size={0}>
-      <Typography.Text type="secondary" style={{ fontSize: 12, letterSpacing: 0.4 }}>{eyebrow}</Typography.Text>
-      <Typography.Text strong>{title}</Typography.Text>
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>{description}</Typography.Text>
-    </Space>
+    <section className={`channel-domain-panel channel-domain-panel--${accent}`}>
+      <div className="channel-domain-panel__header">
+        <div className="channel-domain-panel__title-group">
+          <span className="channel-domain-panel__eyebrow">{eyebrow}</span>
+          <Typography.Title level={4}>{title}</Typography.Title>
+          <Typography.Text type="secondary">{description}</Typography.Text>
+        </div>
+        {extra ? <div className="channel-domain-panel__extra">{extra}</div> : null}
+      </div>
+      <div className="channel-domain-panel__body">{children}</div>
+    </section>
   );
 }
 
-function SectionShell({ children, description, extra, eyebrow, title }: { children: ReactNode; description: string; extra?: ReactNode; eyebrow: string; title: string }) {
+function DrawerMetric({ label, value, tone = 'default' }: { label: string; value: ReactNode; tone?: 'default' | 'blue' | 'purple' | 'green' }) {
   return (
-    <Card size="small" title={<SectionTitle eyebrow={eyebrow} title={title} description={description} />} extra={extra}>
-      {children}
-    </Card>
+    <div className={`channel-drawer-metric channel-drawer-metric--${tone}`}>
+      <Typography.Text type="secondary">{label}</Typography.Text>
+      <div>{value}</div>
+    </div>
+  );
+}
+
+function ScopeStep({ active, label, value }: { active: boolean; label: string; value?: string }) {
+  return (
+    <div className={`channel-scope-step ${active ? 'channel-scope-step--active' : ''}`}>
+      <span className="channel-scope-step__dot" />
+      <div>
+        <Typography.Text type="secondary">{label}</Typography.Text>
+        <Typography.Text strong>{value || '—'}</Typography.Text>
+      </div>
+    </div>
   );
 }
 
@@ -482,168 +502,203 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
 
   return (
     <Drawer
-      title={editingChannel ? t('编辑通知渠道') : t('新建通知渠道')}
+      className="channel-config-drawer"
+      title={(
+        <Space direction="vertical" size={2}>
+          <Typography.Text type="secondary">{editingChannel ? t('编辑通知渠道') : t('新建通知渠道')}</Typography.Text>
+          <Typography.Title level={4}>{editingChannel ? editingChannel.name : t('配置一条可复用的出站通知渠道')}</Typography.Title>
+        </Space>
+      )}
       open={open}
       onClose={close}
-      width={1120}
+      width={1180}
       destroyOnClose
       extra={<Space wrap><Tag color={provider ? 'blue' : 'default'}>{provider ?? '-'}</Tag><Tag>{messageType ?? '-'}</Tag><Tag color={scopeType === 'global' ? 'default' : 'purple'}>{scopeLabel(scopeType)}</Tag></Space>}
-      footer={
-        <Space>
-          <PermissionGate resource="notifications" action="manage"><Button type="primary" loading={saving} onClick={() => form.submit()}>{editingChannel ? t('保存渠道') : t('创建渠道')}</Button></PermissionGate>
-          <Button onClick={close}>{t('取消')}</Button>
-        </Space>
-      }
+      footer={(
+        <div className="channel-drawer-footer">
+          <Typography.Text type="secondary">{t('先保存配置，再使用已保存配置发送测试通知。')}</Typography.Text>
+          <Space>
+            <PermissionGate resource="notifications" action="manage"><Button type="primary" loading={saving} onClick={() => form.submit()}>{editingChannel ? t('保存渠道') : t('创建渠道')}</Button></PermissionGate>
+            <Button onClick={close}>{t('取消')}</Button>
+          </Space>
+        </div>
+      )}
     >
       <Form form={form} layout="vertical" onFinish={(values) => void submit(values)}>
-        <Row gutter={[20, 20]} align="top">
-          <Col xs={24} lg={7}>
-            <Space direction="vertical" size={16} style={{ width: '100%' }}>
-              <Card size="small" title={t('配置摘要')}>
-                <Descriptions size="small" column={1} items={[
-                  { key: 'scope', label: t('作用域'), children: <Space wrap><Tag>{scopeLabel(scopeType)}</Tag><Typography.Text>{scopePath(scopeType, namespace, app, workerPool)}</Typography.Text></Space> },
-                  { key: 'provider', label: t('提供方'), children: provider ? <Tag color="blue">{provider}</Tag> : '-' },
-                  { key: 'messageType', label: t('消息类型'), children: messageType ? <Tag>{messageType}</Tag> : '-' },
-                  { key: 'secrets', label: t('私密配置'), children: t(replacementModeLabel(Boolean(editingChannel), replaceSecretRefs)) },
-                  { key: 'config', label: t('渠道参数'), children: t(replacementModeLabel(Boolean(editingChannel), replaceConfig)) },
-                ]} />
-                {editingChannel ? (
+        <div className="channel-drawer-shell">
+          <aside className="channel-drawer-map" aria-label={t('配置摘要')}>
+            <div className="channel-drawer-map__hero">
+              <Typography.Text className="channel-drawer-map__kicker">{t('配置摘要')}</Typography.Text>
+              <Typography.Title level={4}>{provider ? `${provider} · ${messageType ?? '-'}` : t('选择提供方')}</Typography.Title>
+              <Typography.Paragraph type="secondary">{t(editingChannel ? '编辑模式不会默认覆盖已保存连接信息' : '首次创建会保存完整连接信息')}</Typography.Paragraph>
+              <div className="channel-drawer-map__metrics">
+                <DrawerMetric label={t('作用域')} tone={scopeType === 'global' ? 'blue' : 'purple'} value={<Space wrap><Tag>{scopeLabel(scopeType)}</Tag><Typography.Text>{scopePath(scopeType, namespace, app, workerPool)}</Typography.Text></Space>} />
+                <DrawerMetric label={t('私密配置')} tone={replaceSecretRefs ? 'green' : 'default'} value={t(replacementModeLabel(Boolean(editingChannel), replaceSecretRefs))} />
+                <DrawerMetric label={t('渠道参数')} tone={replaceConfig ? 'green' : 'default'} value={t(replacementModeLabel(Boolean(editingChannel), replaceConfig))} />
+              </div>
+            </div>
+
+            <div className="channel-drawer-map__section">
+              <Typography.Text strong>{t('作用域路径')}</Typography.Text>
+              <Typography.Paragraph type="secondary">{t(scopeHelp(scopeType))}</Typography.Paragraph>
+              <div className="channel-scope-ladder">
+                <ScopeStep active label="Global" value="global" />
+                <ScopeStep active={scopeType !== 'global'} label="Namespace" value={namespace} />
+                <ScopeStep active={scopeType === 'app' || scopeType === 'worker_pool'} label="App" value={app} />
+                <ScopeStep active={scopeType === 'worker_pool'} label="Worker Pool" value={workerPool} />
+              </div>
+            </div>
+
+            <div className="channel-drawer-map__section">
+              <Typography.Text strong>{t('保存影响')}</Typography.Text>
+              <Space direction="vertical" size={8} style={{ width: '100%', marginTop: 10 }}>
+                <Alert
+                  type={editingChannel ? 'info' : 'success'}
+                  showIcon
+                  message={t(editingChannel ? '本次保存默认只更新名称、启用状态和作用域' : '首次创建会保存完整连接信息')}
+                  description={t(editingChannel ? '需要覆盖机器人地址、私密凭据、渠道参数或模板时，请只打开对应领域的替换开关。' : '请在凭据和渠道参数分区填写完整配置，保存后即可用于策略和任务通知。')}
+                />
+              </Space>
+            </div>
+
+            {editingChannel ? (
+              <div className="channel-drawer-map__section">
+                <div className="channel-drawer-map__section-title">
+                  <Typography.Text strong>{t('保存后测试')}</Typography.Text>
+                  <PermissionGate resource="notifications" action="test"><Tooltip title={testDisabledReason ? t(testDisabledReason) : t('测试')}><Button type="primary" size="small" disabled={Boolean(testDisabledReason) || testingChannel} loading={testingChannel} onClick={() => void sendTestNotification()}>{t('测试')}</Button></Tooltip></PermissionGate>
+                </div>
+                <Typography.Paragraph type="secondary">{t('测试只使用服务端已保存配置；如果刚修改了表单，请先保存渠道再测试。返回结果只展示脱敏目标和脱敏后的渲染 payload。')}</Typography.Paragraph>
+                {testDisabledReason ? <Alert type="warning" showIcon style={{ marginBottom: 12 }} message={t(testDisabledReason)} /> : null}
+                {testResult ? (
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    <Descriptions size="small" bordered column={1} title={t('测试结果')} items={[
+                      { key: 'delivered', label: t('delivered'), children: String(testResult.delivered) },
+                      { key: 'provider', label: t('provider'), children: testResult.provider },
+                      { key: 'targetRedacted', label: t('targetRedacted'), children: testResult.targetRedacted },
+                      { key: 'statusCode', label: t('statusCode'), children: testResult.statusCode ?? '-' },
+                      { key: 'retryState', label: t('retryState'), children: testResult.retryState },
+                      { key: 'messageId', label: t('messageId'), children: testResult.messageId },
+                      { key: 'attemptId', label: t('attemptId'), children: testResult.attemptId },
+                      { key: 'createdAt', label: t('createdAt'), children: testResult.createdAt },
+                      { key: 'error', label: t('error'), children: testResult.error ?? '-' },
+                    ]} />
+                    <Input.TextArea rows={8} readOnly value={previewValue({ renderedPayload: testResult.renderedPayload })} />
+                  </Space>
+                ) : null}
+              </div>
+            ) : null}
+          </aside>
+
+          <main className="channel-drawer-main">
+            <DomainPanel
+              accent="primary"
+              eyebrow={t('领域 01 · 身份与作用域')}
+              title={t('身份与作用域')}
+              description={t('先定义渠道是谁、是否启用，以及它能被哪些策略或任务引用；作用域选择会逐级联动 Namespace、App、Worker Pool。')}
+              extra={<Form.Item name="enabled" label={t('启用')} valuePropName="checked" style={{ marginBottom: 0 }}><Switch /></Form.Item>}
+            >
+              <Row gutter={16}>
+                <Col xs={24} md={12}><Form.Item name="name" label={t('渠道名称')} rules={[{ required: true, message: t('请输入名称') }]}><Input placeholder="feishu-interactive-card-prod" /></Form.Item></Col>
+                <Col xs={24} md={12}><Form.Item name="provider" label={t('提供方')} rules={[{ required: true }]}><Select showSearch options={providerOptions} /></Form.Item></Col>
+              </Row>
+              <div className="channel-subpanel channel-subpanel--scope">
+                <div className="channel-subpanel__header">
+                  <div><Typography.Text strong>{t('作用域级联')}</Typography.Text><Typography.Paragraph type="secondary">{t('从粗到细选择引用边界，后续候选项只显示当前边界内的数据。')}</Typography.Paragraph></div>
+                  <Tag color={scopeType === 'global' ? 'blue' : 'purple'}>{scopeLabel(scopeType)}</Tag>
+                </div>
+                <Row gutter={16}>
+                  <Col xs={24} md={6}><Form.Item name="scopeType" label={t('作用域类型')} rules={[{ required: true }]}><Select options={CHANNEL_SCOPE_OPTIONS.map((value) => ({ value, label: value }))} onChange={clearScopeDependents} /></Form.Item></Col>
+                  {scopeType !== 'global' ? <Col xs={24} md={6}><Form.Item name="namespace" label={t('Namespace')} rules={[{ required: scopeType === 'namespace' || scopeType === 'app' || scopeType === 'worker_pool', message: t('请选择命名空间') }]}><Select showSearch options={namespaceOptions} onChange={() => form.setFieldsValue({ app: undefined, workerPool: undefined, secretRefs: undefined })} /></Form.Item></Col> : null}
+                  {scopeType === 'app' || scopeType === 'worker_pool' ? <Col xs={24} md={6}><Form.Item name="app" label={t('App')} rules={[{ required: true, message: t('请选择应用') }]}><Select showSearch disabled={appSelectDisabled} placeholder={appSelectDisabled ? t('先选择 Namespace') : undefined} options={appOptions} onChange={() => form.setFieldsValue({ workerPool: undefined, secretRefs: undefined })} /></Form.Item></Col> : null}
+                  {scopeType === 'worker_pool' ? <Col xs={24} md={6}><Form.Item name="workerPool" label={t('Worker Pool')} rules={[{ required: true, message: t('请选择 Worker Pool') }]}><Select showSearch disabled={workerPoolSelectDisabled} placeholder={workerPoolSelectDisabled ? t('先选择 Namespace 和 App') : undefined} options={workerPoolOptions} /></Form.Item></Col> : null}
+                </Row>
+              </div>
+            </DomainPanel>
+
+            <DomainPanel
+              accent="secure"
+              eyebrow={t('领域 02 · 连接配置')}
+              title={t('投递目标与私密凭据')}
+              description={t('机器人地址 / 私密凭据、签名密钥和 provider 参数都属于连接层；编辑时每类数据都有独立替换开关。')}
+            >
+              <div className="channel-config-grid">
+                <section className="channel-subpanel channel-subpanel--secret">
+                  <div className="channel-subpanel__header">
+                    <div><Typography.Text strong>{t('投递目标与私密凭据')}</Typography.Text><Typography.Paragraph type="secondary">{t('机器人地址 / 私密凭据按当前作用域过滤 Secret 候选；真实值可直接填写，响应不会回显。')}</Typography.Paragraph></div>
+                    {editingChannel ? <Form.Item name="replaceSecretRefs" label={t('替换私密配置')} valuePropName="checked" style={{ marginBottom: 0 }}><Switch /></Form.Item> : <Tag color="blue">{t('首次创建，需要填写')}</Tag>}
+                  </div>
                   <Alert
                     type="info"
                     showIcon
-                    style={{ marginTop: 12 }}
-                    message={t('编辑模式不会默认覆盖已保存连接信息')}
-                    description={t('只有打开对应分区右上角的替换开关，本次保存才会写入新的私密配置或渠道参数。')}
+                    style={{ marginBottom: 16 }}
+                    message={t('每一条渠道单独保存自己的真实连接信息')}
+                    description={t('机器人/Webhook 地址、Signing secret、routing key、SMTP URL/password、appId/appSecret 等都在这里直接填写；保存后立即生效，响应不会回显 secretRefsJson。也兼容 env:NAME，但不是必须。')}
                   />
-                ) : (
-                  <Alert
-                    type="success"
-                    showIcon
-                    style={{ marginTop: 12 }}
-                    message={t('首次创建会保存完整连接信息')}
-                    description={t('请在凭据和渠道参数分区填写完整配置，保存后即可用于策略和任务通知。')}
-                  />
-                )}
-              </Card>
-
-              <Card size="small" title={t('作用域路径')}>
-                <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                  <Typography.Text type="secondary">{t(scopeHelp(scopeType))}</Typography.Text>
-                  <Space wrap>
-                    <Tag color={scopeType === 'global' ? 'blue' : 'default'}>global</Tag>
-                    {namespace ? <Tag color="purple">{namespace}</Tag> : null}
-                    {app ? <Tag color="purple">{app}</Tag> : null}
-                    {workerPool ? <Tag color="purple">{workerPool}</Tag> : null}
-                  </Space>
-                </Space>
-              </Card>
-
-              {editingChannel ? (
-                <Card
-                  size="small"
-                  title={t('保存后测试')}
-                  extra={<PermissionGate resource="notifications" action="test"><Tooltip title={testDisabledReason ? t(testDisabledReason) : t('测试')}><Button type="primary" size="small" disabled={Boolean(testDisabledReason) || testingChannel} loading={testingChannel} onClick={() => void sendTestNotification()}>{t('测试')}</Button></Tooltip></PermissionGate>}
-                >
-                  <Typography.Paragraph type="secondary">{t('测试只使用服务端已保存配置；如果刚修改了表单，请先保存渠道再测试。返回结果只展示脱敏目标和脱敏后的渲染 payload。')}</Typography.Paragraph>
-                  {testDisabledReason ? <Alert type="warning" showIcon style={{ marginBottom: 12 }} message={t(testDisabledReason)} /> : null}
-                  {testResult ? (
-                    <Space direction="vertical" style={{ width: '100%' }}>
-                      <Descriptions size="small" bordered column={1} title={t('测试结果')} items={[
-                        { key: 'delivered', label: t('delivered'), children: String(testResult.delivered) },
-                        { key: 'provider', label: t('provider'), children: testResult.provider },
-                        { key: 'targetRedacted', label: t('targetRedacted'), children: testResult.targetRedacted },
-                        { key: 'statusCode', label: t('statusCode'), children: testResult.statusCode ?? '-' },
-                        { key: 'retryState', label: t('retryState'), children: testResult.retryState },
-                        { key: 'messageId', label: t('messageId'), children: testResult.messageId },
-                        { key: 'attemptId', label: t('attemptId'), children: testResult.attemptId },
-                        { key: 'createdAt', label: t('createdAt'), children: testResult.createdAt },
-                        { key: 'error', label: t('error'), children: testResult.error ?? '-' },
-                      ]} />
-                      <Input.TextArea rows={8} readOnly value={previewValue({ renderedPayload: testResult.renderedPayload })} />
-                    </Space>
-                  ) : null}
-                </Card>
-              ) : null}
-            </Space>
-          </Col>
-
-          <Col xs={24} lg={17}>
-            <Space direction="vertical" size={16} style={{ width: '100%' }}>
-              <SectionShell eyebrow={t('Step 1')} title={t('身份与作用域')} description={t('先定义渠道名称、提供方和可引用范围；Namespace、App、Worker Pool 会逐级联动。')} extra={<Form.Item name="enabled" label={t('启用')} valuePropName="checked" style={{ marginBottom: 0 }}><Switch /></Form.Item>}>
-                <Row gutter={16}>
-                  <Col xs={24} md={12}><Form.Item name="name" label={t('渠道名称')} rules={[{ required: true, message: t('请输入名称') }]}><Input placeholder="feishu-interactive-card-prod" /></Form.Item></Col>
-                  <Col xs={24} md={12}><Form.Item name="provider" label={t('提供方')} rules={[{ required: true }]}><Select showSearch options={providerOptions} /></Form.Item></Col>
-                  <Col xs={24} md={8}><Form.Item name="scopeType" label={t('作用域类型')} rules={[{ required: true }]}><Select options={CHANNEL_SCOPE_OPTIONS.map((value) => ({ value, label: value }))} onChange={clearScopeDependents} /></Form.Item></Col>
-                  {scopeType !== 'global' ? <Col xs={24} md={8}><Form.Item name="namespace" label={t('Namespace')} rules={[{ required: scopeType === 'namespace' || scopeType === 'app' || scopeType === 'worker_pool', message: t('请选择命名空间') }]}><Select showSearch options={namespaceOptions} onChange={() => form.setFieldsValue({ app: undefined, workerPool: undefined, secretRefs: undefined })} /></Form.Item></Col> : null}
-                  {scopeType === 'app' || scopeType === 'worker_pool' ? <Col xs={24} md={8}><Form.Item name="app" label={t('App')} rules={[{ required: true, message: t('请选择应用') }]}><Select showSearch disabled={appSelectDisabled} placeholder={appSelectDisabled ? t('先选择 Namespace') : undefined} options={appOptions} onChange={() => form.setFieldsValue({ workerPool: undefined, secretRefs: undefined })} /></Form.Item></Col> : null}
-                  {scopeType === 'worker_pool' ? <Col xs={24} md={8}><Form.Item name="workerPool" label={t('Worker Pool')} rules={[{ required: true, message: t('请选择 Worker Pool') }]}><Select showSearch disabled={workerPoolSelectDisabled} placeholder={workerPoolSelectDisabled ? t('先选择 Namespace 和 App') : undefined} options={workerPoolOptions} /></Form.Item></Col> : null}
-                </Row>
-              </SectionShell>
-
-              <SectionShell eyebrow={t('Step 2')} title={t('提供方与消息形态')} description={t('选择内置提供方支持的消息类型；下方展示该类型固定的字段结构和官方文档入口。')}>
-                <Row gutter={16}>
-                  <Col xs={24} md={10}><Form.Item name="messageType" label={t('消息类型')} rules={[{ required: true }]} extra={editingChannel ? t('编辑时切换消息类型会自动开启替换渠道配置，保存后立即生效。') : undefined}><Select options={schema.messageTypes.map((item) => ({ value: item.id, label: `${item.label} · ${item.id}` }))} onChange={() => editingChannel ? form.setFieldValue('replaceConfig', true) : undefined} /></Form.Item></Col>
-                  <Col xs={24} md={14}>
-                    <Descriptions size="small" bordered column={1} items={[
-                      { key: 'provider', label: t('提供方结构'), children: <Space wrap><Tag>{schema.category}</Tag><Typography.Text>{schema.description}</Typography.Text></Space> },
-                      { key: 'message', label: t('消息类型说明'), children: selectedMessageType?.description ?? '-' },
-                    ]} />
-                  </Col>
-                </Row>
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Space wrap>{schema.messageTypes.map((item) => <Tag key={item.id} color={item.id === messageType ? 'blue' : 'default'}>{item.label} · {item.id}</Tag>)}</Space>
-                  <Space wrap><Typography.Text type="secondary">{t('官方文档')}</Typography.Text>{schema.docs.map((doc) => <Typography.Link key={doc.url} href={doc.url} target="_blank" rel="noreferrer">{doc.label}</Typography.Link>)}</Space>
-                </Space>
-              </SectionShell>
-
-              <SectionShell
-                eyebrow={t('Step 3')}
-                title={t('投递目标与私密凭据')}
-                description={t('机器人地址 / 私密凭据按当前作用域过滤 Secret 候选；真实值可直接填写，响应不会回显。')}
-                extra={editingChannel ? <Form.Item name="replaceSecretRefs" label={t('替换私密配置')} valuePropName="checked" style={{ marginBottom: 0 }}><Switch /></Form.Item> : <Tag color="blue">{t('首次创建，需要填写')}</Tag>}
-              >
-                <Alert
-                  type="info"
-                  showIcon
-                  style={{ marginBottom: 16 }}
-                  message={t('每一条渠道单独保存自己的真实连接信息')}
-                  description={t('机器人/Webhook 地址、Signing secret、routing key、SMTP URL/password、appId/appSecret 等都在这里直接填写；保存后立即生效，响应不会回显 secretRefsJson。也兼容 env:NAME，但不是必须。')}
-                />
-                {editingChannel ? <Typography.Paragraph type="secondary">{t('不开启时会保持服务端已有私密值；开启后必须填写完整新值。')}</Typography.Paragraph> : null}
-                <Row gutter={16}>
-                  {schema.secretFields.map((field) => (
-                    <Col xs={24} md={12} key={field.key}>
-                      <Form.Item name={['secretRefs', field.key]} label={t(field.label)} rules={[{ required: fieldRequired(field, Boolean(editingChannel), replaceSecretRefs), message: t('请填写私密配置') }]} extra={field.help ? t(field.help) : t('可直接填写本渠道真实值；也可从当前 scope 的 Secret 候选选择 env:NAME。')}>
-                        <AutoComplete allowClear disabled={secretControlsDisabled} options={scopedSecretOptions} placeholder={keepExistingPlaceholder(field, !editingChannel || replaceSecretRefs)} filterOption={(input, option) => String(option?.label ?? option?.value ?? '').toLowerCase().includes(input.toLowerCase())} />
-                      </Form.Item>
-                    </Col>
-                  ))}
-                </Row>
-              </SectionShell>
-
-              <SectionShell
-                eyebrow={t('Step 4')}
-                title={t('渠道参数与消息覆盖')}
-                description={t('普通渠道参数、消息类型配置和 inline 模板属于同一类可替换配置，避免和密钥开关混在一起。')}
-                extra={editingChannel ? <Form.Item name="replaceConfig" label={t('替换渠道配置')} valuePropName="checked" style={{ marginBottom: 0 }}><Switch /></Form.Item> : <Tag color="blue">{t('首次创建，需要填写')}</Tag>}
-              >
-                {editingChannel ? <Typography.Paragraph type="secondary">{t('不开启时只保存基本信息/启用状态/作用域，不覆盖已保存的渠道 configJson。')}</Typography.Paragraph> : null}
-                {schema.configFields.length > 0 ? (
+                  {editingChannel ? <Typography.Paragraph type="secondary">{t('不开启时会保持服务端已有私密值；开启后必须填写完整新值。')}</Typography.Paragraph> : null}
                   <Row gutter={16}>
-                    {schema.configFields.map((field) => (
-                      <Col xs={24} md={field.type === 'textarea' ? 24 : 12} key={field.key}>
-                        <Form.Item name={['config', field.key]} label={t(field.label)} valuePropName={field.type === 'boolean' ? 'checked' : 'value'} rules={[{ required: fieldRequired(field, Boolean(editingChannel), replaceConfig), message: t('请填写必填配置') }]} extra={field.help ? t(field.help) : undefined}>
-                          {renderFieldInput({ ...field, placeholder: keepExistingPlaceholder(field, !editingChannel || replaceConfig) }, configControlsDisabled)}
+                    {schema.secretFields.map((field) => (
+                      <Col xs={24} md={12} key={field.key}>
+                        <Form.Item name={['secretRefs', field.key]} label={t(field.label)} rules={[{ required: fieldRequired(field, Boolean(editingChannel), replaceSecretRefs), message: t('请填写私密配置') }]} extra={field.help ? t(field.help) : t('可直接填写本渠道真实值；也可从当前 scope 的 Secret 候选选择 env:NAME。')}>
+                          <AutoComplete allowClear disabled={secretControlsDisabled} options={scopedSecretOptions} placeholder={keepExistingPlaceholder(field, !editingChannel || replaceSecretRefs)} filterOption={(input, option) => String(option?.label ?? option?.value ?? '').toLowerCase().includes(input.toLowerCase())} />
                         </Form.Item>
                       </Col>
                     ))}
                   </Row>
-                ) : <Typography.Text type="secondary">{t('当前提供方没有额外渠道参数。')}</Typography.Text>}
+                </section>
 
-                <Card size="small" type="inner" title={t('消息覆盖策略')} style={{ marginTop: 12 }}>
-                  <Form.Item name="useInlineTemplate" label={t('渠道级 inline 模板覆盖')} valuePropName="checked" extra={t(configControlsDisabled ? '开启替换渠道配置后才能修改消息类型和 inline 模板字段。' : '默认关闭：策略引用的已启用存储模板会在运行时优先生效；只有需要此渠道固定覆盖策略模板时才开启。')}>
-                    <Switch disabled={configControlsDisabled} />
-                  </Form.Item>
+                <section className="channel-subpanel channel-subpanel--config">
+                  <div className="channel-subpanel__header">
+                    <div><Typography.Text strong>{t('渠道参数与消息覆盖')}</Typography.Text><Typography.Paragraph type="secondary">{t('普通渠道参数、消息类型配置和 inline 模板属于同一类可替换配置，避免和密钥开关混在一起。')}</Typography.Paragraph></div>
+                    {editingChannel ? <Form.Item name="replaceConfig" label={t('替换渠道配置')} valuePropName="checked" style={{ marginBottom: 0 }}><Switch /></Form.Item> : <Tag color="blue">{t('首次创建，需要填写')}</Tag>}
+                  </div>
+                  {editingChannel ? <Typography.Paragraph type="secondary">{t('不开启时只保存基本信息/启用状态/作用域，不覆盖已保存的渠道 configJson。')}</Typography.Paragraph> : null}
+                  {schema.configFields.length > 0 ? (
+                    <Row gutter={16}>
+                      {schema.configFields.map((field) => (
+                        <Col xs={24} md={field.type === 'textarea' ? 24 : 12} key={field.key}>
+                          <Form.Item name={['config', field.key]} label={t(field.label)} valuePropName={field.type === 'boolean' ? 'checked' : 'value'} rules={[{ required: fieldRequired(field, Boolean(editingChannel), replaceConfig), message: t('请填写必填配置') }]} extra={field.help ? t(field.help) : undefined}>
+                            {renderFieldInput({ ...field, placeholder: keepExistingPlaceholder(field, !editingChannel || replaceConfig) }, configControlsDisabled)}
+                          </Form.Item>
+                        </Col>
+                      ))}
+                    </Row>
+                  ) : <Typography.Text type="secondary">{t('当前提供方没有额外渠道参数。')}</Typography.Text>}
+                </section>
+              </div>
+            </DomainPanel>
+
+            <DomainPanel
+              accent="message"
+              eyebrow={t('领域 03 · 消息形态')}
+              title={t('提供方与消息形态')}
+              description={t('选择内置提供方支持的消息类型，并决定是否让该渠道固定覆盖策略模板。')}
+            >
+              <div className="channel-message-layout">
+                <section className="channel-subpanel">
+                  <div className="channel-subpanel__header">
+                    <div><Typography.Text strong>{t('消息类型')}</Typography.Text><Typography.Paragraph type="secondary">{t('选择内置提供方支持的消息类型；下方展示该类型固定的字段结构和官方文档入口。')}</Typography.Paragraph></div>
+                    <Tag>{schema.category}</Tag>
+                  </div>
+                  <Row gutter={16}>
+                    <Col xs={24} md={10}><Form.Item name="messageType" label={t('消息类型')} rules={[{ required: true }]} extra={editingChannel ? t('编辑时切换消息类型会自动开启替换渠道配置，保存后立即生效。') : undefined}><Select options={schema.messageTypes.map((item) => ({ value: item.id, label: `${item.label} · ${item.id}` }))} onChange={() => editingChannel ? form.setFieldValue('replaceConfig', true) : undefined} /></Form.Item></Col>
+                    <Col xs={24} md={14}>
+                      <Descriptions size="small" bordered column={1} items={[
+                        { key: 'provider', label: t('提供方结构'), children: <Space wrap><Tag>{schema.category}</Tag><Typography.Text>{schema.description}</Typography.Text></Space> },
+                        { key: 'message', label: t('消息类型说明'), children: selectedMessageType?.description ?? '-' },
+                      ]} />
+                    </Col>
+                  </Row>
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    <Space wrap>{schema.messageTypes.map((item) => <Tag key={item.id} color={item.id === messageType ? 'blue' : 'default'}>{item.label} · {item.id}</Tag>)}</Space>
+                    <Space wrap><Typography.Text type="secondary">{t('官方文档')}</Typography.Text>{schema.docs.map((doc) => <Typography.Link key={doc.url} href={doc.url} target="_blank" rel="noreferrer">{doc.label}</Typography.Link>)}</Space>
+                  </Space>
+                </section>
+
+                <section className="channel-subpanel channel-subpanel--template">
+                  <div className="channel-subpanel__header">
+                    <div><Typography.Text strong>{t('消息覆盖策略')}</Typography.Text><Typography.Paragraph type="secondary">{t(configControlsDisabled ? '开启替换渠道配置后才能修改消息类型和 inline 模板字段。' : '默认关闭：策略引用的已启用存储模板会在运行时优先生效；只有需要此渠道固定覆盖策略模板时才开启。')}</Typography.Paragraph></div>
+                    <Form.Item name="useInlineTemplate" label={t('渠道级 inline 模板覆盖')} valuePropName="checked" style={{ marginBottom: 0 }}><Switch disabled={configControlsDisabled} /></Form.Item>
+                  </div>
                   <Row gutter={16}>
                     {selectedMessageType?.templateFields.map((field) => (
                       <Col xs={24} md={field.type === 'textarea' ? 24 : 12} key={field.key}>
@@ -665,20 +720,39 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
                       </Card>
                     </Col>
                   </Row>
-                </Card>
-              </SectionShell>
+                </section>
+              </div>
+            </DomainPanel>
 
-              <SectionShell eyebrow={t('Advanced')} title={t('扩展 JSON 与安全策略')} description={t('只在 provider 有表单未覆盖字段、迁移旧数据或需要额外安全策略时填写；常规配置不应从这里开始。')}>
-                <Alert type="warning" showIcon style={{ marginBottom: 16 }} message={t('表单字段会覆盖高级 JSON 同名键')} description={t('表单字段优先表达常规能力；高级 JSON 仅保留 provider 特殊字段或安全策略，不要粘贴脱敏占位符。')} />
-                <Row gutter={16}>
-                  <Col xs={24} md={12}><Form.Item name="advancedConfigJsonText" label={t('高级配置 JSON')} extra={t(configControlsDisabled ? '开启替换渠道配置后才能修改高级配置 JSON。' : '仅用于保留 provider 特殊字段；表单字段会覆盖同名键。')}><Input.TextArea rows={4} spellCheck={false} disabled={configControlsDisabled} onBlur={(event) => { const value = parseMaybeJson(event.target.value); if (value && typeof value === 'object') form.setFieldValue('advancedConfigJsonText', JSON.stringify(value, null, 2)); }} /></Form.Item></Col>
-                  <Col xs={24} md={12}><Form.Item name="advancedSecretRefsJsonText" label={t('高级私密配置 JSON')} extra={t(secretControlsDisabled ? '开启替换私密配置后才能修改高级私密配置 JSON。' : '填写本渠道私密配置；可直接填写真实值，也可填写 env:NAME 兼容引用。响应不会回显 secretRefsJson。')}><Input.TextArea rows={4} spellCheck={false} disabled={secretControlsDisabled} placeholder="{}" /></Form.Item></Col>
-                  <Col xs={24}><Form.Item name="safetyPolicyJsonText" label={t('安全策略 JSON')}><Input.TextArea rows={4} spellCheck={false} placeholder="{}" /></Form.Item></Col>
-                </Row>
-              </SectionShell>
-            </Space>
-          </Col>
-        </Row>
+            <DomainPanel
+              accent="governance"
+              eyebrow={t('领域 04 · 治理与扩展')}
+              title={t('扩展 JSON 与安全策略')}
+              description={t('高级 JSON 是逃生口，不是主配置入口；安全策略独立保存，用于约束发送行为。')}
+            >
+              <Collapse
+                className="channel-advanced-collapse"
+                ghost
+                items={[
+                  {
+                    key: 'advanced',
+                    label: <Space><Tag color="orange">Advanced</Tag><Typography.Text strong>{t('扩展 JSON 与安全策略')}</Typography.Text></Space>,
+                    children: (
+                      <>
+                        <Alert type="warning" showIcon style={{ marginBottom: 16 }} message={t('表单字段会覆盖高级 JSON 同名键')} description={t('表单字段优先表达常规能力；高级 JSON 仅保留 provider 特殊字段或安全策略，不要粘贴脱敏占位符。')} />
+                        <Row gutter={16}>
+                          <Col xs={24} md={12}><Form.Item name="advancedConfigJsonText" label={t('高级配置 JSON')} extra={t(configControlsDisabled ? '开启替换渠道配置后才能修改高级配置 JSON。' : '仅用于保留 provider 特殊字段；表单字段会覆盖同名键。')}><Input.TextArea rows={4} spellCheck={false} disabled={configControlsDisabled} onBlur={(event) => { const value = parseMaybeJson(event.target.value); if (value && typeof value === 'object') form.setFieldValue('advancedConfigJsonText', JSON.stringify(value, null, 2)); }} /></Form.Item></Col>
+                          <Col xs={24} md={12}><Form.Item name="advancedSecretRefsJsonText" label={t('高级私密配置 JSON')} extra={t(secretControlsDisabled ? '开启替换私密配置后才能修改高级私密配置 JSON。' : '填写本渠道私密配置；可直接填写真实值，也可填写 env:NAME 兼容引用。响应不会回显 secretRefsJson。')}><Input.TextArea rows={4} spellCheck={false} disabled={secretControlsDisabled} placeholder="{}" /></Form.Item></Col>
+                          <Col xs={24}><Form.Item name="safetyPolicyJsonText" label={t('安全策略 JSON')}><Input.TextArea rows={4} spellCheck={false} placeholder="{}" /></Form.Item></Col>
+                        </Row>
+                      </>
+                    ),
+                  },
+                ]}
+              />
+            </DomainPanel>
+          </main>
+        </div>
       </Form>
     </Drawer>
   );

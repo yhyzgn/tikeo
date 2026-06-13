@@ -672,3 +672,5 @@ Rationale:
 
 Constraint:
 - Future channel UI changes must preserve metadata-only edit safety and must not echo or overwrite saved secrets unless the explicit credential replacement switch is enabled.
+
+- 2026-06-13: Channel drawer hierarchy should model operator mental domains instead of linear setup steps. Replacement toggles must remain next to the exact data class they overwrite; advanced JSON stays collapsed by default.

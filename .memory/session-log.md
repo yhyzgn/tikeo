@@ -3061,3 +3061,7 @@ Verification:
 Code review follow-up:
 - Fixed reviewer findings before commit: added missing i18n for scope/message-type help text, corrected Advanced JSON precedence copy to match `{ ...advancedConfig, ...config }`, changed create-mode summary copy, and added `ChannelDrawerPayload.test.ts` for metadata-only edit / replaceConfig / replaceSecretRefs payload semantics plus redacted-placeholder rejection.
 - Reverification after follow-up: `bun run --cwd web typecheck`, targeted drawer/i18n tests, `bun run --cwd web lint`, full `bun test web/src` (154 passed), `bun run --cwd web build`, source-size, and diff-check all passed.
+
+## 2026-06-13 - Notification channel drawer local structure redesign
+
+User rejected the prior drawer as still chaotic. Reworked the drawer information architecture from stacked cards into a two-column layout: left configuration map/scope ladder/test context, right domain panels for identity/scope, connection configuration, message shape, and governance/advanced JSON. Kept secret/config replacement behavior unchanged and advanced JSON collapsed as an escape hatch.

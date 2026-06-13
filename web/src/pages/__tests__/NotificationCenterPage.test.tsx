@@ -213,6 +213,13 @@ describe('notification center console page', () => {
     expect(channelDrawerSource).toContain('渠道参数与消息覆盖');
     expect(channelDrawerSource).toContain('消息覆盖策略');
     expect(channelDrawerSource).toContain('扩展 JSON 与安全策略');
+    expect(channelDrawerSource).toContain('channel-drawer-map');
+    expect(channelDrawerSource).toContain('channel-domain-panel');
+    expect(channelDrawerSource).toContain('领域 01 · 身份与作用域');
+    expect(channelDrawerSource).toContain('领域 02 · 连接配置');
+    expect(channelDrawerSource).toContain('领域 03 · 消息形态');
+    expect(channelDrawerSource).toContain('领域 04 · 治理与扩展');
+    expect(channelDrawerSource).toContain('channel-advanced-collapse');
     expect(channelDrawerSource).toContain('编辑模式不会默认覆盖已保存连接信息');
     expect(channelDrawerSource).toContain('name="replaceSecretRefs"');
     expect(channelDrawerSource).toContain('name="replaceConfig"');
