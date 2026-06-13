@@ -204,6 +204,23 @@ describe('notification center console page', () => {
     expect(urlSecretField?.help).toContain('可直接填写真实值');
   });
 
+  test('organizes the channel drawer into summary, linked scope, replacement, and advanced sections', () => {
+    expect(channelDrawerSource).toContain('配置摘要');
+    expect(channelDrawerSource).toContain('作用域路径');
+    expect(channelDrawerSource).toContain('身份与作用域');
+    expect(channelDrawerSource).toContain('提供方与消息形态');
+    expect(channelDrawerSource).toContain('投递目标与私密凭据');
+    expect(channelDrawerSource).toContain('渠道参数与消息覆盖');
+    expect(channelDrawerSource).toContain('消息覆盖策略');
+    expect(channelDrawerSource).toContain('扩展 JSON 与安全策略');
+    expect(channelDrawerSource).toContain('编辑模式不会默认覆盖已保存连接信息');
+    expect(channelDrawerSource).toContain('name="replaceSecretRefs"');
+    expect(channelDrawerSource).toContain('name="replaceConfig"');
+    expect(channelDrawerSource.indexOf('投递目标与私密凭据')).toBeLessThan(channelDrawerSource.lastIndexOf('schema.secretFields.map'));
+    expect(channelDrawerSource.indexOf('渠道参数与消息覆盖')).toBeLessThan(channelDrawerSource.lastIndexOf('schema.configFields.map'));
+    expect(channelDrawerSource.indexOf('扩展 JSON 与安全策略')).toBeLessThan(channelDrawerSource.lastIndexOf('advancedConfigJsonText'));
+  });
+
   test('allows metadata-only channel edits without re-entering preserved secrets', () => {
     expect(channelDrawerSource).toContain('fieldRequired');
     expect(channelDrawerSource).toContain("field.required && (!editing || replacing)");

@@ -659,3 +659,16 @@ Constraint:
 - Reason: release workflows mutate `Cargo.toml` in the checked-out workspace at tag time. If `Cargo.lock` remains at the repository baseline version, clean Docker/GitHub runners correctly reject the build because `--locked` forbids lockfile mutation.
 - Rejected: removing `--locked` from release builds | this would hide dependency drift and weaken reproducibility.
 - Rejected: reusing failed tag `v0.2.8` as final release | it already produced a failed Docker server run; use `v0.2.9` for the corrected formal release evidence.
+
+## 2026-06-13 — Channel drawer information architecture
+
+Decision:
+- Notification channel editing should be organized by operator responsibility: identity/scope, provider/message shape, delivery credentials, channel parameters/message overrides, and advanced escape hatches.
+- `replaceSecretRefs` belongs to delivery credentials and `replaceConfig` belongs to channel parameters/template overrides; neither should be presented as a detached global switch.
+- Advanced JSON remains supported for provider-specific gaps and migration, but must be visually demoted behind schema-driven fields.
+
+Rationale:
+- Built-in provider channels have known message/config/secret structures, so the primary UI should guide those structures directly instead of making operators infer relationships from raw JSON or distant switches.
+
+Constraint:
+- Future channel UI changes must preserve metadata-only edit safety and must not echo or overwrite saved secrets unless the explicit credential replacement switch is enabled.

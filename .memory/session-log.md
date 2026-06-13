@@ -3042,3 +3042,22 @@ Docker Hub pull verification:
 - `docker run --rm yhyzgn/tikeo-server:v0.2.9 --version` ✅ output `tikeo 0.2.9`; this verifies the server binary no longer stays at `0.2.0` after release tags.
 
 Release assets confirmed present on GitHub Release include server binaries for linux/macOS/windows, `tikeo-web-dist-0.2.9.tar.gz`, Helm chart `tikeo-0.2.9.tgz`, compose/k8s manifests, Terraform provider/operator binaries, and language SDK archives.
+
+## 2026-06-13 — Notification channel drawer UX redesign
+
+- Reworked `web/src/pages/notifications/ChannelDrawer.tsx` from a linear card stack into a two-column operator layout: left-side configuration summary, linked scope path, and saved-config test panel; right-side Step 1 identity/scope, Step 2 provider/message shape, Step 3 delivery target/credentials, Step 4 channel parameters/message overrides, and Advanced JSON/safety policy.
+- Moved `replaceSecretRefs` and `replaceConfig` to the section headers they govern so edit-mode replacement scope is explicit; metadata-only edits still preserve saved config/credentials unless those switches are enabled.
+- Kept schema-driven provider fields, scope-linked Secret candidate filtering, direct credential entry, redaction safety copy, and saved-server-config test behavior intact.
+- Added aligned zh-CN/en-US i18n entries and a Notification Center regression test for the new drawer information architecture.
+
+Verification:
+- `bun run --cwd web typecheck` ✅
+- `bun run --cwd web lint` ✅
+- `bun test web/src` ✅ (151 passed)
+- `bun run --cwd web build` ✅
+- `python3 scripts/check-source-size.py` ✅
+- `git diff --check` ✅
+
+Code review follow-up:
+- Fixed reviewer findings before commit: added missing i18n for scope/message-type help text, corrected Advanced JSON precedence copy to match `{ ...advancedConfig, ...config }`, changed create-mode summary copy, and added `ChannelDrawerPayload.test.ts` for metadata-only edit / replaceConfig / replaceSecretRefs payload semantics plus redacted-placeholder rejection.
+- Reverification after follow-up: `bun run --cwd web typecheck`, targeted drawer/i18n tests, `bun run --cwd web lint`, full `bun test web/src` (154 passed), `bun run --cwd web build`, source-size, and diff-check all passed.

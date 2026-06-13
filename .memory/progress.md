@@ -1554,3 +1554,12 @@ Verification so far:
 - `python3 scripts/check-source-size.py` ✅
 
 Pending before release: full workspace clippy/test/build, web/docs lint/build, Docker builds, commit/push/tag, and GitHub Actions monitoring.
+
+## 2026-06-13 — Notification channel drawer UX redesign
+
+- Notification channel create/edit drawer now presents operator-facing structure instead of implementation-order fields: live summary/test left rail plus scoped identity, provider/message shape, credentials, channel parameters/template overrides, and advanced JSON sections.
+- Replacement switches are colocated with the credential/config sections they control, preserving explicit edit-mode safety semantics.
+- i18n and source-level regression coverage were added for the new layout and copy.
+- Local verification passed: web typecheck, lint, full `bun test web/src` (151 passed), production build, source-size audit, and diff whitespace check.
+
+Code review follow-up completed for the drawer redesign: i18n gaps closed, Advanced JSON precedence copy now matches actual merge order, create-mode summary text is no longer edit-mode wording, and payload semantics are protected by `ChannelDrawerPayload.test.ts`.
