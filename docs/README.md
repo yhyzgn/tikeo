@@ -8,7 +8,15 @@ The default build target is a standalone docs domain rooted at `/`, so Chinese r
 
 ```bash
 bun install --frozen-lockfile
-bun run docs:dev
+bun start
+# equivalent: bun run docs:dev
+```
+
+`bun start` / `bun run docs:dev` intentionally builds all locales first and then serves the generated site. Docusaurus `start` is single-locale by design; running it without `--locale zh-CN` does not load the Chinese route table, so switching to `/zh-CN/...` in that mode can render client-side “Page Not Found”. Use the hot-reload scripts only when you are editing one locale at a time:
+
+```bash
+bun run docs:dev:en
+bun run docs:dev:zh
 ```
 
 For GitHub Pages project hosting under `/tikeo/`, override the site URL and base URL:

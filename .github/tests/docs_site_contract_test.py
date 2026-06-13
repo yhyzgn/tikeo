@@ -323,8 +323,14 @@ class DocsSiteContractTest(unittest.TestCase):
         self.assertTrue(package_json.exists(), "docs/package.json must exist")
         package = json.loads(package_json.read_text())
         scripts = package.get("scripts", {})
-        for script in ["docs:dev", "docs:build", "docs:serve", "docs:typecheck"]:
+        for script in ["start", "docs:dev", "docs:dev:en", "docs:dev:zh", "docs:build", "docs:serve", "docs:typecheck"]:
             self.assertIn(script, scripts)
+        self.assertEqual(scripts["start"], "bun run docs:dev")
+        self.assertIn("bun run docs:build", scripts["docs:dev"])
+        self.assertIn("docusaurus serve", scripts["docs:dev"])
+        self.assertNotEqual(scripts["docs:dev"], "docusaurus start --host 0.0.0.0")
+        self.assertIn("--locale en", scripts["docs:dev:en"])
+        self.assertIn("--locale zh-CN", scripts["docs:dev:zh"])
         self.assertIn("@docusaurus/core", package.get("dependencies", {}))
         self.assertIn("@docusaurus/preset-classic", package.get("dependencies", {}))
 

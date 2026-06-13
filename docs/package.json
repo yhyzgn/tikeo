@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "docusaurus start",
+    "start": "bun run docs:dev",
     "build": "docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
@@ -13,11 +13,13 @@
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
     "typecheck": "tsc",
-    "docs:dev": "docusaurus start --host 0.0.0.0",
+    "docs:dev": "bun run docs:build && docusaurus serve --host 0.0.0.0",
     "docs:build": "docusaurus build",
     "docs:serve": "docusaurus serve --host 0.0.0.0",
     "docs:typecheck": "tsc --noEmit",
-    "docs:check-links": "docusaurus build"
+    "docs:check-links": "docusaurus build",
+    "docs:dev:en": "docusaurus start --host 0.0.0.0 --locale en",
+    "docs:dev:zh": "docusaurus start --host 0.0.0.0 --locale zh-CN"
   },
   "dependencies": {
     "@docusaurus/core": "3.10.1",
