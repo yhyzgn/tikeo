@@ -17,7 +17,7 @@ const baseUrl = normalizeBaseUrl(process.env.TIKEO_DOCS_BASE_URL ?? '/');
 const config: Config = {
   title: 'Tikeo',
   tagline: 'Rust-native orchestration for jobs, workflows, workers, and governed scripts.',
-  favicon: 'img/tikeo-logo-orbit.svg',
+  favicon: 'img/tikeo-logo-breathe.svg',
 
   future: {
     v4: true,
@@ -105,8 +105,7 @@ const config: Config = {
       title: 'Tikeo',
       logo: {
         alt: 'Tikeo logo',
-        src: 'img/tikeo-logo-orbit-light.svg',
-        srcDark: 'img/tikeo-logo-orbit-dark.svg',
+        src: 'img/tikeo-logo-breathe.svg',
       },
       items: [
         {to: '/', label: 'Home', position: 'left'},

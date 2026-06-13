@@ -1,13 +1,14 @@
 .logo {
   --tikeo-logo-size: 160px;
-  --tikeo-logo-primary: var(--ifm-color-primary);
-  --tikeo-logo-secondary: var(--ifm-color-primary-light);
-  --tikeo-logo-tertiary: var(--ifm-color-primary-dark);
-  --tikeo-logo-core-hot: #ffffff;
-  --tikeo-logo-core-edge: var(--ifm-color-primary-darker);
-  --tikeo-logo-axis: rgba(15, 23, 42, 0.42);
-  --tikeo-logo-orbit-opacity: 0.36;
-  --tikeo-logo-ring-opacity: 0.13;
+  --tikeo-logo-primary: var(--ifm-color-primary-dark);
+  --tikeo-logo-secondary: var(--ifm-color-primary);
+  --tikeo-logo-tertiary: var(--ifm-color-primary-light);
+  --tikeo-logo-inner-hot: var(--ifm-color-primary-lightest);
+  --tikeo-logo-inner-cool: var(--ifm-color-primary-darker);
+  --tikeo-logo-flow: #ffffff;
+  --tikeo-logo-node: #eef6ff;
+  --tikeo-logo-node-accent: var(--ifm-color-primary-lightest);
+  --tikeo-logo-shadow: rgba(15, 23, 42, 0.24);
   color: var(--tikeo-logo-primary);
   display: block;
   height: var(--tikeo-logo-size);
@@ -16,112 +17,96 @@
 }
 
 html[data-theme='dark'] .logo {
-  --tikeo-logo-primary: var(--ifm-color-primary-lightest);
-  --tikeo-logo-secondary: var(--ifm-color-primary-light);
-  --tikeo-logo-tertiary: var(--ifm-color-primary);
-  --tikeo-logo-core-edge: var(--ifm-color-primary-darker);
-  --tikeo-logo-axis: rgba(226, 232, 240, 0.58);
-  --tikeo-logo-orbit-opacity: 0.46;
-  --tikeo-logo-ring-opacity: 0.2;
+  --tikeo-logo-primary: var(--ifm-color-primary-darkest);
+  --tikeo-logo-secondary: var(--ifm-color-primary);
+  --tikeo-logo-tertiary: var(--ifm-color-primary-light);
+  --tikeo-logo-inner-hot: var(--ifm-color-primary-lightest);
+  --tikeo-logo-inner-cool: var(--ifm-color-primary-dark);
+  --tikeo-logo-node-accent: #67e8f9;
+  --tikeo-logo-shadow: rgba(2, 6, 23, 0.42);
 }
 
-.orbit,
-.orbitMuted {
-  fill: none;
-  stroke-linecap: round;
-  stroke-width: 2.4;
-  opacity: var(--tikeo-logo-orbit-opacity);
-}
-
-.orbitMuted {
-  opacity: calc(var(--tikeo-logo-orbit-opacity) * 0.78);
-}
-
-.ring {
-  animation: tikeoLogoBreathe 3.8s ease-in-out infinite;
-  fill: none;
-  opacity: var(--tikeo-logo-ring-opacity);
-  stroke: var(--tikeo-logo-primary);
-  stroke-width: 1.4;
+.breathShell {
+  animation: tikeoShellBreathe 3.6s ease-in-out infinite;
   transform-box: fill-box;
   transform-origin: center;
 }
 
-.core {
-  animation: tikeoLogoCorePulse 3.8s ease-in-out infinite;
-  stroke: rgba(224, 242, 254, 0.86);
-  stroke-width: 2.2;
-  transform-box: fill-box;
+.shadow {
+  fill: var(--tikeo-logo-shadow);
+  transform: translate(0, 8px) scale(0.96);
   transform-origin: center;
 }
 
-.nodeTrackA,
-.nodeTrackB {
-  transform-box: view-box;
-  transform-origin: 80px 80px;
+.shell {
+  stroke: color-mix(in srgb, var(--tikeo-logo-inner-hot) 58%, transparent);
+  stroke-width: 2;
 }
 
-.nodeTrackA {
-  animation: tikeoLogoOrbitA 8.5s linear infinite;
+.innerShell {
+  stroke: color-mix(in srgb, var(--tikeo-logo-inner-hot) 42%, transparent);
+  stroke-width: 3;
 }
 
-.nodeTrackB {
-  animation: tikeoLogoOrbitB 13s linear infinite;
+.flow {
+  animation: tikeoFlowBreathe 3.6s ease-in-out infinite;
+  filter: drop-shadow(0 5px 10px rgba(15, 23, 42, 0.2));
 }
 
-.node {
-  fill: var(--tikeo-logo-primary);
-}
-
-.nodeSecondary {
-  fill: var(--tikeo-logo-secondary);
-}
-
-.axis {
-  stroke: var(--tikeo-logo-axis);
+.flowBackbone,
+.flowArrow,
+.arrowHead {
+  fill: none;
+  stroke: var(--tikeo-logo-flow);
   stroke-linecap: round;
-  stroke-width: 1.2;
+  stroke-linejoin: round;
+  stroke-width: 8.5;
 }
 
-@keyframes tikeoLogoCorePulse {
+.arrowHead {
+  stroke-width: 8;
+}
+
+.nodeHalo {
+  fill: var(--tikeo-logo-flow);
+}
+
+.node,
+.nodeAccent {
+  fill: var(--tikeo-logo-node);
+}
+
+.nodeAccent {
+  fill: var(--tikeo-logo-node-accent);
+}
+
+@keyframes tikeoShellBreathe {
   0%,
   100% {
-    transform: scale(0.96);
+    opacity: 0.92;
+    transform: scale(0.985);
   }
   50% {
-    transform: scale(1.045);
+    opacity: 1;
+    transform: scale(1.035);
   }
 }
 
-@keyframes tikeoLogoBreathe {
+@keyframes tikeoFlowBreathe {
   0%,
   100% {
-    opacity: calc(var(--tikeo-logo-ring-opacity) * 0.66);
-    transform: scale(0.94);
+    opacity: 0.9;
+    transform: translateY(1px);
   }
   50% {
-    opacity: calc(var(--tikeo-logo-ring-opacity) * 1.2);
-    transform: scale(1.05);
-  }
-}
-
-@keyframes tikeoLogoOrbitA {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes tikeoLogoOrbitB {
-  to {
-    transform: rotate(-360deg);
+    opacity: 1;
+    transform: translateY(-1px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ring,
-  .core,
-  .nodeTrackA,
-  .nodeTrackB {
+  .breathShell,
+  .flow {
     animation: none;
   }
 }
