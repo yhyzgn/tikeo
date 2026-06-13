@@ -2501,8 +2501,7 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
   text-wrap: balance;
 }
 
-.channel-drawer-map__kicker,
-.channel-domain-panel__eyebrow {
+.channel-drawer-map__kicker {
   display: inline-flex;
   margin-bottom: 6px;
   color: var(--app-text-subtle);
@@ -2695,6 +2694,7 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
 }
 
 .channel-domain-panel__title-group h4.ant-typography {
+  margin-bottom: 4px;
   font-size: 18px;
   line-height: 1.26;
   letter-spacing: -0.025em;

@@ -215,10 +215,10 @@ describe('notification center console page', () => {
     expect(channelDrawerSource).toContain('扩展 JSON 与安全策略');
     expect(channelDrawerSource).toContain('channel-drawer-map');
     expect(channelDrawerSource).toContain('channel-domain-panel');
-    expect(channelDrawerSource).toContain('01 · 基础配置');
-    expect(channelDrawerSource).toContain('02 · 连接层');
-    expect(channelDrawerSource).toContain('03 · 消息层');
-    expect(channelDrawerSource).toContain('04 · 治理层');
+    expect(channelDrawerSource).not.toContain('01 · 基础配置');
+    expect(channelDrawerSource).not.toContain('02 · 连接层');
+    expect(channelDrawerSource).not.toContain('03 · 消息层');
+    expect(channelDrawerSource).not.toContain('04 · 治理层');
     expect(channelDrawerSource).toContain('channel-advanced-collapse');
     expect(channelDrawerSource).toContain('按领域选择是否覆盖已保存连接信息');
     expect(channelDrawerSource).toContain('name="replaceSecretRefs"');
