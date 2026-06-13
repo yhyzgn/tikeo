@@ -32,6 +32,14 @@
   max-width: 920px;
 }
 
+.titleZh {
+  font-size: clamp(2.25rem, 4.65vw, 4.15rem);
+  letter-spacing: -0.025em;
+  line-height: 1.16;
+  max-width: 820px;
+  text-wrap: balance;
+}
+
 .subtitle {
   color: #cbd5e1;
   font-size: clamp(1.02rem, 1.4vw, 1.18rem);
@@ -204,6 +212,11 @@
   .actions,
   .actions a {
     width: 100%;
+  }
+
+  .titleZh {
+    font-size: clamp(2.05rem, 10.5vw, 3.1rem);
+    line-height: 1.2;
   }
 
   .logoCard {

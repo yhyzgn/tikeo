@@ -119,6 +119,7 @@ export default function Home(): ReactNode {
   const localeCopy = i18n.currentLocale === 'zh-CN' ? copy['zh-CN'] : copy.en;
   const localeSuffix = i18n.currentLocale === 'zh-CN' ? 'zh-CN' : 'en';
   const architectureUrl = useBaseUrl(`/img/tikeo-architecture.${localeSuffix}.svg`);
+  const isZhLocale = i18n.currentLocale === 'zh-CN';
 
   return (
     <Layout title={localeCopy.title} description={localeCopy.description}>
@@ -128,7 +129,7 @@ export default function Home(): ReactNode {
             <div className={styles.heroGrid}>
               <div>
                 <p className={styles.eyebrow}>{localeCopy.eyebrow}</p>
-                <Heading as="h1" className={styles.title}>
+                <Heading as="h1" className={`${styles.title} ${isZhLocale ? styles.titleZh : ''}`}>
                   {localeCopy.headline}
                 </Heading>
                 <p className={styles.subtitle}>{localeCopy.subtitle}</p>

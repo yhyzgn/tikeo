@@ -357,7 +357,11 @@ class DocsSiteContractTest(unittest.TestCase):
         self.assertIn("useBaseUrl", homepage)
         self.assertNotIn("TikeoLogoMark", homepage)
         self.assertIn("TikeoLogo", homepage)
+        styles = (DOCS_SITE / "src/pages/index.module.css").read_text()
         self.assertIn("i18n.currentLocale === 'zh-CN'", homepage)
+        self.assertIn("styles.titleZh", homepage)
+        self.assertIn("line-height: 1.16", styles)
+        self.assertIn("letter-spacing: -0.025em", styles)
         self.assertNotIn("tikeo-logo-breathe.gif", config + homepage)
         self.assertNotIn("照着部署、接入 Worker、配置系统", homepage)
 
