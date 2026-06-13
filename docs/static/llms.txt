@@ -1,12 +1,16 @@
 # Tikeo docs for LLMs
 
-Tikeo is a Rust-native distributed task scheduling and workflow orchestration platform. The docs site is the operator-grade manual; README remains only a concise project introduction. Prefer these source-backed pages over inferred behavior.
+Tikeo is a Rust-native distributed task scheduling and workflow orchestration platform. The docs site is the operator-grade manual; README remains only a concise project introduction. Prefer these implementation-verified pages over inferred behavior.
 
 High-value English pages:
 
 - /docs/ — documentation map, reader outcomes, architecture boundary, and evidence-first evaluation path
 - /docs/getting-started/installation — toolchain matrix, version baselines, repository surfaces, Owner bootstrap prerequisites, and verification commands
 - /docs/getting-started/quickstart — Server + Web + outbound Worker + SDK Management API trigger acceptance runbook
+- /docs/deployment/production — production deployment guide for Server/Web/Docs images, external databases, Worker Tunnel networking, TLS/mTLS, observability, backup, rollback, and smoke verification
+- /docs/integrations/sdk-and-api — application integration guide for Worker SDKs, Management API keys, API jobs, triggers, broadcast selectors, task-status notifications, and evidence
+- /docs/reference/configuration-cookbook — scenario recipes for database, TLS/mTLS, OIDC, observability, Notification Center delivery, Worker SDK defaults, and release image pinning
+- /docs/development/overview — maintainer guide for API/Web/SDK/docs changes, notification provider extension, script sandbox boundaries, and release readiness
 - /docs/reference/configuration — complete default-value table, environment overrides, TLS/mTLS, OIDC, observability, alerting, Notification Center delivery, and Worker SDK defaults
 - /docs/reference/notification-center — Notification Center API, RBAC, config defaults, storage model, redaction, retry, DLQ, and UI reference
 - /docs/concepts/worker-tunnel — outbound-only Worker Tunnel model

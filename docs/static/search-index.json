@@ -3,7 +3,7 @@
     "title": "Tikeo documentation map",
     "url": "/docs/",
     "locale": "en",
-    "summary": "Operator-grade documentation map, reader outcomes, architecture boundaries, and source-backed evaluation path."
+    "summary": "Operator-grade documentation map, reader outcomes, architecture boundaries, and implementation-verified evaluation path."
   },
   {
     "title": "Installation and toolchain matrix",
@@ -22,6 +22,54 @@
     "url": "/docs/reference/configuration",
     "locale": "en",
     "summary": "Complete default-value table for server, storage, cluster, auth, TLS/mTLS, observability, alerting, and Worker SDK defaults."
+  },
+  {
+    "title": "Production deployment guide",
+    "url": "/docs/deployment/production",
+    "locale": "en",
+    "summary": "Human production runbook for Server, Web, Docs, databases, Worker Tunnel networking, TLS/mTLS, observability, backup, rollback, and smoke verification."
+  },
+  {
+    "title": "SDK and API integration guide",
+    "url": "/docs/integrations/sdk-and-api",
+    "locale": "en",
+    "summary": "Step-by-step application integration path for Worker SDKs, app-scoped x-tikeo-api-key clients, API-triggered jobs, broadcast selectors, notifications, logs, and acceptance evidence."
+  },
+  {
+    "title": "Configuration cookbook",
+    "url": "/docs/reference/configuration-cookbook",
+    "locale": "en",
+    "summary": "Scenario recipes for local development, PostgreSQL, MySQL, reverse-proxy TLS, Worker Tunnel TLS/mTLS, OIDC, observability, Notification Center delivery, and release image pinning."
+  },
+  {
+    "title": "Development and extension guide",
+    "url": "/docs/development/overview",
+    "locale": "en",
+    "summary": "Maintainer workflow for repository structure, API changes, Web UI changes, SDK drift, notification provider extensions, script sandbox capabilities, docs updates, and release readiness."
+  },
+  {
+    "title": "生产部署指南",
+    "url": "/zh-CN/docs/deployment/production",
+    "locale": "zh-CN",
+    "summary": "面向人的生产部署 runbook，覆盖 Server、Web、Docs、数据库、Worker Tunnel、TLS/mTLS、观测、备份、回滚和 smoke 验收。"
+  },
+  {
+    "title": "SDK 与 API 集成指南",
+    "url": "/zh-CN/docs/integrations/sdk-and-api",
+    "locale": "zh-CN",
+    "summary": "应用团队接入路径：Worker SDK、应用级 x-tikeo-api-key、API 触发作业、广播选择器、通知、日志和验收证据。"
+  },
+  {
+    "title": "配置 Cookbook",
+    "url": "/zh-CN/docs/reference/configuration-cookbook",
+    "locale": "zh-CN",
+    "summary": "本地开发、PostgreSQL、MySQL、反向代理 TLS、Worker Tunnel TLS/mTLS、OIDC、观测、通知投递和镜像固定的配置场景。"
+  },
+  {
+    "title": "开发与扩展指南",
+    "url": "/zh-CN/docs/development/overview",
+    "locale": "zh-CN",
+    "summary": "维护者工作流：仓库结构、API/Web/SDK/文档变更、通知 provider 扩展、脚本沙箱能力和发布准备。"
   },
   {
     "title": "Rust Worker SDK",
@@ -57,19 +105,19 @@
     "title": "Management OpenAPI reference",
     "url": "/docs/reference/management-openapi",
     "locale": "en",
-    "summary": "Source-derived Management API reference for jobs, triggers, instances, logs, and x-tikeo-api-key credentials."
+    "summary": "Implementation-derived Management API reference for jobs, triggers, instances, logs, and x-tikeo-api-key credentials."
   },
   {
     "title": "Notification Center reference",
     "url": "/docs/reference/notification-center",
     "locale": "en",
-    "summary": "Source-backed Notification Center API, RBAC, configuration defaults, storage model, redaction, job-event materialization boundary, retry, DLQ, and UI CRUD reference."
+    "summary": "Implementation-verified Notification Center API, RBAC, configuration defaults, storage model, redaction, job-event materialization boundary, retry, DLQ, and UI CRUD reference."
   },
   {
     "title": "Worker Tunnel protobuf reference",
     "url": "/docs/reference/worker-tunnel-protobuf",
     "locale": "en",
-    "summary": "Source-derived WorkerTunnelService, OpenTunnel, DispatchTask, TaskLog, TaskResult, and TaskCheckpoint protocol reference."
+    "summary": "Implementation-derived WorkerTunnelService, OpenTunnel, DispatchTask, TaskLog, TaskResult, and TaskCheckpoint protocol reference."
   },
   {
     "title": "Kubernetes controller-specific runbook",
@@ -81,7 +129,7 @@
     "title": "Management trigger smoke runbook",
     "url": "/docs/deployment/management-trigger-smoke-runbook",
     "locale": "en",
-    "summary": "Contributor runbook for scripts/management-trigger-e2e-smoke.sh evidence, environment overrides, and failure triage."
+    "summary": "Maintenance runbook for scripts/management-trigger-e2e-smoke.sh evidence, environment overrides, and failure triage."
   },
   {
     "title": "Jobs user guide",
@@ -135,7 +183,7 @@
     "title": "通知中心参考",
     "url": "/zh-CN/docs/reference/notification-center",
     "locale": "zh-CN",
-    "summary": "通知中心 API、RBAC、配置默认值、存储模型、脱敏、作业事件物化边界、重试、DLQ 和 UI CRUD 的源码证据参考。"
+    "summary": "通知中心 API、RBAC、配置默认值、存储模型、脱敏、作业事件物化边界、重试、DLQ 和 UI CRUD 的实现校验参考。"
   },
   {
     "title": "Rust Worker SDK 中文指南",

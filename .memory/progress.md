@@ -1615,3 +1615,11 @@ Verification:
 - `bun run --cwd web build` ✅ (existing Vite chunk-size warning only)
 - `python3 scripts/check-source-size.py` ✅
 - `git diff --check` ✅
+
+## 2026-06-13 — Docs site human operator manual rebuild
+
+- [x] Docs site IA rebuilt around human operator tasks instead of source-code directory order.
+- [x] Added production deployment, SDK/API integration, configuration cookbook, and development/extension manuals with zh-CN mirrors.
+- [x] Homepage rewritten as a task-path portal for evaluation, deployment, integration, configuration, notifications, SDKs, development, and troubleshooting.
+- [x] Search index and LLM entrypoint surfaces updated for the new manuals.
+- [x] Docs typecheck/build, docs contract, source-size, diff-check, Docker image build, and container smoke all passed locally.

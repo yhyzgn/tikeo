@@ -3125,3 +3125,24 @@ Implemented:
 - Kept `testNotificationChannel` behavior unchanged; this is a UI layout/readability change only.
 
 Verification passed: targeted Notification Center + i18n tests, full Web tests, typecheck, lint, production build, source-size audit, and diff whitespace check.
+
+## 2026-06-13 — Docs site human operator manual rebuild
+
+- Continued the docs-site task after notification drawer work. Kept Docusaurus because local validation shows it can support the required human-facing operator manual; the problem was content depth and information architecture, not framework capability.
+- Reworked sidebar information architecture around human jobs: Getting Started, Deployment & Operations, SDKs & API Integrations, Develop and extend, and Reference while preserving existing P0 pages and contract tokens.
+- Added production-grade English docs and zh-CN mirrors:
+  - `docs/docs/deployment/production.md` / zh-CN mirror: deployment choice, Server/Web/Docs/database/Worker Tunnel responsibilities, Compose, Helm, TLS/mTLS, bootstrap, Worker rollout, observability, backup, upgrade/rollback, docs image smoke, troubleshooting, and production checklist.
+  - `docs/docs/integrations/sdk-and-api.md` / zh-CN mirror: Worker SDK versus Management API client separation, app-scoped `x-tikeo-api-key`, processor naming, API job creation, trigger/log inspection, broadcast, Notification Center bindings, error handling, and smoke evidence.
+  - `docs/docs/reference/configuration-cookbook.md` / zh-CN mirror: scenario recipes for local dev, PostgreSQL, MySQL, reverse-proxy TLS, Worker Tunnel TLS/mTLS, OIDC, observability, Notification Center delivery, Worker SDK defaults, and release image pinning.
+  - `docs/docs/development/overview.md` / zh-CN mirror: repository map, verification loops, API/Web/SDK/docs change workflows, notification provider extension boundary, script sandbox boundary, and release readiness.
+- Rebuilt `docs/src/pages/index.tsx` into a role/task portal and cleaned duplicated CSS blocks in `docs/src/pages/index.module.css`.
+- Updated `docs/static/search-index.json`, `docs/static/llms.txt`, and `docs/static/llms-full.txt` so search/LLM surfaces include the new production/integration/config/development manuals without public internal-handoff wording.
+
+Verification:
+- `python3 .github/tests/docs_site_contract_test.py` ✅
+- `bun run --cwd docs docs:typecheck` ✅
+- `bun run --cwd docs docs:build` ✅
+- `python3 scripts/check-source-size.py` ✅
+- `git diff --check` ✅
+- `docker build -f docs/Dockerfile docs -t tikeo-docs:local-human-manual` ✅
+- Docs container smoke: `/healthz`, `/docs/`, `/zh-CN/docs/` ✅

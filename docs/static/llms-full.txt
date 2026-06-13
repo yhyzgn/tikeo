@@ -1,6 +1,6 @@
 # Tikeo docs snapshot
 
-Generated from docs/docs and zh-CN docs. This curated snapshot lists source-backed public documentation entrypoints that are safe for LLM and search ingestion. The canonical pages remain the markdown sources in docs/docs and docs/i18n/zh-CN/docusaurus-plugin-content-docs/current. README is intentionally brief; the docs site owns install, configure, SDK integration, deployment, troubleshooting, and acceptance evidence.
+Generated from docs/docs and zh-CN docs. This curated snapshot lists implementation-verified public documentation entrypoints that are safe for LLM and search ingestion. The canonical pages remain the markdown sources in docs/docs and docs/i18n/zh-CN/docusaurus-plugin-content-docs/current. README is intentionally brief; the docs site owns install, configure, SDK integration, deployment, troubleshooting, and acceptance evidence.
 
 ## Operator-grade entry path
 
@@ -9,11 +9,22 @@ Generated from docs/docs and zh-CN docs. This curated snapshot lists source-back
 - Quickstart: /docs/getting-started/quickstart walks Phase 0 through Server, Web, Bootstrap the first Owner, Create an app-scoped SDK API key, start an outbound Worker with TIKEO_WORKER_CONNECT=1, trigger through the Management API, and capture Acceptance evidence.
 - Configuration: /docs/reference/configuration contains the Complete default-value table from crates/tikeo-config/src/lib.rs, including storage.timestamp_offset, cluster.transport_token, transport_security.worker_tunnel.client_ca_path, observability.tracing.otlp_endpoint, TIKEO__AUTH__OIDC__ISSUER_URL, notification_delivery defaults, and Worker SDK defaults.
 
+## Human production and integration manuals
+
+- Production deployment guide: /docs/deployment/production covers component responsibility, installation path selection, Worker Tunnel network paths, PostgreSQL/MySQL configuration, Compose, Helm, TLS/mTLS decisions, bootstrap, Worker rollout, observability, backup, upgrade, rollback, and production checklist.
+- SDK and API integration guide: /docs/integrations/sdk-and-api covers the separation between Worker SDK clients and Management API clients, credentials, processor naming, API job creation, trigger inspection, broadcast integration, task-status notifications, error handling, and local integration smoke.
+- Configuration cookbook: /docs/reference/configuration-cookbook gives scenario recipes for config loading, local development, PostgreSQL, MySQL, reverse-proxy TLS, Worker Tunnel TLS/mTLS, OIDC, observability, Notification Center delivery worker, Worker SDK defaults, and image pinning.
+- Development and extension guide: /docs/development/overview explains repository ownership, local verification loops, API/Web/SDK/doc update workflows, adding notification providers, adding script/sandbox capabilities, and release readiness.
+- 中文生产部署指南: /zh-CN/docs/deployment/production 覆盖组件职责、数据库、Compose、Helm、Worker Tunnel、TLS/mTLS、观测、备份、回滚和生产检查清单。
+- 中文 SDK/API 集成指南: /zh-CN/docs/integrations/sdk-and-api 覆盖 Worker SDK、Management API Key、API 作业、触发、广播、通知和验收证据。
+- 中文配置 Cookbook: /zh-CN/docs/reference/configuration-cookbook 覆盖数据库、TLS/mTLS、OIDC、观测、通知投递、Worker SDK 默认值和镜像固定。
+- 中文开发与扩展指南: /zh-CN/docs/development/overview 覆盖仓库结构、API/Web/SDK/文档变更、provider 扩展、脚本沙箱和发布准备。
+
 ## Notification Center and Alerts
 
 - Notifications user guide: /docs/user-guide/notifications documents Notification Center versus Alerts, provider types (webhook, slack, dingtalk, feishu, wechat_work, pagerduty, email, plugin webhook-compatible), safe channel and policy examples, owner/event filter semantics, job_instance event types, notification_delivery defaults, retry/DLQ runbooks, UI tabs from web/src/pages/NotificationCenterPage.tsx, and secret redaction guidance.
 - Alerts user guide: /docs/user-guide/alerts documents abnormal-condition alert rules/events, firing/suppressed/silenced/recovered semantics, alert delivery compatibility endpoints, alert_retry defaults, and the migration boundary where Alerting produces notification messages while Notification Center owns reusable outbound channels.
-- Notification Center reference: /docs/reference/notification-center documents source-backed API endpoints, RBAC permissions notifications:read/manage/test, channel/policy/message/attempt schemas, UI CRUD, redaction from crates/tikeo-storage/src/repository/notification.rs, job_instance event contract from crates/tikeo-server/src/notification.rs, delivery retry state, DLQ behavior, provider delivery behavior, and UI/API mapping.
+- Notification Center reference: /docs/reference/notification-center documents implementation-verified API endpoints, RBAC permissions notifications:read/manage/test, channel/policy/message/attempt schemas, UI CRUD, redaction from crates/tikeo-storage/src/repository/notification.rs, job_instance event contract from crates/tikeo-server/src/notification.rs, delivery retry state, DLQ behavior, provider delivery behavior, and UI/API mapping.
 - 中文通知用户指南: /zh-CN/docs/user-guide/notifications 记录通知中心渠道、策略、消息、重试、DLQ、UI 渠道/策略 CRUD 与告警边界。
 - 中文告警用户指南: /zh-CN/docs/user-guide/alerts 记录告警规则/事件、firing/suppressed/silenced/recovered 语义、兼容投递和通知中心边界。
 - 中文通知中心参考: /zh-CN/docs/reference/notification-center 记录通知中心 API、RBAC、配置、存储模型、脱敏、作业事件、重试和 DLQ。

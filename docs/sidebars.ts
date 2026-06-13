@@ -38,19 +38,9 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'SDKs',
+      label: 'Deployment & Operations',
       items: [
-        'sdks/rust',
-        'sdks/go',
-        'sdks/java-spring-boot',
-        'sdks/python',
-        'sdks/nodejs',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Deployment',
-      items: [
+        'deployment/production',
         'deployment/single-binary',
         'deployment/docker-compose',
         'deployment/kubernetes',
@@ -61,9 +51,22 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'Integrations',
+      label: 'SDKs & API Integrations',
       items: [
+        'integrations/sdk-and-api',
         'integrations/overview',
+        'sdks/rust',
+        'sdks/go',
+        'sdks/java-spring-boot',
+        'sdks/python',
+        'sdks/nodejs',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Develop and extend',
+      items: [
+        'development/overview',
       ],
     },
     {
@@ -71,6 +74,7 @@ const sidebars: SidebarsConfig = {
       label: 'Reference',
       items: [
         'reference/configuration',
+        'reference/configuration-cookbook',
         'reference/management-openapi',
         'reference/notification-center',
         'reference/worker-tunnel-protobuf',

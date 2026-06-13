@@ -11,24 +11,24 @@
     "message": "核心概念",
     "description": "The label for category 'Core Concepts' in sidebar 'docsSidebar'"
   },
-  "sidebar.docsSidebar.category.SDKs": {
-    "message": "SDK",
-    "description": "The label for category 'SDKs' in sidebar 'docsSidebar'"
+  "sidebar.docsSidebar.category.User Guide": {
+    "message": "用户指南",
+    "description": "The label for category 'User Guide' in sidebar 'docsSidebar'"
   },
-  "sidebar.docsSidebar.category.Deployment": {
-    "message": "部署",
-    "description": "The label for category 'Deployment' in sidebar 'docsSidebar'"
+  "sidebar.docsSidebar.category.Deployment & Operations": {
+    "message": "部署与运维",
+    "description": "The label for category 'Deployment & Operations' in sidebar 'docsSidebar'"
   },
-  "sidebar.docsSidebar.category.Integrations": {
-    "message": "集成",
-    "description": "The label for category 'Integrations' in sidebar 'docsSidebar'"
+  "sidebar.docsSidebar.category.SDKs & API Integrations": {
+    "message": "SDK 与 API 集成",
+    "description": "The label for category 'SDKs & API Integrations' in sidebar 'docsSidebar'"
+  },
+  "sidebar.docsSidebar.category.Develop and extend": {
+    "message": "开发与扩展",
+    "description": "The label for category 'Develop and extend' in sidebar 'docsSidebar'"
   },
   "sidebar.docsSidebar.category.Reference": {
     "message": "参考",
     "description": "The label for category 'Reference' in sidebar 'docsSidebar'"
-  },
-  "sidebar.docsSidebar.category.User Guide": {
-    "message": "用户指南",
-    "description": "The label for category 'User Guide' in sidebar 'docsSidebar'"
   }
 }
