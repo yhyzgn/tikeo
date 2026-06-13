@@ -2387,14 +2387,49 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
 }
 
 .channel-config-drawer .ant-drawer-header {
+  align-items: flex-start;
   border-bottom: 1px solid var(--app-border);
   background:
     radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--app-primary-color) 12%, transparent), transparent 34%),
     color-mix(in srgb, var(--app-surface-solid) 94%, transparent);
 }
 
+.channel-config-drawer .ant-drawer-title {
+  min-width: 0;
+}
+
+.channel-config-drawer .ant-drawer-title .ant-space,
+.channel-config-drawer .ant-drawer-extra .ant-space {
+  max-width: 100%;
+}
+
 .channel-config-drawer .ant-drawer-title .ant-typography {
   margin: 0;
+}
+
+.channel-config-drawer .ant-drawer-title h4.ant-typography {
+  max-width: min(620px, 62vw);
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.channel-config-drawer .ant-drawer-extra {
+  min-width: 0;
+  max-width: 42%;
+}
+
+.channel-config-drawer .ant-drawer-extra .ant-tag,
+.channel-drawer-map .ant-tag,
+.channel-domain-panel .ant-tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 24px;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .channel-config-drawer .ant-drawer-body {
@@ -2441,6 +2476,12 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
   margin-bottom: 0;
 }
 
+.channel-drawer-map__hero h4.ant-typography {
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
 .channel-drawer-map__kicker,
 .channel-domain-panel__eyebrow {
   display: inline-flex;
@@ -2452,6 +2493,17 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
   text-transform: uppercase;
 }
 
+.channel-drawer-map__hero .ant-typography-secondary,
+.channel-drawer-map__section .ant-typography-secondary,
+.channel-domain-panel__title-group .ant-typography-secondary,
+.channel-subpanel__header .ant-typography-secondary,
+.channel-subpanel .ant-form-item-extra,
+.channel-drawer-footer .ant-typography-secondary {
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
 .channel-drawer-map__metrics {
   display: grid;
   gap: 10px;
@@ -2461,10 +2513,23 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
 .channel-drawer-metric {
   display: grid;
   gap: 6px;
+  min-width: 0;
   padding: 12px;
   border: 1px solid var(--app-border);
   border-radius: 16px;
   background: var(--app-surface-muted);
+}
+
+.channel-drawer-metric > div {
+  min-width: 0;
+  color: var(--app-text-strong);
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.channel-drawer-metric .ant-space {
+  row-gap: 6px;
 }
 
 .channel-drawer-metric--blue {
@@ -2492,9 +2557,11 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
   margin-bottom: 0;
 }
 
+.channel-drawer-map__section > .ant-typography + .ant-typography {
+  margin-top: 8px;
+}
+
 .channel-drawer-map__section-title,
-.channel-subpanel__header,
-.channel-domain-panel__header,
 .channel-drawer-footer {
   display: flex;
   align-items: flex-start;
@@ -2552,6 +2619,12 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
   min-width: 0;
 }
 
+.channel-scope-step strong.ant-typography {
+  display: block;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .channel-drawer-main {
   display: grid;
   gap: 18px;
@@ -2562,6 +2635,14 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
 .channel-domain-panel {
   overflow: hidden;
   border-radius: 24px;
+}
+
+.channel-domain-panel__header,
+.channel-subpanel__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
 }
 
 .channel-domain-panel__header {
@@ -2577,6 +2658,11 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
 .channel-domain-panel--message { --panel-accent: color-mix(in srgb, #7c3aed 11%, transparent); }
 .channel-domain-panel--governance { --panel-accent: color-mix(in srgb, #f59e0b 12%, transparent); }
 
+.channel-domain-panel__title-group,
+.channel-subpanel__header > div:first-child {
+  min-width: 0;
+}
+
 .channel-domain-panel__title-group {
   max-width: 720px;
 }
@@ -2585,9 +2671,54 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
   margin: 0;
 }
 
+.channel-domain-panel__title-group h4.ant-typography {
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.channel-domain-panel__extra,
+.channel-subpanel__header > .ant-form-item,
+.channel-subpanel__header > .ant-tag {
+  justify-self: end;
+}
+
 .channel-domain-panel__extra {
   flex: 0 0 auto;
   padding-top: 6px;
+}
+
+.channel-domain-panel__extra .ant-form-item,
+.channel-subpanel__header > .ant-form-item {
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+
+.channel-domain-panel__extra .ant-form-item-row,
+.channel-subpanel__header > .ant-form-item .ant-form-item-row {
+  display: inline-flex;
+  flex-flow: row nowrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.channel-domain-panel__extra .ant-form-item-label,
+.channel-subpanel__header > .ant-form-item .ant-form-item-label {
+  flex: 0 0 auto;
+  padding: 0;
+}
+
+.channel-domain-panel__extra .ant-form-item-label > label,
+.channel-subpanel__header > .ant-form-item .ant-form-item-label > label {
+  height: auto;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.channel-domain-panel__extra .ant-form-item-control,
+.channel-subpanel__header > .ant-form-item .ant-form-item-control {
+  flex: 0 0 auto;
 }
 
 .channel-domain-panel__body {
@@ -2615,6 +2746,24 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
   margin: 0;
 }
 
+.channel-subpanel .ant-form-item {
+  margin-bottom: 18px;
+}
+
+.channel-subpanel .ant-form-item-label {
+  padding-bottom: 5px;
+}
+
+.channel-subpanel .ant-form-item-label > label {
+  min-height: 20px;
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+
+.channel-subpanel .ant-row:last-child .ant-form-item:last-child {
+  margin-bottom: 0;
+}
+
 .channel-subpanel--scope,
 .channel-subpanel--template {
   background: color-mix(in srgb, var(--app-primary-color) 5%, var(--app-surface-solid));
@@ -2628,6 +2777,24 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
   border-color: color-mix(in srgb, var(--app-primary-color) 20%, var(--app-border));
 }
 
+.channel-message-layout .ant-descriptions-item-content,
+.channel-message-layout .ant-descriptions-item-label {
+  vertical-align: top;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.channel-message-layout > .channel-subpanel > .ant-space,
+.channel-subpanel .ant-card .ant-space {
+  row-gap: 8px;
+}
+
+.channel-subpanel textarea.ant-input[readonly] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .channel-advanced-collapse {
   border-radius: 18px;
   background: color-mix(in srgb, #f59e0b 7%, var(--app-surface-solid));
@@ -2638,13 +2805,32 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
   padding: 14px 16px !important;
 }
 
+.channel-advanced-collapse .ant-collapse-header-text {
+  min-width: 0;
+}
+
+.channel-advanced-collapse .ant-collapse-header-text .ant-space {
+  max-width: 100%;
+  row-gap: 6px;
+}
+
 .channel-advanced-collapse .ant-collapse-content-box {
   padding: 0 16px 16px !important;
 }
 
 .channel-drawer-footer {
   width: 100%;
+  min-width: 0;
   align-items: center;
+}
+
+.channel-drawer-footer > .ant-typography {
+  min-width: 0;
+  max-width: 66ch;
+}
+
+.channel-drawer-footer > .ant-space {
+  flex: 0 0 auto;
 }
 
 @media (max-width: 1100px) {
@@ -2657,5 +2843,49 @@ html[data-theme='dark'] .role-matrix-checkboxes .ant-checkbox-wrapper {
     min-height: auto;
     border-right: 0;
     border-bottom: 1px solid var(--app-border);
+  }
+}
+
+@media (max-width: 760px) {
+  .channel-config-drawer .ant-drawer-title h4.ant-typography,
+  .channel-config-drawer .ant-drawer-extra {
+    max-width: 100%;
+  }
+
+  .channel-drawer-main,
+  .channel-drawer-map {
+    padding: 16px;
+  }
+
+  .channel-domain-panel__header,
+  .channel-subpanel__header,
+  .channel-drawer-footer {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .channel-domain-panel__extra,
+  .channel-subpanel__header > .ant-form-item,
+  .channel-subpanel__header > .ant-tag {
+    justify-self: start;
+  }
+
+  .channel-domain-panel__body,
+  .channel-domain-panel__header {
+    padding: 18px;
+  }
+
+  .channel-subpanel {
+    padding: 16px;
+  }
+
+  .channel-drawer-footer {
+    display: grid;
+    gap: 12px;
+  }
+
+  .channel-drawer-footer > .ant-space {
+    justify-content: flex-end;
+    width: 100%;
   }
 }
