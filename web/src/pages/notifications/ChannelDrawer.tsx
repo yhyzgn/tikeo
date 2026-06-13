@@ -516,7 +516,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
       extra={<Space wrap><Tag color={provider ? 'blue' : 'default'}>{provider ?? '-'}</Tag><Tag>{messageType ?? '-'}</Tag><Tag color={scopeType === 'global' ? 'default' : 'purple'}>{scopeLabel(scopeType)}</Tag></Space>}
       footer={(
         <div className="channel-drawer-footer">
-          <Typography.Text type="secondary">{t('先保存配置，再使用已保存配置发送测试通知。')}</Typography.Text>
+          <Typography.Text type="secondary">{t('保存后可使用服务端已保存配置发送测试通知。')}</Typography.Text>
           <Space>
             <PermissionGate resource="notifications" action="manage"><Button type="primary" loading={saving} onClick={() => form.submit()}>{editingChannel ? t('保存渠道') : t('创建渠道')}</Button></PermissionGate>
             <Button onClick={close}>{t('取消')}</Button>
@@ -530,7 +530,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
             <div className="channel-drawer-map__hero">
               <Typography.Text className="channel-drawer-map__kicker">{t('配置摘要')}</Typography.Text>
               <Typography.Title level={4}>{provider ? `${provider} · ${messageType ?? '-'}` : t('选择提供方')}</Typography.Title>
-              <Typography.Paragraph type="secondary">{t(editingChannel ? '编辑模式不会默认覆盖已保存连接信息' : '首次创建会保存完整连接信息')}</Typography.Paragraph>
+              <Typography.Paragraph type="secondary">{t(editingChannel ? '按领域选择是否覆盖已保存连接信息' : '完成连接、消息和治理配置后即可引用')}</Typography.Paragraph>
               <div className="channel-drawer-map__metrics">
                 <DrawerMetric label={t('作用域')} tone={scopeType === 'global' ? 'blue' : 'purple'} value={<Space wrap><Tag>{scopeLabel(scopeType)}</Tag><Typography.Text>{scopePath(scopeType, namespace, app, workerPool)}</Typography.Text></Space>} />
                 <DrawerMetric label={t('私密配置')} tone={replaceSecretRefs ? 'green' : 'default'} value={t(replacementModeLabel(Boolean(editingChannel), replaceSecretRefs))} />
@@ -556,7 +556,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
                   type={editingChannel ? 'info' : 'success'}
                   showIcon
                   message={t(editingChannel ? '本次保存默认只更新名称、启用状态和作用域' : '首次创建会保存完整连接信息')}
-                  description={t(editingChannel ? '需要覆盖机器人地址、私密凭据、渠道参数或模板时，请只打开对应领域的替换开关。' : '请在凭据和渠道参数分区填写完整配置，保存后即可用于策略和任务通知。')}
+                  description={t(editingChannel ? '只打开需要覆盖的数据域，未开启的连接信息保持不变。' : '按右侧领域补齐必填项，保存后即可用于策略和任务通知。')}
                 />
               </Space>
             </div>
@@ -594,7 +594,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
               accent="primary"
               eyebrow={t('领域 01 · 身份与作用域')}
               title={t('身份与作用域')}
-              description={t('先定义渠道是谁、是否启用，以及它能被哪些策略或任务引用；作用域选择会逐级联动 Namespace、App、Worker Pool。')}
+              description={t('命名渠道、控制启用状态，并确定它能被哪些策略或任务引用。')}
               extra={<Form.Item name="enabled" label={t('启用')} valuePropName="checked" style={{ marginBottom: 0 }}><Switch /></Form.Item>}
             >
               <Row gutter={16}>
@@ -603,7 +603,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
               </Row>
               <div className="channel-subpanel channel-subpanel--scope">
                 <div className="channel-subpanel__header">
-                  <div><Typography.Text strong>{t('作用域级联')}</Typography.Text><Typography.Paragraph type="secondary">{t('从粗到细选择引用边界，后续候选项只显示当前边界内的数据。')}</Typography.Paragraph></div>
+                  <div><Typography.Text strong>{t('作用域级联')}</Typography.Text><Typography.Paragraph type="secondary">{t('按 Global、Namespace、App、Worker Pool 逐级收窄候选。')}</Typography.Paragraph></div>
                   <Tag color={scopeType === 'global' ? 'blue' : 'purple'}>{scopeLabel(scopeType)}</Tag>
                 </div>
                 <Row gutter={16}>
@@ -619,12 +619,12 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
               accent="secure"
               eyebrow={t('领域 02 · 连接配置')}
               title={t('投递目标与私密凭据')}
-              description={t('机器人地址 / 私密凭据、签名密钥和 provider 参数都属于连接层；编辑时每类数据都有独立替换开关。')}
+              description={t('连接层只处理目标、凭据和 provider 参数；私密配置与渠道参数分别替换。')}
             >
               <div className="channel-config-grid">
                 <section className="channel-subpanel channel-subpanel--secret">
                   <div className="channel-subpanel__header">
-                    <div><Typography.Text strong>{t('投递目标与私密凭据')}</Typography.Text><Typography.Paragraph type="secondary">{t('机器人地址 / 私密凭据按当前作用域过滤 Secret 候选；真实值可直接填写，响应不会回显。')}</Typography.Paragraph></div>
+                    <div><Typography.Text strong>{t('投递目标与私密凭据')}</Typography.Text><Typography.Paragraph type="secondary">{t('填写机器人地址 / 私密凭据；候选 Secret 会跟随当前作用域过滤。')}</Typography.Paragraph></div>
                     {editingChannel ? <Form.Item name="replaceSecretRefs" label={t('替换私密配置')} valuePropName="checked" style={{ marginBottom: 0 }}><Switch /></Form.Item> : <Tag color="blue">{t('首次创建，需要填写')}</Tag>}
                   </div>
                   <Alert
@@ -632,9 +632,9 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
                     showIcon
                     style={{ marginBottom: 16 }}
                     message={t('每一条渠道单独保存自己的真实连接信息')}
-                    description={t('机器人/Webhook 地址、Signing secret、routing key、SMTP URL/password、appId/appSecret 等都在这里直接填写；保存后立即生效，响应不会回显 secretRefsJson。也兼容 env:NAME，但不是必须。')}
+                    description={t('机器人/Webhook 地址、Signing secret、routing key 等可直接填写真实值，也可使用 env:NAME；保存后立即生效，响应不会回显。')}
                   />
-                  {editingChannel ? <Typography.Paragraph type="secondary">{t('不开启时会保持服务端已有私密值；开启后必须填写完整新值。')}</Typography.Paragraph> : null}
+
                   <Row gutter={16}>
                     {schema.secretFields.map((field) => (
                       <Col xs={24} md={12} key={field.key}>
@@ -648,10 +648,10 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
 
                 <section className="channel-subpanel channel-subpanel--config">
                   <div className="channel-subpanel__header">
-                    <div><Typography.Text strong>{t('渠道参数与消息覆盖')}</Typography.Text><Typography.Paragraph type="secondary">{t('普通渠道参数、消息类型配置和 inline 模板属于同一类可替换配置，避免和密钥开关混在一起。')}</Typography.Paragraph></div>
+                    <div><Typography.Text strong>{t('渠道参数')}</Typography.Text><Typography.Paragraph type="secondary">{t('只放 provider 参数；消息类型和模板在消息形态中调整。')}</Typography.Paragraph></div>
                     {editingChannel ? <Form.Item name="replaceConfig" label={t('替换渠道配置')} valuePropName="checked" style={{ marginBottom: 0 }}><Switch /></Form.Item> : <Tag color="blue">{t('首次创建，需要填写')}</Tag>}
                   </div>
-                  {editingChannel ? <Typography.Paragraph type="secondary">{t('不开启时只保存基本信息/启用状态/作用域，不覆盖已保存的渠道 configJson。')}</Typography.Paragraph> : null}
+
                   {schema.configFields.length > 0 ? (
                     <Row gutter={16}>
                       {schema.configFields.map((field) => (
@@ -671,12 +671,12 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
               accent="message"
               eyebrow={t('领域 03 · 消息形态')}
               title={t('提供方与消息形态')}
-              description={t('选择内置提供方支持的消息类型，并决定是否让该渠道固定覆盖策略模板。')}
+              description={t('选择消息类型，并决定是否用渠道级 inline 模板覆盖策略模板。')}
             >
               <div className="channel-message-layout">
                 <section className="channel-subpanel">
                   <div className="channel-subpanel__header">
-                    <div><Typography.Text strong>{t('消息类型')}</Typography.Text><Typography.Paragraph type="secondary">{t('选择内置提供方支持的消息类型；下方展示该类型固定的字段结构和官方文档入口。')}</Typography.Paragraph></div>
+                    <div><Typography.Text strong>{t('消息类型')}</Typography.Text><Typography.Paragraph type="secondary">{t('消息类型决定可填写字段、示例 payload 和测试样例。')}</Typography.Paragraph></div>
                     <Tag>{schema.category}</Tag>
                   </div>
                   <Row gutter={16}>
@@ -696,7 +696,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
 
                 <section className="channel-subpanel channel-subpanel--template">
                   <div className="channel-subpanel__header">
-                    <div><Typography.Text strong>{t('消息覆盖策略')}</Typography.Text><Typography.Paragraph type="secondary">{t(configControlsDisabled ? '开启替换渠道配置后才能修改消息类型和 inline 模板字段。' : '默认关闭：策略引用的已启用存储模板会在运行时优先生效；只有需要此渠道固定覆盖策略模板时才开启。')}</Typography.Paragraph></div>
+                    <div><Typography.Text strong>{t('消息覆盖策略')}</Typography.Text><Typography.Paragraph type="secondary">{t(configControlsDisabled ? '开启替换渠道配置后才能修改消息类型和 inline 模板字段。' : '默认使用策略模板；仅在渠道需要固定消息外观时开启。')}</Typography.Paragraph></div>
                     <Form.Item name="useInlineTemplate" label={t('渠道级 inline 模板覆盖')} valuePropName="checked" style={{ marginBottom: 0 }}><Switch disabled={configControlsDisabled} /></Form.Item>
                   </div>
                   <Row gutter={16}>
@@ -728,7 +728,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
               accent="governance"
               eyebrow={t('领域 04 · 治理与扩展')}
               title={t('扩展 JSON 与安全策略')}
-              description={t('高级 JSON 是逃生口，不是主配置入口；安全策略独立保存，用于约束发送行为。')}
+              description={t('高级 JSON 仅用于表单未覆盖字段；安全策略用于约束发送行为。')}
             >
               <Collapse
                 className="channel-advanced-collapse"
@@ -739,7 +739,7 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
                     label: <Space><Tag color="orange">Advanced</Tag><Typography.Text strong>{t('扩展 JSON 与安全策略')}</Typography.Text></Space>,
                     children: (
                       <>
-                        <Alert type="warning" showIcon style={{ marginBottom: 16 }} message={t('表单字段会覆盖高级 JSON 同名键')} description={t('表单字段优先表达常规能力；高级 JSON 仅保留 provider 特殊字段或安全策略，不要粘贴脱敏占位符。')} />
+                        <Alert type="warning" showIcon style={{ marginBottom: 16 }} message={t('表单字段会覆盖高级 JSON 同名键')} description={t('只保留表单未覆盖的 provider 特殊字段；不要粘贴脱敏占位符。')} />
                         <Row gutter={16}>
                           <Col xs={24} md={12}><Form.Item name="advancedConfigJsonText" label={t('高级配置 JSON')} extra={t(configControlsDisabled ? '开启替换渠道配置后才能修改高级配置 JSON。' : '仅用于保留 provider 特殊字段；表单字段会覆盖同名键。')}><Input.TextArea rows={4} spellCheck={false} disabled={configControlsDisabled} onBlur={(event) => { const value = parseMaybeJson(event.target.value); if (value && typeof value === 'object') form.setFieldValue('advancedConfigJsonText', JSON.stringify(value, null, 2)); }} /></Form.Item></Col>
                           <Col xs={24} md={12}><Form.Item name="advancedSecretRefsJsonText" label={t('高级私密配置 JSON')} extra={t(secretControlsDisabled ? '开启替换私密配置后才能修改高级私密配置 JSON。' : '填写本渠道私密配置；可直接填写真实值，也可填写 env:NAME 兼容引用。响应不会回显 secretRefsJson。')}><Input.TextArea rows={4} spellCheck={false} disabled={secretControlsDisabled} placeholder="{}" /></Form.Item></Col>

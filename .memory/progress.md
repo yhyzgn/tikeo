@@ -1565,3 +1565,5 @@ Pending before release: full workspace clippy/test/build, web/docs lint/build, D
 Code review follow-up completed for the drawer redesign: i18n gaps closed, Advanced JSON precedence copy now matches actual merge order, create-mode summary text is no longer edit-mode wording, and payload semantics are protected by `ChannelDrawerPayload.test.ts`.
 
 - 2026-06-13: Reworked notification channel drawer local UI hierarchy into configuration map + domain panels; pending final full build/git checks at time of note.
+
+- 2026-06-13: Refined notification channel drawer typography rhythm and copy density; reduced repeated explanations, normalized scoped text sizes/line heights, and kept changes limited to notification drawer UI.
