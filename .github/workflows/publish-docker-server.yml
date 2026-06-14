@@ -38,7 +38,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
+          RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           VERSION="${RELEASE_TAG#v}"
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"

@@ -217,6 +217,7 @@ class WorkflowContractTest(unittest.TestCase):
             self.assertIn('VERSION="${RELEASE_TAG#v}"', job_block)
             self.assertIn("scripts/set-release-version.py", job_block)
             self.assertIn("--scope workspace", job_block)
+        self.assertIn("github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name", docker_server_job)
         self.assertLess(
             github_server_job.index("scripts/set-release-version.py"),
             github_server_job.index("Build server binary"),
