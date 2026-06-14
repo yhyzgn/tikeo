@@ -99,6 +99,8 @@ jobs:
       - name: Build docs site
         working-directory: docs
         run: bun run docs:build
+      - name: Validate docs SEO output
+        run: python3 .github/tests/docs_seo_contract_test.py
 
   java-sdk-demo:
     name: Java SDK + demo

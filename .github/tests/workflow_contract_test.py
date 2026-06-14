@@ -154,6 +154,9 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("bun install --frozen-lockfile", docs_job)
         self.assertIn("bun run docs:typecheck", docs_job)
         self.assertIn("bun run docs:build", docs_job)
+        self.assertIn("Validate docs SEO output", docs_job)
+        self.assertIn("python3 .github/tests/docs_seo_contract_test.py", docs_job)
+        self.assertLess(docs_job.index("bun run docs:build"), docs_job.index("docs_seo_contract_test.py"))
 
     def test_ci_enforces_source_size_before_runtime_jobs(self):
         self.assertTrue((ROOT / "scripts/check-source-size.py").exists())

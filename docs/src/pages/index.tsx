@@ -35,7 +35,7 @@ type LocaleCopy = {
 const copy: Record<'en' | 'zh-CN', LocaleCopy> = {
   en: {
     title: 'Tikeo operator manual',
-    description: 'Human-readable Tikeo manuals for deployment, SDK integration, configuration, development, and operations.',
+    description: 'Human-readable Tikeo manuals for distributed task scheduling, workflow orchestration, outbound Worker Tunnel operations, SDK integration, deployment, configuration, and governance.',
     eyebrow: 'Tikeo documentation',
     headline: 'A control plane for scheduled work, workflow execution, and outbound Workers.',
     subtitle: 'Use these docs to evaluate Tikeo locally, deploy a production topology, connect SDK Workers, configure notifications, and operate with auditable execution evidence.',
@@ -67,7 +67,7 @@ const copy: Record<'en' | 'zh-CN', LocaleCopy> = {
   },
   'zh-CN': {
     title: 'Tikeo 运维手册',
-    description: '面向人的 Tikeo 文档：部署、SDK 集成、配置、开发扩展与运维验收。',
+    description: '面向人的 Tikeo 文档：分布式任务调度、工作流编排、出站 Worker Tunnel、SDK 集成、部署、配置、治理与运维验收。',
     eyebrow: 'Tikeo 文档',
     headline: '面向计划任务、工作流与出站 Worker 的执行控制平面。',
     subtitle: '从本地评估到生产部署，系统说明如何接入 SDK Worker、配置通知与权限、治理脚本执行，并基于实例日志和审计记录完成验收。',

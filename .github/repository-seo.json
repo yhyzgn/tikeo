@@ -1,0 +1,27 @@
+{
+  "repository": "yhyzgn/tikeo",
+  "description": "Rust-native task orchestration platform with outbound Worker Tunnel, workflows, governed scripts, RBAC, OpenTelemetry, Docker/Kubernetes deployment, and multi-language SDKs.",
+  "homepageUrl": "https://tikeo.dev",
+  "topics": [
+    "task-scheduler",
+    "distributed-scheduler",
+    "job-scheduler",
+    "workflow-orchestration",
+    "workflow-engine",
+    "worker-tunnel",
+    "cloud-native",
+    "rust",
+    "grpc",
+    "opentelemetry",
+    "kubernetes",
+    "kubernetes-operator",
+    "terraform-provider",
+    "docker-compose",
+    "multi-language-sdk",
+    "multi-db",
+    "script-sandbox",
+    "wasm",
+    "xxl-job",
+    "powerjob"
+  ]
+}

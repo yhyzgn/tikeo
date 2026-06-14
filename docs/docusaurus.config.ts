@@ -13,10 +13,80 @@ const normalizeBaseUrl = (value: string): string => {
 
 const siteUrl = process.env.TIKEO_DOCS_URL ?? 'https://tikeo.dev';
 const baseUrl = normalizeBaseUrl(process.env.TIKEO_DOCS_BASE_URL ?? '/');
+const absoluteUrl = (path: string): string => `${siteUrl}${baseUrl}${path.replace(/^\//, '')}`;
+
+const seo = {
+  siteName: 'Tikeo Documentation',
+  description:
+    'Tikeo documentation for distributed task scheduling, workflow orchestration, outbound Worker Tunnel operations, SDK integration, Docker deployment, Kubernetes, notifications, RBAC, OpenTelemetry, and governed scripts.',
+  keywords: [
+    'Tikeo',
+    'task orchestration',
+    'distributed task scheduler',
+    'job scheduler',
+    'workflow orchestration',
+    'workflow engine',
+    'Worker Tunnel',
+    'outbound workers',
+    'multi-language SDK',
+    'Rust scheduler',
+    'Kubernetes operator',
+    'Docker Compose deployment',
+    'OpenTelemetry',
+    'script sandbox',
+    'RBAC',
+    'notification center',
+    'XXL-Job alternative',
+    'PowerJob alternative',
+  ],
+};
+
+const organizationJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Tikeo',
+  url: siteUrl,
+  logo: absoluteUrl('/img/tikeo-logo.svg'),
+  sameAs: ['https://github.com/yhyzgn/tikeo'],
+};
+
+const softwareJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Tikeo',
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Linux, macOS, Windows, Docker, Kubernetes',
+  description: seo.description,
+  image: absoluteUrl('/img/tikeo-og.png'),
+  url: siteUrl,
+  codeRepository: 'https://github.com/yhyzgn/tikeo',
+  license: 'https://github.com/yhyzgn/tikeo/blob/main/LICENSE',
+  programmingLanguage: ['Rust', 'TypeScript', 'Java', 'Go', 'Python', 'Node.js'],
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+  },
+};
+
+const websiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: seo.siteName,
+  url: siteUrl,
+  inLanguage: ['en', 'zh-CN'],
+  description: seo.description,
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: `${siteUrl}${baseUrl}search?q={search_term_string}`,
+    'query-input': 'required name=search_term_string',
+  },
+};
 
 const config: Config = {
   title: 'Tikeo',
   tagline: 'Rust-native orchestration for jobs, workflows, workers, and governed scripts.',
+  titleDelimiter: '·',
   favicon: 'img/tikeo-logo.svg',
 
   future: {
@@ -29,22 +99,30 @@ const config: Config = {
   baseUrl,
 
   headTags: [
-    {
-      tagName: 'meta',
-      attributes: {name: 'description', content: 'Tikeo documentation for Rust-native distributed task scheduling, Worker Tunnel operations, SDKs, deployment, and governance.'},
-    },
-    {
-      tagName: 'meta',
-      attributes: {property: 'og:title', content: 'Tikeo documentation'},
-    },
-    {
-      tagName: 'meta',
-      attributes: {property: 'og:image', content: `${siteUrl}${baseUrl}img/tikeo-og.png`},
-    },
-    {
-      tagName: 'meta',
-      attributes: {name: 'twitter:card', content: 'summary_large_image'},
-    },
+    {tagName: 'meta', attributes: {name: 'description', content: seo.description}},
+    {tagName: 'meta', attributes: {name: 'keywords', content: seo.keywords.join(', ')}},
+    {tagName: 'meta', attributes: {name: 'author', content: 'Tikeo maintainers'}},
+    {tagName: 'meta', attributes: {name: 'application-name', content: 'Tikeo'}},
+    {tagName: 'meta', attributes: {name: 'robots', content: 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1'}},
+    {tagName: 'meta', attributes: {name: 'googlebot', content: 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1'}},
+    {tagName: 'meta', attributes: {name: 'theme-color', content: '#3157d5'}},
+    {tagName: 'meta', attributes: {property: 'og:site_name', content: seo.siteName}},
+    {tagName: 'meta', attributes: {property: 'og:type', content: 'website'}},
+    {tagName: 'meta', attributes: {property: 'og:title', content: 'Tikeo documentation'}},
+    {tagName: 'meta', attributes: {property: 'og:description', content: seo.description}},
+    {tagName: 'meta', attributes: {property: 'og:image', content: absoluteUrl('/img/tikeo-og.png')}},
+    {tagName: 'meta', attributes: {property: 'og:image:alt', content: 'Tikeo task orchestration documentation preview'}},
+    {tagName: 'meta', attributes: {property: 'og:url', content: siteUrl}},
+    {tagName: 'meta', attributes: {name: 'twitter:card', content: 'summary_large_image'}},
+    {tagName: 'meta', attributes: {name: 'twitter:title', content: 'Tikeo documentation'}},
+    {tagName: 'meta', attributes: {name: 'twitter:description', content: seo.description}},
+    {tagName: 'meta', attributes: {name: 'twitter:image', content: absoluteUrl('/img/tikeo-og.png')}},
+    {tagName: 'link', attributes: {rel: 'manifest', href: absoluteUrl('/site.webmanifest')}},
+    {tagName: 'link', attributes: {rel: 'search', type: 'application/opensearchdescription+xml', title: 'Tikeo Docs', href: absoluteUrl('/opensearch.xml')}},
+    {tagName: 'link', attributes: {rel: 'sitemap', type: 'application/xml', href: absoluteUrl('/sitemap.xml')}},
+    {tagName: 'script', attributes: {type: 'application/ld+json'}, innerHTML: JSON.stringify(organizationJsonLd)},
+    {tagName: 'script', attributes: {type: 'application/ld+json'}, innerHTML: JSON.stringify(softwareJsonLd)},
+    {tagName: 'script', attributes: {type: 'application/ld+json'}, innerHTML: JSON.stringify(websiteJsonLd)},
   ],
 
   organizationName: 'yhyzgn',

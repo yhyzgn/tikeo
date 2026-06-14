@@ -1,3 +1,7 @@
 User-agent: *
 Allow: /
+Disallow: /assets/js/
+Disallow: /assets/css/
+
 Sitemap: https://tikeo.dev/sitemap.xml
+Host: https://tikeo.dev

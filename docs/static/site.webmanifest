@@ -1,0 +1,17 @@
+{
+  "name": "Tikeo Documentation",
+  "short_name": "Tikeo Docs",
+  "description": "Documentation for Tikeo distributed task scheduling, workflow orchestration, Worker Tunnel, SDKs, and deployment.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07111f",
+  "theme_color": "#3157d5",
+  "icons": [
+    {
+      "src": "/img/tikeo-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

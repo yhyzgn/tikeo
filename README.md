@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="https://tikeo.dev">📚 Documentation</a> ·
   <a href="README.zh-CN.md">🇨🇳 中文文档</a> ·
   <a href="deploy/compose/README.md">🐳 Docker Compose</a> ·
   <a href="sdks/README.md">🧩 SDKs</a> ·
