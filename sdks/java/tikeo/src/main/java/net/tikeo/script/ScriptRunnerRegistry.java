@@ -1,10 +1,12 @@
 package net.tikeo.script;
 
-import net.tikeo.worker.WorkerCapabilitySet;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
+import net.tikeo.worker.WorkerCapabilitySet;
 
 /**
  * Explicit registry of sandboxed script runners enabled by a worker.
@@ -31,7 +33,7 @@ public final class ScriptRunnerRegistry {
         if (advertised.isEmpty()) {
             return List.of();
         }
-        return java.util.stream.Stream.concat(java.util.stream.Stream.of("script"), advertised.stream())
+        return Stream.concat(Stream.of("script"), advertised.stream())
                 .distinct()
                 .sorted()
                 .toList();
@@ -43,7 +45,7 @@ public final class ScriptRunnerRegistry {
                 .map(runner -> new WorkerCapabilitySet.ScriptRunner(
                         runner.kind().value(),
                         runner.advertisedBackend().value()))
-                .sorted(java.util.Comparator.comparing(WorkerCapabilitySet.ScriptRunner::language))
+                .sorted(Comparator.comparing(WorkerCapabilitySet.ScriptRunner::language))
                 .toList();
     }
 

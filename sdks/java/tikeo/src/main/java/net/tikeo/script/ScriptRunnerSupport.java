@@ -1,14 +1,15 @@
 package net.tikeo.script;
 
-import net.tikeo.processor.TaskOutcome;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
 import java.util.concurrent.TimeUnit;
+import net.tikeo.processor.TaskOutcome;
 
 final class ScriptRunnerSupport {
     private ScriptRunnerSupport() {}
@@ -137,7 +138,7 @@ final class ScriptRunnerSupport {
         }
     }
 
-    private static CapturingThread streamReader(java.io.InputStream input) {
+    private static CapturingThread streamReader(InputStream input) {
         CapturingThread thread = new CapturingThread(input);
         thread.setDaemon(true);
         thread.start();
@@ -145,10 +146,10 @@ final class ScriptRunnerSupport {
     }
 
     private static final class CapturingThread extends Thread {
-        private final java.io.InputStream input;
+        private final InputStream input;
         private final ByteArrayOutputStream output = new ByteArrayOutputStream();
 
-        private CapturingThread(java.io.InputStream input) {
+        private CapturingThread(InputStream input) {
             super("tikeo-script-output-reader");
             this.input = input;
         }

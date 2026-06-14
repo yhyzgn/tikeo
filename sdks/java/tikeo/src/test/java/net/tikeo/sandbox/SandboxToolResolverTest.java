@@ -1,10 +1,11 @@
 package net.tikeo.sandbox;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
-import net.tikeo.script.ScriptRunnerKind;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
+import net.tikeo.script.ScriptRunnerKind;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class SandboxToolResolverTest {
@@ -37,16 +38,16 @@ class SandboxToolResolverTest {
                 1000));
 
         Path hostCache = Path.of(System.getProperty("user.home"), ".tikeo", "sandbox-tools");
-        assertEquals(hostCache.resolve("srt"), resolver.installDir(SandboxToolInstaller.Tool.SRT));
-        assertEquals(hostCache.resolve("ripgrep"), resolver.installDir(SandboxToolInstaller.Tool.RIPGREP));
-        assertEquals(hostCache.resolve("deno"), resolver.installDir(SandboxToolInstaller.Tool.DENO));
-        assertEquals(hostCache.resolve("wasmedge"), resolver.installDir(SandboxToolInstaller.Tool.WASMEDGE));
-        assertEquals(hostCache.resolve("pwsh"), resolver.installDir(SandboxToolInstaller.Tool.POWERSHELL));
+        Assertions.assertEquals(hostCache.resolve("srt"), resolver.installDir(SandboxToolInstaller.Tool.SRT));
+        Assertions.assertEquals(hostCache.resolve("ripgrep"), resolver.installDir(SandboxToolInstaller.Tool.RIPGREP));
+        Assertions.assertEquals(hostCache.resolve("deno"), resolver.installDir(SandboxToolInstaller.Tool.DENO));
+        Assertions.assertEquals(hostCache.resolve("wasmedge"), resolver.installDir(SandboxToolInstaller.Tool.WASMEDGE));
+        Assertions.assertEquals(hostCache.resolve("pwsh"), resolver.installDir(SandboxToolInstaller.Tool.POWERSHELL));
     }
 
     @Test
     void reusesLegacyStateScopedInstallWhenBinaryAlreadyExists() throws Exception {
-        Path stateDir = java.nio.file.Files.createTempDirectory("tikeo-legacy-sandbox-tools-");
+        Path stateDir = Files.createTempDirectory("tikeo-legacy-sandbox-tools-");
         installFake(stateDir, SandboxToolInstaller.Tool.SRT);
         SandboxToolResolver resolver = new SandboxToolResolver(new SandboxToolResolver.Options(
                 stateDir.toString(),
@@ -74,8 +75,8 @@ class SandboxToolResolverTest {
                 "",
                 1000));
 
-        assertEquals(stateDir.resolve("sandbox-tools/srt"), resolver.installDir(SandboxToolInstaller.Tool.SRT));
-        assertEquals(stateDir.resolve("sandbox-tools/srt/bin/srt").toString(), resolver.resolveSrtCommand().orElseThrow());
+        Assertions.assertEquals(stateDir.resolve("sandbox-tools/srt"), resolver.installDir(SandboxToolInstaller.Tool.SRT));
+        Assertions.assertEquals(stateDir.resolve("sandbox-tools/srt/bin/srt").toString(), resolver.resolveSrtCommand().orElseThrow());
     }
 
     @Test
@@ -106,15 +107,15 @@ class SandboxToolResolverTest {
                 "",
                 1000));
 
-        assertEquals(List.of("/opt/tikeo/deno/bin/deno", "run", "--no-prompt", "-"),
+        Assertions.assertEquals(List.of("/opt/tikeo/deno/bin/deno", "run", "--no-prompt", "-"),
                 resolver.localDevelopmentCommand(ScriptRunnerKind.JS));
-        assertEquals(List.of("/opt/tikeo/deno/bin/deno", "run", "--no-prompt", "-"),
+        Assertions.assertEquals(List.of("/opt/tikeo/deno/bin/deno", "run", "--no-prompt", "-"),
                 resolver.localDevelopmentCommand(ScriptRunnerKind.TS));
     }
 
     @Test
     void resolvesManagedSandboxRuntimeMatrix() throws Exception {
-        Path stateDir = java.nio.file.Files.createTempDirectory("tikeo-sandbox-matrix-");
+        Path stateDir = Files.createTempDirectory("tikeo-sandbox-matrix-");
         installFake(stateDir, SandboxToolInstaller.Tool.WASMTIME);
         installFake(stateDir, SandboxToolInstaller.Tool.WASMEDGE);
         installFake(stateDir, SandboxToolInstaller.Tool.SRT);
@@ -148,31 +149,31 @@ class SandboxToolResolverTest {
                 stateDir.resolve("sandbox-tools/pwsh").toString(),
                 1000));
 
-        assertEquals(stateDir.resolve("sandbox-tools/wasmtime/bin/wasmtime").toString(),
+        Assertions.assertEquals(stateDir.resolve("sandbox-tools/wasmtime/bin/wasmtime").toString(),
                 resolver.resolveWasmtimeCommand().orElseThrow());
-        assertEquals(stateDir.resolve("sandbox-tools/wasmedge/bin/wasmedge").toString(),
+        Assertions.assertEquals(stateDir.resolve("sandbox-tools/wasmedge/bin/wasmedge").toString(),
                 resolver.resolveWasmedgeCommand().orElseThrow());
-        assertEquals(stateDir.resolve("sandbox-tools/srt/bin/srt").toString(),
+        Assertions.assertEquals(stateDir.resolve("sandbox-tools/srt/bin/srt").toString(),
                 resolver.resolveSrtCommand().orElseThrow());
-        assertEquals(stateDir.resolve("sandbox-tools/ripgrep/bin/rg").toString(),
+        Assertions.assertEquals(stateDir.resolve("sandbox-tools/ripgrep/bin/rg").toString(),
                 resolver.resolveRipgrepCommand().orElseThrow());
-        assertEquals(stateDir.resolve("sandbox-tools/deno/bin/deno").toString(),
+        Assertions.assertEquals(stateDir.resolve("sandbox-tools/deno/bin/deno").toString(),
                 resolver.resolveDenoCommand().orElseThrow());
-        assertEquals(stateDir.resolve("sandbox-tools/deno/bin/deno").toString(),
+        Assertions.assertEquals(stateDir.resolve("sandbox-tools/deno/bin/deno").toString(),
                 resolver.resolveV8Command().orElseThrow());
-        assertEquals(stateDir.resolve("sandbox-tools/rhai/bin/rhai-run").toString(),
+        Assertions.assertEquals(stateDir.resolve("sandbox-tools/rhai/bin/rhai-run").toString(),
                 resolver.resolveRhaiCommand().orElseThrow());
-        assertEquals(stateDir.resolve("sandbox-tools/pwsh/bin/pwsh").toString(),
+        Assertions.assertEquals(stateDir.resolve("sandbox-tools/pwsh/bin/pwsh").toString(),
                 resolver.resolvePowerShellCommand().orElseThrow());
     }
 
     private static void installFake(Path stateDir, SandboxToolInstaller.Tool tool) throws Exception {
         String installKey = tool == SandboxToolInstaller.Tool.POWERSHELL
                 ? "pwsh"
-                : tool.name().toLowerCase(java.util.Locale.ROOT);
+                : tool.name().toLowerCase(Locale.ROOT);
         Path binary = SandboxToolInstaller.binaryPath(tool,
                 stateDir.resolve("sandbox-tools").resolve(installKey));
-        java.nio.file.Files.createDirectories(binary.getParent());
+        Files.createDirectories(binary.getParent());
         String body = "#!/usr/bin/env sh\n";
         if (tool == SandboxToolInstaller.Tool.RHAI) {
             body += "case \"${1:-}\" in\n";
@@ -182,7 +183,7 @@ class SandboxToolResolverTest {
         } else {
             body += "echo " + tool.binaryName() + "-ok\n";
         }
-        java.nio.file.Files.writeString(binary, body);
+        Files.writeString(binary, body);
         binary.toFile().setExecutable(true);
     }
 

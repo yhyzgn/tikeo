@@ -1,16 +1,15 @@
 package net.tikeo.examples.worker;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import net.tikeo.worker.client.NoopTikeoWorkerClient;
-import net.tikeo.worker.client.TikeoWorkerClient;
-import net.tikeo.processor.TaskContext;
-import net.tikeo.spring.processor.TikeoProcessorRegistry;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import net.tikeo.processor.TaskContext;
+import net.tikeo.spring.processor.TikeoProcessorRegistry;
+import net.tikeo.worker.client.NoopTikeoWorkerClient;
+import net.tikeo.worker.client.TikeoWorkerClient;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,23 +45,23 @@ class SpringWorkerDemoApplicationTest {
 
     @Test
     void dryRunClientUsesGeneratedIdentityAndStartsWithLifecycle() {
-        assertThat(client).isInstanceOf(NoopTikeoWorkerClient.class);
+        Assertions.assertThat(client).isInstanceOf(NoopTikeoWorkerClient.class);
         NoopTikeoWorkerClient noop = (NoopTikeoWorkerClient) client;
 
-        assertThat(noop.running()).isTrue();
-        assertThat(noop.workerId()).isEqualTo("dry-run-spring-boot3-worker-demo-test");
-        assertThat(noop.registration().clientInstanceId()).isEqualTo("spring-boot3-worker-demo-test");
-        assertThat(noop.registration().namespace()).isEqualTo("demo-ns");
-        assertThat(noop.registration().app()).isEqualTo("demo-app");
-        assertThat(noop.registration().cluster()).isEqualTo("demo-cluster");
-        assertThat(noop.registration().region()).isEqualTo("demo-region");
-        assertThat(noop.registration().capabilities()).containsExactly("java", "spring-boot");
-        assertThat(noop.registration().structuredCapabilities().pluginProcessors())
+        Assertions.assertThat(noop.running()).isTrue();
+        Assertions.assertThat(noop.workerId()).isEqualTo("dry-run-spring-boot3-worker-demo-test");
+        Assertions.assertThat(noop.registration().clientInstanceId()).isEqualTo("spring-boot3-worker-demo-test");
+        Assertions.assertThat(noop.registration().namespace()).isEqualTo("demo-ns");
+        Assertions.assertThat(noop.registration().app()).isEqualTo("demo-app");
+        Assertions.assertThat(noop.registration().cluster()).isEqualTo("demo-cluster");
+        Assertions.assertThat(noop.registration().region()).isEqualTo("demo-region");
+        Assertions.assertThat(noop.registration().capabilities()).containsExactly("java", "spring-boot");
+        Assertions.assertThat(noop.registration().structuredCapabilities().pluginProcessors())
                 .anySatisfy(plugin -> {
-                    assertThat(plugin.type()).isEqualTo("sql");
-                    assertThat(plugin.processorNames()).contains("billing.sql-sync");
+                    Assertions.assertThat(plugin.type()).isEqualTo("sql");
+                    Assertions.assertThat(plugin.processorNames()).contains("billing.sql-sync");
                 });
-        assertThat(noop.registration().labels()).containsEntry("worker_pool", "demo-pool")
+        Assertions.assertThat(noop.registration().labels()).containsEntry("worker_pool", "demo-pool")
                 .containsEntry("runtime", "java")
                 .containsEntry("demo", "spring-boot3-worker-demo");
         log.info("[java-demo-plugin-test] dry-run registration capabilities={}", noop.registration().capabilities());
@@ -75,20 +74,20 @@ class SpringWorkerDemoApplicationTest {
         var health = httpGet("/demo/health");
         var processors = httpGet("/demo/processors");
 
-        assertThat(health).contains("\"status\":\"ok\"");
-        assertThat(health).contains("\"connected\":true");
-        assertThat(health).contains("\"workerId\":\"dry-run-spring-boot3-worker-demo-test\"");
-        assertThat(health).contains("demo.echo", "demo.fail", "demo.exception", "demo.workflow.step");
-        assertThat(processors).contains("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail", "demo.exception", "billing.sql-sync");
-        assertThat(processors).doesNotContain("shell.test");
+        Assertions.assertThat(health).contains("\"status\":\"ok\"");
+        Assertions.assertThat(health).contains("\"connected\":true");
+        Assertions.assertThat(health).contains("\"workerId\":\"dry-run-spring-boot3-worker-demo-test\"");
+        Assertions.assertThat(health).contains("demo.echo", "demo.fail", "demo.exception", "demo.workflow.step");
+        Assertions.assertThat(processors).contains("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail", "demo.exception", "billing.sql-sync");
+        Assertions.assertThat(processors).doesNotContain("shell.test");
         log.info("[java-demo-plugin-test] /demo/health response={}", health);
         log.info("[java-demo-plugin-test] /demo/processors response={}", processors);
     }
 
     @Test
     void springRegistersEchoProcessorAndInvokesItThroughRegistry() {
-        assertThat(registry.handlers()).containsKeys("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail", "demo.exception", "billing.sql-sync");
-        assertThat(registry.handlers()).doesNotContainKey("shell.test");
+        Assertions.assertThat(registry.handlers()).containsKeys("demo.echo", "demo.context", "demo.bytes", "demo.heartbeat", "demo.report", "demo.workflow.step", "demo.fail", "demo.exception", "billing.sql-sync");
+        Assertions.assertThat(registry.handlers()).doesNotContainKey("shell.test");
 
         var outcome = registry.invoke("demo.echo", new TaskContext(
                 "job-1",
@@ -96,8 +95,8 @@ class SpringWorkerDemoApplicationTest {
                 "instance-1",
                 "hello".getBytes(StandardCharsets.UTF_8)));
 
-        assertThat(outcome.success()).isTrue();
-        assertThat(outcome.message()).isEqualTo("echo:hello");
+        Assertions.assertThat(outcome.success()).isTrue();
+        Assertions.assertThat(outcome.message()).isEqualTo("echo:hello");
     }
 
     @Test
@@ -113,14 +112,14 @@ class SpringWorkerDemoApplicationTest {
 
         log.info("[java-demo-plugin-test] plugin processor outcome success={} message={}",
                 outcome.success(), outcome.message());
-        assertThat(outcome.success()).isTrue();
-        assertThat(outcome.message()).isEqualTo("sql-plugin-ok:" + payload);
+        Assertions.assertThat(outcome.success()).isTrue();
+        Assertions.assertThat(outcome.message()).isEqualTo("sql-plugin-ok:" + payload);
     }
 
     private String httpGet(String path) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).GET().build();
         var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        assertThat(response.statusCode()).isEqualTo(200);
+        Assertions.assertThat(response.statusCode()).isEqualTo(200);
         return response.body();
     }
 }

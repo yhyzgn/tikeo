@@ -1,9 +1,7 @@
 package net.tikeo.script;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.util.List;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class ScriptRunnerRegistryTest {
@@ -13,9 +11,9 @@ class ScriptRunnerRegistryTest {
 
         registry.register(new UnavailableScriptRunner(ScriptRunnerKind.PYTHON, "srt is not installed"));
 
-        assertTrue(registry.find(ScriptRunnerKind.PYTHON).isPresent());
-        assertTrue(registry.capabilities().isEmpty());
-        assertTrue(registry.structuredCapabilities().isEmpty());
+        Assertions.assertTrue(registry.find(ScriptRunnerKind.PYTHON).isPresent());
+        Assertions.assertTrue(registry.capabilities().isEmpty());
+        Assertions.assertTrue(registry.structuredCapabilities().isEmpty());
     }
 
     @Test
@@ -28,7 +26,7 @@ class ScriptRunnerRegistryTest {
                 "alpine:3.20",
                 List.of("--pull=never")));
 
-        assertEquals(1, registry.structuredCapabilities().size());
-        assertEquals("podman", registry.structuredCapabilities().get(0).sandboxBackend());
+        Assertions.assertEquals(1, registry.structuredCapabilities().size());
+        Assertions.assertEquals("podman", registry.structuredCapabilities().get(0).sandboxBackend());
     }
 }

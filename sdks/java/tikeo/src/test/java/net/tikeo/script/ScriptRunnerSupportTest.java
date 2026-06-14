@@ -1,12 +1,11 @@
 package net.tikeo.script;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class ScriptRunnerSupportTest {
@@ -27,8 +26,8 @@ class ScriptRunnerSupportTest {
         ScriptRunnerSupport.runProcess(builder, ScriptRunnerKind.SHELL, task,
                 (level, message) -> logs.add(level + ":" + message));
 
-        assertTrue(logs.stream().anyMatch(log -> log.equals("info:[script] echo out-line")));
-        assertTrue(logs.stream().anyMatch(log -> log.equals("error:[script] err-line")));
+        Assertions.assertTrue(logs.stream().anyMatch(log -> log.equals("info:[script] echo out-line")));
+        Assertions.assertTrue(logs.stream().anyMatch(log -> log.equals("error:[script] err-line")));
     }
 
     private static String sha256(String content) throws Exception {

@@ -1,12 +1,10 @@
 package net.tikeo.logging;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.util.ArrayList;
 import java.util.List;
 import net.tikeo.processor.TaskContext;
 import net.tikeo.processor.TaskLogger;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 
@@ -17,19 +15,19 @@ class TikeoTaskLogScopeTest {
         TaskLogger sink = (level, message) -> logs.add(level + ":" + message);
 
         TikeoTaskLogScope.capture("job-1", "demo.echo", "instance-1", sink, () -> {
-            assertEquals("job-1", MDC.get(TikeoTaskLogScope.MDC_JOB_ID));
-            assertEquals("demo.echo", MDC.get(TikeoTaskLogScope.MDC_PROCESSOR_NAME));
-            assertEquals("instance-1", MDC.get(TikeoTaskLogScope.MDC_INSTANCE_ID));
+            Assertions.assertEquals("job-1", MDC.get(TikeoTaskLogScope.MDC_JOB_ID));
+            Assertions.assertEquals("demo.echo", MDC.get(TikeoTaskLogScope.MDC_PROCESSOR_NAME));
+            Assertions.assertEquals("instance-1", MDC.get(TikeoTaskLogScope.MDC_INSTANCE_ID));
 
-            assertTrue(TikeoTaskLogScope.emit("info", "from logback"));
+            Assertions.assertTrue(TikeoTaskLogScope.emit("info", "from logback"));
         });
 
-        assertEquals(List.of("info:from logback"), logs);
-        assertTrue(!TikeoTaskLogScope.emit("info", "outside task"));
-        assertEquals(List.of("info:from logback"), logs);
-        assertEquals(null, MDC.get(TikeoTaskLogScope.MDC_JOB_ID));
-        assertEquals(null, MDC.get(TikeoTaskLogScope.MDC_PROCESSOR_NAME));
-        assertEquals(null, MDC.get(TikeoTaskLogScope.MDC_INSTANCE_ID));
+        Assertions.assertEquals(List.of("info:from logback"), logs);
+        Assertions.assertTrue(!TikeoTaskLogScope.emit("info", "outside task"));
+        Assertions.assertEquals(List.of("info:from logback"), logs);
+        Assertions.assertEquals(null, MDC.get(TikeoTaskLogScope.MDC_JOB_ID));
+        Assertions.assertEquals(null, MDC.get(TikeoTaskLogScope.MDC_PROCESSOR_NAME));
+        Assertions.assertEquals(null, MDC.get(TikeoTaskLogScope.MDC_INSTANCE_ID));
     }
 
     @Test
@@ -45,6 +43,6 @@ class TikeoTaskLogScopeTest {
         context.logInfo("manual info");
         context.logError("manual error");
 
-        assertEquals(List.of("info:manual info", "error:manual error"), logs);
+        Assertions.assertEquals(List.of("info:manual info", "error:manual error"), logs);
     }
 }

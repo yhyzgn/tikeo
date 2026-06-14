@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import json
-import os
 from types import SimpleNamespace
 import stat
 from pathlib import Path

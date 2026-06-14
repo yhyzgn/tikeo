@@ -1,10 +1,5 @@
 package net.tikeo.script;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import net.tikeo.processor.TaskOutcome;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,6 +7,8 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import net.tikeo.processor.TaskOutcome;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -29,14 +26,14 @@ class WasmScriptRunnerTest {
         List<String> command = runner.command(task("echo hello", policy(List.of("TIKEO_DEV_MESSAGE"))),
                 tempDir.resolve("runner.wasm"));
 
-        assertTrue(command.contains("wasmtime"));
-        assertTrue(command.contains("run"));
-        assertTrue(command.contains("--disable-cache"));
-        assertTrue(command.contains("--env"));
-        assertTrue(command.contains("TIKEO_SCRIPT_ID=script-1"));
-        assertTrue(command.contains("TIKEO_SCRIPT_VERSION_ID=sv-1"));
-        assertTrue(command.contains("TIKEO_SCRIPT_VERSION_NUMBER=1"));
-        assertEquals(tempDir.resolve("runner.wasm").toString(), command.get(command.size() - 1));
+        Assertions.assertTrue(command.contains("wasmtime"));
+        Assertions.assertTrue(command.contains("run"));
+        Assertions.assertTrue(command.contains("--disable-cache"));
+        Assertions.assertTrue(command.contains("--env"));
+        Assertions.assertTrue(command.contains("TIKEO_SCRIPT_ID=script-1"));
+        Assertions.assertTrue(command.contains("TIKEO_SCRIPT_VERSION_ID=sv-1"));
+        Assertions.assertTrue(command.contains("TIKEO_SCRIPT_VERSION_NUMBER=1"));
+        Assertions.assertEquals(tempDir.resolve("runner.wasm").toString(), command.get(command.size() - 1));
     }
 
     @Test
@@ -50,21 +47,21 @@ class WasmScriptRunnerTest {
         TaskOutcome outcome = runner.run(task("echo hello", policy(List.of())),
                 (level, message) -> logs.add(level + ":" + message));
 
-        assertTrue(outcome.success());
-        assertTrue(logs.stream().anyMatch(log -> log.equals("info:[script] wasm-sandbox:echo hello")));
+        Assertions.assertTrue(outcome.success());
+        Assertions.assertTrue(logs.stream().anyMatch(log -> log.equals("info:[script] wasm-sandbox:echo hello")));
     }
 
     @Test
     void rejectsHostGrantsThatWasmBackendDoesNotExpose() throws Exception {
         WasmScriptRunner runner = new WasmScriptRunner(ScriptRunnerKind.SHELL, "wasmtime", List.of());
 
-        assertThrows(ScriptRunnerException.class,
+        Assertions.assertThrows(ScriptRunnerException.class,
                 () -> runner.command(task("echo hello", policy(true, List.of(), List.of(), List.of())),
                         tempDir.resolve("runner.wasm")));
-        assertThrows(ScriptRunnerException.class,
+        Assertions.assertThrows(ScriptRunnerException.class,
                 () -> runner.command(task("echo hello", policy(false, List.of("secret:db"), List.of(), List.of())),
                         tempDir.resolve("runner.wasm")));
-        assertThrows(ScriptRunnerException.class,
+        Assertions.assertThrows(ScriptRunnerException.class,
                 () -> runner.command(task("echo hello", policy(false, List.of(), List.of(), List.of("/data"))),
                         tempDir.resolve("runner.wasm")));
     }

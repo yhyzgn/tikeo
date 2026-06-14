@@ -1,8 +1,9 @@
 package net.tikeo.script;
 
-import net.tikeo.processor.TaskOutcome;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import net.tikeo.processor.TaskOutcome;
 
 /**
  * Deno-backed sandbox runner for JavaScript and TypeScript scripts.
@@ -46,7 +47,7 @@ public final class DenoScriptRunner implements ScriptRunner {
             builder.directory(runtimeDirs.workingDir().toFile());
             configureEnvironment(builder, task, runtimeDirs);
             return ScriptRunnerSupport.runProcess(builder, kind, task, logSink);
-        } catch (java.io.IOException error) {
+        } catch (IOException error) {
             throw new ScriptRunnerException("failed to prepare Deno runtime: " + error.getMessage(), error);
         }
     }

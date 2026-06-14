@@ -25,11 +25,11 @@ from .management import (
     plugin_api_job,
     script_api_job,
 )
+from .sandbox_tools import SandboxToolResolver
 from .script import (
     ContainerScriptRunner,
     DenoScriptRunner,
     LocalCommandScriptRunner,
-    SandboxToolResolver,
     ScriptRunnerRegistry,
     ScriptRunnerTask,
     SrtScriptRunner,

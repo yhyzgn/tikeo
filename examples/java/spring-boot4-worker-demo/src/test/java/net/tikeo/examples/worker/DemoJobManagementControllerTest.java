@@ -1,7 +1,10 @@
 package net.tikeo.examples.worker;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.List;
 import net.tikeo.management.client.TikeoJobClient;
 import net.tikeo.management.model.CreateJobRequest;
 import net.tikeo.management.model.JobDefinition;
@@ -9,11 +12,7 @@ import net.tikeo.management.model.JobInstance;
 import net.tikeo.management.model.JobRetryPolicy;
 import net.tikeo.management.model.TriggerJobRequest;
 import net.tikeo.management.model.UpdateJobRequest;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.util.List;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,24 +36,24 @@ class DemoJobManagementControllerTest {
     @Test
     void exposesApiTypeTaskManagementExample() throws Exception {
         String list = httpGet("/demo/jobs");
-        assertThat(list).contains("demo.echo").contains("\"scheduleType\":\"api\"");
+        Assertions.assertThat(list).contains("demo.echo").contains("\"scheduleType\":\"api\"");
 
         String example = httpPost("/demo/jobs/echo");
-        assertThat(example)
+        Assertions.assertThat(example)
                 .contains("demo managed echo")
                 .contains("\"scheduleType\":\"api\"")
                 .contains("\"triggerType\":\"api\"")
                 .contains("inst-demo");
 
         String scriptExample = httpPost("/demo/jobs/script/script-demo");
-        assertThat(scriptExample)
+        Assertions.assertThat(scriptExample)
                 .contains("demo managed script")
                 .contains("\"scriptId\":\"script-demo\"")
                 .contains("\"triggerType\":\"api\"");
 
         String pluginExample = httpPost("/demo/jobs/plugin/sql");
         log.info("[java-demo-plugin-test] plugin management response={}", pluginExample);
-        assertThat(pluginExample)
+        Assertions.assertThat(pluginExample)
                 .contains("demo managed sql plugin")
                 .contains("\"processorType\":\"sql\"")
                 .contains("\"processorName\":\"billing.sql-sync\"")
@@ -64,14 +63,14 @@ class DemoJobManagementControllerTest {
     private String httpGet(String path) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).GET().build();
         var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        assertThat(response.statusCode()).isEqualTo(200);
+        Assertions.assertThat(response.statusCode()).isEqualTo(200);
         return response.body();
     }
 
     private String httpPost(String path) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).POST(HttpRequest.BodyPublishers.noBody()).build();
         var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
-        assertThat(response.statusCode()).isEqualTo(200);
+        Assertions.assertThat(response.statusCode()).isEqualTo(200);
         return response.body();
     }
 
@@ -92,17 +91,17 @@ class DemoJobManagementControllerTest {
 
         @Override
         public JobDefinition createJob(CreateJobRequest request) {
-            assertThat(request.scheduleType()).isEqualTo("api");
+            Assertions.assertThat(request.scheduleType()).isEqualTo("api");
             if (request.processorType() != null) {
                 log.info("[java-demo-plugin-test] fake create plugin job name={} processorType={} processorName={}",
                         request.name(), request.processorType(), request.processorName());
-                assertThat(request.processorType()).isEqualTo("sql");
-                assertThat(request.processorName()).isEqualTo("billing.sql-sync");
+                Assertions.assertThat(request.processorType()).isEqualTo("sql");
+                Assertions.assertThat(request.processorName()).isEqualTo("billing.sql-sync");
             } else if (request.scriptId() == null) {
-                assertThat(request.processorName()).isEqualTo("demo.echo");
+                Assertions.assertThat(request.processorName()).isEqualTo("demo.echo");
             } else {
-                assertThat(request.processorName()).isNull();
-                assertThat(request.scriptId()).isEqualTo("script-demo");
+                Assertions.assertThat(request.processorName()).isNull();
+                Assertions.assertThat(request.scriptId()).isEqualTo("script-demo");
             }
             return new JobDefinition("job-created", "default", "default", request.name(), "api", null,
                     request.processorType(), request.processorName(), request.scriptId(), true, JobRetryPolicy.defaults());
@@ -118,7 +117,7 @@ class DemoJobManagementControllerTest {
 
         @Override
         public JobInstance triggerJob(String jobId, TriggerJobRequest request) {
-            assertThat(request.triggerType()).isEqualTo("api");
+            Assertions.assertThat(request.triggerType()).isEqualTo("api");
             return new JobInstance("inst-demo", jobId, "pending", "api", "single", "now", "now");
         }
 

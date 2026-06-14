@@ -1,18 +1,8 @@
 package net.tikeo.management.client;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import net.tikeo.management.model.BroadcastSelectorRequest;
-import net.tikeo.management.model.CreateJobRequest;
-import net.tikeo.management.model.JobScheduleType;
-import net.tikeo.management.model.TriggerJobRequest;
-import net.tikeo.management.model.UpdateJobRequest;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.http.HttpClient;
@@ -21,7 +11,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
+import net.tikeo.management.model.BroadcastSelectorRequest;
+import net.tikeo.management.model.CreateJobRequest;
+import net.tikeo.management.model.JobScheduleType;
+import net.tikeo.management.model.TriggerJobRequest;
+import net.tikeo.management.model.UpdateJobRequest;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -54,35 +50,35 @@ class HttpTikeoJobClientTest {
     @Test
     void scopesListAndCreateToConfiguredNamespaceAndApp() {
         var jobs = client.listJobs();
-        assertEquals(1, jobs.size());
-        assertEquals("demo.echo", jobs.get(0).processorName());
+        Assertions.assertEquals(1, jobs.size());
+        Assertions.assertEquals("demo.echo", jobs.get(0).processorName());
 
         var created = client.createJob(CreateJobRequest.api("echo", "demo.echo"));
-        assertEquals("api", created.scheduleType());
+        Assertions.assertEquals("api", created.scheduleType());
 
         RecordedRequest create = requests.stream()
                 .filter(request -> request.method().equals("POST") && request.path().equals("/api/v1/jobs"))
                 .findFirst()
                 .orElseThrow();
-        assertEquals("tk-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCdEfGhIjKlMnOpQrStUv", create.apiKey());
-        assertEquals(true, create.body().contains("\"namespace\":\"default\""));
-        assertEquals(true, create.body().contains("\"app\":\"demo-app\""));
-        assertEquals(true, create.body().contains("\"scheduleType\":\"api\""));
+        Assertions.assertEquals("tk-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCdEfGhIjKlMnOpQrStUv", create.apiKey());
+        Assertions.assertEquals(true, create.body().contains("\"namespace\":\"default\""));
+        Assertions.assertEquals(true, create.body().contains("\"app\":\"demo-app\""));
+        Assertions.assertEquals(true, create.body().contains("\"scheduleType\":\"api\""));
     }
 
     @Test
     void supportsUpdateDisableTriggerAndDelete() {
         var disabled = client.disableJob("job-1");
-        assertFalse(disabled.enabled());
+        Assertions.assertFalse(disabled.enabled());
 
         var updated = client.updateJob("job-1", new UpdateJobRequest("report", JobScheduleType.API.value(), null, null, "demo.report", null, true));
-        assertEquals("demo.report", updated.processorName());
+        Assertions.assertEquals("demo.report", updated.processorName());
 
         var instance = client.triggerJob("job-1", TriggerJobRequest.api());
-        assertEquals("api", instance.triggerType());
+        Assertions.assertEquals("api", instance.triggerType());
 
         client.deleteJob("job-1");
-        assertEquals(true, requests.stream().anyMatch(request -> request.method().equals("DELETE") && request.path().equals("/api/v1/jobs/job-1")));
+        Assertions.assertEquals(true, requests.stream().anyMatch(request -> request.method().equals("DELETE") && request.path().equals("/api/v1/jobs/job-1")));
     }
 
     @Test
@@ -95,17 +91,17 @@ class HttpTikeoJobClientTest {
                         "prod-a",
                         Map.of("worker_pool", "java-blue"))));
 
-        assertEquals("api", instance.triggerType());
+        Assertions.assertEquals("api", instance.triggerType());
 
         RecordedRequest trigger = requests.stream()
                 .filter(request -> request.method().equals("POST") && request.path().equals("/api/v1/jobs/job-1:trigger"))
                 .reduce((first, second) -> second)
                 .orElseThrow();
-        assertTrue(trigger.body().contains("\"triggerType\":\"api\""));
-        assertTrue(trigger.body().contains("\"executionMode\":\"broadcast\""));
-        assertTrue(trigger.body().contains("\"broadcastSelector\""));
-        assertTrue(trigger.body().contains("\"region\":\"us-east-1\""));
-        assertTrue(trigger.body().contains("\"worker_pool\":\"java-blue\""));
+        Assertions.assertTrue(trigger.body().contains("\"triggerType\":\"api\""));
+        Assertions.assertTrue(trigger.body().contains("\"executionMode\":\"broadcast\""));
+        Assertions.assertTrue(trigger.body().contains("\"broadcastSelector\""));
+        Assertions.assertTrue(trigger.body().contains("\"region\":\"us-east-1\""));
+        Assertions.assertTrue(trigger.body().contains("\"worker_pool\":\"java-blue\""));
     }
 
     @Test
@@ -118,8 +114,8 @@ class HttpTikeoJobClientTest {
                 "billing.sql-sync"));
         log.info(() -> "[java-sdk-plugin-test] create response id=%s processorType=%s processorName=%s"
                 .formatted(created.id(), created.processorType(), created.processorName()));
-        assertEquals("sql", created.processorType());
-        assertEquals("billing.sql-sync", created.processorName());
+        Assertions.assertEquals("sql", created.processorType());
+        Assertions.assertEquals("billing.sql-sync", created.processorName());
 
         var updated = client.updateJob("job-1", UpdateJobRequest.apiPlugin(
                 "sql sync v2",
@@ -127,31 +123,31 @@ class HttpTikeoJobClientTest {
                 "billing.sql-sync.v2"));
         log.info(() -> "[java-sdk-plugin-test] update response id=%s processorType=%s processorName=%s"
                 .formatted(updated.id(), updated.processorType(), updated.processorName()));
-        assertEquals("sql", updated.processorType());
-        assertEquals("billing.sql-sync.v2", updated.processorName());
+        Assertions.assertEquals("sql", updated.processorType());
+        Assertions.assertEquals("billing.sql-sync.v2", updated.processorName());
 
         RecordedRequest create = requests.stream()
                 .filter(request -> request.method().equals("POST") && request.path().equals("/api/v1/jobs"))
                 .reduce((first, second) -> second)
                 .orElseThrow();
         log.info(() -> "[java-sdk-plugin-test] create request body=" + create.body());
-        assertTrue(create.body().contains("\"processorType\":\"sql\""));
-        assertTrue(create.body().contains("\"processorName\":\"billing.sql-sync\""));
-        assertTrue(create.body().contains("\"namespace\":\"default\""));
-        assertTrue(create.body().contains("\"app\":\"demo-app\""));
+        Assertions.assertTrue(create.body().contains("\"processorType\":\"sql\""));
+        Assertions.assertTrue(create.body().contains("\"processorName\":\"billing.sql-sync\""));
+        Assertions.assertTrue(create.body().contains("\"namespace\":\"default\""));
+        Assertions.assertTrue(create.body().contains("\"app\":\"demo-app\""));
 
         RecordedRequest update = requests.stream()
                 .filter(request -> request.method().equals("PATCH") && request.path().equals("/api/v1/jobs/job-1"))
                 .reduce((first, second) -> second)
                 .orElseThrow();
         log.info(() -> "[java-sdk-plugin-test] update request body=" + update.body());
-        assertTrue(update.body().contains("\"processorType\":\"sql\""));
-        assertTrue(update.body().contains("\"processorName\":\"billing.sql-sync.v2\""));
+        Assertions.assertTrue(update.body().contains("\"processorType\":\"sql\""));
+        Assertions.assertTrue(update.body().contains("\"processorName\":\"billing.sql-sync.v2\""));
     }
 
     @Test
     void nonSuccessStatusRaisesException() {
-        assertThrows(TikeoManagementException.class, () -> client.deleteJob("missing"));
+        Assertions.assertThrows(TikeoManagementException.class, () -> client.deleteJob("missing"));
     }
 
     private void handleJobs(HttpExchange exchange) throws IOException {

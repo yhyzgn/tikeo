@@ -1,10 +1,11 @@
 package net.tikeo.script;
 
-import net.tikeo.processor.TaskOutcome;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import net.tikeo.processor.TaskOutcome;
 
 /**
  * Development-only local subprocess runner for dynamic scripts.
@@ -52,7 +53,7 @@ public final class LocalSubprocessScriptRunner implements ScriptRunner {
         try {
             script = Files.createTempFile("tikeo-rhai-script-", ".rhai");
             Files.writeString(script, task.content());
-            java.util.ArrayList<String> command = new java.util.ArrayList<>(command(task));
+            ArrayList<String> command = new ArrayList<>(command(task));
             command.add(script.toString());
             ProcessBuilder builder = new ProcessBuilder(command);
             configureEnvironment(builder, task);
@@ -86,7 +87,7 @@ public final class LocalSubprocessScriptRunner implements ScriptRunner {
     List<String> command(ScriptRunnerTask task) {
         ScriptRunnerSupport.validateTask(kind, task);
         validateDevelopmentOnlyPolicy(task);
-        java.util.ArrayList<String> resolved = new java.util.ArrayList<>();
+        ArrayList<String> resolved = new ArrayList<>();
         resolved.add(command);
         resolved.addAll(args);
         return resolved;

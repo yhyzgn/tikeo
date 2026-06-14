@@ -1,5 +1,6 @@
 package net.tikeo.logging;
 
+import java.util.Locale;
 import java.util.Objects;
 import net.tikeo.processor.TaskLogger;
 import org.slf4j.MDC;
@@ -91,7 +92,7 @@ public final class TikeoTaskLogScope {
         if (level == null || level.isBlank()) {
             return "info";
         }
-        String normalized = level.toLowerCase(java.util.Locale.ROOT);
+        String normalized = level.toLowerCase(Locale.ROOT);
         return normalized.equals("error") ? "error" : "info";
     }
 

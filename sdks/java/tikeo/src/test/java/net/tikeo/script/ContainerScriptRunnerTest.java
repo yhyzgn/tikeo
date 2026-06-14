@@ -1,12 +1,10 @@
 package net.tikeo.script;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class ContainerScriptRunnerTest {
@@ -20,13 +18,13 @@ class ContainerScriptRunnerTest {
 
         List<String> command = runner.command(task("echo hello", policy(false, List.of(), List.of())));
 
-        assertTrue(command.contains("--network=none"));
-        assertTrue(command.contains("--read-only"));
-        assertTrue(command.contains("/tmp:rw,noexec,nosuid,size=16m"));
-        assertTrue(command.contains("--memory=1048576"));
-        assertTrue(command.contains("--cpus=1"));
-        assertTrue(command.contains("alpine:3.20"));
-        assertTrue(command.subList(command.size() - 2, command.size()).equals(List.of("sh", "-s")));
+        Assertions.assertTrue(command.contains("--network=none"));
+        Assertions.assertTrue(command.contains("--read-only"));
+        Assertions.assertTrue(command.contains("/tmp:rw,noexec,nosuid,size=16m"));
+        Assertions.assertTrue(command.contains("--memory=1048576"));
+        Assertions.assertTrue(command.contains("--cpus=1"));
+        Assertions.assertTrue(command.contains("alpine:3.20"));
+        Assertions.assertTrue(command.subList(command.size() - 2, command.size()).equals(List.of("sh", "-s")));
     }
 
     @Test
@@ -41,16 +39,16 @@ class ContainerScriptRunnerTest {
                 "bad-digest",
                 policy(false, List.of(), List.of()));
 
-        assertThrows(ScriptRunnerException.class, () -> runner.command(task));
+        Assertions.assertThrows(ScriptRunnerException.class, () -> runner.command(task));
     }
 
     @Test
     void rejectsNetworkAndSecretGrantsUnlessDedicatedSandboxCanEnforceThem() throws Exception {
         ContainerScriptRunner runner = new ContainerScriptRunner(ScriptRunnerKind.SHELL, "alpine:3.20");
 
-        assertThrows(ScriptRunnerException.class,
+        Assertions.assertThrows(ScriptRunnerException.class,
                 () -> runner.command(task("echo hello", policy(true, List.of(), List.of()))));
-        assertThrows(ScriptRunnerException.class,
+        Assertions.assertThrows(ScriptRunnerException.class,
                 () -> runner.command(task("echo hello", policy(false, List.of("secret:db"), List.of()))));
     }
 
@@ -58,9 +56,9 @@ class ContainerScriptRunnerTest {
     void mountsOnlyCleanAbsoluteFileGrants() throws Exception {
         ContainerScriptRunner runner = new ContainerScriptRunner(ScriptRunnerKind.SHELL, "alpine:3.20");
 
-        assertTrue(runner.command(task("cat /data/input", policy(false, List.of(), List.of("/data/input"))))
+        Assertions.assertTrue(runner.command(task("cat /data/input", policy(false, List.of(), List.of("/data/input"))))
                 .contains("type=bind,src=/data/input,dst=/data/input,readonly"));
-        assertThrows(ScriptRunnerException.class,
+        Assertions.assertThrows(ScriptRunnerException.class,
                 () -> runner.command(task("cat x", policy(false, List.of(), List.of("../bad")))));
     }
 

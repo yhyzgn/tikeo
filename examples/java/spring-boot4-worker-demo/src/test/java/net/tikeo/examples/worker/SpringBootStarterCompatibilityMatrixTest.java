@@ -1,11 +1,10 @@
 package net.tikeo.examples.worker;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /** Verifies this standalone demo uses its matching Spring Boot starter artifact. */
@@ -19,10 +18,10 @@ class SpringBootStarterCompatibilityMatrixTest {
         String build = Files.readString(DEMO_ROOT.resolve("build.gradle.kts"));
         String readme = Files.readString(DEMO_ROOT.resolve("README.md"));
 
-        assertThat(build)
+        Assertions.assertThat(build)
                 .contains("4.0.6")
                 .contains("net.tikeo:tikeo-spring-boot-starter:0.2.0");
-        assertThat(readme)
+        Assertions.assertThat(readme)
                 .contains("Spring Boot 4.x")
                 .contains("tikeo-spring-boot-starter");
     }
@@ -32,13 +31,13 @@ class SpringBootStarterCompatibilityMatrixTest {
         String settings = Files.readString(JAVA_SDK_ROOT.resolve("settings.gradle.kts"));
         String sdkReadme = Files.readString(JAVA_SDK_ROOT.resolve("README.md"));
 
-        assertThat(settings)
+        Assertions.assertThat(settings)
                 .contains("tikeo-spring-boot-starter")
                 .contains("tikeo-spring-boot2-starter")
                 .contains("tikeo-spring-boot3-starter")
                 .contains("tikeo-spring5")
                 .contains("tikeo-spring6");
-        assertThat(sdkReadme)
+        Assertions.assertThat(sdkReadme)
                 .contains("primary Spring Boot 4.x starter")
                 .contains("Spring Boot 2.x projects")
                 .contains("Spring Boot 3.x projects");
@@ -56,17 +55,17 @@ class SpringBootStarterCompatibilityMatrixTest {
 
     private static void assertRealStarterModule(String module) throws IOException {
         Path moduleRoot = JAVA_SDK_ROOT.resolve(module);
-        assertThat(countJavaSources(moduleRoot.resolve("src/main/java")))
+        Assertions.assertThat(countJavaSources(moduleRoot.resolve("src/main/java")))
                 .as(module + " main Java source count")
                 .isGreaterThanOrEqualTo(4);
-        assertThat(countJavaSources(moduleRoot.resolve("src/test/java")))
+        Assertions.assertThat(countJavaSources(moduleRoot.resolve("src/test/java")))
                 .as(module + " test Java source count")
                 .isGreaterThanOrEqualTo(1);
-        assertThat(moduleRoot.resolve("src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports"))
+        Assertions.assertThat(moduleRoot.resolve("src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports"))
                 .as(module + " Boot 2.7+/3/4 metadata")
                 .exists();
         if (module.endsWith("boot2-starter")) {
-            assertThat(moduleRoot.resolve("src/main/resources/META-INF/spring.factories"))
+            Assertions.assertThat(moduleRoot.resolve("src/main/resources/META-INF/spring.factories"))
                     .as(module + " Boot 2 metadata")
                     .exists();
         }
@@ -74,16 +73,16 @@ class SpringBootStarterCompatibilityMatrixTest {
 
     private static void assertRealSpringAdapterModule(String module) throws IOException {
         Path moduleRoot = JAVA_SDK_ROOT.resolve(module);
-        assertThat(countJavaSources(moduleRoot.resolve("src/main/java")))
+        Assertions.assertThat(countJavaSources(moduleRoot.resolve("src/main/java")))
                 .as(module + " main Java source count")
                 .isGreaterThanOrEqualTo(4);
-        assertThat(countJavaSources(moduleRoot.resolve("src/test/java")))
+        Assertions.assertThat(countJavaSources(moduleRoot.resolve("src/test/java")))
                 .as(module + " test Java source count")
                 .isGreaterThanOrEqualTo(1);
     }
 
     private static long countJavaSources(Path dir) throws IOException {
-        assertThat(dir).exists().isDirectory();
+        Assertions.assertThat(dir).exists().isDirectory();
         try (var stream = Files.walk(dir)) {
             return stream.filter(path -> path.toString().endsWith(".java")).count();
         }

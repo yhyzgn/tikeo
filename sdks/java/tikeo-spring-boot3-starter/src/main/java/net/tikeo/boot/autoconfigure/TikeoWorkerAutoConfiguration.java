@@ -1,5 +1,12 @@
 package net.tikeo.boot.autoconfigure;
 
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import net.tikeo.boot.lifecycle.TikeoWorkerLifecycle;
 import net.tikeo.management.client.HttpTikeoJobClient;
 import net.tikeo.management.client.TikeoJobClient;
@@ -7,9 +14,9 @@ import net.tikeo.sandbox.SandboxToolResolver;
 import net.tikeo.script.ContainerScriptRunner;
 import net.tikeo.script.DenoScriptRunner;
 import net.tikeo.script.ScriptRunnerKind;
+import net.tikeo.script.ScriptRunnerRegistry;
 import net.tikeo.script.SrtScriptRunner;
 import net.tikeo.script.UnavailableScriptRunner;
-import net.tikeo.script.ScriptRunnerRegistry;
 import net.tikeo.spring.processor.TikeoProcessorRegistry;
 import net.tikeo.spring.worker.SpringTikeoTaskProcessor;
 import net.tikeo.wasm.CliWasmtimeRunner;
@@ -21,12 +28,6 @@ import net.tikeo.worker.client.GrpcTikeoWorkerClient;
 import net.tikeo.worker.client.NoopTikeoWorkerClient;
 import net.tikeo.worker.client.TikeoWorkerClient;
 import net.tikeo.worker.identity.ClientInstanceIds;
-import java.nio.file.Path;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -82,7 +83,7 @@ public class TikeoWorkerAutoConfiguration {
                       properties.getApp(),
                       properties.getCluster(),
                       properties.getRegion(),
-                      java.nio.file.Path.of(properties.getStateDir())
+                      Path.of(properties.getStateDir())
                   );
         var registration = new WorkerRegistration(
             clientInstanceId,
@@ -364,7 +365,7 @@ public class TikeoWorkerAutoConfiguration {
         }
     }
 
-    private static java.util.Optional<String> resolveSrtInterpreter(
+    private static Optional<String> resolveSrtInterpreter(
         ScriptRunnerKind kind,
         SandboxToolResolver resolver
     ) {
@@ -385,7 +386,7 @@ public class TikeoWorkerAutoConfiguration {
         String ripgrepCommand,
         String interpreterCommand
     ) {
-        java.util.LinkedHashSet<String> entries = new java.util.LinkedHashSet<>();
+        LinkedHashSet<String> entries = new LinkedHashSet<>();
         for (String command : List.of(runtimeCommand, ripgrepCommand, interpreterCommand)) {
             toolPathEntry(command).ifPresent(entries::add);
         }
@@ -394,15 +395,15 @@ public class TikeoWorkerAutoConfiguration {
         return List.copyOf(entries);
     }
 
-    private static java.util.Optional<String> toolPathEntry(String command) {
+    private static Optional<String> toolPathEntry(String command) {
         if (command == null || command.isBlank()) {
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
         try {
-            java.nio.file.Path parent = java.nio.file.Path.of(command).getParent();
-            return parent == null ? java.util.Optional.empty() : java.util.Optional.of(parent.toString());
+            Path parent = Path.of(command).getParent();
+            return parent == null ? Optional.empty() : Optional.of(parent.toString());
         } catch (Exception ignored) {
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
     }
 

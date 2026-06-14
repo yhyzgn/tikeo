@@ -1,7 +1,7 @@
 import { ConfigProvider, theme } from 'antd';
 import antdEnUS from 'antd/locale/en_US';
 import antdZhCN from 'antd/locale/zh_CN';
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 
 import { getAuthToken, getBootstrapStatus, logout, setAuthErrorHandler, setAuthToken, type BootstrapStatusResponse } from './api/client';
@@ -58,7 +58,7 @@ const KEEP_ALIVE_ROUTES = [
   { path: ROUTE_META.audit.path, element: <GuardedRoute route={ROUTE_META.audit}><AuditLogsPage /></GuardedRoute> },
 ];
 
-function GuardedRoute({ route, children }: { route: { permission?: { resource: string; action: string } }; children: React.ReactNode }) {
+function GuardedRoute({ route, children }: { route: { permission?: { resource: string; action: string } }; children: ReactNode }) {
   if (!route.permission) return <>{children}</>;
   return <RequirePermission resource={route.permission.resource} action={route.permission.action}>{children}</RequirePermission>;
 }

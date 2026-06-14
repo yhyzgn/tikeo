@@ -1,13 +1,12 @@
 package net.tikeo.logging;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import java.util.ArrayList;
 import java.util.List;
 import net.tikeo.processor.TaskLogger;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
@@ -42,9 +41,9 @@ class TikeoTaskLogbackAppenderTest {
         });
         logger.info("outside after should not be captured");
 
-        assertEquals(2, logs.size());
-        assertEquals("info:hello task", logs.get(0));
-        assertEquals(true, logs.get(1).startsWith("error:failed task"));
-        assertEquals(true, logs.get(1).contains("java.lang.IllegalStateException: boom"));
+        Assertions.assertEquals(2, logs.size());
+        Assertions.assertEquals("info:hello task", logs.get(0));
+        Assertions.assertEquals(true, logs.get(1).startsWith("error:failed task"));
+        Assertions.assertEquals(true, logs.get(1).contains("java.lang.IllegalStateException: boom"));
     }
 }

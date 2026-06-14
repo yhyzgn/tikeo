@@ -1,13 +1,15 @@
 package net.tikeo.script;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import net.tikeo.processor.TaskOutcome;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import net.tikeo.processor.TaskOutcome;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -46,8 +48,8 @@ class SrtScriptRunnerTest {
             (level, message) -> logs.add(level + ":" + message)
         );
 
-        assertTrue(outcome.success(), outcome.message());
-        assertTrue(
+        Assertions.assertTrue(outcome.success(), outcome.message());
+        Assertions.assertTrue(
             logs.stream().anyMatch(log -> log.equals("info:[script] srt-shell-ok"))
         );
     }
@@ -80,9 +82,9 @@ class SrtScriptRunnerTest {
 
         TaskOutcome outcome = runner.run(task("rhai", "print(\"ok\");"));
 
-        assertTrue(!outcome.success());
-        assertTrue(outcome.message().contains("Syntax error"));
-        assertTrue(outcome.message().contains("manual-acceptance"));
+        Assertions.assertTrue(!outcome.success());
+        Assertions.assertTrue(outcome.message().contains("Syntax error"));
+        Assertions.assertTrue(outcome.message().contains("manual-acceptance"));
     }
 
     @Test
@@ -113,15 +115,15 @@ class SrtScriptRunnerTest {
 
             TaskOutcome outcome = runner.run(task(item.language, item.content, List.of("HOME", "TMPDIR", "CLAUDE_CODE_TMPDIR")));
 
-            assertTrue(outcome.success(), item.language + " outcome=" + outcome.message());
+            Assertions.assertTrue(outcome.success(), item.language + " outcome=" + outcome.message());
             Map<String, String> values = reportValues(report);
-            assertTrue(values.get("cwd").equals(values.get("home")), item.language + " should start in sandbox HOME: " + values);
-            assertTrue(values.get("home").contains("tikeo-srt-" + item.kind.value() + "-runtime"), values.toString());
+            Assertions.assertTrue(values.get("cwd").equals(values.get("home")), item.language + " should start in sandbox HOME: " + values);
+            Assertions.assertTrue(values.get("home").contains("tikeo-srt-" + item.kind.value() + "-runtime"), values.toString());
             Path runtimeRoot = Path.of(values.get("home")).getParent();
-            assertTrue(Path.of(values.get("tmp")).equals(runtimeRoot.resolve("tmp")), values.toString());
-            assertTrue(values.get("claude_tmp").equals(values.get("tmp")), values.toString());
+            Assertions.assertTrue(Path.of(values.get("tmp")).equals(runtimeRoot.resolve("tmp")), values.toString());
+            Assertions.assertTrue(values.get("claude_tmp").equals(values.get("tmp")), values.toString());
             if (item.kind == ScriptRunnerKind.RHAI) {
-                assertTrue(values.get("args").contains("/home/script-"), values.get("args"));
+                Assertions.assertTrue(values.get("args").contains("/home/script-"), values.get("args"));
             }
         }
     }
@@ -129,11 +131,11 @@ class SrtScriptRunnerTest {
     private record Case(ScriptRunnerKind kind, String language, String interpreter, String content) {}
 
     private static String sha256(String content) throws Exception {
-        java.security.MessageDigest digest = java.security.MessageDigest.getInstance(
+        MessageDigest digest = MessageDigest.getInstance(
             "SHA-256"
         );
         byte[] hash = digest.digest(
-            content.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+            content.getBytes(StandardCharsets.UTF_8)
         );
         StringBuilder builder = new StringBuilder();
         for (byte value : hash) {
@@ -174,7 +176,7 @@ class SrtScriptRunnerTest {
     }
 
     private static Map<String, String> reportValues(Path report) throws Exception {
-        Map<String, String> values = new java.util.LinkedHashMap<>();
+        Map<String, String> values = new LinkedHashMap<>();
         for (String line : Files.readString(report).split("\\R")) {
             int index = line.indexOf('=');
             if (index > 0) {

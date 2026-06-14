@@ -1,25 +1,8 @@
 package net.tikeo.worker.client;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import net.tikeo.processor.ProcessorCapabilityProvider;
-import net.tikeo.processor.TaskContext;
-import net.tikeo.processor.TaskOutcome;
-import net.tikeo.processor.TaskProcessor;
-import net.tikeo.logging.TikeoTaskLogbackAppender;
-import net.tikeo.worker.WorkerRegistration;
-import net.tikeo.wasm.WasmRunnerRegistry;
-import net.tikeo.wasm.WasmRunnerTask;
-import net.tikeo.script.ScriptRunner;
-import net.tikeo.script.ScriptRunnerKind;
-import net.tikeo.script.ScriptRunnerLogSink;
-import net.tikeo.script.ScriptRunnerRegistry;
-import net.tikeo.script.ScriptRunnerTask;
-
-import tikeo.worker.v1.Worker;
-import tikeo.worker.v1.WorkerTunnelServiceGrpc;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import io.grpc.inprocess.InProcessChannelBuilder;
@@ -30,18 +13,32 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
-import java.util.HexFormat;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import net.tikeo.logging.TikeoTaskLogbackAppender;
+import net.tikeo.processor.ProcessorCapabilityProvider;
+import net.tikeo.processor.TaskContext;
+import net.tikeo.processor.TaskOutcome;
+import net.tikeo.processor.TaskProcessor;
+import net.tikeo.script.ScriptRunner;
+import net.tikeo.script.ScriptRunnerKind;
+import net.tikeo.script.ScriptRunnerLogSink;
+import net.tikeo.script.ScriptRunnerRegistry;
+import net.tikeo.script.ScriptRunnerTask;
+import net.tikeo.wasm.WasmRunnerRegistry;
+import net.tikeo.wasm.WasmRunnerTask;
+import net.tikeo.worker.WorkerRegistration;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
 import org.slf4j.LoggerFactory;
+import tikeo.worker.v1.Worker;
+import tikeo.worker.v1.WorkerTunnelServiceGrpc;
 
 class GrpcTikeoWorkerClientTest {
     @Test
@@ -78,21 +75,21 @@ class GrpcTikeoWorkerClientTest {
             client.emitLog("instance-1", "info", "hello");
             service.awaitTaskLogs(1);
 
-            assertEquals("assigned-java-worker", client.workerId());
+            Assertions.assertEquals("assigned-java-worker", client.workerId());
             awaitConnected(client);
             client.close();
             service.awaitUnregister();
             Worker.RegisterWorker register = service.messages.get(0).getRegister();
-            assertEquals("java-instance-1", register.getClientInstanceId());
-            assertTrue(register.getCapabilitiesList().contains("java"));
-            assertTrue(register.getElection().getEnabled());
-            assertEquals("", register.getElection().getDomain());
-            assertEquals(100, register.getElection().getPriority());
-            assertTrue(register.getStructuredCapabilities().getSdkProcessorsList().stream()
+            Assertions.assertEquals("java-instance-1", register.getClientInstanceId());
+            Assertions.assertTrue(register.getCapabilitiesList().contains("java"));
+            Assertions.assertTrue(register.getElection().getEnabled());
+            Assertions.assertEquals("", register.getElection().getDomain());
+            Assertions.assertEquals(100, register.getElection().getPriority());
+            Assertions.assertTrue(register.getStructuredCapabilities().getSdkProcessorsList().stream()
                     .anyMatch(item -> "demo.echo".equals(item.getName())));
-            assertTrue(service.hasHeartbeat("assigned-java-worker", 1, "java-fencing-token"));
-            assertTrue(service.hasTaskLogFrom("assigned-java-worker"));
-            assertTrue(service.hasUnregister("assigned-java-worker", 1, "java-fencing-token"));
+            Assertions.assertTrue(service.hasHeartbeat("assigned-java-worker", 1, "java-fencing-token"));
+            Assertions.assertTrue(service.hasTaskLogFrom("assigned-java-worker"));
+            Assertions.assertTrue(service.hasUnregister("assigned-java-worker", 1, "java-fencing-token"));
         } finally {
             channel.shutdownNow();
             server.shutdownNow();
@@ -136,9 +133,9 @@ class GrpcTikeoWorkerClientTest {
             service.awaitUnregister();
 
             Worker.UnregisterWorker unregister = service.unregister.get();
-            assertEquals("assigned-java-worker", unregister.getWorkerId());
-            assertEquals(1, unregister.getGeneration());
-            assertEquals("java-fencing-token", unregister.getFencingToken());
+            Assertions.assertEquals("assigned-java-worker", unregister.getWorkerId());
+            Assertions.assertEquals(1, unregister.getGeneration());
+            Assertions.assertEquals("java-fencing-token", unregister.getFencingToken());
         } finally {
             channel.shutdownNow();
             server.shutdownNow();
@@ -152,7 +149,7 @@ class GrpcTikeoWorkerClientTest {
                 .setJobId("job-1")
                 .setProcessorName("demo.echo")
                 .setInstanceId("instance-1")
-                .setPayload(com.google.protobuf.ByteString.copyFromUtf8("hello"))
+                .setPayload(ByteString.copyFromUtf8("hello"))
                 .setAssignmentToken("java-assign-token")
                 .build());
         Server server = InProcessServerBuilder.forName(serverName)
@@ -179,17 +176,17 @@ class GrpcTikeoWorkerClientTest {
             service.awaitResult();
             client.close();
 
-            assertEquals("instance-1", observed.get().instanceId());
-            assertEquals("demo.echo", observed.get().processorName());
+            Assertions.assertEquals("instance-1", observed.get().instanceId());
+            Assertions.assertEquals("demo.echo", observed.get().processorName());
             Worker.TaskResult result = service.result.get();
-            assertTrue(result.getSuccess());
-            assertEquals("assigned-java-worker", result.getWorkerId());
-            assertEquals("java-assign-token", result.getAssignmentToken());
+            Assertions.assertTrue(result.getSuccess());
+            Assertions.assertEquals("assigned-java-worker", result.getWorkerId());
+            Assertions.assertEquals("java-assign-token", result.getAssignmentToken());
             service.awaitTaskLogs(2);
-            assertTrue(service.taskLogs.stream()
+            Assertions.assertTrue(service.taskLogs.stream()
                     .anyMatch(log -> log.getMessage().contains("received task instance-1")
                             && log.getAssignmentToken().equals("java-assign-token")));
-            assertTrue(service.taskLogs.stream()
+            Assertions.assertTrue(service.taskLogs.stream()
                     .anyMatch(log -> log.getMessage().contains("completed task instance-1 success=true")
                             && log.getAssignmentToken().equals("java-assign-token")));
         } finally {
@@ -205,7 +202,7 @@ class GrpcTikeoWorkerClientTest {
                 .setJobId("job-sql")
                 .setProcessorName("billing.sql-sync")
                 .setInstanceId("instance-sql")
-                .setPayload(com.google.protobuf.ByteString.copyFromUtf8("{}"))
+                .setPayload(ByteString.copyFromUtf8("{}"))
                 .setAssignmentToken("java-assign-token")
                 .build());
         Server server = InProcessServerBuilder.forName(serverName)
@@ -243,12 +240,12 @@ class GrpcTikeoWorkerClientTest {
             }
 
             String processorLog = "[billing.sql-sync] plugin SQL processor received payload='{}'";
-            assertTrue(service.taskLogs.stream()
+            Assertions.assertTrue(service.taskLogs.stream()
                     .anyMatch(log -> log.getMessage().contains(processorLog)
                             && log.getAssignmentToken().equals("java-assign-token")));
-            assertTrue(service.taskLogs.stream()
+            Assertions.assertTrue(service.taskLogs.stream()
                     .noneMatch(log -> log.getMessage().contains("stdout should stay console-only")));
-            assertTrue(console.toString(StandardCharsets.UTF_8).contains("stdout should stay console-only"));
+            Assertions.assertTrue(console.toString(StandardCharsets.UTF_8).contains("stdout should stay console-only"));
         } finally {
             channel.shutdownNow();
             server.shutdownNow();
@@ -272,7 +269,7 @@ class GrpcTikeoWorkerClientTest {
                 .setJobId("job-logback")
                 .setProcessorName("demo.logback")
                 .setInstanceId("instance-logback")
-                .setPayload(com.google.protobuf.ByteString.copyFromUtf8("{}"))
+                .setPayload(ByteString.copyFromUtf8("{}"))
                 .setAssignmentToken("java-assign-token")
                 .build());
         Server server = InProcessServerBuilder.forName(serverName)
@@ -302,15 +299,15 @@ class GrpcTikeoWorkerClientTest {
             client.close();
             scopedLogger.info("after task should not be captured");
 
-            assertTrue(service.taskLogs.stream()
+            Assertions.assertTrue(service.taskLogs.stream()
                     .anyMatch(log -> log.getLevel().equals("info")
                             && log.getMessage().contains("ordinary info payload={}")
                             && log.getAssignmentToken().equals("java-assign-token")));
-            assertTrue(service.taskLogs.stream()
+            Assertions.assertTrue(service.taskLogs.stream()
                     .anyMatch(log -> log.getLevel().equals("error")
                             && log.getMessage().contains("ordinary error instance=instance-logback")
                             && log.getAssignmentToken().equals("java-assign-token")));
-            assertTrue(service.taskLogs.stream()
+            Assertions.assertTrue(service.taskLogs.stream()
                     .noneMatch(log -> log.getMessage().contains("outside task should not be captured")
                             || log.getMessage().contains("after task should not be captured")));
         } finally {
@@ -345,7 +342,7 @@ class GrpcTikeoWorkerClientTest {
             service.awaitServerCompleted();
             service.awaitRegisterCount(2);
 
-            assertEquals("assigned-java-worker", client.workerId());
+            Assertions.assertEquals("assigned-java-worker", client.workerId());
             awaitConnected(client);
             client.close();
         } finally {
@@ -380,8 +377,8 @@ class GrpcTikeoWorkerClientTest {
             service.awaitServerCompleted();
             service.awaitRegisterCount(2);
 
-            assertEquals("assigned-java-worker", client.workerId());
-            assertTrue(client.connected());
+            Assertions.assertEquals("assigned-java-worker", client.workerId());
+            Assertions.assertTrue(client.connected());
             client.close();
         } finally {
             channel.shutdownNow();
@@ -421,7 +418,7 @@ class GrpcTikeoWorkerClientTest {
             client.close();
 
             Worker.RegisterWorker register = service.messages.get(0).getRegister();
-            assertTrue(register.getStructuredCapabilities().getScriptRunnersList().stream()
+            Assertions.assertTrue(register.getStructuredCapabilities().getScriptRunnersList().stream()
                     .anyMatch(runner -> "wasm".equals(runner.getLanguage())));
         } finally {
             channel.shutdownNow();
@@ -472,12 +469,12 @@ class GrpcTikeoWorkerClientTest {
             service.awaitResult();
             client.close();
 
-            assertNull(observed.get(), "unregistered wasm binding must not invoke the Java processor");
+            Assertions.assertNull(observed.get(), "unregistered wasm binding must not invoke the Java processor");
             Worker.TaskResult result = service.result.get();
-            assertEquals("assigned-java-worker", result.getWorkerId());
-            assertEquals("instance-wasm", result.getInstanceId());
-            assertTrue(!result.getSuccess());
-            assertTrue(result.getMessage().contains("wasm runner is not registered"));
+            Assertions.assertEquals("assigned-java-worker", result.getWorkerId());
+            Assertions.assertEquals("instance-wasm", result.getInstanceId());
+            Assertions.assertTrue(!result.getSuccess());
+            Assertions.assertTrue(result.getMessage().contains("wasm runner is not registered"));
         } finally {
             channel.shutdownNow();
             server.shutdownNow();
@@ -487,7 +484,7 @@ class GrpcTikeoWorkerClientTest {
     @Test
     void wasmBoundDispatchUsesRegisteredSandboxRunner() throws Exception {
         String serverName = "tikeo-worker-test-" + UUID.randomUUID();
-        byte[] module = "wasm-module".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] module = "wasm-module".getBytes(StandardCharsets.UTF_8);
         RecordingTunnelService service = new RecordingTunnelService(Worker.DispatchTask.newBuilder()
                 .setJobId("job-wasm")
                 .setProcessorName("script:wasm")
@@ -496,7 +493,7 @@ class GrpcTikeoWorkerClientTest {
                         .setWasm(Worker.WasmProcessorBinding.newBuilder()
                                 .setScriptId("script_wasm")
                                 .setVersion("1.0.0")
-                                .setModule(com.google.protobuf.ByteString.copyFrom(module))
+                                .setModule(ByteString.copyFrom(module))
                                 .setRuntime("wasmtime")
                                 .setEntrypoint("_start")
                                 .setTimeoutMs(1000)
@@ -543,12 +540,12 @@ class GrpcTikeoWorkerClientTest {
             service.awaitTaskLogs(3);
             client.close();
 
-            assertNull(observedProcessor.get(), "wasm binding must not invoke SDK processor handlers");
-            assertEquals("script_wasm", observedWasm.get().scriptId());
+            Assertions.assertNull(observedProcessor.get(), "wasm binding must not invoke SDK processor handlers");
+            Assertions.assertEquals("script_wasm", observedWasm.get().scriptId());
             Worker.TaskResult result = service.result.get();
-            assertTrue(result.getSuccess());
-            assertEquals("wasm ok", result.getMessage());
-            assertTrue(service.taskLogs.stream()
+            Assertions.assertTrue(result.getSuccess());
+            Assertions.assertEquals("wasm ok", result.getMessage());
+            Assertions.assertTrue(service.taskLogs.stream()
                     .anyMatch(log -> log.getMessage().contains("[wasm] hello from sandbox")));
         } finally {
             channel.shutdownNow();
@@ -568,7 +565,7 @@ class GrpcTikeoWorkerClientTest {
                                 .setScriptId("script_shell")
                                 .setVersion("1.0.0")
                                 .setLanguage("shell")
-                                .setContent(com.google.protobuf.ByteString.copyFromUtf8("exit 0"))
+                                .setContent(ByteString.copyFromUtf8("exit 0"))
                                 .setVersionId("sv_1")
                                 .setVersionNumber(1)
                                 .setContentSha256(sha256("exit 0"))
@@ -607,12 +604,12 @@ class GrpcTikeoWorkerClientTest {
             service.awaitResult();
             client.close();
 
-            assertNull(observed.get(), "unsupported script binding must not invoke the Java processor");
+            Assertions.assertNull(observed.get(), "unsupported script binding must not invoke the Java processor");
             Worker.TaskResult result = service.result.get();
-            assertEquals("assigned-java-worker", result.getWorkerId());
-            assertEquals("instance-script", result.getInstanceId());
-            assertTrue(!result.getSuccess());
-            assertTrue(result.getMessage().contains("script runner is not registered"));
+            Assertions.assertEquals("assigned-java-worker", result.getWorkerId());
+            Assertions.assertEquals("instance-script", result.getInstanceId());
+            Assertions.assertTrue(!result.getSuccess());
+            Assertions.assertTrue(result.getMessage().contains("script runner is not registered"));
         } finally {
             channel.shutdownNow();
             server.shutdownNow();
@@ -633,7 +630,7 @@ class GrpcTikeoWorkerClientTest {
                                 .setScriptId("script_shell")
                                 .setVersion("1.0.0")
                                 .setLanguage("shell")
-                                .setContent(com.google.protobuf.ByteString.copyFromUtf8(script))
+                                .setContent(ByteString.copyFromUtf8(script))
                                 .setVersionId("sv_1")
                                 .setVersionNumber(1)
                                 .setContentSha256(sha256(script))
@@ -698,17 +695,17 @@ class GrpcTikeoWorkerClientTest {
                 System.setOut(originalOut);
             }
 
-            assertNull(observedProcessor.get(), "script binding must not invoke SDK processor handlers");
-            assertEquals("script_shell", observedScript.get().scriptId());
-            assertEquals("shell", observedScript.get().language());
+            Assertions.assertNull(observedProcessor.get(), "script binding must not invoke SDK processor handlers");
+            Assertions.assertEquals("script_shell", observedScript.get().scriptId());
+            Assertions.assertEquals("shell", observedScript.get().language());
             Worker.TaskResult result = service.result.get();
-            assertTrue(result.getSuccess());
-            assertEquals("script ok", result.getMessage());
+            Assertions.assertTrue(result.getSuccess());
+            Assertions.assertEquals("script ok", result.getMessage());
             String scriptLog = "[script] hello from sandbox";
-            assertEquals(1, service.taskLogs.stream()
+            Assertions.assertEquals(1, service.taskLogs.stream()
                     .filter(log -> log.getMessage().contains(scriptLog))
                     .count());
-            assertTrue(console.toString(StandardCharsets.UTF_8).contains("[tikeo-worker] " + scriptLog));
+            Assertions.assertTrue(console.toString(StandardCharsets.UTF_8).contains("[tikeo-worker] " + scriptLog));
         } finally {
             channel.shutdownNow();
             server.shutdownNow();
@@ -724,7 +721,7 @@ class GrpcTikeoWorkerClientTest {
             }
             TimeUnit.MILLISECONDS.sleep(20);
         }
-        assertTrue(client.connected(), "expected client to become connected after reconnect registration");
+        Assertions.assertTrue(client.connected(), "expected client to become connected after reconnect registration");
     }
 
     private static int countOccurrences(String value, String needle) {
@@ -842,15 +839,15 @@ class GrpcTikeoWorkerClientTest {
                         return;
                     }
                 }
-                assertTrue(messageLatch.await(500, TimeUnit.MILLISECONDS));
+                Assertions.assertTrue(messageLatch.await(500, TimeUnit.MILLISECONDS));
             }
             synchronized (messages) {
-                assertTrue(messages.size() >= count, "expected at least " + count + " messages but got " + messages.size());
+                Assertions.assertTrue(messages.size() >= count, "expected at least " + count + " messages but got " + messages.size());
             }
         }
 
         private void awaitResult() throws InterruptedException {
-            assertTrue(resultLatch.await(2, TimeUnit.SECONDS));
+            Assertions.assertTrue(resultLatch.await(2, TimeUnit.SECONDS));
         }
 
         private void awaitTaskLogs(int count) throws InterruptedException {
@@ -864,16 +861,16 @@ class GrpcTikeoWorkerClientTest {
                 TimeUnit.MILLISECONDS.sleep(50);
             }
             synchronized (taskLogs) {
-                assertTrue(taskLogs.size() >= count, "expected at least " + count + " task logs but got " + taskLogs.size());
+                Assertions.assertTrue(taskLogs.size() >= count, "expected at least " + count + " task logs but got " + taskLogs.size());
             }
         }
 
         private void awaitUnregister() throws InterruptedException {
-            assertTrue(unregisterLatch.await(2, TimeUnit.SECONDS));
+            Assertions.assertTrue(unregisterLatch.await(2, TimeUnit.SECONDS));
         }
 
         private void awaitServerCompleted() throws InterruptedException {
-            assertTrue(serverCompletedLatch.await(2, TimeUnit.SECONDS));
+            Assertions.assertTrue(serverCompletedLatch.await(2, TimeUnit.SECONDS));
         }
 
         private void awaitRegisterCount(int count) throws InterruptedException {
@@ -887,7 +884,7 @@ class GrpcTikeoWorkerClientTest {
                 TimeUnit.MILLISECONDS.sleep(20);
             }
             synchronized (messages) {
-                assertTrue(registerCount >= count, "expected at least " + count + " registrations but got " + registerCount);
+                Assertions.assertTrue(registerCount >= count, "expected at least " + count + " registrations but got " + registerCount);
             }
         }
 

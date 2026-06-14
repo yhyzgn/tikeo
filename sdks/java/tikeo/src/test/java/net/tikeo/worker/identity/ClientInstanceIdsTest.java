@@ -1,11 +1,8 @@
 package net.tikeo.worker.identity;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -17,8 +14,8 @@ class ClientInstanceIdsTest {
     void explicitValueWinsWithoutWritingState() throws Exception {
         String id = ClientInstanceIds.resolve(" configured-id ", "default", "demo", "local", "local", stateRoot);
 
-        assertEquals("configured-id", id);
-        assertTrue(Files.notExists(stateRoot.resolve("default")));
+        Assertions.assertEquals("configured-id", id);
+        Assertions.assertTrue(Files.notExists(stateRoot.resolve("default")));
     }
 
     @Test
@@ -26,8 +23,8 @@ class ClientInstanceIdsTest {
         String first = ClientInstanceIds.resolve(null, "default", "demo", "local", "local", stateRoot, "pod-a");
         String second = ClientInstanceIds.resolve(null, "default", "demo", "local", "local", stateRoot, "pod-a");
 
-        assertEquals(first, second);
-        assertTrue(first.startsWith("java-"));
+        Assertions.assertEquals(first, second);
+        Assertions.assertTrue(first.startsWith("java-"));
     }
 
     @Test
@@ -35,7 +32,7 @@ class ClientInstanceIdsTest {
         String first = ClientInstanceIds.resolve(null, "default", "demo", "local", "local", stateRoot, "pod-a");
         String second = ClientInstanceIds.resolve(null, "default", "other", "local", "local", stateRoot, "pod-a");
 
-        assertNotEquals(first, second);
+        Assertions.assertNotEquals(first, second);
     }
 
     @Test
@@ -43,6 +40,6 @@ class ClientInstanceIdsTest {
         String first = ClientInstanceIds.resolve(null, "default", "demo", "local", "local", stateRoot, "pod-a");
         String second = ClientInstanceIds.resolve(null, "default", "demo", "local", "local", stateRoot, "pod-b");
 
-        assertNotEquals(first, second);
+        Assertions.assertNotEquals(first, second);
     }
 }

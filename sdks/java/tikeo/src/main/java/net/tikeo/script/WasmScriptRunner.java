@@ -1,12 +1,13 @@
 package net.tikeo.script;
 
-import net.tikeo.processor.TaskOutcome;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import net.tikeo.processor.TaskOutcome;
 
 /**
  * Wasmtime-backed default sandbox runner for dynamic scripts.
@@ -115,7 +116,7 @@ public final class WasmScriptRunner implements ScriptRunner {
                 throw new ScriptRunnerException("bundled WASM shell runtime is missing");
             }
             Path module = Files.createTempFile("tikeo-wasm-script-shell-", ".wasm");
-            Files.copy(input, module, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(input, module, StandardCopyOption.REPLACE_EXISTING);
             return module;
         }
     }

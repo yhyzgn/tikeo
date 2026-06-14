@@ -63,10 +63,10 @@ pub use sea_orm::DbErr;
 /// Errors raised by storage initialization and repository operations.
 #[derive(Debug, Error)]
 pub enum StorageError {
-    /// SQLite database parent directory could not be prepared.
+    /// `SQLite` database parent directory could not be prepared.
     #[error("sqlite database directory preparation failed for {path}: {source}")]
     PrepareSqliteFile {
-        /// Configured SQLite database path.
+        /// Configured `SQLite` database path.
         path: String,
         /// Underlying filesystem error.
         #[source]

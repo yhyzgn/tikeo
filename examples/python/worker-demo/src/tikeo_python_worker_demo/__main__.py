@@ -5,7 +5,6 @@ import logging
 from dataclasses import asdict
 import os
 import time
-from typing import Iterable
 
 import tikeo
 

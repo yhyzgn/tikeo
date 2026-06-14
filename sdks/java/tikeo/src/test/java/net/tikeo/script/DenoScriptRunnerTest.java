@@ -1,13 +1,13 @@
 package net.tikeo.script;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import net.tikeo.processor.TaskOutcome;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import net.tikeo.processor.TaskOutcome;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -36,8 +36,8 @@ class DenoScriptRunnerTest {
             (level, message) -> logs.add(level + ":" + message)
         );
 
-        assertTrue(outcome.success(), outcome.message());
-        assertTrue(
+        Assertions.assertTrue(outcome.success(), outcome.message());
+        Assertions.assertTrue(
             logs.stream().anyMatch(log -> log.equals("info:[script] deno-v8-ok"))
         );
     }
@@ -66,14 +66,14 @@ class DenoScriptRunnerTest {
 
             TaskOutcome outcome = runner.run(task(item.language, "console.log('ok');\n", ScriptSandboxBackend.AUTO, List.of("HOME", "TMPDIR", "DENO_DIR")));
 
-            assertTrue(outcome.success(), item.language + " outcome=" + outcome.message());
+            Assertions.assertTrue(outcome.success(), item.language + " outcome=" + outcome.message());
             Map<String, String> values = reportValues(report);
-            assertTrue(values.get("cwd").equals(values.get("home")), item.language + " should start in sandbox HOME: " + values);
-            assertTrue(values.get("home").contains("tikeo-deno-" + item.kind.value() + "-runtime"), values.toString());
+            Assertions.assertTrue(values.get("cwd").equals(values.get("home")), item.language + " should start in sandbox HOME: " + values);
+            Assertions.assertTrue(values.get("home").contains("tikeo-deno-" + item.kind.value() + "-runtime"), values.toString());
             Path runtimeRoot = Path.of(values.get("home")).getParent();
-            assertTrue(Path.of(values.get("tmp")).equals(runtimeRoot.resolve("tmp")), values.toString());
-            assertTrue(Path.of(values.get("deno_dir")).equals(runtimeRoot.resolve("cache").resolve("deno")), values.toString());
-            assertTrue(values.get("args").contains("run --no-prompt"), values.get("args"));
+            Assertions.assertTrue(Path.of(values.get("tmp")).equals(runtimeRoot.resolve("tmp")), values.toString());
+            Assertions.assertTrue(Path.of(values.get("deno_dir")).equals(runtimeRoot.resolve("cache").resolve("deno")), values.toString());
+            Assertions.assertTrue(values.get("args").contains("run --no-prompt"), values.get("args"));
         }
     }
 
@@ -108,7 +108,7 @@ class DenoScriptRunnerTest {
     }
 
     private static Map<String, String> reportValues(Path report) throws Exception {
-        Map<String, String> values = new java.util.LinkedHashMap<>();
+        Map<String, String> values = new LinkedHashMap<>();
         for (String line : Files.readString(report).split("\\R")) {
             int index = line.indexOf('=');
             if (index > 0) {

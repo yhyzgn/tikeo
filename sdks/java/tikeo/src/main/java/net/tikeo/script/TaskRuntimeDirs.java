@@ -1,14 +1,18 @@
 package net.tikeo.script;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Single source of truth for task-scoped script sandbox HOME/TMPDIR/XDG/runtime paths.
@@ -105,7 +109,7 @@ final class TaskRuntimeDirs implements AutoCloseable {
     }
 
     private Map<String, String> baseEnvironment(List<String> extraPathEntries) {
-        java.util.LinkedHashMap<String, String> env = new java.util.LinkedHashMap<>();
+        LinkedHashMap<String, String> env = new LinkedHashMap<>();
         env.put("HOME", home.toString());
         env.put("XDG_CONFIG_HOME", config.toString());
         env.put("XDG_CACHE_HOME", cache.toString());
@@ -167,17 +171,17 @@ final class TaskRuntimeDirs implements AutoCloseable {
         }
         String existing = System.getenv("PATH");
         if (existing != null && !existing.isBlank()) {
-            entries.addAll(List.of(existing.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))));
+            entries.addAll(List.of(existing.split(Pattern.quote(File.pathSeparator))));
         }
-        return String.join(java.io.File.pathSeparator, entries);
+        return String.join(File.pathSeparator, entries);
     }
 
     private static void deleteRecursively(Path path) {
         if (path == null || !Files.exists(path)) {
             return;
         }
-        try (java.util.stream.Stream<Path> stream = Files.walk(path)) {
-            stream.sorted(java.util.Comparator.reverseOrder()).forEach(TaskRuntimeDirs::deleteQuietly);
+        try (Stream<Path> stream = Files.walk(path)) {
+            stream.sorted(Comparator.reverseOrder()).forEach(TaskRuntimeDirs::deleteQuietly);
         } catch (IOException ignored) {
             // Best-effort cleanup only.
         }

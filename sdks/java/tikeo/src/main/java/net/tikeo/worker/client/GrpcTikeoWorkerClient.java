@@ -1,29 +1,15 @@
 package net.tikeo.worker.client;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import net.tikeo.processor.ProcessorCapabilityProvider;
-import net.tikeo.processor.TaskContext;
-import net.tikeo.processor.TaskOutcome;
-import net.tikeo.processor.TaskProcessor;
-import net.tikeo.logging.TikeoTaskLogScope;
-import net.tikeo.script.ScriptRunnerKind;
-import net.tikeo.script.ScriptRunnerPolicy;
-import net.tikeo.script.ScriptRunnerRegistry;
-import net.tikeo.script.ScriptRunnerTask;
-import net.tikeo.script.ScriptSandboxBackend;
-import net.tikeo.wasm.WasmRunnerPolicy;
-import net.tikeo.wasm.WasmRunnerRegistry;
-import net.tikeo.wasm.WasmRunnerTask;
-import net.tikeo.worker.WorkerCapabilityProvider;
-import net.tikeo.worker.WorkerCapabilitySet;
-import net.tikeo.worker.WorkerRegistration;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -37,6 +23,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import net.tikeo.logging.TikeoTaskLogScope;
+import net.tikeo.processor.ProcessorCapabilityProvider;
+import net.tikeo.processor.TaskContext;
+import net.tikeo.processor.TaskOutcome;
+import net.tikeo.processor.TaskProcessor;
+import net.tikeo.script.ScriptRunnerKind;
+import net.tikeo.script.ScriptRunnerPolicy;
+import net.tikeo.script.ScriptRunnerRegistry;
+import net.tikeo.script.ScriptRunnerTask;
+import net.tikeo.script.ScriptSandboxBackend;
+import net.tikeo.wasm.WasmRunnerPolicy;
+import net.tikeo.wasm.WasmRunnerRegistry;
+import net.tikeo.wasm.WasmRunnerTask;
+import net.tikeo.worker.WorkerCapabilityProvider;
+import net.tikeo.worker.WorkerCapabilitySet;
+import net.tikeo.worker.WorkerRegistration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tikeo.worker.v1.Worker;
@@ -518,10 +520,10 @@ public final class GrpcTikeoWorkerClient implements TikeoWorkerClient {
         return Worker.WorkerMessage.newBuilder().setRegister(builder).build();
     }
 
-    private java.util.List<String> registrationCapabilities() {
+    private List<String> registrationCapabilities() {
         var capabilities = new LinkedHashSet<String>();
         capabilities.addAll(registration.capabilities());
-        return java.util.List.copyOf(capabilities);
+        return List.copyOf(capabilities);
     }
 
     private Worker.WorkerCapabilities structuredRegistrationCapabilities() {
@@ -532,22 +534,22 @@ public final class GrpcTikeoWorkerClient implements TikeoWorkerClient {
             capabilities = capabilities.merge(legacyProcessorCapabilities(provider.capabilities()));
         }
         capabilities = capabilities.merge(new WorkerCapabilitySet(
-            java.util.List.of(),
-            java.util.List.of(),
+            List.of(),
+            List.of(),
             scriptRunners.structuredCapabilities(),
-            java.util.List.of()
+            List.of()
         ));
         capabilities = capabilities.merge(new WorkerCapabilitySet(
-            java.util.List.of(),
-            java.util.List.of(),
+            List.of(),
+            List.of(),
             wasmRunners.structuredCapabilities(),
-            java.util.List.of()
+            List.of()
         ));
         return toProto(capabilities);
     }
 
-    private static WorkerCapabilitySet legacyProcessorCapabilities(java.util.List<String> capabilities) {
-        var sdkProcessors = new java.util.ArrayList<String>();
+    private static WorkerCapabilitySet legacyProcessorCapabilities(List<String> capabilities) {
+        var sdkProcessors = new ArrayList<String>();
         for (String capability : capabilities) {
             if (capability != null && capability.startsWith("processor:")) {
                 String name = capability.substring("processor:".length()).trim();
@@ -557,10 +559,10 @@ public final class GrpcTikeoWorkerClient implements TikeoWorkerClient {
             }
         }
         return new WorkerCapabilitySet(
-            java.util.List.of(),
+            List.of(),
             sdkProcessors,
-            java.util.List.of(),
-            java.util.List.of()
+            List.of(),
+            List.of()
         );
     }
 

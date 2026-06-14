@@ -1,11 +1,9 @@
 package net.tikeo.sandbox;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class SandboxToolInstallerTest {
@@ -43,8 +41,8 @@ class SandboxToolInstallerTest {
                 installDir.toString(),
                 1));
 
-        assertTrue(resolver.resolvePowerShellCommand().isPresent());
-        assertTrue(Files.exists(binary), "published binary should remain the resolved command");
+        Assertions.assertTrue(resolver.resolvePowerShellCommand().isPresent());
+        Assertions.assertTrue(Files.exists(binary), "published binary should remain the resolved command");
     }
     @Test
     void powerShellInstallerUsesExistingArchiveBeforeDownloading() throws Exception {
@@ -56,8 +54,8 @@ class SandboxToolInstallerTest {
         Process tar = new ProcessBuilder("tar", "-czf", archive.toString(), "-C", sourceRoot.toString(), "pwsh")
                 .inheritIO()
                 .start();
-        assertTrue(tar.waitFor(5, java.util.concurrent.TimeUnit.SECONDS));
-        assertEquals(0, tar.exitValue());
+        Assertions.assertTrue(tar.waitFor(5, TimeUnit.SECONDS));
+        Assertions.assertEquals(0, tar.exitValue());
 
         Path installDir = Files.createTempDirectory("tikeo-pwsh-existing-archive-");
         Files.copy(archive, installDir.resolve("powershell-7.5.4-linux-x64.tar.gz"));
@@ -69,8 +67,8 @@ class SandboxToolInstallerTest {
                 "",
                 1));
 
-        assertTrue(Files.isRegularFile(installed), "existing archive should publish bin/pwsh");
-        assertFalse(Files.exists(installDir.resolve("powershell-7.5.4-linux-x64.tar.gz.part")),
+        Assertions.assertTrue(Files.isRegularFile(installed), "existing archive should publish bin/pwsh");
+        Assertions.assertFalse(Files.exists(installDir.resolve("powershell-7.5.4-linux-x64.tar.gz.part")),
                 "existing complete archive must not trigger resumable download state");
     }
 

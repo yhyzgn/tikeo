@@ -1,19 +1,21 @@
 package net.tikeo.boot.autoconfigure;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.logging.Logger;
 import net.tikeo.boot.lifecycle.TikeoWorkerLifecycle;
 import net.tikeo.management.client.TikeoJobClient;
 import net.tikeo.processor.TikeoProcessor;
 import net.tikeo.processor.TikeoProcessorKind;
-import net.tikeo.spring.processor.TikeoProcessorRegistry;
 import net.tikeo.script.ScriptRunnerKind;
 import net.tikeo.script.ScriptRunnerRegistry;
 import net.tikeo.script.SrtScriptRunner;
+import net.tikeo.spring.processor.TikeoProcessorRegistry;
 import net.tikeo.worker.client.NoopTikeoWorkerClient;
 import net.tikeo.worker.client.TikeoWorkerClient;
-import java.nio.file.Path;
-import java.util.logging.Logger;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -34,7 +36,7 @@ class TikeoWorkerAutoConfigurationTest {
                     "tikeo.worker.scripts.auto-install-tools=false",
                     "tikeo.worker.scripts.deno-install-dir=/tmp/tikeo-test-missing-deno");
 
-    private static java.util.List<String> scriptLanguages(NoopTikeoWorkerClient noop) {
+    private static List<String> scriptLanguages(NoopTikeoWorkerClient noop) {
         return noop.registration().structuredCapabilities().scriptRunners().stream()
                 .map(runner -> runner.language())
                 .toList();
@@ -47,11 +49,11 @@ class TikeoWorkerAutoConfigurationTest {
                 "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports");
              var factories = Thread.currentThread().getContextClassLoader().getResourceAsStream(
                 "META-INF/spring.factories")) {
-            assertThat(imports).as("Spring Boot 2.7+/3.x auto-configuration imports").isNotNull();
-            assertThat(factories).as("Spring Boot 2.x spring.factories auto-configuration entry").isNotNull();
-            assertThat(new String(imports.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8))
+            Assertions.assertThat(imports).as("Spring Boot 2.7+/3.x auto-configuration imports").isNotNull();
+            Assertions.assertThat(factories).as("Spring Boot 2.x spring.factories auto-configuration entry").isNotNull();
+            Assertions.assertThat(new String(imports.readAllBytes(), StandardCharsets.UTF_8))
                     .contains("net.tikeo.boot.autoconfigure.TikeoWorkerAutoConfiguration");
-            assertThat(new String(factories.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8))
+            Assertions.assertThat(new String(factories.readAllBytes(), StandardCharsets.UTF_8))
                     .contains("org.springframework.boot.autoconfigure.EnableAutoConfiguration")
                     .contains("net.tikeo.boot.autoconfigure.TikeoWorkerAutoConfiguration");
         }
@@ -67,16 +69,16 @@ class TikeoWorkerAutoConfigurationTest {
         contextRunner.withPropertyValues(
                 "tikeo.worker.state-dir=" + stateDir,
                 "tikeo.worker.scripts.container-enabled=false").run(context -> {
-            assertThat(context).hasSingleBean(TikeoWorkerClient.class);
+            Assertions.assertThat(context).hasSingleBean(TikeoWorkerClient.class);
             TikeoWorkerClient client = context.getBean(TikeoWorkerClient.class);
-            assertThat(client).isInstanceOf(NoopTikeoWorkerClient.class);
+            Assertions.assertThat(client).isInstanceOf(NoopTikeoWorkerClient.class);
             NoopTikeoWorkerClient noop = (NoopTikeoWorkerClient) client;
-            assertThat(noop.registration().clientInstanceId()).startsWith("java-");
-            assertThat(noop.registration().app()).isEqualTo("billing");
-            assertThat(scriptLanguages(noop)).contains("wasm", "shell");
-            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
-            assertThat(noop.running()).isTrue();
-            assertThat(context.getBean(TikeoProcessorRegistry.class).handlers()).containsKey("demo.echo");
+            Assertions.assertThat(noop.registration().clientInstanceId()).startsWith("java-");
+            Assertions.assertThat(noop.registration().app()).isEqualTo("billing");
+            Assertions.assertThat(scriptLanguages(noop)).contains("wasm", "shell");
+            Assertions.assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
+            Assertions.assertThat(noop.running()).isTrue();
+            Assertions.assertThat(context.getBean(TikeoProcessorRegistry.class).handlers()).containsKey("demo.echo");
         });
     }
 
@@ -86,7 +88,7 @@ class TikeoWorkerAutoConfigurationTest {
                 "tikeo.worker.state-dir=" + stateDir,
                 "tikeo.worker.client-instance-id=test-instance").run(context -> {
             NoopTikeoWorkerClient noop = context.getBean(NoopTikeoWorkerClient.class);
-            assertThat(noop.registration().clientInstanceId()).isEqualTo("test-instance");
+            Assertions.assertThat(noop.registration().clientInstanceId()).isEqualTo("test-instance");
         });
     }
 
@@ -100,7 +102,7 @@ class TikeoWorkerAutoConfigurationTest {
                 "tikeo.worker.scripts.container-enabled=false")
                 .run(context -> {
                     NoopTikeoWorkerClient noop = context.getBean(NoopTikeoWorkerClient.class);
-                    assertThat(scriptLanguages(noop)).contains("wasm");
+                    Assertions.assertThat(scriptLanguages(noop)).contains("wasm");
                 });
     }
 
@@ -113,7 +115,7 @@ class TikeoWorkerAutoConfigurationTest {
                 "tikeo.worker.scripts.container-enabled=false")
                 .run(context -> {
                     NoopTikeoWorkerClient noop = context.getBean(NoopTikeoWorkerClient.class);
-                    assertThat(scriptLanguages(noop)).doesNotContain("wasm");
+                    Assertions.assertThat(scriptLanguages(noop)).doesNotContain("wasm");
                 });
     }
 
@@ -126,7 +128,7 @@ class TikeoWorkerAutoConfigurationTest {
                 "tikeo.worker.scripts.enabled=false")
                 .run(context -> {
                     NoopTikeoWorkerClient noop = context.getBean(NoopTikeoWorkerClient.class);
-                    assertThat(scriptLanguages(noop)).doesNotContain("wasm");
+                    Assertions.assertThat(scriptLanguages(noop)).doesNotContain("wasm");
                 });
     }
 
@@ -145,8 +147,8 @@ class TikeoWorkerAutoConfigurationTest {
                 "tikeo.worker.scripts.auto-install-tools=false")
                 .run(context -> {
                     NoopTikeoWorkerClient noop = context.getBean(NoopTikeoWorkerClient.class);
-                    assertThat(scriptLanguages(noop)).contains("wasm", "shell");
-            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
+                    Assertions.assertThat(scriptLanguages(noop)).contains("wasm", "shell");
+            Assertions.assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
                 });
     }
 
@@ -174,12 +176,12 @@ class TikeoWorkerAutoConfigurationTest {
                 "tikeo.worker.scripts.images.rhai=rhaiscript/rhai:latest")
                 .run(context -> {
                     NoopTikeoWorkerClient noop = context.getBean(NoopTikeoWorkerClient.class);
-                    assertThat(scriptLanguages(noop))
+                    Assertions.assertThat(scriptLanguages(noop))
                             .contains("wasm", "shell");
-                    assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
+                    Assertions.assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
                     ScriptRunnerRegistry registry = context.getBean(ScriptRunnerRegistry.class);
-                    assertThat(registry.find(ScriptRunnerKind.SHELL))
-                            .hasValueSatisfying(runner -> assertThat(runner).isInstanceOf(SrtScriptRunner.class));
+                    Assertions.assertThat(registry.find(ScriptRunnerKind.SHELL))
+                            .hasValueSatisfying(runner -> Assertions.assertThat(runner).isInstanceOf(SrtScriptRunner.class));
                 });
     }
 
@@ -200,8 +202,8 @@ class TikeoWorkerAutoConfigurationTest {
                 "tikeo.worker.scripts.images.shell=alpine:3.20")
                 .run(context -> {
                     NoopTikeoWorkerClient noop = context.getBean(NoopTikeoWorkerClient.class);
-                    assertThat(scriptLanguages(noop)).contains("wasm", "shell");
-            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
+                    Assertions.assertThat(scriptLanguages(noop)).contains("wasm", "shell");
+            Assertions.assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
                 });
     }
 
@@ -221,8 +223,8 @@ class TikeoWorkerAutoConfigurationTest {
                 "tikeo.worker.scripts.runtime-command=tikeo-missing-container-runtime")
                 .run(context -> {
                     NoopTikeoWorkerClient noop = context.getBean(NoopTikeoWorkerClient.class);
-                    assertThat(scriptLanguages(noop)).contains("wasm", "shell");
-            assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
+                    Assertions.assertThat(scriptLanguages(noop)).contains("wasm", "shell");
+            Assertions.assertThat(scriptLanguages(noop)).doesNotContain("javascript", "typescript");
                 });
     }
 
@@ -235,14 +237,14 @@ class TikeoWorkerAutoConfigurationTest {
                 "tikeo.management.api-key=tk-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCdEfGhIjKlMnOpQrStUv",
                 "tikeo.management.namespace=demo-ns",
                 "tikeo.management.app=demo-app").run(context -> {
-            assertThat(context).hasSingleBean(TikeoJobClient.class);
+            Assertions.assertThat(context).hasSingleBean(TikeoJobClient.class);
         });
     }
 
     @Test
     void managementClientIsDisabledByDefault() {
         contextRunner.withPropertyValues("tikeo.worker.state-dir=" + stateDir).run(context -> {
-            assertThat(context).doesNotHaveBean(TikeoJobClient.class);
+            Assertions.assertThat(context).doesNotHaveBean(TikeoJobClient.class);
         });
     }
 
@@ -264,14 +266,14 @@ class TikeoWorkerAutoConfigurationTest {
                             + noop.registration().structuredCapabilities());
                     log.info(() -> "[java-sdk-plugin-test] registration labels="
                             + noop.registration().labels());
-                    assertThat(noop.registration().capabilities())
+                    Assertions.assertThat(noop.registration().capabilities())
                             .containsExactly("java", "spring-boot");
-                    assertThat(noop.registration().structuredCapabilities().pluginProcessors())
+                    Assertions.assertThat(noop.registration().structuredCapabilities().pluginProcessors())
                             .anySatisfy(plugin -> {
-                                assertThat(plugin.type()).isEqualTo("sql");
-                                assertThat(plugin.processorNames()).contains("billing.sql-sync");
+                                Assertions.assertThat(plugin.type()).isEqualTo("sql");
+                                Assertions.assertThat(plugin.processorNames()).contains("billing.sql-sync");
                             });
-                    assertThat(noop.registration().labels()).containsEntry("plugin.sql", "enabled");
+                    Assertions.assertThat(noop.registration().labels()).containsEntry("plugin.sql", "enabled");
                 });
     }
 
@@ -280,10 +282,10 @@ class TikeoWorkerAutoConfigurationTest {
         contextRunner
                 .withPropertyValues("tikeo.worker.state-dir=" + stateDir, "tikeo.worker.auto-startup=false")
                 .run(context -> {
-                    assertThat(context).hasSingleBean(TikeoWorkerClient.class);
-                    assertThat(context).hasSingleBean(TikeoWorkerLifecycle.class);
+                    Assertions.assertThat(context).hasSingleBean(TikeoWorkerClient.class);
+                    Assertions.assertThat(context).hasSingleBean(TikeoWorkerLifecycle.class);
                     NoopTikeoWorkerClient noop = context.getBean(NoopTikeoWorkerClient.class);
-                    assertThat(noop.running()).isFalse();
+                    Assertions.assertThat(noop.running()).isFalse();
                 });
     }
 
@@ -292,39 +294,39 @@ class TikeoWorkerAutoConfigurationTest {
         contextRunner
                 .withPropertyValues("tikeo.worker.enabled=false")
                 .run(context -> {
-                    assertThat(context).doesNotHaveBean(TikeoWorkerClient.class);
-                    assertThat(context).doesNotHaveBean(TikeoWorkerLifecycle.class);
-                    assertThat(context).hasSingleBean(TikeoProcessorRegistry.class);
+                    Assertions.assertThat(context).doesNotHaveBean(TikeoWorkerClient.class);
+                    Assertions.assertThat(context).doesNotHaveBean(TikeoWorkerLifecycle.class);
+                    Assertions.assertThat(context).hasSingleBean(TikeoProcessorRegistry.class);
                 });
     }
 
     private static void installFakeWasmtime(Path stateDir) throws Exception {
         Path binary = stateDir.resolve("sandbox-tools").resolve("wasmtime").resolve("bin").resolve("wasmtime");
-        java.nio.file.Files.createDirectories(binary.getParent());
-        java.nio.file.Files.writeString(binary, "#!/usr/bin/env sh\necho wasmtime 0.0.0-test\n");
+        Files.createDirectories(binary.getParent());
+        Files.writeString(binary, "#!/usr/bin/env sh\necho wasmtime 0.0.0-test\n");
         binary.toFile().setExecutable(true);
     }
 
     private static void installFakeSrt(Path stateDir) throws Exception {
         Path binary = stateDir.resolve("sandbox-tools").resolve("srt").resolve("bin").resolve("srt");
-        java.nio.file.Files.createDirectories(binary.getParent());
-        java.nio.file.Files.writeString(binary, "#!/usr/bin/env sh\necho srt 0.0.0-test\n");
+        Files.createDirectories(binary.getParent());
+        Files.writeString(binary, "#!/usr/bin/env sh\necho srt 0.0.0-test\n");
         binary.toFile().setExecutable(true);
     }
 
 
     private static void installFakeRipgrep(Path stateDir) throws Exception {
         Path binary = stateDir.resolve("sandbox-tools").resolve("ripgrep").resolve("bin").resolve("rg");
-        java.nio.file.Files.createDirectories(binary.getParent());
-        java.nio.file.Files.writeString(binary, "#!/usr/bin/env sh\necho ripgrep 0.0.0-test\n");
+        Files.createDirectories(binary.getParent());
+        Files.writeString(binary, "#!/usr/bin/env sh\necho ripgrep 0.0.0-test\n");
         binary.toFile().setExecutable(true);
     }
 
 
     private static void installFakePowerShell(Path stateDir) throws Exception {
         Path binary = stateDir.resolve("sandbox-tools").resolve("pwsh").resolve("bin").resolve("pwsh");
-        java.nio.file.Files.createDirectories(binary.getParent());
-        java.nio.file.Files.writeString(binary, """
+        Files.createDirectories(binary.getParent());
+        Files.writeString(binary, """
                 #!/usr/bin/env sh
                 echo PowerShell 7.5.4-test
                 """);
@@ -333,8 +335,8 @@ class TikeoWorkerAutoConfigurationTest {
 
     private static void installFakeRhai(Path stateDir) throws Exception {
         Path binary = stateDir.resolve("sandbox-tools").resolve("rhai").resolve("bin").resolve("rhai-run");
-        java.nio.file.Files.createDirectories(binary.getParent());
-        java.nio.file.Files.writeString(binary, """
+        Files.createDirectories(binary.getParent());
+        Files.writeString(binary, """
                 #!/usr/bin/env sh
                 case "${1:-}" in
                   ""|"--version"|"-V")

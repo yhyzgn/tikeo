@@ -1,9 +1,8 @@
 package net.tikeo.examples.worker;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import net.tikeo.worker.client.TikeoWorkerClient;
 import net.tikeo.spring.processor.TikeoProcessorRegistry;
+import net.tikeo.worker.client.TikeoWorkerClient;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,7 +18,7 @@ class SpringWorkerDemoDisabledTest {
 
     @Test
     void disablingWorkerKeepsProcessorDiscoveryButDoesNotCreateClient() {
-        assertThat(context.getBeansOfType(TikeoWorkerClient.class)).isEmpty();
-        assertThat(registry.handlers()).containsKey("demo.echo");
+        Assertions.assertThat(context.getBeansOfType(TikeoWorkerClient.class)).isEmpty();
+        Assertions.assertThat(registry.handlers()).containsKey("demo.echo");
     }
 }

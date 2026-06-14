@@ -1,19 +1,16 @@
 package net.tikeo.script;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import net.tikeo.processor.TaskOutcome;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
-import org.junit.jupiter.api.io.TempDir;
+import net.tikeo.processor.TaskOutcome;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class LocalSubprocessScriptRunnerTest {
     @TempDir
@@ -27,8 +24,8 @@ class LocalSubprocessScriptRunnerTest {
         TaskOutcome outcome = runner.run(task("set -eu\necho shell-ok", policy()),
                 (level, message) -> logs.add(level + ":" + message));
 
-        assertTrue(outcome.success());
-        assertTrue(logs.stream().anyMatch(log -> log.equals("info:[script] shell-ok")));
+        Assertions.assertTrue(outcome.success());
+        Assertions.assertTrue(logs.stream().anyMatch(log -> log.equals("info:[script] shell-ok")));
     }
 
     @Test
@@ -49,38 +46,38 @@ class LocalSubprocessScriptRunnerTest {
         TaskOutcome outcome = runner.run(task(ScriptRunnerKind.RHAI, "rhai", "print(\"rhai-ok\");", policy()),
                 (level, message) -> logs.add(level + ":" + message));
 
-        assertTrue(outcome.success());
-        assertTrue(logs.stream().anyMatch(log -> log.equals("info:[script] rhai-ok")));
+        Assertions.assertTrue(outcome.success());
+        Assertions.assertTrue(logs.stream().anyMatch(log -> log.equals("info:[script] rhai-ok")));
     }
 
     @Test
     void rejectsExplicitWasmtimeBackendForLocalShellRunner() throws Exception {
         LocalSubprocessScriptRunner runner = new LocalSubprocessScriptRunner(ScriptRunnerKind.SHELL);
 
-        ScriptRunnerException error = assertThrows(ScriptRunnerException.class,
+        ScriptRunnerException error = Assertions.assertThrows(ScriptRunnerException.class,
                 () -> runner.command(task(ScriptRunnerKind.SHELL, "shell", "echo hello", policy(), ScriptSandboxBackend.WASMTIME)));
 
-        assertTrue(error.getMessage().contains("wasmtime"));
+        Assertions.assertTrue(error.getMessage().contains("wasmtime"));
     }
 
     @Test
     void buildsDefaultCommandsForAllDevelopmentLanguages() throws Exception {
-        assertEquals(List.of("sh", "-s"),
+        Assertions.assertEquals(List.of("sh", "-s"),
                 new LocalSubprocessScriptRunner(ScriptRunnerKind.SHELL)
                         .command(task(ScriptRunnerKind.SHELL, "shell", "echo hello", policy())));
-        assertEquals(List.of("python3", "-"),
+        Assertions.assertEquals(List.of("python3", "-"),
                 new LocalSubprocessScriptRunner(ScriptRunnerKind.PYTHON)
                         .command(task(ScriptRunnerKind.PYTHON, "python", "print('hello')", policy())));
-        assertEquals(List.of("deno", "run", "--no-prompt", "-"),
+        Assertions.assertEquals(List.of("deno", "run", "--no-prompt", "-"),
                 new LocalSubprocessScriptRunner(ScriptRunnerKind.JS)
                         .command(task(ScriptRunnerKind.JS, "javascript", "console.log('hello')", policy())));
-        assertEquals(List.of("deno", "run", "--no-prompt", "-"),
+        Assertions.assertEquals(List.of("deno", "run", "--no-prompt", "-"),
                 new LocalSubprocessScriptRunner(ScriptRunnerKind.TS)
                         .command(task(ScriptRunnerKind.TS, "typescript", "console.log('hello')", policy())));
-        assertEquals(List.of("pwsh", "-NoProfile", "-NonInteractive", "-Command", "-"),
+        Assertions.assertEquals(List.of("pwsh", "-NoProfile", "-NonInteractive", "-Command", "-"),
                 new LocalSubprocessScriptRunner(ScriptRunnerKind.POWERSHELL)
                         .command(task(ScriptRunnerKind.POWERSHELL, "powershell", "Write-Output hello", policy())));
-        assertEquals(List.of("rhai"),
+        Assertions.assertEquals(List.of("rhai"),
                 new LocalSubprocessScriptRunner(ScriptRunnerKind.RHAI)
                         .command(task(ScriptRunnerKind.RHAI, "rhai", "print(\"hello\");", policy())));
     }

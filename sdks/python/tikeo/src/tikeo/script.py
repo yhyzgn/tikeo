@@ -14,7 +14,6 @@ from pathlib import Path
 
 from .config import WorkerConfig
 from .runtime_dirs import ScriptTaskRuntimeDirs, append_allowed_unmanaged_env
-from .sandbox_tools import SandboxToolResolver
 from .task import TaskOutcome, failed
 
 

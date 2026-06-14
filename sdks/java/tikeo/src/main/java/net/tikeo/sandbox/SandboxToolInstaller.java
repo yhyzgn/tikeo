@@ -1,10 +1,17 @@
 package net.tikeo.sandbox;
 
+import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -317,14 +324,14 @@ public final class SandboxToolInstaller {
                     Files.createDirectories(binDir);
                     Files.createDirectories(tmpExtractDir);
                     if (Files.isRegularFile(archive)) {
-                        Files.copy(archive, tmpArchive, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        Files.copy(archive, tmpArchive, StandardCopyOption.REPLACE_EXISTING);
                     } else {
                         runCommand(
                             new ProcessBuilder("curl", "-fL", "-C", "-", url, "-o", partialArchive.toString()),
                             powerShellInstallTimeoutMillis(options),
                             "PowerShell download"
                         );
-                        Files.copy(partialArchive, tmpArchive, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        Files.copy(partialArchive, tmpArchive, StandardCopyOption.REPLACE_EXISTING);
                     }
                     runCommand(
                         new ProcessBuilder("tar", "-xzf", tmpArchive.toString(), "-C", tmpExtractDir.toString()),
@@ -337,14 +344,14 @@ public final class SandboxToolInstaller {
                     }
                     pwsh.toFile().setExecutable(true, false);
                     deleteRecursively(finalExtractDir);
-                    Files.move(tmpExtractDir, finalExtractDir, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    Files.move(tmpExtractDir, finalExtractDir, StandardCopyOption.REPLACE_EXISTING);
                     Path installedPwsh = finalExtractDir.resolve("pwsh");
                     Files.deleteIfExists(link);
                     Files.deleteIfExists(partialArchive);
                     try {
                         Files.createSymbolicLink(link, installedPwsh);
                     } catch (Exception error) {
-                        Files.copy(installedPwsh, link, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        Files.copy(installedPwsh, link, StandardCopyOption.REPLACE_EXISTING);
                         link.toFile().setExecutable(true, false);
                     }
                     return link;
@@ -357,20 +364,20 @@ public final class SandboxToolInstaller {
         }
     }
 
-    private static InstallLock acquireInstallLock(Path installDir) throws java.io.IOException, InterruptedException {
+    private static InstallLock acquireInstallLock(Path installDir) throws IOException, InterruptedException {
         Path lockDir = installDir.resolve(".install.lock");
-        long deadline = System.nanoTime() + java.time.Duration.ofMinutes(2).toNanos();
+        long deadline = System.nanoTime() + Duration.ofMinutes(2).toNanos();
         while (true) {
             try {
                 Files.createDirectory(lockDir);
                 return new InstallLock(lockDir);
-            } catch (java.nio.file.FileAlreadyExistsException exists) {
+            } catch (FileAlreadyExistsException exists) {
                 if (Files.isRegularFile(lockDir)) {
                     Files.deleteIfExists(lockDir);
                     continue;
                 }
                 if (System.nanoTime() >= deadline) {
-                    throw new java.io.IOException("timed out waiting for sandbox tool install lock: " + lockDir);
+                    throw new IOException("timed out waiting for sandbox tool install lock: " + lockDir);
                 }
                 Thread.sleep(100);
             }
@@ -404,9 +411,9 @@ public final class SandboxToolInstaller {
         if (path == null || !Files.exists(path)) {
             return;
         }
-        try (java.util.stream.Stream<Path> paths = Files.walk(path)) {
+        try (Stream<Path> paths = Files.walk(path)) {
             paths
-                .sorted(java.util.Comparator.reverseOrder())
+                .sorted(Comparator.reverseOrder())
                 .forEach(candidate -> {
                     try {
                         Files.deleteIfExists(candidate);
@@ -499,7 +506,7 @@ public final class SandboxToolInstaller {
     ) {
         try {
             Files.createDirectories(options.installDir());
-            java.util.ArrayList<String> command = new java.util.ArrayList<>();
+            ArrayList<String> command = new ArrayList<>();
             command.add("cargo");
             command.add("install");
             command.add("--root");
@@ -608,8 +615,8 @@ public final class SandboxToolInstaller {
             : " " + shellQuote(version);
     }
 
-    private static java.util.List<String> sanitizedCommand(
-        java.util.List<String> command
+    private static List<String> sanitizedCommand(
+        List<String> command
     ) {
         return command
             .stream()

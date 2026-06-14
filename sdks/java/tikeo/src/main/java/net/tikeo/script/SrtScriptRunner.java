@@ -1,13 +1,14 @@
 package net.tikeo.script;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.tikeo.processor.TaskOutcome;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import net.tikeo.processor.TaskOutcome;
 
 /**
  * Anthropic Sandbox Runtime backed runner for native dynamic scripts.
@@ -91,7 +92,7 @@ public final class SrtScriptRunner implements ScriptRunner {
     }
 
     private List<String> command(Path settings, String shellCommand) {
-        java.util.ArrayList<String> resolved = new java.util.ArrayList<>();
+        ArrayList<String> resolved = new ArrayList<>();
         resolved.add(runtimeCommand);
         resolved.add("--settings");
         resolved.add(settings.toString());
@@ -186,14 +187,14 @@ public final class SrtScriptRunner implements ScriptRunner {
         network.put("deniedDomains", List.of());
 
         Map<String, Object> filesystem = new LinkedHashMap<>();
-        java.util.ArrayList<String> allowRead = new java.util.ArrayList<>(
+        ArrayList<String> allowRead = new ArrayList<>(
             policy.readOnlyPaths()
         );
         if (scriptFile != null) {
             allowRead.add(scriptFile.toString());
         }
         filesystem.put("allowRead", allowRead);
-        java.util.ArrayList<String> allowWrite = new java.util.ArrayList<>(policy.writablePaths());
+        ArrayList<String> allowWrite = new ArrayList<>(policy.writablePaths());
         allowWrite.addAll(runtimeDirs.writablePaths());
         filesystem.put("allowWrite", allowWrite);
         filesystem.put("denyRead", sensitiveReadDenies());

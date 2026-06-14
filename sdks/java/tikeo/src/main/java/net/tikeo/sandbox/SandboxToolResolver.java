@@ -1,10 +1,13 @@
 package net.tikeo.sandbox;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import net.tikeo.script.ScriptRunnerKind;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -199,7 +202,7 @@ public final class SandboxToolResolver {
             installDirectoryKey(tool)
         );
         Path binary = SandboxToolInstaller.binaryPath(tool, installDir);
-        return java.nio.file.Files.isRegularFile(binary)
+        return Files.isRegularFile(binary)
             ? Optional.of(installDir)
             : Optional.empty();
     }
@@ -239,7 +242,7 @@ public final class SandboxToolResolver {
     }
 
     public List<String> localDevelopmentCommand(
-        net.tikeo.script.ScriptRunnerKind kind
+        ScriptRunnerKind kind
     ) {
         return switch (kind) {
             case SHELL -> List.of("sh", "-s");
@@ -283,20 +286,20 @@ public final class SandboxToolResolver {
     }
 
     private static boolean rhaiAvailable(String command) {
-        java.nio.file.Path script = null;
+        Path script = null;
         try {
-            script = java.nio.file.Files.createTempFile(
+            script = Files.createTempFile(
                 "tikeo-rhai-smoke-",
                 ".rhai"
             );
-            java.nio.file.Files.writeString(script, "print(\"ok\");");
+            Files.writeString(script, "print(\"ok\");");
             return runtimeAvailable(command, script.toString());
         } catch (Exception error) {
             return false;
         } finally {
             if (script != null) {
                 try {
-                    java.nio.file.Files.deleteIfExists(script);
+                    Files.deleteIfExists(script);
                 } catch (Exception ignored) {
                     // Smoke-test cleanup failure does not affect availability.
                 }
@@ -309,7 +312,7 @@ public final class SandboxToolResolver {
         String... args
     ) {
         try {
-            java.util.ArrayList<String> command = new java.util.ArrayList<>();
+            ArrayList<String> command = new ArrayList<>();
             command.add(runtimeCommand);
             command.addAll(List.of(args));
             Process process = new ProcessBuilder(command)

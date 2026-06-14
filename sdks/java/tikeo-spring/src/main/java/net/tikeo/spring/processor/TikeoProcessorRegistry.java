@@ -1,18 +1,19 @@
 package net.tikeo.spring.processor;
 
-import net.tikeo.processor.TikeoProcessor;
-import net.tikeo.processor.TikeoProcessorKind;
-import net.tikeo.processor.TaskContext;
-import net.tikeo.processor.TaskOutcome;
-import net.tikeo.worker.WorkerCapabilityProvider;
-import net.tikeo.worker.WorkerCapabilitySet;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import net.tikeo.processor.TaskContext;
+import net.tikeo.processor.TaskOutcome;
+import net.tikeo.processor.TikeoProcessor;
+import net.tikeo.processor.TikeoProcessorKind;
+import net.tikeo.worker.WorkerCapabilityProvider;
+import net.tikeo.worker.WorkerCapabilitySet;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.ApplicationContext;
@@ -77,7 +78,7 @@ public class TikeoProcessorRegistry implements BeanPostProcessor, WorkerCapabili
         declarations.values().stream()
                 .filter(declaration -> declaration.kind() == TikeoProcessorKind.PLUGIN)
                 .forEach(declaration -> byType
-                        .computeIfAbsent(declaration.pluginType(), ignored -> new java.util.ArrayList<>())
+                        .computeIfAbsent(declaration.pluginType(), ignored -> new ArrayList<>())
                         .add(declaration.name()));
         return byType.entrySet().stream()
                 .map(entry -> new WorkerCapabilitySet.PluginProcessor(entry.getKey(), entry.getValue()))

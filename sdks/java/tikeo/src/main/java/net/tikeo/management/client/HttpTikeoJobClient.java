@@ -3,13 +3,6 @@ package net.tikeo.management.client;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.tikeo.management.model.ApiEnvelope;
-import net.tikeo.management.model.CreateJobRequest;
-import net.tikeo.management.model.JobDefinition;
-import net.tikeo.management.model.JobInstance;
-import net.tikeo.management.model.Page;
-import net.tikeo.management.model.TriggerJobRequest;
-import net.tikeo.management.model.UpdateJobRequest;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -20,6 +13,14 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import net.tikeo.management.model.ApiEnvelope;
+import net.tikeo.management.model.CreateJobRequest;
+import net.tikeo.management.model.JobDefinition;
+import net.tikeo.management.model.JobInstance;
+import net.tikeo.management.model.JobRetryPolicy;
+import net.tikeo.management.model.Page;
+import net.tikeo.management.model.TriggerJobRequest;
+import net.tikeo.management.model.UpdateJobRequest;
 
 /**
  * HTTP implementation of {@link TikeoJobClient}.
@@ -130,5 +131,5 @@ public final class HttpTikeoJobClient implements TikeoJobClient {
         return trimmed;
     }
 
-    private record CreateJobPayload(String namespace, String app, String name, String scheduleType, String scheduleExpr, String processorType, String processorName, String scriptId, Boolean enabled, net.tikeo.management.model.JobRetryPolicy retryPolicy) {}
+    private record CreateJobPayload(String namespace, String app, String name, String scheduleType, String scheduleExpr, String processorType, String processorName, String scriptId, Boolean enabled, JobRetryPolicy retryPolicy) {}
 }
