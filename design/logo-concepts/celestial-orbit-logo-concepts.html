@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tikeo Celestial Orbit Logo Concepts</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080b12;
+      --panel: #101521;
+      --panel-2: #0b1019;
+      --text: #eaf2ff;
+      --muted: #8da2bd;
+      --hairline: rgba(169, 197, 255, 0.16);
+      --primary: #72e7ff;
+      --secondary: #a78bfa;
+      --tertiary: #ffb86b;
+      --success: #9cffc7;
+      --shadow: rgba(0, 0, 0, 0.42);
+      --logo-size: min(64vw, 360px);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    html[data-theme="light"] {
+      color-scheme: light;
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --panel-2: #edf2f8;
+      --text: #122033;
+      --muted: #607089;
+      --hairline: rgba(22, 38, 62, 0.14);
+      --primary: #2563eb;
+      --secondary: #7c3aed;
+      --tertiary: #f97316;
+      --success: #08916e;
+      --shadow: rgba(24, 38, 63, 0.14);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 20% 10%, color-mix(in oklab, var(--primary), transparent 82%), transparent 30rem),
+        radial-gradient(circle at 80% 20%, color-mix(in oklab, var(--secondary), transparent 84%), transparent 34rem),
+        linear-gradient(180deg, var(--bg), color-mix(in oklab, var(--bg), #000 8%));
+      color: var(--text);
+    }
+
+    .shell { width: min(1240px, calc(100vw - 48px)); margin: 0 auto; padding: 44px 0 64px; }
+    header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: start; margin-bottom: 28px; }
+    .eyebrow { margin: 0 0 10px; color: var(--primary); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 800; }
+    h1 { margin: 0; font-size: clamp(34px, 5vw, 72px); line-height: 0.92; letter-spacing: -0.06em; max-width: 860px; }
+    .intro { margin: 18px 0 0; max-width: 780px; color: var(--muted); font-size: 16px; line-height: 1.7; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    button {
+      border: 1px solid var(--hairline);
+      background: color-mix(in oklab, var(--panel), transparent 8%);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-weight: 750;
+      cursor: pointer;
+      box-shadow: 0 10px 30px var(--shadow);
+    }
+    button:hover { border-color: color-mix(in oklab, var(--primary), transparent 35%); }
+
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    .concept {
+      border: 1px solid var(--hairline);
+      border-radius: 28px;
+      background: linear-gradient(180deg, color-mix(in oklab, var(--panel), transparent 0%), color-mix(in oklab, var(--panel-2), transparent 0%));
+      min-height: 650px;
+      padding: 22px;
+      box-shadow: 0 28px 70px var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    .concept::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--hairline) 1px, transparent 1px),
+        linear-gradient(90deg, var(--hairline) 1px, transparent 1px);
+      background-size: 48px 48px;
+      opacity: 0.22;
+      mask-image: radial-gradient(circle at 50% 36%, black, transparent 72%);
+      pointer-events: none;
+    }
+    .concept-head { position: relative; z-index: 2; display: flex; justify-content: space-between; gap: 18px; align-items: start; }
+    .concept h2 { margin: 0; font-size: 22px; line-height: 1; letter-spacing: -0.04em; }
+    .concept .tag { color: var(--muted); font-size: 12px; line-height: 1.5; max-width: 190px; text-align: right; }
+    .stage { position: relative; z-index: 1; display: grid; place-items: center; height: 380px; margin: 24px 0 8px; }
+    .logo-svg { width: var(--logo-size); max-width: 100%; aspect-ratio: 1; overflow: visible; }
+    .notes { position: relative; z-index: 2; display: grid; gap: 12px; color: var(--muted); line-height: 1.65; font-size: 13px; }
+    .notes strong { color: var(--text); }
+    .palette { display: flex; gap: 8px; margin-top: 4px; }
+    .swatch { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--hairline); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
+    .swatch.primary { background: var(--primary); }
+    .swatch.secondary { background: var(--secondary); }
+    .swatch.tertiary { background: var(--tertiary); }
+    .swatch.success { background: var(--success); }
+
+    svg text { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; fill: var(--muted); font-size: 7px; letter-spacing: .08em; }
+    .orbit { fill: none; stroke: var(--primary); stroke-width: 1.1; stroke-opacity: .28; vector-effect: non-scaling-stroke; }
+    .orbit.secondary { stroke: var(--secondary); stroke-opacity: .22; }
+    .orbit.tertiary { stroke: var(--tertiary); stroke-opacity: .2; }
+    .axis { stroke: var(--hairline); stroke-width: 1; vector-effect: non-scaling-stroke; }
+    .core { fill: url(#coreGlow); filter: drop-shadow(0 0 14px color-mix(in oklab, var(--primary), transparent 20%)); transform-box: fill-box; transform-origin: center; }
+    .stellar-core {
+      animation: stellar-breathe 3.8s ease-in-out infinite;
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+    .stellar-corona {
+      fill: none;
+      stroke: var(--primary);
+      stroke-width: 1.25;
+      stroke-opacity: .3;
+      vector-effect: non-scaling-stroke;
+      filter: drop-shadow(0 0 12px color-mix(in oklab, var(--primary), transparent 24%));
+      animation: corona-breathe 3.8s ease-in-out infinite;
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+    @keyframes stellar-breathe {
+      0%, 100% { transform: scale(0.96); opacity: .9; filter: drop-shadow(0 0 10px color-mix(in oklab, var(--primary), transparent 36%)); }
+      48% { transform: scale(1.08); opacity: 1; filter: drop-shadow(0 0 26px color-mix(in oklab, var(--primary), transparent 4%)); }
+    }
+    @keyframes corona-breathe {
+      0%, 100% { transform: scale(0.9); opacity: .18; }
+      52% { transform: scale(1.08); opacity: .42; }
+    }
+    .body-primary { fill: var(--primary); filter: drop-shadow(0 0 12px color-mix(in oklab, var(--primary), transparent 18%)); }
+    .body-secondary { fill: var(--secondary); filter: drop-shadow(0 0 12px color-mix(in oklab, var(--secondary), transparent 18%)); }
+    .body-tertiary { fill: var(--tertiary); filter: drop-shadow(0 0 12px color-mix(in oklab, var(--tertiary), transparent 18%)); }
+    .body-moon { fill: var(--success); filter: drop-shadow(0 0 8px color-mix(in oklab, var(--success), transparent 22%)); }
+    .moon-orbit { fill: none; stroke: var(--success); stroke-width: .75; stroke-opacity: .24; vector-effect: non-scaling-stroke; }
+    .breath { fill: none; stroke: var(--primary); stroke-width: .75; stroke-opacity: .12; vector-effect: non-scaling-stroke; }
+    .wordmark { font-size: 15px; fill: var(--text); font-weight: 800; letter-spacing: .14em; }
+    .caption { font-size: 6px; fill: var(--muted); letter-spacing: .18em; }
+
+    @media (max-width: 980px) {
+      header { grid-template-columns: 1fr; }
+      .controls { justify-content: flex-start; }
+      .grid { grid-template-columns: 1fr; }
+      .concept { min-height: 560px; }
+      .stage { height: 320px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <p class="eyebrow">Tikeo celestial logo studies</p>
+        <h1>天体物理运动 + 呼吸律动 + 主题联动</h1>
+        <p class="intro">这只是概念预览，不会替换站点现有 Logo。三个方案都用开普勒椭圆轨道求解位置：公转角速度不匀速，近拱点更快；天体自转独立匀角速度。呼吸只作用于光晕与能量环，不篡改轨道。</p>
+      </div>
+      <div class="controls">
+        <button type="button" id="themeToggle">切换明暗主题</button>
+        <button type="button" id="motionToggle">暂停运动</button>
+      </div>
+    </header>
+
+    <section class="grid" aria-label="Tikeo celestial logo concepts">
+      <article class="concept" data-concept="binary">
+        <div class="concept-head">
+          <h2>方案 A · 双星调度核</h2>
+          <div class="tag">稳定、公转、自转、近拱点加速；最接近当前“呼吸核心”的精神延展。</div>
+        </div>
+        <div class="stage">
+          <svg class="logo-svg" viewBox="-120 -120 240 240" role="img" aria-label="Tikeo binary scheduler celestial logo concept">
+            <defs>
+              <radialGradient id="coreGlow" cx="50%" cy="44%" r="65%">
+                <stop offset="0%" stop-color="var(--primary)" stop-opacity="1" />
+                <stop offset="48%" stop-color="var(--secondary)" stop-opacity=".72" />
+                <stop offset="100%" stop-color="var(--primary)" stop-opacity=".08" />
+              </radialGradient>
+            </defs>
+            <line class="axis" x1="-100" x2="100" y1="0" y2="0" />
+            <line class="axis" x1="0" x2="0" y1="-100" y2="100" />
+            <ellipse class="orbit" data-orbit="binary-a" cx="0" cy="0" rx="72" ry="38" transform="rotate(-18)" />
+            <ellipse class="orbit secondary" data-orbit="binary-b" cx="0" cy="0" rx="72" ry="38" transform="rotate(162)" />
+            <circle class="breath" data-breath cx="0" cy="0" r="48" />
+            <circle class="core" cx="0" cy="0" r="16" />
+            <g data-body="binaryPrimary"><circle class="body-primary" r="8" /><path class="axis" d="M-8 0 H8 M0 -8 V8" /></g>
+            <g data-body="binarySecondary"><circle class="body-secondary" r="5.8" /><path class="axis" d="M-5.8 0 H5.8 M0 -5.8 V5.8" /></g>
+            <text class="wordmark" text-anchor="middle" x="0" y="102">TIKEO</text>
+            <text class="caption" text-anchor="middle" x="0" y="114">BARYCENTER · WORKER ORBITS</text>
+          </svg>
+        </div>
+        <div class="notes">
+          <div><strong>适合：</strong>文档站 / 产品主 Logo。中心代表调度核，双天体代表 Server 与 Worker 的稳定协同。</div>
+          <div><strong>色调：</strong>暗色用冰蓝 + 星紫；亮色自动转为清晰蓝 + 紫。保留科技感但不廉价霓虹。</div>
+          <div class="palette"><span class="swatch primary"></span><span class="swatch secondary"></span><span class="swatch tertiary"></span></div>
+        </div>
+      </article>
+
+      <article class="concept" data-concept="resonance">
+        <div class="concept-head">
+          <h2>方案 B · 共振队列环</h2>
+          <div class="tag">2:3:5 轨道周期，表达任务队列、重试与实例状态的节律。</div>
+        </div>
+        <div class="stage">
+          <svg class="logo-svg" viewBox="-120 -120 240 240" role="img" aria-label="Tikeo resonance queue celestial logo concept">
+            <g data-resonance-orbits></g>
+            <circle class="breath" data-breath cx="0" cy="0" r="28" />
+            <circle class="stellar-corona" cx="0" cy="0" r="18" />
+            <circle class="core stellar-core" cx="0" cy="0" r="13" />
+            <g data-body="resonanceInner" data-planet>
+              <circle class="moon-orbit" data-moon-orbit="resonanceInnerMoon" cx="0" cy="0" r="10" />
+              <circle class="body-primary" r="5.4" />
+              <path class="axis" d="M0 -5 V5" />
+              <circle class="body-moon" data-moon="resonanceInnerMoon" r="1.9" />
+            </g>
+            <g data-body="resonanceMid" data-planet>
+              <circle class="moon-orbit" data-moon-orbit="resonanceMidMoon" cx="0" cy="0" r="12" />
+              <circle class="body-secondary" r="6.8" />
+              <path class="axis" d="M-6 0 H6" />
+              <circle class="body-moon" data-moon="resonanceMidMoon" r="2.1" />
+            </g>
+            <g data-body="resonanceOuter" data-planet>
+              <circle class="moon-orbit" data-moon-orbit="resonanceOuterMoon" cx="0" cy="0" r="9" />
+              <circle class="body-tertiary" r="4.8" />
+              <path class="axis" d="M-4 -4 L4 4 M4 -4 L-4 4" />
+              <circle class="body-moon" data-moon="resonanceOuterMoon" r="1.7" />
+            </g>
+            <text class="wordmark" text-anchor="middle" x="0" y="102">TIKEO</text>
+            <text class="caption" text-anchor="middle" x="0" y="114">RESONANT JOBS · 2:3:5</text>
+          </svg>
+        </div>
+        <div class="notes">
+          <div><strong>适合：</strong>更强调任务编排、状态流转和通知触达的品牌方向。</div>
+          <div><strong>动态：</strong>三颗行星严格沿各自可见椭圆轨道运行；每颗行星带一个本地卫星，中心恒星做克制呼吸。</div>
+          <div class="palette"><span class="swatch primary"></span><span class="swatch secondary"></span><span class="swatch tertiary"></span><span class="swatch success"></span></div>
+        </div>
+      </article>
+
+      <article class="concept" data-concept="tunnel">
+        <div class="concept-head">
+          <h2>方案 C · 引力隧道门</h2>
+          <div class="tag">倾斜轨道 + 透视门，偏企业级、基础设施、Worker Tunnel。</div>
+        </div>
+        <div class="stage">
+          <svg class="logo-svg" viewBox="-120 -120 240 240" role="img" aria-label="Tikeo gravitational tunnel celestial logo concept">
+            <path class="orbit" d="M-86 0 C-54 -46 54 -46 86 0 C54 46 -54 46 -86 0Z" transform="rotate(-32)" />
+            <path class="orbit secondary" d="M-70 0 C-42 -30 42 -30 70 0 C42 30 -42 30 -70 0Z" transform="rotate(32)" />
+            <circle class="breath" data-breath cx="0" cy="0" r="54" />
+            <circle class="core" cx="0" cy="0" r="12" />
+            <path class="axis" d="M-52 -52 L52 52 M-52 52 L52 -52" />
+            <g data-body="tunnelRelay"><circle class="body-primary" r="7.2" /><path class="axis" d="M-6 0 H6 M0 -6 V6" /></g>
+            <g data-body="tunnelProbe"><circle class="body-tertiary" r="4.8" /><path class="axis" d="M0 -4 V4" /></g>
+            <text class="wordmark" text-anchor="middle" x="0" y="102">TIKEO</text>
+            <text class="caption" text-anchor="middle" x="0" y="114">OUTBOUND TUNNEL · CONTROL PLANE</text>
+          </svg>
+        </div>
+        <div class="notes">
+          <div><strong>适合：</strong>如果后续更想把 Tikeo 定位为“企业内网 Worker 出站控制平面”。</div>
+          <div><strong>识别：</strong>中心门洞有基础设施感；天体围绕隧道口运动，呼吸环像连接心跳。</div>
+          <div class="palette"><span class="swatch primary"></span><span class="swatch secondary"></span><span class="swatch tertiary"></span></div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const root = document.documentElement;
+    const themeToggle = document.querySelector('#themeToggle');
+    const motionToggle = document.querySelector('#motionToggle');
+    let paused = false;
+    let pauseStart = 0;
+    let pausedTotal = 0;
+
+    themeToggle.addEventListener('click', () => {
+      root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    });
+
+    motionToggle.addEventListener('click', () => {
+      paused = !paused;
+      if (paused) {
+        pauseStart = performance.now();
+        motionToggle.textContent = '继续运动';
+      } else {
+        pausedTotal += performance.now() - pauseStart;
+        motionToggle.textContent = '暂停运动';
+      }
+    });
+
+    function solveKepler(meanAnomaly, eccentricity) {
+      let eccentricAnomaly = meanAnomaly;
+      for (let i = 0; i < 8; i += 1) {
+        eccentricAnomaly -= (eccentricAnomaly - eccentricity * Math.sin(eccentricAnomaly) - meanAnomaly) / (1 - eccentricity * Math.cos(eccentricAnomaly));
+      }
+      return eccentricAnomaly;
+    }
+
+    function ellipsePathFromOrbit({ a, e, rotate = 0 }) {
+      const b = a * Math.sqrt(1 - e * e);
+      const focusOffset = a * e;
+      return `M ${(-a - focusOffset).toFixed(3)} 0 A ${a.toFixed(3)} ${b.toFixed(3)} ${rotate} 1 0 ${(a - focusOffset).toFixed(3)} 0 A ${a.toFixed(3)} ${b.toFixed(3)} ${rotate} 1 0 ${(-a - focusOffset).toFixed(3)} 0`;
+    }
+
+    function keplerPoint({ a, e, period, phase = 0, rotate = 0, time }) {
+      const mean = ((time / period + phase) % 1) * Math.PI * 2;
+      const E = solveKepler(mean, e);
+      const b = a * Math.sqrt(1 - e * e);
+      const x = a * (Math.cos(E) - e);
+      const y = b * Math.sin(E);
+      const angle = rotate * Math.PI / 180;
+      return {
+        x: x * Math.cos(angle) - y * Math.sin(angle),
+        y: x * Math.sin(angle) + y * Math.cos(angle),
+        trueAnomaly: 2 * Math.atan2(Math.sqrt(1 + e) * Math.sin(E / 2), Math.sqrt(1 - e) * Math.cos(E / 2)),
+        radius: a * (1 - e * Math.cos(E))
+      };
+    }
+
+    const resonanceOrbits = {
+      resonanceInner: { a: 38, e: .42, period: 5.2, phase: .08, rotate: 22, spin: 2.4, className: 'orbit' },
+      resonanceMid: { a: 66, e: .28, period: 7.8, phase: .28, rotate: -28, spin: -1.55, className: 'orbit secondary' },
+      resonanceOuter: { a: 92, e: .18, period: 13, phase: .45, rotate: 10, spin: .9, className: 'orbit tertiary' },
+    };
+
+    const bodies = {
+      binaryPrimary: { a: 72, e: .28, period: 7.5, phase: .02, rotate: -18, spin: 1.15 },
+      binarySecondary: { a: 72, e: .28, period: 7.5, phase: .52, rotate: -18, spin: -1.8 },
+      ...resonanceOrbits,
+      tunnelRelay: { a: 86, e: .38, period: 8.8, phase: .12, rotate: -32, spin: 1.45 },
+      tunnelProbe: { a: 70, e: .22, period: 5.9, phase: .66, rotate: 32, spin: -2.1 },
+    };
+
+    const moonSystems = {
+      resonanceInnerMoon: { parent: 'resonanceInner', radius: 10, period: 1.35, phase: .2, tilt: -12 },
+      resonanceMidMoon: { parent: 'resonanceMid', radius: 12, period: 1.9, phase: .64, tilt: 20 },
+      resonanceOuterMoon: { parent: 'resonanceOuter', radius: 9, period: 1.1, phase: .05, tilt: -28 },
+    };
+
+    const resonanceOrbitLayer = document.querySelector('[data-resonance-orbits]');
+    for (const orbit of Object.values(resonanceOrbits)) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('class', orbit.className);
+      path.setAttribute('d', ellipsePathFromOrbit(orbit));
+      resonanceOrbitLayer.appendChild(path);
+    }
+
+    const bodyNodes = Object.fromEntries(Object.keys(bodies).map((key) => [key, document.querySelector(`[data-body="${key}"]`)]));
+    const moonNodes = Object.fromEntries(Object.keys(moonSystems).map((key) => [key, document.querySelector(`[data-moon="${key}"]`)]));
+    const moonOrbitNodes = Object.fromEntries(Object.keys(moonSystems).map((key) => [key, document.querySelector(`[data-moon-orbit="${key}"]`)]));
+    const breathNodes = [...document.querySelectorAll('[data-breath]')];
+    breathNodes.forEach((node) => {
+      node.dataset.baseR = node.getAttribute('r') || '44';
+    });
+
+    function frame(now) {
+      const t = paused ? (pauseStart - pausedTotal) / 1000 : (now - pausedTotal) / 1000;
+      for (const [key, params] of Object.entries(bodies)) {
+        const node = bodyNodes[key];
+        if (!node) continue;
+        const point = keplerPoint({ ...params, time: t });
+        const spin = t * params.spin * 360;
+        node.dataset.x = point.x.toFixed(3);
+        node.dataset.y = point.y.toFixed(3);
+        node.setAttribute('transform', `translate(${point.x.toFixed(3)} ${point.y.toFixed(3)}) rotate(${spin.toFixed(3)})`);
+        const depth = 0.82 + 0.32 * (1 - point.radius / (params.a * (1 + params.e)));
+        node.style.opacity = String(Math.max(.62, Math.min(1, depth)));
+      }
+      for (const [key, params] of Object.entries(moonSystems)) {
+        const moon = moonNodes[key];
+        const orbit = moonOrbitNodes[key];
+        if (!moon || !orbit) continue;
+        const theta = ((t / params.period + params.phase) % 1) * Math.PI * 2;
+        const tilt = params.tilt * Math.PI / 180;
+        const localX = params.radius * Math.cos(theta);
+        const localY = params.radius * .62 * Math.sin(theta);
+        const x = localX * Math.cos(tilt) - localY * Math.sin(tilt);
+        const y = localX * Math.sin(tilt) + localY * Math.cos(tilt);
+        moon.setAttribute('cx', x.toFixed(3));
+        moon.setAttribute('cy', y.toFixed(3));
+        orbit.setAttribute('transform', `rotate(${params.tilt}) scale(1 .62)`);
+      }
+      const breath = 1 + 0.055 * Math.sin(t * Math.PI * 2 / 3.8) + 0.018 * Math.sin(t * Math.PI * 2 / 1.9);
+      breathNodes.forEach((node, index) => {
+        const base = Number(node.dataset.baseR) || 44;
+        const restrainedScale = 1 + (breath - 1) * 0.18;
+        node.setAttribute('r', (base * restrainedScale + index * 1.5).toFixed(2));
+        node.style.strokeOpacity = String(.055 + .075 * Math.max(0, restrainedScale - .99) / .025);
+      });
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
