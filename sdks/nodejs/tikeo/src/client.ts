@@ -9,7 +9,7 @@ import { WorkerConfig } from "./config.js";
 import { sdkLog } from "./logging.js";
 import type { ScriptRunnerRegistry, ScriptRunnerTask } from "./script/index.js";
 import { failed, TaskContext, type TaskOutcome, type TaskProcessor } from "./task.js";
-import { runWithTaskLogScope } from "./taskLogging.js";
+import { runWithoutTaskLogBridgeCapture, runWithTaskLogScope } from "./taskLogging.js";
 
 export interface Registration {
   clientInstanceId: string;
@@ -212,8 +212,11 @@ function processorErrorStack(error: unknown): string {
 }
 
 export function printTaskLogLocally(level: string, message: string): void {
-  const line = `[tikeo-worker] ${message}`;
-  if (level.toLowerCase() === "error") console.error(line); else console.log(line);
+  runWithoutTaskLogBridgeCapture(() => {
+    const line = `[tikeo-worker] ${message}`;
+    if (level.toLowerCase() === "error") console.error(line);
+    else console.log(line);
+  });
 }
 
 export function grpcTarget(endpoint: string): string {

@@ -11,6 +11,7 @@ export interface TaskLogScope {
 }
 
 const taskLogStorage = new AsyncLocalStorage<TaskLogScope>();
+let taskLogBridgeMuted = false;
 
 export function currentTaskLogScope(): TaskLogScope | undefined {
   return taskLogStorage.getStore();
@@ -21,6 +22,7 @@ export function runWithTaskLogScope<T>(scope: TaskLogScope, fn: () => T): T {
 }
 
 export function emitCurrentTaskLog(level: string, message: string): boolean {
+  if (taskLogBridgeMuted) return false;
   const scope = currentTaskLogScope();
   if (!scope) return false;
   scope.log(level || "info", message);
@@ -29,6 +31,16 @@ export function emitCurrentTaskLog(level: string, message: string): boolean {
 
 export interface ConsoleTaskLogBridge {
   restore(): void;
+}
+
+export function runWithoutTaskLogBridgeCapture<T>(fn: () => T): T {
+  const wasMuted = taskLogBridgeMuted;
+  taskLogBridgeMuted = true;
+  try {
+    return fn();
+  } finally {
+    taskLogBridgeMuted = wasMuted;
+  }
 }
 
 let consoleBridge: ConsoleTaskLogBridge | undefined;

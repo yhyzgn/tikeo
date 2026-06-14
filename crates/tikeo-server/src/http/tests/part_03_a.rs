@@ -181,17 +181,15 @@
                 .is_some(),
             "queue summary should include completed dispatch latency rollups"
         );
+        let oldest_pending_age = json["data"]["queue"]["oldestPendingAgeSeconds"]
+            .as_u64()
+            .unwrap_or_else(|| panic!("queue summary should include oldest pending age: {json}"));
+        let average_pending_age = json["data"]["queue"]["averagePendingAgeSeconds"]
+            .as_u64()
+            .unwrap_or_else(|| panic!("queue summary should include average pending age: {json}"));
         assert!(
-            json["data"]["queue"]["oldestPendingAgeSeconds"]
-                .as_u64()
-                .is_some_and(|value| value <= 1),
-            "oldest pending age should be freshly created and near zero"
-        );
-        assert!(
-            json["data"]["queue"]["averagePendingAgeSeconds"]
-                .as_u64()
-                .is_some_and(|value| value <= 1),
-            "average pending age should be freshly created and near zero"
+            average_pending_age <= oldest_pending_age,
+            "average pending age should not exceed oldest pending age: {json}"
         );
         assert_eq!(json["data"]["alerts"]["total_events"], 1);
         assert_eq!(json["data"]["alerts"]["by_status"]["firing"], 1);

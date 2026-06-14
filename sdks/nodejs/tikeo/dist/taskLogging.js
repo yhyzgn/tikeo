@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { formatWithOptions } from "node:util";
 const taskLogStorage = new AsyncLocalStorage();
+let taskLogBridgeMuted = false;
 export function currentTaskLogScope() {
     return taskLogStorage.getStore();
 }
@@ -8,11 +9,23 @@ export function runWithTaskLogScope(scope, fn) {
     return taskLogStorage.run(scope, fn);
 }
 export function emitCurrentTaskLog(level, message) {
+    if (taskLogBridgeMuted)
+        return false;
     const scope = currentTaskLogScope();
     if (!scope)
         return false;
     scope.log(level || "info", message);
     return true;
+}
+export function runWithoutTaskLogBridgeCapture(fn) {
+    const wasMuted = taskLogBridgeMuted;
+    taskLogBridgeMuted = true;
+    try {
+        return fn();
+    }
+    finally {
+        taskLogBridgeMuted = wasMuted;
+    }
 }
 let consoleBridge;
 /**

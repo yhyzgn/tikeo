@@ -11,6 +11,7 @@ export declare function emitCurrentTaskLog(level: string, message: string): bool
 export interface ConsoleTaskLogBridge {
     restore(): void;
 }
+export declare function runWithoutTaskLogBridgeCapture<T>(fn: () => T): T;
 /**
  * Bridge Node's built-in console methods into the active Tikeo task scope.
  *

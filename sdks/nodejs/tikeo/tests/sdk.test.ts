@@ -20,6 +20,7 @@ import {
   pluginApiJob,
   processDispatchTask,
   installConsoleTaskLogBridge,
+  printTaskLogLocally,
   scriptApiJob,
   type ScriptRunnerTask,
 } from "../src/index";
@@ -128,6 +129,34 @@ describe("node sdk parity", () => {
     expect(logs.some(([_level, message]) => message.includes("outside task scope"))).toBe(false);
   });
 
+  test("local task log echo is not recaptured by console bridge", async () => {
+    const logs: [string, string][] = [];
+    const bridge = installConsoleTaskLogBridge();
+    try {
+      const outcome = await processDispatchTask(() => {
+        throw new Error("nodejs bridge recursion probe");
+      }, undefined, {
+        instanceId: "inst-node-bridge-recursion",
+        jobId: "job-node-bridge-recursion",
+        processorName: "demo.bridge-recursion",
+        payload: new Uint8Array(),
+        assignmentToken: "assign-node-bridge-recursion",
+      }, (level, message) => {
+        logs.push([level, message]);
+        if (logs.length > 1) throw new Error("task log bridge recaptured its own local echo");
+        printTaskLogLocally(level, message);
+      });
+
+      expect(outcome.success).toBe(false);
+      expect(outcome.message).toContain("nodejs bridge recursion probe");
+    } finally {
+      bridge.restore();
+    }
+
+    expect(logs).toHaveLength(1);
+    expect(logs[0][0]).toBe("error");
+    expect(logs[0][1]).toContain("nodejs bridge recursion probe");
+  });
 
   test("processor exceptions are reported with stack trace task logs", async () => {
     const logs: [string, string][] = [];
