@@ -1,16 +1,19 @@
-//! SDK diagnostic logging for Rust Worker clients.
+//! SDK diagnostic logging and task-scoped logging bridge for Rust Worker clients.
 //!
-//! This module is intentionally independent from task-scoped instance logs. Task output still flows
-//! through [`TaskContext`](crate::TaskContext) so unrelated process logs are never attached to a job
-//! instance. SDK diagnostics describe connection, registration, heartbeat, and runtime lifecycle
-//! events and can be written to the console plus an optional file directory.
+//! SDK diagnostics describe connection, registration, heartbeat, and runtime lifecycle events and
+//! can be written to the console plus an optional file directory. Task logs remain task-scoped:
+//! [`TaskContext::log_info`](crate::TaskContext::log_info) and
+//! [`TaskContext::log_error`](crate::TaskContext::log_error) are the low-level fallback, while
+//! [`tracing::info!`] and [`tracing::error!`] emitted during processor execution are captured only
+//! when a tikeo task scope is active.
 //!
 //! # Usage
 //!
 //! ```no_run
-//! use tikeo::{SdkLogConfig, configure_sdk_logging};
+//! use tikeo::{SdkLogConfig, configure_sdk_logging, install_task_log_bridge};
 //!
 //! configure_sdk_logging(SdkLogConfig::info().with_log_dir("./logs"));
+//! let _installed = install_task_log_bridge();
 //! ```
 //!
 //! # Operational cautions
@@ -25,6 +28,12 @@ use std::{
     path::{Path, PathBuf},
     sync::{Mutex, OnceLock},
 };
+
+use tracing::{Event, Level, Subscriber, field};
+use tracing_log::LogTracer;
+use tracing_subscriber::{Layer, Registry, layer::Context, prelude::*};
+
+use crate::task::TaskLogger;
 
 /// Minimum severity for SDK diagnostic output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -144,6 +153,11 @@ impl SdkLogger {
 }
 
 static SDK_LOGGER: OnceLock<Mutex<SdkLogger>> = OnceLock::new();
+static TASK_LOG_BRIDGE: OnceLock<bool> = OnceLock::new();
+
+tokio::task_local! {
+    static TASK_LOG_SCOPE: TaskLogger;
+}
 
 /// Configure process-level SDK diagnostics.
 ///
@@ -156,16 +170,112 @@ static SDK_LOGGER: OnceLock<Mutex<SdkLogger>> = OnceLock::new();
 ///
 /// # Operational cautions
 ///
-/// This logger is for SDK diagnostics only. Use [`TaskContext::log_info`](crate::TaskContext::log_info)
-/// and [`TaskContext::log_error`](crate::TaskContext::log_error) for task instance logs.
+/// This logger is for SDK diagnostics only. Use [`TaskContext::log_info`](crate::TaskContext::log_info),
+/// [`TaskContext::log_error`](crate::TaskContext::log_error), or task-scoped `tracing` events for task
+/// instance logs.
 #[must_use]
 pub fn configure_sdk_logging(config: SdkLogConfig) -> bool {
     SDK_LOGGER.set(Mutex::new(SdkLogger::new(config))).is_ok()
+}
+
+/// Install the global bridge that forwards task-scoped [`tracing`] and [`log`] events into tikeo task logs.
+///
+/// The bridge is intentionally scope-gated: events are forwarded only while the SDK is executing a
+/// processor inside a tikeo task scope. Process-level logs outside that scope are ignored by this
+/// bridge and are never attached to a task instance. Calling this more than once is safe; only the
+/// first call installs the global subscriber/log adapter.
+///
+/// Returns `true` when this call installed the bridge and `false` when it was already installed or
+/// another global tracing subscriber/log adapter was already configured by the application.
+#[must_use]
+pub fn install_task_log_bridge() -> bool {
+    *TASK_LOG_BRIDGE.get_or_init(|| {
+        let subscriber = Registry::default().with(TaskLogLayer);
+        let tracing_installed = tracing::subscriber::set_global_default(subscriber).is_ok();
+        let log_installed = LogTracer::init().is_ok();
+        tracing_installed || log_installed
+    })
+}
+
+pub(crate) async fn in_task_log_scope<F>(logger: TaskLogger, future: F) -> F::Output
+where
+    F: std::future::Future,
+{
+    TASK_LOG_SCOPE.scope(logger, future).await
 }
 
 pub fn sdk_log(level: SdkLogLevel, message: impl AsRef<str>) {
     let logger = SDK_LOGGER.get_or_init(|| Mutex::new(SdkLogger::new(SdkLogConfig::from_env())));
     if let Ok(mut guard) = logger.lock() {
         guard.log(level, message.as_ref());
+    }
+}
+
+struct TaskLogLayer;
+
+impl<S> Layer<S> for TaskLogLayer
+where
+    S: Subscriber,
+{
+    fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
+        let metadata = event.metadata();
+        let Some(level) = task_log_level(metadata.level()) else {
+            return;
+        };
+        let _ = TASK_LOG_SCOPE.try_with(|logger| {
+            let mut visitor = MessageVisitor::default();
+            event.record(&mut visitor);
+            let message = visitor.finish();
+            if !message.is_empty() {
+                (logger)(level, message);
+            }
+        });
+    }
+}
+
+fn task_log_level(level: &Level) -> Option<&'static str> {
+    match *level {
+        Level::ERROR => Some("error"),
+        Level::WARN | Level::INFO => Some("info"),
+        Level::DEBUG | Level::TRACE => None,
+    }
+}
+
+#[derive(Default)]
+struct MessageVisitor {
+    message: Option<String>,
+    fields: Vec<String>,
+}
+
+impl MessageVisitor {
+    fn finish(self) -> String {
+        match (self.message, self.fields.is_empty()) {
+            (Some(message), true) => message,
+            (Some(message), false) => format!("{} {}", message, self.fields.join(" ")),
+            (None, true) => String::new(),
+            (None, false) => self.fields.join(" "),
+        }
+    }
+
+    fn push_field(&mut self, field: &field::Field, value: String) {
+        if field.name() == "message" {
+            self.message = Some(value);
+        } else {
+            self.fields.push(format!("{}={}", field.name(), value));
+        }
+    }
+}
+
+impl field::Visit for MessageVisitor {
+    fn record_debug(&mut self, field: &field::Field, value: &dyn std::fmt::Debug) {
+        self.push_field(field, format!("{value:?}"));
+    }
+
+    fn record_str(&mut self, field: &field::Field, value: &str) {
+        self.push_field(field, value.to_owned());
+    }
+
+    fn record_error(&mut self, field: &field::Field, value: &(dyn std::error::Error + 'static)) {
+        self.push_field(field, value.to_string());
     }
 }

@@ -9,6 +9,7 @@ import { WorkerConfig } from "./config.js";
 import { sdkLog } from "./logging.js";
 import type { ScriptRunnerRegistry, ScriptRunnerTask } from "./script/index.js";
 import { failed, TaskContext, type TaskOutcome, type TaskProcessor } from "./task.js";
+import { runWithTaskLogScope } from "./taskLogging.js";
 
 export interface Registration {
   clientInstanceId: string;
@@ -189,7 +190,8 @@ export async function processDispatchTask(processor: TaskProcessor, scripts: Scr
         log,
       });
     }
-    return await processor(new TaskContext(task.instanceId, task.jobId, task.processorName || task.jobId, task.payload ?? new Uint8Array(), log));
+    const context = new TaskContext(task.instanceId, task.jobId, task.processorName || task.jobId, task.payload ?? new Uint8Array(), log);
+    return await runWithTaskLogScope({ instanceId: context.instanceId, jobId: context.jobId, processorName: context.processorName, log }, () => processor(context));
   } catch (error) {
     const message = processorErrorMessage(error);
     const stack = processorErrorStack(error);

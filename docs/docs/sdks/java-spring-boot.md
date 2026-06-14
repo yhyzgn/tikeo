@@ -89,17 +89,23 @@ package com.example.worker;
 
 import net.tikeo.processor.TaskContext;
 import net.tikeo.processor.TikeoProcessor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Component
 public final class EchoProcessor {
+    private static final Logger log = LoggerFactory.getLogger(EchoProcessor.class);
+
     @TikeoProcessor("demo.echo")
     public String echo(TaskContext context, String payload) {
-        context.logInfo("java echo processor=" + context.processorName());
+        log.info("java echo processor={} instance={}", context.processorName(), context.instanceId());
         return "java echo processed: " + payload;
     }
 }
 ```
+
+Add `net.tikeo.logging.TikeoTaskLogbackAppender` to Logback (the demos provide `logback-spring.xml`). Ordinary SLF4J records emitted while a processor runs are mirrored to the current job instance via a thread-local task scope and MDC keys; startup and unrelated request logs are not attached. `TaskContext.logInfo/logError` remains a fallback.
 
 `@TikeoProcessor` is scanned by `TikeoProcessorRegistry`, converted into structured SDK processor capabilities, and invoked by `SpringTikeoTaskProcessor` when `DispatchTask.processor_name` matches. Do not rely on job ID naming as the primary dispatch contract.
 
@@ -228,7 +234,7 @@ Expected acceptance evidence includes an online worker with the requested struct
 
 ## Failure and exception demos
 
-The Spring Boot demos separate expected business failures from runtime exceptions. `demo.fail` returns a failed `TaskOutcome`; `demo.exception` throws an `IllegalStateException`. The Spring adapter records the Java stack trace through `TaskContext.logError`, so a live dispatched exception is visible in instance logs and in the public notification console link.
+The Spring Boot demos separate expected business failures from runtime exceptions. `demo.fail` returns a failed `TaskOutcome`; `demo.exception` throws an `IllegalStateException`. The Worker client records runtime exception stack traces as task logs, and ordinary SLF4J/Logback lines emitted before the exception are mirrored through `TikeoTaskLogbackAppender`, so a live dispatched exception is visible in instance logs and in the public notification console link.
 
 ## Capability discipline
 

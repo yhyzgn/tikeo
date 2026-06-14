@@ -65,13 +65,17 @@ package demo;
 import net.tikeo.processor.TaskContext;
 import net.tikeo.processor.TaskOutcome;
 import net.tikeo.processor.TikeoProcessor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Component
 class EchoProcessor {
+    private static final Logger log = LoggerFactory.getLogger(EchoProcessor.class);
+
     @TikeoProcessor("demo.echo")
     TaskOutcome echo(TaskContext task) {
-        task.logInfo("java echo processor=" + task.processorName());
+        log.info("java echo processor={} instance={}", task.processorName(), task.instanceId());
         return TaskOutcome.success("java echo processed");
     }
 }
@@ -86,7 +90,7 @@ class EchoProcessor {
 | 预期业务失败 | 返回 failure `TaskOutcome`。 |
 | Processor exception | 抛异常；adapter 上报 task failure，message 进入任务证据。 |
 | 不支持的 processor | 不注册 annotation，或从显式 handler 返回 failure outcome。 |
-| Task logs | 使用 `TaskContext` log helpers；日志可通过 Management API logs endpoint 查看。 |
+| Task logs | 优先使用 SLF4J/Logback + `TikeoTaskLogbackAppender`；`TaskContext.logInfo/logError` 仅作为 fallback。 |
 
 ## Management client 写法
 

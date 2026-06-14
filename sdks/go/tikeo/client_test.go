@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -53,6 +54,45 @@ func TestProcessDispatchTaskRecordsOnlyTaskLoggerLinesForProcessors(t *testing.T
 	}
 	if containsCapturedLogWithSubstring(logs, "error", "stderr line should stay console-only") || containsCapturedLogWithSubstring(logs, "error", "log package line should stay console-only") {
 		t.Fatalf("stderr/log package output was incorrectly captured as task log: %+v", logs)
+	}
+}
+
+func TestProcessDispatchTaskBridgesSlogAndTaskLoggerFromContext(t *testing.T) {
+	collector := newCapturedTaskLogCollector()
+	processor := TaskProcessorFunc(func(ctx context.Context, _ TaskContext) (TaskOutcome, error) {
+		slog.New(TaskSlogHandler{}).InfoContext(ctx, "go slog bridge info")
+		slog.New(TaskSlogHandler{}).ErrorContext(ctx, "go slog bridge error")
+		NewTaskLogger(ctx, "", 0).Print("go stdlib task logger line")
+		return Succeeded(), nil
+	})
+
+	// A bridged logger without task context must not attach unrelated process logs to an instance.
+	slog.New(TaskSlogHandler{}).InfoContext(context.Background(), "go outside task scope should stay console-only")
+
+	outcome, err := processDispatchTaskWithLogs(context.Background(), processor, nil, &workerpb.DispatchTask{
+		InstanceId:      "inst-go-logger",
+		JobId:           "job-go-logger",
+		ProcessorName:   "demo.logger",
+		AssignmentToken: "assign-token-logger",
+	}, collector.add)
+	logs := collector.logs()
+	if err != nil {
+		t.Fatalf("processDispatchTaskWithLogs() error = %v", err)
+	}
+	if !outcome.Success {
+		t.Fatalf("unexpected outcome: %+v", outcome)
+	}
+	if !containsCapturedLog(logs, "info", "go slog bridge info") {
+		t.Fatalf("missing slog info bridge log: %+v", logs)
+	}
+	if !containsCapturedLog(logs, "error", "go slog bridge error") {
+		t.Fatalf("missing slog error bridge log: %+v", logs)
+	}
+	if !containsCapturedLog(logs, "info", "go stdlib task logger line") {
+		t.Fatalf("missing stdlib task logger bridge log: %+v", logs)
+	}
+	if containsCapturedLogWithSubstring(logs, "info", "outside task scope") {
+		t.Fatalf("outside-scope slog was incorrectly captured: %+v", logs)
 	}
 }
 

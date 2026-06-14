@@ -107,12 +107,7 @@ async fn management_client_creates_and_triggers_api_job() {
                 .accept()
                 .await
                 .unwrap_or_else(|error| panic!("accept management request: {error}"));
-            let mut buffer = vec![0_u8; 8192];
-            let read = stream
-                .read(&mut buffer)
-                .await
-                .unwrap_or_else(|error| panic!("read management request: {error}"));
-            let request = String::from_utf8_lossy(&buffer[..read]);
+            let request = read_http_request(&mut stream).await;
             assert!(request.contains("x-tikeo-api-key: key-1"));
             let (body, status) = if request.contains("POST /api/v1/jobs/job-1:trigger ") {
                 assert!(request.contains(r#""triggerType":"api""#));
@@ -167,6 +162,45 @@ async fn management_client_creates_and_triggers_api_job() {
     server
         .await
         .unwrap_or_else(|error| panic!("join mock management server: {error}"));
+}
+
+async fn read_http_request(stream: &mut tokio::net::TcpStream) -> String {
+    let mut buffer = Vec::new();
+    let mut temp = [0_u8; 1024];
+    let mut header_end = None;
+    let mut content_length = 0_usize;
+    loop {
+        let read = stream
+            .read(&mut temp)
+            .await
+            .unwrap_or_else(|error| panic!("read management request: {error}"));
+        assert!(read > 0, "connection closed before full management request");
+        buffer.extend_from_slice(&temp[..read]);
+        if header_end.is_none() {
+            header_end = find_header_end(&buffer);
+            if let Some(end) = header_end {
+                let headers = String::from_utf8_lossy(&buffer[..end]);
+                content_length = headers
+                    .lines()
+                    .find_map(|line| {
+                        let (name, value) = line.split_once(':')?;
+                        name.eq_ignore_ascii_case("content-length")
+                            .then(|| value.trim().parse::<usize>().ok())
+                            .flatten()
+                    })
+                    .unwrap_or(0);
+            }
+        }
+        if let Some(end) = header_end
+            && buffer.len() >= end + 4 + content_length
+        {
+            return String::from_utf8_lossy(&buffer).to_string();
+        }
+    }
+}
+
+fn find_header_end(buffer: &[u8]) -> Option<usize> {
+    buffer.windows(4).position(|window| window == b"\r\n\r\n")
 }
 
 #[tokio::test]
@@ -626,6 +660,7 @@ async fn worker_session_records_only_task_logger_lines_for_processors() {
         .unwrap_or_else(|error| panic!("task should process: {error}"));
     assert_eq!(outcome, TaskOutcome::Succeeded);
 
+    tracing::info!("rust processor tracing outside task");
     let logs = collect_until_result(&mut events).await;
     assert!(
         logs.iter().any(|log| log.level == "info"
@@ -638,6 +673,23 @@ async fn worker_session_records_only_task_logger_lines_for_processors() {
             && log.message == "rust processor task logger error"
             && log.assignment_token == "assign-token-console"),
         "missing captured stderr log: {logs:?}"
+    );
+    assert!(
+        logs.iter().any(|log| log.level == "info"
+            && log.message == "rust processor tracing info"
+            && log.assignment_token == "assign-token-console"),
+        "missing captured tracing info log: {logs:?}"
+    );
+    assert!(
+        logs.iter().any(|log| log.level == "error"
+            && log.message == "rust processor tracing error"
+            && log.assignment_token == "assign-token-console"),
+        "missing captured tracing error log: {logs:?}"
+    );
+    assert!(
+        logs.iter()
+            .all(|log| log.message != "rust processor tracing outside task"),
+        "tracing outside a task scope must not be captured: {logs:?}"
     );
     server.abort();
 }
@@ -1138,6 +1190,8 @@ impl TaskProcessor for ConsoleProcessor {
         assert_eq!(task.payload, b"hello");
         println!("rust processor task logger info should stay console-only");
         eprintln!("rust processor task logger error should stay console-only");
+        tracing::info!("rust processor tracing info");
+        tracing::error!("rust processor tracing error");
         task.log_info("rust processor task logger info");
         task.log_error("rust processor task logger error");
         Ok(TaskOutcome::Succeeded)

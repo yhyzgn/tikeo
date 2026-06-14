@@ -12,5 +12,6 @@ tikeo = { path = "../../../sdks/rust/tikeo" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tikv-jemallocator = "0.7"
 rustyline = "18"
+tracing = "0.1"
 
 [workspace]

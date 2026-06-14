@@ -60,6 +60,7 @@ Structured helpers include `add_tag`, `add_sdk_processor`, `add_script_runner`, 
 ## Minimal Worker
 
 ```python
+import logging
 import time
 import tikeo
 
@@ -69,10 +70,12 @@ config.app = "management"
 config.add_sdk_processor("demo.echo")
 config.labels["worker_pool"] = "python-blue"
 
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+tikeo.install_task_log_handler(logging.getLogger())  # mirrors logging records only inside task scope
 client = tikeo.Client(config)
 
 def process(task: tikeo.TaskContext) -> tikeo.TaskOutcome:
-    task.log_info(f"python echo processor={task.processor_name} instance={task.instance_id}")
+    logging.info("python echo processor=%s instance=%s", task.processor_name, task.instance_id)
     return tikeo.succeeded("python echo processed")
 
 while True:
@@ -88,6 +91,8 @@ while True:
         print(f"worker tunnel ended, reconnecting: {exc}")
         time.sleep(2)
 ```
+
+Use ordinary `logging.getLogger(__name__)` calls in processors. The `TikeoTaskLogHandler` uses `contextvars`, so only records emitted during the active task scope are attached to that instance; startup and unrelated logs are ignored. `TaskContext.log_info/log_error` remains a fallback.
 
 `process_next(process, scripts)` should receive a `ScriptRunnerRegistry` only after registering real script runners. The Python SDK validates immutable script snapshots and SHA-256 digests before running script content.
 

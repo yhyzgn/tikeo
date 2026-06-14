@@ -19,6 +19,7 @@ import {
   localConfig,
   pluginApiJob,
   processDispatchTask,
+  installConsoleTaskLogBridge,
   scriptApiJob,
   type ScriptRunnerTask,
 } from "../src/index";
@@ -98,6 +99,33 @@ describe("node sdk parity", () => {
     expect(bodies[2].triggerType).toBe("api");
     expect(bodies[2].executionMode).toBe("single");
     expect(broadcastApiTrigger({ region: "us-east-1" })).toEqual({ triggerType: "api", executionMode: "broadcast", broadcastSelector: { region: "us-east-1" } });
+  });
+
+  test("console bridge mirrors processor logs only inside active task scope", async () => {
+    const logs: [string, string][] = [];
+    const bridge = installConsoleTaskLogBridge();
+    try {
+      console.info("nodejs outside task scope should stay console-only");
+      const outcome = await processDispatchTask(() => {
+        console.info("nodejs native logger info", { orderId: 42 });
+        console.error("nodejs native logger error");
+        return { success: true, message: "ok" };
+      }, undefined, {
+        instanceId: "inst-node-logger",
+        jobId: "job-node-logger",
+        processorName: "demo.logger",
+        payload: new Uint8Array(),
+        assignmentToken: "assign-node-logger",
+      }, (level, message) => logs.push([level, message]));
+
+      expect(outcome.success).toBe(true);
+    } finally {
+      bridge.restore();
+    }
+
+    expect(logs.some(([level, message]) => level === "info" && message.includes("nodejs native logger info") && message.includes("orderId"))).toBe(true);
+    expect(logs.some(([level, message]) => level === "error" && message.includes("nodejs native logger error"))).toBe(true);
+    expect(logs.some(([_level, message]) => message.includes("outside task scope"))).toBe(false);
   });
 
 

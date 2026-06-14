@@ -69,7 +69,7 @@ The `validate()` method rejects blank required fields and non-positive heartbeat
 ## Minimal Worker
 
 ```typescript
-import { Client, localConfig, type TaskContext, type TaskOutcome } from "@yhyzgn/tikeo";
+import { Client, installConsoleTaskLogBridge, localConfig, type TaskContext, type TaskOutcome } from "@yhyzgn/tikeo";
 
 const config = localConfig("http://127.0.0.1:9998", "nodejs-worker-1");
 config.namespace = "sdk-smoke";
@@ -77,10 +77,11 @@ config.app = "management";
 config.addSDKProcessor("demo.echo");
 config.labels.worker_pool = "nodejs-blue";
 
+installConsoleTaskLogBridge(); // Mirrors console.* only while a Tikeo task scope is active.
 const client = new Client(config);
 
 async function process(task: TaskContext): Promise<TaskOutcome> {
-  task.logInfo(`nodejs echo processor=${task.processorName} instance=${task.instanceId}`);
+  console.info(`nodejs echo processor=${task.processorName} instance=${task.instanceId}`);
   return { success: true, message: "nodejs echo processed" };
 }
 
@@ -100,6 +101,10 @@ while (true) {
   }
 }
 ```
+
+## Task logging bridge
+
+Use ordinary application logging in processors. `installConsoleTaskLogBridge()` uses Node `AsyncLocalStorage`, so `console.info/error/warn/log` lines are mirrored to the current job instance only during `session.processNext(...)`. Logs outside a task remain normal process logs. `TaskContext.logInfo/logError` remains as a low-level fallback for custom logger integrations.
 
 ## Demo environment variables
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import json
 import os
 from types import SimpleNamespace
@@ -144,6 +145,40 @@ def test_management_client_creates_structured_plugin_and_script_jobs():
         "broadcastSelector": {"region": "us-east-1"},
     }
 
+
+
+def test_standard_logging_bridge_mirrors_processor_logs_only_inside_active_task_scope():
+    from tikeo.client import process_dispatch_task
+
+    logs = []
+    logger = logging.getLogger("tikeo.tests.task_bridge")
+    logger.handlers.clear()
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    handler = tikeo.install_task_log_handler(logger)
+
+    task = SimpleNamespace(
+        instance_id="inst-python-logger",
+        job_id="job-python-logger",
+        processor_name="demo.logger",
+        payload=b"",
+        processor_binding=None,
+    )
+
+    logger.info("python outside task scope should stay console-only")
+
+    def processor(_task):
+        logger.info("python native logger info order_id=%s", 42)
+        logger.error("python native logger error")
+        return tikeo.succeeded()
+
+    outcome = process_dispatch_task(processor, None, task, lambda level, message: logs.append((level, message)))
+
+    logger.removeHandler(handler)
+    assert outcome.success
+    assert any(level == "info" and "python native logger info" in message and "42" in message for level, message in logs)
+    assert any(level == "error" and "python native logger error" in message for level, message in logs)
+    assert not any("outside task scope" in message for _level, message in logs)
 
 
 def test_processor_exceptions_are_reported_with_traceback_task_logs():

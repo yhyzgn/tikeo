@@ -14,7 +14,7 @@ use tonic::Streaming;
 use crate::{
     config::WorkerConfig,
     error::WorkerSdkError,
-    logging::{SdkLogLevel, sdk_log},
+    logging::{SdkLogLevel, in_task_log_scope, install_task_log_bridge, sdk_log},
     proto::worker::v1::{
         DispatchTask, Heartbeat, Ping, ScriptProcessorBinding, ServerMessage, TaskLog, TaskResult,
         UnregisterWorker, WorkerMessage, WorkerRegistered, server_message, task_processor_binding,
@@ -262,16 +262,20 @@ impl WorkerSession {
         let outcome = if let Some(binding) = task.processor_binding.as_ref() {
             process_bound_task(binding, &task, script_runners, emit_log).await
         } else {
-            match processor.process(context).await {
-                Ok(outcome) => outcome,
-                Err(error) => {
-                    (emit_log)(
-                        "error",
-                        format!("processor failed: {error}\n{}", Backtrace::force_capture()),
-                    );
-                    TaskOutcome::Failed(error.to_string())
+            let _ = install_task_log_bridge();
+            in_task_log_scope(Arc::clone(&emit_log), async {
+                match processor.process(context).await {
+                    Ok(outcome) => outcome,
+                    Err(error) => {
+                        (emit_log)(
+                            "error",
+                            format!("processor failed: {error}\n{}", Backtrace::force_capture()),
+                        );
+                        TaskOutcome::Failed(error.to_string())
+                    }
                 }
-            }
+            })
+            .await
         };
         for entry in task_logs.drain() {
             self.emit_task_log_safely(&instance_id, &assignment_token, &entry.level, entry.message)

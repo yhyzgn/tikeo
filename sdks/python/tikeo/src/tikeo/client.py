@@ -18,6 +18,7 @@ from .config import WorkerCapabilities, WorkerConfig
 from .proto_loader import worker_modules
 from .script import ScriptRunnerRegistry, ScriptRunnerTask
 from .task import TaskContext, TaskOutcome, TaskProcessor, failed
+from .task_logging import TaskLogScope, task_log_scope
 
 
 @dataclass(slots=True)
@@ -228,7 +229,9 @@ def process_dispatch_task(processor: TaskProcessor, scripts: ScriptRunnerRegistr
                 job_id=task.job_id,
                 log=log,
             ))
-        return processor(TaskContext(instance_id=task.instance_id, job_id=task.job_id, processor_name=task.processor_name or task.job_id, payload=bytes(task.payload), log=log))
+        context = TaskContext(instance_id=task.instance_id, job_id=task.job_id, processor_name=task.processor_name or task.job_id, payload=bytes(task.payload), log=log)
+        with task_log_scope(TaskLogScope(context.instance_id, context.job_id, context.processor_name, log)):
+            return processor(context)
     except Exception as exc:
         stack = traceback.format_exc()
         sdk_logging.error("processor failed instance_id=%s error=%s", getattr(task, "instance_id", ""), exc)

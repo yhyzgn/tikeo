@@ -110,32 +110,32 @@ def configure_scripts(config: tikeo.WorkerConfig) -> tikeo.ScriptRunnerRegistry:
 
 
 def process_task(task: tikeo.TaskContext) -> tikeo.TaskOutcome:
-    task.log_info(f"[python-worker] processor={task.processor_name} instance={task.instance_id} payload_bytes={len(task.payload)}")
+    logging.info("[python-worker] processor=%s instance=%s payload_bytes=%s", task.processor_name, task.instance_id, len(task.payload))
     payload = task.payload.decode(errors="replace")
     match task.processor_name or "demo.echo":
         case "" | "demo.echo":
-            task.log_info(f"[demo.echo] payload='{payload}'")
+            logging.info("[demo.echo] payload=%r", payload)
             return tikeo.TaskOutcome(True, "python demo echo processed")
         case "demo.context":
-            task.log_info(f"[demo.context] jobId={task.job_id} instanceId={task.instance_id}")
+            logging.info("[demo.context] jobId=%s instanceId=%s", task.job_id, task.instance_id)
             return tikeo.TaskOutcome(True, f"python demo context processed instance={task.instance_id}")
         case "demo.bytes":
-            task.log_info(f"[demo.bytes] payload='{payload}' length={len(task.payload)}")
+            logging.info("[demo.bytes] payload=%r length=%s", payload, len(task.payload))
             return tikeo.TaskOutcome(True, f"python demo bytes processed payload_bytes={len(task.payload)}")
         case "demo.heartbeat":
-            task.log_info(f"[demo.heartbeat] tick jobId={task.job_id} instanceId={task.instance_id}")
+            logging.info("[demo.heartbeat] tick jobId=%s instanceId=%s", task.job_id, task.instance_id)
             return tikeo.TaskOutcome(True, "python demo heartbeat processed")
         case "billing.sql-sync":
-            task.log_info(f"[billing.sql-sync] plugin SQL processor received payload='{payload}'")
+            logging.info("[billing.sql-sync] plugin SQL processor received payload=%r", payload)
             return tikeo.TaskOutcome(True, "python demo sql plugin processed")
         case "demo.fail":
-            task.log_error(f"[demo.fail] intentional failure payload='{payload}'")
+            logging.error("[demo.fail] intentional failure payload=%r", payload)
             return tikeo.failed("python demo intentional failure")
         case "demo.exception":
-            task.log_error(f"[demo.exception] raising runtime exception payload='{payload}'")
+            logging.error("[demo.exception] raising runtime exception payload=%r", payload)
             raise RuntimeError("python demo runtime exception")
         case other:
-            task.log_error(f"[python-worker] unsupported processor={other}")
+            logging.error("[python-worker] unsupported processor=%s", other)
             return tikeo.failed("unsupported python demo processor: " + other)
 
 

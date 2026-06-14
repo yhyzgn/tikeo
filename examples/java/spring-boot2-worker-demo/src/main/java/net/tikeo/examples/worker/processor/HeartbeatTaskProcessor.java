@@ -13,10 +13,8 @@ public final class HeartbeatTaskProcessor {
     @TikeoProcessor("demo.heartbeat")
     public TaskOutcome heartbeat(TaskContext context) {
         log.info("[demo.heartbeat] tick jobId={} instanceId={}", context.jobId(), context.instanceId());
-        context.logInfo("[demo.heartbeat] tick jobId=" + context.jobId() + " instanceId=" + context.instanceId());
         TaskOutcome outcome = new TaskOutcome(true, "heartbeat:" + context.jobId());
         log.info("[demo.heartbeat] completed instanceId={} message='{}'", context.instanceId(), outcome.message());
-        context.logInfo("[demo.heartbeat] completed instanceId=" + context.instanceId() + " message='" + outcome.message() + "'");
         return outcome;
     }
 }

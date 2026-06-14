@@ -14,10 +14,8 @@ public final class BytesTaskProcessor {
     public String bytes(TaskContext context, byte[] payload) {
         String text = new String(payload, StandardCharsets.UTF_8);
         log.info("[demo.bytes] received bytes payload='{}' length={}", text, payload.length);
-        context.logInfo("[demo.bytes] received bytes payload='" + text + "' length=" + payload.length);
         String result = "bytes:" + text;
         log.info("[demo.bytes] completed result='{}'", result);
-        context.logInfo("[demo.bytes] completed result='" + result + "'");
         return result;
     }
 }

@@ -8,6 +8,7 @@ import {
   ScriptRunnerRegistry,
   SrtScriptRunner,
   TaskContext,
+  installConsoleTaskLogBridge,
   TaskOutcome,
   apiJob,
   failed,
@@ -18,6 +19,7 @@ import {
 } from "@yhyzgn/tikeo";
 
 export async function main(): Promise<void> {
+  installConsoleTaskLogBridge();
   const config = localConfig(envOr("TIKEO_WORKER_ENDPOINT", "http://127.0.0.1:9998"), envOr("TIKEO_WORKER_CLIENT_INSTANCE_ID", "nodejs-worker-demo-local"));
   config.namespace = envOr("TIKEO_WORKER_NAMESPACE", "dev-alpha");
   config.app = envOr("TIKEO_WORKER_APP", "orders");
@@ -108,18 +110,18 @@ export function configureScripts(config: WorkerConfig): ScriptRunnerRegistry {
 }
 
 export function processTask(task: TaskContext): TaskOutcome {
-  task.logInfo(`[nodejs-worker] processor=${task.processorName} instance=${task.instanceId} payload_bytes=${task.payload.length}`);
+  console.info(`[nodejs-worker] processor=${task.processorName} instance=${task.instanceId} payload_bytes=${task.payload.length}`);
   const payload = new TextDecoder().decode(task.payload);
   switch (task.processorName || "demo.echo") {
     case "":
-    case "demo.echo": task.logInfo(`[demo.echo] payload='${payload}'`); return { success: true, message: "nodejs demo echo processed" };
-    case "demo.context": task.logInfo(`[demo.context] jobId=${task.jobId} instanceId=${task.instanceId}`); return { success: true, message: `nodejs demo context processed instance=${task.instanceId}` };
-    case "demo.bytes": task.logInfo(`[demo.bytes] payload='${payload}' length=${task.payload.length}`); return { success: true, message: `nodejs demo bytes processed payload_bytes=${task.payload.length}` };
-    case "demo.heartbeat": task.logInfo(`[demo.heartbeat] tick jobId=${task.jobId} instanceId=${task.instanceId}`); return { success: true, message: "nodejs demo heartbeat processed" };
-    case "billing.sql-sync": task.logInfo(`[billing.sql-sync] plugin SQL processor received payload='${payload}'`); return { success: true, message: "nodejs demo sql plugin processed" };
-    case "demo.fail": task.logError(`[demo.fail] intentional failure payload='${payload}'`); return failed("nodejs demo intentional failure");
-    case "demo.exception": task.logError(`[demo.exception] throwing runtime exception payload='${payload}'`); throw new Error("nodejs demo runtime exception");
-    default: task.logError(`[nodejs-worker] unsupported processor=${task.processorName}`); return failed(`unsupported nodejs demo processor: ${task.processorName}`);
+    case "demo.echo": console.info(`[demo.echo] payload='${payload}'`); return { success: true, message: "nodejs demo echo processed" };
+    case "demo.context": console.info(`[demo.context] jobId=${task.jobId} instanceId=${task.instanceId}`); return { success: true, message: `nodejs demo context processed instance=${task.instanceId}` };
+    case "demo.bytes": console.info(`[demo.bytes] payload='${payload}' length=${task.payload.length}`); return { success: true, message: `nodejs demo bytes processed payload_bytes=${task.payload.length}` };
+    case "demo.heartbeat": console.info(`[demo.heartbeat] tick jobId=${task.jobId} instanceId=${task.instanceId}`); return { success: true, message: "nodejs demo heartbeat processed" };
+    case "billing.sql-sync": console.info(`[billing.sql-sync] plugin SQL processor received payload='${payload}'`); return { success: true, message: "nodejs demo sql plugin processed" };
+    case "demo.fail": console.error(`[demo.fail] intentional failure payload='${payload}'`); return failed("nodejs demo intentional failure");
+    case "demo.exception": console.error(`[demo.exception] throwing runtime exception payload='${payload}'`); throw new Error("nodejs demo runtime exception");
+    default: console.error(`[nodejs-worker] unsupported processor=${task.processorName}`); return failed(`unsupported nodejs demo processor: ${task.processorName}`);
   }
 }
 

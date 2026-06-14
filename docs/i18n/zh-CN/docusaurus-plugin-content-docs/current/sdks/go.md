@@ -32,6 +32,7 @@ package main
 import (
   "context"
   "log"
+  "log/slog"
   tikeo "github.com/yhyzgn/tikeo/sdks/go/tikeo"
 )
 
@@ -44,8 +45,8 @@ func main() {
 
   client, err := tikeo.NewClient(cfg)
   if err != nil { log.Fatal(err) }
-  processor := tikeo.TaskProcessorFunc(func(_ context.Context, task tikeo.TaskContext) (tikeo.TaskOutcome, error) {
-    task.LogInfo("go echo processor=" + task.ProcessorName)
+  processor := tikeo.TaskProcessorFunc(func(ctx context.Context, task tikeo.TaskContext) (tikeo.TaskOutcome, error) {
+    slog.New(tikeo.TaskSlogHandler{}).InfoContext(ctx, "go echo processor", "processor", task.ProcessorName, "instance", task.InstanceID)
     return tikeo.TaskOutcome{Success: true, Message: "go echo processed"}, nil
   })
   client.RegisterProcessor("demo.echo", processor)
@@ -60,7 +61,7 @@ func main() {
 | 预期业务失败 | 返回 `TaskOutcome{Success: false, Message: ...}`。 |
 | Processor error | 返回 non-nil `error`；SDK 上报 task failure。 |
 | 不支持的 processor | 返回 failed `TaskOutcome`，不要广告未实现 processor。 |
-| Task logs | 使用 `TaskContext.LogInfo` / `LogError`；日志可通过 Management API logs endpoint 查看。 |
+| Task logs | 优先使用 `log/slog` + `TaskSlogHandler`；旧 `log.Logger` 可用 `NewTaskLogger(ctx, ...)`；`TaskContext.LogInfo/LogError` 仅作为 fallback。 |
 
 ## Management client 写法
 

@@ -8,6 +8,7 @@ import net.tikeo.processor.ProcessorCapabilityProvider;
 import net.tikeo.processor.TaskContext;
 import net.tikeo.processor.TaskOutcome;
 import net.tikeo.processor.TaskProcessor;
+import net.tikeo.logging.TikeoTaskLogbackAppender;
 import net.tikeo.worker.WorkerRegistration;
 import net.tikeo.wasm.WasmRunnerRegistry;
 import net.tikeo.wasm.WasmRunnerTask;
@@ -38,6 +39,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import org.slf4j.LoggerFactory;
 
 class GrpcTikeoWorkerClientTest {
     @Test
@@ -246,6 +250,72 @@ class GrpcTikeoWorkerClientTest {
                     .noneMatch(log -> log.getMessage().contains("stdout should stay console-only")));
             assertTrue(console.toString(StandardCharsets.UTF_8).contains("stdout should stay console-only"));
         } finally {
+            channel.shutdownNow();
+            server.shutdownNow();
+        }
+    }
+
+
+    @Test
+    void dispatchedTaskCapturesSlf4jLogsInsideTaskScopeOnly() throws Exception {
+        String loggerName = "net.tikeo.worker.client.bridge-scope-test-" + UUID.randomUUID();
+        Logger scopedLogger = (Logger) LoggerFactory.getLogger(loggerName);
+        TikeoTaskLogbackAppender appender = new TikeoTaskLogbackAppender();
+        appender.setContext(scopedLogger.getLoggerContext());
+        appender.start();
+        scopedLogger.addAppender(appender);
+        scopedLogger.setLevel(Level.INFO);
+        scopedLogger.setAdditive(false);
+
+        String serverName = "tikeo-worker-test-" + UUID.randomUUID();
+        RecordingTunnelService service = new RecordingTunnelService(Worker.DispatchTask.newBuilder()
+                .setJobId("job-logback")
+                .setProcessorName("demo.logback")
+                .setInstanceId("instance-logback")
+                .setPayload(com.google.protobuf.ByteString.copyFromUtf8("{}"))
+                .setAssignmentToken("java-assign-token")
+                .build());
+        Server server = InProcessServerBuilder.forName(serverName)
+                .directExecutor()
+                .addService(service)
+                .build()
+                .start();
+        ManagedChannel channel = InProcessChannelBuilder.forName(serverName).directExecutor().build();
+        try {
+            scopedLogger.info("outside task should not be captured");
+            GrpcTikeoWorkerClient client = new GrpcTikeoWorkerClient(
+                    channel,
+                    false,
+                    new WorkerRegistration("java-instance-logback", "default", "billing", "local", "local", List.of(), Map.of()),
+                    context -> {
+                        scopedLogger.info("ordinary info payload={}", new String(context.payload(), StandardCharsets.UTF_8));
+                        scopedLogger.error("ordinary error instance={}", context.instanceId());
+                        return new TaskOutcome(true, "logback-ok");
+                    },
+                    Duration.ofSeconds(60),
+                    Duration.ofSeconds(2),
+                    ignored -> {});
+
+            client.start();
+            service.awaitResult();
+            service.awaitTaskLogs(4);
+            client.close();
+            scopedLogger.info("after task should not be captured");
+
+            assertTrue(service.taskLogs.stream()
+                    .anyMatch(log -> log.getLevel().equals("info")
+                            && log.getMessage().contains("ordinary info payload={}")
+                            && log.getAssignmentToken().equals("java-assign-token")));
+            assertTrue(service.taskLogs.stream()
+                    .anyMatch(log -> log.getLevel().equals("error")
+                            && log.getMessage().contains("ordinary error instance=instance-logback")
+                            && log.getAssignmentToken().equals("java-assign-token")));
+            assertTrue(service.taskLogs.stream()
+                    .noneMatch(log -> log.getMessage().contains("outside task should not be captured")
+                            || log.getMessage().contains("after task should not be captured")));
+        } finally {
+            scopedLogger.detachAppender(appender);
+            appender.stop();
             channel.shutdownNow();
             server.shutdownNow();
         }

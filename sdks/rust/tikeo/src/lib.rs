@@ -15,7 +15,7 @@ mod wasm;
 
 pub use config::WorkerConfig;
 pub use error::WorkerSdkError;
-pub use logging::{SdkLogConfig, SdkLogLevel, configure_sdk_logging};
+pub use logging::{SdkLogConfig, SdkLogLevel, configure_sdk_logging, install_task_log_bridge};
 pub use management::{
     BroadcastSelectorRequest as ManagementBroadcastSelectorRequest,
     CreateJobRequest as ManagementCreateJobRequest, JobDefinition, JobInstance, ManagementClient,

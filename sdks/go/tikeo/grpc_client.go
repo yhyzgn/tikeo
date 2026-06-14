@@ -388,13 +388,20 @@ func processDispatchTaskWithLogs(ctx context.Context, processor TaskProcessor, s
 		}
 		return runner.Run(ctx, scriptRunnerTask(task, script).withLogSink(emitLog))
 	}
-	outcome, err = processor.Process(ctx, TaskContext{
+	taskContext := TaskContext{
 		InstanceID:    task.GetInstanceId(),
 		JobID:         task.GetJobId(),
 		ProcessorName: task.GetProcessorName(),
 		Payload:       task.GetPayload(),
 		Log:           emitLog,
+	}
+	taskCtx := ContextWithTaskLogScope(ctx, TaskLogScope{
+		InstanceID:    taskContext.InstanceID,
+		JobID:         taskContext.JobID,
+		ProcessorName: taskContext.ProcessorName,
+		Log:           emitLog,
 	})
+	outcome, err = processor.Process(taskCtx, taskContext)
 	if err != nil && emitLog != nil {
 		emitLog("error", "processor error: "+err.Error()+"\n"+string(debug.Stack()))
 	}

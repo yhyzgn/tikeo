@@ -13,7 +13,7 @@ Rust SDK for active outbound Tikeo Worker Tunnel connections.
 
 - Outbound gRPC Worker Tunnel registration, heartbeat, task result, and unregister flow.
 - Structured worker capabilities: SDK processors, plugin processors, script runners, and tags.
-- Task-scoped logs that are sent precisely to the current job instance.
+- Task-scoped `tracing` / `log` bridge that sends processor events precisely to the current job instance.
 - SDK diagnostics with `SdkLogConfig`, default `INFO`, console output, and optional `tikeo-sdk.log`.
 - App-scoped management client using `x-tikeo-api-key`.
 - Script sandbox runners for SRT, Deno, containers, local diagnostics, and fail-closed unavailable handlers.
@@ -21,9 +21,10 @@ Rust SDK for active outbound Tikeo Worker Tunnel connections.
 ## Usage
 
 ```rust,no_run
-use tikeo::{WorkerClient, WorkerConfig, TaskOutcome, configure_sdk_logging, SdkLogConfig};
+use tikeo::{WorkerClient, WorkerConfig, TaskOutcome, configure_sdk_logging, install_task_log_bridge, SdkLogConfig};
 
 configure_sdk_logging(SdkLogConfig::info().with_log_dir("./logs"));
+let _ = install_task_log_bridge();
 
 let mut config = WorkerConfig::local("http://127.0.0.1:9998", "orders-rust-1");
 config.namespace = "dev-alpha".into();
@@ -37,7 +38,7 @@ let client = WorkerClient::new(config);
 
 - The server assigns the authoritative `worker_id`; `client_instance_id` is only a stable hint.
 - Keep SDK diagnostics at `INFO` in production and switch to `DEBUG` only while troubleshooting.
-- Emit task output through `TaskContext::log_info` / `log_error`; do not capture global stdout.
+- Prefer `tracing::info!/warn!/error!` in processors after `install_task_log_bridge()`; `TaskContext::log_info` / `log_error` remains a direct fallback. Do not capture global stdout.
 - Do not advertise a script runner unless the corresponding sandbox backend is actually available.
 - Docker/Podman are explicit heavy backends and are not selected by the default auto path.
 

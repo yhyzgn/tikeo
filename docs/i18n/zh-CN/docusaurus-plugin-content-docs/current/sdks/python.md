@@ -29,11 +29,12 @@ python3 -m pytest
 `local_config(endpoint, client_instance_id)` 将 namespace/app 默认成 `default`，cluster/region 默认成 `local`，version 默认 `dev`，heartbeat 默认 10 秒。只添加 Worker 真正能运行的 processor。
 
 ```python
+import logging
 import tikeo
 
 
 def process(task: tikeo.TaskContext) -> tikeo.TaskOutcome:
-    task.log_info(f"python echo processor={task.processor_name}")
+    logging.info("python echo processor=%s", task.processor_name)
     return tikeo.succeeded("python echo processed")
 
 
@@ -43,6 +44,8 @@ def main() -> None:
     config.app = "management"
     config.add_sdk_processor("demo.echo")
     config.labels["worker_pool"] = "python-blue"
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    tikeo.install_task_log_handler(logging.getLogger())
     client = tikeo.Client(config)
     client.register_processor("demo.echo", process)
     client.run()
@@ -59,12 +62,13 @@ if __name__ == "__main__":
 | 预期业务失败 | 返回 `tikeo.failed("message")`。 |
 | Processor exception | 抛异常；SDK 上报 task failure 并记录错误路径。 |
 | 不支持的 processor | 返回 `tikeo.failed(...)`，不要广告未实现 processor。 |
-| Task logs | 使用 `TaskContext.log_info` / `log_error`；日志可通过 Management API logs endpoint 查看。 |
+| Task logs | 优先使用标准库 `logging` + `install_task_log_handler()`；`TaskContext.log_info/log_error` 仅作为底层 fallback。日志可通过 Management API logs endpoint 查看。 |
 
 ## Management client 写法
 
 ```python
 import os
+import logging
 import tikeo
 
 client = tikeo.ManagementClient(

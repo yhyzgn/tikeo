@@ -12,10 +12,8 @@ public final class EchoTaskProcessor {
     @TikeoProcessor("demo.echo")
     public String echo(TaskContext context, String payload) {
         log.info("[demo.echo] received payload='{}'", payload);
-        context.logInfo("[demo.echo] received payload='" + payload + "'");
         String result = "echo:" + payload;
         log.info("[demo.echo] completed result='{}'", result);
-        context.logInfo("[demo.echo] completed result='" + result + "'");
         return result;
     }
 }

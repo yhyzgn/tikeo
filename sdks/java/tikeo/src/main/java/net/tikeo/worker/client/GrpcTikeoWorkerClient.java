@@ -6,6 +6,7 @@ import net.tikeo.processor.ProcessorCapabilityProvider;
 import net.tikeo.processor.TaskContext;
 import net.tikeo.processor.TaskOutcome;
 import net.tikeo.processor.TaskProcessor;
+import net.tikeo.logging.TikeoTaskLogScope;
 import net.tikeo.script.ScriptRunnerKind;
 import net.tikeo.script.ScriptRunnerPolicy;
 import net.tikeo.script.ScriptRunnerRegistry;
@@ -783,14 +784,19 @@ public final class GrpcTikeoWorkerClient implements TikeoWorkerClient {
         if (task.hasProcessorBinding() && task.getProcessorBinding().hasScript()) {
             return processScriptBinding(task, assignedWorkerId);
         }
-        return processor.process(
-            new TaskContext(
-                task.getJobId(),
-                task.getProcessorName(),
-                task.getInstanceId(),
-                task.getPayload().toByteArray(),
-                (level, message) -> emitTaskLogSafely(task, assignedWorkerId, level, message, true)
-            )
+        TaskContext context = new TaskContext(
+            task.getJobId(),
+            task.getProcessorName(),
+            task.getInstanceId(),
+            task.getPayload().toByteArray(),
+            (level, message) -> emitTaskLogSafely(task, assignedWorkerId, level, message, true)
+        );
+        return TikeoTaskLogScope.captureThrowing(
+            task.getJobId(),
+            task.getProcessorName(),
+            task.getInstanceId(),
+            context.logger(),
+            () -> processor.process(context)
         );
     }
 

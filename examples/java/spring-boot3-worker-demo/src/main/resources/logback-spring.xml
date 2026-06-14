@@ -1,0 +1,14 @@
+<configuration>
+  <include resource="org/springframework/boot/logging/logback/defaults.xml" />
+  <include resource="org/springframework/boot/logging/logback/console-appender.xml" />
+
+  <!-- Mirrors ordinary SLF4J/Logback records into the active Tikeo job-instance log scope.
+       Startup, HTTP, and other non-task logs are ignored because the SDK opens the scope only
+       while a processor is executing. -->
+  <appender name="TIKEO_TASK" class="net.tikeo.logging.TikeoTaskLogbackAppender" />
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE" />
+    <appender-ref ref="TIKEO_TASK" />
+  </root>
+</configuration>

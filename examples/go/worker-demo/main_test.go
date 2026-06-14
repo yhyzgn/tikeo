@@ -43,12 +43,19 @@ func TestAutoSandboxBackendMatchesJavaLightweightDefaults(t *testing.T) {
 
 func TestDemoFailReturnsBusinessFailureAndExceptionPanics(t *testing.T) {
 	failLogs := []string{}
-	failure, err := demoProcessTask(context.Background(), tikeo.TaskContext{
+	failSink := func(level, message string) { failLogs = append(failLogs, level+":"+message) }
+	failCtx := tikeo.ContextWithTaskLogScope(context.Background(), tikeo.TaskLogScope{
+		InstanceID:    "inst-fail",
+		JobID:         "job-1",
+		ProcessorName: "demo.fail",
+		Log:           failSink,
+	})
+	failure, err := demoProcessTask(failCtx, tikeo.TaskContext{
 		InstanceID:    "inst-fail",
 		JobID:         "job-1",
 		ProcessorName: "demo.fail",
 		Payload:       []byte("bad-input"),
-		Log:           func(level, message string) { failLogs = append(failLogs, level+":"+message) },
+		Log:           failSink,
 	})
 	if err != nil {
 		t.Fatalf("demo.fail returned error: %v", err)
@@ -56,7 +63,7 @@ func TestDemoFailReturnsBusinessFailureAndExceptionPanics(t *testing.T) {
 	if failure.Success || failure.Message != "go demo intentional failure" {
 		t.Fatalf("demo.fail outcome = %+v", failure)
 	}
-	if !containsDemoLog(failLogs, "error:[demo.fail]", "bad-input") {
+	if !containsDemoLog(failLogs, "error:demo intentional failure", "bad-input") {
 		t.Fatalf("missing demo.fail task log: %+v", failLogs)
 	}
 
@@ -69,16 +76,23 @@ func TestDemoFailReturnsBusinessFailureAndExceptionPanics(t *testing.T) {
 		if recovered != "go demo runtime exception" {
 			t.Fatalf("panic = %v", recovered)
 		}
-		if !containsDemoLog(exceptionLogs, "error:[demo.exception]", "bad-input") {
+		if !containsDemoLog(exceptionLogs, "error:demo runtime exception", "bad-input") {
 			t.Fatalf("missing demo.exception task log: %+v", exceptionLogs)
 		}
 	}()
-	_, _ = demoProcessTask(context.Background(), tikeo.TaskContext{
+	exceptionSink := func(level, message string) { exceptionLogs = append(exceptionLogs, level+":"+message) }
+	exceptionCtx := tikeo.ContextWithTaskLogScope(context.Background(), tikeo.TaskLogScope{
+		InstanceID:    "inst-exception",
+		JobID:         "job-1",
+		ProcessorName: "demo.exception",
+		Log:           exceptionSink,
+	})
+	_, _ = demoProcessTask(exceptionCtx, tikeo.TaskContext{
 		InstanceID:    "inst-exception",
 		JobID:         "job-1",
 		ProcessorName: "demo.exception",
 		Payload:       []byte("bad-input"),
-		Log:           func(level, message string) { exceptionLogs = append(exceptionLogs, level+":"+message) },
+		Log:           exceptionSink,
 	})
 }
 

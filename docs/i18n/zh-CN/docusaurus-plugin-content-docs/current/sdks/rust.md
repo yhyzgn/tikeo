@@ -16,7 +16,7 @@ description: Rust 依赖、最小 Worker、异常处理和 Management client 写
 | Rust edition | `2024` |
 | Rust baseline | `1.95` |
 | Optional feature | `wasm` 启用 `wasmtime` |
-| 主要 runtime deps | `tonic`, `prost`, `tokio`, `reqwest`, `serde`, `sha2` |
+| 主要 runtime deps | `tonic`, `prost`, `tokio`, `reqwest`, `serde`, `sha2`, `tracing` |
 
 安装发布版：
 
@@ -38,29 +38,32 @@ cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
 
 ```rust
 use async_trait::async_trait;
-use tikeo::{TaskContext, TaskOutcome, TaskProcessor, WorkerClient, WorkerConfig, WorkerSdkError};
+use tikeo::{install_task_log_bridge, TaskContext, TaskOutcome, TaskProcessor, WorkerClient, WorkerConfig, WorkerSdkError};
 
 struct Echo;
 
 #[async_trait]
 impl TaskProcessor for Echo {
-    async fn process(&self, task: TaskContext) -> TaskOutcome {
-        task.log_info(format!("processor={} instance={}", task.processor_name, task.instance_id)).await;
-        TaskOutcome { success: true, message: "rust echo processed".to_owned() }
+    async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError> {
+        tracing::info!(processor = %task.processor_name, instance = %task.instance_id, "rust echo processor");
+        Ok(TaskOutcome::Success("rust echo processed".to_owned()))
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), WorkerSdkError> {
+    let _ = install_task_log_bridge();
     let mut config = WorkerConfig::local("http://127.0.0.1:9998", "rust-worker-1");
     config.namespace = "sdk-smoke".to_owned();
     config.app = "management".to_owned();
     config.add_sdk_processor("demo.echo");
     config.labels.insert("worker_pool".to_owned(), "rust-blue".to_owned());
 
-    let mut client = WorkerClient::connect(config).await?;
-    client.register_processor("demo.echo", Echo).await?;
-    client.run().await
+    let client = WorkerClient::new(config);
+    let mut session = client.connect().await?;
+    loop {
+        session.process_next(&Echo).await?;
+    }
 }
 ```
 
@@ -71,7 +74,7 @@ async fn main() -> Result<(), WorkerSdkError> {
 | 预期业务失败 | 返回 `TaskOutcome { success: false, message }`；instance 记录失败，job retry policy 可重试。 |
 | Worker/client 失败 | 返回或传播 `WorkerSdkError`；退出或重连前记录上下文。 |
 | 不支持的 processor | 返回 failed `TaskOutcome`，不要广告未实现 processor。 |
-| Task logs | 使用 `TaskContext::log_info` / `log_error`；日志可通过 Management API logs endpoint 查看。 |
+| Task logs | 优先使用 `tracing::info!/warn!/error!` + `install_task_log_bridge()`；`TaskContext::log_info/log_error` 仅作为底层 fallback。 |
 
 ## Management client 写法
 

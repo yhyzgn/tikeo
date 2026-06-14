@@ -23,6 +23,9 @@ tokio = { version = "1", features = ["io-util", "process", "sync", "time"] }
 tokio-stream = "0.1"
 tonic = "0.14"
 tonic-prost = "0.14"
+tracing = "0.1"
+tracing-log = "0.2"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["registry"] }
 wasmtime = { version = "45.0.0", default-features = false, features = ["cranelift", "runtime", "std"], optional = true }
 
 [dev-dependencies]

@@ -39,6 +39,7 @@ from .script import (
     normalize_script_sandbox_backend,
 )
 from .task import TaskContext, TaskOutcome, TaskProcessor, failed, succeeded
+from .task_logging import TikeoTaskLogHandler, current_task_log_scope, emit_current_task_log, install_task_log_handler
 
 __all__ = [
     "API_KEY_HEADER",
@@ -62,6 +63,11 @@ __all__ = [
     "ScriptRunnerTask",
     "Session",
     "SrtScriptRunner",
+
+    "TikeoTaskLogHandler",
+    "current_task_log_scope",
+    "emit_current_task_log",
+    "install_task_log_handler",
     "TaskContext",
     "TaskOutcome",
     "TaskProcessor",

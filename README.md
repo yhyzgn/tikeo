@@ -528,13 +528,17 @@ tikeo:
 import net.tikeo.processor.TaskContext;
 import net.tikeo.processor.TaskOutcome;
 import net.tikeo.processor.TikeoProcessor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Component
 public final class BillingProcessors {
+    private static final Logger log = LoggerFactory.getLogger(BillingProcessors.class);
+
     @TikeoProcessor("billing.reconcile")
     public TaskOutcome reconcile(TaskContext context, String payload) {
-        context.logInfo("billing reconcile started");
+        log.info("billing reconcile started instance={} payloadBytes={}", context.instanceId(), payload.length());
         return new TaskOutcome(true, "processed:" + payload);
     }
 }
@@ -576,6 +580,8 @@ public final class TikeoPlainJavaWorker {
         );
 
         TaskProcessor processor = context -> {
+            // Prefer your normal SLF4J logger plus TikeoTaskLogbackAppender in Logback.
+            // TaskContext.logInfo/logError remains available as a direct fallback.
             context.logInfo("plain Java task started");
             return new TaskOutcome(true, "ok:" + context.processorName());
         };

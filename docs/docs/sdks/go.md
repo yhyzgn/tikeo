@@ -63,6 +63,7 @@ package main
 import (
   "context"
   "log"
+  "log/slog"
 
   tikeo "github.com/yhyzgn/tikeo/sdks/go/tikeo"
 )
@@ -77,8 +78,8 @@ func main() {
   client, err := tikeo.NewClient(cfg)
   if err != nil { log.Fatal(err) }
 
-  processor := tikeo.TaskProcessorFunc(func(_ context.Context, task tikeo.TaskContext) (tikeo.TaskOutcome, error) {
-    task.LogInfo("go echo processor=" + task.ProcessorName)
+  processor := tikeo.TaskProcessorFunc(func(ctx context.Context, task tikeo.TaskContext) (tikeo.TaskOutcome, error) {
+    slog.New(tikeo.TaskSlogHandler{}).InfoContext(ctx, "go echo processor", "processor", task.ProcessorName, "instance", task.InstanceID)
     return tikeo.TaskOutcome{Success: true, Message: "go echo processed"}, nil
   })
 
@@ -92,6 +93,8 @@ func main() {
   }
 }
 ```
+
+Use normal `slog` in processors with `TaskSlogHandler`; it reads the task scope from `context.Context` and includes structured fields in the instance log message. `NewTaskLogger(ctx, ...)` supports legacy `log.Logger` code. `TaskContext.LogInfo/LogError` remains a direct fallback.
 
 Keep the reconnect loop conservative in services; a Worker Tunnel can close due to Server restart, network churn, fencing, or rollout.
 

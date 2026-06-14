@@ -21,7 +21,7 @@ Source package metadata is in `sdks/rust/tikeo/Cargo.toml`:
 | Rust edition | `2024` |
 | Rust baseline | `1.95` |
 | Optional feature | `wasm` enables `wasmtime` |
-| Important runtime deps | `tonic`, `prost`, `tokio`, `reqwest`, `serde`, `sha2` |
+| Important runtime deps | `tonic`, `prost`, `tokio`, `reqwest`, `serde`, `sha2`, `tracing` |
 
 Install from crates.io when a release is published:
 
@@ -62,20 +62,21 @@ Structured helpers include `add_tag`, `add_sdk_processor`, `add_script_runner`, 
 
 ```rust
 use async_trait::async_trait;
-use tikeo::{TaskContext, TaskOutcome, TaskProcessor, WorkerClient, WorkerConfig, WorkerSdkError};
+use tikeo::{install_task_log_bridge, TaskContext, TaskOutcome, TaskProcessor, WorkerClient, WorkerConfig, WorkerSdkError};
 
 struct Echo;
 
 #[async_trait]
 impl TaskProcessor for Echo {
-    async fn process(&self, task: TaskContext) -> TaskOutcome {
-        task.log_info(format!("processor={} instance={}", task.processor_name, task.instance_id)).await;
-        TaskOutcome { success: true, message: "rust echo processed".to_owned() }
+    async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError> {
+        tracing::info!(processor = %task.processor_name, instance = %task.instance_id, "rust echo processor");
+        Ok(TaskOutcome::Success("rust echo processed".to_owned()))
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), WorkerSdkError> {
+    let _ = install_task_log_bridge(); // captures tracing/log events only inside active task scope
     let mut config = WorkerConfig::local("http://127.0.0.1:9998", "rust-worker-1");
     config.namespace = "sdk-smoke".to_owned();
     config.app = "management".to_owned();
@@ -89,6 +90,8 @@ async fn main() -> Result<(), WorkerSdkError> {
     }
 }
 ```
+
+Use ordinary `tracing::info!/warn!/error!` in processors after installing the bridge. The bridge uses Tokio task-local scope, so non-task tracing events are ignored by instance logging. `TaskContext::log_info/log_error` remains a fallback.
 
 Use `process_next_with_script_runners` only when you have registered real script runners. The SDK sends logs/results with the assignment token received from `DispatchTask`; do not invent your own token.
 

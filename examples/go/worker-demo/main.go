@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -179,32 +180,33 @@ func runWorkerSession(
 	}
 }
 
-func demoProcessTask(_ context.Context, task tikeo.TaskContext) (tikeo.TaskOutcome, error) {
-	task.LogInfo(fmt.Sprintf("[go-worker] processor=%s instance=%s payload_bytes=%d", task.ProcessorName, task.InstanceID, len(task.Payload)))
+func demoProcessTask(ctx context.Context, task tikeo.TaskContext) (tikeo.TaskOutcome, error) {
+	logger := slog.New(tikeo.TaskSlogHandler{})
+	logger.InfoContext(ctx, "go worker task started", "processor", task.ProcessorName, "instance", task.InstanceID, "payload_bytes", len(task.Payload))
 	switch task.ProcessorName {
 	case "", "demo.echo":
-		task.LogInfo(fmt.Sprintf("[demo.echo] payload='%s'", string(task.Payload)))
+		logger.InfoContext(ctx, "demo echo payload", "payload", string(task.Payload))
 		return tikeo.TaskOutcome{Success: true, Message: "go demo echo processed"}, nil
 	case "demo.context":
-		task.LogInfo(fmt.Sprintf("[demo.context] jobId=%s instanceId=%s", task.JobID, task.InstanceID))
+		logger.InfoContext(ctx, "demo context", "job_id", task.JobID, "instance_id", task.InstanceID)
 		return tikeo.TaskOutcome{Success: true, Message: fmt.Sprintf("go demo context processed instance=%s", task.InstanceID)}, nil
 	case "demo.bytes":
-		task.LogInfo(fmt.Sprintf("[demo.bytes] payload='%s' length=%d", string(task.Payload), len(task.Payload)))
+		logger.InfoContext(ctx, "demo bytes", "payload", string(task.Payload), "payload_bytes", len(task.Payload))
 		return tikeo.TaskOutcome{Success: true, Message: fmt.Sprintf("go demo bytes processed payload_bytes=%d", len(task.Payload))}, nil
 	case "demo.heartbeat":
-		task.LogInfo(fmt.Sprintf("[demo.heartbeat] tick jobId=%s instanceId=%s", task.JobID, task.InstanceID))
+		logger.InfoContext(ctx, "demo heartbeat", "job_id", task.JobID, "instance_id", task.InstanceID)
 		return tikeo.TaskOutcome{Success: true, Message: "go demo heartbeat processed"}, nil
 	case "billing.sql-sync":
-		task.LogInfo(fmt.Sprintf("[billing.sql-sync] plugin SQL processor received payload='%s'", string(task.Payload)))
+		logger.InfoContext(ctx, "billing sql sync payload", "payload", string(task.Payload))
 		return tikeo.TaskOutcome{Success: true, Message: "go demo sql plugin processed"}, nil
 	case "demo.fail":
-		task.LogError(fmt.Sprintf("[demo.fail] intentional failure payload='%s'", string(task.Payload)))
+		logger.ErrorContext(ctx, "demo intentional failure", "payload", string(task.Payload))
 		return tikeo.Failed("go demo intentional failure"), nil
 	case "demo.exception":
-		task.LogError(fmt.Sprintf("[demo.exception] panicking payload='%s'", string(task.Payload)))
+		logger.ErrorContext(ctx, "demo runtime exception", "payload", string(task.Payload))
 		panic("go demo runtime exception")
 	default:
-		task.LogError(fmt.Sprintf("[go-worker] unsupported processor=%s", task.ProcessorName))
+		logger.ErrorContext(ctx, "unsupported processor", "processor", task.ProcessorName)
 		return tikeo.Failed("unsupported go demo processor: " + task.ProcessorName), nil
 	}
 }

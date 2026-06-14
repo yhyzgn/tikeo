@@ -31,10 +31,10 @@ bun run build
 `localConfig(endpoint, clientInstanceId)` 将 namespace/app 默认成 `default`，cluster/region 默认成 `local`，version 默认 `dev`，heartbeat 默认 10 秒。只添加 Worker 真正能运行的 processor。
 
 ```typescript
-import { Client, TaskContext, TaskOutcome, localConfig } from "@yhyzgn/tikeo";
+import { Client, TaskContext, TaskOutcome, installConsoleTaskLogBridge, localConfig } from "@yhyzgn/tikeo";
 
 function process(task: TaskContext): TaskOutcome {
-  task.logInfo(`nodejs echo processor=${task.processorName}`);
+  console.info(`nodejs echo processor=${task.processorName}`);
   return { success: true, message: "nodejs echo processed" };
 }
 
@@ -44,6 +44,7 @@ config.app = "management";
 config.addSDKProcessor("demo.echo");
 config.labels.worker_pool = "nodejs-blue";
 
+installConsoleTaskLogBridge(); // 只在当前 Tikeo 任务作用域内镜像 console.*
 const client = new Client(config);
 const session = await client.connect();
 const stop = session.startHeartbeat();
@@ -62,7 +63,7 @@ try {
 | 预期业务失败 | 返回 `{ success: false, message }` 或 SDK `failed(...)` helper。 |
 | Processor exception | 抛 `Error`；SDK 上报 task failure 并记录错误路径。 |
 | 不支持的 processor | 返回 failure，不要广告未实现 processor。 |
-| Task logs | 使用 `TaskContext.logInfo` / `logError`；日志可通过 Management API logs endpoint 查看。 |
+| Task logs | 优先使用 `console.info/error/warn/log` + `installConsoleTaskLogBridge()`；`TaskContext.logInfo/logError` 仅作为底层 fallback。日志可通过 Management API logs endpoint 查看。 |
 
 ## Management client 写法
 

@@ -9,11 +9,12 @@ use tikeo::{
     ContainerScriptRunner, DenoScriptRunner, ManagementClient, ManagementCreateJobRequest,
     ManagementTriggerJobRequest, SandboxToolResolver, ScriptRunnerKind, ScriptRunnerRegistry,
     SrtScriptRunner, TaskContext, TaskOutcome, TaskProcessor, UnsupportedScriptRunner,
-    WorkerClient, WorkerConfig, WorkerSdkError,
+    WorkerClient, WorkerConfig, WorkerSdkError, install_task_log_bridge,
 };
 
 #[tokio::main]
 async fn main() -> Result<(), WorkerSdkError> {
+    let _ = install_task_log_bridge();
     let endpoint = std::env::var("TIKEO_WORKER_ENDPOINT")
         .unwrap_or_else(|_| "http://127.0.0.1:9998".to_owned());
     let client_instance_id = std::env::var("TIKEO_WORKER_INSTANCE_ID")
@@ -450,18 +451,18 @@ struct DemoProcessor;
 #[async_trait]
 impl TaskProcessor for DemoProcessor {
     async fn process(&self, task: TaskContext) -> Result<TaskOutcome, WorkerSdkError> {
-        task.log_info(format!(
-            "[rust-worker] processor={} instance={} payload_bytes={}",
-            task.processor_name,
-            task.instance_id,
-            task.payload.len()
-        ));
+        tracing::info!(
+            processor = %task.processor_name,
+            instance = %task.instance_id,
+            payload_bytes = task.payload.len(),
+            "rust worker processing task"
+        );
         let outcome = match task.processor_name.as_str() {
             "" | "demo.echo" => {
-                task.log_info(format!(
-                    "[demo.echo] payload='{}'",
-                    String::from_utf8_lossy(&task.payload)
-                ));
+                tracing::info!(
+                    payload = %String::from_utf8_lossy(&task.payload),
+                    "demo.echo payload received"
+                );
                 TaskOutcome::Success("rust demo echo processed".to_owned())
             }
             "demo.context" => {
@@ -500,23 +501,23 @@ impl TaskProcessor for DemoProcessor {
                 TaskOutcome::Success("rust demo sql plugin processed".to_owned())
             }
             "demo.fail" => {
-                task.log_error(format!(
-                    "[demo.fail] intentional failure payload='{}'",
-                    String::from_utf8_lossy(&task.payload)
-                ));
+                tracing::error!(
+                    payload = %String::from_utf8_lossy(&task.payload),
+                    "demo.fail intentional failure"
+                );
                 TaskOutcome::Failed("rust demo intentional failure".to_owned())
             }
             "demo.exception" => {
-                task.log_error(format!(
-                    "[demo.exception] returning runtime error payload='{}'",
-                    String::from_utf8_lossy(&task.payload)
-                ));
+                tracing::error!(
+                    payload = %String::from_utf8_lossy(&task.payload),
+                    "demo.exception returning runtime error"
+                );
                 return Err(WorkerSdkError::ManagementRequestFailed(
                     "rust demo runtime exception".to_owned(),
                 ));
             }
             other => {
-                task.log_error(format!("[rust-worker] unsupported processor={other}"));
+                tracing::error!(processor = %other, "unsupported rust worker processor");
                 TaskOutcome::Failed(format!("unsupported rust demo processor: {other}"))
             }
         };
@@ -675,11 +676,8 @@ mod tests {
             TaskOutcome::Failed("rust demo intentional failure".to_owned())
         );
         assert!(
-            fail_logs
-                .lock()
-                .expect("fail log lock")
-                .iter()
-                .any(|line| line.contains("error:[demo.fail]") && line.contains("bad-input"))
+            fail_logs.lock().expect("fail log lock").is_empty(),
+            "direct processor unit tests are outside the WorkerSession task scope; tracing is captured when the SDK runs the processor"
         );
 
         let exception_logs = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
@@ -704,9 +702,17 @@ mod tests {
             exception_logs
                 .lock()
                 .expect("exception log lock")
-                .iter()
-                .any(|line| line.contains("error:[demo.exception]") && line.contains("bad-input"))
+                .is_empty(),
+            "direct processor unit tests are outside the WorkerSession task scope; tracing is captured when the SDK runs the processor"
         );
+    }
+
+    #[test]
+    fn demo_processor_uses_tracing_for_task_logs() {
+        let source = std::fs::read_to_string(file!()).expect("read rust demo source");
+        assert!(source.contains("install_task_log_bridge"));
+        assert!(source.contains("tracing::info!"));
+        assert!(source.contains("tracing::error!"));
     }
 
     #[test]
