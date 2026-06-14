@@ -159,6 +159,33 @@ class DemoSeedTopologyContractTest(unittest.TestCase):
         self.assertIn(("dev-alpha", "orders", "boot3-blue"), workers)
         self.assertIn(("dev-alpha", "billing", "boot4-green"), workers)
 
+
+    def test_notification_progress_demo_instance_is_terminal_not_permanently_running(self):
+        sql = DEV_SEED_SQL.read_text()
+        instance_match = re.search(
+            r"\('inst-dev-notify-feishu-running', 'job-dev-notify-success', '([^']+)', 'api', 'single', '[^']+', ([^,]+), '([^']+)', '([^']+)'",
+            sql,
+        )
+        self.assertIsNotNone(instance_match)
+        self.assertEqual(instance_match.group(1), "succeeded")
+        self.assertEqual(instance_match.group(2), "1")
+        self.assertIn("after progress notification", instance_match.group(3))
+        self.assertNotEqual(instance_match.group(4), "NULL")
+
+        attempt_match = re.search(
+            r"\('attempt-dev-notify-feishu-running-1', 'inst-dev-notify-feishu-running', '[^']+', '([^']+)', ([^,]+), '([^']+)', '([^']+)'",
+            sql,
+        )
+        self.assertIsNotNone(attempt_match)
+        self.assertEqual(attempt_match.group(1), "succeeded")
+        self.assertEqual(attempt_match.group(2), "1")
+        self.assertIn("after progress notification", attempt_match.group(3))
+        self.assertNotEqual(attempt_match.group(4), "NULL")
+
+        self.assertIn("'job_instance.running'", sql)
+        self.assertIn('"eventType":"job_instance.running"', sql)
+        self.assertIn('"finishedAt":null', sql)
+
     def test_direct_sql_runnable_jobs_share_default_demo_scope(self):
         sql = DEV_SEED_SQL.read_text()
         apps = sql_apps_by_id(sql)
