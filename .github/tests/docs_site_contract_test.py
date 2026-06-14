@@ -142,7 +142,7 @@ DOCS_PUBLISHING_TOKENS = {
     "static/robots.txt": [
         "User-agent: *",
         "Allow: /",
-        "Sitemap: https://tikeo.dev/sitemap.xml",
+        "Sitemap: https://docs.tikeo.net/sitemap.xml",
     ],
     "static/search-index.json": [
         '"title": "Management OpenAPI reference"',

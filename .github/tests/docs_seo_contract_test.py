@@ -79,6 +79,9 @@ class DocsSeoContractTest(unittest.TestCase):
             "rel: 'search'",
             "opensearch.xml",
             "name: 'keywords'",
+            "task scheduler",
+            "scheduler",
+            "high-performance scheduler",
             "distributed task scheduler",
             "workflow orchestration",
             "Worker Tunnel",
@@ -104,7 +107,7 @@ class DocsSeoContractTest(unittest.TestCase):
         keywords = head.meta_value(name="keywords") or ""
         self.assertIn("distributed task scheduling", description)
         self.assertIn("Worker Tunnel", description)
-        for keyword in ["distributed task scheduler", "workflow orchestration", "Worker Tunnel", "Kubernetes operator", "XXL-Job alternative"]:
+        for keyword in ["task", "scheduler", "task scheduler", "high-performance scheduler", "distributed task scheduler", "workflow orchestration", "Worker Tunnel", "Kubernetes operator", "XXL-Job alternative"]:
             self.assertIn(keyword, keywords)
 
         self.assertEqual(head.meta_value(name="robots"), "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1")
@@ -116,14 +119,14 @@ class DocsSeoContractTest(unittest.TestCase):
         self.assertIn("Worker Tunnel", head.meta_value(name="twitter:description") or "")
 
         canonicals = head.links_for("canonical")
-        self.assertEqual(canonicals[0].get("href"), "https://tikeo.dev/")
+        self.assertEqual(canonicals[0].get("href"), "https://docs.tikeo.net/")
         alternates = {(link.get("hreflang"), link.get("href")) for link in head.links_for("alternate")}
-        self.assertIn(("en", "https://tikeo.dev/"), alternates)
-        self.assertIn(("zh-CN", "https://tikeo.dev/zh-CN/"), alternates)
-        self.assertIn(("x-default", "https://tikeo.dev/"), alternates)
-        self.assertTrue(any(link.get("rel") == "manifest" and link.get("href") == "https://tikeo.dev/site.webmanifest" for link in head.links))
+        self.assertIn(("en", "https://docs.tikeo.net/"), alternates)
+        self.assertIn(("zh-CN", "https://docs.tikeo.net/zh-CN/"), alternates)
+        self.assertIn(("x-default", "https://docs.tikeo.net/"), alternates)
+        self.assertTrue(any(link.get("rel") == "manifest" and link.get("href") == "https://docs.tikeo.net/site.webmanifest" for link in head.links))
         self.assertTrue(any(link.get("rel") == "search" and link.get("type") == "application/opensearchdescription+xml" for link in head.links))
-        self.assertTrue(any(link.get("rel") == "sitemap" and link.get("href") == "https://tikeo.dev/sitemap.xml" for link in head.links))
+        self.assertTrue(any(link.get("rel") == "sitemap" and link.get("href") == "https://docs.tikeo.net/sitemap.xml" for link in head.links))
 
     def test_json_ld_contains_software_website_and_org_entities(self) -> None:
         head = parse_head("index.html")
@@ -147,39 +150,39 @@ class DocsSeoContractTest(unittest.TestCase):
         self.assertEqual(head.meta_value(name="docusaurus_locale"), "zh-CN")
         self.assertIn("Tikeo", head.meta_value(name="description") or "")
         canonicals = head.links_for("canonical")
-        self.assertEqual(canonicals[0].get("href"), "https://tikeo.dev/zh-CN/")
+        self.assertEqual(canonicals[0].get("href"), "https://docs.tikeo.net/zh-CN/")
         alternates = {(link.get("hreflang"), link.get("href")) for link in head.links_for("alternate")}
-        self.assertIn(("en", "https://tikeo.dev/"), alternates)
-        self.assertIn(("zh-CN", "https://tikeo.dev/zh-CN/"), alternates)
+        self.assertIn(("en", "https://docs.tikeo.net/"), alternates)
+        self.assertIn(("zh-CN", "https://docs.tikeo.net/zh-CN/"), alternates)
 
     def test_robots_sitemap_manifest_and_llms_are_indexer_ready(self) -> None:
         robots = (BUILD / "robots.txt").read_text()
         self.assertIn("User-agent: *", robots)
         self.assertIn("Allow: /", robots)
-        self.assertIn("Sitemap: https://tikeo.dev/sitemap.xml", robots)
-        self.assertIn("Host: https://tikeo.dev", robots)
+        self.assertIn("Sitemap: https://docs.tikeo.net/sitemap.xml", robots)
+        self.assertIn("Host: https://docs.tikeo.net", robots)
         self.assertTrue((BUILD / "site.webmanifest").exists())
         manifest = json.loads((BUILD / "site.webmanifest").read_text())
         self.assertEqual(manifest["name"], "Tikeo Documentation")
         self.assertEqual(manifest["theme_color"], "#3157d5")
         opensearch = (BUILD / "opensearch.xml").read_text()
         self.assertIn("Tikeo Docs", opensearch)
-        self.assertIn("https://tikeo.dev/search?q={searchTerms}", opensearch)
+        self.assertIn("https://docs.tikeo.net/search?q={searchTerms}", opensearch)
 
         en_sitemap = ET.parse(BUILD / "sitemap.xml")
         en_urls = {element.text for element in en_sitemap.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc")}
         for expected in [
-            "https://tikeo.dev/",
-            "https://tikeo.dev/docs/getting-started/quickstart",
-            "https://tikeo.dev/docs/reference/configuration",
-            "https://tikeo.dev/docs/user-guide/notifications",
+            "https://docs.tikeo.net/",
+            "https://docs.tikeo.net/docs/getting-started/quickstart",
+            "https://docs.tikeo.net/docs/reference/configuration",
+            "https://docs.tikeo.net/docs/user-guide/notifications",
         ]:
             self.assertIn(expected, en_urls)
 
         zh_sitemap = ET.parse(BUILD / "zh-CN/sitemap.xml")
         zh_urls = {element.text for element in zh_sitemap.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc")}
-        self.assertIn("https://tikeo.dev/zh-CN/", zh_urls)
-        self.assertIn("https://tikeo.dev/zh-CN/docs/getting-started/quickstart", zh_urls)
+        self.assertIn("https://docs.tikeo.net/zh-CN/", zh_urls)
+        self.assertIn("https://docs.tikeo.net/zh-CN/docs/getting-started/quickstart", zh_urls)
 
         llms = (BUILD / "llms.txt").read_text()
         self.assertIn("distributed task scheduling", llms)
@@ -189,11 +192,15 @@ class DocsSeoContractTest(unittest.TestCase):
     def test_github_repository_seo_contract_is_versioned(self) -> None:
         metadata = json.loads(GITHUB_SEO.read_text())
         self.assertEqual(metadata["repository"], "yhyzgn/tikeo")
-        self.assertEqual(metadata["homepageUrl"], "https://tikeo.dev")
+        self.assertEqual(metadata["homepageUrl"], "https://docs.tikeo.net")
         self.assertLessEqual(len(metadata["description"]), 350)
         for topic in [
+            "task",
+            "scheduler",
             "task-scheduler",
             "distributed-scheduler",
+            "high-performance",
+            "cron-jobs",
             "workflow-orchestration",
             "workflow-engine",
             "job-scheduler",
@@ -209,8 +216,8 @@ class DocsSeoContractTest(unittest.TestCase):
         self.assertLessEqual(len(metadata["topics"]), 20)
         readme = (ROOT / "README.md").read_text()
         readme_zh = (ROOT / "README.zh-CN.md").read_text()
-        self.assertIn("https://tikeo.dev", readme)
-        self.assertIn("https://tikeo.dev/zh-CN/", readme_zh)
+        self.assertIn("https://docs.tikeo.net", readme)
+        self.assertIn("https://docs.tikeo.net/zh-CN/", readme_zh)
 
 
 if __name__ == "__main__":

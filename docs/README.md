@@ -54,7 +54,7 @@ TIKEO_DOCS_URL=https://yhyzgn.github.io TIKEO_DOCS_BASE_URL=/tikeo/ bun run docs
 
 | Environment variable | Default | Meaning |
 | --- | --- | --- |
-| `TIKEO_DOCS_URL` | `https://tikeo.dev` | Docusaurus `url`. Use the origin only, without a path. |
+| `TIKEO_DOCS_URL` | `https://docs.tikeo.net` | Docusaurus `url`. Use the origin only, without a path. |
 | `TIKEO_DOCS_BASE_URL` | `/` | Docusaurus `baseUrl`. Use `/tikeo/` only for GitHub Pages project hosting. |
 
 If Chinese language switching returns “Page Not Found” on a static host, first verify whether the site is deployed at `/` or under a project subpath such as `/tikeo/`, then set `TIKEO_DOCS_BASE_URL` to the same path before building.

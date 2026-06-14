@@ -3,5 +3,5 @@ Allow: /
 Disallow: /assets/js/
 Disallow: /assets/css/
 
-Sitemap: https://tikeo.dev/sitemap.xml
-Host: https://tikeo.dev
+Sitemap: https://docs.tikeo.net/sitemap.xml
+Host: https://docs.tikeo.net

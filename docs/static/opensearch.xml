@@ -3,5 +3,5 @@
   <ShortName>Tikeo Docs</ShortName>
   <Description>Search Tikeo documentation for task orchestration, Worker Tunnel, SDKs, deployment, and operations.</Description>
   <InputEncoding>UTF-8</InputEncoding>
-  <Url type="text/html" method="get" template="https://tikeo.dev/search?q={searchTerms}" />
+  <Url type="text/html" method="get" template="https://docs.tikeo.net/search?q={searchTerms}" />
 </OpenSearchDescription>

@@ -11,7 +11,7 @@ const normalizeBaseUrl = (value: string): string => {
   return withLeadingSlash.endsWith('/') ? withLeadingSlash : `${withLeadingSlash}/`;
 };
 
-const siteUrl = process.env.TIKEO_DOCS_URL ?? 'https://tikeo.dev';
+const siteUrl = process.env.TIKEO_DOCS_URL ?? 'https://docs.tikeo.net';
 const baseUrl = normalizeBaseUrl(process.env.TIKEO_DOCS_BASE_URL ?? '/');
 const absoluteUrl = (path: string): string => `${siteUrl}${baseUrl}${path.replace(/^\//, '')}`;
 
@@ -21,18 +21,34 @@ const seo = {
     'Tikeo documentation for distributed task scheduling, workflow orchestration, outbound Worker Tunnel operations, SDK integration, Docker deployment, Kubernetes, notifications, RBAC, OpenTelemetry, and governed scripts.',
   keywords: [
     'Tikeo',
+    'task',
+    '任务',
+    'scheduler',
+    '调度器',
+    'task scheduler',
+    'task scheduling',
     'task orchestration',
+    'distributed scheduler',
     'distributed task scheduler',
     'job scheduler',
+    'cron scheduler',
+    'batch job scheduler',
+    'high-performance scheduler',
+    'high throughput scheduling',
+    'low latency scheduler',
+    'scalable scheduler',
+    'cloud-native scheduler',
     'workflow orchestration',
     'workflow engine',
     'Worker Tunnel',
     'outbound workers',
+    'worker orchestration',
     'multi-language SDK',
     'Rust scheduler',
     'Kubernetes operator',
     'Docker Compose deployment',
     'OpenTelemetry',
+    'observability',
     'script sandbox',
     'RBAC',
     'notification center',
