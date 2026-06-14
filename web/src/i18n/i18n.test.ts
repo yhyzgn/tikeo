@@ -180,6 +180,8 @@ describe('i18n message dictionaries', () => {
     expect(translateString('节点执行结果', enUS, true)).toBe('Node execution results');
     expect(translateString('等待 Worker 返回结果', enUS, true)).toBe('Waiting for Worker result');
     expect(translateString('Running', zhCN, true)).toBe('运行中');
+    expect(translateString('Worker running failed success Message', zhCN, true)).toBe('Worker running failed success Message');
+    expect(translateString('worker finished with failed status', zhCN, true)).toBe('worker finished with failed status');
   });
 
 
@@ -270,6 +272,25 @@ describe('DOM localizer', () => {
     expect(root.textContent).toContain('在线执行节点');
     expect(root.querySelector('button')?.getAttribute('title')).toBe('执行节点集群');
     expect(root.querySelector('input')?.getAttribute('placeholder')).toBe('命名空间');
+  });
+
+
+  test('does not localize runtime data regions such as logs payloads and returned messages', () => {
+    const dom = new JSDOM('<main><h1>执行日志</h1><div role="log"><span>Worker running failed success Message</span></div><p data-runtime-text>Job running failed success Message</p><pre class="json-preview">{"status":"running","message":"Worker failed"}</pre><p class="instance-result-panel__message-body" title="Worker running failed">Worker running failed</p><button title="执行日志">执行日志</button></main>');
+    globalThis.document = dom.window.document;
+    globalThis.NodeFilter = dom.window.NodeFilter;
+    globalThis.Node = dom.window.Node;
+
+    const root = dom.window.document.querySelector('main')!;
+    localizeDom(root, zhCN, true);
+
+    expect(root.querySelector('h1')?.textContent).toBe('执行日志');
+    expect(root.querySelector('[role="log"]')?.textContent).toBe('Worker running failed success Message');
+    expect(root.querySelector('[data-runtime-text]')?.textContent).toBe('Job running failed success Message');
+    expect(root.querySelector('.json-preview')?.textContent).toBe('{"status":"running","message":"Worker failed"}');
+    expect(root.querySelector('.instance-result-panel__message-body')?.textContent).toBe('Worker running failed');
+    expect(root.querySelector('.instance-result-panel__message-body')?.getAttribute('title')).toBe('Worker running failed');
+    expect(root.querySelector('button')?.getAttribute('title')).toBe('执行日志');
   });
 
   test('localizes text and attributes, then restores original Chinese copy', () => {

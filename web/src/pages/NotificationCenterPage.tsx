@@ -412,7 +412,7 @@ export function NotificationCenterPage() {
           {t('管理可复用出站渠道、策略、消息与通用投递队列；提供方目标已脱敏，密钥引用不会在响应中展示。')}
         </Typography.Text>
       </div>
-      {error ? <Alert type="error" showIcon message={t('通知中心加载失败')} description={error} /> : null}
+      {error ? <Alert type="error" showIcon message={t('通知中心加载失败')} description={<span data-runtime-text>{error}</span>} /> : null}
       <Row gutter={[16, 16]}>
         <Col xs={12} md={6}><Card><Statistic title={t('渠道')} value={channels.length} /></Card></Col>
         <Col xs={12} md={6}><Card><Statistic title={t('策略')} value={policies.length} /></Card></Col>
@@ -435,11 +435,11 @@ export function NotificationCenterPage() {
                   dataSource={channels}
                   pagination={{ pageSize: 8 }}
                   columns={[
-                    { title: t('名称'), dataIndex: 'name' },
+                    { title: t('名称'), dataIndex: 'name', render: (value: string) => <span data-runtime-text>{value}</span> },
                     { title: t('提供方'), dataIndex: 'provider', render: (value: string) => <Tag>{value}</Tag> },
                     { title: t('消息类型'), render: (_, row) => <Tag color={channelMessageType(row) === 'text' ? 'default' : 'blue'}>{channelMessageType(row)}</Tag> },
-                    { title: t('作用域'), render: (_, row) => `${row.scopeType}${row.namespace ? `/${row.namespace}` : ''}${row.app ? `/${row.app}` : ''}` },
-                    { title: t('目标'), dataIndex: 'targetRedacted' },
+                    { title: t('作用域'), render: (_, row) => <span data-runtime-text>{`${row.scopeType}${row.namespace ? `/${row.namespace}` : ''}${row.app ? `/${row.app}` : ''}`}</span> },
+                    { title: t('目标'), dataIndex: 'targetRedacted', render: (value: string) => <span data-runtime-text>{value}</span> },
                     { title: t('密钥'), dataIndex: 'secretConfigured', render: (value: boolean) => <Tag color={value ? 'green' : 'default'}>{value ? t('已配置') : t('未配置')}</Tag> },
                     { title: t('启用'), dataIndex: 'enabled', render: (value: boolean) => <Tag color={value ? 'green' : 'red'}>{value ? t('是') : t('否')}</Tag> },
                     {
@@ -475,7 +475,7 @@ export function NotificationCenterPage() {
                   dataSource={templates}
                   pagination={{ pageSize: 8 }}
                   columns={[
-                    { title: t('模板 Key'), dataIndex: 'templateKey' },
+                    { title: t('模板 Key'), dataIndex: 'templateKey', render: (value: string) => <span data-runtime-text>{value}</span> },
                     { title: t('名称'), dataIndex: 'name' },
                     { title: t('提供方'), dataIndex: 'provider', render: (value: string) => <Tag>{value}</Tag> },
                     { title: t('消息类型'), dataIndex: 'messageType' },
@@ -513,8 +513,8 @@ export function NotificationCenterPage() {
                   pagination={{ pageSize: 8 }}
                   columns={[
                     { title: t('名称'), dataIndex: 'name' },
-                    { title: t('所有者'), render: (_, row) => `${row.ownerType}:${row.ownerId ?? '*'}` },
-                    { title: t('事件族'), dataIndex: 'eventFamily' },
+                    { title: t('所有者'), render: (_, row) => <span data-runtime-text>{`${row.ownerType}:${row.ownerId ?? '*'}`}</span> },
+                    { title: t('事件族'), dataIndex: 'eventFamily', render: (value: string) => <span data-runtime-text>{value}</span> },
                     { title: t('级别'), dataIndex: 'severity', render: (value: string) => <Tag>{value}</Tag> },
                     { title: t('去重窗口'), dataIndex: 'dedupeSeconds' },
                     { title: t('启用'), dataIndex: 'enabled', render: (value: boolean) => <Tag color={value ? 'green' : 'red'}>{value ? t('是') : t('否')}</Tag> },
@@ -561,10 +561,10 @@ export function NotificationCenterPage() {
                     pagination={false}
                     columns={[
                       { title: t('提供方'), dataIndex: 'provider' },
-                      { title: t('目标'), dataIndex: 'targetRedacted' },
+                      { title: t('目标'), dataIndex: 'targetRedacted', render: (value: string) => <span data-runtime-text>{value}</span> },
                       { title: t('尝试次数'), dataIndex: 'attempt', width: 96 },
                       { title: t('状态'), dataIndex: 'retryState', render: (value: string) => <Tag color={stateColor[value] ?? 'default'}>{value}</Tag> },
-                      { title: t('错误'), dataIndex: 'error', ellipsis: true },
+                      { title: t('错误'), dataIndex: 'error', ellipsis: true, render: (value: string | null) => <span data-runtime-text>{value ?? '-'}</span> },
                       { title: t('创建时间'), dataIndex: 'createdAt' },
                     ]}
                   />
@@ -582,9 +582,9 @@ export function NotificationCenterPage() {
                   dataSource={messages}
                   pagination={{ pageSize: 8 }}
                   columns={[
-                    { title: t('事件'), dataIndex: 'eventType' },
-                    { title: t('资源'), render: (_, row) => `${row.resourceType}:${row.resourceId}` },
-                    { title: t('主题'), dataIndex: 'subject', ellipsis: true },
+                    { title: t('事件'), dataIndex: 'eventType', render: (value: string) => <span data-runtime-text>{value}</span> },
+                    { title: t('资源'), render: (_, row) => <span data-runtime-text>{`${row.resourceType}:${row.resourceId}`}</span> },
+                    { title: t('主题'), dataIndex: 'subject', ellipsis: true, render: (value: string) => <span data-runtime-text>{value}</span> },
                     { title: t('状态'), dataIndex: 'status', render: (value: string) => <Tag color={stateColor[value] ?? 'default'}>{value}</Tag> },
                     { title: t('创建时间'), dataIndex: 'createdAt' },
                     { title: t('操作'), width: 90, render: (_, row) => <Button size="small" type="link" onClick={() => setDetailMessage(row)}>{t('详情')}</Button> },
@@ -607,15 +607,15 @@ export function NotificationCenterPage() {
             <Descriptions size="small" bordered column={1} items={[
               { key: 'delivered', label: t('delivered'), children: String(channelTestResult.delivered) },
               { key: 'provider', label: t('provider'), children: channelTestResult.provider },
-              { key: 'targetRedacted', label: t('targetRedacted'), children: channelTestResult.targetRedacted },
+              { key: 'targetRedacted', label: t('targetRedacted'), children: <span data-runtime-text>{channelTestResult.targetRedacted}</span> },
               { key: 'statusCode', label: t('statusCode'), children: channelTestResult.statusCode ?? '-' },
               { key: 'retryState', label: t('retryState'), children: channelTestResult.retryState },
               { key: 'messageId', label: t('messageId'), children: channelTestResult.messageId },
               { key: 'attemptId', label: t('attemptId'), children: channelTestResult.attemptId },
               { key: 'createdAt', label: t('createdAt'), children: channelTestResult.createdAt },
-              { key: 'error', label: t('error'), children: channelTestResult.error ?? '-' },
+              { key: 'error', label: t('error'), children: <span data-runtime-text>{channelTestResult.error ?? '-'}</span> },
             ]} />
-            <Input.TextArea rows={8} readOnly value={formatJson(JSON.stringify({ renderedPayload: channelTestResult.renderedPayload }))} />
+            <Input.TextArea rows={8} readOnly data-runtime-text value={formatJson(JSON.stringify({ renderedPayload: channelTestResult.renderedPayload }))} />
           </Space>
         ) : null}
       </Modal>

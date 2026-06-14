@@ -74,9 +74,9 @@ export function JobTopologyPage() {
         <Card size="small" title="跨工作流影响分析" loading={impactLoading}>
           {jobImpact ? (
             <Space direction="vertical" size={12} style={{ width: '100%' }}>
-              <Alert type={jobImpact.riskSummary.riskLevel === 'high' ? 'error' : jobImpact.riskSummary.riskLevel === 'medium' ? 'warning' : 'success'} showIcon message={`${jobImpact.targetJob.name} · ${jobImpact.riskSummary.riskLevel}`} description={jobImpact.riskSummary.reasons.join('；')} />
+              <Alert type={jobImpact.riskSummary.riskLevel === 'high' ? 'error' : jobImpact.riskSummary.riskLevel === 'medium' ? 'warning' : 'success'} showIcon message={<span data-runtime-text>{`${jobImpact.targetJob.name} · ${jobImpact.riskSummary.riskLevel}`}</span>} description={<span data-runtime-text>{jobImpact.riskSummary.reasons.join('；')}</span>} />
               <Descriptions size="small" column={2}>
-                <Descriptions.Item label="引用工作流">{jobImpact.referencingWorkflows.map((workflow) => <Tag key={workflow.id}>{workflow.name}</Tag>)}</Descriptions.Item>
+                <Descriptions.Item label="引用工作流">{jobImpact.referencingWorkflows.map((workflow) => <Tag key={workflow.id} data-runtime-text>{workflow.name}</Tag>)}</Descriptions.Item>
                 <Descriptions.Item label="未解析引用">{jobImpact.riskSummary.unresolvedCount}</Descriptions.Item>
                 <Descriptions.Item label="upstreamJobs"><ImpactJobTags jobs={jobImpact.upstreamJobs} empty="无上游任务" /></Descriptions.Item>
                 <Descriptions.Item label="downstreamJobs"><ImpactJobTags jobs={jobImpact.downstreamJobs} empty="无下游任务" /></Descriptions.Item>
@@ -95,19 +95,19 @@ function TopologyTables({ topology, loading, jobLabel }: { topology: JobTopology
   const dependencyColumns: ColumnsType<JobTopologyEdge> = [
     { title: 'From', dataIndex: 'from', render: (value: string) => <Typography.Text code>{jobLabel(value)}</Typography.Text> },
     { title: 'To', dataIndex: 'to', render: (value: string) => <Typography.Text code>{jobLabel(value)}</Typography.Text> },
-    { title: 'Workflow', dataIndex: 'workflowName' },
+    { title: 'Workflow', dataIndex: 'workflowName', render: (value: string | null) => <span data-runtime-text>{value ?? '-'}</span> },
     { title: 'Condition', dataIndex: 'condition', render: (value: string | null) => <Tag>{value ?? 'always'}</Tag> },
   ];
   const refColumns: ColumnsType<JobTopologyEdge> = [
-    { title: 'Workflow', dataIndex: 'workflowName' },
+    { title: 'Workflow', dataIndex: 'workflowName', render: (value: string | null) => <span data-runtime-text>{value ?? '-'}</span> },
     { title: 'Job', dataIndex: 'to', render: (value: string) => <Typography.Text code>{jobLabel(value)}</Typography.Text> },
-    { title: 'Node', dataIndex: 'label', render: (value: string | null) => value ?? '-' },
+    { title: 'Node', dataIndex: 'label', render: (value: string | null) => <span data-runtime-text>{value ?? '-'}</span> },
   ];
   const unresolvedColumns: ColumnsType<JobTopologyUnresolvedRef> = [
-    { title: 'Workflow', dataIndex: 'workflowName' },
-    { title: 'Node', dataIndex: 'nodeKey' },
+    { title: 'Workflow', dataIndex: 'workflowName', render: (value: string | null) => <span data-runtime-text>{value ?? '-'}</span> },
+    { title: 'Node', dataIndex: 'nodeKey', render: (value: string) => <span data-runtime-text>{value}</span> },
     { title: 'Missing Job', dataIndex: 'missingJobId', render: (value: string) => <Typography.Text code>{value}</Typography.Text> },
-    { title: 'Reason', dataIndex: 'reason' },
+    { title: 'Reason', dataIndex: 'reason', render: (value: string) => <span data-runtime-text>{value}</span> },
   ];
   return (
     <Card size="small" title="拓扑明细">

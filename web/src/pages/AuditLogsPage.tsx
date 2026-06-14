@@ -74,8 +74,8 @@ export function AuditLogsPage() {
   const renderCompactText = (value: string | null | undefined, className?: string) => {
     if (!value) return <Typography.Text type="secondary">-</Typography.Text>;
     return (
-      <Tooltip title={value}>
-        <Typography.Text className={className} ellipsis>
+      <Tooltip title={<span data-runtime-text>{value}</span>}>
+        <Typography.Text className={className} ellipsis data-runtime-text>
           {value}
         </Typography.Text>
       </Tooltip>
@@ -133,7 +133,7 @@ export function AuditLogsPage() {
       key: 'result',
       width: 100,
       render: (v: string, r: AuditLogSummary) => (
-        <Tooltip title={r.failure_reason ?? undefined}>
+        <Tooltip title={r.failure_reason ? <span data-runtime-text>{r.failure_reason}</span> : undefined}>
           <Tag color={v === 'failed' ? 'red' : 'green'}>{v}</Tag>
         </Tooltip>
       ),

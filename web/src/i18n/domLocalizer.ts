@@ -1,8 +1,22 @@
 export type TranslationMessages = Record<string, string>;
 
 const ATTRIBUTES_TO_LOCALIZE = ['aria-label', 'placeholder', 'title', 'alt'];
-const TEXT_SKIP_SELECTOR = 'script, style, code, pre, textarea, input, [data-i18n-skip]';
-const ATTRIBUTE_SKIP_SELECTOR = 'script, style, code, pre, [data-i18n-skip]';
+const RUNTIME_DATA_SKIP_SELECTOR = [
+  '[data-i18n-skip]',
+  '[data-runtime-text]',
+  '[role="log"]',
+  '.i18n-raw',
+  '.runtime-data',
+  '.json-preview',
+  '.instance-log-terminal',
+  '.instance-log-terminal__message',
+  '.instance-result-panel__message-body',
+  '.public-console-page__log',
+  '.notification-runtime-text',
+].join(', ');
+
+const TEXT_SKIP_SELECTOR = `script, style, code, pre, textarea, input, ${RUNTIME_DATA_SKIP_SELECTOR}`;
+const ATTRIBUTE_SKIP_SELECTOR = `script, style, code, pre, ${RUNTIME_DATA_SKIP_SELECTOR}`;
 
 interface LocalizedValueState {
   original: string;
@@ -32,6 +46,8 @@ function applyMessages(value: string, messages: TranslationMessages): string {
     const compactExact = messages[compactCjk];
     if (compactExact) return compactExact;
   }
+
+  if (!/[\u4e00-\u9fff]/.test(value)) return value;
 
   let translated = value;
   const keys = Object.keys(messages).sort((left, right) => right.length - left.length);

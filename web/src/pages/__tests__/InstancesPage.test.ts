@@ -112,6 +112,14 @@ describe('instance list worker visibility and grouped logs', () => {
     expect(source).toContain('white-space: nowrap;');
   });
 
+
+  test('marks runtime log and result messages as i18n raw data', () => {
+    expect(source).toContain('role="log" data-runtime-text');
+    expect(source).toContain('className="instance-log-terminal__message" data-runtime-text');
+    expect(source).toContain('className="instance-result-panel__message-body" data-runtime-text');
+    expect(source).toContain('style={{ maxWidth: 188 }} data-runtime-text');
+  });
+
   test('shows log timestamps and binds terminal highlight colors to theme tokens', () => {
     expect(source).toContain('formatLogTimestamp(log.createdAt)');
     expect(source).toContain("String(sequence).padStart(3, '0')");

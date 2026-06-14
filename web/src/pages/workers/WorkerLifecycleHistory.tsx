@@ -44,13 +44,13 @@ export function WorkerLifecycleHistory({ history, loading }: WorkerLifecycleHist
           <List.Item>
             <Space direction="vertical" size={4} className="worker-history-list__item">
               <Space wrap>
-                <Typography.Text strong copyable>{session.workerId}</Typography.Text>
-                <Tag color={sessionStatusColor(session.status)}>{session.status}</Tag>
-                <Tag>gen {session.generation}</Tag>
+                <Typography.Text strong copyable data-runtime-text>{session.workerId}</Typography.Text>
+                <Tag color={sessionStatusColor(session.status)} data-runtime-text>{session.status}</Tag>
+                <Tag data-runtime-text>gen {session.generation}</Tag>
               </Space>
-              <Typography.Text type="secondary">{session.logicalInstanceId}</Typography.Text>
-              <Typography.Text type="secondary">reason={session.statusReason ?? '-'} · seq={session.lastSequence}</Typography.Text>
-              {session.statusEvidence ? <Typography.Text type="secondary">{session.statusEvidence}</Typography.Text> : null}
+              <Typography.Text type="secondary" data-runtime-text>{session.logicalInstanceId}</Typography.Text>
+              <Typography.Text type="secondary" data-runtime-text>reason={session.statusReason ?? '-'} · seq={session.lastSequence}</Typography.Text>
+              {session.statusEvidence ? <Typography.Text type="secondary" data-runtime-text>{session.statusEvidence}</Typography.Text> : null}
             </Space>
           </List.Item>
         )}
@@ -61,8 +61,8 @@ export function WorkerLifecycleHistory({ history, loading }: WorkerLifecycleHist
           color: sessionStatusColor(event.reason ?? event.eventType),
           children: (
             <Space direction="vertical" size={0}>
-              <Typography.Text strong>{event.eventType}</Typography.Text>
-              <Typography.Text type="secondary">{event.workerId} · {event.reason ?? 'no reason'}</Typography.Text>
+              <Typography.Text strong data-runtime-text>{event.eventType}</Typography.Text>
+              <Typography.Text type="secondary" data-runtime-text>{event.workerId} · {event.reason ?? 'no reason'}</Typography.Text>
               <Typography.Text type="secondary">{event.createdAt}</Typography.Text>
             </Space>
           ),

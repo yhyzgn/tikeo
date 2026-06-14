@@ -711,11 +711,11 @@ export function JobsPage() {
                 <Space wrap>
                   <Tag color={version.version_number === versionJob?.versionNumber ? 'green' : 'default'}>v{version.version_number}</Tag>
                   <Typography.Text strong>{version.name}</Typography.Text>
-                  <Tag>{version.change_reason}</Tag>
+                  <Tag data-runtime-text>{version.change_reason}</Tag>
                   {version.rolled_back_from_version ? <Tag color="orange">from v{version.rolled_back_from_version}</Tag> : null}
                 </Space>
-                <Typography.Text type="secondary">{version.schedule_type}{version.schedule_expr ? ` · ${version.schedule_expr}` : ''} · {version.enabled ? '启用' : '禁用'} · {version.created_by} · {version.created_at}</Typography.Text>
-                <Typography.Text code>{version.script_id ? `脚本 ${version.script_id}` : (version.processor_name ?? 'default processor')}</Typography.Text>
+                <Typography.Text type="secondary"><span data-runtime-text>{version.schedule_type}{version.schedule_expr ? ` · ${version.schedule_expr}` : ''}</span> · {version.enabled ? '启用' : '禁用'} · <span data-runtime-text>{version.created_by}</span> · {version.created_at}</Typography.Text>
+                <Typography.Text code>{version.script_id ? <>脚本 <span data-runtime-text>{version.script_id}</span></> : <span data-runtime-text>{version.processor_name ?? 'default processor'}</span>}</Typography.Text>
                 <PermissionGate resource="jobs" action="write">
                   <Popconfirm title="回滚任务版本" description={`将任务恢复到 v${version.version_number}，并生成新的最新版本。`} onConfirm={() => void handleRollback(version)} disabled={version.version_number === versionJob?.versionNumber}>
                     <Button size="small" disabled={version.version_number === versionJob?.versionNumber}>回滚到此版本</Button>
@@ -744,14 +744,14 @@ export function JobsPage() {
               type={schedulingAdvice.severity === 'error' ? 'error' : schedulingAdvice.severity === 'warning' ? 'warning' : 'success'}
               showIcon
               message={schedulingAdvice.ready ? '当前可调度' : '当前不可调度'}
-              description={schedulingAdvice.reason}
+              description={<span data-runtime-text>{schedulingAdvice.reason}</span>}
             />
 
             <div className="scheduling-advice-grid">
-              {renderAdviceStat('Required capability', <Typography.Text code>{schedulingAdvice.requiredCapability ?? 'none'}</Typography.Text>, 'Worker 调度匹配所需能力')}
+              {renderAdviceStat('Required capability', <Typography.Text code data-runtime-text>{schedulingAdvice.requiredCapability ?? 'none'}</Typography.Text>, 'Worker 调度匹配所需能力')}
               {renderAdviceStat('Eligible workers', schedulingAdvice.eligibleWorkers.length ? (
                 <Space size={[4, 4]} wrap>
-                  {schedulingAdvice.eligibleWorkers.map((worker) => <Tag key={worker}>{worker}</Tag>)}
+                  {schedulingAdvice.eligibleWorkers.map((worker) => <Tag key={worker} data-runtime-text>{worker}</Tag>)}
                 </Space>
               ) : <Tag color="red">0</Tag>, '当前在线且满足能力约束')}
               {renderAdviceStat('Recent window', `${schedulingAdvice.recentInstances} instances`, `${schedulingAdvice.recentFailures} failures in window`)}
@@ -783,7 +783,7 @@ export function JobsPage() {
             <Card size="small" title="资源预测" className="scheduling-advice-detail-card">
               <Typography.Text strong>预测依据</Typography.Text>
               <div className="scheduling-advice-reasons">
-                {schedulingAdvice.prediction.reasons.map((reason) => <Typography.Text key={reason} type="secondary">{reason}</Typography.Text>)}
+                {schedulingAdvice.prediction.reasons.map((reason) => <Typography.Text key={reason} type="secondary" data-runtime-text>{reason}</Typography.Text>)}
               </div>
             </Card>
           </Space>

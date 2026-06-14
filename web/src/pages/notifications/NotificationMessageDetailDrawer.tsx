@@ -31,7 +31,7 @@ export function NotificationMessageDetailDrawer({ message, open, onClose }: Prop
 
   return (
     <Drawer title={message ? `${t('通知消息详情')} · ${message.eventType}` : t('通知消息详情')} open={open} onClose={onClose} width={1040} destroyOnClose>
-      {error ? <Alert type="error" showIcon message={error} /> : null}
+      {error ? <Alert type="error" showIcon message={<span data-runtime-text>{error}</span>} /> : null}
       <Tabs
         items={[
           {
@@ -52,7 +52,7 @@ export function NotificationMessageDetailDrawer({ message, open, onClose }: Prop
           {
             key: 'payload',
             label: 'Payload',
-            children: <pre className="json-preview">{formatJson(trace?.message.payloadJson ?? '{}')}</pre>,
+            children: <pre className="json-preview" data-runtime-text>{formatJson(trace?.message.payloadJson ?? '{}')}</pre>,
           },
         ]}
       />
@@ -68,8 +68,8 @@ function Overview({ trace, t }: { trace: NotificationMessageTrace; t: (value: st
         { key: 'status', label: t('状态'), children: <Tag color={stateColor[trace.message.status] ?? 'default'}>{trace.message.status}</Tag> },
         { key: 'event', label: t('事件'), children: trace.message.eventType },
         { key: 'resource', label: t('资源'), children: `${trace.message.resourceType}:${trace.message.resourceId}` },
-        { key: 'subject', label: t('主题'), children: trace.message.subject },
-        { key: 'body', label: t('内容'), children: trace.message.body },
+        { key: 'subject', label: t('主题'), children: <span data-runtime-text>{trace.message.subject}</span> },
+        { key: 'body', label: t('内容'), children: <span data-runtime-text>{trace.message.body}</span> },
         { key: 'job', label: 'Job', children: trace.job ? `${trace.job.namespace}/${trace.job.app}/${trace.job.name}` : '-' },
         { key: 'instance', label: 'Instance', children: trace.instance ? <Typography.Text copyable code>{trace.instance.id}</Typography.Text> : '-' },
         { key: 'policy', label: 'Policy', children: trace.policy ? <Typography.Text copyable code>{trace.policy.id}</Typography.Text> : '-' },
@@ -87,11 +87,11 @@ function Delivery({ attempts, t }: { attempts: NotificationDeliveryAttemptSummar
       pagination={false}
       columns={[
         { title: t('提供方'), dataIndex: 'provider' },
-        { title: t('目标'), dataIndex: 'targetRedacted', ellipsis: true },
+        { title: t('目标'), dataIndex: 'targetRedacted', ellipsis: true, render: (value: string) => <span data-runtime-text>{value}</span> },
         { title: t('尝试次数'), dataIndex: 'attempt', width: 96 },
         { title: t('状态'), dataIndex: 'retryState', render: (value: string) => <Tag color={stateColor[value] ?? 'default'}>{value}</Tag> },
         { title: 'HTTP', dataIndex: 'statusCode', width: 90, render: (value) => value ?? '-' },
-        { title: t('错误'), dataIndex: 'error', ellipsis: true, render: (value) => value ?? '-' },
+        { title: t('错误'), dataIndex: 'error', ellipsis: true, render: (value) => <span data-runtime-text>{value ?? '-'}</span> },
         { title: t('创建时间'), dataIndex: 'createdAt' },
       ]}
     />
@@ -114,7 +114,7 @@ function Logs({ trace, t }: { trace: NotificationMessageTrace | null; t: (value:
               { title: '#', dataIndex: 'sequence', width: 80 },
               { title: t('级别'), dataIndex: 'level', width: 100, render: (value) => <Tag>{value}</Tag> },
               { title: 'Worker', dataIndex: 'workerId', width: 180, ellipsis: true },
-              { title: t('日志'), dataIndex: 'message' },
+              { title: t('日志'), dataIndex: 'message', render: (value: string) => <span data-runtime-text>{value}</span> },
               { title: t('创建时间'), dataIndex: 'createdAt', width: 210 },
             ]}
           />

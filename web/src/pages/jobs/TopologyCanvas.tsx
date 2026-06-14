@@ -178,8 +178,8 @@ function renderNode(node: JobTopologyNode, position: Point, selectedJobId: strin
   return (
     <g key={node.id} className="topology-node" transform={`translate(${position.x},${position.y})`} onClick={() => { if (isJob) onSelectJob(node.id); }} style={{ cursor: isJob ? 'pointer' : 'default' }}>
       <rect width={NODE_WIDTH} height={NODE_HEIGHT} rx="8" fill={fill} stroke={stroke} strokeWidth={selected ? 2.5 : 1.5} />
-      <text x="12" y="22" fontSize="13" fontWeight={600} fill="#262626">{truncate(node.label, 17)}</text>
-      <text x="12" y="40" fontSize="11" fill="#595959">{node.type}</text>
+      <text x="12" y="22" fontSize="13" fontWeight={600} fill="#262626" data-runtime-text>{truncate(node.label, 17)}</text>
+      <text x="12" y="40" fontSize="11" fill="#595959" data-runtime-text>{node.type}</text>
     </g>
   );
 }
@@ -201,5 +201,5 @@ function truncate(value: string, max: number) {
 
 export function ImpactJobTags({ jobs, empty }: { jobs: Array<{ id: string; name: string }>; empty: string }) {
   if (jobs.length === 0) return <Typography.Text type="secondary">{empty}</Typography.Text>;
-  return <Space wrap>{jobs.map((job) => <Tag key={job.id} color="blue">{job.name}</Tag>)}</Space>;
+  return <Space wrap>{jobs.map((job) => <Tag key={job.id} color="blue" data-runtime-text>{job.name}</Tag>)}</Space>;
 }

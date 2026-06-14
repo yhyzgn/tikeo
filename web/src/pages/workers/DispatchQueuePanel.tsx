@@ -46,12 +46,12 @@ function DispatchQueueItem({ item }: { item: DispatchQueueSummary }) {
     <List.Item className="dispatch-queue-item">
       <Space direction="vertical" size={8} style={{ width: '100%' }}>
         <Space wrap align="center">
-          <Typography.Text strong copyable>{item.id}</Typography.Text>
-          <Tag color={queueStatusColor(item.status)}>{item.status}</Tag>
-          <Tag>attempt={item.attempt}</Tag>
-          <Tag color="blue">priority={item.priority}</Tag>
+          <Typography.Text strong copyable data-runtime-text>{item.id}</Typography.Text>
+          <Tag color={queueStatusColor(item.status)} data-runtime-text>{item.status}</Tag>
+          <Tag data-runtime-text>attempt={item.attempt}</Tag>
+          <Tag color="blue" data-runtime-text>priority={item.priority}</Tag>
         </Space>
-        <div className="dispatch-queue-item__meta">
+        <div className="dispatch-queue-item__meta" data-runtime-text>
           <span>job={item.jobInstanceId ?? '-'}</span>
           <span>workflow_node={item.workflowNodeInstanceId ?? '-'}</span>
           <span>selector={item.workerSelector ?? 'any'}</span>

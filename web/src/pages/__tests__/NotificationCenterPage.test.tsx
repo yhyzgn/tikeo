@@ -11,6 +11,7 @@ const channelDrawerSource = readFileSync(new URL('../notifications/ChannelDrawer
 const providerSchemaSource = readFileSync(new URL('../notifications/providerSchema.ts', import.meta.url), 'utf8');
 const templateDrawerSource = readFileSync(new URL('../notifications/TemplateDrawer.tsx', import.meta.url), 'utf8');
 const templateCatalogSource = readFileSync(new URL('../notifications/templateCatalog.ts', import.meta.url), 'utf8');
+const publicConsoleSource = readFileSync(new URL('../PublicInstanceConsolePage.tsx', import.meta.url), 'utf8');
 const messageDetailDrawerSource = readFileSync(new URL('../notifications/NotificationMessageDetailDrawer.tsx', import.meta.url), 'utf8');
 const stylesSource = readFileSync(new URL('../../styles.css', import.meta.url), 'utf8');
 
@@ -389,6 +390,17 @@ describe('notification center console page', () => {
     expect(pageSource).not.toContain("name=\"templateRef\" label={t('模板引用')}><Input");
   });
 
+
+
+  test('keeps notification trace runtime payloads and log messages out of DOM auto-localization', () => {
+    const detailDrawerSource = readFileSync(new URL('../notifications/NotificationMessageDetailDrawer.tsx', import.meta.url), 'utf8');
+    expect(detailDrawerSource).toContain('className="json-preview" data-runtime-text');
+    expect(detailDrawerSource).toContain('children: <span data-runtime-text>{trace.message.subject}</span>');
+    expect(detailDrawerSource).toContain('children: <span data-runtime-text>{trace.message.body}</span>');
+    expect(detailDrawerSource).toContain('render: (value: string) => <span data-runtime-text>{value}</span>');
+    expect(publicConsoleSource).toContain('className="public-console-page__log" data-runtime-text');
+    expect(publicConsoleSource).toContain('<Typography.Paragraph data-runtime-text>{trace.message.body}</Typography.Paragraph>');
+  });
 
   test('lets operators open notification message trace with delivery attempts and job logs', () => {
     expect(clientSource).toContain('getNotificationMessageTrace');

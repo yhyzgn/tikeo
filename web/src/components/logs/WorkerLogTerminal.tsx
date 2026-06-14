@@ -49,13 +49,13 @@ export function WorkerLogTerminal({ groups }: WorkerLogTerminalProps) {
           title={`${t('Worker')} ${group.workerId}`}
           extra={<Tag color="blue">{formatLogCount(group.logs.length, locale)}</Tag>}
         >
-          <div className="instance-log-terminal" role="log" aria-label={`${t('Worker')} ${group.workerId} ${t('执行日志')}`}>
+          <div className="instance-log-terminal" role="log" data-runtime-text aria-label={`${t('Worker')} ${group.workerId} ${t('执行日志')}`}>
             {group.logs.map((log) => (
               <div key={log.id} className="instance-log-terminal__line">
                 <span className="instance-log-terminal__seq">{formatLogSequence(log.sequence)}</span>
                 <time className="instance-log-terminal__time" dateTime={log.createdAt}>{formatLogTimestamp(log.createdAt)}</time>
                 <span className={`instance-log-terminal__level instance-log-terminal__level--${log.level}`}>{log.level}</span>
-                <span className="instance-log-terminal__message">{renderLogMessage(log)}</span>
+                <span className="instance-log-terminal__message" data-runtime-text>{renderLogMessage(log)}</span>
               </div>
             ))}
           </div>

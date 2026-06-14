@@ -635,14 +635,14 @@ export function ChannelDrawer({ open, channelTypes, editingChannel, onClose, onS
                       ].map(([label, value]) => (
                         <div className="channel-test-result__field" key={label}>
                           <Typography.Text type="secondary">{t(String(label))}</Typography.Text>
-                          <Typography.Text code>{String(value)}</Typography.Text>
+                          <Typography.Text code data-runtime-text>{String(value)}</Typography.Text>
                         </div>
                       ))}
                     </div>
-                    {testResult.error ? <Alert type="error" showIcon message={t('错误信息')} description={testResult.error} /> : null}
+                    {testResult.error ? <Alert type="error" showIcon message={t('错误信息')} description={<span data-runtime-text>{testResult.error}</span>} /> : null}
                     <div className="channel-test-result__payload">
                       <Typography.Text strong>{t('渲染 Payload')}</Typography.Text>
-                      <Input.TextArea rows={7} readOnly value={previewValue({ renderedPayload: testResult.renderedPayload })} />
+                      <Input.TextArea rows={7} readOnly data-runtime-text value={previewValue({ renderedPayload: testResult.renderedPayload })} />
                     </div>
                   </section>
                 ) : null}

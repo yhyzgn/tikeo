@@ -1032,18 +1032,18 @@ export function WorkflowsPage() {
                   <Space direction="vertical" size={16} style={{ width: '100%' }}>
                     <Card size="small" title="运行视图" extra={<Space wrap className="card-toolbar">{canExecuteWorkflows ? <Popconfirm title="准备下一节点执行？" description="将把 queued 工作流节点物化为实际执行项。" onConfirm={materializeNext}><Button>准备下一节点执行</Button></Popconfirm> : null}{canExecuteWorkflows ? <Popconfirm title="标记当前节点成功？" description="该人工推进会改变工作流实例状态。" onConfirm={completeFirstQueued}><Button disabled={!activeInstance}>标记当前节点成功</Button></Popconfirm> : null}{canExecuteWorkflows ? <Popconfirm title="重试失败节点？" description="将对第一个失败节点执行 retry 恢复操作。" onConfirm={recoverFirstFailed}><Button disabled={!activeInstance}>重试失败节点</Button></Popconfirm> : null}<Button onClick={refreshShards} disabled={!activeInstance}>刷新 Shards</Button><Button onClick={loadReplay} loading={replayLoading} disabled={!activeInstance}>回放实例</Button></Space>}>
                       <DagPreview definition={item.definition} instance={activeWorkflow?.id === item.id ? activeInstance : null} />
-                      {activeWorkflow?.id === item.id && shards.length > 0 ? <List size="small" style={{ marginTop: 16 }} dataSource={shards} renderItem={(shard) => <List.Item><Typography.Text>{shard.nodeKey}#{shard.shardIndex} · {shard.status} · {JSON.stringify(shard.input)}</Typography.Text></List.Item>} /> : null}
+                      {activeWorkflow?.id === item.id && shards.length > 0 ? <List size="small" style={{ marginTop: 16 }} dataSource={shards} renderItem={(shard) => <List.Item><Typography.Text data-runtime-text>{shard.nodeKey}#{shard.shardIndex} · {shard.status} · {JSON.stringify(shard.input)}</Typography.Text></List.Item>} /> : null}
                     </Card>
                     <Card size="small" title="实例事件流">
-                      {activeWorkflow?.id === item.id && activeInstance ? <Typography.Text type="secondary">{activeInstance.id} · {activeInstance.status}</Typography.Text> : <Typography.Text type="secondary">运行工作流后展示 SSE 事件</Typography.Text>}
-                      <Timeline style={{ marginTop: 18 }} items={(activeWorkflow?.id === item.id ? events : []).map((event) => ({ color: event.eventType.includes('failed') ? 'red' : 'blue', children: <span>{event.createdAt} · {event.eventType} · {event.message}</span> }))} />
+                      {activeWorkflow?.id === item.id && activeInstance ? <Typography.Text type="secondary" data-runtime-text>{activeInstance.id} · {activeInstance.status}</Typography.Text> : <Typography.Text type="secondary">运行工作流后展示 SSE 事件</Typography.Text>}
+                      <Timeline style={{ marginTop: 18 }} items={(activeWorkflow?.id === item.id ? events : []).map((event) => ({ color: event.eventType.includes('failed') ? 'red' : 'blue', children: <span data-runtime-text>{event.createdAt} · {event.eventType} · {event.message}</span> }))} />
                     </Card>
                     {activeWorkflow?.id === item.id && replay ? (
                       <Card size="small" title="回放快照" className="workflow-replay-panel">
                         <Space direction="vertical" size={10} style={{ width: '100%' }}>
-                          <Typography.Text type="secondary">workflow replay · {replay.instance.id} · {replay.instance.status} · events: {replay.events.length}</Typography.Text>
+                          <Typography.Text type="secondary">workflow replay · <span data-runtime-text>{replay.instance.id} · {replay.instance.status}</span> · events: {replay.events.length}</Typography.Text>
                           <DagPreview definition={replay.workflow.definition} instance={replay.instance} />
-                          <List size="small" dataSource={replay.events} renderItem={(event) => <List.Item><Typography.Text>{event.createdAt} · {event.eventType} · {event.message}</Typography.Text></List.Item>} />
+                          <List size="small" dataSource={replay.events} renderItem={(event) => <List.Item><Typography.Text data-runtime-text>{event.createdAt} · {event.eventType} · {event.message}</Typography.Text></List.Item>} />
                         </Space>
                       </Card>
                     ) : null}

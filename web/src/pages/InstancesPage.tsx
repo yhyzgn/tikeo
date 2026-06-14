@@ -195,7 +195,7 @@ const renderExecutionResult = (instance: JobInstanceSummary | null, attempts: Jo
                     </div>
                     <div className="instance-result-nodes__message">
                       <span>{t('Message')}</span>
-                      <Typography.Paragraph className="instance-result-panel__message-body" title={messageText}>
+                      <Typography.Paragraph className="instance-result-panel__message-body" data-runtime-text title={messageText}>
                         {messageText}
                       </Typography.Paragraph>
                     </div>
@@ -405,8 +405,8 @@ export function InstancesPage() {
       width: 320,
       render: (_, instance) => (
         <Space direction="vertical" size={2}>
-          <Typography.Text ellipsis style={{ maxWidth: 188 }}>
-            {instance.latestLog?.message ?? '暂无日志'}
+          <Typography.Text ellipsis style={{ maxWidth: 188 }} data-runtime-text>
+            {instance.latestLog?.message ?? t('暂无日志')}
           </Typography.Text>
           <Typography.Text type="secondary">{instance.logCount ?? 0} 条日志</Typography.Text>
         </Space>

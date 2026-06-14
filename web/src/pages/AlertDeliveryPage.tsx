@@ -41,7 +41,7 @@ export function AlertDeliveryPage() {
         <Typography.Title level={2}>告警投递</Typography.Title>
         <Typography.Text type="secondary">查看生产告警投递 retry / DLQ 状态，Provider target 已脱敏。</Typography.Text>
       </div>
-      {error ? <Alert type="error" showIcon message="告警投递状态加载失败" description={error} /> : null}
+      {error ? <Alert type="error" showIcon message="告警投递状态加载失败" description={<span data-runtime-text>{error}</span>} /> : null}
       <Row gutter={[16, 16]}>
         <Col xs={12} md={6}><Card><Statistic title="总尝试" value={status?.total_attempts ?? 0} /></Card></Col>
         <Col xs={12} md={6}><Card><Statistic title="待重试" value={status?.retry_pending ?? 0} valueStyle={{ color: '#d48806' }} /></Card></Col>
@@ -55,10 +55,10 @@ export function AlertDeliveryPage() {
           pagination={false}
           columns={[
             { title: 'Provider', dataIndex: 'provider' },
-            { title: 'Target', dataIndex: 'target' },
+            { title: 'Target', dataIndex: 'target', render: (value: string) => <span data-runtime-text>{value}</span> },
             { title: 'Attempt', dataIndex: 'attempt', width: 96 },
             { title: 'State', dataIndex: 'retry_state', render: (value: string) => <Tag color={stateColor[value] ?? 'default'}>{value}</Tag> },
-            { title: 'Error', dataIndex: 'error', ellipsis: true },
+            { title: 'Error', dataIndex: 'error', ellipsis: true, render: (value: string | null) => <span data-runtime-text>{value ?? '-'}</span> },
             { title: 'Created', dataIndex: 'createdAt' },
           ]}
         />
