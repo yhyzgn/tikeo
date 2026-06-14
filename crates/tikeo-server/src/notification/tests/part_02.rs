@@ -722,6 +722,10 @@ async fn rich_provider_delivery_fails_closed_without_required_template() {
             serde_json::json!({"url": "http://127.0.0.1:9/notify", "messageType": "share_chat"}),
         ),
         (
+            "feishu",
+            serde_json::json!({"url": "http://127.0.0.1:9/notify", "messageType": "interactive"}),
+        ),
+        (
             "wechat_work",
             serde_json::json!({"url": "http://127.0.0.1:9/notify", "messageType": "image"}),
         ),
@@ -1306,53 +1310,43 @@ fn email_template_config_overrides_alert_payload_subject_and_body() {
 
 
 #[test]
-fn feishu_interactive_job_card_templates_include_status_variants_and_console_button() {
+fn feishu_interactive_payload_is_driven_by_rendered_template_data() {
     let message = NotificationMessageSummary {
         payload_json: serde_json::json!({
-            "jobName": "按日期生成出入库单据PDF失败",
-            "namespace": "core_dev",
-            "app": "acme-erp",
-            "instanceId": "inst-feishu-card",
-            "status": "failed",
-            "triggerType": "api",
-            "executionMode": "single",
-            "startedAt": "2026-06-11T09:35:17Z",
-            "finishedAt": "2026-06-11T09:35:57Z",
-            "workerId": "172.16.103.25:9999",
+            "template": {
+                "messageType": "interactive",
+                "card": {
+                    "config": {"wide_screen_mode": true},
+                    "header": {
+                        "template": "red",
+                        "title": {"tag": "plain_text", "content": "{{subject}}"}
+                    },
+                    "elements": [
+                        {"tag": "div", "text": {"tag": "lark_md", "content": "{{body}} / {{reason}}"}},
+                        {"tag": "action", "actions": [
+                            {"tag": "button", "text": {"tag": "plain_text", "content": "Open"}, "type": "danger", "url": "{{consoleUrl}}"}
+                        ]}
+                    ]
+                }
+            },
             "reason": "参数不能为空 should not be empty",
-            "consoleUrl": "/public/instances/inst-feishu-card/console",
-            "logs": {"url": "/public/instances/inst-feishu-card/console"}
-        }).to_string(),
+            "consoleUrl": "/public/instances/inst-feishu-card/console"
+        })
+        .to_string(),
         ..sample_notification_message()
     };
-    let config = serde_json::json!({"messageType":"interactive","template": builtin_feishu_job_card_template("failed")});
+    let config = serde_json::json!({"messageType":"interactive"});
     let payload = feishu_payload(&message, config.as_object().unwrap_or_else(|| panic!("config object")));
 
     assert_eq!(payload["msg_type"], "interactive");
     assert_eq!(payload["card"]["header"]["template"], "red");
-    assert_eq!(payload["card"]["header"]["title"]["content"], "Tikeo Job 任务通知");
-    let body = payload["card"]["elements"].to_string();
-    assert!(body.contains("报警类型"), "card should keep the operator field layout: {body}");
-    assert!(body.contains("任务执行失败报警"), "failed card should describe failed job alerts: {body}");
-    assert!(body.contains("参数不能为空 should not be empty"), "reason should render: {body}");
-    assert!(body.contains("查看控制台"), "console button should render: {body}");
-    assert!(body.contains("/public/instances/inst-feishu-card/console"), "button should use public console url: {body}");
-    assert_eq!(payload["card"]["elements"][0]["tag"], "div");
-    assert_eq!(payload["card"]["elements"][0]["text"]["tag"], "lark_md");
-    assert_eq!(payload["card"]["elements"][2]["actions"][0]["type"], "danger");
-
-    for (status, color, label, button_type) in [
-        ("succeeded", "green", "任务执行成功通知", "primary"),
-        ("running", "blue", "任务执行状态通知", "primary"),
-        ("info", "blue", "任务执行状态通知", "primary"),
-    ] {
-        let template = builtin_feishu_job_card_template(status);
-        let config = serde_json::json!({"messageType":"interactive","template": template});
-        let payload = feishu_payload(&message, config.as_object().unwrap_or_else(|| panic!("config object")));
-        assert_eq!(payload["card"]["header"]["template"], color);
-        assert_eq!(payload["card"]["elements"][2]["actions"][0]["type"], button_type);
-        assert!(payload.to_string().contains(label));
-    }
+    assert_eq!(payload["card"]["header"]["title"]["content"], "Job failed");
+    let rendered = payload.to_string();
+    assert!(rendered.contains("Exited 2 / 参数不能为空 should not be empty"));
+    assert!(rendered.contains("/public/instances/inst-feishu-card/console"));
+    assert!(!rendered.contains("Tikeo Job 任务通知"));
+    assert!(!rendered.contains("任务执行失败报警"));
+    assert_eq!(payload["card"]["elements"][1]["actions"][0]["type"], "danger");
 }
 
 fn sample_notification_message() -> NotificationMessageSummary {

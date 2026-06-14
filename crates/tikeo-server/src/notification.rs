@@ -6,8 +6,6 @@ mod provider_templates;
 mod signing;
 mod workflow_events;
 
-pub(crate) use provider_templates::builtin_feishu_job_card_template;
-
 pub use alert_events::{
     AlertRuleNotificationBackfillSummary, backfill_alert_rule_notification_policies,
     ensure_alert_rule_notification_policy_from_channels,

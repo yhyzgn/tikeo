@@ -1,6 +1,5 @@
 #![allow(missing_docs)]
 
-use crate::notification::builtin_feishu_job_card_template;
 use serde::Serialize;
 use tikeo_storage::ScopeRepository;
 use utoipa::ToSchema;
@@ -352,74 +351,7 @@ fn builtin_example_secret_refs(provider: &str, message_type: &str) -> serde_json
 }
 
 fn builtin_examples(provider: &str, message_type: &str) -> serde_json::Value {
-    if provider == "feishu" && message_type == "interactive" {
-        return serde_json::json!([
-            builtin_feishu_interactive_example(
-                "failed",
-                "Feishu failed job card",
-                "job_instance.failed",
-                "critical"
-            ),
-            builtin_feishu_interactive_example(
-                "succeeded",
-                "Feishu successful job card",
-                "job_instance.succeeded",
-                "info"
-            ),
-            builtin_feishu_interactive_example(
-                "running",
-                "Feishu status job card",
-                "job_instance.running",
-                "info"
-            ),
-        ]);
-    }
     serde_json::json!([builtin_example(provider, message_type)])
-}
-
-fn builtin_feishu_interactive_example(
-    status: &str,
-    name: &str,
-    event_type: &str,
-    severity: &str,
-) -> serde_json::Value {
-    let mut example = builtin_example("feishu", "interactive");
-    if let Some(object) = example.as_object_mut() {
-        object.insert(
-            "name".to_owned(),
-            serde_json::Value::String(name.to_owned()),
-        );
-        object.insert(
-            "template".to_owned(),
-            builtin_example_template("feishu", status),
-        );
-        object.insert(
-            "sample".to_owned(),
-            serde_json::json!({
-                "subject": format!("Tikeo job {status}"),
-                "body": format!("Job demo.exception status changed to {status}"),
-                "eventType": event_type,
-                "resourceType": "job",
-                "resourceId": "job-feishu-card",
-                "severity": severity,
-                "jobId": "AutoGenerateStockPdfRecordAfterDateTask",
-                "jobName": "按日期生成出入库单据PDF",
-                "namespace": "core_dev",
-                "app": "acme-erp",
-                "instanceId": format!("inst-feishu-{status}"),
-                "status": status,
-                "triggerType": "api",
-                "executionMode": "single",
-                "startedAt": "2026-06-11T17:35:17+08:00",
-                "finishedAt": "2026-06-11T17:35:57+08:00",
-                "workerId": "172.16.103.25:9999",
-                "reason": if status == "failed" { "参数不能为空 should not be empty" } else { "-" },
-                "consoleUrl": format!("/public/instances/inst-feishu-{status}/console"),
-                "logsUrl": format!("/public/instances/inst-feishu-{status}/console")
-            }),
-        );
-    }
-    example
 }
 
 fn builtin_example(provider: &str, message_type: &str) -> serde_json::Value {
@@ -486,20 +418,17 @@ fn builtin_example_template(provider: &str, message_type: &str) -> serde_json::V
         ("feishu", "share_chat") => {
             serde_json::json!({"messageType":"share_chat","shareChatId":"oc_example_chat_id"})
         }
-        ("feishu", "interactive" | "failed" | "succeeded" | "success" | "running" | "info") => {
-            let status = if message_type == "interactive" {
-                "failed"
-            } else {
-                message_type
-            };
-            let mut template = builtin_feishu_job_card_template(status);
-            if let Some(object) = template.as_object_mut() {
-                object.insert(
-                    "messageType".to_owned(),
-                    serde_json::Value::String("interactive".to_owned()),
-                );
-            }
-            template
+        ("feishu", "interactive") => {
+            serde_json::json!({
+                "messageType": "interactive",
+                "card": {
+                    "config": {"wide_screen_mode": true},
+                    "header": {"title": {"tag": "plain_text", "content": "{{subject}}"}},
+                    "elements": [
+                        {"tag": "div", "text": {"tag": "lark_md", "content": "{{body}}"}}
+                    ]
+                }
+            })
         }
         ("feishu", _) => serde_json::json!({"messageType":"text","text":"{{subject}}\n{{body}}"}),
         ("wechat_work", "markdown") => {

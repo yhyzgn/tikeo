@@ -3,9 +3,7 @@
 use super::delivery::{
     NotificationProviderClient, notification_channel_from_delivery_config, parse_json_object,
 };
-use super::provider_templates::{
-    builtin_feishu_job_card_template, email_alert_payload_from_message, feishu_payload,
-};
+use super::provider_templates::{email_alert_payload_from_message, feishu_payload};
 use super::*;
 use crate::alert::{AlertDeliveryPolicy, NotificationChannel};
 use tikeo_core::{ExecutionMode, TriggerType};

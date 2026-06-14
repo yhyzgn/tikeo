@@ -46,7 +46,10 @@ pub(super) fn missing_required_template_reason(
     let message_type = message_type_from_template(config, message_template.as_ref(), default_type);
     let requires_template = match provider {
         "dingtalk" => matches!(message_type.as_str(), "link" | "actionCard" | "feedCard"),
-        "feishu" => matches!(message_type.as_str(), "image" | "share_chat" | "shareChat"),
+        "feishu" => matches!(
+            message_type.as_str(),
+            "image" | "share_chat" | "shareChat" | "interactive"
+        ),
         "wechat_work" | "wecom" => matches!(
             message_type.as_str(),
             "image" | "news" | "file" | "voice" | "template_card" | "templateCard"
@@ -453,34 +456,6 @@ fn feishu_post_content(
                 "title": template_string(template, &["title"]).unwrap_or_else(|| "Tikeo notification".to_owned()),
                 "content": template.get("content").cloned().unwrap_or_else(|| serde_json::json!([[{"tag":"text","text":"{{body}}"}]]))
             }
-        }
-    })
-}
-
-pub fn builtin_feishu_job_card_template(status: &str) -> serde_json::Value {
-    let normalized = status.to_ascii_lowercase();
-    let (color, button_type, alarm_type) = match normalized.as_str() {
-        "failed" | "failure" | "error" | "critical" => ("red", "danger", "任务执行失败报警"),
-        "succeeded" | "success" | "ok" => ("green", "primary", "任务执行成功通知"),
-        _ => ("blue", "primary", "任务执行状态通知"),
-    };
-    let content = format!(
-        "**报警类型**：{alarm_type}\n**运行环境**：{{{{namespace}}}}\n**应用**：{{{{app}}}}\n**任务Handler**：{{{{jobId}}}}\n**任务名称**：{{{{jobName}}}}\n**触发时间**：{{{{startedAt}}}}\n**运行机器**：{{{{workerId}}}}\n**执行结果**：{{{{status}}}}\n**失败原因**：{{{{reason}}}}"
-    );
-    serde_json::json!({
-        "card": {
-            "config": {"wide_screen_mode": true},
-            "header": {
-                "template": color,
-                "title": {"tag": "plain_text", "content": "Tikeo Job 任务通知"}
-            },
-            "elements": [
-                {"tag": "div", "text": {"tag": "lark_md", "content": content}},
-                {"tag": "hr"},
-                {"tag": "action", "actions": [
-                    {"tag": "button", "text": {"tag": "plain_text", "content": "查看控制台"}, "type": button_type, "url": "{{consoleUrl}}"}
-                ]}
-            ]
         }
     })
 }

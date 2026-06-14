@@ -58,7 +58,7 @@
             "feishu",
             &["text", "post", "image", "share_chat", "interactive"],
         );
-        assert_feishu_interactive_examples_include_failed_success_and_status_cards(channel_types);
+        assert_feishu_interactive_examples_are_schema_only(channel_types);
         assert_provider_template(
             channel_types,
             "wechat_work",

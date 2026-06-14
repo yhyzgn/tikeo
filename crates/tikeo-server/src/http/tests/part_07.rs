@@ -814,7 +814,7 @@ fn notification_channel_example_suffix(value: &str) -> String {
     }
 }
 
-fn assert_feishu_interactive_examples_include_failed_success_and_status_cards(channel_types: &[Value]) {
+fn assert_feishu_interactive_examples_are_schema_only(channel_types: &[Value]) {
     let provider_type = channel_types
         .iter()
         .find(|item| item["type"] == "feishu")
@@ -829,20 +829,28 @@ fn assert_feishu_interactive_examples_include_failed_success_and_status_cards(ch
     let examples = interactive["examples"]
         .as_array()
         .unwrap_or_else(|| panic!("feishu interactive should expose examples"));
-    assert_eq!(examples.len(), 3, "feishu interactive should expose failed/success/status card examples");
+    assert_eq!(examples.len(), 1, "provider metadata should expose one schema example, not business card presets");
     let rendered = serde_json::Value::Array(examples.clone()).to_string();
-    for expected in [
+    for forbidden in [
+        "Tikeo Job 任务通知",
         "任务执行失败报警",
         "任务执行成功通知",
         "任务执行状态通知",
         "查看控制台",
-        "{{consoleUrl}}",
+        "demo.exception",
+        "AutoGenerateStockPdfRecordAfterDateTask",
     ] {
         assert!(
-            rendered.contains(expected),
-            "feishu interactive examples should contain {expected}: {rendered}"
+            !rendered.contains(forbidden),
+            "feishu interactive provider metadata must not hard-code business card content {forbidden}: {rendered}"
         );
     }
+    assert_eq!(examples[0]["template"]["messageType"], "interactive");
+    assert!(
+        examples[0]["template"].to_string().contains("{{subject}}")
+            && examples[0]["template"].to_string().contains("{{body}}"),
+        "schema example should still show editable template variables: {rendered}"
+    );
 }
 
 fn assert_provider_template_example_secret_refs_are_channel_private_values(channel_types: &[Value]) {
