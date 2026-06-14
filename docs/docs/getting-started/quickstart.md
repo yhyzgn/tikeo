@@ -71,14 +71,14 @@ If `data.registrationOpen` is true, register the first Owner and export the retu
 BOOTSTRAP_USERNAME="${TIKEO_BOOTSTRAP_USERNAME:-owner-$(date +%s)}"
 BOOTSTRAP_EMAIL="${TIKEO_BOOTSTRAP_EMAIL:-${BOOTSTRAP_USERNAME}@example.invalid}"
 BOOTSTRAP_PASSWORD="${TIKEO_BOOTSTRAP_PASSWORD:-$(openssl rand -base64 24 | tr -d '\n')}"
-TOKEN="$(jq -n \
+BOOTSTRAP_PAYLOAD="$(jq -n \
   --arg username "$BOOTSTRAP_USERNAME" \
   --arg email "$BOOTSTRAP_EMAIL" \
   --arg password "$BOOTSTRAP_PASSWORD" \
-  '{username:$username,email:$email,password:$password,confirmPassword:$password}' \
-  | curl -fsS -X POST http://127.0.0.1:9090/api/v1/auth/bootstrap/register \
-      -H 'content-type: application/json' \
-      -d @- \
+  '{username:$username,email:$email,password:$password,confirmPassword:$password}')"
+TOKEN="$(curl -fsS -X POST http://127.0.0.1:9090/api/v1/auth/bootstrap/register \
+  -H 'content-type: application/json' \
+  -d "$BOOTSTRAP_PAYLOAD" \
   | tee /tmp/tikeo-bootstrap.json \
   | jq -r .data.token)"
 test -n "$TOKEN" && test "$TOKEN" != "null"
