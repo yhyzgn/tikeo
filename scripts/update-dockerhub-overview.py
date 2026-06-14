@@ -52,6 +52,9 @@ def main() -> int:
     overview = args.readme.read_text(encoding="utf-8")
     if not overview.strip():
         raise RuntimeError(f"overview file is empty: {args.readme}")
+    description_bytes = len(args.description.encode("utf-8"))
+    if description_bytes > 100:
+        raise RuntimeError(f"Docker Hub short description must be at most 100 bytes, got {description_bytes}")
 
     login = request_json("POST", f"{API_ROOT}/users/login/", {"username": username, "password": password})
     token = login.get("token")

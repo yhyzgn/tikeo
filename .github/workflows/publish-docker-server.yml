@@ -78,4 +78,4 @@ jobs:
           python3 scripts/update-dockerhub-overview.py
           --repository yhyzgn/tikeo-server
           --readme dockerhub/overviews/tikeo-server.md
-          --description "Tikeo Server control-plane runtime for scheduled jobs, workers, execution logs, notifications, and management APIs."
+          --description "Tikeo Server runtime for jobs, workers, logs, notifications, and management APIs."

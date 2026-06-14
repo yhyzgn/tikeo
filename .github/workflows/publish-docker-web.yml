@@ -75,4 +75,4 @@ jobs:
           python3 scripts/update-dockerhub-overview.py
           --repository yhyzgn/tikeo-web
           --readme dockerhub/overviews/tikeo-web.md
-          --description "Tikeo Web browser console for operating jobs, workers, execution instances, notifications, alerts, and platform settings."
+          --description "Tikeo Web console for jobs, workers, instances, notifications, alerts, and settings."
