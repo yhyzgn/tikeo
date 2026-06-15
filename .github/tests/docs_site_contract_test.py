@@ -491,9 +491,25 @@ class DocsSiteContractTest(unittest.TestCase):
             self.assertGreaterEqual(text.count("```mermaid"), 3, f"{title} should include architecture, decision, and failover diagrams")
 
         readme = (ROOT / "README.md").read_text()
-        self.assertIn("docs/docs/deployment/server-ha.md", readme)
+        readme_zh = (ROOT / "README.zh-CN.md").read_text()
+        search_index = (DOCS_SITE / "static/search-index.json").read_text()
+        llms = (DOCS_SITE / "static/llms.txt").read_text()
+        self.assertIn("https://docs.tikeo.net/docs/deployment/server-ha", readme)
+        self.assertIn("https://docs.tikeo.net/zh-CN/docs/deployment/server-ha", readme_zh)
+        self.assertNotIn("docs/docs/deployment/server-ha.md", readme)
+        self.assertNotIn("docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/deployment/server-ha.md", readme_zh)
         self.assertIn("Raft active-passive", readme)
         self.assertIn("More Server pods improve failover, not scheduling throughput", readme)
+        self.assertIn("/docs/deployment/server-ha", search_index)
+        self.assertIn("/zh-CN/docs/deployment/server-ha", search_index)
+        self.assertIn("/docs/deployment/server-ha", llms)
+        self.assertIn("/zh-CN/docs/deployment/server-ha", llms)
+        sidebars = (DOCS_SITE / "sidebars.ts").read_text()
+        index_en = (DOCS_SITE / "docs/index.md").read_text()
+        index_zh = (zh_root / "index.md").read_text()
+        self.assertIn("type: 'generated-index'", sidebars)
+        self.assertIn("Server HA and cluster modes", index_en)
+        self.assertIn("Server 高可用与集群模式", index_zh)
 
     def test_deployment_docs_include_copy_paste_runbooks(self):
         deployment_text = "\n".join(

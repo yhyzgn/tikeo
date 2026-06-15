@@ -8,6 +8,7 @@ High-value English pages:
 - /docs/getting-started/installation — toolchain matrix, version baselines, repository surfaces, Owner bootstrap prerequisites, and verification commands
 - /docs/getting-started/quickstart — Server + Web + outbound Worker + SDK Management API trigger acceptance runbook
 - /docs/deployment/production — production deployment guide for Server/Web/Docs images, external databases, Worker Tunnel networking, TLS/mTLS, observability, backup, rollback, and smoke verification
+- /docs/deployment/server-ha — Server HA and cluster modes: Raft active-passive scheduling ownership, topology diagrams, Worker Tunnel failover, and production verification
 - /docs/integrations/sdk-and-api — application integration guide for Worker SDKs, Management API keys, API jobs, triggers, broadcast selectors, task-status notifications, and evidence
 - /docs/reference/configuration-cookbook — scenario recipes for database, TLS/mTLS, OIDC, observability, Notification Center delivery, Worker SDK defaults, and release image pinning
 - /docs/development/overview — maintainer guide for API/Web/SDK/docs changes, notification provider extension, script sandbox boundaries, and release readiness
@@ -42,6 +43,8 @@ High-value English pages:
 High-value zh-CN pages mirror the critical operator path under /zh-CN/docs/, especially /zh-CN/docs/getting-started/installation, /zh-CN/docs/getting-started/quickstart, /zh-CN/docs/reference/configuration, and /zh-CN/docs/sdks/*.
 
 High-value Chinese pages:
+
+- /zh-CN/docs/deployment/server-ha — Server 高可用与集群模式：Raft active-passive 调度所有权、拓扑图、Worker Tunnel 故障切换和生产验收
 
 - /zh-CN/docs/user-guide/notifications — 通知中心渠道、策略、消息、重试、DLQ、UI 渠道/策略 CRUD 与告警边界
 - /zh-CN/docs/user-guide/alerts — 告警规则/事件、静默/恢复/抑制语义与通知中心边界

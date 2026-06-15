@@ -30,5 +30,17 @@
   "sidebar.docsSidebar.category.Reference": {
     "message": "参考",
     "description": "The label for category 'Reference' in sidebar 'docsSidebar'"
+  },
+  "sidebar.docsSidebar.category.Deployment & Operations.link.generated-index.title": {
+    "message": "部署与运维",
+    "description": "The generated-index page title for category 'Deployment & Operations' in sidebar 'docsSidebar'"
+  },
+  "sidebar.docsSidebar.category.Deployment & Operations.link.generated-index.description": {
+    "message": "生产部署、Kubernetes、Server 高可用、SSE、控制器和运维 runbook。",
+    "description": "The generated-index page description for category 'Deployment & Operations' in sidebar 'docsSidebar'"
+  },
+  "sidebar.docsSidebar.doc.deployment/server-ha": {
+    "message": "Server 高可用与集群模式",
+    "description": "The label for doc item deployment/server-ha in sidebar docsSidebar"
   }
 }

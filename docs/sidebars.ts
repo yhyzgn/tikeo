@@ -39,6 +39,12 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Deployment & Operations',
+      link: {
+        type: 'generated-index',
+        title: 'Deployment & Operations',
+        description:
+          'Production deployment, Kubernetes, Server HA, SSE, controller-specific runbooks, and operations checks.',
+      },
       items: [
         'deployment/production',
         'deployment/single-binary',

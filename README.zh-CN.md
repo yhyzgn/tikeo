@@ -844,7 +844,7 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
   --values ./my-tikeo-values.yaml
 ```
 
-多 Pod Server HA 不应只提高 standalone 副本数，而应使用 Raft overlay。完整部署架构图（Mermaid）、优缺点、限制、模式选择、Worker Tunnel 故障切换，以及未来 shard ownership 的边界说明，见文档站：**Server 高可用与集群模式**（`docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/deployment/server-ha.md`）。
+如果要把 Server 跑成多 Pod，不要把它当成普通扩副本处理；先按 Raft HA overlay 部署，并阅读这篇独立部署指南：[Server 高可用与集群模式](https://docs.tikeo.net/zh-CN/docs/deployment/server-ha)。里面集中说明了部署拓扑图、模式选择、故障切换，以及当前 active-passive 调度模型的取舍。
 
 当前生产 HA 语义：
 

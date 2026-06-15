@@ -915,7 +915,7 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
   --create-namespace   --values ./my-tikeo-values.yaml
 ```
 
-For multi-pod Server HA, use the Raft overlay instead of simply increasing standalone replicas. The detailed deployment architecture, Mermaid diagrams, advantages, limitations, Worker Tunnel failover behavior, and future shard-ownership boundary are documented in the docs site: **Server HA and cluster modes** (`docs/docs/deployment/server-ha.md`).
+If you plan to run more than one Server pod, do not treat it as a normal replica bump. Use the Raft HA overlay and read the dedicated deployment guide first: [Server HA and cluster modes](https://docs.tikeo.net/docs/deployment/server-ha). It includes the topology diagrams, mode comparison, failover behavior, and the current active-passive scheduling trade-off.
 
 Current production HA semantics:
 

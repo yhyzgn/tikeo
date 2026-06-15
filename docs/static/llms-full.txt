@@ -12,10 +12,12 @@ Generated from docs/docs and zh-CN docs. This curated snapshot lists implementat
 ## Human production and integration manuals
 
 - Production deployment guide: /docs/deployment/production covers component responsibility, installation path selection, Worker Tunnel network paths, PostgreSQL/MySQL configuration, Compose, Helm, TLS/mTLS decisions, bootstrap, Worker rollout, observability, backup, upgrade, rollback, and production checklist.
+- Server HA and cluster modes: /docs/deployment/server-ha covers Raft active-passive Server HA, Kubernetes topology diagrams, why extra pods improve failover instead of scheduler throughput, Worker Tunnel failover, verification, troubleshooting, and production checklist.
 - SDK and API integration guide: /docs/integrations/sdk-and-api covers the separation between Worker SDK clients and Management API clients, credentials, processor naming, API job creation, trigger inspection, broadcast integration, task-status notifications, error handling, and local integration smoke.
 - Configuration cookbook: /docs/reference/configuration-cookbook gives scenario recipes for config loading, local development, PostgreSQL, MySQL, reverse-proxy TLS, Worker Tunnel TLS/mTLS, OIDC, observability, Notification Center delivery worker, Worker SDK defaults, and image pinning.
 - Development and extension guide: /docs/development/overview explains repository ownership, local verification loops, API/Web/SDK/doc update workflows, adding notification providers, adding script/sandbox capabilities, and release readiness.
 - 中文生产部署指南: /zh-CN/docs/deployment/production 覆盖组件职责、数据库、Compose、Helm、Worker Tunnel、TLS/mTLS、观测、备份、回滚和生产检查清单。
+- Server 高可用与集群模式: /zh-CN/docs/deployment/server-ha 覆盖 Raft active-passive Server HA、Kubernetes 拓扑图、为什么多 Pod 主要提升故障切换而不是调度吞吐、Worker Tunnel 故障切换、验收、排障和生产检查清单。
 - 中文 SDK/API 集成指南: /zh-CN/docs/integrations/sdk-and-api 覆盖 Worker SDK、Management API Key、API 作业、触发、广播、通知和验收证据。
 - 中文配置 Cookbook: /zh-CN/docs/reference/configuration-cookbook 覆盖数据库、TLS/mTLS、OIDC、观测、通知投递、Worker SDK 默认值和镜像固定。
 - 中文开发与扩展指南: /zh-CN/docs/development/overview 覆盖仓库结构、API/Web/SDK/文档变更、provider 扩展、脚本沙箱和发布准备。
@@ -69,6 +71,7 @@ Generated from docs/docs and zh-CN docs. This curated snapshot lists implementat
 - /docs/deployment/single-binary covers single binary and systemd.
 - /docs/deployment/docker-compose covers SQLite, PostgreSQL, and MySQL Compose examples.
 - /docs/deployment/kubernetes covers Helm, TLS/mTLS, and Worker outbound-only boundaries.
+- /docs/deployment/server-ha covers Raft active-passive Server HA, canSchedule=true ownership, FailedPrecondition follower rejection, StatefulSet/headless topology, and shard ownership trade-offs.
 - /docs/deployment/kubernetes-controller-runbook covers Nginx Ingress, Envoy Gateway, Traefik, Gateway API, server.workerTunnelService.annotations, server.tls.workerTunnel.mtlsRequired, GRPCRoute, grpc-worker-tunnel, workers-connect-outbound-only, and controller-specific smoke checks.
 - /docs/deployment/management-trigger-smoke-runbook covers scripts/management-trigger-e2e-smoke.sh, TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER=0 scripts/management-trigger-e2e-smoke.sh, TIKEO_MANAGEMENT_TRIGGER_REPORT_DIR, TIKEO_MANAGEMENT_TRIGGER_RUN_ID, management-sdk-create-trigger, management-instance-result, x-tikeo-api-key, TIKEO_WORKER_CONNECT=1, and nodejs demo echo processed evidence.
 - /docs/deployment/sse-realtime covers proxy, load balancer, WAF, and Ingress requirements for SSE.

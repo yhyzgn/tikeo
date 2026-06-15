@@ -30,6 +30,12 @@
     "summary": "Human production runbook for Server, Web, Docs, databases, Worker Tunnel networking, TLS/mTLS, observability, backup, rollback, and smoke verification."
   },
   {
+    "title": "Server HA and cluster modes",
+    "url": "/docs/deployment/server-ha",
+    "locale": "en",
+    "summary": "Raft active-passive Server HA runbook with Kubernetes topology diagrams, mode selection, Worker Tunnel failover, prerequisites, verification, troubleshooting, and production checklist."
+  },
+  {
     "title": "SDK and API integration guide",
     "url": "/docs/integrations/sdk-and-api",
     "locale": "en",
@@ -52,6 +58,12 @@
     "url": "/zh-CN/docs/deployment/production",
     "locale": "zh-CN",
     "summary": "面向人的生产部署 runbook，覆盖 Server、Web、Docs、数据库、Worker Tunnel、TLS/mTLS、观测、备份、回滚和 smoke 验收。"
+  },
+  {
+    "title": "Server 高可用与集群模式",
+    "url": "/zh-CN/docs/deployment/server-ha",
+    "locale": "zh-CN",
+    "summary": "Raft active-passive Server 高可用部署指南，包含 Kubernetes 拓扑图、模式选择、Worker Tunnel 故障切换、前置条件、验收、故障排查和生产检查清单。"
   },
   {
     "title": "SDK 与 API 集成指南",
