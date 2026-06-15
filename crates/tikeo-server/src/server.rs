@@ -140,6 +140,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
                 audit: audit.clone(),
                 notifications: Some(notification_center.clone()),
                 log_broadcaster,
+                cluster: cluster.clone(),
             }),
             &transport_security.worker_tunnel,
         ),

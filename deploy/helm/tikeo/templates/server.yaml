@@ -17,15 +17,19 @@ spec:
       storage: {{ .Values.server.storage.persistence.size | quote }}
 ---
 {{- end }}
+{{- $raftEnabled := eq .Values.server.cluster.mode "raft" }}
 apiVersion: apps/v1
-kind: Deployment
+kind: {{ ternary "StatefulSet" "Deployment" $raftEnabled }}
 metadata:
-  name: {{ include "tikeo.name" . }}-server
+  name: {{ include "tikeo.serverName" . }}
   namespace: {{ include "tikeo.namespace" . }}
   labels:
     {{- include "tikeo.labels" . | nindent 4 }}
     app.kubernetes.io/component: server
 spec:
+  {{- if $raftEnabled }}
+  serviceName: {{ include "tikeo.serverHeadlessName" . }}
+  {{- end }}
   replicas: {{ .Values.server.replicas }}
   selector:
     matchLabels:
@@ -57,13 +61,28 @@ spec:
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           args: ["serve", "--config", "/config/container.toml"]
-          {{- if and (eq .Values.server.storage.mode "external") .Values.server.storage.existingSecret }}
+          {{- if or (and (eq .Values.server.storage.mode "external") .Values.server.storage.existingSecret) $raftEnabled }}
           env:
+            {{- if and (eq .Values.server.storage.mode "external") .Values.server.storage.existingSecret }}
             - name: TIKEO__STORAGE__DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.server.storage.existingSecret | quote }}
                   key: {{ .Values.server.storage.databaseUrlSecretKey | quote }}
+            {{- end }}
+            {{- if $raftEnabled }}
+            - name: TIKEO__CLUSTER__MODE
+              value: "raft"
+            - name: TIKEO__CLUSTER__NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: TIKEO__CLUSTER__TRANSPORT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "server.cluster.transportTokenExistingSecret is required when server.cluster.mode=raft" .Values.server.cluster.transportTokenExistingSecret | quote }}
+                  key: {{ .Values.server.cluster.transportTokenSecretKey | quote }}
+            {{- end }}
           {{- end }}
           ports:
             - name: http
@@ -189,6 +208,28 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- if eq .Values.server.cluster.mode "raft" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tikeo.serverHeadlessName" . }}
+  namespace: {{ include "tikeo.namespace" . }}
+  labels:
+    {{- include "tikeo.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: {{ include "tikeo.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: {{ .Values.server.cluster.peerPort }}
+      targetPort: http
+{{- end }}
 ---
 apiVersion: v1
 kind: Service

@@ -18,6 +18,8 @@ use tokio::sync::{broadcast, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
 
+use crate::cluster::{ClusterMode, SharedClusterCoordinator};
+
 use super::{WorkerRegistry, governance};
 
 const DEFAULT_LEASE_SECONDS: u64 = 30;
@@ -58,6 +60,7 @@ pub struct WorkerTunnel {
     audit: AuditLogRepository,
     notifications: NotificationCenter,
     log_broadcaster: TaskLogBroadcaster,
+    cluster: SharedClusterCoordinator,
 }
 
 impl WorkerTunnel {
@@ -74,6 +77,7 @@ impl WorkerTunnel {
             audit: runtime.audit,
             notifications: runtime.notifications,
             log_broadcaster: runtime.log_broadcaster,
+            cluster: runtime.cluster,
         }
     }
 }
@@ -97,6 +101,7 @@ impl WorkerTunnelService for WorkerTunnel {
         let audit = self.audit.clone();
         let notifications = self.notifications.clone();
         let log_broadcaster = self.log_broadcaster.clone();
+        let cluster = self.cluster.clone();
         let (tx, rx) = mpsc::channel(16);
         let outbound = tx.clone();
 
@@ -116,6 +121,7 @@ impl WorkerTunnelService for WorkerTunnel {
                             audit: &audit,
                             notifications: &notifications,
                             log_broadcaster: &log_broadcaster,
+                            cluster: &cluster,
                             tx: &tx,
                             outbound: &outbound,
                         };
@@ -230,6 +236,7 @@ struct WorkerMessageContext<'a> {
     audit: &'a AuditLogRepository,
     notifications: &'a NotificationCenter,
     log_broadcaster: &'a TaskLogBroadcaster,
+    cluster: &'a SharedClusterCoordinator,
     tx: &'a mpsc::Sender<Result<ServerMessage, Status>>,
     outbound: &'a mpsc::Sender<Result<ServerMessage, Status>>,
 }
@@ -278,6 +285,19 @@ async fn handle_register(
     context: &WorkerMessageContext<'_>,
     register: tikeo_proto::worker::v1::RegisterWorker,
 ) -> Result<WorkerMessageOutcome, mpsc::error::SendError<Result<ServerMessage, Status>>> {
+    let status = context.cluster.status().await;
+    if status.mode == ClusterMode::Raft && !status.can_schedule {
+        context
+            .tx
+            .send(Err(Status::failed_precondition(format!(
+                "worker tunnel registration requires raft scheduling leader; current node {} is {}",
+                status.node_id,
+                status.role.as_str()
+            ))))
+            .await?;
+        return Ok(WorkerMessageOutcome::Continue);
+    }
+
     let worker = context
         .registry
         .register(register, context.outbound.clone())

@@ -62,7 +62,28 @@ curl -fsS http://127.0.0.1:9090/readyz || true
 
 The chart injects the database URL as `TIKEO__STORAGE__DATABASE_URL`, overriding generated config.
 
-## 3. TLS and mTLS install
+
+## 3. Server Raft HA install
+
+Use Raft HA when the Server control plane needs multiple Kubernetes pods. This path requires an external PostgreSQL/MySQL/CockroachDB database and a Raft transport Secret. The chart switches the Server workload from `Deployment` to `StatefulSet`, creates the `tikeo-server-headless` peer Service, injects each pod name as `TIKEO__CLUSTER__NODE_ID`, and renders static peer endpoints such as `http://tikeo-server-0.tikeo-server-headless:9090`.
+
+Create the internal transport token Secret:
+
+```bash
+kubectl -n tikeo create secret generic tikeo-raft-transport   --from-literal=transport-token="$(openssl rand -hex 32)"
+```
+
+Install:
+
+```bash
+helm upgrade --install tikeo ./deploy/helm/tikeo   --namespace tikeo --create-namespace   -f deploy/helm/tikeo/examples/values-external-postgres.yaml   -f deploy/helm/tikeo/examples/values-raft-ha.yaml
+kubectl -n tikeo rollout status statefulset/tikeo-server
+kubectl -n tikeo get pods -l app.kubernetes.io/component=server
+```
+
+Expected scheduling semantics: all Server pods participate in Raft, but only one elected Leader with a persisted fencing token reports `canSchedule=true` and runs schedule/dispatch/retry ownership loops. Followers continue serving health/API/Raft transport, but do not split task scheduling. Tikeo intentionally does not use Redis/Dragonfly distributed locks for core scheduler ownership.
+
+## 4. TLS and mTLS install
 
 Create listener and client CA Secrets. Replace file paths with your own certificates:
 
@@ -86,7 +107,7 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
 
 Ingress TLS and Tikeo listener TLS are separate. Ingress TLS terminates traffic at the ingress controller; `server.tls.http` and `server.tls.workerTunnel` configure the Tikeo process listeners.
 
-## 4. Optional operations hardening
+## 5. Optional operations hardening
 
 Enable PDB, NetworkPolicy, and ServiceMonitor:
 
@@ -109,9 +130,11 @@ helm template tikeo ./deploy/helm/tikeo \
 
 | Value | Default | Purpose |
 |---|---:|---|
-| `server.replicas` | `1` | Server pod replicas. Use external DB before scaling shared installs. |
+| `server.replicas` | `1` | Server pod replicas. Keep `1` for standalone; use `server.cluster.mode=raft` plus external DB for multi-pod Server HA. |
 | `server.httpPort` | `9090` | Container HTTP listener for API/health. |
 | `server.workerTunnelPort` | `9998` | Container Worker Tunnel gRPC/HTTP2 listener. |
+| `server.cluster.mode` | `standalone` | `standalone` or `raft`; `raft` renders a StatefulSet and active-passive scheduling owner. |
+| `server.cluster.transportTokenExistingSecret` | empty | Required in raft mode; Secret containing the internal transport token. |
 | `server.storage.mode` | `sqlite` | `sqlite` creates/uses PVC; `external` reads DB URL from Secret. |
 | `server.storage.existingSecret` | empty | Secret containing database URL for external mode. |
 | `server.storage.databaseUrlSecretKey` | `database-url` | Secret key read into `TIKEO__STORAGE__DATABASE_URL`. |

@@ -48,7 +48,7 @@ These defaults come from `crates/tikeo-config/src/lib.rs` unless a committed exa
 | `server.worker_tunnel_addr` | `0.0.0.0:9998` | `TIKEO__SERVER__WORKER_TUNNEL_ADDR` | gRPC/HTTP2 Worker Tunnel. Workers dial this endpoint outbound. |
 | `storage.database_url` | `sqlite://.dev/tikeo-dev.db?mode=rwc` | `TIKEO__STORAGE__DATABASE_URL` | SeaORM/sqlx URL. Container example uses `/data/tikeo.db`; production should use PostgreSQL or MySQL. |
 | `storage.timestamp_offset` | `+00:00` | `TIKEO__STORAGE__TIMESTAMP_OFFSET` | Parsed at startup. `config/dev.toml` and `config/mysql.toml` use `+08:00`; account for this in timestamp comparisons. |
-| `cluster.mode` | `standalone` | `TIKEO__CLUSTER__MODE` | Accepted values are `standalone` and `raft`. Raft mode is currently a gated shape, not a production scheduling leader. |
+| `cluster.mode` | `standalone` | `TIKEO__CLUSTER__MODE` | Accepted values are `standalone` and `raft`. In Kubernetes production HA, use Helm Raft mode with StatefulSet/headless peers; only the elected Leader schedules. |
 | `cluster.node_id` | `standalone` | `TIKEO__CLUSTER__NODE_ID` | Stable node ID in cluster status and raft metadata. |
 | `cluster.peers` | `[]` | `TIKEO__CLUSTER__PEERS` | Static peer list shape with `node_id` and `endpoint`. Prefer TOML/Helm for arrays. |
 | `cluster.transport_token` | unset | `TIKEO__CLUSTER__TRANSPORT_TOKEN` | Optional shared token for internal raft HTTP transport; never commit real values. |
@@ -170,7 +170,7 @@ If `observability.tracing.enabled=true`, configure `observability.tracing.otlp_e
 
 ## Cluster mode
 
-`standalone` is the operational default and can schedule. `raft` mode is currently a safe shape for node/peer metadata and future consensus wiring. It validates bootstrap shape and exposes cluster status, but it should not be documented as production scheduling HA until a real leader path is active. In raft mode, internal append traffic can require `x-tikeo-raft-token` when `cluster.transport_token` is configured.
+`standalone` is the operational default for single-server installs. `raft` is the production multi-pod Server HA mode when deployed with stable node IDs, a static peer list, external database storage, and an internal transport token. The scheduling model is active-passive: only the elected Raft Leader with a persisted fencing token reports `canSchedule=true` and runs schedule/dispatch/retry ownership loops; followers skip those loops. In raft mode, internal append traffic can require `x-tikeo-raft-token` when `cluster.transport_token` is configured. Do not add Redis/Dragonfly distributed locks for core scheduler ownership; future multi-active scheduling should use Raft/fencing shard ownership.
 
 Example shape:
 

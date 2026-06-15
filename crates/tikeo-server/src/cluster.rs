@@ -7,6 +7,7 @@
 use std::sync::Arc;
 
 mod raft_rs;
+pub mod shard_ownership;
 
 use raft::eraftpb::Message;
 use tikeo_config::{ClusterConfig, ClusterModeConfig};

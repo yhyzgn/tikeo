@@ -14,6 +14,8 @@ test -f deploy/helm/tikeo/templates/networkpolicy.yaml
 test -f deploy/helm/tikeo/templates/pdb.yaml
 test -f deploy/helm/tikeo/examples/values-gateway-api-worker-tunnel.yaml
 test -f deploy/helm/tikeo/examples/values-ops-hardening.yaml
+test -f deploy/helm/tikeo/examples/values-raft-ha.yaml
+test -f deploy/k8s/tikeo-raft-ha.yaml
 test -f deploy/helm/tikeo/values.schema.json
 
 grep -q 'TIKEO_CONFIG=/etc/tikeo/tikeo.toml' deploy/systemd/tikeo.env
@@ -30,5 +32,9 @@ grep -q 'Gateway API' deploy/helm/tikeo/README.md
 grep -q 'ServiceMonitor' deploy/helm/tikeo/README.md
 grep -q 'NetworkPolicy' deploy/helm/tikeo/README.md
 grep -q 'PodDisruptionBudget' deploy/helm/tikeo/README.md
+grep -q 'server.cluster.mode' deploy/helm/tikeo/README.md
+grep -q 'StatefulSet' deploy/helm/tikeo/README.md
+grep -q 'tikeo-server-headless' deploy/k8s/tikeo-raft-ha.yaml
+grep -q 'TIKEO__CLUSTER__TRANSPORT_TOKEN' deploy/k8s/tikeo-raft-ha.yaml
 
 echo 'deployment bootstrap templates verified'

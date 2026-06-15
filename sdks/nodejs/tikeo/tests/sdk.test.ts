@@ -69,6 +69,30 @@ describe("node sdk parity", () => {
     expect(grpcTarget("https://worker.example:443")).toBe("worker.example");
   });
 
+  test("connect closes failed registration stream before retry", async () => {
+    const config = localConfig("http://127.0.0.1:9998", "node-worker-retry-cleanup");
+    const client = new Client(config) as any;
+    let cancelled = false;
+    let destroyed = false;
+    let clientClosed = false;
+    const listeners = new Map<string, Function>();
+    const call = {
+      write() {},
+      once(event: string, fn: Function) { listeners.set(event, fn); return this; },
+      off(event: string) { listeners.delete(event); return this; },
+      cancel() { cancelled = true; },
+      destroy() { destroyed = true; },
+    };
+    client.connectGrpc = () => ({ OpenTunnel: () => call, close: () => { clientClosed = true; } });
+    const promise = client.connect();
+    listeners.get("error")?.(new Error("FAILED_PRECONDITION follower"));
+
+    await expect(promise).rejects.toThrow("FAILED_PRECONDITION");
+    expect(cancelled).toBe(true);
+    expect(destroyed).toBe(true);
+    expect(clientClosed).toBe(true);
+  });
+
   test("management client creates structured plugin and script jobs", async () => {
     const bodies: any[] = [];
     const paths: string[] = [];

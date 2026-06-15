@@ -78,12 +78,18 @@ export class Client {
   async connect(): Promise<Session> {
     const client = this.connectGrpc();
     const call = client.OpenTunnel();
-    call.write({ register: this.registerMessage() });
-    const ack = await nextStreamMessage(call);
-    const registered = ack?.registered;
-    if (!registered?.workerId) throw new Error("tikeo worker expected registration ack");
-    sdkLog("info", `registered worker_id=${registered.workerId} lease_seconds=${registered.leaseSeconds ?? 0} generation=${registered.generation ?? 0}`);
-    return new Session(call, registered.workerId, Number(registered.leaseSeconds ?? 0), Number(registered.generation ?? 0), registered.fencingToken ?? "", this.config.heartbeatEveryMs);
+    try {
+      call.write({ register: this.registerMessage() });
+      const ack = await nextStreamMessage(call);
+      const registered = ack?.registered;
+      if (!registered?.workerId) throw new Error("tikeo worker expected registration ack");
+      sdkLog("info", `registered worker_id=${registered.workerId} lease_seconds=${registered.leaseSeconds ?? 0} generation=${registered.generation ?? 0}`);
+      return new Session(client, call, registered.workerId, Number(registered.leaseSeconds ?? 0), Number(registered.generation ?? 0), registered.fencingToken ?? "", this.config.heartbeatEveryMs);
+    } catch (error) {
+      closeGrpcCall(call);
+      closeGrpcClient(client);
+      throw error;
+    }
   }
 
   private registerMessage(): any {
@@ -109,7 +115,7 @@ export class Client {
 export class Session {
   private sequence = 0;
   private logSequence = 0;
-  constructor(private call: any, public workerId: string, public leaseSeconds: number, public generation: number, private fencingToken: string, private heartbeatEveryMs: number) {}
+  constructor(private client: any, private call: any, public workerId: string, public leaseSeconds: number, public generation: number, private fencingToken: string, private heartbeatEveryMs: number) {}
 
   sendHeartbeat(): number {
     this.sequence += 1;
@@ -146,8 +152,13 @@ export class Session {
   }
 
   close(): void {
-    this.call.write({ unregister: { workerId: this.workerId, generation: this.generation, fencingToken: this.fencingToken } });
-    this.call.end();
+    try {
+      this.call.write({ unregister: { workerId: this.workerId, generation: this.generation, fencingToken: this.fencingToken } });
+      this.call.end();
+    } finally {
+      closeGrpcCall(this.call);
+      closeGrpcClient(this.client);
+    }
   }
 
   private emitTaskLogSafely(task: any, level: string, message: string): void {
@@ -236,6 +247,15 @@ function loadProto(): any {
   const protoPath = join(here, "proto", "worker.proto");
   const definition = protoLoader.loadSync(protoPath, { keepCase: false, longs: Number, enums: String, defaults: true, oneofs: true });
   return grpc.loadPackageDefinition(definition) as any;
+}
+
+function closeGrpcCall(call: any): void {
+  call.cancel?.();
+  call.destroy?.();
+}
+
+function closeGrpcClient(client: any): void {
+  client.close?.();
 }
 
 function nextStreamMessage(call: any): Promise<any> {

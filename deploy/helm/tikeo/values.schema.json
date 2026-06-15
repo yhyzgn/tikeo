@@ -6,58 +6,145 @@
   "type": "object",
   "additionalProperties": true,
   "properties": {
-    "namespaceOverride": { "type": "string" },
-    "imagePullSecrets": { "type": "array" },
+    "namespaceOverride": {
+      "type": "string"
+    },
+    "imagePullSecrets": {
+      "type": "array"
+    },
     "networkPolicy": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "enabled": { "type": "boolean" }
+        "enabled": {
+          "type": "boolean"
+        }
       }
     },
     "serviceMonitor": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "enabled": { "type": "boolean" },
-        "interval": { "type": "string" },
-        "scrapeTimeout": { "type": "string" },
-        "path": { "type": "string" }
+        "enabled": {
+          "type": "boolean"
+        },
+        "interval": {
+          "type": "string"
+        },
+        "scrapeTimeout": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
       }
     },
     "gatewayApi": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "enabled": { "type": "boolean" }
+        "enabled": {
+          "type": "boolean"
+        }
       }
     },
     "server": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "replicas": { "type": "integer", "minimum": 1 },
-        "httpPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "workerTunnelPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "httpPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "workerTunnelPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
         "storage": {
           "type": "object",
           "additionalProperties": true,
           "properties": {
-            "mode": { "type": "string", "enum": ["sqlite", "external"] },
-            "databaseUrl": { "type": "string", "minLength": 1 },
-            "existingSecret": { "type": "string" },
-            "databaseUrlSecretKey": { "type": "string", "minLength": 1 },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "sqlite",
+                "external"
+              ]
+            },
+            "databaseUrl": {
+              "type": "string",
+              "minLength": 1
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "databaseUrlSecretKey": {
+              "type": "string",
+              "minLength": 1
+            },
             "persistence": {
               "type": "object",
               "additionalProperties": true,
               "properties": {
-                "enabled": { "type": "boolean" },
-                "size": { "type": "string", "minLength": 1 },
-                "accessModes": { "type": "array", "items": { "type": "string" } }
+                "enabled": {
+                  "type": "boolean"
+                },
+                "size": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "accessModes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
               }
             }
           },
-          "required": ["mode", "databaseUrlSecretKey"]
+          "required": [
+            "mode",
+            "databaseUrlSecretKey"
+          ]
+        },
+        "cluster": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "standalone",
+                "raft"
+              ]
+            },
+            "peerServiceName": {
+              "type": "string"
+            },
+            "peerPort": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "transportTokenExistingSecret": {
+              "type": "string"
+            },
+            "transportTokenSecretKey": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "mode",
+            "peerPort",
+            "transportTokenSecretKey"
+          ]
         }
       }
     },
@@ -65,8 +152,15 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "replicas": { "type": "integer", "minimum": 1 },
-        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+        "replicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
       }
     }
   }

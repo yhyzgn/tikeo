@@ -1,0 +1,165 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tikeo
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tikeo-raft-transport
+  namespace: tikeo
+type: Opaque
+stringData:
+  transport-token: change-me-with-a-random-secret
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tikeo-database
+  namespace: tikeo
+type: Opaque
+stringData:
+  database-url: postgres://tikeo:change-me@postgres.example:5432/tikeo?sslmode=require
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tikeo-config
+  namespace: tikeo
+data:
+  container.toml: |
+    [server]
+    listen_addr = "0.0.0.0:9090"
+    worker_tunnel_addr = "0.0.0.0:9998"
+
+    [storage]
+    database_url = "postgres://override-by-secret/tikeo"
+
+    [cluster]
+    mode = "raft"
+    node_id = "tikeo-server-0"
+    peers = [
+      { node_id = "tikeo-server-0", endpoint = "http://tikeo-server-0.tikeo-server-headless:9090" },
+      { node_id = "tikeo-server-1", endpoint = "http://tikeo-server-1.tikeo-server-headless:9090" },
+      { node_id = "tikeo-server-2", endpoint = "http://tikeo-server-2.tikeo-server-headless:9090" },
+    ]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tikeo-server-headless
+  namespace: tikeo
+  labels:
+    app.kubernetes.io/name: tikeo
+    app.kubernetes.io/component: server
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: tikeo
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 9090
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tikeo
+  namespace: tikeo
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: tikeo
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 9090
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tikeo-worker-tunnel
+  namespace: tikeo
+  annotations:
+    tikeo.yhyzgn.com/worker-networking: "workers-connect-outbound-only"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: tikeo
+    app.kubernetes.io/component: server
+  ports:
+    - name: grpc-worker-tunnel
+      port: 9998
+      targetPort: worker-tunnel
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tikeo-server
+  namespace: tikeo
+  labels:
+    app.kubernetes.io/name: tikeo
+    app.kubernetes.io/component: server
+spec:
+  serviceName: tikeo-server-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tikeo
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tikeo
+        app.kubernetes.io/component: server
+    spec:
+      containers:
+        - name: tikeo
+          image: yhyzgn/tikeo-server:dev
+          imagePullPolicy: IfNotPresent
+          args: ["serve", "--config", "/config/container.toml"]
+          env:
+            - name: TIKEO__STORAGE__DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tikeo-database
+                  key: database-url
+            - name: TIKEO__CLUSTER__MODE
+              value: "raft"
+            - name: TIKEO__CLUSTER__NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: TIKEO__CLUSTER__TRANSPORT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: tikeo-raft-transport
+                  key: transport-token
+          ports:
+            - name: http
+              containerPort: 9090
+            - name: worker-tunnel
+              containerPort: 9998
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: tikeo-config

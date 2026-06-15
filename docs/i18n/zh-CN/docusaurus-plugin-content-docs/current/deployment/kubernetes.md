@@ -41,7 +41,28 @@ helm upgrade --install tikeo ./deploy/helm/tikeo   --namespace tikeo --create-na
 
 chart 会把 Secret 注入为 `TIKEO__STORAGE__DATABASE_URL`。
 
-## 3. TLS/mTLS
+
+## 3. Server Raft HA 安装
+
+当 Server 控制面需要多个 Kubernetes Pod 时使用 Raft HA。该路径要求外部 PostgreSQL/MySQL/CockroachDB 数据库和 Raft transport Secret。Chart 会把 Server 从 `Deployment` 切换为 `StatefulSet`，创建 `tikeo-server-headless` peer Service，把每个 Pod 名称注入为 `TIKEO__CLUSTER__NODE_ID`，并渲染 `http://tikeo-server-0.tikeo-server-headless:9090` 这类静态 peer endpoint。
+
+创建内部 transport token Secret：
+
+```bash
+kubectl -n tikeo create secret generic tikeo-raft-transport   --from-literal=transport-token="$(openssl rand -hex 32)"
+```
+
+安装：
+
+```bash
+helm upgrade --install tikeo ./deploy/helm/tikeo   --namespace tikeo --create-namespace   -f deploy/helm/tikeo/examples/values-external-postgres.yaml   -f deploy/helm/tikeo/examples/values-raft-ha.yaml
+kubectl -n tikeo rollout status statefulset/tikeo-server
+kubectl -n tikeo get pods -l app.kubernetes.io/component=server
+```
+
+调度语义：所有 Server Pod 参与 Raft，但只有一个已选出的 Leader 在持久化 fencing token 后报告 `canSchedule=true`，并运行 schedule/dispatch/retry 所有权循环。Follower 可以继续承载 health/API/Raft transport，但不会按任务分片调度。Tikeo 核心调度所有权不使用 Redis/Dragonfly 分布式锁。
+
+## 4. TLS/mTLS
 
 ```bash
 kubectl -n tikeo create secret tls tikeo-http-tls --cert=./certs/http.crt --key=./certs/http.key
@@ -53,7 +74,7 @@ helm upgrade --install tikeo ./deploy/helm/tikeo   --namespace tikeo --create-na
 
 Ingress TLS 与 Tikeo listener TLS 是两个边界；Worker Tunnel mTLS 用于 Worker 客户端证书校验。
 
-## 4. 运维增强
+## 5. 运维增强
 
 ```bash
 helm upgrade --install tikeo ./deploy/helm/tikeo   --namespace tikeo --create-namespace   -f deploy/helm/tikeo/examples/values-external-postgres.yaml   -f deploy/helm/tikeo/examples/values-ops-hardening.yaml
@@ -69,9 +90,11 @@ helm template tikeo ./deploy/helm/tikeo   --namespace tikeo   -f deploy/helm/tik
 
 | Value | 默认 | 说明 |
 |---|---:|---|
-| `server.replicas` | `1` | Server 副本数。共享环境先用外部 DB。 |
+| `server.replicas` | `1` | Server 副本数；standalone 保持 1，多 Pod Server HA 使用 `server.cluster.mode=raft` 和外部 DB。 |
 | `server.httpPort` | `9090` | API/health 容器端口。 |
 | `server.workerTunnelPort` | `9998` | Worker Tunnel 容器端口。 |
+| `server.cluster.mode` | `standalone` | `standalone` 或 `raft`；raft 渲染 StatefulSet 和 active-passive 调度 owner。 |
+| `server.cluster.transportTokenExistingSecret` | 空 | raft 模式必填，保存内部 transport token 的 Secret。 |
 | `server.storage.mode` | `sqlite` | `sqlite` 使用 PVC；`external` 从 Secret 读 DB URL。 |
 | `server.storage.existingSecret` | 空 | 外部 DB Secret 名。 |
 | `server.storage.databaseUrlSecretKey` | `database-url` | Secret key。 |

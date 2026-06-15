@@ -58,6 +58,18 @@ server:
     tag: dev
     pullPolicy: IfNotPresent
   replicas: 1
+  cluster:
+    # standalone keeps a single schedulable server process. raft renders a StatefulSet
+    # with stable pod DNS and exactly one scheduling Leader at a time.
+    mode: standalone
+    # Defaults to <release-name>-server-headless when empty.
+    peerServiceName: ""
+    # Used for peer URLs in generated raft config. Keep this equal to service.port unless
+    # an advanced deployment intentionally exposes a different internal HTTP port.
+    peerPort: 9090
+    # Required when mode=raft. The token is injected as TIKEO__CLUSTER__TRANSPORT_TOKEN.
+    transportTokenExistingSecret: ""
+    transportTokenSecretKey: transport-token
   pdb:
     enabled: false
     minAvailable: 1
@@ -142,6 +154,18 @@ web:
     tag: dev
     pullPolicy: IfNotPresent
   replicas: 1
+  cluster:
+    # standalone keeps a single schedulable server process. raft renders a StatefulSet
+    # with stable pod DNS and exactly one scheduling Leader at a time.
+    mode: standalone
+    # Defaults to <release-name>-server-headless when empty.
+    peerServiceName: ""
+    # Used for peer URLs in generated raft config. Keep this equal to service.port unless
+    # an advanced deployment intentionally exposes a different internal HTTP port.
+    peerPort: 9090
+    # Required when mode=raft. The token is injected as TIKEO__CLUSTER__TRANSPORT_TOKEN.
+    transportTokenExistingSecret: ""
+    transportTokenSecretKey: transport-token
   pdb:
     enabled: false
     minAvailable: 1

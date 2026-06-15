@@ -50,6 +50,38 @@ server:
 
 The chart injects the secret as `TIKEO__STORAGE__DATABASE_URL`, which overrides the generated `container.toml` fallback through Tikeo's environment configuration loader.
 
+
+## Server Raft HA
+
+For production multi-pod Server HA, set `server.cluster.mode=raft` and use Raft mode with an external database. The chart renders the Server as a `StatefulSet`, creates a headless peer Service, injects a stable pod name as `TIKEO__CLUSTER__NODE_ID`, and reads the internal Raft transport token from a Kubernetes Secret. This is an active-passive scheduling model: all Server pods participate in Raft, but only the elected Leader with a persisted fencing token runs schedule/dispatch/retry ownership loops.
+
+Create the transport token Secret separately:
+
+```bash
+kubectl -n tikeo create secret generic tikeo-raft-transport   --from-literal=transport-token="$(openssl rand -hex 32)"
+```
+
+Install the Raft HA overlay with an external database Secret:
+
+```bash
+helm upgrade --install tikeo ./deploy/helm/tikeo   --namespace tikeo --create-namespace   -f deploy/helm/tikeo/examples/values-external-postgres.yaml   -f deploy/helm/tikeo/examples/values-raft-ha.yaml
+```
+
+Relevant values:
+
+```yaml
+server:
+  replicas: 3
+  cluster:
+    mode: raft
+    peerServiceName: tikeo-server-headless
+    peerPort: 9090
+    transportTokenExistingSecret: tikeo-raft-transport
+    transportTokenSecretKey: transport-token
+```
+
+Do not use Redis or Dragonfly distributed locks for core scheduler ownership. If Server-side scheduling later needs multi-active scale-out, add Raft/fencing shard ownership instead of an external lock service.
+
 ## TLS and mTLS
 
 Tikeo supports real HTTP TLS and Worker Tunnel TLS/mTLS listeners. The chart wires mounted Kubernetes Secrets into `[transport_security.http]` and `[transport_security.worker_tunnel]` in the generated config.

@@ -17,6 +17,10 @@ use super::{
     handle_worker_message,
 };
 
+fn standalone_cluster() -> crate::cluster::SharedClusterCoordinator {
+    crate::cluster::StandaloneCoordinator::shared("standalone")
+}
+
 fn notification_center(jobs: &JobRepository) -> crate::notification::NotificationCenter {
     let db = jobs.db();
     crate::notification::NotificationCenter::new(
@@ -43,6 +47,7 @@ async fn register_message_updates_registry_and_acknowledges_worker() {
     let workflows = workflows().await;
     let log_broadcaster = TaskLogBroadcaster::default();
     let notifications = notification_center(&jobs);
+    let cluster = standalone_cluster();
     let context = WorkerMessageContext {
         registry: &registry,
         instances: &instances,
@@ -53,6 +58,7 @@ async fn register_message_updates_registry_and_acknowledges_worker() {
         audit: &audit,
         notifications: &notifications,
         log_broadcaster: &log_broadcaster,
+        cluster: &cluster,
         tx: &tx,
         outbound: &tx,
     };
@@ -96,6 +102,78 @@ async fn register_message_updates_registry_and_acknowledges_worker() {
         .next()
         .unwrap_or_else(|| panic!("registered worker id should exist"));
     assert!(registry.get(&registered_id).await.is_some());
+}
+
+#[tokio::test]
+async fn register_message_is_rejected_on_raft_follower() {
+    use crate::cluster::{ClusterMode, ClusterRole, ClusterStatus, StaticCoordinator};
+
+    let registry = WorkerRegistry::default();
+    let instances = instances().await;
+    let jobs = jobs().await;
+    let logs = logs().await;
+    let audit = audit().await;
+    let attempts = attempts().await;
+    let workflows = workflows().await;
+    let log_broadcaster = TaskLogBroadcaster::default();
+    let notifications = notification_center(&jobs);
+    let (tx, mut rx) = mpsc::channel(1);
+    let follower = StaticCoordinator::shared(ClusterStatus {
+        mode: ClusterMode::Raft,
+        role: ClusterRole::Follower,
+        node_id: "tikeo-server-1".to_owned(),
+        nodes: 3,
+        can_schedule: false,
+        leader_fencing_token: None,
+        detail: "test follower".to_owned(),
+    });
+    let context = WorkerMessageContext {
+        registry: &registry,
+        instances: &instances,
+        jobs: &jobs,
+        logs: &logs,
+        attempts: &attempts,
+        workflows: &workflows,
+        audit: &audit,
+        notifications: &notifications,
+        log_broadcaster: &log_broadcaster,
+        cluster: &follower,
+        tx: &tx,
+        outbound: &tx,
+    };
+
+    handle_worker_message(
+        &context,
+        WorkerMessage {
+            kind: Some(worker_message::Kind::Register(RegisterWorker {
+                client_instance_id: "worker-follower".to_owned(),
+                app: "billing".to_owned(),
+                namespace: "finance".to_owned(),
+                cluster: "prod".to_owned(),
+                region: "cn".to_owned(),
+                capabilities: Vec::new(),
+                structured_capabilities: None,
+                election: None,
+                labels: std::collections::HashMap::default(),
+            })),
+        },
+    )
+    .await
+    .unwrap_or_else(|error| panic!("rejection should be sent: {error}"));
+
+    let rejection = rx
+        .recv()
+        .await
+        .unwrap_or_else(|| panic!("rejection should exist"))
+        .expect_err("follower registration should be rejected");
+
+    assert_eq!(rejection.code(), tonic::Code::FailedPrecondition);
+    assert!(
+        rejection
+            .message()
+            .contains("worker tunnel registration requires raft scheduling leader")
+    );
+    assert!(registry.worker_ids().await.is_empty());
 }
 
 #[tokio::test]
@@ -165,6 +243,7 @@ async fn task_result_with_wrong_assignment_token_is_rejected() {
     let (tx, _events) = mpsc::channel(8);
     let broadcaster = TaskLogBroadcaster::default();
     let notifications = notification_center(&jobs);
+    let cluster = standalone_cluster();
     let context = WorkerMessageContext {
         registry: &registry,
         instances: &instances,
@@ -175,6 +254,7 @@ async fn task_result_with_wrong_assignment_token_is_rejected() {
         audit: &audit,
         notifications: &notifications,
         log_broadcaster: &broadcaster,
+        cluster: &cluster,
         tx: &tx,
         outbound: &tx,
     };
@@ -341,6 +421,7 @@ async fn broadcast_task_result_persists_per_worker_attempt_result() {
         templates,
         jobs.clone(),
     );
+    let cluster = standalone_cluster();
     let context = WorkerMessageContext {
         registry: &registry,
         instances: &instances,
@@ -351,6 +432,7 @@ async fn broadcast_task_result_persists_per_worker_attempt_result() {
         audit: &audit,
         notifications: &notifications,
         log_broadcaster: &broadcaster,
+        cluster: &cluster,
         tx: &tx,
         outbound: &tx,
     };
@@ -511,6 +593,7 @@ async fn failed_single_task_result_schedules_retry_and_logs_result() {
     let (tx, _events) = mpsc::channel(8);
     let broadcaster = TaskLogBroadcaster::default();
     let notifications = notification_center(&jobs);
+    let cluster = standalone_cluster();
     let context = WorkerMessageContext {
         registry: &registry,
         instances: &instances,
@@ -521,6 +604,7 @@ async fn failed_single_task_result_schedules_retry_and_logs_result() {
         audit: &audit,
         notifications: &notifications,
         log_broadcaster: &broadcaster,
+        cluster: &cluster,
         tx: &tx,
         outbound: &tx,
     };
@@ -745,6 +829,7 @@ async fn failed_single_task_result_emits_job_notification_policy() {
         templates,
         jobs.clone(),
     );
+    let cluster = standalone_cluster();
     let context = WorkerMessageContext {
         registry: &registry,
         instances: &instances,
@@ -755,6 +840,7 @@ async fn failed_single_task_result_emits_job_notification_policy() {
         audit: &audit,
         notifications: &notifications,
         log_broadcaster: &broadcaster,
+        cluster: &cluster,
         tx: &tx,
         outbound: &tx,
     };
@@ -970,6 +1056,7 @@ async fn non_retrying_failed_task_result_emits_failed_notification_policy() {
         templates,
         jobs.clone(),
     );
+    let cluster = standalone_cluster();
     let context = WorkerMessageContext {
         registry: &registry,
         instances: &instances,
@@ -980,6 +1067,7 @@ async fn non_retrying_failed_task_result_emits_failed_notification_policy() {
         audit: &audit,
         notifications: &notifications,
         log_broadcaster: &broadcaster,
+        cluster: &cluster,
         tx: &tx,
         outbound: &tx,
     };
@@ -1087,6 +1175,7 @@ async fn subscribe_task_logs_replays_existing_and_streams_live_logs() {
             audit,
             notifications: None,
             log_broadcaster: broadcaster.clone(),
+            cluster: standalone_cluster(),
         },
     ));
     let response = service

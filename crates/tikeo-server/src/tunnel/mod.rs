@@ -12,6 +12,7 @@ pub use service::{TaskLogBroadcaster, WorkerTunnel};
 
 use std::net::SocketAddr;
 
+use crate::cluster::SharedClusterCoordinator;
 use anyhow::{Context, Result};
 use tikeo_config::TlsEndpointConfig;
 use tikeo_proto::worker::v1::worker_tunnel_service_server::WorkerTunnelServiceServer;
@@ -36,6 +37,7 @@ pub struct WorkerTunnelRuntime {
     audit: AuditLogRepository,
     notifications: crate::notification::NotificationCenter,
     log_broadcaster: TaskLogBroadcaster,
+    cluster: SharedClusterCoordinator,
 }
 
 /// Input bundle used to create a Worker Tunnel runtime.
@@ -58,6 +60,8 @@ pub struct WorkerTunnelRuntimeParts {
     pub notifications: Option<crate::notification::NotificationCenter>,
     /// Live task log broadcaster.
     pub log_broadcaster: TaskLogBroadcaster,
+    /// Cluster ownership coordinator used to gate Worker Tunnel registration in Raft mode.
+    pub cluster: SharedClusterCoordinator,
 }
 
 impl WorkerTunnelRuntime {
@@ -86,6 +90,7 @@ impl WorkerTunnelRuntime {
             audit: parts.audit,
             notifications,
             log_broadcaster: parts.log_broadcaster,
+            cluster: parts.cluster,
         }
     }
 }

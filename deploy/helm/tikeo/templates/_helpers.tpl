@@ -44,3 +44,19 @@ helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
 {{- define "tikeo.workerTunnelClientCaPath" -}}
 {{ printf "%s/%s" .Values.server.tls.workerTunnel.clientCaMountPath .Values.tlsDefaults.clientCaFilename }}
 {{- end -}}
+
+{{- define "tikeo.serverName" -}}
+{{ include "tikeo.name" . }}-server
+{{- end -}}
+
+{{- define "tikeo.serverHeadlessName" -}}
+{{- default (printf "%s-server-headless" (include "tikeo.name" .)) .Values.server.cluster.peerServiceName -}}
+{{- end -}}
+
+{{- define "tikeo.serverClusterEnabled" -}}
+{{- eq .Values.server.cluster.mode "raft" -}}
+{{- end -}}
+
+{{- define "tikeo.raftNodeName" -}}
+raft-node-env-override-required
+{{- end -}}

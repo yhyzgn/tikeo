@@ -915,6 +915,21 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
   --create-namespace   --values ./my-tikeo-values.yaml
 ```
 
+For multi-pod Server HA, use the Raft overlay instead of simply increasing standalone replicas. The chart renders a StatefulSet plus `tikeo-server-headless`; only the elected Raft Leader reports `canSchedule=true` and owns scheduling/dispatch/retry loops.
+
+```bash
+kubectl -n tikeo create secret generic tikeo-raft-transport \
+  --from-literal=transport-token="$(openssl rand -hex 32)"
+helm upgrade --install tikeo ./deploy/helm/tikeo \
+  --namespace tikeo \
+  --create-namespace \
+  --values deploy/helm/tikeo/examples/values-external-postgres.yaml \
+  --values deploy/helm/tikeo/examples/values-raft-ha.yaml
+kubectl -n tikeo rollout status statefulset/tikeo-server
+```
+
+Tikeo keeps core scheduler ownership in Raft/fencing rather than Redis/Dragonfly distributed locks. If scheduler throughput later needs multi-active scale-out, implement Raft shard ownership.
+
 ### Deployment paths
 
 | Path | Use it when |

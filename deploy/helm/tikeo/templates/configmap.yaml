@@ -14,6 +14,21 @@ data:
     [storage]
     database_url = "{{ .Values.server.storage.databaseUrl }}"
 
+    [cluster]
+    mode = "{{ .Values.server.cluster.mode }}"
+    {{- if eq .Values.server.cluster.mode "raft" }}
+    # Runtime node_id is injected by TIKEO__CLUSTER__NODE_ID from Kubernetes metadata.name.
+    node_id = "{{ include "tikeo.serverName" . }}-0"
+    peers = [
+    {{- $root := . }}
+    {{- range $i := until (int .Values.server.replicas) }}
+      { node_id = "{{ include "tikeo.serverName" $root }}-{{ $i }}", endpoint = "http://{{ include "tikeo.serverName" $root }}-{{ $i }}.{{ include "tikeo.serverHeadlessName" $root }}:{{ $root.Values.server.cluster.peerPort }}" },
+    {{- end }}
+    ]
+    {{- else }}
+    node_id = "standalone"
+    {{- end }}
+
     [transport_security.http]
     tls_enabled = {{ .Values.server.tls.http.enabled }}
     mtls_required = {{ .Values.server.tls.http.mtlsRequired }}

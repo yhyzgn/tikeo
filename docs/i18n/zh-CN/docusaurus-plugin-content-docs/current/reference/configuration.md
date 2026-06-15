@@ -36,7 +36,7 @@ cargo run --bin tikeo -- serve --config config/dev.toml
 | `server.worker_tunnel_addr` | `0.0.0.0:9998` | `TIKEO__SERVER__WORKER_TUNNEL_ADDR` | gRPC/HTTP2 Worker Tunnel，Worker 主动连接。 |
 | `storage.database_url` | `sqlite://.dev/tikeo-dev.db?mode=rwc` | `TIKEO__STORAGE__DATABASE_URL` | SeaORM/sqlx URL；生产用 PostgreSQL/MySQL。 |
 | `storage.timestamp_offset` | `+00:00` | `TIKEO__STORAGE__TIMESTAMP_OFFSET` | 启动时解析；dev/mysql 示例为 `+08:00`。 |
-| `cluster.mode` | `standalone` | `TIKEO__CLUSTER__MODE` | `standalone` 或 `raft`；raft 当前是受限 shape。 |
+| `cluster.mode` | `standalone` | `TIKEO__CLUSTER__MODE` | `standalone` 或 `raft`；K8s 生产多 Pod HA 使用 Helm Raft StatefulSet/headless peers，只有 Leader 调度。 |
 | `cluster.node_id` | `standalone` | `TIKEO__CLUSTER__NODE_ID` | 集群状态和 raft 元数据节点 ID。 |
 | `cluster.peers` | `[]` | `TIKEO__CLUSTER__PEERS` | peer 数组建议用 TOML/Helm 表达。 |
 | `cluster.transport_token` | 未设置 | `TIKEO__CLUSTER__TRANSPORT_TOKEN` | 内部 raft HTTP token，不要提交真实值。 |
@@ -85,7 +85,7 @@ TLS/mTLS 默认关闭。跨主机、跨集群、跨 VPC 或不可信网络时，
 
 日志默认 console + `info`。设置 `observability.logging.log_dir` 后会写 `tikeo.log`。开启 OTel 时必须设置 `observability.tracing.otlp_endpoint`，并把凭证放环境变量或 Secret。
 
-`standalone` 是当前可调度默认模式。`raft` 目前是安全的节点/peer 元数据形状，会暴露状态和校验，但不要把它写成已经具备生产调度 HA 的 leader 路径。配置了 `cluster.transport_token` 时，内部 raft append 流量需要 `x-tikeo-raft-token`。
+`standalone` 是单 Server 安装的默认模式。`raft` 是生产多 Pod Server HA 模式，但必须配合稳定 node id、静态 peers、外部数据库和内部 transport token 部署。调度模型是 active-passive：只有已选出的 Raft Leader 在持久化 fencing token 后报告 `canSchedule=true` 并运行 schedule/dispatch/retry 所有权循环；Follower 会跳过这些循环。配置了 `cluster.transport_token` 时，内部 raft append 流量需要 `x-tikeo-raft-token`。核心调度所有权不要引入 Redis/Dragonfly 分布式锁；未来多活调度应走 Raft/fencing shard ownership。
 
 ## Worker SDK 默认值
 

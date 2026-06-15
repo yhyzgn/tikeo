@@ -1,0 +1,17 @@
+server:
+  replicas: 3
+  storage:
+    mode: external
+    existingSecret: tikeo-database
+    databaseUrlSecretKey: database-url
+    persistence:
+      enabled: false
+  cluster:
+    mode: raft
+    peerServiceName: tikeo-server-headless
+    peerPort: 9090
+    transportTokenExistingSecret: tikeo-raft-transport
+    transportTokenSecretKey: transport-token
+  pdb:
+    enabled: true
+    minAvailable: 2
