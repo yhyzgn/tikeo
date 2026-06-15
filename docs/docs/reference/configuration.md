@@ -170,6 +170,9 @@ If `observability.tracing.enabled=true`, configure `observability.tracing.otlp_e
 
 ## Cluster mode
 
+For the full deployment architecture, advantages, limitations, and mode-selection flow, see [Server HA and cluster modes](../deployment/server-ha).
+
+
 `standalone` is the operational default for single-server installs. `raft` is the production multi-pod Server HA mode when deployed with stable node IDs, a static peer list, external database storage, and an internal transport token. The scheduling model is active-passive: only the elected Raft Leader with a persisted fencing token reports `canSchedule=true` and runs schedule/dispatch/retry ownership loops; followers skip those loops. In raft mode, internal append traffic can require `x-tikeo-raft-token` when `cluster.transport_token` is configured. Do not add Redis/Dragonfly distributed locks for core scheduler ownership; future multi-active scheduling should use Raft/fencing shard ownership.
 
 Example shape:

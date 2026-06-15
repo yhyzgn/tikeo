@@ -53,7 +53,11 @@ The chart injects the secret as `TIKEO__STORAGE__DATABASE_URL`, which overrides 
 
 ## Server Raft HA
 
-For production multi-pod Server HA, set `server.cluster.mode=raft` and use Raft mode with an external database. The chart renders the Server as a `StatefulSet`, creates a headless peer Service, injects a stable pod name as `TIKEO__CLUSTER__NODE_ID`, and reads the internal Raft transport token from a Kubernetes Secret. This is an active-passive scheduling model: all Server pods participate in Raft, but only the elected Leader with a persisted fencing token runs schedule/dispatch/retry ownership loops.
+For production multi-pod Server HA, set `server.cluster.mode=raft` and use Raft mode with an external database. The detailed architecture diagrams, pros/cons, mode selection, and Worker Tunnel failover semantics live in `docs/docs/deployment/server-ha.md`.
+
+Summary trade-off: Raft mode gives Server pod failover and strong fencing, but it is active-passive for scheduling today. Extra Server pods do not split task scheduling throughput until a future Raft shard-ownership runtime is implemented and verified.
+
+The chart renders the Server as a `StatefulSet`, creates a headless peer Service, injects a stable pod name as `TIKEO__CLUSTER__NODE_ID`, and reads the internal Raft transport token from a Kubernetes Secret. This is an active-passive scheduling model: all Server pods participate in Raft, but only the elected Leader with a persisted fencing token runs schedule/dispatch/retry ownership loops.
 
 Create the transport token Secret separately:
 

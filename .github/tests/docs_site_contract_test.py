@@ -23,6 +23,7 @@ P0_DOCS = [
     "deployment/single-binary.md",
     "deployment/docker-compose.md",
     "deployment/kubernetes.md",
+    "deployment/server-ha.md",
     "deployment/kubernetes-controller-runbook.md",
     "deployment/management-trigger-smoke-runbook.md",
     "integrations/overview.md",
@@ -195,6 +196,7 @@ HUMAN_MANUAL_EN_DOCS = [
     "getting-started/seed-demo-data.md",
     "deployment/docker-compose.md",
     "deployment/kubernetes.md",
+    "deployment/server-ha.md",
     "deployment/sse-realtime.md",
     "reference/configuration.md",
     "reference/troubleshooting.md",
@@ -228,6 +230,7 @@ BILINGUAL_MIN_SECTION_DOCS = [
     "getting-started/seed-demo-data.md",
     "deployment/docker-compose.md",
     "deployment/kubernetes.md",
+    "deployment/server-ha.md",
     "deployment/sse-realtime.md",
     "reference/configuration.md",
     "reference/troubleshooting.md",
@@ -467,6 +470,31 @@ class DocsSiteContractTest(unittest.TestCase):
             self.assertGreaterEqual(len(words), 260, f"doc too thin: {relative_path}")
             self.assertGreaterEqual(len(headings), 4, f"doc lacks sections: {relative_path}")
 
+
+    def test_server_ha_docs_explain_architecture_and_tradeoffs(self):
+        zh_root = DOCS_SITE / "i18n/zh-CN/docusaurus-plugin-content-docs/current"
+        for root, title in [(DOCS_SITE / "docs", "Server HA and cluster modes"), (zh_root, "Server 高可用与集群模式")]:
+            text = (root / "deployment/server-ha.md").read_text()
+            for token in [
+                "```mermaid",
+                "StatefulSet",
+                "headless",
+                "Worker Tunnel",
+                "FailedPrecondition",
+                "canSchedule=true",
+                "Redis",
+                "Dragonfly",
+                "shard",
+                "fencing",
+            ]:
+                self.assertIn(token, text, f"{title} missing {token!r}")
+            self.assertGreaterEqual(text.count("```mermaid"), 3, f"{title} should include architecture, decision, and failover diagrams")
+
+        readme = (ROOT / "README.md").read_text()
+        self.assertIn("docs/docs/deployment/server-ha.md", readme)
+        self.assertIn("Raft active-passive", readme)
+        self.assertIn("More Server pods improve failover, not scheduling throughput", readme)
+
     def test_deployment_docs_include_copy_paste_runbooks(self):
         deployment_text = "\n".join(
             (DOCS_SITE / "docs" / relative_path).read_text()
@@ -474,6 +502,7 @@ class DocsSiteContractTest(unittest.TestCase):
                 "deployment/single-binary.md",
                 "deployment/docker-compose.md",
                 "deployment/kubernetes.md",
+                "deployment/server-ha.md",
                 "reference/configuration.md",
             ]
         )

@@ -844,6 +844,28 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
   --values ./my-tikeo-values.yaml
 ```
 
+多 Pod Server HA 不应只提高 standalone 副本数，而应使用 Raft overlay。完整部署架构图（Mermaid）、优缺点、限制、模式选择、Worker Tunnel 故障切换，以及未来 shard ownership 的边界说明，见文档站：**Server 高可用与集群模式**（`docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/deployment/server-ha.md`）。
+
+当前生产 HA 语义：
+
+| 主题 | 当前行为 | 取舍 |
+| --- | --- | --- |
+| Server HA | 基于 `StatefulSet` 和 `tikeo-server-headless` 的 Raft active-passive。 | 更多 Server Pod 提升故障切换能力，不提升调度吞吐。 |
+| 调度所有者 | 任意时刻只有一个被选举出的 Leader 报告 `canSchedule=true` 并运行 schedule/dispatch/retry 循环。 | Follower 可服务 API/health/Raft transport，但不会分摊任务派发。 |
+| Worker Tunnel | Follower 使用 `FailedPrecondition` 拒绝注册；SDK 重连直到路由到 Leader。 | Worker Tunnel 暴露链路必须支持 gRPC/HTTP2 和 reconnect/backoff。 |
+| 外部分布式锁 | 核心调度所有权不使用 Redis/Dragonfly lock。 | 未来多活调度必须走 Raft shard ownership + fencing。 |
+
+```bash
+kubectl -n tikeo create secret generic tikeo-raft-transport \
+  --from-literal=transport-token="$(openssl rand -hex 32)"
+helm upgrade --install tikeo ./deploy/helm/tikeo \
+  --namespace tikeo \
+  --create-namespace \
+  --values deploy/helm/tikeo/examples/values-external-postgres.yaml \
+  --values deploy/helm/tikeo/examples/values-raft-ha.yaml
+kubectl -n tikeo rollout status statefulset/tikeo-server
+```
+
 ### 部署路径
 
 | 路径 | 适用时机 |

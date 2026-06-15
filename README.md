@@ -915,7 +915,16 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
   --create-namespace   --values ./my-tikeo-values.yaml
 ```
 
-For multi-pod Server HA, use the Raft overlay instead of simply increasing standalone replicas. The chart renders a StatefulSet plus `tikeo-server-headless`; only the elected Raft Leader reports `canSchedule=true` and owns scheduling/dispatch/retry loops.
+For multi-pod Server HA, use the Raft overlay instead of simply increasing standalone replicas. The detailed deployment architecture, Mermaid diagrams, advantages, limitations, Worker Tunnel failover behavior, and future shard-ownership boundary are documented in the docs site: **Server HA and cluster modes** (`docs/docs/deployment/server-ha.md`).
+
+Current production HA semantics:
+
+| Topic | Current behavior | Trade-off |
+| --- | --- | --- |
+| Server HA | Raft active-passive with `StatefulSet` and `tikeo-server-headless`. | More Server pods improve failover, not scheduling throughput. |
+| Scheduling owner | Exactly one elected Leader reports `canSchedule=true` and runs schedule/dispatch/retry loops. | Followers serve API/health/Raft transport but do not split task dispatch. |
+| Worker Tunnel | Followers reject registration with `FailedPrecondition`; SDKs reconnect until routed to the Leader. | Worker Tunnel exposure must support gRPC/HTTP2 and reconnect/backoff. |
+| External locks | Redis/Dragonfly locks are intentionally not used for core scheduler ownership. | Future multi-active scheduling must use Raft shard ownership with fencing. |
 
 ```bash
 kubectl -n tikeo create secret generic tikeo-raft-transport \
@@ -927,8 +936,6 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
   --values deploy/helm/tikeo/examples/values-raft-ha.yaml
 kubectl -n tikeo rollout status statefulset/tikeo-server
 ```
-
-Tikeo keeps core scheduler ownership in Raft/fencing rather than Redis/Dragonfly distributed locks. If scheduler throughput later needs multi-active scale-out, implement Raft shard ownership.
 
 ### Deployment paths
 

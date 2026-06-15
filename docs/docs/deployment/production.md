@@ -34,6 +34,17 @@ The most important boundary: **business Workers do not expose inbound task ports
 
 Use SQLite only when you accept single-node local durability. For production, prefer PostgreSQL or MySQL and back it up with your normal database tooling.
 
+## Server HA deployment choice
+
+For Kubernetes multi-pod Server HA, use [Server HA and cluster modes](./server-ha) as the dedicated runbook. The short version is:
+
+- `standalone` is for one Server process/pod.
+- `raft` is the production multi-pod HA mode and renders a StatefulSet/headless peer topology in Helm.
+- Raft mode is active-passive for scheduling: only one elected Leader owns schedule/dispatch/retry loops.
+- Extra Server pods improve failover, API availability, and Raft membership, but they do not split scheduler throughput today.
+- Do not add Redis/Dragonfly locks for core scheduler ownership; future multi-active scheduling must be Raft shard ownership with fencing.
+
+
 ## Network model
 
 Plan four network paths separately:

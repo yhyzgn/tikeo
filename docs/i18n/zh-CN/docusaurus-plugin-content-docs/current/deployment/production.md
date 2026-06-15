@@ -33,6 +33,17 @@ description: 面向人的 Tikeo 生产部署 runbook，覆盖 Server、Web、Doc
 
 SQLite 只适合明确接受单节点本地持久性的场景。生产优先 PostgreSQL 或 MySQL，并用你们现有数据库体系备份。
 
+## Server HA 部署选择
+
+Kubernetes 多 Pod Server HA 请使用 [Server 高可用与集群模式](./server-ha) 作为独立 runbook。简版结论：
+
+- `standalone` 用于单个 Server 进程/Pod。
+- `raft` 是生产多 Pod HA 模式，Helm 会渲染 StatefulSet/headless peer 拓扑。
+- Raft 模式对调度来说是 active-passive：只有一个被选出的 Leader 拥有 schedule/dispatch/retry 循环。
+- 增加 Server Pod 提升 failover、API 可用性和 Raft 成员冗余，但当前不会分摊调度吞吐。
+- 不要为核心调度所有权添加 Redis/Dragonfly lock；未来多活调度必须使用带 fencing 的 Raft shard ownership。
+
+
 ## 网络模型
 
 请分开规划四条流量：

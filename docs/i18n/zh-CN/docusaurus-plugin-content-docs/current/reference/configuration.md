@@ -85,6 +85,10 @@ TLS/mTLS 默认关闭。跨主机、跨集群、跨 VPC 或不可信网络时，
 
 日志默认 console + `info`。设置 `observability.logging.log_dir` 后会写 `tikeo.log`。开启 OTel 时必须设置 `observability.tracing.otlp_endpoint`，并把凭证放环境变量或 Secret。
 
+## 集群模式
+
+完整部署架构、优缺点和模式选择流程请看 [Server 高可用与集群模式](../deployment/server-ha)。
+
 `standalone` 是单 Server 安装的默认模式。`raft` 是生产多 Pod Server HA 模式，但必须配合稳定 node id、静态 peers、外部数据库和内部 transport token 部署。调度模型是 active-passive：只有已选出的 Raft Leader 在持久化 fencing token 后报告 `canSchedule=true` 并运行 schedule/dispatch/retry 所有权循环；Follower 会跳过这些循环。配置了 `cluster.transport_token` 时，内部 raft append 流量需要 `x-tikeo-raft-token`。核心调度所有权不要引入 Redis/Dragonfly 分布式锁；未来多活调度应走 Raft/fencing shard ownership。
 
 ## Worker SDK 默认值
