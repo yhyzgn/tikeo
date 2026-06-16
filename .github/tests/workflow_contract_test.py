@@ -299,7 +299,7 @@ class WorkflowContractTest(unittest.TestCase):
             self.assertIn("Docker Compose", content)
             self.assertIn("docker compose", content)
             self.assertIn("latest", content)
-            self.assertIn("v0.2.11", content)
+            self.assertIn("v0.2.12", content)
 
 
     def test_release_setup_includes_docs_docker_publish_lane(self):

@@ -7,10 +7,10 @@ Use this image when you want to run the backend API and Worker Tunnel from Docke
 ## Image tags
 
 - `latest` — latest stable release published by the Tikeo release pipeline.
-- `v0.2.11` — exact Git release tag.
-- `0.2.11` — semantic-version alias for the same release.
+- `v0.2.12` — exact Git release tag.
+- `0.2.12` — semantic-version alias for the same release.
 
-For production, pin an exact version such as `v0.2.11` or `0.2.11`. Use `latest` only for quick evaluation.
+For production, pin an exact version such as `v0.2.12` or `0.2.12`. Use `latest` only for quick evaluation.
 
 ## Ports
 
@@ -37,7 +37,7 @@ docker run -d \
   -p 9998:9998 \
   -v tikeo-data:/data \
   --restart unless-stopped \
-  yhyzgn/tikeo-server:v0.2.11 \
+  yhyzgn/tikeo-server:v0.2.12 \
   serve --config /app/config/container.toml
 
 curl -fsS http://127.0.0.1:9090/readyz
@@ -51,8 +51,8 @@ Create `.env`:
 
 ```bash
 cat > .env <<'ENV'
-TIKEO_IMAGE=yhyzgn/tikeo-server:v0.2.11
-TIKEO_WEB_IMAGE=yhyzgn/tikeo-web:v0.2.11
+TIKEO_IMAGE=yhyzgn/tikeo-server:v0.2.12
+TIKEO_WEB_IMAGE=yhyzgn/tikeo-web:v0.2.12
 TIKEO_HTTP_PORT=9090
 TIKEO_WORKER_TUNNEL_PORT=9998
 TIKEO_WEB_PORT=8080
@@ -117,8 +117,8 @@ docker compose --env-file .env -f docker-compose.mysql.yml up -d
 Set the image variables to the released tags before starting:
 
 ```bash
-TIKEO_IMAGE=yhyzgn/tikeo-server:v0.2.11
-TIKEO_WEB_IMAGE=yhyzgn/tikeo-web:v0.2.11
+TIKEO_IMAGE=yhyzgn/tikeo-server:v0.2.12
+TIKEO_WEB_IMAGE=yhyzgn/tikeo-web:v0.2.12
 ```
 
 ## Health checks

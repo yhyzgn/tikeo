@@ -7,10 +7,10 @@ This image is a static Docusaurus build served by nginx. It is useful when your 
 ## Image tags
 
 - `latest` — latest stable release published by the Tikeo release pipeline.
-- `v0.2.11` — exact Git release tag.
-- `0.2.11` — semantic-version alias for the same release.
+- `v0.2.12` — exact Git release tag.
+- `0.2.12` — semantic-version alias for the same release.
 
-For production, pin an exact version such as `v0.2.11` or `0.2.11`. Use `latest` only for quick evaluation.
+For production, pin an exact version such as `v0.2.12` or `0.2.12`. Use `latest` only for quick evaluation.
 
 ## Port
 
@@ -25,7 +25,7 @@ docker run -d \
   --name tikeo-docs \
   -p 8081:80 \
   --restart unless-stopped \
-  yhyzgn/tikeo-docs:v0.2.11
+  yhyzgn/tikeo-docs:v0.2.12
 
 open http://127.0.0.1:8081
 ```
@@ -41,7 +41,7 @@ curl -fsS http://127.0.0.1:8081/healthz
 ```yaml
 services:
   docs:
-    image: yhyzgn/tikeo-docs:v0.2.11
+    image: yhyzgn/tikeo-docs:v0.2.12
     ports:
       - "8081:80"
     healthcheck:
@@ -65,7 +65,7 @@ open http://127.0.0.1:8081
 ```yaml
 services:
   tikeo:
-    image: yhyzgn/tikeo-server:v0.2.11
+    image: yhyzgn/tikeo-server:v0.2.12
     command: ["serve", "--config", "/app/config/container.toml"]
     ports:
       - "9090:9090"
@@ -81,7 +81,7 @@ services:
     restart: unless-stopped
 
   web:
-    image: yhyzgn/tikeo-web:v0.2.11
+    image: yhyzgn/tikeo-web:v0.2.12
     depends_on:
       tikeo:
         condition: service_healthy
@@ -90,7 +90,7 @@ services:
     restart: unless-stopped
 
   docs:
-    image: yhyzgn/tikeo-docs:v0.2.11
+    image: yhyzgn/tikeo-docs:v0.2.12
     ports:
       - "8081:80"
     restart: unless-stopped
