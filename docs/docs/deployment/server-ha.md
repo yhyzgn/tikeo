@@ -155,6 +155,7 @@ Before enabling Raft Server HA, prepare these production dependencies instead of
 - **Raft transport Secret**: create a high-entropy `tikeo-raft-transport` Secret and mount it as `TIKEO__CLUSTER__TRANSPORT_TOKEN` for every Server pod.
 - **Worker Tunnel networking**: expose Worker Tunnel through a gRPC/HTTP2-capable Service, Gateway, or ingress path. The API path may carry REST and SSE, but the Worker Tunnel stream must not be downgraded to HTTP/1.1.
 - **Network-layer behavior**: configure nginx, LB, WAF, and Kubernetes ingress/gateway controllers so they do not buffer, rewrite, or prematurely close long-lived SSE and gRPC streams. Use the dedicated [SSE realtime deployment notes](./sse-realtime) for the REST/SSE API path and the Kubernetes controller runbook for ingress-specific annotations.
+- **Web/API load balancing**: ordinary REST and SSE requests may land on different Server pods. Business pages read shared storage and should stay stable without sticky sessions. Node-local status such as `/api/v1/cluster` is explicitly the responding pod's view; global cluster UI should use `/api/v1/cluster/diagnostics`, the `respondingNode` field, and the `x-tikeo-node-id` response header.
 - **Worker reconnect policy**: use an SDK version that reconnects after stream drops or Server pod failover. Followers no longer reject registration only because they are followers; they act as Worker Tunnel gateways.
 - **Operational smoke test**: keep at least one real Worker available during rollout so failover can be tested end to end, not only by checking pod readiness.
 
@@ -183,9 +184,9 @@ kubectl -n tikeo get svc tikeo-server-headless
 Then verify cluster ownership from the management/API endpoint. Exactly one Server should report `canSchedule=true`; followers should be present but not scheduling:
 
 ```bash
-curl -fsS "$TIKEO_SERVER_URL/api/v1/cluster" \
+curl -fsS "$TIKEO_SERVER_URL/api/v1/cluster/diagnostics" \
   -H "x-tikeo-api-key: $TIKEO_MANAGEMENT_API_KEY" \
-  | jq '.data.nodes[] | {nodeId, role, canSchedule, raftTerm}'
+  | jq '{respondingNode: .data.respondingNode.nodeId, nodes: [.data.nodes[] | {nodeId, canSchedule, isRespondingNode, currentTerm}]}'
 ```
 
 Finally, verify Worker Tunnel behavior with a real Worker. In local/e2e environments, the failover smoke can be reused without rebuilding already-built binaries:
@@ -284,7 +285,7 @@ A future shard implementation must remain Raft/fencing based:
 | More than one pod reports `canSchedule=true` | Broken fencing or mixed configuration | Stop the rollout, inspect `TIKEO__CLUSTER__MODE`, node IDs, Raft term, DB fencing rows, and make sure all pods share the same external DB. |
 | No pod reports `canSchedule=true` | Raft cannot elect or persist ownership | Check headless DNS, peer addresses, transport token, external DB connectivity, and pod logs for election or persistence errors. |
 | Workers keep reconnecting and never register | Worker Tunnel gRPC is broken by the network layer or gateway pods cannot persist sessions | Check Service/Gateway endpoints, HTTP/2 support, ingress annotations, LB health checks, DB connectivity, and Worker SDK reconnect logs. |
-| Jobs remain queued after failover | New Leader is not fenced, relay cannot reach the recorded gateway, or workers lost sessions | Query `/api/v1/cluster`, inspect queue age, confirm `worker_sessions.gateway_node_id`, check internal relay token/endpoints, and run one management trigger smoke. |
+| Jobs remain queued after failover | New Leader is not fenced, relay cannot reach the recorded gateway, or workers lost sessions | Query `/api/v1/cluster/diagnostics`, inspect queue age, confirm `worker_sessions.gateway_node_id`, check internal relay token/endpoints, and run one management trigger smoke. |
 | Works with one pod but fails with three | Local SQLite, plain Deployment, or missing headless peer Service | Confirm external DB, `StatefulSet/tikeo-server`, stable pod names, and `tikeo-server-headless`. |
 | API SSE dashboards disconnect repeatedly | Proxy buffering, WAF idle timeout, or HTTP/1.1 downgrade | Apply the SSE realtime network settings and separate API/SSE behavior from Worker Tunnel gRPC checks. |
 

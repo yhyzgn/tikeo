@@ -283,13 +283,30 @@ pub struct ClusterResponse {
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ClusterDiagnosticsResponse {
+    pub responding_node: ClusterResponse,
     pub status: ClusterResponse,
     pub scheduling_gated: bool,
     pub metadata: Option<RaftMetadataDiagnostic>,
+    pub nodes: Vec<ClusterNodeDiagnostic>,
     pub members: Vec<RaftMemberDiagnostic>,
     pub transport: RaftTransportDiagnostic,
     pub runtime_boundary: String,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ClusterNodeDiagnostic {
+    pub node_id: String,
+    pub endpoint: String,
+    pub member_status: String,
+    pub current_term: Option<i64>,
+    pub commit_index: Option<i64>,
+    pub applied_index: Option<i64>,
+    pub leader_fencing_token: Option<String>,
+    pub is_responding_node: bool,
+    pub can_schedule: bool,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

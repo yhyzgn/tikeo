@@ -6,8 +6,8 @@ use crate::http::{
     AppState,
     dto::{
         ApiResponse, ClusterApiResponse, ClusterDiagnosticsApiResponse, ClusterDiagnosticsResponse,
-        ClusterResponse, RaftMemberDiagnostic, RaftMetadataDiagnostic, RaftTransportDiagnostic,
-        SystemInfoApiResponse, SystemInfoResponse,
+        ClusterNodeDiagnostic, ClusterResponse, RaftMemberDiagnostic, RaftMetadataDiagnostic,
+        RaftTransportDiagnostic, SystemInfoApiResponse, SystemInfoResponse,
     },
     error::ApiError,
 };
@@ -70,25 +70,70 @@ pub async fn cluster_diagnostics(
             conf_state: item.conf_state,
             updated_at: item.updated_at,
         });
-    let members = state
+    let member_summaries = state
         .raft
         .list_members()
         .await
-        .map_err(|error| ApiError::storage(&error))?
-        .into_iter()
+        .map_err(|error| ApiError::storage(&error))?;
+    let members = member_summaries
+        .iter()
         .map(|item| RaftMemberDiagnostic {
-            node_id: item.node_id,
-            endpoint: item.endpoint,
-            status: item.status,
-            updated_at: item.updated_at,
+            node_id: item.node_id.clone(),
+            endpoint: item.endpoint.clone(),
+            status: item.status.clone(),
+            updated_at: item.updated_at.clone(),
         })
-        .collect();
+        .collect::<Vec<_>>();
+    let mut nodes = member_summaries
+        .iter()
+        .map(|item| ClusterNodeDiagnostic {
+            node_id: item.node_id.clone(),
+            endpoint: item.endpoint.clone(),
+            member_status: item.status.clone(),
+            current_term: metadata
+                .as_ref()
+                .filter(|metadata| metadata.node_id == item.node_id)
+                .map(|metadata| metadata.current_term),
+            commit_index: metadata
+                .as_ref()
+                .filter(|metadata| metadata.node_id == item.node_id)
+                .map(|metadata| metadata.commit_index),
+            applied_index: metadata
+                .as_ref()
+                .filter(|metadata| metadata.node_id == item.node_id)
+                .map(|metadata| metadata.applied_index),
+            leader_fencing_token: metadata
+                .as_ref()
+                .filter(|metadata| metadata.node_id == item.node_id)
+                .and_then(|metadata| metadata.leader_fencing_token.clone()),
+            is_responding_node: item.node_id == status.node_id,
+            can_schedule: item.node_id == status.node_id && status.can_schedule,
+        })
+        .collect::<Vec<_>>();
     let scheduling_gated = !status.can_schedule;
     let raft_runtime_enabled = status.mode == crate::cluster::ClusterMode::Raft;
+    let responding_node = cluster_response(status.clone());
+    if nodes.is_empty() {
+        nodes.push(ClusterNodeDiagnostic {
+            node_id: status.node_id.clone(),
+            endpoint: String::new(),
+            member_status: status.role.as_str().to_owned(),
+            current_term: metadata.as_ref().map(|metadata| metadata.current_term),
+            commit_index: metadata.as_ref().map(|metadata| metadata.commit_index),
+            applied_index: metadata.as_ref().map(|metadata| metadata.applied_index),
+            leader_fencing_token: metadata
+                .as_ref()
+                .and_then(|metadata| metadata.leader_fencing_token.clone()),
+            is_responding_node: true,
+            can_schedule: status.can_schedule,
+        });
+    }
     Ok(Json(ApiResponse::success(ClusterDiagnosticsResponse {
-        status: cluster_response(status),
+        responding_node: responding_node.clone(),
+        status: responding_node,
         scheduling_gated,
         metadata,
+        nodes,
         members,
         transport: RaftTransportDiagnostic {
             append_entries_path: "/api/v1/raft/append-entries",

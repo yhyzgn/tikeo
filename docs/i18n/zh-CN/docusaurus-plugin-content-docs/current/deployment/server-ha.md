@@ -155,6 +155,7 @@ Tikeo 有两个不同问题：
 - **Raft transport Secret**：创建高熵 `tikeo-raft-transport` Secret，并作为 `TIKEO__CLUSTER__TRANSPORT_TOKEN` 注入每个 Server Pod。
 - **Worker Tunnel 网络**：Worker Tunnel 必须通过支持 gRPC/HTTP2 的 Service、Gateway 或 ingress 路径暴露。API 路径可以承载 REST 与 SSE，但 Worker Tunnel stream 不能被降级为 HTTP/1.1。
 - **网络层行为**：nginx、LB、WAF、Kubernetes ingress/gateway controller 不能缓冲、改写或过早关闭长连接 SSE 与 gRPC stream。REST/SSE API 路径参考 [SSE 实时刷新部署说明](./sse-realtime)，具体 ingress 注解参考 Kubernetes controller runbook。
+- **Web/API 负载均衡**：普通 REST 和 SSE 请求可能落到不同 Server Pod。业务页面读取共享存储，不需要 sticky session 也应该稳定。`/api/v1/cluster` 这类节点本地状态明确表示“当前响应 Pod 视角”；全局集群 UI 应使用 `/api/v1/cluster/diagnostics`、`respondingNode` 字段和 `x-tikeo-node-id` 响应头。
 - **Worker 重连策略**：使用支持 stream 断开、Server Pod failover 后重连的 SDK 版本。Follower 不会仅因为自己不是 Leader 就拒绝注册；它们会作为 Worker Tunnel gateway。
 - **运维 smoke test**：发布期间至少保留一个真实 Worker，用真实任务验证 failover，而不是只看 Pod readiness。
 
@@ -183,9 +184,9 @@ kubectl -n tikeo get svc tikeo-server-headless
 然后从管理/API endpoint 验证集群所有权。应该只有一个 Server 报告 `canSchedule=true`；Follower 可以存在，但不能调度：
 
 ```bash
-curl -fsS "$TIKEO_SERVER_URL/api/v1/cluster" \
+curl -fsS "$TIKEO_SERVER_URL/api/v1/cluster/diagnostics" \
   -H "x-tikeo-api-key: $TIKEO_MANAGEMENT_API_KEY" \
-  | jq '.data.nodes[] | {nodeId, role, canSchedule, raftTerm}'
+  | jq '{respondingNode: .data.respondingNode.nodeId, nodes: [.data.nodes[] | {nodeId, canSchedule, isRespondingNode, currentTerm}]}'
 ```
 
 最后用真实 Worker 验证 Worker Tunnel。local/e2e 环境下，可以复用 failover smoke，并跳过已构建二进制的重新构建：
@@ -284,7 +285,7 @@ sequenceDiagram
 | 超过一个 Pod 报告 `canSchedule=true` | fencing 失效或配置混用 | 暂停发布，检查 `TIKEO__CLUSTER__MODE`、node id、Raft term、DB fencing 记录，并确认所有 Pod 使用同一个外部 DB。 |
 | 没有 Pod 报告 `canSchedule=true` | Raft 无法选举或无法持久化所有权 | 检查 headless DNS、peer address、transport token、外部 DB 连通性，以及 Pod 日志中的 election/persistence 错误。 |
 | Worker 一直重连但无法注册 | 网络层破坏 gRPC，或 gateway Pod 无法持久化 session | 检查 Service/Gateway endpoint、HTTP/2 支持、ingress 注解、LB health check、DB 连通性和 Worker SDK 重连日志。 |
-| failover 后 Job 持续排队 | 新 Leader 没有 fencing 成功、relay 无法访问记录的 gateway，或 Worker session 丢失 | 查询 `/api/v1/cluster`，检查 queue age，确认 `worker_sessions.gateway_node_id`，检查 internal relay token/endpoint，并跑一次 management trigger smoke。 |
+| failover 后 Job 持续排队 | 新 Leader 没有 fencing 成功、relay 无法访问记录的 gateway，或 Worker session 丢失 | 查询 `/api/v1/cluster/diagnostics`，检查 queue age，确认 `worker_sessions.gateway_node_id`，检查 internal relay token/endpoint，并跑一次 management trigger smoke。 |
 | 单 Pod 正常，三 Pod 失败 | 使用了本地 SQLite、普通 Deployment 或缺失 headless peer Service | 确认外部 DB、`StatefulSet/tikeo-server`、稳定 Pod 名称和 `tikeo-server-headless`。 |
 | API SSE 仪表盘频繁断开 | Proxy buffering、WAF idle timeout 或 HTTP/1.1 downgrade | 应用 SSE 实时刷新网络配置，并把 API/SSE 问题与 Worker Tunnel gRPC 检查分开处理。 |
 

@@ -852,12 +852,29 @@
     }
 
     #[tokio::test]
+    async fn api_responses_identify_the_responding_server_node() {
+        let response = request("/api/v1/cluster").await;
+        assert!(response.status().is_success());
+        assert_eq!(
+            response
+                .headers()
+                .get("x-tikeo-node-id")
+                .and_then(|value| value.to_str().ok()),
+            Some("test-node")
+        );
+    }
+
+    #[tokio::test]
     async fn cluster_diagnostics_exposes_runtime_boundary_without_fake_leader() {
         let json = get_json("/api/v1/cluster/diagnostics").await;
 
         assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["respondingNode"]["node_id"], "test-node");
         assert_eq!(json["data"]["status"]["role"], "standalone");
-        assert_eq!(json["data"]["scheduling_gated"], false);
+        assert_eq!(json["data"]["nodes"][0]["nodeId"], "test-node");
+        assert_eq!(json["data"]["nodes"][0]["isRespondingNode"], true);
+        assert_eq!(json["data"]["nodes"][0]["canSchedule"], true);
+        assert_eq!(json["data"]["schedulingGated"], false);
         assert_eq!(
             json["data"]["transport"]["append_entries_path"],
             "/api/v1/raft/append-entries"
@@ -868,7 +885,7 @@
             "standalone_unavailable"
         );
         assert_eq!(
-            json["data"]["runtime_boundary"],
+            json["data"]["runtimeBoundary"],
             "tikv/raft-rs runtime can tick, accept inbound messages, emit gated membership proposals, and apply committed ConfChange with persisted ConfState; leader fencing remains required for scheduling/proposals"
         );
     }
@@ -960,4 +977,3 @@
         );
         assert!(json.get("data").is_some());
     }
-

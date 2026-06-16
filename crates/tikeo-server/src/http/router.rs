@@ -5,8 +5,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use axum::{
     Extension, Json, Router,
-    extract::MatchedPath,
-    http::Request,
+    extract::{MatchedPath, State},
+    http::{HeaderName, HeaderValue, Request},
     middleware::{self, Next},
     response::Response,
     routing::get,
@@ -49,7 +49,11 @@ pub fn router_with_state(state: AppState) -> Router {
             "/api/v1",
             api_router()
                 .layer(middleware::from_fn(record_http_metrics))
-                .layer(middleware::from_fn(trace::trace_http)),
+                .layer(middleware::from_fn(trace::trace_http))
+                .layer(middleware::from_fn_with_state(
+                    Arc::new(state.clone()),
+                    attach_node_id_header,
+                )),
         )
         .route("/api-docs/openapi.json", get(openapi_json))
         .layer(Extension(recorder))
@@ -95,6 +99,21 @@ async fn record_http_metrics(request: Request<axum::body::Body>, next: Next) -> 
     metrics::counter!("tikeo_http_requests_total", &labels).increment(1);
     metrics::histogram!("tikeo_http_request_duration_seconds", &labels)
         .record(started.elapsed().as_secs_f64());
+    response
+}
+
+async fn attach_node_id_header(
+    State(state): State<Arc<AppState>>,
+    request: Request<axum::body::Body>,
+    next: Next,
+) -> Response {
+    let mut response = next.run(request).await;
+    let status = state.cluster.status().await;
+    if let Ok(value) = HeaderValue::from_str(&status.node_id) {
+        response
+            .headers_mut()
+            .insert(HeaderName::from_static("x-tikeo-node-id"), value);
+    }
     response
 }
 

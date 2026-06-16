@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
-import { ApiClientError, createAppScope, createCalendar, createJob, createNamespace, createPlugin, createSdkApiKey, createServiceAccount, createWorkerPool, deletePlugin, diffGitOpsManifest, disableServiceAccount, dispatchQueueStreamUrl, instanceListStreamUrl, dryRunWorkflow, exportGitOpsManifest, getAuthToken, instanceLogStreamUrl, listInstanceAttempts, listInstanceLogs, getJobImpact, getJobSchedulingAdvice, getJobTopology, getWorkflowReplay, listJobVersions, listJobs, listNamespaces, listPlugins, listServiceAccounts, listWorkerPools, login, rollbackJob, setAuthErrorHandler, setAuthToken, triggerJob, triggerJobWebhookEvent, updateJob, updatePlugin, updateSdkApiKey, updateServiceAccount, updateWorkflow, workerStreamUrl } from './client';
+import { ApiClientError, createAppScope, createCalendar, createJob, createNamespace, createPlugin, createSdkApiKey, createServiceAccount, createWorkerPool, deletePlugin, diffGitOpsManifest, disableServiceAccount, dispatchQueueStreamUrl, instanceListStreamUrl, dryRunWorkflow, exportGitOpsManifest, getAuthToken, getClusterDiagnostics, instanceLogStreamUrl, listInstanceAttempts, listInstanceLogs, getJobImpact, getJobSchedulingAdvice, getJobTopology, getWorkflowReplay, listJobVersions, listJobs, listNamespaces, listPlugins, listServiceAccounts, listWorkerPools, login, rollbackJob, setAuthErrorHandler, setAuthToken, triggerJob, triggerJobWebhookEvent, updateJob, updatePlugin, updateSdkApiKey, updateServiceAccount, updateWorkflow, workerStreamUrl } from './client';
 
 const originalFetch = globalThis.fetch;
 
@@ -680,6 +680,37 @@ describe('api client envelope handling', () => {
     await triggerJob('job_1');
 
     expect(capturedHeaders.get('authorization')).toBe('Bearer AbC123xYz789AbC123xYz789AbC123xYz789AbC123xYz789');
+  });
+
+
+  test('loads cluster diagnostics from the aggregate diagnostics endpoint', async () => {
+    const urls: string[] = [];
+    globalThis.fetch = mock(async (url: string | URL | Request) => {
+      urls.push(String(url));
+      return new Response(JSON.stringify({
+        code: 0,
+        message: 'success',
+        data: {
+          respondingNode: { mode: 'raft', role: 'follower', nodeId: 'pod-b', nodes: 3, canSchedule: false, leaderFencingToken: null, detail: 'responding pod' },
+          status: { mode: 'raft', role: 'follower', nodeId: 'pod-b', nodes: 3, canSchedule: false, leaderFencingToken: null, detail: 'responding pod' },
+          schedulingGated: true,
+          metadata: null,
+          nodes: [
+            { nodeId: 'pod-a', endpoint: 'http://pod-a', memberStatus: 'active', currentTerm: 7, commitIndex: 10, appliedIndex: 10, leaderFencingToken: 'raft:7:pod-a', isRespondingNode: false, canSchedule: false },
+            { nodeId: 'pod-b', endpoint: 'http://pod-b', memberStatus: 'active', currentTerm: null, commitIndex: null, appliedIndex: null, leaderFencingToken: null, isRespondingNode: true, canSchedule: false },
+          ],
+          members: [],
+          transport: { appendEntriesPath: '/api/v1/raft/append-entries', mutating: true, status: 'runtime_inbox_enabled' },
+          runtimeBoundary: 'diagnostic',
+        },
+      }));
+    }) as unknown as typeof fetch;
+
+    await expect(getClusterDiagnostics()).resolves.toMatchObject({
+      respondingNode: { nodeId: 'pod-b' },
+      nodes: [{ nodeId: 'pod-a' }, { nodeId: 'pod-b', isRespondingNode: true }],
+    });
+    expect(urls).toEqual(['/api/v1/cluster/diagnostics']);
   });
 
   test('builds token-authenticated SSE stream URLs for EventSource', () => {

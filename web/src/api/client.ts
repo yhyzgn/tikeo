@@ -133,6 +133,39 @@ export interface GitOpsDiffResponse {
   changes: GitOpsDiffChange[];
 }
 
+export interface ClusterStatusResponse {
+  mode: string;
+  role: string;
+  node_id: string;
+  nodes: number;
+  can_schedule: boolean;
+  leader_fencing_token: string | null;
+  detail: string;
+}
+
+export interface ClusterNodeDiagnostic {
+  nodeId: string;
+  endpoint: string;
+  memberStatus: string;
+  currentTerm: number | null;
+  commitIndex: number | null;
+  appliedIndex: number | null;
+  leaderFencingToken: string | null;
+  isRespondingNode: boolean;
+  canSchedule: boolean;
+}
+
+export interface ClusterDiagnosticsResponse {
+  respondingNode: ClusterStatusResponse;
+  status: ClusterStatusResponse;
+  schedulingGated: boolean;
+  metadata: Record<string, unknown> | null;
+  nodes: ClusterNodeDiagnostic[];
+  members: Array<{ nodeId: string; endpoint: string; status: string; updatedAt: string }>;
+  transport: { appendEntriesPath: string; mutating: boolean; status: string };
+  runtimeBoundary: string;
+}
+
 export interface JobRetryPolicy {
   enabled: boolean;
   maxAttempts: number;
@@ -828,6 +861,10 @@ export async function diffGitOpsManifest(manifest: GitOpsManifest): Promise<GitO
     method: 'POST',
     body: JSON.stringify({ manifest }),
   });
+}
+
+export async function getClusterDiagnostics(): Promise<ClusterDiagnosticsResponse> {
+  return request<ClusterDiagnosticsResponse>('/api/v1/cluster/diagnostics');
 }
 
 
