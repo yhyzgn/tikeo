@@ -10,7 +10,8 @@ use tikeo_storage::{
     JobInstanceRepository, JobRepository, NotificationChannelRepository,
     NotificationDeliveryAttemptRepository, NotificationMessageRepository,
     NotificationPolicyRepository, RaftRepository, ScriptRepository, UserRepository,
-    WorkerLifecycleRepository, WorkflowRepository, connect_and_migrate,
+    WorkerDispatchOutboxRepository, WorkerLifecycleRepository, WorkflowRepository,
+    connect_and_migrate,
 };
 use tokio::try_join;
 use tracing::info;
@@ -50,6 +51,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
     let instances = JobInstanceRepository::new(db.clone());
     let logs = JobInstanceLogRepository::new(db.clone());
     let attempts = JobInstanceAttemptRepository::new(db.clone());
+    let outbox = WorkerDispatchOutboxRepository::new(db.clone());
     let jobs = JobRepository::new(db.clone());
     let users = UserRepository::new(db.clone());
     let scripts = ScriptRepository::new(db.clone());
@@ -124,9 +126,13 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
     let dispatcher_jobs = jobs.clone();
     let dispatcher_instances = instances;
     let dispatcher_attempts = attempts.clone();
+    let dispatcher_outbox = outbox.clone();
     let dispatcher_workflows = workflows.clone();
     let tick_cluster = cluster.clone();
     let dispatch_cluster = cluster.clone();
+    let outbox_delivery_registry = registry.clone();
+    let outbox_delivery_repo = outbox.clone();
+    let outbox_delivery_node_id = cluster_config.node_id.clone();
     let alert_retry_cluster = cluster.clone();
     let notification_delivery_cluster = cluster.clone();
     let tunnel_attempts = attempts;
@@ -160,6 +166,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
                 dispatcher_jobs,
                 dispatcher_instances,
                 dispatcher_attempts,
+                dispatcher_outbox,
                 dispatcher_workflows,
                 scripts.clone(),
                 logs.clone(),
@@ -167,6 +174,16 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
                 registry,
                 dispatch_cluster,
                 notification_center.clone(),
+            )
+            .await;
+            #[allow(unreachable_code)]
+            Ok::<(), anyhow::Error>(())
+        },
+        async {
+            tunnel::outbox_delivery::run(
+                outbox_delivery_repo,
+                outbox_delivery_registry,
+                outbox_delivery_node_id,
             )
             .await;
             #[allow(unreachable_code)]

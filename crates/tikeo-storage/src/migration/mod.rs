@@ -1,6 +1,7 @@
 //! Database schema migrations for tikeo storage.
 
 mod columns;
+mod fsod_outbox;
 mod iden;
 mod indexes;
 mod notification_center;
@@ -25,8 +26,8 @@ use self::{
         OidcIdentities, Permissions, Plugins, RaftAppliedCommands, RaftLogEntries, RaftMembers,
         RaftMembershipProposals, RaftMetadata, RaftSnapshots, RoleMenuPermissions, RolePermissions,
         RoleUiActionPermissions, Roles, ScheduleCursors, ScriptVersions, Scripts, SdkApiKeys,
-        Secrets, ServiceAccounts, UserRoles, Users, WorkerLogicalInstances, WorkerPools,
-        WorkerSessionEvents, WorkerSessions, WorkflowEdges, WorkflowInstances,
+        Secrets, ServiceAccounts, UserRoles, Users, WorkerDispatchOutbox, WorkerLogicalInstances,
+        WorkerPools, WorkerSessionEvents, WorkerSessions, WorkflowEdges, WorkflowInstances,
         WorkflowNodeInstances, WorkflowNodes, WorkflowShards, Workflows,
     },
     indexes::create_indexes,
@@ -49,10 +50,12 @@ impl MigratorTrait for Migrator {
             Box::new(NotificationTemplatesMigration),
             Box::new(NotificationChannelExamplesCleanupMigration),
             Box::new(WorkerGatewayMigration),
+            Box::new(FsodOutboxMigration),
         ]
     }
 }
 
+use fsod_outbox::FsodOutboxMigration;
 use notification_center::{
     NotificationCenterMigration, NotificationChannelExamplesCleanupMigration,
     NotificationTemplatesMigration,
@@ -70,6 +73,7 @@ impl MigrationTrait for CreateMetadataTables {
         create_apps(manager).await?;
         create_worker_pools(manager).await?;
         create_worker_lifecycle_tables(manager).await?;
+        create_worker_dispatch_outbox(manager).await?;
         create_jobs(manager).await?;
         create_job_versions(manager).await?;
         create_job_instances(manager).await?;
@@ -152,6 +156,7 @@ async fn drop_metadata_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> 
             JobVersions::Table.into_iden(),
             Jobs::Table.into_iden(),
             Apps::Table.into_iden(),
+            WorkerDispatchOutbox::Table.into_iden(),
             WorkerSessionEvents::Table.into_iden(),
             WorkerSessions::Table.into_iden(),
             WorkerLogicalInstances::Table.into_iden(),
@@ -1213,6 +1218,72 @@ async fn create_worker_lifecycle_tables(manager: &SchemaManager<'_>) -> Result<(
                 .col(string_null(WorkerSessionEvents::Reason))
                 .col(text_null(WorkerSessionEvents::DetailJson))
                 .col(string_col(WorkerSessionEvents::CreatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_worker_dispatch_outbox(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(WorkerDispatchOutbox::Table)
+                .if_not_exists()
+                .col(string_pk(WorkerDispatchOutbox::Id))
+                .col(string_col(WorkerDispatchOutbox::InstanceId))
+                .col(string_col(WorkerDispatchOutbox::AttemptId))
+                .col(string_col(WorkerDispatchOutbox::WorkerId))
+                .col(string_col(WorkerDispatchOutbox::LogicalInstanceId))
+                .col(string_col(WorkerDispatchOutbox::GatewayNodeId))
+                .col(big_integer_col(WorkerDispatchOutbox::GatewayGeneration))
+                .col(string_col(WorkerDispatchOutbox::AssignmentToken))
+                .col(text_col(WorkerDispatchOutbox::DispatchPayload))
+                .col(big_integer_col(WorkerDispatchOutbox::ShardId))
+                .col(string_col(WorkerDispatchOutbox::OwnerNodeId))
+                .col(big_integer_col(WorkerDispatchOutbox::OwnerEpoch))
+                .col(string_col(WorkerDispatchOutbox::OwnerFencingToken))
+                .col(string_col(WorkerDispatchOutbox::Status))
+                .col(integer_col(WorkerDispatchOutbox::DeliveryAttempts))
+                .col(string_col(WorkerDispatchOutbox::NextDeliveryAt))
+                .col(string_null(WorkerDispatchOutbox::VisibilityDeadline))
+                .col(text_null(WorkerDispatchOutbox::LastError))
+                .col(string_col(WorkerDispatchOutbox::CreatedAt))
+                .col(string_col(WorkerDispatchOutbox::UpdatedAt))
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_index(
+            Index::create()
+                .name("idx_worker_dispatch_outbox_attempt")
+                .table(WorkerDispatchOutbox::Table)
+                .col(WorkerDispatchOutbox::InstanceId)
+                .col(WorkerDispatchOutbox::AttemptId)
+                .unique()
+                .if_not_exists()
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_index(
+            Index::create()
+                .name("idx_worker_dispatch_outbox_gateway_due")
+                .table(WorkerDispatchOutbox::Table)
+                .col(WorkerDispatchOutbox::GatewayNodeId)
+                .col(WorkerDispatchOutbox::Status)
+                .col(WorkerDispatchOutbox::NextDeliveryAt)
+                .if_not_exists()
+                .to_owned(),
+        )
+        .await?;
+    manager
+        .create_index(
+            Index::create()
+                .name("idx_worker_dispatch_outbox_logical_status")
+                .table(WorkerDispatchOutbox::Table)
+                .col(WorkerDispatchOutbox::LogicalInstanceId)
+                .col(WorkerDispatchOutbox::Status)
+                .if_not_exists()
                 .to_owned(),
         )
         .await

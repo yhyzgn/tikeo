@@ -507,3 +507,189 @@ async fn notification_channel_updates_preserve_unsubmitted_config_and_secret_ref
             .contains("TIKEO_NEW_WEBHOOK_URL")
     );
 }
+
+#[tokio::test]
+async fn worker_dispatch_outbox_repository_claims_and_marks_delivery() {
+    let db = crate::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let repository = crate::repository::WorkerDispatchOutboxRepository::new(db);
+
+    let created = repository
+        .create(crate::repository::CreateWorkerDispatchOutbox {
+            instance_id: "inst-1".to_owned(),
+            attempt_id: "attempt-1".to_owned(),
+            worker_id: "worker-1".to_owned(),
+            logical_instance_id: "default/app/local/worker-1".to_owned(),
+            gateway_node_id: "gateway-a".to_owned(),
+            gateway_generation: 3,
+            assignment_token: "asg-1".to_owned(),
+            dispatch_payload: r#"{"instanceId":"inst-1"}"#.to_owned(),
+            shard_id: 12,
+            owner_node_id: "owner-a".to_owned(),
+            owner_epoch: 7,
+            owner_fencing_token: "fence-7".to_owned(),
+            next_delivery_at: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should create: {error}"));
+
+    assert_eq!(created.status, "queued");
+    assert_eq!(created.gateway_node_id, "gateway-a");
+    assert_eq!(created.delivery_attempts, 0);
+
+    let claimed = repository
+        .claim_next_for_gateway("gateway-a", 10)
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should claim: {error}"))
+        .unwrap_or_else(|| panic!("queued outbox row should be claimable"));
+
+    assert_eq!(claimed.id, created.id);
+    assert_eq!(claimed.status, "delivering");
+    assert_eq!(claimed.delivery_attempts, 1);
+
+    let delivered = repository
+        .mark_delivered(&claimed.id, 30)
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should mark delivered: {error}"))
+        .unwrap_or_else(|| panic!("delivered outbox row should exist"));
+
+    assert_eq!(delivered.status, "delivered");
+    assert!(delivered.visibility_deadline.is_some());
+}
+
+
+#[tokio::test]
+async fn worker_dispatch_outbox_repository_requeues_and_completes_rows() {
+    let db = crate::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let repository = crate::repository::WorkerDispatchOutboxRepository::new(db);
+    let created = repository
+        .create(crate::repository::CreateWorkerDispatchOutbox {
+            instance_id: "inst-2".to_owned(),
+            attempt_id: "attempt-2".to_owned(),
+            worker_id: "worker-old".to_owned(),
+            logical_instance_id: "default/app/local/worker-2".to_owned(),
+            gateway_node_id: "gateway-old".to_owned(),
+            gateway_generation: 1,
+            assignment_token: "asg-2".to_owned(),
+            dispatch_payload: r#"{"instanceId":"inst-2"}"#.to_owned(),
+            shard_id: 22,
+            owner_node_id: "owner-a".to_owned(),
+            owner_epoch: 8,
+            owner_fencing_token: "fence-8".to_owned(),
+            next_delivery_at: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should create: {error}"));
+
+    let rerouted = repository
+        .reroute(
+            &created.id,
+            "gateway-new",
+            "worker-new",
+            2,
+        )
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should reroute: {error}"))
+        .unwrap_or_else(|| panic!("rerouted outbox row should exist"));
+
+    assert_eq!(rerouted.status, "queued");
+    assert_eq!(rerouted.gateway_node_id, "gateway-new");
+    assert_eq!(rerouted.worker_id, "worker-new");
+    assert_eq!(rerouted.gateway_generation, 2);
+
+    let claimed = repository
+        .claim_next_for_gateway("gateway-new", 10)
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should claim: {error}"))
+        .unwrap_or_else(|| panic!("rerouted outbox should be claimable"));
+    let requeued = repository
+        .mark_delivery_failed(&claimed.id, "stream missing", 5)
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should requeue after failure: {error}"))
+        .unwrap_or_else(|| panic!("failed outbox row should exist"));
+    assert_eq!(requeued.status, "queued");
+    assert_eq!(requeued.last_error.as_deref(), Some("stream missing"));
+
+    let completed = repository
+        .mark_completed_by_assignment("inst-2", "worker-new", "asg-2")
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should complete: {error}"));
+    assert!(completed);
+    let loaded = repository
+        .get(&created.id)
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should load: {error}"))
+        .unwrap_or_else(|| panic!("outbox row should exist"));
+    assert_eq!(loaded.status, "completed");
+}
+
+#[tokio::test]
+async fn worker_dispatch_outbox_repository_summarizes_status_counts_and_oldest_queued_age() {
+    let db = crate::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let repository = crate::repository::WorkerDispatchOutboxRepository::new(db);
+    repository
+        .create(crate::repository::CreateWorkerDispatchOutbox {
+            instance_id: "inst-summary-1".to_owned(),
+            attempt_id: "attempt-summary-1".to_owned(),
+            worker_id: "worker-summary".to_owned(),
+            logical_instance_id: "logical-summary".to_owned(),
+            gateway_node_id: "gateway-summary".to_owned(),
+            gateway_generation: 1,
+            assignment_token: "asg-summary-1".to_owned(),
+            dispatch_payload: "payload".to_owned(),
+            shard_id: 0,
+            owner_node_id: "owner".to_owned(),
+            owner_epoch: 0,
+            owner_fencing_token: "fence".to_owned(),
+            next_delivery_at: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should create: {error}"));
+    let second = repository
+        .create(crate::repository::CreateWorkerDispatchOutbox {
+            instance_id: "inst-summary-2".to_owned(),
+            attempt_id: "attempt-summary-2".to_owned(),
+            worker_id: "worker-summary".to_owned(),
+            logical_instance_id: "logical-summary".to_owned(),
+            gateway_node_id: "gateway-summary".to_owned(),
+            gateway_generation: 1,
+            assignment_token: "asg-summary-2".to_owned(),
+            dispatch_payload: "payload".to_owned(),
+            shard_id: 0,
+            owner_node_id: "owner".to_owned(),
+            owner_epoch: 0,
+            owner_fencing_token: "fence".to_owned(),
+            next_delivery_at: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should create: {error}"));
+    let claimed = repository
+        .claim_next_for_gateway("gateway-summary", 10)
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should claim: {error}"))
+        .unwrap_or_else(|| panic!("outbox row should be claimable"));
+    repository
+        .mark_delivered(&claimed.id, 30)
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should deliver: {error}"));
+    repository
+        .mark_completed_by_assignment("inst-summary-2", "worker-summary", "asg-summary-2")
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should complete: {error}"));
+
+    let summary = repository
+        .summary()
+        .await
+        .unwrap_or_else(|error| panic!("summary should load: {error}"));
+
+    assert_eq!(summary.total, 2);
+    assert_eq!(summary.by_status.get("delivered"), Some(&1));
+    assert_eq!(summary.by_status.get("completed"), Some(&1));
+    assert!(summary.oldest_queued_age_seconds <= 1);
+    assert_eq!(second.instance_id, "inst-summary-2");
+}

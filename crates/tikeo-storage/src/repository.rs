@@ -31,6 +31,7 @@ mod secret;
 mod service_account;
 mod user;
 pub mod util;
+mod worker_dispatch_outbox;
 mod worker_lifecycle;
 mod workflow;
 
@@ -96,6 +97,10 @@ pub use service_account::{
     CreateServiceAccount, ServiceAccountRepository, ServiceAccountSummary, UpdateServiceAccount,
 };
 pub use user::{CreateUser, UpdateUser, UserRepository, UserSummary};
+pub use worker_dispatch_outbox::{
+    CreateWorkerDispatchOutbox, WorkerDispatchOutboxRepository, WorkerDispatchOutboxSloSummary,
+    WorkerDispatchOutboxSummary,
+};
 pub use worker_lifecycle::{
     PersistedOnlineWorkerSummary, RegisterWorkerSession, WorkerHeartbeat,
     WorkerLifecycleRepository, WorkerSessionEventSummary, WorkerSessionSnapshotUpdate,

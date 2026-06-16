@@ -634,6 +634,31 @@ pub(super) enum WorkerPools {
 }
 
 #[derive(DeriveIden)]
+pub(super) enum WorkerDispatchOutbox {
+    Table,
+    Id,
+    InstanceId,
+    AttemptId,
+    WorkerId,
+    LogicalInstanceId,
+    GatewayNodeId,
+    GatewayGeneration,
+    AssignmentToken,
+    DispatchPayload,
+    ShardId,
+    OwnerNodeId,
+    OwnerEpoch,
+    OwnerFencingToken,
+    Status,
+    DeliveryAttempts,
+    NextDeliveryAt,
+    VisibilityDeadline,
+    LastError,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
 pub(super) enum WorkerLogicalInstances {
     Table,
     Id,

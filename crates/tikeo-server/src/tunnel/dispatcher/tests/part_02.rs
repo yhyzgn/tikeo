@@ -30,6 +30,7 @@
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
         let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
         let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db.clone());
@@ -93,6 +94,7 @@
             &jobs,
             &instances,
             &attempts,
+            &outbox,
             &workflows,
             &scripts,
             &logs,
@@ -135,6 +137,7 @@
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
         let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
         let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
@@ -179,6 +182,7 @@
             &jobs,
             &instances,
             &attempts,
+            &outbox,
             &workflows,
             &scripts,
             &logs,
@@ -212,6 +216,7 @@
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
         let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
         let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
@@ -261,6 +266,7 @@
             &jobs,
             &instances,
             &attempts,
+            &outbox,
             &workflows,
             &scripts,
             &logs,
@@ -290,6 +296,7 @@
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
         let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
         let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
@@ -367,6 +374,7 @@
             &jobs,
             &instances,
             &attempts,
+            &outbox,
             &workflows,
             &scripts,
             &logs,
@@ -400,6 +408,7 @@
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
         let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
         let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
@@ -491,6 +500,7 @@
             &jobs,
             &instances,
             &attempts,
+            &outbox,
             &workflows,
             &scripts,
             &logs,
@@ -936,6 +946,7 @@
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
         let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
         let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db.clone());
@@ -998,6 +1009,7 @@
             &jobs,
             &instances,
             &attempts,
+            &outbox,
             &workflows,
             &scripts,
             &logs,
@@ -1018,3 +1030,122 @@
         assert_eq!(updated.status, InstanceStatus::Failed);
     }
 
+
+    #[derive(Debug, Default)]
+    struct FailingRelay;
+
+    #[async_trait::async_trait]
+    impl crate::tunnel::WorkerRelayDispatch for FailingRelay {
+        async fn dispatch_to_gateway(
+            &self,
+            _gateway_node_id: &str,
+            _worker_id: &str,
+            _task: DispatchTask,
+        ) -> Result<(), crate::tunnel::WorkerRelayError> {
+            Err(crate::tunnel::WorkerRelayError::transient("gateway temporarily unavailable"))
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatch_persists_outbox_before_remote_relay_and_keeps_it_when_relay_fails() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
+        let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
+        let scripts = ScriptRepository::new(db.clone());
+        let lifecycle = tikeo_storage::WorkerLifecycleRepository::new(db.clone());
+        let registry = WorkerRegistry::with_lifecycle(lifecycle.clone())
+            .with_gateway_node_id("leader-node")
+            .with_relay(std::sync::Arc::new(FailingRelay));
+        lifecycle
+            .register_session(tikeo_storage::RegisterWorkerSession {
+                worker_id: "wrk-remote-outbox".to_owned(),
+                namespace_name: "default".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "local".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "remote-outbox".to_owned(),
+                connection_id: "conn-remote-outbox".to_owned(),
+                gateway_node_id: "gateway-node".to_owned(),
+                fencing_token: "token-remote-outbox".to_owned(),
+                lease_seconds: 30,
+                capabilities_json: r"[]".to_owned(),
+                structured_capabilities_json: r#"{"sdkProcessors":["billing.outbox"]}"#.to_owned(),
+                labels_json: r"{}".to_owned(),
+                master_json: r"{}".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("remote gateway worker should persist: {error}"));
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "outbox".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("billing.outbox".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                retry_policy: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should be created: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id.clone(),
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should be created: {error}"))
+            .unwrap_or_else(|| panic!("job should exist"));
+
+        dispatch_once(
+            &jobs,
+            &instances,
+            &attempts,
+            &outbox,
+            &workflows,
+            &scripts,
+            &logs,
+            &audit,
+            &registry,
+            "test-fence",
+            &notification_center(&jobs),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
+
+        let attempt_rows = attempts
+            .list_by_instance(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("attempts should load: {error}"));
+        assert_eq!(attempt_rows.len(), 1);
+        let token = attempt_rows[0]
+            .assignment_token
+            .as_deref()
+            .unwrap_or_else(|| panic!("assignment token should be persisted"));
+        let claimed = outbox
+            .claim_next_for_gateway("gateway-node", 10)
+            .await
+            .unwrap_or_else(|error| panic!("outbox should be claimable: {error}"))
+            .unwrap_or_else(|| panic!("relay failure should leave a queued durable outbox row"));
+        assert_eq!(claimed.instance_id, instance.id);
+        assert_eq!(claimed.worker_id, "wrk-remote-outbox");
+        assert_eq!(claimed.assignment_token, token);
+        assert_eq!(claimed.gateway_node_id, "gateway-node");
+    }

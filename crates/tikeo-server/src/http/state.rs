@@ -11,8 +11,8 @@ use tikeo_storage::{
     JobInstanceLogRepository, JobInstanceRepository, JobRepository, NotificationChannelRepository,
     NotificationDeliveryAttemptRepository, NotificationMessageRepository,
     NotificationPolicyRepository, NotificationTemplateRepository, PluginRepository, RaftRepository,
-    RbacRepository, ScriptRepository, UserRepository, WorkerLifecycleRepository,
-    WorkflowRepository,
+    RbacRepository, ScriptRepository, UserRepository, WorkerDispatchOutboxRepository,
+    WorkerLifecycleRepository, WorkflowRepository,
 };
 
 use super::{
@@ -48,6 +48,7 @@ pub struct AppState {
     pub(crate) rbac: RbacService,
     pub(crate) registry: crate::tunnel::WorkerRegistry,
     pub(crate) worker_lifecycle: WorkerLifecycleRepository,
+    pub(crate) worker_dispatch_outbox: WorkerDispatchOutboxRepository,
     pub(crate) cluster: SharedClusterCoordinator,
     pub(crate) raft_transport_token: Option<String>,
     pub(crate) notification_public_console_base_url: Option<String>,
@@ -80,6 +81,7 @@ impl AppState {
         let notification_delivery_attempts = NotificationDeliveryAttemptRepository::new(db.clone());
         let plugins = PluginRepository::new(db.clone());
         let worker_lifecycle = WorkerLifecycleRepository::new(db.clone());
+        let worker_dispatch_outbox = WorkerDispatchOutboxRepository::new(db.clone());
         let sessions = SessionManager::new(DbMokaSessionStore::new(
             AuthSessionRepository::new(db.clone()),
             RbacRepository::new(db),
@@ -110,6 +112,7 @@ impl AppState {
             rbac,
             registry,
             worker_lifecycle,
+            worker_dispatch_outbox,
             cluster,
             raft_transport_token: None,
             notification_public_console_base_url: None,

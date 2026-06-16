@@ -116,6 +116,26 @@
             .register(worker("metrics-worker", "billing"), tx)
             .await;
 
+
+        tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone())
+            .create(tikeo_storage::CreateWorkerDispatchOutbox {
+                instance_id: "inst-metrics-outbox".to_owned(),
+                attempt_id: "attempt-metrics-outbox".to_owned(),
+                worker_id: "worker-metrics-outbox".to_owned(),
+                logical_instance_id: "logical-metrics-outbox".to_owned(),
+                gateway_node_id: "test-node".to_owned(),
+                gateway_generation: 1,
+                assignment_token: "asg-metrics-outbox".to_owned(),
+                dispatch_payload: "payload".to_owned(),
+                shard_id: 0,
+                owner_node_id: "test-node".to_owned(),
+                owner_epoch: 0,
+                owner_fencing_token: "fence-metrics".to_owned(),
+                next_delivery_at: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("outbox metric row should create: {error}"));
+
         let app = router_with_state(AppState::new(
             jobs,
             instances,
@@ -170,6 +190,8 @@
         assert_eq!(json["data"]["instances"]["by_status"]["pending"], 3);
         assert_eq!(json["data"]["instances"]["by_status"]["succeeded"], 1);
         assert_eq!(json["data"]["queue"]["pending"], 2);
+        assert_eq!(json["data"]["outbox"]["total"], 1);
+        assert_eq!(json["data"]["outbox"]["byStatus"]["queued"], 1);
         assert_eq!(json["data"]["queue"]["running"], 0);
         assert!(
             json["data"]["queue"]["completedDispatches"]

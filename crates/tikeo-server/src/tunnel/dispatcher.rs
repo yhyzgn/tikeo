@@ -2,6 +2,8 @@
 
 use std::time::Duration;
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+
 use tikeo_core::{
     ExecutionMode, InstanceStatus, ScriptExecutionPolicy, ScriptLanguage, ScriptPolicyError,
     ScriptStatus, WasmProcessorSpec,
@@ -11,10 +13,12 @@ use tikeo_proto::worker::v1::{
     task_processor_binding,
 };
 use tikeo_storage::{
-    AppendJobInstanceLog, AuditLogRepository, JobInstanceAttemptRepository, JobInstanceRepository,
-    JobRepository, ScriptRepository, ScriptSummary, ScriptVersionSummary, WorkflowRepository,
+    AppendJobInstanceLog, AuditLogRepository, CreateWorkerDispatchOutbox,
+    JobInstanceAttemptRepository, JobInstanceRepository, JobRepository, ScriptRepository,
+    ScriptSummary, ScriptVersionSummary, WorkerDispatchOutboxRepository, WorkflowRepository,
 };
 use tokio::time;
+use tonic_prost::prost::Message as _;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
@@ -35,6 +39,10 @@ fn new_assignment_token() -> String {
     format!("asg-{}", Uuid::now_v7())
 }
 
+fn encoded_dispatch_payload(task: &DispatchTask) -> String {
+    BASE64_STANDARD.encode(task.encode_to_vec())
+}
+
 fn dispatcher_fencing_token(node_id: &str, leader_fencing_token: Option<&str>) -> String {
     leader_fencing_token.map_or_else(
         || format!("standalone:{node_id}:{DISPATCHER_LEASE_OWNER}"),
@@ -48,6 +56,7 @@ pub async fn run(
     jobs: JobRepository,
     instances: JobInstanceRepository,
     attempts: JobInstanceAttemptRepository,
+    outbox: WorkerDispatchOutboxRepository,
     workflows: WorkflowRepository,
     scripts: ScriptRepository,
     logs: tikeo_storage::JobInstanceLogRepository,
@@ -63,6 +72,7 @@ pub async fn run(
             &jobs,
             &instances,
             &attempts,
+            &outbox,
             &workflows,
             &scripts,
             &logs,
@@ -83,6 +93,7 @@ async fn dispatch_once_if_owner(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,
     attempts: &JobInstanceAttemptRepository,
+    outbox: &WorkerDispatchOutboxRepository,
     workflows: &WorkflowRepository,
     scripts: &ScriptRepository,
     logs: &tikeo_storage::JobInstanceLogRepository,
@@ -102,6 +113,7 @@ async fn dispatch_once_if_owner(
         jobs,
         instances,
         attempts,
+        outbox,
         workflows,
         scripts,
         logs,
@@ -118,6 +130,7 @@ async fn dispatch_once(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,
     attempts: &JobInstanceAttemptRepository,
+    outbox: &WorkerDispatchOutboxRepository,
     workflows: &WorkflowRepository,
     scripts: &ScriptRepository,
     logs: &tikeo_storage::JobInstanceLogRepository,
@@ -152,6 +165,7 @@ async fn dispatch_once(
         jobs,
         instances,
         attempts,
+        outbox,
         workflows,
         scripts,
         logs,
@@ -164,6 +178,7 @@ async fn dispatch_once(
         jobs,
         instances,
         attempts,
+        outbox,
         workflows,
         scripts,
         logs,
@@ -175,6 +190,50 @@ async fn dispatch_once(
     .await
 }
 
+struct DurableDispatchIntent<'a> {
+    instance_id: &'a str,
+    attempt_id: &'a str,
+    worker_id: &'a str,
+    owner_fencing_token: &'a str,
+    task: DispatchTask,
+}
+
+async fn persist_outbox_then_hint_dispatch(
+    attempts: &JobInstanceAttemptRepository,
+    outbox: &WorkerDispatchOutboxRepository,
+    registry: &WorkerRegistry,
+    mut intent: DurableDispatchIntent<'_>,
+) -> Result<bool, tikeo_storage::DbErr> {
+    let Some(target) = registry.dispatch_target(intent.worker_id).await else {
+        return Ok(false);
+    };
+    let assignment_token = new_assignment_token();
+    let _recorded = attempts
+        .record_assignment_token(intent.instance_id, intent.worker_id, &assignment_token)
+        .await?;
+    intent.task.assignment_token.clone_from(&assignment_token);
+    let _created = outbox
+        .create(CreateWorkerDispatchOutbox {
+            instance_id: intent.instance_id.to_owned(),
+            attempt_id: intent.attempt_id.to_owned(),
+            worker_id: target.worker_id.clone(),
+            logical_instance_id: target.logical_instance_id,
+            gateway_node_id: target.gateway_node_id,
+            gateway_generation: target.generation,
+            assignment_token,
+            dispatch_payload: encoded_dispatch_payload(&intent.task),
+            shard_id: 0,
+            owner_node_id: DISPATCHER_LEASE_OWNER.to_owned(),
+            owner_epoch: 0,
+            owner_fencing_token: intent.owner_fencing_token.to_owned(),
+            next_delivery_at: None,
+        })
+        .await?;
+    Ok(registry
+        .dispatch_tokened_to_worker(intent.worker_id, intent.task)
+        .await)
+}
+
 #[allow(
     clippy::too_many_arguments,
     clippy::too_many_lines,
@@ -184,6 +243,7 @@ async fn dispatch_single_instances(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,
     attempts: &JobInstanceAttemptRepository,
+    outbox: &WorkerDispatchOutboxRepository,
     workflows: &WorkflowRepository,
     scripts: &ScriptRepository,
     logs: &tikeo_storage::JobInstanceLogRepository,
@@ -394,16 +454,10 @@ async fn dispatch_single_instances(
             .find_ordered_persisted_dispatch_workers(&job.namespace, &job.app, requirement.as_ref())
             .await;
         if let Some(worker_id) = eligible_workers.first() {
-            let assignment_token = new_assignment_token();
-            let _ = attempts
+            let created_attempts = attempts
                 .create_pending_for_workers(&instance.id, std::slice::from_ref(worker_id))
                 .await?;
-            let _ = attempts
-                .record_assignment_token(&instance.id, worker_id, &assignment_token)
-                .await?;
-            let mut task = task;
-            task.assignment_token.clone_from(&assignment_token);
-            if !registry.dispatch_tokened_to_worker(worker_id, task).await {
+            let Some(attempt) = created_attempts.first() else {
                 let _ = workflows
                     .release_dispatch_queue_item_after(
                         &claim.item.id,
@@ -415,6 +469,22 @@ async fn dispatch_single_instances(
                     .update_status(&instance.id, InstanceStatus::Pending)
                     .await?;
                 continue;
+            };
+            let dispatch_hint_sent = persist_outbox_then_hint_dispatch(
+                attempts,
+                outbox,
+                registry,
+                DurableDispatchIntent {
+                    instance_id: &instance.id,
+                    attempt_id: &attempt.id,
+                    worker_id,
+                    owner_fencing_token: fencing_token,
+                    task,
+                },
+            )
+            .await?;
+            if !dispatch_hint_sent {
+                debug!(%worker_id, instance_id = %instance.id, "dispatch hint failed after durable outbox was queued");
             }
             attempts
                 .update_status_if_current(
@@ -670,6 +740,7 @@ async fn dispatch_broadcast_attempts(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,
     attempts: &JobInstanceAttemptRepository,
+    outbox: &WorkerDispatchOutboxRepository,
     workflows: &WorkflowRepository,
     scripts: &ScriptRepository,
     logs: &tikeo_storage::JobInstanceLogRepository,
@@ -742,16 +813,20 @@ async fn dispatch_broadcast_attempts(
             continue;
         }
 
-        let assignment_token = new_assignment_token();
-        attempts
-            .record_assignment_token(&attempt.instance_id, &attempt.worker_id, &assignment_token)
-            .await?;
-        let mut task = task;
-        task.assignment_token.clone_from(&assignment_token);
-        if registry
-            .dispatch_tokened_to_worker(&attempt.worker_id, task)
-            .await
-        {
+        let dispatch_hint_sent = persist_outbox_then_hint_dispatch(
+            attempts,
+            outbox,
+            registry,
+            DurableDispatchIntent {
+                instance_id: &attempt.instance_id,
+                attempt_id: &attempt.id,
+                worker_id: &attempt.worker_id,
+                owner_fencing_token: DISPATCHER_LEASE_OWNER,
+                task,
+            },
+        )
+        .await?;
+        if dispatch_hint_sent {
             attempts
                 .update_status_if_current(
                     &attempt.instance_id,

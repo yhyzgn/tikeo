@@ -4,6 +4,7 @@ pub mod capability;
 pub mod dispatcher;
 pub mod governance;
 pub mod lifecycle;
+pub mod outbox_delivery;
 pub mod registry;
 pub mod relay;
 pub mod service;

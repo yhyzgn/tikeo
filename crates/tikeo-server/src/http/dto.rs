@@ -225,6 +225,7 @@ pub struct MetricsSummaryResponse {
     pub alerts: MetricsAlertSummary,
     pub governance: MetricsGovernanceSummary,
     pub queue: tikeo_storage::DispatchQueueSloSummary,
+    pub outbox: tikeo_storage::WorkerDispatchOutboxSloSummary,
     pub workflows: tikeo_storage::WorkflowSloSummary,
 }
 

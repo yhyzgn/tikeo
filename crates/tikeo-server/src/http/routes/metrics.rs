@@ -41,6 +41,11 @@ pub async fn metrics_summary(
         .dispatch_queue_slo_summary()
         .await
         .map_err(|error| ApiError::storage(&error))?;
+    let outbox = state
+        .worker_dispatch_outbox
+        .summary()
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
     let workflows = state
         .workflows
         .workflow_slo_summary()
@@ -48,6 +53,7 @@ pub async fn metrics_summary(
         .map_err(|error| ApiError::storage(&error))?;
     metrics::with_local_recorder(&*recorder, || {
         record_dispatch_queue_metrics(&queue);
+        record_worker_dispatch_outbox_metrics(&outbox);
         record_business_slo_metrics(
             workers_online,
             instances.total,
@@ -76,8 +82,19 @@ pub async fn metrics_summary(
             by_failure_class: alert_counts.by_failure_class,
         },
         queue,
+        outbox,
         workflows,
     })))
+}
+
+fn record_worker_dispatch_outbox_metrics(outbox: &tikeo_storage::WorkerDispatchOutboxSloSummary) {
+    metrics::gauge!("tikeo_worker_dispatch_outbox_rows_total").set(u64_metric_value(outbox.total));
+    metrics::gauge!("tikeo_worker_dispatch_outbox_oldest_queued_age_seconds")
+        .set(u64_metric_value(outbox.oldest_queued_age_seconds));
+    for (status, count) in &outbox.by_status {
+        metrics::gauge!("tikeo_worker_dispatch_outbox_rows", "status" => status.clone())
+            .set(u64_metric_value(*count));
+    }
 }
 
 fn record_dispatch_queue_metrics(queue: &tikeo_storage::DispatchQueueSloSummary) {

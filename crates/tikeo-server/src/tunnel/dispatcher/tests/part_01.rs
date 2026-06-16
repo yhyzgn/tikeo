@@ -103,6 +103,7 @@
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
         let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
         let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
@@ -160,6 +161,7 @@
             &jobs,
             &instances,
             &attempts,
+            &outbox,
             &workflows,
             &scripts,
             &logs,
@@ -212,6 +214,7 @@
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
         let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
         let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
@@ -303,6 +306,7 @@
             &jobs,
             &instances,
             &attempts,
+            &outbox,
             &workflows,
             &scripts,
             &logs,
@@ -361,6 +365,7 @@
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
         let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
         let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
@@ -453,6 +458,7 @@
             &jobs,
             &instances,
             &attempts,
+            &outbox,
             &workflows,
             &scripts,
             &logs,
@@ -501,6 +507,7 @@
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
         let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
         let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
@@ -567,6 +574,7 @@
             &jobs,
             &instances,
             &attempts,
+            &outbox,
             &workflows,
             &scripts,
             &logs,
@@ -614,6 +622,7 @@
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
         let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
         let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
@@ -698,6 +707,7 @@
             &jobs,
             &instances,
             &attempts,
+            &outbox,
             &workflows,
             &scripts,
             &logs,
@@ -746,6 +756,7 @@
         let instances = JobInstanceRepository::new(db.clone());
         let attempts = JobInstanceAttemptRepository::new(db.clone());
         let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
         let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
         let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db);
@@ -824,6 +835,7 @@
             &jobs,
             &instances,
             &attempts,
+            &outbox,
             &workflows,
             &scripts,
             &logs,

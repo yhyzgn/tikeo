@@ -31,7 +31,20 @@ use super::{
 
 const DEFAULT_LEASE_SECONDS: u64 = 30;
 
-/// Shared worker registry handle.
+/// Durable dispatch routing target derived from persisted worker lifecycle state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkerDispatchTarget {
+    /// Current Worker session id.
+    pub worker_id: String,
+    /// Stable logical Worker id.
+    pub logical_instance_id: String,
+    /// Gateway node that owns the live stream.
+    pub gateway_node_id: String,
+    /// Worker session generation.
+    pub generation: i64,
+}
+
+/// Registry of live Worker Tunnel streams plus durable worker lifecycle routing metadata.
 #[derive(Debug, Clone)]
 pub struct WorkerRegistry {
     workers: Arc<RwLock<HashMap<String, RegisteredWorker>>>,
@@ -639,6 +652,34 @@ impl WorkerRegistry {
             .is_some_and(|worker| {
                 requirement
                     .is_none_or(|requirement| persisted_worker_satisfies(&worker, requirement))
+            })
+    }
+
+    /// Return the durable dispatch target for a currently schedulable worker.
+    pub async fn dispatch_target(&self, worker_id: &str) -> Option<WorkerDispatchTarget> {
+        if let Some(lifecycle) = self.lifecycle.as_ref() {
+            return lifecycle
+                .get_online_current_worker(worker_id)
+                .await
+                .ok()
+                .flatten()
+                .map(|worker| WorkerDispatchTarget {
+                    worker_id: worker.worker_id,
+                    logical_instance_id: worker.logical_instance_id,
+                    gateway_node_id: worker.gateway_node_id,
+                    generation: worker.generation,
+                });
+        }
+        self.workers
+            .read()
+            .await
+            .get(worker_id)
+            .filter(|worker| worker.is_schedulable())
+            .map(|worker| WorkerDispatchTarget {
+                worker_id: worker.worker_id.clone(),
+                logical_instance_id: worker.worker_id.clone(),
+                gateway_node_id: self.gateway_node_id.clone(),
+                generation: 0,
             })
     }
 

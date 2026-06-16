@@ -42,6 +42,7 @@ pub mod secret;
 pub mod service_account;
 pub mod user;
 pub mod user_role;
+pub mod worker_dispatch_outbox;
 pub mod worker_logical_instance;
 pub mod worker_pool;
 pub mod worker_session;
