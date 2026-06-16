@@ -330,6 +330,86 @@
     }
 
     #[tokio::test]
+    async fn raft_leader_without_projected_shards_does_not_fallback_claim_queue_items() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
+        let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
+        let scripts = ScriptRepository::new(db);
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "raft-leader-no-shards".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("billing.manual".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                retry_policy: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should be created: {error}"));
+        instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id.clone(),
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should be created: {error}"))
+            .unwrap_or_else(|| panic!("job should exist"));
+        let registry = WorkerRegistry::default();
+        let leader = StaticCoordinator::shared(ClusterStatus {
+            mode: ClusterMode::Raft,
+            role: ClusterRole::Leader,
+            node_id: "node-a".to_owned(),
+            nodes: 3,
+            can_schedule: true,
+            leader_fencing_token: Some("raft:term:9:node:node-a".to_owned()),
+            detail: "test leader without projected shards".to_owned(),
+        });
+
+        dispatch_once_if_owner(
+            &jobs,
+            &instances,
+            &attempts,
+            &outbox,
+            &workflows,
+            &scripts,
+            &logs,
+            &audit,
+            &registry,
+            &leader,
+            &notification_center(&jobs),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("dispatch gate should run: {error}"));
+
+        let overview = workflows
+            .queue_overview(10)
+            .await
+            .unwrap_or_else(|error| panic!("queue should load: {error}"));
+        assert_eq!(overview.pending, 1);
+        assert_eq!(overview.running, 0);
+        assert!(overview.items[0].lease_owner.is_none());
+    }
+
+    #[tokio::test]
     async fn follower_dispatch_does_not_claim_queue_items() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
@@ -410,7 +490,7 @@
     }
 
     #[tokio::test]
-    async fn shard_owner_follower_dispatches_only_owned_queue_items() {
+    async fn explicit_shard_owner_dispatches_only_owned_queue_items() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
@@ -494,17 +574,7 @@
                 tx,
             )
             .await;
-        let follower = StaticCoordinator::shared(ClusterStatus {
-            mode: ClusterMode::Raft,
-            role: ClusterRole::Follower,
-            node_id: "node-b".to_owned(),
-            nodes: 3,
-            can_schedule: false,
-            leader_fencing_token: None,
-            detail: "test shard owner follower".to_owned(),
-        });
-
-        dispatch_once_if_owner(
+        dispatch_once_with_shards(
             &jobs,
             &instances,
             &attempts,
@@ -514,11 +584,13 @@
             &logs,
             &audit,
             &registry,
-            &follower,
+            "node-b",
+            "",
+            std::slice::from_ref(&owner),
             &notification_center(&jobs),
         )
         .await
-        .unwrap_or_else(|error| panic!("shard owner dispatch should run: {error}"));
+        .unwrap_or_else(|error| panic!("explicit shard owner dispatch should run: {error}"));
 
         let message = rx
             .recv()
@@ -556,6 +628,114 @@
         assert_eq!(outbox_row.owner_epoch, owner.epoch);
         assert_eq!(outbox_row.owner_fencing_token, owner.fencing_token);
     }
+
+    #[tokio::test]
+    async fn explicit_shard_owner_does_not_materialize_workflow_nodes() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
+        let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
+        let scripts = ScriptRepository::new(db.clone());
+        let ownership = tikeo_storage::ClusterShardOwnershipRepository::new(db);
+        let owner = ownership
+            .upsert_newer(tikeo_storage::UpsertClusterShardOwnership {
+                shard_id: 7,
+                shard_map_version: 1,
+                shard_count: 64,
+                owner_node_id: "node-b".to_owned(),
+                epoch: 10,
+                raft_term: 5,
+                lease_seconds: Some(30),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("shard owner should persist: {error}"))
+            .unwrap_or_else(|| panic!("newer shard owner should be accepted"));
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "workflow-node-job".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("billing.workflow".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                retry_policy: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should be created: {error}"));
+        let workflow = workflows
+            .create_workflow(tikeo_storage::CreateWorkflow {
+                name: "shard follower workflow boundary".to_owned(),
+                created_by: "test".to_owned(),
+                definition: tikeo_storage::WorkflowDefinition {
+                    nodes: vec![tikeo_storage::WorkflowNodeSpec {
+                        key: "job-a".to_owned(),
+                        name: Some("Job A".to_owned()),
+                        kind: Some("job".to_owned()),
+                        job_id: Some(job.id.clone()),
+                        processor_name: Some("billing.workflow".to_owned()),
+                        child_workflow_id: None,
+                        map_items: None,
+                        config: None,
+                    }],
+                    edges: Vec::new(),
+                },
+            })
+            .await
+            .unwrap_or_else(|error| panic!("workflow should be created: {error}"));
+        workflows
+            .run_workflow(&workflow.id, "api")
+            .await
+            .unwrap_or_else(|error| panic!("workflow should run: {error}"));
+        let registry = WorkerRegistry::default();
+        dispatch_once_with_shards(
+            &jobs,
+            &instances,
+            &attempts,
+            &outbox,
+            &workflows,
+            &scripts,
+            &logs,
+            &audit,
+            &registry,
+            "node-b",
+            "",
+            std::slice::from_ref(&owner),
+            &notification_center(&jobs),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("explicit shard owner dispatch should run: {error}"));
+
+        let overview = workflows
+            .queue_overview(10)
+            .await
+            .unwrap_or_else(|error| panic!("queue should load: {error}"));
+        assert_eq!(overview.pending, 1);
+        assert_eq!(overview.running, 0);
+        assert!(
+            overview
+                .items
+                .iter()
+                .all(|item| item.workflow_node_instance_id.is_some()),
+            "shard-owner follower must not claim or materialize workflow-node queue items: {overview:?}"
+        );
+    }
+
 
     #[tokio::test]
     async fn dispatch_once_prefers_workflow_node_processor_name() {

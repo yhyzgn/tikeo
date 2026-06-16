@@ -11,6 +11,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_ID="${TIKEO_RAFT_WORKER_E2E_RUN_ID:-raft-worker-failover-$(date -u +%Y%m%dt%H%M%Sz)-$$}"
 REPORT_DIR="${TIKEO_RAFT_WORKER_E2E_REPORT_DIR:-$ROOT_DIR/.dev/reports/$RUN_ID}"
+if [[ "$REPORT_DIR" != /* ]]; then
+  REPORT_DIR="$ROOT_DIR/$REPORT_DIR"
+fi
 POSTGRES_NAME="${TIKEO_RAFT_WORKER_E2E_POSTGRES_NAME:-$RUN_ID-postgres}"
 POSTGRES_IMAGE="${TIKEO_RAFT_WORKER_E2E_POSTGRES_IMAGE:-postgres:16-alpine}"
 KEEP="${TIKEO_RAFT_WORKER_E2E_KEEP:-0}"
@@ -91,6 +94,150 @@ print(cur)' "$1" "$2"
 }
 
 record() { tikeo_smoke_record_case "$1" "$2" "${3:-}" "${4:-}"; }
+
+
+collect_fsod_db_evidence() {
+  local label="$1"
+  local output="$REPORT_DIR/fsod-db-$label.json"
+  docker exec -i "$POSTGRES_NAME" psql -U tikeo -d tikeo -t -A > "$output" <<SQL
+SELECT jsonb_pretty(jsonb_build_object(
+  'label', '$label',
+  'capturedAt', now(),
+  'clusterShardOwnership', COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'shardId', shard_id,
+      'shardMapVersion', shard_map_version,
+      'shardCount', shard_count,
+      'ownerNodeId', owner_node_id,
+      'epoch', epoch,
+      'raftTerm', raft_term,
+      'status', status,
+      'hasFencingToken', fencing_token IS NOT NULL AND fencing_token <> '',
+      'leaseExpiresAt', lease_expires_at,
+      'updatedAt', updated_at
+    ) ORDER BY shard_id)
+    FROM cluster_shard_ownership
+  ), '[]'::jsonb),
+  'workerSessions', COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'workerId', worker_id,
+      'logicalInstanceId', logical_instance_id,
+      'gatewayNodeId', gateway_node_id,
+      'generation', generation,
+      'status', status,
+      'clientInstanceId', (SELECT client_instance_id FROM worker_logical_instances WHERE worker_logical_instances.id = worker_sessions.logical_instance_id),
+      'leaseExpiresAt', lease_expires_at,
+      'updatedAt', updated_at
+    ) ORDER BY updated_at, worker_id)
+    FROM worker_sessions
+  ), '[]'::jsonb),
+  'workerDispatchOutbox', COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', id,
+      'instanceId', instance_id,
+      'attemptId', attempt_id,
+      'workerId', worker_id,
+      'logicalInstanceId', logical_instance_id,
+      'gatewayNodeId', gateway_node_id,
+      'gatewayGeneration', gateway_generation,
+      'shardId', shard_id,
+      'shardMapVersion', shard_map_version,
+      'shardCount', shard_count,
+      'ownerNodeId', owner_node_id,
+      'ownerEpoch', owner_epoch,
+      'hasOwnerFencingToken', owner_fencing_token IS NOT NULL AND owner_fencing_token <> '',
+      'hasAssignmentToken', assignment_token IS NOT NULL AND assignment_token <> '',
+      'status', status,
+      'deliveryAttempts', delivery_attempts,
+      'visibilityDeadline', visibility_deadline,
+      'lastError', last_error,
+      'updatedAt', updated_at
+    ) ORDER BY created_at, id)
+    FROM worker_dispatch_outbox
+  ), '[]'::jsonb),
+  'dispatchQueue', COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', id,
+      'jobInstanceId', job_instance_id,
+      'workflowNodeInstanceId', workflow_node_instance_id,
+      'shardId', shard_id,
+      'shardMapVersion', shard_map_version,
+      'shardCount', shard_count,
+      'ownerEpoch', owner_epoch,
+      'hasOwnerFencingToken', owner_fencing_token IS NOT NULL AND owner_fencing_token <> '',
+      'status', status,
+      'leaseOwner', lease_owner,
+      'updatedAt', updated_at
+    ) ORDER BY created_at, id)
+    FROM dispatch_queue
+  ), '[]'::jsonb)
+));
+SQL
+  python3 -m json.tool "$output" > "$output.tmp" && mv "$output.tmp" "$output"
+  printf '%s' "$output"
+}
+
+
+assert_fsod_db_evidence() {
+  local label="$1"
+  local file="$2"
+  python3 - "$label" "$file" <<'PYFSOD'
+import json, sys
+label, path = sys.argv[1], sys.argv[2]
+payload = json.load(open(path, encoding='utf-8'))
+outbox = payload.get('workerDispatchOutbox') or []
+ownership = payload.get('clusterShardOwnership') or []
+if label == 'initial-registration':
+    if not ownership:
+        raise SystemExit(f"{label}: expected projected shard ownership")
+    if not all(row.get('epoch', 0) > 0 and row.get('hasFencingToken') for row in ownership):
+        raise SystemExit(f"{label}: shard ownership rows must have positive epoch and fencing token")
+    sys.exit(0)
+if not outbox:
+    raise SystemExit(f"{label}: expected durable worker dispatch outbox rows")
+active_by_key = {
+    (row.get('shardId'), row.get('shardMapVersion'), row.get('shardCount')): row
+    for row in ownership
+    if row.get('status') == 'active'
+}
+current_owner_completed = []
+for row in outbox:
+    key = (row.get('shardId'), row.get('shardMapVersion'), row.get('shardCount'))
+    owner = active_by_key.get(key)
+    if row.get('ownerEpoch', 0) <= 0:
+        raise SystemExit(f"{label}: outbox row {row.get('id')} must bind positive ownerEpoch: {row}")
+    if not row.get('hasOwnerFencingToken'):
+        raise SystemExit(f"{label}: outbox row {row.get('id')} missing owner fencing token")
+    if row.get('status') not in {'delivered', 'acked', 'completed'}:
+        raise SystemExit(f"{label}: expected dispatched outbox terminal/progress status, got {row.get('status')} for {row.get('id')}")
+    if owner and row.get('ownerNodeId') == owner.get('ownerNodeId') and row.get('ownerEpoch') == owner.get('epoch') and row.get('status') == 'completed':
+        current_owner_completed.append(row)
+completed = [row for row in outbox if row.get('status') == 'completed']
+if not completed:
+    raise SystemExit(f"{label}: expected at least one completed outbox row after successful instance")
+if label in {'before-failover', 'after-failover'} and not current_owner_completed:
+    raise SystemExit(f"{label}: expected at least one completed outbox row bound to the current active shard owner")
+PYFSOD
+}
+
+collect_api_evidence() {
+  local label="$1"
+  local metrics_file="$REPORT_DIR/metrics-$label.json"
+  local diagnostics_file="$REPORT_DIR/cluster-diagnostics-$label.json"
+  api GET /api/v1/metrics/summary > "$metrics_file"
+  api GET /api/v1/cluster/diagnostics > "$diagnostics_file"
+  python3 -m json.tool "$metrics_file" > "$metrics_file.tmp" && mv "$metrics_file.tmp" "$metrics_file"
+  python3 -m json.tool "$diagnostics_file" > "$diagnostics_file.tmp" && mv "$diagnostics_file.tmp" "$diagnostics_file"
+  python3 - "$metrics_file" <<'PYMETRICS'
+import json, sys
+payload=json.load(open(sys.argv[1], encoding='utf-8'))['data']
+if payload['outbox']['total'] < 1:
+    raise SystemExit(f"expected at least one durable outbox row: {payload['outbox']}")
+if payload['shard_ownership']['active'] < 1:
+    raise SystemExit(f"expected active shard ownership projection: {payload['shard_ownership']}")
+PYMETRICS
+  record "fsod-api-evidence-$label" passed "$metrics_file" "metrics summary includes outbox and shard ownership after $label"
+}
 
 wait_postgres() {
   for _ in $(seq 1 90); do
@@ -464,10 +611,17 @@ main() {
   start_worker
   wait_worker_on_leader "$leader"
   record worker-initial-leader-registration passed "$REPORT_DIR/workers-$leader.json" "worker registered on initial raft leader"
+  db_evidence="$(collect_fsod_db_evidence initial-registration)"
+  assert_fsod_db_evidence initial-registration "$db_evidence"
+  record fsod-db-initial-registration passed "$db_evidence" "captured durable worker session and shard ownership state before dispatch"
 
   initial_instance="$(create_and_trigger_job before-failover)"
   assert_instance_succeeded before-failover "$initial_instance"
   record pre-failover-dispatch passed "$REPORT_DIR/instance-result-before-failover.json" "job dispatched through initial leader"
+  db_evidence="$(collect_fsod_db_evidence before-failover)"
+  assert_fsod_db_evidence before-failover "$db_evidence"
+  record fsod-db-before-failover passed "$db_evidence" "captured durable outbox, dispatch queue, shard ownership, and worker session before leader kill"
+  collect_api_evidence before-failover
 
   idx="$(leader_index "$leader")"
   log "killing initial leader $leader pid=${SERVER_PIDS[$idx]}"
@@ -481,10 +635,17 @@ main() {
 
   wait_worker_on_leader "$new_leader"
   record worker-post-failover-registration passed "$REPORT_DIR/workers-$new_leader.json" "worker reconnected to new raft leader"
+  db_evidence="$(collect_fsod_db_evidence post-leader-election)"
+  assert_fsod_db_evidence post-leader-election "$db_evidence"
+  record fsod-db-post-leader-election passed "$db_evidence" "captured shard ownership and worker session after new leader election"
 
   failover_instance="$(create_and_trigger_job after-failover)"
   assert_instance_succeeded after-failover "$failover_instance"
   record post-failover-dispatch passed "$REPORT_DIR/instance-result-after-failover.json" "job dispatched successfully after leader failover"
+  db_evidence="$(collect_fsod_db_evidence after-failover)"
+  assert_fsod_db_evidence after-failover "$db_evidence"
+  record fsod-db-after-failover passed "$db_evidence" "captured durable outbox, dispatch queue, shard ownership, and worker session after failover dispatch"
+  collect_api_evidence after-failover
 
   tikeo_smoke_finalize_report "$REPORT_JSON" passed >/dev/null
   log "PASS: raft worker failover e2e succeeded"

@@ -114,30 +114,21 @@ async fn dispatch_once_if_owner(
 ) -> Result<(), tikeo_storage::DbErr> {
     let status = cluster.status().await;
     if !status.can_schedule {
-        let owned_shards = active_shard_ownerships_for_node(workflows, &status.node_id).await?;
-        if owned_shards.is_empty() {
-            debug!(role = status.role.as_str(), node_id = %status.node_id, "skip worker dispatch without cluster ownership");
-            return Ok(());
-        }
-        return dispatch_once_with_shards(
-            jobs,
-            instances,
-            attempts,
-            outbox,
-            workflows,
-            scripts,
-            logs,
-            audit,
-            registry,
-            &status.node_id,
-            "",
-            &owned_shards,
-            notifications,
-        )
-        .await;
+        debug!(role = status.role.as_str(), node_id = %status.node_id, "skip worker dispatch without leader scheduling authority");
+        return Ok(());
     }
     let fencing_token =
         dispatcher_fencing_token(&status.node_id, status.leader_fencing_token.as_deref());
+    let owned_shards = if status.leader_fencing_token.is_some() {
+        let active = active_shard_ownerships_for_node(workflows, &status.node_id).await?;
+        if active.is_empty() {
+            warn!(node_id = %status.node_id, "skip raft leader dispatch because projected shard ownership is missing");
+            return Ok(());
+        }
+        active
+    } else {
+        Vec::new()
+    };
     dispatch_once_with_shards(
         jobs,
         instances,
@@ -150,7 +141,7 @@ async fn dispatch_once_if_owner(
         registry,
         &status.node_id,
         &fencing_token,
-        &[],
+        &owned_shards,
         notifications,
     )
     .await
@@ -226,34 +217,36 @@ async fn dispatch_once_with_shards(
         warn!(recovered, "requeued stale running job dispatches");
     }
     let _expired = workflows.clear_expired_dispatch_queue_leases().await?;
-    if let Some(materialized) = workflows
-        .materialize_next_queued_node_with_fencing(
-            DISPATCHER_LEASE_OWNER,
-            DISPATCH_LEASE_SECONDS,
-            fencing_token,
-        )
-        .await?
-    {
-        crate::notification::emit_workflow_notification_node_requested_best_effort(
-            notifications,
+    if owned_shards.is_empty() {
+        if let Some(materialized) = workflows
+            .materialize_next_queued_node_with_fencing(
+                DISPATCHER_LEASE_OWNER,
+                DISPATCH_LEASE_SECONDS,
+                fencing_token,
+            )
+            .await?
+        {
+            crate::notification::emit_workflow_notification_node_requested_best_effort(
+                notifications,
+                workflows,
+                &materialized,
+            )
+            .await;
+        }
+        dispatch_broadcast_attempts(
+            jobs,
+            instances,
+            attempts,
+            outbox,
             workflows,
-            &materialized,
+            scripts,
+            logs,
+            audit,
+            registry,
+            notifications,
         )
-        .await;
+        .await?;
     }
-    dispatch_broadcast_attempts(
-        jobs,
-        instances,
-        attempts,
-        outbox,
-        workflows,
-        scripts,
-        logs,
-        audit,
-        registry,
-        notifications,
-    )
-    .await?;
     dispatch_single_instances(
         jobs,
         instances,

@@ -1,176 +1,186 @@
 ---
-title: Server 高可用与集群模式
-description: Tikeo Server 高可用如何工作、为什么当前生产默认是 Raft 单 Leader + gateway，以及何时才考虑后续分片所有权。
-keywords: [tikeo server 高可用, raft, active passive, kubernetes ha, worker tunnel failover, 分布式调度]
+title: Server 高可用与 FSOD 集群模式
+description: Tikeo Server 如何通过 Raft fencing、shard ownership 投影、durable Worker dispatch outbox、Worker Tunnel gateway 和 Kubernetes failover 实现高可用。
+keywords: [tikeo server ha, raft, fsod, worker dispatch outbox, kubernetes ha, worker tunnel failover, distributed scheduler]
 ---
 
-# Server 高可用与集群模式
+# Server 高可用与 FSOD 集群模式
 
-Tikeo Server 当前实现的是 **Raft 单 Leader 调度 + 多 Pod Worker Tunnel Gateway**。你可以运行多个 Server Pod 来获得控制面高可用，Worker 可以连接到任意 Server Pod；只有被选出的 Leader 做调度决策。如果选中的 Worker 连接在另一个 Pod 上，Leader 会通过内部 server-to-server relay 把任务转给持有该长连接的 gateway Pod。
+Tikeo Server HA 基于 **FSOD：Fenced Slot Outbox Dispatch**。在 Kubernetes Raft 模式下，Server Pod 组成 Raft group；被选出的 Leader 持久化 fencing token，把调度 shard ownership 投影到共享数据库，并在派发 Worker 前先写入 `worker_dispatch_outbox`。Worker Tunnel 长连接可以落到任意 Server Pod；持有 stream 的 Pod 是 gateway，只投递属于自己 `gateway_node_id` 的 outbox 行。
 
-这页是 Server HA 取舍的说明页。提高 `server.replicas` 或引入外部分布式锁之前，先看这里。
+本版本的生产默认策略是保守且安全的：当前 Raft Leader 会把所有 active scheduler shard 投影给自己。存储层和 dispatcher 已支持 follower shard-owner claim，并有测试覆盖；但自动多 owner shard balancing 要等 Raft-applied membership 与健康决策升级为生产 rebalancer 后再启用，避免把 shard 分给刚故障的 Pod。
 
-## 部署架构图
+## 部署架构
 
 ```mermaid
 flowchart LR
-  subgraph WorkerNetworks[Worker 网络：应用命名空间、VPC、VM、边缘节点]
+  subgraph Workers[业务网络]
     W1[Worker SDK 进程]
     W2[Worker SDK 进程]
   end
 
   subgraph K8s[Kubernetes namespace: tikeo]
-    WT[Worker Tunnel Service 或 Gateway
-gRPC HTTP2]
     API[HTTP API Service
-REST 与 SSE]
+REST + SSE]
+    WT[Worker Tunnel Service / Gateway
+gRPC HTTP/2]
     HS[tikeo-server-headless
 Raft peer DNS]
-
-    subgraph SS[StatefulSet tikeo-server]
-      S0[tikeo-server-0
-Raft node]
-      S1[tikeo-server-1
-Raft node]
-      S2[tikeo-server-2
-Raft node]
-    end
-
     Web[Tikeo Web]
+
+    subgraph SS[StatefulSet/tikeo-server]
+      S0[tikeo-server-0
+API + Raft + Gateway]
+      S1[tikeo-server-1
+API + Raft + Gateway]
+      S2[tikeo-server-2
+API + Raft + Gateway]
+    end
   end
 
-  DB[(外部 DB
-PostgreSQL MySQL CockroachDB)]
+  DB[(外部数据库
+PostgreSQL / MySQL / CockroachDB)]
   Secret[Raft transport token Secret]
-  Human[操作员与 SDK 管理客户端]
 
-  W1 -->|主动出站 OpenTunnel| WT
-  W2 -->|主动出站 OpenTunnel| WT
+  W1 -->|OpenTunnel outbound| WT
+  W2 -->|OpenTunnel outbound| WT
   WT --> S0
   WT --> S1
   WT --> S2
-  Human --> API
-  Human --> Web
+  Web --> API
   API --> S0
   API --> S1
   API --> S2
   S0 <-->|Raft append entries| HS
   S1 <-->|Raft append entries| HS
   S2 <-->|Raft append entries| HS
-  S0 --> DB
-  S1 --> DB
-  S2 --> DB
+  S0 <--> DB
+  S1 <--> DB
+  S2 <--> DB
   Secret --> S0
   Secret --> S1
   Secret --> S2
 ```
 
-这个图里最重要的不是 Pod 数量，而是所有权：所有 Server Pod 都是活跃控制面成员，也都可以作为 Worker Tunnel gateway，但任意时刻只有一个 Raft Leader 拥有调度决策权。
+## FSOD 派发流程
 
 ```mermaid
-stateDiagram-v2
-  [*] --> Standalone: cluster.mode=standalone
-  Standalone --> SingleOwner: 单进程拥有调度
-  [*] --> RaftMode: server.cluster.mode=raft
-  RaftMode --> Election: StatefulSet peers 启动
-  Election --> LeaderActive: 选出 Leader 且持久化 fencing token
-  LeaderActive --> GatewayAccepted: Worker 可连接任意 Server Pod
-  GatewayAccepted --> RelayDispatch: Leader 经由持有连接的 gateway 派发
-  RelayDispatch --> LeaderActive: result/log/checkpoint 经 fencing 校验后持久化
-  LeaderActive --> Election: Leader 死亡
+sequenceDiagram
+  participant C as SDK / Web / API client
+  participant A as 任意 API Pod
+  participant L as Raft Leader / shard owner
+  participant DB as 共享 DB
+  participant G as Worker gateway Pod
+  participant W as Worker stream
+
+  C->>A: 触发 API job
+  A->>DB: 写入 job_instance + dispatch_queue shard metadata
+  A-->>C: 返回 instance id
+  L->>DB: 用 owner_epoch + fencing token claim owned shard
+  L->>DB: 持久化 attempt assignment_token + worker_dispatch_outbox
+  L-->>G: 可选 wake-up / internal relay hint
+  G->>DB: claim gateway_node_id 对应 outbox
+  G-->>W: 携带 assignment_token 的 DispatchTask
+  W-->>G: log / checkpoint / result
+  G->>DB: 校验 assignment token 并标记 outbox completed
 ```
 
-## 集群模式选择
+FSOD 不变量：
 
-```mermaid
-flowchart TD
-  A[是否需要超过一个 Server Pod?] -->|否| B[使用 standalone]
-  A -->|是| C[使用 Raft 单 Leader + gateway]
-  C --> D[外部 DB + StatefulSet + headless peer Service]
-  D --> E[一个 Leader 调度；Follower 服务 API health Raft transport]
-  E --> F{是否有实测调度瓶颈?}
-  F -->|否| G[保持 单 Leader gateway]
-  F -->|是| H[设计 Raft shard ownership 和 epoch fencing]
-  H --> I[不要用 Redis 或 Dragonfly lock 做核心所有权]
-```
+1. **Fenced**：调度所有权、queue claim、outbox、Worker progress 都带 epoch/token 校验。
+2. **Slot**：每个 job dispatch queue 行都有 `shard_id`、`shard_map_version`、`shard_count`。
+3. **Outbox**：`DispatchTask` 不是唯一派发事实；stream 投递前必须先持久化 `worker_dispatch_outbox`。
+4. **Dispatch**：gateway 只投递自己持有 stream 的 outbox；sender handle 只是进程内缓存，不是业务事实。
 
-## 当前已经实现了什么
+## 当前已实现能力
 
 | 能力 | 当前行为 |
 | --- | --- |
-| 多 Pod Server 部署 | Helm `server.cluster.mode=raft` 会渲染 `StatefulSet`、稳定 Pod 名称和 headless peer Service。 |
-| 共识与所有权 | Server Pod 组成 Raft 组。只有被选出的 Leader 且持久化 fencing token 后才会报告 `canSchedule=true`。 |
-| 调度循环 | 只有调度 Leader 运行 schedule、dispatch、retry、notification delivery 等所有权敏感循环。Follower 跳过这些循环。 |
-| Worker Tunnel 注册 | Raft 模式下任意 Server Pod 都可以作为 gateway 接受 Worker Tunnel 注册。session 会记录 `gateway_node_id`，调度 Leader 据此把任务路由到持有 live stream 的 Pod。 |
-| Worker 执行 | Worker 仍然部署在 Server chart 之外，主动出站连接 Worker Tunnel；不需要 Worker 入站 Service。跨 Pod 派发使用内部 server-to-server relay。 |
-| 外部分布式锁 | 核心调度所有权不使用 Redis/Dragonfly/SQL advisory lock。 |
-| 多活调度 | 当前没有启用。代码中有纯 Raft/fencing shard 决策模型用于未来受控实现，但运行时 shard 调度会等到有实测瓶颈后再开启。 |
+| 多 Pod Server 部署 | Helm `server.cluster.mode=raft` 渲染 `StatefulSet`、稳定 Pod 名称和 `tikeo-server-headless`。 |
+| Consensus 与 fencing | Raft runtime 选出一个 Leader；只有持久化 leader fencing token 的节点报告 `canSchedule=true`。 |
+| Shard ownership 投影 | Leader 把配置的 scheduler shard 写入 `cluster_shard_ownership`，包含 `shard_map_version`、`shard_count`、`epoch`、`raft_term` 和 fencing token。 |
+| 安全默认 shard 策略 | 所有 active shard 投影给当前 Leader。follower shard-owner dispatch 已实现和测试，但自动多 owner balancing 暂不默认启用。 |
+| Dispatch queue fencing | API/job dispatch queue 行持久化 shard map 字段；claim 可绑定 `owner_epoch` 与 `owner_fencing_token`，旧 token 会被拒绝。 |
+| Durable Worker dispatch | 派发前先创建 assignment token 和 `worker_dispatch_outbox`，再做 stream delivery 或 internal relay hint。 |
+| Outbox recovery | Gateway 按 `gateway_node_id` 扫描；无 ack/result 的 delivered 行通过 visibility timeout 重新 queued；Worker 重连可按 `logical_instance_id` + generation reroute。 |
+| LASSO worker scoring | 候选 Worker 按 local gateway、Worker authority、dispatch key rendezvous spread、worker id tie-break 排序。 |
+| Worker Tunnel gateway | 任意 Server Pod 都能接收 Worker Tunnel registration；`worker_sessions.gateway_node_id` 记录 live stream 所在 Pod。 |
+| Web/API 负载均衡 | 业务数据从共享 DB 读取；节点本地接口显式标识 responding node。 |
+| 外部锁 | 核心调度正确性不依赖 Redis/Dragonfly/SQL advisory lock。 |
 
-## 为什么先做 单 Leader gateway
+## 模式选择
 
-Tikeo 有两个不同问题：
+```mermaid
+flowchart TD
+  A[需要 Server Pod failover?] -->|否| B[Standalone]
+  A -->|是| C[Raft FSOD HA]
+  C --> D[StatefulSet + headless Service + 外部 DB + transport Secret]
+  D --> E[Leader 投影 shard ownership 并写 durable outbox]
+  E --> F{需要更高 dispatch 吞吐?}
+  F -->|否| G[保持安全的 Leader-owned projection]
+  F -->|是| H[未来启用 Raft-applied shard rebalancer]
+  H --> I[仍不把 Redis/Dragonfly lock 作为正确性依赖]
+```
 
-1. **控制面可用性**：一个 Server Pod 死掉后，API/集群能否恢复？
-2. **调度并行度**：多个 Server Pod 能否同时安全地 claim 不同任务？
+| 模式 | 运行方式 | 适用场景 | 不适用场景 |
+| --- | --- | --- | --- |
+| Standalone | `cluster.mode=standalone`，单 Server | 本地开发、demo、小型单节点 VM | 需要 Server Pod failover |
+| Raft FSOD HA | `server.cluster.mode=raft`、StatefulSet、外部 DB、transport token | 生产 K8s HA、durable outbox dispatch、Worker gateway failover | 只是在 standalone Deployment 上扩副本 |
+| Multi-owner shard balancing | 本版本默认不启用 | 未来有明确 scheduler bottleneck 且具备 Raft-applied health/rebalancer | 无法接受 shard ownership 变更风险 |
+| Redis/Dragonfly lock scheduling | 不是 Tikeo core mode | 只能作为可选缓存/加速 | 核心调度所有权 |
 
-当前功能解决第一个问题，并且对第二个问题保持保守。这是为了避免调度系统最危险的故障：重复派发、split-brain ownership、旧 lease 继续生效、多个 Pod 同时认为自己拥有同一队列。
+## 优势
 
-## 优点
-
-| 优点 | 意义 |
+| 优势 | 意义 |
 | --- | --- |
-| 所有权语义强 | Raft term + 持久化 fencing token 提供可观察的所有权证据，而不是隐式的 best-effort DB lock。 |
-| 故障切换更安全 | 旧 Leader 死亡后停止拥有 dispatch；新 Leader 必须被选出并 fencing 后才恢复调度。 |
-| 运维更简单 | 只需要一个 `StatefulSet`、headless Service、外部 DB 和 transport-token Secret；不需要为了调度所有权再运维 Redis/Dragonfly 集群。 |
-| 降低重复派发风险 | 只有一个 Server 拥有 schedule/dispatch 循环，队列 claim 不依赖多个活跃调度器正确竞争。 |
-| Worker Tunnel 模型清晰 | Leader 拥有调度决策；任意 Pod 都可作为 gateway 持有 live Worker stream。持久化 `gateway_node_id` + 内部 relay 保证本地 sender 不成为调度真相。 |
-| 后续扩展路径保留 | 如果吞吐确实需要多活，可以在同一个 Raft/fencing 模型内增加 shard ownership。 |
+| 可恢复派发意图 | gateway 或 relay 失败不会丢失 Worker/attempt 选择，outbox 可查询、可重试。 |
+| 强 fencing | Raft term、owner epoch、queue owner fencing、assignment token、Worker generation 共同拒绝旧写入。 |
+| Worker 连接 locality | LASSO 优先本地 gateway，但不绕过 outbox，兼顾低延迟和可恢复性。 |
+| 无外部锁依赖 | 不需要 Redis/Dragonfly 才能保证调度所有权正确。 |
+| Web/API 可正常走 Service | 业务事实来自 DB；节点本地视图显式标识。 |
+| 清晰扩展路径 | schema 和 dispatcher 已支持 per-shard owner；多 owner balancing 是后续 rebalancer 问题，不是重写。 |
 
-## 限制与代价
+## 限制与取舍
 
 | 限制 | 运维含义 | 缓解方式 |
 | --- | --- | --- |
-| 只有一个 active scheduler | 增加 Server Pod 提升 HA，但不会线性提升调度吞吐。 | 先度量队列压力；只有 Leader 成为瓶颈时才实现 Raft shard ownership。 |
-| Follower 是 gateway，不是 scheduler | Follower 可以持有 Worker Tunnel stream，但不 claim 队列、不做调度决策。 | Worker Tunnel 通过 gRPC/HTTP2 Service/Gateway 暴露；内部 peer endpoint 必须能被 Leader relay 访问。 |
-| 故障切换不是瞬时 | 选举期间调度暂停，直到新 Leader 持久化 fencing token。 | 使用正常 retry policy，并监控 cluster status/queue age。 |
-| 需要稳定身份 | Raft Pod 需要稳定名称和 peer DNS；普通 `Deployment` 不足以做生产多 Pod Server HA。 | 使用 Helm Raft overlay 或 `deploy/k8s/tikeo-raft-ha.yaml`。 |
-| 需要外部 DB | 多 Pod HA 不能依赖单 Pod 本地 SQLite 文件。 | 使用 PostgreSQL、MySQL 或 CockroachDB 兼容外部存储。 |
-| 内部 relay 行为很关键 | Worker 可能连接在非 Leader Pod 上。 | 配好 `cluster.peers[].endpoint` 与 `cluster.transport_token`，允许 Pod 到 Pod 的内部 HTTP relay。 |
+| 默认 Leader-owned shard projection | 更多 Server Pod 提升 HA、Worker gateway 分布和 API 容量，但默认不提升 dispatch 决策吞吐。 | 启用未来多 owner 前先观察 queue age 和 DB claim latency。 |
+| Workflow materialization 与 broadcast 仍由 Leader 负责 | Follower shard-owner dispatch 只 claim owned shard 的 job-instance queue。 | workflow/broadcast 在单独 fencing 模型完成前保持 Leader-owned。 |
+| Failover 不是瞬时 | Raft election 期间调度暂停，直到新 Leader 持久化 fencing 并投影 shard。 | 使用 retry policy，监控 queue/outbox age，升级后跑 failover smoke。 |
+| 需要稳定身份 | Raft 需要 StatefulSet pod name 和 headless peer DNS。 | 使用 Helm Raft overlay 或 `deploy/k8s/tikeo-raft-ha.yaml`。 |
+| 需要外部 DB | 多 Pod HA 不能用 Pod-local SQLite。 | 使用 PostgreSQL、MySQL 或 CockroachDB-compatible 存储。 |
+| 长连接网络层很关键 | Worker Tunnel 是 gRPC/HTTP2，Web 使用 SSE。 | 按 [SSE 实时刷新部署注意事项](./sse-realtime) 配置 ingress/LB/WAF，并保证 Worker Tunnel 支持 HTTP/2。 |
 
-## 部署模式
+## 配置参考
 
-| 模式 | 如何运行 | 适用场景 | 不适用场景 |
-| --- | --- | --- | --- |
-| Standalone | `cluster.mode=standalone`，一个 Server 进程/Pod | 本地开发、演示、小型单节点 VM | 需要 Server Pod 故障切换 |
-| Raft 单 Leader + gateway | `server.cluster.mode=raft`、`StatefulSet`、外部 DB、transport token | 生产 Kubernetes HA 和安全 Server failover | 期望每个 Pod 分摊一部分任务调度 |
-| 未来 Raft shard ownership | 当前未在运行时启用 | 实测证明单 Leader 调度/派发吞吐不足 | 只是想“多 Pod 看起来更强”，但没有吞吐证据 |
-| Redis/Dragonfly lock 调度 | 不是 Tikeo 核心调度模式 | 不适用 | 核心调度所有权；它会破坏 Raft/fencing 设计目标 |
+| 配置 / 环境变量 | 默认值 | 生产建议 |
+| --- | --- | --- |
+| `cluster.mode` / `TIKEO__CLUSTER__MODE` | `standalone` | 多 Pod HA 设置为 `raft`。 |
+| `cluster.node_id` / `TIKEO__CLUSTER__NODE_ID` | `tikeo-standalone` | K8s Raft 模式使用 StatefulSet Pod 名。 |
+| `cluster.peers[]` | 空 | 配置所有 StatefulSet peer endpoint，例如 `http://tikeo-server-0.tikeo-server-headless:9090`。 |
+| `cluster.transport_token` / `TIKEO__CLUSTER__TRANSPORT_TOKEN` | 空 | 内部 Raft/relay route 必需，放入 K8s Secret。 |
+| `cluster.scheduler_shard_map_version` | `1` | 只能通过计划内 shard-map migration 变更。 |
+| `cluster.scheduler_shard_count` | `64` | 同一 map version 下所有 Pod 必须一致。 |
+| `storage.database_url` / `TIKEO__STORAGE__DATABASE_URL` | SQLite dev path | Raft HA 使用外部 PostgreSQL/MySQL/CockroachDB。 |
+| `server.worker_tunnel_addr` | `0.0.0.0:9998` | 通过支持 gRPC/HTTP2 的 Service/Gateway 暴露。 |
 
 ## 前置条件
 
-启用 Raft Server HA 前，先准备这些生产依赖，而不是只修改副本数：
+启用 Raft FSOD HA 前请准备：
 
-- **外部数据库**：PostgreSQL、MySQL 或 CockroachDB 兼容存储，所有 Server Pod 都必须连接同一个 schema。多 Pod HA 不要使用 Pod 本地 SQLite。
-- **稳定 Server 身份**：Server 必须以 `StatefulSet` 运行，并配套稳定 Pod 名称与 headless peer Service。普通 Kubernetes `Deployment` 不满足 Raft peer identity 要求。
-- **Raft transport Secret**：创建高熵 `tikeo-raft-transport` Secret，并作为 `TIKEO__CLUSTER__TRANSPORT_TOKEN` 注入每个 Server Pod。
-- **Worker Tunnel 网络**：Worker Tunnel 必须通过支持 gRPC/HTTP2 的 Service、Gateway 或 ingress 路径暴露。API 路径可以承载 REST 与 SSE，但 Worker Tunnel stream 不能被降级为 HTTP/1.1。
-- **网络层行为**：nginx、LB、WAF、Kubernetes ingress/gateway controller 不能缓冲、改写或过早关闭长连接 SSE 与 gRPC stream。REST/SSE API 路径参考 [SSE 实时刷新部署说明](./sse-realtime)，具体 ingress 注解参考 Kubernetes controller runbook。
-- **Web/API 负载均衡**：普通 REST 和 SSE 请求可能落到不同 Server Pod。业务页面读取共享存储，不需要 sticky session 也应该稳定。`/api/v1/cluster` 这类节点本地状态明确表示“当前响应 Pod 视角”；全局集群 UI 应使用 `/api/v1/cluster/diagnostics`、`respondingNode` 字段和 `x-tikeo-node-id` 响应头。
-- **Worker 重连策略**：使用支持 stream 断开、Server Pod failover 后重连的 SDK 版本。Follower 不会仅因为自己不是 Leader 就拒绝注册；它们会作为 Worker Tunnel gateway。
-- **运维 smoke test**：发布期间至少保留一个真实 Worker，用真实任务验证 failover，而不是只看 Pod readiness。
+- 所有 Server Pod 共享的外部 PostgreSQL、MySQL 或 CockroachDB-compatible 存储。
+- StatefulSet 稳定身份和 headless peer Service；不能只扩普通 Deployment 副本。
+- `tikeo-raft-transport` Secret，并以 `TIKEO__CLUSTER__TRANSPORT_TOKEN` 注入。
+- 支持 gRPC/HTTP2 的 Worker Tunnel 网络路径。
+- 对 Web 实时页面友好的 SSE API 网络路径。
+- 至少一个真实 Worker 用于 failover 验收，而不只看 Kubernetes readiness。
 
 ## 验收
 
-同时做渲染清单检查和运行时检查。rollout 变绿只证明 Pod 启动，不证明调度所有权安全。
-
-先渲染 Helm 输出：
+渲染 Helm overlay：
 
 ```bash
-helm template tikeo ./deploy/helm/tikeo \
-  --namespace tikeo \
-  -f deploy/helm/tikeo/examples/values-external-postgres.yaml \
-  -f deploy/helm/tikeo/examples/values-raft-ha.yaml \
-  | grep -E 'kind: StatefulSet|tikeo-server-headless|TIKEO__CLUSTER__MODE|TIKEO__CLUSTER__TRANSPORT_TOKEN'
+helm template tikeo ./deploy/helm/tikeo   --namespace tikeo   -f deploy/helm/tikeo/examples/values-external-postgres.yaml   -f deploy/helm/tikeo/examples/values-raft-ha.yaml   | grep -E 'kind: StatefulSet|tikeo-server-headless|TIKEO__CLUSTER__MODE|TIKEO__CLUSTER__TRANSPORT_TOKEN'
 ```
 
 安装或升级后：
@@ -181,119 +191,103 @@ kubectl -n tikeo get pods -l app.kubernetes.io/component=server -o wide
 kubectl -n tikeo get svc tikeo-server-headless
 ```
 
-然后从管理/API endpoint 验证集群所有权。应该只有一个 Server 报告 `canSchedule=true`；Follower 可以存在，但不能调度：
+检查 diagnostics 与 FSOD metrics：
 
 ```bash
-curl -fsS "$TIKEO_SERVER_URL/api/v1/cluster/diagnostics" \
-  -H "x-tikeo-api-key: $TIKEO_MANAGEMENT_API_KEY" \
-  | jq '{respondingNode: .data.respondingNode.nodeId, nodes: [.data.nodes[] | {nodeId, canSchedule, isRespondingNode, currentTerm}]}'
+curl -fsS "$TIKEO_SERVER_URL/api/v1/cluster/diagnostics"   -H "x-tikeo-api-key: $TIKEO_MANAGEMENT_API_KEY"   | jq '{respondingNode: .data.respondingNode.nodeId, nodes: [.data.nodes[] | {nodeId, canSchedule, currentTerm}]}'
+
+curl -fsS "$TIKEO_SERVER_URL/api/v1/metrics/summary"   -H "x-tikeo-api-key: $TIKEO_MANAGEMENT_API_KEY"   | jq '{queue: .data.queue, outbox: .data.outbox, shardOwnership: .data.shard_ownership}'
 ```
 
-最后用真实 Worker 验证 Worker Tunnel。local/e2e 环境下，可以复用 failover smoke，并跳过已构建二进制的重新构建：
+期望证据：
+
+- 只有一个节点报告 `canSchedule=true`；
+- `shardOwnership.active` 大于 0；
+- dispatch 后 `outbox.total` 增加，terminal 行最终进入 completed；
+- worker-pool quota backpressure 时能看到 `queue.blockedByQuota`。
+
+本地端到端证据：
 
 ```bash
-TIKEO_RAFT_WORKER_E2E_KEEP=0 \
-TIKEO_RAFT_WORKER_E2E_REBUILD_SERVER=0 \
-scripts/raft-worker-failover-e2e.sh
+TIKEO_RAFT_WORKER_E2E_KEEP=0 TIKEO_RAFT_WORKER_E2E_REBUILD_SERVER=0 scripts/raft-worker-failover-e2e.sh
 ```
 
-期望结果是：Worker 可通过任意 Server Pod 注册、failover 前任务成功、杀死 Leader、选出新 Leader、必要时经由 Worker gateway relay 派发、failover 后任务成功。
+脚本会在 `.dev/reports/<run-id>/` 写入：
+
+- `<run-id>.json` 最终 smoke report；
+- `*-cases.jsonl` 逐项 pass/fail；
+- `fsod-db-*.json`：`cluster_shard_ownership`、`worker_sessions`、`worker_dispatch_outbox`、`dispatch_queue` 快照；
+- `metrics-*.json`：`/api/v1/metrics/summary` 快照；
+- `cluster-diagnostics-*.json`：`/api/v1/cluster/diagnostics` 快照；
+- Server、Worker、TCP proxy 日志。
 
 ## Kubernetes 安装摘要
 
-不要只提高 `server.replicas`，应使用已提交的 Raft overlay：
-
 ```bash
-kubectl -n tikeo create secret generic tikeo-raft-transport \
-  --from-literal=transport-token="$(openssl rand -hex 32)"
+kubectl -n tikeo create secret generic tikeo-raft-transport   --from-literal=transport-token="$(openssl rand -hex 32)"
 
-helm upgrade --install tikeo ./deploy/helm/tikeo \
-  --namespace tikeo \
-  --create-namespace \
-  -f deploy/helm/tikeo/examples/values-external-postgres.yaml \
-  -f deploy/helm/tikeo/examples/values-raft-ha.yaml
+helm upgrade --install tikeo ./deploy/helm/tikeo   --namespace tikeo --create-namespace   -f deploy/helm/tikeo/examples/values-external-postgres.yaml   -f deploy/helm/tikeo/examples/values-raft-ha.yaml
 
 kubectl -n tikeo rollout status statefulset/tikeo-server
 ```
 
-预期渲染结果：
+渲染结果应包含：
 
-- `StatefulSet/tikeo-server`，不是 `Deployment/tikeo-server`。
-- `Service/tikeo-server-headless`，用于稳定 peer DNS。
-- `TIKEO__CLUSTER__MODE=raft`。
-- `TIKEO__CLUSTER__NODE_ID` 来自 Pod 名称。
-- `TIKEO__CLUSTER__TRANSPORT_TOKEN` 来自 Secret。
-- 所有 Pod 共用外部 DB Secret。
+- `StatefulSet/tikeo-server`，不是 `Deployment/tikeo-server`；
+- `Service/tikeo-server-headless`；
+- `TIKEO__CLUSTER__MODE=raft`；
+- 从 Pod 名注入的 `TIKEO__CLUSTER__NODE_ID`；
+- 来自 Secret 的 `TIKEO__CLUSTER__TRANSPORT_TOKEN`；
+- 所有 Server Pod 共享的外部 DB Secret。
 
-## Worker Tunnel gateway 与故障切换行为
-
-Raft 模式下，Worker Tunnel 是 gateway surface，不再是 Leader-only surface：
+## Worker Tunnel gateway 与 failover
 
 ```mermaid
 sequenceDiagram
   participant W as Worker SDK
-  participant LB as Worker Tunnel Service 或 Gateway
+  participant LB as Worker Tunnel Service / Gateway
   participant G as Gateway Server Pod
   participant L as Raft Leader Server
   participant DB as 外部 DB
 
   W->>LB: OpenTunnel RegisterWorker
   LB->>G: 路由到任意 Server Pod
-  G->>DB: 持久化 worker session，gateway_node_id=G
+  G->>DB: 持久化 worker session 与 gateway_node_id=G
   G-->>W: WorkerRegistered
-  L->>DB: 选择 eligible online worker 与 gateway_node_id
-  L->>G: internal relay DispatchTask
-  G-->>W: 通过本地 live stream 下发 DispatchTask
+  L->>DB: LASSO 选择 worker 并持久化 outbox
+  L-->>G: 可选 wake-up / internal relay hint
+  G->>DB: claim gateway_node_id=G 的 outbox
+  G-->>W: 通过本地 stream 下发 DispatchTask
   W-->>G: TaskLog / TaskCheckpoint / TaskResult
-  G->>DB: assignment token/fencing 校验后持久化
-  L-xL: Leader 死亡
-  W-->>G: 如果 G 仍存活，stream 可保持
-  L->>DB: 新 Leader 带 fencing token 当选
-  L->>G: 后续派发继续经 owning gateway relay
+  G->>DB: assignment-token fencing 校验并持久化
+  L-xL: Leader 故障
+  G-->>W: 如果 gateway 存活，stream 可保持
+  DB->>L: 新 Leader 持久化 fencing 并投影 shards
+  L->>DB: 后续 dispatch 继续走 outbox
 ```
 
-1. Worker 主动向 Worker Tunnel endpoint 打开 gRPC/HTTP2 stream。
-2. Service/Gateway 可以把 stream 路由到任意 Server Pod，包括 Follower。
-3. gateway Pod 持久化 session，并写入 `gateway_node_id`、generation、lease、fencing token。
-4. 只有 Raft Leader claim 队列并决定 assignment。
-5. 如果选中的 Worker 连接在另一个 Pod 上，Leader 调用该 gateway Pod 的 internal relay endpoint，gateway 再把 `DispatchTask` 写入自己的本地 gRPC stream。
-6. Task log、checkpoint、result 必须通过持久化 assignment token/fencing 校验后才会改变状态。
-7. 如果 Leader 挂了但 Worker gateway Pod 仍存活，Worker stream 不需要迁移；新 Leader 会继续通过记录的 gateway 派发。如果 gateway Pod 挂了，Worker SDK 重连并持久化新的 `gateway_node_id`。
-
-因此，`cluster.peers[].endpoint` 与 `cluster.transport_token` 不只是 Raft transport 配置，也是 Worker Tunnel HA relay 路径的一部分。endpoint 必须能被 Pod 到 Pod 访问，internal relay route 不得在缺少 transport token 的情况下暴露。
-
-## 何时才考虑后续 shard ownership
-
-不要因为存在多个 Pod 就直接做分片调度。只有生产证据显示单个调度 Leader 是瓶颈时才考虑，例如：
-
-- Worker 可用但 queue age 持续增长；
-- Leader 的 dispatch loop CPU 或 DB claim latency 饱和；
-- API/Web/Worker Tunnel 容量正常，但调度 claim 吞吐不足。
-
-未来 shard 实现也必须保持 Raft/fencing：
-
-- 确定性 shard key，例如 `hash(namespace/app/job_or_workflow_id) % shard_count`；
-- Raft-applied assignment command 和单调 epoch；
-- 每个 shard 独立 fencing token；
-- failover/rebalance 后拒绝旧 token；
-- 可观察的 rebalance 事件和回滚路径。
+如果 Worker gateway Pod 故障，SDK 会重连，`worker_sessions.generation` 递增，outbox reroute 会更新到新的 `gateway_node_id` 后重试投递。
 
 ## 故障排查
 
 | 现象 | 可能原因 | 检查方式 |
 | --- | --- | --- |
-| 超过一个 Pod 报告 `canSchedule=true` | fencing 失效或配置混用 | 暂停发布，检查 `TIKEO__CLUSTER__MODE`、node id、Raft term、DB fencing 记录，并确认所有 Pod 使用同一个外部 DB。 |
-| 没有 Pod 报告 `canSchedule=true` | Raft 无法选举或无法持久化所有权 | 检查 headless DNS、peer address、transport token、外部 DB 连通性，以及 Pod 日志中的 election/persistence 错误。 |
-| Worker 一直重连但无法注册 | 网络层破坏 gRPC，或 gateway Pod 无法持久化 session | 检查 Service/Gateway endpoint、HTTP/2 支持、ingress 注解、LB health check、DB 连通性和 Worker SDK 重连日志。 |
-| failover 后 Job 持续排队 | 新 Leader 没有 fencing 成功、relay 无法访问记录的 gateway，或 Worker session 丢失 | 查询 `/api/v1/cluster/diagnostics`，检查 queue age，确认 `worker_sessions.gateway_node_id`，检查 internal relay token/endpoint，并跑一次 management trigger smoke。 |
-| 单 Pod 正常，三 Pod 失败 | 使用了本地 SQLite、普通 Deployment 或缺失 headless peer Service | 确认外部 DB、`StatefulSet/tikeo-server`、稳定 Pod 名称和 `tikeo-server-headless`。 |
-| API SSE 仪表盘频繁断开 | Proxy buffering、WAF idle timeout 或 HTTP/1.1 downgrade | 应用 SSE 实时刷新网络配置，并把 API/SSE 问题与 Worker Tunnel gRPC 检查分开处理。 |
+| 多个 Pod 报告 `canSchedule=true` | Raft fencing 或配置混乱 | 暂停 rollout；检查 `TIKEO__CLUSTER__MODE`、Pod node id、Raft term、metadata row、共享 DB URL。 |
+| 没有 Pod 报告 `canSchedule=true` | Raft 无法选举或无法持久化 ownership | 检查 headless DNS、peer address、transport token、DB 连通性和 Server 日志。 |
+| `shardOwnership.active` 为 0 | Leader 尚未投影 shard ownership | 检查 `/api/v1/cluster`、Raft term、`cluster.scheduler_shard_count`、migration 状态和 DB 写入错误。 |
+| failover 后 Job 排队 | 新 Leader 未选出/未投影、outbox 无法到 gateway、Worker session 丢失 | 查看 `cluster-diagnostics`、`metrics.summary`、`fsod-db-*.json`、`worker_sessions.gateway_node_id` 和 Server 日志。 |
+| Outbox 停在 `delivered` | Worker 未在 visibility timeout 前 ack/log/result | 等待 requeue，检查 Worker 连接、assignment token 校验和 delivery loop 日志。 |
+| Worker 一直重连 | Worker Tunnel HTTP/2/gRPC 链路被破坏 | 检查 Gateway/Ingress 协议、LB idle timeout、TLS/mTLS 和 SDK reconnect 日志。 |
+| API 页面不同 Pod 看起来不同 | 把节点本地 endpoint 当成全局事实 | 业务页面使用 DB-backed API 和 `/api/v1/cluster/diagnostics`；`/api/v1/cluster` 是本地视图。 |
+| SSE 仪表盘频繁断开 | Proxy buffering 或 idle timeout | 应用 [SSE 实时刷新部署注意事项](./sse-realtime)。 |
 
 ## 生产检查清单
 
 - [ ] 单 Server 使用 `standalone`。
-- [ ] 生产多 Pod Server HA 使用 `raft` + StatefulSet + 外部 DB。
-- [ ] 不用 Redis/Dragonfly lock 做核心调度所有权。
+- [ ] 多 Pod Server HA 使用 `raft` + StatefulSet + 外部 DB。
+- [ ] 所有 Pod 的 `cluster.scheduler_shard_map_version` 和 `cluster.scheduler_shard_count` 一致。
+- [ ] 不使用 Redis/Dragonfly lock 做核心调度所有权。
 - [ ] 确认只有一个节点报告 `canSchedule=true`。
-- [ ] failover 后用真实 Worker 验证：Worker 可连接任意 gateway Pod，且能收到 Leader 派发。
-- [ ] 考虑 shard ownership 前先监控 queue age。
+- [ ] 确认 `/api/v1/metrics/summary` 暴露 queue、outbox、shard ownership。
+- [ ] 发布前运行 `scripts/raft-worker-failover-e2e.sh` 并归档 `.dev/reports/<run-id>/`。
+- [ ] 用真实 Worker 验证 Leader failover 后仍能重连并完成任务。

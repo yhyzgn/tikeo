@@ -286,6 +286,12 @@ impl RaftRepository {
         Self { db }
     }
 
+    /// Clone the underlying database handle for repositories that need the same transaction scope.
+    #[must_use]
+    pub fn db(&self) -> DatabaseConnection {
+        self.db.clone()
+    }
+
     /// Upsert local Raft metadata by `node_id`.
     pub async fn upsert_metadata(
         &self,

@@ -641,6 +641,48 @@ async fn raft_inprocess_membership_proposal_commits_and_applies_member() {
     assert!(metadata.conf_state.is_some());
 }
 
+#[tokio::test]
+async fn raft_leader_status_projects_all_shards_to_current_leader() {
+    let repository = test_raft_repository_for("tikeo-0").await;
+    let config = ClusterConfig {
+        mode: ClusterModeConfig::Raft,
+        node_id: "tikeo-0".to_owned(),
+        peers: vec![
+            ClusterPeerConfig {
+                node_id: "tikeo-0".to_owned(),
+                endpoint: "http://tikeo-0.tikeo-headless:9999".to_owned(),
+            },
+            ClusterPeerConfig {
+                node_id: "tikeo-1".to_owned(),
+                endpoint: "http://tikeo-1.tikeo-headless:9999".to_owned(),
+            },
+        ],
+        transport_token: None,
+        scheduler_shard_map_version: 3,
+        scheduler_shard_count: 4,
+    };
+    let mut raw = test_raw_node_from_ids("tikeo-0", vec![raft_numeric_id("tikeo-0")]);
+    raw.raft.become_candidate();
+    raw.raft.become_leader();
+    let status = Arc::new(RwLock::new(test_cluster_status("tikeo-0", 2)));
+
+    update_runtime_status(&config, &repository, &raw, &status)
+        .await
+        .unwrap_or_else(|error| panic!("status update should project shards: {error}"));
+
+    let runtime = status.read().await.clone();
+    assert!(runtime.can_schedule);
+    let ownership = tikeo_storage::ClusterShardOwnershipRepository::new(repository.db())
+        .list()
+        .await
+        .unwrap_or_else(|error| panic!("ownership should list: {error}"));
+    assert_eq!(ownership.len(), 4);
+    assert!(ownership.iter().all(|row| row.owner_node_id == "tikeo-0"));
+    assert!(ownership.iter().all(|row| row.shard_map_version == 3));
+    assert!(ownership.iter().all(|row| row.shard_count == 4));
+    assert!(ownership.iter().all(|row| row.epoch == 1));
+}
+
 fn test_raft_config() -> ClusterConfig {
     ClusterConfig {
         mode: ClusterModeConfig::Raft,
@@ -655,6 +697,23 @@ fn test_raft_config() -> ClusterConfig {
                 endpoint: "http://tikeo-1.tikeo-headless:9999".to_owned(),
             },
         ],
+        transport_token: None,
+        scheduler_shard_map_version: 1,
+        scheduler_shard_count: 64,
+    }
+}
+
+fn test_raft_config_for(node_id: &str, node_ids: &[&str]) -> ClusterConfig {
+    ClusterConfig {
+        mode: ClusterModeConfig::Raft,
+        node_id: node_id.to_owned(),
+        peers: node_ids
+            .iter()
+            .map(|peer| ClusterPeerConfig {
+                node_id: (*peer).to_owned(),
+                endpoint: format!("http://{peer}.tikeo-headless:9999"),
+            })
+            .collect(),
         transport_token: None,
         scheduler_shard_map_version: 1,
         scheduler_shard_count: 64,
@@ -700,6 +759,7 @@ fn test_raw_node(
 }
 
 struct TestRaftNode {
+    config: ClusterConfig,
     raw: raft::raw_node::RawNode<raft::storage::MemStorage>,
     repository: RaftRepository,
     status: Arc<RwLock<ClusterStatus>>,
@@ -720,6 +780,7 @@ impl TestRaftCluster {
             nodes.insert(
                 (*node_id).to_owned(),
                 TestRaftNode {
+                    config: test_raft_config_for(node_id, node_ids),
                     raw: test_raw_node_from_ids(node_id, voter_ids.clone()),
                     repository: test_raft_repository_for(node_id).await,
                     status: Arc::new(RwLock::new(test_cluster_status(node_id, node_ids.len()))),
@@ -791,7 +852,7 @@ impl TestRaftCluster {
 
 async fn process_test_ready(node_id: &str, node: &mut TestRaftNode) -> Vec<raft::eraftpb::Message> {
     if !node.raw.has_ready() {
-        update_runtime_status(node_id, &node.repository, &node.raw, &node.status)
+        update_runtime_status(&node.config, &node.repository, &node.raw, &node.status)
             .await
             .unwrap_or_else(|error| {
                 panic!("test raft storage/status operation should succeed: {error}")
@@ -858,7 +919,7 @@ async fn process_test_ready(node_id: &str, node: &mut TestRaftNode) -> Vec<raft:
     if let Some(applied) = light_applied {
         node.raw.advance_apply_to(applied);
     }
-    update_runtime_status(node_id, &node.repository, &node.raw, &node.status)
+    update_runtime_status(&node.config, &node.repository, &node.raw, &node.status)
         .await
         .unwrap_or_else(|error| panic!("test raft status update should succeed: {error}"));
     messages

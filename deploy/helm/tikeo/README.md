@@ -53,22 +53,31 @@ The chart injects the secret as `TIKEO__STORAGE__DATABASE_URL`, which overrides 
 
 ## Server Raft HA
 
-For production multi-pod Server HA, set `server.cluster.mode=raft` and use Raft mode with an external database. The detailed architecture diagrams, pros/cons, mode selection, and Worker Tunnel failover semantics live in `docs/docs/deployment/server-ha.md`.
+For production multi-pod Server HA, set `server.cluster.mode=raft` and use Raft mode with an external database. The public deployment runbook is [Server HA and cluster modes](https://docs.tikeo.net/docs/deployment/server-ha); the repo-local source is `docs/docs/deployment/server-ha.md`.
 
-Summary trade-off: Raft mode gives Server pod failover and strong fencing, but it is active-passive for scheduling today. Extra Server pods do not split task scheduling throughput until a future Raft shard-ownership runtime is implemented and verified.
+Current behavior is FSOD-backed safe HA, not naive replica scheduling:
 
-The chart renders the Server as a `StatefulSet`, creates a headless peer Service, injects a stable pod name as `TIKEO__CLUSTER__NODE_ID`, and reads the internal Raft transport token from a Kubernetes Secret. This is an active-passive scheduling model: all Server pods participate in Raft, but only the elected Leader with a persisted fencing token runs schedule/dispatch/retry ownership loops.
+- The chart renders the Server as a `StatefulSet`, creates a headless peer Service, injects a stable pod name as `TIKEO__CLUSTER__NODE_ID`, and reads the internal Raft transport token from a Kubernetes Secret.
+- Only the elected Leader with a persisted fencing token runs workflow materialization, broadcast dispatch, retry, and default queue ownership loops.
+- FSOD persists Worker dispatch intent in `worker_dispatch_outbox` before stream delivery. Gateway relay is a wake-up/hint path; reconnect, reroute, and visibility timeout recovery use durable rows instead of pod memory.
+- The Leader projects configured scheduler shards into `cluster_shard_ownership`. The follower shard-owner claim path is implemented and tested, but automatic multi-owner balancing is gated until membership/health rebalancing is Raft-applied.
+- More Server pods improve failover and Worker Tunnel connection distribution today; they do not yet linearly split scheduling-decision throughput.
 
 Create the transport token Secret separately:
 
 ```bash
-kubectl -n tikeo create secret generic tikeo-raft-transport   --from-literal=transport-token="$(openssl rand -hex 32)"
+kubectl -n tikeo create secret generic tikeo-raft-transport \
+  --from-literal=transport-token="$(openssl rand -hex 32)"
 ```
 
 Install the Raft HA overlay with an external database Secret:
 
 ```bash
-helm upgrade --install tikeo ./deploy/helm/tikeo   --namespace tikeo --create-namespace   -f deploy/helm/tikeo/examples/values-external-postgres.yaml   -f deploy/helm/tikeo/examples/values-raft-ha.yaml
+helm upgrade --install tikeo ./deploy/helm/tikeo \
+  --namespace tikeo \
+  --create-namespace \
+  -f deploy/helm/tikeo/examples/values-external-postgres.yaml \
+  -f deploy/helm/tikeo/examples/values-raft-ha.yaml
 ```
 
 Relevant values:
@@ -82,9 +91,20 @@ server:
     peerPort: 9090
     transportTokenExistingSecret: tikeo-raft-transport
     transportTokenSecretKey: transport-token
+    schedulerShardMapVersion: 1
+    schedulerShardCount: 64
 ```
 
-Do not use Redis or Dragonfly distributed locks for core scheduler ownership. If Server-side scheduling later needs multi-active scale-out, add Raft/fencing shard ownership instead of an external lock service.
+Operational checks:
+
+```bash
+kubectl -n tikeo rollout status statefulset/tikeo-server
+kubectl -n tikeo exec statefulset/tikeo-server -- tikeo server cluster status
+```
+
+For release validation or incident drills, run `scripts/raft-worker-failover-e2e.sh`. It stores API, metrics, and DB snapshots under `.dev/reports/...`, including `cluster_shard_ownership`, `worker_sessions`, `worker_dispatch_outbox`, and `dispatch_queue` evidence.
+
+Do not use Redis or Dragonfly distributed locks for core scheduler ownership. Optional cache or pub/sub infrastructure may accelerate surrounding features, but scheduler correctness must stay anchored in Raft fencing, shard ownership, durable outbox rows, and assignment/result fencing.
 
 ## TLS and mTLS
 

@@ -915,16 +915,17 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
   --create-namespace   --values ./my-tikeo-values.yaml
 ```
 
-If you plan to run more than one Server pod, do not treat it as a normal replica bump. Use the Raft HA overlay and read the dedicated deployment guide first: [Server HA and cluster modes](https://docs.tikeo.net/docs/deployment/server-ha). It includes the topology diagrams, mode comparison, Worker Tunnel gateway relay behavior, failover behavior, and the current single-Leader scheduling trade-off.
+If you plan to run more than one Server pod, do not treat it as a normal replica bump. Use the Raft HA overlay and read the dedicated deployment guide first: [Server HA and cluster modes](https://docs.tikeo.net/docs/deployment/server-ha). It is the canonical runbook for topology diagrams, mode comparison, FSOD dispatch durability, Worker Tunnel gateway relay, failover behavior, and the current scheduling-throughput boundary.
 
 Current production HA semantics:
 
-| Topic | Current behavior | Trade-off |
+| Topic | Current behavior | Operational meaning |
 | --- | --- | --- |
-| Server HA | Raft single-Leader scheduling with `StatefulSet` and `tikeo-server-headless`. | More Server pods improve failover and Worker Tunnel connection distribution, not scheduling-decision parallelism. |
-| Scheduling owner | Exactly one elected Leader reports `canSchedule=true` and runs schedule/dispatch/retry loops. | Followers can be Worker Tunnel gateways but do not claim queues or decide assignments. |
-| Worker Tunnel | Workers may connect to any Server Pod; the session records `gateway_node_id`, and the Leader relays dispatch through the owning gateway when needed. | Worker Tunnel exposure must support gRPC/HTTP2; internal peer endpoints and `cluster.transport_token` must be configured for relay. |
-| External locks | Redis/Dragonfly locks are intentionally not used for core scheduler ownership. | Future multi-active scheduling must use Raft shard ownership with fencing. |
+| Server HA | Safe default is **Raft single-Leader scheduling** with `StatefulSet` and `tikeo-server-headless`. | **More Server pods improve failover and Worker Tunnel connection distribution**, while dispatch ownership remains fenced by the elected Leader. |
+| Dispatch durability | FSOD persists dispatch intent in `worker_dispatch_outbox` before any stream delivery. | If a gateway, relay, or Worker stream breaks, queued/delivered outbox rows can reroute or requeue instead of disappearing in pod memory. |
+| Shard ownership | The runtime projects configured scheduler shards into `cluster_shard_ownership` under the current Leader fencing token. | Followers have a tested shard-owner claim path, but automatic multi-owner balancing is intentionally gated until Raft-applied health/membership rebalancing exists. |
+| Worker Tunnel | Workers may connect to any Server Pod; the session records `gateway_node_id`, and the Leader uses local delivery or internal relay hints through the owning gateway. | Worker Tunnel exposure must support gRPC/HTTP2; internal peer endpoints and `cluster.transport_token` must be configured for relay. |
+| External locks | Redis/Dragonfly locks are intentionally not used for core scheduler ownership. | Optional caches can accelerate surrounding features, but scheduler correctness comes from Raft fencing, shard ownership, durable outbox, and DB terminal-state fencing. |
 
 ```bash
 kubectl -n tikeo create secret generic tikeo-raft-transport \

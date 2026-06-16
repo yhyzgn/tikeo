@@ -1,7 +1,7 @@
 # FSOD Scheduler HA 改造开发计划
 
-状态：Active
-最后更新：2026-06-16（Phase 1 ✅；Phase 2 ✅；Phase 3 ✅；Phase 4 ✅；验证：cargo test -p tikeo-config；cargo test -p tikeo-storage；cargo test -p tikeo-server tunnel::dispatcher -- --nocapture；cargo test -p tikeo-server registry_lasso -- --nocapture；cargo test -p tikeo-server metrics_summary_reports_storage_registry_and_alert_counts -- --nocapture；cargo clippy -p tikeo-server --all-targets -- -D warnings；python .github/tests/docs_site_contract_test.py）
+状态：Phase 5 本地验证通过，等待远程 CI / v0.3.x 发布
+最后更新：2026-06-16（Phase 1 ✅；Phase 2 ✅；Phase 3 ✅；Phase 4 ✅；Phase 5 ✅；本地验证与 Raft Worker failover E2E 强断言通过，等待远程 CI 与 v0.3.x 发布证据）
 设计依据：`design/non-lock-distribution-high-performance-scheduler-platform.md`
 
 ## 目标
@@ -58,10 +58,10 @@
 
 ### Phase 5：文档、迁移和运维闭环
 
-- [ ] 5.1 README / docs 更新 FSOD 阶段、配置项、运维限制。
-- [ ] 5.2 DB migration 兼容旧库和 SQLite dev DB。
-- [ ] 5.3 增加排障 runbook 与 metrics 说明。
-- [ ] 5.4 K8s/e2e failover 脚本覆盖 outbox/reroute。
+- [x] 5.1 ✅ README / docs 更新 FSOD 阶段、配置项、运维限制，并提供公开文档站直达链接。
+- [x] 5.2 ✅ DB migration 兼容旧库和 SQLite dev DB：worker_dispatch_outbox、dispatch_queue shard 字段、cluster_shard_ownership 均有实体/迁移/仓储测试覆盖。
+- [x] 5.3 ✅ 增加排障 runbook 与 metrics 说明：README、docs server-ha、Helm/K8s README 均说明 FSOD evidence、metrics、cluster diagnostics 和生产检查项。
+- [x] 5.4 ✅ K8s/e2e failover 脚本覆盖 outbox/reroute：scripts/raft-worker-failover-e2e.sh 采集 API metrics、cluster diagnostics 与 DB 快照。
 
 验收：用户仅看 README/docs 即可理解部署模式、限制、故障恢复和验证步骤。
 
@@ -75,7 +75,16 @@ Phase 4 Locality-Aware Scoring 已完成：
 4. ✅ dispatch queue SLO summary / Prometheus 新增 `blocked_by_quota` 可观测性，覆盖 worker pool quota backpressure。
 5. ✅ 验证：`cargo test -p tikeo-config`、`cargo test -p tikeo-storage`、`cargo test -p tikeo-server tunnel::dispatcher -- --nocapture`、`cargo test -p tikeo-server registry_lasso -- --nocapture`、`cargo test -p tikeo-server metrics_summary_reports_storage_registry_and_alert_counts -- --nocapture`、`cargo clippy -p tikeo-server --all-targets -- -D warnings`、`python .github/tests/docs_site_contract_test.py`。
 
-下一推进切片：Phase 5 文档、迁移和运维闭环（README/docs/runbook、DB 兼容说明、K8s/e2e failover 脚本）。
+下一推进切片：提交、推送、发布 v0.3.x 并保存远程流水线证据。
+
+
+## Phase 5 完成摘要
+
+1. ✅ Raft Leader 获得持久 fencing token 后，会把配置的 scheduler shards 投影到 `cluster_shard_ownership`；安全默认仍为当前 Leader 拥有全部 active shards，避免静态 peer 投影在 Pod 故障后把 shard 分配给不可用节点。
+2. ✅ follower shard-owner claim 路径保留并有测试覆盖，但 workflow materialization 与 broadcast dispatch 仍由 Leader 路径负责；自动多 owner 均衡等待 Raft-applied health/membership rebalancer。
+3. ✅ `scripts/raft-worker-failover-e2e.sh` 会在关键阶段保存 `metrics-*.json`、`cluster-diagnostics-*.json` 和 `fsod-db-*.json`，用于验收 outbox/reroute/shard ownership。
+4. ✅ README、文档站、Helm README、raw K8s README 均说明 FSOD 架构、优缺点、部署边界、故障切换、metrics/runbook 与 evidence 目录。
+5. ✅ 验证证据保存于 `.dev/reports/fsod-phase5-20260616T104152Z/`：包含 Rust 测试、clippy、docs/helm 合同、E2E shell 校验、完整 Raft Worker failover E2E 和 outbox/shard ownership invariant 摘要。
 
 ## 风险与控制
 

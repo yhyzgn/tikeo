@@ -25,8 +25,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tikeo_config::ClusterConfig;
 use tikeo_storage::{
-    RaftLogEntrySummary, RaftRepository, RecordRaftAppliedCommand, UpsertRaftLogEntry,
-    UpsertRaftMember, UpsertRaftMetadata, UpsertRaftSnapshot,
+    ClusterShardOwnershipRepository, RaftLogEntrySummary, RaftRepository, RecordRaftAppliedCommand,
+    UpsertClusterShardOwnership, UpsertRaftLogEntry, UpsertRaftMember, UpsertRaftMetadata,
+    UpsertRaftSnapshot,
 };
 use tokio::sync::{Mutex, RwLock, mpsc, oneshot};
 use tracing::{debug, warn};
@@ -245,7 +246,7 @@ impl RaftRuntimeCoordinator {
         if let (Some(node), Some(transport)) = (node, transport) {
             persist_role_metadata(&repository, &config.node_id, role).await?;
             spawn_runtime_loop(
-                config.node_id.clone(),
+                config.clone(),
                 status.clone(),
                 repository,
                 node,
@@ -476,7 +477,7 @@ fn decode_conf_state(conf_state: &str) -> Result<ConfState, tikeo_storage::DbErr
 }
 
 fn spawn_runtime_loop(
-    node_id: String,
+    config: ClusterConfig,
     status: Arc<RwLock<ClusterStatus>>,
     repository: RaftRepository,
     node: RawNode<MemStorage>,
@@ -485,13 +486,13 @@ fn spawn_runtime_loop(
 ) {
     tokio::spawn(async move {
         let node = Arc::new(Mutex::new(node));
-        run_runtime_loop(node_id, status, repository, node, transport, inbox).await;
+        run_runtime_loop(config, status, repository, node, transport, inbox).await;
     });
 }
 
 #[allow(clippy::significant_drop_tightening)]
 async fn run_runtime_loop(
-    node_id: String,
+    config: ClusterConfig,
     status: Arc<RwLock<ClusterStatus>>,
     repository: RaftRepository,
     node: Arc<Mutex<RawNode<MemStorage>>>,
@@ -505,7 +506,7 @@ async fn run_runtime_loop(
                 let mut guard = node.lock().await;
                 guard.tick();
                 trigger_autonomous_campaign(&mut guard);
-                if let Err(error) = process_ready(&node_id, &repository, &mut guard, &status, &transport).await {
+                if let Err(error) = process_ready(&config, &repository, &mut guard, &status, &transport).await {
                     warn!(%error, "raft-rs Ready processing failed");
                 }
             }
@@ -517,14 +518,14 @@ async fn run_runtime_loop(
                         if let Err(error) = guard.step(message) {
                             warn!(%error, "raft-rs message step failed");
                         }
-                        if let Err(error) = process_ready(&node_id, &repository, &mut guard, &status, &transport).await {
+                        if let Err(error) = process_ready(&config, &repository, &mut guard, &status, &transport).await {
                             warn!(%error, "raft-rs Ready processing failed");
                         }
                     }
                     RaftRuntimeCommand::MembershipProposal { proposal, respond_to } => {
                         let mut guard = node.lock().await;
                         let response = propose_membership_change_to_runtime(
-                            &node_id,
+                            &config,
                             &repository,
                             &mut guard,
                             &status,
@@ -565,14 +566,15 @@ fn is_lowest_known_voter(node: &RawNode<MemStorage>) -> bool {
 }
 
 async fn process_ready(
-    node_id: &str,
+    config: &ClusterConfig,
     repository: &RaftRepository,
     node: &mut RawNode<MemStorage>,
     status: &Arc<RwLock<ClusterStatus>>,
     transport: &RaftPeerTransport,
 ) -> Result<(), tikeo_storage::DbErr> {
+    let node_id = &config.node_id;
     if !node.has_ready() {
-        update_runtime_status(node_id, repository, node, status).await?;
+        update_runtime_status(config, repository, node, status).await?;
         return Ok(());
     }
 
@@ -629,7 +631,7 @@ async fn process_ready(
     if let Some(applied) = light_applied {
         node.advance_apply_to(applied);
     }
-    update_runtime_status(node_id, repository, node, status).await?;
+    update_runtime_status(config, repository, node, status).await?;
     Ok(())
 }
 
@@ -846,7 +848,7 @@ fn build_membership_conf_change(proposal: &RaftMembershipProposal) -> Result<Con
 }
 
 async fn propose_membership_change_to_runtime(
-    node_id: &str,
+    config: &ClusterConfig,
     repository: &RaftRepository,
     node: &mut RawNode<MemStorage>,
     status: &Arc<RwLock<ClusterStatus>>,
@@ -882,7 +884,7 @@ async fn propose_membership_change_to_runtime(
             "raft-rs propose_conf_change rejected membership proposal: {error}"
         ));
     }
-    if let Err(error) = process_ready(node_id, repository, node, status, transport).await {
+    if let Err(error) = process_ready(config, repository, node, status, transport).await {
         return RaftMembershipProposalSubmission::unavailable(format!(
             "raft-rs Ready processing failed after membership proposal: {error}"
         ));
@@ -1221,11 +1223,12 @@ impl RaftCommandApply {
 }
 
 async fn update_runtime_status(
-    node_id: &str,
+    config: &ClusterConfig,
     repository: &RaftRepository,
     node: &RawNode<MemStorage>,
     status: &Arc<RwLock<ClusterStatus>>,
 ) -> Result<(), tikeo_storage::DbErr> {
+    let node_id = &config.node_id;
     let raft_status = node.status();
     let role = cluster_role_from_raft(raft_status.ss.raft_state);
     let leader_fencing_token = leader_fencing_token_for_role(role, node_id, raft_status.hs.term);
@@ -1238,7 +1241,16 @@ async fn update_runtime_status(
     writable.can_schedule = role == ClusterRole::Leader
         && leader_fencing_token.is_some()
         && persisted_token == leader_fencing_token;
-    writable.leader_fencing_token = persisted_token;
+    writable.leader_fencing_token.clone_from(&persisted_token);
+    if writable.can_schedule {
+        project_leader_shard_ownership(
+            config,
+            repository,
+            raft_status.hs.term,
+            persisted_token.as_deref(),
+        )
+        .await?;
+    }
     writable.detail = format!(
         "{RAFT_RS_LIBRARY} runtime active: raft_role={}, term={}, commit={}, applied={}; scheduling requires persisted leader fencing token",
         raft_role_name(raft_status.ss.raft_state),
@@ -1246,6 +1258,34 @@ async fn update_runtime_status(
         raft_status.hs.commit,
         raft_status.applied
     );
+    Ok(())
+}
+
+async fn project_leader_shard_ownership(
+    config: &ClusterConfig,
+    repository: &RaftRepository,
+    raft_term: u64,
+    leader_fencing_token: Option<&str>,
+) -> Result<(), tikeo_storage::DbErr> {
+    let Some(_leader_fencing_token) = leader_fencing_token else {
+        return Ok(());
+    };
+    let shard_count = config.scheduler_shard_count.max(1);
+    let shard_map_version = config.scheduler_shard_map_version.max(1);
+    let shard_repository = ClusterShardOwnershipRepository::new(repository.db());
+    for shard_id in 0..shard_count {
+        let _ = shard_repository
+            .upsert_newer(UpsertClusterShardOwnership {
+                shard_id,
+                shard_map_version,
+                shard_count,
+                owner_node_id: config.node_id.clone(),
+                epoch: i64::try_from(raft_term).unwrap_or(i64::MAX),
+                raft_term: i64::try_from(raft_term).unwrap_or(i64::MAX),
+                lease_seconds: Some(30),
+            })
+            .await?;
+    }
     Ok(())
 }
 
