@@ -125,7 +125,7 @@ async fn management_client_creates_and_triggers_api_job() {
                 )
             };
             let response = format!(
-                "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\n\r\n{body}",
+                "HTTP/1.1 {status}\r\ncontent-type: application/json\r\nconnection: close\r\ncontent-length: {}\r\n\r\n{body}",
                 body.len()
             );
             stream
