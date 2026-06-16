@@ -7,12 +7,12 @@ use tikeo_config::{
     AuthConfig, ObservabilityConfig, ScriptGovernanceConfig, TransportSecurityConfig,
 };
 use tikeo_storage::{
-    AlertRepository, AuditLogRepository, AuthSessionRepository, JobInstanceAttemptRepository,
-    JobInstanceLogRepository, JobInstanceRepository, JobRepository, NotificationChannelRepository,
-    NotificationDeliveryAttemptRepository, NotificationMessageRepository,
-    NotificationPolicyRepository, NotificationTemplateRepository, PluginRepository, RaftRepository,
-    RbacRepository, ScriptRepository, UserRepository, WorkerDispatchOutboxRepository,
-    WorkerLifecycleRepository, WorkflowRepository,
+    AlertRepository, AuditLogRepository, AuthSessionRepository, ClusterShardOwnershipRepository,
+    JobInstanceAttemptRepository, JobInstanceLogRepository, JobInstanceRepository, JobRepository,
+    NotificationChannelRepository, NotificationDeliveryAttemptRepository,
+    NotificationMessageRepository, NotificationPolicyRepository, NotificationTemplateRepository,
+    PluginRepository, RaftRepository, RbacRepository, ScriptRepository, UserRepository,
+    WorkerDispatchOutboxRepository, WorkerLifecycleRepository, WorkflowRepository,
 };
 
 use super::{
@@ -49,6 +49,7 @@ pub struct AppState {
     pub(crate) registry: crate::tunnel::WorkerRegistry,
     pub(crate) worker_lifecycle: WorkerLifecycleRepository,
     pub(crate) worker_dispatch_outbox: WorkerDispatchOutboxRepository,
+    pub(crate) shard_ownership: ClusterShardOwnershipRepository,
     pub(crate) cluster: SharedClusterCoordinator,
     pub(crate) raft_transport_token: Option<String>,
     pub(crate) notification_public_console_base_url: Option<String>,
@@ -82,6 +83,7 @@ impl AppState {
         let plugins = PluginRepository::new(db.clone());
         let worker_lifecycle = WorkerLifecycleRepository::new(db.clone());
         let worker_dispatch_outbox = WorkerDispatchOutboxRepository::new(db.clone());
+        let shard_ownership = ClusterShardOwnershipRepository::new(db.clone());
         let sessions = SessionManager::new(DbMokaSessionStore::new(
             AuthSessionRepository::new(db.clone()),
             RbacRepository::new(db),
@@ -113,6 +115,7 @@ impl AppState {
             registry,
             worker_lifecycle,
             worker_dispatch_outbox,
+            shard_ownership,
             cluster,
             raft_transport_token: None,
             notification_public_console_base_url: None,

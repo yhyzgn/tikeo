@@ -7,6 +7,7 @@ pub mod app;
 pub mod audit_log;
 pub mod auth_session;
 pub mod calendar;
+pub mod cluster_shard_ownership;
 pub mod dispatch_queue;
 pub mod instance_event;
 pub mod job;

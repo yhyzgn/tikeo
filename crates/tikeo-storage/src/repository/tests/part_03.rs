@@ -908,3 +908,178 @@ async fn worker_lifecycle_loads_current_worker_by_logical_instance_for_outbox_re
     assert_eq!(current.gateway_node_id, "gateway-new");
     assert!(current.generation > first.generation);
 }
+
+#[tokio::test]
+async fn cluster_shard_ownership_accepts_only_newer_epoch_and_summarizes_active_owners() {
+    let db = crate::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let ownership = crate::repository::ClusterShardOwnershipRepository::new(db);
+
+    let first = ownership
+        .upsert_newer(crate::repository::UpsertClusterShardOwnership {
+            shard_id: 7,
+            owner_node_id: "pod-a".to_owned(),
+            epoch: 1,
+            raft_term: 3,
+            lease_seconds: Some(30),
+        })
+        .await
+        .unwrap_or_else(|error| panic!("first ownership should persist: {error}"))
+        .unwrap_or_else(|| panic!("first ownership row should be returned"));
+    assert_eq!(first.owner_node_id, "pod-a");
+    assert_eq!(first.fencing_token, "raft-shard:epoch:1:shard:7:node:pod-a");
+
+    let stale = ownership
+        .upsert_newer(crate::repository::UpsertClusterShardOwnership {
+            shard_id: 7,
+            owner_node_id: "pod-b".to_owned(),
+            epoch: 1,
+            raft_term: 4,
+            lease_seconds: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("stale ownership should be ignored safely: {error}"));
+    assert!(stale.is_none());
+
+    let newer = ownership
+        .upsert_newer(crate::repository::UpsertClusterShardOwnership {
+            shard_id: 7,
+            owner_node_id: "pod-b".to_owned(),
+            epoch: 2,
+            raft_term: 4,
+            lease_seconds: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("newer ownership should persist: {error}"))
+        .unwrap_or_else(|| panic!("newer ownership row should be returned"));
+    assert_eq!(newer.owner_node_id, "pod-b");
+    assert_eq!(newer.epoch, 2);
+
+    assert!(
+        !ownership
+            .accepts_fencing_token(7, "pod-a", 1, &first.fencing_token)
+            .await
+            .unwrap_or_else(|error| panic!("stale token check should load: {error}")),
+        "old epoch token must be rejected after failover"
+    );
+    assert!(
+        ownership
+            .accepts_fencing_token(7, "pod-b", 2, &newer.fencing_token)
+            .await
+            .unwrap_or_else(|error| panic!("new token check should load: {error}"))
+    );
+
+    let summary = ownership
+        .summary()
+        .await
+        .unwrap_or_else(|error| panic!("ownership summary should load: {error}"));
+    assert_eq!(summary.total, 1);
+    assert_eq!(summary.active, 1);
+    assert_eq!(summary.max_epoch, 2);
+    assert_eq!(summary.active_by_owner.get("pod-b"), Some(&1));
+}
+
+#[tokio::test]
+async fn dispatch_queue_claim_binds_to_active_shard_owner_epoch_and_token() {
+    use crate::repository::{
+        ClusterShardOwnershipRepository, CreateJob, CreateJobInstance, DispatchQueueShardOwner,
+        JobInstanceRepository, JobRepository, UpsertClusterShardOwnership, WorkflowRepository,
+    };
+    use tikeo_core::{ExecutionMode, TriggerType};
+
+    let db = crate::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let jobs = JobRepository::new(db.clone());
+    let instances = JobInstanceRepository::new(db.clone());
+    let workflows = WorkflowRepository::new(db.clone());
+    let ownership = ClusterShardOwnershipRepository::new(db);
+    let job = jobs
+        .create_job(CreateJob {
+            created_by: None,
+            namespace: "default".to_owned(),
+            app: "billing".to_owned(),
+            name: "sharded-claim".to_owned(),
+            schedule_type: "api".to_owned(),
+            schedule_expr: None,
+            misfire_policy: "fire_once".to_owned(),
+            schedule_start_at: None,
+            schedule_end_at: None,
+            schedule_calendar_json: None,
+            processor_name: None,
+            processor_type: None,
+            script_id: None,
+            enabled: true,
+            canary_job_id: None,
+            canary_percent: 0,
+            retry_policy: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("job should create: {error}"));
+    let instance = instances
+        .create_pending(CreateJobInstance {
+            job_id: job.id,
+            trigger_type: TriggerType::Api,
+            execution_mode: ExecutionMode::Single,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("instance should create: {error}"))
+        .unwrap_or_else(|| panic!("instance should exist"));
+    let queue = workflows
+        .dispatch_queue_for_instance(&instance.id)
+        .await
+        .unwrap_or_else(|error| panic!("dispatch queue should load: {error}"))
+        .unwrap_or_else(|| panic!("dispatch queue should exist"));
+    let shard_id = queue
+        .shard_id
+        .unwrap_or_else(|| panic!("new dispatch queue rows should have a stable shard id"));
+    let owner = ownership
+        .upsert_newer(UpsertClusterShardOwnership {
+            shard_id,
+            owner_node_id: "pod-a".to_owned(),
+            epoch: 11,
+            raft_term: 5,
+            lease_seconds: Some(30),
+        })
+        .await
+        .unwrap_or_else(|error| panic!("ownership should persist: {error}"))
+        .unwrap_or_else(|| panic!("ownership row should be returned"));
+
+    let rejected = workflows
+        .claim_next_job_queue_item_for_shard_owner(
+            DispatchQueueShardOwner {
+                shard_id,
+                owner_node_id: "pod-b".to_owned(),
+                owner_epoch: 11,
+                owner_fencing_token: owner.fencing_token.clone(),
+            },
+            30,
+        )
+        .await
+        .unwrap_or_else(|error| panic!("wrong owner claim should be safe: {error}"));
+    assert!(rejected.is_none());
+
+    let claimed = workflows
+        .claim_next_job_queue_item_for_shard_owner(
+            DispatchQueueShardOwner {
+                shard_id,
+                owner_node_id: owner.owner_node_id.clone(),
+                owner_epoch: owner.epoch,
+                owner_fencing_token: owner.fencing_token.clone(),
+            },
+            30,
+        )
+        .await
+        .unwrap_or_else(|error| panic!("owner claim should load: {error}"))
+        .unwrap_or_else(|| panic!("owner should claim its shard queue item"));
+
+    assert_eq!(claimed.item.id, queue.id);
+    assert_eq!(claimed.item.shard_id, Some(shard_id));
+    assert_eq!(claimed.item.owner_epoch, Some(owner.epoch));
+    assert_eq!(
+        claimed.item.owner_fencing_token.as_deref(),
+        Some(owner.fencing_token.as_str())
+    );
+    assert_eq!(claimed.fencing_token, owner.fencing_token);
+}

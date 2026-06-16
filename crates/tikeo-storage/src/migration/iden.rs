@@ -85,6 +85,9 @@ pub(super) enum DispatchQueue {
     Id,
     JobInstanceId,
     WorkflowNodeInstanceId,
+    ShardId,
+    OwnerEpoch,
+    OwnerFencingToken,
     Priority,
     RunAfter,
     Status,
@@ -97,6 +100,19 @@ pub(super) enum DispatchQueue {
     App,
     WorkerPool,
     CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+pub(super) enum ClusterShardOwnership {
+    Table,
+    ShardId,
+    OwnerNodeId,
+    Epoch,
+    RaftTerm,
+    FencingToken,
+    Status,
+    LeaseExpiresAt,
     UpdatedAt,
 }
 

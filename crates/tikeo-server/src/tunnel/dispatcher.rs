@@ -13,9 +13,11 @@ use tikeo_proto::worker::v1::{
     task_processor_binding,
 };
 use tikeo_storage::{
-    AppendJobInstanceLog, AuditLogRepository, CreateWorkerDispatchOutbox,
-    JobInstanceAttemptRepository, JobInstanceRepository, JobRepository, ScriptRepository,
-    ScriptSummary, ScriptVersionSummary, WorkerDispatchOutboxRepository, WorkflowRepository,
+    AppendJobInstanceLog, AuditLogRepository, ClusterShardOwnershipRepository,
+    ClusterShardOwnershipSummary, CreateWorkerDispatchOutbox, DispatchQueueClaim,
+    DispatchQueueShardOwner, JobInstanceAttemptRepository, JobInstanceRepository, JobRepository,
+    ScriptRepository, ScriptSummary, ScriptVersionSummary, WorkerDispatchOutboxRepository,
+    WorkflowRepository,
 };
 use tokio::time;
 use tonic_prost::prost::Message as _;
@@ -48,6 +50,14 @@ fn dispatcher_fencing_token(node_id: &str, leader_fencing_token: Option<&str>) -
         || format!("standalone:{node_id}:{DISPATCHER_LEASE_OWNER}"),
         |token| format!("raft:{node_id}:{token}"),
     )
+}
+
+fn dispatch_queue_lease_owner(claim: &DispatchQueueClaim) -> &str {
+    claim
+        .item
+        .lease_owner
+        .as_deref()
+        .unwrap_or(&claim.lease_owner)
 }
 
 /// Run the minimal single-node dispatch loop forever.
@@ -104,12 +114,31 @@ async fn dispatch_once_if_owner(
 ) -> Result<(), tikeo_storage::DbErr> {
     let status = cluster.status().await;
     if !status.can_schedule {
-        debug!(role = status.role.as_str(), node_id = %status.node_id, "skip worker dispatch without cluster ownership");
-        return Ok(());
+        let owned_shards = active_shard_ownerships_for_node(workflows, &status.node_id).await?;
+        if owned_shards.is_empty() {
+            debug!(role = status.role.as_str(), node_id = %status.node_id, "skip worker dispatch without cluster ownership");
+            return Ok(());
+        }
+        return dispatch_once_with_shards(
+            jobs,
+            instances,
+            attempts,
+            outbox,
+            workflows,
+            scripts,
+            logs,
+            audit,
+            registry,
+            &status.node_id,
+            "",
+            &owned_shards,
+            notifications,
+        )
+        .await;
     }
     let fencing_token =
         dispatcher_fencing_token(&status.node_id, status.leader_fencing_token.as_deref());
-    dispatch_once(
+    dispatch_once_with_shards(
         jobs,
         instances,
         attempts,
@@ -119,13 +148,30 @@ async fn dispatch_once_if_owner(
         logs,
         audit,
         registry,
+        &status.node_id,
         &fencing_token,
+        &[],
         notifications,
     )
     .await
 }
 
+async fn active_shard_ownerships_for_node(
+    workflows: &WorkflowRepository,
+    node_id: &str,
+) -> Result<Vec<ClusterShardOwnershipSummary>, tikeo_storage::DbErr> {
+    ClusterShardOwnershipRepository::new(workflows.db())
+        .list()
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .filter(|row| row.status == "active" && row.owner_node_id == node_id)
+                .collect()
+        })
+}
+
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 async fn dispatch_once(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,
@@ -137,6 +183,40 @@ async fn dispatch_once(
     audit: &AuditLogRepository,
     registry: &WorkerRegistry,
     fencing_token: &str,
+    notifications: &NotificationCenter,
+) -> Result<(), tikeo_storage::DbErr> {
+    dispatch_once_with_shards(
+        jobs,
+        instances,
+        attempts,
+        outbox,
+        workflows,
+        scripts,
+        logs,
+        audit,
+        registry,
+        DISPATCHER_LEASE_OWNER,
+        fencing_token,
+        &[],
+        notifications,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn dispatch_once_with_shards(
+    jobs: &JobRepository,
+    instances: &JobInstanceRepository,
+    attempts: &JobInstanceAttemptRepository,
+    outbox: &WorkerDispatchOutboxRepository,
+    workflows: &WorkflowRepository,
+    scripts: &ScriptRepository,
+    logs: &tikeo_storage::JobInstanceLogRepository,
+    audit: &AuditLogRepository,
+    registry: &WorkerRegistry,
+    owner_node_id: &str,
+    fencing_token: &str,
+    owned_shards: &[ClusterShardOwnershipSummary],
     notifications: &NotificationCenter,
 ) -> Result<(), tikeo_storage::DbErr> {
     let recovered = workflows
@@ -184,7 +264,9 @@ async fn dispatch_once(
         logs,
         audit,
         registry,
+        owner_node_id,
         fencing_token,
+        owned_shards,
         notifications,
     )
     .await
@@ -194,6 +276,9 @@ struct DurableDispatchIntent<'a> {
     instance_id: &'a str,
     attempt_id: &'a str,
     worker_id: &'a str,
+    shard_id: i64,
+    owner_node_id: &'a str,
+    owner_epoch: i64,
     owner_fencing_token: &'a str,
     task: DispatchTask,
 }
@@ -222,9 +307,9 @@ async fn persist_outbox_then_hint_dispatch(
             gateway_generation: target.generation,
             assignment_token,
             dispatch_payload: encoded_dispatch_payload(&intent.task),
-            shard_id: 0,
-            owner_node_id: DISPATCHER_LEASE_OWNER.to_owned(),
-            owner_epoch: 0,
+            shard_id: intent.shard_id,
+            owner_node_id: intent.owner_node_id.to_owned(),
+            owner_epoch: intent.owner_epoch,
             owner_fencing_token: intent.owner_fencing_token.to_owned(),
             next_delivery_at: None,
         })
@@ -249,17 +334,15 @@ async fn dispatch_single_instances(
     logs: &tikeo_storage::JobInstanceLogRepository,
     audit: &AuditLogRepository,
     registry: &WorkerRegistry,
+    owner_node_id: &str,
     fencing_token: &str,
+    owned_shards: &[ClusterShardOwnershipSummary],
     notifications: &NotificationCenter,
 ) -> Result<(), tikeo_storage::DbErr> {
     for _ in 0..DISPATCH_BATCH_SIZE {
-        let Some(claim) = workflows
-            .claim_next_job_queue_item_with_fencing(
-                DISPATCHER_LEASE_OWNER,
-                DISPATCH_LEASE_SECONDS,
-                fencing_token,
-            )
-            .await?
+        let Some(claim) =
+            claim_next_dispatch_for_owner(workflows, owner_node_id, fencing_token, owned_shards)
+                .await?
         else {
             break;
         };
@@ -268,7 +351,7 @@ async fn dispatch_single_instances(
         };
         let Some(instance) = instances.get(&instance_id).await? else {
             let _ = workflows
-                .mark_dispatch_queue_failed(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                .mark_dispatch_queue_failed(&claim.item.id, dispatch_queue_lease_owner(&claim))
                 .await?;
             warn!(queue_id = %claim.item.id, %instance_id, "closed dispatch queue item for missing job instance");
             continue;
@@ -286,13 +369,13 @@ async fn dispatch_single_instances(
         }
         if !retrying_instance && !instances.claim_pending_for_dispatch(&instance.id).await? {
             let _ = workflows
-                .release_dispatch_queue_item(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                .release_dispatch_queue_item(&claim.item.id, dispatch_queue_lease_owner(&claim))
                 .await?;
             continue;
         }
         let Some(job) = jobs.get(&instance.job_id).await? else {
             let _ = workflows
-                .mark_dispatch_queue_failed(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                .mark_dispatch_queue_failed(&claim.item.id, dispatch_queue_lease_owner(&claim))
                 .await?;
             if let Some(updated) = instances
                 .update_status(&instance.id, InstanceStatus::Failed)
@@ -424,7 +507,7 @@ async fn dispatch_single_instances(
             DispatchTaskBuild::Rejected(failure) => {
                 append_script_governance_log(logs, audit, &instance.id, &failure).await?;
                 let _ = workflows
-                    .mark_dispatch_queue_failed(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                    .mark_dispatch_queue_failed(&claim.item.id, dispatch_queue_lease_owner(&claim))
                     .await?;
                 if let Some(updated) = instances
                     .update_status(&instance.id, InstanceStatus::Failed)
@@ -461,7 +544,7 @@ async fn dispatch_single_instances(
                 let _ = workflows
                     .release_dispatch_queue_item_after(
                         &claim.item.id,
-                        DISPATCHER_LEASE_OWNER,
+                        dispatch_queue_lease_owner(&claim),
                         DISPATCH_RETRY_BACKOFF_SECONDS,
                     )
                     .await?;
@@ -478,7 +561,14 @@ async fn dispatch_single_instances(
                     instance_id: &instance.id,
                     attempt_id: &attempt.id,
                     worker_id,
-                    owner_fencing_token: fencing_token,
+                    shard_id: claim.item.shard_id.map_or(0, i64::from),
+                    owner_node_id,
+                    owner_epoch: claim.item.owner_epoch.unwrap_or(0),
+                    owner_fencing_token: claim
+                        .item
+                        .owner_fencing_token
+                        .as_deref()
+                        .unwrap_or(fencing_token),
                     task,
                 },
             )
@@ -529,7 +619,7 @@ async fn dispatch_single_instances(
                 .await;
             }
             let _ = workflows
-                .mark_dispatch_queue_running(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                .mark_dispatch_queue_running(&claim.item.id, dispatch_queue_lease_owner(&claim))
                 .await?;
             debug!(%worker_id, instance_id = %instance.id, "dispatched instance to worker");
         } else {
@@ -544,7 +634,7 @@ async fn dispatch_single_instances(
                 )
                 .await?;
                 let _ = workflows
-                    .mark_dispatch_queue_failed(&claim.item.id, DISPATCHER_LEASE_OWNER)
+                    .mark_dispatch_queue_failed(&claim.item.id, dispatch_queue_lease_owner(&claim))
                     .await?;
                 if let Some(updated) = instances
                     .update_status(&instance.id, InstanceStatus::Failed)
@@ -574,7 +664,7 @@ async fn dispatch_single_instances(
             let _ = workflows
                 .release_dispatch_queue_item_after(
                     &claim.item.id,
-                    DISPATCHER_LEASE_OWNER,
+                    dispatch_queue_lease_owner(&claim),
                     DISPATCH_RETRY_BACKOFF_SECONDS,
                 )
                 .await?;
@@ -821,6 +911,9 @@ async fn dispatch_broadcast_attempts(
                 instance_id: &attempt.instance_id,
                 attempt_id: &attempt.id,
                 worker_id: &attempt.worker_id,
+                shard_id: 0,
+                owner_node_id: DISPATCHER_LEASE_OWNER,
+                owner_epoch: 0,
                 owner_fencing_token: DISPATCHER_LEASE_OWNER,
                 task,
             },
@@ -1164,6 +1257,47 @@ fn validate_script_policy_for_dispatch(
             .map_err(ScriptDispatchValidationError::from)?;
     }
     Ok(())
+}
+
+async fn claim_next_dispatch_for_owner(
+    workflows: &WorkflowRepository,
+    owner_node_id: &str,
+    fallback_fencing_token: &str,
+    owned_shards: &[ClusterShardOwnershipSummary],
+) -> Result<Option<DispatchQueueClaim>, tikeo_storage::DbErr> {
+    if owned_shards.is_empty() {
+        return workflows
+            .claim_next_job_queue_item_with_fencing(
+                DISPATCHER_LEASE_OWNER,
+                DISPATCH_LEASE_SECONDS,
+                fallback_fencing_token,
+            )
+            .await;
+    }
+    for owner in owned_shards {
+        let Some(claim) = workflows
+            .claim_next_job_queue_item_for_shard_owner(
+                DispatchQueueShardOwner {
+                    shard_id: owner.shard_id,
+                    owner_node_id: owner.owner_node_id.clone(),
+                    owner_epoch: owner.epoch,
+                    owner_fencing_token: owner.fencing_token.clone(),
+                },
+                DISPATCH_LEASE_SECONDS,
+            )
+            .await?
+        else {
+            continue;
+        };
+        debug!(
+            shard_id = owner.shard_id,
+            owner_epoch = owner.epoch,
+            %owner_node_id,
+            "claimed dispatch queue item through shard ownership"
+        );
+        return Ok(Some(claim));
+    }
+    Ok(None)
 }
 
 fn script_processor_binding(

@@ -4,6 +4,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, Set, TransactionTrait, sea_query::Expr,
 };
+use sha2::{Digest, Sha256};
 use tikeo_core::{ExecutionMode, InstanceStatus, TriggerType};
 
 use crate::entities::{app, dispatch_queue, job, job_instance, namespace};
@@ -112,6 +113,9 @@ impl JobInstanceRepository {
         };
 
         let scope = job_scope(&self.db, &parent).await?;
+        let shard_id = scope
+            .as_ref()
+            .map(|(namespace, app, _)| stable_scheduler_shard_id(namespace, app, &parent.id, 64));
         let now = now_rfc3339();
         let txn = self.db.begin().await?;
         let model = job_instance::ActiveModel {
@@ -134,6 +138,9 @@ impl JobInstanceRepository {
                 id: Set(new_id("dq")),
                 job_instance_id: Set(Some(model.id.clone())),
                 workflow_node_instance_id: Set(None),
+                shard_id: Set(shard_id),
+                owner_epoch: Set(None),
+                owner_fencing_token: Set(None),
                 priority: Set(0),
                 run_after: Set(now.clone()),
                 status: Set("pending".to_owned()),
@@ -393,6 +400,24 @@ impl JobInstanceRepository {
             .await
             .map(|model| Some(JobInstanceSummary::from(model)))
     }
+}
+
+fn stable_scheduler_shard_id(
+    namespace: &str,
+    app: &str,
+    durable_id: &str,
+    shard_count: u32,
+) -> i32 {
+    let mut hasher = Sha256::new();
+    hasher.update(namespace.as_bytes());
+    hasher.update([0]);
+    hasher.update(app.as_bytes());
+    hasher.update([0]);
+    hasher.update(durable_id.as_bytes());
+    let digest = hasher.finalize();
+    let mut prefix = [0_u8; 8];
+    prefix.copy_from_slice(&digest[..8]);
+    i32::try_from(u64::from_be_bytes(prefix) % u64::from(shard_count.max(1))).unwrap_or(0)
 }
 
 pub(super) async fn job_scope(

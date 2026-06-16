@@ -386,7 +386,8 @@ async fn ensure_workflow_schema_compatibility(
         r"CREATE TABLE IF NOT EXISTS workflow_instances (id varchar NOT NULL PRIMARY KEY, workflow_id varchar NOT NULL, status varchar NOT NULL, trigger_type varchar NOT NULL, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS workflow_node_instances (id varchar NOT NULL PRIMARY KEY, workflow_instance_id varchar NOT NULL, node_key varchar NOT NULL, status varchar NOT NULL, job_instance_id varchar, child_workflow_instance_id varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS workflow_shards (id varchar NOT NULL PRIMARY KEY, workflow_instance_id varchar NOT NULL, workflow_node_instance_id varchar NOT NULL, node_key varchar NOT NULL, shard_index integer NOT NULL, status varchar NOT NULL, input varchar NOT NULL, output varchar, checkpoint varchar, retry_count integer NOT NULL DEFAULT 0, job_instance_id varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
-        r"CREATE TABLE IF NOT EXISTS dispatch_queue (id varchar NOT NULL PRIMARY KEY, job_instance_id varchar, workflow_node_instance_id varchar, priority integer NOT NULL, run_after varchar NOT NULL, status varchar NOT NULL, attempt integer NOT NULL, lease_owner varchar, lease_until varchar, fencing_token varchar, worker_selector varchar, namespace varchar, app varchar, worker_pool varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
+        r"CREATE TABLE IF NOT EXISTS cluster_shard_ownership (shard_id integer NOT NULL PRIMARY KEY, owner_node_id varchar NOT NULL, epoch bigint NOT NULL, raft_term bigint NOT NULL, fencing_token varchar NOT NULL, status varchar NOT NULL, lease_expires_at varchar, updated_at varchar NOT NULL)",
+        r"CREATE TABLE IF NOT EXISTS dispatch_queue (id varchar NOT NULL PRIMARY KEY, job_instance_id varchar, workflow_node_instance_id varchar, shard_id integer, owner_epoch bigint, owner_fencing_token varchar, priority integer NOT NULL, run_after varchar NOT NULL, status varchar NOT NULL, attempt integer NOT NULL, lease_owner varchar, lease_until varchar, fencing_token varchar, worker_selector varchar, namespace varchar, app varchar, worker_pool varchar, created_at varchar NOT NULL, updated_at varchar NOT NULL)",
         r"CREATE TABLE IF NOT EXISTS instance_events (id varchar NOT NULL PRIMARY KEY, instance_id varchar NOT NULL, instance_type varchar NOT NULL, event_type varchar NOT NULL, message varchar NOT NULL, payload varchar, created_at varchar NOT NULL)",
         "CREATE INDEX IF NOT EXISTS idx_workflows_name ON workflows (name)",
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_workflow_nodes_workflow_key ON workflow_nodes (workflow_id, node_key)",
@@ -395,6 +396,8 @@ async fn ensure_workflow_schema_compatibility(
         "CREATE INDEX IF NOT EXISTS idx_workflow_node_instances_instance ON workflow_node_instances (workflow_instance_id)",
         "CREATE INDEX IF NOT EXISTS idx_workflow_shards_node ON workflow_shards (workflow_node_instance_id)",
         "CREATE INDEX IF NOT EXISTS idx_dispatch_queue_status_run_after ON dispatch_queue (status, run_after)",
+        "CREATE INDEX IF NOT EXISTS idx_cluster_shard_ownership_owner ON cluster_shard_ownership (owner_node_id, status)",
+        "CREATE INDEX IF NOT EXISTS idx_dispatch_queue_shard_due ON dispatch_queue (shard_id, status, run_after)",
         "CREATE INDEX IF NOT EXISTS idx_instance_events_instance_created ON instance_events (instance_id, created_at)",
     ] {
         db.execute(Statement::from_string(DatabaseBackend::Sqlite, sql))
@@ -480,6 +483,25 @@ async fn ensure_workflow_schema_compatibility(
             "ALTER TABLE dispatch_queue ADD COLUMN fencing_token varchar",
         ))
         .await?;
+    }
+    for (column, ddl) in [
+        (
+            "shard_id",
+            "ALTER TABLE dispatch_queue ADD COLUMN shard_id integer",
+        ),
+        (
+            "owner_epoch",
+            "ALTER TABLE dispatch_queue ADD COLUMN owner_epoch bigint",
+        ),
+        (
+            "owner_fencing_token",
+            "ALTER TABLE dispatch_queue ADD COLUMN owner_fencing_token varchar",
+        ),
+    ] {
+        if !sqlite_column_exists(db, "dispatch_queue", column).await? {
+            db.execute(Statement::from_string(DatabaseBackend::Sqlite, ddl))
+                .await?;
+        }
     }
     Ok(())
 }

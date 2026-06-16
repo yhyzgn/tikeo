@@ -135,6 +135,17 @@
             })
             .await
             .unwrap_or_else(|error| panic!("outbox metric row should create: {error}"));
+        tikeo_storage::ClusterShardOwnershipRepository::new(db.clone())
+            .upsert_newer(tikeo_storage::UpsertClusterShardOwnership {
+                shard_id: 0,
+                owner_node_id: "test-node".to_owned(),
+                epoch: 3,
+                raft_term: 7,
+                lease_seconds: Some(30),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("shard ownership metric row should create: {error}"))
+            .unwrap_or_else(|| panic!("shard ownership row should be returned"));
 
         let app = router_with_state(AppState::new(
             jobs,
@@ -192,6 +203,13 @@
         assert_eq!(json["data"]["queue"]["pending"], 2);
         assert_eq!(json["data"]["outbox"]["total"], 1);
         assert_eq!(json["data"]["outbox"]["byStatus"]["queued"], 1);
+        assert_eq!(json["data"]["shard_ownership"]["total"], 1);
+        assert_eq!(json["data"]["shard_ownership"]["active"], 1);
+        assert_eq!(json["data"]["shard_ownership"]["maxEpoch"], 3);
+        assert_eq!(
+            json["data"]["shard_ownership"]["activeByOwner"]["test-node"],
+            1
+        );
         assert_eq!(json["data"]["queue"]["running"], 0);
         assert!(
             json["data"]["queue"]["completedDispatches"]
@@ -1257,4 +1275,3 @@
             config: None,
         }
     }
-

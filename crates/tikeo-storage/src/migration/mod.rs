@@ -6,6 +6,7 @@ mod iden;
 mod indexes;
 mod notification_center;
 mod rbac_role_management;
+mod shard_ownership;
 mod sqlite_compat;
 mod worker_gateway;
 
@@ -20,15 +21,16 @@ use self::{
     },
     iden::{
         AlertDeliveryAttempts, AlertEvents, AlertRules, Apps, AuditLogs, AuthSessions,
-        DispatchQueue, InstanceEvents, JobInstanceAttempts, JobInstanceLogs, JobInstances,
-        JobVersions, Jobs, Namespaces, NotificationChannels, NotificationDeliveryAttempts,
-        NotificationMessages, NotificationPolicies, NotificationTemplates, OidcAuthStates,
-        OidcIdentities, Permissions, Plugins, RaftAppliedCommands, RaftLogEntries, RaftMembers,
-        RaftMembershipProposals, RaftMetadata, RaftSnapshots, RoleMenuPermissions, RolePermissions,
-        RoleUiActionPermissions, Roles, ScheduleCursors, ScriptVersions, Scripts, SdkApiKeys,
-        Secrets, ServiceAccounts, UserRoles, Users, WorkerDispatchOutbox, WorkerLogicalInstances,
-        WorkerPools, WorkerSessionEvents, WorkerSessions, WorkflowEdges, WorkflowInstances,
-        WorkflowNodeInstances, WorkflowNodes, WorkflowShards, Workflows,
+        ClusterShardOwnership, DispatchQueue, InstanceEvents, JobInstanceAttempts, JobInstanceLogs,
+        JobInstances, JobVersions, Jobs, Namespaces, NotificationChannels,
+        NotificationDeliveryAttempts, NotificationMessages, NotificationPolicies,
+        NotificationTemplates, OidcAuthStates, OidcIdentities, Permissions, Plugins,
+        RaftAppliedCommands, RaftLogEntries, RaftMembers, RaftMembershipProposals, RaftMetadata,
+        RaftSnapshots, RoleMenuPermissions, RolePermissions, RoleUiActionPermissions, Roles,
+        ScheduleCursors, ScriptVersions, Scripts, SdkApiKeys, Secrets, ServiceAccounts, UserRoles,
+        Users, WorkerDispatchOutbox, WorkerLogicalInstances, WorkerPools, WorkerSessionEvents,
+        WorkerSessions, WorkflowEdges, WorkflowInstances, WorkflowNodeInstances, WorkflowNodes,
+        WorkflowShards, Workflows,
     },
     indexes::create_indexes,
     sqlite_compat::LegacySqliteSchemaCompatibility,
@@ -51,6 +53,7 @@ impl MigratorTrait for Migrator {
             Box::new(NotificationChannelExamplesCleanupMigration),
             Box::new(WorkerGatewayMigration),
             Box::new(FsodOutboxMigration),
+            Box::new(ShardOwnershipMigration),
         ]
     }
 }
@@ -61,6 +64,7 @@ use notification_center::{
     NotificationTemplatesMigration,
 };
 use rbac_role_management::RbacRoleManagementMigration;
+use shard_ownership::ShardOwnershipMigration;
 use worker_gateway::WorkerGatewayMigration;
 
 #[derive(DeriveMigrationName)]
@@ -93,6 +97,7 @@ impl MigrationTrait for CreateMetadataTables {
         create_script_versions(manager).await?;
         create_workflow_tables(manager).await?;
         create_workflow_shards(manager).await?;
+        create_cluster_shard_ownership(manager).await?;
         create_dispatch_queue(manager).await?;
         create_instance_events(manager).await?;
         create_raft_tables(manager).await?;
@@ -127,6 +132,7 @@ async fn drop_metadata_tables(manager: &SchemaManager<'_>) -> Result<(), DbErr> 
             RaftMetadata::Table.into_iden(),
             InstanceEvents::Table.into_iden(),
             DispatchQueue::Table.into_iden(),
+            ClusterShardOwnership::Table.into_iden(),
             WorkflowNodeInstances::Table.into_iden(),
             WorkflowInstances::Table.into_iden(),
             WorkflowEdges::Table.into_iden(),
@@ -733,6 +739,9 @@ async fn create_dispatch_queue(manager: &SchemaManager<'_>) -> Result<(), DbErr>
                 .col(string_pk(DispatchQueue::Id))
                 .col(string_null(DispatchQueue::JobInstanceId))
                 .col(string_null(DispatchQueue::WorkflowNodeInstanceId))
+                .col(integer_null(DispatchQueue::ShardId))
+                .col(big_integer_null(DispatchQueue::OwnerEpoch))
+                .col(string_null(DispatchQueue::OwnerFencingToken))
                 .col(integer_col(DispatchQueue::Priority))
                 .col(string_col(DispatchQueue::RunAfter))
                 .col(string_col(DispatchQueue::Status))
@@ -746,6 +755,25 @@ async fn create_dispatch_queue(manager: &SchemaManager<'_>) -> Result<(), DbErr>
                 .col(string_null(DispatchQueue::WorkerPool))
                 .col(string_col(DispatchQueue::CreatedAt))
                 .col(string_col(DispatchQueue::UpdatedAt))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn create_cluster_shard_ownership(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    manager
+        .create_table(
+            Table::create()
+                .table(ClusterShardOwnership::Table)
+                .if_not_exists()
+                .col(integer_col(ClusterShardOwnership::ShardId).primary_key())
+                .col(string_col(ClusterShardOwnership::OwnerNodeId))
+                .col(big_integer_col(ClusterShardOwnership::Epoch))
+                .col(big_integer_col(ClusterShardOwnership::RaftTerm))
+                .col(string_col(ClusterShardOwnership::FencingToken))
+                .col(string_col(ClusterShardOwnership::Status))
+                .col(string_null(ClusterShardOwnership::LeaseExpiresAt))
+                .col(string_col(ClusterShardOwnership::UpdatedAt))
                 .to_owned(),
         )
         .await

@@ -46,6 +46,11 @@ pub async fn metrics_summary(
         .summary()
         .await
         .map_err(|error| ApiError::storage(&error))?;
+    let shard_ownership = state
+        .shard_ownership
+        .summary()
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
     let workflows = state
         .workflows
         .workflow_slo_summary()
@@ -54,6 +59,7 @@ pub async fn metrics_summary(
     metrics::with_local_recorder(&*recorder, || {
         record_dispatch_queue_metrics(&queue);
         record_worker_dispatch_outbox_metrics(&outbox);
+        record_shard_ownership_metrics(&shard_ownership);
         record_business_slo_metrics(
             workers_online,
             instances.total,
@@ -83,8 +89,25 @@ pub async fn metrics_summary(
         },
         queue,
         outbox,
+        shard_ownership,
         workflows,
     })))
+}
+
+fn record_shard_ownership_metrics(summary: &tikeo_storage::ClusterShardOwnershipSloSummary) {
+    metrics::gauge!("tikeo_cluster_shard_ownership_rows_total")
+        .set(u64_metric_value(summary.total));
+    metrics::gauge!("tikeo_cluster_shard_ownership_active_total")
+        .set(u64_metric_value(summary.active));
+    metrics::gauge!("tikeo_cluster_shard_ownership_max_epoch")
+        .set(summary.max_epoch.to_string().parse::<f64>().unwrap_or(0.0));
+    for (owner, count) in &summary.active_by_owner {
+        metrics::gauge!(
+            "tikeo_cluster_shard_ownership_active_by_owner",
+            "owner_node_id" => owner.clone()
+        )
+        .set(u64_metric_value(*count));
+    }
 }
 
 fn record_worker_dispatch_outbox_metrics(outbox: &tikeo_storage::WorkerDispatchOutboxSloSummary) {

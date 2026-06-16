@@ -206,6 +206,9 @@ pub struct DispatchQueueSummary {
     pub id: String,
     pub job_instance_id: Option<String>,
     pub workflow_node_instance_id: Option<String>,
+    pub shard_id: Option<i32>,
+    pub owner_epoch: Option<i64>,
+    pub owner_fencing_token: Option<String>,
     pub priority: i32,
     pub run_after: String,
     pub status: String,
@@ -225,6 +228,14 @@ pub struct DispatchQueueClaim {
     pub lease_owner: String,
     pub lease_until: String,
     pub fencing_token: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DispatchQueueShardOwner {
+    pub shard_id: i32,
+    pub owner_node_id: String,
+    pub owner_epoch: i64,
+    pub owner_fencing_token: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]

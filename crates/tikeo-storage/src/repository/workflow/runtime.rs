@@ -6,20 +6,22 @@ use tikeo_core::InstanceStatus;
 
 use super::{
     AdvanceWorkflowInput, CompleteWorkflowShardInput, CompleteWorkflowShardResult,
-    CompletedShardContext, DispatchQueueClaim, DispatchQueueClaimKind, DispatchQueueSloSummary,
-    DispatchQueueSummary, RebalanceWorkflowShardsInput, RebalanceWorkflowShardsResult,
-    RecoverWorkflowNodeInput, RecoverWorkflowNodeResult, ShardCompletionEventInput,
-    WorkflowInstanceSummary, WorkflowJobBindingSummary, WorkflowJobResultOutcome,
-    WorkflowNodeInstanceSummary, WorkflowRepository, WorkflowShardSummary, WorkflowSloSummary,
-    aggregate_shard_node_status, dispatch_queue_age_seconds, elapsed_seconds,
-    insert_shard_completion_event, json_string, maybe_persist_map_reduce_result, new_id, node_kind,
-    normalize_processor_name, normalize_terminal_status, now_rfc3339, rfc3339_after_seconds,
-    success_ratio, update_shard_terminal, workflow_config_i64, workflow_config_string,
+    CompletedShardContext, DispatchQueueClaim, DispatchQueueClaimKind, DispatchQueueShardOwner,
+    DispatchQueueSloSummary, DispatchQueueSummary, RebalanceWorkflowShardsInput,
+    RebalanceWorkflowShardsResult, RecoverWorkflowNodeInput, RecoverWorkflowNodeResult,
+    ShardCompletionEventInput, WorkflowInstanceSummary, WorkflowJobBindingSummary,
+    WorkflowJobResultOutcome, WorkflowNodeInstanceSummary, WorkflowRepository,
+    WorkflowShardSummary, WorkflowSloSummary, aggregate_shard_node_status,
+    dispatch_queue_age_seconds, elapsed_seconds, insert_shard_completion_event, json_string,
+    maybe_persist_map_reduce_result, new_id, node_kind, normalize_processor_name,
+    normalize_terminal_status, now_rfc3339, rfc3339_after_seconds, success_ratio,
+    update_shard_terminal, workflow_config_i64, workflow_config_string,
 };
 use crate::entities::{
     app as app_entity, dispatch_queue, instance_event, job_instance, namespace as namespace_entity,
     workflow_instance, workflow_node_instance, workflow_shard,
 };
+use crate::repository::ClusterShardOwnershipRepository;
 
 impl WorkflowRepository {
     pub async fn expire_timed_out_approval_nodes(&self) -> Result<u64, sea_orm::DbErr> {
@@ -452,6 +454,7 @@ impl WorkflowRepository {
             lease_seconds,
             DispatchQueueClaimKind::Any,
             fencing_token,
+            None,
         )
         .await
     }
@@ -480,6 +483,7 @@ impl WorkflowRepository {
             lease_seconds,
             DispatchQueueClaimKind::WorkflowNode,
             Some(fencing_token),
+            None,
         )
         .await
     }
@@ -504,6 +508,35 @@ impl WorkflowRepository {
             lease_seconds,
             DispatchQueueClaimKind::JobInstance,
             Some(fencing_token),
+            None,
+        )
+        .await
+    }
+
+    pub async fn claim_next_job_queue_item_for_shard_owner(
+        &self,
+        owner: DispatchQueueShardOwner,
+        lease_seconds: i64,
+    ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
+        if !ClusterShardOwnershipRepository::new(self.db.clone())
+            .accepts_fencing_token(
+                owner.shard_id,
+                &owner.owner_node_id,
+                owner.owner_epoch,
+                &owner.owner_fencing_token,
+            )
+            .await?
+        {
+            return Ok(None);
+        }
+        let fencing_token = owner.owner_fencing_token.clone();
+        let owner_node_id = owner.owner_node_id.clone();
+        self.claim_next_dispatch_queue_item_matching(
+            &owner_node_id,
+            lease_seconds,
+            DispatchQueueClaimKind::JobInstance,
+            Some(&fencing_token),
+            Some(owner),
         )
         .await
     }
@@ -514,6 +547,7 @@ impl WorkflowRepository {
         lease_seconds: i64,
         kind: DispatchQueueClaimKind,
         fencing_token: Option<&str>,
+        shard_owner: Option<DispatchQueueShardOwner>,
     ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
         let now = now_rfc3339();
         let mut query = dispatch_queue::Entity::find()
@@ -535,6 +569,9 @@ impl WorkflowRepository {
                 query.filter(dispatch_queue::Column::JobInstanceId.is_not_null())
             }
         };
+        if let Some(owner) = shard_owner.as_ref() {
+            query = query.filter(dispatch_queue::Column::ShardId.eq(owner.shard_id));
+        }
         let candidates = query
             .select_only()
             .column(dispatch_queue::Column::Id)
@@ -556,11 +593,12 @@ impl WorkflowRepository {
         let Some(queue_id) = queue_id else {
             return Ok(None);
         };
-        self.claim_dispatch_queue_item_with_fencing(
+        self.claim_dispatch_queue_item_with_owner_fencing(
             &queue_id,
             lease_owner,
             lease_seconds,
             fencing_token,
+            shard_owner,
         )
         .await
     }
@@ -645,14 +683,36 @@ impl WorkflowRepository {
         lease_seconds: i64,
         fencing_token: Option<&str>,
     ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
+        self.claim_dispatch_queue_item_with_owner_fencing(
+            queue_id,
+            lease_owner,
+            lease_seconds,
+            fencing_token,
+            None,
+        )
+        .await
+    }
+
+    async fn claim_dispatch_queue_item_with_owner_fencing(
+        &self,
+        queue_id: &str,
+        lease_owner: &str,
+        lease_seconds: i64,
+        fencing_token: Option<&str>,
+        shard_owner: Option<DispatchQueueShardOwner>,
+    ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
         let now = now_rfc3339();
         let lease_until = rfc3339_after_seconds(lease_seconds.max(1));
         let fencing_token = fencing_token.map_or_else(
             || format!("lease:{lease_owner}:{queue_id}:{lease_until}"),
             ToOwned::to_owned,
         );
+        let owner_epoch = shard_owner.as_ref().map(|owner| owner.owner_epoch);
+        let owner_fencing_token = shard_owner
+            .as_ref()
+            .map(|owner| owner.owner_fencing_token.clone());
         let txn = self.db.begin().await?;
-        let result = dispatch_queue::Entity::update_many()
+        let mut update = dispatch_queue::Entity::update_many()
             .col_expr(
                 dispatch_queue::Column::LeaseOwner,
                 Expr::value(Some(lease_owner.to_owned())),
@@ -665,13 +725,22 @@ impl WorkflowRepository {
                 dispatch_queue::Column::FencingToken,
                 Expr::value(Some(fencing_token.clone())),
             )
+            .col_expr(dispatch_queue::Column::OwnerEpoch, Expr::value(owner_epoch))
+            .col_expr(
+                dispatch_queue::Column::OwnerFencingToken,
+                Expr::value(owner_fencing_token),
+            )
             .col_expr(
                 dispatch_queue::Column::Attempt,
                 Expr::col(dispatch_queue::Column::Attempt).add(1),
             )
             .col_expr(dispatch_queue::Column::UpdatedAt, Expr::value(now.clone()))
             .filter(dispatch_queue::Column::Id.eq(queue_id.to_owned()))
-            .filter(dispatch_queue::Column::Status.eq("pending"))
+            .filter(dispatch_queue::Column::Status.eq("pending"));
+        if let Some(owner) = shard_owner.as_ref() {
+            update = update.filter(dispatch_queue::Column::ShardId.eq(owner.shard_id));
+        }
+        let result = update
             .filter(
                 dispatch_queue::Column::LeaseUntil
                     .is_null()
@@ -1191,6 +1260,9 @@ impl WorkflowRepository {
                 id: Set(new_id("dq")),
                 job_instance_id: Set(Some(job_instance_id.clone())),
                 workflow_node_instance_id: Set(None),
+                shard_id: Set(None),
+                owner_epoch: Set(None),
+                owner_fencing_token: Set(None),
                 priority: Set(0),
                 run_after: Set(now.clone()),
                 status: Set("pending".to_owned()),
@@ -1273,6 +1345,9 @@ impl WorkflowRepository {
                 id: Set(new_id("dq")),
                 job_instance_id: Set(None),
                 workflow_node_instance_id: Set(Some(updated.id.clone())),
+                shard_id: Set(None),
+                owner_epoch: Set(None),
+                owner_fencing_token: Set(None),
                 priority: Set(0),
                 run_after: Set(now.clone()),
                 status: Set("pending".to_owned()),
