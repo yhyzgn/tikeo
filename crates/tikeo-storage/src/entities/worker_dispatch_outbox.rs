@@ -27,6 +27,10 @@ pub struct Model {
     pub dispatch_payload: String,
     /// Scheduler shard id.
     pub shard_id: i64,
+    /// Scheduler shard map version.
+    pub shard_map_version: i64,
+    /// Scheduler shard count for the map version.
+    pub shard_count: i64,
     /// Scheduler owner node that created this intent.
     pub owner_node_id: String,
     /// Scheduler owner epoch.

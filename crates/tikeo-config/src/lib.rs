@@ -93,6 +93,12 @@ pub struct ClusterConfig {
     /// Optional shared token for internal Raft HTTP transport.
     #[serde(default)]
     pub transport_token: Option<String>,
+    /// Monotonic scheduler shard map version used by dispatch queue hashing.
+    #[serde(default = "default_scheduler_shard_map_version")]
+    pub scheduler_shard_map_version: i64,
+    /// Number of logical scheduler shards in the current shard map.
+    #[serde(default = "default_scheduler_shard_count")]
+    pub scheduler_shard_count: i32,
 }
 
 impl Default for ClusterConfig {
@@ -102,8 +108,18 @@ impl Default for ClusterConfig {
             node_id: "standalone".to_owned(),
             peers: Vec::new(),
             transport_token: None,
+            scheduler_shard_map_version: default_scheduler_shard_map_version(),
+            scheduler_shard_count: default_scheduler_shard_count(),
         }
     }
+}
+
+const fn default_scheduler_shard_map_version() -> i64 {
+    1
+}
+
+const fn default_scheduler_shard_count() -> i32 {
+    64
 }
 
 /// Cluster mode configuration.
@@ -484,6 +500,14 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeoConfig, ConfigError> {
         )?
         .set_default("cluster.mode", "standalone")?
         .set_default("cluster.node_id", TikeoConfig::default().cluster.node_id)?
+        .set_default(
+            "cluster.scheduler_shard_map_version",
+            default_scheduler_shard_map_version(),
+        )?
+        .set_default(
+            "cluster.scheduler_shard_count",
+            default_scheduler_shard_count(),
+        )?
         .set_default("auth.local_login_enabled", true)?
         .set_default(
             "auth.api_tokens.default_ttl_seconds",
@@ -561,7 +585,30 @@ mod tests {
 
         assert_eq!(config.cluster.mode, ClusterModeConfig::Standalone);
         assert_eq!(config.cluster.node_id, "standalone");
+        assert_eq!(config.cluster.scheduler_shard_map_version, 1);
+        assert_eq!(config.cluster.scheduler_shard_count, 64);
         assert!(config.cluster.peers.is_empty());
+    }
+
+    #[test]
+    fn file_config_overrides_scheduler_shard_policy() {
+        let path =
+            std::env::temp_dir().join(format!("tikeo-shard-policy-{}.toml", std::process::id()));
+        std::fs::write(
+            &path,
+            "[cluster]
+scheduler_shard_map_version = 7
+scheduler_shard_count = 128
+",
+        )
+        .unwrap_or_else(|error| panic!("temp config should write: {error}"));
+        let config = load_config(Some(&path))
+            .unwrap_or_else(|error| panic!("temp config should load: {error}"));
+        std::fs::remove_file(&path)
+            .unwrap_or_else(|error| panic!("temp config should delete: {error}"));
+
+        assert_eq!(config.cluster.scheduler_shard_map_version, 7);
+        assert_eq!(config.cluster.scheduler_shard_count, 128);
     }
 
     #[test]

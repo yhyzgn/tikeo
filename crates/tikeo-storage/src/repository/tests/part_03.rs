@@ -526,6 +526,8 @@ async fn worker_dispatch_outbox_repository_claims_and_marks_delivery() {
             assignment_token: "asg-1".to_owned(),
             dispatch_payload: r#"{"instanceId":"inst-1"}"#.to_owned(),
             shard_id: 12,
+            shard_map_version: 1,
+            shard_count: 64,
             owner_node_id: "owner-a".to_owned(),
             owner_epoch: 7,
             owner_fencing_token: "fence-7".to_owned(),
@@ -576,6 +578,8 @@ async fn worker_dispatch_outbox_repository_requeues_and_completes_rows() {
             assignment_token: "asg-2".to_owned(),
             dispatch_payload: r#"{"instanceId":"inst-2"}"#.to_owned(),
             shard_id: 22,
+            shard_map_version: 1,
+            shard_count: 64,
             owner_node_id: "owner-a".to_owned(),
             owner_epoch: 8,
             owner_fencing_token: "fence-8".to_owned(),
@@ -704,6 +708,8 @@ async fn worker_dispatch_outbox_reroute_moves_attempt_fencing_to_new_worker_sess
             assignment_token: "asg-reroute".to_owned(),
             dispatch_payload: "payload".to_owned(),
             shard_id: 0,
+            shard_map_version: 1,
+            shard_count: 64,
             owner_node_id: "owner".to_owned(),
             owner_epoch: 0,
             owner_fencing_token: "fence".to_owned(),
@@ -751,6 +757,8 @@ async fn worker_dispatch_outbox_repository_summarizes_status_counts_and_oldest_q
             assignment_token: "asg-summary-1".to_owned(),
             dispatch_payload: "payload".to_owned(),
             shard_id: 0,
+            shard_map_version: 1,
+            shard_count: 64,
             owner_node_id: "owner".to_owned(),
             owner_epoch: 0,
             owner_fencing_token: "fence".to_owned(),
@@ -769,6 +777,8 @@ async fn worker_dispatch_outbox_repository_summarizes_status_counts_and_oldest_q
             assignment_token: "asg-summary-2".to_owned(),
             dispatch_payload: "payload".to_owned(),
             shard_id: 0,
+            shard_map_version: 1,
+            shard_count: 64,
             owner_node_id: "owner".to_owned(),
             owner_epoch: 0,
             owner_fencing_token: "fence".to_owned(),
@@ -819,6 +829,8 @@ async fn worker_dispatch_outbox_repository_requeues_expired_delivered_rows() {
             assignment_token: "asg-expired".to_owned(),
             dispatch_payload: "payload".to_owned(),
             shard_id: 0,
+            shard_map_version: 1,
+            shard_count: 64,
             owner_node_id: "owner".to_owned(),
             owner_epoch: 0,
             owner_fencing_token: "fence".to_owned(),
@@ -919,6 +931,8 @@ async fn cluster_shard_ownership_accepts_only_newer_epoch_and_summarizes_active_
     let first = ownership
         .upsert_newer(crate::repository::UpsertClusterShardOwnership {
             shard_id: 7,
+            shard_map_version: 1,
+            shard_count: 64,
             owner_node_id: "pod-a".to_owned(),
             epoch: 1,
             raft_term: 3,
@@ -928,11 +942,18 @@ async fn cluster_shard_ownership_accepts_only_newer_epoch_and_summarizes_active_
         .unwrap_or_else(|error| panic!("first ownership should persist: {error}"))
         .unwrap_or_else(|| panic!("first ownership row should be returned"));
     assert_eq!(first.owner_node_id, "pod-a");
-    assert_eq!(first.fencing_token, "raft-shard:epoch:1:shard:7:node:pod-a");
+    assert_eq!(first.shard_map_version, 1);
+    assert_eq!(first.shard_count, 64);
+    assert_eq!(
+        first.fencing_token,
+        "raft-shard:v:1:count:64:epoch:1:shard:7:node:pod-a"
+    );
 
     let stale = ownership
         .upsert_newer(crate::repository::UpsertClusterShardOwnership {
             shard_id: 7,
+            shard_map_version: 1,
+            shard_count: 64,
             owner_node_id: "pod-b".to_owned(),
             epoch: 1,
             raft_term: 4,
@@ -945,6 +966,8 @@ async fn cluster_shard_ownership_accepts_only_newer_epoch_and_summarizes_active_
     let newer = ownership
         .upsert_newer(crate::repository::UpsertClusterShardOwnership {
             shard_id: 7,
+            shard_map_version: 1,
+            shard_count: 64,
             owner_node_id: "pod-b".to_owned(),
             epoch: 2,
             raft_term: 4,
@@ -977,6 +1000,8 @@ async fn cluster_shard_ownership_accepts_only_newer_epoch_and_summarizes_active_
     assert_eq!(summary.total, 1);
     assert_eq!(summary.active, 1);
     assert_eq!(summary.max_epoch, 2);
+    assert_eq!(summary.max_shard_map_version, 1);
+    assert_eq!(summary.max_shard_count, 64);
     assert_eq!(summary.active_by_owner.get("pod-b"), Some(&1));
 }
 
@@ -1034,9 +1059,13 @@ async fn dispatch_queue_claim_binds_to_active_shard_owner_epoch_and_token() {
     let shard_id = queue
         .shard_id
         .unwrap_or_else(|| panic!("new dispatch queue rows should have a stable shard id"));
+    assert_eq!(queue.shard_map_version, Some(1));
+    assert_eq!(queue.shard_count, Some(64));
     let owner = ownership
         .upsert_newer(UpsertClusterShardOwnership {
             shard_id,
+            shard_map_version: 1,
+            shard_count: 64,
             owner_node_id: "pod-a".to_owned(),
             epoch: 11,
             raft_term: 5,
@@ -1050,6 +1079,8 @@ async fn dispatch_queue_claim_binds_to_active_shard_owner_epoch_and_token() {
         .claim_next_job_queue_item_for_shard_owner(
             DispatchQueueShardOwner {
                 shard_id,
+                shard_map_version: owner.shard_map_version,
+                shard_count: owner.shard_count,
                 owner_node_id: "pod-b".to_owned(),
                 owner_epoch: 11,
                 owner_fencing_token: owner.fencing_token.clone(),
@@ -1064,6 +1095,8 @@ async fn dispatch_queue_claim_binds_to_active_shard_owner_epoch_and_token() {
         .claim_next_job_queue_item_for_shard_owner(
             DispatchQueueShardOwner {
                 shard_id,
+                shard_map_version: owner.shard_map_version,
+                shard_count: owner.shard_count,
                 owner_node_id: owner.owner_node_id.clone(),
                 owner_epoch: owner.epoch,
                 owner_fencing_token: owner.fencing_token.clone(),
@@ -1076,6 +1109,8 @@ async fn dispatch_queue_claim_binds_to_active_shard_owner_epoch_and_token() {
 
     assert_eq!(claimed.item.id, queue.id);
     assert_eq!(claimed.item.shard_id, Some(shard_id));
+    assert_eq!(claimed.item.shard_map_version, Some(owner.shard_map_version));
+    assert_eq!(claimed.item.shard_count, Some(owner.shard_count));
     assert_eq!(claimed.item.owner_epoch, Some(owner.epoch));
     assert_eq!(
         claimed.item.owner_fencing_token.as_deref(),

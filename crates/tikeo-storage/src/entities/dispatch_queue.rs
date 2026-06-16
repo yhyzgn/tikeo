@@ -13,6 +13,8 @@ pub struct Model {
     pub job_instance_id: Option<String>,
     pub workflow_node_instance_id: Option<String>,
     pub shard_id: Option<i32>,
+    pub shard_map_version: Option<i64>,
+    pub shard_count: Option<i32>,
     pub owner_epoch: Option<i64>,
     pub owner_fencing_token: Option<String>,
     pub priority: i32,

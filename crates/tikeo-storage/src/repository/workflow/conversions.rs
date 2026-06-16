@@ -151,6 +151,8 @@ impl From<dispatch_queue::Model> for DispatchQueueSummary {
             job_instance_id: model.job_instance_id,
             workflow_node_instance_id: model.workflow_node_instance_id,
             shard_id: model.shard_id,
+            shard_map_version: model.shard_map_version,
+            shard_count: model.shard_count,
             owner_epoch: model.owner_epoch,
             owner_fencing_token: model.owner_fencing_token,
             priority: model.priority,

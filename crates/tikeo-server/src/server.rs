@@ -41,6 +41,16 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
     let offset = tikeo_storage::parse_timestamp_offset(&timestamp_offset)
         .with_context(|| format!("invalid storage.timestamp_offset: {timestamp_offset}"))?;
     tikeo_storage::set_timestamp_offset(offset);
+    let shard_policy = tikeo_storage::set_scheduler_shard_policy(
+        cluster_config.scheduler_shard_map_version,
+        cluster_config.scheduler_shard_count,
+    )
+    .map_err(|error| anyhow::anyhow!("invalid cluster scheduler shard policy: {error}"))?;
+    info!(
+        shard_map_version = shard_policy.shard_map_version,
+        shard_count = shard_policy.shard_count,
+        "configured scheduler shard policy"
+    );
     let db = connect_and_migrate(&database_url)
         .await
         .with_context(|| format!("failed to initialize storage at {database_url}"))?;

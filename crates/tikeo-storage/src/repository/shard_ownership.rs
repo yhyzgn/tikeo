@@ -14,6 +14,10 @@ use super::util::{now_rfc3339, rfc3339_after_seconds};
 pub struct UpsertClusterShardOwnership {
     /// Scheduler shard id.
     pub shard_id: i32,
+    /// Shard map version used to compute `shard_id`.
+    pub shard_map_version: i64,
+    /// Total shard count for this shard map version.
+    pub shard_count: i32,
     /// Owner node id for this shard.
     pub owner_node_id: String,
     /// Monotonic ownership epoch.
@@ -30,6 +34,10 @@ pub struct UpsertClusterShardOwnership {
 pub struct ClusterShardOwnershipSummary {
     /// Scheduler shard id.
     pub shard_id: i32,
+    /// Shard map version used to compute `shard_id`.
+    pub shard_map_version: i64,
+    /// Total shard count for this shard map version.
+    pub shard_count: i32,
     /// Current owner node id.
     pub owner_node_id: String,
     /// Monotonic ownership epoch.
@@ -56,6 +64,10 @@ pub struct ClusterShardOwnershipSloSummary {
     pub active: u64,
     /// Highest projected epoch.
     pub max_epoch: i64,
+    /// Highest projected shard map version.
+    pub max_shard_map_version: i64,
+    /// Maximum configured shard count observed across projected rows.
+    pub max_shard_count: i32,
     /// Count of active shards owned by each node.
     pub active_by_owner: std::collections::BTreeMap<String, u64>,
 }
@@ -87,6 +99,16 @@ impl ClusterShardOwnershipRepository {
                 "shard_id must be non-negative".to_owned(),
             ));
         }
+        if input.shard_map_version <= 0 {
+            return Err(sea_orm::DbErr::Custom(
+                "shard_map_version must be positive".to_owned(),
+            ));
+        }
+        if input.shard_count <= 0 || input.shard_id >= input.shard_count {
+            return Err(sea_orm::DbErr::Custom(
+                "shard_id must be within shard_count".to_owned(),
+            ));
+        }
         if input.owner_node_id.trim().is_empty() {
             return Err(sea_orm::DbErr::Custom(
                 "owner_node_id is required".to_owned(),
@@ -97,7 +119,13 @@ impl ClusterShardOwnershipRepository {
                 "ownership epoch must be positive".to_owned(),
             ));
         }
-        let token = fencing_token(input.epoch, input.shard_id, &input.owner_node_id);
+        let token = fencing_token(
+            input.epoch,
+            input.shard_map_version,
+            input.shard_count,
+            input.shard_id,
+            &input.owner_node_id,
+        );
         let now = now_rfc3339();
         let lease_expires_at = input
             .lease_seconds
@@ -111,6 +139,8 @@ impl ClusterShardOwnershipRepository {
         {
             let model = cluster_shard_ownership::ActiveModel {
                 shard_id: Set(input.shard_id),
+                shard_map_version: Set(input.shard_map_version),
+                shard_count: Set(input.shard_count),
                 owner_node_id: Set(input.owner_node_id),
                 epoch: Set(input.epoch),
                 raft_term: Set(input.raft_term),
@@ -125,6 +155,14 @@ impl ClusterShardOwnershipRepository {
         }
 
         let result = cluster_shard_ownership::Entity::update_many()
+            .col_expr(
+                cluster_shard_ownership::Column::ShardMapVersion,
+                Expr::value(input.shard_map_version),
+            )
+            .col_expr(
+                cluster_shard_ownership::Column::ShardCount,
+                Expr::value(input.shard_count),
+            )
             .col_expr(
                 cluster_shard_ownership::Column::OwnerNodeId,
                 Expr::value(input.owner_node_id),
@@ -228,6 +266,9 @@ impl ClusterShardOwnershipRepository {
         for row in self.list().await? {
             summary.total = summary.total.saturating_add(1);
             summary.max_epoch = summary.max_epoch.max(row.epoch);
+            summary.max_shard_map_version =
+                summary.max_shard_map_version.max(row.shard_map_version);
+            summary.max_shard_count = summary.max_shard_count.max(row.shard_count);
             if row.status == "active" {
                 summary.active = summary.active.saturating_add(1);
                 *summary
@@ -240,14 +281,24 @@ impl ClusterShardOwnershipRepository {
     }
 }
 
-fn fencing_token(epoch: i64, shard_id: i32, owner_node_id: &str) -> String {
-    format!("raft-shard:epoch:{epoch}:shard:{shard_id}:node:{owner_node_id}")
+fn fencing_token(
+    epoch: i64,
+    shard_map_version: i64,
+    shard_count: i32,
+    shard_id: i32,
+    owner_node_id: &str,
+) -> String {
+    format!(
+        "raft-shard:v:{shard_map_version}:count:{shard_count}:epoch:{epoch}:shard:{shard_id}:node:{owner_node_id}"
+    )
 }
 
 impl From<cluster_shard_ownership::Model> for ClusterShardOwnershipSummary {
     fn from(value: cluster_shard_ownership::Model) -> Self {
         Self {
             shard_id: value.shard_id,
+            shard_map_version: value.shard_map_version,
+            shard_count: value.shard_count,
             owner_node_id: value.owner_node_id,
             epoch: value.epoch,
             raft_term: value.raft_term,

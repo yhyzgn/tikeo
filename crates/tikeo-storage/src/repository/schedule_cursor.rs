@@ -98,6 +98,8 @@ impl ScheduleCursorRepository {
                 job_instance_id: Set(Some(model.id.clone())),
                 workflow_node_instance_id: Set(None),
                 shard_id: Set(None),
+                shard_map_version: Set(None),
+                shard_count: Set(None),
                 owner_epoch: Set(None),
                 owner_fencing_token: Set(None),
                 priority: Set(0),

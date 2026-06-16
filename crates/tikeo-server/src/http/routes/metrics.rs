@@ -101,6 +101,20 @@ fn record_shard_ownership_metrics(summary: &tikeo_storage::ClusterShardOwnership
         .set(u64_metric_value(summary.active));
     metrics::gauge!("tikeo_cluster_shard_ownership_max_epoch")
         .set(summary.max_epoch.to_string().parse::<f64>().unwrap_or(0.0));
+    metrics::gauge!("tikeo_cluster_shard_ownership_max_shard_map_version").set(
+        summary
+            .max_shard_map_version
+            .to_string()
+            .parse::<f64>()
+            .unwrap_or(0.0),
+    );
+    metrics::gauge!("tikeo_cluster_shard_ownership_max_shard_count").set(
+        summary
+            .max_shard_count
+            .to_string()
+            .parse::<f64>()
+            .unwrap_or(0.0),
+    );
     for (owner, count) in &summary.active_by_owner {
         metrics::gauge!(
             "tikeo_cluster_shard_ownership_active_by_owner",

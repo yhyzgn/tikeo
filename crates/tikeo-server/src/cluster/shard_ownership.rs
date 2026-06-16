@@ -82,6 +82,8 @@ impl SchedulerShardKey {
 /// Raft-applied shard assignment command payload.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShardAssignmentCommand {
+    /// Monotonic shard map version used for hashing.
+    pub shard_map_version: u64,
     /// Monotonic Raft-applied assignment epoch.
     pub epoch: u64,
     /// Number of scheduler shards in this assignment epoch.
@@ -99,6 +101,27 @@ impl ShardAssignmentCommand {
     /// invalid Raft command inputs and callers must validate operator/API input first.
     #[must_use]
     pub fn balanced(epoch: u64, shard_count: u32, owner_node_ids: &[impl AsRef<str>]) -> Self {
+        Self::balanced_with_map_version(1, epoch, shard_count, owner_node_ids)
+    }
+
+    /// Build a balanced assignment for an explicit shard map version.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `shard_map_version` or `epoch` is zero, `shard_count` is zero, or
+    /// `owner_node_ids` is empty. These are invalid Raft command inputs and callers must validate
+    /// operator/API input first.
+    #[must_use]
+    pub fn balanced_with_map_version(
+        shard_map_version: u64,
+        epoch: u64,
+        shard_count: u32,
+        owner_node_ids: &[impl AsRef<str>],
+    ) -> Self {
+        assert!(
+            shard_map_version > 0,
+            "shard assignment map version must be greater than zero"
+        );
         assert!(
             epoch > 0,
             "shard assignment epoch must be greater than zero"
@@ -119,6 +142,7 @@ impl ShardAssignmentCommand {
             owners.insert(SchedulerShardId(shard), owner);
         }
         Self {
+            shard_map_version,
             epoch,
             shard_count,
             owners,
@@ -136,7 +160,9 @@ impl ShardAssignmentCommand {
     pub fn fencing_token_for(&self, shard: SchedulerShardId, node_id: &str) -> Option<String> {
         (self.owner_for(shard) == Some(node_id)).then(|| {
             format!(
-                "raft-shard:epoch:{}:shard:{}:node:{}",
+                "raft-shard:v:{}:count:{}:epoch:{}:shard:{}:node:{}",
+                self.shard_map_version,
+                self.shard_count,
                 self.epoch,
                 shard.value(),
                 node_id
@@ -227,7 +253,8 @@ mod tests {
 
     #[test]
     fn only_assigned_owner_receives_epoch_scoped_fencing_token() {
-        let assignment = ShardAssignmentCommand::balanced(3, 2, &["tikeo-0", "tikeo-1"]);
+        let assignment =
+            ShardAssignmentCommand::balanced_with_map_version(5, 3, 2, &["tikeo-0", "tikeo-1"]);
         let key = SchedulerShardKey::new("tenant-a", "orders", "job-east");
         let shard = key.shard_id(2);
         let owner = assignment
@@ -246,7 +273,13 @@ mod tests {
         assert_eq!(owner_decision.shard, shard);
         assert_eq!(
             owner_decision.fencing_token.as_deref(),
-            Some(format!("raft-shard:epoch:3:shard:{}:node:{owner}", shard.value()).as_str())
+            Some(
+                format!(
+                    "raft-shard:v:5:count:2:epoch:3:shard:{}:node:{owner}",
+                    shard.value()
+                )
+                .as_str()
+            )
         );
         assert!(!non_owner_decision.owned);
         assert_eq!(non_owner_decision.fencing_token, None);

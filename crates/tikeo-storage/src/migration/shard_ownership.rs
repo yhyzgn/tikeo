@@ -1,6 +1,6 @@
 use super::{
-    ClusterShardOwnership, DatabaseBackend, DispatchQueue, Statement, big_integer_col,
-    big_integer_null, integer_null, string_col, string_null,
+    ClusterShardOwnership, DatabaseBackend, DispatchQueue, Statement, WorkerDispatchOutbox,
+    big_integer_col, big_integer_null, integer_col, integer_null, string_col, string_null,
 };
 use sea_orm::ConnectionTrait;
 use sea_orm_migration::prelude::*;
@@ -28,6 +28,8 @@ impl MigrationTrait for ShardOwnershipMigration {
                             .primary_key()
                             .take(),
                     )
+                    .col(big_integer_col(ClusterShardOwnership::ShardMapVersion))
+                    .col(integer_col(ClusterShardOwnership::ShardCount))
                     .col(string_col(ClusterShardOwnership::OwnerNodeId))
                     .col(big_integer_col(ClusterShardOwnership::Epoch))
                     .col(big_integer_col(ClusterShardOwnership::RaftTerm))
@@ -39,7 +41,8 @@ impl MigrationTrait for ShardOwnershipMigration {
             )
             .await?;
         create_indexes(manager).await?;
-        ensure_dispatch_queue_columns(manager).await
+        ensure_dispatch_queue_columns(manager).await?;
+        ensure_worker_dispatch_outbox_columns(manager).await
     }
 
     async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
@@ -89,6 +92,14 @@ async fn ensure_dispatch_queue_columns(manager: &SchemaManager<'_>) -> Result<()
                 "ALTER TABLE dispatch_queue ADD COLUMN shard_id integer",
             ),
             (
+                "shard_map_version",
+                "ALTER TABLE dispatch_queue ADD COLUMN shard_map_version bigint",
+            ),
+            (
+                "shard_count",
+                "ALTER TABLE dispatch_queue ADD COLUMN shard_count integer",
+            ),
+            (
                 "owner_epoch",
                 "ALTER TABLE dispatch_queue ADD COLUMN owner_epoch bigint",
             ),
@@ -112,8 +123,50 @@ async fn ensure_dispatch_queue_columns(manager: &SchemaManager<'_>) -> Result<()
             Table::alter()
                 .table(DispatchQueue::Table)
                 .add_column_if_not_exists(integer_null(DispatchQueue::ShardId))
+                .add_column_if_not_exists(big_integer_null(DispatchQueue::ShardMapVersion))
+                .add_column_if_not_exists(integer_null(DispatchQueue::ShardCount))
                 .add_column_if_not_exists(big_integer_null(DispatchQueue::OwnerEpoch))
                 .add_column_if_not_exists(string_null(DispatchQueue::OwnerFencingToken))
+                .to_owned(),
+        )
+        .await
+}
+
+async fn ensure_worker_dispatch_outbox_columns(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+    if manager.get_database_backend() == DatabaseBackend::Sqlite {
+        if !sqlite_table_exists(manager, "worker_dispatch_outbox").await? {
+            return Ok(());
+        }
+        for (column, ddl) in [
+            (
+                "shard_map_version",
+                "ALTER TABLE worker_dispatch_outbox ADD COLUMN shard_map_version bigint NOT NULL DEFAULT 1",
+            ),
+            (
+                "shard_count",
+                "ALTER TABLE worker_dispatch_outbox ADD COLUMN shard_count bigint NOT NULL DEFAULT 64",
+            ),
+        ] {
+            if !sqlite_column_exists(manager, "worker_dispatch_outbox", column).await? {
+                manager
+                    .get_connection()
+                    .execute(Statement::from_string(DatabaseBackend::Sqlite, ddl))
+                    .await?;
+            }
+        }
+        return Ok(());
+    }
+
+    manager
+        .alter_table(
+            Table::alter()
+                .table(WorkerDispatchOutbox::Table)
+                .add_column_if_not_exists(
+                    big_integer_col(WorkerDispatchOutbox::ShardMapVersion).default(1),
+                )
+                .add_column_if_not_exists(
+                    big_integer_col(WorkerDispatchOutbox::ShardCount).default(64),
+                )
                 .to_owned(),
         )
         .await

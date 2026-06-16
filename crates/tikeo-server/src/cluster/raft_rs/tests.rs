@@ -656,6 +656,8 @@ fn test_raft_config() -> ClusterConfig {
             },
         ],
         transport_token: None,
+        scheduler_shard_map_version: 1,
+        scheduler_shard_count: 64,
     }
 }
 

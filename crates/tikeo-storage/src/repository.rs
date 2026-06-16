@@ -30,6 +30,7 @@ mod sdk_api_key;
 mod secret;
 mod service_account;
 mod shard_ownership;
+mod shard_policy;
 mod user;
 pub mod util;
 mod worker_dispatch_outbox;
@@ -101,6 +102,9 @@ pub use shard_ownership::{
     ClusterShardOwnershipRepository, ClusterShardOwnershipSloSummary, ClusterShardOwnershipSummary,
     UpsertClusterShardOwnership,
 };
+#[doc(hidden)]
+pub use shard_policy::reset_scheduler_shard_policy_for_test;
+pub use shard_policy::{SchedulerShardPolicy, scheduler_shard_policy, set_scheduler_shard_policy};
 pub use user::{CreateUser, UpdateUser, UserRepository, UserSummary};
 pub use worker_dispatch_outbox::{
     CreateWorkerDispatchOutbox, WorkerDispatchOutboxRepository, WorkerDispatchOutboxSloSummary,

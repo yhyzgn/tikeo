@@ -30,6 +30,8 @@ impl MigrationTrait for FsodOutboxMigration {
                     .col(string_col(WorkerDispatchOutbox::AssignmentToken))
                     .col(text_col(WorkerDispatchOutbox::DispatchPayload))
                     .col(big_integer_col(WorkerDispatchOutbox::ShardId))
+                    .col(big_integer_col(WorkerDispatchOutbox::ShardMapVersion))
+                    .col(big_integer_col(WorkerDispatchOutbox::ShardCount))
                     .col(string_col(WorkerDispatchOutbox::OwnerNodeId))
                     .col(big_integer_col(WorkerDispatchOutbox::OwnerEpoch))
                     .col(string_col(WorkerDispatchOutbox::OwnerFencingToken))

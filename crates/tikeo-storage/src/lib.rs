@@ -12,6 +12,8 @@ use sqlx::sqlite::{SqliteJournalMode, SqliteSynchronous};
 use std::{path::Path, time::Duration};
 use thiserror::Error;
 
+#[doc(hidden)]
+pub use repository::reset_scheduler_shard_policy_for_test;
 pub use repository::util::{parse_timestamp_offset, set_timestamp_offset};
 pub use repository::{
     AdvanceWorkflowInput, AdvanceWorkflowResult, AlertDeliveryAttemptFilters,
@@ -60,7 +62,8 @@ pub use repository::{
     WorkerSessionSnapshotUpdate, WorkerSessionSummary, WorkflowDefinition, WorkflowEdgeSpec,
     WorkflowInstanceSummary, WorkflowJobResultOutcome, WorkflowNodeInstanceSummary,
     WorkflowNodeSpec, WorkflowRepository, WorkflowShardSummary, WorkflowSloSummary,
-    WorkflowSummary, WorkflowValidationResult, validate_workflow_definition,
+    WorkflowSummary, WorkflowValidationResult, scheduler_shard_policy, set_scheduler_shard_policy,
+    validate_workflow_definition,
 };
 pub use sea_orm::DbErr;
 

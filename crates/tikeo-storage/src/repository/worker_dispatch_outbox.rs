@@ -32,6 +32,10 @@ pub struct CreateWorkerDispatchOutbox {
     pub dispatch_payload: String,
     /// Scheduler shard id.
     pub shard_id: i64,
+    /// Scheduler shard map version.
+    pub shard_map_version: i64,
+    /// Scheduler shard count for the map version.
+    pub shard_count: i64,
     /// Owner node that created this intent.
     pub owner_node_id: String,
     /// Owner epoch.
@@ -65,6 +69,10 @@ pub struct WorkerDispatchOutboxSummary {
     pub dispatch_payload: String,
     /// Scheduler shard id.
     pub shard_id: i64,
+    /// Scheduler shard map version.
+    pub shard_map_version: i64,
+    /// Scheduler shard count for the map version.
+    pub shard_count: i64,
     /// Owner node id.
     pub owner_node_id: String,
     /// Owner epoch.
@@ -164,6 +172,8 @@ impl WorkerDispatchOutboxRepository {
             assignment_token: Set(input.assignment_token),
             dispatch_payload: Set(input.dispatch_payload),
             shard_id: Set(input.shard_id),
+            shard_map_version: Set(input.shard_map_version),
+            shard_count: Set(input.shard_count),
             owner_node_id: Set(input.owner_node_id),
             owner_epoch: Set(input.owner_epoch),
             owner_fencing_token: Set(input.owner_fencing_token),
@@ -544,6 +554,8 @@ impl From<worker_dispatch_outbox::Model> for WorkerDispatchOutboxSummary {
             assignment_token: value.assignment_token,
             dispatch_payload: value.dispatch_payload,
             shard_id: value.shard_id,
+            shard_map_version: value.shard_map_version,
+            shard_count: value.shard_count,
             owner_node_id: value.owner_node_id,
             owner_epoch: value.owner_epoch,
             owner_fencing_token: value.owner_fencing_token,

@@ -6,6 +6,7 @@ mod iden;
 mod indexes;
 mod notification_center;
 mod rbac_role_management;
+mod shard_map_policy;
 mod shard_ownership;
 mod sqlite_compat;
 mod worker_gateway;
@@ -54,6 +55,7 @@ impl MigratorTrait for Migrator {
             Box::new(WorkerGatewayMigration),
             Box::new(FsodOutboxMigration),
             Box::new(ShardOwnershipMigration),
+            Box::new(ShardMapPolicyMigration),
         ]
     }
 }
@@ -64,6 +66,7 @@ use notification_center::{
     NotificationTemplatesMigration,
 };
 use rbac_role_management::RbacRoleManagementMigration;
+use shard_map_policy::ShardMapPolicyMigration;
 use shard_ownership::ShardOwnershipMigration;
 use worker_gateway::WorkerGatewayMigration;
 
@@ -740,6 +743,8 @@ async fn create_dispatch_queue(manager: &SchemaManager<'_>) -> Result<(), DbErr>
                 .col(string_null(DispatchQueue::JobInstanceId))
                 .col(string_null(DispatchQueue::WorkflowNodeInstanceId))
                 .col(integer_null(DispatchQueue::ShardId))
+                .col(big_integer_null(DispatchQueue::ShardMapVersion))
+                .col(integer_null(DispatchQueue::ShardCount))
                 .col(big_integer_null(DispatchQueue::OwnerEpoch))
                 .col(string_null(DispatchQueue::OwnerFencingToken))
                 .col(integer_col(DispatchQueue::Priority))
@@ -767,6 +772,8 @@ async fn create_cluster_shard_ownership(manager: &SchemaManager<'_>) -> Result<(
                 .table(ClusterShardOwnership::Table)
                 .if_not_exists()
                 .col(integer_col(ClusterShardOwnership::ShardId).primary_key())
+                .col(big_integer_col(ClusterShardOwnership::ShardMapVersion))
+                .col(integer_col(ClusterShardOwnership::ShardCount))
                 .col(string_col(ClusterShardOwnership::OwnerNodeId))
                 .col(big_integer_col(ClusterShardOwnership::Epoch))
                 .col(big_integer_col(ClusterShardOwnership::RaftTerm))
@@ -1267,6 +1274,8 @@ async fn create_worker_dispatch_outbox(manager: &SchemaManager<'_>) -> Result<()
                 .col(string_col(WorkerDispatchOutbox::AssignmentToken))
                 .col(text_col(WorkerDispatchOutbox::DispatchPayload))
                 .col(big_integer_col(WorkerDispatchOutbox::ShardId))
+                .col(big_integer_col(WorkerDispatchOutbox::ShardMapVersion))
+                .col(big_integer_col(WorkerDispatchOutbox::ShardCount))
                 .col(string_col(WorkerDispatchOutbox::OwnerNodeId))
                 .col(big_integer_col(WorkerDispatchOutbox::OwnerEpoch))
                 .col(string_col(WorkerDispatchOutbox::OwnerFencingToken))

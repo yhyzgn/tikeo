@@ -361,6 +361,8 @@ mod tests {
                 endpoint: "http://tikeo-1:9999".to_owned(),
             }],
             transport_token: None,
+            scheduler_shard_map_version: 1,
+            scheduler_shard_count: 64,
         };
 
         let coordinator = coordinator_from_config_with_storage(&config, &repository)
@@ -401,6 +403,8 @@ mod tests {
                 },
             ],
             transport_token: None,
+            scheduler_shard_map_version: 1,
+            scheduler_shard_count: 64,
         });
         let status = coordinator.status().await;
 

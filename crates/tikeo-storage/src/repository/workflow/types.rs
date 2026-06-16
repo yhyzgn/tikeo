@@ -207,6 +207,8 @@ pub struct DispatchQueueSummary {
     pub job_instance_id: Option<String>,
     pub workflow_node_instance_id: Option<String>,
     pub shard_id: Option<i32>,
+    pub shard_map_version: Option<i64>,
+    pub shard_count: Option<i32>,
     pub owner_epoch: Option<i64>,
     pub owner_fencing_token: Option<String>,
     pub priority: i32,
@@ -233,6 +235,8 @@ pub struct DispatchQueueClaim {
 #[derive(Debug, Clone)]
 pub struct DispatchQueueShardOwner {
     pub shard_id: i32,
+    pub shard_map_version: i64,
+    pub shard_count: i32,
     pub owner_node_id: String,
     pub owner_epoch: i64,
     pub owner_fencing_token: String,

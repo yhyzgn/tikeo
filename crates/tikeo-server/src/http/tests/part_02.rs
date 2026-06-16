@@ -18,6 +18,8 @@
                     },
                 ],
                 transport_token: None,
+                scheduler_shard_map_version: 1,
+                scheduler_shard_count: 64,
             },
             &RaftRepository::new(db.clone()),
         )
@@ -90,6 +92,8 @@
                     },
                 ],
                 transport_token: Some("secret-raft-token".to_owned()),
+                scheduler_shard_map_version: 1,
+                scheduler_shard_count: 64,
             },
             &RaftRepository::new(db.clone()),
         )

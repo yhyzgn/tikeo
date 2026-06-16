@@ -128,6 +128,8 @@
                 assignment_token: "asg-metrics-outbox".to_owned(),
                 dispatch_payload: "payload".to_owned(),
                 shard_id: 0,
+                shard_map_version: 1,
+                shard_count: 64,
                 owner_node_id: "test-node".to_owned(),
                 owner_epoch: 0,
                 owner_fencing_token: "fence-metrics".to_owned(),
@@ -138,6 +140,8 @@
         tikeo_storage::ClusterShardOwnershipRepository::new(db.clone())
             .upsert_newer(tikeo_storage::UpsertClusterShardOwnership {
                 shard_id: 0,
+                shard_map_version: 1,
+                shard_count: 64,
                 owner_node_id: "test-node".to_owned(),
                 epoch: 3,
                 raft_term: 7,

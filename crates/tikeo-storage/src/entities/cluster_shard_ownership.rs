@@ -9,6 +9,10 @@ pub struct Model {
     /// Scheduler shard id.
     #[sea_orm(primary_key, auto_increment = false)]
     pub shard_id: i32,
+    /// Shard map version used to compute this shard id.
+    pub shard_map_version: i64,
+    /// Total shard count for this shard map version.
+    pub shard_count: i32,
     /// Current owner node id.
     pub owner_node_id: String,
     /// Monotonic ownership epoch.

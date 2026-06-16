@@ -707,6 +707,8 @@ impl WorkflowRepository {
             || format!("lease:{lease_owner}:{queue_id}:{lease_until}"),
             ToOwned::to_owned,
         );
+        let shard_map_version = shard_owner.as_ref().map(|owner| owner.shard_map_version);
+        let shard_count = shard_owner.as_ref().map(|owner| owner.shard_count);
         let owner_epoch = shard_owner.as_ref().map(|owner| owner.owner_epoch);
         let owner_fencing_token = shard_owner
             .as_ref()
@@ -725,6 +727,11 @@ impl WorkflowRepository {
                 dispatch_queue::Column::FencingToken,
                 Expr::value(Some(fencing_token.clone())),
             )
+            .col_expr(
+                dispatch_queue::Column::ShardMapVersion,
+                Expr::value(shard_map_version),
+            )
+            .col_expr(dispatch_queue::Column::ShardCount, Expr::value(shard_count))
             .col_expr(dispatch_queue::Column::OwnerEpoch, Expr::value(owner_epoch))
             .col_expr(
                 dispatch_queue::Column::OwnerFencingToken,
@@ -1261,6 +1268,8 @@ impl WorkflowRepository {
                 job_instance_id: Set(Some(job_instance_id.clone())),
                 workflow_node_instance_id: Set(None),
                 shard_id: Set(None),
+                shard_map_version: Set(None),
+                shard_count: Set(None),
                 owner_epoch: Set(None),
                 owner_fencing_token: Set(None),
                 priority: Set(0),
@@ -1346,6 +1355,8 @@ impl WorkflowRepository {
                 job_instance_id: Set(None),
                 workflow_node_instance_id: Set(Some(updated.id.clone())),
                 shard_id: Set(None),
+                shard_map_version: Set(None),
+                shard_count: Set(None),
                 owner_epoch: Set(None),
                 owner_fencing_token: Set(None),
                 priority: Set(0),

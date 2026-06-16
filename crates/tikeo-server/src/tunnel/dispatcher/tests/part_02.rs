@@ -343,6 +343,8 @@
         let owner = ownership
             .upsert_newer(tikeo_storage::UpsertClusterShardOwnership {
                 shard_id,
+                shard_map_version: 1,
+                shard_count: 64,
                 owner_node_id: "node-b".to_owned(),
                 epoch: 9,
                 raft_term: 4,

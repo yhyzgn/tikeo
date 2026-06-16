@@ -448,6 +448,8 @@ async fn broadcast_task_result_persists_per_worker_attempt_result() {
             assignment_token: token.clone(),
             dispatch_payload: "payload".to_owned(),
             shard_id: 0,
+            shard_map_version: 1,
+            shard_count: 64,
             owner_node_id: "owner".to_owned(),
             owner_epoch: 0,
             owner_fencing_token: "fence".to_owned(),

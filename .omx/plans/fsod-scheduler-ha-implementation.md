@@ -1,7 +1,7 @@
 # FSOD Scheduler HA 改造开发计划
 
 状态：Active
-最后更新：2026-06-16（Phase 1 ✅；Phase 2 ✅；Phase 3 基础 ✅/3.2 shard map version 🚧；验证：cargo test -p tikeo-storage；cargo test -p tikeo-server tunnel::dispatcher -- --nocapture；cargo test -p tikeo-server metrics_summary_reports_storage_registry_and_alert_counts -- --nocapture；cargo clippy -p tikeo-server --all-targets -- -D warnings；python .github/tests/docs_site_contract_test.py）
+最后更新：2026-06-16（Phase 1 ✅；Phase 2 ✅；Phase 3 ✅；验证：cargo test -p tikeo-config；cargo test -p tikeo-storage；cargo test -p tikeo-server tunnel::dispatcher -- --nocapture；cargo test -p tikeo-server metrics_summary_reports_storage_registry_and_alert_counts -- --nocapture；cargo clippy -p tikeo-server --all-targets -- -D warnings；python .github/tests/docs_site_contract_test.py）
 设计依据：`design/non-lock-distribution-high-performance-scheduler-platform.md`
 
 ## 目标
@@ -41,12 +41,12 @@
 ### Phase 3：Raft Shard Ownership 基础
 
 - [x] 3.1 ✅ 新增 `cluster_shard_ownership` entity、migration、repository。
-- [ ] 3.2 🚧 增加稳定 shard key/hash 与 shard map version：稳定 hash 已接入 API single job dispatch queue；显式 shard map version / 可配置 shard count 仍待后续切片。
+- [x] 3.2 ✅ 增加稳定 shard key/hash 与 shard map version：`cluster.scheduler_shard_map_version` / `cluster.scheduler_shard_count` 可配置，dispatch queue / outbox / ownership projection 均持久化 version/count。
 - [x] 3.3 ✅ dispatch_queue 绑定 `shard_id / owner_epoch / owner_fencing_token`。
 - [x] 3.4 ✅ owner 只 claim 自己 shard；旧 epoch/fencing 更新被拒绝。
 - [x] 3.5 ✅ cluster diagnostics 暴露 shard ownership 摘要。
 
-验收：多 Pod 可分别拥有不同 shard；follower 在拥有 DB-projected shard ownership 时可 claim 自己 shard 并派发；无 ownership 的 follower 不 claim；旧 epoch/fencing 更新被拒绝。kill owner 后新 owner 接管仍需要 Phase 4/5 的 e2e/chaos 脚本验证。
+验收：多 Pod 可分别拥有不同 shard；follower 在拥有 DB-projected shard ownership 时可 claim 自己 shard 并派发；无 ownership 的 follower 不 claim；旧 epoch/fencing 更新被拒绝；shard map version/count 已成为配置和持久化 fencing 上下文。kill owner 后新 owner 接管仍需要 Phase 4/5 的 e2e/chaos 脚本验证。
 
 ### Phase 4：Locality-Aware Scoring
 
@@ -67,21 +67,22 @@
 
 ## 当前推进切片
 
-Phase 3 Raft Shard Ownership 基础已完成本轮可验证切片：
+Phase 3 Raft Shard Ownership 基础已完成：
 
 1. ✅ 新增 `cluster_shard_ownership` projection 表、SeaORM entity、migration、SQLite compatibility、repository。
 2. ✅ repository 只接受更新 epoch 的 owner 写入，并提供 `accepts_fencing_token` 与 SLO summary。
-3. ✅ API single job dispatch queue 使用稳定 shard hash，并持久化 `shard_id`。
-4. ✅ dispatch_queue claim 可绑定 `owner_epoch / owner_fencing_token`；错误 owner/token 无法 claim。
-5. ✅ dispatcher 在 `can_schedule=false` 但本节点拥有 active shard ownership 时，只扫描并 claim 自己 shard；后续 mark running/release/failed 使用 claim 的实际 lease owner。
-6. ✅ metrics summary / Prometheus gauges 暴露 shard ownership rows、active、max epoch、active-by-owner。
-7. ✅ 验证：`cargo test -p tikeo-storage`、`cargo test -p tikeo-server tunnel::dispatcher -- --nocapture`、`cargo test -p tikeo-server metrics_summary_reports_storage_registry_and_alert_counts -- --nocapture`、`cargo clippy -p tikeo-server --all-targets -- -D warnings`、`python .github/tests/docs_site_contract_test.py`。
+3. ✅ `cluster.scheduler_shard_map_version` / `cluster.scheduler_shard_count` 支持配置覆盖；server 启动时应用到 storage shard policy。
+4. ✅ API single job dispatch queue 使用稳定 shard hash，并持久化 `shard_id / shard_map_version / shard_count`。
+5. ✅ dispatch_queue claim 可绑定 `owner_epoch / owner_fencing_token`，且保留 shard map version/count；错误 owner/token 无法 claim。
+6. ✅ dispatcher 在 `can_schedule=false` 但本节点拥有 active shard ownership 时，只扫描并 claim 自己 shard；后续 mark running/release/failed 使用 claim 的实际 lease owner。
+7. ✅ metrics summary / Prometheus gauges 暴露 shard ownership rows、active、max epoch、max shard map version、max shard count、active-by-owner。
+8. ✅ 验证：`cargo test -p tikeo-config`、`cargo test -p tikeo-storage`、`cargo test -p tikeo-server tunnel::dispatcher -- --nocapture`、`cargo test -p tikeo-server metrics_summary_reports_storage_registry_and_alert_counts -- --nocapture`、`cargo clippy -p tikeo-server --all-targets -- -D warnings`、`python .github/tests/docs_site_contract_test.py`。
 
-下一推进切片：补齐显式 shard map version / 可配置 shard count，然后进入 Phase 4 Locality-Aware Scoring。
+下一推进切片：Phase 4 Locality-Aware Scoring。
 
 ## 风险与控制
 
 - Outbox 与旧 relay 双路径可能重复派发：先让 outbox 成为 truth，relay 只做 hint；terminal result 仍由 assignment token fencing 控制。
 - 事务边界复杂：attempt token + outbox create + queue running 要么同事务，要么有补偿 scanner。
-- Phase 3 剩余边界：当前 shard count 暂为 64，且没有显式 shard map version；workflow materialization / broadcast path 的 shard ownership 语义仍需后续切片继续收口。
+- Phase 3 剩余边界：workflow materialization / broadcast path 仍保留非 shard-owner 默认路径；Phase 4 需要结合 LASSO scoring 和 e2e/chaos 脚本继续收口。
 - DB 写放大：Phase 1 先保证正确性，Phase 4/压测再优化 batch。
