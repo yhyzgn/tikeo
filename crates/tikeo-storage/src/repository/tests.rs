@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-use super::{JobInstanceRepository, JobRepository};
+use super::{JobInstanceAttemptRepository, JobInstanceRepository, JobRepository};
 
 async fn seed_worker_pool_quota(
     db: &DatabaseConnection,

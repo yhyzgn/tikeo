@@ -21,7 +21,7 @@
 
 <p align="center">
   <a href="https://github.com/yhyzgn/tikeo/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white" /></a>
-  <a href="https://github.com/yhyzgn/tikeo/releases"><img alt="Latest release" src="https://img.shields.io/badge/release-v0.2.12-181717?style=flat-square&logo=github&logoColor=white" /></a>
+  <a href="https://github.com/yhyzgn/tikeo/releases"><img alt="Latest release" src="https://img.shields.io/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fyhyzgn%2Ftikeo%2Fmain%2Fdocs%2Fstatic%2Frelease-badge.json&query=%24.version&style=flat-square&label=release&logo=github&logoColor=white&color=181717" /></a>
   <a href="https://codecov.io/gh/yhyzgn/tikeo"><img alt="Coverage" src="https://codecov.io/gh/yhyzgn/tikeo/branch/main/graph/badge.svg" /></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Fyhyzgn%2Ftikeo%2Flicense&query=%24.license.spdx_id&style=flat-square&label=license&logo=opensourceinitiative&logoColor=white&color=3DA639" /></a>
 </p>

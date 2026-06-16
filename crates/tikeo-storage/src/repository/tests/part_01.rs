@@ -369,6 +369,140 @@
         assert!(online[0].master_json.contains("isMaster"));
     }
 
+
+    #[tokio::test]
+    async fn worker_lifecycle_get_online_current_worker_rejects_registry_only_or_expired_state() {
+        use crate::repository::{RegisterWorkerSession, WorkerLifecycleRepository};
+
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let repository = WorkerLifecycleRepository::new(db);
+        repository
+            .register_session(RegisterWorkerSession {
+                worker_id: "wrk-online-current".to_owned(),
+                namespace_name: "default".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "local".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "pod-a".to_owned(),
+                connection_id: "conn-online".to_owned(),
+                fencing_token: "token-online".to_owned(),
+                lease_seconds: 30,
+                capabilities_json: r#"["java"]"#.to_owned(),
+                structured_capabilities_json: r#"{"tags":["java"],"sdkProcessors":["demo.echo"],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
+                labels_json: r#"{"worker_pool":"blue"}"#.to_owned(),
+                master_json: r#"{"domain":"default/billing/local/local","isMaster":true,"masterWorkerId":"wrk-online-current","term":1,"fencingToken":"wmf-test"}"#.to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("online session should persist: {error}"));
+        repository
+            .register_session(RegisterWorkerSession {
+                worker_id: "wrk-expired-current".to_owned(),
+                namespace_name: "default".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "local".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "pod-expired".to_owned(),
+                connection_id: "conn-expired".to_owned(),
+                fencing_token: "token-expired".to_owned(),
+                lease_seconds: -1,
+                capabilities_json: "[]".to_owned(),
+                structured_capabilities_json: "{}".to_owned(),
+                labels_json: "{}".to_owned(),
+                master_json: "{}".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("expired session should persist: {error}"));
+
+        let online = repository
+            .get_online_current_worker("wrk-online-current")
+            .await
+            .unwrap_or_else(|error| panic!("online worker lookup should run: {error}"))
+            .unwrap_or_else(|| panic!("online current worker should be returned"));
+        assert_eq!(online.worker_id, "wrk-online-current");
+        assert_eq!(online.generation, 1);
+        assert_eq!(
+            repository
+                .get_online_current_worker("wrk-expired-current")
+                .await
+                .unwrap_or_else(|error| panic!("expired worker lookup should run: {error}")),
+            None
+        );
+        assert_eq!(
+            repository
+                .get_online_current_worker("wrk-registry-only")
+                .await
+                .unwrap_or_else(|error| panic!("missing worker lookup should run: {error}")),
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn job_instance_attempt_assignment_token_is_persisted_and_validated() {
+        let db = crate::connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db);
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "assignment-token".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("demo.echo".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                retry_policy: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should create: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id,
+                trigger_type: tikeo_core::TriggerType::Api,
+                execution_mode: tikeo_core::ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should create: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        let created = attempts
+            .create_pending_for_workers(&instance.id, &["wrk-one".to_owned()])
+            .await
+            .unwrap_or_else(|error| panic!("attempt should create: {error}"));
+        assert_eq!(created[0].assignment_token, None);
+
+        assert!(
+            attempts
+                .record_assignment_token(&instance.id, "wrk-one", "asg-db-token")
+                .await
+                .unwrap_or_else(|error| panic!("assignment token should persist: {error}"))
+        );
+        assert!(
+            attempts
+                .accepts_assignment_token(&instance.id, "wrk-one", "asg-db-token")
+                .await
+                .unwrap_or_else(|error| panic!("assignment token should validate: {error}"))
+        );
+        assert!(
+            !attempts
+                .accepts_assignment_token(&instance.id, "wrk-one", "wrong-token")
+                .await
+                .unwrap_or_else(|error| panic!("wrong token should validate false: {error}"))
+        );
+    }
+
     #[tokio::test]
     async fn worker_lifecycle_graceful_unregister_stops_current_session_with_evidence() {
         use crate::repository::{RegisterWorkerSession, WorkerLifecycleRepository};

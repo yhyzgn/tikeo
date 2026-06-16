@@ -1,4 +1,8 @@
-//! In-memory Worker Tunnel connection registry.
+//! Worker Tunnel transport registry.
+//!
+//! Persistent worker lifecycle storage is the authority for online state, capability
+//! snapshots, and dispatch eligibility. This registry intentionally keeps only the
+//! per-process live stream handles required to send gRPC messages.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -13,7 +17,8 @@ use tikeo_proto::worker::v1::{
     server_message,
 };
 use tikeo_storage::{
-    RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository, WorkerSessionSnapshotUpdate,
+    PersistedOnlineWorkerSummary, RegisterWorkerSession, WorkerHeartbeat,
+    WorkerLifecycleRepository, WorkerSessionSnapshotUpdate,
 };
 use tokio::sync::{RwLock, mpsc};
 use tonic::Status;
@@ -146,7 +151,6 @@ impl WorkerRegistry {
                 registered_at: now,
                 last_heartbeat_at: now,
                 last_sequence: 0,
-                active_assignment_tokens: Vec::new(),
             };
             replace_previous_generations(&mut workers, &logical_instance_id, &worker_id);
             workers.insert(record.worker_id.clone(), record.clone());
@@ -299,7 +303,6 @@ impl WorkerRegistry {
             worker.status = WorkerSessionStatus::Stopped;
             worker.status_reason = Some("graceful_shutdown".to_owned());
             worker.status_evidence = Some("worker sent graceful unregister".to_owned());
-            worker.active_assignment_tokens.clear();
             recompute_worker_master_states(&mut workers);
             let stopped = workers.get(worker_id).cloned()?;
             drop(workers);
@@ -341,7 +344,6 @@ impl WorkerRegistry {
             worker.status = WorkerSessionStatus::Offline;
             worker.status_reason = Some("transport_error".to_owned());
             worker.status_evidence = Some(evidence.to_owned());
-            worker.active_assignment_tokens.clear();
             recompute_worker_master_states(&mut workers);
             let offline = workers.get(worker_id).cloned()?;
             drop(workers);
@@ -525,21 +527,74 @@ impl WorkerRegistry {
             .is_some_and(RegisteredWorker::is_schedulable)
     }
 
-    /// Return true when a worker message carries a currently accepted assignment token.
-    pub async fn accepts_worker_assignment(&self, worker_id: &str, assignment_token: &str) -> bool {
-        if assignment_token.is_empty() {
-            return false;
-        }
-        self.workers
-            .read()
+    /// Return persisted online workers matching namespace/app/requirement, preferring each domain master.
+    ///
+    /// When lifecycle storage is unavailable, falls back to the legacy in-process view for tests and
+    /// embedded single-process use. Production server construction wires lifecycle storage.
+    pub async fn find_ordered_persisted_dispatch_workers(
+        &self,
+        namespace: &str,
+        app: &str,
+        requirement: Option<&WorkerRequirement>,
+    ) -> Vec<String> {
+        let Some(lifecycle) = self.lifecycle.as_ref() else {
+            return self
+                .find_ordered_dispatch_workers(namespace, app, requirement)
+                .await;
+        };
+        let Ok(mut workers) = lifecycle.list_online_workers(500).await else {
+            return Vec::new();
+        };
+        workers.retain(|worker| persisted_worker_matches(worker, namespace, app, requirement));
+        workers.sort_by(persisted_dispatch_order);
+        workers.into_iter().map(|worker| worker.worker_id).collect()
+    }
+
+    /// Return persisted online workers matching namespace/app plus broadcast selector constraints.
+    ///
+    /// When lifecycle storage is unavailable, falls back to the legacy in-process view for tests and
+    /// embedded single-process use. Production server construction wires lifecycle storage.
+    pub async fn find_persisted_broadcast_workers(
+        &self,
+        namespace: &str,
+        app: &str,
+        selector: Option<&BroadcastSelector>,
+    ) -> Vec<String> {
+        let Some(lifecycle) = self.lifecycle.as_ref() else {
+            return self
+                .find_eligible_workers_with_broadcast_selector(namespace, app, selector)
+                .await;
+        };
+        let selector = selector.cloned().unwrap_or_default();
+        let Ok(workers) = lifecycle.list_online_workers(500).await else {
+            return Vec::new();
+        };
+        workers
+            .into_iter()
+            .filter(|worker| persisted_broadcast_worker_matches(worker, namespace, app, &selector))
+            .map(|worker| worker.worker_id)
+            .collect()
+    }
+
+    /// Return true when durable worker lifecycle storage says the worker is current and capability-compatible.
+    pub async fn persisted_worker_supports_requirement(
+        &self,
+        worker_id: &str,
+        requirement: Option<&WorkerRequirement>,
+    ) -> bool {
+        let Some(lifecycle) = self.lifecycle.as_ref() else {
+            return self
+                .worker_supports_requirement(worker_id, requirement)
+                .await;
+        };
+        lifecycle
+            .get_online_current_worker(worker_id)
             .await
-            .get(worker_id)
+            .ok()
+            .flatten()
             .is_some_and(|worker| {
-                worker.is_schedulable()
-                    && worker
-                        .active_assignment_tokens
-                        .iter()
-                        .any(|token| token == assignment_token)
+                requirement
+                    .is_none_or(|requirement| persisted_worker_satisfies(&worker, requirement))
             })
     }
 
@@ -553,22 +608,27 @@ impl WorkerRegistry {
         worker_id: &str,
         mut task: DispatchTask,
     ) -> Option<String> {
+        if let Some(lifecycle) = self.lifecycle.as_ref()
+            && lifecycle
+                .get_online_current_worker(worker_id)
+                .await
+                .ok()
+                .flatten()
+                .is_none()
+        {
+            metrics::counter!("tikeo_worker_dispatch_total", "result" => "not_online").increment(1);
+            return None;
+        }
         let assignment_token = format!("asg-{}", Uuid::now_v7());
         task.assignment_token = assignment_token.clone();
         let worker = {
-            let mut workers = self.workers.write().await;
-            let worker = workers.get_mut(worker_id)?;
+            let workers = self.workers.read().await;
+            let worker = workers.get(worker_id)?;
             if !worker.is_schedulable() {
                 return None;
             }
-            worker
-                .active_assignment_tokens
-                .push(assignment_token.clone());
-            let worker = worker.clone();
-            drop(workers);
-            worker
+            worker.clone()
         };
-        let worker_id = worker.worker_id.clone();
         if worker
             .outbound
             .send(Ok(ServerMessage {
@@ -581,22 +641,7 @@ impl WorkerRegistry {
             Some(assignment_token)
         } else {
             metrics::counter!("tikeo_worker_dispatch_total", "result" => "closed").increment(1);
-            self.revoke_assignment_token(&worker_id, &assignment_token)
-                .await;
             None
-        }
-    }
-
-    async fn revoke_assignment_token(&self, worker_id: &str, assignment_token: &str) {
-        {
-            let mut workers = self.workers.write().await;
-            let Some(worker) = workers.get_mut(worker_id) else {
-                return;
-            };
-            worker
-                .active_assignment_tokens
-                .retain(|token| token != assignment_token);
-            drop(workers);
         }
     }
 
@@ -812,7 +857,6 @@ fn replace_previous_generations(
         worker.status_evidence =
             Some("same logical instance registered a newer generation".to_owned());
         worker.replaced_by_worker_id = Some(replacement_worker_id.to_owned());
-        worker.active_assignment_tokens.clear();
     }
 }
 
@@ -868,6 +912,163 @@ fn broadcast_selector_matches(worker: &RegisteredWorker, selector: &BroadcastSel
 
 fn worker_satisfies(worker: &RegisteredWorker, requirement: &WorkerRequirement) -> bool {
     structured_capabilities_match(&worker.structured_capabilities, requirement)
+}
+
+fn persisted_dispatch_order(
+    left: &PersistedOnlineWorkerSummary,
+    right: &PersistedOnlineWorkerSummary,
+) -> std::cmp::Ordering {
+    let left_master = persisted_master_order(left);
+    let right_master = persisted_master_order(right);
+    right_master
+        .0
+        .cmp(&left_master.0)
+        .then_with(|| left_master.1.cmp(&right_master.1))
+        .then_with(|| left.worker_id.cmp(&right.worker_id))
+}
+
+fn persisted_master_order(worker: &PersistedOnlineWorkerSummary) -> (bool, String) {
+    let value = serde_json::from_str::<serde_json::Value>(&worker.master_json).unwrap_or_default();
+    (
+        value
+            .get("isMaster")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false),
+        value
+            .get("domain")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("")
+            .to_owned(),
+    )
+}
+
+fn persisted_worker_matches(
+    worker: &PersistedOnlineWorkerSummary,
+    namespace: &str,
+    app: &str,
+    requirement: Option<&WorkerRequirement>,
+) -> bool {
+    is_match(&worker.namespace_name, namespace)
+        && is_match(&worker.app_name, app)
+        && requirement.is_none_or(|requirement| persisted_worker_satisfies(worker, requirement))
+}
+
+fn persisted_broadcast_worker_matches(
+    worker: &PersistedOnlineWorkerSummary,
+    namespace: &str,
+    app: &str,
+    selector: &BroadcastSelector,
+) -> bool {
+    if !is_match(&worker.namespace_name, namespace) || !is_match(&worker.app_name, app) {
+        return false;
+    }
+    if selector
+        .region
+        .as_deref()
+        .is_some_and(|region| !is_match(&worker.region, region))
+    {
+        return false;
+    }
+    if selector
+        .cluster
+        .as_deref()
+        .is_some_and(|cluster| !is_match(&worker.cluster, cluster))
+    {
+        return false;
+    }
+    let labels = parse_persisted_labels(&worker.labels_json);
+    if !selector
+        .labels
+        .iter()
+        .all(|(key, value)| labels.get(key).is_some_and(|actual| actual == value))
+    {
+        return false;
+    }
+    if selector.tags.is_empty() {
+        return true;
+    }
+    let capabilities = parse_persisted_capabilities(&worker.structured_capabilities_json);
+    let tags = capabilities
+        .tags
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    selector.tags.iter().all(|tag| tags.contains(tag.as_str()))
+}
+
+fn persisted_worker_satisfies(
+    worker: &PersistedOnlineWorkerSummary,
+    requirement: &WorkerRequirement,
+) -> bool {
+    structured_capabilities_match(
+        &parse_persisted_capabilities(&worker.structured_capabilities_json),
+        requirement,
+    )
+}
+
+fn parse_persisted_capabilities(value: &str) -> WorkerCapabilities {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(value) else {
+        return WorkerCapabilities::default();
+    };
+    WorkerCapabilities {
+        tags: value
+            .get("tags")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(serde_json::Value::as_str)
+            .map(str::to_owned)
+            .collect(),
+        sdk_processors: value
+            .get("sdkProcessors")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(serde_json::Value::as_str)
+            .map(|name| tikeo_proto::worker::v1::SdkProcessorCapability {
+                name: name.to_owned(),
+            })
+            .collect(),
+        script_runners: value
+            .get("scriptRunners")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|runner| {
+                Some(tikeo_proto::worker::v1::ScriptRunnerCapability {
+                    language: runner.get("language")?.as_str()?.to_owned(),
+                    sandbox_backend: runner
+                        .get("sandboxBackend")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or_default()
+                        .to_owned(),
+                })
+            })
+            .collect(),
+        plugin_processors: value
+            .get("pluginProcessors")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|processor| {
+                Some(tikeo_proto::worker::v1::PluginProcessorCapability {
+                    r#type: processor.get("type")?.as_str()?.to_owned(),
+                    processor_names: processor
+                        .get("processorNames")
+                        .and_then(serde_json::Value::as_array)
+                        .into_iter()
+                        .flatten()
+                        .filter_map(serde_json::Value::as_str)
+                        .map(str::to_owned)
+                        .collect(),
+                })
+            })
+            .collect(),
+    }
+}
+
+fn parse_persisted_labels(value: &str) -> HashMap<String, String> {
+    serde_json::from_str::<HashMap<String, String>>(value).unwrap_or_default()
 }
 
 /// Worker session status used by scheduling and UI grouping.
@@ -945,8 +1146,6 @@ pub struct RegisteredWorker {
     pub last_heartbeat_at: SystemTime,
     /// Last heartbeat sequence.
     pub last_sequence: u64,
-    /// Active assignment tokens currently accepted for task logs/results.
-    pub active_assignment_tokens: Vec<String>,
 }
 
 impl RegisteredWorker {

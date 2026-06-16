@@ -158,6 +158,7 @@ async fn dispatch_once(
     dispatch_single_instances(
         jobs,
         instances,
+        attempts,
         workflows,
         scripts,
         logs,
@@ -173,6 +174,7 @@ async fn dispatch_once(
 async fn dispatch_single_instances(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,
+    attempts: &JobInstanceAttemptRepository,
     workflows: &WorkflowRepository,
     scripts: &ScriptRepository,
     logs: &tikeo_storage::JobInstanceLogRepository,
@@ -380,11 +382,17 @@ async fn dispatch_single_instances(
 
         let requirement = required_task_requirement_for_executor(&task, &executor);
         let eligible_workers = registry
-            .find_ordered_dispatch_workers(&job.namespace, &job.app, requirement.as_ref())
+            .find_ordered_persisted_dispatch_workers(&job.namespace, &job.app, requirement.as_ref())
             .await;
         if let Some(worker_id) = eligible_workers.first()
-            && registry.dispatch_to_worker(worker_id, task).await.is_some()
+            && let Some(assignment_token) = registry.dispatch_to_worker(worker_id, task).await
         {
+            let _ = attempts
+                .create_pending_for_workers(&instance.id, std::slice::from_ref(worker_id))
+                .await?;
+            let _ = attempts
+                .record_assignment_token(&instance.id, worker_id, &assignment_token)
+                .await?;
             append_retry_dispatch_progress_log(
                 logs,
                 &instance.id,
@@ -676,7 +684,7 @@ async fn dispatch_broadcast_attempts(
 
         let requirement = required_task_requirement_for_executor(&task, &executor);
         if !registry
-            .worker_supports_requirement(&attempt.worker_id, requirement.as_ref())
+            .persisted_worker_supports_requirement(&attempt.worker_id, requirement.as_ref())
             .await
         {
             if let Some(requirement) = requirement.as_ref() {
@@ -701,6 +709,9 @@ async fn dispatch_broadcast_attempts(
         }
 
         if let Some(worker_id) = registry.dispatch_to_worker(&attempt.worker_id, task).await {
+            let _ = attempts
+                .record_assignment_token(&attempt.instance_id, &attempt.worker_id, &worker_id)
+                .await?;
             attempts
                 .update_status_if_current(
                     &attempt.instance_id,

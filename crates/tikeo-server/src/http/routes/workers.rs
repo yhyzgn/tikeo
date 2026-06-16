@@ -18,8 +18,7 @@ use crate::http::{
         ApiResponse, DispatchQueueApiResponse, DispatchQueueClaimApiResponse, MeResponse,
         WorkerCapabilitiesSummary, WorkerLifecycleHistoryApiResponse,
         WorkerLifecycleHistoryResponse, WorkerListApiResponse, WorkerListResponse,
-        WorkerMasterSummary, WorkerPluginProcessorSummary, WorkerScriptRunnerSummary,
-        WorkerSessionEventDto, WorkerSessionHistorySummary, WorkerSummary,
+        WorkerMasterSummary, WorkerSessionEventDto, WorkerSessionHistorySummary, WorkerSummary,
     },
     error::ApiError,
 };
@@ -55,31 +54,16 @@ async fn worker_list_response(
     state: &AppState,
     principal: &MeResponse,
 ) -> Result<WorkerListResponse, ApiError> {
-    let registry_workers = state.registry.workers().await;
-    let mut registry_by_worker_id = registry_workers
-        .into_iter()
-        .map(|worker| (worker.worker_id.clone(), worker))
-        .collect::<HashMap<_, _>>();
     let persisted_workers = state
         .worker_lifecycle
         .list_online_workers(500)
         .await
         .map_err(|error| ApiError::storage(&error))?;
-    let mut items = Vec::with_capacity(persisted_workers.len().max(registry_by_worker_id.len()));
+    let mut items = Vec::with_capacity(persisted_workers.len());
 
     for persisted in persisted_workers {
-        if let Some(worker) = registry_by_worker_id.remove(&persisted.worker_id) {
-            let worker_pool = worker_pool_from_labels(&worker.labels);
-            items.push((registry_worker_summary(worker), worker_pool));
-        } else {
-            let worker_pool = worker_pool_from_labels_json(&persisted.labels_json);
-            items.push((persisted_worker_summary(persisted), worker_pool));
-        }
-    }
-
-    for worker in registry_by_worker_id.into_values() {
-        let worker_pool = worker_pool_from_labels(&worker.labels);
-        items.push((registry_worker_summary(worker), worker_pool));
+        let worker_pool = worker_pool_from_labels_json(&persisted.labels_json);
+        items.push((persisted_worker_summary(persisted), worker_pool));
     }
 
     items.retain(|(worker, worker_pool)| {
@@ -200,32 +184,6 @@ async fn worker_stream_snapshot(
     })
 }
 
-fn registry_worker_summary(worker: crate::tunnel::RegisteredWorker) -> WorkerSummary {
-    WorkerSummary {
-        worker_id: worker.worker_id,
-        logical_instance_id: worker.logical_instance_id,
-        client_instance_id: worker.client_instance_id,
-        app: worker.app,
-        namespace: worker.namespace,
-        cluster: worker.cluster,
-        region: worker.region,
-        capabilities: worker.capabilities,
-        structured_capabilities: worker_capabilities_summary(&worker.structured_capabilities),
-        master: WorkerMasterSummary {
-            domain: worker.master.domain,
-            is_master: worker.master.is_master,
-            master_worker_id: worker.master.master_worker_id,
-            term: worker.master.term,
-            fencing_token: worker.master.fencing_token,
-        },
-        generation: worker.generation,
-        status: worker.status.as_str().to_owned(),
-        status_reason: worker.status_reason,
-        replaced_by_worker_id: worker.replaced_by_worker_id,
-        last_sequence: worker.last_sequence,
-    }
-}
-
 fn persisted_worker_summary(worker: tikeo_storage::PersistedOnlineWorkerSummary) -> WorkerSummary {
     let domain = format!(
         "{}/{}/{}/{}",
@@ -279,36 +237,6 @@ fn worker_pool_from_labels(labels: &HashMap<String, String>) -> Option<String> {
         .get("worker_pool")
         .or_else(|| labels.get("worker-pool"))
         .cloned()
-}
-
-fn worker_capabilities_summary(
-    capabilities: &tikeo_proto::worker::v1::WorkerCapabilities,
-) -> WorkerCapabilitiesSummary {
-    WorkerCapabilitiesSummary {
-        tags: capabilities.tags.clone(),
-        sdk_processors: capabilities
-            .sdk_processors
-            .iter()
-            .map(|processor| processor.name.clone())
-            .filter(|name| !name.trim().is_empty())
-            .collect(),
-        script_runners: capabilities
-            .script_runners
-            .iter()
-            .map(|runner| WorkerScriptRunnerSummary {
-                language: runner.language.clone(),
-                sandbox_backend: runner.sandbox_backend.clone(),
-            })
-            .collect(),
-        plugin_processors: capabilities
-            .plugin_processors
-            .iter()
-            .map(|processor| WorkerPluginProcessorSummary {
-                r#type: processor.r#type.clone(),
-                processor_names: processor.processor_names.clone(),
-            })
-            .collect(),
-    }
 }
 
 #[utoipa::path(get, path = "/api/v1/dispatch-queue", tag = "workers")]

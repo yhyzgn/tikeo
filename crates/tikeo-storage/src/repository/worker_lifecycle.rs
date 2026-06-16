@@ -459,6 +459,53 @@ impl WorkerLifecycleRepository {
         Ok(workers)
     }
 
+    /// Load one persisted worker only when it is online, lease-valid, and current for its logical instance.
+    pub async fn get_online_current_worker(
+        &self,
+        worker_id: &str,
+    ) -> Result<Option<PersistedOnlineWorkerSummary>, sea_orm::DbErr> {
+        let now = now_rfc3339();
+        let Some(session) = worker_session::Entity::find_by_id(worker_id.to_owned())
+            .filter(worker_session::Column::Status.eq(STATUS_ONLINE.to_owned()))
+            .filter(worker_session::Column::LeaseExpiresAt.gt(now))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let Some(logical) =
+            worker_logical_instance::Entity::find_by_id(&session.logical_instance_id)
+                .one(&self.db)
+                .await?
+        else {
+            return Ok(None);
+        };
+        if logical.current_worker_id.as_deref() != Some(session.worker_id.as_str())
+            || logical.current_generation != session.generation
+        {
+            return Ok(None);
+        }
+        Ok(Some(PersistedOnlineWorkerSummary {
+            worker_id: session.worker_id,
+            logical_instance_id: session.logical_instance_id,
+            client_instance_id: non_empty(logical.client_instance_id),
+            namespace_name: logical.namespace_name,
+            app_name: logical.app_name,
+            cluster: logical.cluster,
+            region: logical.region,
+            generation: session.generation,
+            status: session.status,
+            status_reason: session.status_reason,
+            lease_expires_at: session.lease_expires_at,
+            last_sequence: session.last_sequence,
+            capabilities_json: session.capabilities_json,
+            structured_capabilities_json: session.structured_capabilities_json,
+            labels_json: session.labels_json,
+            master_json: session.master_json,
+            replaced_by_worker_id: session.replaced_by_worker_id,
+        }))
+    }
+
     /// Update persisted worker capability/label/master snapshots for currently known online sessions.
     pub async fn update_session_snapshots(
         &self,

@@ -900,7 +900,9 @@
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let registry = crate::tunnel::WorkerRegistry::default();
+        let registry = crate::tunnel::WorkerRegistry::with_lifecycle(
+            tikeo_storage::WorkerLifecycleRepository::new(db.clone()),
+        );
         let (tx1, _rx1) = tokio::sync::mpsc::channel(1);
         let (tx2, _rx2) = tokio::sync::mpsc::channel(1);
         registry.register(worker("worker-a", "billing"), tx1).await;

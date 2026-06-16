@@ -759,6 +759,7 @@ pub(super) enum JobInstanceAttempts {
     InstanceId,
     WorkerId,
     Status,
+    AssignmentToken,
     ResultSuccess,
     ResultMessage,
     ResultCompletedAt,

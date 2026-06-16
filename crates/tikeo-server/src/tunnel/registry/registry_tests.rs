@@ -148,36 +148,37 @@ async fn registry_replaces_same_logical_instance_with_new_generation_and_fencing
 }
 
 #[tokio::test]
-async fn registry_dispatch_assignment_token_validates_current_worker_session() {
+async fn registry_dispatch_returns_assignment_token_without_becoming_assignment_authority() {
     let registry = WorkerRegistry::default();
-    let (outbound, _inbound) = mpsc::channel(8);
-    let worker = registry
-        .register(register_worker("pod-assign"), outbound)
-        .await;
-    let task = DispatchTask {
-        instance_id: "inst-assign".to_owned(),
-        job_id: "job-assign".to_owned(),
-        payload: Vec::new(),
-        processor_name: "demo.echo".to_owned(),
-        processor_binding: None,
-        assignment_token: String::new(),
-    };
+    let (tx, mut rx) = mpsc::channel(1);
+    let worker = registry.register(register_worker("pod-a"), tx).await;
 
     let token = registry
-        .dispatch_to_worker(&worker.worker_id, task)
+        .dispatch_to_worker(
+            &worker.worker_id,
+            DispatchTask {
+                instance_id: "inst-1".to_owned(),
+                job_id: "job-1".to_owned(),
+                payload: Vec::new(),
+                processor_name: "demo.echo".to_owned(),
+                processor_binding: None,
+                assignment_token: String::new(),
+            },
+        )
         .await
-        .unwrap_or_else(|| panic!("dispatch should assign token"));
-
-    assert!(
-        registry
-            .accepts_worker_assignment(&worker.worker_id, &token)
-            .await
-    );
-    assert!(
-        !registry
-            .accepts_worker_assignment(&worker.worker_id, "wrong-token")
-            .await
-    );
+        .unwrap_or_else(|| panic!("dispatch should return a token for persistence"));
+    let message = rx
+        .recv()
+        .await
+        .unwrap_or_else(|| panic!("dispatch message should arrive"))
+        .unwrap_or_else(|error| panic!("dispatch should be ok: {error}"));
+    match message.kind {
+        Some(tikeo_proto::worker::v1::server_message::Kind::DispatchTask(task)) => {
+            assert_eq!(task.assignment_token, token);
+            assert!(task.assignment_token.starts_with("asg-"));
+        }
+        other => panic!("unexpected server message: {other:?}"),
+    }
 }
 
 #[tokio::test]

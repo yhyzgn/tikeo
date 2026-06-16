@@ -1195,7 +1195,9 @@
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let registry = crate::tunnel::WorkerRegistry::default();
+        let registry = crate::tunnel::WorkerRegistry::with_lifecycle(
+            tikeo_storage::WorkerLifecycleRepository::new(db.clone()),
+        );
         let (tx1, _rx1) = tokio::sync::mpsc::channel(1);
         let (tx2, _rx2) = tokio::sync::mpsc::channel(1);
         let mut pool_a = worker("pool-a-worker", "billing");
@@ -1255,12 +1257,71 @@
         );
     }
 
+
+    #[tokio::test]
+    async fn workers_list_uses_persisted_online_sessions_as_authoritative_source() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let lifecycle = tikeo_storage::WorkerLifecycleRepository::new(db.clone());
+        let registry = crate::tunnel::WorkerRegistry::default();
+        let (tx, _rx) = tokio::sync::mpsc::channel(1);
+        registry.register(worker("registry-only", "billing"), tx).await;
+        lifecycle
+            .register_session(tikeo_storage::RegisterWorkerSession {
+                worker_id: "wrk-db-online".to_owned(),
+                namespace_name: "default".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "local".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "persisted-pod".to_owned(),
+                connection_id: "conn-db-online".to_owned(),
+                fencing_token: "token-db-online".to_owned(),
+                lease_seconds: 30,
+                capabilities_json: r#"["java"]"#.to_owned(),
+                structured_capabilities_json: r#"{"tags":["java"],"sdkProcessors":["demo.echo"],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
+                labels_json: r#"{"worker_pool":"blue"}"#.to_owned(),
+                master_json: r#"{"domain":"default/billing/local/local","isMaster":true,"masterWorkerId":"wrk-db-online","term":1,"fencingToken":"wmf-test"}"#.to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("persisted worker should register: {error}"));
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            AuditLogRepository::new(db),
+            registry,
+            StandaloneCoordinator::shared("test-node"),
+        ));
+
+        let response = app
+            .clone()
+            .oneshot(admin_request_builder(app.clone(), "GET", "/api/v1/workers").await)
+            .await
+            .unwrap_or_else(|error| panic!("workers route should respond: {error}"));
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert_eq!(json["data"]["online"], 1);
+        assert_eq!(json["data"]["items"][0]["workerId"], "wrk-db-online");
+        assert_eq!(json["data"]["items"][0]["clientInstanceId"], "persisted-pod");
+    }
+
     #[tokio::test]
     async fn workers_list_shows_latest_generation_for_reconnected_logical_instance() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
-        let registry = crate::tunnel::WorkerRegistry::default();
+        let registry = crate::tunnel::WorkerRegistry::with_lifecycle(
+            tikeo_storage::WorkerLifecycleRepository::new(db.clone()),
+        );
         let (tx1, _rx1) = tokio::sync::mpsc::channel(1);
         let (tx2, _rx2) = tokio::sync::mpsc::channel(1);
         let first = registry.register(worker("pod-1", "billing"), tx1).await;

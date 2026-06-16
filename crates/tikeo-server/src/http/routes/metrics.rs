@@ -20,7 +20,12 @@ pub async fn metrics_summary(
     headers: HeaderMap,
 ) -> Result<Json<ApiResponse<MetricsSummaryResponse>>, ApiError> {
     auth::require_permission(&headers, &state, "system", "read").await?;
-    let workers = state.registry.workers().await;
+    let workers_online = state
+        .worker_lifecycle
+        .list_online_workers(500)
+        .await
+        .map(|workers| u64::try_from(workers.len()).unwrap_or(u64::MAX))
+        .map_err(|error| ApiError::storage(&error))?;
     let instances = state
         .instances
         .count_by_status()
@@ -41,7 +46,6 @@ pub async fn metrics_summary(
         .workflow_slo_summary()
         .await
         .map_err(|error| ApiError::storage(&error))?;
-    let workers_online = u64::try_from(workers.len()).unwrap_or(u64::MAX);
     metrics::with_local_recorder(&*recorder, || {
         record_dispatch_queue_metrics(&queue);
         record_business_slo_metrics(

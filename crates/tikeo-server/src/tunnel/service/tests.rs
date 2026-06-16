@@ -410,6 +410,7 @@ async fn broadcast_task_result_persists_per_worker_attempt_result() {
         Some(server_message::Kind::DispatchTask(task)) => task.assignment_token,
         other => panic!("unexpected server message: {other:?}"),
     };
+    persist_assignment_token_for_test(&attempts, &instance.id, &worker.worker_id, &token).await;
     let (tx, _events) = mpsc::channel(8);
     let broadcaster = TaskLogBroadcaster::default();
     let templates = tikeo_storage::NotificationTemplateRepository::new(channels.db());
@@ -590,6 +591,7 @@ async fn failed_single_task_result_schedules_retry_and_logs_result() {
         Some(server_message::Kind::DispatchTask(task)) => task.assignment_token,
         other => panic!("unexpected server message: {other:?}"),
     };
+    persist_assignment_token_for_test(&attempts, &instance.id, &worker.worker_id, &token).await;
     let (tx, _events) = mpsc::channel(8);
     let broadcaster = TaskLogBroadcaster::default();
     let notifications = notification_center(&jobs);
@@ -818,6 +820,7 @@ async fn failed_single_task_result_emits_job_notification_policy() {
         Some(server_message::Kind::DispatchTask(task)) => task.assignment_token,
         other => panic!("unexpected server message: {other:?}"),
     };
+    persist_assignment_token_for_test(&attempts, &instance.id, &worker.worker_id, &token).await;
     let (tx, _events) = mpsc::channel(8);
     let broadcaster = TaskLogBroadcaster::default();
     let templates = tikeo_storage::NotificationTemplateRepository::new(channels.db());
@@ -1045,6 +1048,7 @@ async fn non_retrying_failed_task_result_emits_failed_notification_policy() {
         Some(server_message::Kind::DispatchTask(task)) => task.assignment_token,
         other => panic!("unexpected server message: {other:?}"),
     };
+    persist_assignment_token_for_test(&attempts, &instance.id, &worker.worker_id, &token).await;
     let (tx, _events) = mpsc::channel(8);
     let broadcaster = TaskLogBroadcaster::default();
     let templates = tikeo_storage::NotificationTemplateRepository::new(channels.db());
@@ -1208,6 +1212,25 @@ async fn subscribe_task_logs_replays_existing_and_streams_live_logs() {
         .unwrap_or_else(|| panic!("live log should exist"))
         .unwrap_or_else(|error| panic!("live log should stream: {error}"));
     assert_eq!(live.message, "live");
+}
+
+async fn persist_assignment_token_for_test(
+    attempts: &JobInstanceAttemptRepository,
+    instance_id: &str,
+    worker_id: &str,
+    token: &str,
+) {
+    let _ = attempts
+        .create_pending_for_workers(instance_id, &[worker_id.to_owned()])
+        .await
+        .unwrap_or_else(|error| panic!("attempt should exist for assignment token: {error}"));
+    assert!(
+        attempts
+            .record_assignment_token(instance_id, worker_id, token)
+            .await
+            .unwrap_or_else(|error| panic!("assignment token should persist: {error}")),
+        "assignment token should be recorded for test dispatch"
+    );
 }
 
 async fn jobs() -> JobRepository {

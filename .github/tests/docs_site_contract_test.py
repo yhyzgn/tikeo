@@ -283,6 +283,15 @@ NOTIFICATION_CENTER_SOURCE_TOKENS = [
 
 class DocsSiteContractTest(unittest.TestCase):
 
+    def test_readme_release_badges_are_dynamic_without_github_release_api(self):
+        for readme in [ROOT / "README.md", ROOT / "README.zh-CN.md"]:
+            text = readme.read_text(encoding="utf-8")
+            self.assertIn("img.shields.io", text)
+            self.assertNotIn("img.shields.io/badge/release-v", text)
+            self.assertNotIn("img.shields.io/github/v/release/yhyzgn/tikeo", text)
+            self.assertRegex(text, r"img\.shields\.io/(dynamic/json|endpoint)\?")
+
+
     def test_docs_site_module_replaces_legacy_website_module(self):
         self.assertTrue(DOCS_SITE.exists(), "docs/ must be the Docusaurus docs site module")
         self.assertFalse(LEGACY_WEBSITE.exists(), "legacy website/ module must be removed after migration to docs/")

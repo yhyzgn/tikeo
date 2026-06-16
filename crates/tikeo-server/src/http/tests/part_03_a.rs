@@ -108,7 +108,9 @@
             .unwrap_or_else(|| panic!("workflow instance should exist"));
         assert_eq!(completed_workflow.status, "succeeded");
 
-        let registry = crate::tunnel::WorkerRegistry::default();
+        let registry = crate::tunnel::WorkerRegistry::with_lifecycle(
+            tikeo_storage::WorkerLifecycleRepository::new(db.clone()),
+        );
         let (tx, _rx) = tokio::sync::mpsc::channel(1);
         registry
             .register(worker("metrics-worker", "billing"), tx)
@@ -789,7 +791,9 @@
             })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let registry = crate::tunnel::WorkerRegistry::default();
+        let registry = crate::tunnel::WorkerRegistry::with_lifecycle(
+            tikeo_storage::WorkerLifecycleRepository::new(db.clone()),
+        );
         let app = router_with_state(AppState::new(
             jobs,
             JobInstanceRepository::new(db.clone()),
@@ -1016,7 +1020,9 @@
             .set_timestamps_for_test(&second.id, "2026-05-28T00:01:00Z", "2026-05-28T00:01:30Z")
             .await
             .unwrap_or_else(|error| panic!("second timestamps should update: {error}"));
-        let registry = crate::tunnel::WorkerRegistry::default();
+        let registry = crate::tunnel::WorkerRegistry::with_lifecycle(
+            tikeo_storage::WorkerLifecycleRepository::new(db.clone()),
+        );
         let (sender, _receiver) = tokio::sync::mpsc::channel(1);
         let mut worker = RegisterWorker {
             client_instance_id: "predict-worker".to_owned(),

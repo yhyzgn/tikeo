@@ -58,7 +58,7 @@ pub async fn job_scheduling_advice(
     let requirement = required_requirement_for_job(&job_summary);
     let eligible_workers = state
         .registry
-        .find_eligible_workers_with_requirement(
+        .find_ordered_persisted_dispatch_workers(
             &job_summary.namespace,
             &job_summary.app,
             Some(&requirement),
@@ -143,13 +143,20 @@ async fn worker_capacity(
     let mut advertised_cpu_cores = 0_u64;
     let mut advertised_memory_mb = 0_u64;
     for worker_id in eligible_workers {
-        let Some(worker) = state.registry.get(worker_id).await else {
+        let Some(worker) = state
+            .worker_lifecycle
+            .get_online_current_worker(worker_id)
+            .await
+            .ok()
+            .flatten()
+        else {
             continue;
         };
-        advertised_cpu_cores =
-            advertised_cpu_cores.saturating_add(label_u64(&worker.labels, "cpu"));
-        advertised_memory_mb =
-            advertised_memory_mb.saturating_add(label_u64(&worker.labels, "memory_mb"));
+        let labels =
+            serde_json::from_str::<std::collections::HashMap<String, String>>(&worker.labels_json)
+                .unwrap_or_default();
+        advertised_cpu_cores = advertised_cpu_cores.saturating_add(label_u64(&labels, "cpu"));
+        advertised_memory_mb = advertised_memory_mb.saturating_add(label_u64(&labels, "memory_mb"));
     }
     JobSchedulingWorkerCapacity {
         eligible_worker_count: u64::try_from(eligible_workers.len()).unwrap_or(u64::MAX),

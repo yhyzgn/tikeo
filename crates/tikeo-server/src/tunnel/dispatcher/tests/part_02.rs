@@ -797,3 +797,96 @@
         assert!(outcome.success, "{}", outcome.message);
         assert!(outcome.message.contains("1 row"));
     }
+
+
+    #[tokio::test]
+    async fn dispatch_uses_persisted_online_worker_for_eligibility_and_live_transport_only_for_send() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db.clone());
+        let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
+        let scripts = ScriptRepository::new(db.clone());
+        let lifecycle = tikeo_storage::WorkerLifecycleRepository::new(db.clone());
+        let registry = WorkerRegistry::with_lifecycle(lifecycle.clone());
+        let (tx, mut rx) = mpsc::channel(1);
+        let worker = registry
+            .register(
+                RegisterWorker {
+                    client_instance_id: "worker-db-authority".to_owned(),
+                    app: "billing".to_owned(),
+                    namespace: "default".to_owned(),
+                    cluster: "local".to_owned(),
+                    region: "local".to_owned(),
+                    capabilities: Vec::new(),
+                    structured_capabilities: Some(sdk_capabilities("billing.manual")),
+                    election: None,
+                    labels: HashMap::default(),
+                },
+                tx,
+            )
+            .await;
+        lifecycle
+            .mark_transport_error(&worker.worker_id, "db authoritative offline")
+            .await
+            .unwrap_or_else(|error| panic!("db offline marker should persist: {error}"));
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "manual".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("billing.manual".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                retry_policy: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should be created: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id.clone(),
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should be created: {error}"))
+            .unwrap_or_else(|| panic!("job should exist"));
+
+        dispatch_once(
+            &jobs,
+            &instances,
+            &attempts,
+            &workflows,
+            &scripts,
+            &logs,
+            &audit,
+            &registry,
+            "test-fence",
+            &notification_center(&jobs),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
+
+        assert!(rx.try_recv().is_err(), "db-offline worker must not receive dispatch even if registry still has a sender");
+        let updated = instances
+            .get(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("instance should load: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        assert_eq!(updated.status, InstanceStatus::Failed);
+    }
+

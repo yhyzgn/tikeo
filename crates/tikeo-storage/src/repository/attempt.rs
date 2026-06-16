@@ -30,6 +30,8 @@ pub struct JobInstanceAttemptSummary {
     pub worker_id: String,
     /// Current attempt status.
     pub status: InstanceStatus,
+    /// Persisted assignment token accepted for this attempt.
+    pub assignment_token: Option<String>,
     /// Concrete worker result for this attempt.
     pub result: Option<JobInstanceResult>,
     /// Creation timestamp in RFC3339 format.
@@ -71,12 +73,22 @@ impl JobInstanceAttemptRepository {
 
         let mut created = Vec::with_capacity(worker_ids.len());
         for worker_id in worker_ids {
+            if let Some(existing) = job_instance_attempt::Entity::find()
+                .filter(job_instance_attempt::Column::InstanceId.eq(instance_id.to_owned()))
+                .filter(job_instance_attempt::Column::WorkerId.eq(worker_id.clone()))
+                .one(&self.db)
+                .await?
+            {
+                created.push(JobInstanceAttemptSummary::from(existing));
+                continue;
+            }
             let now = now_rfc3339();
             let model = job_instance_attempt::ActiveModel {
                 id: Set(new_id("attempt")),
                 instance_id: Set(instance_id.to_owned()),
                 worker_id: Set(worker_id.clone()),
                 status: Set(InstanceStatus::Pending.to_string()),
+                assignment_token: Set(None),
                 result_success: Set(None),
                 result_message: Set(None),
                 result_completed_at: Set(None),
@@ -163,6 +175,61 @@ impl JobInstanceAttemptRepository {
         Ok(result.rows_affected > 0)
     }
 
+    /// Persist the server-issued assignment token for one attempt.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn record_assignment_token(
+        &self,
+        instance_id: &str,
+        worker_id: &str,
+        assignment_token: &str,
+    ) -> Result<bool, sea_orm::DbErr> {
+        if assignment_token.trim().is_empty() {
+            return Ok(false);
+        }
+        let result = job_instance_attempt::Entity::update_many()
+            .col_expr(
+                job_instance_attempt::Column::AssignmentToken,
+                Expr::value(assignment_token.to_owned()),
+            )
+            .col_expr(
+                job_instance_attempt::Column::UpdatedAt,
+                Expr::value(now_rfc3339()),
+            )
+            .filter(job_instance_attempt::Column::InstanceId.eq(instance_id.to_owned()))
+            .filter(job_instance_attempt::Column::WorkerId.eq(worker_id.to_owned()))
+            .exec(&self.db)
+            .await?;
+        Ok(result.rows_affected > 0)
+    }
+
+    /// Return true when the persisted assignment token authorizes a worker message.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn accepts_assignment_token(
+        &self,
+        instance_id: &str,
+        worker_id: &str,
+        assignment_token: &str,
+    ) -> Result<bool, sea_orm::DbErr> {
+        if assignment_token.trim().is_empty() {
+            return Ok(false);
+        }
+        let Some(model) = job_instance_attempt::Entity::find()
+            .filter(job_instance_attempt::Column::InstanceId.eq(instance_id.to_owned()))
+            .filter(job_instance_attempt::Column::WorkerId.eq(worker_id.to_owned()))
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(false);
+        };
+        Ok(model.assignment_token.as_deref() == Some(assignment_token))
+    }
+
     /// Persist a concrete worker result for one broadcast attempt.
     ///
     /// # Errors
@@ -233,6 +300,7 @@ impl From<job_instance_attempt::Model> for JobInstanceAttemptSummary {
             instance_id: value.instance_id,
             worker_id: value.worker_id.clone(),
             status: value.status.parse().unwrap_or(InstanceStatus::Failed),
+            assignment_token: value.assignment_token,
             result: match (
                 value.result_success,
                 value.result_message,

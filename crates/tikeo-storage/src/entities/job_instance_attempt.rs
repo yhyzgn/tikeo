@@ -15,6 +15,8 @@ pub struct Model {
     pub worker_id: String,
     /// Current attempt status.
     pub status: String,
+    /// Persisted assignment token issued by the scheduling owner for Worker logs/results.
+    pub assignment_token: Option<String>,
     /// Whether the worker-reported result succeeded.
     pub result_success: Option<bool>,
     /// Worker-reported result message.

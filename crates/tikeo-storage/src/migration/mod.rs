@@ -195,6 +195,7 @@ async fn create_job_instance_attempts(manager: &SchemaManager<'_>) -> Result<(),
                 .col(string_col(JobInstanceAttempts::InstanceId))
                 .col(string_col(JobInstanceAttempts::WorkerId))
                 .col(string_col(JobInstanceAttempts::Status))
+                .col(string_null(JobInstanceAttempts::AssignmentToken))
                 .col(
                     ColumnDef::new(JobInstanceAttempts::ResultSuccess)
                         .boolean()

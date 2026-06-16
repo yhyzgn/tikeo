@@ -297,7 +297,7 @@ pub async fn trigger_job(
     let broadcast_worker_ids = if execution_mode == ExecutionMode::Broadcast {
         let worker_ids = state
             .registry
-            .find_eligible_workers_with_broadcast_selector(
+            .find_persisted_broadcast_workers(
                 &target_summary.namespace,
                 &target_summary.app,
                 broadcast_selector.as_ref(),

@@ -3,7 +3,7 @@
 use crate::notification::{
     JobNotificationEvent, NotificationCenter, emit_job_instance_event_best_effort,
 };
-use tikeo_core::InstanceStatus;
+use tikeo_core::{ExecutionMode, InstanceStatus};
 use tikeo_proto::worker::v1::{
     Heartbeat, Ping, ServerMessage, SubscribeTaskLogsRequest, TaskCheckpoint, TaskLog, TaskResult,
     UnregisterWorker, WorkerMessage, WorkerRegistered, server_message, worker_message,
@@ -390,9 +390,10 @@ async fn handle_task_log(
         assignment_token,
     } = log;
     if !context
-        .registry
-        .accepts_worker_assignment(&worker_id, &assignment_token)
+        .attempts
+        .accepts_assignment_token(&instance_id, &worker_id, &assignment_token)
         .await
+        .unwrap_or(false)
     {
         metrics::counter!("tikeo_worker_stale_messages_total", "kind" => "task_log").increment(1);
         return Ok(WorkerMessageOutcome::Continue);
@@ -426,9 +427,10 @@ async fn handle_task_checkpoint(context: &WorkerMessageContext<'_>, checkpoint: 
         assignment_token,
     } = checkpoint;
     if !context
-        .registry
-        .accepts_worker_assignment(&worker_id, &assignment_token)
+        .attempts
+        .accepts_assignment_token(&instance_id, &worker_id, &assignment_token)
         .await
+        .unwrap_or(false)
     {
         metrics::counter!("tikeo_worker_stale_messages_total", "kind" => "task_checkpoint")
             .increment(1);
@@ -458,9 +460,10 @@ async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResu
         assignment_token,
     } = result;
     if !context
-        .registry
-        .accepts_worker_assignment(&worker_id, &assignment_token)
+        .attempts
+        .accepts_assignment_token(&instance_id, &worker_id, &assignment_token)
         .await
+        .unwrap_or(false)
     {
         metrics::counter!("tikeo_worker_stale_messages_total", "kind" => "task_result")
             .increment(1);
@@ -471,41 +474,54 @@ async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResu
     } else {
         InstanceStatus::Failed
     };
-    match context
-        .attempts
-        .update_status(&instance_id, &worker_id, status)
+    let execution_mode = context
+        .instances
+        .get(&instance_id)
         .await
-    {
-        Ok(Some(_)) => {
-            persist_broadcast_task_result(context, &worker_id, &instance_id, success, &message)
-                .await;
-            if let Err(error) = refresh_broadcast_parent(
-                context.instances,
-                context.attempts,
-                context.notifications,
-                &instance_id,
-                &message,
-            )
+        .ok()
+        .flatten()
+        .map(|instance| instance.execution_mode)
+        .unwrap_or(ExecutionMode::Single);
+    if execution_mode == ExecutionMode::Broadcast {
+        match context
+            .attempts
+            .update_status(&instance_id, &worker_id, status)
             .await
-            {
-                tracing::warn!(%error, %instance_id, "failed to refresh broadcast parent status");
+        {
+            Ok(Some(_)) => {
+                persist_broadcast_task_result(context, &worker_id, &instance_id, success, &message)
+                    .await;
+                if let Err(error) = refresh_broadcast_parent(
+                    context.instances,
+                    context.attempts,
+                    context.notifications,
+                    &instance_id,
+                    &message,
+                )
+                .await
+                {
+                    tracing::warn!(%error, %instance_id, "failed to refresh broadcast parent status");
+                }
+            }
+            Ok(None) => {
+                metrics::counter!("tikeo_worker_stale_messages_total", "kind" => "task_result_missing_attempt")
+                    .increment(1);
+            }
+            Err(error) => {
+                tracing::warn!(%error, %instance_id, %worker_id, "failed to persist attempt result");
             }
         }
-        Ok(None) => {
-            persist_script_result_governance(
-                context.logs,
-                context.audit,
-                &worker_id,
-                &instance_id,
-                &message,
-            )
+    } else {
+        persist_script_result_governance(
+            context.logs,
+            context.audit,
+            &worker_id,
+            &instance_id,
+            &message,
+        )
+        .await;
+        handle_single_task_result(context, &worker_id, &instance_id, success, status, &message)
             .await;
-            handle_single_task_result(context, &worker_id, &instance_id, success, status, &message)
-                .await;
-        }
-        Err(error) => {
-            tracing::warn!(%error, %instance_id, %worker_id, "failed to persist attempt result");
-        }
     }
 }
 
