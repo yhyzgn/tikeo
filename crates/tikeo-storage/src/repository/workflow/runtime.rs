@@ -1048,6 +1048,9 @@ impl WorkflowRepository {
             match row.status.as_str() {
                 "pending" => {
                     summary.pending = summary.pending.saturating_add(1);
+                    if self.dispatch_queue_item_blocked_by_quota(&row.id).await? {
+                        summary.blocked_by_quota = summary.blocked_by_quota.saturating_add(1);
+                    }
                     let age = dispatch_queue_age_seconds(&row.created_at, now);
                     pending_age_total = pending_age_total.saturating_add(age);
                     summary.oldest_pending_age_seconds =

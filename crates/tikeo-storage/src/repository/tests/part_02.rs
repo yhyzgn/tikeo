@@ -333,6 +333,11 @@
             blocked.is_none(),
             "max_concurrency=1 must prevent a second running item in the same pool"
         );
+        let summary = workflows
+            .dispatch_queue_slo_summary()
+            .await
+            .unwrap_or_else(|error| panic!("queue summary should load: {error}"));
+        assert_eq!(summary.blocked_by_quota, 1);
     }
 
     #[tokio::test]
@@ -354,6 +359,11 @@
             blocked.is_none(),
             "max_queue_depth=1 must backpressure when two active items are already queued"
         );
+        let summary = workflows
+            .dispatch_queue_slo_summary()
+            .await
+            .unwrap_or_else(|error| panic!("queue summary should load: {error}"));
+        assert_eq!(summary.blocked_by_quota, 2);
 
         assert!(
             dispatch_queue::Entity::update_many()

@@ -155,6 +155,8 @@ fn record_dispatch_queue_metrics(queue: &tikeo_storage::DispatchQueueSloSummary)
         .set(u64_metric_value(queue.pending));
     metrics::gauge!("tikeo_dispatch_queue_items_total", "status" => "running")
         .set(u64_metric_value(queue.running));
+    metrics::gauge!("tikeo_dispatch_queue_blocked_by_quota_total")
+        .set(u64_metric_value(queue.blocked_by_quota));
 }
 
 fn record_business_slo_metrics(

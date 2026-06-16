@@ -1,7 +1,7 @@
 # FSOD Scheduler HA 改造开发计划
 
 状态：Active
-最后更新：2026-06-16（Phase 1 ✅；Phase 2 ✅；Phase 3 ✅；验证：cargo test -p tikeo-config；cargo test -p tikeo-storage；cargo test -p tikeo-server tunnel::dispatcher -- --nocapture；cargo test -p tikeo-server metrics_summary_reports_storage_registry_and_alert_counts -- --nocapture；cargo clippy -p tikeo-server --all-targets -- -D warnings；python .github/tests/docs_site_contract_test.py）
+最后更新：2026-06-16（Phase 1 ✅；Phase 2 ✅；Phase 3 ✅；Phase 4 ✅；验证：cargo test -p tikeo-config；cargo test -p tikeo-storage；cargo test -p tikeo-server tunnel::dispatcher -- --nocapture；cargo test -p tikeo-server registry_lasso -- --nocapture；cargo test -p tikeo-server metrics_summary_reports_storage_registry_and_alert_counts -- --nocapture；cargo clippy -p tikeo-server --all-targets -- -D warnings；python .github/tests/docs_site_contract_test.py）
 设计依据：`design/non-lock-distribution-high-performance-scheduler-platform.md`
 
 ## 目标
@@ -50,9 +50,9 @@
 
 ### Phase 4：Locality-Aware Scoring
 
-- [ ] 4.1 实现 LASSO worker scoring。
-- [ ] 4.2 本地 gateway worker 优先但不绕过 outbox。
-- [ ] 4.3 增加 quota/fairness 指标与测试。
+- [x] 4.1 ✅ 实现 LASSO worker scoring：本地 gateway、Worker Authority、稳定 rendezvous spread、worker id tie-break。
+- [x] 4.2 ✅ 本地 gateway worker 优先但不绕过 outbox：dispatcher 仍先创建 durable outbox，再投递本地 stream / relay hint。
+- [x] 4.3 ✅ 增加 quota/fairness 指标与测试：dispatch queue SLO summary 与 Prometheus 暴露 blocked_by_quota。
 
 验收：本地可用 Worker 优先，跨 Pod 派发减少，无 worker starvation。
 
@@ -67,22 +67,19 @@
 
 ## 当前推进切片
 
-Phase 3 Raft Shard Ownership 基础已完成：
+Phase 4 Locality-Aware Scoring 已完成：
 
-1. ✅ 新增 `cluster_shard_ownership` projection 表、SeaORM entity、migration、SQLite compatibility、repository。
-2. ✅ repository 只接受更新 epoch 的 owner 写入，并提供 `accepts_fencing_token` 与 SLO summary。
-3. ✅ `cluster.scheduler_shard_map_version` / `cluster.scheduler_shard_count` 支持配置覆盖；server 启动时应用到 storage shard policy。
-4. ✅ API single job dispatch queue 使用稳定 shard hash，并持久化 `shard_id / shard_map_version / shard_count`。
-5. ✅ dispatch_queue claim 可绑定 `owner_epoch / owner_fencing_token`，且保留 shard map version/count；错误 owner/token 无法 claim。
-6. ✅ dispatcher 在 `can_schedule=false` 但本节点拥有 active shard ownership 时，只扫描并 claim 自己 shard；后续 mark running/release/failed 使用 claim 的实际 lease owner。
-7. ✅ metrics summary / Prometheus gauges 暴露 shard ownership rows、active、max epoch、max shard map version、max shard count、active-by-owner。
-8. ✅ 验证：`cargo test -p tikeo-config`、`cargo test -p tikeo-storage`、`cargo test -p tikeo-server tunnel::dispatcher -- --nocapture`、`cargo test -p tikeo-server metrics_summary_reports_storage_registry_and_alert_counts -- --nocapture`、`cargo clippy -p tikeo-server --all-targets -- -D warnings`、`python .github/tests/docs_site_contract_test.py`。
+1. ✅ `WorkerRegistry` 新增 LASSO（Locality、Authority、Stable Spread、Ordered tie-break）候选排序。
+2. ✅ dispatcher 以 job instance id 作为稳定 dispatch key 选择 worker，减少跨 Pod relay，同时保持 durable outbox 为真实派发意图。
+3. ✅ 本地 gateway worker 可优先于远端 master worker；同 locality bucket 内通过 rendezvous hash 按 dispatch key 稳定分散。
+4. ✅ dispatch queue SLO summary / Prometheus 新增 `blocked_by_quota` 可观测性，覆盖 worker pool quota backpressure。
+5. ✅ 验证：`cargo test -p tikeo-config`、`cargo test -p tikeo-storage`、`cargo test -p tikeo-server tunnel::dispatcher -- --nocapture`、`cargo test -p tikeo-server registry_lasso -- --nocapture`、`cargo test -p tikeo-server metrics_summary_reports_storage_registry_and_alert_counts -- --nocapture`、`cargo clippy -p tikeo-server --all-targets -- -D warnings`、`python .github/tests/docs_site_contract_test.py`。
 
-下一推进切片：Phase 4 Locality-Aware Scoring。
+下一推进切片：Phase 5 文档、迁移和运维闭环（README/docs/runbook、DB 兼容说明、K8s/e2e failover 脚本）。
 
 ## 风险与控制
 
 - Outbox 与旧 relay 双路径可能重复派发：先让 outbox 成为 truth，relay 只做 hint；terminal result 仍由 assignment token fencing 控制。
 - 事务边界复杂：attempt token + outbox create + queue running 要么同事务，要么有补偿 scanner。
-- Phase 3 剩余边界：workflow materialization / broadcast path 仍保留非 shard-owner 默认路径；Phase 4 需要结合 LASSO scoring 和 e2e/chaos 脚本继续收口。
+- Phase 5 剩余边界：workflow materialization / broadcast path 仍保留非 shard-owner 默认路径；需要通过 README/docs/runbook 与 K8s/e2e failover 脚本明确当前边界并验证 kill owner 后接管。
 - DB 写放大：Phase 1 先保证正确性，Phase 4/压测再优化 batch。

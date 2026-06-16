@@ -4,7 +4,7 @@ use tikeo_proto::worker::v1::{
 };
 use tokio::sync::mpsc;
 
-use tikeo_storage::WorkerLifecycleRepository;
+use tikeo_storage::{RegisterWorkerSession, WorkerLifecycleRepository};
 
 use super::{BroadcastSelector, WorkerRegistry, WorkerSessionStatus};
 use crate::tunnel::capability::WorkerRequirement;
@@ -505,6 +505,120 @@ async fn registry_persists_worker_snapshots_after_master_election() {
             .structured_capabilities_json
             .contains("\"processorNames\":[\"billing.sql-sync\"]")
     );
+}
+
+#[tokio::test]
+async fn registry_lasso_prefers_local_gateway_before_remote_master() {
+    let db = tikeo_storage::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let lifecycle = WorkerLifecycleRepository::new(db);
+    let registry = WorkerRegistry::with_lifecycle(lifecycle.clone()).with_gateway_node_id("node-a");
+    lifecycle
+        .register_session(lifecycle_worker_session(
+            "wrk-remote-master",
+            "remote-master",
+            "node-b",
+            r#"{"isMaster":true,"domain":"finance/billing/prod/cn","masterWorkerId":"wrk-remote-master"}"#,
+        ))
+        .await
+        .unwrap_or_else(|error| panic!("remote worker should persist: {error}"));
+    lifecycle
+        .register_session(lifecycle_worker_session(
+            "wrk-local-follower",
+            "local-follower",
+            "node-a",
+            r#"{"isMaster":false,"domain":"finance/billing/prod/cn"}"#,
+        ))
+        .await
+        .unwrap_or_else(|error| panic!("local worker should persist: {error}"));
+
+    let candidates = registry
+        .find_lasso_persisted_dispatch_workers("finance", "billing", None, "inst-locality")
+        .await;
+
+    assert_eq!(
+        candidates.first().map(String::as_str),
+        Some("wrk-local-follower"),
+        "LASSO must prefer local gateway delivery before remote authority to reduce cross-pod relay"
+    );
+}
+
+#[tokio::test]
+async fn registry_lasso_spreads_with_stable_dispatch_key_within_same_locality_bucket() {
+    let db = tikeo_storage::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let lifecycle = WorkerLifecycleRepository::new(db);
+    let registry = WorkerRegistry::with_lifecycle(lifecycle.clone()).with_gateway_node_id("node-a");
+    for worker_id in ["wrk-local-a", "wrk-local-b"] {
+        lifecycle
+            .register_session(lifecycle_worker_session(
+                worker_id,
+                worker_id,
+                "node-a",
+                r#"{"isMaster":false,"domain":"finance/billing/prod/cn"}"#,
+            ))
+            .await
+            .unwrap_or_else(|error| panic!("local worker should persist: {error}"));
+    }
+
+    let first_key = registry
+        .find_lasso_persisted_dispatch_workers("finance", "billing", None, "dispatch-key-a")
+        .await;
+    let mut alternate_key = None;
+    for index in 0..256 {
+        let key = format!("dispatch-key-{index}");
+        let candidates = registry
+            .find_lasso_persisted_dispatch_workers("finance", "billing", None, &key)
+            .await;
+        if candidates.first() != first_key.first() {
+            alternate_key = Some((key, candidates));
+            break;
+        }
+    }
+    let (key, alternate) = alternate_key.unwrap_or_else(|| {
+        panic!("rendezvous spread should pick the other worker for at least one key")
+    });
+
+    assert_eq!(first_key.len(), 2);
+    assert_eq!(alternate.len(), 2);
+    assert_ne!(
+        first_key.first(),
+        alternate.first(),
+        "key {key} should spread first pick"
+    );
+    assert_eq!(
+        alternate,
+        registry
+            .find_lasso_persisted_dispatch_workers("finance", "billing", None, &key)
+            .await,
+        "same dispatch key must produce stable worker ordering"
+    );
+}
+
+fn lifecycle_worker_session(
+    worker_id: &str,
+    client_instance_id: &str,
+    gateway_node_id: &str,
+    master_json: &str,
+) -> RegisterWorkerSession {
+    RegisterWorkerSession {
+        worker_id: worker_id.to_owned(),
+        namespace_name: "finance".to_owned(),
+        app_name: "billing".to_owned(),
+        cluster: "prod".to_owned(),
+        region: "cn".to_owned(),
+        client_instance_id: client_instance_id.to_owned(),
+        connection_id: format!("conn-{worker_id}"),
+        gateway_node_id: gateway_node_id.to_owned(),
+        fencing_token: format!("fence-{worker_id}"),
+        lease_seconds: 30,
+        capabilities_json: r#"["http"]"#.to_owned(),
+        structured_capabilities_json: r"{}".to_owned(),
+        labels_json: r"{}".to_owned(),
+        master_json: master_json.to_owned(),
+    }
 }
 
 fn election_worker(client_instance_id: &str, priority: u32) -> RegisterWorker {

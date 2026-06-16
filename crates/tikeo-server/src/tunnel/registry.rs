@@ -44,6 +44,15 @@ pub struct WorkerDispatchTarget {
     pub generation: i64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LassoDispatchScore {
+    local_gateway: bool,
+    worker_master: bool,
+    master_domain: String,
+    spread_score: u64,
+    worker_id: String,
+}
+
 /// Registry of live Worker Tunnel streams plus durable worker lifecycle routing metadata.
 #[derive(Debug, Clone)]
 pub struct WorkerRegistry {
@@ -543,6 +552,34 @@ impl WorkerRegistry {
         workers.into_iter().map(|worker| worker.worker_id).collect()
     }
 
+    /// Return in-process worker ids using LASSO ordering for tests and embedded single-process use.
+    pub async fn find_lasso_dispatch_workers(
+        &self,
+        namespace: &str,
+        app: &str,
+        requirement: Option<&WorkerRequirement>,
+        dispatch_key: &str,
+    ) -> Vec<String> {
+        let mut workers = self
+            .workers
+            .read()
+            .await
+            .values()
+            .filter(|worker| {
+                worker.is_schedulable()
+                    && is_match(&worker.namespace, namespace)
+                    && is_match(&worker.app, app)
+                    && requirement.is_none_or(|requirement| worker_satisfies(worker, requirement))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        workers.sort_by(|left, right| {
+            registered_lasso_dispatch_score(left, dispatch_key)
+                .cmp(&registered_lasso_dispatch_score(right, dispatch_key))
+        });
+        workers.into_iter().map(|worker| worker.worker_id).collect()
+    }
+
     /// Return true when a connected worker advertises the required capability.
     pub async fn worker_supports_capability(
         &self,
@@ -594,16 +631,36 @@ impl WorkerRegistry {
         app: &str,
         requirement: Option<&WorkerRequirement>,
     ) -> Vec<String> {
+        self.find_lasso_persisted_dispatch_workers(namespace, app, requirement, "")
+            .await
+    }
+
+    /// Return persisted online workers using LASSO ordering:
+    /// Locality first, worker-side Authority second, Stable Spread third, Ordered id tie-break last.
+    ///
+    /// The returned worker still flows through durable outbox creation before stream delivery; this
+    /// method only chooses the preferred worker session.
+    pub async fn find_lasso_persisted_dispatch_workers(
+        &self,
+        namespace: &str,
+        app: &str,
+        requirement: Option<&WorkerRequirement>,
+        dispatch_key: &str,
+    ) -> Vec<String> {
         let Some(lifecycle) = self.lifecycle.as_ref() else {
             return self
-                .find_ordered_dispatch_workers(namespace, app, requirement)
+                .find_lasso_dispatch_workers(namespace, app, requirement, dispatch_key)
                 .await;
         };
         let Ok(mut workers) = lifecycle.list_online_workers(500).await else {
             return Vec::new();
         };
         workers.retain(|worker| persisted_worker_matches(worker, namespace, app, requirement));
-        workers.sort_by(persisted_dispatch_order);
+        workers.sort_by(|left, right| {
+            persisted_lasso_dispatch_score(left, &self.gateway_node_id, dispatch_key).cmp(
+                &persisted_lasso_dispatch_score(right, &self.gateway_node_id, dispatch_key),
+            )
+        });
         workers.into_iter().map(|worker| worker.worker_id).collect()
     }
 
@@ -1093,17 +1150,50 @@ fn worker_satisfies(worker: &RegisteredWorker, requirement: &WorkerRequirement) 
     structured_capabilities_match(&worker.structured_capabilities, requirement)
 }
 
-fn persisted_dispatch_order(
-    left: &PersistedOnlineWorkerSummary,
-    right: &PersistedOnlineWorkerSummary,
-) -> std::cmp::Ordering {
-    let left_master = persisted_master_order(left);
-    let right_master = persisted_master_order(right);
-    right_master
-        .0
-        .cmp(&left_master.0)
-        .then_with(|| left_master.1.cmp(&right_master.1))
-        .then_with(|| left.worker_id.cmp(&right.worker_id))
+fn persisted_lasso_dispatch_score(
+    worker: &PersistedOnlineWorkerSummary,
+    local_gateway_node_id: &str,
+    dispatch_key: &str,
+) -> LassoDispatchScore {
+    let (worker_master, master_domain) = persisted_master_order(worker);
+    LassoDispatchScore {
+        local_gateway: worker.gateway_node_id == local_gateway_node_id,
+        worker_master,
+        master_domain,
+        spread_score: rendezvous_spread_score(dispatch_key, &worker.worker_id),
+        worker_id: worker.worker_id.clone(),
+    }
+}
+
+fn registered_lasso_dispatch_score(
+    worker: &RegisteredWorker,
+    dispatch_key: &str,
+) -> LassoDispatchScore {
+    LassoDispatchScore {
+        local_gateway: true,
+        worker_master: worker.master.is_master,
+        master_domain: worker.master.domain.clone(),
+        spread_score: rendezvous_spread_score(dispatch_key, &worker.worker_id),
+        worker_id: worker.worker_id.clone(),
+    }
+}
+
+impl Ord for LassoDispatchScore {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other
+            .local_gateway
+            .cmp(&self.local_gateway)
+            .then_with(|| other.worker_master.cmp(&self.worker_master))
+            .then_with(|| self.master_domain.cmp(&other.master_domain))
+            .then_with(|| other.spread_score.cmp(&self.spread_score))
+            .then_with(|| self.worker_id.cmp(&other.worker_id))
+    }
+}
+
+impl PartialOrd for LassoDispatchScore {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 fn persisted_master_order(worker: &PersistedOnlineWorkerSummary) -> (bool, String) {
@@ -1119,6 +1209,17 @@ fn persisted_master_order(worker: &PersistedOnlineWorkerSummary) -> (bool, Strin
             .unwrap_or("")
             .to_owned(),
     )
+}
+
+fn rendezvous_spread_score(dispatch_key: &str, worker_id: &str) -> u64 {
+    let mut hasher = Sha256::new();
+    hasher.update(dispatch_key.as_bytes());
+    hasher.update([0]);
+    hasher.update(worker_id.as_bytes());
+    let digest = hasher.finalize();
+    let mut prefix = [0_u8; 8];
+    prefix.copy_from_slice(&digest[..8]);
+    u64::from_be_bytes(prefix)
 }
 
 fn persisted_worker_matches(

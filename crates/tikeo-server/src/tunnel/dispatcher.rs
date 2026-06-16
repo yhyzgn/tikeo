@@ -538,7 +538,12 @@ async fn dispatch_single_instances(
 
         let requirement = required_task_requirement_for_executor(&task, &executor);
         let eligible_workers = registry
-            .find_ordered_persisted_dispatch_workers(&job.namespace, &job.app, requirement.as_ref())
+            .find_lasso_persisted_dispatch_workers(
+                &job.namespace,
+                &job.app,
+                requirement.as_ref(),
+                &instance.id,
+            )
             .await;
         if let Some(worker_id) = eligible_workers.first() {
             let created_attempts = attempts

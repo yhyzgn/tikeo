@@ -128,6 +128,128 @@
         assert_eq!(updated.status, InstanceStatus::Running);
     }
 
+
+    #[tokio::test]
+    async fn dispatch_lasso_prefers_local_worker_but_still_persists_outbox() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
+        let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
+        let scripts = ScriptRepository::new(db.clone());
+        let lifecycle = tikeo_storage::WorkerLifecycleRepository::new(db);
+        let registry = WorkerRegistry::with_lifecycle(lifecycle.clone()).with_gateway_node_id("node-a");
+        lifecycle
+            .register_session(tikeo_storage::RegisterWorkerSession {
+                worker_id: "wrk-remote-master".to_owned(),
+                namespace_name: "default".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "local".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "remote-master".to_owned(),
+                connection_id: "conn-remote".to_owned(),
+                gateway_node_id: "node-b".to_owned(),
+                fencing_token: "token-remote".to_owned(),
+                lease_seconds: 30,
+                capabilities_json: r"[]".to_owned(),
+                structured_capabilities_json: r#"{"sdkProcessors":["billing.manual"]}"#.to_owned(),
+                labels_json: r"{}".to_owned(),
+                master_json: r#"{"isMaster":true,"domain":"default/billing/local/local","masterWorkerId":"wrk-remote-master"}"#.to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("remote worker should persist: {error}"));
+        let (tx, mut rx) = mpsc::channel(1);
+        let local = registry
+            .register(
+                RegisterWorker {
+                    client_instance_id: "local-follower".to_owned(),
+                    app: "billing".to_owned(),
+                    namespace: "default".to_owned(),
+                    cluster: "local".to_owned(),
+                    region: "local".to_owned(),
+                    capabilities: Vec::new(),
+                    structured_capabilities: Some(sdk_capabilities("billing.manual")),
+                    election: None,
+                    labels: HashMap::default(),
+                },
+                tx,
+            )
+            .await;
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "lasso-locality".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("billing.manual".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                retry_policy: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should be created: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id.clone(),
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should be created: {error}"))
+            .unwrap_or_else(|| panic!("job should exist"));
+
+        dispatch_once(
+            &jobs,
+            &instances,
+            &attempts,
+            &outbox,
+            &workflows,
+            &scripts,
+            &logs,
+            &audit,
+            &registry,
+            "test-fence",
+            &notification_center(&jobs),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
+
+        let message = rx
+            .recv()
+            .await
+            .unwrap_or_else(|| panic!("local worker should receive dispatch"))
+            .unwrap_or_else(|error| panic!("dispatch should be ok: {error}"));
+        match message.kind {
+            Some(server_message::Kind::DispatchTask(task)) => {
+                assert_eq!(task.instance_id, instance.id);
+                assert_eq!(task.processor_name, "billing.manual");
+            }
+            other => panic!("unexpected server message: {other:?}"),
+        }
+        let row = outbox
+            .claim_next_for_gateway("node-a", 10)
+            .await
+            .unwrap_or_else(|error| panic!("outbox should be claimable: {error}"))
+            .unwrap_or_else(|| panic!("local dispatch must still create durable outbox"));
+        assert_eq!(row.worker_id, local.worker_id);
+        assert_eq!(row.gateway_node_id, "node-a");
+        assert_eq!(row.instance_id, instance.id);
+    }
+
     #[tokio::test]
     async fn dispatch_once_closes_terminal_instance_queue_item() {
         let db = connect_and_migrate("sqlite::memory:")
