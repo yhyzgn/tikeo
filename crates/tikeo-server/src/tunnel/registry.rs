@@ -683,6 +683,25 @@ impl WorkerRegistry {
             })
     }
 
+    /// Return durable lifecycle view for the current online Worker of a logical instance.
+    pub async fn current_logical_dispatch_target(
+        &self,
+        logical_instance_id: &str,
+    ) -> Option<WorkerDispatchTarget> {
+        let lifecycle = self.lifecycle.as_ref()?;
+        lifecycle
+            .get_online_current_logical_worker(logical_instance_id)
+            .await
+            .ok()
+            .flatten()
+            .map(|worker| WorkerDispatchTarget {
+                worker_id: worker.worker_id,
+                logical_instance_id: worker.logical_instance_id,
+                gateway_node_id: worker.gateway_node_id,
+                generation: worker.generation,
+            })
+    }
+
     /// Dispatch one task to a specific currently registered worker.
     ///
     /// # Errors

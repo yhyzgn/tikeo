@@ -31,6 +31,12 @@ pub async fn run(
     let mut ticker = time::interval(OUTBOX_DELIVERY_INTERVAL);
     loop {
         ticker.tick().await;
+        if let Err(error) = outbox
+            .requeue_expired_delivered(OUTBOX_DELIVERY_RETRY_SECONDS)
+            .await
+        {
+            warn!(%error, %gateway_node_id, "worker dispatch outbox visibility scan failed");
+        }
         if let Err(error) = deliver_once(&outbox, &registry, &gateway_node_id).await {
             warn!(%error, %gateway_node_id, "worker dispatch outbox delivery iteration failed");
         }
@@ -65,6 +71,20 @@ pub async fn deliver_once(
     {
         return outbox
             .mark_delivered(&row.id, OUTBOX_DELIVERY_VISIBILITY_SECONDS)
+            .await;
+    }
+    if let Some(current) = registry
+        .current_logical_dispatch_target(&row.logical_instance_id)
+        .await
+        && current.generation > row.gateway_generation
+    {
+        return outbox
+            .reroute(
+                &row.id,
+                &current.gateway_node_id,
+                &current.worker_id,
+                current.generation,
+            )
             .await;
     }
     outbox
@@ -153,5 +173,105 @@ mod tests {
             }
             other => panic!("expected dispatch task, got {other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod reroute_tests {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+    use tikeo_proto::worker::v1::DispatchTask;
+    use tikeo_storage::{
+        CreateWorkerDispatchOutbox, RegisterWorkerSession, WorkerDispatchOutboxRepository,
+        WorkerLifecycleRepository, connect_and_migrate,
+    };
+    use tonic_prost::prost::Message as _;
+
+    use super::deliver_once;
+    use crate::tunnel::WorkerRegistry;
+
+    #[tokio::test]
+    async fn deliver_once_reroutes_outbox_when_worker_reconnected_to_new_gateway() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let lifecycle = WorkerLifecycleRepository::new(db.clone());
+        let old = lifecycle
+            .register_session(RegisterWorkerSession {
+                worker_id: "worker-old-gateway".to_owned(),
+                namespace_name: "default".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "local".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "worker-reroute".to_owned(),
+                connection_id: "conn-old".to_owned(),
+                gateway_node_id: "gateway-old".to_owned(),
+                fencing_token: "token-old".to_owned(),
+                lease_seconds: 30,
+                capabilities_json: "[]".to_owned(),
+                structured_capabilities_json: "{}".to_owned(),
+                labels_json: "{}".to_owned(),
+                master_json: "{}".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("old worker should register: {error}"));
+        let new = lifecycle
+            .register_session(RegisterWorkerSession {
+                worker_id: "worker-new-gateway".to_owned(),
+                namespace_name: "default".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "local".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "worker-reroute".to_owned(),
+                connection_id: "conn-new".to_owned(),
+                gateway_node_id: "gateway-new".to_owned(),
+                fencing_token: "token-new".to_owned(),
+                lease_seconds: 30,
+                capabilities_json: "[]".to_owned(),
+                structured_capabilities_json: "{}".to_owned(),
+                labels_json: "{}".to_owned(),
+                master_json: "{}".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("new worker should register: {error}"));
+        let outbox = WorkerDispatchOutboxRepository::new(db);
+        let task = DispatchTask {
+            instance_id: "inst-reroute".to_owned(),
+            job_id: "job-reroute".to_owned(),
+            assignment_token: "asg-reroute".to_owned(),
+            ..DispatchTask::default()
+        };
+        let created = outbox
+            .create(CreateWorkerDispatchOutbox {
+                instance_id: "inst-reroute".to_owned(),
+                attempt_id: "attempt-reroute".to_owned(),
+                worker_id: old.worker_id,
+                logical_instance_id: old.logical_instance_id,
+                gateway_node_id: "gateway-old".to_owned(),
+                gateway_generation: old.generation,
+                assignment_token: "asg-reroute".to_owned(),
+                dispatch_payload: BASE64_STANDARD.encode(task.encode_to_vec()),
+                shard_id: 0,
+                owner_node_id: "owner".to_owned(),
+                owner_epoch: 0,
+                owner_fencing_token: "fence".to_owned(),
+                next_delivery_at: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("outbox should create: {error}"));
+
+        let delivered = deliver_once(
+            &outbox,
+            &WorkerRegistry::with_lifecycle(lifecycle),
+            "gateway-old",
+        )
+        .await
+        .unwrap_or_else(|error| panic!("delivery should not fail: {error}"))
+        .unwrap_or_else(|| panic!("outbox row should be rerouted"));
+
+        assert_eq!(delivered.id, created.id);
+        assert_eq!(delivered.status, "queued");
+        assert_eq!(delivered.worker_id, new.worker_id);
+        assert_eq!(delivered.gateway_node_id, "gateway-new");
+        assert_eq!(delivered.gateway_generation, new.generation);
     }
 }

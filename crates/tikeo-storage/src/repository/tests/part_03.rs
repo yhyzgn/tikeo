@@ -618,12 +618,120 @@ async fn worker_dispatch_outbox_repository_requeues_and_completes_rows() {
         .await
         .unwrap_or_else(|error| panic!("outbox row should complete: {error}"));
     assert!(completed);
+    let duplicate_completion = repository
+        .mark_completed_by_assignment("inst-2", "worker-new", "asg-2")
+        .await
+        .unwrap_or_else(|error| panic!("duplicate completion should be idempotent: {error}"));
+    assert!(!duplicate_completion);
+    let not_claimed_after_completion = repository
+        .claim_next_for_gateway("gateway-new", 10)
+        .await
+        .unwrap_or_else(|error| panic!("completed outbox row should not be claimable: {error}"));
+    assert!(not_claimed_after_completion.is_none());
     let loaded = repository
         .get(&created.id)
         .await
         .unwrap_or_else(|error| panic!("outbox row should load: {error}"))
         .unwrap_or_else(|| panic!("outbox row should exist"));
     assert_eq!(loaded.status, "completed");
+}
+
+#[tokio::test]
+async fn worker_dispatch_outbox_reroute_moves_attempt_fencing_to_new_worker_session() {
+    use crate::repository::{
+        CreateJob, CreateJobInstance, JobInstanceAttemptRepository, JobInstanceRepository,
+        JobRepository, WorkerDispatchOutboxRepository,
+    };
+    use tikeo_core::{ExecutionMode, TriggerType};
+
+    let db = crate::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let jobs = JobRepository::new(db.clone());
+    let instances = JobInstanceRepository::new(db.clone());
+    let attempts = JobInstanceAttemptRepository::new(db.clone());
+    let repository = WorkerDispatchOutboxRepository::new(db);
+    let job = jobs
+        .create_job(CreateJob {
+            created_by: None,
+            namespace: "default".to_owned(),
+            app: "billing".to_owned(),
+            name: "reroute-attempt".to_owned(),
+            schedule_type: "api".to_owned(),
+            schedule_expr: None,
+            misfire_policy: "fire_once".to_owned(),
+            schedule_start_at: None,
+            schedule_end_at: None,
+            schedule_calendar_json: None,
+            processor_name: None,
+            processor_type: None,
+            script_id: None,
+            enabled: true,
+            canary_job_id: None,
+            canary_percent: 0,
+            retry_policy: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("job should create: {error}"));
+    let instance = instances
+        .create_pending(CreateJobInstance {
+            job_id: job.id,
+            trigger_type: TriggerType::Api,
+            execution_mode: ExecutionMode::Single,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("instance should create: {error}"))
+        .unwrap_or_else(|| panic!("instance should exist"));
+    let attempt = attempts
+        .create_pending_for_workers(&instance.id, &["worker-old".to_owned()])
+        .await
+        .unwrap_or_else(|error| panic!("attempt should create: {error}"))
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| panic!("attempt should exist"));
+    attempts
+        .record_assignment_token(&instance.id, "worker-old", "asg-reroute")
+        .await
+        .unwrap_or_else(|error| panic!("assignment token should persist: {error}"));
+    let created = repository
+        .create(crate::repository::CreateWorkerDispatchOutbox {
+            instance_id: instance.id.clone(),
+            attempt_id: attempt.id,
+            worker_id: "worker-old".to_owned(),
+            logical_instance_id: "logical-reroute".to_owned(),
+            gateway_node_id: "gateway-old".to_owned(),
+            gateway_generation: 1,
+            assignment_token: "asg-reroute".to_owned(),
+            dispatch_payload: "payload".to_owned(),
+            shard_id: 0,
+            owner_node_id: "owner".to_owned(),
+            owner_epoch: 0,
+            owner_fencing_token: "fence".to_owned(),
+            next_delivery_at: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should create: {error}"));
+
+    repository
+        .reroute(&created.id, "gateway-new", "worker-new", 2)
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should reroute: {error}"))
+        .unwrap_or_else(|| panic!("rerouted outbox row should exist"));
+
+    assert!(
+        attempts
+            .accepts_assignment_token(&instance.id, "worker-new", "asg-reroute")
+            .await
+            .unwrap_or_else(|error| panic!("new worker token should validate: {error}")),
+        "rerouted worker session should be allowed to report the original assignment token"
+    );
+    assert!(
+        !attempts
+            .accepts_assignment_token(&instance.id, "worker-old", "asg-reroute")
+            .await
+            .unwrap_or_else(|error| panic!("old worker token should load: {error}")),
+        "old worker session should no longer own the assignment after reroute"
+    );
 }
 
 #[tokio::test]
@@ -692,4 +800,111 @@ async fn worker_dispatch_outbox_repository_summarizes_status_counts_and_oldest_q
     assert_eq!(summary.by_status.get("completed"), Some(&1));
     assert!(summary.oldest_queued_age_seconds <= 1);
     assert_eq!(second.instance_id, "inst-summary-2");
+}
+
+#[tokio::test]
+async fn worker_dispatch_outbox_repository_requeues_expired_delivered_rows() {
+    let db = crate::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let repository = crate::repository::WorkerDispatchOutboxRepository::new(db);
+    let created = repository
+        .create(crate::repository::CreateWorkerDispatchOutbox {
+            instance_id: "inst-expired".to_owned(),
+            attempt_id: "attempt-expired".to_owned(),
+            worker_id: "worker-expired".to_owned(),
+            logical_instance_id: "logical-expired".to_owned(),
+            gateway_node_id: "gateway-expired".to_owned(),
+            gateway_generation: 1,
+            assignment_token: "asg-expired".to_owned(),
+            dispatch_payload: "payload".to_owned(),
+            shard_id: 0,
+            owner_node_id: "owner".to_owned(),
+            owner_epoch: 0,
+            owner_fencing_token: "fence".to_owned(),
+            next_delivery_at: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should create: {error}"));
+    let claimed = repository
+        .claim_next_for_gateway("gateway-expired", 10)
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should claim: {error}"))
+        .unwrap_or_else(|| panic!("outbox row should be claimable"));
+    repository
+        .mark_delivered(&claimed.id, 1)
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should mark delivered: {error}"));
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+
+    let requeued = repository
+        .requeue_expired_delivered(10)
+        .await
+        .unwrap_or_else(|error| panic!("expired delivered rows should requeue: {error}"));
+
+    assert_eq!(requeued, 1);
+    let loaded = repository
+        .get(&created.id)
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should load: {error}"))
+        .unwrap_or_else(|| panic!("outbox row should exist"));
+    assert_eq!(loaded.status, "queued");
+    assert!(loaded.visibility_deadline.is_none());
+    assert_eq!(loaded.last_error.as_deref(), Some("visibility timeout expired before worker ack"));
+}
+
+#[tokio::test]
+async fn worker_lifecycle_loads_current_worker_by_logical_instance_for_outbox_reroute() {
+    let db = crate::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let lifecycle = crate::repository::WorkerLifecycleRepository::new(db);
+    let first = lifecycle
+        .register_session(crate::repository::RegisterWorkerSession {
+            worker_id: "worker-reroute-old".to_owned(),
+            namespace_name: "default".to_owned(),
+            app_name: "billing".to_owned(),
+            cluster: "local".to_owned(),
+            region: "local".to_owned(),
+            client_instance_id: "reroute-worker".to_owned(),
+            connection_id: "conn-old".to_owned(),
+            gateway_node_id: "gateway-old".to_owned(),
+            fencing_token: "token-old".to_owned(),
+            lease_seconds: 30,
+            capabilities_json: "[]".to_owned(),
+            structured_capabilities_json: "{}".to_owned(),
+            labels_json: "{}".to_owned(),
+            master_json: "{}".to_owned(),
+        })
+        .await
+        .unwrap_or_else(|error| panic!("old worker should register: {error}"));
+    lifecycle
+        .register_session(crate::repository::RegisterWorkerSession {
+            worker_id: "worker-reroute-new".to_owned(),
+            namespace_name: "default".to_owned(),
+            app_name: "billing".to_owned(),
+            cluster: "local".to_owned(),
+            region: "local".to_owned(),
+            client_instance_id: "reroute-worker".to_owned(),
+            connection_id: "conn-new".to_owned(),
+            gateway_node_id: "gateway-new".to_owned(),
+            fencing_token: "token-new".to_owned(),
+            lease_seconds: 30,
+            capabilities_json: "[]".to_owned(),
+            structured_capabilities_json: "{}".to_owned(),
+            labels_json: "{}".to_owned(),
+            master_json: "{}".to_owned(),
+        })
+        .await
+        .unwrap_or_else(|error| panic!("new worker should register: {error}"));
+
+    let current = lifecycle
+        .get_online_current_logical_worker(&first.logical_instance_id)
+        .await
+        .unwrap_or_else(|error| panic!("current logical worker should load: {error}"))
+        .unwrap_or_else(|| panic!("logical worker should have a current online session"));
+
+    assert_eq!(current.worker_id, "worker-reroute-new");
+    assert_eq!(current.gateway_node_id, "gateway-new");
+    assert!(current.generation > first.generation);
 }

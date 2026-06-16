@@ -43,12 +43,14 @@ async fn register_message_updates_registry_and_acknowledges_worker() {
     let workflows = workflows().await;
     let log_broadcaster = TaskLogBroadcaster::default();
     let notifications = notification_center(&jobs);
+    let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(jobs.db());
     let context = WorkerMessageContext {
         registry: &registry,
         instances: &instances,
         jobs: &jobs,
         logs: &logs,
         attempts: &attempts,
+        outbox: &outbox,
         workflows: &workflows,
         audit: &audit,
         notifications: &notifications,
@@ -121,12 +123,14 @@ async fn register_and_heartbeat_are_accepted_on_raft_follower_gateway() {
         leader_fencing_token: None,
         detail: "test follower gateway".to_owned(),
     });
+    let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(jobs.db());
     let context = WorkerMessageContext {
         registry: &registry,
         instances: &instances,
         jobs: &jobs,
         logs: &logs,
         attempts: &attempts,
+        outbox: &outbox,
         workflows: &workflows,
         audit: &audit,
         notifications: &notifications,
@@ -257,12 +261,14 @@ async fn task_result_with_wrong_assignment_token_is_rejected() {
     let (tx, _events) = mpsc::channel(8);
     let broadcaster = TaskLogBroadcaster::default();
     let notifications = notification_center(&jobs);
+    let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(jobs.db());
     let context = WorkerMessageContext {
         registry: &registry,
         instances: &instances,
         jobs: &jobs,
         logs: &logs,
         attempts: &attempts,
+        outbox: &outbox,
         workflows: &workflows,
         audit: &audit,
         notifications: &notifications,
@@ -307,12 +313,13 @@ async fn broadcast_task_result_persists_per_worker_attempt_result() {
     let instances = JobInstanceRepository::new(db.clone());
     let logs = JobInstanceLogRepository::new(db.clone());
     let attempts = JobInstanceAttemptRepository::new(db.clone());
+    let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
     let workflows = WorkflowRepository::new(db.clone());
     let audit = AuditLogRepository::new(db.clone());
     let channels = NotificationChannelRepository::new(db.clone());
     let policies = NotificationPolicyRepository::new(db.clone());
     let messages = NotificationMessageRepository::new(db.clone());
-    let delivery_attempts = NotificationDeliveryAttemptRepository::new(db);
+    let delivery_attempts = NotificationDeliveryAttemptRepository::new(db.clone());
     let job = jobs
         .create_job(CreateJob {
             created_by: None,
@@ -423,6 +430,31 @@ async fn broadcast_task_result_persists_per_worker_attempt_result() {
         other => panic!("unexpected server message: {other:?}"),
     };
     persist_assignment_token_for_test(&attempts, &instance.id, &worker.worker_id, &token).await;
+    let attempt = attempts
+        .list_by_instance(&instance.id)
+        .await
+        .unwrap_or_else(|error| panic!("attempts should load: {error}"))
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| panic!("attempt should exist"));
+    outbox
+        .create(tikeo_storage::CreateWorkerDispatchOutbox {
+            instance_id: instance.id.clone(),
+            attempt_id: attempt.id,
+            worker_id: worker.worker_id.clone(),
+            logical_instance_id: worker.worker_id.clone(),
+            gateway_node_id: "standalone".to_owned(),
+            gateway_generation: 0,
+            assignment_token: token.clone(),
+            dispatch_payload: "payload".to_owned(),
+            shard_id: 0,
+            owner_node_id: "owner".to_owned(),
+            owner_epoch: 0,
+            owner_fencing_token: "fence".to_owned(),
+            next_delivery_at: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should create: {error}"));
     let (tx, _events) = mpsc::channel(8);
     let broadcaster = TaskLogBroadcaster::default();
     let templates = tikeo_storage::NotificationTemplateRepository::new(channels.db());
@@ -440,6 +472,7 @@ async fn broadcast_task_result_persists_per_worker_attempt_result() {
         jobs: &jobs,
         logs: &logs,
         attempts: &attempts,
+        outbox: &outbox,
         workflows: &workflows,
         audit: &audit,
         notifications: &notifications,
@@ -478,6 +511,11 @@ async fn broadcast_task_result_persists_per_worker_attempt_result() {
         .unwrap_or_else(|error| panic!("instance should load: {error}"))
         .unwrap_or_else(|| panic!("instance should exist"));
     assert_eq!(parent.status, InstanceStatus::Succeeded);
+    let outbox_summary = outbox
+        .summary()
+        .await
+        .unwrap_or_else(|error| panic!("outbox summary should load: {error}"));
+    assert_eq!(outbox_summary.by_status.get("completed"), Some(&1));
     let timeline = messages
         .list_messages(NotificationMessageFilters {
             source_type: Some("job_instance".to_owned()),
@@ -507,7 +545,7 @@ async fn failed_single_task_result_schedules_retry_and_logs_result() {
     let logs = JobInstanceLogRepository::new(db.clone());
     let attempts = JobInstanceAttemptRepository::new(db.clone());
     let workflows = WorkflowRepository::new(db.clone());
-    let audit = AuditLogRepository::new(db);
+    let audit = AuditLogRepository::new(db.clone());
     let job = jobs
         .create_job(CreateJob {
             created_by: None,
@@ -605,12 +643,14 @@ async fn failed_single_task_result_schedules_retry_and_logs_result() {
     let (tx, _events) = mpsc::channel(8);
     let broadcaster = TaskLogBroadcaster::default();
     let notifications = notification_center(&jobs);
+    let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(jobs.db());
     let context = WorkerMessageContext {
         registry: &registry,
         instances: &instances,
         jobs: &jobs,
         logs: &logs,
         attempts: &attempts,
+        outbox: &outbox,
         workflows: &workflows,
         audit: &audit,
         notifications: &notifications,
@@ -840,12 +880,14 @@ async fn failed_single_task_result_emits_job_notification_policy() {
         templates,
         jobs.clone(),
     );
+    let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(jobs.db());
     let context = WorkerMessageContext {
         registry: &registry,
         instances: &instances,
         jobs: &jobs,
         logs: &logs,
         attempts: &attempts,
+        outbox: &outbox,
         workflows: &workflows,
         audit: &audit,
         notifications: &notifications,
@@ -1066,12 +1108,14 @@ async fn non_retrying_failed_task_result_emits_failed_notification_policy() {
         templates,
         jobs.clone(),
     );
+    let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(jobs.db());
     let context = WorkerMessageContext {
         registry: &registry,
         instances: &instances,
         jobs: &jobs,
         logs: &logs,
         attempts: &attempts,
+        outbox: &outbox,
         workflows: &workflows,
         audit: &audit,
         notifications: &notifications,
@@ -1171,6 +1215,7 @@ async fn subscribe_task_logs_replays_existing_and_streams_live_logs() {
     .unwrap_or_else(|error| panic!("existing log should append: {error}"));
 
     let audit = audit().await;
+    let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(jobs.db());
     let broadcaster = TaskLogBroadcaster::default();
     let service = super::WorkerTunnel::new(crate::tunnel::WorkerTunnelRuntime::new(
         crate::tunnel::WorkerTunnelRuntimeParts {
@@ -1179,6 +1224,7 @@ async fn subscribe_task_logs_replays_existing_and_streams_live_logs() {
             jobs,
             logs,
             attempts,
+            outbox,
             workflows,
             audit,
             notifications: None,

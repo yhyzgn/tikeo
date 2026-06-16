@@ -24,7 +24,7 @@ use tikeo_storage::{
     AuditLogRepository, JobInstanceAttemptRepository, JobInstanceLogRepository,
     JobInstanceRepository, JobRepository, NotificationChannelRepository,
     NotificationDeliveryAttemptRepository, NotificationMessageRepository,
-    NotificationPolicyRepository, WorkflowRepository,
+    NotificationPolicyRepository, WorkerDispatchOutboxRepository, WorkflowRepository,
 };
 use tonic::transport::Server;
 use tracing::info;
@@ -37,6 +37,7 @@ pub struct WorkerTunnelRuntime {
     jobs: JobRepository,
     logs: JobInstanceLogRepository,
     attempts: JobInstanceAttemptRepository,
+    outbox: WorkerDispatchOutboxRepository,
     workflows: WorkflowRepository,
     audit: AuditLogRepository,
     notifications: crate::notification::NotificationCenter,
@@ -55,6 +56,8 @@ pub struct WorkerTunnelRuntimeParts {
     pub logs: JobInstanceLogRepository,
     /// Job instance attempt repository.
     pub attempts: JobInstanceAttemptRepository,
+    /// Worker dispatch outbox repository.
+    pub outbox: WorkerDispatchOutboxRepository,
     /// Workflow repository.
     pub workflows: WorkflowRepository,
     /// Audit log repository.
@@ -87,6 +90,7 @@ impl WorkerTunnelRuntime {
             jobs,
             logs: parts.logs,
             attempts: parts.attempts,
+            outbox: parts.outbox,
             workflows: parts.workflows,
             audit: parts.audit,
             notifications,

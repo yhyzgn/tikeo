@@ -514,6 +514,36 @@ impl WorkerLifecycleRepository {
         }))
     }
 
+    /// Load the current online worker for one logical instance id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn get_online_current_logical_worker(
+        &self,
+        logical_instance_id: &str,
+    ) -> Result<Option<PersistedOnlineWorkerSummary>, sea_orm::DbErr> {
+        let Some(logical) = worker_logical_instance::Entity::find_by_id(logical_instance_id)
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let Some(worker_id) = logical.current_worker_id.clone() else {
+            return Ok(None);
+        };
+        let Some(current) = self.get_online_current_worker(&worker_id).await? else {
+            return Ok(None);
+        };
+        if current.logical_instance_id == logical.id
+            && current.generation == logical.current_generation
+        {
+            Ok(Some(current))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Update persisted worker capability/label/master snapshots for currently known online sessions.
     pub async fn update_session_snapshots(
         &self,

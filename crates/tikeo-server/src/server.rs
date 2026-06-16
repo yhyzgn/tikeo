@@ -149,6 +149,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
                 jobs: jobs.clone(),
                 logs: logs.clone(),
                 attempts: tunnel_attempts,
+                outbox: outbox.clone(),
                 workflows: workflows.clone(),
                 audit: audit.clone(),
                 notifications: Some(notification_center.clone()),

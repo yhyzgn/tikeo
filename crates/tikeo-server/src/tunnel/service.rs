@@ -12,7 +12,7 @@ use tikeo_proto::worker::v1::{
 use tikeo_storage::{
     AppendJobInstanceLog, AuditLogRepository, JobInstanceAttemptRepository,
     JobInstanceLogRepository, JobInstanceLogSummary, JobInstanceRepository, JobRepository,
-    WorkflowRepository,
+    WorkerDispatchOutboxRepository, WorkflowRepository,
 };
 use tokio::sync::{broadcast, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
@@ -54,6 +54,7 @@ pub struct WorkerTunnel {
     jobs: JobRepository,
     logs: JobInstanceLogRepository,
     attempts: JobInstanceAttemptRepository,
+    outbox: WorkerDispatchOutboxRepository,
     workflows: WorkflowRepository,
     audit: AuditLogRepository,
     notifications: NotificationCenter,
@@ -70,6 +71,7 @@ impl WorkerTunnel {
             jobs: runtime.jobs,
             logs: runtime.logs,
             attempts: runtime.attempts,
+            outbox: runtime.outbox,
             workflows: runtime.workflows,
             audit: runtime.audit,
             notifications: runtime.notifications,
@@ -93,6 +95,7 @@ impl WorkerTunnelService for WorkerTunnel {
         let jobs = self.jobs.clone();
         let logs = self.logs.clone();
         let attempts = self.attempts.clone();
+        let outbox = self.outbox.clone();
         let workflows = self.workflows.clone();
         let audit = self.audit.clone();
         let notifications = self.notifications.clone();
@@ -112,6 +115,7 @@ impl WorkerTunnelService for WorkerTunnel {
                             jobs: &jobs,
                             logs: &logs,
                             attempts: &attempts,
+                            outbox: &outbox,
                             workflows: &workflows,
                             audit: &audit,
                             notifications: &notifications,
@@ -226,6 +230,7 @@ struct WorkerMessageContext<'a> {
     jobs: &'a JobRepository,
     logs: &'a JobInstanceLogRepository,
     attempts: &'a JobInstanceAttemptRepository,
+    outbox: &'a WorkerDispatchOutboxRepository,
     workflows: &'a WorkflowRepository,
     audit: &'a AuditLogRepository,
     notifications: &'a NotificationCenter,
@@ -378,6 +383,11 @@ async fn handle_task_log(
         metrics::counter!("tikeo_worker_stale_messages_total", "kind" => "task_log").increment(1);
         return Ok(WorkerMessageOutcome::Continue);
     }
+    let _ = context
+        .outbox
+        .mark_acked_by_assignment(&instance_id, &worker_id, &assignment_token)
+        .await
+        .map_err(|error| tracing::warn!(%error, "failed to ack worker dispatch outbox row from task log"));
     match context
         .logs
         .append(AppendJobInstanceLog {
@@ -416,6 +426,11 @@ async fn handle_task_checkpoint(context: &WorkerMessageContext<'_>, checkpoint: 
             .increment(1);
         return;
     }
+    let _ = context
+        .outbox
+        .mark_acked_by_assignment(&instance_id, &worker_id, &assignment_token)
+        .await
+        .map_err(|error| tracing::warn!(%error, "failed to ack worker dispatch outbox row from task checkpoint"));
     if let Err(error) = context
         .logs
         .append(AppendJobInstanceLog {
@@ -454,6 +469,11 @@ async fn handle_task_result(context: &WorkerMessageContext<'_>, result: TaskResu
     } else {
         InstanceStatus::Failed
     };
+    let _ = context
+        .outbox
+        .mark_completed_by_assignment(&instance_id, &worker_id, &assignment_token)
+        .await
+        .map_err(|error| tracing::warn!(%error, "failed to complete worker dispatch outbox row"));
     let execution_mode = context
         .instances
         .get(&instance_id)

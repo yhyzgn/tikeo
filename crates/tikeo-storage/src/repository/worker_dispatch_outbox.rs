@@ -2,12 +2,12 @@ use std::collections::BTreeMap;
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set, sea_query::Expr,
+    QuerySelect, Set, TransactionTrait, sea_query::Expr,
 };
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::entities::worker_dispatch_outbox;
+use crate::entities::{job_instance_attempt, worker_dispatch_outbox};
 
 use super::util::{new_id, now_rfc3339, rfc3339_after_seconds};
 
@@ -263,6 +263,47 @@ impl WorkerDispatchOutboxRepository {
         self.get(outbox_id).await
     }
 
+    /// Requeue delivered rows that did not receive Worker ack/progress before visibility timeout.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn requeue_expired_delivered(
+        &self,
+        retry_after_seconds: i64,
+    ) -> Result<u64, sea_orm::DbErr> {
+        let now = now_rfc3339();
+        let result = worker_dispatch_outbox::Entity::update_many()
+            .col_expr(
+                worker_dispatch_outbox::Column::Status,
+                Expr::value("queued"),
+            )
+            .col_expr(
+                worker_dispatch_outbox::Column::NextDeliveryAt,
+                Expr::value(rfc3339_after_seconds(retry_after_seconds.max(0))),
+            )
+            .col_expr(
+                worker_dispatch_outbox::Column::VisibilityDeadline,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                worker_dispatch_outbox::Column::LastError,
+                Expr::value(Some(
+                    "visibility timeout expired before worker ack".to_owned(),
+                )),
+            )
+            .col_expr(
+                worker_dispatch_outbox::Column::UpdatedAt,
+                Expr::value(now.clone()),
+            )
+            .filter(worker_dispatch_outbox::Column::Status.eq("delivered"))
+            .filter(worker_dispatch_outbox::Column::VisibilityDeadline.is_not_null())
+            .filter(worker_dispatch_outbox::Column::VisibilityDeadline.lte(now))
+            .exec(&self.db)
+            .await?;
+        Ok(result.rows_affected)
+    }
+
     /// Reroute a queued or failed delivery row to a newer Worker session/gateway.
     ///
     /// # Errors
@@ -275,6 +316,17 @@ impl WorkerDispatchOutboxRepository {
         worker_id: &str,
         gateway_generation: i64,
     ) -> Result<Option<WorkerDispatchOutboxSummary>, sea_orm::DbErr> {
+        let Some(row) = worker_dispatch_outbox::Entity::find_by_id(outbox_id.to_owned())
+            .one(&self.db)
+            .await?
+        else {
+            return Ok(None);
+        };
+        if row.status == "completed" {
+            return Ok(None);
+        }
+
+        let txn = self.db.begin().await?;
         let result = worker_dispatch_outbox::Entity::update_many()
             .col_expr(
                 worker_dispatch_outbox::Column::GatewayNodeId,
@@ -310,12 +362,75 @@ impl WorkerDispatchOutboxRepository {
             )
             .filter(worker_dispatch_outbox::Column::Id.eq(outbox_id.to_owned()))
             .filter(worker_dispatch_outbox::Column::Status.ne("completed"))
-            .exec(&self.db)
+            .exec(&txn)
             .await?;
         if result.rows_affected == 0 {
             return Ok(None);
         }
-        self.get(outbox_id).await
+
+        // Rerouting transfers the same durable assignment to a newer session of the
+        // same logical Worker. Keep the attempt row aligned with the session that
+        // will report logs/results; otherwise assignment-token fencing would reject
+        // the rerouted Worker even though the outbox was correctly moved.
+        job_instance_attempt::Entity::update_many()
+            .col_expr(
+                job_instance_attempt::Column::WorkerId,
+                Expr::value(worker_id.to_owned()),
+            )
+            .col_expr(
+                job_instance_attempt::Column::UpdatedAt,
+                Expr::value(now_rfc3339()),
+            )
+            .filter(job_instance_attempt::Column::Id.eq(row.attempt_id))
+            .filter(job_instance_attempt::Column::InstanceId.eq(row.instance_id))
+            .filter(job_instance_attempt::Column::WorkerId.eq(row.worker_id))
+            .filter(job_instance_attempt::Column::AssignmentToken.eq(row.assignment_token))
+            .exec(&txn)
+            .await?;
+
+        let updated = worker_dispatch_outbox::Entity::find_by_id(outbox_id.to_owned())
+            .one(&txn)
+            .await?
+            .map(WorkerDispatchOutboxSummary::from);
+        txn.commit().await?;
+        Ok(updated)
+    }
+
+    /// Mark the matching assignment outbox as acked after the Worker sends progress.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn mark_acked_by_assignment(
+        &self,
+        instance_id: &str,
+        worker_id: &str,
+        assignment_token: &str,
+    ) -> Result<bool, sea_orm::DbErr> {
+        if assignment_token.trim().is_empty() {
+            return Ok(false);
+        }
+        let result = worker_dispatch_outbox::Entity::update_many()
+            .col_expr(worker_dispatch_outbox::Column::Status, Expr::value("acked"))
+            .col_expr(
+                worker_dispatch_outbox::Column::VisibilityDeadline,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                worker_dispatch_outbox::Column::LastError,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                worker_dispatch_outbox::Column::UpdatedAt,
+                Expr::value(now_rfc3339()),
+            )
+            .filter(worker_dispatch_outbox::Column::InstanceId.eq(instance_id.to_owned()))
+            .filter(worker_dispatch_outbox::Column::WorkerId.eq(worker_id.to_owned()))
+            .filter(worker_dispatch_outbox::Column::AssignmentToken.eq(assignment_token.to_owned()))
+            .filter(worker_dispatch_outbox::Column::Status.is_in(["delivered", "acked"]))
+            .exec(&self.db)
+            .await?;
+        Ok(result.rows_affected > 0)
     }
 
     /// Requeue a claimed delivery row after a transport failure.

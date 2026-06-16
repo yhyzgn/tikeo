@@ -1,7 +1,7 @@
 # FSOD Scheduler HA 改造开发计划
 
-状态：Active  
-最后更新：2026-06-16（Phase 1.1-1.6 ✅；验证：cargo test -p tikeo-storage；cargo test -p tikeo-server；cargo clippy -p tikeo-server --all-targets -- -D warnings）  
+状态：Active
+最后更新：2026-06-16（Phase 1 ✅；Phase 2 ✅；验证：cargo test -p tikeo-storage；cargo test -p tikeo-server；cargo clippy -p tikeo-server --all-targets -- -D warnings；python .github/tests/docs_site_contract_test.py）
 设计依据：`design/non-lock-distribution-high-performance-scheduler-platform.md`
 
 ## 目标
@@ -24,17 +24,17 @@
 - [x] 1.2 ✅ 新增 `WorkerDispatchOutboxRepository`：create/list/claim/mark delivered/mark failed/complete。
 - [x] 1.3 ✅ dispatcher 在派发前创建 outbox，且 attempt token 与 outbox token 持久化顺序可测试。
 - [x] 1.4 ✅ 新增 gateway delivery loop：扫描本节点 outbox 并投递本地 stream。
-- [ ] 1.5 当前 internal relay 降级为 wake-up/hint 路径：relay 失败不丢 dispatch intent。
+- [x] 1.5 ✅ 当前 internal relay 降级为 wake-up/hint 路径：relay 失败不丢 dispatch intent。
 - [x] 1.6 ✅ 增加 outbox 指标与基础 metrics summary 输出。
 
 验收：gateway/relay 短暂失败后，outbox 保留 queued 状态，恢复后可以投递；token 先落库后投递。
 
 ### Phase 2：Outbox Reroute 与 Visibility Timeout
 
-- [ ] 2.1 Worker 重连后根据 `logical_instance_id` + `generation` reroute outbox。
-- [ ] 2.2 delivered 未 ack/result 超时后重置为 queued。
-- [ ] 2.3 Worker ack/log/checkpoint/result 将 outbox 推进为 acked/completed。
-- [ ] 2.4 duplicate dispatch/result 幂等验证。
+- [x] 2.1 ✅ Worker 重连后根据 `logical_instance_id` + `generation` reroute outbox。
+- [x] 2.2 ✅ delivered 未 ack/result 超时后重置为 queued。
+- [x] 2.3 ✅ Worker log/checkpoint/result 将 outbox 推进为 acked/completed。
+- [x] 2.4 ✅ duplicate dispatch/result 幂等验证。
 
 验收：Worker 在 dispatch 前后重连，任务最终只产生一个 terminal result，无永久 delivered 卡死。
 
@@ -67,13 +67,16 @@
 
 ## 当前推进切片
 
-Phase 1 最小生产闭环已完成，下一步进入 Phase 2 reroute/visibility timeout：
+Phase 2 reroute / visibility timeout / fenced completion 已完成：
 
-1. 红：仓储测试证明 outbox 表不存在/仓储行为缺失。
-2. 绿：新增 migration/entity/repository，让 create/list/claim 状态转换通过。
-3. 红：dispatcher 测试证明 relay 失败时 outbox queued 保留且 instance 不错误丢失。
-4. 绿：dispatcher 写 outbox，并引入 gateway delivery service 的最小路径。
-5. 验证：`cargo test -p tikeo-storage`、`cargo test -p tikeo-server tunnel::dispatcher`、`cargo clippy -p tikeo-server --all-targets -- -D warnings`。
+1. ✅ Worker 重连后通过 `logical_instance_id` 加当前 generation 自动 reroute 到新 gateway。
+2. ✅ reroute 时同步迁移 `job_instance_attempts` 的 assignment fencing 到新 worker session，避免新 session result 被拒绝。
+3. ✅ gateway loop 周期扫描 `delivered` 且超出 visibility deadline 的 outbox，并重置为 `queued`。
+4. ✅ Worker log/checkpoint 作为隐式 ack，把 outbox 推进到 `acked`；fenced result 推进到 `completed`。
+5. ✅ duplicate completion 不再重新进入 claim/delivery，completed outbox 不可再次派发。
+6. ✅ 验证：`cargo test -p tikeo-storage`、`cargo test -p tikeo-server`、`cargo clippy -p tikeo-server --all-targets -- -D warnings`、`python .github/tests/docs_site_contract_test.py`。
+
+下一推进切片：Phase 3 Raft Shard Ownership 基础。
 
 ## 风险与控制
 
