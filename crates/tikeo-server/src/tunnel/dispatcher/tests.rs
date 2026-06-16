@@ -58,3 +58,4 @@ fn notification_center(jobs: &JobRepository) -> crate::notification::Notificatio
 
 include!("tests/part_01.rs");
 include!("tests/part_02.rs");
+include!("tests/part_03.rs");

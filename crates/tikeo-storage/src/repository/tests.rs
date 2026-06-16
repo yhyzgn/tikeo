@@ -107,3 +107,4 @@ async fn insert_scoped_job_queue_item(
 include!("tests/part_01.rs");
 include!("tests/part_02.rs");
 include!("tests/part_03.rs");
+include!("tests/part_04.rs");
