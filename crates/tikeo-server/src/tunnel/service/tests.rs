@@ -1,6 +1,6 @@
 use tikeo_core::InstanceStatus;
 use tikeo_proto::worker::v1::{
-    RegisterWorker, SubscribeTaskLogsRequest, TaskLog, WorkerMessage, server_message,
+    Heartbeat, RegisterWorker, SubscribeTaskLogsRequest, TaskLog, WorkerMessage, server_message,
     worker_message,
 };
 use tikeo_storage::{
@@ -13,8 +13,8 @@ use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
 use super::{
-    TaskLogBroadcaster, WorkerMessageContext, WorkerRegistry, handle_task_result,
-    handle_worker_message,
+    TaskLogBroadcaster, WorkerMessageContext, WorkerMessageOutcome, WorkerRegistry,
+    handle_task_result, handle_worker_message,
 };
 
 fn standalone_cluster() -> crate::cluster::SharedClusterCoordinator {
@@ -174,6 +174,97 @@ async fn register_message_is_rejected_on_raft_follower() {
             .contains("worker tunnel registration requires raft scheduling leader")
     );
     assert!(registry.worker_ids().await.is_empty());
+}
+
+#[tokio::test]
+async fn heartbeat_after_raft_leadership_loss_closes_worker_tunnel() {
+    use crate::cluster::{ClusterMode, ClusterRole, ClusterStatus, StaticCoordinator};
+
+    let registry = WorkerRegistry::default();
+    let instances = instances().await;
+    let jobs = jobs().await;
+    let logs = logs().await;
+    let audit = audit().await;
+    let attempts = attempts().await;
+    let workflows = workflows().await;
+    let log_broadcaster = TaskLogBroadcaster::default();
+    let notifications = notification_center(&jobs);
+    let (tx, mut rx) = mpsc::channel(1);
+    let worker = registry
+        .register(
+            RegisterWorker {
+                client_instance_id: "worker-loses-leader".to_owned(),
+                app: "billing".to_owned(),
+                namespace: "finance".to_owned(),
+                cluster: "prod".to_owned(),
+                region: "cn".to_owned(),
+                capabilities: Vec::new(),
+                structured_capabilities: None,
+                election: None,
+                labels: std::collections::HashMap::default(),
+            },
+            tx.clone(),
+        )
+        .await;
+    let follower = StaticCoordinator::shared(ClusterStatus {
+        mode: ClusterMode::Raft,
+        role: ClusterRole::Follower,
+        node_id: "tikeo-server-1".to_owned(),
+        nodes: 3,
+        can_schedule: false,
+        leader_fencing_token: None,
+        detail: "test follower after leadership loss".to_owned(),
+    });
+    let context = WorkerMessageContext {
+        registry: &registry,
+        instances: &instances,
+        jobs: &jobs,
+        logs: &logs,
+        attempts: &attempts,
+        workflows: &workflows,
+        audit: &audit,
+        notifications: &notifications,
+        log_broadcaster: &log_broadcaster,
+        cluster: &follower,
+        tx: &tx,
+        outbound: &tx,
+    };
+
+    let outcome = handle_worker_message(
+        &context,
+        WorkerMessage {
+            kind: Some(worker_message::Kind::Heartbeat(Heartbeat {
+                worker_id: worker.worker_id.clone(),
+                sequence: 42,
+                generation: worker.generation,
+                fencing_token: worker.fencing_token.clone(),
+            })),
+        },
+    )
+    .await
+    .unwrap_or_else(|error| panic!("leadership-loss rejection should be sent: {error}"));
+
+    match outcome {
+        WorkerMessageOutcome::CloseTunnel {
+            worker_id,
+            evidence,
+        } => {
+            assert_eq!(worker_id.as_deref(), Some(worker.worker_id.as_str()));
+            assert!(evidence.contains("raft scheduling ownership lost"));
+        }
+        other => panic!("heartbeat on raft follower should close tunnel, got {other:?}"),
+    }
+    let rejection = rx
+        .recv()
+        .await
+        .unwrap_or_else(|| panic!("leadership-loss rejection should exist"))
+        .expect_err("heartbeat on follower should be rejected");
+    assert_eq!(rejection.code(), tonic::Code::FailedPrecondition);
+    assert!(
+        rejection
+            .message()
+            .contains("worker tunnel requires raft scheduling leader")
+    );
 }
 
 #[tokio::test]

@@ -132,6 +132,17 @@ impl WorkerTunnelService for WorkerTunnel {
                             Ok(WorkerMessageOutcome::GracefulUnregister) => {
                                 graceful_unregister = true;
                             }
+                            Ok(WorkerMessageOutcome::CloseTunnel {
+                                worker_id,
+                                evidence,
+                            }) => {
+                                let worker_id =
+                                    worker_id.as_deref().or(registered_worker_id.as_deref());
+                                if let Some(worker_id) = worker_id {
+                                    registry.mark_transport_error(worker_id, &evidence).await;
+                                }
+                                return;
+                            }
                             Ok(WorkerMessageOutcome::Continue) => {}
                             Err(_) => break,
                         }
@@ -246,6 +257,10 @@ enum WorkerMessageOutcome {
     Continue,
     Registered(String),
     GracefulUnregister,
+    CloseTunnel {
+        worker_id: Option<String>,
+        evidence: String,
+    },
 }
 
 async fn handle_worker_message(
@@ -261,11 +276,40 @@ async fn handle_worker_message(
             handle_unregister(context, unregister).await
         }
         Some(worker_message::Kind::TaskResult(result)) => {
+            if let Some(outcome) = close_tunnel_if_raft_scheduling_owner_lost(
+                context,
+                "task result",
+                Some(&result.worker_id),
+            )
+            .await?
+            {
+                return Ok(outcome);
+            }
             handle_task_result(context, result).await;
             Ok(WorkerMessageOutcome::Continue)
         }
-        Some(worker_message::Kind::TaskLog(log)) => handle_task_log(context, log).await,
+        Some(worker_message::Kind::TaskLog(log)) => {
+            if let Some(outcome) = close_tunnel_if_raft_scheduling_owner_lost(
+                context,
+                "task log",
+                Some(&log.worker_id),
+            )
+            .await?
+            {
+                return Ok(outcome);
+            }
+            handle_task_log(context, log).await
+        }
         Some(worker_message::Kind::TaskCheckpoint(checkpoint)) => {
+            if let Some(outcome) = close_tunnel_if_raft_scheduling_owner_lost(
+                context,
+                "task checkpoint",
+                Some(&checkpoint.worker_id),
+            )
+            .await?
+            {
+                return Ok(outcome);
+            }
             handle_task_checkpoint(context, checkpoint).await;
             Ok(WorkerMessageOutcome::Continue)
         }
@@ -285,17 +329,10 @@ async fn handle_register(
     context: &WorkerMessageContext<'_>,
     register: tikeo_proto::worker::v1::RegisterWorker,
 ) -> Result<WorkerMessageOutcome, mpsc::error::SendError<Result<ServerMessage, Status>>> {
-    let status = context.cluster.status().await;
-    if status.mode == ClusterMode::Raft && !status.can_schedule {
-        context
-            .tx
-            .send(Err(Status::failed_precondition(format!(
-                "worker tunnel registration requires raft scheduling leader; current node {} is {}",
-                status.node_id,
-                status.role.as_str()
-            ))))
-            .await?;
-        return Ok(WorkerMessageOutcome::Continue);
+    if let Some(outcome) =
+        close_tunnel_if_raft_scheduling_owner_lost(context, "registration", None).await?
+    {
+        return Ok(outcome);
     }
 
     let worker = context
@@ -327,6 +364,11 @@ async fn handle_heartbeat(
         generation,
         fencing_token,
     } = heartbeat;
+    if let Some(outcome) =
+        close_tunnel_if_raft_scheduling_owner_lost(context, "heartbeat", Some(&worker_id)).await?
+    {
+        return Ok(outcome);
+    }
     if context
         .registry
         .heartbeat(&worker_id, sequence, generation, &fencing_token)
@@ -348,6 +390,42 @@ async fn handle_heartbeat(
             .await?;
     }
     Ok(WorkerMessageOutcome::Continue)
+}
+
+async fn close_tunnel_if_raft_scheduling_owner_lost(
+    context: &WorkerMessageContext<'_>,
+    operation: &str,
+    worker_id: Option<&str>,
+) -> Result<Option<WorkerMessageOutcome>, mpsc::error::SendError<Result<ServerMessage, Status>>> {
+    let status = context.cluster.status().await;
+    if status.mode != ClusterMode::Raft || status.can_schedule {
+        return Ok(None);
+    }
+    let message = if operation == "registration" {
+        format!(
+            "worker tunnel registration requires raft scheduling leader; current node {} is {}",
+            status.node_id,
+            status.role.as_str()
+        )
+    } else {
+        format!(
+            "worker tunnel requires raft scheduling leader for {operation}; current node {} is {}",
+            status.node_id,
+            status.role.as_str()
+        )
+    };
+    context
+        .tx
+        .send(Err(Status::failed_precondition(message)))
+        .await?;
+    Ok(Some(WorkerMessageOutcome::CloseTunnel {
+        worker_id: worker_id.map(str::to_owned),
+        evidence: format!(
+            "raft scheduling ownership lost while handling {operation}; current node {} is {}",
+            status.node_id,
+            status.role.as_str()
+        ),
+    }))
 }
 
 async fn handle_unregister(
