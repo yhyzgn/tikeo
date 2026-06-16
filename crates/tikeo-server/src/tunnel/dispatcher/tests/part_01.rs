@@ -180,6 +180,17 @@
             Some(server_message::Kind::DispatchTask(task)) => {
                 assert_eq!(task.instance_id, instance.id);
                 assert_eq!(task.processor_name, "billing.manual");
+                let persisted_attempts = attempts
+                    .list_by_instance(&instance.id)
+                    .await
+                    .unwrap_or_else(|error| panic!("attempts should load: {error}"));
+                assert_eq!(persisted_attempts.len(), 1);
+                assert_eq!(
+                    persisted_attempts[0].assignment_token.as_deref(),
+                    Some(task.assignment_token.as_str()),
+                    "assignment token must be durable before the Worker can answer"
+                );
+                assert_eq!(persisted_attempts[0].status, InstanceStatus::Running);
             }
             other => panic!("unexpected server message: {other:?}"),
         }
@@ -844,4 +855,3 @@
             .unwrap_or_else(|| panic!("instance should exist"));
         assert_eq!(updated.status, InstanceStatus::Running);
     }
-

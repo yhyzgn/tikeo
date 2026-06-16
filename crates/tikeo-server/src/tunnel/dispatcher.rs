@@ -3,8 +3,8 @@
 use std::time::Duration;
 
 use tikeo_core::{
-    InstanceStatus, ScriptExecutionPolicy, ScriptLanguage, ScriptPolicyError, ScriptStatus,
-    WasmProcessorSpec,
+    ExecutionMode, InstanceStatus, ScriptExecutionPolicy, ScriptLanguage, ScriptPolicyError,
+    ScriptStatus, WasmProcessorSpec,
 };
 use tikeo_proto::worker::v1::{
     DispatchTask, ScriptProcessorBinding, TaskProcessorBinding, WasmProcessorBinding,
@@ -16,6 +16,7 @@ use tikeo_storage::{
 };
 use tokio::time;
 use tracing::{debug, warn};
+use uuid::Uuid;
 
 use super::{WorkerRegistry, capability::WorkerRequirement, governance};
 use crate::{
@@ -29,6 +30,10 @@ const DISPATCH_LEASE_SECONDS: i64 = 30;
 const DISPATCH_RETRY_BACKOFF_SECONDS: i64 = 2;
 const DISPATCH_STALE_RUNNING_SECONDS: i64 = 60;
 const DISPATCHER_LEASE_OWNER: &str = "tikeo-dispatcher";
+
+fn new_assignment_token() -> String {
+    format!("asg-{}", Uuid::now_v7())
+}
 
 fn dispatcher_fencing_token(node_id: &str, leader_fencing_token: Option<&str>) -> String {
     leader_fencing_token.map_or_else(
@@ -388,14 +393,36 @@ async fn dispatch_single_instances(
         let eligible_workers = registry
             .find_ordered_persisted_dispatch_workers(&job.namespace, &job.app, requirement.as_ref())
             .await;
-        if let Some(worker_id) = eligible_workers.first()
-            && let Some(assignment_token) = registry.dispatch_to_worker(worker_id, task).await
-        {
+        if let Some(worker_id) = eligible_workers.first() {
+            let assignment_token = new_assignment_token();
             let _ = attempts
                 .create_pending_for_workers(&instance.id, std::slice::from_ref(worker_id))
                 .await?;
             let _ = attempts
                 .record_assignment_token(&instance.id, worker_id, &assignment_token)
+                .await?;
+            let mut task = task;
+            task.assignment_token.clone_from(&assignment_token);
+            if !registry.dispatch_tokened_to_worker(worker_id, task).await {
+                let _ = workflows
+                    .release_dispatch_queue_item_after(
+                        &claim.item.id,
+                        DISPATCHER_LEASE_OWNER,
+                        DISPATCH_RETRY_BACKOFF_SECONDS,
+                    )
+                    .await?;
+                instances
+                    .update_status(&instance.id, InstanceStatus::Pending)
+                    .await?;
+                continue;
+            }
+            attempts
+                .update_status_if_current(
+                    &instance.id,
+                    worker_id,
+                    InstanceStatus::Pending,
+                    InstanceStatus::Running,
+                )
                 .await?;
             append_retry_dispatch_progress_log(
                 logs,
@@ -656,6 +683,9 @@ async fn dispatch_broadcast_attempts(
         let Some(instance) = instances.get(&attempt.instance_id).await? else {
             continue;
         };
+        if instance.execution_mode != ExecutionMode::Broadcast {
+            continue;
+        }
         let executor = if let Some(job) = jobs.get(&instance.job_id).await? {
             resolve_job_executor(workflows, &instance.id, &job).await?
         } else {
@@ -712,10 +742,16 @@ async fn dispatch_broadcast_attempts(
             continue;
         }
 
-        if let Some(worker_id) = registry.dispatch_to_worker(&attempt.worker_id, task).await {
-            let _ = attempts
-                .record_assignment_token(&attempt.instance_id, &attempt.worker_id, &worker_id)
-                .await?;
+        let assignment_token = new_assignment_token();
+        attempts
+            .record_assignment_token(&attempt.instance_id, &attempt.worker_id, &assignment_token)
+            .await?;
+        let mut task = task;
+        task.assignment_token.clone_from(&assignment_token);
+        if registry
+            .dispatch_tokened_to_worker(&attempt.worker_id, task)
+            .await
+        {
             attempts
                 .update_status_if_current(
                     &attempt.instance_id,
@@ -739,12 +775,13 @@ async fn dispatch_broadcast_attempts(
                     &updated,
                     JobNotificationEvent::Running,
                     Some(&format!(
-                        "dispatched broadcast attempt to worker {worker_id}"
+                        "dispatched broadcast attempt to worker {}",
+                        attempt.worker_id
                     )),
                 )
                 .await;
             }
-            debug!(%worker_id, instance_id = %attempt.instance_id, "dispatched broadcast attempt to worker");
+            debug!(worker_id = %attempt.worker_id, instance_id = %attempt.instance_id, "dispatched broadcast attempt to worker");
         }
     }
 

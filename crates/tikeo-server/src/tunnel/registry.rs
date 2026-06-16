@@ -652,6 +652,20 @@ impl WorkerRegistry {
         worker_id: &str,
         mut task: DispatchTask,
     ) -> Option<String> {
+        let assignment_token = format!("asg-{}", Uuid::now_v7());
+        task.assignment_token = assignment_token.clone();
+        self.dispatch_tokened_to_worker(worker_id, task)
+            .await
+            .then_some(assignment_token)
+    }
+
+    /// Dispatch one task that already carries a persisted assignment token.
+    pub async fn dispatch_tokened_to_worker(&self, worker_id: &str, task: DispatchTask) -> bool {
+        if task.assignment_token.trim().is_empty() {
+            metrics::counter!("tikeo_worker_dispatch_total", "result" => "missing_assignment_token")
+                .increment(1);
+            return false;
+        }
         let persisted = match self.lifecycle.as_ref() {
             Some(lifecycle) => {
                 let persisted = lifecycle
@@ -662,27 +676,23 @@ impl WorkerRegistry {
                 if persisted.is_none() {
                     metrics::counter!("tikeo_worker_dispatch_total", "result" => "not_online")
                         .increment(1);
-                    return None;
+                    return false;
                 }
                 persisted
             }
             None => None,
         };
-        let assignment_token = format!("asg-{}", Uuid::now_v7());
-        task.assignment_token = assignment_token.clone();
         let gateway_node_id = persisted.as_ref().map_or_else(
             || self.gateway_node_id.clone(),
             |worker| worker.gateway_node_id.clone(),
         );
         if gateway_node_id == self.gateway_node_id {
-            return self
-                .dispatch_to_local_worker(worker_id, task, assignment_token)
-                .await;
+            return self.dispatch_to_local_worker(worker_id, task).await;
         }
         let Some(relay) = self.relay.as_ref() else {
             metrics::counter!("tikeo_worker_dispatch_total", "result" => "relay_unavailable")
                 .increment(1);
-            return None;
+            return false;
         };
         match relay
             .dispatch_to_gateway(&gateway_node_id, worker_id, task)
@@ -691,7 +701,7 @@ impl WorkerRegistry {
             Ok(()) => {
                 metrics::counter!("tikeo_worker_dispatch_total", "result" => "relayed")
                     .increment(1);
-                Some(assignment_token)
+                true
             }
             Err(error) => {
                 metrics::counter!("tikeo_worker_dispatch_total", "result" => "relay_failed")
@@ -699,7 +709,7 @@ impl WorkerRegistry {
                 if error.mark_worker_offline {
                     let _ = self.mark_transport_error(worker_id, &error.message).await;
                 }
-                None
+                false
             }
         }
     }
@@ -728,16 +738,13 @@ impl WorkerRegistry {
             .is_ok()
     }
 
-    async fn dispatch_to_local_worker(
-        &self,
-        worker_id: &str,
-        task: DispatchTask,
-        assignment_token: String,
-    ) -> Option<String> {
+    async fn dispatch_to_local_worker(&self, worker_id: &str, task: DispatchTask) -> bool {
         let workers = self.workers.read().await;
-        let worker = workers.get(worker_id)?;
+        let Some(worker) = workers.get(worker_id) else {
+            return false;
+        };
         if !worker.is_schedulable() {
-            return None;
+            return false;
         }
         let worker = worker.clone();
         drop(workers);
@@ -750,10 +757,10 @@ impl WorkerRegistry {
             .is_ok()
         {
             metrics::counter!("tikeo_worker_dispatch_total", "result" => "sent").increment(1);
-            Some(assignment_token)
+            true
         } else {
             metrics::counter!("tikeo_worker_dispatch_total", "result" => "closed").increment(1);
-            None
+            false
         }
     }
 
