@@ -1276,6 +1276,7 @@
                 region: "local".to_owned(),
                 client_instance_id: "persisted-pod".to_owned(),
                 connection_id: "conn-db-online".to_owned(),
+                gateway_node_id: "tikeo-test".to_owned(),
                 fencing_token: "token-db-online".to_owned(),
                 lease_seconds: 30,
                 capabilities_json: r#"["java"]"#.to_owned(),

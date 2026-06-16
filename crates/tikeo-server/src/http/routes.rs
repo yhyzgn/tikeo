@@ -27,6 +27,7 @@ pub(crate) mod service_accounts;
 pub(crate) mod system;
 pub(crate) mod topology;
 pub(crate) mod users;
+pub(crate) mod worker_relay;
 pub(crate) mod workers;
 pub(crate) mod workflows;
 
@@ -90,6 +91,7 @@ pub use service_accounts::{
 pub use system::{cluster_diagnostics, cluster_status, system_info};
 pub use topology::{job_impact, job_topology, workflow_replay};
 pub use users::{create_user, delete_user, list_users, update_user};
+pub use worker_relay::relay_dispatch_to_worker;
 pub use workers::{
     claim_dispatch_queue, dispatch_queue, list_workers, stream_dispatch_queue, stream_workers,
     worker_lifecycle_history,

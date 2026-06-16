@@ -219,6 +219,7 @@
                 region: "cn".to_owned(),
                 client_instance_id: "host-a#slot-1".to_owned(),
                 connection_id: "conn-one".to_owned(),
+                gateway_node_id: "tikeo-1".to_owned(),
                 fencing_token: "token-one".to_owned(),
                 lease_seconds: 30,
                 capabilities_json: r#"["java"]"#.to_owned(),
@@ -237,6 +238,7 @@
                 region: "cn".to_owned(),
                 client_instance_id: "host-a#slot-1".to_owned(),
                 connection_id: "conn-two".to_owned(),
+                gateway_node_id: "tikeo-2".to_owned(),
                 fencing_token: "token-two".to_owned(),
                 lease_seconds: 30,
                 capabilities_json: r#"["java"]"#.to_owned(),
@@ -249,6 +251,7 @@
 
         assert_eq!(first.generation, 1);
         assert_eq!(second.generation, 2);
+        assert_eq!(second.gateway_node_id, "tikeo-2");
         assert_eq!(second.current_worker_id.as_deref(), Some("wrk-two"));
 
         let old = repository
@@ -320,6 +323,7 @@
                 region: "local".to_owned(),
                 client_instance_id: "spring-boot3-worker-demo-fedora".to_owned(),
                 connection_id: "conn-persisted-online".to_owned(),
+                gateway_node_id: "tikeo-gateway-1".to_owned(),
                 fencing_token: "token-persisted-online".to_owned(),
                 lease_seconds: 30,
                 capabilities_json: r#"["java"]"#.to_owned(),
@@ -338,6 +342,7 @@
                 region: "local".to_owned(),
                 client_instance_id: "expired-demo".to_owned(),
                 connection_id: "conn-persisted-expired".to_owned(),
+                gateway_node_id: "tikeo-gateway-2".to_owned(),
                 fencing_token: "token-persisted-expired".to_owned(),
                 lease_seconds: -1,
                 capabilities_json: "[]".to_owned(),
@@ -355,6 +360,7 @@
 
         assert_eq!(online.len(), 1);
         assert_eq!(online[0].worker_id, "wrk-persisted-online");
+        assert_eq!(online[0].gateway_node_id, "tikeo-gateway-1");
         assert_eq!(online[0].namespace_name, "dev-alpha");
         assert_eq!(online[0].app_name, "orders");
         assert_eq!(online[0].cluster, "local");
@@ -387,6 +393,7 @@
                 region: "local".to_owned(),
                 client_instance_id: "pod-a".to_owned(),
                 connection_id: "conn-online".to_owned(),
+                gateway_node_id: "tikeo-test".to_owned(),
                 fencing_token: "token-online".to_owned(),
                 lease_seconds: 30,
                 capabilities_json: r#"["java"]"#.to_owned(),
@@ -405,6 +412,7 @@
                 region: "local".to_owned(),
                 client_instance_id: "pod-expired".to_owned(),
                 connection_id: "conn-expired".to_owned(),
+                gateway_node_id: "tikeo-test".to_owned(),
                 fencing_token: "token-expired".to_owned(),
                 lease_seconds: -1,
                 capabilities_json: "[]".to_owned(),
@@ -520,6 +528,7 @@
                 region: "cn".to_owned(),
                 client_instance_id: "host-a#slot-1".to_owned(),
                 connection_id: "conn-stop".to_owned(),
+                gateway_node_id: "tikeo-test".to_owned(),
                 fencing_token: "token-stop".to_owned(),
                 lease_seconds: 30,
                 capabilities_json: "[]".to_owned(),
@@ -573,6 +582,7 @@
                 region: "cn".to_owned(),
                 client_instance_id: "host-a#slot-1".to_owned(),
                 connection_id: "conn-expired".to_owned(),
+                gateway_node_id: "tikeo-test".to_owned(),
                 fencing_token: "token-expired".to_owned(),
                 lease_seconds: -1,
                 capabilities_json: "[]".to_owned(),
@@ -638,6 +648,7 @@
                 region: "cn".to_owned(),
                 client_instance_id: "host-a#slot-1".to_owned(),
                 connection_id: "conn-transport".to_owned(),
+                gateway_node_id: "tikeo-test".to_owned(),
                 fencing_token: "token-transport".to_owned(),
                 lease_seconds: 30,
                 capabilities_json: "[]".to_owned(),

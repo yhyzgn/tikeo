@@ -6,6 +6,7 @@ mod indexes;
 mod notification_center;
 mod rbac_role_management;
 mod sqlite_compat;
+mod worker_gateway;
 
 use sea_orm::{DatabaseBackend, Statement};
 use sea_orm_migration::prelude::*;
@@ -47,6 +48,7 @@ impl MigratorTrait for Migrator {
             Box::new(NotificationCenterMigration),
             Box::new(NotificationTemplatesMigration),
             Box::new(NotificationChannelExamplesCleanupMigration),
+            Box::new(WorkerGatewayMigration),
         ]
     }
 }
@@ -56,6 +58,7 @@ use notification_center::{
     NotificationTemplatesMigration,
 };
 use rbac_role_management::RbacRoleManagementMigration;
+use worker_gateway::WorkerGatewayMigration;
 
 #[derive(DeriveMigrationName)]
 struct CreateMetadataTables;

@@ -154,7 +154,7 @@ fn builtin_channel_template(provider: &str) -> serde_json::Value {
         "{{templateRef}}",
         "{{templateKey}}"
     ]);
-    let template = match provider {
+    match provider {
         "slack" => serde_json::json!({
             "defaultMessageType": "text",
             "messageTypes": [
@@ -255,8 +255,7 @@ fn builtin_channel_template(provider: &str) -> serde_json::Value {
             "templateVariables": variables,
             "docs": [{"label":"HTTP semantics RFC 9110","url":"https://datatracker.ietf.org/doc/rfc9110/"}]
         }),
-    };
-    template
+    }
 }
 
 pub(super) struct ChannelValidationInput<'a> {

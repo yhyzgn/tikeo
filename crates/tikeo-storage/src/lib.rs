@@ -269,11 +269,11 @@ mod tests {
         .unwrap_or_else(|error| panic!("local namespace should insert: {error}"));
         db.execute(Statement::from_sql_and_values(
             DatabaseBackend::Sqlite,
-            r#"INSERT INTO notification_channels (
+            r"INSERT INTO notification_channels (
                 id, scope_type, namespace, app, worker_pool, name, provider, enabled,
                 config_json, secret_refs_json, target_redacted, safety_policy_json,
                 created_by, updated_by, created_at, updated_at
-            ) VALUES (?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)"#,
+            ) VALUES (?, ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)",
             vec![
                 "notification-channel-local-operator".into(),
                 "global".into(),

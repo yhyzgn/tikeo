@@ -1,3 +1,131 @@
+
+    #[derive(Debug, Default)]
+    struct RecordingRelay {
+        calls: tokio::sync::Mutex<Vec<(String, String, DispatchTask)>>,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::tunnel::WorkerRelayDispatch for RecordingRelay {
+        async fn dispatch_to_gateway(
+            &self,
+            gateway_node_id: &str,
+            worker_id: &str,
+            task: DispatchTask,
+        ) -> Result<(), crate::tunnel::WorkerRelayError> {
+            self.calls.lock().await.push((
+                gateway_node_id.to_owned(),
+                worker_id.to_owned(),
+                task,
+            ));
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatch_relays_to_remote_worker_gateway_from_persisted_owner() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db.clone());
+        let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
+        let scripts = ScriptRepository::new(db.clone());
+        let lifecycle = tikeo_storage::WorkerLifecycleRepository::new(db.clone());
+        let relay = std::sync::Arc::new(RecordingRelay::default());
+        let registry = WorkerRegistry::with_lifecycle(lifecycle.clone())
+            .with_gateway_node_id("leader-node")
+            .with_relay(relay.clone());
+        lifecycle
+            .register_session(tikeo_storage::RegisterWorkerSession {
+                worker_id: "wrk-remote-gateway".to_owned(),
+                namespace_name: "default".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "local".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "remote-worker".to_owned(),
+                connection_id: "conn-remote".to_owned(),
+                gateway_node_id: "gateway-node".to_owned(),
+                fencing_token: "token-remote".to_owned(),
+                lease_seconds: 30,
+                capabilities_json: r"[]".to_owned(),
+                structured_capabilities_json: r#"{"sdkProcessors":["billing.manual"]}"#.to_owned(),
+                labels_json: r"{}".to_owned(),
+                master_json: r"{}".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("remote gateway worker should persist: {error}"));
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "manual".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("billing.manual".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                retry_policy: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should be created: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id.clone(),
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should be created: {error}"))
+            .unwrap_or_else(|| panic!("job should exist"));
+
+        dispatch_once(
+            &jobs,
+            &instances,
+            &attempts,
+            &workflows,
+            &scripts,
+            &logs,
+            &audit,
+            &registry,
+            "test-fence",
+            &notification_center(&jobs),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("dispatch should run: {error}"));
+
+        let calls = relay.calls.lock().await;
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, "gateway-node");
+        assert_eq!(calls[0].1, "wrk-remote-gateway");
+        assert_eq!(calls[0].2.instance_id, instance.id);
+        assert!(!calls[0].2.assignment_token.is_empty());
+        drop(calls);
+        let persisted_attempts = attempts
+            .list_by_instance(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("attempts should load: {error}"));
+        assert_eq!(persisted_attempts.len(), 1);
+        assert_eq!(persisted_attempts[0].worker_id, "wrk-remote-gateway");
+        assert!(persisted_attempts[0].assignment_token.is_some());
+        let updated = instances
+            .get(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("instance should load: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        assert_eq!(updated.status, InstanceStatus::Running);
+    }
+
     #[tokio::test]
     async fn dispatch_once_closes_terminal_instance_queue_item() {
         let db = connect_and_migrate("sqlite::memory:")

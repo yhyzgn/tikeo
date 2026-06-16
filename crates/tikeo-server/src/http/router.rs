@@ -118,6 +118,10 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
             "/raft/members:propose",
             axum::routing::post(routes::propose_member_change),
         )
+        .route(
+            "/internal/worker-tunnel/dispatch/{worker_id}",
+            axum::routing::post(routes::relay_dispatch_to_worker),
+        )
         .route("/auth/bootstrap", get(auth::bootstrap_status))
         .route(
             "/auth/bootstrap/register",

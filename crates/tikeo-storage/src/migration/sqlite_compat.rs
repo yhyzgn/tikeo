@@ -165,6 +165,7 @@ async fn ensure_worker_lifecycle_schema_compatibility(
             worker_id varchar NOT NULL PRIMARY KEY,
             logical_instance_id varchar NOT NULL,
             connection_id varchar NOT NULL,
+            gateway_node_id varchar NOT NULL DEFAULT 'standalone',
             generation bigint NOT NULL,
             fencing_token_hash varchar NOT NULL,
             status varchar NOT NULL,
@@ -196,6 +197,13 @@ async fn ensure_worker_lifecycle_schema_compatibility(
     ] {
         db.execute(Statement::from_string(DatabaseBackend::Sqlite, sql))
             .await?;
+    }
+    if !sqlite_column_exists(db, "worker_sessions", "gateway_node_id").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            "ALTER TABLE worker_sessions ADD COLUMN gateway_node_id varchar NOT NULL DEFAULT 'standalone'",
+        ))
+        .await?;
     }
     for (column, default_json) in [
         ("capabilities_json", "'[]'"),

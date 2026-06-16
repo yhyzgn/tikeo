@@ -844,15 +844,15 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
   --values ./my-tikeo-values.yaml
 ```
 
-如果要把 Server 跑成多 Pod，不要把它当成普通扩副本处理；先按 Raft HA overlay 部署，并阅读这篇独立部署指南：[Server 高可用与集群模式](https://docs.tikeo.net/zh-CN/docs/deployment/server-ha)。里面集中说明了部署拓扑图、模式选择、故障切换，以及当前 active-passive 调度模型的取舍。
+如果要把 Server 跑成多 Pod，不要把它当成普通扩副本处理；先按 Raft HA overlay 部署，并阅读这篇独立部署指南：[Server 高可用与集群模式](https://docs.tikeo.net/zh-CN/docs/deployment/server-ha)。里面集中说明了部署拓扑图、模式选择、Worker Tunnel gateway relay 行为、故障切换，以及当前单 Leader 调度模型的取舍。
 
 当前生产 HA 语义：
 
 | 主题 | 当前行为 | 取舍 |
 | --- | --- | --- |
-| Server HA | 基于 `StatefulSet` 和 `tikeo-server-headless` 的 Raft active-passive。 | 更多 Server Pod 提升故障切换能力，不提升调度吞吐。 |
-| 调度所有者 | 任意时刻只有一个被选举出的 Leader 报告 `canSchedule=true` 并运行 schedule/dispatch/retry 循环。 | Follower 可服务 API/health/Raft transport，但不会分摊任务派发。 |
-| Worker Tunnel | Follower 使用 `FailedPrecondition` 拒绝注册；SDK 重连直到路由到 Leader。 | Worker Tunnel 暴露链路必须支持 gRPC/HTTP2 和 reconnect/backoff。 |
+| Server HA | 基于 `StatefulSet` 和 `tikeo-server-headless` 的 Raft 单 Leader 调度。 | 更多 Server Pod 提升故障切换能力和 Worker Tunnel 连接分布能力，不提升调度决策并行度。 |
+| 调度所有者 | 任意时刻只有一个被选举出的 Leader 报告 `canSchedule=true` 并运行 schedule/dispatch/retry 循环。 | Follower 可以作为 Worker Tunnel gateway，但不会 claim 队列或决定 assignment。 |
+| Worker Tunnel | Worker 可以连接任意 Server Pod；session 会记录 `gateway_node_id`，Leader 必要时经由持有连接的 gateway relay 派发。 | Worker Tunnel 暴露链路必须支持 gRPC/HTTP2；内部 peer endpoint 和 `cluster.transport_token` 必须配置好用于 relay。 |
 | 外部分布式锁 | 核心调度所有权不使用 Redis/Dragonfly lock。 | 未来多活调度必须走 Raft shard ownership + fencing。 |
 
 ```bash

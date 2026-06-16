@@ -37,6 +37,8 @@ pub struct RegisterWorkerSession {
     pub client_instance_id: String,
     /// Server-local connection id.
     pub connection_id: String,
+    /// Server node that owns the live Worker Tunnel stream for this session.
+    pub gateway_node_id: String,
     /// Plain fencing token; only its hash is persisted.
     pub fencing_token: String,
     /// Lease duration from now.
@@ -77,6 +79,8 @@ pub struct WorkerSessionSummary {
     pub current_worker_id: Option<String>,
     /// Session generation.
     pub generation: i64,
+    /// Server node that owns the live Worker Tunnel stream for this session.
+    pub gateway_node_id: String,
     /// Session status.
     pub status: String,
     /// Optional status reason.
@@ -120,6 +124,8 @@ pub struct PersistedOnlineWorkerSummary {
     pub region: String,
     /// Generation.
     pub generation: i64,
+    /// Server node that owns the live Worker Tunnel stream for this session.
+    pub gateway_node_id: String,
     /// Status.
     pub status: String,
     /// Optional status reason.
@@ -445,6 +451,7 @@ impl WorkerLifecycleRepository {
                 cluster: logical.cluster,
                 region: logical.region,
                 generation: session.generation,
+                gateway_node_id: session.gateway_node_id,
                 status: session.status,
                 status_reason: session.status_reason,
                 lease_expires_at: session.lease_expires_at,
@@ -494,6 +501,7 @@ impl WorkerLifecycleRepository {
             cluster: logical.cluster,
             region: logical.region,
             generation: session.generation,
+            gateway_node_id: session.gateway_node_id,
             status: session.status,
             status_reason: session.status_reason,
             lease_expires_at: session.lease_expires_at,
@@ -669,6 +677,7 @@ impl WorkerLifecycleRepository {
             worker_id: Set(input.worker_id.clone()),
             logical_instance_id: Set(logical_instance_id.to_owned()),
             connection_id: Set(input.connection_id.clone()),
+            gateway_node_id: Set(input.gateway_node_id.clone()),
             generation: Set(generation),
             fencing_token_hash: Set(hash_token(&input.fencing_token)),
             status: Set(STATUS_ONLINE.to_owned()),
@@ -694,6 +703,7 @@ impl WorkerLifecycleRepository {
                     .update_columns([
                         worker_session::Column::LogicalInstanceId,
                         worker_session::Column::ConnectionId,
+                        worker_session::Column::GatewayNodeId,
                         worker_session::Column::Generation,
                         worker_session::Column::FencingTokenHash,
                         worker_session::Column::Status,
@@ -869,6 +879,7 @@ impl WorkerSessionSummary {
             logical_instance_id: model.logical_instance_id,
             current_worker_id,
             generation: model.generation,
+            gateway_node_id: model.gateway_node_id,
             status: model.status,
             status_reason: model.status_reason,
             status_evidence: model.status_evidence,

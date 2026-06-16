@@ -93,7 +93,14 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
         );
     }
     let worker_lifecycle = WorkerLifecycleRepository::new(db.clone());
-    let registry = tunnel::WorkerRegistry::with_lifecycle(worker_lifecycle.clone());
+    let registry = tunnel::WorkerRegistry::with_lifecycle(worker_lifecycle.clone())
+        .with_gateway_node_id(cluster_config.node_id.clone())
+        .with_relay(std::sync::Arc::new(
+            tunnel::HttpWorkerRelayDispatch::from_peers(
+                &cluster_config.peers,
+                cluster_config.transport_token.clone(),
+            ),
+        ));
     let http_router = build_http_router(HttpRouterParts {
         jobs: jobs.clone(),
         instances: instances.clone(),
@@ -140,7 +147,6 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
                 audit: audit.clone(),
                 notifications: Some(notification_center.clone()),
                 log_broadcaster,
-                cluster: cluster.clone(),
             }),
             &transport_security.worker_tunnel,
         ),

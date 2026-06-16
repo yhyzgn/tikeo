@@ -24,15 +24,31 @@ use tokio::sync::{RwLock, mpsc};
 use tonic::Status;
 use uuid::Uuid;
 
-use super::capability::{WorkerRequirement, structured_capabilities_match};
+use super::{
+    capability::{WorkerRequirement, structured_capabilities_match},
+    relay::SharedWorkerRelayDispatch,
+};
 
 const DEFAULT_LEASE_SECONDS: u64 = 30;
 
 /// Shared worker registry handle.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct WorkerRegistry {
     workers: Arc<RwLock<HashMap<String, RegisteredWorker>>>,
     lifecycle: Option<WorkerLifecycleRepository>,
+    gateway_node_id: String,
+    relay: Option<SharedWorkerRelayDispatch>,
+}
+
+impl Default for WorkerRegistry {
+    fn default() -> Self {
+        Self {
+            workers: Arc::new(RwLock::const_new(HashMap::new())),
+            lifecycle: None,
+            gateway_node_id: "standalone".to_owned(),
+            relay: None,
+        }
+    }
 }
 
 /// Broadcast fan-out selector over connected worker metadata.
@@ -90,7 +106,34 @@ impl WorkerRegistry {
         Self {
             workers: Arc::new(RwLock::const_new(HashMap::new())),
             lifecycle: Some(lifecycle),
+            gateway_node_id: "standalone".to_owned(),
+            relay: None,
         }
+    }
+
+    /// Bind this registry to the server node that owns its live Worker Tunnel streams.
+    #[must_use]
+    pub fn with_gateway_node_id(mut self, gateway_node_id: impl Into<String>) -> Self {
+        let gateway_node_id = gateway_node_id.into();
+        self.gateway_node_id = if gateway_node_id.trim().is_empty() {
+            "standalone".to_owned()
+        } else {
+            gateway_node_id
+        };
+        self
+    }
+
+    /// Return the server node id owning this registry's live streams.
+    #[must_use]
+    pub fn gateway_node_id(&self) -> &str {
+        &self.gateway_node_id
+    }
+
+    /// Attach the server-to-server relay used for workers connected through other Pods.
+    #[must_use]
+    pub fn with_relay(mut self, relay: SharedWorkerRelayDispatch) -> Self {
+        self.relay = Some(relay);
+        self
     }
 
     /// Register or replace a worker record.
@@ -189,6 +232,7 @@ impl WorkerRegistry {
                 client_instance_id: empty_to_none(worker.client_instance_id.clone())
                     .unwrap_or_else(|| worker_id.to_owned()),
                 connection_id: connection_id.to_owned(),
+                gateway_node_id: self.gateway_node_id().to_owned(),
                 fencing_token: fencing_token.to_owned(),
                 lease_seconds: i64::try_from(DEFAULT_LEASE_SECONDS).unwrap_or(i64::MAX),
                 capabilities_json: json_or_empty_array(&worker.capabilities),
@@ -608,27 +652,95 @@ impl WorkerRegistry {
         worker_id: &str,
         mut task: DispatchTask,
     ) -> Option<String> {
-        if let Some(lifecycle) = self.lifecycle.as_ref()
-            && lifecycle
-                .get_online_current_worker(worker_id)
-                .await
-                .ok()
-                .flatten()
-                .is_none()
-        {
-            metrics::counter!("tikeo_worker_dispatch_total", "result" => "not_online").increment(1);
-            return None;
-        }
+        let persisted = match self.lifecycle.as_ref() {
+            Some(lifecycle) => {
+                let persisted = lifecycle
+                    .get_online_current_worker(worker_id)
+                    .await
+                    .ok()
+                    .flatten();
+                if persisted.is_none() {
+                    metrics::counter!("tikeo_worker_dispatch_total", "result" => "not_online")
+                        .increment(1);
+                    return None;
+                }
+                persisted
+            }
+            None => None,
+        };
         let assignment_token = format!("asg-{}", Uuid::now_v7());
         task.assignment_token = assignment_token.clone();
-        let worker = {
-            let workers = self.workers.read().await;
-            let worker = workers.get(worker_id)?;
-            if !worker.is_schedulable() {
-                return None;
-            }
-            worker.clone()
+        let gateway_node_id = persisted.as_ref().map_or_else(
+            || self.gateway_node_id.clone(),
+            |worker| worker.gateway_node_id.clone(),
+        );
+        if gateway_node_id == self.gateway_node_id {
+            return self
+                .dispatch_to_local_worker(worker_id, task, assignment_token)
+                .await;
+        }
+        let Some(relay) = self.relay.as_ref() else {
+            metrics::counter!("tikeo_worker_dispatch_total", "result" => "relay_unavailable")
+                .increment(1);
+            return None;
         };
+        match relay
+            .dispatch_to_gateway(&gateway_node_id, worker_id, task)
+            .await
+        {
+            Ok(()) => {
+                metrics::counter!("tikeo_worker_dispatch_total", "result" => "relayed")
+                    .increment(1);
+                Some(assignment_token)
+            }
+            Err(error) => {
+                metrics::counter!("tikeo_worker_dispatch_total", "result" => "relay_failed")
+                    .increment(1);
+                if error.mark_worker_offline {
+                    let _ = self.mark_transport_error(worker_id, &error.message).await;
+                }
+                None
+            }
+        }
+    }
+
+    /// Dispatch a task already authorized and tokened by the scheduling leader to a local stream.
+    pub async fn dispatch_relayed_task_to_local_worker(
+        &self,
+        worker_id: &str,
+        task: DispatchTask,
+    ) -> bool {
+        let workers = self.workers.read().await;
+        let Some(worker) = workers.get(worker_id) else {
+            return false;
+        };
+        if !worker.is_schedulable() {
+            return false;
+        }
+        let worker = worker.clone();
+        drop(workers);
+        worker
+            .outbound
+            .send(Ok(ServerMessage {
+                kind: Some(server_message::Kind::DispatchTask(task)),
+            }))
+            .await
+            .is_ok()
+    }
+
+    async fn dispatch_to_local_worker(
+        &self,
+        worker_id: &str,
+        task: DispatchTask,
+        assignment_token: String,
+    ) -> Option<String> {
+        let workers = self.workers.read().await;
+        let worker = workers.get(worker_id)?;
+        if !worker.is_schedulable() {
+            return None;
+        }
+        let worker = worker.clone();
+        drop(workers);
         if worker
             .outbound
             .send(Ok(ServerMessage {

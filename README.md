@@ -915,15 +915,15 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
   --create-namespace   --values ./my-tikeo-values.yaml
 ```
 
-If you plan to run more than one Server pod, do not treat it as a normal replica bump. Use the Raft HA overlay and read the dedicated deployment guide first: [Server HA and cluster modes](https://docs.tikeo.net/docs/deployment/server-ha). It includes the topology diagrams, mode comparison, failover behavior, and the current active-passive scheduling trade-off.
+If you plan to run more than one Server pod, do not treat it as a normal replica bump. Use the Raft HA overlay and read the dedicated deployment guide first: [Server HA and cluster modes](https://docs.tikeo.net/docs/deployment/server-ha). It includes the topology diagrams, mode comparison, Worker Tunnel gateway relay behavior, failover behavior, and the current single-Leader scheduling trade-off.
 
 Current production HA semantics:
 
 | Topic | Current behavior | Trade-off |
 | --- | --- | --- |
-| Server HA | Raft active-passive with `StatefulSet` and `tikeo-server-headless`. | More Server pods improve failover, not scheduling throughput. |
-| Scheduling owner | Exactly one elected Leader reports `canSchedule=true` and runs schedule/dispatch/retry loops. | Followers serve API/health/Raft transport but do not split task dispatch. |
-| Worker Tunnel | Followers reject registration with `FailedPrecondition`; SDKs reconnect until routed to the Leader. | Worker Tunnel exposure must support gRPC/HTTP2 and reconnect/backoff. |
+| Server HA | Raft single-Leader scheduling with `StatefulSet` and `tikeo-server-headless`. | More Server pods improve failover and Worker Tunnel connection distribution, not scheduling-decision parallelism. |
+| Scheduling owner | Exactly one elected Leader reports `canSchedule=true` and runs schedule/dispatch/retry loops. | Followers can be Worker Tunnel gateways but do not claim queues or decide assignments. |
+| Worker Tunnel | Workers may connect to any Server Pod; the session records `gateway_node_id`, and the Leader relays dispatch through the owning gateway when needed. | Worker Tunnel exposure must support gRPC/HTTP2; internal peer endpoints and `cluster.transport_token` must be configured for relay. |
 | External locks | Redis/Dragonfly locks are intentionally not used for core scheduler ownership. | Future multi-active scheduling must use Raft shard ownership with fencing. |
 
 ```bash

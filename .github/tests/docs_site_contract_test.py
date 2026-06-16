@@ -489,7 +489,9 @@ class DocsSiteContractTest(unittest.TestCase):
                 "StatefulSet",
                 "headless",
                 "Worker Tunnel",
-                "FailedPrecondition",
+                "gateway_node_id",
+                "internal relay",
+                "cluster.transport_token",
                 "canSchedule=true",
                 "Redis",
                 "Dragonfly",
@@ -507,8 +509,8 @@ class DocsSiteContractTest(unittest.TestCase):
         self.assertIn("https://docs.tikeo.net/zh-CN/docs/deployment/server-ha", readme_zh)
         self.assertNotIn("docs/docs/deployment/server-ha.md", readme)
         self.assertNotIn("docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/deployment/server-ha.md", readme_zh)
-        self.assertIn("Raft active-passive", readme)
-        self.assertIn("More Server pods improve failover, not scheduling throughput", readme)
+        self.assertIn("Raft single-Leader scheduling", readme)
+        self.assertIn("More Server pods improve failover and Worker Tunnel connection distribution", readme)
         self.assertIn("/docs/deployment/server-ha", search_index)
         self.assertIn("/zh-CN/docs/deployment/server-ha", search_index)
         self.assertIn("/docs/deployment/server-ha", llms)

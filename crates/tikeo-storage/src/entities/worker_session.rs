@@ -13,6 +13,8 @@ pub struct Model {
     pub logical_instance_id: String,
     /// Server-local connection id for routing diagnostics.
     pub connection_id: String,
+    /// Server node that owns the live Worker Tunnel stream for this session.
+    pub gateway_node_id: String,
     /// Monotonic generation within the logical instance.
     pub generation: i64,
     /// SHA-256 hash of the session fencing token.

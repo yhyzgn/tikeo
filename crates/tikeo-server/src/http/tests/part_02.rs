@@ -877,3 +877,111 @@
         );
     }
 
+
+    #[tokio::test]
+    async fn internal_worker_relay_route_dispatches_to_local_stream() {
+        use axum::{body::Body, http::{Request, StatusCode}};
+        use tonic_prost::prost::Message as _;
+        use tower::ServiceExt;
+        use std::collections::HashMap;
+        use tikeo_proto::worker::v1::{DispatchTask, SdkProcessorCapability, WorkerCapabilities, server_message};
+
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let users = UserRepository::new(db.clone());
+        let scripts = ScriptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
+        let registry = crate::tunnel::WorkerRegistry::with_lifecycle(
+            tikeo_storage::WorkerLifecycleRepository::new(db),
+        )
+        .with_gateway_node_id("gateway-node");
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        let worker = registry
+            .register(
+                RegisterWorker {
+                    client_instance_id: "relay-local".to_owned(),
+                    app: "billing".to_owned(),
+                    namespace: "default".to_owned(),
+                    cluster: "local".to_owned(),
+                    region: "local".to_owned(),
+                    capabilities: Vec::new(),
+                    structured_capabilities: Some(WorkerCapabilities {
+                        sdk_processors: vec![SdkProcessorCapability {
+                            name: "billing.manual".to_owned(),
+                        }],
+                        ..WorkerCapabilities::default()
+                    }),
+                    election: None,
+                    labels: HashMap::default(),
+                },
+                tx,
+            )
+            .await;
+        let state = AppState::new(
+            jobs,
+            instances,
+            logs,
+            attempts,
+            users,
+            scripts,
+            workflows,
+            audit,
+            registry,
+            StaticCoordinator::shared(ClusterStatus {
+                mode: ClusterMode::Raft,
+                role: ClusterRole::Follower,
+                node_id: "gateway-node".to_owned(),
+                nodes: 3,
+                can_schedule: false,
+                leader_fencing_token: None,
+                detail: "gateway test".to_owned(),
+            }),
+        )
+        .with_raft_transport_token(Some("relay-secret".to_owned()));
+        let app = crate::http::router_with_state(state);
+        let task = DispatchTask {
+            instance_id: "inst-relayed".to_owned(),
+            job_id: "job-relayed".to_owned(),
+            payload: Vec::new(),
+            processor_name: "billing.manual".to_owned(),
+            processor_binding: None,
+            assignment_token: "asg-relayed".to_owned(),
+        };
+        let mut body = Vec::new();
+        task.encode(&mut body)
+            .unwrap_or_else(|error| panic!("task should encode: {error}"));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!(
+                        "/api/v1/internal/worker-tunnel/dispatch/{}",
+                        worker.worker_id
+                    ))
+                    .header("x-tikeo-raft-token", "relay-secret")
+                    .body(Body::from(body))
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("relay request should run: {error}"));
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        let delivered = rx
+            .recv()
+            .await
+            .unwrap_or_else(|| panic!("worker should receive relayed dispatch"))
+            .unwrap_or_else(|error| panic!("relayed dispatch should be ok: {error}"));
+        match delivered.kind {
+            Some(server_message::Kind::DispatchTask(delivered)) => {
+                assert_eq!(delivered.instance_id, "inst-relayed");
+                assert_eq!(delivered.assignment_token, "asg-relayed");
+            }
+            other => panic!("unexpected relayed message: {other:?}"),
+        }
+    }

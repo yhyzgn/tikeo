@@ -656,6 +656,7 @@ pub(super) enum WorkerSessions {
     WorkerId,
     LogicalInstanceId,
     ConnectionId,
+    GatewayNodeId,
     Generation,
     FencingTokenHash,
     Status,

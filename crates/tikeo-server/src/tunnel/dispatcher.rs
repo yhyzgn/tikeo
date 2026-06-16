@@ -170,7 +170,11 @@ async fn dispatch_once(
     .await
 }
 
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+#[allow(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::large_stack_frames
+)]
 async fn dispatch_single_instances(
     jobs: &JobRepository,
     instances: &JobInstanceRepository,

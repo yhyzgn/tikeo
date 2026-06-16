@@ -5,8 +5,8 @@ use sha2::{Digest, Sha256};
 use crate::cluster::{ClusterMode, ClusterRole, ClusterStatus, StaticCoordinator};
 use tikeo_core::{ExecutionMode, InstanceStatus, TriggerType};
 use tikeo_proto::worker::v1::{
-    RegisterWorker, ScriptRunnerCapability, SdkProcessorCapability, WorkerCapabilities,
-    server_message, task_processor_binding,
+    DispatchTask, RegisterWorker, ScriptRunnerCapability, SdkProcessorCapability,
+    WorkerCapabilities, server_message, task_processor_binding,
 };
 use tikeo_storage::{
     AuditLogRepository, CreateJob, CreateJobInstance, JobInstanceAttemptRepository,
