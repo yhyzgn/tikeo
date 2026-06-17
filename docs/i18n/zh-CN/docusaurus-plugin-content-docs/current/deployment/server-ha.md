@@ -8,7 +8,7 @@ keywords: [tikeo server ha, raft, fsod, worker dispatch outbox, kubernetes ha, w
 
 Tikeo Server HA 基于 **FSOD：Fenced Slot Outbox Dispatch**。在 Kubernetes Raft 模式下，Server Pod 组成 Raft group；被选出的 Leader 持久化 fencing token，把调度 shard ownership 投影到共享数据库，并在派发 Worker 前先写入 `worker_dispatch_outbox`。Worker Tunnel 长连接可以落到任意 Server Pod；持有 stream 的 Pod 是 gateway，只投递属于自己 `gateway_node_id` 的 outbox 行。
 
-本版本使用 multi-owner scheduler 路径。Raft 仍只选出一个控制面 Leader，但 Leader 会把 scheduler shards 投影到 active/configured members；Follower Pod 只有在持有 active shard 且 owner epoch/token 匹配时，才能派发自己的 shard。若暂时读不到 membership health，投影会回退到配置的 peer set；只有一个成员时自然退化为单 owner。
+本版本使用 multi-owner scheduler 路径。Raft 仍只选出一个控制面 Leader，但 Leader 只会把 scheduler shards 投影到 active members；Follower Pod 只有在持有 active shard 且 owner epoch/token 匹配时，才能派发自己的 shard。bootstrap 阶段如果还没有任何 membership rows，投影使用配置的 peer set；一旦 membership rows 存在，removed 或非 active 成员不会再收到 fallback shards。
 
 ## 部署架构
 
@@ -138,12 +138,13 @@ flowchart TD
 | 无外部锁依赖 | 不需要 Redis/Dragonfly 才能保证调度所有权正确。 |
 | Web/API 可正常走 Service | 业务事实来自 DB；节点本地视图显式标识。 |
 | 主动横向派发 | shard rows 投影后，非 Leader Pod 可以安全派发自己拥有的 shards，不再只是闲置。 |
+| 最小迁移重平衡 | 新增/移除健康 Server Pod 不会全量 remap；Tikeo 尽量保留当前 owner rows，只移动恢复目标 skew 所必需的 shards。 |
 
 ## 限制与取舍
 
 | 限制 | 运维含义 | 缓解方式 |
 | --- | --- | --- |
-| rollout 期间 shard ownership 变化 | Raft term/membership projection 变化时 ownership 会迁移；旧 owner token 会被拒绝。 | 保持所有 Pod 的 `cluster.scheduler_shard_map_version` 与 `cluster.scheduler_shard_count` 一致，并使用保守滚动更新。 |
+| rollout 期间 shard ownership 变化 | Raft term/membership projection 变化时 ownership 仍可能迁移；最小迁移只降低 churn，不会让旧 token 继续有效。 | 保持所有 Pod 的 `cluster.scheduler_shard_map_version` 与 `cluster.scheduler_shard_count` 一致，并使用保守滚动更新。 |
 | Workflow 与 broadcast 也已分片 | Workflow node queue 与 broadcast attempt 使用确定性 shard ownership。 | 监控每个 owner 的 queue age 与 outbox age，定位不健康 shard owner 或 gateway。 |
 | Failover 不是瞬时 | Raft election 期间调度暂停，直到新 Leader 持久化 fencing 并投影 shard。 | 使用 retry policy，监控 queue/outbox age，升级后跑 failover smoke。 |
 | 需要稳定身份 | Raft 需要 StatefulSet pod name 和 headless peer DNS。 | 使用 Helm Raft overlay 或 `deploy/k8s/tikeo-raft-ha.yaml`。 |
@@ -202,8 +203,26 @@ curl -fsS "$TIKEO_SERVER_URL/api/v1/metrics/summary"   -H "x-tikeo-api-key: $TIK
 
 - 只有一个节点报告 `canSchedule=true`；
 - `shardOwnership.active` 大于 0；
+- `shardOwnership.activeOwnerCount` 与当前健康 owner 集合匹配；
+- `shardOwnership.ownershipSkew` 投影后通常为 `0` 或 `1`；
+- `queue.pendingByShardOwner` 和 `queue.oldestPendingAgeByShardOwner` 能定位哪一个 owner 积压；
 - dispatch 后 `outbox.total` 增加，terminal 行最终进入 completed；
 - worker-pool quota backpressure 时能看到 `queue.blockedByQuota`。
+
+对已部署环境做非破坏性 rollout/rollback gate：
+
+```bash
+TIKEO_SERVER_URL="https://tikeo.example.com" \
+TIKEO_MANAGEMENT_API_KEY="$TIKEO_MANAGEMENT_API_KEY" \
+TIKEO_EXPECTED_SERVER_REPLICAS=3 \
+TIKEO_MAX_SHARD_SKEW=1 \
+TIKEO_MAX_PENDING_AGE_SECONDS=120 \
+TIKEO_MAX_OUTBOX_AGE_SECONDS=120 \
+TIKEO_ROLLOUT_REPORT=.dev/reports/raft-ha-rollout.json \
+scripts/verify-raft-ha-rollout.sh
+```
+
+该脚本只读取 `/api/v1/cluster/diagnostics` 和 `/api/v1/metrics/summary`，不会修改任务、Worker、DB 或 Kubernetes 资源。rollout 判定健康前跑一次，`helm rollback` 后再跑一次，用来证明恢复后的版本只有一个 scheduler、shard ownership 有效、skew 合理且 queue/outbox age 在阈值内。
 
 本地端到端证据：
 
@@ -274,6 +293,8 @@ sequenceDiagram
 | 多个 Pod 报告 `canSchedule=true` | Raft fencing 或配置混乱 | 暂停 rollout；检查 `TIKEO__CLUSTER__MODE`、Pod node id、Raft term、metadata row、共享 DB URL。 |
 | 没有 Pod 报告 `canSchedule=true` | Raft 无法选举或无法持久化 ownership | 检查 headless DNS、peer address、transport token、DB 连通性和 Server 日志。 |
 | `shardOwnership.active` 为 0 | Leader 尚未投影 shard ownership | 检查 `/api/v1/cluster`、Raft term、`cluster.scheduler_shard_count`、migration 状态和 DB 写入错误。 |
+| `shardOwnership.ownershipSkew` 持续过高 | member 不健康/removed、配置不一致或 projection 无法持久化 | 检查 active Raft members、`cluster.scheduler_shard_map_version`、`cluster.scheduler_shard_count`、DB 写入错误和 `tikeo_cluster_shard_ownership_skew`。 |
+| 某个 owner 积压明显 | Shard owner 无法派发或无法触达 Worker gateway | 检查 `queue.pendingByShardOwner`、`queue.oldestPendingAgeByShardOwner`、对应 gateway 的 Worker sessions 和 relay 日志。 |
 | failover 后 Job 排队 | 新 Leader 未选出/未投影、outbox 无法到 gateway、Worker session 丢失 | 查看 `cluster-diagnostics`、`metrics.summary`、`fsod-db-*.json`、`worker_sessions.gateway_node_id` 和 Server 日志。 |
 | Outbox 停在 `delivered` | Worker 未在 visibility timeout 前 ack/log/result | 等待 requeue，检查 Worker 连接、assignment token 校验和 delivery loop 日志。 |
 | Worker 一直重连 | Worker Tunnel HTTP/2/gRPC 链路被破坏 | 检查 Gateway/Ingress 协议、LB idle timeout、TLS/mTLS 和 SDK reconnect 日志。 |

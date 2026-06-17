@@ -70,6 +70,14 @@ pub struct ClusterShardOwnershipSloSummary {
     pub max_shard_count: i32,
     /// Count of active shards owned by each node.
     pub active_by_owner: std::collections::BTreeMap<String, u64>,
+    /// Number of owners that currently own at least one active shard.
+    pub active_owner_count: u64,
+    /// Minimum active shard count across active owners.
+    pub min_active_shards_per_owner: u64,
+    /// Maximum active shard count across active owners.
+    pub max_active_shards_per_owner: u64,
+    /// Difference between max and min active shard counts across active owners.
+    pub ownership_skew: u64,
 }
 
 /// Repository for Raft-applied scheduler shard ownership projections.
@@ -276,6 +284,16 @@ impl ClusterShardOwnershipRepository {
                     .entry(row.owner_node_id)
                     .or_insert(0) += 1;
             }
+        }
+        summary.active_owner_count = summary.active_by_owner.len().try_into().unwrap_or(u64::MAX);
+        if !summary.active_by_owner.is_empty() {
+            summary.min_active_shards_per_owner =
+                summary.active_by_owner.values().copied().min().unwrap_or(0);
+            summary.max_active_shards_per_owner =
+                summary.active_by_owner.values().copied().max().unwrap_or(0);
+            summary.ownership_skew = summary
+                .max_active_shards_per_owner
+                .saturating_sub(summary.min_active_shards_per_owner);
         }
         Ok(summary)
     }

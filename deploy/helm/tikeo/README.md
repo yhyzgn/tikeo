@@ -58,7 +58,7 @@ For production multi-pod Server HA, set `server.cluster.mode=raft` and use Raft 
 Current behavior is FSOD-backed multi-owner HA, not naive replica scheduling:
 
 - The chart renders the Server as a `StatefulSet`, creates a headless peer Service, injects a stable pod name as `TIKEO__CLUSTER__NODE_ID`, and reads the internal Raft transport token from a Kubernetes Secret.
-- The elected Leader persists the control-plane fencing token and balances scheduler shards into `cluster_shard_ownership` for active/configured members.
+- The elected Leader persists the control-plane fencing token and projects scheduler shards into `cluster_shard_ownership` for active Raft members only. The rebalancer preserves healthy existing ownership first and moves only the shards needed to restore target skew.
 - FSOD persists Worker dispatch intent in `worker_dispatch_outbox` before stream delivery. Gateway relay is a wake-up/hint path; reconnect, reroute, and visibility timeout recovery use durable rows instead of pod memory.
 - Follower shard owners can dispatch job queues, materialize workflow nodes, and dispatch broadcast attempts for their owned shards only; stale owner tokens are rejected.
 - More Server pods improve failover, Worker Tunnel connection distribution, and dispatch throughput for projected shard owners.
@@ -102,7 +102,7 @@ kubectl -n tikeo rollout status statefulset/tikeo-server
 kubectl -n tikeo exec statefulset/tikeo-server -- tikeo server cluster status
 ```
 
-For release validation or incident drills, run `scripts/raft-worker-failover-e2e.sh`. It stores API, metrics, and DB snapshots under `.dev/reports/...`, including `cluster_shard_ownership`, `worker_sessions`, `worker_dispatch_outbox`, and `dispatch_queue` evidence.
+For a non-mutating rollout/rollback gate, run `scripts/verify-raft-ha-rollout.sh` against the deployed API. It checks `/api/v1/cluster/diagnostics` and `/api/v1/metrics/summary` for exactly one schedulable node, active shard ownership, acceptable skew, and bounded queue/outbox age when thresholds are supplied. For release validation or incident drills that should exercise real Worker failover, run `scripts/raft-worker-failover-e2e.sh`. It stores API, metrics, and DB snapshots under `.dev/reports/...`, including `cluster_shard_ownership`, `worker_sessions`, `worker_dispatch_outbox`, and `dispatch_queue` evidence.
 
 Do not use Redis or Dragonfly distributed locks for core scheduler ownership. Optional cache or pub/sub infrastructure may accelerate surrounding features, but scheduler correctness must stay anchored in Raft fencing, shard ownership, durable outbox rows, and assignment/result fencing.
 

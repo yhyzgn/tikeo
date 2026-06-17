@@ -2,7 +2,10 @@ use base64::Engine as _;
 use protobuf::Message as _;
 use raft::{GetEntriesContext, Storage, eraftpb::EntryType};
 use tikeo_config::{ClusterConfig, ClusterModeConfig, ClusterPeerConfig};
-use tikeo_storage::{RaftRepository, UpsertRaftLogEntry, UpsertRaftMetadata, connect_and_migrate};
+use tikeo_storage::{
+    RaftRepository, UpsertClusterShardOwnership, UpsertRaftLogEntry, UpsertRaftMember,
+    UpsertRaftMetadata, connect_and_migrate,
+};
 
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
@@ -10,9 +13,10 @@ use tokio::sync::RwLock;
 use super::{
     CLUSTER_ID, RaftMembershipProposalContext, RaftRuntimeCoordinator, STANDARD, StateRole,
     apply_committed_entries, build_membership_conf_change, build_runtime_from_repository,
-    leader_fencing_token_for_role, persist_entry, persist_hard_state, raft_append_entries_url,
-    raft_message_to_wire_request, raft_numeric_id, trigger_autonomous_campaign,
-    update_runtime_status, validate_raft_rs_bootstrap,
+    leader_fencing_token_for_role, persist_entry, persist_hard_state,
+    project_balanced_shard_ownership, raft_append_entries_url, raft_message_to_wire_request,
+    raft_numeric_id, trigger_autonomous_campaign, update_runtime_status,
+    validate_raft_rs_bootstrap,
 };
 use crate::cluster::{ClusterMode, ClusterRole, ClusterStatus, RaftMembershipProposal};
 
@@ -639,6 +643,211 @@ async fn raft_inprocess_membership_proposal_commits_and_applies_member() {
     assert_eq!(member.status, "active");
     assert_eq!(proposal.status, "applied");
     assert!(metadata.conf_state.is_some());
+}
+
+#[tokio::test]
+async fn raft_leader_status_skips_shard_projection_without_active_members() {
+    let repository = test_raft_repository_for("tikeo-0").await;
+    for node_id in ["tikeo-0", "tikeo-1"] {
+        repository
+            .upsert_member(UpsertRaftMember {
+                node_id: node_id.to_owned(),
+                endpoint: format!("http://{node_id}.tikeo-headless:9999"),
+                status: "removed".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("member {node_id} should persist: {error}"));
+    }
+    let mut config = test_raft_config_for("tikeo-0", &["tikeo-0", "tikeo-1"]);
+    config.scheduler_shard_map_version = 7;
+    config.scheduler_shard_count = 4;
+    let mut raw = test_raw_node_from_ids("tikeo-0", vec![raft_numeric_id("tikeo-0")]);
+    raw.raft.become_candidate();
+    raw.raft.become_leader();
+    let status = Arc::new(RwLock::new(test_cluster_status("tikeo-0", 2)));
+
+    update_runtime_status(&config, &repository, &raw, &status)
+        .await
+        .unwrap_or_else(|error| panic!("status update should not fail: {error}"));
+
+    let ownership = tikeo_storage::ClusterShardOwnershipRepository::new(repository.db())
+        .list()
+        .await
+        .unwrap_or_else(|error| panic!("ownership should list: {error}"));
+    assert!(
+        ownership.is_empty(),
+        "removed members must not receive projected shards: {ownership:?}"
+    );
+}
+
+#[tokio::test]
+async fn raft_leader_status_excludes_non_active_members_from_shard_projection() {
+    let repository = test_raft_repository_for("tikeo-0").await;
+    for (node_id, status) in [
+        ("tikeo-0", "active"),
+        ("tikeo-1", "removed"),
+        ("tikeo-2", "active"),
+    ] {
+        repository
+            .upsert_member(UpsertRaftMember {
+                node_id: node_id.to_owned(),
+                endpoint: format!("http://{node_id}.tikeo-headless:9999"),
+                status: status.to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("member {node_id} should persist: {error}"));
+    }
+    let mut config = test_raft_config_for("tikeo-0", &["tikeo-0", "tikeo-1", "tikeo-2"]);
+    config.scheduler_shard_map_version = 4;
+    config.scheduler_shard_count = 6;
+    let mut raw = test_raw_node_from_ids("tikeo-0", vec![raft_numeric_id("tikeo-0")]);
+    raw.raft.become_candidate();
+    raw.raft.become_leader();
+    let status = Arc::new(RwLock::new(test_cluster_status("tikeo-0", 3)));
+
+    update_runtime_status(&config, &repository, &raw, &status)
+        .await
+        .unwrap_or_else(|error| panic!("status update should project shards: {error}"));
+
+    let ownership = tikeo_storage::ClusterShardOwnershipRepository::new(repository.db())
+        .list()
+        .await
+        .unwrap_or_else(|error| panic!("ownership should list: {error}"));
+    let owners = ownership
+        .iter()
+        .map(|row| row.owner_node_id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        owners,
+        std::collections::BTreeSet::from(["tikeo-0", "tikeo-2"])
+    );
+    assert!(ownership.iter().all(|row| row.owner_node_id != "tikeo-1"));
+}
+
+#[tokio::test]
+async fn raft_leader_status_rebalances_shards_with_minimal_movement() {
+    let repository = test_raft_repository_for("tikeo-0").await;
+    for node_id in ["tikeo-0", "tikeo-1", "tikeo-2"] {
+        repository
+            .upsert_member(UpsertRaftMember {
+                node_id: node_id.to_owned(),
+                endpoint: format!("http://{node_id}.tikeo-headless:9999"),
+                status: "active".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("member {node_id} should persist: {error}"));
+    }
+    let mut config = test_raft_config_for("tikeo-0", &["tikeo-0", "tikeo-1", "tikeo-2"]);
+    config.scheduler_shard_map_version = 5;
+    config.scheduler_shard_count = 6;
+    let shard_repository = tikeo_storage::ClusterShardOwnershipRepository::new(repository.db());
+    for shard_id in 0..6 {
+        let owner_node_id = if shard_id < 3 { "tikeo-0" } else { "tikeo-1" };
+        shard_repository
+            .upsert_newer(UpsertClusterShardOwnership {
+                shard_id,
+                shard_map_version: 5,
+                shard_count: 6,
+                owner_node_id: owner_node_id.to_owned(),
+                epoch: 1,
+                raft_term: 1,
+                lease_seconds: Some(30),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("seed ownership should persist: {error}"));
+    }
+    let before = shard_repository
+        .list()
+        .await
+        .unwrap_or_else(|error| panic!("seed ownership should list: {error}"));
+    project_balanced_shard_ownership(&config, &repository, 2, Some("raft:term:2:node:tikeo-0"))
+        .await
+        .unwrap_or_else(|error| panic!("status update should rebalance shards: {error}"));
+
+    let after = shard_repository
+        .list()
+        .await
+        .unwrap_or_else(|error| panic!("ownership should list: {error}"));
+    let moved = after
+        .iter()
+        .filter(|row| {
+            before
+                .iter()
+                .find(|candidate| candidate.shard_id == row.shard_id)
+                .is_some_and(|old| old.owner_node_id != row.owner_node_id)
+        })
+        .count();
+    let owner_counts = after
+        .iter()
+        .fold(std::collections::BTreeMap::new(), |mut counts, row| {
+            *counts.entry(row.owner_node_id.clone()).or_insert(0usize) += 1;
+            counts
+        });
+    assert_eq!(
+        moved, 2,
+        "adding a third owner to six shards only needs two moves: {after:?}"
+    );
+    assert_eq!(owner_counts.get("tikeo-0"), Some(&2));
+    assert_eq!(owner_counts.get("tikeo-1"), Some(&2));
+    assert_eq!(owner_counts.get("tikeo-2"), Some(&2));
+}
+
+#[tokio::test]
+async fn raft_shard_projection_rebalances_membership_change_within_same_term() {
+    let repository = test_raft_repository_for("tikeo-0").await;
+    for node_id in ["tikeo-0", "tikeo-1", "tikeo-2"] {
+        repository
+            .upsert_member(UpsertRaftMember {
+                node_id: node_id.to_owned(),
+                endpoint: format!("http://{node_id}.tikeo-headless:9999"),
+                status: "active".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("member {node_id} should persist: {error}"));
+    }
+    let mut config = test_raft_config_for("tikeo-0", &["tikeo-0", "tikeo-1", "tikeo-2"]);
+    config.scheduler_shard_map_version = 6;
+    config.scheduler_shard_count = 6;
+    let shard_repository = tikeo_storage::ClusterShardOwnershipRepository::new(repository.db());
+    for shard_id in 0..6 {
+        let owner_node_id = if shard_id < 3 { "tikeo-0" } else { "tikeo-1" };
+        shard_repository
+            .upsert_newer(UpsertClusterShardOwnership {
+                shard_id,
+                shard_map_version: 6,
+                shard_count: 6,
+                owner_node_id: owner_node_id.to_owned(),
+                epoch: 2,
+                raft_term: 2,
+                lease_seconds: Some(30),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("seed ownership should persist: {error}"));
+    }
+
+    project_balanced_shard_ownership(&config, &repository, 2, Some("raft:term:2:node:tikeo-0"))
+        .await
+        .unwrap_or_else(|error| panic!("same-term membership change should rebalance: {error}"));
+
+    let after = shard_repository
+        .list()
+        .await
+        .unwrap_or_else(|error| panic!("ownership should list: {error}"));
+    let owner_counts = after
+        .iter()
+        .fold(std::collections::BTreeMap::new(), |mut counts, row| {
+            *counts.entry(row.owner_node_id.clone()).or_insert(0usize) += 1;
+            counts
+        });
+    assert_eq!(owner_counts.get("tikeo-0"), Some(&2));
+    assert_eq!(owner_counts.get("tikeo-1"), Some(&2));
+    assert_eq!(owner_counts.get("tikeo-2"), Some(&2));
+    assert!(
+        after
+            .iter()
+            .any(|row| row.owner_node_id == "tikeo-2" && row.epoch == 3),
+        "same-term moved shards need a fresh ownership epoch: {after:?}"
+    );
 }
 
 #[tokio::test]

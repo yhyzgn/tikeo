@@ -1273,25 +1273,153 @@ async fn project_balanced_shard_ownership(
     let shard_count = config.scheduler_shard_count.max(1);
     let shard_map_version = config.scheduler_shard_map_version.max(1);
     let owners = active_scheduler_owner_node_ids(config, repository).await?;
+    if owners.is_empty() {
+        warn!(
+            node_id = %config.node_id,
+            "skip scheduler shard projection because no active Raft member can own shards"
+        );
+        return Ok(());
+    }
     let shard_repository = ClusterShardOwnershipRepository::new(repository.db());
-    for shard_id in 0..shard_count {
-        let owner_node_id = owners
-            .get(usize::try_from(shard_id).unwrap_or_default() % owners.len())
-            .cloned()
-            .unwrap_or_else(|| config.node_id.clone());
+    let existing = shard_repository.list().await?;
+    let existing_by_shard = existing
+        .iter()
+        .map(|row| (row.shard_id, row))
+        .collect::<BTreeMap<_, _>>();
+    let planned = plan_minimal_movement_shard_ownership(
+        &existing,
+        &owners,
+        shard_map_version,
+        shard_count,
+        &config.node_id,
+    );
+    let raft_term_i64 = i64::try_from(raft_term).unwrap_or(i64::MAX);
+    for (shard_id, owner_node_id) in planned {
+        let previous = existing_by_shard.get(&shard_id).copied();
+        let previous_epoch = previous.map_or(0, |row| row.epoch);
+        let epoch = if previous.is_some_and(|row| {
+            row.status == "active"
+                && row.shard_map_version == shard_map_version
+                && row.shard_count == shard_count
+                && row.owner_node_id == owner_node_id
+                && row.epoch >= raft_term_i64
+        }) {
+            continue;
+        } else {
+            raft_term_i64.max(previous_epoch.saturating_add(1))
+        };
         let _ = shard_repository
             .upsert_newer(UpsertClusterShardOwnership {
                 shard_id,
                 shard_map_version,
                 shard_count,
                 owner_node_id,
-                epoch: i64::try_from(raft_term).unwrap_or(i64::MAX),
-                raft_term: i64::try_from(raft_term).unwrap_or(i64::MAX),
+                epoch,
+                raft_term: raft_term_i64,
                 lease_seconds: Some(30),
             })
             .await?;
     }
     Ok(())
+}
+
+fn plan_minimal_movement_shard_ownership(
+    existing: &[tikeo_storage::ClusterShardOwnershipSummary],
+    owners: &[String],
+    shard_map_version: i64,
+    shard_count: i32,
+    fallback_owner: &str,
+) -> BTreeMap<i32, String> {
+    let owners = if owners.is_empty() {
+        vec![fallback_owner.to_owned()]
+    } else {
+        owners.to_vec()
+    };
+    let owner_set = owners.iter().cloned().collect::<BTreeSet<_>>();
+    let shard_count_usize = usize::try_from(shard_count.max(1)).unwrap_or(1);
+    let target_by_owner = balanced_owner_targets(&owners, shard_count_usize);
+    let existing_by_shard = existing
+        .iter()
+        .filter(|row| {
+            row.status == "active"
+                && row.shard_map_version == shard_map_version
+                && row.shard_count == shard_count
+                && row.shard_id >= 0
+                && row.shard_id < shard_count
+        })
+        .map(|row| (row.shard_id, row.owner_node_id.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let mut assignment = BTreeMap::new();
+    let mut shards_by_owner = owners
+        .iter()
+        .cloned()
+        .map(|owner| (owner, Vec::<i32>::new()))
+        .collect::<BTreeMap<_, _>>();
+    let mut free_shards = Vec::new();
+
+    for shard_id in 0..shard_count {
+        if let Some(owner) = existing_by_shard.get(&shard_id)
+            && owner_set.contains(owner)
+        {
+            assignment.insert(shard_id, owner.clone());
+            shards_by_owner
+                .entry(owner.clone())
+                .or_default()
+                .push(shard_id);
+            continue;
+        }
+        free_shards.push(shard_id);
+    }
+
+    for owner in &owners {
+        let target = *target_by_owner.get(owner).unwrap_or(&0);
+        let shards = shards_by_owner.entry(owner.clone()).or_default();
+        shards.sort_unstable();
+        while shards.len() > target {
+            if let Some(shard_id) = shards.pop() {
+                assignment.remove(&shard_id);
+                free_shards.push(shard_id);
+            }
+        }
+    }
+
+    free_shards.sort_unstable();
+    for owner in &owners {
+        let target = *target_by_owner.get(owner).unwrap_or(&0);
+        while shards_by_owner.get(owner).map_or(0, Vec::len) < target {
+            let Some(shard_id) = free_shards.first().copied() else {
+                break;
+            };
+            free_shards.remove(0);
+            assignment.insert(shard_id, owner.clone());
+            shards_by_owner
+                .entry(owner.clone())
+                .or_default()
+                .push(shard_id);
+        }
+    }
+
+    for (index, shard_id) in free_shards.into_iter().enumerate() {
+        let owner = owners
+            .get(index % owners.len())
+            .cloned()
+            .unwrap_or_else(|| fallback_owner.to_owned());
+        assignment.insert(shard_id, owner);
+    }
+
+    debug_assert_eq!(assignment.len(), shard_count_usize);
+    assignment
+}
+
+fn balanced_owner_targets(owners: &[String], shard_count: usize) -> BTreeMap<String, usize> {
+    let owner_count = owners.len().max(1);
+    let base = shard_count / owner_count;
+    let extra = shard_count % owner_count;
+    owners
+        .iter()
+        .enumerate()
+        .map(|(index, owner)| (owner.clone(), base + usize::from(index < extra)))
+        .collect()
 }
 
 async fn active_scheduler_owner_node_ids(
@@ -1305,19 +1433,20 @@ async fn active_scheduler_owner_node_ids(
         .chain(std::iter::once(config.node_id.clone()))
         .collect();
     let members = repository.list_members().await?;
+    let has_members = !members.is_empty();
     let active_members: BTreeSet<String> = members
         .into_iter()
         .filter(|member| member.status == "active")
         .map(|member| member.node_id)
         .filter(|node_id| configured.contains(node_id))
         .collect();
-    let owners = if active_members.is_empty() {
-        configured
-    } else {
+    let owners = if has_members {
         active_members
+    } else {
+        configured
     };
     let owners = owners.into_iter().collect::<Vec<_>>();
-    if owners.is_empty() {
+    if owners.is_empty() && !has_members {
         Ok(vec![config.node_id.clone()])
     } else {
         Ok(owners)

@@ -921,7 +921,7 @@ Current production HA semantics:
 
 | Topic | Current behavior | Operational meaning |
 | --- | --- | --- |
-| Server HA | Raft elects one fenced control-plane Leader, then balances scheduler shard ownership across active/configured members. | More Server pods improve failover, Worker Tunnel distribution, and dispatch throughput for owned shards. |
+| Server HA | Raft elects one fenced control-plane Leader, then projects scheduler shard ownership across active members with health-aware, minimal-movement rebalancing. | More Server pods improve failover, Worker Tunnel distribution, and dispatch throughput for owned shards without remapping every shard on each membership change. |
 | Dispatch durability | FSOD persists dispatch intent in `worker_dispatch_outbox` before any stream delivery. | If a gateway, relay, or Worker stream breaks, queued/delivered outbox rows can reroute or requeue instead of disappearing in pod memory. |
 | Shard ownership | The runtime projects scheduler shards into `cluster_shard_ownership` with owner epoch and fencing token. | Follower shard owners can safely claim only their own job queues, workflow-node materialization, and broadcast attempts; non-owners fail closed. |
 | Worker Tunnel | Workers may connect to any Server Pod; the session records `gateway_node_id`, and any shard owner uses local delivery or internal relay hints through the owning gateway. | Worker Tunnel exposure must support gRPC/HTTP2; internal peer endpoints and `cluster.transport_token` must be configured for relay. |
@@ -936,6 +936,13 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
   --values deploy/helm/tikeo/examples/values-external-postgres.yaml \
   --values deploy/helm/tikeo/examples/values-raft-ha.yaml
 kubectl -n tikeo rollout status statefulset/tikeo-server
+
+# Non-mutating rollout/rollback gate: one scheduler, active ownership, bounded skew/age.
+TIKEO_SERVER_URL="https://tikeo.example.com" \
+TIKEO_MANAGEMENT_API_KEY="$TIKEO_MANAGEMENT_API_KEY" \
+TIKEO_EXPECTED_SERVER_REPLICAS=3 \
+TIKEO_MAX_SHARD_SKEW=1 \
+scripts/verify-raft-ha-rollout.sh
 ```
 
 ### Deployment paths

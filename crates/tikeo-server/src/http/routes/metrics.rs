@@ -115,6 +115,14 @@ fn record_shard_ownership_metrics(summary: &tikeo_storage::ClusterShardOwnership
             .parse::<f64>()
             .unwrap_or(0.0),
     );
+    metrics::gauge!("tikeo_cluster_shard_ownership_owner_count")
+        .set(u64_metric_value(summary.active_owner_count));
+    metrics::gauge!("tikeo_cluster_shard_ownership_skew")
+        .set(u64_metric_value(summary.ownership_skew));
+    metrics::gauge!("tikeo_cluster_shard_ownership_min_shards_per_owner")
+        .set(u64_metric_value(summary.min_active_shards_per_owner));
+    metrics::gauge!("tikeo_cluster_shard_ownership_max_shards_per_owner")
+        .set(u64_metric_value(summary.max_active_shards_per_owner));
     for (owner, count) in &summary.active_by_owner {
         metrics::gauge!(
             "tikeo_cluster_shard_ownership_active_by_owner",
@@ -157,6 +165,27 @@ fn record_dispatch_queue_metrics(queue: &tikeo_storage::DispatchQueueSloSummary)
         .set(u64_metric_value(queue.running));
     metrics::gauge!("tikeo_dispatch_queue_blocked_by_quota_total")
         .set(u64_metric_value(queue.blocked_by_quota));
+    for (owner, count) in &queue.pending_by_shard_owner {
+        metrics::gauge!(
+            "tikeo_dispatch_queue_pending_by_owner",
+            "owner_node_id" => owner.clone()
+        )
+        .set(u64_metric_value(*count));
+    }
+    for (owner, age_seconds) in &queue.oldest_pending_age_by_shard_owner {
+        metrics::gauge!(
+            "tikeo_dispatch_queue_oldest_pending_age_by_owner_seconds",
+            "owner_node_id" => owner.clone()
+        )
+        .set(u64_metric_value(*age_seconds));
+    }
+    for (owner, count) in &queue.running_by_shard_owner {
+        metrics::gauge!(
+            "tikeo_dispatch_queue_running_by_owner",
+            "owner_node_id" => owner.clone()
+        )
+        .set(u64_metric_value(*count));
+    }
 }
 
 fn record_business_slo_metrics(

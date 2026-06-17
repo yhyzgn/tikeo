@@ -137,11 +137,18 @@
             })
             .await
             .unwrap_or_else(|error| panic!("outbox metric row should create: {error}"));
+        let pending_queue = workflows
+            .dispatch_queue_for_instance(&pending.id)
+            .await
+            .unwrap_or_else(|error| panic!("pending queue should load: {error}"))
+            .unwrap_or_else(|| panic!("pending queue should exist"));
         tikeo_storage::ClusterShardOwnershipRepository::new(db.clone())
             .upsert_newer(tikeo_storage::UpsertClusterShardOwnership {
-                shard_id: 0,
-                shard_map_version: 1,
-                shard_count: 64,
+                shard_id: pending_queue
+                    .shard_id
+                    .unwrap_or_else(|| panic!("pending queue should have shard id")),
+                shard_map_version: pending_queue.shard_map_version.unwrap_or(1),
+                shard_count: pending_queue.shard_count.unwrap_or(64),
                 owner_node_id: "test-node".to_owned(),
                 epoch: 3,
                 raft_term: 7,
@@ -210,9 +217,15 @@
         assert_eq!(json["data"]["shard_ownership"]["total"], 1);
         assert_eq!(json["data"]["shard_ownership"]["active"], 1);
         assert_eq!(json["data"]["shard_ownership"]["maxEpoch"], 3);
+        assert_eq!(json["data"]["shard_ownership"]["activeOwnerCount"], 1);
+        assert_eq!(json["data"]["shard_ownership"]["ownershipSkew"], 0);
         assert_eq!(
             json["data"]["shard_ownership"]["activeByOwner"]["test-node"],
             1
+        );
+        assert_eq!(
+            json["data"]["queue"]["pendingByShardOwner"]["test-node"],
+            2
         );
         assert_eq!(json["data"]["queue"]["running"], 0);
         assert!(
@@ -305,6 +318,22 @@
         assert!(
             text.contains("tikeo_workflow_instance_duration_seconds"),
             "metrics body should expose workflow instance duration histogram: {text}"
+        );
+        assert!(
+            text.contains("tikeo_cluster_shard_ownership_owner_count"),
+            "metrics body should expose shard owner count gauge: {text}"
+        );
+        assert!(
+            text.contains("tikeo_cluster_shard_ownership_skew"),
+            "metrics body should expose shard ownership skew gauge: {text}"
+        );
+        assert!(
+            text.contains("tikeo_dispatch_queue_pending_by_owner"),
+            "metrics body should expose per-owner pending queue gauge: {text}"
+        );
+        assert!(
+            text.contains("tikeo_dispatch_queue_oldest_pending_age_by_owner_seconds"),
+            "metrics body should expose per-owner pending age gauge: {text}"
         );
         assert!(
             text.contains("tikeo_workflow_shard_duration_seconds"),

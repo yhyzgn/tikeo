@@ -8,7 +8,7 @@ keywords: [tikeo server ha, raft, fsod, worker dispatch outbox, kubernetes ha, w
 
 Tikeo Server HA is built around **FSOD: Fenced Slot Outbox Dispatch**. In Kubernetes Raft mode, Server pods form a Raft group, the elected Leader persists a fencing token, projects scheduler shard ownership into the shared database, and dispatches through a durable `worker_dispatch_outbox`. Worker Tunnel streams may land on any Server pod; the pod that owns the stream acts as a gateway and delivers outbox rows for its `gateway_node_id`.
 
-This release uses a multi-owner scheduler path. Raft still elects exactly one control-plane Leader, but that Leader projects scheduler shards across active/configured members. Follower Pods can actively dispatch only the shards they own, and each claim is fenced by the persisted owner epoch/token. If membership health cannot be read yet, projection falls back to the configured peer set; if only one member is configured, behavior naturally becomes single-owner.
+This release uses a multi-owner scheduler path. Raft still elects exactly one control-plane Leader, but that Leader projects scheduler shards across active members only. Follower Pods can actively dispatch only the shards they own, and each claim is fenced by the persisted owner epoch/token. If no membership rows exist yet during bootstrap, projection uses the configured peer set; once membership rows exist, removed or non-active members are excluded instead of receiving fallback shards.
 
 ## Deployment architecture
 
@@ -91,7 +91,7 @@ FSOD invariants:
 | --- | --- |
 | Multi-pod Server deployment | Helm `server.cluster.mode=raft` renders a `StatefulSet`, stable pod names, and `tikeo-server-headless`. |
 | Consensus and fencing | Raft runtime elects one Leader; only a node with a persisted leader fencing token reports `canSchedule=true`. |
-| Shard ownership projection | The Leader balances configured scheduler shards into `cluster_shard_ownership` with `shard_map_version`, `shard_count`, `epoch`, `raft_term`, owner node, and fencing token. |
+| Shard ownership projection | The Leader projects configured scheduler shards into `cluster_shard_ownership` for **active** Raft members only. Existing healthy ownership is preserved first, and the rebalancer moves only removed/unhealthy/over-target shards needed to restore balance. Rows include `shard_map_version`, `shard_count`, `epoch`, `raft_term`, owner node, and fencing token. |
 | Multi-owner dispatch | Any Pod with active ownership rows may dispatch job-instance queues, workflow-node materialization, and broadcast attempts for its owned shards. Non-owners and stale tokens fail closed. |
 | Dispatch queue fencing | API/job/workflow dispatch queue rows persist shard map fields. Claims bind to `owner_epoch` and `owner_fencing_token`; stale owner tokens are rejected. |
 | Durable Worker dispatch | Dispatch creates an assignment token and `worker_dispatch_outbox` row before stream delivery or internal relay hint. |
@@ -131,12 +131,13 @@ flowchart TD
 | No external lock dependency | Operators do not need Redis/Dragonfly just to make scheduler ownership correct. |
 | Web/API safe behind normal Services | Any pod can serve REST/SSE pages because business truth lives in DB; node-local views are explicitly labeled. |
 | Active horizontal dispatch | Once shard rows are projected, non-Leader Pods can safely dispatch their owned shards instead of sitting idle. |
+| Minimal-movement rebalancing | Adding/removing a healthy Server Pod does not remap every shard; Tikeo keeps current owner rows where possible and only moves the minimum needed to reach the target skew. |
 
 ## Limitations and trade-offs
 
 | Limitation | Operational meaning | Mitigation |
 | --- | --- | --- |
-| Shard ownership changes during rollout | Ownership can move when Raft term/membership projection changes; stale owner tokens are rejected. | Keep `cluster.scheduler_shard_map_version` and `cluster.scheduler_shard_count` identical across Pods and roll updates conservatively. |
+| Shard ownership changes during rollout | Ownership can move when Raft term/membership projection changes; stale owner tokens are rejected. Minimal-movement planning reduces churn but does not make stale tokens valid. | Keep `cluster.scheduler_shard_map_version` and `cluster.scheduler_shard_count` identical across Pods and roll updates conservatively. |
 | Workflow and broadcast are also sharded | Workflow node queues and broadcast attempts use deterministic shard ownership. | Monitor queue age per owner and outbox age to spot an unhealthy shard owner or gateway. |
 | Failover is not instantaneous | During Raft election, scheduling pauses until a new Leader persists fencing and projects shards. | Use retry policies, monitor queue age/outbox age, and run failover smoke after upgrades. |
 | Requires stable identities | Raft mode needs StatefulSet pod names and headless peer DNS. | Use Helm Raft overlay or `deploy/k8s/tikeo-raft-ha.yaml`, not a plain Deployment replica bump. |
@@ -203,8 +204,26 @@ Expected evidence:
 
 - exactly one node reports `canSchedule=true`;
 - `shardOwnership.active` is greater than zero;
+- `shardOwnership.activeOwnerCount` matches the current healthy owner set;
+- `shardOwnership.ownershipSkew` is normally `0` or `1` after projection;
+- `queue.pendingByShardOwner` and `queue.oldestPendingAgeByShardOwner` show which owner is accumulating work;
 - `outbox.total` increases after dispatch and terminal rows eventually become completed;
 - `queue.blockedByQuota` is observable when worker-pool quota backpressure is active.
+
+For non-mutating rollout/rollback gates against an already deployed environment, run:
+
+```bash
+TIKEO_SERVER_URL="https://tikeo.example.com" \
+TIKEO_MANAGEMENT_API_KEY="$TIKEO_MANAGEMENT_API_KEY" \
+TIKEO_EXPECTED_SERVER_REPLICAS=3 \
+TIKEO_MAX_SHARD_SKEW=1 \
+TIKEO_MAX_PENDING_AGE_SECONDS=120 \
+TIKEO_MAX_OUTBOX_AGE_SECONDS=120 \
+TIKEO_ROLLOUT_REPORT=.dev/reports/raft-ha-rollout.json \
+scripts/verify-raft-ha-rollout.sh
+```
+
+This script calls only `/api/v1/cluster/diagnostics` and `/api/v1/metrics/summary`; it does not mutate jobs, workers, DB rows, or Kubernetes resources. Use it before declaring a rollout healthy and again after `helm rollback` to prove the restored revision has one scheduler, active shard ownership, acceptable skew, and bounded queue/outbox age.
 
 For local end-to-end evidence, run:
 
@@ -281,6 +300,8 @@ If the Worker gateway pod fails, the SDK reconnects, `worker_sessions.generation
 | More than one pod reports `canSchedule=true` | Broken Raft fencing or mixed config | Stop rollout; inspect `TIKEO__CLUSTER__MODE`, pod node IDs, Raft term, metadata rows, and shared DB URL. |
 | No pod reports `canSchedule=true` | Raft cannot elect or persist ownership | Check headless DNS, peer addresses, transport token, DB connectivity, and server logs. |
 | `shardOwnership.active` is zero | Leader has not projected shard ownership | Check `/api/v1/cluster`, Raft term, `cluster.scheduler_shard_count`, migration state, and DB write errors. |
+| `shardOwnership.ownershipSkew` stays high | A member is unhealthy/removed, configs differ, or projection cannot persist | Check active Raft members, `cluster.scheduler_shard_map_version`, `cluster.scheduler_shard_count`, DB write errors, and `tikeo_cluster_shard_ownership_skew`. |
+| One owner accumulates pending work | Shard owner cannot dispatch or reach Worker gateway | Check `queue.pendingByShardOwner`, `queue.oldestPendingAgeByShardOwner`, Worker sessions for that gateway, and relay logs. |
 | Jobs queue after failover | New Leader not elected/projected, outbox cannot reach gateway, or Worker lost session | Inspect `cluster-diagnostics`, `metrics.summary`, `fsod-db-*.json`, `worker_sessions.gateway_node_id`, and Server logs. |
 | Outbox rows stay `delivered` | Worker did not ack/log/result before visibility timeout | Wait for requeue, verify Worker connectivity, assignment token validation, and delivery loop logs. |
 | Worker keeps reconnecting | Worker Tunnel HTTP/2/gRPC path broken | Check Gateway/Ingress protocol, LB idle timeouts, TLS/mTLS, and SDK reconnect logs. |
@@ -294,6 +315,7 @@ If the Worker gateway pod fails, the SDK reconnects, `worker_sessions.generation
 - [ ] Keep `cluster.scheduler_shard_map_version` and `cluster.scheduler_shard_count` identical across all pods.
 - [ ] Do not use Redis/Dragonfly locks for core scheduler ownership.
 - [ ] Confirm exactly one node reports `canSchedule=true`.
-- [ ] Confirm `/api/v1/metrics/summary` exposes queue, outbox, and shard ownership data.
+- [ ] Confirm `/api/v1/metrics/summary` exposes queue, outbox, shard ownership, owner count, skew, and per-owner queue age data.
+- [ ] Run `scripts/verify-raft-ha-rollout.sh` before rollout sign-off and after rollback drills.
 - [ ] Run `scripts/raft-worker-failover-e2e.sh` and archive its `.dev/reports/<run-id>/` evidence before rollout sign-off.
 - [ ] Verify at least one real Worker can reconnect and finish a job after Leader failover.

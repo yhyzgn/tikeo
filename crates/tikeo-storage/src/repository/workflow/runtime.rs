@@ -36,6 +36,14 @@ fn workflow_runtime_dispatch_shard(
     )
 }
 
+fn dispatch_queue_current_shard_owner(
+    row: &dispatch_queue::Model,
+    ownership_by_shard: &std::collections::BTreeMap<(i32, i64, i32), String>,
+) -> Option<String> {
+    Some((row.shard_id?, row.shard_map_version?, row.shard_count?))
+        .and_then(|key| ownership_by_shard.get(&key).cloned())
+}
+
 impl WorkflowRepository {
     pub async fn expire_timed_out_approval_nodes(&self) -> Result<u64, sea_orm::DbErr> {
         let now = now_rfc3339();
@@ -1078,6 +1086,18 @@ impl WorkflowRepository {
         &self,
     ) -> Result<DispatchQueueSloSummary, sea_orm::DbErr> {
         let rows = dispatch_queue::Entity::find().all(&self.db).await?;
+        let ownership_by_shard = ClusterShardOwnershipRepository::new(self.db.clone())
+            .list()
+            .await?
+            .into_iter()
+            .filter(|row| row.status == "active")
+            .map(|row| {
+                (
+                    (row.shard_id, row.shard_map_version, row.shard_count),
+                    row.owner_node_id,
+                )
+            })
+            .collect::<std::collections::BTreeMap<_, _>>();
         let now = time::OffsetDateTime::now_utc();
         let mut summary = DispatchQueueSloSummary::default();
         let mut pending_age_total = 0_u64;
@@ -1096,9 +1116,28 @@ impl WorkflowRepository {
                     pending_age_total = pending_age_total.saturating_add(age);
                     summary.oldest_pending_age_seconds =
                         summary.oldest_pending_age_seconds.max(age);
+                    if let Some(owner) =
+                        dispatch_queue_current_shard_owner(&row, &ownership_by_shard)
+                    {
+                        *summary
+                            .pending_by_shard_owner
+                            .entry(owner.clone())
+                            .or_insert(0) += 1;
+                        let entry = summary
+                            .oldest_pending_age_by_shard_owner
+                            .entry(owner)
+                            .or_insert(0);
+                        *entry = (*entry).max(age);
+                    }
                 }
                 "running" => {
                     summary.running = summary.running.saturating_add(1);
+                    if let Some(owner) =
+                        dispatch_queue_current_shard_owner(&row, &ownership_by_shard)
+                            .or_else(|| row.lease_owner.clone())
+                    {
+                        *summary.running_by_shard_owner.entry(owner).or_insert(0) += 1;
+                    }
                 }
                 "done" | "failed" => {
                     summary.completed_dispatches = summary.completed_dispatches.saturating_add(1);

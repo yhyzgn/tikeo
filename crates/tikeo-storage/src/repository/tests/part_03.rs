@@ -1003,6 +1003,130 @@ async fn cluster_shard_ownership_accepts_only_newer_epoch_and_summarizes_active_
     assert_eq!(summary.max_shard_map_version, 1);
     assert_eq!(summary.max_shard_count, 64);
     assert_eq!(summary.active_by_owner.get("pod-b"), Some(&1));
+    assert_eq!(summary.active_owner_count, 1);
+    assert_eq!(summary.min_active_shards_per_owner, 1);
+    assert_eq!(summary.max_active_shards_per_owner, 1);
+    assert_eq!(summary.ownership_skew, 0);
+}
+
+#[tokio::test]
+async fn shard_ownership_summary_reports_owner_count_and_skew() {
+    use crate::repository::{ClusterShardOwnershipRepository, UpsertClusterShardOwnership};
+
+    let db = crate::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let ownership = ClusterShardOwnershipRepository::new(db);
+    for (shard_id, owner_node_id) in [(0, "pod-a"), (1, "pod-a"), (2, "pod-b")] {
+        ownership
+            .upsert_newer(UpsertClusterShardOwnership {
+                shard_id,
+                shard_map_version: 1,
+                shard_count: 3,
+                owner_node_id: owner_node_id.to_owned(),
+                epoch: 1,
+                raft_term: 1,
+                lease_seconds: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("ownership should persist: {error}"));
+    }
+
+    let summary = ownership
+        .summary()
+        .await
+        .unwrap_or_else(|error| panic!("ownership summary should load: {error}"));
+
+    assert_eq!(summary.active_owner_count, 2);
+    assert_eq!(summary.min_active_shards_per_owner, 1);
+    assert_eq!(summary.max_active_shards_per_owner, 2);
+    assert_eq!(summary.ownership_skew, 1);
+}
+
+#[tokio::test]
+async fn dispatch_queue_slo_summary_groups_pending_age_by_current_shard_owner() {
+    use crate::repository::{
+        ClusterShardOwnershipRepository, CreateJob, CreateJobInstance, JobInstanceRepository,
+        JobRepository, UpsertClusterShardOwnership, WorkflowRepository,
+    };
+    use tikeo_core::{ExecutionMode, TriggerType};
+
+    let db = crate::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let jobs = JobRepository::new(db.clone());
+    let instances = JobInstanceRepository::new(db.clone());
+    let workflows = WorkflowRepository::new(db.clone());
+    let ownership = ClusterShardOwnershipRepository::new(db);
+
+    let mut queues = Vec::new();
+    for name in ["owner-a-1", "owner-a-2", "owner-b-1"] {
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: name.to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: None,
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                retry_policy: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should create: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id,
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Single,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should create: {error}"))
+            .unwrap_or_else(|| panic!("instance should exist"));
+        queues.push(
+            workflows
+                .dispatch_queue_for_instance(&instance.id)
+                .await
+                .unwrap_or_else(|error| panic!("queue should load: {error}"))
+                .unwrap_or_else(|| panic!("queue should exist")),
+        );
+    }
+    for (index, queue) in queues.iter().enumerate() {
+        let shard_id = queue
+            .shard_id
+            .unwrap_or_else(|| panic!("queue should have shard id"));
+        ownership
+            .upsert_newer(UpsertClusterShardOwnership {
+                shard_id,
+                shard_map_version: queue.shard_map_version.unwrap_or(1),
+                shard_count: queue.shard_count.unwrap_or(64),
+                owner_node_id: if index < 2 { "pod-a" } else { "pod-b" }.to_owned(),
+                epoch: 1,
+                raft_term: 1,
+                lease_seconds: Some(30),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("ownership should persist: {error}"));
+    }
+
+    let summary = workflows
+        .dispatch_queue_slo_summary()
+        .await
+        .unwrap_or_else(|error| panic!("queue summary should load: {error}"));
+
+    assert_eq!(summary.pending_by_shard_owner.get("pod-a"), Some(&2));
+    assert_eq!(summary.pending_by_shard_owner.get("pod-b"), Some(&1));
+    assert!(summary.oldest_pending_age_by_shard_owner.contains_key("pod-a"));
+    assert!(summary.oldest_pending_age_by_shard_owner.contains_key("pod-b"));
 }
 
 #[tokio::test]

@@ -181,6 +181,9 @@ pub struct DispatchQueueSloSummary {
     pub oldest_pending_age_seconds: u64,
     pub average_pending_age_seconds: u64,
     pub blocked_by_quota: u64,
+    pub pending_by_shard_owner: BTreeMap<String, u64>,
+    pub oldest_pending_age_by_shard_owner: BTreeMap<String, u64>,
+    pub running_by_shard_owner: BTreeMap<String, u64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, utoipa::ToSchema)]

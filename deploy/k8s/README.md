@@ -24,8 +24,8 @@ a headless peer Service, a shared external database, and a Kubernetes Secret for
 
 Current FSOD semantics:
 
-- Raft elects one fenced control-plane Leader; the Leader balances scheduler shards into
-  `cluster_shard_ownership` for active/configured members.
+- Raft elects one fenced control-plane Leader; the Leader projects scheduler shards into
+  `cluster_shard_ownership` for active members only, preserving healthy existing ownership and moving only the shards needed to restore target skew.
 - Dispatch intent is persisted to `worker_dispatch_outbox` before stream delivery, so gateway or
   Worker disconnects can reroute/requeue from durable state.
 - Workers may connect to any Server Pod. Sessions record `gateway_node_id`; any shard owner can
@@ -48,7 +48,9 @@ kubectl -n tikeo rollout status statefulset/tikeo-server
 
 ## Evidence and failover drills
 
-Use `scripts/raft-worker-failover-e2e.sh` for release validation or incident drills. The script stores
+Use `scripts/verify-raft-ha-rollout.sh` as a non-mutating rollout/rollback gate against an already deployed environment. It validates one schedulable node, active shard ownership, acceptable `ownershipSkew`, and optional queue/outbox age thresholds from `/api/v1/cluster/diagnostics` plus `/api/v1/metrics/summary`.
+
+Use `scripts/raft-worker-failover-e2e.sh` for release validation or incident drills that should exercise real Worker failover. The script stores
 snapshots under `.dev/reports/...`, including:
 
 - `cluster-diagnostics-*.json`
