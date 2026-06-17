@@ -875,7 +875,13 @@ scripts/verify-raft-ha-rollout.sh
 
 # 可选预发 fault drill：默认 dry-run，只有 TIKEO_FAULT_MODE=apply 才会变更集群。
 scripts/raft-ha-fault-injection-drill.sh
+
+# 本地单机 Kubernetes 验收：Kind 四 Server Pod、API Pod != Worker gateway Pod、
+# 删除 Leader、failover 前后各触发一次任务。
+TIKEO_KIND_E2E_KEEP=0 TIKEO_KIND_E2E_REBUILD_SERVER=1 scripts/kind-raft-ha-e2e.sh
 ```
+
+Kind 运行会把可验收证据写到 `.dev/reports/<run-id>/`：cluster diagnostics、FSOD metrics、DB 快照、Worker 日志、instance 结果、Kubernetes events 和 fault-drill 报告。Kind 足够在本地验证 StatefulSet/headless Service/Worker Tunnel 的 Kubernetes 语义；生产前仍需补充云厂商 ingress/LB/WAF/TLS/数据库 HA 检查。
 
 ### 部署路径
 

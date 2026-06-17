@@ -191,11 +191,17 @@ pub async fn coordinator_from_config_with_storage(
                 })
                 .await?;
             for peer in &config.peers {
+                let status = match repository.get_member(&peer.node_id).await? {
+                    Some(existing) if matches!(existing.status.as_str(), "leaving" | "removed") => {
+                        existing.status
+                    }
+                    _ => "active".to_owned(),
+                };
                 repository
                     .upsert_member(UpsertRaftMember {
                         node_id: peer.node_id.clone(),
                         endpoint: peer.endpoint.clone(),
-                        status: "configured".to_owned(),
+                        status,
                     })
                     .await?;
             }
@@ -328,7 +334,7 @@ impl ClusterCoordinator for StandaloneCoordinator {
 #[cfg(test)]
 mod tests {
     use tikeo_config::{ClusterConfig, ClusterModeConfig, ClusterPeerConfig};
-    use tikeo_storage::{RaftRepository, connect_and_migrate};
+    use tikeo_storage::{RaftRepository, UpsertRaftMember, connect_and_migrate};
 
     use super::{
         ClusterCoordinator, ClusterMode, ClusterRole, StandaloneCoordinator,
@@ -385,6 +391,55 @@ mod tests {
         assert_eq!(metadata.current_term, 0);
         assert_eq!(members.len(), 1);
         assert_eq!(members[0].node_id, "tikeo-1");
+        assert_eq!(members[0].status, "active");
+    }
+
+    #[tokio::test]
+    async fn raft_static_bootstrap_preserves_removed_members() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("sqlite memory db should initialize: {error}"));
+        let repository = RaftRepository::new(db);
+        repository
+            .upsert_member(UpsertRaftMember {
+                node_id: "tikeo-2".to_owned(),
+                endpoint: "http://old-tikeo-2:9999".to_owned(),
+                status: "removed".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("removed member should seed: {error}"));
+        let config = ClusterConfig {
+            mode: ClusterModeConfig::Raft,
+            node_id: "tikeo-1".to_owned(),
+            peers: vec![
+                ClusterPeerConfig {
+                    node_id: "tikeo-1".to_owned(),
+                    endpoint: "http://tikeo-1:9999".to_owned(),
+                },
+                ClusterPeerConfig {
+                    node_id: "tikeo-2".to_owned(),
+                    endpoint: "http://tikeo-2:9999".to_owned(),
+                },
+            ],
+            transport_token: None,
+            scheduler_shard_map_version: 1,
+            scheduler_shard_count: 64,
+        };
+
+        coordinator_from_config_with_storage(&config, &repository)
+            .await
+            .unwrap_or_else(|error| panic!("coordinator should initialize: {error}"));
+        let members = repository
+            .list_members()
+            .await
+            .unwrap_or_else(|error| panic!("members should load: {error}"));
+        let by_node = members
+            .into_iter()
+            .map(|member| (member.node_id.clone(), member.status))
+            .collect::<std::collections::BTreeMap<_, _>>();
+
+        assert_eq!(by_node.get("tikeo-1").map(String::as_str), Some("active"));
+        assert_eq!(by_node.get("tikeo-2").map(String::as_str), Some("removed"));
     }
 
     #[tokio::test]

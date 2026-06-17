@@ -946,7 +946,13 @@ scripts/verify-raft-ha-rollout.sh
 
 # Optional staging fault drill: dry-run by default, apply only with TIKEO_FAULT_MODE=apply.
 scripts/raft-ha-fault-injection-drill.sh
+
+# Local single-machine Kubernetes acceptance test with Kind:
+# four Server pods, API pod != Worker gateway pod, leader deletion, before/after job dispatch.
+TIKEO_KIND_E2E_KEEP=0 TIKEO_KIND_E2E_REBUILD_SERVER=1 scripts/kind-raft-ha-e2e.sh
 ```
+
+The Kind run stores an auditable bundle under `.dev/reports/<run-id>/`: cluster diagnostics, FSOD metrics, DB snapshots, worker logs, instance results, Kubernetes events, and the fault-drill report. Kind is enough to validate Kubernetes StatefulSet/headless-Service/Worker-Tunnel behavior locally; still run cloud-specific checks for ingress/LB/WAF/TLS/database HA before production.
 
 ### Deployment paths
 

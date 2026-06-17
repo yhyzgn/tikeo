@@ -243,11 +243,58 @@ TIKEO_EXPECTED_SERVER_REPLICAS=3 \
 scripts/raft-ha-fault-injection-drill.sh
 ```
 
-本地端到端证据：
+无 Kubernetes 的本地端到端证据：
 
 ```bash
 TIKEO_RAFT_WORKER_E2E_KEEP=0 TIKEO_RAFT_WORKER_E2E_REBUILD_SERVER=0 scripts/raft-worker-failover-e2e.sh
 ```
+
+### 本地 Kind 4-Pod Kubernetes E2E
+
+如果本地没有真实多节点 Kubernetes 集群，可以用 Kind 在一台机器上验证 HA 设计中 Kubernetes 相关的闭环。这是声明四 Pod Raft 路径可用前，推荐执行的本地验收。
+
+Kind harness 会做这些事：
+
+1. 创建或复用本地 Kind 集群；
+2. 构建 `target/debug/tikeo`，并打成快速本地 Docker 镜像；
+3. 部署 PostgreSQL，以及四副本 `tikeo-server` StatefulSet、headless peer DNS、API Service、Worker Tunnel Service；
+4. bootstrap admin，并创建 app-scoped `x-tikeo-api-key`；
+5. 把管理/API 请求固定到一个非 Leader Pod，把 Worker Tunnel 长连接固定到另一个非 Leader Pod；
+6. 验证 `/api/v1/cluster/diagnostics`、`/api/v1/metrics/summary`、集群内 Service 访问和 DB 持久化证据；
+7. failover 前触发一个 API job；
+8. 通过 `scripts/raft-ha-fault-injection-drill.sh` 删除当前 schedulable Leader Pod；
+9. 等待 StatefulSet 恢复，并在 failover 后再次触发 API job。
+
+在仓库根目录执行：
+
+```bash
+# 如果 kind/kubectl 不在 PATH，会自动安装到 .dev/tools/bin。
+TIKEO_KIND_E2E_KEEP=0 \
+TIKEO_KIND_E2E_REBUILD_SERVER=1 \
+scripts/kind-raft-ha-e2e.sh
+```
+
+常用参数：
+
+| 环境变量 | 默认值 | 用途 |
+| --- | --- | --- |
+| `TIKEO_KIND_CLUSTER_NAME` | `tikeo-raft-ha` | 复用或隔离 Kind cluster 名称。 |
+| `TIKEO_KIND_NAMESPACE` | `tikeo-kind-ha` | harness 使用的 Kubernetes namespace。 |
+| `TIKEO_KIND_SERVER_REPLICAS` | `4` | 验收测试保持 `4`；降低副本会减少覆盖面。 |
+| `TIKEO_KIND_E2E_KEEP` | `0` | 设置为 `1` 时保留 Kind cluster 和 port-forward 证据，方便人工检查。 |
+| `TIKEO_KIND_E2E_REPORT_DIR` | `.dev/reports/<run-id>` | 证据输出目录。 |
+| `TIKEO_KIND_E2E_INSTALL_TOOLS` | `1` | 设置为 `0` 时要求本机已安装 `kind` 与 `kubectl`。 |
+| `TIKEO_KIND_E2E_REBUILD_SERVER` | `1` | 设置为 `0` 时复用已有 `target/debug/tikeo`。 |
+
+通过后会写入 `.dev/reports/<run-id>/<run-id>.json` 以及这些证据：
+
+- `cluster-diagnostics-*.json` 和 `metrics-summary-*.json`；
+- `rollout-*.json` 和 `fault-drill/*`；
+- `db-evidence-*.json`，包含 `cluster_shard_ownership`、`worker_sessions`、`worker_dispatch_outbox`、`dispatch_queue`；
+- `instance-result-before-failover.json` 和 `instance-result-after-failover.json`；
+- `worker.log`、Pod 日志、Kubernetes events 和生成的 manifest。
+
+Kind 能验证 Kubernetes 对象语义、稳定 StatefulSet 身份、headless DNS、集群内 Service 路由、Worker Tunnel gateway 分离、Leader Pod 删除后的恢复。它不能替代生产验证中的多节点/多可用区故障、云 LB idle timeout、WAF 行为、TLS 证书、真实 Ingress Controller 或真实外部数据库 HA。
 
 脚本会在 `.dev/reports/<run-id>/` 写入：
 

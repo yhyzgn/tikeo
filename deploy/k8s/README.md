@@ -60,6 +60,14 @@ snapshots under `.dev/reports/...`, including:
 
 Set `TIKEO_RAFT_WORKER_E2E_REPORT_DIR=/path/to/report` to keep evidence for review.
 
+For a real Kubernetes-object validation on a single workstation, run the Kind harness:
+
+```bash
+TIKEO_KIND_E2E_KEEP=0 TIKEO_KIND_E2E_REBUILD_SERVER=1 scripts/kind-raft-ha-e2e.sh
+```
+
+It deploys PostgreSQL plus four `tikeo-server` pods in Kind, pins API traffic and Worker Tunnel to different non-Leader pods, triggers jobs before/after deleting the schedulable leader, and writes the complete evidence bundle to `.dev/reports/<run-id>/`. Use `TIKEO_KIND_E2E_KEEP=1` when you want to keep the Kind cluster for manual `kubectl` inspection.
+
 ## CRD/operator
 
 - `deploy/k8s/crd/tikeo-manifest-crd.yaml` defines the namespaced `TikeoManifest` CRD.

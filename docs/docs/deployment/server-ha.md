@@ -244,13 +244,60 @@ TIKEO_EXPECTED_SERVER_REPLICAS=3 \
 scripts/raft-ha-fault-injection-drill.sh
 ```
 
-For local end-to-end evidence, run:
+For local end-to-end evidence without Kubernetes, run:
 
 ```bash
 TIKEO_RAFT_WORKER_E2E_KEEP=0 \
 TIKEO_RAFT_WORKER_E2E_REBUILD_SERVER=0 \
 scripts/raft-worker-failover-e2e.sh
 ```
+
+### Local Kind 4-Pod Kubernetes E2E
+
+When you do not have a real multi-node Kubernetes cluster, use Kind to exercise the Kubernetes-specific part of the HA design on one machine. This is the recommended local acceptance test before claiming the four-Pod Raft path works.
+
+What the Kind harness does:
+
+1. creates or reuses a local Kind cluster;
+2. builds `target/debug/tikeo` and packages it as a fast local Docker image;
+3. deploys PostgreSQL plus a four-replica `tikeo-server` StatefulSet with headless peer DNS, API Service, and Worker Tunnel Service;
+4. bootstraps an admin user and an app-scoped `x-tikeo-api-key`;
+5. pins management/API requests to one non-Leader pod and pins the Worker Tunnel long connection to a different non-Leader pod;
+6. verifies `/api/v1/cluster/diagnostics`, `/api/v1/metrics/summary`, in-cluster Service access, and durable DB evidence;
+7. triggers an API job before failover;
+8. deletes the currently schedulable Leader pod through `scripts/raft-ha-fault-injection-drill.sh`;
+9. waits for StatefulSet recovery and triggers another API job after failover.
+
+Run it from the repository root:
+
+```bash
+# Installs kind/kubectl into .dev/tools/bin when they are not already available.
+TIKEO_KIND_E2E_KEEP=0 \
+TIKEO_KIND_E2E_REBUILD_SERVER=1 \
+scripts/kind-raft-ha-e2e.sh
+```
+
+Useful options:
+
+| Environment variable | Default | Use |
+| --- | --- | --- |
+| `TIKEO_KIND_CLUSTER_NAME` | `tikeo-raft-ha` | Reuse or isolate a Kind cluster name. |
+| `TIKEO_KIND_NAMESPACE` | `tikeo-kind-ha` | Kubernetes namespace used by the harness. |
+| `TIKEO_KIND_SERVER_REPLICAS` | `4` | Keep at `4` for the acceptance test; lower values reduce coverage. |
+| `TIKEO_KIND_E2E_KEEP` | `0` | Set to `1` to keep the Kind cluster and port-forward evidence for manual inspection. |
+| `TIKEO_KIND_E2E_REPORT_DIR` | `.dev/reports/<run-id>` | Evidence output directory. |
+| `TIKEO_KIND_E2E_INSTALL_TOOLS` | `1` | Set to `0` to require preinstalled `kind` and `kubectl`. |
+| `TIKEO_KIND_E2E_REBUILD_SERVER` | `1` | Set to `0` to reuse an existing `target/debug/tikeo` binary. |
+
+A passing run writes `.dev/reports/<run-id>/<run-id>.json` and supporting evidence such as:
+
+- `cluster-diagnostics-*.json` and `metrics-summary-*.json`;
+- `rollout-*.json` and `fault-drill/*`;
+- `db-evidence-*.json` with `cluster_shard_ownership`, `worker_sessions`, `worker_dispatch_outbox`, and `dispatch_queue`;
+- `instance-result-before-failover.json` and `instance-result-after-failover.json`;
+- `worker.log`, pod logs, Kubernetes events, and the generated manifest.
+
+Kind validates Kubernetes object semantics, stable StatefulSet identities, headless DNS, Service routing inside the cluster, Worker Tunnel gateway separation, and Leader-pod deletion recovery. It does **not** replace production validation for multi-node zone failure, cloud load balancer idle timeouts, WAF behavior, TLS certificates, real ingress controllers, or real external database HA.
 
 The script writes an evidence directory under `.dev/reports/<run-id>/` containing:
 
