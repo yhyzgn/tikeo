@@ -4,6 +4,7 @@ global:
 
 rule_files:
   - /etc/prometheus/tikeo-recording-rules.yml
+  - /etc/prometheus/tikeo-alert-rules.yml
 
 scrape_configs:
   - job_name: tikeo

@@ -1,6 +1,10 @@
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use axum::{Json, extract::State};
+use serde_json::Value;
 
 use crate::http::{
     AppState,
@@ -84,9 +88,27 @@ pub async fn cluster_diagnostics(
             updated_at: item.updated_at.clone(),
         })
         .collect::<Vec<_>>();
-    let mut nodes = member_summaries
-        .iter()
-        .map(|item| ClusterNodeDiagnostic {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_millis(750))
+        .build()
+        .map_err(|error| {
+            ApiError::bad_request(format!("failed to build diagnostics client: {error}"))
+        })?;
+    let mut nodes = Vec::new();
+    for item in &member_summaries {
+        let is_responding_node = item.node_id == status.node_id;
+        let probe = if is_responding_node {
+            ClusterNodeProbe {
+                status: "local".to_owned(),
+                observed_role: Some(status.role.as_str().to_owned()),
+                observed_can_schedule: Some(status.can_schedule),
+                latency_ms: Some(0),
+                error: None,
+            }
+        } else {
+            probe_remote_cluster_status(&client, &item.endpoint).await
+        };
+        nodes.push(ClusterNodeDiagnostic {
             node_id: item.node_id.clone(),
             endpoint: item.endpoint.clone(),
             member_status: item.status.clone(),
@@ -106,10 +128,15 @@ pub async fn cluster_diagnostics(
                 .as_ref()
                 .filter(|metadata| metadata.node_id == item.node_id)
                 .and_then(|metadata| metadata.leader_fencing_token.clone()),
-            is_responding_node: item.node_id == status.node_id,
-            can_schedule: item.node_id == status.node_id && status.can_schedule,
-        })
-        .collect::<Vec<_>>();
+            is_responding_node,
+            can_schedule: is_responding_node && status.can_schedule,
+            probe_status: probe.status,
+            observed_role: probe.observed_role,
+            observed_can_schedule: probe.observed_can_schedule,
+            probe_latency_ms: probe.latency_ms,
+            probe_error: probe.error,
+        });
+    }
     let scheduling_gated = !status.can_schedule;
     let raft_runtime_enabled = status.mode == crate::cluster::ClusterMode::Raft;
     let responding_node = cluster_response(status.clone());
@@ -126,6 +153,11 @@ pub async fn cluster_diagnostics(
                 .and_then(|metadata| metadata.leader_fencing_token.clone()),
             is_responding_node: true,
             can_schedule: status.can_schedule,
+            probe_status: "local".to_owned(),
+            observed_role: Some(status.role.as_str().to_owned()),
+            observed_can_schedule: Some(status.can_schedule),
+            probe_latency_ms: Some(0),
+            probe_error: None,
         });
     }
     Ok(Json(ApiResponse::success(ClusterDiagnosticsResponse {
@@ -147,6 +179,75 @@ pub async fn cluster_diagnostics(
         runtime_boundary:
             "tikv/raft-rs runtime can tick, accept inbound messages, emit gated membership proposals, and apply committed ConfChange with persisted ConfState; leader fencing remains required for scheduling/proposals".to_owned(),
     })))
+}
+
+struct ClusterNodeProbe {
+    status: String,
+    observed_role: Option<String>,
+    observed_can_schedule: Option<bool>,
+    latency_ms: Option<u64>,
+    error: Option<String>,
+}
+
+async fn probe_remote_cluster_status(client: &reqwest::Client, endpoint: &str) -> ClusterNodeProbe {
+    let Ok(mut url) = url::Url::parse(endpoint.trim()) else {
+        return ClusterNodeProbe {
+            status: "invalid_endpoint".to_owned(),
+            observed_role: None,
+            observed_can_schedule: None,
+            latency_ms: None,
+            error: Some("member endpoint is not a valid URL".to_owned()),
+        };
+    };
+    url.set_path("/api/v1/cluster");
+    url.set_query(None);
+    let started = Instant::now();
+    match client.get(url).send().await {
+        Ok(response) => {
+            let latency_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+            if !response.status().is_success() {
+                return ClusterNodeProbe {
+                    status: "http_error".to_owned(),
+                    observed_role: None,
+                    observed_can_schedule: None,
+                    latency_ms: Some(latency_ms),
+                    error: Some(format!("remote status {}", response.status())),
+                };
+            }
+            match response.json::<Value>().await {
+                Ok(payload) => {
+                    let data = payload.get("data").unwrap_or(&Value::Null);
+                    ClusterNodeProbe {
+                        status: "ok".to_owned(),
+                        observed_role: data
+                            .get("role")
+                            .and_then(Value::as_str)
+                            .map(ToOwned::to_owned),
+                        observed_can_schedule: data
+                            .get("can_schedule")
+                            .or_else(|| data.get("canSchedule"))
+                            .and_then(Value::as_bool),
+                        latency_ms: Some(latency_ms),
+                        error: None,
+                    }
+                }
+                Err(error) => ClusterNodeProbe {
+                    status: "invalid_json".to_owned(),
+                    observed_role: None,
+                    observed_can_schedule: None,
+                    latency_ms: Some(latency_ms),
+                    error: Some(error.to_string()),
+                },
+            }
+        }
+        Err(error) => ClusterNodeProbe {
+            status: "unreachable".to_owned(),
+            observed_role: None,
+            observed_can_schedule: None,
+            latency_ms: Some(u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)),
+            error: Some(error.to_string()),
+        },
+    }
 }
 
 fn cluster_response(status: crate::cluster::ClusterStatus) -> ClusterResponse {

@@ -1,0 +1,49 @@
+groups:
+  - name: tikeo.raft-ha.alerts
+    interval: 30s
+    rules:
+      - alert: TikeoRaftNoSchedulableLeader
+        expr: sum(tikeo_cluster_can_schedule) != 1 or max(tikeo_cluster_shard_ownership_owner_count) < 1
+        for: 2m
+        labels:
+          severity: critical
+          component: tikeo-server
+        annotations:
+          summary: "Tikeo Raft HA has no observable schedulable ownership projection"
+          description: "No active shard ownership metric is being emitted while HA owner metrics exist. Check Raft leader election, DB writes, and /api/v1/cluster/diagnostics."
+      - alert: TikeoRaftShardOwnershipMissing
+        expr: tikeo_cluster_shard_ownership_active_total == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: tikeo-scheduler
+        annotations:
+          summary: "Tikeo scheduler shard ownership is missing"
+          description: "The Raft leader has not projected active scheduler shards. Dispatch will stall until cluster_shard_ownership rows are restored."
+      - alert: TikeoRaftShardOwnershipSkewHigh
+        expr: tikeo_cluster_shard_ownership_skew > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: tikeo-scheduler
+        annotations:
+          summary: "Tikeo scheduler shard ownership skew is high"
+          description: "Shard ownership skew is above 1 for more than 5 minutes. Check active members, scheduler shard map config, and DB persistence."
+      - alert: TikeoDispatchQueueOwnerBacklogHigh
+        expr: max by (owner_node_id) (tikeo_dispatch_queue_oldest_pending_age_by_owner_seconds) > 120
+        for: 3m
+        labels:
+          severity: warning
+          component: tikeo-dispatch
+        annotations:
+          summary: "Tikeo dispatch queue backlog is high for a shard owner"
+          description: "A shard owner has pending dispatch work older than 120 seconds. Check owner pod health, Worker Tunnel gateway, relay, and worker capacity."
+      - alert: TikeoWorkerDispatchOutboxBacklogHigh
+        expr: tikeo_worker_dispatch_outbox_oldest_queued_age_seconds > 120
+        for: 3m
+        labels:
+          severity: warning
+          component: tikeo-worker-tunnel
+        annotations:
+          summary: "Tikeo worker dispatch outbox backlog is high"
+          description: "Worker dispatch outbox rows have been queued for more than 120 seconds. Check gateway streams, worker reconnects, and relay delivery."

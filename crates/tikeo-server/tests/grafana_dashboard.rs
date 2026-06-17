@@ -47,6 +47,54 @@ const RECORDING_RULES_YAML: &str =
 const PROMETHEUS_CONFIG_YAML: &str =
     include_str!("../../../observability/prometheus/prometheus.yml");
 
+const ALERT_RULES_YAML: &str =
+    include_str!("../../../observability/prometheus/tikeo-alert-rules.yml");
+
+#[test]
+fn prometheus_alert_rules_cover_raft_ha_owner_pressure() {
+    for alert in [
+        "TikeoRaftNoSchedulableLeader",
+        "TikeoRaftShardOwnershipMissing",
+        "TikeoRaftShardOwnershipSkewHigh",
+        "TikeoDispatchQueueOwnerBacklogHigh",
+        "TikeoWorkerDispatchOutboxBacklogHigh",
+    ] {
+        assert!(
+            ALERT_RULES_YAML.contains(&format!("alert: {alert}")),
+            "alert rules must define {alert}"
+        );
+    }
+    for metric in [
+        "tikeo_cluster_can_schedule",
+        "tikeo_cluster_shard_ownership_active_total",
+        "tikeo_cluster_shard_ownership_owner_count",
+        "tikeo_cluster_shard_ownership_skew",
+        "tikeo_dispatch_queue_oldest_pending_age_by_owner_seconds",
+        "tikeo_worker_dispatch_outbox_oldest_queued_age_seconds",
+    ] {
+        assert!(
+            ALERT_RULES_YAML.contains(metric),
+            "alert rules must reference emitted HA metric {metric}"
+        );
+    }
+}
+
+#[test]
+fn grafana_dashboard_covers_raft_ha_owner_pressure() {
+    for query in [
+        "tikeo_cluster_shard_ownership_owner_count",
+        "tikeo_cluster_shard_ownership_skew",
+        "tikeo_dispatch_queue_pending_by_owner",
+        "tikeo_dispatch_queue_oldest_pending_age_by_owner_seconds",
+        "tikeo_worker_dispatch_outbox_oldest_queued_age_seconds",
+    ] {
+        assert!(
+            DASHBOARD_JSON.contains(query),
+            "dashboard must include HA owner pressure query {query}"
+        );
+    }
+}
+
 #[test]
 fn prometheus_recording_rules_cover_dashboard_slo_series() {
     let required_rules = [
@@ -92,6 +140,7 @@ fn prometheus_recording_rules_cover_dashboard_slo_series() {
     assert!(
         PROMETHEUS_CONFIG_YAML.contains("metrics_path: /metrics")
             && PROMETHEUS_CONFIG_YAML.contains("tikeo-recording-rules.yml")
+            && PROMETHEUS_CONFIG_YAML.contains("tikeo-alert-rules.yml")
             && PROMETHEUS_CONFIG_YAML.contains("tikeo:9090"),
         "Prometheus config must scrape tikeo and load recording rules"
     );

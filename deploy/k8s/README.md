@@ -48,7 +48,7 @@ kubectl -n tikeo rollout status statefulset/tikeo-server
 
 ## Evidence and failover drills
 
-Use `scripts/verify-raft-ha-rollout.sh` as a non-mutating rollout/rollback gate against an already deployed environment. It validates one schedulable node, active shard ownership, acceptable `ownershipSkew`, and optional queue/outbox age thresholds from `/api/v1/cluster/diagnostics` plus `/api/v1/metrics/summary`.
+Use `scripts/verify-raft-ha-rollout.sh` as a non-mutating rollout/rollback gate against an already deployed environment. It validates one schedulable node, active shard ownership, acceptable `ownershipSkew`, remote member probe health, and optional queue/outbox age thresholds from `/api/v1/cluster/diagnostics` plus `/api/v1/metrics/summary`. Use `scripts/raft-ha-fault-injection-drill.sh` for an opt-in staging fault drill; it is dry-run by default and only deletes a Server pod when `TIKEO_FAULT_MODE=apply`.
 
 Use `scripts/raft-worker-failover-e2e.sh` for release validation or incident drills that should exercise real Worker failover. The script stores
 snapshots under `.dev/reports/...`, including:

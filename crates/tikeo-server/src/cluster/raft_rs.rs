@@ -1323,7 +1323,7 @@ async fn project_balanced_shard_ownership(
     Ok(())
 }
 
-fn plan_minimal_movement_shard_ownership(
+pub(super) fn plan_minimal_movement_shard_ownership(
     existing: &[tikeo_storage::ClusterShardOwnershipSummary],
     owners: &[String],
     shard_map_version: i64,
@@ -1411,7 +1411,10 @@ fn plan_minimal_movement_shard_ownership(
     assignment
 }
 
-fn balanced_owner_targets(owners: &[String], shard_count: usize) -> BTreeMap<String, usize> {
+pub(super) fn balanced_owner_targets(
+    owners: &[String],
+    shard_count: usize,
+) -> BTreeMap<String, usize> {
     let owner_count = owners.len().max(1);
     let base = shard_count / owner_count;
     let extra = shard_count % owner_count;

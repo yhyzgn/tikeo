@@ -222,7 +222,26 @@ TIKEO_ROLLOUT_REPORT=.dev/reports/raft-ha-rollout.json \
 scripts/verify-raft-ha-rollout.sh
 ```
 
-该脚本只读取 `/api/v1/cluster/diagnostics` 和 `/api/v1/metrics/summary`，不会修改任务、Worker、DB 或 Kubernetes 资源。rollout 判定健康前跑一次，`helm rollback` 后再跑一次，用来证明恢复后的版本只有一个 scheduler、shard ownership 有效、skew 合理且 queue/outbox age 在阈值内。
+该脚本只读取 `/api/v1/cluster/diagnostics` 和 `/api/v1/metrics/summary`，不会修改任务、Worker、DB 或 Kubernetes 资源。如果任一 remote member probe 返回 `unreachable`、`http_error` 或 JSON 无效也会失败。rollout 判定健康前跑一次，`helm rollback` 后再跑一次，用来证明恢复后的版本只有一个 scheduler、shard ownership 有效、skew 合理、queue/outbox age 在阈值内，并且 peer status endpoints 可达。
+
+受控 Kubernetes fault injection 先 dry-run，再显式 opt-in 执行变更：
+
+```bash
+# 不做任何变更；只记录目标 Pod 和下一步 apply 命令。
+TIKEO_SERVER_URL="https://tikeo.example.com" \
+TIKEO_MANAGEMENT_API_KEY="$TIKEO_MANAGEMENT_API_KEY" \
+TIKEO_EXPECTED_SERVER_REPLICAS=3 \
+scripts/raft-ha-fault-injection-drill.sh
+
+# 变更型演练：删除当前观测到的 schedulable Server Pod，等待 StatefulSet 恢复，
+# 然后循环执行 scripts/verify-raft-ha-rollout.sh 直到健康或超时。
+TIKEO_FAULT_MODE=apply \
+TIKEO_FAULT=leader-pod-delete \
+TIKEO_SERVER_URL="https://tikeo.example.com" \
+TIKEO_MANAGEMENT_API_KEY="$TIKEO_MANAGEMENT_API_KEY" \
+TIKEO_EXPECTED_SERVER_REPLICAS=3 \
+scripts/raft-ha-fault-injection-drill.sh
+```
 
 本地端到端证据：
 

@@ -864,6 +864,107 @@
         );
     }
 
+
+    #[tokio::test]
+    async fn cluster_diagnostics_probes_remote_member_cluster_status() {
+        let remote = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .unwrap_or_else(|error| panic!("remote test listener should bind: {error}"));
+        let remote_addr = remote
+            .local_addr()
+            .unwrap_or_else(|error| panic!("remote listener addr should exist: {error}"));
+        tokio::spawn(async move {
+            axum::serve(
+                remote,
+                Router::new().route(
+                    "/api/v1/cluster",
+                    get(|| async {
+                        Json(serde_json::json!({
+                            "code": 0,
+                            "message": "success",
+                            "data": {
+                                "mode": "raft",
+                                "role": "follower",
+                                "node_id": "remote-pod",
+                                "nodes": 2,
+                                "can_schedule": false,
+                                "leader_fencing_token": null,
+                                "detail": "remote diagnostic probe"
+                            }
+                        }))
+                    }),
+                ),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("remote test server should run: {error}"));
+        });
+
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let raft = RaftRepository::new(db.clone());
+        raft.upsert_member(tikeo_storage::UpsertRaftMember {
+            node_id: "test-node".to_owned(),
+            endpoint: "http://127.0.0.1:1".to_owned(),
+            status: "active".to_owned(),
+        })
+        .await
+        .unwrap_or_else(|error| panic!("local member should persist: {error}"));
+        raft.upsert_member(tikeo_storage::UpsertRaftMember {
+            node_id: "remote-pod".to_owned(),
+            endpoint: format!("http://{remote_addr}"),
+            status: "active".to_owned(),
+        })
+        .await
+        .unwrap_or_else(|error| panic!("remote member should persist: {error}"));
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            AuditLogRepository::new(db),
+            crate::tunnel::WorkerRegistry::default(),
+            StaticCoordinator::shared(ClusterStatus {
+                mode: ClusterMode::Raft,
+                role: ClusterRole::Leader,
+                node_id: "test-node".to_owned(),
+                nodes: 2,
+                can_schedule: true,
+                leader_fencing_token: Some("raft:term:1:node:test-node".to_owned()),
+                detail: "local leader".to_owned(),
+            }),
+        ));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/cluster/diagnostics")
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("diagnostics should respond: {error}"));
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be json: {error}"));
+        let remote_node = json["data"]["nodes"]
+            .as_array()
+            .unwrap_or_else(|| panic!("nodes should be array: {json}"))
+            .iter()
+            .find(|node| node["nodeId"] == "remote-pod")
+            .unwrap_or_else(|| panic!("remote node should exist: {json}"));
+        assert_eq!(remote_node["probeStatus"], "ok");
+        assert_eq!(remote_node["observedRole"], "follower");
+        assert_eq!(remote_node["observedCanSchedule"], false);
+        assert!(remote_node["probeLatencyMs"].as_u64().is_some());
+    }
+
     #[tokio::test]
     async fn cluster_diagnostics_exposes_runtime_boundary_without_fake_leader() {
         let json = get_json("/api/v1/cluster/diagnostics").await;

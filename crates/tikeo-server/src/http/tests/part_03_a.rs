@@ -320,6 +320,10 @@
             "metrics body should expose workflow instance duration histogram: {text}"
         );
         assert!(
+            text.contains("tikeo_cluster_can_schedule"),
+            "metrics body should expose schedulable cluster gauge: {text}"
+        );
+        assert!(
             text.contains("tikeo_cluster_shard_ownership_owner_count"),
             "metrics body should expose shard owner count gauge: {text}"
         );

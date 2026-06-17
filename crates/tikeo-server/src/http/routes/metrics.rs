@@ -56,7 +56,9 @@ pub async fn metrics_summary(
         .workflow_slo_summary()
         .await
         .map_err(|error| ApiError::storage(&error))?;
+    let cluster_status = state.cluster.status().await;
     metrics::with_local_recorder(&*recorder, || {
+        record_cluster_metrics(&cluster_status);
         record_dispatch_queue_metrics(&queue);
         record_worker_dispatch_outbox_metrics(&outbox);
         record_shard_ownership_metrics(&shard_ownership);
@@ -92,6 +94,16 @@ pub async fn metrics_summary(
         shard_ownership,
         workflows,
     })))
+}
+
+fn record_cluster_metrics(status: &crate::cluster::ClusterStatus) {
+    metrics::gauge!(
+        "tikeo_cluster_can_schedule",
+        "node_id" => status.node_id.clone(),
+        "role" => status.role.as_str().to_owned(),
+        "mode" => status.mode.as_str().to_owned()
+    )
+    .set(if status.can_schedule { 1.0 } else { 0.0 });
 }
 
 fn record_shard_ownership_metrics(summary: &tikeo_storage::ClusterShardOwnershipSloSummary) {

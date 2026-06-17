@@ -7,16 +7,20 @@ use tikeo_storage::{
     UpsertRaftMetadata, connect_and_migrate,
 };
 
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::sync::RwLock;
 
 use super::{
     CLUSTER_ID, RaftMembershipProposalContext, RaftRuntimeCoordinator, STANDARD, StateRole,
-    apply_committed_entries, build_membership_conf_change, build_runtime_from_repository,
-    leader_fencing_token_for_role, persist_entry, persist_hard_state,
-    project_balanced_shard_ownership, raft_append_entries_url, raft_message_to_wire_request,
-    raft_numeric_id, trigger_autonomous_campaign, update_runtime_status,
-    validate_raft_rs_bootstrap,
+    apply_committed_entries, balanced_owner_targets, build_membership_conf_change,
+    build_runtime_from_repository, leader_fencing_token_for_role, persist_entry,
+    persist_hard_state, plan_minimal_movement_shard_ownership, project_balanced_shard_ownership,
+    raft_append_entries_url, raft_message_to_wire_request, raft_numeric_id,
+    trigger_autonomous_campaign, update_runtime_status, validate_raft_rs_bootstrap,
 };
 use crate::cluster::{ClusterMode, ClusterRole, ClusterStatus, RaftMembershipProposal};
 
@@ -643,6 +647,106 @@ async fn raft_inprocess_membership_proposal_commits_and_applies_member() {
     assert_eq!(member.status, "active");
     assert_eq!(proposal.status, "applied");
     assert!(metadata.conf_state.is_some());
+}
+
+#[test]
+fn minimal_movement_shard_planner_survives_membership_churn() {
+    let mut existing = Vec::new();
+    let shard_count = 64_i32;
+    let churn_steps = [
+        vec!["pod-a", "pod-b", "pod-c"],
+        vec!["pod-a", "pod-b", "pod-c", "pod-d"],
+        vec!["pod-b", "pod-c", "pod-d"],
+        vec!["pod-b", "pod-c", "pod-d", "pod-e"],
+        vec!["pod-c", "pod-d"],
+        vec!["pod-a", "pod-c", "pod-d", "pod-e"],
+    ];
+    assert!(churn_steps.len() >= 5);
+    for (epoch, owners) in (2_i64..).zip(churn_steps) {
+        let owners = owners.into_iter().map(str::to_owned).collect::<Vec<_>>();
+        let planned =
+            plan_minimal_movement_shard_ownership(&existing, &owners, 1, shard_count, "pod-a");
+        assert_eq!(
+            planned.len(),
+            usize::try_from(shard_count).unwrap_or_default()
+        );
+        assert_minimal_movement(&existing, &planned, &owners, shard_count);
+        let counts = planned.values().fold(BTreeMap::new(), |mut counts, owner| {
+            *counts.entry(owner.clone()).or_insert(0_usize) += 1;
+            counts
+        });
+        let min = counts.values().copied().min().unwrap_or_default();
+        let max = counts.values().copied().max().unwrap_or_default();
+        assert!(
+            max.saturating_sub(min) <= 1,
+            "owner counts should stay balanced: {counts:?}"
+        );
+        assert!(
+            counts.keys().all(|owner| owners.contains(owner)),
+            "unexpected owner in plan: {counts:?}"
+        );
+        existing = planned
+            .into_iter()
+            .map(
+                |(shard_id, owner_node_id)| tikeo_storage::ClusterShardOwnershipSummary {
+                    shard_id,
+                    shard_map_version: 1,
+                    shard_count,
+                    owner_node_id,
+                    epoch,
+                    raft_term: epoch,
+                    fencing_token: format!("test-token-{epoch}-{shard_id}"),
+                    status: "active".to_owned(),
+                    lease_expires_at: None,
+                    updated_at: "2026-01-01T00:00:00Z".to_owned(),
+                },
+            )
+            .collect();
+    }
+}
+
+fn assert_minimal_movement(
+    existing: &[tikeo_storage::ClusterShardOwnershipSummary],
+    planned: &BTreeMap<i32, String>,
+    owners: &[String],
+    shard_count: i32,
+) {
+    let owner_set = owners.iter().cloned().collect::<BTreeSet<_>>();
+    let target_by_owner =
+        balanced_owner_targets(owners, usize::try_from(shard_count).unwrap_or_default());
+    let existing_counts = existing
+        .iter()
+        .filter(|row| {
+            row.status == "active" && row.shard_map_version == 1 && row.shard_count == shard_count
+        })
+        .fold(BTreeMap::new(), |mut counts, row| {
+            if owner_set.contains(&row.owner_node_id) {
+                *counts.entry(row.owner_node_id.clone()).or_insert(0_usize) += 1;
+            }
+            counts
+        });
+    let max_keep = owners
+        .iter()
+        .map(|owner| {
+            existing_counts
+                .get(owner)
+                .copied()
+                .unwrap_or_default()
+                .min(*target_by_owner.get(owner).unwrap_or(&0))
+        })
+        .sum::<usize>();
+    let kept = existing
+        .iter()
+        .filter(|row| {
+            planned
+                .get(&row.shard_id)
+                .is_some_and(|owner| owner == &row.owner_node_id)
+        })
+        .count();
+    assert_eq!(
+        kept, max_keep,
+        "planner should keep the maximum possible healthy shard assignments"
+    );
 }
 
 #[tokio::test]

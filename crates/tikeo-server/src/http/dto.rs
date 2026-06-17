@@ -309,6 +309,11 @@ pub struct ClusterNodeDiagnostic {
     pub leader_fencing_token: Option<String>,
     pub is_responding_node: bool,
     pub can_schedule: bool,
+    pub probe_status: String,
+    pub observed_role: Option<String>,
+    pub observed_can_schedule: Option<bool>,
+    pub probe_latency_ms: Option<u64>,
+    pub probe_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

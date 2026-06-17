@@ -2,7 +2,7 @@
   "uid": "tikeo-phase3-ops",
   "title": "tikeo Phase 3 Operations",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "refresh": "15s",
   "time": {
     "from": "now-6h",
@@ -170,6 +170,75 @@
         "w": 16,
         "x": 8,
         "y": 16
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Raft Shard Owners / Skew",
+      "description": "Active scheduler owner count and skew. Skew should normally be 0 or 1.",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "C",
+          "expr": "sum(tikeo_cluster_can_schedule)"
+        },
+        {
+          "refId": "A",
+          "expr": "tikeo_cluster_shard_ownership_owner_count"
+        },
+        {
+          "refId": "B",
+          "expr": "tikeo_cluster_shard_ownership_skew"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 22
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Dispatch Queue Pending By Owner",
+      "description": "Per-owner pending queue depth for locating unhealthy shard owners.",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (owner_node_id) (tikeo_dispatch_queue_pending_by_owner)"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 22
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Oldest Pending Age By Owner / Outbox",
+      "description": "Per-owner queue age and durable outbox age for Worker Tunnel gateway diagnosis.",
+      "datasource": "${datasource}",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (owner_node_id) (tikeo_dispatch_queue_oldest_pending_age_by_owner_seconds)"
+        },
+        {
+          "refId": "B",
+          "expr": "tikeo_worker_dispatch_outbox_oldest_queued_age_seconds"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 22
       }
     }
   ]

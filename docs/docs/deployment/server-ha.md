@@ -98,7 +98,7 @@ FSOD invariants:
 | Outbox recovery | Gateway delivery scans by `gateway_node_id`; delivered rows without ack/result are requeued by visibility timeout; Worker reconnect can reroute rows by `logical_instance_id` + generation. |
 | LASSO worker scoring | Candidate ordering prefers local gateway, then Worker authority, then stable rendezvous spread by dispatch key, then worker id tie-break. |
 | Worker Tunnel gateways | Any Server pod may accept Worker Tunnel registration. `worker_sessions.gateway_node_id` records the gateway that owns the live stream. |
-| Web/API load balancing | Business data reads shared storage and is stable across pods. Node-local endpoints expose responding node metadata. |
+| Web/API load balancing | Business data reads shared storage and is stable across pods. `/api/v1/cluster/diagnostics` now probes every active member endpoint and reports `probeStatus`, `observedRole`, `observedCanSchedule`, and `probeLatencyMs` so operators can distinguish local truth from cross-pod health. |
 | External locks | Redis/Dragonfly/SQL advisory locks are not required for core scheduler correctness. |
 
 ## Mode selection
@@ -223,7 +223,26 @@ TIKEO_ROLLOUT_REPORT=.dev/reports/raft-ha-rollout.json \
 scripts/verify-raft-ha-rollout.sh
 ```
 
-This script calls only `/api/v1/cluster/diagnostics` and `/api/v1/metrics/summary`; it does not mutate jobs, workers, DB rows, or Kubernetes resources. Use it before declaring a rollout healthy and again after `helm rollback` to prove the restored revision has one scheduler, active shard ownership, acceptable skew, and bounded queue/outbox age.
+This script calls only `/api/v1/cluster/diagnostics` and `/api/v1/metrics/summary`; it does not mutate jobs, workers, DB rows, or Kubernetes resources. It also fails when any remote member probe reports `unreachable`, `http_error`, or invalid JSON. Use it before declaring a rollout healthy and again after `helm rollback` to prove the restored revision has one scheduler, active shard ownership, acceptable skew, bounded queue/outbox age, and reachable peer status endpoints.
+
+For controlled Kubernetes fault injection, dry-run first and then explicitly opt in to mutation:
+
+```bash
+# No mutation; records selected target and next apply command.
+TIKEO_SERVER_URL="https://tikeo.example.com" \
+TIKEO_MANAGEMENT_API_KEY="$TIKEO_MANAGEMENT_API_KEY" \
+TIKEO_EXPECTED_SERVER_REPLICAS=3 \
+scripts/raft-ha-fault-injection-drill.sh
+
+# Mutating drill: deletes the observed schedulable Server pod, waits for StatefulSet recovery,
+# then reruns scripts/verify-raft-ha-rollout.sh until healthy or timeout.
+TIKEO_FAULT_MODE=apply \
+TIKEO_FAULT=leader-pod-delete \
+TIKEO_SERVER_URL="https://tikeo.example.com" \
+TIKEO_MANAGEMENT_API_KEY="$TIKEO_MANAGEMENT_API_KEY" \
+TIKEO_EXPECTED_SERVER_REPLICAS=3 \
+scripts/raft-ha-fault-injection-drill.sh
+```
 
 For local end-to-end evidence, run:
 
@@ -317,5 +336,7 @@ If the Worker gateway pod fails, the SDK reconnects, `worker_sessions.generation
 - [ ] Confirm exactly one node reports `canSchedule=true`.
 - [ ] Confirm `/api/v1/metrics/summary` exposes queue, outbox, shard ownership, owner count, skew, and per-owner queue age data.
 - [ ] Run `scripts/verify-raft-ha-rollout.sh` before rollout sign-off and after rollback drills.
+- [ ] Import `observability/grafana/tikeo-phase3-dashboard.json` and load both `observability/prometheus/tikeo-recording-rules.yml` and `observability/prometheus/tikeo-alert-rules.yml`.
+- [ ] Run `scripts/raft-ha-fault-injection-drill.sh` in dry-run first; only use `TIKEO_FAULT_MODE=apply` in an approved test/staging cluster.
 - [ ] Run `scripts/raft-worker-failover-e2e.sh` and archive its `.dev/reports/<run-id>/` evidence before rollout sign-off.
 - [ ] Verify at least one real Worker can reconnect and finish a job after Leader failover.

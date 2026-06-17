@@ -76,7 +76,7 @@ def data(payload, name):
 cluster_data = data(cluster, "cluster diagnostics")
 metrics_data = data(metrics, "metrics summary")
 nodes = cluster_data.get("nodes") or []
-can_schedule = [node for node in nodes if node.get("canSchedule") or node.get("can_schedule")]
+can_schedule = [node for node in nodes if (node.get("observedCanSchedule") if node.get("observedCanSchedule") is not None else node.get("canSchedule", node.get("can_schedule")))]
 if len(can_schedule) != 1:
     errors.append(f"expected exactly one schedulable Raft control-plane node, got {len(can_schedule)}")
 if expected_replicas:
@@ -86,6 +86,10 @@ if expected_replicas:
             errors.append(f"expected {expected} diagnostic nodes, got {len(nodes)}")
     except ValueError:
         errors.append(f"TIKEO_EXPECTED_SERVER_REPLICAS must be an integer, got {expected_replicas!r}")
+for node in nodes:
+    probe_status = node.get("probeStatus") or node.get("probe_status")
+    if probe_status and probe_status not in {"ok", "local"}:
+        errors.append(f"node {node.get('nodeId') or node.get('node_id')} cluster-status probe is {probe_status}: {node.get('probeError') or node.get('probe_error')}")
 
 shard = metrics_data.get("shard_ownership") or metrics_data.get("shardOwnership") or {}
 active = int(shard.get("active") or 0)
@@ -123,6 +127,7 @@ report = {
     "summary": {
         "nodeCount": len(nodes),
         "schedulableNodes": [node.get("nodeId") or node.get("node_id") for node in can_schedule],
+        "probeStatuses": {node.get("nodeId") or node.get("node_id"): node.get("probeStatus") or node.get("probe_status") for node in nodes},
         "shardOwnership": {
             "active": active,
             "activeOwnerCount": owner_count,

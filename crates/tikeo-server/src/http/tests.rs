@@ -2,7 +2,7 @@ use crate::cluster::{
     ClusterMode, ClusterRole, ClusterStatus, StandaloneCoordinator, StaticCoordinator,
     coordinator_from_config_with_storage,
 };
-use axum::{Router, body::Body, http::Request, routing::get};
+use axum::{Json, Router, body::Body, http::Request, routing::get};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use tikeo_config::{

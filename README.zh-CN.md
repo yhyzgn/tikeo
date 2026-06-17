@@ -850,7 +850,7 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
 
 | 主题 | 当前行为 | 运维含义 |
 | --- | --- | --- |
-| Server HA | Raft 选出一个带 fencing 的控制面 Leader，然后按健康感知、最小迁移策略把 scheduler shard ownership 投影给 active members。 | 更多 Server Pod 会提升故障切换、Worker Tunnel 连接分布和 owned shard 派发吞吐；membership 变化时不会无意义地全量 remap。 |
+| Server HA | Raft 选出一个带 fencing 的控制面 Leader，然后按健康感知、最小迁移策略把 scheduler shard ownership 投影给 active members，并提供跨 Pod diagnostics probe。 | 更多 Server Pod 会提升故障切换、Worker Tunnel 连接分布和 owned shard 派发吞吐；membership 变化时不会无意义地全量 remap。 |
 | 派发持久化 | FSOD 会先把派发意图写入 `worker_dispatch_outbox`，再尝试 stream 投递。 | gateway、relay 或 Worker stream 短暂断开时，queued/delivered outbox 记录可以 reroute 或 requeue，不会只丢在 Pod 内存里。 |
 | Shard ownership | 运行时会把 scheduler shards、owner epoch 和 fencing token 投影到 `cluster_shard_ownership`。 | Follower shard owner 只能 claim 自己 shard 下的 job queue、workflow-node materialization 和 broadcast attempt；非 owner fail closed。 |
 | Worker Tunnel | Worker 可以连接任意 Server Pod；session 记录 `gateway_node_id`，任一 shard owner 都可本地投递或通过持有连接的 gateway 做 internal relay hint。 | Worker Tunnel 暴露链路必须支持 gRPC/HTTP2；内部 peer endpoint 和 `cluster.transport_token` 必须配置好用于 relay。 |
@@ -872,6 +872,9 @@ TIKEO_MANAGEMENT_API_KEY="$TIKEO_MANAGEMENT_API_KEY" \
 TIKEO_EXPECTED_SERVER_REPLICAS=3 \
 TIKEO_MAX_SHARD_SKEW=1 \
 scripts/verify-raft-ha-rollout.sh
+
+# 可选预发 fault drill：默认 dry-run，只有 TIKEO_FAULT_MODE=apply 才会变更集群。
+scripts/raft-ha-fault-injection-drill.sh
 ```
 
 ### 部署路径
