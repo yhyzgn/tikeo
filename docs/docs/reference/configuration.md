@@ -48,10 +48,12 @@ These defaults come from `crates/tikeo-config/src/lib.rs` unless a committed exa
 | `server.worker_tunnel_addr` | `0.0.0.0:9998` | `TIKEO__SERVER__WORKER_TUNNEL_ADDR` | gRPC/HTTP2 Worker Tunnel. Workers dial this endpoint outbound. |
 | `storage.database_url` | `sqlite://.dev/tikeo-dev.db?mode=rwc` | `TIKEO__STORAGE__DATABASE_URL` | SeaORM/sqlx URL. Container example uses `/data/tikeo.db`; production should use PostgreSQL or MySQL. |
 | `storage.timestamp_offset` | `+00:00` | `TIKEO__STORAGE__TIMESTAMP_OFFSET` | Parsed at startup. `config/dev.toml` and `config/mysql.toml` use `+08:00`; account for this in timestamp comparisons. |
-| `cluster.mode` | `standalone` | `TIKEO__CLUSTER__MODE` | Accepted values are `standalone` and `raft`. In Kubernetes production HA, use Helm Raft mode with StatefulSet/headless peers; only the elected Leader schedules. |
+| `cluster.mode` | `standalone` | `TIKEO__CLUSTER__MODE` | Accepted values are `standalone` and `raft`. In Kubernetes production HA, use Helm Raft mode with StatefulSet/headless peers; the Leader fences control-plane timers and projects shard owners, while pods with active shard ownership can dispatch their owned queue shards. |
 | `cluster.node_id` | `standalone` | `TIKEO__CLUSTER__NODE_ID` | Stable node ID in cluster status and raft metadata. |
 | `cluster.peers` | `[]` | `TIKEO__CLUSTER__PEERS` | Static peer list shape with `node_id` and `endpoint`. Prefer TOML/Helm for arrays. |
 | `cluster.transport_token` | unset | `TIKEO__CLUSTER__TRANSPORT_TOKEN` | Optional shared token for internal raft HTTP transport; never commit real values. |
+| `cluster.scheduler_shard_map_version` | `1` | `TIKEO__CLUSTER__SCHEDULER_SHARD_MAP_VERSION` | Monotonic shard-map version used by dispatch queue hashing; keep identical across Raft pods unless performing a planned migration. |
+| `cluster.scheduler_shard_count` | `64` | `TIKEO__CLUSTER__SCHEDULER_SHARD_COUNT` | Logical scheduler shard count; keep stable for a map version and identical across pods. |
 | `auth.local_login_enabled` | `true` | `TIKEO__AUTH__LOCAL_LOGIN_ENABLED` | Local username/password login toggle. |
 | `auth.api_tokens.default_ttl_seconds` | `43200` | `TIKEO__AUTH__API_TOKENS__DEFAULT_TTL_SECONDS` | 12 hours. |
 | `auth.api_tokens.min_ttl_seconds` | `300` | `TIKEO__AUTH__API_TOKENS__MIN_TTL_SECONDS` | 5 minutes. |
@@ -81,6 +83,12 @@ These defaults come from `crates/tikeo-config/src/lib.rs` unless a committed exa
 | `alert_retry.batch_size` | `50` | `TIKEO__ALERT_RETRY__BATCH_SIZE` | Max due attempts scanned per iteration. |
 | `alert_retry.max_attempts` | `3` | `TIKEO__ALERT_RETRY__MAX_ATTEMPTS` | Attempts before dead-lettering. |
 | `alert_retry.backoff_seconds` | `300` | `TIKEO__ALERT_RETRY__BACKOFF_SECONDS` | Delay before retry. |
+| `notification_delivery.enabled` | `true` | `TIKEO__NOTIFICATION_DELIVERY__ENABLED` | Generic Notification Center delivery worker. |
+| `notification_delivery.public_console_base_url` | unset | `TIKEO__NOTIFICATION_DELIVERY__PUBLIC_CONSOLE_BASE_URL` | Optional externally reachable Web base URL for provider card links. |
+| `notification_delivery.interval_seconds` | `60` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | Due-attempt scan interval. |
+| `notification_delivery.batch_size` | `50` | `TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE` | Max due attempts scanned per iteration. |
+| `notification_delivery.max_attempts` | `3` | `TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS` | Attempts before dead-lettering. |
+| `notification_delivery.backoff_seconds` | `300` | `TIKEO__NOTIFICATION_DELIVERY__BACKOFF_SECONDS` | Delay before the next generic delivery retry. |
 | `alert_secrets.allow_env_refs` | `true` | `TIKEO__ALERT_SECRETS__ALLOW_ENV_REFS` | Allows alert provider secrets to reference environment variables. |
 | `alert_secrets.env_prefix` | `TIKEO_ALERT_SECRET_` | `TIKEO__ALERT_SECRETS__ENV_PREFIX` | Required prefix for env secret names in production. |
 | `script_governance.release_signature_secret_ref` | unset | `TIKEO__SCRIPT_GOVERNANCE__RELEASE_SIGNATURE_SECRET_REF` | Optional `env:NAME` secret reference for script release signature verification. |
@@ -173,7 +181,7 @@ If `observability.tracing.enabled=true`, configure `observability.tracing.otlp_e
 For the full deployment architecture, advantages, limitations, and mode-selection flow, see [Server HA and cluster modes](../deployment/server-ha).
 
 
-`standalone` is the operational default for single-server installs. `raft` is the production multi-pod Server HA mode when deployed with stable node IDs, a static peer list, external database storage, and an internal transport token. The scheduling model is active-passive: only the elected Raft Leader with a persisted fencing token reports `canSchedule=true` and runs schedule/dispatch/retry ownership loops; followers skip those loops. In raft mode, internal append traffic can require `x-tikeo-raft-token` when `cluster.transport_token` is configured. Do not add Redis/Dragonfly distributed locks for core scheduler ownership; future multi-active scheduling should use Raft/fencing shard ownership.
+`standalone` is the operational default for single-server installs. `raft` is the production multi-pod Server HA mode when deployed with stable node IDs, a static peer list, external database storage, and an internal transport token. In raft mode, the elected Leader persists a fencing token, reports `canSchedule=true`, runs global timer/retry loops, and projects balanced shard ownership rows. Dispatch is shard-owned: any pod that has active ownership rows may claim and dispatch only its own queue shards; non-owners and stale tokens fail closed. Internal append and relay traffic can require `x-tikeo-raft-token` when `cluster.transport_token` is configured. Do not add Redis/Dragonfly distributed locks for core scheduler ownership; multi-owner scheduling is handled through Raft/fencing shard ownership.
 
 Example shape:
 

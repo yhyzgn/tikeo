@@ -337,10 +337,23 @@ These are not separate products you need to stitch together. They are Tikeo oper
 ## Configuration that operators actually need
 
 Config files live in `config/` and can be overridden with `TIKEO__...` environment variables.
+The complete default/env table is in the docs-site [Configuration reference](https://docs.tikeo.net/docs/reference/configuration); keep that page as the canonical operator checklist when adding runtime config.
 
 ```toml
 [storage]
 database_url = "postgres://tikeo:tikeo@postgres:5432/tikeo"
+
+[cluster]
+mode = "standalone"
+scheduler_shard_map_version = 1
+scheduler_shard_count = 64
+
+[notification_delivery]
+enabled = true
+interval_seconds = 60
+batch_size = 50
+max_attempts = 3
+backoff_seconds = 300
 
 [observability.logging]
 level = "info"
@@ -524,7 +537,7 @@ tikeo:
 
   management:
     enabled: ${TIKEO_MANAGEMENT_ENABLED:false}
-    endpoint: ${TIKEO_MANAGEMENT_ENDPOINT:http://127.0.0.1:9999}
+    endpoint: ${TIKEO_MANAGEMENT_ENDPOINT:http://127.0.0.1:9090}
     api-key: ${TIKEO_MANAGEMENT_API_KEY:}
     namespace: ${TIKEO_MANAGEMENT_NAMESPACE:default}
     app: ${TIKEO_MANAGEMENT_APP:default}

@@ -45,7 +45,7 @@ tikeo:
 
   management:
     enabled: ${TIKEO_MANAGEMENT_ENABLED:true}
-    endpoint: ${TIKEO_MANAGEMENT_ENDPOINT:http://127.0.0.1:9999}
+    endpoint: ${TIKEO_MANAGEMENT_ENDPOINT:http://127.0.0.1:9090}
     api-key: ${TIKEO_MANAGEMENT_API_KEY:tk-TBP5qDyzqkagXI8Rbr5e3tMayvL6Y3ppk7WLZae1hqgwVhD1eRWLHZzzV7ToOh73}
     namespace: ${TIKEO_MANAGEMENT_NAMESPACE:dev-alpha}
     app: ${TIKEO_MANAGEMENT_APP:orders}

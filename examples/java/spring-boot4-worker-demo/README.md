@@ -24,7 +24,7 @@ that create jobs and immediately trigger them through the Java management SDK:
 
 ```bash
 TIKEO_MANAGEMENT_ENABLED=true \
-TIKEO_MANAGEMENT_ENDPOINT=http://127.0.0.1:9999 \
+TIKEO_MANAGEMENT_ENDPOINT=http://127.0.0.1:9090 \
 TIKEO_MANAGEMENT_API_KEY=<app-scoped-sdk-key> \
 ./gradlew bootRun
 

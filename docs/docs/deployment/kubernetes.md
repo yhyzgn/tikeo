@@ -83,7 +83,7 @@ kubectl -n tikeo rollout status statefulset/tikeo-server
 kubectl -n tikeo get pods -l app.kubernetes.io/component=server
 ```
 
-Expected scheduling semantics: all Server pods participate in Raft, but only one elected Leader with a persisted fencing token reports `canSchedule=true` and runs schedule/dispatch/retry ownership loops. Followers continue serving health/API/Raft transport, but do not split task scheduling. Tikeo intentionally does not use Redis/Dragonfly distributed locks for core scheduler ownership.
+Expected scheduling semantics: all Server pods participate in Raft. Exactly one elected Leader with a persisted fencing token reports `canSchedule=true`; that Leader runs global timer/retry ownership loops and projects balanced shard ownership. Dispatch is multi-owner by shard: any pod with active `cluster_shard_ownership` rows can claim and dispatch only its owned queue shards, while non-owners and stale fencing tokens fail closed. All pods may continue serving health/API/Raft transport and Worker Tunnel gateway traffic. Tikeo intentionally does not use Redis/Dragonfly distributed locks for core scheduler ownership.
 
 ## 4. TLS and mTLS install
 
@@ -135,7 +135,7 @@ helm template tikeo ./deploy/helm/tikeo \
 | `server.replicas` | `1` | Server pod replicas. Keep `1` for standalone; use `server.cluster.mode=raft` plus external DB for multi-pod Server HA. |
 | `server.httpPort` | `9090` | Container HTTP listener for API/health. |
 | `server.workerTunnelPort` | `9998` | Container Worker Tunnel gRPC/HTTP2 listener. |
-| `server.cluster.mode` | `standalone` | `standalone` or `raft`; `raft` renders a StatefulSet and active-passive scheduling owner. |
+| `server.cluster.mode` | `standalone` | `standalone` or `raft`; `raft` renders a StatefulSet/headless peer topology. Leader handles fencing/projection; active shard owners dispatch their own shards. |
 | `server.cluster.transportTokenExistingSecret` | empty | Required in raft mode; Secret containing the internal transport token. |
 | `server.storage.mode` | `sqlite` | `sqlite` creates/uses PVC; `external` reads DB URL from Secret. |
 | `server.storage.existingSecret` | empty | Secret containing database URL for external mode. |

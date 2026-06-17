@@ -32,7 +32,7 @@ def main() -> None:
     print("python worker demo configured: " + json.dumps(asdict(registration), indent=2))
 
     if enabled("TIKEO_MANAGEMENT_CREATE_EXAMPLES"):
-        mgmt = tikeo.ManagementClient(env_or("TIKEO_HTTP_URL", "http://127.0.0.1:8080"), os.environ.get("TIKEO_API_KEY", ""), config.namespace, config.app)
+        mgmt = tikeo.ManagementClient(env_or("TIKEO_HTTP_URL", "http://127.0.0.1:9090"), os.environ.get("TIKEO_API_KEY", ""), config.namespace, config.app)
         for job in [tikeo.api_job("python-echo-api", "demo.echo"), tikeo.plugin_api_job("python-sql-sync-api", "sql", "billing.sql-sync")]:
             try:
                 created = mgmt.create_job(job)

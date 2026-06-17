@@ -27,7 +27,7 @@ public class TikeoWorkerProperties {
     /**
  * Tikeo Worker Tunnel endpoint.
  */
-    private String endpoint = "http://0.0.0.0:9998";
+    private String endpoint = "http://127.0.0.1:9998";
     /**
  * Dry-run mode avoids opening a live Worker Tunnel.
  */

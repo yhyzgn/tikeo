@@ -57,7 +57,7 @@ Verify locally:
 | --- | --- | --- |
 | `tikeo.worker.enabled` | `true` | Enable Worker auto-configuration. |
 | `tikeo.worker.auto-startup` | `true` | Start with Spring lifecycle. |
-| `tikeo.worker.endpoint` | all-interfaces host on port `9998` in the starter source | Worker Tunnel endpoint. Override to `http://127.0.0.1:9998` locally or to the reachable Worker Tunnel URL in deployments. |
+| `tikeo.worker.endpoint` | `http://127.0.0.1:9998` | Local Worker Tunnel endpoint; override to the reachable Service/LB/Gateway URL in deployments. |
 | `tikeo.worker.dry-run` | `false` | Avoid live tunnel when true. |
 | `tikeo.worker.heartbeat-interval-millis` | `10000` | Lease renewal cadence. |
 | `tikeo.worker.client-instance-id` | blank | If blank, SDK generates and persists one per scope/runtime identity. |
@@ -75,7 +75,7 @@ Verify locally:
 | `tikeo.worker.scripts.container-enabled` | `false` | Container-backed non-WASM scripts disabled by default. |
 | `tikeo.worker.scripts.auto-install-tools` | `true` | Local development tool auto-install. |
 | `tikeo.management.enabled` | `false` in starter, demos set true | Auto-configure `TikeoJobClient`. |
-| `tikeo.management.endpoint` | `http://127.0.0.1:9999` | HTTP Management endpoint; local Server is usually `9090`. |
+| `tikeo.management.endpoint` | `http://127.0.0.1:9090` | HTTP Management endpoint; override to your Server API URL. |
 | `tikeo.management.api-key` | blank | App-scoped SDK API key. |
 | `tikeo.management.namespace` | `default` | Management scope. |
 | `tikeo.management.app` | `default` | Management scope. |

@@ -39,8 +39,8 @@ Kubernetes 多 Pod Server HA 请使用 [Server 高可用与集群模式](./serve
 
 - `standalone` 用于单个 Server 进程/Pod。
 - `raft` 是生产多 Pod HA 模式，Helm 会渲染 StatefulSet/headless peer 拓扑。
-- Raft 模式对调度来说是 active-passive：只有一个被选出的 Leader 拥有 schedule/dispatch/retry 循环。
-- 增加 Server Pod 提升 failover、API 可用性和 Raft 成员冗余，但当前不会分摊调度吞吐。
+- Raft 模式使用一个 fenced Leader 负责全局 timer/retry 循环和 shard ownership 投影；派发按 shard 多 owner 执行，由持有 active ownership row 的 Pod 派发自己的 shard。
+- 增加 Server Pod 提升 failover、API 可用性、Worker Tunnel gateway 容量和 Raft 成员冗余；派发吞吐可随 active shard owner 分摊，全局 timer/retry 循环仍由 Leader fencing。
 - 不要为核心调度所有权添加 Redis/Dragonfly lock；未来多活调度必须使用带 fencing 的 Raft shard ownership。
 
 

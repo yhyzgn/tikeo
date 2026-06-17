@@ -229,6 +229,17 @@ class TikeoWorkerAutoConfigurationTest {
     }
 
     @Test
+    void defaultEndpointsUseReachableLocalClientUrls() {
+        contextRunner.withPropertyValues("tikeo.worker.state-dir=" + stateDir).run(context -> {
+            TikeoWorkerProperties worker = context.getBean(TikeoWorkerProperties.class);
+            TikeoManagementProperties management = context.getBean(TikeoManagementProperties.class);
+
+            Assertions.assertThat(worker.getEndpoint()).isEqualTo("http://127.0.0.1:9998");
+            Assertions.assertThat(management.getEndpoint()).isEqualTo("http://127.0.0.1:9090");
+        });
+    }
+
+    @Test
     void managementClientIsConditionalOnManagementFlag() {
         contextRunner.withPropertyValues(
                 "tikeo.worker.state-dir=" + stateDir,

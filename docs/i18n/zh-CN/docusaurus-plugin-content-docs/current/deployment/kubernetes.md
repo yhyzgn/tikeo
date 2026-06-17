@@ -62,7 +62,7 @@ kubectl -n tikeo rollout status statefulset/tikeo-server
 kubectl -n tikeo get pods -l app.kubernetes.io/component=server
 ```
 
-调度语义：所有 Server Pod 参与 Raft，但只有一个已选出的 Leader 在持久化 fencing token 后报告 `canSchedule=true`，并运行 schedule/dispatch/retry 所有权循环。Follower 可以继续承载 health/API/Raft transport，但不会按任务分片调度。Tikeo 核心调度所有权不使用 Redis/Dragonfly 分布式锁。
+调度语义：所有 Server Pod 参与 Raft。只有一个已选出的 Leader 在持久化 fencing token 后报告 `canSchedule=true`；Leader 运行全局 timer/retry 所有权循环，并投影均衡的 shard ownership。派发按 shard 多 owner 执行：任一持有 active `cluster_shard_ownership` 行的 Pod 都只能 claim 并派发自己拥有的 queue shard；非 owner 和旧 fencing token 会 fail closed。所有 Pod 都可以继续承载 health/API/Raft transport 和 Worker Tunnel gateway 流量。Tikeo 核心调度所有权不使用 Redis/Dragonfly 分布式锁。
 
 ## 4. TLS/mTLS
 
@@ -95,7 +95,7 @@ helm template tikeo ./deploy/helm/tikeo   --namespace tikeo   -f deploy/helm/tik
 | `server.replicas` | `1` | Server 副本数；standalone 保持 1，多 Pod Server HA 使用 `server.cluster.mode=raft` 和外部 DB。 |
 | `server.httpPort` | `9090` | API/health 容器端口。 |
 | `server.workerTunnelPort` | `9998` | Worker Tunnel 容器端口。 |
-| `server.cluster.mode` | `standalone` | `standalone` 或 `raft`；raft 渲染 StatefulSet 和 active-passive 调度 owner。 |
+| `server.cluster.mode` | `standalone` | `standalone` 或 `raft`；raft 渲染 StatefulSet/headless peer 拓扑。Leader 负责 fencing/projection，active shard owner 派发自己的 shard。 |
 | `server.cluster.transportTokenExistingSecret` | 空 | raft 模式必填，保存内部 transport token 的 Secret。 |
 | `server.storage.mode` | `sqlite` | `sqlite` 使用 PVC；`external` 从 Secret 读 DB URL。 |
 | `server.storage.existingSecret` | 空 | 外部 DB Secret 名。 |

@@ -22,7 +22,7 @@ Management API create + trigger example:
 
 ```bash
 TIKEO_API_KEY=<app-scoped-sdk-key> \
-TIKEO_HTTP_URL=http://127.0.0.1:8080 \
+TIKEO_HTTP_URL=http://127.0.0.1:9090 \
 TIKEO_MANAGEMENT_CREATE_EXAMPLES=1 \
 cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
 ```

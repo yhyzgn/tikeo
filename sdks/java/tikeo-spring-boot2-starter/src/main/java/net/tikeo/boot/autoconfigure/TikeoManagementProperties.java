@@ -18,7 +18,7 @@ public class TikeoManagementProperties {
     /**
  * Tikeo HTTP management endpoint.
  */
-    private String endpoint = "http://127.0.0.1:9999";
+    private String endpoint = "http://127.0.0.1:9090";
     /**
  * App-scoped API key used by management SDK clients.
  */

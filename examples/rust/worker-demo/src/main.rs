@@ -198,7 +198,7 @@ async fn create_management_examples(config: &WorkerConfig) -> Result<(), WorkerS
         );
         return Ok(());
     }
-    let http_url = env_or("TIKEO_HTTP_URL", "http://127.0.0.1:8080");
+    let http_url = env_or("TIKEO_HTTP_URL", "http://127.0.0.1:9090");
     let management = ManagementClient::new(
         http_url,
         api_key,

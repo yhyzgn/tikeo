@@ -143,7 +143,7 @@ tikeo:
 
   management:
     enabled: ${TIKEO_MANAGEMENT_ENABLED:false}
-    endpoint: ${TIKEO_MANAGEMENT_ENDPOINT:http://127.0.0.1:9999}
+    endpoint: ${TIKEO_MANAGEMENT_ENDPOINT:http://127.0.0.1:9090}
     api-key: ${TIKEO_MANAGEMENT_API_KEY:}
     namespace: ${TIKEO_MANAGEMENT_NAMESPACE:default}
     app: ${TIKEO_MANAGEMENT_APP:default}
@@ -299,7 +299,7 @@ See the docs-site [SDK and worker configuration](../../website/docs/reference/co
 | --- | --- | --- |
 | `tikeo.worker.enabled` | `true` | Enables worker auto-configuration. |
 | `tikeo.worker.auto-startup` | `true` | Starts/stops the worker with the Spring application lifecycle. |
-| `tikeo.worker.endpoint` | `http://0.0.0.0:9998` | Set explicitly to the reachable Worker Tunnel endpoint in deployments. |
+| `tikeo.worker.endpoint` | `http://127.0.0.1:9998` | Local Worker Tunnel endpoint; override to the reachable Service/LB/Gateway URL in deployments. |
 | `tikeo.worker.dry-run` | `false` | Uses `NoopTikeoWorkerClient` instead of opening a live tunnel. |
 | `tikeo.worker.heartbeat-interval-millis` | `10000` | Worker lease renewal cadence. |
 | `tikeo.worker.client-instance-id` | blank | Optional; blank lets Boot generate and persist one per scope/runtime identity. |
@@ -315,7 +315,7 @@ See the docs-site [SDK and worker configuration](../../website/docs/reference/co
 | `tikeo.worker.scripts.power-shell-install-dir` | blank → `~/.tikeo/sandbox-tools/pwsh` | Persist/cache to avoid repeated archive downloads. |
 | `tikeo.worker.scripts.tool-install-timeout-millis` | `120000` | Script tool installer timeout. |
 | `tikeo.management.enabled` | `false` | Enables `TikeoJobClient` auto-configuration. |
-| `tikeo.management.endpoint` | `http://127.0.0.1:9999` | Set explicitly; Compose examples usually expose server HTTP on `9090`. |
+| `tikeo.management.endpoint` | `http://127.0.0.1:9090` | HTTP Management endpoint; override to your Server API URL. |
 | `tikeo.management.api-key` | blank | App-scoped API key; inject from a Secret store. |
 | `tikeo.management.namespace` | `default` | Management namespace scope. |
 | `tikeo.management.app` | `default` | Management app scope. |

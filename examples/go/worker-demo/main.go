@@ -99,7 +99,7 @@ func main() {
 	fmt.Printf("go worker demo configured: %s\n", pretty)
 
 	if enabled("TIKEO_MANAGEMENT_CREATE_EXAMPLES") {
-		mgmt := tikeo.NewManagementClient(envOr("TIKEO_HTTP_URL", "http://127.0.0.1:8080"), os.Getenv("TIKEO_API_KEY"), config.Namespace, config.App)
+		mgmt := tikeo.NewManagementClient(envOr("TIKEO_HTTP_URL", "http://127.0.0.1:9090"), os.Getenv("TIKEO_API_KEY"), config.Namespace, config.App)
 		for _, job := range []tikeo.CreateJobRequest{
 			tikeo.APIJob("go-echo-api", "demo.echo"),
 			tikeo.PluginAPIJob("go-sql-sync-api", "sql", "billing.sql-sync"),

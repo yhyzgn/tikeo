@@ -40,8 +40,8 @@ For Kubernetes multi-pod Server HA, use [Server HA and cluster modes](./server-h
 
 - `standalone` is for one Server process/pod.
 - `raft` is the production multi-pod HA mode and renders a StatefulSet/headless peer topology in Helm.
-- Raft mode is active-passive for scheduling: only one elected Leader owns schedule/dispatch/retry loops.
-- Extra Server pods improve failover, API availability, and Raft membership, but they do not split scheduler throughput today.
+- Raft mode uses one fenced Leader for global timer/retry loops and shard ownership projection; dispatch is multi-owner by shard for pods that hold active ownership rows.
+- Extra Server pods improve failover, API availability, Worker Tunnel gateway capacity, and Raft membership; dispatch throughput can spread across active shard owners, while global timer/retry loops remain Leader-fenced.
 - Do not add Redis/Dragonfly locks for core scheduler ownership; future multi-active scheduling must be Raft shard ownership with fencing.
 
 

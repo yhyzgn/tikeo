@@ -36,10 +36,12 @@ cargo run --bin tikeo -- serve --config config/dev.toml
 | `server.worker_tunnel_addr` | `0.0.0.0:9998` | `TIKEO__SERVER__WORKER_TUNNEL_ADDR` | gRPC/HTTP2 Worker Tunnel，Worker 主动连接。 |
 | `storage.database_url` | `sqlite://.dev/tikeo-dev.db?mode=rwc` | `TIKEO__STORAGE__DATABASE_URL` | SeaORM/sqlx URL；生产用 PostgreSQL/MySQL。 |
 | `storage.timestamp_offset` | `+00:00` | `TIKEO__STORAGE__TIMESTAMP_OFFSET` | 启动时解析；dev/mysql 示例为 `+08:00`。 |
-| `cluster.mode` | `standalone` | `TIKEO__CLUSTER__MODE` | `standalone` 或 `raft`；K8s 生产多 Pod HA 使用 Helm Raft StatefulSet/headless peers，只有 Leader 调度。 |
+| `cluster.mode` | `standalone` | `TIKEO__CLUSTER__MODE` | `standalone` 或 `raft`；K8s 生产多 Pod HA 使用 Helm Raft StatefulSet/headless peers。Leader 负责 fencing、全局定时/重试循环和 shard ownership 投影，持有 active shard ownership 的 Pod 可派发自己拥有的 queue shard。 |
 | `cluster.node_id` | `standalone` | `TIKEO__CLUSTER__NODE_ID` | 集群状态和 raft 元数据节点 ID。 |
 | `cluster.peers` | `[]` | `TIKEO__CLUSTER__PEERS` | peer 数组建议用 TOML/Helm 表达。 |
 | `cluster.transport_token` | 未设置 | `TIKEO__CLUSTER__TRANSPORT_TOKEN` | 内部 raft HTTP token，不要提交真实值。 |
+| `cluster.scheduler_shard_map_version` | `1` | `TIKEO__CLUSTER__SCHEDULER_SHARD_MAP_VERSION` | dispatch queue hashing 使用的单调 shard-map 版本；除计划内迁移外，Raft 各 Pod 必须一致。 |
+| `cluster.scheduler_shard_count` | `64` | `TIKEO__CLUSTER__SCHEDULER_SHARD_COUNT` | 逻辑 scheduler shard 数；同一 map version 下保持稳定并在所有 Pod 一致。 |
 | `auth.local_login_enabled` | `true` | `TIKEO__AUTH__LOCAL_LOGIN_ENABLED` | 本地用户名密码登录开关。 |
 | `auth.api_tokens.default_ttl_seconds` | `43200` | `TIKEO__AUTH__API_TOKENS__DEFAULT_TTL_SECONDS` | 默认 12 小时。 |
 | `auth.api_tokens.min_ttl_seconds` | `300` | `TIKEO__AUTH__API_TOKENS__MIN_TTL_SECONDS` | 最小 5 分钟。 |
@@ -69,6 +71,12 @@ cargo run --bin tikeo -- serve --config config/dev.toml
 | `alert_retry.batch_size` | `50` | `TIKEO__ALERT_RETRY__BATCH_SIZE` | 每轮最大数量。 |
 | `alert_retry.max_attempts` | `3` | `TIKEO__ALERT_RETRY__MAX_ATTEMPTS` | 死信前最大次数。 |
 | `alert_retry.backoff_seconds` | `300` | `TIKEO__ALERT_RETRY__BACKOFF_SECONDS` | 重试退避。 |
+| `notification_delivery.enabled` | `true` | `TIKEO__NOTIFICATION_DELIVERY__ENABLED` | 通用通知中心投递 worker。 |
+| `notification_delivery.public_console_base_url` | 未设置 | `TIKEO__NOTIFICATION_DELIVERY__PUBLIC_CONSOLE_BASE_URL` | 可选外部 Web 基地址，用于 provider 卡片链接。 |
+| `notification_delivery.interval_seconds` | `60` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | due-attempt 扫描间隔。 |
+| `notification_delivery.batch_size` | `50` | `TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE` | 每轮最大扫描数量。 |
+| `notification_delivery.max_attempts` | `3` | `TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS` | 进入 dead-letter 前最大尝试次数。 |
+| `notification_delivery.backoff_seconds` | `300` | `TIKEO__NOTIFICATION_DELIVERY__BACKOFF_SECONDS` | 下一次通用投递重试前的延迟。 |
 | `alert_secrets.allow_env_refs` | `true` | `TIKEO__ALERT_SECRETS__ALLOW_ENV_REFS` | 允许 `env:NAME` 引用。 |
 | `alert_secrets.env_prefix` | `TIKEO_ALERT_SECRET_` | `TIKEO__ALERT_SECRETS__ENV_PREFIX` | 告警 Secret 前缀。 |
 | `script_governance.release_signature_secret_ref` | 未设置 | `TIKEO__SCRIPT_GOVERNANCE__RELEASE_SIGNATURE_SECRET_REF` | 脚本发布签名 Secret 引用。 |
@@ -89,7 +97,7 @@ TLS/mTLS 默认关闭。跨主机、跨集群、跨 VPC 或不可信网络时，
 
 完整部署架构、优缺点和模式选择流程请看 [Server 高可用与集群模式](../deployment/server-ha)。
 
-`standalone` 是单 Server 安装的默认模式。`raft` 是生产多 Pod Server HA 模式，但必须配合稳定 node id、静态 peers、外部数据库和内部 transport token 部署。调度模型是 active-passive：只有已选出的 Raft Leader 在持久化 fencing token 后报告 `canSchedule=true` 并运行 schedule/dispatch/retry 所有权循环；Follower 会跳过这些循环。配置了 `cluster.transport_token` 时，内部 raft append 流量需要 `x-tikeo-raft-token`。核心调度所有权不要引入 Redis/Dragonfly 分布式锁；未来多活调度应走 Raft/fencing shard ownership。
+`standalone` 是单 Server 安装的默认模式。`raft` 是生产多 Pod Server HA 模式，但必须配合稳定 node id、静态 peers、外部数据库和内部 transport token 部署。Raft 模式下，已选出的 Leader 会持久化 fencing token、报告 `canSchedule=true`、运行全局 timer/retry 循环，并投影均衡的 shard ownership 行。派发是 shard-owned：任一持有 active ownership row 的 Pod 都只能 claim 并派发自己拥有的 queue shard；非 owner 和旧 token 会 fail closed。配置了 `cluster.transport_token` 时，内部 raft append/relay 流量需要 `x-tikeo-raft-token`。核心调度所有权不要引入 Redis/Dragonfly 分布式锁；多 owner 调度通过 Raft/fencing shard ownership 实现。
 
 ## Worker SDK 默认值
 
