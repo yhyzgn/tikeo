@@ -36,7 +36,7 @@ Use SQLite only when you accept single-node local durability. For production, pr
 
 ## Server HA deployment choice
 
-For Kubernetes multi-pod Server HA, use [Server HA and cluster modes](./server-ha) as the dedicated runbook. The short version is:
+For Kubernetes multi-pod Server HA, use the **Raft FSOD Cluster** runbook, [Server HA and Raft FSOD Cluster](./server-ha). The short version is:
 
 - `standalone` is for one Server process/pod.
 - `raft` is the production multi-pod HA mode and renders a StatefulSet/headless peer topology in Helm.

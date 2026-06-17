@@ -1,12 +1,29 @@
 ---
-title: Server HA and FSOD cluster mode
+title: Server HA and Raft FSOD Cluster
 description: How Tikeo Server HA works with Raft fencing, shard ownership projection, durable Worker dispatch outbox, Worker Tunnel gateways, and Kubernetes failover.
 keywords: [tikeo server ha, raft, fsod, worker dispatch outbox, kubernetes ha, worker tunnel failover, distributed scheduler]
 ---
 
-# Server HA and FSOD cluster mode
+# Server HA and Raft FSOD Cluster
 
-Tikeo Server HA is built around **FSOD: Fenced Slot Outbox Dispatch**. In Kubernetes Raft mode, Server pods form a Raft group, the elected Leader persists a fencing token, projects scheduler shard ownership into the shared database, and dispatches through a durable `worker_dispatch_outbox`. Worker Tunnel streams may land on any Server pod; the pod that owns the stream acts as a gateway and delivers outbox rows for its `gateway_node_id`.
+The formal name for Tikeo's production multi-pod Server architecture is **Raft FSOD Cluster**. FSOD means **Fenced Slot Outbox Dispatch**: a dispatch model where Raft provides a fenced control-plane authority, scheduler queues are partitioned into stable slots, every Worker dispatch intent is persisted in an outbox before stream delivery, and gateway pods deliver only the streams they actually own.
+
+In Kubernetes Raft mode, Server pods form a Raft group, the elected Leader persists a fencing token, projects scheduler shard ownership into the shared database, and dispatches through a durable `worker_dispatch_outbox`. Worker Tunnel streams may land on any Server pod; the pod that owns the stream acts as a gateway and delivers outbox rows for its `gateway_node_id`. The goal is practical HA without making Redis, Dragonfly, or SQL advisory locks a scheduler-correctness dependency.
+
+
+## Why this is an innovation
+
+Raft FSOD Cluster is not a passive standby design and not a distributed-lock wrapper around a legacy scheduler. It combines several independently useful mechanisms into one closed dispatch loop:
+
+| Building block | Role in the cluster | Innovation value |
+| --- | --- | --- |
+| Raft fencing | Establishes one control-plane authority for terms, global timer/retry loops, and ownership projection. | Prevents split-brain scheduler decisions without asking every dispatch path to acquire an external lock. |
+| Shard ownership projection | Maps stable scheduler slots to active Server pods with owner epoch and fencing token. | Lets non-Leader pods actively dispatch their own shards, so extra pods improve failover and dispatch throughput instead of sitting idle. |
+| Durable outbox | Persists the selected Worker/attempt before stream delivery. | Removes pod-local memory as the source of truth; relay, reconnect, and visibility-timeout recovery can continue after gateway changes. |
+| Worker Tunnel gateway relay | Allows Workers to connect to any Server pod while the owning gateway claims only its outbox rows. | Keeps the outbound-only Worker model and avoids exposing business Workers even in multi-pod Server deployments. |
+| LASSO worker scoring | Prefers local gateway delivery, then worker authority, rendezvous spread, and stable tie-breakers. | Reduces cross-pod relay when possible without weakening durable dispatch or fencing. |
+
+Operator-facing result: API and Web requests may be load-balanced across Server pods, Worker streams may land on different pods, and task dispatch still has a durable, fenced path from trigger to terminal result.
 
 This release uses a multi-owner scheduler path. Raft still elects exactly one control-plane Leader, but that Leader projects scheduler shards across active members only. Follower Pods can actively dispatch only the shards they own, and each claim is fenced by the persisted owner epoch/token. If no membership rows exist yet during bootstrap, projection uses the configured peer set; once membership rows exist, removed or non-active members are excluded instead of receiving fallback shards.
 
@@ -106,7 +123,7 @@ FSOD invariants:
 ```mermaid
 flowchart TD
   A[Need Server pod failover?] -->|No| B[Standalone]
-  A -->|Yes| C[Raft FSOD HA]
+  A -->|Yes| C[Raft FSOD Cluster]
   C --> D[StatefulSet + headless Service + external DB + transport Secret]
   D --> E[Leader balances shard ownership rows]
   E --> F[Shard owners claim only owned queues]
@@ -117,11 +134,11 @@ flowchart TD
 | Mode | How to run it | Use when | Do not use when |
 | --- | --- | --- | --- |
 | Standalone | `cluster.mode=standalone`, one Server process/pod | Local dev, demos, small single-node VM installs | You need Server pod failover |
-| Raft FSOD HA | `server.cluster.mode=raft`, StatefulSet, external DB, transport token | Production Kubernetes HA, durable outbox dispatch, Worker gateway failover | You only changed `server.replicas` on a standalone Deployment |
+| Raft FSOD Cluster | `server.cluster.mode=raft`, StatefulSet, external DB, transport token | Production Kubernetes HA, durable outbox dispatch, Worker gateway failover, multi-owner shard dispatch | You only changed `server.replicas` on a standalone Deployment |
 | Multi-owner shard balancing | Enabled by Raft shard ownership projection | Scheduler throughput across Server Pods, workflow node materialization, broadcast fan-out | You cannot keep shard map version/count stable across all Pods |
 | Redis/Dragonfly lock scheduling | Not a Tikeo core mode | Optional cache/accelerator only | Core scheduler ownership |
 
-## Advantages
+## Advantages and innovation value
 
 | Advantage | Why it matters |
 | --- | --- |
@@ -146,6 +163,8 @@ flowchart TD
 
 ## Configuration reference
 
+These are the minimum deployment requirements for the Raft FSOD Cluster. All Server pods in the same cluster must agree on mode, peer set, storage, shard map version, and shard count; drift in any of those fields should be treated as a rollout blocker.
+
 | Config / env | Default | Production guidance |
 | --- | --- | --- |
 | `cluster.mode` / `TIKEO__CLUSTER__MODE` | `standalone` | Set to `raft` for multi-pod Server HA. |
@@ -155,11 +174,13 @@ flowchart TD
 | `cluster.scheduler_shard_map_version` | `1` | Change only through a planned shard-map migration. |
 | `cluster.scheduler_shard_count` | `64` | Must stay stable across all pods for a map version. |
 | `storage.database_url` / `TIKEO__STORAGE__DATABASE_URL` | SQLite dev path | Use external PostgreSQL/MySQL/CockroachDB for Raft HA. |
-| `server.worker_tunnel_addr` | `0.0.0.0:9998` | Expose through gRPC/HTTP2-capable Service/Gateway. |
+| `server.worker_tunnel_addr` | `0.0.0.0:9998` | Expose through a Service/Gateway that preserves gRPC/HTTP2; do not route it through an HTTP/1-only proxy. |
+| API/SSE ingress path | deployment-specific | Browser/API traffic can be load-balanced across pods, but SSE paths must disable proxy buffering and use long idle/read timeouts. See [SSE realtime deployment notes](./sse-realtime). |
+| Worker Tunnel Service | deployment-specific | May load-balance initial Worker connections across pods; reconnect changes `worker_sessions.gateway_node_id` and outbox reroute handles later delivery. |
 
 ## Prerequisites
 
-Before enabling Raft FSOD HA, prepare these dependencies:
+Before enabling Raft FSOD Cluster, prepare these dependencies:
 
 - External PostgreSQL, MySQL, or CockroachDB-compatible storage shared by every Server pod.
 - StatefulSet identities and a headless peer Service; a plain Deployment replica bump is not enough.

@@ -1,12 +1,29 @@
 ---
-title: Server 高可用与 FSOD 集群模式
+title: Server 高可用与 Raft FSOD 集群
 description: Tikeo Server 如何通过 Raft fencing、shard ownership 投影、durable Worker dispatch outbox、Worker Tunnel gateway 和 Kubernetes failover 实现高可用。
 keywords: [tikeo server ha, raft, fsod, worker dispatch outbox, kubernetes ha, worker tunnel failover, distributed scheduler]
 ---
 
-# Server 高可用与 FSOD 集群模式
+# Server 高可用与 Raft FSOD 集群
 
-Tikeo Server HA 基于 **FSOD：Fenced Slot Outbox Dispatch**。在 Kubernetes Raft 模式下，Server Pod 组成 Raft group；被选出的 Leader 持久化 fencing token，把调度 shard ownership 投影到共享数据库，并在派发 Worker 前先写入 `worker_dispatch_outbox`。Worker Tunnel 长连接可以落到任意 Server Pod；持有 stream 的 Pod 是 gateway，只投递属于自己 `gateway_node_id` 的 outbox 行。
+Tikeo 生产多 Pod Server 架构的正式名称是 **Raft FSOD 集群**。FSOD 是 **Fenced Slot Outbox Dispatch**，可以理解为“有栅栏的分片出站派发”：Raft 提供带 fencing 的控制面权威，调度队列被切成稳定 slots，每次 Worker 派发意图都会先写入 outbox，再由持有真实长连接的 gateway Pod 投递。
+
+在 Kubernetes Raft 模式下，Server Pod 组成 Raft group；被选出的 Leader 持久化 fencing token，把调度 shard ownership 投影到共享数据库，并在派发 Worker 前先写入 `worker_dispatch_outbox`。Worker Tunnel 长连接可以落到任意 Server Pod；持有 stream 的 Pod 是 gateway，只投递属于自己 `gateway_node_id` 的 outbox 行。这个设计目标是：实现可落地的 Server HA，但不把 Redis、Dragonfly 或 SQL advisory lock 变成调度正确性的依赖。
+
+
+## 为什么这是一个创新点
+
+Raft FSOD 集群不是“主 Pod 干活、其他 Pod 旁观”的被动 standby，也不是在传统调度器外面套一层 Redis 锁。它把几个机制组合成一个完整派发闭环：
+
+| 构件 | 在集群中的角色 | 创新价值 |
+| --- | --- | --- |
+| Raft fencing | 为 term、全局 timer/retry 循环和 ownership 投影建立唯一控制面权威。 | 避免 split-brain 调度决策，不要求每条派发路径都去抢外部分布式锁。 |
+| Shard ownership 投影 | 把稳定 scheduler slots 映射到 active Server Pod，并写入 owner epoch/fencing token。 | 非 Leader Pod 也能主动派发自己拥有的 shards，扩 Pod 不只是待机，而是能提升故障切换和派发吞吐。 |
+| Durable outbox | stream 投递前先持久化已选择的 Worker/attempt。 | 不再把 Pod 内存当派发事实；gateway 切换、Worker 重连和 visibility timeout 后仍可恢复。 |
+| Worker Tunnel gateway relay | Worker 可以连接任意 Server Pod，gateway 只 claim 自己持有 stream 的 outbox。 | 保留 Worker 主动出站模型，多 Pod 部署时也不需要暴露业务 Worker。 |
+| LASSO worker scoring | 优先本地 gateway，再看 Worker authority、rendezvous spread 和稳定 tie-break。 | 在不削弱 outbox/fencing 的前提下，尽量减少跨 Pod relay。 |
+
+对运维来说，结果是：API/Web 请求可以在 Server Pod 间负载均衡，Worker 长连接可以落到不同 Pod，而任务派发从触发到终态仍有可恢复、有栅栏的持久化路径。
 
 本版本使用 multi-owner scheduler 路径。Raft 仍只选出一个控制面 Leader，但 Leader 只会把 scheduler shards 投影到 active members；Follower Pod 只有在持有 active shard 且 owner epoch/token 匹配时，才能派发自己的 shard。bootstrap 阶段如果还没有任何 membership rows，投影使用配置的 peer set；一旦 membership rows 存在，removed 或非 active 成员不会再收到 fallback shards。
 
@@ -105,7 +122,7 @@ FSOD 不变量：
 | Outbox recovery | Gateway 按 `gateway_node_id` 扫描；无 ack/result 的 delivered 行通过 visibility timeout 重新 queued；Worker 重连可按 `logical_instance_id` + generation reroute。 |
 | LASSO worker scoring | 候选 Worker 按 local gateway、Worker authority、dispatch key rendezvous spread、worker id tie-break 排序。 |
 | Worker Tunnel gateway | 任意 Server Pod 都能接收 Worker Tunnel registration；`worker_sessions.gateway_node_id` 记录 live stream 所在 Pod。 |
-| Web/API 负载均衡 | 业务数据从共享 DB 读取；节点本地接口显式标识 responding node。 |
+| Web/API 负载均衡 | 业务数据从共享 DB 读取，在不同 Pod 间保持一致。`/api/v1/cluster/diagnostics` 会探测每个 active member endpoint，并返回 `probeStatus`、`observedRole`、`observedCanSchedule` 和 `probeLatencyMs`，方便区分本地视图与跨 Pod 健康状态。 |
 | 外部锁 | 核心调度正确性不依赖 Redis/Dragonfly/SQL advisory lock。 |
 
 ## 模式选择
@@ -113,7 +130,7 @@ FSOD 不变量：
 ```mermaid
 flowchart TD
   A[需要 Server Pod failover?] -->|否| B[Standalone]
-  A -->|是| C[Raft FSOD HA]
+  A -->|是| C[Raft FSOD 集群]
   C --> D[StatefulSet + headless Service + 外部 DB + transport Secret]
   D --> E[Leader 均衡投影 shard ownership]
   E --> F[Shard owner 只 claim 自己的 queue]
@@ -124,11 +141,11 @@ flowchart TD
 | 模式 | 运行方式 | 适用场景 | 不适用场景 |
 | --- | --- | --- | --- |
 | Standalone | `cluster.mode=standalone`，单 Server | 本地开发、demo、小型单节点 VM | 需要 Server Pod failover |
-| Raft FSOD HA | `server.cluster.mode=raft`、StatefulSet、外部 DB、transport token | 生产 K8s HA、durable outbox dispatch、Worker gateway failover | 只是在 standalone Deployment 上扩副本 |
+| Raft FSOD 集群 | `server.cluster.mode=raft`、StatefulSet、外部 DB、transport token | 生产 K8s HA、durable outbox dispatch、Worker gateway failover、multi-owner shard dispatch | 只是在 standalone Deployment 上扩副本 |
 | Multi-owner shard balancing | 由 Raft shard ownership projection 启用 | Server Pod 横向分摊 scheduler 吞吐、workflow materialization、broadcast fan-out | 无法保证所有 Pod 的 shard map version/count 一致 |
 | Redis/Dragonfly lock scheduling | 不是 Tikeo core mode | 只能作为可选缓存/加速 | 核心调度所有权 |
 
-## 优势
+## 优势与创新价值
 
 | 优势 | 意义 |
 | --- | --- |
@@ -153,6 +170,8 @@ flowchart TD
 
 ## 配置参考
 
+下面是 Raft FSOD 集群的最低部署配置要求。同一集群中的所有 Server Pod 必须在 mode、peer set、storage、shard map version 和 shard count 上保持一致；这些字段漂移应视为 rollout 阻断项。
+
 | 配置 / 环境变量 | 默认值 | 生产建议 |
 | --- | --- | --- |
 | `cluster.mode` / `TIKEO__CLUSTER__MODE` | `standalone` | 多 Pod HA 设置为 `raft`。 |
@@ -162,11 +181,13 @@ flowchart TD
 | `cluster.scheduler_shard_map_version` | `1` | 只能通过计划内 shard-map migration 变更。 |
 | `cluster.scheduler_shard_count` | `64` | 同一 map version 下所有 Pod 必须一致。 |
 | `storage.database_url` / `TIKEO__STORAGE__DATABASE_URL` | SQLite dev path | Raft HA 使用外部 PostgreSQL/MySQL/CockroachDB。 |
-| `server.worker_tunnel_addr` | `0.0.0.0:9998` | 通过支持 gRPC/HTTP2 的 Service/Gateway 暴露。 |
+| `server.worker_tunnel_addr` | `0.0.0.0:9998` | 通过保持 gRPC/HTTP2 的 Service/Gateway 暴露；不要走只支持 HTTP/1 的代理。 |
+| API/SSE ingress path | 与部署相关 | Browser/API 流量可以在 Pod 间负载均衡，但 SSE path 必须关闭 proxy buffering，并设置足够长的 idle/read timeout。见 [SSE 实时刷新部署注意事项](./sse-realtime)。 |
+| Worker Tunnel Service | 与部署相关 | 初始 Worker 连接可以负载均衡到任意 Pod；重连会改变 `worker_sessions.gateway_node_id`，后续 delivery 由 outbox reroute 处理。 |
 
 ## 前置条件
 
-启用 Raft FSOD HA 前请准备：
+启用 Raft FSOD 集群前请准备：
 
 - 所有 Server Pod 共享的外部 PostgreSQL、MySQL 或 CockroachDB-compatible 存储。
 - StatefulSet 稳定身份和 headless peer Service；不能只扩普通 Deployment 副本。

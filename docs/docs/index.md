@@ -22,7 +22,7 @@ Read these pages in order when you are new to the repository:
 | 3 | [Configuration reference](./reference/configuration) | Complete default-value table, env override names, examples, TLS/mTLS, OIDC, logging, OTel, cluster caveats, Worker SDK defaults. |
 | 4 | [Worker Tunnel](./concepts/worker-tunnel) | Why Workers dial out, what registration carries, and what must never become a business Worker inbound Service. |
 | 5 | SDK pages | Dependency coordinates, WorkerConfig defaults, minimal Worker examples, Management client credentials, live verification runbooks. |
-| 6 | Deployment pages | Single binary, Docker Compose, Kubernetes/Helm, [Server HA and cluster modes](./deployment/server-ha), controller-specific ingress guidance, and smoke scripts. |
+| 6 | Deployment pages | Single binary, Docker Compose, Kubernetes/Helm, [Server HA and Raft FSOD Cluster](./deployment/server-ha), controller-specific ingress guidance, and smoke scripts. |
 | 7 | Reference pages | Implementation-derived Management OpenAPI, Notification Center, and Worker Tunnel protobuf reference. |
 
 If you only want a proof that the whole local path still works, run the Management trigger smoke from the quickstart. If you are writing a production runbook, use the configuration and deployment references first, then select one SDK page for the Worker language used by your service team.
@@ -48,7 +48,7 @@ The repository contains production-shaped surfaces, not just screenshots:
 - Deployment assets for Docker Compose, Helm, Kubernetes YAML, systemd, Terraform, GitOps manifest diff, and smoke scripts.
 - Contract tests that keep docs, workflows, source size, runtime versions, deployment artifacts, Notification Center indexes, and management trigger flows from drifting.
 
-When a page states a command, it should point to one of those surfaces. When a feature is not yet ready for production use, the page should say so explicitly; for example, raft mode currently exposes a validated shape and cluster metadata but does not claim scheduling leadership until a real leader path is active.
+When a page states a command, it should point to one of those surfaces. When a feature is not yet ready for production use, the page should say so explicitly; for example, experimental surfaces must be labeled as such and must not be described as production runbooks.
 
 ## Reader outcome
 
@@ -92,7 +92,7 @@ Notification Center and Alerts pages are additionally backed by `design/notifica
 
 - New local evaluator: start with [Installation](./getting-started/installation), then [Quickstart](./getting-started/quickstart).
 - SDK adopter: read [Configuration reference](./reference/configuration) first, then the language SDK page.
-- Kubernetes operator: read [Kubernetes and Helm](./deployment/kubernetes), [Server HA and cluster modes](./deployment/server-ha), and [Kubernetes controller runbook](./deployment/kubernetes-controller-runbook).
+- Kubernetes operator: read [Kubernetes and Helm](./deployment/kubernetes), [Server HA and Raft FSOD Cluster](./deployment/server-ha), and [Kubernetes controller runbook](./deployment/kubernetes-controller-runbook).
 - Notification operator: read [Notifications](./user-guide/notifications), [Alerts](./user-guide/alerts), and [Notification Center reference](./reference/notification-center) to keep outbound delivery separate from incident semantics.
 - Troubleshooter: use [Troubleshooting](./reference/troubleshooting), the smoke report directory, and the operator-verified references.
 

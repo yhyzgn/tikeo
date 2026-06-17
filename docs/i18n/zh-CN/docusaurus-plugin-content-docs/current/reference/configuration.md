@@ -95,7 +95,7 @@ TLS/mTLS 默认关闭。跨主机、跨集群、跨 VPC 或不可信网络时，
 
 ## 集群模式
 
-完整部署架构、优缺点和模式选择流程请看 [Server 高可用与集群模式](../deployment/server-ha)。
+完整部署架构、优缺点和模式选择流程请看 [Server 高可用与 Raft FSOD 集群](../deployment/server-ha)。
 
 `standalone` 是单 Server 安装的默认模式。`raft` 是生产多 Pod Server HA 模式，但必须配合稳定 node id、静态 peers、外部数据库和内部 transport token 部署。Raft 模式下，已选出的 Leader 会持久化 fencing token、报告 `canSchedule=true`、运行全局 timer/retry 循环，并投影均衡的 shard ownership 行。派发是 shard-owned：任一持有 active ownership row 的 Pod 都只能 claim 并派发自己拥有的 queue shard；非 owner 和旧 token 会 fail closed。配置了 `cluster.transport_token` 时，内部 raft append/relay 流量需要 `x-tikeo-raft-token`。核心调度所有权不要引入 Redis/Dragonfly 分布式锁；多 owner 调度通过 Raft/fencing shard ownership 实现。
 

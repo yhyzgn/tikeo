@@ -44,7 +44,7 @@ chart 会把 Secret 注入为 `TIKEO__STORAGE__DATABASE_URL`。
 
 ## 3. Server Raft HA 安装
 
-应用 overlay 之前，先阅读 [Server 高可用与集群模式](./server-ha)，其中包含部署架构图、优缺点、模式选择和 Worker Tunnel failover 语义。
+应用 overlay 之前，先阅读 [Server 高可用与 Raft FSOD 集群](./server-ha)，其中包含部署架构图、优缺点、模式选择和 Worker Tunnel failover 语义。
 
 当 Server 控制面需要多个 Kubernetes Pod 时使用 Raft HA。该路径要求外部 PostgreSQL/MySQL/CockroachDB 数据库和 Raft transport Secret。Chart 会把 Server 从 `Deployment` 切换为 `StatefulSet`，创建 `tikeo-server-headless` peer Service，把每个 Pod 名称注入为 `TIKEO__CLUSTER__NODE_ID`，并渲染 `http://tikeo-server-0.tikeo-server-headless:9090` 这类静态 peer endpoint。
 

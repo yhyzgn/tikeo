@@ -65,7 +65,7 @@ The chart injects the database URL as `TIKEO__STORAGE__DATABASE_URL`, overriding
 
 ## 3. Server Raft HA install
 
-For architecture diagrams, advantages, limitations, mode selection, and Worker Tunnel failover semantics, read [Server HA and cluster modes](./server-ha) before applying this overlay.
+For architecture diagrams, advantages, limitations, mode selection, and Worker Tunnel failover semantics, read [Server HA and Raft FSOD Cluster](./server-ha) before applying this overlay.
 
 Use Raft HA when the Server control plane needs multiple Kubernetes pods. This path requires an external PostgreSQL/MySQL/CockroachDB database and a Raft transport Secret. The chart switches the Server workload from `Deployment` to `StatefulSet`, creates the `tikeo-server-headless` peer Service, injects each pod name as `TIKEO__CLUSTER__NODE_ID`, and renders static peer endpoints such as `http://tikeo-server-0.tikeo-server-headless:9090`.
 

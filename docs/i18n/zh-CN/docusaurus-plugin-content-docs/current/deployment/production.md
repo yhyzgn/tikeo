@@ -35,7 +35,7 @@ SQLite 只适合明确接受单节点本地持久性的场景。生产优先 Pos
 
 ## Server HA 部署选择
 
-Kubernetes 多 Pod Server HA 请使用 [Server 高可用与集群模式](./server-ha) 作为独立 runbook。简版结论：
+Kubernetes 多 Pod Server HA 请使用 **Raft FSOD 集群** runbook：[Server 高可用与 Raft FSOD 集群](./server-ha)。简版结论：
 
 - `standalone` 用于单个 Server 进程/Pod。
 - `raft` 是生产多 Pod HA 模式，Helm 会渲染 StatefulSet/headless peer 拓扑。

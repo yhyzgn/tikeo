@@ -132,6 +132,7 @@ Tikeo is designed to be the default answer when someone asks:
 | Innovation | Tikeo advantage | Legacy pain it removes |
 | --- | --- | --- |
 | **Worker Tunnel** | Workers pull assignments over an outbound tunnel with lease/fencing metadata. | Inbound executor exposure and fragile callback assumptions. |
+| **Raft FSOD Cluster** | Raft provides one fenced control-plane authority, shard ownership spreads dispatch across active Server pods, and durable outbox rows survive Worker Tunnel failover. | Active-passive scheduler waste, Redis/DB lock ownership ambiguity, and pod-local dispatch state loss. |
 | **Capability Graph** | Worker ability is a typed graph: SDK processors, plugins, scripts, tags, election domains. | Ambiguous string conventions and “why did this worker get this job?” debugging. |
 | **Sandbox Auto Strategy** | `auto` chooses the safest practical runtime path: SRT for native scripts, Deno for JS/TS, Wasmtime/WASM when appropriate. | Treating scripts as ordinary shell commands with unclear isolation. |
 | **Execution Evidence Model** | Every attempt, retry, worker result, broadcast child, and task log is inspectable. | Status-only dashboards that cannot explain failures. |
@@ -928,9 +929,11 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
   --create-namespace   --values ./my-tikeo-values.yaml
 ```
 
-If you plan to run more than one Server pod, do not treat it as a normal replica bump. Use the Raft HA overlay and read the dedicated deployment guide first: [Server HA and cluster modes](https://docs.tikeo.net/docs/deployment/server-ha). It is the canonical runbook for topology diagrams, mode comparison, FSOD dispatch durability, multi-owner scheduler shard dispatch, Worker Tunnel gateway relay, and failover behavior.
+Tikeo's production multi-pod design is the **Raft FSOD Cluster** (Fenced Slot Outbox Dispatch): a Raft-backed Server HA architecture that does not depend on external distributed locks for scheduler correctness. It combines Leader fencing, shard ownership projection, durable outbox dispatch, and Worker Tunnel gateway relay so API/Web traffic may land on any pod while task dispatch remains fenced and recoverable.
 
-Current production HA semantics:
+Read the dedicated guide first: [Server HA and Raft FSOD Cluster](https://docs.tikeo.net/docs/deployment/server-ha). It includes deployment diagrams, mode selection, advantages, trade-offs, configuration requirements, FSOD durability, multi-owner scheduler shard dispatch, Worker Tunnel gateway relay, and failover checks.
+
+Raft FSOD Cluster production semantics:
 
 | Topic | Current behavior | Operational meaning |
 | --- | --- | --- |
