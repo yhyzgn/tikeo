@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { Alert, Button, Card, Form, Input, List, Popconfirm, Segmented, Select, Space, Switch, Tag, Timeline, Typography, message } from 'antd';
+import { Alert, Button, Card, Form, Input, List, Popconfirm, Progress, Segmented, Select, Space, Switch, Tag, Timeline, Typography, message } from 'antd';
 import {
   advanceWorkflowInstance,
   createWorkflow,
@@ -858,8 +858,11 @@ export function WorkflowsPage() {
   const [shards, setShards] = useState<WorkflowShardSummary[]>([]);
   const [replay, setReplay] = useState<WorkflowReplayResponse | null>(null);
   const [replayLoading, setReplayLoading] = useState(false);
+  const [replayCursor, setReplayCursor] = useState(0);
+  const [replayPlaying, setReplayPlaying] = useState(false);
   const [expandedWorkflowId, setExpandedWorkflowId] = useState<string | null>(null);
   const navigate = useNavigate();
+  const replayPlaybackTimer = useRef<number | null>(null);
 
   const filteredItems = useMemo(() => items.filter((item) => {
     const keyword = String(query.keyword ?? '').trim().toLowerCase();
@@ -881,6 +884,30 @@ export function WorkflowsPage() {
   };
 
   useEffect(() => { if (active) void fetchItems(); }, [active]);
+
+  useEffect(() => {
+    if (!replayPlaying || !replay?.events.length) return undefined;
+    replayPlaybackTimer.current = window.setInterval(() => {
+      setReplayCursor((current) => {
+        const next = Math.min(current + 1, replay.events.length - 1);
+        if (next === current) {
+          setReplayPlaying(false);
+        }
+        return next;
+      });
+    }, 900);
+    return () => {
+      if (replayPlaybackTimer.current) {
+        window.clearInterval(replayPlaybackTimer.current);
+        replayPlaybackTimer.current = null;
+      }
+    };
+  }, [replayPlaying, replay?.events.length]);
+
+  useEffect(() => {
+    setReplayCursor(0);
+    setReplayPlaying(false);
+  }, [replay?.instance.id, activeWorkflow?.id]);
 
   useEffect(() => {
     if (!active || !activeInstance) return undefined;
@@ -926,6 +953,8 @@ export function WorkflowsPage() {
         setEvents([]);
         setShards([]);
         setReplay(null);
+        setReplayCursor(0);
+        setReplayPlaying(false);
       }
       return item;
     });
@@ -937,6 +966,9 @@ export function WorkflowsPage() {
     setActiveWorkflow(item);
     setActiveInstance(instance);
     setEvents([]);
+    setReplay(null);
+    setReplayCursor(0);
+    setReplayPlaying(false);
     setExpandedWorkflowId(item.id);
     message.success(`Workflow instance queued: ${instance.id}`);
   };
@@ -986,6 +1018,8 @@ export function WorkflowsPage() {
     try {
       const result = await getWorkflowReplay(activeInstance.id);
       setReplay(result);
+      setReplayCursor(0);
+      setReplayPlaying(false);
       setActiveInstance(result.instance);
       setActiveWorkflow(result.workflow);
       setEvents(result.events);
@@ -993,6 +1027,28 @@ export function WorkflowsPage() {
     } finally {
       setReplayLoading(false);
     }
+  };
+
+  const currentReplayEvent = replay?.events[replayCursor] ?? null;
+  const replayProgress = replay?.events.length
+    ? Math.round(((replayCursor + 1) / replay.events.length) * 100)
+    : 0;
+  const playReplay = () => {
+    if (!replay?.events.length) return;
+    if (replayCursor >= replay.events.length - 1) {
+      setReplayCursor(0);
+    }
+    setReplayPlaying(true);
+  };
+  const pauseReplay = () => setReplayPlaying(false);
+  const resetReplay = () => {
+    setReplayPlaying(false);
+    setReplayCursor(0);
+  };
+  const stepReplay = (direction: -1 | 1) => {
+    if (!replay?.events.length) return;
+    setReplayPlaying(false);
+    setReplayCursor((current) => Math.max(0, Math.min(current + direction, replay.events.length - 1)));
   };
 
   return (
@@ -1043,7 +1099,45 @@ export function WorkflowsPage() {
                         <Space direction="vertical" size={10} style={{ width: '100%' }}>
                           <Typography.Text type="secondary">workflow replay · <span data-runtime-text>{replay.instance.id} · {replay.instance.status}</span> · events: {replay.events.length}</Typography.Text>
                           <DagPreview definition={replay.workflow.definition} instance={replay.instance} />
-                          <List size="small" dataSource={replay.events} renderItem={(event) => <List.Item><Typography.Text data-runtime-text>{event.createdAt} · {event.eventType} · {event.message}</Typography.Text></List.Item>} />
+                          <div className="workflow-replay-player" aria-label="workflow replay player">
+                            <div className="workflow-replay-player__header">
+                              <Space wrap>
+                                <Button size="small" type={replayPlaying ? 'default' : 'primary'} onClick={playReplay} disabled={!replay.events.length || replayPlaying}>播放</Button>
+                                <Button size="small" onClick={pauseReplay} disabled={!replayPlaying}>暂停</Button>
+                                <Button size="small" onClick={resetReplay} disabled={!replay.events.length || replayCursor === 0}>重置</Button>
+                                <Button size="small" onClick={() => stepReplay(-1)} disabled={!replay.events.length || replayCursor === 0}>上一步</Button>
+                                <Button size="small" onClick={() => stepReplay(1)} disabled={!replay.events.length || replayCursor >= replay.events.length - 1}>下一步</Button>
+                              </Space>
+                              <Typography.Text type="secondary" data-runtime-text>step {replay.events.length ? replayCursor + 1 : 0}/{replay.events.length}</Typography.Text>
+                            </div>
+                            <Progress percent={replayProgress} size="small" status={currentReplayEvent?.eventType.includes('failed') ? 'exception' : replayProgress === 100 ? 'success' : 'active'} />
+                            <div className="workflow-replay-player__current">
+                              {currentReplayEvent ? (
+                                <Space direction="vertical" size={2}>
+                                  <Typography.Text strong data-runtime-text>{currentReplayEvent.eventType}</Typography.Text>
+                                  <Typography.Text type="secondary" data-runtime-text>{currentReplayEvent.createdAt}</Typography.Text>
+                                  <Typography.Text data-runtime-text>{currentReplayEvent.message || '无事件消息'}</Typography.Text>
+                                </Space>
+                              ) : <Typography.Text type="secondary">该实例暂无可回放事件</Typography.Text>}
+                            </div>
+                            <div className="workflow-replay-timeline">
+                              {replay.events.map((event, eventIndex) => (
+                                <button
+                                  key={event.id}
+                                  type="button"
+                                  className={`workflow-replay-event${eventIndex === replayCursor ? ' workflow-replay-event--active' : ''}${event.eventType.includes('failed') ? ' workflow-replay-event--failed' : ''}`}
+                                  onClick={() => { setReplayPlaying(false); setReplayCursor(eventIndex); }}
+                                >
+                                  <span className="workflow-replay-event__index">{eventIndex + 1}</span>
+                                  <span className="workflow-replay-event__body">
+                                    <Typography.Text strong data-runtime-text>{event.eventType}</Typography.Text>
+                                    <Typography.Text type="secondary" data-runtime-text>{event.createdAt}</Typography.Text>
+                                    <Typography.Text data-runtime-text>{event.message || '无事件消息'}</Typography.Text>
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         </Space>
                       </Card>
                     ) : null}

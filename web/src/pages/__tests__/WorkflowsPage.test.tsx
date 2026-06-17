@@ -53,6 +53,25 @@ describe('workflow replay and definition diff affordances', () => {
     expect(source).toContain('workflow-replay-panel');
   });
 
+  test('workflow replay renders an operator playback timeline', () => {
+    expect(source).toContain('workflow-replay-player');
+    expect(source).toContain('replayCursor');
+    expect(source).toContain('replayPlaying');
+    expect(source).toContain('replayPlaybackTimer');
+    expect(source).toContain('playReplay');
+    expect(source).toContain('pauseReplay');
+    expect(source).toContain('resetReplay');
+    expect(source).toContain('stepReplay');
+    expect(source).toContain('currentReplayEvent');
+    expect(source).toContain('workflow-replay-timeline');
+    expect(source).toContain('workflow-replay-event--active');
+    expect(source).toContain('Progress');
+    expect(source).toContain('播放');
+    expect(source).toContain('暂停');
+    expect(source).toContain('上一步');
+    expect(source).toContain('下一步');
+  });
+
   test('workflow editor exposes a first-class definition diff view', () => {
     expect(source).toContain('buildLineDiff');
     expect(source).toContain('WorkflowDefinitionDiff');
