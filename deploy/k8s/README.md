@@ -24,15 +24,14 @@ a headless peer Service, a shared external database, and a Kubernetes Secret for
 
 Current FSOD semantics:
 
-- Raft elects one fenced Leader for workflow materialization, broadcast dispatch, retry, and default
-  queue ownership loops.
+- Raft elects one fenced control-plane Leader; the Leader balances scheduler shards into
+  `cluster_shard_ownership` for active/configured members.
 - Dispatch intent is persisted to `worker_dispatch_outbox` before stream delivery, so gateway or
   Worker disconnects can reroute/requeue from durable state.
-- Workers may connect to any Server Pod. Sessions record `gateway_node_id`; the Leader can deliver
-  locally or send an internal relay hint to the gateway that owns the stream.
-- Scheduler shards are projected into `cluster_shard_ownership` under the current Leader fencing
-  token. Follower shard-owner claiming is implemented for the future multi-owner path, but automatic
-  balancing remains gated behind Raft-applied membership/health rebalancing.
+- Workers may connect to any Server Pod. Sessions record `gateway_node_id`; any shard owner can
+  deliver locally or send an internal relay hint to the gateway that owns the stream.
+- Scheduler shards are multi-owner: follower Pods with active shard rows can dispatch job queues,
+  materialize workflow nodes, and dispatch broadcast attempts for their owned shards only.
 - Redis/Dragonfly distributed locks are intentionally not part of core scheduling correctness.
 
 Minimal raw-manifest flow:

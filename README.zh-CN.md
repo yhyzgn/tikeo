@@ -844,16 +844,16 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
   --values ./my-tikeo-values.yaml
 ```
 
-如果要把 Server 跑成多 Pod，不要把它当成普通扩副本处理；先按 Raft HA overlay 部署，并阅读这篇独立部署指南：[Server 高可用与集群模式](https://docs.tikeo.net/zh-CN/docs/deployment/server-ha)。这是部署拓扑图、模式选择、FSOD 派发持久化、Worker Tunnel gateway relay、故障切换和当前调度吞吐边界的权威 runbook。
+如果要把 Server 跑成多 Pod，不要把它当成普通扩副本处理；先按 Raft HA overlay 部署，并阅读这篇独立部署指南：[Server 高可用与集群模式](https://docs.tikeo.net/zh-CN/docs/deployment/server-ha)。这是部署拓扑图、模式选择、FSOD 派发持久化、多 owner scheduler shard dispatch、Worker Tunnel gateway relay 和故障切换的权威 runbook。
 
 当前生产 HA 语义：
 
 | 主题 | 当前行为 | 运维含义 |
 | --- | --- | --- |
-| Server HA | 安全默认是基于 `StatefulSet` 和 `tikeo-server-headless` 的 **Raft 单 Leader 调度**。 | 更多 Server Pod 提升故障切换能力和 Worker Tunnel 连接分布能力；调度所有权仍由被选举出的 Leader 通过 fencing 持有。 |
+| Server HA | Raft 选出一个带 fencing 的控制面 Leader，然后把 scheduler shard ownership 均衡投影到 active/configured members。 | 更多 Server Pod 会提升故障切换、Worker Tunnel 连接分布，以及 owned shard 的派发吞吐。 |
 | 派发持久化 | FSOD 会先把派发意图写入 `worker_dispatch_outbox`，再尝试 stream 投递。 | gateway、relay 或 Worker stream 短暂断开时，queued/delivered outbox 记录可以 reroute 或 requeue，不会只丢在 Pod 内存里。 |
-| Shard ownership | 运行时会把配置的 scheduler shards 按当前 Leader fencing token 投影到 `cluster_shard_ownership`。 | Follower shard-owner claim 路径已实现并测试，但自动多 owner 均衡要等 Raft-applied health/membership rebalancer 后再开启。 |
-| Worker Tunnel | Worker 可以连接任意 Server Pod；session 记录 `gateway_node_id`，Leader 使用本地投递或通过持有连接的 gateway 做 internal relay hint。 | Worker Tunnel 暴露链路必须支持 gRPC/HTTP2；内部 peer endpoint 和 `cluster.transport_token` 必须配置好用于 relay。 |
+| Shard ownership | 运行时会把 scheduler shards、owner epoch 和 fencing token 投影到 `cluster_shard_ownership`。 | Follower shard owner 只能 claim 自己 shard 下的 job queue、workflow-node materialization 和 broadcast attempt；非 owner fail closed。 |
+| Worker Tunnel | Worker 可以连接任意 Server Pod；session 记录 `gateway_node_id`，任一 shard owner 都可本地投递或通过持有连接的 gateway 做 internal relay hint。 | Worker Tunnel 暴露链路必须支持 gRPC/HTTP2；内部 peer endpoint 和 `cluster.transport_token` 必须配置好用于 relay。 |
 | 外部分布式锁 | 核心调度所有权不使用 Redis/Dragonfly lock。 | 可选缓存只能加速周边能力；调度正确性来自 Raft fencing、shard ownership、durable outbox 和 DB terminal-state fencing。 |
 
 ```bash

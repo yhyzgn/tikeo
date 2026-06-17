@@ -642,7 +642,7 @@ async fn raft_inprocess_membership_proposal_commits_and_applies_member() {
 }
 
 #[tokio::test]
-async fn raft_leader_status_projects_all_shards_to_current_leader() {
+async fn raft_leader_status_balances_shards_across_active_members() {
     let repository = test_raft_repository_for("tikeo-0").await;
     let config = ClusterConfig {
         mode: ClusterModeConfig::Raft,
@@ -677,7 +677,15 @@ async fn raft_leader_status_projects_all_shards_to_current_leader() {
         .await
         .unwrap_or_else(|error| panic!("ownership should list: {error}"));
     assert_eq!(ownership.len(), 4);
-    assert!(ownership.iter().all(|row| row.owner_node_id == "tikeo-0"));
+    let owner_counts =
+        ownership
+            .iter()
+            .fold(std::collections::BTreeMap::new(), |mut counts, row| {
+                *counts.entry(row.owner_node_id.clone()).or_insert(0usize) += 1;
+                counts
+            });
+    assert_eq!(owner_counts.get("tikeo-0"), Some(&2));
+    assert_eq!(owner_counts.get("tikeo-1"), Some(&2));
     assert!(ownership.iter().all(|row| row.shard_map_version == 3));
     assert!(ownership.iter().all(|row| row.shard_count == 4));
     assert!(ownership.iter().all(|row| row.epoch == 1));

@@ -275,7 +275,7 @@
                 schedule_start_at: None,
                 schedule_end_at: None,
                 schedule_calendar_json: None,
-                processor_name: None,
+                processor_name: Some("billing.manual".to_owned()),
                 processor_type: None,
                 script_id: None,
                 enabled: true,
@@ -410,7 +410,7 @@
     }
 
     #[tokio::test]
-    async fn follower_dispatch_does_not_claim_queue_items() {
+    async fn follower_dispatch_claims_owned_shard_queue_items() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
@@ -434,7 +434,7 @@
                 schedule_start_at: None,
                 schedule_end_at: None,
                 schedule_calendar_json: None,
-                processor_name: None,
+                processor_name: Some("billing.manual".to_owned()),
                 processor_type: None,
                 script_id: None,
                 enabled: true,
@@ -444,7 +444,7 @@
             })
             .await
             .unwrap_or_else(|error| panic!("job should be created: {error}"));
-        instances
+        let instance = instances
             .create_pending(CreateJobInstance {
                 job_id: job.id.clone(),
                 trigger_type: TriggerType::Api,
@@ -453,7 +453,43 @@
             .await
             .unwrap_or_else(|error| panic!("instance should be created: {error}"))
             .unwrap_or_else(|| panic!("job should exist"));
+        let queued = workflows
+            .dispatch_queue_for_instance(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("dispatch queue should load: {error}"))
+            .unwrap_or_else(|| panic!("dispatch queue item should exist"));
+        let shard_id = queued.shard_id.unwrap_or_else(|| panic!("queue item should be sharded"));
+        let owner = tikeo_storage::ClusterShardOwnershipRepository::new(jobs.db())
+            .upsert_newer(tikeo_storage::UpsertClusterShardOwnership {
+                shard_id,
+                shard_map_version: 1,
+                shard_count: 64,
+                owner_node_id: "node-b".to_owned(),
+                epoch: 11,
+                raft_term: 6,
+                lease_seconds: Some(30),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("shard owner should persist: {error}"))
+            .unwrap_or_else(|| panic!("newer shard owner should be accepted"));
         let registry = WorkerRegistry::default();
+        let (tx, mut rx) = mpsc::channel(1);
+        registry
+            .register(
+                RegisterWorker {
+                    client_instance_id: "worker-follower".to_owned(),
+                    app: "billing".to_owned(),
+                    namespace: "default".to_owned(),
+                    cluster: "local".to_owned(),
+                    region: "local".to_owned(),
+                    capabilities: Vec::new(),
+                    structured_capabilities: Some(sdk_capabilities("billing.manual")),
+                    election: None,
+                    labels: HashMap::default(),
+                },
+                tx,
+            )
+            .await;
         let follower = StaticCoordinator::shared(ClusterStatus {
             mode: ClusterMode::Raft,
             role: ClusterRole::Follower,
@@ -480,13 +516,30 @@
         .await
         .unwrap_or_else(|error| panic!("dispatch gate should run: {error}"));
 
-        let overview = workflows
-            .queue_overview(10)
+        let message = tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv())
             .await
-            .unwrap_or_else(|error| panic!("queue should load: {error}"));
-        assert_eq!(overview.pending, 1);
-        assert_eq!(overview.running, 0);
-        assert!(overview.items[0].lease_owner.is_none());
+            .unwrap_or_else(|_| panic!("worker should receive follower-owned shard dispatch before timeout"))
+            .unwrap_or_else(|| panic!("worker channel should stay open"))
+            .unwrap_or_else(|error| panic!("dispatch should be ok: {error}"));
+        match message.kind {
+            Some(server_message::Kind::DispatchTask(task)) => {
+                assert_eq!(task.instance_id, instance.id);
+                assert_eq!(task.processor_name, "billing.manual");
+                assert!(!task.assignment_token.is_empty());
+            }
+            other => panic!("unexpected server message: {other:?}"),
+        }
+        let updated_queue = workflows
+            .dispatch_queue_for_instance(&instance.id)
+            .await
+            .unwrap_or_else(|error| panic!("dispatch queue should reload: {error}"))
+            .unwrap_or_else(|| panic!("dispatch queue item should still exist"));
+        assert_eq!(updated_queue.status, "running");
+        assert_eq!(updated_queue.owner_epoch, Some(owner.epoch));
+        assert_eq!(
+            updated_queue.owner_fencing_token.as_deref(),
+            Some(owner.fencing_token.as_str())
+        );
     }
 
     #[tokio::test]
@@ -630,7 +683,7 @@
     }
 
     #[tokio::test]
-    async fn explicit_shard_owner_does_not_materialize_workflow_nodes() {
+    async fn explicit_shard_owner_materializes_owned_workflow_nodes() {
         let db = connect_and_migrate("sqlite::memory:")
             .await
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
@@ -643,19 +696,6 @@
         let audit = AuditLogRepository::new(db.clone());
         let scripts = ScriptRepository::new(db.clone());
         let ownership = tikeo_storage::ClusterShardOwnershipRepository::new(db);
-        let owner = ownership
-            .upsert_newer(tikeo_storage::UpsertClusterShardOwnership {
-                shard_id: 7,
-                shard_map_version: 1,
-                shard_count: 64,
-                owner_node_id: "node-b".to_owned(),
-                epoch: 10,
-                raft_term: 5,
-                lease_seconds: Some(30),
-            })
-            .await
-            .unwrap_or_else(|error| panic!("shard owner should persist: {error}"))
-            .unwrap_or_else(|| panic!("newer shard owner should be accepted"));
         let job = jobs
             .create_job(CreateJob {
                 created_by: None,
@@ -702,6 +742,26 @@
             .run_workflow(&workflow.id, "api")
             .await
             .unwrap_or_else(|error| panic!("workflow should run: {error}"));
+        let overview_before = workflows
+            .queue_overview(10)
+            .await
+            .unwrap_or_else(|error| panic!("queue should load: {error}"));
+        let workflow_queue_shard = overview_before.items[0]
+            .shard_id
+            .unwrap_or_else(|| panic!("workflow node queue should have stable shard id"));
+        let owner = ownership
+            .upsert_newer(tikeo_storage::UpsertClusterShardOwnership {
+                shard_id: workflow_queue_shard,
+                shard_map_version: 1,
+                shard_count: 64,
+                owner_node_id: "node-b".to_owned(),
+                epoch: 11,
+                raft_term: 5,
+                lease_seconds: Some(30),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("matching shard owner should persist: {error}"))
+            .unwrap_or_else(|| panic!("newer matching shard owner should be accepted"));
         let registry = WorkerRegistry::default();
         dispatch_once_with_shards(
             &jobs,
@@ -728,12 +788,150 @@
         assert_eq!(overview.pending, 1);
         assert_eq!(overview.running, 0);
         assert!(
-            overview
-                .items
-                .iter()
-                .all(|item| item.workflow_node_instance_id.is_some()),
-            "shard-owner follower must not claim or materialize workflow-node queue items: {overview:?}"
+            overview.items.iter().any(|item| item.job_instance_id.is_some()),
+            "shard-owner follower should materialize an owned workflow node into a job dispatch item: {overview:?}"
+        );
+        assert!(
+            overview.items.iter().any(|item| {
+                item.workflow_node_instance_id.is_some()
+                    && item.status == "done"
+                    && item.owner_epoch == Some(owner.epoch)
+            }),
+            "owned workflow node queue should be fenced and closed after materialization: {overview:?}"
         );
     }
 
 
+
+
+    #[tokio::test]
+    async fn explicit_shard_owner_dispatches_only_owned_broadcast_attempts() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let instances = JobInstanceRepository::new(db.clone());
+        let attempts = JobInstanceAttemptRepository::new(db.clone());
+        let workflows = WorkflowRepository::new(db.clone());
+        let outbox = tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone());
+        let logs = tikeo_storage::JobInstanceLogRepository::new(db.clone());
+        let audit = AuditLogRepository::new(db.clone());
+        let scripts = ScriptRepository::new(db.clone());
+        let ownership = tikeo_storage::ClusterShardOwnershipRepository::new(db);
+        let job = jobs
+            .create_job(CreateJob {
+                created_by: None,
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "broadcast-owner-dispatch".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("billing.broadcast".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                retry_policy: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("job should be created: {error}"));
+        let instance = instances
+            .create_pending(CreateJobInstance {
+                job_id: job.id.clone(),
+                trigger_type: TriggerType::Api,
+                execution_mode: ExecutionMode::Broadcast,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("instance should be created: {error}"))
+            .unwrap_or_else(|| panic!("job should exist"));
+        let registry = WorkerRegistry::default();
+        let (tx, mut rx) = mpsc::channel(1);
+        let registered = registry
+            .register(
+                RegisterWorker {
+                    client_instance_id: "worker-broadcast-client".to_owned(),
+                    app: "billing".to_owned(),
+                    namespace: "default".to_owned(),
+                    cluster: "local".to_owned(),
+                    region: "local".to_owned(),
+                    capabilities: Vec::new(),
+                    structured_capabilities: Some(sdk_capabilities("billing.broadcast")),
+                    election: None,
+                    labels: HashMap::default(),
+                },
+                tx,
+            )
+            .await;
+        let created_attempts = attempts
+            .create_pending_for_workers(&instance.id, std::slice::from_ref(&registered.worker_id))
+            .await
+            .unwrap_or_else(|error| panic!("broadcast attempt should be created: {error}"));
+        let attempt = created_attempts
+            .first()
+            .unwrap_or_else(|| panic!("attempt should exist"));
+        let target_shard = tikeo_storage::scheduler_shard_policy().shard_id_for(
+            &job.namespace,
+            &job.app,
+            &format!("{}:{}", instance.id, attempt.id),
+        );
+        let owner = ownership
+            .upsert_newer(tikeo_storage::UpsertClusterShardOwnership {
+                shard_id: target_shard,
+                shard_map_version: 1,
+                shard_count: 64,
+                owner_node_id: "node-b".to_owned(),
+                epoch: 12,
+                raft_term: 6,
+                lease_seconds: Some(30),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("broadcast owner should persist: {error}"))
+            .unwrap_or_else(|| panic!("newer broadcast owner should be accepted"));
+
+        dispatch_once_with_shards(
+            &jobs,
+            &instances,
+            &attempts,
+            &outbox,
+            &workflows,
+            &scripts,
+            &logs,
+            &audit,
+            &registry,
+            "node-b",
+            "fallback-not-used",
+            std::slice::from_ref(&owner),
+            &notification_center(&jobs),
+        )
+        .await
+        .unwrap_or_else(|error| panic!("owned broadcast dispatch should run: {error}"));
+
+        let message = tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv())
+            .await
+            .unwrap_or_else(|_| panic!("worker should receive owned broadcast before timeout"))
+            .unwrap_or_else(|| panic!("worker channel should stay open"))
+            .unwrap_or_else(|error| panic!("broadcast dispatch should be ok: {error}"));
+        match message.kind {
+            Some(server_message::Kind::DispatchTask(task)) => {
+                assert_eq!(task.instance_id, instance.id);
+                assert_eq!(task.processor_name, "billing.broadcast");
+                assert!(!task.assignment_token.is_empty());
+            }
+            other => panic!("unexpected server message: {other:?}"),
+        }
+        let outbox_row = outbox
+            .claim_next_for_gateway("standalone", 10)
+            .await
+            .unwrap_or_else(|error| panic!("outbox should be claimable: {error}"))
+            .unwrap_or_else(|| panic!("broadcast dispatch should create durable outbox"));
+        assert_eq!(outbox_row.instance_id, instance.id);
+        assert_eq!(outbox_row.shard_id, i64::from(target_shard));
+        assert_eq!(outbox_row.owner_node_id, "node-b");
+        assert_eq!(outbox_row.owner_epoch, owner.epoch);
+        assert_eq!(outbox_row.owner_fencing_token, owner.fencing_token);
+    }

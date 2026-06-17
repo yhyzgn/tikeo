@@ -14,14 +14,27 @@ use super::{
     WorkflowShardSummary, WorkflowSloSummary, aggregate_shard_node_status,
     dispatch_queue_age_seconds, elapsed_seconds, insert_shard_completion_event, json_string,
     maybe_persist_map_reduce_result, new_id, node_kind, normalize_processor_name,
-    normalize_terminal_status, now_rfc3339, rfc3339_after_seconds, success_ratio,
-    update_shard_terminal, workflow_config_i64, workflow_config_string,
+    normalize_terminal_status, now_rfc3339, rfc3339_after_seconds, scheduler_shard_policy,
+    success_ratio, update_shard_terminal, workflow_config_i64, workflow_config_string,
 };
 use crate::entities::{
     app as app_entity, dispatch_queue, instance_event, job_instance, namespace as namespace_entity,
     workflow_instance, workflow_node_instance, workflow_shard,
 };
 use crate::repository::ClusterShardOwnershipRepository;
+
+fn workflow_runtime_dispatch_shard(
+    namespace: &str,
+    app: &str,
+    durable_id: &str,
+) -> (i32, i64, i32) {
+    let policy = scheduler_shard_policy();
+    (
+        policy.shard_id_for(namespace, app, durable_id),
+        policy.shard_map_version,
+        policy.shard_count,
+    )
+}
 
 impl WorkflowRepository {
     pub async fn expire_timed_out_approval_nodes(&self) -> Result<u64, sea_orm::DbErr> {
@@ -495,6 +508,34 @@ impl WorkflowRepository {
     ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
         self.claim_next_job_queue_item_with_fencing(lease_owner, lease_seconds, lease_owner)
             .await
+    }
+
+    pub async fn claim_next_workflow_node_queue_item_for_shard_owner(
+        &self,
+        owner: DispatchQueueShardOwner,
+        lease_seconds: i64,
+    ) -> Result<Option<DispatchQueueClaim>, sea_orm::DbErr> {
+        if !ClusterShardOwnershipRepository::new(self.db.clone())
+            .accepts_fencing_token(
+                owner.shard_id,
+                &owner.owner_node_id,
+                owner.owner_epoch,
+                &owner.owner_fencing_token,
+            )
+            .await?
+        {
+            return Ok(None);
+        }
+        let fencing_token = owner.owner_fencing_token.clone();
+        let owner_node_id = owner.owner_node_id.clone();
+        self.claim_next_dispatch_queue_item_matching(
+            &owner_node_id,
+            lease_seconds,
+            DispatchQueueClaimKind::WorkflowNode,
+            Some(&fencing_token),
+            Some(owner),
+        )
+        .await
     }
 
     pub async fn claim_next_job_queue_item_with_fencing(
@@ -1266,13 +1307,15 @@ impl WorkflowRepository {
             }
             .insert(&txn)
             .await?;
+            let (shard_id, shard_map_version, shard_count) =
+                workflow_runtime_dispatch_shard("workflow", instance_id, &job_instance_id);
             dispatch_queue::ActiveModel {
                 id: Set(new_id("dq")),
                 job_instance_id: Set(Some(job_instance_id.clone())),
                 workflow_node_instance_id: Set(None),
-                shard_id: Set(None),
-                shard_map_version: Set(None),
-                shard_count: Set(None),
+                shard_id: Set(Some(shard_id)),
+                shard_map_version: Set(Some(shard_map_version)),
+                shard_count: Set(Some(shard_count)),
                 owner_epoch: Set(None),
                 owner_fencing_token: Set(None),
                 priority: Set(0),
@@ -1353,13 +1396,18 @@ impl WorkflowRepository {
         node_active.updated_at = Set(now.clone());
         let updated = node_active.update(&txn).await?;
         if input.action == "retry" {
+            let (shard_id, shard_map_version, shard_count) = workflow_runtime_dispatch_shard(
+                "workflow",
+                instance_id,
+                &format!("{instance_id}:{}", updated.node_key),
+            );
             dispatch_queue::ActiveModel {
                 id: Set(new_id("dq")),
                 job_instance_id: Set(None),
                 workflow_node_instance_id: Set(Some(updated.id.clone())),
-                shard_id: Set(None),
-                shard_map_version: Set(None),
-                shard_count: Set(None),
+                shard_id: Set(Some(shard_id)),
+                shard_map_version: Set(Some(shard_map_version)),
+                shard_count: Set(Some(shard_count)),
                 owner_epoch: Set(None),
                 owner_fencing_token: Set(None),
                 priority: Set(0),

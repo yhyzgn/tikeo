@@ -55,13 +55,13 @@ The chart injects the secret as `TIKEO__STORAGE__DATABASE_URL`, which overrides 
 
 For production multi-pod Server HA, set `server.cluster.mode=raft` and use Raft mode with an external database. The public deployment runbook is [Server HA and cluster modes](https://docs.tikeo.net/docs/deployment/server-ha); the repo-local source is `docs/docs/deployment/server-ha.md`.
 
-Current behavior is FSOD-backed safe HA, not naive replica scheduling:
+Current behavior is FSOD-backed multi-owner HA, not naive replica scheduling:
 
 - The chart renders the Server as a `StatefulSet`, creates a headless peer Service, injects a stable pod name as `TIKEO__CLUSTER__NODE_ID`, and reads the internal Raft transport token from a Kubernetes Secret.
-- Only the elected Leader with a persisted fencing token runs workflow materialization, broadcast dispatch, retry, and default queue ownership loops.
+- The elected Leader persists the control-plane fencing token and balances scheduler shards into `cluster_shard_ownership` for active/configured members.
 - FSOD persists Worker dispatch intent in `worker_dispatch_outbox` before stream delivery. Gateway relay is a wake-up/hint path; reconnect, reroute, and visibility timeout recovery use durable rows instead of pod memory.
-- The Leader projects configured scheduler shards into `cluster_shard_ownership`. The follower shard-owner claim path is implemented and tested, but automatic multi-owner balancing is gated until membership/health rebalancing is Raft-applied.
-- More Server pods improve failover and Worker Tunnel connection distribution today; they do not yet linearly split scheduling-decision throughput.
+- Follower shard owners can dispatch job queues, materialize workflow nodes, and dispatch broadcast attempts for their owned shards only; stale owner tokens are rejected.
+- More Server pods improve failover, Worker Tunnel connection distribution, and dispatch throughput for projected shard owners.
 
 Create the transport token Secret separately:
 

@@ -8,7 +8,7 @@ keywords: [tikeo server ha, raft, fsod, worker dispatch outbox, kubernetes ha, w
 
 Tikeo Server HA is built around **FSOD: Fenced Slot Outbox Dispatch**. In Kubernetes Raft mode, Server pods form a Raft group, the elected Leader persists a fencing token, projects scheduler shard ownership into the shared database, and dispatches through a durable `worker_dispatch_outbox`. Worker Tunnel streams may land on any Server pod; the pod that owns the stream acts as a gateway and delivers outbox rows for its `gateway_node_id`.
 
-The safe production default in this release is conservative: the current Raft Leader projects all active scheduler shards to itself. The storage and dispatcher already support follower shard-owner claims, but automatic multi-owner shard balancing remains gated until Raft-applied membership and health decisions are promoted to a production rebalancer. This avoids assigning shards to a pod that has just failed.
+This release uses a multi-owner scheduler path. Raft still elects exactly one control-plane Leader, but that Leader projects scheduler shards across active/configured members. Follower Pods can actively dispatch only the shards they own, and each claim is fenced by the persisted owner epoch/token. If membership health cannot be read yet, projection falls back to the configured peer set; if only one member is configured, behavior naturally becomes single-owner.
 
 ## Deployment architecture
 
@@ -91,9 +91,9 @@ FSOD invariants:
 | --- | --- |
 | Multi-pod Server deployment | Helm `server.cluster.mode=raft` renders a `StatefulSet`, stable pod names, and `tikeo-server-headless`. |
 | Consensus and fencing | Raft runtime elects one Leader; only a node with a persisted leader fencing token reports `canSchedule=true`. |
-| Shard ownership projection | The Leader projects configured scheduler shards into `cluster_shard_ownership` with `shard_map_version`, `shard_count`, `epoch`, `raft_term`, and fencing token. |
-| Safe shard ownership default | All active shards are projected to the current Leader. Follower shard-owner dispatch is implemented and tested, but automatic multi-owner balancing is not enabled until a Raft-applied rebalancer can avoid failed peers. |
-| Dispatch queue fencing | API/job dispatch queue rows persist shard map fields. Claims can bind to `owner_epoch` and `owner_fencing_token`; stale owner tokens are rejected. |
+| Shard ownership projection | The Leader balances configured scheduler shards into `cluster_shard_ownership` with `shard_map_version`, `shard_count`, `epoch`, `raft_term`, owner node, and fencing token. |
+| Multi-owner dispatch | Any Pod with active ownership rows may dispatch job-instance queues, workflow-node materialization, and broadcast attempts for its owned shards. Non-owners and stale tokens fail closed. |
+| Dispatch queue fencing | API/job/workflow dispatch queue rows persist shard map fields. Claims bind to `owner_epoch` and `owner_fencing_token`; stale owner tokens are rejected. |
 | Durable Worker dispatch | Dispatch creates an assignment token and `worker_dispatch_outbox` row before stream delivery or internal relay hint. |
 | Outbox recovery | Gateway delivery scans by `gateway_node_id`; delivered rows without ack/result are requeued by visibility timeout; Worker reconnect can reroute rows by `logical_instance_id` + generation. |
 | LASSO worker scoring | Candidate ordering prefers local gateway, then Worker authority, then stable rendezvous spread by dispatch key, then worker id tie-break. |
@@ -108,18 +108,17 @@ flowchart TD
   A[Need Server pod failover?] -->|No| B[Standalone]
   A -->|Yes| C[Raft FSOD HA]
   C --> D[StatefulSet + headless Service + external DB + transport Secret]
-  D --> E[Leader projects shard ownership and writes durable outbox]
-  E --> F{Need more dispatch throughput?}
-  F -->|No| G[Keep safe Leader-owned projection]
-  F -->|Yes| H[Enable a future Raft-applied shard rebalancer after health evidence]
-  H --> I[Still no Redis/Dragonfly lock as correctness dependency]
+  D --> E[Leader balances shard ownership rows]
+  E --> F[Shard owners claim only owned queues]
+  F --> G[Durable outbox + gateway relay]
+  G --> H[No Redis/Dragonfly lock as correctness dependency]
 ```
 
 | Mode | How to run it | Use when | Do not use when |
 | --- | --- | --- | --- |
 | Standalone | `cluster.mode=standalone`, one Server process/pod | Local dev, demos, small single-node VM installs | You need Server pod failover |
 | Raft FSOD HA | `server.cluster.mode=raft`, StatefulSet, external DB, transport token | Production Kubernetes HA, durable outbox dispatch, Worker gateway failover | You only changed `server.replicas` on a standalone Deployment |
-| Multi-owner shard balancing | Not enabled by default in this release | Future measured scheduler bottleneck plus Raft-applied membership/health rebalancer | You cannot tolerate per-shard ownership changes during rollout |
+| Multi-owner shard balancing | Enabled by Raft shard ownership projection | Scheduler throughput across Server Pods, workflow node materialization, broadcast fan-out | You cannot keep shard map version/count stable across all Pods |
 | Redis/Dragonfly lock scheduling | Not a Tikeo core mode | Optional cache/accelerator only | Core scheduler ownership |
 
 ## Advantages
@@ -131,14 +130,14 @@ flowchart TD
 | Worker connection locality | LASSO prefers local gateway delivery without bypassing outbox, reducing unnecessary cross-pod relay while preserving recovery. |
 | No external lock dependency | Operators do not need Redis/Dragonfly just to make scheduler ownership correct. |
 | Web/API safe behind normal Services | Any pod can serve REST/SSE pages because business truth lives in DB; node-local views are explicitly labeled. |
-| Clear future scale path | The schema and dispatcher already support per-shard owners; enabling multi-owner balancing is a separate Raft-applied rebalancer problem, not a rewrite. |
+| Active horizontal dispatch | Once shard rows are projected, non-Leader Pods can safely dispatch their owned shards instead of sitting idle. |
 
 ## Limitations and trade-offs
 
 | Limitation | Operational meaning | Mitigation |
 | --- | --- | --- |
-| Safe default is Leader-owned shard projection | More Server pods improve HA, Worker gateway distribution, and API capacity, but not dispatch-decision throughput by default. | Watch queue age and DB claim latency before enabling future multi-owner balancing. |
-| Workflow materialization and broadcast dispatch remain Leader-owned | Follower shard-owner dispatch only claims job-instance queue rows for owned shards. | Keep workflows/broadcast on Leader until their ownership model is separately fenced. |
+| Shard ownership changes during rollout | Ownership can move when Raft term/membership projection changes; stale owner tokens are rejected. | Keep `cluster.scheduler_shard_map_version` and `cluster.scheduler_shard_count` identical across Pods and roll updates conservatively. |
+| Workflow and broadcast are also sharded | Workflow node queues and broadcast attempts use deterministic shard ownership. | Monitor queue age per owner and outbox age to spot an unhealthy shard owner or gateway. |
 | Failover is not instantaneous | During Raft election, scheduling pauses until a new Leader persists fencing and projects shards. | Use retry policies, monitor queue age/outbox age, and run failover smoke after upgrades. |
 | Requires stable identities | Raft mode needs StatefulSet pod names and headless peer DNS. | Use Helm Raft overlay or `deploy/k8s/tikeo-raft-ha.yaml`, not a plain Deployment replica bump. |
 | Requires external DB | Multi-pod HA cannot use pod-local SQLite. | Use PostgreSQL, MySQL, or CockroachDB-compatible storage shared by all pods. |

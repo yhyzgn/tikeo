@@ -26,7 +26,7 @@ use uuid::Uuid;
 
 use super::{WorkerRegistry, capability::WorkerRequirement, governance};
 use crate::{
-    cluster::SharedClusterCoordinator,
+    cluster::{ClusterMode, SharedClusterCoordinator},
     notification::{JobNotificationEvent, NotificationCenter, emit_job_instance_event_best_effort},
 };
 
@@ -113,22 +113,26 @@ async fn dispatch_once_if_owner(
     notifications: &NotificationCenter,
 ) -> Result<(), tikeo_storage::DbErr> {
     let status = cluster.status().await;
-    if !status.can_schedule {
-        debug!(role = status.role.as_str(), node_id = %status.node_id, "skip worker dispatch without leader scheduling authority");
-        return Ok(());
-    }
-    let fencing_token =
-        dispatcher_fencing_token(&status.node_id, status.leader_fencing_token.as_deref());
-    let owned_shards = if status.leader_fencing_token.is_some() {
-        let active = active_shard_ownerships_for_node(workflows, &status.node_id).await?;
-        if active.is_empty() {
-            warn!(node_id = %status.node_id, "skip raft leader dispatch because projected shard ownership is missing");
-            return Ok(());
-        }
-        active
+    let owned_shards = if status.mode == ClusterMode::Raft {
+        active_shard_ownerships_for_node(workflows, &status.node_id).await?
     } else {
         Vec::new()
     };
+    if !status.can_schedule && owned_shards.is_empty() {
+        debug!(role = status.role.as_str(), node_id = %status.node_id, "skip worker dispatch without leader authority or active shard ownership");
+        return Ok(());
+    }
+    if status.can_schedule && status.leader_fencing_token.is_some() && owned_shards.is_empty() {
+        warn!(node_id = %status.node_id, "skip raft leader dispatch because projected shard ownership is missing");
+        return Ok(());
+    }
+    let fencing_token = dispatcher_fencing_token(
+        &status.node_id,
+        status
+            .leader_fencing_token
+            .as_deref()
+            .filter(|_| status.can_schedule),
+    );
     dispatch_once_with_shards(
         jobs,
         instances,
@@ -233,20 +237,32 @@ async fn dispatch_once_with_shards(
             )
             .await;
         }
-        dispatch_broadcast_attempts(
-            jobs,
-            instances,
-            attempts,
-            outbox,
-            workflows,
-            scripts,
-            logs,
-            audit,
-            registry,
-            notifications,
-        )
-        .await?;
+    } else if let Some(materialized) = materialize_next_queued_node_for_owner(
+        workflows,
+        owner_node_id,
+        owned_shards,
+        notifications,
+    )
+    .await?
+    {
+        debug!(workflow_instance_id = %materialized.instance.id, %owner_node_id, "materialized workflow node through shard ownership");
     }
+    dispatch_broadcast_attempts(
+        jobs,
+        instances,
+        attempts,
+        outbox,
+        workflows,
+        scripts,
+        logs,
+        audit,
+        registry,
+        owner_node_id,
+        fencing_token,
+        owned_shards,
+        notifications,
+    )
+    .await?;
     dispatch_single_instances(
         jobs,
         instances,
@@ -263,6 +279,52 @@ async fn dispatch_once_with_shards(
         notifications,
     )
     .await
+}
+
+async fn materialize_next_queued_node_for_owner(
+    workflows: &WorkflowRepository,
+    owner_node_id: &str,
+    owned_shards: &[ClusterShardOwnershipSummary],
+    notifications: &NotificationCenter,
+) -> Result<Option<tikeo_storage::MaterializeWorkflowNodeResult>, tikeo_storage::DbErr> {
+    for owner in owned_shards {
+        let Some(claim) = workflows
+            .claim_next_workflow_node_queue_item_for_shard_owner(
+                DispatchQueueShardOwner {
+                    shard_id: owner.shard_id,
+                    shard_map_version: owner.shard_map_version,
+                    shard_count: owner.shard_count,
+                    owner_node_id: owner.owner_node_id.clone(),
+                    owner_epoch: owner.epoch,
+                    owner_fencing_token: owner.fencing_token.clone(),
+                },
+                DISPATCH_LEASE_SECONDS,
+            )
+            .await?
+        else {
+            continue;
+        };
+        let Some(materialized) = workflows
+            .materialize_claimed_workflow_node_queue_item(claim.item.id.as_str())
+            .await?
+        else {
+            continue;
+        };
+        crate::notification::emit_workflow_notification_node_requested_best_effort(
+            notifications,
+            workflows,
+            &materialized,
+        )
+        .await;
+        debug!(
+            shard_id = owner.shard_id,
+            owner_epoch = owner.epoch,
+            %owner_node_id,
+            "claimed workflow node queue item through shard ownership"
+        );
+        return Ok(Some(materialized));
+    }
+    Ok(None)
 }
 
 struct DurableDispatchIntent<'a> {
@@ -829,6 +891,56 @@ async fn append_dispatcher_execution_log(
     Ok(())
 }
 
+#[derive(Debug, Clone)]
+struct BroadcastDispatchOwner {
+    shard_id: i32,
+    shard_map_version: i64,
+    shard_count: i32,
+    owner_node_id: String,
+    owner_epoch: i64,
+    owner_fencing_token: String,
+}
+
+async fn broadcast_attempt_owner(
+    jobs: &JobRepository,
+    instance: &tikeo_storage::JobInstanceSummary,
+    attempt_id: &str,
+    owner_node_id: &str,
+    fallback_fencing_token: &str,
+    owned_shards: &[ClusterShardOwnershipSummary],
+) -> Result<Option<BroadcastDispatchOwner>, tikeo_storage::DbErr> {
+    if owned_shards.is_empty() {
+        return Ok(Some(BroadcastDispatchOwner {
+            shard_id: 0,
+            shard_map_version: 1,
+            shard_count: 64,
+            owner_node_id: owner_node_id.to_owned(),
+            owner_epoch: 0,
+            owner_fencing_token: fallback_fencing_token.to_owned(),
+        }));
+    }
+    let Some(job) = jobs.get(&instance.job_id).await? else {
+        return Ok(None);
+    };
+    let policy = tikeo_storage::scheduler_shard_policy();
+    let shard_id = policy.shard_id_for(
+        &job.namespace,
+        &job.app,
+        &format!("{}:{attempt_id}", instance.id),
+    );
+    Ok(owned_shards
+        .iter()
+        .find(|owner| owner.shard_id == shard_id)
+        .map(|owner| BroadcastDispatchOwner {
+            shard_id,
+            shard_map_version: owner.shard_map_version,
+            shard_count: owner.shard_count,
+            owner_node_id: owner.owner_node_id.clone(),
+            owner_epoch: owner.epoch,
+            owner_fencing_token: owner.fencing_token.clone(),
+        }))
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn dispatch_broadcast_attempts(
     jobs: &JobRepository,
@@ -840,6 +952,9 @@ async fn dispatch_broadcast_attempts(
     logs: &tikeo_storage::JobInstanceLogRepository,
     audit: &AuditLogRepository,
     registry: &WorkerRegistry,
+    owner_node_id: &str,
+    fallback_fencing_token: &str,
+    owned_shards: &[ClusterShardOwnershipSummary],
     notifications: &NotificationCenter,
 ) -> Result<(), tikeo_storage::DbErr> {
     let pending = attempts.list_pending(DISPATCH_BATCH_SIZE).await?;
@@ -851,6 +966,18 @@ async fn dispatch_broadcast_attempts(
         if instance.execution_mode != ExecutionMode::Broadcast {
             continue;
         }
+        let Some(broadcast_owner) = broadcast_attempt_owner(
+            jobs,
+            &instance,
+            &attempt.id,
+            owner_node_id,
+            fallback_fencing_token,
+            owned_shards,
+        )
+        .await?
+        else {
+            continue;
+        };
         let executor = if let Some(job) = jobs.get(&instance.job_id).await? {
             resolve_job_executor(workflows, &instance.id, &job).await?
         } else {
@@ -915,12 +1042,12 @@ async fn dispatch_broadcast_attempts(
                 instance_id: &attempt.instance_id,
                 attempt_id: &attempt.id,
                 worker_id: &attempt.worker_id,
-                shard_id: 0,
-                shard_map_version: 1,
-                shard_count: 64,
-                owner_node_id: DISPATCHER_LEASE_OWNER,
-                owner_epoch: 0,
-                owner_fencing_token: DISPATCHER_LEASE_OWNER,
+                shard_id: i64::from(broadcast_owner.shard_id),
+                shard_map_version: broadcast_owner.shard_map_version,
+                shard_count: i64::from(broadcast_owner.shard_count),
+                owner_node_id: &broadcast_owner.owner_node_id,
+                owner_epoch: broadcast_owner.owner_epoch,
+                owner_fencing_token: &broadcast_owner.owner_fencing_token,
                 task,
             },
         )

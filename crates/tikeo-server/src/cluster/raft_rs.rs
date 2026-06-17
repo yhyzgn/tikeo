@@ -1243,7 +1243,7 @@ async fn update_runtime_status(
         && persisted_token == leader_fencing_token;
     writable.leader_fencing_token.clone_from(&persisted_token);
     if writable.can_schedule {
-        project_leader_shard_ownership(
+        project_balanced_shard_ownership(
             config,
             repository,
             raft_status.hs.term,
@@ -1261,7 +1261,7 @@ async fn update_runtime_status(
     Ok(())
 }
 
-async fn project_leader_shard_ownership(
+async fn project_balanced_shard_ownership(
     config: &ClusterConfig,
     repository: &RaftRepository,
     raft_term: u64,
@@ -1272,14 +1272,19 @@ async fn project_leader_shard_ownership(
     };
     let shard_count = config.scheduler_shard_count.max(1);
     let shard_map_version = config.scheduler_shard_map_version.max(1);
+    let owners = active_scheduler_owner_node_ids(config, repository).await?;
     let shard_repository = ClusterShardOwnershipRepository::new(repository.db());
     for shard_id in 0..shard_count {
+        let owner_node_id = owners
+            .get(usize::try_from(shard_id).unwrap_or_default() % owners.len())
+            .cloned()
+            .unwrap_or_else(|| config.node_id.clone());
         let _ = shard_repository
             .upsert_newer(UpsertClusterShardOwnership {
                 shard_id,
                 shard_map_version,
                 shard_count,
-                owner_node_id: config.node_id.clone(),
+                owner_node_id,
                 epoch: i64::try_from(raft_term).unwrap_or(i64::MAX),
                 raft_term: i64::try_from(raft_term).unwrap_or(i64::MAX),
                 lease_seconds: Some(30),
@@ -1287,6 +1292,36 @@ async fn project_leader_shard_ownership(
             .await?;
     }
     Ok(())
+}
+
+async fn active_scheduler_owner_node_ids(
+    config: &ClusterConfig,
+    repository: &RaftRepository,
+) -> Result<Vec<String>, tikeo_storage::DbErr> {
+    let configured: BTreeSet<String> = config
+        .peers
+        .iter()
+        .map(|peer| peer.node_id.clone())
+        .chain(std::iter::once(config.node_id.clone()))
+        .collect();
+    let members = repository.list_members().await?;
+    let active_members: BTreeSet<String> = members
+        .into_iter()
+        .filter(|member| member.status == "active")
+        .map(|member| member.node_id)
+        .filter(|node_id| configured.contains(node_id))
+        .collect();
+    let owners = if active_members.is_empty() {
+        configured
+    } else {
+        active_members
+    };
+    let owners = owners.into_iter().collect::<Vec<_>>();
+    if owners.is_empty() {
+        Ok(vec![config.node_id.clone()])
+    } else {
+        Ok(owners)
+    }
 }
 
 async fn persist_role_metadata(

@@ -12,6 +12,7 @@ use sea_orm::{
 use super::util::{new_id, now_rfc3339, rfc3339_after_seconds};
 mod types;
 
+use super::scheduler_shard_policy;
 use conversions::{
     DispatchQueueClaimKind, dispatch_queue_age_seconds, elapsed_seconds,
     ensure_workflow_job_soft_link, node_kind, normalize_processor_name, normalize_terminal_status,
@@ -22,6 +23,15 @@ use validation::{
     all_predecessors_satisfied, next_nodes_for_status, start_node_keys, workflow_config_bool,
     workflow_config_i64, workflow_config_string,
 };
+
+fn workflow_dispatch_shard(namespace: &str, app: &str, durable_id: &str) -> (i32, i64, i32) {
+    let policy = scheduler_shard_policy();
+    (
+        policy.shard_id_for(namespace, app, durable_id),
+        policy.shard_map_version,
+        policy.shard_count,
+    )
+}
 
 fn evaluate_condition_node(node: &WorkflowNodeSpec) -> bool {
     if let Some(value) = workflow_config_bool(node, "result") {
@@ -536,13 +546,18 @@ impl WorkflowRepository {
             .insert(&txn)
             .await?;
             if is_start {
+                let (shard_id, shard_map_version, shard_count) = workflow_dispatch_shard(
+                    "workflow",
+                    &workflow.name,
+                    &format!("{}:{}", instance_id, node.key),
+                );
                 dispatch_queue::ActiveModel {
                     id: Set(new_id("dq")),
                     job_instance_id: Set(None),
                     workflow_node_instance_id: Set(Some(node_instance.id.clone())),
-                    shard_id: Set(None),
-                    shard_map_version: Set(None),
-                    shard_count: Set(None),
+                    shard_id: Set(Some(shard_id)),
+                    shard_map_version: Set(Some(shard_map_version)),
+                    shard_count: Set(Some(shard_count)),
                     owner_epoch: Set(None),
                     owner_fencing_token: Set(None),
                     priority: Set(0),
@@ -651,13 +666,18 @@ impl WorkflowRepository {
                     waiting_active.status = Set("queued".to_owned());
                     waiting_active.updated_at = Set(now.clone());
                     let queued = waiting_active.update(&txn).await?;
+                    let (shard_id, shard_map_version, shard_count) = workflow_dispatch_shard(
+                        "workflow",
+                        &workflow.name,
+                        &format!("{instance_id}:{node_key}"),
+                    );
                     dispatch_queue::ActiveModel {
                         id: Set(new_id("dq")),
                         job_instance_id: Set(None),
                         workflow_node_instance_id: Set(Some(queued.id)),
-                        shard_id: Set(None),
-                        shard_map_version: Set(None),
-                        shard_count: Set(None),
+                        shard_id: Set(Some(shard_id)),
+                        shard_map_version: Set(Some(shard_map_version)),
+                        shard_count: Set(Some(shard_count)),
                         owner_epoch: Set(None),
                         owner_fencing_token: Set(None),
                         priority: Set(0),
@@ -771,7 +791,16 @@ impl WorkflowRepository {
         else {
             return Ok(None);
         };
-        let Some(queue_row) = dispatch_queue::Entity::find_by_id(claim.item.id.clone())
+        self.materialize_claimed_workflow_node_queue_item(&claim.item.id)
+            .await
+    }
+
+    #[allow(clippy::too_many_lines)]
+    pub async fn materialize_claimed_workflow_node_queue_item(
+        &self,
+        queue_id: &str,
+    ) -> Result<Option<MaterializeWorkflowNodeResult>, sea_orm::DbErr> {
+        let Some(queue_row) = dispatch_queue::Entity::find_by_id(queue_id.to_owned())
             .one(&self.db)
             .await?
         else {
@@ -837,13 +866,15 @@ impl WorkflowRepository {
                 .insert(&txn)
                 .await?;
                 node_active.job_instance_id = Set(Some(job_instance_id.clone()));
+                let (shard_id, shard_map_version, shard_count) =
+                    workflow_dispatch_shard("workflow", &workflow.name, &job_instance_id);
                 dispatch_queue::ActiveModel {
                     id: Set(new_id("dq")),
                     job_instance_id: Set(Some(job_instance_id)),
                     workflow_node_instance_id: Set(None),
-                    shard_id: Set(None),
-                    shard_map_version: Set(None),
-                    shard_count: Set(None),
+                    shard_id: Set(Some(shard_id)),
+                    shard_map_version: Set(Some(shard_map_version)),
+                    shard_count: Set(Some(shard_count)),
                     owner_epoch: Set(None),
                     owner_fencing_token: Set(None),
                     priority: Set(0),
@@ -910,13 +941,15 @@ impl WorkflowRepository {
                     }
                     .insert(&txn)
                     .await?;
+                    let (shard_id, shard_map_version, shard_count) =
+                        workflow_dispatch_shard("workflow", &workflow.name, &job_instance_id);
                     dispatch_queue::ActiveModel {
                         id: Set(new_id("dq")),
                         job_instance_id: Set(Some(job_instance_id)),
                         workflow_node_instance_id: Set(None),
-                        shard_id: Set(None),
-                        shard_map_version: Set(None),
-                        shard_count: Set(None),
+                        shard_id: Set(Some(shard_id)),
+                        shard_map_version: Set(Some(shard_map_version)),
+                        shard_count: Set(Some(shard_count)),
                         owner_epoch: Set(None),
                         owner_fencing_token: Set(None),
                         priority: Set(0),
@@ -968,13 +1001,19 @@ impl WorkflowRepository {
                         .insert(&txn)
                         .await?;
                         if is_start {
+                            let (shard_id, shard_map_version, shard_count) =
+                                workflow_dispatch_shard(
+                                    "workflow",
+                                    &child_workflow.name,
+                                    &format!("{child_id}:{}", child_node.key),
+                                );
                             dispatch_queue::ActiveModel {
                                 id: Set(new_id("dq")),
                                 job_instance_id: Set(None),
                                 workflow_node_instance_id: Set(Some(child_node_instance.id)),
-                                shard_id: Set(None),
-                                shard_map_version: Set(None),
-                                shard_count: Set(None),
+                                shard_id: Set(Some(shard_id)),
+                                shard_map_version: Set(Some(shard_map_version)),
+                                shard_count: Set(Some(shard_count)),
                                 owner_epoch: Set(None),
                                 owner_fencing_token: Set(None),
                                 priority: Set(0),
@@ -1046,13 +1085,15 @@ impl WorkflowRepository {
                 .insert(&txn)
                 .await?;
                 node_active.job_instance_id = Set(Some(job_instance_id.clone()));
+                let (shard_id, shard_map_version, shard_count) =
+                    workflow_dispatch_shard("workflow", &workflow.name, &job_instance_id);
                 dispatch_queue::ActiveModel {
                     id: Set(new_id("dq")),
                     job_instance_id: Set(Some(job_instance_id)),
                     workflow_node_instance_id: Set(None),
-                    shard_id: Set(None),
-                    shard_map_version: Set(None),
-                    shard_count: Set(None),
+                    shard_id: Set(Some(shard_id)),
+                    shard_map_version: Set(Some(shard_map_version)),
+                    shard_count: Set(Some(shard_count)),
                     owner_epoch: Set(None),
                     owner_fencing_token: Set(None),
                     priority: Set(0),
@@ -1097,13 +1138,15 @@ impl WorkflowRepository {
                 .insert(&txn)
                 .await?;
                 node_active.job_instance_id = Set(Some(job_instance_id.clone()));
+                let (shard_id, shard_map_version, shard_count) =
+                    workflow_dispatch_shard("workflow", &workflow.name, &job_instance_id);
                 dispatch_queue::ActiveModel {
                     id: Set(new_id("dq")),
                     job_instance_id: Set(Some(job_instance_id)),
                     workflow_node_instance_id: Set(None),
-                    shard_id: Set(None),
-                    shard_map_version: Set(None),
-                    shard_count: Set(None),
+                    shard_id: Set(Some(shard_id)),
+                    shard_map_version: Set(Some(shard_map_version)),
+                    shard_count: Set(Some(shard_count)),
                     owner_epoch: Set(None),
                     owner_fencing_token: Set(None),
                     priority: Set(0),

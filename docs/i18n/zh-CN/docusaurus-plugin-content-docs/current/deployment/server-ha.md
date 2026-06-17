@@ -8,7 +8,7 @@ keywords: [tikeo server ha, raft, fsod, worker dispatch outbox, kubernetes ha, w
 
 Tikeo Server HA 基于 **FSOD：Fenced Slot Outbox Dispatch**。在 Kubernetes Raft 模式下，Server Pod 组成 Raft group；被选出的 Leader 持久化 fencing token，把调度 shard ownership 投影到共享数据库，并在派发 Worker 前先写入 `worker_dispatch_outbox`。Worker Tunnel 长连接可以落到任意 Server Pod；持有 stream 的 Pod 是 gateway，只投递属于自己 `gateway_node_id` 的 outbox 行。
 
-本版本的生产默认策略是保守且安全的：当前 Raft Leader 会把所有 active scheduler shard 投影给自己。存储层和 dispatcher 已支持 follower shard-owner claim，并有测试覆盖；但自动多 owner shard balancing 要等 Raft-applied membership 与健康决策升级为生产 rebalancer 后再启用，避免把 shard 分给刚故障的 Pod。
+本版本使用 multi-owner scheduler 路径。Raft 仍只选出一个控制面 Leader，但 Leader 会把 scheduler shards 投影到 active/configured members；Follower Pod 只有在持有 active shard 且 owner epoch/token 匹配时，才能派发自己的 shard。若暂时读不到 membership health，投影会回退到配置的 peer set；只有一个成员时自然退化为单 owner。
 
 ## 部署架构
 
@@ -98,9 +98,9 @@ FSOD 不变量：
 | --- | --- |
 | 多 Pod Server 部署 | Helm `server.cluster.mode=raft` 渲染 `StatefulSet`、稳定 Pod 名称和 `tikeo-server-headless`。 |
 | Consensus 与 fencing | Raft runtime 选出一个 Leader；只有持久化 leader fencing token 的节点报告 `canSchedule=true`。 |
-| Shard ownership 投影 | Leader 把配置的 scheduler shard 写入 `cluster_shard_ownership`，包含 `shard_map_version`、`shard_count`、`epoch`、`raft_term` 和 fencing token。 |
-| 安全默认 shard 策略 | 所有 active shard 投影给当前 Leader。follower shard-owner dispatch 已实现和测试，但自动多 owner balancing 暂不默认启用。 |
-| Dispatch queue fencing | API/job dispatch queue 行持久化 shard map 字段；claim 可绑定 `owner_epoch` 与 `owner_fencing_token`，旧 token 会被拒绝。 |
+| Shard ownership 投影 | Leader 把配置的 scheduler shard 均衡写入 `cluster_shard_ownership`，包含 `shard_map_version`、`shard_count`、`epoch`、`raft_term`、owner node 和 fencing token。 |
+| Multi-owner dispatch | 任一持有 active ownership row 的 Pod 都可以派发自己 shard 下的 job-instance queue、workflow-node materialization 和 broadcast attempt；非 owner 或旧 token fail closed。 |
+| Dispatch queue fencing | API/job/workflow dispatch queue 行持久化 shard map 字段；claim 绑定 `owner_epoch` 与 `owner_fencing_token`，旧 token 会被拒绝。 |
 | Durable Worker dispatch | 派发前先创建 assignment token 和 `worker_dispatch_outbox`，再做 stream delivery 或 internal relay hint。 |
 | Outbox recovery | Gateway 按 `gateway_node_id` 扫描；无 ack/result 的 delivered 行通过 visibility timeout 重新 queued；Worker 重连可按 `logical_instance_id` + generation reroute。 |
 | LASSO worker scoring | 候选 Worker 按 local gateway、Worker authority、dispatch key rendezvous spread、worker id tie-break 排序。 |
@@ -115,18 +115,17 @@ flowchart TD
   A[需要 Server Pod failover?] -->|否| B[Standalone]
   A -->|是| C[Raft FSOD HA]
   C --> D[StatefulSet + headless Service + 外部 DB + transport Secret]
-  D --> E[Leader 投影 shard ownership 并写 durable outbox]
-  E --> F{需要更高 dispatch 吞吐?}
-  F -->|否| G[保持安全的 Leader-owned projection]
-  F -->|是| H[未来启用 Raft-applied shard rebalancer]
-  H --> I[仍不把 Redis/Dragonfly lock 作为正确性依赖]
+  D --> E[Leader 均衡投影 shard ownership]
+  E --> F[Shard owner 只 claim 自己的 queue]
+  F --> G[Durable outbox + gateway relay]
+  G --> H[仍不把 Redis/Dragonfly lock 作为正确性依赖]
 ```
 
 | 模式 | 运行方式 | 适用场景 | 不适用场景 |
 | --- | --- | --- | --- |
 | Standalone | `cluster.mode=standalone`，单 Server | 本地开发、demo、小型单节点 VM | 需要 Server Pod failover |
 | Raft FSOD HA | `server.cluster.mode=raft`、StatefulSet、外部 DB、transport token | 生产 K8s HA、durable outbox dispatch、Worker gateway failover | 只是在 standalone Deployment 上扩副本 |
-| Multi-owner shard balancing | 本版本默认不启用 | 未来有明确 scheduler bottleneck 且具备 Raft-applied health/rebalancer | 无法接受 shard ownership 变更风险 |
+| Multi-owner shard balancing | 由 Raft shard ownership projection 启用 | Server Pod 横向分摊 scheduler 吞吐、workflow materialization、broadcast fan-out | 无法保证所有 Pod 的 shard map version/count 一致 |
 | Redis/Dragonfly lock scheduling | 不是 Tikeo core mode | 只能作为可选缓存/加速 | 核心调度所有权 |
 
 ## 优势
@@ -138,14 +137,14 @@ flowchart TD
 | Worker 连接 locality | LASSO 优先本地 gateway，但不绕过 outbox，兼顾低延迟和可恢复性。 |
 | 无外部锁依赖 | 不需要 Redis/Dragonfly 才能保证调度所有权正确。 |
 | Web/API 可正常走 Service | 业务事实来自 DB；节点本地视图显式标识。 |
-| 清晰扩展路径 | schema 和 dispatcher 已支持 per-shard owner；多 owner balancing 是后续 rebalancer 问题，不是重写。 |
+| 主动横向派发 | shard rows 投影后，非 Leader Pod 可以安全派发自己拥有的 shards，不再只是闲置。 |
 
 ## 限制与取舍
 
 | 限制 | 运维含义 | 缓解方式 |
 | --- | --- | --- |
-| 默认 Leader-owned shard projection | 更多 Server Pod 提升 HA、Worker gateway 分布和 API 容量，但默认不提升 dispatch 决策吞吐。 | 启用未来多 owner 前先观察 queue age 和 DB claim latency。 |
-| Workflow materialization 与 broadcast 仍由 Leader 负责 | Follower shard-owner dispatch 只 claim owned shard 的 job-instance queue。 | workflow/broadcast 在单独 fencing 模型完成前保持 Leader-owned。 |
+| rollout 期间 shard ownership 变化 | Raft term/membership projection 变化时 ownership 会迁移；旧 owner token 会被拒绝。 | 保持所有 Pod 的 `cluster.scheduler_shard_map_version` 与 `cluster.scheduler_shard_count` 一致，并使用保守滚动更新。 |
+| Workflow 与 broadcast 也已分片 | Workflow node queue 与 broadcast attempt 使用确定性 shard ownership。 | 监控每个 owner 的 queue age 与 outbox age，定位不健康 shard owner 或 gateway。 |
 | Failover 不是瞬时 | Raft election 期间调度暂停，直到新 Leader 持久化 fencing 并投影 shard。 | 使用 retry policy，监控 queue/outbox age，升级后跑 failover smoke。 |
 | 需要稳定身份 | Raft 需要 StatefulSet pod name 和 headless peer DNS。 | 使用 Helm Raft overlay 或 `deploy/k8s/tikeo-raft-ha.yaml`。 |
 | 需要外部 DB | 多 Pod HA 不能用 Pod-local SQLite。 | 使用 PostgreSQL、MySQL 或 CockroachDB-compatible 存储。 |
