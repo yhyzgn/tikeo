@@ -12,7 +12,7 @@ description: Rust 依赖、最小 Worker、异常处理和 Management client 写
 | Requirement | Value |
 | --- | --- |
 | Crate | `tikeo` |
-| 仓库版本 | `0.2.0` |
+| 版本占位符 | `${TIKEO_VERSION}`，来自 README 顶部包徽标或 release tag。 |
 | Rust edition | `2024` |
 | Rust baseline | `1.95` |
 | Optional feature | `wasm` 启用 `wasmtime` |

@@ -12,7 +12,7 @@ description: Java/Spring 依赖、最小 Worker、异常处理和 Management cli
 | Requirement | Value |
 | --- | --- |
 | Group | `net.tikeo` |
-| 仓库版本 | `0.2.0` (`tikeoVersion`) |
+| 版本占位符 | `${TIKEO_VERSION}`，来自 README 顶部包徽标或 release tag；仓库开发版本在 `sdks/java/gradle.properties` 的 `tikeoVersion` 中维护，发布时由 tag 同步。 |
 | Java release | `17` |
 | Core module | `tikeo` |
 | Spring modules | `tikeo-spring`, `tikeo-spring6`, `tikeo-spring5` |

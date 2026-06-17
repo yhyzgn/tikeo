@@ -17,7 +17,7 @@ Shared SDK/API contract: see [SDK and API integration guide](../integrations/sdk
 | Field | Value |
 | --- | --- |
 | Package | `@yhyzgn/tikeo` |
-| Version in repo | `0.2.0` |
+| Version placeholder | `${TIKEO_VERSION}` from the README/top package badge or release tag. |
 | Module type | ESM (`type=module`) |
 | Runtime baseline | Node.js `>=24.0.0` |
 | Main | `dist/index.js` |

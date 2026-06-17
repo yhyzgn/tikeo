@@ -12,7 +12,7 @@ description: Node.js 依赖、最小 Worker、异常处理和 Management client 
 | Requirement | Value |
 | --- | --- |
 | Package | `@yhyzgn/tikeo` |
-| 仓库版本 | `0.2.0` |
+| 版本占位符 | `${TIKEO_VERSION}`，来自 README 顶部包徽标或 release tag。 |
 | Module format | ESM (`type: module`) |
 | Consumer runtime | Node.js `>=24.0.0` |
 | Runtime deps | `@grpc/grpc-js`, `@grpc/proto-loader` |

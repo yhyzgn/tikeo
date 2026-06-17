@@ -828,11 +828,11 @@ docker run -d --name tikeo-server --network tikeo \
   -p 9090:9090 -p 9998:9998 \
   -v tikeo-data:/data \
   -e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc' \
-  yhyzgn/tikeo-server:0.2.0 serve --config /app/config/container.toml
+  yhyzgn/tikeo-server:${TIKEO_VERSION} serve --config /app/config/container.toml
 
 docker run -d --name tikeo-web --network tikeo \
   -p 8080:80 \
-  yhyzgn/tikeo-web:0.2.0
+  yhyzgn/tikeo-web:${TIKEO_VERSION}
 
 curl -fsS http://127.0.0.1:9090/readyz
 ```
@@ -917,7 +917,11 @@ Install a pinned release image set:
 ```bash
 helm upgrade --install tikeo ./deploy/helm/tikeo \
   --namespace tikeo \
-  --create-namespace   --set server.image.repository=yhyzgn/tikeo-server   --set server.image.tag=0.2.0   --set web.image.repository=yhyzgn/tikeo-web   --set web.image.tag=0.2.0
+  --create-namespace \
+  --set server.image.repository=yhyzgn/tikeo-server \
+  --set server.image.tag=v${TIKEO_VERSION} \
+  --set web.image.repository=yhyzgn/tikeo-web \
+  --set web.image.tag=v${TIKEO_VERSION}
 ```
 
 Production clusters should override database settings, ingress/TLS, secret references, resource

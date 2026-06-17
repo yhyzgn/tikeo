@@ -482,7 +482,7 @@ class DocsSiteContractTest(unittest.TestCase):
 
     def test_server_ha_docs_explain_architecture_and_tradeoffs(self):
         zh_root = DOCS_SITE / "i18n/zh-CN/docusaurus-plugin-content-docs/current"
-        for root, title in [(DOCS_SITE / "docs", "Server HA and cluster modes"), (zh_root, "Server 高可用与集群模式")]:
+        for root, title in [(DOCS_SITE / "docs", "Server HA and Raft FSOD Cluster"), (zh_root, "Server 高可用与 Raft FSOD 集群")]:
             text = (root / "deployment/server-ha.md").read_text()
             for token in [
                 "```mermaid",
@@ -509,8 +509,8 @@ class DocsSiteContractTest(unittest.TestCase):
         self.assertIn("https://docs.tikeo.net/zh-CN/docs/deployment/server-ha", readme_zh)
         self.assertNotIn("docs/docs/deployment/server-ha.md", readme)
         self.assertNotIn("docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/deployment/server-ha.md", readme_zh)
-        self.assertIn("Raft single-Leader scheduling", readme)
-        self.assertIn("More Server pods improve failover and Worker Tunnel connection distribution", readme)
+        self.assertIn("Raft FSOD Cluster", readme)
+        self.assertIn("More Server pods improve failover, Worker Tunnel distribution, and dispatch throughput for owned shards", readme)
         self.assertIn("/docs/deployment/server-ha", search_index)
         self.assertIn("/zh-CN/docs/deployment/server-ha", search_index)
         self.assertIn("/docs/deployment/server-ha", llms)
@@ -519,8 +519,8 @@ class DocsSiteContractTest(unittest.TestCase):
         index_en = (DOCS_SITE / "docs/index.md").read_text()
         index_zh = (zh_root / "index.md").read_text()
         self.assertIn("type: 'generated-index'", sidebars)
-        self.assertIn("Server HA and cluster modes", index_en)
-        self.assertIn("Server 高可用与集群模式", index_zh)
+        self.assertIn("Server HA and Raft FSOD Cluster", index_en)
+        self.assertIn("Server 高可用与 Raft FSOD 集群", index_zh)
 
     def test_deployment_docs_include_copy_paste_runbooks(self):
         deployment_text = "\n".join(

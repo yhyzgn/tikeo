@@ -114,8 +114,8 @@ Expose Web and Server API through your normal ingress. Treat Worker Tunnel separ
 The docs site is also a release artifact. It is not required for the Server to schedule work, but production teams should publish it next to Web so operators can read the exact runbooks for the deployed version. The Docker Hub repository is `yhyzgn/tikeo-docs`, built from `docs/Dockerfile` and served by nginx with `/healthz`.
 
 ```bash
-docker pull yhyzgn/tikeo-docs:v0.2.9
-docker run --rm -p 8081:80 yhyzgn/tikeo-docs:v0.2.9
+docker pull yhyzgn/tikeo-docs:v${TIKEO_VERSION}
+docker run --rm -p 8081:80 yhyzgn/tikeo-docs:v${TIKEO_VERSION}
 curl -fsS http://127.0.0.1:8081/healthz
 curl -fsS http://127.0.0.1:8081/docs/ >/dev/null
 ```
@@ -214,7 +214,7 @@ SQLite backups are file copies only when the Server is stopped or the database i
 For release images, verify the binary version inside the Server container:
 
 ```bash
-docker run --rm yhyzgn/tikeo-server:v0.2.9 --version
+docker run --rm yhyzgn/tikeo-server:v${TIKEO_VERSION} --version
 ```
 
 ## Prerequisites

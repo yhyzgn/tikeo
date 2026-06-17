@@ -17,7 +17,7 @@ Shared SDK/API contract: see [SDK and API integration guide](../integrations/sdk
 | Field | Value |
 | --- | --- |
 | Package name | `tikeo` |
-| Version in repo | `0.2.0` |
+| Version placeholder | `${TIKEO_VERSION}` from the README/top package badge or release tag. |
 | Python baseline | `>=3.11` |
 | Runtime deps | `grpcio>=1.76.0`, `grpcio-tools>=1.76.0`, `protobuf>=6.0.0`, `requests>=2.32.0` |
 | Test extra | `pytest>=9.0.0` |

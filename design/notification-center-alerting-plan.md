@@ -384,7 +384,7 @@ Implemented in the current Notification Center slice:
 Still intentionally not implemented in this slice:
 
 - `notification_templates` table/API/render endpoint. `templateRef` is persisted as a soft link for forward compatibility, but current materialization uses built-in rendering.
-- Alert-rule backfill/dual-write migration from `alert_rules.channels_json` into `notification_policies(owner_type='alert_rule')`.
+- Alert-rule backfill/dual-write migration from `alert_rules.channels_json` into `notification_policies(owner_type='alert_rule')` is implemented and tested; `channels_json` remains a compatibility field until a documented breaking release.
 - Runtime migration of workflow `notification` nodes from raw `channel/target/template` fields to registered channel/template references.
 - A real channel test-send endpoint; provider metadata correctly reports `supportsTestSend=false` and the UI exposes retry-due processing instead of fake test-send.
 

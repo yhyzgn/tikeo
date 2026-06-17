@@ -28,7 +28,7 @@ Alerting remains the abnormal-condition incident subsystem. Job Notification Bin
 4. Provide a message detail and log passthrough page for developers to debug what notification was emitted and how it was delivered.
 5. Preserve Notification Center retry/DLQ, redaction, RBAC, audit, and provider adapter behavior.
 6. Keep all source files under 1500 lines and keep schema changes explicit.
-7. Ensure the `tikeo` binary/API version reflects the released tag instead of remaining at `0.2.0` after new releases.
+7. Ensure the `tikeo` binary/API version reflects the released tag; this is now covered by `scripts/set-release-version.py` for release workflows and verified by `.github/tests/release_version_script_test.py`.
 
 ## 4. Non-goals
 
@@ -199,7 +199,7 @@ Design should be production admin-console style: clear status colors, compact ti
 
 ## 10. Versioning fix
 
-The release binary currently still reports `0.2.0` after newer `v0.2.x` releases. Fix by making build-time version metadata resolve in this order:
+Release builds now synchronize workspace/package metadata from the tag before compiling. Keep build-time version metadata resolving in this order:
 
 1. `TIKEO_VERSION` environment override from GitHub Actions release workflows.
 2. `GITHUB_REF_NAME` when it is a `v*` tag.

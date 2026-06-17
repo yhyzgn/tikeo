@@ -144,6 +144,35 @@ def sync_sdk_versions(version: str, *, dry_run: bool) -> None:
     sync_nodejs_version(version, dry_run=dry_run)
     sync_go_version()
 
+
+def sync_docs_package_version(version: str, *, dry_run: bool) -> None:
+    set_json_version(
+        ROOT / "docs/package.json",
+        version,
+        dry_run=dry_run,
+        label="Docs site package version",
+    )
+
+
+def sync_release_example_versions(version: str, tag: str, *, dry_run: bool) -> None:
+    replacements = [
+        (ROOT / "README.md", r"\$\{TIKEO_VERSION\}", version, "README release placeholders"),
+        (ROOT / "README.zh-CN.md", r"\$\{TIKEO_VERSION\}", version, "README.zh-CN release placeholders"),
+        (ROOT / "deploy/helm/tikeo/README.md", r"\$\{TIKEO_VERSION\}", version, "Helm README release placeholders"),
+        (ROOT / "docs/docs/deployment/production.md", r"\$\{TIKEO_VERSION\}", version, "production docs release placeholders"),
+        (ROOT / "docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/deployment/production.md", r"\$\{TIKEO_VERSION\}", version, "zh production docs release placeholders"),
+        (ROOT / "docs/docs/reference/configuration-cookbook.md", r"\$\{TIKEO_VERSION\}", version, "configuration cookbook release placeholders"),
+        (ROOT / "docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/reference/configuration-cookbook.md", r"\$\{TIKEO_VERSION\}", version, "zh configuration cookbook release placeholders"),
+    ]
+    for path, pattern, replacement, label in replacements:
+        text = read(path)
+        updated, count = re.subn(pattern, replacement, text)
+        if count == 0:
+            raise SystemExit(f"{label}: expected at least one placeholder in {path}")
+        write(path, updated, dry_run=dry_run)
+        print(f"set {label}: {path.relative_to(ROOT)} ({count} placeholders)")
+
+
 def sync_workspace_versions(version: str, tag: str, *, dry_run: bool) -> None:
     replace_once(
         ROOT / "Cargo.toml",
@@ -167,6 +196,8 @@ def sync_workspace_versions(version: str, tag: str, *, dry_run: bool) -> None:
         dry_run=dry_run,
         label="Helm appVersion",
     )
+    sync_docs_package_version(version, dry_run=dry_run)
+    sync_release_example_versions(version, tag, dry_run=dry_run)
     values = ROOT / "deploy/helm/tikeo/values.yaml"
     text = read(values)
     updated, count = re.subn(r"(?m)^(\s*tag: ).+$", rf"\g<1>{tag}", text)

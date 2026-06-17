@@ -24,7 +24,7 @@ Shared SDK/API contract: see [SDK and API integration guide](../integrations/sdk
 | `tikeo-spring-boot3-starter` | Spring Boot 3 starter. |
 | `tikeo-spring-boot2-starter` | Spring Boot 2 starter. |
 
-The group is `net.tikeo`, version is `tikeoVersion=0.2.0` in `sdks/java/gradle.properties`, Java release is `17`, and current dependency baselines include gRPC `1.81.0`, protobuf `4.34.1`, Jackson `2.20.1`, Spring Framework 5/6/7, and Spring Boot 2/3/4 version properties.
+The group is `net.tikeo`; replace `${TIKEO_VERSION}` with the version shown by the README/top package badge or the release tag. In this repository the editable development version lives in `sdks/java/gradle.properties` as `tikeoVersion`; release workflows synchronize it from the tag. Java release is `17`, and current dependency baselines include gRPC `1.81.0`, protobuf `4.34.1`, Jackson `2.20.1`, Spring Framework 5/6/7, and Spring Boot 2/3/4 version properties.
 
 Gradle dependency examples:
 

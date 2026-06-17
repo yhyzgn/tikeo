@@ -17,7 +17,7 @@ Source package metadata is in `sdks/rust/tikeo/Cargo.toml`:
 | Field | Value |
 | --- | --- |
 | Crate name | `tikeo` |
-| Version in repo | `0.2.0` |
+| Version placeholder | `${TIKEO_VERSION}` from the README/top package badge or release tag. |
 | Rust edition | `2024` |
 | Rust baseline | `1.95` |
 | Optional feature | `wasm` enables `wasmtime` |

@@ -19,8 +19,8 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
   --namespace tikeo --create-namespace \
   --set server.image.repository=yhyzgn/tikeo-server \
   --set web.image.repository=yhyzgn/tikeo-web \
-  --set server.image.tag=v0.2.0 \
-  --set web.image.tag=v0.2.0
+  --set server.image.tag=v${TIKEO_VERSION} \
+  --set web.image.tag=v${TIKEO_VERSION}
 ```
 
 ## Production database
@@ -53,7 +53,7 @@ The chart injects the secret as `TIKEO__STORAGE__DATABASE_URL`, which overrides 
 
 ## Server Raft HA
 
-For production multi-pod Server HA, set `server.cluster.mode=raft` and use Raft mode with an external database. The public deployment runbook is [Server HA and cluster modes](https://docs.tikeo.net/docs/deployment/server-ha); the repo-local source is `docs/docs/deployment/server-ha.md`.
+For production multi-pod Server HA, set `server.cluster.mode=raft` and use Raft mode with an external database. The public deployment runbook is [Server HA and Raft FSOD Cluster](https://docs.tikeo.net/docs/deployment/server-ha); the repo-local source is `docs/docs/deployment/server-ha.md`.
 
 Current behavior is FSOD-backed multi-owner HA, not naive replica scheduling:
 

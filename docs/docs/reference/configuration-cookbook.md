@@ -183,8 +183,8 @@ Worker SDKs use language-specific config objects, but the same concepts apply:
 Use explicit tags or digests:
 
 ```bash
-docker pull yhyzgn/tikeo-server:v0.2.9
-docker run --rm yhyzgn/tikeo-server:v0.2.9 --version
+docker pull yhyzgn/tikeo-server:v${TIKEO_VERSION}
+docker run --rm yhyzgn/tikeo-server:v${TIKEO_VERSION} --version
 ```
 
 Keep Server, Web, and Docs image tags aligned with the release version unless you intentionally test a mixed version.

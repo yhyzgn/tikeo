@@ -155,8 +155,8 @@ backoff_seconds = 300
 使用明确 tag 或 digest：
 
 ```bash
-docker pull yhyzgn/tikeo-server:v0.2.9
-docker run --rm yhyzgn/tikeo-server:v0.2.9 --version
+docker pull yhyzgn/tikeo-server:v${TIKEO_VERSION}
+docker run --rm yhyzgn/tikeo-server:v${TIKEO_VERSION} --version
 ```
 
 除非故意测试混合版本，否则 Server、Web、Docs 镜像 tag 应与 release version 对齐。
