@@ -540,6 +540,7 @@ async fn policy_template_ref_materializes_and_drives_provider_payload() {
             enabled: true,
             canary_job_id: None,
             canary_percent: 0,
+            canary_policy: None,
             retry_policy: None,
         })
         .await

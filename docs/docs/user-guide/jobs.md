@@ -29,6 +29,7 @@ Use Jobs to define reusable execution contracts: owner scope, processor or scrip
 | --- | --- |
 | Definition form | Name, namespace, app, schedule type, processor/script/plugin binding, timeout, retry, and misfire settings. |
 | Targeting panel | Worker pool, tags, region, cluster, broadcastSelector, and scheduling advice. |
+| Canary panel | Canary target job, traffic percent, metrics gate, failure-rate threshold, sample window, and auto rollback. |
 | Version drawer | Immutable change history, author, created time, diff, rollback entry point. |
 | Trigger panel | single trigger, broadcast trigger, API parameters, and result link to the created instance. |
 
@@ -39,6 +40,20 @@ Use Jobs to define reusable execution contracts: owner scope, processor or scrip
 3. Set retry and timeout based on failure class, not by copying another Job blindly.
 4. Save, inspect version history, then open scheduling advice.
 5. Trigger a single run first; use broadcast only after selector preview is correct.
+
+## Canary metrics gate and auto rollback
+
+Canary routing is configured on the stable Job:
+
+- `canaryJobId` points to another Job in the same namespace/app.
+- `canaryPercent` controls explicit trigger routing in `0..100`.
+- `canaryPolicy.metricsGateEnabled` enables trigger-time evaluation.
+- `canaryPolicy.minimumSamples` is the minimum number of terminal canary instances required before a decision.
+- `canaryPolicy.evaluationWindow` limits how many recent canary instances are inspected.
+- `canaryPolicy.maxFailureRate` is a `0.0..1.0` failure-rate threshold.
+- `canaryPolicy.autoRollback=true` sets `canaryPercent` to `0` when the gate fails.
+
+The gate uses persisted canary target instances as the source of truth. It does not synthesize metrics from the browser. When the failure rate exceeds the threshold, the trigger response includes `canaryRouting.rolledBack=true` and `canaryRouting.metricsGate.status=rollback`; the created instance is routed back to the stable Job.
 
 ## Decision table
 

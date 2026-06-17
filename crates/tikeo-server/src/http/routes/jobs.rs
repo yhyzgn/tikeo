@@ -20,13 +20,14 @@ use crate::{
 use crate::http::{
     AppState, auth,
     dto::{
-        ApiResponse, CanaryRoutingSummary, CreateJobRequest, DeleteJobApiResponse, EmptyData,
-        ErrorResponse, JobApiResponse, JobInstanceApiResponse, JobInstanceAttemptPage,
-        JobInstanceAttemptPageApiResponse, JobInstanceAttemptSummary, JobInstanceCancelApiResponse,
-        JobInstanceLogPage, JobInstanceLogPageApiResponse, JobInstanceLogSummary, JobInstancePage,
-        JobInstancePageApiResponse, JobInstanceResult, JobInstanceSummary, JobPageApiResponse,
-        JobSummary, JobVersionPage, JobVersionPageApiResponse, Page, PageQuery, RollbackJobRequest,
-        TriggerJobRequest, UpdateJobRequest,
+        ApiResponse, CanaryMetricsGateSummary, CanaryRoutingSummary, CreateJobRequest,
+        DeleteJobApiResponse, EmptyData, ErrorResponse, JobApiResponse, JobInstanceApiResponse,
+        JobInstanceAttemptPage, JobInstanceAttemptPageApiResponse, JobInstanceAttemptSummary,
+        JobInstanceCancelApiResponse, JobInstanceLogPage, JobInstanceLogPageApiResponse,
+        JobInstanceLogSummary, JobInstancePage, JobInstancePageApiResponse, JobInstanceResult,
+        JobInstanceSummary, JobPageApiResponse, JobSummary, JobVersionPage,
+        JobVersionPageApiResponse, Page, PageQuery, RollbackJobRequest, TriggerJobRequest,
+        UpdateJobRequest,
     },
     error::ApiError,
 };
@@ -166,6 +167,8 @@ pub async fn create_job(
             "processorName and scriptId are mutually exclusive",
         ));
     }
+    validate_canary_target_scope(&state, request.canary_job_id.as_deref(), &namespace, &app)
+        .await?;
     let created = state
         .jobs
         .create_job(CreateJob {
@@ -185,8 +188,9 @@ pub async fn create_job(
             processor_type: request.processor_type.clone(),
             script_id: request.script_id.clone(),
             enabled: request.enabled.unwrap_or(true),
-            canary_job_id: None,
-            canary_percent: 0,
+            canary_job_id: request.canary_job_id.clone(),
+            canary_percent: request.canary_percent.unwrap_or(0),
+            canary_policy: request.canary_policy.clone(),
             created_by: Some(principal.username.clone()),
             retry_policy: request.retry_policy.clone(),
         })
@@ -255,6 +259,21 @@ pub async fn trigger_job(
     let execution_mode =
         parse_execution_mode(request.execution_mode.as_deref().unwrap_or("single"))?;
     let canary_routing = resolve_canary_routing(&state, &job_summary).await?;
+    if canary_routing
+        .as_ref()
+        .is_some_and(|routing| routing.rolled_back)
+    {
+        audit(
+            &state,
+            &principal.username,
+            "canary_auto_rollback",
+            "job",
+            &job,
+            Some("canary metrics gate set canaryPercent=0".to_owned()),
+            &headers,
+        )
+        .await;
+    }
     let target_job = canary_routing
         .as_ref()
         .filter(|routing| routing.routed)
@@ -477,6 +496,7 @@ pub async fn update_job(
                 enabled: request.enabled,
                 canary_job_id: request.canary_job_id.clone(),
                 canary_percent: request.canary_percent,
+                canary_policy: request.canary_policy.clone(),
                 retry_policy: request.retry_policy.clone(),
                 updated_by: Some(principal.username.clone()),
             },
@@ -695,6 +715,8 @@ async fn resolve_canary_routing(
             original_job_id: job.id.clone(),
             routed_job_id: job.id.clone(),
             percent,
+            rolled_back: false,
+            metrics_gate: None,
         }));
     }
     let canary = state
@@ -708,13 +730,118 @@ async fn resolve_canary_routing(
             "canary job must belong to the same namespace/app",
         ));
     }
+    if let Some(metrics_gate) = evaluate_canary_metrics_gate(state, job, &canary).await?
+        && metrics_gate.status == "rollback"
+        && job.canary_policy.auto_rollback
+    {
+        let rolled_back = state
+            .jobs
+            .update_job(
+                &job.id,
+                UpdateJob {
+                    canary_percent: Some(0),
+                    canary_policy: None,
+                    updated_by: Some("system:canary-metrics-gate".to_owned()),
+                    ..UpdateJob::default()
+                },
+            )
+            .await
+            .map_err(|error| ApiError::storage(&error))?
+            .ok_or_else(|| ApiError::not_found(format!("job not found: {}", job.id)))?;
+        return Ok(Some(CanaryRoutingSummary {
+            enabled: false,
+            routed: false,
+            original_job_id: job.id.clone(),
+            routed_job_id: rolled_back.id,
+            percent: 0,
+            rolled_back: true,
+            metrics_gate: Some(metrics_gate),
+        }));
+    }
     let routed = canary_sample(&job.id, percent);
     Ok(Some(CanaryRoutingSummary {
         enabled: true,
         routed,
         original_job_id: job.id.clone(),
-        routed_job_id: if routed { canary.id } else { job.id.clone() },
+        routed_job_id: if routed {
+            canary.id.clone()
+        } else {
+            job.id.clone()
+        },
         percent,
+        rolled_back: false,
+        metrics_gate: evaluate_canary_metrics_gate(state, job, &canary).await?,
+    }))
+}
+
+async fn evaluate_canary_metrics_gate(
+    state: &AppState,
+    job: &tikeo_storage::JobSummary,
+    canary: &tikeo_storage::JobSummary,
+) -> Result<Option<CanaryMetricsGateSummary>, ApiError> {
+    let policy = job.canary_policy.clone().normalized();
+    if !policy.metrics_gate_enabled {
+        return Ok(None);
+    }
+    let instances = state
+        .instances
+        .list_by_job(&canary.id)
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    let mut inspected_samples = 0_u64;
+    let mut failed_samples = 0_u64;
+    for instance in instances {
+        if inspected_samples >= policy.evaluation_window {
+            break;
+        }
+        let status = instance.status.to_string();
+        if !matches!(
+            status.as_str(),
+            "succeeded" | "failed" | "partial_failed" | "cancelled"
+        ) {
+            continue;
+        }
+        inspected_samples = inspected_samples.saturating_add(1);
+        if matches!(status.as_str(), "failed" | "partial_failed" | "cancelled") {
+            failed_samples = failed_samples.saturating_add(1);
+        }
+    }
+    let failure_rate = if inspected_samples == 0 {
+        0.0
+    } else {
+        failed_samples as f64 / inspected_samples as f64
+    };
+    if inspected_samples < policy.minimum_samples {
+        return Ok(Some(CanaryMetricsGateSummary {
+            status: "insufficient_samples".to_owned(),
+            inspected_samples,
+            failed_samples,
+            failure_rate,
+            threshold: policy.max_failure_rate,
+            reason: format!(
+                "needs at least {} terminal canary samples",
+                policy.minimum_samples
+            ),
+        }));
+    }
+    let should_rollback = failure_rate > policy.max_failure_rate;
+    Ok(Some(CanaryMetricsGateSummary {
+        status: if should_rollback { "rollback" } else { "pass" }.to_owned(),
+        inspected_samples,
+        failed_samples,
+        failure_rate,
+        threshold: policy.max_failure_rate,
+        reason: if should_rollback {
+            format!(
+                "failure rate {:.2} exceeded threshold {:.2}",
+                failure_rate, policy.max_failure_rate
+            )
+        } else {
+            format!(
+                "failure rate {:.2} within threshold {:.2}",
+                failure_rate, policy.max_failure_rate
+            )
+        },
     }))
 }
 
@@ -1213,6 +1340,7 @@ impl From<tikeo_storage::JobSummary> for JobSummary {
             enabled: value.enabled,
             canary_job_id: value.canary_job_id,
             canary_percent: value.canary_percent,
+            canary_policy: value.canary_policy,
             retry_policy: value.retry_policy,
         }
     }

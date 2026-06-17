@@ -749,6 +749,7 @@ pub struct JobSummary {
     pub enabled: bool,
     pub canary_job_id: Option<String>,
     pub canary_percent: i32,
+    pub canary_policy: tikeo_storage::JobCanaryPolicy,
     pub retry_policy: JobRetryPolicy,
 }
 
@@ -913,6 +914,7 @@ pub struct CreateJobRequest {
     pub enabled: Option<bool>,
     pub canary_job_id: Option<String>,
     pub canary_percent: Option<i32>,
+    pub canary_policy: Option<tikeo_storage::JobCanaryPolicy>,
     pub retry_policy: Option<JobRetryPolicy>,
 }
 
@@ -942,6 +944,7 @@ pub struct UpdateJobRequest {
     #[serde(default, deserialize_with = "deserialize_nullable_update")]
     pub canary_job_id: NullableUpdate<String>,
     pub canary_percent: Option<i32>,
+    pub canary_policy: Option<tikeo_storage::JobCanaryPolicy>,
     pub retry_policy: Option<JobRetryPolicy>,
 }
 
@@ -1019,6 +1022,19 @@ pub struct CanaryRoutingSummary {
     pub original_job_id: String,
     pub routed_job_id: String,
     pub percent: i32,
+    pub rolled_back: bool,
+    pub metrics_gate: Option<CanaryMetricsGateSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CanaryMetricsGateSummary {
+    pub status: String,
+    pub inspected_samples: u64,
+    pub failed_samples: u64,
+    pub failure_rate: f64,
+    pub threshold: f64,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

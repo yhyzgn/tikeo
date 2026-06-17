@@ -29,6 +29,7 @@ description: Tikeo jobs 控制台页面的人类操作指南。
 | --- | --- |
 | 定义表单 | 名称、namespace、app、调度类型、processor/script/plugin 绑定、超时、重试与 misfire。 |
 | 目标面板 | Worker pool、标签、region、cluster、broadcastSelector 与调度建议。 |
+| 灰度面板 | 灰度目标任务、流量比例、指标门禁、失败率阈值、样本窗口和自动回滚。 |
 | 版本抽屉 | 不可变变更历史、作者、创建时间、diff 与回滚入口。 |
 | 触发面板 | 单实例触发、广播触发、API 参数以及创建后的实例链接。 |
 
@@ -39,6 +40,20 @@ description: Tikeo jobs 控制台页面的人类操作指南。
 3. Set retry and timeout based on failure class, not by copying another Job blindly.
 4. Save, inspect version history, then open scheduling advice.
 5. Trigger a single run first; use broadcast only after selector preview is correct.
+
+## 灰度指标门禁与自动回滚
+
+灰度路由配置在稳定 Job 上：
+
+- `canaryJobId` 指向同 namespace/app 下的另一个 Job。
+- `canaryPercent` 控制显式触发时的灰度比例，范围 `0..100`。
+- `canaryPolicy.metricsGateEnabled` 开启触发时指标门禁。
+- `canaryPolicy.minimumSamples` 是做出门禁判断前需要的最小终态样本数。
+- `canaryPolicy.evaluationWindow` 限制检查最近多少条 canary 实例。
+- `canaryPolicy.maxFailureRate` 是 `0.0..1.0` 的失败率阈值。
+- `canaryPolicy.autoRollback=true` 时，门禁失败会自动把 `canaryPercent` 置为 `0`。
+
+门禁只使用灰度目标任务已经持久化的真实实例作为事实源，不从浏览器伪造指标。失败率超过阈值时，触发响应会包含 `canaryRouting.rolledBack=true` 和 `canaryRouting.metricsGate.status=rollback`；本次新实例会回落到稳定 Job。
 
 ## 决策表
 

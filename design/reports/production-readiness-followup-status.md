@@ -17,14 +17,15 @@ Legend: ✅ completed and locally verified; 🟡 partially completed / requires 
 | Real cloud production HA validation | 🟡 | Documentation and scripts name the required checks; local Kind evidence is now available, but cloud-specific infrastructure still needs a staging/prod-like run. | `scripts/verify-raft-ha-rollout.sh`, `scripts/raft-ha-fault-injection-drill.sh`, and the Kind evidence above. | Must still be run in the actual target environment: ingress/LB/WAF/TLS, HTTP/2 Worker Tunnel, SSE, external DB HA, multi-zone failure. |
 | Security policy center / policy engine | ✅ | Implemented Phase A as a source-backed posture projection: `security:read/manage` RBAC seed, `/api/v1/security/posture`, enabled `/security` Web page, script policy/default-deny counters, release-signing checks, notification redaction posture, Raft/transport readiness, recent denial audit projection, and user/docs entries. | `cargo test -p tikeo-server security_posture_projects_real_policy_sources -- --nocapture`; `cd web && bun test src/pages/__tests__/SecurityPolicyCenterPage.test.ts`; `cd web && bun run typecheck`. | Policy/evaluation ledger and managed policy CRUD remain later phases; current page is intentionally read-only and source-backed. |
 | Workflow replay timeline/playback | ✅ | Web 工作流运行视图中的 replay bundle 从静态事件列表升级为操作者可用的回放播放器：播放/暂停/重置/上一步/下一步、当前事件详情、进度条、可点击事件时间线、失败事件高亮；仅使用后端 `/workflow-instances/{id}/replay` 返回的真实实例、定义和事件。 | `cd web && bun test src/pages/__tests__/WorkflowsPage.test.tsx`; `cd web && bun run typecheck`; `git diff --check`. | 当前为前端 playback/inspection 增强；事件 bundle 仍以服务端持久化实例事件为事实源，不模拟或补造事件。 |
-| Canary/Smart Gateway/migration tools | ⏳ | No implementation in this pass. | Existing docs/code already expose canary foundation, FSOD routing, and migration backlog. | Remain next-wave enhancements after production-readiness P0/P1. |
+| Canary metrics gate / auto rollback | ✅ | Added persisted `canaryPolicy` for Jobs, trigger-time evaluation from real canary target terminal instances, response evidence (`metricsGate`, `rolledBack`), automatic `canaryPercent=0` rollback, Web create/edit controls, README/docs guide updates. | `cargo test -p tikeo-server canary -- --nocapture`; `cd web && bun test src/pages/__tests__/JobsPage.test.tsx src/api/client.test.ts`; `cd web && bun run typecheck`. | Gate evaluates persisted instance status history; external SLO backends/prometheus-driven custom expressions remain future enhancement. |
+| Smart Gateway/migration tools | ⏳ | No implementation in this pass. | Existing docs/code already expose FSOD routing and migration backlog. | Remain next-wave enhancements after production-readiness P0/P1. |
 
 ## Recommended next execution order
 
 1. Run the quick release evidence bundle locally on every release candidate.
 2. Re-run Kind 4-Pod HA evidence before claiming Kubernetes semantics for a new release candidate.
 3. Run `verify-raft-ha-rollout.sh` and a dry-run fault drill against staging/prod-like clusters.
-4. Continue with Canary rollback gates, Smart Gateway diagnostics, and migration tools as separate vertical slices.
+4. Continue with Smart Gateway diagnostics and migration tools as separate vertical slices.
 5. Keep real cloud HA validation as an explicit staging/production evidence gate; it is skipped in the current local pass by request.
 
 ## Latest verification
@@ -55,3 +56,7 @@ Intentional non-claims:
 - ✅ `cd web && bun test src/pages/__tests__/WorkflowsPage.test.tsx`
 - ✅ `cd web && bun run typecheck`
 - ✅ `git diff --check`
+
+- ✅ `cargo test -p tikeo-server canary -- --nocapture`
+- ✅ `cd web && bun test src/pages/__tests__/JobsPage.test.tsx src/api/client.test.ts`
+- ✅ `cd web && bun run typecheck`

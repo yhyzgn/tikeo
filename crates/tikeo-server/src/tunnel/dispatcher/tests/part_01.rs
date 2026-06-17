@@ -125,6 +125,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -237,6 +238,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -269,6 +271,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -387,6 +390,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: Some(JobRetryPolicy {
                     enabled: true,
                     max_attempts: 3,
@@ -556,6 +560,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -671,6 +676,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -778,6 +784,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await

@@ -99,7 +99,8 @@ Tikeo is designed to be the default answer when someone asks:
 | **Structured capability routing** | Dispatch matches typed **SDK processors**, **plugin processors**, and **script runners**. No magic string parsing. |
 | **Sandbox-first script jobs** | `auto` selects **SRT** for native scripts and **Deno** for JS/TS, with **WASM/V8/container** paths available explicitly. |
 | **Workflow + topology UX** | Visual workflow canvas, dependency topology, impact analysis, replay data, and per-worker broadcast results. |
-| **Operations-grade evidence** | **Retries**, **misfire policy**, **task logs**, **audit logs**, **OpenTelemetry**, metrics, and file logs answer “what happened?” |
+| **Canary safety gate** | Jobs can route explicit triggers to a canary target, evaluate persisted canary instance failure rate, and automatically roll traffic back to `0%`. |
+| **Operations-grade evidence** | **Retries**, **misfire policy**, **canary rollback evidence**, **task logs**, **audit logs**, **OpenTelemetry**, metrics, and file logs answer “what happened?” |
 | **Multi-DB deployment freedom** | Start with **SQLite** locally, then run production with **PostgreSQL** or **MySQL** using maintained Compose profiles and migration compatibility. |
 | **Cloud-native release surface** | Docker, Compose, Helm, Kubernetes CRD/operator, Terraform provider, GitOps diff, and cross-platform release assets. |
 
@@ -233,6 +234,7 @@ If your scheduler shortlist includes these requirements, Tikeo should move to th
 - [x] **Script sandbox governance** must support lightweight defaults and explicit runtime policy instead of “just run shell on the host.”
 - [x] **Performance and resource footprint matter**: native server, compact images, no JVM warm-up, stable memory behavior.
 - [x] **Workflow + topology visualization** should show dependencies, impact, replay data, and per-worker broadcast results.
+- [x] **Canary changes need a real safety gate**: use persisted canary instance outcomes, thresholded failure rates, and automatic rollback instead of manual guesswork.
 - [x] **RBAC + API-Key + audit + OTel + durable logs** are required for real platform operations.
 
 ## Architecture

@@ -673,6 +673,7 @@ async fn worker_dispatch_outbox_reroute_moves_attempt_fencing_to_new_worker_sess
             enabled: true,
             canary_job_id: None,
             canary_percent: 0,
+            canary_policy: None,
             retry_policy: None,
         })
         .await
@@ -1079,6 +1080,7 @@ async fn dispatch_queue_slo_summary_groups_pending_age_by_current_shard_owner() 
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -1162,6 +1164,7 @@ async fn dispatch_queue_claim_binds_to_active_shard_owner_epoch_and_token() {
             enabled: true,
             canary_job_id: None,
             canary_percent: 0,
+            canary_policy: None,
             retry_policy: None,
         })
         .await

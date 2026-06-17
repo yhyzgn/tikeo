@@ -626,19 +626,20 @@ describe('api client envelope handling', () => {
         return new Response(JSON.stringify({
           code: 0,
           message: 'success',
-          data: { id: 'inst_canary', jobId: 'job_canary', status: 'pending', triggerType: 'api', executionMode: 'single', createdAt: 'now', updatedAt: 'now', logCount: 0, latestLog: null, workerId: null, canaryRouting: { enabled: true, routed: true, originalJobId: 'job_main', routedJobId: 'job_canary', percent: 100 } },
+          data: { id: 'inst_canary', jobId: 'job_canary', status: 'pending', triggerType: 'api', executionMode: 'single', createdAt: 'now', updatedAt: 'now', logCount: 0, latestLog: null, workerId: null, canaryRouting: { enabled: true, routed: true, originalJobId: 'job_main', routedJobId: 'job_canary', percent: 100, rolledBack: false, metricsGate: { status: 'pass', inspectedSamples: 5, failedSamples: 0, failureRate: 0, threshold: 0.5, reason: 'ok' } } },
         }));
       }
       return new Response(JSON.stringify({
         code: 0,
         message: 'success',
-        data: { id: 'job_main', namespace: 'default', app: 'billing', name: 'main', scheduleType: 'api', scheduleExpr: null, processorName: 'main', scriptId: null, enabled: true, versionNumber: 1, canaryJobId: 'job_canary', canaryPercent: 100 },
+        data: { id: 'job_main', namespace: 'default', app: 'billing', name: 'main', scheduleType: 'api', scheduleExpr: null, processorName: 'main', scriptId: null, enabled: true, versionNumber: 1, canaryJobId: 'job_canary', canaryPercent: 100, canaryPolicy: { metricsGateEnabled: true, minimumSamples: 5, evaluationWindow: 20, maxFailureRate: 0.5, autoRollback: true } },
       }));
     }) as unknown as typeof fetch;
 
-    await expect(createJob({ name: 'main', canaryJobId: 'job_canary', canaryPercent: 100 })).resolves.toMatchObject({ canaryJobId: 'job_canary', canaryPercent: 100 });
-    await expect(triggerJob('job_main')).resolves.toMatchObject({ canaryRouting: { routed: true, routedJobId: 'job_canary' } });
-    expect(calls[0].body).toMatchObject({ canaryJobId: 'job_canary', canaryPercent: 100 });
+    const canaryPolicy = { metricsGateEnabled: true, minimumSamples: 5, evaluationWindow: 20, maxFailureRate: 0.5, autoRollback: true };
+    await expect(createJob({ name: 'main', canaryJobId: 'job_canary', canaryPercent: 100, canaryPolicy })).resolves.toMatchObject({ canaryJobId: 'job_canary', canaryPercent: 100, canaryPolicy });
+    await expect(triggerJob('job_main')).resolves.toMatchObject({ canaryRouting: { routed: true, routedJobId: 'job_canary', metricsGate: { status: 'pass' } } });
+    expect(calls[0].body).toMatchObject({ canaryJobId: 'job_canary', canaryPercent: 100, canaryPolicy });
   });
 
 

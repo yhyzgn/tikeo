@@ -268,6 +268,16 @@ async fn ensure_job_schema_compatibility(db: &impl ConnectionTrait) -> Result<()
         ))
         .await?;
     }
+    if !sqlite_column_exists(db, "jobs", "canary_policy_json").await? {
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            format!(
+                "ALTER TABLE jobs ADD COLUMN canary_policy_json text NOT NULL DEFAULT '{}'",
+                crate::repository::JobCanaryPolicy::default_json().replace('\'', "''")
+            ),
+        ))
+        .await?;
+    }
     if !sqlite_column_exists(db, "jobs", "retry_policy_json").await? {
         db.execute(Statement::from_string(
             DatabaseBackend::Sqlite,

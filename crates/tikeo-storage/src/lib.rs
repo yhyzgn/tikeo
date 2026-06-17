@@ -28,7 +28,7 @@ pub use repository::{
     CreateOidcAuthState, CreatePlugin, CreateRole, CreateScript, CreateSdkApiKey, CreateSecret,
     CreateServiceAccount, CreateUser, CreateWorkerDispatchOutbox, CreateWorkflow,
     DispatchQueueClaim, DispatchQueueShardOwner, DispatchQueueSloSummary, DispatchQueueSummary,
-    InstanceEventSummary, JobDurationHistory, JobInstanceAttemptRepository,
+    InstanceEventSummary, JobCanaryPolicy, JobDurationHistory, JobInstanceAttemptRepository,
     JobInstanceAttemptSummary, JobInstanceLogRepository, JobInstanceLogSummary,
     JobInstanceRepository, JobInstanceResult, JobInstanceSummary, JobRepository, JobRetryPolicy,
     JobSummary, JobVersionRepository, JobVersionSummary, MaterializeWorkflowNodeResult,

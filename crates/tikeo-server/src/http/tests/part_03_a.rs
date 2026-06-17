@@ -24,6 +24,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -370,6 +371,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -392,6 +394,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -662,6 +665,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -685,7 +689,7 @@
             .clone()
             .oneshot(
                 admin_json_request_builder(
-                    app,
+                    app.clone(),
                     "POST",
                     format!("/api/v1/events/webhooks/{}:trigger", job.id),
                     r#"{"source":"gitlab","eventType":"push","payload":{"ref":"main","sha":"abc123"}}"#,
@@ -752,6 +756,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -864,6 +869,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -962,6 +968,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -984,6 +991,7 @@
                 enabled: true,
                 canary_job_id: Some(canary.id.clone()),
                 canary_percent: 100,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -1006,7 +1014,7 @@
             .clone()
             .oneshot(
                 admin_json_request_builder(
-                    app,
+                    app.clone(),
                     "POST",
                     format!("/api/v1/jobs/{}:trigger", main.id),
                     r#"{"triggerType":"api","executionMode":"single"}"#,
@@ -1040,6 +1048,192 @@
         assert_eq!(canary_instances.len(), 1);
     }
 
+    #[tokio::test]
+    async fn canary_metrics_gate_auto_rolls_back_failed_target_before_trigger() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let jobs = JobRepository::new(db.clone());
+        let canary = jobs
+            .create_job(CreateJob {
+                created_by: Some("admin".to_owned()),
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "canary-target".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("billing.canary".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: None,
+                canary_percent: 0,
+                canary_policy: None,
+                retry_policy: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("canary job should create: {error}"));
+        let main = jobs
+            .create_job(CreateJob {
+                created_by: Some("admin".to_owned()),
+                namespace: "default".to_owned(),
+                app: "billing".to_owned(),
+                name: "main-target".to_owned(),
+                schedule_type: "api".to_owned(),
+                schedule_expr: None,
+                misfire_policy: "fire_once".to_owned(),
+                schedule_start_at: None,
+                schedule_end_at: None,
+                schedule_calendar_json: None,
+                processor_name: Some("billing.main".to_owned()),
+                processor_type: None,
+                script_id: None,
+                enabled: true,
+                canary_job_id: Some(canary.id.clone()),
+                canary_percent: 100,
+                canary_policy: Some(JobCanaryPolicy {
+                    metrics_gate_enabled: true,
+                    minimum_samples: 2,
+                    evaluation_window: 10,
+                    max_failure_rate: 0.5,
+                    auto_rollback: true,
+                }),
+                retry_policy: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("main job should create: {error}"));
+        let instances = JobInstanceRepository::new(db.clone());
+        for index in 0..2 {
+            let failed = instances
+                .create_pending(CreateJobInstance {
+                    job_id: canary.id.clone(),
+                    trigger_type: TriggerType::Api,
+                    execution_mode: ExecutionMode::Single,
+                })
+                .await
+                .unwrap_or_else(|error| panic!("canary instance should create: {error}"))
+                .unwrap_or_else(|| panic!("canary instance should exist"));
+            instances
+                .update_status(&failed.id, tikeo_core::InstanceStatus::Failed)
+                .await
+                .unwrap_or_else(|error| panic!("canary instance {index} should fail: {error}"));
+        }
+        let app = router_with_state(AppState::new(
+            jobs.clone(),
+            instances.clone(),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            AuditLogRepository::new(db.clone()),
+            crate::tunnel::WorkerRegistry::default(),
+            StandaloneCoordinator::shared("test-node"),
+        ));
+
+        let created_with_policy = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/jobs",
+                    &format!(
+                        r#"{{
+                            "namespace":"default",
+                            "app":"billing",
+                            "name":"main-target-via-api",
+                            "scheduleType":"api",
+                            "processorName":"billing.main.api",
+                            "canaryJobId":"{}",
+                            "canaryPercent":25,
+                            "canaryPolicy":{{
+                                "metricsGateEnabled":true,
+                                "minimumSamples":2,
+                                "evaluationWindow":10,
+                                "maxFailureRate":0.5,
+                                "autoRollback":true
+                            }}
+                        }}"#,
+                        canary.id
+                    ),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("create route should respond: {error}"));
+        let body = axum::body::to_bytes(created_with_policy.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("create body should collect: {error}"));
+        let created_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("create body should be JSON: {error}"));
+        assert_eq!(created_json["data"]["canaryJobId"], canary.id);
+        assert_eq!(created_json["data"]["canaryPercent"], 25);
+        assert_eq!(created_json["data"]["canaryPolicy"]["metricsGateEnabled"], true);
+
+        let response = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    format!("/api/v1/jobs/{}:trigger", main.id),
+                    r#"{"triggerType":"api","executionMode":"single"}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("trigger route should respond: {error}"));
+        let status = response.status();
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+
+        assert!(status.is_success(), "unexpected status {status}: {json}");
+        assert_eq!(json["data"]["jobId"], main.id);
+        assert_eq!(json["data"]["canaryRouting"]["enabled"], false);
+        assert_eq!(json["data"]["canaryRouting"]["routed"], false);
+        assert_eq!(json["data"]["canaryRouting"]["rolledBack"], true);
+        assert_eq!(json["data"]["canaryRouting"]["metricsGate"]["status"], "rollback");
+        assert_eq!(json["data"]["canaryRouting"]["metricsGate"]["failedSamples"], 2);
+
+        let updated_main = jobs
+            .get(&main.id)
+            .await
+            .unwrap_or_else(|error| panic!("main job should load after gate: {error}"))
+            .unwrap_or_else(|| panic!("main job should exist after gate"));
+        assert_eq!(updated_main.canary_percent, 0);
+        assert_eq!(updated_main.canary_job_id.as_deref(), Some(canary.id.as_str()));
+
+        let audit = app
+            .clone()
+            .oneshot(
+                admin_request_builder(
+                    app,
+                    "GET",
+                    format!(
+                        "/api/v1/audit-logs?action=canary_auto_rollback&resource_type=job&resource_id={}&page_size=1",
+                        main.id
+                    ),
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("audit route should respond: {error}"));
+        let body = axum::body::to_bytes(audit.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("audit body should collect: {error}"));
+        let audit_json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("audit body should be JSON: {error}"));
+        assert_eq!(audit_json["data"]["items"][0]["action"], "canary_auto_rollback");
+    }
+
 
 
     #[tokio::test]
@@ -1067,6 +1261,7 @@
                 enabled: true,
                 canary_job_id: None,
                 canary_percent: 0,
+                canary_policy: None,
                 retry_policy: None,
             })
             .await
@@ -1167,15 +1362,15 @@
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         let jobs = JobRepository::new(db.clone());
         let extract = jobs
-            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "extract".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, schedule_calendar_json: None, processor_name: Some("billing.extract".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0, retry_policy: None })
+            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "extract".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, schedule_calendar_json: None, processor_name: Some("billing.extract".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0, canary_policy: None, retry_policy: None })
             .await
             .unwrap_or_else(|error| panic!("extract job should create: {error}"));
         let normalize = jobs
-            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "normalize".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, schedule_calendar_json: None, processor_name: Some("billing.normalize".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0, retry_policy: None })
+            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "normalize".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, schedule_calendar_json: None, processor_name: Some("billing.normalize".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0, canary_policy: None, retry_policy: None })
             .await
             .unwrap_or_else(|error| panic!("normalize job should create: {error}"));
         let publish = jobs
-            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "publish".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, schedule_calendar_json: None, processor_name: Some("billing.publish".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0, retry_policy: None })
+            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "publish".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, schedule_calendar_json: None, processor_name: Some("billing.publish".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0, canary_policy: None, retry_policy: None })
             .await
             .unwrap_or_else(|error| panic!("publish job should create: {error}"));
         let workflows = WorkflowRepository::new(db.clone());
@@ -1251,7 +1446,7 @@
             .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
         let jobs = JobRepository::new(db.clone());
         let job = jobs
-            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "replay-job".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, schedule_calendar_json: None, processor_name: Some("billing.replay".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0, retry_policy: None })
+            .create_job(CreateJob { created_by: Some("admin".to_owned()), namespace: "default".to_owned(), app: "billing".to_owned(), name: "replay-job".to_owned(), schedule_type: "api".to_owned(), schedule_expr: None, misfire_policy: "fire_once".to_owned(), schedule_start_at: None, schedule_end_at: None, schedule_calendar_json: None, processor_name: Some("billing.replay".to_owned()), processor_type: None, script_id: None, enabled: true, canary_job_id: None, canary_percent: 0, canary_policy: None, retry_policy: None })
             .await
             .unwrap_or_else(|error| panic!("job should create: {error}"));
         let workflows = WorkflowRepository::new(db.clone());

@@ -12,7 +12,7 @@ use tikeo_core::{ExecutionMode, TriggerType};
 use tikeo_proto::worker::v1::RegisterWorker;
 use tikeo_storage::{
     AppendJobInstanceLog, AuditLogRepository, CompleteWorkflowShardInput, CreateAuditLog,
-    CreateJob, CreateJobInstance, CreateWorkflow, JobInstanceAttemptRepository,
+    CreateJob, CreateJobInstance, CreateWorkflow, JobCanaryPolicy, JobInstanceAttemptRepository,
     JobInstanceLogRepository, JobInstanceRepository, JobRepository, RaftRepository,
     ScriptRepository, UserRepository, WorkflowDefinition, WorkflowNodeSpec, WorkflowRepository,
     connect_and_migrate,

@@ -174,6 +174,23 @@ export interface JobRetryPolicy {
   maxDelaySeconds: number;
 }
 
+export interface JobCanaryPolicy {
+  metricsGateEnabled: boolean;
+  minimumSamples: number;
+  evaluationWindow: number;
+  maxFailureRate: number;
+  autoRollback: boolean;
+}
+
+export interface CanaryMetricsGateSummary {
+  status: string;
+  inspectedSamples: number;
+  failedSamples: number;
+  failureRate: number;
+  threshold: number;
+  reason: string;
+}
+
 export interface JobSummary {
   id: string;
   namespace: string;
@@ -191,6 +208,7 @@ export interface JobSummary {
   enabled: boolean;
   canaryJobId: string | null;
   canaryPercent: number;
+  canaryPolicy: JobCanaryPolicy;
   versionNumber: number;
   retryPolicy: JobRetryPolicy;
 }
@@ -342,6 +360,7 @@ export interface CreateJobRequest {
   enabled?: boolean;
   canaryJobId?: string | null;
   canaryPercent?: number;
+  canaryPolicy?: JobCanaryPolicy;
   retryPolicy?: JobRetryPolicy;
 }
 
@@ -361,6 +380,7 @@ export interface UpdateJobRequest {
   enabled?: boolean;
   canaryJobId?: string | null;
   canaryPercent?: number;
+  canaryPolicy?: JobCanaryPolicy;
   retryPolicy?: JobRetryPolicy;
 }
 
@@ -397,6 +417,8 @@ export interface CanaryRoutingSummary {
   originalJobId: string;
   routedJobId: string;
   percent: number;
+  rolledBack?: boolean;
+  metricsGate?: CanaryMetricsGateSummary | null;
 }
 
 export interface JobInstanceResult {

@@ -755,6 +755,7 @@ pub(super) enum Jobs {
     Enabled,
     CanaryJobId,
     CanaryPercent,
+    CanaryPolicyJson,
     RetryPolicyJson,
     CreatedAt,
     UpdatedAt,

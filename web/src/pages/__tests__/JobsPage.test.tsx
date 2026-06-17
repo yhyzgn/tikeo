@@ -154,6 +154,11 @@ describe('job canary routing foundation', () => {
   test('exposes canary fields and routed trigger feedback', () => {
     expect(source).toContain('灰度目标任务');
     expect(source).toContain('canaryPercent');
+    expect(source).toContain('DEFAULT_CANARY_POLICY');
+    expect(source).toContain('metricsGateEnabled');
+    expect(source).toContain('灰度发布与自动回滚');
+    expect(source).toContain('失败率阈值');
+    expect(source).toContain('autoRollback');
     expect(source).toContain('canary {job.canaryPercent}%');
     expect(source).toContain('命中灰度');
   });

@@ -54,6 +54,7 @@ async fn due_delivery_attempts_post_to_webhook_and_update_message_status() {
             enabled: true,
             canary_job_id: None,
             canary_percent: 0,
+            canary_policy: None,
             retry_policy: None,
         })
         .await
@@ -252,6 +253,7 @@ async fn webhook_delivery_injects_authorization_from_secret_refs_without_leaking
             enabled: true,
             canary_job_id: None,
             canary_percent: 0,
+            canary_policy: None,
             retry_policy: None,
         })
         .await
@@ -493,6 +495,7 @@ async fn running_job_instance_event_materializes_message_and_delivery_attempts()
             enabled: true,
             canary_job_id: None,
             canary_percent: 0,
+            canary_policy: None,
             retry_policy: None,
         })
         .await
@@ -613,6 +616,7 @@ async fn job_instance_event_materializes_message_and_delivery_attempts() {
             enabled: true,
             canary_job_id: None,
             canary_percent: 0,
+            canary_policy: None,
             retry_policy: None,
         })
         .await

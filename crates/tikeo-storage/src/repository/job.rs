@@ -92,6 +92,72 @@ impl JobRetryPolicy {
     }
 }
 
+/// Canary metrics gate and rollback policy for one stable job.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct JobCanaryPolicy {
+    /// Whether trigger-time canary metrics gates are evaluated.
+    pub metrics_gate_enabled: bool,
+    /// Minimum terminal canary samples required before the gate may decide.
+    pub minimum_samples: u64,
+    /// Number of most recent canary instances inspected.
+    pub evaluation_window: u64,
+    /// Maximum allowed failure rate from 0.0 to 1.0.
+    pub max_failure_rate: f64,
+    /// Whether a failing gate should automatically set canary traffic to 0%.
+    pub auto_rollback: bool,
+}
+
+impl Default for JobCanaryPolicy {
+    fn default() -> Self {
+        Self {
+            metrics_gate_enabled: false,
+            minimum_samples: 5,
+            evaluation_window: 20,
+            max_failure_rate: 0.5,
+            auto_rollback: true,
+        }
+    }
+}
+
+impl JobCanaryPolicy {
+    /// Return a policy bounded for production-safe trigger-time evaluation.
+    #[must_use]
+    pub fn normalized(self) -> Self {
+        Self {
+            metrics_gate_enabled: self.metrics_gate_enabled,
+            minimum_samples: self.minimum_samples.clamp(1, 1_000),
+            evaluation_window: self.evaluation_window.clamp(1, 10_000),
+            max_failure_rate: self.max_failure_rate.clamp(0.0, 1.0),
+            auto_rollback: self.auto_rollback,
+        }
+    }
+
+    /// Parse persisted JSON or return the default policy.
+    #[must_use]
+    pub fn from_json(value: Option<&str>) -> Self {
+        value
+            .and_then(|raw| serde_json::from_str::<Self>(raw).ok())
+            .unwrap_or_default()
+            .normalized()
+    }
+
+    /// Serialize normalized policy JSON.
+    #[must_use]
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self.clone().normalized()).unwrap_or_else(|_| Self::default_json())
+    }
+
+    /// Default policy JSON used by migrations.
+    #[must_use]
+    pub fn default_json() -> String {
+        serde_json::to_string(&Self::default()).unwrap_or_else(|_| {
+            r#"{"metricsGateEnabled":false,"minimumSamples":5,"evaluationWindow":20,"maxFailureRate":0.5,"autoRollback":true}"#
+                .to_owned()
+        })
+    }
+}
+
 /// Minimal job creation input.
 #[derive(Debug, Clone)]
 pub struct CreateJob {
@@ -127,6 +193,8 @@ pub struct CreateJob {
     pub canary_job_id: Option<String>,
     /// Canary traffic percentage in 0..=100.
     pub canary_percent: i32,
+    /// Canary metrics gate and rollback policy.
+    pub canary_policy: Option<JobCanaryPolicy>,
     /// Failure retry policy.
     pub retry_policy: Option<JobRetryPolicy>,
 }
@@ -166,12 +234,14 @@ pub struct UpdateJob {
     pub canary_job_id: Option<Option<String>>,
     /// Optional canary percentage update.
     pub canary_percent: Option<i32>,
+    /// Optional canary policy update.
+    pub canary_policy: Option<JobCanaryPolicy>,
     /// Optional failure retry policy update.
     pub retry_policy: Option<JobRetryPolicy>,
 }
 
 /// Job summary returned to management API callers.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct JobSummary {
     /// Latest immutable version number.
     pub version_number: i64,
@@ -207,6 +277,8 @@ pub struct JobSummary {
     pub canary_job_id: Option<String>,
     /// Canary traffic percentage in 0..=100.
     pub canary_percent: i32,
+    /// Canary metrics gate and rollback policy.
+    pub canary_policy: JobCanaryPolicy,
     /// Failure retry policy.
     pub retry_policy: JobRetryPolicy,
 }

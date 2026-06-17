@@ -1,5 +1,6 @@
 //! Database schema migrations for tikeo storage.
 
+mod canary_policy;
 mod columns;
 mod fsod_outbox;
 mod iden;
@@ -58,10 +59,12 @@ impl MigratorTrait for Migrator {
             Box::new(ShardOwnershipMigration),
             Box::new(ShardMapPolicyMigration),
             Box::new(SecurityPolicyCenterMigration),
+            Box::new(CanaryPolicyMigration),
         ]
     }
 }
 
+use canary_policy::CanaryPolicyMigration;
 use fsod_outbox::FsodOutboxMigration;
 use notification_center::{
     NotificationCenterMigration, NotificationChannelExamplesCleanupMigration,
@@ -1365,6 +1368,7 @@ async fn create_jobs(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
                 .col(boolean_col(Jobs::Enabled))
                 .col(string_null(Jobs::CanaryJobId))
                 .col(integer_col(Jobs::CanaryPercent))
+                .col(text_col(Jobs::CanaryPolicyJson))
                 .col(text_col(Jobs::RetryPolicyJson))
                 .col(string_col(Jobs::CreatedAt))
                 .col(string_col(Jobs::UpdatedAt))

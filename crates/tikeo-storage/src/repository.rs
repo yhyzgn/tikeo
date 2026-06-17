@@ -53,7 +53,7 @@ pub use instance::{
     CreateJobInstance, JobDurationHistory, JobInstanceRepository, JobInstanceResult,
     JobInstanceSummary,
 };
-pub use job::{CreateJob, JobRetryPolicy, JobSummary, UpdateJob};
+pub use job::{CreateJob, JobCanaryPolicy, JobRetryPolicy, JobSummary, UpdateJob};
 pub use job_repo::JobRepository;
 pub use job_version::{JobVersionRepository, JobVersionSummary};
 pub use log::{AppendJobInstanceLog, JobInstanceLogRepository, JobInstanceLogSummary};

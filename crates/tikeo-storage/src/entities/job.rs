@@ -39,6 +39,8 @@ pub struct Model {
     pub canary_job_id: Option<String>,
     /// Canary traffic percentage in 0..=100.
     pub canary_percent: i32,
+    /// Canary metrics gate and rollback policy JSON.
+    pub canary_policy_json: String,
     /// Structured failure retry policy JSON.
     pub retry_policy_json: String,
     /// Creation timestamp in RFC3339 format.

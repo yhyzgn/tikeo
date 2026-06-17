@@ -227,6 +227,7 @@ async fn task_result_with_wrong_assignment_token_is_rejected() {
             enabled: true,
             canary_job_id: None,
             canary_percent: 0,
+            canary_policy: None,
             retry_policy: None,
         })
         .await
@@ -338,6 +339,7 @@ async fn broadcast_task_result_persists_per_worker_attempt_result() {
             enabled: true,
             canary_job_id: None,
             canary_percent: 0,
+            canary_policy: None,
             retry_policy: None,
         })
         .await
@@ -566,6 +568,7 @@ async fn failed_single_task_result_schedules_retry_and_logs_result() {
             enabled: true,
             canary_job_id: None,
             canary_percent: 0,
+            canary_policy: None,
             retry_policy: Some(JobRetryPolicy {
                 enabled: true,
                 max_attempts: 3,
@@ -746,6 +749,7 @@ async fn failed_single_task_result_emits_job_notification_policy() {
             enabled: true,
             canary_job_id: None,
             canary_percent: 0,
+            canary_policy: None,
             retry_policy: Some(JobRetryPolicy {
                 enabled: true,
                 max_attempts: 2,
@@ -992,6 +996,7 @@ async fn non_retrying_failed_task_result_emits_failed_notification_policy() {
             enabled: true,
             canary_job_id: None,
             canary_percent: 0,
+            canary_policy: None,
             retry_policy: Some(JobRetryPolicy {
                 enabled: true,
                 max_attempts: 1,
@@ -1193,6 +1198,7 @@ async fn subscribe_task_logs_replays_existing_and_streams_live_logs() {
             enabled: true,
             canary_job_id: None,
             canary_percent: 0,
+            canary_policy: None,
             retry_policy: None,
         })
         .await
