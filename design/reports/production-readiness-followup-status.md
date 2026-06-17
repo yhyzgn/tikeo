@@ -15,7 +15,7 @@ Legend: ✅ completed and locally verified; 🟡 partially completed / requires 
 | Release evidence bundle | ✅ | Added `scripts/collect-release-evidence.sh` to run/check the non-mutating release gate set and write a timestamped evidence directory with `summary.json`, command logs, `git-status.txt`, and command statuses. | Script supports default quick gate and opt-in heavier gates through env flags. | Live Kind, live Raft, and cloud LB/WAF/TLS checks are intentionally opt-in because they need Docker/Kubernetes/cloud credentials and can be expensive. |
 | Kind 4-Pod HA local Kubernetes validation | ✅ | Ran the local Kind harness with four Server pods, external PostgreSQL inside Kind, API traffic pinned to a non-Leader pod, Worker Tunnel pinned to another non-Leader pod, leader-pod deletion, and before/after job execution. | `.dev/reports/kind-raft-ha-e2e-20260617T072226Z-4055720/kind-raft-ha-e2e-20260617T072226Z-4055720.json` reports `status=passed`, `leaderBefore=tikeo-server-1`, `leaderAfter=tikeo-server-3`, `apiPod=tikeo-server-0`, `workerGatewayPod=tikeo-server-2`. | Kind proves Kubernetes object semantics on one machine; it does not prove cloud LB/WAF/TLS/multi-zone behavior. |
 | Real cloud production HA validation | 🟡 | Documentation and scripts name the required checks; local Kind evidence is now available, but cloud-specific infrastructure still needs a staging/prod-like run. | `scripts/verify-raft-ha-rollout.sh`, `scripts/raft-ha-fault-injection-drill.sh`, and the Kind evidence above. | Must still be run in the actual target environment: ingress/LB/WAF/TLS, HTTP/2 Worker Tunnel, SSE, external DB HA, multi-zone failure. |
-| Security policy center / policy engine | 🟡 | Added `design/security-policy-center-plan.md`, mapping existing enforcement points and splitting the missing product surface into phases. The Web route remains disabled to avoid presenting a placeholder as complete. | Plan references concrete anchors: `ScriptExecutionPolicy::validate_default_deny`, script release gates, signed grants, RBAC/scoped API keys, notification redaction, and Raft/transport security. | Implementation still pending: `security:read/manage`, posture API, UI page, policy/evaluation ledger, tests, docs. |
+| Security policy center / policy engine | ✅ | Implemented Phase A as a source-backed posture projection: `security:read/manage` RBAC seed, `/api/v1/security/posture`, enabled `/security` Web page, script policy/default-deny counters, release-signing checks, notification redaction posture, Raft/transport readiness, recent denial audit projection, and user/docs entries. | `cargo test -p tikeo-server security_posture_projects_real_policy_sources -- --nocapture`; `cd web && bun test src/pages/__tests__/SecurityPolicyCenterPage.test.ts`; `cd web && bun run typecheck`. | Policy/evaluation ledger and managed policy CRUD remain later phases; current page is intentionally read-only and source-backed. |
 | Workflow replay/canary/Smart Gateway/migration tools | ⏳ | No implementation in this pass. | Existing docs/code already expose replay bundle, canary foundation, FSOD routing, and migration backlog. | Remain next-wave enhancements after production-readiness P0/P1. |
 
 ## Recommended next execution order
@@ -23,8 +23,8 @@ Legend: ✅ completed and locally verified; 🟡 partially completed / requires 
 1. Run the quick release evidence bundle locally on every release candidate.
 2. Re-run Kind 4-Pod HA evidence before claiming Kubernetes semantics for a new release candidate.
 3. Run `verify-raft-ha-rollout.sh` and a dry-run fault drill against staging/prod-like clusters.
-4. Plan the Security Policy Center as a separate vertical slice; do not mix it with release hygiene.
-5. Keep migration tools as backlog until service operation remains stable across several releases.
+4. Continue with Workflow Replay timeline/playback, Canary rollback gates, Smart Gateway diagnostics, and migration tools as separate vertical slices.
+5. Keep real cloud HA validation as an explicit staging/production evidence gate; it is skipped in the current local pass by request.
 
 ## Latest verification
 
@@ -45,3 +45,8 @@ Legend: ✅ completed and locally verified; 🟡 partially completed / requires 
 Intentional non-claims:
 
 - Live Raft rollout checks, cloud ingress/LB/WAF/TLS validation, multi-zone failure, and real external DB HA were not rerun in this pass. They remain staging/production evidence gates.
+
+- ✅ `cargo test -p tikeo-server security_posture_projects_real_policy_sources -- --nocapture`
+- ✅ `cd web && bun test src/pages/__tests__/SecurityPolicyCenterPage.test.ts`
+- ✅ `cd web && bun run typecheck`
+- ✅ `cargo fmt --check`

@@ -84,7 +84,7 @@ pub use scripts::{
     create_script, delete_script, diff_script_versions, get_script, list_script_versions,
     list_scripts, preview_script_release_gate, publish_script, rollback_script, update_script,
 };
-pub use security::transport_security_status;
+pub use security::{security_posture, transport_security_status};
 pub use service_accounts::{
     create_service_account, disable_service_account, list_service_accounts, update_service_account,
 };

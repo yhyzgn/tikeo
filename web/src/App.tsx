@@ -34,6 +34,7 @@ const CalendarsPage = lazy(() => import('./pages/CalendarsPage').then((module) =
 const PluginsPage = lazy(() => import('./pages/PluginsPage').then((module) => ({ default: module.PluginsPage })));
 const ApiKeysPage = lazy(() => import('./pages/ApiKeysPage').then((module) => ({ default: module.ApiKeysPage })));
 const GitOpsPage = lazy(() => import('./pages/GitOpsPage').then((module) => ({ default: module.GitOpsPage })));
+const SecurityPolicyCenterPage = lazy(() => import('./pages/SecurityPolicyCenterPage').then((module) => ({ default: module.SecurityPolicyCenterPage })));
 const WorkersPage = lazy(() => import('./pages/WorkersPage').then((module) => ({ default: module.WorkersPage })));
 const PublicInstanceConsolePage = lazy(() => import('./pages/PublicInstanceConsolePage').then((module) => ({ default: module.PublicInstanceConsolePage })));
 const DispatchQueuePage = lazy(() => import('./pages/DispatchQueuePage').then((module) => ({ default: module.DispatchQueuePage })));
@@ -52,6 +53,7 @@ const KEEP_ALIVE_ROUTES = [
   { path: ROUTE_META.plugins.path, element: <GuardedRoute route={ROUTE_META.plugins}><PluginsPage /></GuardedRoute> },
   { path: ROUTE_META.apiKeys.path, element: <GuardedRoute route={ROUTE_META.apiKeys}><ApiKeysPage /></GuardedRoute> },
   { path: ROUTE_META.gitops.path, element: <GuardedRoute route={ROUTE_META.gitops}><GitOpsPage /></GuardedRoute> },
+  { path: ROUTE_META.security.path, element: <GuardedRoute route={ROUTE_META.security}><SecurityPolicyCenterPage /></GuardedRoute> },
   { path: ROUTE_META.scripts.path, element: <GuardedRoute route={ROUTE_META.scripts}><ScriptsPage /></GuardedRoute> },
   { path: ROUTE_META.notifications.path, element: <GuardedRoute route={ROUTE_META.notifications}><NotificationCenterPage /></GuardedRoute> },
   { path: ROUTE_META.alerts.path, element: <GuardedRoute route={ROUTE_META.alerts}><AlertDeliveryPage /></GuardedRoute> },
@@ -120,6 +122,7 @@ function AppLayout() {
           <Route path={ROUTE_META.plugins.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.apiKeys.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.gitops.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
+          <Route path={ROUTE_META.security.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.scripts.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.scriptEdit.path} element={<GuardedRoute route={ROUTE_META.scriptEdit}><ScriptEditorPage /></GuardedRoute>} />
           <Route path={ROUTE_META.notifications.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />

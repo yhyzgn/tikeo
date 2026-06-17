@@ -445,6 +445,75 @@ pub struct TracingStatus {
     pub header_names: Vec<String>,
 }
 
+pub type SecurityPostureApiResponse = ApiResponse<SecurityPostureResponse>;
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SecurityPostureResponse {
+    pub overall_status: String,
+    pub checks: Vec<SecurityPostureCheck>,
+    pub transport: TransportSecurityStatusResponse,
+    pub script_governance: ScriptGovernancePosture,
+    pub notification_safety: NotificationSafetyPosture,
+    pub cluster_transport: ClusterTransportPosture,
+    pub recent_denials: Vec<SecurityPolicyDenial>,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SecurityPostureCheck {
+    pub id: String,
+    pub label: String,
+    pub status: String,
+    pub source: String,
+    pub detail: String,
+    pub evidence_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptGovernancePosture {
+    pub total_scripts: u64,
+    pub safe_default_deny_scripts: u64,
+    pub dangerous_policy_scripts: u64,
+    pub released_scripts: u64,
+    pub signed_releases: u64,
+    pub releases_with_grants: u64,
+    pub release_signature_required: bool,
+    pub release_signature_secret_configured: bool,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationSafetyPosture {
+    pub total_channels: u64,
+    pub enabled_channels: u64,
+    pub configured_targets: u64,
+    pub redacted_targets: u64,
+    pub channels_with_safety_policy: u64,
+    pub direct_secret_values_redacted: u64,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ClusterTransportPosture {
+    pub raft_transport_token_configured: bool,
+    pub worker_tunnel_tls_ready: bool,
+    pub http_tls_ready: bool,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SecurityPolicyDenial {
+    pub id: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub action: String,
+    pub failure_reason: String,
+    pub detail: Option<String>,
+    pub created_at: String,
+}
+
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct TransportSecurityStatusResponse {
     pub http: TlsEndpointStatus,

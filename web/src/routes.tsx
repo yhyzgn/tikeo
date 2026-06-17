@@ -80,7 +80,7 @@ export const ROUTE_META = {
   audit: { path: '/audit', menuKey: '/audit', label: '审计日志', icon: <AuditOutlined />, permission: { resource: 'audit', action: 'read' }, menu: true, group: 'observability' },
   workflowNew: { path: '/workflows/new', menuKey: '/workflows', label: '新增工作流', permission: { resource: 'workflows', action: 'manage' }, menu: false },
   workflowEdit: { path: '/workflows/:id/edit', menuKey: '/workflows', label: '编辑工作流', permission: { resource: 'workflows', action: 'manage' }, menu: false },
-  securityNext: { path: 'security-next', menuKey: 'security-next', label: '安全策略', icon: <SafetyCertificateOutlined />, disabled: true, menu: true, group: 'coming-soon' },
+  security: { path: '/security', menuKey: '/security', label: '安全策略', icon: <SafetyCertificateOutlined />, permission: { resource: 'security', action: 'read' }, menu: true, group: 'governance' },
 } satisfies Record<string, AppRouteMeta>;
 
 export const MENU_ROUTE_META: AppRouteMeta[] = Object.values(ROUTE_META).filter((route) => route.menu);

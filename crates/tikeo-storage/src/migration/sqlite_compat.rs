@@ -967,6 +967,18 @@ const SQLITE_DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
         "execute",
         "Run workflows",
     ),
+    (
+        "perm-security-read",
+        "security",
+        "read",
+        "Read Security Policy Center posture and policy evidence",
+    ),
+    (
+        "perm-security-manage",
+        "security",
+        "manage",
+        "Manage Security Policy Center policies and enforcement settings",
+    ),
 ];
 
 async fn seed_sqlite_rbac_defaults(db: &impl ConnectionTrait) -> Result<(), sea_orm::DbErr> {
@@ -1022,6 +1034,7 @@ async fn seed_sqlite_rbac_defaults(db: &impl ConnectionTrait) -> Result<(), sea_
             "perm-audit-manage",
             "perm-workflows-read",
             "perm-workflows-execute",
+            "perm-security-read",
         ],
         &now,
     )
@@ -1035,6 +1048,7 @@ async fn seed_sqlite_rbac_defaults(db: &impl ConnectionTrait) -> Result<(), sea_
             "perm-instances-read",
             "perm-scripts-read",
             "perm-workflows-read",
+            "perm-security-read",
         ],
         &now,
     )

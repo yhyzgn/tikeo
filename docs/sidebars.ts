@@ -32,6 +32,7 @@ const sidebars: SidebarsConfig = {
         'user-guide/notifications',
         'user-guide/alerts',
         'user-guide/scripts',
+        'user-guide/security-policy-center',
         'user-guide/audit',
         'user-guide/settings',
       ],

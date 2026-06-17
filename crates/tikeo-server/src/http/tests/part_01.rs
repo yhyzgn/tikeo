@@ -837,6 +837,83 @@
     }
 
     #[tokio::test]
+    async fn security_posture_projects_real_policy_sources() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let mut transport = tikeo_config::TransportSecurityConfig::default();
+        transport.worker_tunnel.tls_enabled = true;
+        transport.worker_tunnel.mtls_required = true;
+        transport.worker_tunnel.cert_path = Some("/missing/worker.crt".to_owned());
+        let mut governance = ScriptGovernanceConfig::default();
+        governance.release_signature_secret_ref = Some("env:TIKEO_SCRIPT_RELEASE_SECRET".to_owned());
+        let app = router_with_state(
+            AppState::new(
+                JobRepository::new(db.clone()),
+                JobInstanceRepository::new(db.clone()),
+                JobInstanceLogRepository::new(db.clone()),
+                JobInstanceAttemptRepository::new(db.clone()),
+                UserRepository::new(db.clone()),
+                ScriptRepository::new(db.clone()),
+                WorkflowRepository::new(db.clone()),
+                AuditLogRepository::new(db.clone()),
+                crate::tunnel::WorkerRegistry::default(),
+                StandaloneCoordinator::shared("security-test-node"),
+            )
+            .with_transport_security_config(transport)
+            .with_script_governance_config(governance)
+            .with_raft_transport_token(Some("cluster-token".to_owned())),
+        );
+
+        let safe_script = post_json(
+            app.clone(),
+            "/api/v1/scripts",
+            r#"{"name":"safe-script","language":"python","version":"1.0.0","content":"print('safe')","timeout_seconds":3,"max_memory_bytes":4096,"allow_network":false}"#,
+        )
+        .await;
+        assert_eq!(safe_script["code"], 0);
+        let unsafe_response = app
+            .clone()
+            .oneshot(
+                admin_json_request_builder(
+                    app.clone(),
+                    "POST",
+                    "/api/v1/scripts",
+                    r#"{"name":"unsafe-script","language":"python","version":"1.0.0","content":"print('unsafe')","timeout_seconds":3,"max_memory_bytes":4096,"allow_network":false,"policy":{"network":{"enabled":true,"allowed_hosts":["api.example.com"]},"filesystem":{"read_only_paths":[],"writable_paths":[]},"secrets":{"refs":[]},"resources":{"timeout_ms":30000,"max_memory_bytes":67108864,"max_output_bytes":1048576},"sandbox":{"backend":"auto"},"env_vars":[]}}"#,
+                )
+                .await,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("unsafe script route should respond: {error}"));
+        assert_eq!(unsafe_response.status(), axum::http::StatusCode::BAD_REQUEST, "dangerous policy must remain rejected");
+
+        let response = app
+            .clone()
+            .oneshot(admin_request_builder(app.clone(), "GET", "/api/v1/security/posture").await)
+            .await
+            .unwrap_or_else(|error| panic!("security posture route should respond: {error}"));
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["scriptGovernance"]["totalScripts"], 1);
+        assert_eq!(json["data"]["scriptGovernance"]["safeDefaultDenyScripts"], 1);
+        assert_eq!(json["data"]["scriptGovernance"]["dangerousPolicyScripts"], 0);
+        assert_eq!(json["data"]["scriptGovernance"]["releaseSignatureRequired"], true);
+        assert_eq!(json["data"]["clusterTransport"]["raftTransportTokenConfigured"], true);
+        assert_eq!(json["data"]["transport"]["ready"], false);
+        assert!(json["data"]["checks"].as_array().is_some_and(|checks| checks.iter().any(|check| {
+            check["source"] == "config" && check["status"] == "warning" && check["id"] == "transport.worker_tunnel"
+        })));
+        assert!(json["data"]["checks"].as_array().is_some_and(|checks| checks.iter().any(|check| {
+            check["source"] == "script_policy_snapshot" && check["id"] == "script.default_deny"
+        })));
+    }
+
+    #[tokio::test]
     async fn cluster_status_reports_explicit_standalone_role() {
         let json = get_json("/api/v1/cluster").await;
 

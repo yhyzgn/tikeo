@@ -122,6 +122,7 @@ pub(super) fn api_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/system/info", get(routes::system_info))
         .route("/metrics/summary", get(routes::metrics_summary))
+        .route("/security/posture", get(routes::security_posture))
         .route(
             "/security/transport",
             get(routes::transport_security_status),

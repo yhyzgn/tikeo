@@ -353,6 +353,7 @@ const ALL_MENU_KEYS: &[&str] = &[
     "/workers",
     "/workers/dispatch-queue",
     "/scripts",
+    "/security",
     "/plugins",
     "/scopes",
     "/users",
@@ -360,6 +361,7 @@ const ALL_MENU_KEYS: &[&str] = &[
     "/calendars",
     "/api-keys",
     "/gitops",
+    "/security",
     "/alerts",
     "/audit",
 ];
@@ -371,6 +373,7 @@ const OPERATOR_MENU_KEYS: &[&str] = &[
     "/workers",
     "/workers/dispatch-queue",
     "/scripts",
+    "/security",
 ];
 const VIEWER_MENU_KEYS: &[&str] = &[
     "/dashboard",
@@ -379,6 +382,7 @@ const VIEWER_MENU_KEYS: &[&str] = &[
     "/instances",
     "/workers",
     "/scripts",
+    "/security",
 ];
 
 const ALL_UI_ACTION_KEYS: &[&str] = &[

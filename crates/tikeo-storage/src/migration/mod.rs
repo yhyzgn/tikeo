@@ -6,6 +6,7 @@ mod iden;
 mod indexes;
 mod notification_center;
 mod rbac_role_management;
+mod security_policy_center;
 mod shard_map_policy;
 mod shard_ownership;
 mod sqlite_compat;
@@ -56,6 +57,7 @@ impl MigratorTrait for Migrator {
             Box::new(FsodOutboxMigration),
             Box::new(ShardOwnershipMigration),
             Box::new(ShardMapPolicyMigration),
+            Box::new(SecurityPolicyCenterMigration),
         ]
     }
 }
@@ -66,6 +68,7 @@ use notification_center::{
     NotificationTemplatesMigration,
 };
 use rbac_role_management::RbacRoleManagementMigration;
+use security_policy_center::SecurityPolicyCenterMigration;
 use shard_map_policy::ShardMapPolicyMigration;
 use shard_ownership::ShardOwnershipMigration;
 use worker_gateway::WorkerGatewayMigration;
@@ -958,6 +961,7 @@ async fn seed_rbac_defaults(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         "perm-workflows-read",
         "perm-workflows-execute",
         "perm-workers-read",
+        "perm-security-read",
         "perm-notifications-read",
         "perm-notifications-manage",
         "perm-notifications-test",
@@ -968,6 +972,7 @@ async fn seed_rbac_defaults(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         "perm-scripts-read",
         "perm-workflows-read",
         "perm-workers-read",
+        "perm-security-read",
         "perm-notifications-read",
     ];
     seed_role_permissions(manager, "role-owner", owner_permissions).await?;
@@ -1114,6 +1119,18 @@ const DEFAULT_PERMISSIONS: &[(&str, &str, &str, &str)] = &[
         "workers",
         "manage",
         "Manage worker lifecycle operations",
+    ),
+    (
+        "perm-security-read",
+        "security",
+        "read",
+        "Read Security Policy Center posture and policy evidence",
+    ),
+    (
+        "perm-security-manage",
+        "security",
+        "manage",
+        "Manage Security Policy Center policies and enforcement settings",
     ),
     (
         "perm-notifications-read",
