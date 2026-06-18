@@ -92,7 +92,7 @@ fn plan_command_uses_project_root_convention_without_manual_params() {
 }
 
 #[test]
-fn apply_data_command_dry_run_reads_bundle_and_writes_evidence() {
+fn apply_command_dry_run_reads_bundle_and_writes_evidence() {
     let binary = std::env::var("CARGO_BIN_EXE_tikeo-migrate")
         .unwrap_or_else(|error| panic!("binary path should exist: {error}"));
     let output_dir =
@@ -114,7 +114,7 @@ fn apply_data_command_dry_run_reads_bundle_and_writes_evidence() {
     assert!(plan_status.success());
 
     let apply_status = Command::new(&binary)
-        .args(["apply-data", "--bundle"])
+        .args(["apply", "--bundle"])
         .arg(&output_dir)
         .args([
             "--endpoint",

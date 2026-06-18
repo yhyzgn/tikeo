@@ -223,35 +223,53 @@ schedulers only when you intentionally want a narrower Java-first scheduler.
 
 ## Migrate from XXL-JOB or PowerJob
 
-Tikeo includes a dedicated `tikeo-migrate` CLI for migration assessment. It reads XXL-JOB or PowerJob JSON exports, inspects a Java/Spring project, and generates a non-destructive migration bundle. The recommended path is convention-first: put the legacy export JSON in the old worker project root, run the tool from that directory, and only add flags when auto-detection needs an override.
+Tikeo includes a dedicated `tikeo-migrate` CLI for migration assessment. Use it as a **review-first migration assistant**, not as a blind one-click converter: it reads an XXL-JOB or PowerJob JSON export, inspects the legacy Java/Spring worker project, generates Tikeo job drafts, and writes a bundle that operators can review before anything is imported.
+
+The simplest path is convention-first:
 
 ```bash
 cd ./legacy-worker
-# Auto-detects ./xxl-job-export.json or ./powerjob-export.json, the current Java project, and writes ./.tikeo-migration
+# Put ./xxl-job-export.json or ./powerjob-export.json in this directory first.
 tikeo-migrate plan
 
-# Review the bundle, then dry-run API application. --bundle also defaults to ./.tikeo-migration.
-tikeo-migrate apply-data --endpoint http://127.0.0.1:9090 --api-key "$TIKEO_MIGRATION_API_KEY" --dry-run
+# Review ./.tikeo-migration, then dry-run the API import against staging.
+tikeo-migrate apply --endpoint http://127.0.0.1:9090 --api-key "$TIKEO_MIGRATION_API_KEY" --dry-run
 ```
 
-Override flags remain available for non-standard layouts, for example `--from xxl-job`, `--input ./exports/jobs.json`, `--project ./legacy-worker`, `--output-dir ./migration-bundle`, `--namespace ops`, and `--app billing`. The planner emits Tikeo job drafts, Java dependency/handler patches, unsupported-feature warnings, and a checklist. It is deliberately non-destructive by default: `plan` never edits the old project or writes Tikeo data; live job creation is isolated behind `apply-data`. See [Migrate from XXL-JOB or PowerJob](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
+Use override flags only for non-standard layouts: `--from xxl-job`, `--input ./exports/jobs.json`, `--project ./legacy-worker`, `--output-dir ./migration-bundle`, `--namespace ops`, and `--app billing`.
 
-Release builds include ready-to-run `tikeo-migrate` archives for Linux, macOS Intel, macOS Apple Silicon, and Windows. Download the matching `tikeo-migrate-${TIKEO_VERSION}-<target>.tar.gz` or `.zip` from the GitHub Release, extract it, and copy the binary into the legacy project or put it on `PATH`.
+Release builds include ready-to-run `tikeo-migrate` archives for Linux, macOS Intel, macOS Apple Silicon, and Windows. Download `tikeo-migrate-${TIKEO_VERSION}-<target>.tar.gz` or `.zip` from the GitHub Release, extract it, and either put the binary on `PATH` or copy it into the legacy project root.
 
 ```mermaid
 flowchart TD
-  A[Download tikeo-migrate release binary] --> B[Export XXL-JOB or PowerJob jobs as JSON]
-  B --> C[Place export JSON in legacy Java worker root]
-  C --> D[Run: tikeo-migrate plan]
-  D --> E[Review .tikeo-migration reports and Java patch guidance]
-  E --> F[Apply code changes on a branch and start Tikeo workers in staging]
-  F --> G[Run: tikeo-migrate apply-data --dry-run]
-  G --> H[Apply ready jobs to staging]
-  H --> I[Trigger one migrated job and compare logs/results]
-  I --> J{Parity accepted?}
-  J -- No --> E
-  J -- Yes --> K[Dual-run, then switch traffic and disable legacy schedules]
+  A[Download tikeo-migrate] --> B[Export legacy jobs as JSON]
+  B --> C[Place JSON in legacy Java worker root]
+  C --> D[Run tikeo-migrate plan]
+  D --> E[Review generated migration bundle]
+  E --> F{Any needs_review or code changes?}
+  F -- Yes --> G[Resolve semantics and apply Java changes on a branch]
+  F -- No --> H[Dry-run apply against staging]
+  G --> H
+  H --> I[Import reviewed ready jobs to staging]
+  I --> J[Start matching Workers and trigger one job]
+  J --> K{Logs/results match legacy behavior?}
+  K -- No --> E
+  K -- Yes --> L[Dual-run, switch traffic, disable legacy schedules]
 ```
+
+Migration phases:
+
+| Phase | Goal | Main command / artifact | Continue only when |
+| --- | --- | --- | --- |
+| 0. Prepare | Decide namespace/app, staging endpoint, API key, rollback owner, and Worker processor naming. | Internal migration plan. | Staging Tikeo Server and matching Worker plan exist. |
+| 1. Export | Preserve the legacy scheduler state as audit input. | `xxl-job-export.json` or `powerjob-export.json`. | Export is stored unchanged and has a known path/hash. |
+| 2. Plan | Generate a non-destructive migration bundle. | `tikeo-migrate plan` → `.tikeo-migration/`. | `manifest.json`, `jobs.tikeo.md`, `data-import-plan.json`, and `CHECKLIST.md` are reviewed. |
+| 3. Resolve | Translate non-equivalent legacy semantics instead of pretending they are identical. | Review `needs_review`, Java patch guidance, and unsupported-feature warnings. | Broadcast/map-reduce/routing/blocking/pinning/glue decisions are explicit. |
+| 4. Code | Add Tikeo Worker dependency and processor annotations/adapters. | Java branch + old project tests. | Worker starts and exposes processor names used by job drafts. |
+| 5. Import | Prove the API request set before live writes. | `tikeo-migrate apply --dry-run`, then reviewed live import. | `apply-evidence.json` is accepted and only reviewed jobs are imported. |
+| 6. Validate | Compare behavior before cutover. | Trigger one job at a time; compare Tikeo instance logs/results with legacy. | Dual-run evidence is accepted and rollback steps are documented. |
+
+The generated bundle is deliberately conservative. `plan` never edits legacy source, never connects to a legacy database, and never writes Tikeo data. Live job creation is isolated behind `apply`, and `--dry-run` should be used before every staging or production import. See the full [legacy scheduler migration guide](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
 
 ## Evaluation checklist
 

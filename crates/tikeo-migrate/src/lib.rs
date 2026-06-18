@@ -3,7 +3,7 @@
 //! The default workflow is intentionally non-destructive: it reads a legacy scheduler export,
 //! inspects an optional Java/Spring project, and writes a migration bundle containing Tikeo job
 //! drafts, Java dependency guidance, source patches, and review notes. Live API writes require the
-//! explicit `apply-data` command.
+//! explicit `apply` command.
 
 use std::{
     fs,
@@ -38,7 +38,7 @@ impl Cli {
     pub async fn run(self) -> Result<()> {
         match self.command {
             Command::Plan(command) => run_plan_command(&command),
-            Command::ApplyData(command) => run_apply_data_command(&command).await,
+            Command::Apply(command) => run_apply_command(&command).await,
         }
     }
 }
@@ -49,7 +49,8 @@ pub enum Command {
     /// Build a complete non-destructive migration bundle.
     Plan(PlanCommand),
     /// Apply ready job drafts from an existing migration bundle to a Tikeo server.
-    ApplyData(ApplyDataCommand),
+    #[command(name = "apply")]
+    Apply(ApplyCommand),
 }
 
 /// Source scheduler supported by the migration planner.
@@ -116,7 +117,7 @@ pub struct PlanCommand {
 
 /// Apply ready job drafts from a bundle to Tikeo Management API.
 #[derive(Debug, Clone, clap::Args)]
-pub struct ApplyDataCommand {
+pub struct ApplyCommand {
     /// Migration bundle directory created by `tikeo-migrate plan`.
     #[arg(long, default_value = ".tikeo-migration")]
     pub bundle: PathBuf,
@@ -165,7 +166,7 @@ pub fn run_plan_command(command: &PlanCommand) -> Result<()> {
 /// # Errors
 ///
 /// Returns an error when the bundle cannot be read or the Tikeo API rejects a request.
-pub async fn run_apply_data_command(command: &ApplyDataCommand) -> Result<()> {
+pub async fn run_apply_command(command: &ApplyCommand) -> Result<()> {
     let report_path = command.bundle.join("jobs.tikeo.json");
     let report_text = fs::read_to_string(&report_path).with_context(|| {
         format!(
@@ -551,7 +552,7 @@ pub fn build_migration_bundle(command: &PlanCommand) -> Result<MigrationBundle> 
     let mut checklist = vec![
         "Review jobs.needsReview before applying them; ready jobs are the only default apply set.".to_owned(),
         "Apply Java project patches in a branch, run unit tests, then start a Worker against a staging Tikeo Server.".to_owned(),
-        "Run tikeo-migrate apply-data against staging, trigger one migrated job, and compare logs/results with the legacy scheduler.".to_owned(),
+        "Run tikeo-migrate apply against staging, trigger one migrated job, and compare logs/results with the legacy scheduler.".to_owned(),
         "Keep legacy and Tikeo in dual-run until instance outcomes and operator evidence match.".to_owned(),
     ];
     if java_project.is_none() {
@@ -979,7 +980,7 @@ fn render_java_project_plan(project: &JavaProjectMigrationPlan) -> String {
     output
 }
 
-async fn apply_data(command: &ApplyDataCommand, report: &MigrationReport) -> Result<ApplyEvidence> {
+async fn apply_data(command: &ApplyCommand, report: &MigrationReport) -> Result<ApplyEvidence> {
     let mut drafts = Vec::new();
     for job in &report.jobs {
         if job.status == "ready" || (command.include_needs_review && job.status == "needs_review") {
@@ -1553,7 +1554,7 @@ mod tests {
             tokio::runtime::Runtime::new().unwrap_or_else(|error| panic!("runtime: {error}"));
         let evidence = runtime
             .block_on(apply_data(
-                &ApplyDataCommand {
+                &ApplyCommand {
                     bundle: PathBuf::new(),
                     endpoint: "http://127.0.0.1:9090".to_owned(),
                     api_key: "dry".to_owned(),
