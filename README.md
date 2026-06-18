@@ -221,6 +221,15 @@ DB-lock leadership, Java-first runtime assumptions, weak script isolation, and s
 **Short version:** choose Tikeo when you want a modern orchestration control plane; choose legacy
 schedulers only when you intentionally want a narrower Java-first scheduler.
 
+For migration assessment, the `tikeo migrate` command can read XXL-JOB or PowerJob JSON exports and generate a dry-run migration report:
+
+```bash
+tikeo migrate --from xxl-job --input ./xxl-job-export.json --namespace ops --app billing
+tikeo migrate --from powerjob --input ./powerjob-export.json --format markdown --output ./tikeo-migration-report.md
+```
+
+The planner emits Tikeo job drafts plus unsupported-feature warnings. It is deliberately report-only: it does not connect to legacy databases and does not create Tikeo Jobs automatically. See [Migrate from XXL-JOB or PowerJob](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
+
 ### Evaluation checklist
 
 If your scheduler shortlist includes these requirements, Tikeo should move to the top:

@@ -1,0 +1,13 @@
+[
+  {
+    "id": 2001,
+    "jobName": "etl broadcast fanout",
+    "appName": "data-platform",
+    "timeExpressionType": 4,
+    "timeExpression": "PT30S",
+    "processorInfo": "etlProcessor",
+    "instanceRetryNum": 1,
+    "executeType": "BROADCAST",
+    "maxInstanceNum": 4
+  }
+]

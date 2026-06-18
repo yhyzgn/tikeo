@@ -1,0 +1,25 @@
+{
+  "jobs": [
+    {
+      "id": 1001,
+      "jobDesc": "nightly billing settlement",
+      "executorAppName": "billing",
+      "scheduleType": "CRON",
+      "scheduleConf": "0 0 2 * * ?",
+      "misfireStrategy": "FIRE_ONCE_NOW",
+      "executorHandler": "billingSettlementProcessor",
+      "executorFailRetryCount": 2,
+      "triggerStatus": 1,
+      "executorRouteStrategy": "ROUND",
+      "executorBlockStrategy": "SERIAL_EXECUTION"
+    },
+    {
+      "id": 1002,
+      "jobDesc": "manual reconciliation",
+      "executorAppName": "billing",
+      "scheduleType": "NONE",
+      "executorHandler": "reconciliationProcessor",
+      "triggerStatus": 0
+    }
+  ]
+}

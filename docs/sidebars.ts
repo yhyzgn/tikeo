@@ -63,6 +63,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'integrations/sdk-and-api',
         'integrations/overview',
+        'integrations/migrating-from-legacy-schedulers',
         'sdks/rust',
         'sdks/go',
         'sdks/java-spring-boot',
