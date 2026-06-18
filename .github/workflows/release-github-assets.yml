@@ -19,7 +19,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-assets-${{ github.ref_name || inputs.tag }}
+  group: release-assets-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -103,7 +103,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
+          RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           VERSION="${RELEASE_TAG#v}"
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -120,7 +120,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
+          RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           VERSION="${RELEASE_TAG#v}"
           PKG="tikeo-server-${VERSION}-${{ matrix.target }}"
           mkdir -p "dist/$PKG/config" "dist/$PKG/deploy"
@@ -180,7 +180,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
+          RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           VERSION="${RELEASE_TAG#v}"
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -197,7 +197,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
+          RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           VERSION="${RELEASE_TAG#v}"
           PKG="tikeo-migrate-${VERSION}-${{ matrix.target }}"
           mkdir -p "dist/$PKG/docs"
@@ -252,7 +252,7 @@ jobs:
       - name: Stage web release payload
         run: |
           set -euo pipefail
-          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
+          RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           VERSION="${RELEASE_TAG#v}"
           PKG="tikeo-web-dist-${VERSION}"
           mkdir -p "dist/$PKG"
@@ -294,7 +294,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
+          RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           VERSION="${RELEASE_TAG#v}"
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -403,7 +403,7 @@ jobs:
       - name: Generate bilingual changelog
         run: |
           set -euo pipefail
-          RELEASE_TAG="${{ github.ref_name || inputs.tag }}"
+          RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           git fetch --force --tags
           PREVIOUS_TAG="$(git tag --list 'v*' --sort=-v:refname | awk -v current="$RELEASE_TAG" 'found {print; exit} $0 == current {found=1}')"
           if [ -n "$PREVIOUS_TAG" ]; then
@@ -462,9 +462,9 @@ jobs:
       - name: Upload assets to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.ref_name || inputs.tag }}
-          name: ${{ github.ref_name || inputs.tag }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           draft: false
-          prerelease: ${{ contains(github.ref_name || inputs.tag, '-') }}
+          prerelease: ${{ contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, '-') }}
           body_path: release-notes.md
           files: release-assets/*
