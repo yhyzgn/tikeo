@@ -97,7 +97,6 @@ pub async fn run(
         }
     }
 }
-
 #[allow(clippy::too_many_arguments)]
 async fn dispatch_once_if_owner(
     jobs: &JobRepository,
@@ -150,7 +149,6 @@ async fn dispatch_once_if_owner(
     )
     .await
 }
-
 async fn active_shard_ownerships_for_node(
     workflows: &WorkflowRepository,
     node_id: &str,
@@ -164,7 +162,6 @@ async fn active_shard_ownerships_for_node(
                 .collect()
         })
 }
-
 #[allow(clippy::too_many_arguments)]
 #[cfg(test)]
 async fn dispatch_once(
@@ -197,7 +194,6 @@ async fn dispatch_once(
     )
     .await
 }
-
 #[allow(clippy::too_many_arguments)]
 async fn dispatch_once_with_shards(
     jobs: &JobRepository,
@@ -280,7 +276,6 @@ async fn dispatch_once_with_shards(
     )
     .await
 }
-
 async fn materialize_next_queued_node_for_owner(
     workflows: &WorkflowRepository,
     owner_node_id: &str,
@@ -326,7 +321,6 @@ async fn materialize_next_queued_node_for_owner(
     }
     Ok(None)
 }
-
 struct DurableDispatchIntent<'a> {
     instance_id: &'a str,
     attempt_id: &'a str,
@@ -350,11 +344,11 @@ async fn persist_outbox_then_hint_dispatch(
         return Ok(false);
     };
     let assignment_token = new_assignment_token();
-    let _recorded = attempts
+    attempts
         .record_assignment_token(intent.instance_id, intent.worker_id, &assignment_token)
         .await?;
     intent.task.assignment_token.clone_from(&assignment_token);
-    let _created = outbox
+    let created = outbox
         .create(CreateWorkerDispatchOutbox {
             instance_id: intent.instance_id.to_owned(),
             attempt_id: intent.attempt_id.to_owned(),
@@ -373,9 +367,15 @@ async fn persist_outbox_then_hint_dispatch(
             next_delivery_at: None,
         })
         .await?;
-    Ok(registry
+    let hint_sent = registry
         .dispatch_tokened_to_worker(intent.worker_id, intent.task)
-        .await)
+        .await;
+    if hint_sent {
+        let _ = outbox
+            .mark_hint_delivered(&created.id, DISPATCH_LEASE_SECONDS)
+            .await?;
+    }
+    Ok(hint_sent)
 }
 
 #[allow(

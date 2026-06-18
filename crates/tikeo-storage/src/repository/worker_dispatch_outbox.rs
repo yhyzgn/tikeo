@@ -273,6 +273,43 @@ impl WorkerDispatchOutboxRepository {
         self.get(outbox_id).await
     }
 
+    /// Mark a newly queued row as delivered when the scheduler already sent an inline dispatch hint.
+    ///
+    /// This prevents the durable gateway delivery loop from immediately replaying the same
+    /// assignment while still preserving visibility-timeout requeue if the Worker never acks.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn mark_hint_delivered(
+        &self,
+        outbox_id: &str,
+        visibility_timeout_seconds: i64,
+    ) -> Result<Option<WorkerDispatchOutboxSummary>, sea_orm::DbErr> {
+        let deadline = rfc3339_after_seconds(visibility_timeout_seconds.max(1));
+        let result = worker_dispatch_outbox::Entity::update_many()
+            .col_expr(
+                worker_dispatch_outbox::Column::Status,
+                Expr::value("delivered"),
+            )
+            .col_expr(
+                worker_dispatch_outbox::Column::VisibilityDeadline,
+                Expr::value(Some(deadline)),
+            )
+            .col_expr(
+                worker_dispatch_outbox::Column::UpdatedAt,
+                Expr::value(now_rfc3339()),
+            )
+            .filter(worker_dispatch_outbox::Column::Id.eq(outbox_id.to_owned()))
+            .filter(worker_dispatch_outbox::Column::Status.eq("queued"))
+            .exec(&self.db)
+            .await?;
+        if result.rows_affected == 0 {
+            return Ok(None);
+        }
+        self.get(outbox_id).await
+    }
+
     /// Requeue delivered rows that did not receive Worker ack/progress before visibility timeout.
     ///
     /// # Errors

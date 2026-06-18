@@ -562,6 +562,61 @@ async fn worker_dispatch_outbox_repository_claims_and_marks_delivery() {
 
 
 #[tokio::test]
+async fn worker_dispatch_outbox_hint_delivery_prevents_immediate_reclaim_but_can_timeout() {
+    let db = crate::connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
+    let repository = crate::repository::WorkerDispatchOutboxRepository::new(db);
+    let created = repository
+        .create(crate::repository::CreateWorkerDispatchOutbox {
+            instance_id: "inst-hint".to_owned(),
+            attempt_id: "attempt-hint".to_owned(),
+            worker_id: "worker-hint".to_owned(),
+            logical_instance_id: "logical-hint".to_owned(),
+            gateway_node_id: "gateway-hint".to_owned(),
+            gateway_generation: 1,
+            assignment_token: "asg-hint".to_owned(),
+            dispatch_payload: "payload".to_owned(),
+            shard_id: 0,
+            shard_map_version: 1,
+            shard_count: 64,
+            owner_node_id: "owner".to_owned(),
+            owner_epoch: 0,
+            owner_fencing_token: "fence".to_owned(),
+            next_delivery_at: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("outbox row should create: {error}"));
+
+    let delivered = repository
+        .mark_hint_delivered(&created.id, 1)
+        .await
+        .unwrap_or_else(|error| panic!("hint delivery should mark row delivered: {error}"))
+        .unwrap_or_else(|| panic!("hint delivered row should exist"));
+    assert_eq!(delivered.status, "delivered");
+    assert!(delivered.visibility_deadline.is_some());
+
+    let not_claimed = repository
+        .claim_next_for_gateway("gateway-hint", 10)
+        .await
+        .unwrap_or_else(|error| panic!("delivered hint row should not be immediately claimable: {error}"));
+    assert!(not_claimed.is_none());
+
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+    let requeued = repository
+        .requeue_expired_delivered(0)
+        .await
+        .unwrap_or_else(|error| panic!("expired hint row should requeue: {error}"));
+    assert_eq!(requeued, 1);
+    let claimed = repository
+        .claim_next_for_gateway("gateway-hint", 10)
+        .await
+        .unwrap_or_else(|error| panic!("requeued hint row should claim: {error}"))
+        .unwrap_or_else(|| panic!("requeued hint row should be claimable"));
+    assert_eq!(claimed.id, created.id);
+}
+
+#[tokio::test]
 async fn worker_dispatch_outbox_repository_requeues_and_completes_rows() {
     let db = crate::connect_and_migrate("sqlite::memory:")
         .await

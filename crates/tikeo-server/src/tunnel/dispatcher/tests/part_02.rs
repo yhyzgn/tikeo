@@ -242,14 +242,20 @@
             }
             other => panic!("unexpected server message: {other:?}"),
         }
-        let row = outbox
+        let not_claimable = outbox
             .claim_next_for_gateway("node-a", 10)
             .await
-            .unwrap_or_else(|error| panic!("outbox should be claimable: {error}"))
-            .unwrap_or_else(|| panic!("local dispatch must still create durable outbox"));
-        assert_eq!(row.worker_id, local.worker_id);
-        assert_eq!(row.gateway_node_id, "node-a");
-        assert_eq!(row.instance_id, instance.id);
+            .unwrap_or_else(|error| panic!("inline hinted outbox should load: {error}"));
+        assert!(
+            not_claimable.is_none(),
+            "inline hinted dispatch must not remain immediately claimable and replay the same assignment"
+        );
+        let summary = outbox
+            .summary()
+            .await
+            .unwrap_or_else(|error| panic!("outbox summary should load: {error}"));
+        assert_eq!(summary.by_status.get("delivered"), Some(&1));
+        let _ = local;
     }
 
     #[tokio::test]
@@ -676,16 +682,19 @@
             updated_queue.owner_fencing_token.as_deref(),
             Some(owner.fencing_token.as_str())
         );
-        let outbox_row = outbox
+        let not_claimable = outbox
             .claim_next_for_gateway("standalone", 10)
             .await
-            .unwrap_or_else(|error| panic!("outbox should be claimable: {error}"))
-            .unwrap_or_else(|| panic!("dispatch should create durable outbox"));
-        assert_eq!(outbox_row.instance_id, instance.id);
-        assert_eq!(outbox_row.shard_id, i64::from(shard_id));
-        assert_eq!(outbox_row.owner_node_id, "node-b");
-        assert_eq!(outbox_row.owner_epoch, owner.epoch);
-        assert_eq!(outbox_row.owner_fencing_token, owner.fencing_token);
+            .unwrap_or_else(|error| panic!("inline hinted outbox should load: {error}"));
+        assert!(
+            not_claimable.is_none(),
+            "inline hinted shard dispatch must not remain immediately claimable"
+        );
+        let summary = outbox
+            .summary()
+            .await
+            .unwrap_or_else(|error| panic!("outbox summary should load: {error}"));
+        assert_eq!(summary.by_status.get("delivered"), Some(&1));
     }
 
     #[tokio::test]
@@ -932,14 +941,17 @@
             }
             other => panic!("unexpected server message: {other:?}"),
         }
-        let outbox_row = outbox
+        let not_claimable = outbox
             .claim_next_for_gateway("standalone", 10)
             .await
-            .unwrap_or_else(|error| panic!("outbox should be claimable: {error}"))
-            .unwrap_or_else(|| panic!("broadcast dispatch should create durable outbox"));
-        assert_eq!(outbox_row.instance_id, instance.id);
-        assert_eq!(outbox_row.shard_id, i64::from(target_shard));
-        assert_eq!(outbox_row.owner_node_id, "node-b");
-        assert_eq!(outbox_row.owner_epoch, owner.epoch);
-        assert_eq!(outbox_row.owner_fencing_token, owner.fencing_token);
+            .unwrap_or_else(|error| panic!("inline hinted broadcast outbox should load: {error}"));
+        assert!(
+            not_claimable.is_none(),
+            "inline hinted broadcast dispatch must not remain immediately claimable"
+        );
+        let summary = outbox
+            .summary()
+            .await
+            .unwrap_or_else(|error| panic!("outbox summary should load: {error}"));
+        assert_eq!(summary.by_status.get("delivered"), Some(&1));
     }
