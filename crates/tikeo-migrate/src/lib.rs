@@ -535,11 +535,10 @@ fn redact_database_url(url: &str) -> String {
     let Some((scheme, rest)) = url.split_once("://") else {
         return "<redacted>".to_owned();
     };
-    if let Some((_, host)) = rest.split_once('@') {
-        format!("{scheme}://***:***@{host}")
-    } else {
-        url.to_owned()
-    }
+    rest.split_once('@').map_or_else(
+        || url.to_owned(),
+        |(_, host)| format!("{scheme}://***:***@{host}"),
+    )
 }
 
 async fn export_legacy_rows(source: MigrationSource, database_url: &str) -> Result<Vec<Value>> {
