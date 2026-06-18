@@ -221,14 +221,18 @@ DB-lock leadership, Java-first runtime assumptions, weak script isolation, and s
 **Short version:** choose Tikeo when you want a modern orchestration control plane; choose legacy
 schedulers only when you intentionally want a narrower Java-first scheduler.
 
-For migration assessment, the dedicated `tikeo-migrate` CLI can read XXL-JOB or PowerJob JSON exports, inspect an optional Java/Spring project, and generate a non-destructive migration bundle:
+For migration assessment, the dedicated `tikeo-migrate` CLI can read XXL-JOB or PowerJob JSON exports, inspect a Java/Spring project, and generate a non-destructive migration bundle. The recommended path is convention-first: put the legacy export JSON in the old worker project root, run the tool from that directory, and only add flags when auto-detection needs an override.
 
 ```bash
-tikeo-migrate plan --from xxl-job --input ./xxl-job-export.json --project ./legacy-worker --output-dir ./migration-bundle --namespace ops --app billing
-tikeo-migrate apply-data --bundle ./migration-bundle --endpoint http://127.0.0.1:9090 --api-key "$TIKEO_MIGRATION_API_KEY" --dry-run
+cd ./legacy-worker
+# Auto-detects ./xxl-job-export.json or ./powerjob-export.json, the current Java project, and writes ./.tikeo-migration
+tikeo-migrate plan
+
+# Review the bundle, then dry-run API application. --bundle also defaults to ./.tikeo-migration.
+tikeo-migrate apply-data --endpoint http://127.0.0.1:9090 --api-key "$TIKEO_MIGRATION_API_KEY" --dry-run
 ```
 
-The planner emits Tikeo job drafts, Java dependency/handler patches, unsupported-feature warnings, and a checklist. It is deliberately non-destructive by default: `plan` never edits the old project or writes Tikeo data; live job creation is isolated behind `apply-data`. See [Migrate from XXL-JOB or PowerJob](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
+Override flags remain available for non-standard layouts, for example `--from xxl-job`, `--input ./exports/jobs.json`, `--project ./legacy-worker`, `--output-dir ./migration-bundle`, `--namespace ops`, and `--app billing`. The planner emits Tikeo job drafts, Java dependency/handler patches, unsupported-feature warnings, and a checklist. It is deliberately non-destructive by default: `plan` never edits the old project or writes Tikeo data; live job creation is isolated behind `apply-data`. See [Migrate from XXL-JOB or PowerJob](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
 
 ### Evaluation checklist
 

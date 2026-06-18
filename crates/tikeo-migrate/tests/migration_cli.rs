@@ -49,6 +49,49 @@ fn plan_command_writes_complete_bundle_for_xxl_job_and_java_project() {
 }
 
 #[test]
+fn plan_command_uses_project_root_convention_without_manual_params() {
+    let binary = std::env::var("CARGO_BIN_EXE_tikeo-migrate")
+        .unwrap_or_else(|error| panic!("binary path should exist: {error}"));
+    let project_dir =
+        std::env::temp_dir().join(format!("tikeo-migrate-zero-param-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&project_dir);
+    fs::create_dir_all(project_dir.join("src/main/java/com/example"))
+        .unwrap_or_else(|error| panic!("project dir should be created: {error}"));
+    fs::write(
+        project_dir.join("build.gradle.kts"),
+        "plugins { id(\"org.springframework.boot\") version \"3.5.8\" }\ndependencies { implementation(\"com.xuxueli:xxl-job-core:2.4.1\") }\n",
+    )
+    .unwrap_or_else(|error| panic!("gradle file should be written: {error}"));
+    fs::write(
+        project_dir.join("src/main/java/com/example/BillingJob.java"),
+        "package com.example;\nimport com.xxl.job.core.handler.annotation.XxlJob;\nclass BillingJob {\n  @XxlJob(\"billingProcessor\")\n  public void execute() {}\n}\n",
+    )
+    .unwrap_or_else(|error| panic!("java file should be written: {error}"));
+    fs::write(
+        project_dir.join("xxl-job-export.json"),
+        r#"{"jobs":[{"id":7,"jobDesc":"nightly billing","scheduleType":"CRON","scheduleConf":"0 0 2 * * ?","executorHandler":"billingProcessor","triggerStatus":1}]}"#,
+    )
+    .unwrap_or_else(|error| panic!("export file should be written: {error}"));
+
+    let status = Command::new(&binary)
+        .arg("plan")
+        .current_dir(&project_dir)
+        .status()
+        .unwrap_or_else(|error| panic!("zero-param migration CLI should run: {error}"));
+
+    assert!(status.success());
+    let output_dir = project_dir.join(".tikeo-migration");
+    assert!(output_dir.join("manifest.json").exists());
+    assert!(output_dir.join("jobs.tikeo.json").exists());
+    assert!(output_dir.join("java-project-plan.md").exists());
+    let java_plan = fs::read_to_string(output_dir.join("java-project-plan.md"))
+        .unwrap_or_else(|error| panic!("java plan should be readable: {error}"));
+    assert!(java_plan.contains("tikeo-spring-boot3-starter"));
+    assert!(java_plan.contains("billingProcessor"));
+    let _ = fs::remove_dir_all(project_dir);
+}
+
+#[test]
 fn apply_data_command_dry_run_reads_bundle_and_writes_evidence() {
     let binary = std::env::var("CARGO_BIN_EXE_tikeo-migrate")
         .unwrap_or_else(|error| panic!("binary path should exist: {error}"));

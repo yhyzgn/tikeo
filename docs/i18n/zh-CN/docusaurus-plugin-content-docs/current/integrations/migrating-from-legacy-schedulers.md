@@ -16,17 +16,46 @@ Tikeo 提供独立的 `tikeo-migrate` CLI，帮助团队从 XXL-JOB 或 PowerJob
 
 ## 命令
 
+### 推荐的约定优先流程
+
+把旧调度器导出的 JSON 放在旧 Worker 项目根目录，并在该目录执行工具。这个布局下，迁移规划不需要手动指定发现类参数：
+
 ```bash
-# 生成完整、非破坏性的迁移包
+cd ./legacy-worker
+
+# 在 ./.tikeo-migration 中生成完整、非破坏性的迁移包
+tikeo-migrate plan
+
+# 复核迁移包后，先 dry-run API 写入。
+# apply-data 的 --bundle 也默认读取 ./.tikeo-migration。
+tikeo-migrate apply-data \
+  --endpoint http://127.0.0.1:9090 \
+  --api-key "$TIKEO_MIGRATION_API_KEY" \
+  --dry-run
+```
+
+自动探测规则：
+
+| 输入 | 约定 |
+| --- | --- |
+| 项目根目录 | 当前目录包含 `pom.xml`、`build.gradle` 或 `build.gradle.kts` 时，自动作为 Java 项目根目录。 |
+| 导出文件 | 明确命名的单个 JSON 文件，例如 `xxl-job-export.json`、`xxljob-export.json`、`powerjob-export.json`、`power-job-export.json`、`jobs-export.json`，或 `export/`、`exports/`、`migration/` 下匹配的 JSON 文件。 |
+| 来源调度器 | 优先根据文件名判断，其次根据 JSON 内容判断，例如 XXL-JOB 的 `executorHandler`/`jobDesc`/`scheduleConf`，或 PowerJob 的 `processorInfo`/`timeExpressionType`/`instanceRetryNum`。 |
+| 迁移包输出 | `./.tikeo-migration`。 |
+
+如果发现多个可能的导出文件，或者无法安全推断来源，命令会明确报错并要求传覆盖参数，而不是随便猜。
+
+### 非标准目录的覆盖参数
+
+```bash
 tikeo-migrate plan \
   --from xxl-job \
-  --input ./xxl-job-export.json \
+  --input ./exports/jobs.json \
   --project ./legacy-worker \
   --output-dir ./migration-bundle \
   --namespace ops \
   --app billing
 
-# 复核迁移包后，先 dry-run API 写入
 tikeo-migrate apply-data \
   --bundle ./migration-bundle \
   --endpoint http://127.0.0.1:9090 \
@@ -34,7 +63,7 @@ tikeo-migrate apply-data \
   --dry-run
 ```
 
-`plan --from` 支持：
+`--from` 支持：
 
 | 值 | 来源 |
 | --- | --- |
@@ -98,8 +127,8 @@ tikeo-migrate apply-data \
 
 ## 复核流程
 
-1. 把 legacy scheduler jobs 导出为 JSON。
-2. 运行 `tikeo-migrate plan --output-dir ./migration-bundle`，可选带上 `--project ./legacy-worker`。
+1. 把 legacy scheduler jobs 导出为 JSON；可以的话直接放到旧 Worker 项目根目录。
+2. 在该项目根目录执行 `tikeo-migrate plan`。只有非标准目录结构才使用 `--input`、`--from`、`--project` 或 `--output-dir` 覆盖。
 3. 复核每一个 `needs_review` 项，把旧的 routing/blocking/pinning 语义转换成 Tikeo Worker labels、capabilities、workflow fan-out 或 concurrency policy。
 4. 在分支上应用生成的 Java patches，补充推荐 starter 依赖，并人工适配复杂 handler 签名。
 5. 先运行 `tikeo-migrate apply-data --dry-run`，再在 staging 去掉 `--dry-run` 写入 ready jobs。

@@ -16,17 +16,46 @@ Use it before production migration to answer three questions:
 
 ## Command
 
+### Recommended convention-first flow
+
+Put the legacy export JSON in the legacy worker project root and run the tool from that directory. In this layout the migration planner needs no manual discovery parameters:
+
 ```bash
-# Build a complete non-destructive migration bundle
+cd ./legacy-worker
+
+# Build a complete non-destructive migration bundle in ./.tikeo-migration
+tikeo-migrate plan
+
+# Review the generated bundle, then dry-run API application.
+# apply-data also defaults --bundle to ./.tikeo-migration.
+tikeo-migrate apply-data \
+  --endpoint http://127.0.0.1:9090 \
+  --api-key "$TIKEO_MIGRATION_API_KEY" \
+  --dry-run
+```
+
+Auto-detection rules:
+
+| Input | Convention |
+| --- | --- |
+| Project root | The current directory when it contains `pom.xml`, `build.gradle`, or `build.gradle.kts`. |
+| Export file | One clear JSON file named like `xxl-job-export.json`, `xxljob-export.json`, `powerjob-export.json`, `power-job-export.json`, `jobs-export.json`, or a matching JSON file under `export/`, `exports/`, or `migration/`. |
+| Source scheduler | File name first, then JSON content such as XXL-JOB `executorHandler`/`jobDesc`/`scheduleConf` or PowerJob `processorInfo`/`timeExpressionType`/`instanceRetryNum`. |
+| Bundle output | `./.tikeo-migration`. |
+
+If more than one possible export file is found, or the source cannot be inferred safely, the command fails with an explicit message instead of guessing.
+
+### Override flags for non-standard layouts
+
+```bash
 tikeo-migrate plan \
   --from xxl-job \
-  --input ./xxl-job-export.json \
+  --input ./exports/jobs.json \
   --project ./legacy-worker \
   --output-dir ./migration-bundle \
   --namespace ops \
   --app billing
 
-# Review the generated bundle, then dry-run API application
 tikeo-migrate apply-data \
   --bundle ./migration-bundle \
   --endpoint http://127.0.0.1:9090 \
@@ -34,7 +63,7 @@ tikeo-migrate apply-data \
   --dry-run
 ```
 
-`plan --from` accepts:
+`--from` accepts:
 
 | Value | Source |
 | --- | --- |
@@ -98,8 +127,8 @@ The planner flags these for review: `executeType`, `designatedWorkers`, and `max
 
 ## Review workflow
 
-1. Export legacy scheduler jobs to JSON.
-2. Run `tikeo-migrate plan --output-dir ./migration-bundle`, optionally with `--project ./legacy-worker`.
+1. Export legacy scheduler jobs to JSON and place the file in the legacy worker project root when possible.
+2. From that project root, run `tikeo-migrate plan`. Use `--input`, `--from`, `--project`, or `--output-dir` only as overrides for non-standard layouts.
 3. Review every `needs_review` item. Translate legacy routing/blocking/pinning semantics to Tikeo Worker labels, capabilities, workflow fan-out, or concurrency policy.
 4. Apply generated Java patches on a branch, add the recommended starter dependency, and adapt complex handler signatures manually.
 5. Run `tikeo-migrate apply-data --dry-run`, then apply ready jobs to staging without `--dry-run`.

@@ -85,16 +85,16 @@ pub enum MigrationReportFormat {
 /// Build a complete non-destructive migration bundle.
 #[derive(Debug, Clone, clap::Args)]
 pub struct PlanCommand {
-    /// Source scheduler export format.
+    /// Source scheduler export format. Auto-detected from export content/file name when omitted.
     #[arg(long, value_enum)]
-    pub from: MigrationSource,
-    /// Path to an exported JSON file.
+    pub from: Option<MigrationSource>,
+    /// Path to an exported JSON file. Auto-detected from the current project directory when omitted.
     #[arg(long)]
-    pub input: PathBuf,
+    pub input: Option<PathBuf>,
     /// Output directory for the migration bundle.
-    #[arg(long)]
+    #[arg(long, default_value = ".tikeo-migration")]
     pub output_dir: PathBuf,
-    /// Optional legacy Java/Spring project root to scan and prepare code migration patches for.
+    /// Optional legacy Java/Spring project root. Defaults to the current directory when it looks like a Java project.
     #[arg(long)]
     pub project: Option<PathBuf>,
     /// Optional standalone report output. The bundle always contains JSON and Markdown reports.
@@ -118,7 +118,7 @@ pub struct PlanCommand {
 #[derive(Debug, Clone, clap::Args)]
 pub struct ApplyDataCommand {
     /// Migration bundle directory created by `tikeo-migrate plan`.
-    #[arg(long)]
+    #[arg(long, default_value = ".tikeo-migration")]
     pub bundle: PathBuf,
     /// Tikeo server endpoint, for example http://127.0.0.1:9090.
     #[arg(long)]
@@ -188,6 +188,151 @@ pub async fn run_apply_data_command(command: &ApplyDataCommand) -> Result<()> {
         .with_context(|| format!("failed to write apply evidence {}", output.display()))?;
     println!("apply evidence written to {}", output.display());
     Ok(())
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedPlanInputs {
+    source: MigrationSource,
+    input: PathBuf,
+    project: Option<PathBuf>,
+}
+
+fn resolve_plan_inputs(command: &PlanCommand) -> Result<ResolvedPlanInputs> {
+    let cwd = std::env::current_dir().context("failed to resolve current directory")?;
+    resolve_plan_inputs_from(command, &cwd)
+}
+
+fn resolve_plan_inputs_from(command: &PlanCommand, cwd: &Path) -> Result<ResolvedPlanInputs> {
+    let project = command
+        .project
+        .clone()
+        .or_else(|| looks_like_java_project(cwd).then_some(cwd.to_path_buf()));
+    let input = match &command.input {
+        Some(input) => input.clone(),
+        None => find_export_file(project.as_deref().unwrap_or(cwd))?,
+    };
+    let input_text = fs::read_to_string(&input)
+        .with_context(|| format!("failed to read migration input {}", input.display()))?;
+    let source = command
+        .from
+        .or_else(|| infer_source_from_path(&input))
+        .or_else(|| infer_source_from_json(&input_text))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "failed to auto-detect source scheduler; pass --from xxl-job or --from powerjob"
+            )
+        })?;
+    Ok(ResolvedPlanInputs {
+        source,
+        input,
+        project,
+    })
+}
+
+fn looks_like_java_project(path: &Path) -> bool {
+    path.join("pom.xml").exists()
+        || path.join("build.gradle").exists()
+        || path.join("build.gradle.kts").exists()
+}
+
+fn find_export_file(root: &Path) -> Result<PathBuf> {
+    let mut candidates = Vec::new();
+    let names = [
+        "tikeo-migration.json",
+        "xxl-job-export.json",
+        "xxljob-export.json",
+        "powerjob-export.json",
+        "power-job-export.json",
+        "jobs-export.json",
+    ];
+    for name in names {
+        let path = root.join(name);
+        if path.exists() {
+            candidates.push(path);
+        }
+    }
+    for dir in [
+        root.to_path_buf(),
+        root.join("export"),
+        root.join("exports"),
+        root.join("migration"),
+    ] {
+        if !dir.is_dir() {
+            continue;
+        }
+        for entry in
+            fs::read_dir(&dir).with_context(|| format!("failed to scan {}", dir.display()))?
+        {
+            let path = entry?.path();
+            if path.extension().and_then(|ext| ext.to_str()) == Some("json")
+                && path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| {
+                        let lower = name.to_ascii_lowercase();
+                        lower.contains("xxl") || lower.contains("powerjob") || lower.contains("job")
+                    })
+            {
+                candidates.push(path);
+            }
+        }
+    }
+    candidates.sort();
+    candidates.dedup();
+    let detectable = candidates
+        .into_iter()
+        .filter(|path| {
+            fs::read_to_string(path)
+                .ok()
+                .and_then(|text| infer_source_from_json(&text))
+                .is_some()
+                || infer_source_from_path(path).is_some()
+        })
+        .collect::<Vec<_>>();
+    match detectable.as_slice() {
+        [single] => Ok(single.clone()),
+        [] => bail!(
+            "failed to auto-detect legacy export JSON under {}; pass --input",
+            root.display()
+        ),
+        many => bail!(
+            "multiple possible legacy export JSON files found ({}); pass --input",
+            many.iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    }
+}
+
+fn infer_source_from_path(path: &Path) -> Option<MigrationSource> {
+    let name = path.file_name()?.to_str()?.to_ascii_lowercase();
+    if name.contains("xxl") {
+        Some(MigrationSource::XxlJob)
+    } else if name.contains("powerjob") || name.contains("power-job") {
+        Some(MigrationSource::PowerJob)
+    } else {
+        None
+    }
+}
+
+fn infer_source_from_json(input: &str) -> Option<MigrationSource> {
+    let lower = input.to_ascii_lowercase();
+    if lower.contains("executorhandler")
+        || lower.contains("executor_handler")
+        || lower.contains("jobdesc")
+        || (lower.contains("scheduletype") && lower.contains("scheduleconf"))
+    {
+        Some(MigrationSource::XxlJob)
+    } else if lower.contains("processorinfo")
+        || lower.contains("timeexpressiontype")
+        || lower.contains("instanceretrynum")
+        || lower.contains("executetype")
+    {
+        Some(MigrationSource::PowerJob)
+    } else {
+        None
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -382,10 +527,15 @@ pub struct ApplyRequestEvidence {
 ///
 /// Returns an error when the legacy export or optional project cannot be read.
 pub fn build_migration_bundle(command: &PlanCommand) -> Result<MigrationBundle> {
-    let input = fs::read_to_string(&command.input)
-        .with_context(|| format!("failed to read migration input {}", command.input.display()))?;
+    let resolved = resolve_plan_inputs(command)?;
+    let input = fs::read_to_string(&resolved.input).with_context(|| {
+        format!(
+            "failed to read migration input {}",
+            resolved.input.display()
+        )
+    })?;
     let report = plan_migration(
-        command.from,
+        resolved.source,
         &input,
         MigrationDefaults {
             namespace: command.namespace.clone(),
@@ -393,10 +543,10 @@ pub fn build_migration_bundle(command: &PlanCommand) -> Result<MigrationBundle> 
         },
     )?;
     let data_import = build_data_import_plan(&report);
-    let java_project = command
+    let java_project = resolved
         .project
         .as_ref()
-        .map(|project| scan_java_project(project, command.from, &command.tikeo_version))
+        .map(|project| scan_java_project(project, resolved.source, &command.tikeo_version))
         .transpose()?;
     let mut checklist = vec![
         "Review jobs.needsReview before applying them; ready jobs are the only default apply set.".to_owned(),
@@ -408,7 +558,7 @@ pub fn build_migration_bundle(command: &PlanCommand) -> Result<MigrationBundle> 
         checklist.push("No Java project was scanned; code migration remains manual until --project is provided.".to_owned());
     }
     Ok(MigrationBundle {
-        source: command.from.as_str().to_owned(),
+        source: resolved.source.as_str().to_owned(),
         report,
         data_import,
         java_project,
@@ -1317,8 +1467,8 @@ mod tests {
         let input = project.path().join("xxl-export.json");
         fs::write(&input, r#"{"jobs":[{"id":7,"jobDesc":"nightly billing","scheduleType":"CRON","scheduleConf":"0 0 2 * * ?","executorHandler":"billingProcessor","triggerStatus":1}]}"#).unwrap_or_else(|error| panic!("write input: {error}"));
         let command = PlanCommand {
-            from: MigrationSource::XxlJob,
-            input,
+            from: Some(MigrationSource::XxlJob),
+            input: Some(input),
             output_dir: project.path().join("bundle"),
             project: Some(project.path().to_path_buf()),
             output: None,
@@ -1345,6 +1495,32 @@ mod tests {
             .unwrap_or_else(|error| panic!("bundle writes: {error}"));
         assert!(command.output_dir.join("manifest.json").exists());
         assert!(command.output_dir.join("java-project-plan.md").exists());
+    }
+
+    #[test]
+    fn resolves_zero_parameter_project_root_convention() {
+        let project = fixture_project();
+        fs::write(project.path().join("xxl-job-export.json"), r#"{"jobs":[{"id":7,"jobDesc":"nightly billing","scheduleType":"CRON","scheduleConf":"0 0 2 * * ?","executorHandler":"billingProcessor","triggerStatus":1}]}"#)
+            .unwrap_or_else(|error| panic!("write input: {error}"));
+        let command = PlanCommand {
+            from: None,
+            input: None,
+            output_dir: PathBuf::from(".tikeo-migration"),
+            project: None,
+            output: None,
+            format: MigrationReportFormat::Json,
+            namespace: "ops".to_owned(),
+            app: "billing".to_owned(),
+            tikeo_version: "${TIKEO_VERSION}".to_owned(),
+        };
+
+        let resolved = resolve_plan_inputs_from(&command, project.path()).unwrap_or_else(|error| {
+            panic!("inputs should resolve from project convention: {error}")
+        });
+
+        assert_eq!(resolved.source, MigrationSource::XxlJob);
+        assert_eq!(resolved.input, project.path().join("xxl-job-export.json"));
+        assert_eq!(resolved.project.as_deref(), Some(project.path()));
     }
 
     #[test]
