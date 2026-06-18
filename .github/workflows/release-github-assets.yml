@@ -400,65 +400,11 @@ jobs:
           merge-multiple: true
       - name: List release assets
         run: find release-assets -maxdepth 2 -type f -print | sort
-      - name: Generate bilingual changelog
+      - name: Generate product release notes
         run: |
           set -euo pipefail
           RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
-          git fetch --force --tags
-          PREVIOUS_TAG="$(git tag --list 'v*' --sort=-v:refname | awk -v current="$RELEASE_TAG" 'found {print; exit} $0 == current {found=1}')"
-          if [ -n "$PREVIOUS_TAG" ]; then
-            RANGE="$PREVIOUS_TAG..$RELEASE_TAG"
-            RANGE_ZH="${PREVIOUS_TAG} 到 ${RELEASE_TAG}"
-            RANGE_EN="${PREVIOUS_TAG} to ${RELEASE_TAG}"
-          else
-            RANGE="$RELEASE_TAG"
-            RANGE_ZH="首次发布到 ${RELEASE_TAG}"
-            RANGE_EN="Initial history to ${RELEASE_TAG}"
-          fi
-
-          CHANGELOG="$(git log --date=short --pretty=format:'- %h %ad %an: %s' "$RANGE")"
-          if [ -z "$CHANGELOG" ]; then
-            CHANGELOG="- No commits found for this release range."
-          fi
-
-          ASSETS="$(find release-assets -maxdepth 1 -type f -printf '- %f\n' | sort)"
-          if [ -z "$ASSETS" ]; then
-            ASSETS="- No release assets were generated."
-          fi
-
-          {
-            echo "# Tikeo ${RELEASE_TAG}"
-            echo
-            echo "## English"
-            echo
-            echo "### Version range"
-            echo
-            echo "- Current version: ${RELEASE_TAG}"
-            echo "- Change range: ${RANGE_EN}"
-            echo
-            echo "### Release assets"
-            echo
-            printf '%s\n' "${ASSETS}"
-            echo
-            echo "### Complete changelog"
-            echo
-            printf '%s\n' "${CHANGELOG}"
-            echo
-            echo "## 中文"
-            echo
-            echo "### 版本范围"
-            echo
-            echo "- 当前版本：${RELEASE_TAG}"
-            echo "- 变更范围：${RANGE_ZH}"
-            echo
-            echo "### 发布产物"
-            echo
-            printf '%s\n' "${ASSETS}"
-            echo
-            echo "### 完整变更日志"
-            echo
-            printf '%s\n' "${CHANGELOG}"
-          } > release-notes.md
+          python scripts/generate-release-notes.py --tag "$RELEASE_TAG" --assets-dir release-assets --output release-notes.md
       - name: Upload assets to GitHub Release
         uses: softprops/action-gh-release@v3
         with:

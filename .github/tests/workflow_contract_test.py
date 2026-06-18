@@ -219,14 +219,14 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertNotIn("softprops/action-gh-release", MIGRATE_CLI)
         self.assertNotIn("contents: write", MIGRATE_CLI)
 
-    def test_github_release_has_bilingual_changelog_body(self):
-        self.assertIn("Generate bilingual changelog", GITHUB_RELEASE)
+    def test_github_release_has_product_release_notes_body(self):
+        self.assertIn("Generate product release notes", GITHUB_RELEASE)
+        self.assertIn("scripts/generate-release-notes.py", GITHUB_RELEASE)
         self.assertIn("release-notes.md", GITHUB_RELEASE)
-        self.assertIn("echo \"## English\"", GITHUB_RELEASE)
-        self.assertIn("echo \"## 中文\"", GITHUB_RELEASE)
-        self.assertLess(GITHUB_RELEASE.index("echo \"## English\""), GITHUB_RELEASE.index("echo \"## 中文\""))
-        self.assertIn("git log", GITHUB_RELEASE)
         self.assertIn("body_path: release-notes.md", GITHUB_RELEASE)
+        self.assertNotIn("Generate bilingual changelog", GITHUB_RELEASE)
+        self.assertNotIn("echo \"## English\"", GITHUB_RELEASE)
+        self.assertNotIn("echo \"## 中文\"", GITHUB_RELEASE)
 
 
     def test_server_release_and_docker_publish_sync_workspace_version_from_tag(self):
