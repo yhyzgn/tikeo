@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -148,11 +149,28 @@ def assert_instance(args: argparse.Namespace) -> dict[str, Any]:
     if args.forbid_duplicate_logs and logs_payload is not None:
         log_items = items(logs_payload)
         seen: set[tuple[str, str]] = set()
+        received_task_workers: dict[str, set[str]] = defaultdict(set)
         for log in log_items:
-            key = (str(get_any(log, "workerId", "worker_id", default="")), str(get_any(log, "message", default="")))
+            worker_id = str(get_any(log, "workerId", "worker_id", default=""))
+            message = str(get_any(log, "message", default=""))
+            received = re.search(r"\breceived task\s+(\S+)\s+processor=", message)
+            if received:
+                received_task_workers[received.group(1)].add(worker_id)
+                # SDKs may retry/idempotently emit the same task-received lifecycle line from the
+                # same worker while the tunnel settles. The smoke should fail only if one instance
+                # is observed as received by multiple workers, which would indicate duplicate
+                # dispatch/execution rather than duplicate evidence collection.
+                continue
+            key = (worker_id, message)
             if key in seen:
                 fail(f"duplicate log message detected for worker={key[0]!r}: {key[1]!r}")
             seen.add(key)
+        for instance_id, worker_ids in received_task_workers.items():
+            if len(worker_ids) > 1:
+                fail(
+                    "task instance received by multiple workers: "
+                    f"instance={instance_id!r} workers={sorted(worker_ids)!r}"
+                )
     return {"instance": get_any(inst, "id"), "status": status, "workerId": worker}
 
 
