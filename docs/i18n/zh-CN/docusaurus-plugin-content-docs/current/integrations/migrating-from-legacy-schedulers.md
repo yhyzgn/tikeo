@@ -1,14 +1,20 @@
 ---
-title: 从 XXL-JOB 或 PowerJob 迁移
-sidebar_label: 调度器迁移
-description: 针对 XXL-JOB 与 PowerJob 导出的 dry-run 迁移规划。
+title: 从 XXL-JOB 或 PowerJob 迁移的完整流程
+sidebar_label: 旧调度器迁移流程
+description: 针对 XXL-JOB 与 PowerJob 导出的完整迁移流程。
 ---
 
-# 从 XXL-JOB 或 PowerJob 迁移
+# 从 XXL-JOB 或 PowerJob 迁移的完整流程
 
 Tikeo 提供独立的 `tikeo-migrate` CLI，帮助团队从 XXL-JOB 或 PowerJob 迁移到 Tikeo。默认的 `plan` 命令是非破坏性的：读取 JSON 导出文件，把源任务映射成 Tikeo `create job` 草案，可选扫描 Java/Spring Worker 项目，并生成包含报告、Java 依赖建议、处理器注解补丁、unsupported features 和人工复核项的迁移包。
 
 普通用户推荐直接从 GitHub Release assets 下载。每个版本都会发布 Linux、macOS Intel、macOS Apple Silicon 和 Windows 可直接运行的 `tikeo-migrate` 压缩包，因此迁移操作机器不需要安装 Rust。
+
+:::tip 从这里开始迁移
+如果你正在替换 XXL-JOB 或 PowerJob，先看本章：下载 `tikeo-migrate`，导出 jobs JSON，在旧 Java Worker 项目根目录执行 `tikeo-migrate plan`，复核生成的迁移包，然后只把已复核的任务导入 staging。
+:::
+
+## 本迁移章节覆盖什么
 
 迁移前先用它回答三个问题：
 
@@ -16,7 +22,9 @@ Tikeo 提供独立的 `tikeo-migrate` CLI，帮助团队从 XXL-JOB 或 PowerJob
 2. 哪些任务因为 legacy routing、blocking、broadcast、map-reduce 或 worker pinning 语义不完全等价，需要人工复核？
 3. Tikeo 中将使用哪些 processor name、schedule、retry policy draft 和 namespace/app？
 
-## 端到端迁移流程
+## 迁移流程总览
+
+### 端到端流程
 
 ```mermaid
 flowchart TD

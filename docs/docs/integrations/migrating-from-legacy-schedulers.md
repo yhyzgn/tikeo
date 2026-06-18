@@ -1,14 +1,20 @@
 ---
-title: Migrate from XXL-JOB or PowerJob
-sidebar_label: Scheduler migration
-description: Dry-run migration planning for XXL-JOB and PowerJob exports.
+title: Migration process from XXL-JOB or PowerJob
+sidebar_label: Legacy scheduler migration
+description: Complete migration process for XXL-JOB and PowerJob exports.
 ---
 
-# Migrate from XXL-JOB or PowerJob
+# Migration process from XXL-JOB or PowerJob
 
 Tikeo provides a dedicated `tikeo-migrate` CLI for teams moving from XXL-JOB or PowerJob. The default command, `plan`, is non-destructive: it reads a JSON export, maps source jobs into Tikeo `create job` drafts, optionally scans a Java/Spring worker project, and writes a migration bundle with reports, Java dependency guidance, handler annotation patches, unsupported features, and manual follow-up items.
 
 For normal users, the intended distribution path is the GitHub Release assets page. Each release publishes ready-to-run `tikeo-migrate` archives for Linux, macOS Intel, macOS Apple Silicon, and Windows, so a migration operator does not need Rust installed on the old project machine.
+
+:::tip Migration starts here
+If you are replacing XXL-JOB or PowerJob, start with this chapter first: download `tikeo-migrate`, export jobs as JSON, run `tikeo-migrate plan` from the old Java worker project root, review the generated bundle, then import only reviewed jobs into staging.
+:::
+
+## What this migration chapter covers
 
 Use it before production migration to answer three questions:
 
@@ -16,7 +22,9 @@ Use it before production migration to answer three questions:
 2. Which jobs need review because legacy routing, blocking, broadcast, map-reduce, or worker pinning semantics do not map one-to-one?
 3. What processor names, schedules, retry policy drafts, and namespace/app targets will be used in Tikeo?
 
-## End-to-end migration flow
+## Migration process overview
+
+### End-to-end flow
 
 ```mermaid
 flowchart TD
