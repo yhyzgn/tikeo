@@ -87,15 +87,15 @@ jobs:
           cp docs/docs/integrations/migrating-from-legacy-schedulers.md "dist/$PKG/docs/migrating-from-legacy-schedulers.md"
           cp docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/integrations/migrating-from-legacy-schedulers.md "dist/$PKG/docs/migrating-from-legacy-schedulers.zh-CN.md"
           cat > "dist/$PKG/QUICKSTART.md" <<'EOF'
-# tikeo-migrate quickstart
+          # tikeo-migrate quickstart
 
-1. Extract this archive.
-2. Put the binary on your PATH, or copy it into the legacy Java worker project root.
-3. Run `tikeo-migrate plan`. It auto-detects the Java project, legacy scheduler, Spring datasource, and known scheduler DB tables.
-4. If datasource settings are not in the project, pass `--legacy-db-url`, `--legacy-db-user`, and `--legacy-db-password`. Use `--input <jobs.json>` only for offline fallback JSON.
-5. Review `./.tikeo-migration/CHECKLIST.md`, `jobs.tikeo.md`, and `java-project-plan.md`.
-6. Run `tikeo-migrate apply --endpoint <TIKEO_SERVER> --api-key <KEY> --dry-run` before any live import.
-EOF
+          1. Extract this archive.
+          2. Put the binary on your PATH, or copy it into the legacy Java worker project root.
+          3. Run `tikeo-migrate plan`. It auto-detects the Java project, legacy scheduler, Spring datasource, and known scheduler DB tables.
+          4. If datasource settings are not in the project, pass `--legacy-db-url`, `--legacy-db-user`, and `--legacy-db-password`. Use `--input <jobs.json>` only for offline fallback JSON.
+          5. Review `./.tikeo-migration/CHECKLIST.md`, `jobs.tikeo.md`, and `java-project-plan.md`.
+          6. Run `tikeo-migrate apply --endpoint <TIKEO_SERVER> --api-key <KEY> --dry-run` before any live import.
+          EOF
           if [ "${{ matrix.archive_ext }}" = "zip" ]; then
             (cd dist && 7z a "$PKG.zip" "$PKG")
           else
