@@ -1102,71 +1102,52 @@ async fn shard_ownership_summary_reports_owner_count_and_skew() {
 #[tokio::test]
 async fn dispatch_queue_slo_summary_groups_pending_age_by_current_shard_owner() {
     use crate::repository::{
-        ClusterShardOwnershipRepository, CreateJob, CreateJobInstance, JobInstanceRepository,
-        JobRepository, UpsertClusterShardOwnership, WorkflowRepository,
+        ClusterShardOwnershipRepository, UpsertClusterShardOwnership, WorkflowRepository,
     };
-    use tikeo_core::{ExecutionMode, TriggerType};
 
     let db = crate::connect_and_migrate("sqlite::memory:")
         .await
         .unwrap_or_else(|error| panic!("sqlite memory db should connect: {error}"));
-    let jobs = JobRepository::new(db.clone());
-    let instances = JobInstanceRepository::new(db.clone());
     let workflows = WorkflowRepository::new(db.clone());
-    let ownership = ClusterShardOwnershipRepository::new(db);
+    let ownership = ClusterShardOwnershipRepository::new(db.clone());
+    let now = super::util::now_rfc3339();
 
-    let mut queues = Vec::new();
-    for name in ["owner-a-1", "owner-a-2", "owner-b-1"] {
-        let job = jobs
-            .create_job(CreateJob {
-                created_by: None,
-                namespace: "default".to_owned(),
-                app: "billing".to_owned(),
-                name: name.to_owned(),
-                schedule_type: "api".to_owned(),
-                schedule_expr: None,
-                misfire_policy: "fire_once".to_owned(),
-                schedule_start_at: None,
-                schedule_end_at: None,
-                schedule_calendar_json: None,
-                processor_name: None,
-                processor_type: None,
-                script_id: None,
-                enabled: true,
-                canary_job_id: None,
-                canary_percent: 0,
-                canary_policy: None,
-                retry_policy: None,
-            })
-            .await
-            .unwrap_or_else(|error| panic!("job should create: {error}"));
-        let instance = instances
-            .create_pending(CreateJobInstance {
-                job_id: job.id,
-                trigger_type: TriggerType::Api,
-                execution_mode: ExecutionMode::Single,
-            })
-            .await
-            .unwrap_or_else(|error| panic!("instance should create: {error}"))
-            .unwrap_or_else(|| panic!("instance should exist"));
-        queues.push(
-            workflows
-                .dispatch_queue_for_instance(&instance.id)
-                .await
-                .unwrap_or_else(|error| panic!("queue should load: {error}"))
-                .unwrap_or_else(|| panic!("queue should exist")),
-        );
+    for (queue_id, shard_id) in [("dq-owner-a-1", 0), ("dq-owner-a-2", 1), ("dq-owner-b-1", 2)] {
+        dispatch_queue::ActiveModel {
+            id: Set(queue_id.to_owned()),
+            job_instance_id: Set(None),
+            workflow_node_instance_id: Set(None),
+            shard_id: Set(Some(shard_id)),
+            shard_map_version: Set(Some(1)),
+            shard_count: Set(Some(3)),
+            owner_epoch: Set(None),
+            owner_fencing_token: Set(None),
+            priority: Set(0),
+            run_after: Set(now.clone()),
+            status: Set("pending".to_owned()),
+            attempt: Set(0),
+            lease_owner: Set(None),
+            lease_until: Set(None),
+            fencing_token: Set(None),
+            worker_selector: Set(None),
+            namespace: Set(None),
+            app: Set(None),
+            worker_pool: Set(None),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        }
+        .insert(&db)
+        .await
+        .unwrap_or_else(|error| panic!("dispatch queue item should insert: {error}"));
     }
-    for (index, queue) in queues.iter().enumerate() {
-        let shard_id = queue
-            .shard_id
-            .unwrap_or_else(|| panic!("queue should have shard id"));
+
+    for (shard_id, owner_node_id) in [(0, "pod-a"), (1, "pod-a"), (2, "pod-b")] {
         ownership
             .upsert_newer(UpsertClusterShardOwnership {
                 shard_id,
-                shard_map_version: queue.shard_map_version.unwrap_or(1),
-                shard_count: queue.shard_count.unwrap_or(64),
-                owner_node_id: if index < 2 { "pod-a" } else { "pod-b" }.to_owned(),
+                shard_map_version: 1,
+                shard_count: 3,
+                owner_node_id: owner_node_id.to_owned(),
                 epoch: 1,
                 raft_term: 1,
                 lease_seconds: Some(30),
