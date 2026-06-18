@@ -8,11 +8,49 @@ description: Dry-run migration planning for XXL-JOB and PowerJob exports.
 
 Tikeo provides a dedicated `tikeo-migrate` CLI for teams moving from XXL-JOB or PowerJob. The default command, `plan`, is non-destructive: it reads a JSON export, maps source jobs into Tikeo `create job` drafts, optionally scans a Java/Spring worker project, and writes a migration bundle with reports, Java dependency guidance, handler annotation patches, unsupported features, and manual follow-up items.
 
+For normal users, the intended distribution path is the GitHub Release assets page. Each release publishes ready-to-run `tikeo-migrate` archives for Linux, macOS Intel, macOS Apple Silicon, and Windows, so a migration operator does not need Rust installed on the old project machine.
+
 Use it before production migration to answer three questions:
 
 1. Which source jobs can be created as Tikeo Jobs directly?
 2. Which jobs need review because legacy routing, blocking, broadcast, map-reduce, or worker pinning semantics do not map one-to-one?
 3. What processor names, schedules, retry policy drafts, and namespace/app targets will be used in Tikeo?
+
+## End-to-end migration flow
+
+```mermaid
+flowchart TD
+  A[Download tikeo-migrate release binary] --> B[Export XXL-JOB or PowerJob jobs as JSON]
+  B --> C[Place export JSON in legacy Java worker root]
+  C --> D[Run tikeo-migrate plan]
+  D --> E[Review reports, Java patch guidance, and needs_review items]
+  E --> F[Apply code changes on a branch]
+  F --> G[Start Tikeo Server and matching Workers in staging]
+  G --> H[Run apply-data --dry-run]
+  H --> I[Apply ready jobs to staging]
+  I --> J[Trigger one migrated job]
+  J --> K[Compare legacy logs/results with Tikeo instance evidence]
+  K --> L{Parity accepted?}
+  L -- No --> E
+  L -- Yes --> M[Dual-run, switch traffic, then disable legacy schedules]
+```
+
+### Detailed operator checklist
+
+| Step | Action | Evidence to keep | Notes |
+| --- | --- | --- | --- |
+| 1 | Download the matching archive from the GitHub Release, for example `tikeo-migrate-${TIKEO_VERSION}-x86_64-unknown-linux-gnu.tar.gz` or `tikeo-migrate-${TIKEO_VERSION}-x86_64-pc-windows-msvc.zip`. | Release asset name and checksum/provenance evidence from your internal process. | Use Linux for most CI/bastion runs, macOS for local operator machines, and Windows zip for Windows-based migration workstations. |
+| 2 | Extract the archive and put `tikeo-migrate` on `PATH`, or copy the binary into the legacy Java worker project root. | `tikeo-migrate --help` output. | No server process is started by this CLI. |
+| 3 | Export jobs from XXL-JOB or PowerJob as JSON. | Raw export file committed to a private migration branch or stored in a controlled evidence bucket. | Do not edit the raw export; keep it as the audit source. |
+| 4 | Put the export JSON in the legacy project root using a detectable name such as `xxl-job-export.json` or `powerjob-export.json`. | File path and hash. | If the name is non-standard, use `--input` and optionally `--from`. |
+| 5 | Run `tikeo-migrate plan`. | `.tikeo-migration/manifest.json`, `jobs.tikeo.md`, `data-import-plan.json`, `java-project-plan.md`, `CHECKLIST.md`. | This step is non-destructive: no source edits, no legacy DB access, no Tikeo API writes. |
+| 6 | Review `needs_review` jobs and generated Java patch guidance. | Review notes or PR comments. | Legacy broadcast, map-reduce, routing, blocking, worker pinning, or custom glue semantics need explicit design decisions. |
+| 7 | Apply Java dependency/handler changes on a branch and run the old project tests. | PR diff and test output. | Generated patches are guidance, not blind auto-edits. |
+| 8 | Start Tikeo Server and matching Workers in staging. | Worker registration and processor/capability evidence. | Processor names must match generated job drafts. |
+| 9 | Run `tikeo-migrate apply-data --endpoint <staging> --api-key <key> --dry-run`. | `apply-evidence.json`. | Dry-run proves the request set before live writes. |
+| 10 | Remove `--dry-run` only for reviewed ready jobs, then trigger one migrated job at a time. | Tikeo instance logs/results and legacy comparison notes. | Keep legacy schedules enabled until behavior is accepted. |
+| 11 | Dual-run, switch traffic, and disable legacy schedules after parity is accepted. | Cutover record and rollback notes. | Keep the migration bundle for audit. |
+
 
 ## Command
 

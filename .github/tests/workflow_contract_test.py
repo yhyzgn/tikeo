@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github/workflows"
 CI = (WORKFLOWS / "ci.yml").read_text()
 GITHUB_RELEASE = (WORKFLOWS / "release-github-assets.yml").read_text()
+MIGRATE_CLI = (WORKFLOWS / "build-migrate-cli.yml").read_text()
 DOCKER_SERVER = (WORKFLOWS / "publish-docker-server.yml").read_text()
 DOCKER_WEB = (WORKFLOWS / "publish-docker-web.yml").read_text()
 DOCKER_DOCS = (WORKFLOWS / "publish-docker-docs.yml").read_text()
@@ -196,10 +197,27 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("deploy-assets", GITHUB_RELEASE)
         self.assertIn("terraform-provider-tikeo", GITHUB_RELEASE)
         self.assertIn("helm package deploy/helm/tikeo", GITHUB_RELEASE)
+        self.assertIn("migrate-cli-binaries", GITHUB_RELEASE)
+        self.assertIn("tikeo-migrate-${VERSION}-${{ matrix.target }}", GITHUB_RELEASE)
+        self.assertIn("--bin tikeo-migrate", GITHUB_RELEASE)
+        self.assertIn("needs: [server-binaries, migrate-cli-binaries, web-dist, deploy-assets]", GITHUB_RELEASE)
         self.assertIn("config", GITHUB_RELEASE)
         self.assertIn("softprops/action-gh-release", GITHUB_RELEASE)
         self.assertIn("workflow_dispatch", GITHUB_RELEASE)
         self.assertNotIn("docker/login-action", GITHUB_RELEASE)
+
+    def test_migration_cli_binary_ci_is_separate_and_artifact_only(self):
+        self.assertIn("CI / Migration CLI binaries", MIGRATE_CLI)
+        self.assertIn("cargo test -p tikeo-migrate --locked --target", MIGRATE_CLI)
+        self.assertIn("cargo build -p tikeo-migrate --release --locked --bin tikeo-migrate", MIGRATE_CLI)
+        self.assertIn("actions/upload-artifact@v6", MIGRATE_CLI)
+        self.assertIn("tikeo-migrate-${VERSION}-${{ matrix.target }}", MIGRATE_CLI)
+        self.assertIn("x86_64-unknown-linux-gnu", MIGRATE_CLI)
+        self.assertIn("x86_64-apple-darwin", MIGRATE_CLI)
+        self.assertIn("aarch64-apple-darwin", MIGRATE_CLI)
+        self.assertIn("x86_64-pc-windows-msvc", MIGRATE_CLI)
+        self.assertNotIn("softprops/action-gh-release", MIGRATE_CLI)
+        self.assertNotIn("contents: write", MIGRATE_CLI)
 
     def test_github_release_has_bilingual_changelog_body(self):
         self.assertIn("Generate bilingual changelog", GITHUB_RELEASE)

@@ -213,7 +213,7 @@ DB-lock leadership, Java-first runtime assumptions, weak script isolation, and s
 | **Database engines** | ✅ **SQLite for local/dev, PostgreSQL and MySQL for production**, with migration and repository compatibility smoke coverage. | Primarily MySQL-oriented deployment. | Primarily MySQL/H2-oriented deployment. |
 | **Script execution** | ✅ **Governed versions + digest checks + SRT/Deno/WASM/V8/container** strategy. | Script execution exists but is not a full sandbox governance product. | Processor-focused; sandbox governance is not the center. |
 | **Workflow UX** | ✅ **Workflow canvas + topology + impact analysis + replay-ready execution data.** | Basic scheduling-centric views. | Workflow support, less focused on typed sandbox + SDK parity. |
-| **Security posture center** | ✅ **Security Policy Center** exposes source-backed posture for script default-deny policy, release signing, notification redaction, transport TLS/mTLS, Raft transport-token readiness, and recent policy denials. See [Security Policy Center](https://docs.tikeo.net/docs/user-guide/security-policy-center). | Typically spread across admin settings, logs, and deployment docs. | Typically spread across admin settings, logs, and deployment docs. |
+| **Security posture center** | ✅ **Security Policy Center** exposes evidence-based posture for script default-deny policy, release signing, notification redaction, transport TLS/mTLS, Raft transport-token readiness, and recent policy denials. See [Security Policy Center](https://docs.tikeo.net/docs/user-guide/security-policy-center). | Typically spread across admin settings, logs, and deployment docs. | Typically spread across admin settings, logs, and deployment docs. |
 | **Security model** | ✅ **Owner bootstrap, RBAC matrix, opaque sessions, API keys, tenant scopes, audit trails, TLS/mTLS readiness.** | Admin/user model. | Admin/user model. |
 | **Observability** | ✅ **OpenTelemetry, metrics, task logs, file logs, audit logs, worker grouping, replay bundles.** | Traditional operations/logs. | Traditional operations/logs. |
 | **Best fit** | Teams building an internal orchestration platform, not just a cron replacement. | Java teams wanting a familiar scheduler. | Java teams wanting distributed job execution. |
@@ -233,6 +233,23 @@ tikeo-migrate apply-data --endpoint http://127.0.0.1:9090 --api-key "$TIKEO_MIGR
 ```
 
 Override flags remain available for non-standard layouts, for example `--from xxl-job`, `--input ./exports/jobs.json`, `--project ./legacy-worker`, `--output-dir ./migration-bundle`, `--namespace ops`, and `--app billing`. The planner emits Tikeo job drafts, Java dependency/handler patches, unsupported-feature warnings, and a checklist. It is deliberately non-destructive by default: `plan` never edits the old project or writes Tikeo data; live job creation is isolated behind `apply-data`. See [Migrate from XXL-JOB or PowerJob](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
+
+Release builds include ready-to-run `tikeo-migrate` archives for Linux, macOS Intel, macOS Apple Silicon, and Windows. Download the matching `tikeo-migrate-${TIKEO_VERSION}-<target>.tar.gz` or `.zip` from the GitHub Release, extract it, and copy the binary into the legacy project or put it on `PATH`.
+
+```mermaid
+flowchart TD
+  A[Download tikeo-migrate release binary] --> B[Export XXL-JOB or PowerJob jobs as JSON]
+  B --> C[Place export JSON in legacy Java worker root]
+  C --> D[Run: tikeo-migrate plan]
+  D --> E[Review .tikeo-migration reports and Java patch guidance]
+  E --> F[Apply code changes on a branch and start Tikeo workers in staging]
+  F --> G[Run: tikeo-migrate apply-data --dry-run]
+  G --> H[Apply ready jobs to staging]
+  H --> I[Trigger one migrated job and compare logs/results]
+  I --> J{Parity accepted?}
+  J -- No --> E
+  J -- Yes --> K[Dual-run, then switch traffic and disable legacy schedules]
+```
 
 ### Evaluation checklist
 

@@ -8,11 +8,49 @@ description: 针对 XXL-JOB 与 PowerJob 导出的 dry-run 迁移规划。
 
 Tikeo 提供独立的 `tikeo-migrate` CLI，帮助团队从 XXL-JOB 或 PowerJob 迁移到 Tikeo。默认的 `plan` 命令是非破坏性的：读取 JSON 导出文件，把源任务映射成 Tikeo `create job` 草案，可选扫描 Java/Spring Worker 项目，并生成包含报告、Java 依赖建议、处理器注解补丁、unsupported features 和人工复核项的迁移包。
 
+普通用户推荐直接从 GitHub Release assets 下载。每个版本都会发布 Linux、macOS Intel、macOS Apple Silicon 和 Windows 可直接运行的 `tikeo-migrate` 压缩包，因此迁移操作机器不需要安装 Rust。
+
 迁移前先用它回答三个问题：
 
 1. 哪些源任务可以直接创建成 Tikeo Job？
 2. 哪些任务因为 legacy routing、blocking、broadcast、map-reduce 或 worker pinning 语义不完全等价，需要人工复核？
 3. Tikeo 中将使用哪些 processor name、schedule、retry policy draft 和 namespace/app？
+
+## 端到端迁移流程
+
+```mermaid
+flowchart TD
+  A[下载 tikeo-migrate 发布版二进制] --> B[从 XXL-JOB 或 PowerJob 导出任务 JSON]
+  B --> C[把导出 JSON 放到旧 Java Worker 项目根目录]
+  C --> D[执行 tikeo-migrate plan]
+  D --> E[复核报告、Java 补丁建议和 needs_review 项]
+  E --> F[在分支上应用代码改造]
+  F --> G[在 staging 启动 Tikeo Server 和匹配的 Workers]
+  G --> H[执行 apply-data --dry-run]
+  H --> I[把 ready jobs 写入 staging]
+  I --> J[逐个触发迁移任务]
+  J --> K[对比旧系统日志/结果和 Tikeo 实例证据]
+  K --> L{行为对账通过?}
+  L -- 否 --> E
+  L -- 是 --> M[双跑观察、切流，然后禁用旧调度]
+```
+
+### 详细操作清单
+
+| 步骤 | 动作 | 需要保留的证据 | 说明 |
+| --- | --- | --- | --- |
+| 1 | 从 GitHub Release 下载匹配的压缩包，例如 `tikeo-migrate-${TIKEO_VERSION}-x86_64-unknown-linux-gnu.tar.gz` 或 `tikeo-migrate-${TIKEO_VERSION}-x86_64-pc-windows-msvc.zip`。 | Release asset 名称，以及你们内部要求的 checksum/provenance 证据。 | Linux 适合 CI/堡垒机，macOS 适合本地操作机，Windows zip 适合 Windows 迁移工作站。 |
+| 2 | 解压并把 `tikeo-migrate` 放进 `PATH`，或直接复制到旧 Java Worker 项目根目录。 | `tikeo-migrate --help` 输出。 | 这个 CLI 不会启动 server 进程。 |
+| 3 | 从 XXL-JOB 或 PowerJob 导出 jobs JSON。 | 原始导出文件，可放到私有迁移分支或受控证据存储。 | 不要改原始导出文件，把它保留为审计事实源。 |
+| 4 | 把导出 JSON 放到旧项目根目录，使用可探测名称，例如 `xxl-job-export.json` 或 `powerjob-export.json`。 | 文件路径和 hash。 | 如果文件名不标准，使用 `--input`，必要时再加 `--from`。 |
+| 5 | 执行 `tikeo-migrate plan`。 | `.tikeo-migration/manifest.json`、`jobs.tikeo.md`、`data-import-plan.json`、`java-project-plan.md`、`CHECKLIST.md`。 | 该步骤非破坏性：不改源码、不连接旧 DB、不写 Tikeo API。 |
+| 6 | 复核 `needs_review` jobs 和生成的 Java 补丁建议。 | Review notes 或 PR comments。 | legacy broadcast、map-reduce、routing、blocking、worker pinning 或自定义 glue 语义必须显式设计。 |
+| 7 | 在分支上应用 Java 依赖/handler 改造并运行旧项目测试。 | PR diff 和测试输出。 | 生成 patch 是建议，不是盲目自动改代码。 |
+| 8 | 在 staging 启动 Tikeo Server 和匹配的 Workers。 | Worker registration 与 processor/capability 证据。 | Processor name 必须匹配生成的 job 草案。 |
+| 9 | 执行 `tikeo-migrate apply-data --endpoint <staging> --api-key <key> --dry-run`。 | `apply-evidence.json`。 | dry-run 先证明即将提交的请求集合。 |
+| 10 | 仅对已复核 ready jobs 去掉 `--dry-run` 写入，再逐个触发迁移任务。 | Tikeo instance logs/results 和旧系统对比记录。 | 行为确认前不要关闭旧调度。 |
+| 11 | 双跑观察，确认后切流并禁用旧调度。 | 切流记录和回滚说明。 | 保留迁移包作为审计材料。 |
+
 
 ## 命令
 

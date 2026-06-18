@@ -7,7 +7,8 @@ The repository uses one validation lane plus independent publish lanes. Normal d
 | Workflow | File | Trigger | Publishes |
 | --- | --- | --- | --- |
 | CI | `.github/workflows/ci.yml` | Push to `main`, pull request | Nothing; validates server, web, SDKs, demos, deploy tooling, and Docker builds with `push: false`. |
-| GitHub assets | `.github/workflows/release-github-assets.yml` | `v*` tag or manual dispatch | Cross-platform server archives, web dist archive, Terraform provider binaries, K8s operator binaries, CRD/manifests, Helm chart, and deploy source package. |
+| GitHub assets | `.github/workflows/release-github-assets.yml` | `v*` tag or manual dispatch | Cross-platform server archives, cross-platform `tikeo-migrate` migration CLI archives, web dist archive, Terraform provider binaries, K8s operator binaries, CRD/manifests, Helm chart, and deploy source package. |
+| Migration CLI binary CI | `.github/workflows/build-migrate-cli.yml` | Push/PR touching migration CLI paths or manual dispatch | Nothing external; builds and uploads workflow artifacts for Linux, macOS Intel, macOS Apple Silicon, and Windows. Release attachment is handled by GitHub assets workflow. |
 | Docker server | `.github/workflows/publish-docker-server.yml` | `v*` tag or manual dispatch | `yhyzgn/tikeo-server`. |
 | Docker web | `.github/workflows/publish-docker-web.yml` | `v*` tag or manual dispatch | `yhyzgn/tikeo-web`. |
 | Docker docs | `.github/workflows/publish-docker-docs.yml` | `v*` tag or manual dispatch | `yhyzgn/tikeo-docs`. |
@@ -62,5 +63,6 @@ Pushing a `v*` tag starts each independent publish workflow. If a registry publi
 - GitHub asset release does not log in to Docker Hub or publish package registries.
 - Docker server, Docker web, and Docker docs are separate workflows and do not build/push each other.
 - SDK publishing workflows are separate by language and can be rerun independently when the target version has not already been published.
+- `tikeo-migrate` is built as GitHub Release assets for Linux, macOS Intel, macOS Apple Silicon, and Windows so users can download a ready-to-run migration binary without installing Rust.
 - Terraform Provider, K8s operator, CRD, manifest, and Helm chart are currently released as GitHub Release assets only.
 - Add new publish destinations as separate workflows unless they must share a transaction boundary.

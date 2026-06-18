@@ -1,11 +1,11 @@
 ---
 title: Security Policy Center
-description: Operator guide for source-backed security posture, policy evidence, and deployment prerequisites in Tikeo.
+description: Operator guide for evidence-based security posture, policy evidence, and deployment prerequisites in Tikeo.
 ---
 
 # Security Policy Center
 
-Security Policy Center is the operator-facing view of security controls that already enforce behavior in Tikeo. It is not a mock policy lab and it does not execute a user-supplied DSL. The page reads source-backed posture from `/api/v1/security/posture` and shows evidence from configuration, script policy snapshots, notification channel redaction metadata, cluster transport settings, and audit logs.
+Security Policy Center is the operator-facing view of security controls that already enforce behavior in Tikeo. It is not a mock policy lab and it does not execute a user-supplied DSL. The page reads evidence-based posture from `/api/v1/security/posture` and shows evidence from configuration, script policy snapshots, notification channel redaction metadata, cluster transport settings, and audit logs.
 
 ## What it answers
 
@@ -37,7 +37,7 @@ The menu entry and API require `security:read`. The built-in owner, operator, an
 
 | Status | Meaning | Typical action |
 | --- | --- | --- |
-| `ok` | The check has source-backed evidence and no local issue. | Keep existing rollout evidence. |
+| `ok` | The check has evidence-backed status and no local issue. | Keep existing rollout evidence. |
 | `warning` | The setup may be valid in dev, but production needs a stronger deployment prerequisite. | Review TLS/mTLS, Raft token, release-signing, or network-layer configuration. |
 | `critical` | Persisted policy evidence shows an unsafe state. | Stop rollout, inspect the affected script/channel/config, and use audit logs to identify the change. |
 
