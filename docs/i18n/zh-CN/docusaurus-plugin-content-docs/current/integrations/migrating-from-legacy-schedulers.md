@@ -1,17 +1,17 @@
 ---
 title: 从 XXL-JOB 或 PowerJob 迁移的完整流程
 sidebar_label: 旧调度器迁移流程
-description: 针对 XXL-JOB 与 PowerJob 导出的完整迁移流程。
+description: 针对 XXL-JOB 与 PowerJob 调度器/数据库迁移的完整流程。
 ---
 
 # 从 XXL-JOB 或 PowerJob 迁移的完整流程
 
-Tikeo 提供独立的 `tikeo-migrate` CLI，帮助团队从 XXL-JOB 或 PowerJob 迁移到 Tikeo。请把它当成 **review-first 的迁移助手**：它读取旧调度器 JSON 导出，可选扫描 Java/Spring Worker 项目，并写出一份迁移包，供操作人员在任何 API 写入前复核。
+Tikeo 提供独立的 `tikeo-migrate` CLI，帮助团队从 XXL-JOB 或 PowerJob 迁移到 Tikeo。请把它当成 **review-first 的迁移助手**：在旧 Java/Spring Worker 项目根目录执行时，它会识别旧调度器、读取 Spring datasource、导出已知调度器任务表、扫描 Worker 代码，并写出迁移包，供操作人员在任何 API 写入前复核。离线 JSON 输入仍然支持，但只是兜底路径，不是主流程。
 
-`plan` 刻意设计为非破坏性命令。它 **不会** 修改旧源码、不会连接旧数据库、不会创建 Tikeo Job。真正写入动作只在 `apply` 中发生，并且每次对 staging 或生产执行前都应该先跑 `apply --dry-run`。
+`plan` 刻意设计为非破坏性命令。它 **不会** 修改旧源码、不会创建 Tikeo Job。它可能读取旧调度器数据库来生成复核包；真正写入 Tikeo 的动作只在 `apply` 中发生，并且每次对 staging 或生产执行前都应该先跑 `apply --dry-run`。
 
 :::tip 从这里开始迁移
-如果你正在替换 XXL-JOB 或 PowerJob，请按下面阶段顺序执行。不要一上来就导入 Job。先保留旧系统导出、生成迁移包、复核语义差异、适配 Worker，再 dry-run 并在 staging 验证。
+如果你正在替换 XXL-JOB 或 PowerJob，请按下面阶段顺序执行。不要一上来就导入 Job。先执行非破坏性的探测/导出计划、复核迁移包、消解语义差异、适配 Worker，再 dry-run 并在 staging 验证。
 :::
 
 ## 迁移心智模型
@@ -30,8 +30,8 @@ Tikeo 提供独立的 `tikeo-migrate` CLI，帮助团队从 XXL-JOB 或 PowerJob
 ```mermaid
 flowchart TD
   A[0 准备迁移计划] --> B[1 下载 tikeo-migrate]
-  B --> C[2 导出旧调度器 jobs JSON]
-  C --> D[3 执行 tikeo-migrate plan]
+  B --> C[2 执行探测/导出计划]
+  C --> D[3 自动导出 DB 任务或读取兜底 JSON]
   D --> E[4 复核迁移包]
   E --> F{是否需要处理语义或代码差异?}
   F -- 是 --> G[5 消解差异并适配 Java Worker]
@@ -87,27 +87,35 @@ tikeo-migrate apply --help
 - 迁移记录中写明 asset 名称和版本。
 - 操作人员知道 `.tikeo-migration` 将写到哪里。
 
-## 阶段 2：导出旧调度器任务
+## 阶段 2：让 CLI 自动探测并导出旧任务
 
-从旧调度器导出 jobs JSON。原始导出文件不要改，它是迁移包生成的审计事实源。
+不要从手工准备 `xxl-job-export.json` 或 `powerjob-export.json` 开始。正常迁移路径是在旧 Java Worker 项目根目录执行 `tikeo-migrate plan`，让 CLI 尽量自动完成：
 
-推荐文件名：
+1. 通过 `pom.xml`、`build.gradle` 或 `build.gradle.kts` 识别 Java/Spring 项目；
+2. 通过依赖、注解和源码识别 XXL-JOB 或 PowerJob；
+3. 从 `application.properties`、`application.yml`、`application.yaml`、`bootstrap.properties`、`bootstrap.yml`、`bootstrap.yaml` 中识别 Spring datasource；
+4. 连接旧调度器数据库并导出已知任务表，例如 `xxl_job_info` 或 `pj_job_info`；
+5. 把 source snapshots 写入生成的迁移包，用于审计和复核。
 
-| 来源 | 推荐文件名 |
-| --- | --- |
-| XXL-JOB | `xxl-job-export.json` |
-| PowerJob | `powerjob-export.json` |
+CLI 支持 MySQL/PostgreSQL JDBC URL 和原生 URL。如果旧项目没有暴露 datasource，可以直接显式传旧库连接，而不是先人为制造一个 JSON 文件：
 
-可以的话，把文件放在旧 Worker 项目根目录：
-
-```text
-legacy-worker/
-  build.gradle.kts          # 或 pom.xml / build.gradle
-  src/main/java/...
-  xxl-job-export.json       # 或 powerjob-export.json
+```bash
+tikeo-migrate plan \
+  --from xxl-job \
+  --legacy-db-url 'jdbc:mysql://legacy-db.example.com:3306/xxl_job' \
+  --legacy-db-user "$LEGACY_DB_USER" \
+  --legacy-db-password "$LEGACY_DB_PASSWORD"
 ```
 
-支持的 JSON 形态：
+只有在离线复核、生产网络受限、或迁移工作机不能连接旧调度器数据库时，才使用预先导出的 JSON 作为兜底输入。此时路径可以是任意清晰路径；下面这些固定名字只是兼容示例，不是用户必须遵守的要求：
+
+```bash
+tikeo-migrate plan \
+  --from powerjob \
+  --input ./exports/jobs.json
+```
+
+支持的兜底 JSON 形态：
 
 - job object 数组；
 - `{ "jobs": [...] }`；
@@ -116,7 +124,7 @@ legacy-worker/
 - `{ "content": [...] }`；
 - 单个 job object。
 
-只有当导出文件可读、未被修改、路径明确后，才继续。如果文件名不标准，或目录下有多个可能的 JSON 文件，后续应显式传 `--input`，必要时传 `--from`。
+只有当 `.tikeo-migration/manifest.json` 记录了 input origin（`legacy-db:...` 或 `json-file:...`），且生成报告中的任务数量符合预期后，才继续。
 
 ## 阶段 3：生成迁移包
 
@@ -135,8 +143,9 @@ tikeo-migrate plan
 | 输入 | 约定 |
 | --- | --- |
 | 项目根目录 | 当前目录包含 `pom.xml`、`build.gradle` 或 `build.gradle.kts` 时自动识别。 |
-| 导出文件 | 单个明确 JSON 文件，名称类似 `xxl-job-export.json`、`xxljob-export.json`、`powerjob-export.json`、`power-job-export.json`、`jobs-export.json`，或 `export/`、`exports/`、`migration/` 下匹配的 JSON 文件。 |
-| 来源调度器 | 优先看文件名，其次看 JSON 内容，例如 XXL-JOB 的 `executorHandler`/`jobDesc`/`scheduleConf`，或 PowerJob 的 `processorInfo`/`timeExpressionType`/`instanceRetryNum`。 |
+| 来源调度器 | 从依赖/源码识别，例如 XXL-JOB 的 `@XxlJob`、`xxl-job-core`，或 PowerJob 的 `BasicProcessor` / `tech.powerjob`。 |
+| 旧数据库 | 从常见 `application.*` 和 `bootstrap.*` 读取 Spring datasource URL/user/password，或显式使用 `--legacy-db-url`、`--legacy-db-user`、`--legacy-db-password`。 |
+| 兜底 JSON | 仅在数据库探测不可用时使用：项目根、`export/`、`exports/`、`migration/` 下单个可识别 JSON，或显式 `--input`。 |
 | 迁移包输出 | `./.tikeo-migration`。 |
 
 ### 非标准目录显式命令
@@ -144,7 +153,9 @@ tikeo-migrate plan
 ```bash
 tikeo-migrate plan \
   --from xxl-job \
-  --input ./exports/jobs.json \
+  --legacy-db-url 'jdbc:mysql://legacy-db.example.com:3306/xxl_job' \
+  --legacy-db-user "$LEGACY_DB_USER" \
+  --legacy-db-password "$LEGACY_DB_PASSWORD" \
   --project ./legacy-worker \
   --output-dir ./migration-bundle \
   --namespace ops \
@@ -153,11 +164,12 @@ tikeo-migrate plan \
 
 以下情况使用显式参数：
 
-- 导出文件名不可探测；
-- 存在多个可能的 JSON 文件；
+- 无法从项目中推断旧调度器类型；
+- datasource 不在项目配置中，或必须从 secret manager 提供；
 - 项目根目录不是当前目录；
 - 默认 namespace/app 会误导；
-- 希望输出到 `.tikeo-migration` 之外的目录。
+- 希望输出到 `.tikeo-migration` 之外的目录；
+- 明确使用离线 JSON，即 `--input`。
 
 只有当输出目录中包含下一节列出的文件后，才继续。
 

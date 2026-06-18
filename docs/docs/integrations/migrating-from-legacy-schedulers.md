@@ -1,17 +1,17 @@
 ---
 title: Migration process from XXL-JOB or PowerJob
 sidebar_label: Legacy scheduler migration
-description: Complete migration process for XXL-JOB and PowerJob exports.
+description: Complete migration process for XXL-JOB and PowerJob scheduler/database migration.
 ---
 
 # Migration process from XXL-JOB or PowerJob
 
-Tikeo provides a dedicated `tikeo-migrate` CLI for teams moving from XXL-JOB or PowerJob. Treat it as a **review-first migration assistant**: it reads a legacy scheduler JSON export, scans an optional Java/Spring worker project, and writes a migration bundle that operators review before any API write happens.
+Tikeo provides a dedicated `tikeo-migrate` CLI for teams moving from XXL-JOB or PowerJob. Treat it as a **review-first migration assistant**: from the legacy Java/Spring worker project root, it detects the old scheduler, reads Spring datasource settings, exports known scheduler job tables, scans worker code, and writes a migration bundle that operators review before any API write happens. Offline JSON input remains supported, but it is a fallback rather than the primary path.
 
-`plan` is deliberately non-destructive. It does **not** edit legacy source files, connect to legacy databases, or create Tikeo jobs. Live writes are isolated behind `apply`, and `apply --dry-run` should be the first command used against every staging or production target.
+`plan` is deliberately non-destructive. It does **not** edit legacy source files or create Tikeo jobs. It may read the legacy scheduler database to build the review bundle; live writes to Tikeo are isolated behind `apply`, and `apply --dry-run` should be the first command used against every staging or production target.
 
 :::tip Start here
-If you are replacing XXL-JOB or PowerJob, follow the phases below in order. Do not start by importing jobs. First preserve the legacy export, generate the migration bundle, review semantic gaps, adapt Workers, then dry-run and validate in staging.
+If you are replacing XXL-JOB or PowerJob, follow the phases below in order. Do not start by importing jobs. First run the non-destructive discovery/export plan, review the migration bundle, resolve semantic gaps, adapt Workers, then dry-run and validate in staging.
 :::
 
 ## Mental model
@@ -30,8 +30,8 @@ The migration is complete only when both tracks are validated together: a migrat
 ```mermaid
 flowchart TD
   A[0 Prepare migration plan] --> B[1 Download tikeo-migrate]
-  B --> C[2 Export legacy jobs JSON]
-  C --> D[3 Run tikeo-migrate plan]
+  B --> C[2 Run discovery/export plan]
+  C --> D[3 Auto-export DB jobs or read fallback JSON]
   D --> E[4 Review migration bundle]
   E --> F{Needs semantic or code fixes?}
   F -- Yes --> G[5 Resolve gaps and adapt Java Worker]
@@ -87,27 +87,35 @@ Expected evidence:
 - The asset name and version are recorded in the migration notes.
 - The operator knows where the generated `.tikeo-migration` directory will be written.
 
-## Phase 2: export legacy scheduler jobs
+## Phase 2: let the CLI discover and export legacy jobs
 
-Export jobs from the legacy scheduler as JSON. Keep the raw export unchanged; it is the audit source for the generated migration bundle.
+Do **not** start by hand-crafting `xxl-job-export.json` or `powerjob-export.json`. The normal migration path is to run `tikeo-migrate plan` from the legacy Java worker project root and let the CLI discover as much as possible:
 
-Recommended file names:
+1. detect the Java/Spring project from `pom.xml`, `build.gradle`, or `build.gradle.kts`;
+2. detect XXL-JOB or PowerJob from dependencies, annotations, and source code;
+3. detect Spring datasource settings from `application.properties`, `application.yml`, `application.yaml`, `bootstrap.properties`, `bootstrap.yml`, or `bootstrap.yaml`;
+4. connect to the legacy scheduler database and export known job tables such as `xxl_job_info` or `pj_job_info`;
+5. store source snapshots inside the generated migration bundle for audit and review.
 
-| Source | Recommended file name |
-| --- | --- |
-| XXL-JOB | `xxl-job-export.json` |
-| PowerJob | `powerjob-export.json` |
+The CLI supports MySQL/PostgreSQL JDBC URLs and native URLs. If the old project does not expose datasource settings, provide them explicitly without creating an intermediate JSON file:
 
-Place the file in the legacy worker project root when possible:
-
-```text
-legacy-worker/
-  build.gradle.kts          # or pom.xml / build.gradle
-  src/main/java/...
-  xxl-job-export.json       # or powerjob-export.json
+```bash
+tikeo-migrate plan \
+  --from xxl-job \
+  --legacy-db-url 'jdbc:mysql://legacy-db.example.com:3306/xxl_job' \
+  --legacy-db-user "$LEGACY_DB_USER" \
+  --legacy-db-password "$LEGACY_DB_PASSWORD"
 ```
 
-Accepted JSON shapes:
+Use a pre-exported JSON file only for offline review, locked-down production networks, or vendors that will not allow the migration workstation to connect to the scheduler database. In that fallback mode, any clear path is acceptable; the fixed names below are just compatibility examples, not a user requirement:
+
+```bash
+tikeo-migrate plan \
+  --from powerjob \
+  --input ./exports/jobs.json
+```
+
+Accepted fallback JSON shapes:
 
 - an array of job objects;
 - `{ "jobs": [...] }`;
@@ -116,7 +124,7 @@ Accepted JSON shapes:
 - `{ "content": [...] }`;
 - one standalone job object.
 
-Continue only when the export is readable, stored unchanged, and has a known path. If the file name is non-standard or there are multiple possible JSON files, plan to pass `--input` and possibly `--from` explicitly.
+Continue only when `.tikeo-migration/manifest.json` records the input origin (`legacy-db:...` or `json-file:...`) and the generated report contains the expected job count.
 
 ## Phase 3: generate the migration bundle
 
@@ -135,8 +143,9 @@ Auto-detection rules:
 | Input | Convention |
 | --- | --- |
 | Project root | Current directory when it contains `pom.xml`, `build.gradle`, or `build.gradle.kts`. |
-| Export file | One clear JSON file named like `xxl-job-export.json`, `xxljob-export.json`, `powerjob-export.json`, `power-job-export.json`, `jobs-export.json`, or a matching JSON file under `export/`, `exports/`, or `migration/`. |
-| Source scheduler | File name first, then JSON content such as XXL-JOB `executorHandler`/`jobDesc`/`scheduleConf` or PowerJob `processorInfo`/`timeExpressionType`/`instanceRetryNum`. |
+| Source scheduler | Detected from dependencies/source such as XXL-JOB `@XxlJob`, `xxl-job-core`, or PowerJob `BasicProcessor` / `tech.powerjob`. |
+| Legacy database | Spring datasource URL/user/password from common `application.*` and `bootstrap.*` files, or explicit `--legacy-db-url`, `--legacy-db-user`, `--legacy-db-password`. |
+| Fallback JSON | Only after database discovery is unavailable: one detectable JSON under the project root, `export/`, `exports/`, or `migration/`, or explicit `--input`. |
 | Bundle output | `./.tikeo-migration`. |
 
 ### Explicit command for non-standard layouts
@@ -144,7 +153,9 @@ Auto-detection rules:
 ```bash
 tikeo-migrate plan \
   --from xxl-job \
-  --input ./exports/jobs.json \
+  --legacy-db-url 'jdbc:mysql://legacy-db.example.com:3306/xxl_job' \
+  --legacy-db-user "$LEGACY_DB_USER" \
+  --legacy-db-password "$LEGACY_DB_PASSWORD" \
   --project ./legacy-worker \
   --output-dir ./migration-bundle \
   --namespace ops \
@@ -153,11 +164,12 @@ tikeo-migrate plan \
 
 Use explicit flags when:
 
-- the export file does not use a detectable name;
-- multiple possible JSON files exist;
+- the legacy scheduler cannot be inferred from the project;
+- datasource settings are not present in the project or must come from a secret manager;
 - the project root is not the current directory;
 - the default namespace/app would be misleading;
-- you want the bundle somewhere other than `.tikeo-migration`.
+- you want the bundle somewhere other than `.tikeo-migration`;
+- you intentionally use offline JSON with `--input`.
 
 Continue only when the output directory contains the expected files below.
 

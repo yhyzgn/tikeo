@@ -91,8 +91,8 @@ jobs:
 
 1. Extract this archive.
 2. Put the binary on your PATH, or copy it into the legacy Java worker project root.
-3. Put the legacy scheduler export JSON in that same project root, for example `xxl-job-export.json` or `powerjob-export.json`.
-4. Run `tikeo-migrate plan` to generate `./.tikeo-migration` without modifying the old project or writing Tikeo data.
+3. Run `tikeo-migrate plan`. It auto-detects the Java project, legacy scheduler, Spring datasource, and known scheduler DB tables.
+4. If datasource settings are not in the project, pass `--legacy-db-url`, `--legacy-db-user`, and `--legacy-db-password`. Use `--input <jobs.json>` only for offline fallback JSON.
 5. Review `./.tikeo-migration/CHECKLIST.md`, `jobs.tikeo.md`, and `java-project-plan.md`.
 6. Run `tikeo-migrate apply --endpoint <TIKEO_SERVER> --api-key <KEY> --dry-run` before any live import.
 EOF

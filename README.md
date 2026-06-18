@@ -223,28 +223,28 @@ schedulers only when you intentionally want a narrower Java-first scheduler.
 
 ## Migrate from XXL-JOB or PowerJob
 
-Tikeo includes a dedicated `tikeo-migrate` CLI for migration assessment. Use it as a **review-first migration assistant**, not as a blind one-click converter: it reads an XXL-JOB or PowerJob JSON export, inspects the legacy Java/Spring worker project, generates Tikeo job drafts, and writes a bundle that operators can review before anything is imported.
+Tikeo includes a dedicated `tikeo-migrate` CLI for migration assessment. Use it as a **review-first migration assistant**, not as a blind one-click converter: when you run it from the legacy Java/Spring worker project, it detects XXL-JOB or PowerJob code/config, tries to export jobs from the legacy scheduler database, generates Tikeo job drafts, and writes a bundle that operators can review before anything is imported. A pre-exported JSON file is only a fallback for offline or locked-down environments.
 
 The simplest path is convention-first:
 
 ```bash
 cd ./legacy-worker
-# Put ./xxl-job-export.json or ./powerjob-export.json in this directory first.
+# Auto-detects the Java project, legacy framework, Spring datasource, and scheduler DB tables.
 tikeo-migrate plan
 
 # Review ./.tikeo-migration, then dry-run the API import against staging.
 tikeo-migrate apply --endpoint http://127.0.0.1:9090 --api-key "$TIKEO_MIGRATION_API_KEY" --dry-run
 ```
 
-Use override flags only for non-standard layouts: `--from xxl-job`, `--input ./exports/jobs.json`, `--project ./legacy-worker`, `--output-dir ./migration-bundle`, `--namespace ops`, and `--app billing`.
+If the old project does not expose a Spring datasource, pass the old scheduler DB explicitly: `--legacy-db-url jdbc:mysql://host:3306/xxl_job --legacy-db-user <user> --legacy-db-password <password>`. Use `--input ./exports/jobs.json` only for offline JSON audit files. Other override flags are for non-standard layouts: `--from xxl-job`, `--project ./legacy-worker`, `--output-dir ./migration-bundle`, `--namespace ops`, and `--app billing`.
 
 Release builds include ready-to-run `tikeo-migrate` archives for Linux, macOS Intel, macOS Apple Silicon, and Windows. Download `tikeo-migrate-${TIKEO_VERSION}-<target>.tar.gz` or `.zip` from the GitHub Release, extract it, and either put the binary on `PATH` or copy it into the legacy project root.
 
 ```mermaid
 flowchart TD
-  A[Download tikeo-migrate] --> B[Export legacy jobs as JSON]
-  B --> C[Place JSON in legacy Java worker root]
-  C --> D[Run tikeo-migrate plan]
+  A[Download tikeo-migrate] --> B[Copy it into legacy Java worker root]
+  B --> C[Run tikeo-migrate plan]
+  C --> D[Auto-export legacy scheduler jobs or read fallback JSON]
   D --> E[Review generated migration bundle]
   E --> F{Any needs_review or code changes?}
   F -- Yes --> G[Resolve semantics and apply Java changes on a branch]
@@ -262,7 +262,7 @@ Migration phases:
 | Phase | Goal | Main command / artifact | Continue only when |
 | --- | --- | --- | --- |
 | 0. Prepare | Decide namespace/app, staging endpoint, API key, rollback owner, and Worker processor naming. | Internal migration plan. | Staging Tikeo Server and matching Worker plan exist. |
-| 1. Export | Preserve the legacy scheduler state as audit input. | `xxl-job-export.json` or `powerjob-export.json`. | Export is stored unchanged and has a known path/hash. |
+| 1. Discover/export | Preserve the legacy scheduler state as audit input. | `tikeo-migrate plan` auto-detects Spring datasource / `--legacy-db-url`, or reads `--input` fallback JSON. | The generated `manifest.json` records the input origin and the raw source snapshots used for review. |
 | 2. Plan | Generate a non-destructive migration bundle. | `tikeo-migrate plan` → `.tikeo-migration/`. | `manifest.json`, `jobs.tikeo.md`, `data-import-plan.json`, and `CHECKLIST.md` are reviewed. |
 | 3. Resolve | Translate non-equivalent legacy semantics instead of pretending they are identical. | Review `needs_review`, Java patch guidance, and unsupported-feature warnings. | Broadcast/map-reduce/routing/blocking/pinning/glue decisions are explicit. |
 | 4. Code | Add Tikeo Worker dependency and processor annotations/adapters. | Java branch + old project tests. | Worker starts and exposes processor names used by job drafts. |

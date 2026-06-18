@@ -4397,6 +4397,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sqlx",
  "tempfile",
  "tikeo-core",
  "tokio",

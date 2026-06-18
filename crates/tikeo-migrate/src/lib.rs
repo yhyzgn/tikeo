@@ -14,6 +14,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
+use sqlx::{Column, Row};
 use tikeo_core::{MisfirePolicy, ScheduleType};
 
 /// tikeo-migrate command-line entrypoint.
@@ -37,7 +38,7 @@ impl Cli {
     /// Returns an error when migration planning, bundle writing, or API application fails.
     pub async fn run(self) -> Result<()> {
         match self.command {
-            Command::Plan(command) => run_plan_command(&command),
+            Command::Plan(command) => run_plan_command(&command).await,
             Command::Apply(command) => run_apply_command(&command).await,
         }
     }
@@ -89,9 +90,18 @@ pub struct PlanCommand {
     /// Source scheduler export format. Auto-detected from export content/file name when omitted.
     #[arg(long, value_enum)]
     pub from: Option<MigrationSource>,
-    /// Path to an exported JSON file. Auto-detected from the current project directory when omitted.
+    /// Path to a pre-exported JSON file. Usually unnecessary: when omitted, the CLI first tries to export from the detected legacy database, then falls back to compatible JSON files.
     #[arg(long)]
     pub input: Option<PathBuf>,
+    /// Legacy scheduler database URL. Auto-detected from Spring config when omitted. Supports MySQL/PostgreSQL JDBC and native URLs.
+    #[arg(long, env = "TIKEO_MIGRATE_LEGACY_DB_URL")]
+    pub legacy_db_url: Option<String>,
+    /// Legacy scheduler database username when it is not embedded in the URL. Auto-detected from Spring config when omitted.
+    #[arg(long, env = "TIKEO_MIGRATE_LEGACY_DB_USER")]
+    pub legacy_db_user: Option<String>,
+    /// Legacy scheduler database password when it is not embedded in the URL. Auto-detected from Spring config when omitted.
+    #[arg(long, env = "TIKEO_MIGRATE_LEGACY_DB_PASSWORD")]
+    pub legacy_db_password: Option<String>,
     /// Output directory for the migration bundle.
     #[arg(long, default_value = ".tikeo-migration")]
     pub output_dir: PathBuf,
@@ -143,8 +153,8 @@ pub struct ApplyCommand {
 /// # Errors
 ///
 /// Returns an error when inputs cannot be read, parsed, inspected, or written.
-pub fn run_plan_command(command: &PlanCommand) -> Result<()> {
-    let bundle = build_migration_bundle(command)?;
+pub async fn run_plan_command(command: &PlanCommand) -> Result<()> {
+    let bundle = build_migration_bundle(command).await?;
     write_migration_bundle(&bundle, &command.output_dir)?;
     if let Some(output) = &command.output {
         let rendered = match command.format {
@@ -194,24 +204,53 @@ pub async fn run_apply_command(command: &ApplyCommand) -> Result<()> {
 #[derive(Debug, Clone)]
 struct ResolvedPlanInputs {
     source: MigrationSource,
-    input: PathBuf,
+    input_origin: String,
+    export_json: String,
     project: Option<PathBuf>,
 }
 
-fn resolve_plan_inputs(command: &PlanCommand) -> Result<ResolvedPlanInputs> {
+async fn resolve_plan_inputs(command: &PlanCommand) -> Result<ResolvedPlanInputs> {
     let cwd = std::env::current_dir().context("failed to resolve current directory")?;
-    resolve_plan_inputs_from(command, &cwd)
+    resolve_plan_inputs_from(command, &cwd).await
 }
 
-fn resolve_plan_inputs_from(command: &PlanCommand, cwd: &Path) -> Result<ResolvedPlanInputs> {
+async fn resolve_plan_inputs_from(command: &PlanCommand, cwd: &Path) -> Result<ResolvedPlanInputs> {
     let project = command
         .project
         .clone()
         .or_else(|| looks_like_java_project(cwd).then_some(cwd.to_path_buf()));
-    let input = match &command.input {
-        Some(input) => input.clone(),
-        None => find_export_file(project.as_deref().unwrap_or(cwd))?,
-    };
+    if let Some(input) = &command.input {
+        let input_text = fs::read_to_string(input)
+            .with_context(|| format!("failed to read migration input {}", input.display()))?;
+        let source = command
+            .from
+            .or_else(|| infer_source_from_path(input))
+            .or_else(|| infer_source_from_json(&input_text))
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "failed to auto-detect source scheduler; pass --from xxl-job or --from powerjob"
+                )
+            })?;
+        return Ok(ResolvedPlanInputs {
+            source,
+            input_origin: format!("json-file:{}", input.display()),
+            export_json: input_text,
+            project,
+        });
+    }
+
+    if let Some(export) =
+        export_from_legacy_database(command, project.as_deref().unwrap_or(cwd)).await?
+    {
+        return Ok(ResolvedPlanInputs {
+            source: export.source,
+            input_origin: export.origin,
+            export_json: export.json,
+            project,
+        });
+    }
+
+    let input = find_export_file(project.as_deref().unwrap_or(cwd))?;
     let input_text = fs::read_to_string(&input)
         .with_context(|| format!("failed to read migration input {}", input.display()))?;
     let source = command
@@ -225,9 +264,333 @@ fn resolve_plan_inputs_from(command: &PlanCommand, cwd: &Path) -> Result<Resolve
         })?;
     Ok(ResolvedPlanInputs {
         source,
-        input,
+        input_origin: format!("json-file:{}", input.display()),
+        export_json: input_text,
         project,
     })
+}
+
+#[derive(Debug, Clone)]
+struct LegacyDatabaseExport {
+    source: MigrationSource,
+    origin: String,
+    json: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct LegacyDbConfig {
+    url: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
+}
+
+async fn export_from_legacy_database(
+    command: &PlanCommand,
+    project_root: &Path,
+) -> Result<Option<LegacyDatabaseExport>> {
+    let config = resolve_legacy_db_config(command, project_root)?;
+    let Some(raw_url) = config.url else {
+        return Ok(None);
+    };
+    let source = command
+        .from
+        .or_else(|| infer_source_from_project(project_root))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "legacy database URL was detected but source scheduler was not; pass --from xxl-job or --from powerjob"
+            )
+        })?;
+    let database_url = normalize_database_url(
+        &raw_url,
+        config.username.as_deref(),
+        config.password.as_deref(),
+    )?;
+    let rows = export_legacy_rows(source, &database_url)
+        .await
+        .with_context(|| {
+            format!(
+                "failed to export {} jobs from detected legacy database",
+                source.as_str()
+            )
+        })?;
+    Ok(Some(LegacyDatabaseExport {
+        source,
+        origin: format!("legacy-db:{}", redact_database_url(&database_url)),
+        json: serde_json::to_string(&json!({"jobs": rows}))?,
+    }))
+}
+
+fn resolve_legacy_db_config(command: &PlanCommand, project_root: &Path) -> Result<LegacyDbConfig> {
+    let mut config = read_legacy_db_config(project_root)?;
+    if command.legacy_db_url.is_some() {
+        config.url = command.legacy_db_url.clone();
+    }
+    if command.legacy_db_user.is_some() {
+        config.username = command.legacy_db_user.clone();
+    }
+    if command.legacy_db_password.is_some() {
+        config.password = command.legacy_db_password.clone();
+    }
+    Ok(config)
+}
+
+fn read_legacy_db_config(project_root: &Path) -> Result<LegacyDbConfig> {
+    let mut config = LegacyDbConfig::default();
+    let candidates = [
+        "src/main/resources/application.properties",
+        "src/main/resources/application.yml",
+        "src/main/resources/application.yaml",
+        "src/main/resources/bootstrap.properties",
+        "src/main/resources/bootstrap.yml",
+        "src/main/resources/bootstrap.yaml",
+        "application.properties",
+        "application.yml",
+        "application.yaml",
+    ];
+    for relative in candidates {
+        let path = project_root.join(relative);
+        if !path.exists() {
+            continue;
+        }
+        let text = fs::read_to_string(&path)
+            .with_context(|| format!("failed to read legacy config {}", path.display()))?;
+        merge_legacy_db_config_from_text(&mut config, &text);
+    }
+    Ok(config)
+}
+
+fn merge_legacy_db_config_from_text(config: &mut LegacyDbConfig, text: &str) {
+    for raw_line in text.lines() {
+        let line = raw_line.trim();
+        if line.is_empty() || line.starts_with('#') || line.starts_with("//") {
+            continue;
+        }
+        let normalized = line.trim_start_matches('-').trim();
+        let Some((key, value)) = split_config_line(normalized) else {
+            continue;
+        };
+        let key = key
+            .trim()
+            .trim_matches(|ch| ch == '"' || ch == '\'')
+            .to_ascii_lowercase();
+        let value = strip_inline_comment(value.trim())
+            .trim()
+            .trim_matches(|ch| ch == '"' || ch == '\'')
+            .to_owned();
+        if value.is_empty() {
+            continue;
+        }
+        match key.as_str() {
+            "spring.datasource.url" | "datasource.url" | "jdbc-url" | "url"
+                if looks_like_db_url(&value) =>
+            {
+                config.url.get_or_insert(value);
+            }
+            "spring.datasource.username" | "datasource.username" | "username" | "user" => {
+                config.username.get_or_insert(value);
+            }
+            "spring.datasource.password" | "datasource.password" | "password" => {
+                config.password.get_or_insert(value);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn split_config_line(line: &str) -> Option<(&str, &str)> {
+    if let Some(index) = line.find('=') {
+        Some((&line[..index], &line[index + 1..]))
+    } else if let Some(index) = line.find(':') {
+        Some((&line[..index], &line[index + 1..]))
+    } else {
+        None
+    }
+}
+
+fn strip_inline_comment(value: &str) -> &str {
+    value.split(" #").next().unwrap_or(value)
+}
+
+fn looks_like_db_url(value: &str) -> bool {
+    value.starts_with("jdbc:mysql://")
+        || value.starts_with("jdbc:postgresql://")
+        || value.starts_with("mysql://")
+        || value.starts_with("postgres://")
+        || value.starts_with("postgresql://")
+}
+
+fn infer_source_from_project(project_root: &Path) -> Option<MigrationSource> {
+    let mut stack = vec![project_root.to_path_buf()];
+    while let Some(path) = stack.pop() {
+        let entries = fs::read_dir(&path).ok()?;
+        for entry in entries.flatten() {
+            let child = entry.path();
+            let name = child
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default();
+            if child.is_dir() {
+                if matches!(
+                    name,
+                    "build" | "target" | ".gradle" | ".git" | "node_modules"
+                ) {
+                    continue;
+                }
+                stack.push(child);
+            } else if matches!(
+                child.extension().and_then(|ext| ext.to_str()),
+                Some("java" | "xml" | "gradle" | "kts" | "properties" | "yml" | "yaml")
+            ) {
+                let text = fs::read_to_string(&child).ok()?;
+                let lower = text.to_ascii_lowercase();
+                if lower.contains("xxl-job")
+                    || lower.contains("xxljob")
+                    || lower.contains("@xxljob")
+                {
+                    return Some(MigrationSource::XxlJob);
+                }
+                if lower.contains("powerjob")
+                    || lower.contains("tech.powerjob")
+                    || lower.contains("basicprocessor")
+                {
+                    return Some(MigrationSource::PowerJob);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn normalize_database_url(
+    raw: &str,
+    username: Option<&str>,
+    password: Option<&str>,
+) -> Result<String> {
+    let mut url = raw.trim().to_owned();
+    if let Some(rest) = url.strip_prefix("jdbc:mysql://") {
+        url = format!("mysql://{rest}");
+    } else if let Some(rest) = url.strip_prefix("jdbc:postgresql://") {
+        url = format!("postgres://{rest}");
+    } else if let Some(rest) = url.strip_prefix("postgresql://") {
+        url = format!("postgres://{rest}");
+    }
+    if !(url.starts_with("mysql://") || url.starts_with("postgres://")) {
+        bail!("unsupported legacy database URL; only MySQL/PostgreSQL URLs can be auto-exported")
+    }
+    inject_database_credentials(&url, username, password)
+}
+
+fn inject_database_credentials(
+    url: &str,
+    username: Option<&str>,
+    password: Option<&str>,
+) -> Result<String> {
+    let Some(username) = username.filter(|value| !value.is_empty()) else {
+        return Ok(url.to_owned());
+    };
+    let (scheme, rest) = url
+        .split_once("://")
+        .ok_or_else(|| anyhow::anyhow!("invalid database URL"))?;
+    if rest.contains('@') {
+        return Ok(url.to_owned());
+    }
+    let encoded_user = percent_encode_credential(username);
+    let encoded_password = password.map(percent_encode_credential).unwrap_or_default();
+    Ok(if password.is_some() {
+        format!("{scheme}://{encoded_user}:{encoded_password}@{rest}")
+    } else {
+        format!("{scheme}://{encoded_user}@{rest}")
+    })
+}
+
+fn percent_encode_credential(value: &str) -> String {
+    let mut output = String::new();
+    for byte in value.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                output.push(byte as char)
+            }
+            _ => output.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    output
+}
+
+fn redact_database_url(url: &str) -> String {
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return "<redacted>".to_owned();
+    };
+    if let Some((_, host)) = rest.split_once('@') {
+        format!("{scheme}://***:***@{host}")
+    } else {
+        url.to_owned()
+    }
+}
+
+async fn export_legacy_rows(source: MigrationSource, database_url: &str) -> Result<Vec<Value>> {
+    sqlx::any::install_default_drivers();
+    let pool = sqlx::any::AnyPoolOptions::new()
+        .max_connections(1)
+        .connect(database_url)
+        .await?;
+    let queries = match source {
+        MigrationSource::XxlJob => [
+            "select * from xxl_job_info order by id",
+            "select * from XXL_JOB_INFO order by id",
+            "select * from job_info order by id",
+        ],
+        MigrationSource::PowerJob => [
+            "select * from pj_job_info order by id",
+            "select * from job_info order by id",
+            "select * from powerjob_job_info order by id",
+        ],
+    };
+    let mut last_error = None;
+    for query in queries {
+        match sqlx::query(query).fetch_all(&pool).await {
+            Ok(rows) => {
+                return Ok(rows.iter().map(row_to_json).collect());
+            }
+            Err(error) => last_error = Some(error),
+        }
+    }
+    if let Some(error) = last_error {
+        bail!(error)
+    }
+    Ok(Vec::new())
+}
+
+fn row_to_json(row: &sqlx::any::AnyRow) -> Value {
+    let mut object = Map::new();
+    for column in row.columns() {
+        let name = column.name();
+        let value = row
+            .try_get::<String, _>(name)
+            .map(Value::String)
+            .or_else(|_| row.try_get::<i64, _>(name).map(|value| json!(value)))
+            .or_else(|_| row.try_get::<i32, _>(name).map(|value| json!(value)))
+            .or_else(|_| row.try_get::<bool, _>(name).map(|value| json!(value)))
+            .or_else(|_| row.try_get::<f64, _>(name).map(|value| json!(value)))
+            .unwrap_or(Value::Null);
+        object.insert(to_camelish(name), value);
+    }
+    Value::Object(object)
+}
+
+fn to_camelish(name: &str) -> String {
+    let mut output = String::new();
+    let mut uppercase_next = false;
+    for ch in name.chars() {
+        if ch == '_' || ch == '-' {
+            uppercase_next = true;
+        } else if uppercase_next {
+            output.extend(ch.to_uppercase());
+            uppercase_next = false;
+        } else {
+            output.push(ch);
+        }
+    }
+    output
 }
 
 fn looks_like_java_project(path: &Path) -> bool {
@@ -527,17 +890,11 @@ pub struct ApplyRequestEvidence {
 /// # Errors
 ///
 /// Returns an error when the legacy export or optional project cannot be read.
-pub fn build_migration_bundle(command: &PlanCommand) -> Result<MigrationBundle> {
-    let resolved = resolve_plan_inputs(command)?;
-    let input = fs::read_to_string(&resolved.input).with_context(|| {
-        format!(
-            "failed to read migration input {}",
-            resolved.input.display()
-        )
-    })?;
+pub async fn build_migration_bundle(command: &PlanCommand) -> Result<MigrationBundle> {
+    let resolved = resolve_plan_inputs(command).await?;
     let report = plan_migration(
         resolved.source,
-        &input,
+        &resolved.export_json,
         MigrationDefaults {
             namespace: command.namespace.clone(),
             app: command.app.clone(),
@@ -550,6 +907,7 @@ pub fn build_migration_bundle(command: &PlanCommand) -> Result<MigrationBundle> 
         .map(|project| scan_java_project(project, resolved.source, &command.tikeo_version))
         .transpose()?;
     let mut checklist = vec![
+        format!("Input source captured as `{}`; keep the generated manifest as the immutable audit source for this migration run.", resolved.input_origin),
         "Review jobs.needsReview before applying them; ready jobs are the only default apply set.".to_owned(),
         "Apply Java project patches in a branch, run unit tests, then start a Worker against a staging Tikeo Server.".to_owned(),
         "Run tikeo-migrate apply against staging, trigger one migrated job, and compare logs/results with the legacy scheduler.".to_owned(),
@@ -1470,6 +1828,9 @@ mod tests {
         let command = PlanCommand {
             from: Some(MigrationSource::XxlJob),
             input: Some(input),
+            legacy_db_url: None,
+            legacy_db_user: None,
+            legacy_db_password: None,
             output_dir: project.path().join("bundle"),
             project: Some(project.path().to_path_buf()),
             output: None,
@@ -1478,7 +1839,9 @@ mod tests {
             app: "billing".to_owned(),
             tikeo_version: "${TIKEO_VERSION}".to_owned(),
         };
-        let bundle = build_migration_bundle(&command)
+        let bundle = tokio::runtime::Runtime::new()
+            .unwrap_or_else(|error| panic!("runtime: {error}"))
+            .block_on(build_migration_bundle(&command))
             .unwrap_or_else(|error| panic!("bundle should build: {error}"));
         let java = bundle
             .java_project
@@ -1499,6 +1862,38 @@ mod tests {
     }
 
     #[test]
+    fn detects_legacy_database_config_from_spring_properties() {
+        let project = fixture_project();
+        let resources = project.path().join("src/main/resources");
+        fs::create_dir_all(&resources).unwrap_or_else(|error| panic!("resources: {error}"));
+        fs::write(
+            resources.join("application.properties"),
+            "spring.datasource.url=jdbc:mysql://127.0.0.1:3306/xxl_job\nspring.datasource.username=xxl\nspring.datasource.password=s3 cr3t\n",
+        )
+        .unwrap_or_else(|error| panic!("write properties: {error}"));
+
+        let config = read_legacy_db_config(project.path())
+            .unwrap_or_else(|error| panic!("db config should parse: {error}"));
+        assert_eq!(
+            config.url.as_deref(),
+            Some("jdbc:mysql://127.0.0.1:3306/xxl_job")
+        );
+        assert_eq!(config.username.as_deref(), Some("xxl"));
+        assert_eq!(config.password.as_deref(), Some("s3 cr3t"));
+        assert_eq!(
+            infer_source_from_project(project.path()),
+            Some(MigrationSource::XxlJob)
+        );
+        let normalized = normalize_database_url(
+            config.url.as_deref().unwrap_or_default(),
+            config.username.as_deref(),
+            config.password.as_deref(),
+        )
+        .unwrap_or_else(|error| panic!("url should normalize: {error}"));
+        assert_eq!(normalized, "mysql://xxl:s3%20cr3t@127.0.0.1:3306/xxl_job");
+    }
+
+    #[test]
     fn resolves_zero_parameter_project_root_convention() {
         let project = fixture_project();
         fs::write(project.path().join("xxl-job-export.json"), r#"{"jobs":[{"id":7,"jobDesc":"nightly billing","scheduleType":"CRON","scheduleConf":"0 0 2 * * ?","executorHandler":"billingProcessor","triggerStatus":1}]}"#)
@@ -1506,6 +1901,9 @@ mod tests {
         let command = PlanCommand {
             from: None,
             input: None,
+            legacy_db_url: None,
+            legacy_db_user: None,
+            legacy_db_password: None,
             output_dir: PathBuf::from(".tikeo-migration"),
             project: None,
             output: None,
@@ -1515,12 +1913,15 @@ mod tests {
             tikeo_version: "${TIKEO_VERSION}".to_owned(),
         };
 
-        let resolved = resolve_plan_inputs_from(&command, project.path()).unwrap_or_else(|error| {
-            panic!("inputs should resolve from project convention: {error}")
-        });
+        let resolved = tokio::runtime::Runtime::new()
+            .unwrap_or_else(|error| panic!("runtime: {error}"))
+            .block_on(resolve_plan_inputs_from(&command, project.path()))
+            .unwrap_or_else(|error| {
+                panic!("inputs should resolve from project convention: {error}")
+            });
 
         assert_eq!(resolved.source, MigrationSource::XxlJob);
-        assert_eq!(resolved.input, project.path().join("xxl-job-export.json"));
+        assert!(resolved.input_origin.contains("xxl-job-export.json"));
         assert_eq!(resolved.project.as_deref(), Some(project.path()));
     }
 
