@@ -175,7 +175,7 @@ insert into xxl_job_info values (1001, 'nightly billing', 'billing', 'CRON', '0 
     let output_dir = project_dir.join(".tikeo-migration");
     let manifest = fs::read_to_string(output_dir.join("manifest.json"))
         .unwrap_or_else(|error| panic!("manifest should be readable: {error}"));
-    assert!(manifest.contains("legacy-db:sqlite://"));
+    assert!(manifest.contains("legacy-db:sqlite:"));
     assert!(manifest.contains("nightly billing"));
     assert!(manifest.contains("billingProcessor"));
     let report = fs::read_to_string(output_dir.join("jobs.tikeo.json"))
@@ -235,7 +235,7 @@ insert into pj_job_info values (2001, 'etl fanout', 'data-platform', 4, 'PT30S',
     assert!(report.contains("needs_review"));
     let manifest = fs::read_to_string(output_dir.join("manifest.json"))
         .unwrap_or_else(|error| panic!("manifest should be readable: {error}"));
-    assert!(manifest.contains("legacy-db:sqlite://"));
+    assert!(manifest.contains("legacy-db:sqlite:"));
     let _ = fs::remove_dir_all(project_dir);
 }
 

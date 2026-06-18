@@ -146,6 +146,33 @@ fn detects_legacy_database_config_from_spring_properties() {
 }
 
 #[test]
+fn normalizes_sqlite_paths_without_rewriting_windows_drive_letters() {
+    assert_eq!(
+        normalize_database_url("jdbc:sqlite:/tmp/legacy.db", None, None)
+            .unwrap_or_else(|error| panic!("sqlite url should normalize: {error}")),
+        "sqlite:/tmp/legacy.db"
+    );
+    assert_eq!(
+        normalize_database_url("sqlite:///tmp/legacy.db", None, None)
+            .unwrap_or_else(|error| panic!("sqlite url should normalize: {error}")),
+        "sqlite:///tmp/legacy.db"
+    );
+    assert_eq!(
+        normalize_database_url(
+            r"sqlite:C:\legacy\xxl-job.db",
+            Some("ignored"),
+            Some("ignored")
+        )
+        .unwrap_or_else(|error| panic!("windows sqlite url should normalize: {error}")),
+        r"sqlite:C:\legacy\xxl-job.db"
+    );
+    assert_eq!(
+        redact_database_url(r"sqlite:C:\legacy\xxl-job.db"),
+        r"sqlite:C:\legacy\xxl-job.db"
+    );
+}
+
+#[test]
 fn resolves_zero_parameter_project_root_convention() {
     let project = fixture_project();
     fs::write(project.path().join("xxl-job-export.json"), r#"{"jobs":[{"id":7,"jobDesc":"nightly billing","scheduleType":"CRON","scheduleConf":"0 0 2 * * ?","executorHandler":"billingProcessor","triggerStatus":1}]}"#)

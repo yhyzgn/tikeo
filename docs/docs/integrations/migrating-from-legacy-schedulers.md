@@ -112,7 +112,7 @@ tikeo-migrate plan \
 | Item | Supported behavior |
 | --- | --- |
 | Production URL forms | `jdbc:mysql://...`, `jdbc:postgresql://...`, `mysql://...`, `postgres://...`, `postgresql://...`. |
-| Demo/CI URL forms | `sqlite:/path/to.db`, `sqlite:///path/to.db`, `jdbc:sqlite:/path/to.db`. SQLite is for local fixtures and tests, not the recommended production scheduler DB. |
+| Demo/CI URL forms | `sqlite:/path/to.db`, `sqlite:///path/to.db`, `jdbc:sqlite:/path/to.db`, and Windows local fixture paths such as `sqlite:C:\path\legacy.db`. SQLite is for local fixtures and tests, not the recommended production scheduler DB. The CLI preserves the `sqlite:` file-path form so Windows drive letters are not parsed as URL hosts. |
 | Credentials | Read from Spring datasource config, `--legacy-db-user` / `--legacy-db-password`, or `TIKEO_MIGRATE_LEGACY_DB_USER` / `TIKEO_MIGRATE_LEGACY_DB_PASSWORD`. Credentials embedded in the URL are also accepted. |
 | Required permission | Read-only `SELECT` on the scheduler job table. Do not use an account that can mutate legacy scheduler state. |
 | XXL-JOB table candidates | `xxl_job_info`, `XXL_JOB_INFO`, `job_info`. |

@@ -479,14 +479,12 @@ fn normalize_database_url(
         url = format!("postgres://{rest}");
     }
     if let Some(rest) = url.strip_prefix("jdbc:sqlite:") {
-        url = format!("sqlite://{rest}");
-    } else if let Some(rest) = url.strip_prefix("sqlite:") {
-        url = format!("sqlite://{rest}");
+        url = format!("sqlite:{rest}");
     }
-    if !(url.starts_with("mysql://")
-        || url.starts_with("postgres://")
-        || url.starts_with("sqlite://"))
-    {
+    if url.starts_with("sqlite:") {
+        return Ok(url);
+    }
+    if !(url.starts_with("mysql://") || url.starts_with("postgres://")) {
         bail!(
             "unsupported legacy database URL; auto-export supports MySQL/PostgreSQL URLs and SQLite fixture URLs for local demos/tests"
         )
@@ -531,6 +529,9 @@ fn percent_encode_credential(value: &str) -> String {
 }
 
 fn redact_database_url(url: &str) -> String {
+    if url.starts_with("sqlite:") {
+        return url.to_owned();
+    }
     let Some((scheme, rest)) = url.split_once("://") else {
         return "<redacted>".to_owned();
     };

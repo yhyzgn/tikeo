@@ -112,7 +112,7 @@ tikeo-migrate plan \
 | 项目 | 支持行为 |
 | --- | --- |
 | 生产 URL 形式 | `jdbc:mysql://...`、`jdbc:postgresql://...`、`mysql://...`、`postgres://...`、`postgresql://...`。 |
-| Demo/CI URL 形式 | `sqlite:/path/to.db`、`sqlite:///path/to.db`、`jdbc:sqlite:/path/to.db`。SQLite 仅用于本地 fixture 和测试，不是推荐的生产旧调度器数据库。 |
+| Demo/CI URL 形式 | `sqlite:/path/to.db`、`sqlite:///path/to.db`、`jdbc:sqlite:/path/to.db`，以及 Windows 本地 fixture 路径，例如 `sqlite:C:\path\legacy.db`。SQLite 仅用于本地 fixture 和测试，不是推荐的生产旧调度器数据库。CLI 会保留 `sqlite:` 文件路径形式，避免 Windows 盘符被解析成 URL host。 |
 | 凭据来源 | Spring datasource 配置、`--legacy-db-user` / `--legacy-db-password`，或 `TIKEO_MIGRATE_LEGACY_DB_USER` / `TIKEO_MIGRATE_LEGACY_DB_PASSWORD`。URL 内嵌凭据也支持。 |
 | 所需权限 | 对调度器任务表的只读 `SELECT`。不要使用能修改旧调度器状态的账号。 |
 | XXL-JOB 表候选 | `xxl_job_info`、`XXL_JOB_INFO`、`job_info`。 |
