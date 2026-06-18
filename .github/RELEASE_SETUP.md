@@ -57,6 +57,18 @@ git push origin v0.1.901
 
 Pushing a `v*` tag starts each independent publish workflow. If a registry publish succeeds and another workflow fails, use the next `0.1.xxx` patch tag for the next full integration pass because public package registries do not allow overwriting an already published version.
 
+
+## GitHub Release notes
+
+GitHub Release body text is generated automatically by `scripts/generate-release-notes.py` inside `.github/workflows/release-github-assets.yml`. The generator is intentionally product-facing rather than a raw commit dump:
+
+- it finds the previous `v*` tag and reads the commit range for the new release;
+- it classifies commits by changed paths and subject keywords into release experience, migration toolkit, server/scheduling, web console, SDKs/workers, deployment/operations, documentation, and CI/quality gates;
+- it renders `Highlights`, `Downloads`, `Added`, `Changed`, `Fixed`, `Upgrade notes`, `Verification`, and a compact `Commit audit`;
+- it builds the download table from the actual staged assets, including server binaries, migration CLI archives, web dist, Helm, Docker Compose, Kubernetes manifests, operator, Terraform provider, SDK source packages, and deploy source bundles.
+
+No handwritten release-note file is required. If the generated text looks too mechanical, improve the generator rules and its tests instead of editing a single release by hand.
+
 ## Publish boundaries
 
 - Push/PR workflows intentionally do not publish releases or push images.
