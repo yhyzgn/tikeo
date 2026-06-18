@@ -872,6 +872,7 @@ Raft FSOD 集群生产语义：
 | 派发持久化 | FSOD 会先把派发意图写入 `worker_dispatch_outbox`，再尝试 stream 投递。 | gateway、relay 或 Worker stream 短暂断开时，queued/delivered outbox 记录可以 reroute 或 requeue，不会只丢在 Pod 内存里。 |
 | Shard ownership | 运行时会把 scheduler shards、owner epoch 和 fencing token 投影到 `cluster_shard_ownership`。 | Follower shard owner 只能 claim 自己 shard 下的 job queue、workflow-node materialization 和 broadcast attempt；非 owner fail closed。 |
 | Worker Tunnel | Worker 可以连接任意 Server Pod；session 记录 `gateway_node_id`，任一 shard owner 都可本地投递或通过持有连接的 gateway 做 internal relay hint。 | Worker Tunnel 暴露链路必须支持 gRPC/HTTP2；内部 peer endpoint 和 `cluster.transport_token` 必须配置好用于 relay。 |
+| Smart Gateway 诊断 | `/api/v1/cluster/diagnostics` 返回 `smartGateway`：本地 gateway node、online/local/remote Worker 数、outbox backlog、queued/reroute-pending 行数和 oldest queued age。 | 这是安全的 locality/可观测性优化，不是调度正确性来源；正确性仍来自 Raft fencing、shard ownership、durable outbox 和 DB terminal-state fencing。 |
 | 外部分布式锁 | 核心调度所有权不使用 Redis/Dragonfly lock。 | 可选缓存只能加速周边能力；调度正确性来自 Raft fencing、shard ownership、durable outbox 和 DB terminal-state fencing。 |
 
 ```bash

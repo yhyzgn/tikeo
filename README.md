@@ -948,6 +948,7 @@ Raft FSOD Cluster production semantics:
 | Dispatch durability | FSOD persists dispatch intent in `worker_dispatch_outbox` before any stream delivery. | If a gateway, relay, or Worker stream breaks, queued/delivered outbox rows can reroute or requeue instead of disappearing in pod memory. |
 | Shard ownership | The runtime projects scheduler shards into `cluster_shard_ownership` with owner epoch and fencing token. | Follower shard owners can safely claim only their own job queues, workflow-node materialization, and broadcast attempts; non-owners fail closed. |
 | Worker Tunnel | Workers may connect to any Server Pod; the session records `gateway_node_id`, and any shard owner uses local delivery or internal relay hints through the owning gateway. | Worker Tunnel exposure must support gRPC/HTTP2; internal peer endpoints and `cluster.transport_token` must be configured for relay. |
+| Smart Gateway diagnostics | `/api/v1/cluster/diagnostics` reports `smartGateway`: local gateway node, online/local/remote Worker counts, outbox backlog, queued/reroute-pending rows, and oldest queued age. | Treat this as a safe locality/observability optimization. Correctness still comes from Raft fencing, shard ownership, durable outbox, and DB terminal-state fencing. |
 | External locks | Redis/Dragonfly locks are intentionally not used for core scheduler ownership. | Optional caches can accelerate surrounding features, but scheduler correctness comes from Raft fencing, shard ownership, durable outbox, and DB terminal-state fencing. |
 
 ```bash

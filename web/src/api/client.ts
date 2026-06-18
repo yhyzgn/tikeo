@@ -155,6 +155,19 @@ export interface ClusterNodeDiagnostic {
   canSchedule: boolean;
 }
 
+export interface SmartGatewayDiagnostic {
+  mode: 'diagnostic_safe_optimization' | string;
+  status: 'ready' | 'degraded' | 'idle' | string;
+  localGatewayNodeId: string;
+  onlineWorkers: number;
+  localGatewayWorkers: number;
+  remoteGatewayWorkers: number;
+  outboxTotal: number;
+  queuedOrReroutePending: number;
+  oldestQueuedAgeSeconds: number;
+  safetyBoundary: string;
+}
+
 export interface ClusterDiagnosticsResponse {
   respondingNode: ClusterStatusResponse;
   status: ClusterStatusResponse;
@@ -164,6 +177,7 @@ export interface ClusterDiagnosticsResponse {
   members: Array<{ nodeId: string; endpoint: string; status: string; updatedAt: string }>;
   transport: { appendEntriesPath: string; mutating: boolean; status: string };
   runtimeBoundary: string;
+  smartGateway: SmartGatewayDiagnostic;
 }
 
 export interface JobRetryPolicy {

@@ -122,8 +122,22 @@ FSOD 不变量：
 | Outbox recovery | Gateway 按 `gateway_node_id` 扫描；无 ack/result 的 delivered 行通过 visibility timeout 重新 queued；Worker 重连可按 `logical_instance_id` + generation reroute。 |
 | LASSO worker scoring | 候选 Worker 按 local gateway、Worker authority、dispatch key rendezvous spread、worker id tie-break 排序。 |
 | Worker Tunnel gateway | 任意 Server Pod 都能接收 Worker Tunnel registration；`worker_sessions.gateway_node_id` 记录 live stream 所在 Pod。 |
+| Smart Gateway 诊断 | `/api/v1/cluster/diagnostics` 包含 `smartGateway`：本地 gateway id、online/local/remote Worker 数、outbox backlog、queued/reroute-pending 数、oldest queued age，以及明确的安全边界。 |
 | Web/API 负载均衡 | 业务数据从共享 DB 读取，在不同 Pod 间保持一致。`/api/v1/cluster/diagnostics` 会探测每个 active member endpoint，并返回 `probeStatus`、`observedRole`、`observedCanSchedule` 和 `probeLatencyMs`，方便区分本地视图与跨 Pod 健康状态。 |
 | 外部锁 | 核心调度正确性不依赖 Redis/Dragonfly/SQL advisory lock。 |
+
+## Smart Gateway 诊断
+
+Smart Gateway 是一层优化和可观测性能力，不是新的正确性权威。`smartGateway` 字段刻意做成 diagnostic-safe：它只说明当前 Pod 是否持有本地 Worker stream、多少在线 Worker 位于远端 gateway、durable outbox 中是否存在 queued/reroute-pending 行，以及最老待投递记录的年龄。运维可以用它提前发现 gateway 分布不均、Worker Tunnel HTTP/2 链路异常或 outbox recovery 压力。
+
+安全边界必须明确：派发正确性仍依赖 Raft fencing、shard ownership rows、`worker_dispatch_outbox`、assignment token、Worker generation 和数据库终态校验。`status=ready` 只表示从当前 Pod 看 locality 和 delivery 压力健康；它不会授予调度所有权，也不会绕过持久化 outbox 投递。
+
+| 字段 | 含义 | 典型动作 |
+| --- | --- | --- |
+| `localGatewayNodeId` | 当前 Pod 用于 Worker Tunnel session 的 Server node id。 | 与 `worker_sessions.gateway_node_id` 和 Pod 日志交叉检查。 |
+| `onlineWorkers`, `localGatewayWorkers`, `remoteGatewayWorkers` | lifecycle 表中的在线 Worker 分布。 | 检查负载分布/locality，以及某个 Pod 是否丢失 Worker stream。 |
+| `outboxTotal`, `queuedOrReroutePending`, `oldestQueuedAgeSeconds` | durable dispatch backlog 压力。 | age 增长时排查 gateway delivery、relay、Worker 重连或 shard owner 健康。 |
+| `status` | `idle`、`ready` 或 `degraded` 摘要状态。 | 把 `degraded` 当作运维排查信号，不要替代 queue/SLO 告警。 |
 
 ## 模式选择
 

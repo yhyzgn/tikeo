@@ -25,7 +25,7 @@ Legend: ✅ completed and locally verified; 🟡 partially completed / requires 
 1. Run the quick release evidence bundle locally on every release candidate.
 2. Re-run Kind 4-Pod HA evidence before claiming Kubernetes semantics for a new release candidate.
 3. Run `verify-raft-ha-rollout.sh` and a dry-run fault drill against staging/prod-like clusters.
-4. Continue with Smart Gateway diagnostics and migration tools as separate vertical slices.
+4. Continue with the XXL-JOB / PowerJob migration tool MVP as the next vertical slice.
 5. Keep real cloud HA validation as an explicit staging/production evidence gate; it is skipped in the current local pass by request.
 
 ## Latest verification

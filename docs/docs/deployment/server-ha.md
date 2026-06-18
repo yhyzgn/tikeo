@@ -115,8 +115,22 @@ FSOD invariants:
 | Outbox recovery | Gateway delivery scans by `gateway_node_id`; delivered rows without ack/result are requeued by visibility timeout; Worker reconnect can reroute rows by `logical_instance_id` + generation. |
 | LASSO worker scoring | Candidate ordering prefers local gateway, then Worker authority, then stable rendezvous spread by dispatch key, then worker id tie-break. |
 | Worker Tunnel gateways | Any Server pod may accept Worker Tunnel registration. `worker_sessions.gateway_node_id` records the gateway that owns the live stream. |
+| Smart Gateway diagnostics | `/api/v1/cluster/diagnostics` includes `smartGateway` with local gateway id, online/local/remote Worker counts, outbox backlog, queued/reroute-pending count, oldest queued age, and an explicit safety boundary. |
 | Web/API load balancing | Business data reads shared storage and is stable across pods. `/api/v1/cluster/diagnostics` now probes every active member endpoint and reports `probeStatus`, `observedRole`, `observedCanSchedule`, and `probeLatencyMs` so operators can distinguish local truth from cross-pod health. |
 | External locks | Redis/Dragonfly/SQL advisory locks are not required for core scheduler correctness. |
+
+## Smart Gateway diagnostics
+
+Smart Gateway is an optimization and observability surface, not a new correctness authority. The response field `smartGateway` is intentionally diagnostic-safe: it reports whether the current pod has local Worker streams, how many online Workers are on remote gateways, whether durable outbox rows are queued or waiting for reroute, and the age of the oldest pending delivery. Operators can use it to spot gateway imbalance, missing HTTP/2 Worker Tunnel paths, or outbox recovery pressure before those become user-visible incidents.
+
+The safety boundary is strict: dispatch correctness still depends on Raft fencing, shard ownership rows, `worker_dispatch_outbox`, assignment tokens, Worker generation, and database terminal-state checks. If Smart Gateway data says `ready`, that means locality and delivery pressure look healthy from this pod; it does not grant scheduling ownership or bypass persisted outbox delivery.
+
+| Field | Meaning | Typical action |
+| --- | --- | --- |
+| `localGatewayNodeId` | Server node id used by this pod for Worker Tunnel sessions. | Match it with `worker_sessions.gateway_node_id` and pod logs. |
+| `onlineWorkers`, `localGatewayWorkers`, `remoteGatewayWorkers` | Current durable online Worker distribution from lifecycle tables. | Check load-balancing/locality and whether a pod has lost Worker streams. |
+| `outboxTotal`, `queuedOrReroutePending`, `oldestQueuedAgeSeconds` | Durable dispatch backlog pressure. | Investigate gateway delivery, relay, Worker reconnect, or shard-owner health when age grows. |
+| `status` | `idle`, `ready`, or `degraded` health summary. | Treat `degraded` as an operator investigation signal, not as a replacement for queue/SLO alerts. |
 
 ## Mode selection
 

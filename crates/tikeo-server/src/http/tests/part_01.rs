@@ -1069,6 +1069,124 @@
     }
 
     #[tokio::test]
+    async fn cluster_diagnostics_exposes_smart_gateway_safe_optimization_evidence() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let lifecycle = tikeo_storage::WorkerLifecycleRepository::new(db.clone());
+        lifecycle
+            .register_session(tikeo_storage::RegisterWorkerSession {
+                worker_id: "worker-local".to_owned(),
+                namespace_name: "default".to_owned(),
+                app_name: "demo".to_owned(),
+                cluster: "kind".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "demo-local".to_owned(),
+                connection_id: "conn-local".to_owned(),
+                gateway_node_id: "test-node".to_owned(),
+                fencing_token: "local-token".to_owned(),
+                lease_seconds: 300,
+                capabilities_json: "[]".to_owned(),
+                structured_capabilities_json: "{}".to_owned(),
+                labels_json: "{}".to_owned(),
+                master_json: "{}".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("local worker should register: {error}"));
+        lifecycle
+            .register_session(tikeo_storage::RegisterWorkerSession {
+                worker_id: "worker-remote".to_owned(),
+                namespace_name: "default".to_owned(),
+                app_name: "demo".to_owned(),
+                cluster: "kind".to_owned(),
+                region: "remote".to_owned(),
+                client_instance_id: "demo-remote".to_owned(),
+                connection_id: "conn-remote".to_owned(),
+                gateway_node_id: "remote-node".to_owned(),
+                fencing_token: "remote-token".to_owned(),
+                lease_seconds: 300,
+                capabilities_json: "[]".to_owned(),
+                structured_capabilities_json: "{}".to_owned(),
+                labels_json: "{}".to_owned(),
+                master_json: "{}".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("remote worker should register: {error}"));
+        tikeo_storage::WorkerDispatchOutboxRepository::new(db.clone())
+            .create(tikeo_storage::CreateWorkerDispatchOutbox {
+                instance_id: "inst-gateway".to_owned(),
+                attempt_id: "attempt-gateway".to_owned(),
+                worker_id: "worker-remote".to_owned(),
+                logical_instance_id: "default/demo/kind/local/demo-remote".to_owned(),
+                gateway_node_id: "remote-node".to_owned(),
+                gateway_generation: 1,
+                assignment_token: "assignment-gateway".to_owned(),
+                dispatch_payload: r#"{"instanceId":"inst-gateway"}"#.to_owned(),
+                shard_id: 3,
+                shard_map_version: 1,
+                shard_count: 16,
+                owner_node_id: "test-node".to_owned(),
+                owner_epoch: 1,
+                owner_fencing_token: "owner-fence".to_owned(),
+                next_delivery_at: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("outbox row should create: {error}"));
+
+        let app = router_with_state(AppState::new(
+            JobRepository::new(db.clone()),
+            JobInstanceRepository::new(db.clone()),
+            JobInstanceLogRepository::new(db.clone()),
+            JobInstanceAttemptRepository::new(db.clone()),
+            UserRepository::new(db.clone()),
+            ScriptRepository::new(db.clone()),
+            WorkflowRepository::new(db.clone()),
+            AuditLogRepository::new(db),
+            crate::tunnel::WorkerRegistry::default().with_gateway_node_id("test-node"),
+            StaticCoordinator::shared(ClusterStatus {
+                mode: ClusterMode::Raft,
+                role: ClusterRole::Follower,
+                node_id: "test-node".to_owned(),
+                nodes: 2,
+                can_schedule: false,
+                leader_fencing_token: None,
+                detail: "non-leader diagnostic endpoint".to_owned(),
+            }),
+        ));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/cluster/diagnostics")
+                    .body(Body::empty())
+                    .unwrap_or_else(|error| panic!("request should build: {error}")),
+            )
+            .await
+            .unwrap_or_else(|error| panic!("diagnostics should respond: {error}"));
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_else(|error| panic!("body should collect: {error}"));
+        let json: Value = serde_json::from_slice(&body)
+            .unwrap_or_else(|error| panic!("body should be json: {error}"));
+
+        assert_eq!(json["code"], 0);
+        assert_eq!(json["data"]["smartGateway"]["mode"], "diagnostic_safe_optimization");
+        assert_eq!(json["data"]["smartGateway"]["localGatewayNodeId"], "test-node");
+        assert_eq!(json["data"]["smartGateway"]["onlineWorkers"], 2);
+        assert_eq!(json["data"]["smartGateway"]["localGatewayWorkers"], 1);
+        assert_eq!(json["data"]["smartGateway"]["remoteGatewayWorkers"], 1);
+        assert_eq!(json["data"]["smartGateway"]["outboxTotal"], 1);
+        assert_eq!(json["data"]["smartGateway"]["queuedOrReroutePending"], 1);
+        assert_eq!(json["data"]["smartGateway"]["status"], "ready");
+        assert!(json["data"]["smartGateway"]["oldestQueuedAgeSeconds"].as_u64().is_some());
+        assert!(json["data"]["smartGateway"]["safetyBoundary"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("durable outbox remains the source of truth"));
+    }
+
+    #[tokio::test]
     async fn openapi_json_contains_management_paths() {
         let json = get_json("/api-docs/openapi.json").await;
 

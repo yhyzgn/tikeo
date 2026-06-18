@@ -703,6 +703,18 @@ describe('api client envelope handling', () => {
           members: [],
           transport: { appendEntriesPath: '/api/v1/raft/append-entries', mutating: true, status: 'runtime_inbox_enabled' },
           runtimeBoundary: 'diagnostic',
+          smartGateway: {
+            mode: 'diagnostic_safe_optimization',
+            status: 'ready',
+            localGatewayNodeId: 'pod-b',
+            onlineWorkers: 3,
+            localGatewayWorkers: 1,
+            remoteGatewayWorkers: 2,
+            outboxTotal: 4,
+            queuedOrReroutePending: 1,
+            oldestQueuedAgeSeconds: 2,
+            safetyBoundary: 'durable outbox remains the source of truth',
+          },
         },
       }));
     }) as unknown as typeof fetch;
@@ -710,6 +722,12 @@ describe('api client envelope handling', () => {
     await expect(getClusterDiagnostics()).resolves.toMatchObject({
       respondingNode: { nodeId: 'pod-b' },
       nodes: [{ nodeId: 'pod-a' }, { nodeId: 'pod-b', isRespondingNode: true }],
+      smartGateway: {
+        mode: 'diagnostic_safe_optimization',
+        localGatewayNodeId: 'pod-b',
+        onlineWorkers: 3,
+        queuedOrReroutePending: 1,
+      },
     });
     expect(urls).toEqual(['/api/v1/cluster/diagnostics']);
   });

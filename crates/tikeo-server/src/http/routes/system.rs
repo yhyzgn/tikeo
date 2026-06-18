@@ -11,7 +11,7 @@ use crate::http::{
     dto::{
         ApiResponse, ClusterApiResponse, ClusterDiagnosticsApiResponse, ClusterDiagnosticsResponse,
         ClusterNodeDiagnostic, ClusterResponse, RaftMemberDiagnostic, RaftMetadataDiagnostic,
-        RaftTransportDiagnostic, SystemInfoApiResponse, SystemInfoResponse,
+        RaftTransportDiagnostic, SmartGatewayDiagnostic, SystemInfoApiResponse, SystemInfoResponse,
     },
     error::ApiError,
 };
@@ -160,6 +160,7 @@ pub async fn cluster_diagnostics(
             probe_error: None,
         });
     }
+    let smart_gateway = smart_gateway_diagnostic(&state).await?;
     Ok(Json(ApiResponse::success(ClusterDiagnosticsResponse {
         responding_node: responding_node.clone(),
         status: responding_node,
@@ -178,7 +179,64 @@ pub async fn cluster_diagnostics(
         },
         runtime_boundary:
             "tikv/raft-rs runtime can tick, accept inbound messages, emit gated membership proposals, and apply committed ConfChange with persisted ConfState; leader fencing remains required for scheduling/proposals".to_owned(),
+        smart_gateway,
     })))
+}
+
+async fn smart_gateway_diagnostic(state: &AppState) -> Result<SmartGatewayDiagnostic, ApiError> {
+    let local_gateway_node_id = state.registry.gateway_node_id().to_owned();
+    let online_workers = state
+        .worker_lifecycle
+        .list_online_workers(500)
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    let local_gateway_workers = online_workers
+        .iter()
+        .filter(|worker| worker.gateway_node_id == local_gateway_node_id)
+        .count();
+    let online_worker_count = u64::try_from(online_workers.len()).unwrap_or(u64::MAX);
+    let local_gateway_worker_count = u64::try_from(local_gateway_workers).unwrap_or(u64::MAX);
+    let remote_gateway_worker_count =
+        online_worker_count.saturating_sub(local_gateway_worker_count);
+    let outbox = state
+        .worker_dispatch_outbox
+        .summary()
+        .await
+        .map_err(|error| ApiError::storage(&error))?;
+    let queued_or_reroute_pending = outbox
+        .by_status
+        .get("queued")
+        .copied()
+        .unwrap_or(0)
+        .saturating_add(
+            outbox
+                .by_status
+                .get("reroute_pending")
+                .copied()
+                .unwrap_or(0),
+        );
+    let status = if queued_or_reroute_pending == 0 && online_worker_count == 0 {
+        "idle"
+    } else if queued_or_reroute_pending > 0
+        && (online_worker_count == 0 || outbox.oldest_queued_age_seconds > 300)
+    {
+        "degraded"
+    } else {
+        "ready"
+    };
+
+    Ok(SmartGatewayDiagnostic {
+        mode: "diagnostic_safe_optimization",
+        status,
+        local_gateway_node_id,
+        online_workers: online_worker_count,
+        local_gateway_workers: local_gateway_worker_count,
+        remote_gateway_workers: remote_gateway_worker_count,
+        outbox_total: outbox.total,
+        queued_or_reroute_pending,
+        oldest_queued_age_seconds: outbox.oldest_queued_age_seconds,
+        safety_boundary: "Smart Gateway optimizes Worker Tunnel locality and operator diagnosis only; Raft fencing, shard ownership, and the durable outbox remains the source of truth for dispatch correctness.",
+    })
 }
 
 struct ClusterNodeProbe {

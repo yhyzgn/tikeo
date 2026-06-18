@@ -295,6 +295,22 @@ pub struct ClusterDiagnosticsResponse {
     pub members: Vec<RaftMemberDiagnostic>,
     pub transport: RaftTransportDiagnostic,
     pub runtime_boundary: String,
+    pub smart_gateway: SmartGatewayDiagnostic,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SmartGatewayDiagnostic {
+    pub mode: &'static str,
+    pub status: &'static str,
+    pub local_gateway_node_id: String,
+    pub online_workers: u64,
+    pub local_gateway_workers: u64,
+    pub remote_gateway_workers: u64,
+    pub outbox_total: u64,
+    pub queued_or_reroute_pending: u64,
+    pub oldest_queued_age_seconds: u64,
+    pub safety_boundary: &'static str,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
