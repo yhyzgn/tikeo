@@ -283,13 +283,22 @@ NOTIFICATION_CENTER_SOURCE_TOKENS = [
 
 class DocsSiteContractTest(unittest.TestCase):
 
-    def test_readme_release_badges_are_dynamic_without_github_release_api(self):
+    def test_readme_release_badges_use_github_release_source_of_truth(self):
+        release_badge_url = "img.shields.io/github/v/release/yhyzgn/tikeo"
+        stale_release_badge_asset = "docs/static/release-badge.json"
+        stale_dynamic_badge_fragment = "raw.githubusercontent.com%2Fyhyzgn%2Ftikeo%2Fmain%2Fdocs%2Fstatic%2Frelease-badge.json"
+
         for readme in [ROOT / "README.md", ROOT / "README.zh-CN.md"]:
             text = readme.read_text(encoding="utf-8")
-            self.assertIn("img.shields.io", text)
+            self.assertIn(release_badge_url, text)
             self.assertNotIn("img.shields.io/badge/release-v", text)
-            self.assertNotIn("img.shields.io/github/v/release/yhyzgn/tikeo", text)
-            self.assertRegex(text, r"img\.shields\.io/(dynamic/json|endpoint)\?")
+            self.assertNotIn(stale_release_badge_asset, text)
+            self.assertNotIn(stale_dynamic_badge_fragment, text)
+
+        self.assertFalse(
+            (ROOT / stale_release_badge_asset).exists(),
+            "release badge must come from GitHub releases, not a stale generated JSON asset",
+        )
 
 
     def test_docs_site_module_replaces_legacy_website_module(self):
