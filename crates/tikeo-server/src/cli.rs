@@ -6,7 +6,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use tikeo_config::load_config;
 
-use crate::{migration_plan, observability::tracing::TracingRuntime, server};
+use crate::{observability::tracing::TracingRuntime, server};
 
 /// tikeo command-line entrypoint.
 #[derive(Debug, Parser)]
@@ -37,7 +37,6 @@ impl Cli {
                 tokio::task::spawn_blocking(move || tracing_runtime.shutdown()).await??;
                 result
             }
-            Command::Migrate(command) => migration_plan::run_migration_command(&command),
         }
     }
 }
@@ -51,6 +50,4 @@ pub enum Command {
         #[arg(long, env = "TIKEO_CONFIG")]
         config: Option<PathBuf>,
     },
-    /// Build a dry-run migration report from an existing scheduler export.
-    Migrate(migration_plan::MigrationCommand),
 }

@@ -6,7 +6,7 @@ description: 针对 XXL-JOB 与 PowerJob 导出的 dry-run 迁移规划。
 
 # 从 XXL-JOB 或 PowerJob 迁移
 
-Tikeo 提供一个 report-only 迁移规划工具，帮助团队评估从 XXL-JOB 或 PowerJob 迁移到 Tikeo。它**不会写入 Tikeo 数据库**，只读取 JSON 导出文件，把源任务映射成 Tikeo `create job` 草案，并输出包含 unsupported features 和人工复核项的报告。
+Tikeo 提供独立的 `tikeo-migrate` CLI，帮助团队从 XXL-JOB 或 PowerJob 迁移到 Tikeo。默认的 `plan` 命令是非破坏性的：读取 JSON 导出文件，把源任务映射成 Tikeo `create job` 草案，可选扫描 Java/Spring Worker 项目，并生成包含报告、Java 依赖建议、处理器注解补丁、unsupported features 和人工复核项的迁移包。
 
 迁移前先用它回答三个问题：
 
@@ -17,22 +17,24 @@ Tikeo 提供一个 report-only 迁移规划工具，帮助团队评估从 XXL-JO
 ## 命令
 
 ```bash
-# JSON report 输出到 stdout
-tikeo migrate \
+# 生成完整、非破坏性的迁移包
+tikeo-migrate plan \
   --from xxl-job \
   --input ./xxl-job-export.json \
+  --project ./legacy-worker \
+  --output-dir ./migration-bundle \
   --namespace ops \
   --app billing
 
-# Markdown report 写入文件
-tikeo migrate \
-  --from powerjob \
-  --input ./powerjob-export.json \
-  --format markdown \
-  --output ./tikeo-migration-report.md
+# 复核迁移包后，先 dry-run API 写入
+tikeo-migrate apply-data \
+  --bundle ./migration-bundle \
+  --endpoint http://127.0.0.1:9090 \
+  --api-key "$TIKEO_MIGRATION_API_KEY" \
+  --dry-run
 ```
 
-`--from` 支持：
+`plan --from` 支持：
 
 | 值 | 来源 |
 | --- | --- |
@@ -50,17 +52,16 @@ tikeo migrate \
 
 ## 输出内容
 
-报告包含：
+迁移包包含：
 
 | 字段 | 含义 |
 | --- | --- |
-| `source` | `xxl-job` 或 `powerjob`。 |
-| `mode` | MVP 阶段固定为 `dry_run_report_only`。 |
-| `summary` | total、ready、needs-review、skipped 数量。 |
-| `jobs[].tikeoJob` | 包含 namespace、app、name、schedule、processor、enabled、retry policy 和 migration metadata 的草案。 |
-| `jobs[].unsupportedFeatures` | 需要人工复核的源调度器特性。 |
-| `jobs[].warnings` | 有损映射或缺失字段。 |
-| `jobs[].sourceSnapshot` | 保留原始源片段，便于审计/复核。 |
+| `manifest.json` | 包含数据、代码和 checklist 的完整迁移包 manifest。 |
+| `jobs.tikeo.json` / `jobs.tikeo.md` | Job 迁移报告，包含 total、ready、needs-review、skipped。 |
+| `data-import-plan.json` | 分离 ready 与 needs-review 的 Tikeo Job 草案，便于受控写入。 |
+| `java-project-plan.json` / `.md` | 检测到的 build system、Spring Boot major、推荐 Tikeo artifact、handler candidates 和 review notes。 |
+| `java-patches/*.patch` | review-first 的依赖和 handler 注解补丁建议。 |
+| `CHECKLIST.md` | 分支复核、staging 导入、单任务触发和双跑对账的人工验收流程。 |
 
 ## 映射规则
 
@@ -98,20 +99,22 @@ tikeo migrate \
 ## 复核流程
 
 1. 把 legacy scheduler jobs 导出为 JSON。
-2. 运行 `tikeo migrate`，保存 JSON 或 Markdown 报告。
+2. 运行 `tikeo-migrate plan --output-dir ./migration-bundle`，可选带上 `--project ./legacy-worker`。
 3. 复核每一个 `needs_review` 项，把旧的 routing/blocking/pinning 语义转换成 Tikeo Worker labels、capabilities、workflow fan-out 或 concurrency policy。
-4. 使用 `tikeoJob` 草案手动或通过 Management API 创建小批量 pilot jobs。
-5. 启动带匹配 `processorName` 的 Workers。
-6. 一次触发一个任务，对比 Tikeo instance logs/results 和旧系统行为，再切流。
+4. 在分支上应用生成的 Java patches，补充推荐 starter 依赖，并人工适配复杂 handler 签名。
+5. 先运行 `tikeo-migrate apply-data --dry-run`，再在 staging 去掉 `--dry-run` 写入 ready jobs。
+6. 启动带匹配 `processorName` 的 Workers。
+7. 一次触发一个任务，对比 Tikeo instance logs/results 和旧系统行为，再切流。
 
 ## 边界
 
 这个 MVP 是保守的：
 
-- 不连接 XXL-JOB 或 PowerJob 数据库。
-- 不自动创建 Tikeo Jobs。
-- 不翻译任意 Java executor 代码。
+- `plan` 不连接 XXL-JOB 或 PowerJob 数据库。
+- `plan` 不自动创建 Tikeo Jobs，也不直接修改旧项目源码。
+- `apply-data` 是唯一会调用 Tikeo Management API 的命令，并支持 `--dry-run`。
+- Java patches 只覆盖依赖插入和 handler 注解建议；任意 executor/业务代码仍需人工复核。
 - 不声称 broadcast/map-reduce/blocking/routing 语义完全等价。
 - 报告中保留 source snapshots，便于人工审计每个决策。
 
-请把报告当作迁移计划和证据包，而不是一键迁移。
+请把迁移包当作受控迁移计划和证据包，而不是盲目一键迁移。

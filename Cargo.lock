@@ -4389,6 +4389,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "tikeo-migrate"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tikeo-core",
+ "tokio",
+]
+
+[[package]]
 name = "tikeo-proto"
 version = "0.2.0"
 dependencies = [

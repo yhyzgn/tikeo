@@ -6,7 +6,7 @@ description: Dry-run migration planning for XXL-JOB and PowerJob exports.
 
 # Migrate from XXL-JOB or PowerJob
 
-Tikeo includes a report-only migration planner for teams evaluating a move from XXL-JOB or PowerJob. The tool does **not** write to the Tikeo database. It reads a JSON export, maps source jobs into Tikeo `create job` drafts, and emits a reviewable report with unsupported features and manual follow-up items.
+Tikeo provides a dedicated `tikeo-migrate` CLI for teams moving from XXL-JOB or PowerJob. The default command, `plan`, is non-destructive: it reads a JSON export, maps source jobs into Tikeo `create job` drafts, optionally scans a Java/Spring worker project, and writes a migration bundle with reports, Java dependency guidance, handler annotation patches, unsupported features, and manual follow-up items.
 
 Use it before production migration to answer three questions:
 
@@ -17,22 +17,24 @@ Use it before production migration to answer three questions:
 ## Command
 
 ```bash
-# JSON report to stdout
-tikeo migrate \
+# Build a complete non-destructive migration bundle
+tikeo-migrate plan \
   --from xxl-job \
   --input ./xxl-job-export.json \
+  --project ./legacy-worker \
+  --output-dir ./migration-bundle \
   --namespace ops \
   --app billing
 
-# Markdown report to a file
-tikeo migrate \
-  --from powerjob \
-  --input ./powerjob-export.json \
-  --format markdown \
-  --output ./tikeo-migration-report.md
+# Review the generated bundle, then dry-run API application
+tikeo-migrate apply-data \
+  --bundle ./migration-bundle \
+  --endpoint http://127.0.0.1:9090 \
+  --api-key "$TIKEO_MIGRATION_API_KEY" \
+  --dry-run
 ```
 
-Accepted `--from` values:
+`plan --from` accepts:
 
 | Value | Source |
 | --- | --- |
@@ -50,17 +52,16 @@ Accepted JSON shapes:
 
 ## What is generated
 
-The report contains:
+The bundle contains:
 
 | Field | Meaning |
 | --- | --- |
-| `source` | `xxl-job` or `powerjob`. |
-| `mode` | Always `dry_run_report_only` for this MVP. |
-| `summary` | Count of total, ready, needs-review, and skipped records. |
-| `jobs[].tikeoJob` | Draft payload with namespace, app, name, schedule, processor, enabled flag, retry policy, and migration metadata. |
-| `jobs[].unsupportedFeatures` | Source features that require human review. |
-| `jobs[].warnings` | Lossy mappings or missing fields. |
-| `jobs[].sourceSnapshot` | Original source fragment kept for audit/review. |
+| `manifest.json` | Complete bundle manifest with data, code, and checklist sections. |
+| `jobs.tikeo.json` / `jobs.tikeo.md` | Job migration report with total, ready, needs-review, and skipped records. |
+| `data-import-plan.json` | Ready and needs-review Tikeo job drafts split for controlled application. |
+| `java-project-plan.json` / `.md` | Detected build system, Spring Boot major version, recommended Tikeo artifact, handler candidates, and review notes. |
+| `java-patches/*.patch` | Review-first dependency and handler annotation patch guidance. |
+| `CHECKLIST.md` | Human acceptance flow for branch review, staging import, one-job trigger, and dual-run comparison. |
 
 ## Mapping rules
 
@@ -98,20 +99,22 @@ The planner flags these for review: `executeType`, `designatedWorkers`, and `max
 ## Review workflow
 
 1. Export legacy scheduler jobs to JSON.
-2. Run `tikeo migrate` and save the JSON or Markdown report.
+2. Run `tikeo-migrate plan --output-dir ./migration-bundle`, optionally with `--project ./legacy-worker`.
 3. Review every `needs_review` item. Translate legacy routing/blocking/pinning semantics to Tikeo Worker labels, capabilities, workflow fan-out, or concurrency policy.
-4. Create a small pilot batch manually or through the Management API using the `tikeoJob` drafts.
-5. Start Workers with matching `processorName` values.
-6. Trigger one job at a time and compare instance logs/results with legacy behavior before switching traffic.
+4. Apply generated Java patches on a branch, add the recommended starter dependency, and adapt complex handler signatures manually.
+5. Run `tikeo-migrate apply-data --dry-run`, then apply ready jobs to staging without `--dry-run`.
+6. Start Workers with matching `processorName` values.
+7. Trigger one job at a time and compare instance logs/results with legacy behavior before switching traffic.
 
 ## Boundaries
 
 This MVP is intentionally conservative:
 
-- It does not connect to XXL-JOB or PowerJob databases.
-- It does not create Tikeo Jobs automatically.
-- It does not translate arbitrary Java executor code.
+- `plan` does not connect to XXL-JOB or PowerJob databases.
+- `plan` does not create Tikeo Jobs or edit legacy source files.
+- `apply-data` is the only command that can call the Tikeo Management API, and it supports `--dry-run`.
+- Generated Java patches cover dependency insertion and handler annotation guidance; arbitrary executor/business code still requires review.
 - It does not claim broadcast/map-reduce/blocking/routing semantics are equivalent.
 - It keeps source snapshots in the report so humans can audit every decision.
 
-Treat the report as a migration plan and evidence bundle, not as a one-click migration.
+Treat the bundle as a controlled migration plan and evidence package, not as blind one-click migration.

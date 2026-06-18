@@ -221,14 +221,14 @@ DB-lock leadership, Java-first runtime assumptions, weak script isolation, and s
 **Short version:** choose Tikeo when you want a modern orchestration control plane; choose legacy
 schedulers only when you intentionally want a narrower Java-first scheduler.
 
-For migration assessment, the `tikeo migrate` command can read XXL-JOB or PowerJob JSON exports and generate a dry-run migration report:
+For migration assessment, the dedicated `tikeo-migrate` CLI can read XXL-JOB or PowerJob JSON exports, inspect an optional Java/Spring project, and generate a non-destructive migration bundle:
 
 ```bash
-tikeo migrate --from xxl-job --input ./xxl-job-export.json --namespace ops --app billing
-tikeo migrate --from powerjob --input ./powerjob-export.json --format markdown --output ./tikeo-migration-report.md
+tikeo-migrate plan --from xxl-job --input ./xxl-job-export.json --project ./legacy-worker --output-dir ./migration-bundle --namespace ops --app billing
+tikeo-migrate apply-data --bundle ./migration-bundle --endpoint http://127.0.0.1:9090 --api-key "$TIKEO_MIGRATION_API_KEY" --dry-run
 ```
 
-The planner emits Tikeo job drafts plus unsupported-feature warnings. It is deliberately report-only: it does not connect to legacy databases and does not create Tikeo Jobs automatically. See [Migrate from XXL-JOB or PowerJob](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
+The planner emits Tikeo job drafts, Java dependency/handler patches, unsupported-feature warnings, and a checklist. It is deliberately non-destructive by default: `plan` never edits the old project or writes Tikeo data; live job creation is isolated behind `apply-data`. See [Migrate from XXL-JOB or PowerJob](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
 
 ### Evaluation checklist
 
