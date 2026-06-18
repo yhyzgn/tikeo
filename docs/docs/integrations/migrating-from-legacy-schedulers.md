@@ -107,6 +107,27 @@ tikeo-migrate plan \
   --legacy-db-password "$LEGACY_DB_PASSWORD"
 ```
 
+### Database auto-export contract
+
+| Item | Supported behavior |
+| --- | --- |
+| Production URL forms | `jdbc:mysql://...`, `jdbc:postgresql://...`, `mysql://...`, `postgres://...`, `postgresql://...`. |
+| Demo/CI URL forms | `sqlite:/path/to.db`, `sqlite:///path/to.db`, `jdbc:sqlite:/path/to.db`. SQLite is for local fixtures and tests, not the recommended production scheduler DB. |
+| Credentials | Read from Spring datasource config, `--legacy-db-user` / `--legacy-db-password`, or `TIKEO_MIGRATE_LEGACY_DB_USER` / `TIKEO_MIGRATE_LEGACY_DB_PASSWORD`. Credentials embedded in the URL are also accepted. |
+| Required permission | Read-only `SELECT` on the scheduler job table. Do not use an account that can mutate legacy scheduler state. |
+| XXL-JOB table candidates | `xxl_job_info`, `XXL_JOB_INFO`, `job_info`. |
+| PowerJob table candidates | `pj_job_info`, `job_info`, `powerjob_job_info`. |
+| Recorded evidence | `manifest.json` records a redacted `legacy-db:...` origin; credentials are not printed in the origin. |
+
+If auto-export fails, read the error first: it includes the detected source family and the table candidates the CLI attempted. Common fixes are:
+
+- pass `--from xxl-job` or `--from powerjob` when the project does not contain recognizable legacy dependencies/annotations;
+- pass `--legacy-db-url`, `--legacy-db-user`, and `--legacy-db-password` when datasource settings are injected by a deployment system rather than committed in `application.*`;
+- grant read-only `SELECT` on the known table names above;
+- use `--input ./exports/jobs.json` only when the migration workstation cannot reach the legacy database.
+
+A local deterministic fixture is available under `examples/migration/legacy-scheduler-fixtures` for trying the full auto-export path without a real XXL-JOB or PowerJob database.
+
 Use a pre-exported JSON file only for offline review, locked-down production networks, or vendors that will not allow the migration workstation to connect to the scheduler database. In that fallback mode, any clear path is acceptable; the fixed names below are just compatibility examples, not a user requirement:
 
 ```bash
@@ -358,7 +379,7 @@ Rollback plan:
 
 This migration tool is intentionally conservative:
 
-- `plan` does not connect to XXL-JOB or PowerJob databases.
+- `plan` may connect to a legacy XXL-JOB or PowerJob database using read-only access to build the review bundle.
 - `plan` does not edit legacy source files.
 - `plan` does not create Tikeo Jobs.
 - `apply` is the only command that can call the Tikeo Management API.

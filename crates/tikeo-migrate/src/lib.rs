@@ -1,7 +1,7 @@
 //! Dedicated migration toolkit for moving legacy schedulers and Java workers to Tikeo.
 //!
-//! The default workflow is intentionally non-destructive: it reads a legacy scheduler export,
-//! inspects an optional Java/Spring project, and writes a migration bundle containing Tikeo job
+//! The default workflow is intentionally non-destructive: it discovers a legacy scheduler project,
+//! exports known scheduler database tables when possible, and writes a migration bundle containing Tikeo job
 //! drafts, Java dependency guidance, source patches, and review notes. Live API writes require the
 //! explicit `apply` command.
 
@@ -309,8 +309,9 @@ async fn export_from_legacy_database(
         .await
         .with_context(|| {
             format!(
-                "failed to export {} jobs from detected legacy database",
-                source.as_str()
+                "failed to export {} jobs from detected legacy database. Check DB reachability/credentials and grant read-only SELECT on known tables: {}",
+                source.as_str(),
+                known_legacy_tables(source).join(", ")
             )
         })?;
     Ok(Some(LegacyDatabaseExport {
@@ -417,6 +418,9 @@ fn looks_like_db_url(value: &str) -> bool {
         || value.starts_with("mysql://")
         || value.starts_with("postgres://")
         || value.starts_with("postgresql://")
+        || value.starts_with("jdbc:sqlite:")
+        || value.starts_with("sqlite:")
+        || value.starts_with("sqlite://")
 }
 
 fn infer_source_from_project(project_root: &Path) -> Option<MigrationSource> {
@@ -474,8 +478,18 @@ fn normalize_database_url(
     } else if let Some(rest) = url.strip_prefix("postgresql://") {
         url = format!("postgres://{rest}");
     }
-    if !(url.starts_with("mysql://") || url.starts_with("postgres://")) {
-        bail!("unsupported legacy database URL; only MySQL/PostgreSQL URLs can be auto-exported")
+    if let Some(rest) = url.strip_prefix("jdbc:sqlite:") {
+        url = format!("sqlite://{rest}");
+    } else if let Some(rest) = url.strip_prefix("sqlite:") {
+        url = format!("sqlite://{rest}");
+    }
+    if !(url.starts_with("mysql://")
+        || url.starts_with("postgres://")
+        || url.starts_with("sqlite://"))
+    {
+        bail!(
+            "unsupported legacy database URL; auto-export supports MySQL/PostgreSQL URLs and SQLite fixture URLs for local demos/tests"
+        )
     }
     inject_database_credentials(&url, username, password)
 }
@@ -558,6 +572,13 @@ async fn export_legacy_rows(source: MigrationSource, database_url: &str) -> Resu
         bail!(error)
     }
     Ok(Vec::new())
+}
+
+fn known_legacy_tables(source: MigrationSource) -> Vec<&'static str> {
+    match source {
+        MigrationSource::XxlJob => vec!["xxl_job_info", "XXL_JOB_INFO", "job_info"],
+        MigrationSource::PowerJob => vec!["pj_job_info", "job_info", "powerjob_job_info"],
+    }
 }
 
 fn row_to_json(row: &sqlx::any::AnyRow) -> Value {
@@ -656,11 +677,11 @@ fn find_export_file(root: &Path) -> Result<PathBuf> {
     match detectable.as_slice() {
         [single] => Ok(single.clone()),
         [] => bail!(
-            "failed to auto-detect legacy export JSON under {}; pass --input",
+            "failed to auto-detect legacy scheduler input under {}. Run from the legacy Java project root, configure Spring datasource or pass --legacy-db-url/--legacy-db-user/--legacy-db-password, or use --input <jobs.json> for offline fallback",
             root.display()
         ),
         many => bail!(
-            "multiple possible legacy export JSON files found ({}); pass --input",
+            "multiple possible legacy export JSON files found ({}); pass --input <jobs.json> to select the offline fallback file",
             many.iter()
                 .map(|path| path.display().to_string())
                 .collect::<Vec<_>>()

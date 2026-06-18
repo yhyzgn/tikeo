@@ -222,6 +222,8 @@ tikeo-migrate apply --endpoint http://127.0.0.1:9090 --api-key "$TIKEO_MIGRATION
 
 如果旧项目没有暴露 Spring datasource，可显式传旧调度器数据库：`--legacy-db-url jdbc:mysql://host:3306/xxl_job --legacy-db-user <user> --legacy-db-password <password>`。只有离线 JSON 审计文件才使用 `--input ./exports/jobs.json`。其他覆盖参数用于非标准目录：`--from xxl-job`、`--project ./legacy-worker`、`--output-dir ./migration-bundle`、`--namespace ops`、`--app billing`。
 
+自动导出只需要旧库的只读 `SELECT` 权限，会依次尝试已知调度器表：XXL-JOB 的 `xxl_job_info` / `XXL_JOB_INFO` / `job_info`，以及 PowerJob 的 `pj_job_info` / `job_info` / `powerjob_job_info`。生产 URL 可使用 `jdbc:mysql://...`、`jdbc:postgresql://...`、`mysql://...`、`postgres://...` 或 `postgresql://...`；SQLite URL 只用于 `examples/migration/legacy-scheduler-fixtures` 下的本地 demo/CI fixture。
+
 Release 会提供可直接运行的 `tikeo-migrate` 压缩包，覆盖 Linux、macOS Intel、macOS Apple Silicon 和 Windows。用户从 GitHub Release 下载 `tikeo-migrate-${TIKEO_VERSION}-<target>.tar.gz` 或 `.zip`，解压后把二进制放进 `PATH`，或直接复制到旧项目根目录即可。
 
 ```mermaid
@@ -253,7 +255,7 @@ flowchart TD
 | 5. 导入 | 先证明 API 请求集合，再执行受控写入。 | `tikeo-migrate apply --dry-run`，再导入已复核任务。 | `apply-evidence.json` 被接受，且只导入已复核任务。 |
 | 6. 验证切流 | 切流前逐项对比行为。 | 逐个触发任务；对比 Tikeo instance logs/results 和旧系统。 | 双跑证据通过，回滚步骤已记录。 |
 
-生成的迁移包刻意保守：`plan` 不改旧源码、不连接旧 DB、不写 Tikeo 数据；真正创建 Job 只发生在 `apply`，且每次 staging 或生产导入前都应该先使用 `--dry-run`。完整说明见[旧调度器迁移指南](https://docs.tikeo.net/zh-CN/docs/integrations/migrating-from-legacy-schedulers)。
+生成的迁移包刻意保守：`plan` 不改旧源码、不写 Tikeo 数据；它可能用只读连接读取旧调度器数据库来生成复核包。真正创建 Job 只发生在 `apply`，且每次 staging 或生产导入前都应该先使用 `--dry-run`。完整说明见[旧调度器迁移指南](https://docs.tikeo.net/zh-CN/docs/integrations/migrating-from-legacy-schedulers)。
 
 ## 评估清单
 

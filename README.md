@@ -238,6 +238,8 @@ tikeo-migrate apply --endpoint http://127.0.0.1:9090 --api-key "$TIKEO_MIGRATION
 
 If the old project does not expose a Spring datasource, pass the old scheduler DB explicitly: `--legacy-db-url jdbc:mysql://host:3306/xxl_job --legacy-db-user <user> --legacy-db-password <password>`. Use `--input ./exports/jobs.json` only for offline JSON audit files. Other override flags are for non-standard layouts: `--from xxl-job`, `--project ./legacy-worker`, `--output-dir ./migration-bundle`, `--namespace ops`, and `--app billing`.
 
+Auto-export uses read-only `SELECT` access against known scheduler tables: XXL-JOB `xxl_job_info` / `XXL_JOB_INFO` / `job_info`, and PowerJob `pj_job_info` / `job_info` / `powerjob_job_info`. Production URLs can be `jdbc:mysql://...`, `jdbc:postgresql://...`, `mysql://...`, `postgres://...`, or `postgresql://...`; SQLite URLs are supported only for the local demo/CI fixtures under `examples/migration/legacy-scheduler-fixtures`.
+
 Release builds include ready-to-run `tikeo-migrate` archives for Linux, macOS Intel, macOS Apple Silicon, and Windows. Download `tikeo-migrate-${TIKEO_VERSION}-<target>.tar.gz` or `.zip` from the GitHub Release, extract it, and either put the binary on `PATH` or copy it into the legacy project root.
 
 ```mermaid
@@ -269,7 +271,7 @@ Migration phases:
 | 5. Import | Prove the API request set before live writes. | `tikeo-migrate apply --dry-run`, then reviewed live import. | `apply-evidence.json` is accepted and only reviewed jobs are imported. |
 | 6. Validate | Compare behavior before cutover. | Trigger one job at a time; compare Tikeo instance logs/results with legacy. | Dual-run evidence is accepted and rollback steps are documented. |
 
-The generated bundle is deliberately conservative. `plan` never edits legacy source, never connects to a legacy database, and never writes Tikeo data. Live job creation is isolated behind `apply`, and `--dry-run` should be used before every staging or production import. See the full [legacy scheduler migration guide](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
+The generated bundle is deliberately conservative. `plan` never edits legacy source and never writes Tikeo data; it may read the legacy scheduler database with a read-only connection to build the review bundle. Live job creation is isolated behind `apply`, and `--dry-run` should be used before every staging or production import. See the full [legacy scheduler migration guide](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
 
 ## Evaluation checklist
 

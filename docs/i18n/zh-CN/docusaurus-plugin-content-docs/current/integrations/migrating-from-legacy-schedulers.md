@@ -107,6 +107,27 @@ tikeo-migrate plan \
   --legacy-db-password "$LEGACY_DB_PASSWORD"
 ```
 
+### 数据库自动导出契约
+
+| 项目 | 支持行为 |
+| --- | --- |
+| 生产 URL 形式 | `jdbc:mysql://...`、`jdbc:postgresql://...`、`mysql://...`、`postgres://...`、`postgresql://...`。 |
+| Demo/CI URL 形式 | `sqlite:/path/to.db`、`sqlite:///path/to.db`、`jdbc:sqlite:/path/to.db`。SQLite 仅用于本地 fixture 和测试，不是推荐的生产旧调度器数据库。 |
+| 凭据来源 | Spring datasource 配置、`--legacy-db-user` / `--legacy-db-password`，或 `TIKEO_MIGRATE_LEGACY_DB_USER` / `TIKEO_MIGRATE_LEGACY_DB_PASSWORD`。URL 内嵌凭据也支持。 |
+| 所需权限 | 对调度器任务表的只读 `SELECT`。不要使用能修改旧调度器状态的账号。 |
+| XXL-JOB 表候选 | `xxl_job_info`、`XXL_JOB_INFO`、`job_info`。 |
+| PowerJob 表候选 | `pj_job_info`、`job_info`、`powerjob_job_info`。 |
+| 记录的证据 | `manifest.json` 会记录脱敏后的 `legacy-db:...` origin；凭据不会出现在 origin 中。 |
+
+如果自动导出失败，先看错误信息：它会带上检测到的来源类型和 CLI 已尝试的表名。常见修复方式：
+
+- 项目中无法识别旧依赖/注解时，显式传 `--from xxl-job` 或 `--from powerjob`；
+- datasource 由部署系统注入、没有写在 `application.*` 中时，显式传 `--legacy-db-url`、`--legacy-db-user`、`--legacy-db-password`；
+- 为上面已知表名授予只读 `SELECT`；
+- 只有迁移工作机无法访问旧数据库时，才使用 `--input ./exports/jobs.json`。
+
+仓库中的 `examples/migration/legacy-scheduler-fixtures` 提供了本地确定性 fixture，可在没有真实 XXL-JOB 或 PowerJob 数据库时跑通完整自动导出链路。
+
 只有在离线复核、生产网络受限、或迁移工作机不能连接旧调度器数据库时，才使用预先导出的 JSON 作为兜底输入。此时路径可以是任意清晰路径；下面这些固定名字只是兼容示例，不是用户必须遵守的要求：
 
 ```bash
@@ -358,7 +379,7 @@ tikeo-migrate apply \
 
 迁移工具刻意保守：
 
-- `plan` 不连接 XXL-JOB 或 PowerJob 数据库。
+- `plan` 可能用只读权限连接旧 XXL-JOB 或 PowerJob 数据库来生成复核包。
 - `plan` 不修改旧源码。
 - `plan` 不创建 Tikeo Job。
 - `apply` 是唯一会调用 Tikeo Management API 的命令。
