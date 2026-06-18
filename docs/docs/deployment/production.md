@@ -77,6 +77,125 @@ export TIKEO__OBSERVABILITY__LOGGING__LEVEL='info'
 
 The environment variable convention maps nested keys to `TIKEO__SECTION__KEY`, for example `storage.database_url` becomes `TIKEO__STORAGE__DATABASE_URL`. See [Configuration reference](../reference/configuration) and [Configuration cookbook](../reference/configuration-cookbook) for complete defaults and recipes.
 
+## Mounts and persistent directories
+
+Plan mounts before choosing a manifest. Tikeo deliberately separates runtime files into three groups:
+
+1. **Config** describes desired state: listeners, storage URL, TLS paths, cluster mode, OTel, and feature toggles.
+2. **Data/db** is durable product state: jobs, instances, execution logs, RBAC, notifications, audit, cluster ownership, and outbox rows.
+3. **Logs** are operational evidence: stdout is always emitted; file logs are opt-in through `observability.logging.log_dir`.
+
+Do not copy one local layout into every environment. A container, a VM, and Kubernetes should use different mount shapes even when they run the same Server binary.
+
+### Runtime path matrix
+
+| Deployment surface | Config path | Data/db path | Log path | Recommended mount method |
+| --- | --- | --- | --- | --- |
+| Docker image default | `/app/config/container.toml` | `/data/tikeo.db` for SQLite | stdout only unless `log_dir` is set | Acceptable only for quick evaluation; mount `/data` if SQLite is not disposable. |
+| Docker with external config | `/config/container.toml` | `/data/tikeo.db` for SQLite | `/logs/tikeo.log` if `log_dir=/logs` | Bind-mount config read-only, mount `/data` as a volume, mount `/logs` only when file retention is required. |
+| Docker Compose SQLite | `/app/config/container.toml` by default, or `/config/container.toml` if overridden | `tikeo-data:/data` | optional `tikeo-logs:/logs` | The checked-in SQLite Compose stack already persists `/data`. Add config/log mounts when promoting beyond a throwaway demo. |
+| Docker Compose PostgreSQL | `/app/config/postgres.toml` by default | `tikeo-postgres-data:/var/lib/postgresql/data` on the DB service | optional Server log volume | Server `/data` is not the database. Persist the PostgreSQL service or use managed Postgres. |
+| Docker Compose MySQL | `/app/config/mysql.toml` by default | `tikeo-mysql-data:/var/lib/mysql` on the DB service | optional Server log volume | Server `/data` is not the database. Persist the MySQL service or use managed MySQL. |
+| Kubernetes raw manifest | `/config/container.toml` from ConfigMap | `/data` PVC in the SQLite manifest | stdout by default; optional mounted log directory | `deploy/k8s/tikeo.yaml` mounts a ConfigMap at `/config` and a PVC at `/data`. |
+| Kubernetes Raft/HA | `/config/container.toml` from ConfigMap | external PostgreSQL/MySQL Secret URL | stdout by default | `deploy/k8s/tikeo-raft-ha.yaml` uses external DB and does not mount SQLite `/data`. |
+| Helm SQLite | `/config/container.toml` from chart ConfigMap | `/data` PVC when `server.storage.persistence.enabled=true` | stdout by default | Use only for dev/small single-node; set `server.storage.persistence.size` and storage class. |
+| Helm external DB | `/config/container.toml` from chart ConfigMap | managed/self-hosted DB outside Server pod | stdout by default | Create a Secret containing `database-url`; set `server.storage.existingSecret` and `databaseUrlSecretKey`. |
+| Binary/systemd | `/etc/tikeo/tikeo.toml` | `/var/lib/tikeo` for local SQLite or no local DB path for external DB | `/var/log/tikeo/tikeo.log` if enabled | Install directories with ownership for the `tikeo` user and keep `/etc/tikeo` under change control. |
+| Web / Docs static images | none required | none | nginx stdout | No persistent data. Mount custom nginx config only if you intentionally override the default static server. |
+
+The Server config file is selected with `tikeo serve --config <path>` or `TIKEO_CONFIG`. Environment overrides use the `TIKEO` prefix and double underscores, so `observability.logging.log_dir` becomes `TIKEO__OBSERVABILITY__LOGGING__LOG_DIR`.
+
+### Docker bind-mount example
+
+Use this shape when you want a reproducible single-host Docker deployment with editable config, persistent SQLite, and file logs:
+
+```bash
+mkdir -p ./tikeo/config ./tikeo/data ./tikeo/logs
+cp config/container.toml ./tikeo/config/container.toml
+sed -i 's|# log_dir = "./logs"|log_dir = "/logs"|' ./tikeo/config/container.toml
+
+docker run -d --name tikeo-server \
+  -p 9090:9090 -p 9998:9998 \
+  -v "$PWD/tikeo/config/container.toml:/config/container.toml:ro" \
+  -v "$PWD/tikeo/data:/data" \
+  -v "$PWD/tikeo/logs:/logs" \
+  -e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc' \
+  yhyzgn/tikeo-server:v${TIKEO_VERSION} \
+  serve --config /config/container.toml
+```
+
+If you do not want to edit the TOML file, leave it read-only and use environment overrides:
+
+```bash
+-e TIKEO__OBSERVABILITY__LOGGING__LOG_DIR=/logs \
+-e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc'
+```
+
+### Docker Compose mount overlay
+
+The default SQLite Compose file already contains `tikeo-data:/data`. Add this overlay when you also want externalized config and file logs:
+
+```yaml
+services:
+  tikeo:
+    command: ["serve", "--config", "/config/container.toml"]
+    volumes:
+      - ./tikeo/config/container.toml:/config/container.toml:ro
+      - tikeo-data:/data
+      - tikeo-logs:/logs
+    environment:
+      TIKEO__OBSERVABILITY__LOGGING__LOG_DIR: /logs
+volumes:
+  tikeo-data:
+  tikeo-logs:
+```
+
+For PostgreSQL/MySQL Compose, do not assume the Server `/data` volume backs up the database. Back up the database service volume or the managed database itself:
+
+```yaml
+services:
+  postgres:
+    volumes:
+      - tikeo-postgres-data:/var/lib/postgresql/data
+  mysql:
+    volumes:
+      - tikeo-mysql-data:/var/lib/mysql
+```
+
+### Kubernetes and Helm mount shapes
+
+Raw Kubernetes and Helm use the same container contract: config at `/config/container.toml`, optional SQLite data at `/data`, and stdout logs by default.
+
+SQLite development values:
+
+```yaml
+server:
+  storage:
+    mode: sqlite
+    databaseUrl: sqlite:///data/tikeo.db?mode=rwc
+    persistence:
+      enabled: true
+      size: 10Gi
+```
+
+External database production values:
+
+```bash
+kubectl -n tikeo create secret generic tikeo-database   --from-literal=database-url='postgres://tikeo:${PASSWORD}@postgres.example:5432/tikeo?sslmode=require'
+```
+
+```yaml
+server:
+  storage:
+    mode: external
+    existingSecret: tikeo-database
+    databaseUrlSecretKey: database-url
+    persistence:
+      enabled: false
+```
+
+If you enable file logs in Kubernetes, add a real volume for the configured directory. Otherwise the directory is inside the container filesystem and disappears on pod recreation. Most clusters should leave file logs disabled and collect stdout/stderr with the platform log collector.
+
 ## Docker Compose production-shaped path
 
 For a shared non-Kubernetes environment:

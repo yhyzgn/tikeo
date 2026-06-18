@@ -23,22 +23,58 @@ For production, pin an exact version such as `v0.2.12` or `0.2.12`. Use `latest`
 
 The default container config stores local SQLite data under `/data`. Mount a named volume or bind mount for any non-disposable environment.
 
+## Mounts and runtime files
+
+| What | Container path | How to use it | Required? |
+| --- | --- | --- | --- |
+| Built-in config | `/app/config/container.toml` | Image default used by `serve --config /app/config/container.toml`. | Enough for quick evaluation. |
+| External config | `/config/container.toml` | Bind-mount or ConfigMap-mount read-only, then run `serve --config /config/container.toml`. | Recommended for production and repeatable operations. |
+| SQLite data/db | `/data/tikeo.db` | Persist `/data` when `storage.database_url=sqlite:///data/tikeo.db?mode=rwc`. | Required for non-disposable SQLite. |
+| File logs | `/logs/tikeo.log` | Set `TIKEO__OBSERVABILITY__LOGGING__LOG_DIR=/logs` or `observability.logging.log_dir="/logs"`. | Optional; stdout logs are always emitted. |
+| TLS/mTLS files | `/config/tls` or `/etc/tikeo/tls` | Mount cert/key/CA files read-only and reference them from `transport_security.*.*_path`. | Only when process-level TLS/mTLS is enabled. |
+
+The Server accepts `tikeo serve --config <path>` and `TIKEO_CONFIG`. Environment overrides use the
+`TIKEO__SECTION__KEY` shape: `TIKEO__STORAGE__DATABASE_URL`,
+`TIKEO__OBSERVABILITY__LOGGING__LOG_DIR`, `TIKEO__SERVER__LISTEN_ADDR`, and so on.
+
+When using PostgreSQL or MySQL, durable state lives in the database, not in the Server `/data` volume.
+Persist `/var/lib/postgresql/data` for a self-hosted PostgreSQL container or `/var/lib/mysql` for a
+self-hosted MySQL container, or use your managed database backup/snapshot policy.
+
 ## Quick start with `docker run`
 
 ```bash
 docker network create tikeo 2>/dev/null || true
 
 docker volume create tikeo-data
+docker volume create tikeo-logs
+mkdir -p ./tikeo/config
+cat > ./tikeo/config/container.toml <<'TOML'
+[server]
+listen_addr = "0.0.0.0:9090"
+worker_tunnel_addr = "0.0.0.0:9998"
+
+[storage]
+database_url = "sqlite:///data/tikeo.db?mode=rwc"
+
+[observability.logging]
+level = "info"
+log_dir = "/logs"
+TOML
 
 docker run -d \
   --name tikeo-server \
   --network tikeo \
   -p 9090:9090 \
   -p 9998:9998 \
+  -v "$PWD/tikeo/config/container.toml:/config/container.toml:ro" \
   -v tikeo-data:/data \
+  -v tikeo-logs:/logs \
+  -e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc' \
+  -e TIKEO__OBSERVABILITY__LOGGING__LOG_DIR=/logs \
   --restart unless-stopped \
   yhyzgn/tikeo-server:v0.2.12 \
-  serve --config /app/config/container.toml
+  serve --config /config/container.toml
 
 curl -fsS http://127.0.0.1:9090/readyz
 ```
@@ -72,6 +108,15 @@ services:
       - "${TIKEO_WORKER_TUNNEL_PORT:-9998}:9998"
     volumes:
       - tikeo-data:/data
+    # For externalized config and file logs, switch the command to /config/container.toml
+    # and add read-only config plus log mounts:
+    # command: ["serve", "--config", "/config/container.toml"]
+    # environment:
+    #   TIKEO__OBSERVABILITY__LOGGING__LOG_DIR: /logs
+    # volumes:
+    #   - ./tikeo/config/container.toml:/config/container.toml:ro
+    #   - tikeo-data:/data
+    #   - tikeo-logs:/logs
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9090/readyz >/dev/null"]
       interval: 5s
@@ -92,6 +137,8 @@ services:
 volumes:
   tikeo-data:
     name: ${TIKEO_DATA_VOLUME:-tikeo-data}
+  # tikeo-logs:
+  #   name: tikeo-logs
 ```
 
 Start it:

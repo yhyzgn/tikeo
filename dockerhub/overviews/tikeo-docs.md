@@ -4,6 +4,22 @@ Tikeo Docs is the versioned documentation site for deploying, configuring, integ
 
 This image is a static Docusaurus build served by nginx. It is useful when your production or intranet environment needs the same documentation version as the deployed Server/Web release.
 
+## Mounts and persistent data
+
+`tikeo-docs` is a static nginx image. It does not store product data and normally needs no persistent
+`config`, `log`, or `data` mounts. nginx logs go to stdout/stderr. Mount a custom nginx config only if
+your platform intentionally overrides the default static-site server.
+
+When this image is deployed in the same Compose/Kubernetes stack as Tikeo Server, persist the Server
+runtime files instead:
+
+| Component | Path | Mount guidance |
+| --- | --- | --- |
+| Server config | `/config/container.toml` or image default `/app/config/container.toml` | Mount read-only when config should live outside the image. |
+| Server SQLite data | `/data/tikeo.db` | Persist `/data` only for SQLite mode. PostgreSQL/MySQL data lives in the database service. |
+| Server file logs | `/logs/tikeo.log` | Optional; enable with `observability.logging.log_dir` or `TIKEO__OBSERVABILITY__LOGGING__LOG_DIR`. |
+| Docs static image | none | No persistent mount required. |
+
 ## Image tags
 
 - `latest` — latest stable release published by the Tikeo release pipeline.

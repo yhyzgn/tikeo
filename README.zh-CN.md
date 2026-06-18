@@ -756,6 +756,61 @@ import { Client, WorkerConfig } from "@yhyzgn/tikeo";
 
 Tikeo 可以作为 Docker Compose 服务、传统服务器上的直接二进制、systemd 服务，或者 Kubernetes workload 运行。服务端在 `9090` 暴露 HTTP API/Web proxy 目标，在 `9998` 暴露 Worker Tunnel；Web 控制台容器内部监听 `80`。
 
+### 部署挂载目录：config、log、data/db
+
+部署时请把运行时文件拆成三类来管理：**配置**是期望状态，**data/db** 是业务持久状态，**日志**是运维证据。不要把环境专属的数据库 URL、TLS 路径、通知密钥直接烘进镜像；应通过挂载配置文件或注入 `TIKEO__...` 环境变量覆盖。
+
+| 对象 | 容器内推荐路径 | VM/systemd 路径 | 需要挂载或持久化的内容 | 是否必须 |
+| --- | --- | --- | --- | --- |
+| Server 配置 | `/config/container.toml`（推荐外部挂载）；镜像内默认 `/app/config/container.toml` | `/etc/tikeo/tikeo.toml` | 只读 TOML 文件，通过 `tikeo serve --config <path>` 或 `TIKEO_CONFIG` 选择。 | 非 demo 部署建议必须有。 |
+| SQLite data/db | `sqlite:///data/tikeo.db?mode=rwc` 对应 `/data/tikeo.db` | `/var/lib/tikeo/tikeo.db` 或其他本地路径 | 持久化整个 `/data` 或数据目录，使用 volume/PVC/bind mount。 | 使用 SQLite 且数据不能丢时必须。 |
+| PostgreSQL 数据 | 不在 Server 容器内 | 托管数据库或数据库主机 volume | 自建 PostgreSQL 时持久化 `/var/lib/postgresql/data`，托管数据库则使用平台备份/快照。 | 自建 PostgreSQL 时必须。 |
+| MySQL 数据 | 不在 Server 容器内 | 托管数据库或数据库主机 volume | 自建 MySQL 时持久化 `/var/lib/mysql`，托管数据库则使用平台备份/快照。 | 自建 MySQL 时必须。 |
+| 文件日志 | 设置 `observability.logging.log_dir=/logs` 后写 `/logs/tikeo.log` | `/var/log/tikeo/tikeo.log` | 可选日志 volume。Server 始终输出 console/stdout，容器默认走 stdout 日志采集。 | 可选；需要文件留存时开启。 |
+| TLS 证书 | `/config/tls`、`/etc/tikeo/tls` 或 Helm TLS Secret mount path | `/etc/tikeo/tls` | 被 `transport_security.*.*_path` 引用的只读证书、私钥、CA。 | 仅启用进程内 TLS/mTLS 时需要。 |
+| Web / Docs 镜像 | 无 | 无 | 静态 nginx bundle，通常没有持久化数据；只有主动覆盖 nginx 行为时才挂载 nginx config。 | 不需要。 |
+
+配置加载顺序是 Rust 默认值、TOML 文件、环境变量覆盖。环境变量使用 `TIKEO` 前缀和双下划线，例如 `storage.database_url` 对应 `TIKEO__STORAGE__DATABASE_URL`，`observability.logging.log_dir` 对应 `TIKEO__OBSERVABILITY__LOGGING__LOG_DIR`。
+
+带外部配置、SQLite 数据和文件日志的最小 Docker 运行示例：
+
+```bash
+mkdir -p ./tikeo/config ./tikeo/data ./tikeo/logs
+cp config/container.toml ./tikeo/config/container.toml
+# 启用文件日志，避免重复添加已有 TOML table。
+sed -i 's|# log_dir = "./logs"|log_dir = "/logs"|' ./tikeo/config/container.toml
+
+docker run -d --name tikeo-server \
+  -p 9090:9090 -p 9998:9998 \
+  -v "$PWD/tikeo/config/container.toml:/config/container.toml:ro" \
+  -v "$PWD/tikeo/data:/data" \
+  -v "$PWD/tikeo/logs:/logs" \
+  -e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc' \
+  yhyzgn/tikeo-server:${TIKEO_VERSION} \
+  serve --config /config/container.toml
+```
+
+Docker Compose 默认 SQLite stack 已经挂载 `tikeo-data:/data`。如果还需要外部配置和文件日志，可以增加只读配置挂载、日志 volume 和 command 覆盖：
+
+```yaml
+services:
+  tikeo:
+    command: ["serve", "--config", "/config/container.toml"]
+    volumes:
+      - ./tikeo/config/container.toml:/config/container.toml:ro
+      - tikeo-data:/data
+      - tikeo-logs:/logs
+    environment:
+      TIKEO__OBSERVABILITY__LOGGING__LOG_DIR: /logs
+volumes:
+  tikeo-data:
+  tikeo-logs:
+```
+
+PostgreSQL/MySQL Compose stack 中，Server 通常不需要 `/data`，因为持久状态在数据库容器或托管数据库中。自建 PostgreSQL 持久化 `tikeo-postgres-data:/var/lib/postgresql/data`，自建 MySQL 持久化 `tikeo-mysql-data:/var/lib/mysql`，Server 数据库 URL 通过 `TIKEO__STORAGE__DATABASE_URL` 或仓库内数据库配置文件注入。
+
+Kubernetes 和 Helm 中，Tikeo 会把 Server ConfigMap 挂到 `/config`，并执行 `serve --config /config/container.toml`。SQLite 模式会把 PVC 挂到 `/data`；外部数据库模式从 Secret 注入 `TIKEO__STORAGE__DATABASE_URL`，不需要 SQLite data PVC。集群日志优先走 stdout 采集；如果启用 `observability.logging.log_dir`，必须给该目录额外挂载 volume 或 PVC。
+
 ### 实时控制台流与代理配置
 
 Tikeo Web 使用 Server-Sent Events（SSE）刷新 workflow 时间线、实例日志、Worker 集群状态和调度队列。当 HTTP API 位于 nginx、负载均衡、WAF、CDN 或 Kubernetes Ingress 后面时，网络层必须允许长连接 `text/event-stream` 响应：
@@ -806,12 +861,18 @@ curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
 ```bash
 docker network create tikeo || true
 docker volume create tikeo-data
+docker volume create tikeo-logs
+mkdir -p ./tikeo/config
+cp config/container.toml ./tikeo/config/container.toml
 
 docker run -d --name tikeo-server --network tikeo \
   -p 9090:9090 -p 9998:9998 \
+  -v "$PWD/tikeo/config/container.toml:/config/container.toml:ro" \
   -v tikeo-data:/data \
+  -v tikeo-logs:/logs \
   -e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc' \
-  yhyzgn/tikeo-server:${TIKEO_VERSION} serve --config /app/config/container.toml
+  -e TIKEO__OBSERVABILITY__LOGGING__LOG_DIR='/logs' \
+  yhyzgn/tikeo-server:${TIKEO_VERSION} serve --config /config/container.toml
 
 docker run -d --name tikeo-web --network tikeo \
   -p 8080:80 \

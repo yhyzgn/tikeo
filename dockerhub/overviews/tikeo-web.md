@@ -4,6 +4,21 @@ Tikeo Web is the browser console for operating Tikeo Server: jobs, workers, name
 
 This image is a static web bundle served by nginx. It should normally run next to `yhyzgn/tikeo-server`.
 
+## Mounts and persistent data
+
+`tikeo-web` itself has no database, upload directory, or durable runtime state. It is an nginx image
+serving static files, so normal deployments do not mount `config`, `log`, or `data` directories into
+the Web container. nginx logs go to container stdout/stderr.
+
+If you deploy Web together with Server, persist the **Server** storage instead:
+
+| Component | Path | Mount guidance |
+| --- | --- | --- |
+| Server config | `/config/container.toml` or image default `/app/config/container.toml` | Mount read-only when you need environment-specific config. |
+| Server SQLite data | `/data/tikeo.db` | Persist `/data` only when Server uses SQLite. |
+| Server file logs | `/logs/tikeo.log` | Optional; set `TIKEO__OBSERVABILITY__LOGGING__LOG_DIR=/logs`. |
+| Web static image | none | No persistent mount required. Mount custom nginx config only if you intentionally replace the default routing. |
+
 ## Image tags
 
 - `latest` — latest stable release published by the Tikeo release pipeline.

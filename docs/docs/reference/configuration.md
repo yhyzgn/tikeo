@@ -28,6 +28,28 @@ cargo run --bin tikeo -- serve --config config/dev.toml
 
 Use TOML for non-secret defaults and environment/Secret injection for secrets, DB URLs, certificate paths, and environment-specific endpoints.
 
+## Runtime files and mount paths
+
+These paths are the deployment contract exposed by the released images and examples:
+
+| Path | Used by | Meaning | Mount guidance |
+| --- | --- | --- | --- |
+| `/app/config/container.toml` | `Dockerfile` default command | Built-in container config copied into the image. | Fine for a demo; for production prefer a read-only external config at `/config/container.toml`. |
+| `/config/container.toml` | Helm and raw Kubernetes manifests | Externalized Server config selected by `serve --config /config/container.toml`. | Mount from ConfigMap or bind mount read-only. |
+| `/data/tikeo.db` | `config/container.toml` SQLite URL | Container SQLite database file. | Persist `/data` with a Docker volume, bind mount, or PVC when SQLite data must survive restarts. |
+| `/logs/tikeo.log` | Optional container file logging | File log created when `observability.logging.log_dir="/logs"`. | Optional. Mount `/logs` only if you need file logs in addition to stdout. |
+| `/etc/tikeo/tikeo.toml` | systemd/bare-metal examples | Conventional host config file. | Own by root or deployment automation; readable by the `tikeo` process. |
+| `/var/lib/tikeo` | systemd/bare-metal examples | Host-local durable state, usually SQLite if used on a VM. | Own by the `tikeo` user; include in backup if it contains SQLite. |
+| `/var/log/tikeo/tikeo.log` | systemd/bare-metal examples | Host file log. | Create the directory before startup and rotate with system log policy. |
+| `/etc/tikeo/tls` or `/config/tls` | TLS/mTLS examples | Certificate, private key, and CA files referenced by `transport_security.*`. | Mount read-only from a Secret or host path; never bake private keys into images. |
+
+Console logging is always enabled. File logging is additive: when `observability.logging.log_dir` is set,
+the Server creates the directory if needed and writes `tikeo.log` inside it.
+
+External databases move durable state out of the Server container. With PostgreSQL or MySQL, persist the
+database service or use managed database backups; do not rely on the Server `/data` volume unless the
+configured `storage.database_url` is SQLite.
+
 ## Committed config files
 
 | File | Purpose | Notable values |

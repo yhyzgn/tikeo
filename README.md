@@ -799,6 +799,74 @@ Tikeo can run as Docker Compose services, direct binaries on conventional server
 or Kubernetes workloads. The server exposes the HTTP API/web proxy target on `9090` and the Worker
 Tunnel on `9998`; the web console container exposes port `80` internally.
 
+### Deployment mounts: config, logs, and data
+
+Treat runtime files as three separate concerns: **configuration** is desired state, **data/db** is durable state,
+and **logs** are operational evidence. Do not bake environment-specific database URLs, TLS paths, or
+notification secrets into images; mount config or inject `TIKEO__...` environment overrides instead.
+
+| Surface | Recommended path in containers | VM/systemd path | What to mount or persist | Required? |
+| --- | --- | --- | --- | --- |
+| Server config | `/config/container.toml` (recommended external mount); image default is `/app/config/container.toml` | `/etc/tikeo/tikeo.toml` | Read-only TOML file, selected with `tikeo serve --config <path>` or `TIKEO_CONFIG`. | Recommended for every non-demo deployment. |
+| SQLite data/db | `/data/tikeo.db` from `sqlite:///data/tikeo.db?mode=rwc` | `/var/lib/tikeo/tikeo.db` or another local path | Persistent volume/PVC/bind mount for the whole `/data` or data directory. | Required only when using SQLite and data must survive restart/recreate. |
+| PostgreSQL data | Not stored in the Server container | Managed DB or database host volume | Persist the PostgreSQL service's `/var/lib/postgresql/data`, or use a managed database backup/snapshot. | Required when PostgreSQL is self-hosted. |
+| MySQL data | Not stored in the Server container | Managed DB or database host volume | Persist the MySQL service's `/var/lib/mysql`, or use a managed database backup/snapshot. | Required when MySQL is self-hosted. |
+| File logs | `/logs/tikeo.log` when `observability.logging.log_dir=/logs` | `/var/log/tikeo/tikeo.log` | Optional log volume. Console/stdout logging is always emitted and is the default container logging path. | Optional; enable when you need file retention beyond stdout collection. |
+| TLS certificates | `/config/tls`, `/etc/tikeo/tls`, or Helm TLS secret mount paths | `/etc/tikeo/tls` | Read-only cert/key/CA mounts referenced by `transport_security.*.*_path`. | Required only when process-level TLS/mTLS is enabled. |
+| Web and Docs images | none | none | Static nginx bundles; normally no persistent data. Mount custom nginx config only if you intentionally override the image behavior. | Not required. |
+
+The config loader reads Rust defaults, then the TOML file, then environment overrides using the `TIKEO`
+prefix and double underscores. For example, `storage.database_url` becomes
+`TIKEO__STORAGE__DATABASE_URL`, and `observability.logging.log_dir` becomes
+`TIKEO__OBSERVABILITY__LOGGING__LOG_DIR`.
+
+Minimal Docker run with external config, SQLite data, and file logs:
+
+```bash
+mkdir -p ./tikeo/config ./tikeo/data ./tikeo/logs
+cp config/container.toml ./tikeo/config/container.toml
+# Enable file logs without duplicating the existing TOML table.
+sed -i 's|# log_dir = "./logs"|log_dir = "/logs"|' ./tikeo/config/container.toml
+
+docker run -d --name tikeo-server \
+  -p 9090:9090 -p 9998:9998 \
+  -v "$PWD/tikeo/config/container.toml:/config/container.toml:ro" \
+  -v "$PWD/tikeo/data:/data" \
+  -v "$PWD/tikeo/logs:/logs" \
+  -e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc' \
+  yhyzgn/tikeo-server:${TIKEO_VERSION} \
+  serve --config /config/container.toml
+```
+
+For Docker Compose, the default SQLite stack already mounts `tikeo-data:/data`. If you also want an
+external config and file logs, add a read-only config mount, a log volume, and a command override:
+
+```yaml
+services:
+  tikeo:
+    command: ["serve", "--config", "/config/container.toml"]
+    volumes:
+      - ./tikeo/config/container.toml:/config/container.toml:ro
+      - tikeo-data:/data
+      - tikeo-logs:/logs
+    environment:
+      TIKEO__OBSERVABILITY__LOGGING__LOG_DIR: /logs
+volumes:
+  tikeo-data:
+  tikeo-logs:
+```
+
+For PostgreSQL/MySQL Compose stacks, the Server normally does **not** need `/data` because durable
+state lives in the database container or managed database. Persist `tikeo-postgres-data:/var/lib/postgresql/data`
+for PostgreSQL or `tikeo-mysql-data:/var/lib/mysql` for MySQL, and inject the Server database URL with
+`TIKEO__STORAGE__DATABASE_URL` or the checked-in database-specific config file.
+
+For Kubernetes and Helm, Tikeo mounts the Server ConfigMap at `/config` and runs
+`serve --config /config/container.toml`. SQLite mode mounts a PVC at `/data`; external database mode
+injects `TIKEO__STORAGE__DATABASE_URL` from a Secret and does not need a SQLite data PVC. Prefer stdout
+logs for cluster log collection; if you enable `observability.logging.log_dir`, add an explicit volume
+or PVC for that directory.
+
 ### Realtime console streams and proxies
 
 Tikeo Web uses Server-Sent Events (SSE) for realtime workflow timelines, instance logs, Worker
@@ -876,12 +944,18 @@ Run the control plane and web container manually when you already manage the dat
 ```bash
 docker network create tikeo || true
 docker volume create tikeo-data
+docker volume create tikeo-logs
+mkdir -p ./tikeo/config
+cp config/container.toml ./tikeo/config/container.toml
 
 docker run -d --name tikeo-server --network tikeo \
   -p 9090:9090 -p 9998:9998 \
+  -v "$PWD/tikeo/config/container.toml:/config/container.toml:ro" \
   -v tikeo-data:/data \
+  -v tikeo-logs:/logs \
   -e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc' \
-  yhyzgn/tikeo-server:${TIKEO_VERSION} serve --config /app/config/container.toml
+  -e TIKEO__OBSERVABILITY__LOGGING__LOG_DIR='/logs' \
+  yhyzgn/tikeo-server:${TIKEO_VERSION} serve --config /config/container.toml
 
 docker run -d --name tikeo-web --network tikeo \
   -p 8080:80 \

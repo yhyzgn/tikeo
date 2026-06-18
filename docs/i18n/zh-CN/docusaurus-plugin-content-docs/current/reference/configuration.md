@@ -18,6 +18,25 @@ TIKEO__STORAGE__DATABASE_URL='sqlite:///tmp/tikeo-smoke.db?mode=rwc' \
 cargo run --bin tikeo -- serve --config config/dev.toml
 ```
 
+## 运行时文件与挂载路径
+
+下面这些路径是 release 镜像和示例暴露出来的部署约定：
+
+| 路径 | 使用位置 | 含义 | 挂载建议 |
+| --- | --- | --- | --- |
+| `/app/config/container.toml` | `Dockerfile` 默认命令 | 镜像内置容器配置。 | 适合 demo；生产建议改用只读外部配置 `/config/container.toml`。 |
+| `/config/container.toml` | Helm 和原始 Kubernetes manifest | 通过 `serve --config /config/container.toml` 选择的外部 Server 配置。 | 从 ConfigMap 或 bind mount 只读挂载。 |
+| `/data/tikeo.db` | `config/container.toml` SQLite URL | 容器 SQLite 数据库文件。 | SQLite 数据需要保留时，用 Docker volume、bind mount 或 PVC 持久化 `/data`。 |
+| `/logs/tikeo.log` | 可选容器文件日志 | `observability.logging.log_dir="/logs"` 时创建的文件日志。 | 可选；只有 stdout 之外还需要文件日志时挂载 `/logs`。 |
+| `/etc/tikeo/tikeo.toml` | systemd/裸机示例 | 传统主机配置文件。 | 由 root 或部署自动化管理，`tikeo` 进程可读。 |
+| `/var/lib/tikeo` | systemd/裸机示例 | 主机本地持久状态，通常是 VM 上的 SQLite。 | 归属 `tikeo` 用户；如果里面有 SQLite，需要纳入备份。 |
+| `/var/log/tikeo/tikeo.log` | systemd/裸机示例 | 主机文件日志。 | 启动前创建目录，并纳入系统日志轮转策略。 |
+| `/etc/tikeo/tls` 或 `/config/tls` | TLS/mTLS 示例 | `transport_security.*` 引用的证书、私钥和 CA 文件。 | 从 Secret 或 host path 只读挂载；不要把私钥烘进镜像。 |
+
+Console 日志始终启用。文件日志是增量能力：设置 `observability.logging.log_dir` 后，Server 会自动创建目录，并在其中写入 `tikeo.log`。
+
+外部数据库会把持久状态移出 Server 容器。使用 PostgreSQL 或 MySQL 时，请持久化数据库服务或使用托管数据库备份；除非 `storage.database_url` 配置的是 SQLite，否则不要依赖 Server `/data` volume。
+
 ## 配置文件用途
 
 | 文件 | 用途 | 关键值 |

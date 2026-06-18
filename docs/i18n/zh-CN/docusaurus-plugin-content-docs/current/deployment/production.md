@@ -76,6 +76,125 @@ export TIKEO__OBSERVABILITY__LOGGING__LEVEL='info'
 
 环境变量约定是 `TIKEO__SECTION__KEY`，例如 `storage.database_url` 对应 `TIKEO__STORAGE__DATABASE_URL`。完整默认值见 [配置参考](../reference/configuration)，按场景复制见 [配置 Cookbook](../reference/configuration-cookbook)。
 
+## 挂载目录与持久化路径
+
+选择 manifest 前先规划挂载。Tikeo 有意把运行时文件拆成三类：
+
+1. **Config** 表示期望状态：监听地址、存储 URL、TLS 路径、集群模式、OTel 和功能开关。
+2. **Data/db** 是持久业务状态：任务、实例、执行日志、RBAC、通知、审计、集群 ownership 和 outbox rows。
+3. **Logs** 是运维证据：stdout 始终输出；文件日志只有设置 `observability.logging.log_dir` 后才启用。
+
+不要把一个本地目录布局复制到所有环境。容器、VM 和 Kubernetes 即使运行同一个 Server binary，也应该使用不同的挂载形态。
+
+### 运行时路径矩阵
+
+| 部署形态 | 配置路径 | Data/db 路径 | 日志路径 | 推荐挂载方式 |
+| --- | --- | --- | --- | --- |
+| Docker 镜像默认 | `/app/config/container.toml` | SQLite 使用 `/data/tikeo.db` | 默认 stdout | 仅适合快速评估；SQLite 数据不可丢时必须挂载 `/data`。 |
+| Docker 外部配置 | `/config/container.toml` | SQLite 使用 `/data/tikeo.db` | `log_dir=/logs` 时写 `/logs/tikeo.log` | 配置只读 bind mount，`/data` 用 volume，只有需要文件留存时挂 `/logs`。 |
+| Docker Compose SQLite | 默认 `/app/config/container.toml`，覆盖时用 `/config/container.toml` | `tikeo-data:/data` | 可选 `tikeo-logs:/logs` | 仓库默认 SQLite Compose 已持久化 `/data`；从 demo 走向共享环境时再加 config/log 挂载。 |
+| Docker Compose PostgreSQL | 默认 `/app/config/postgres.toml` | 数据库服务的 `tikeo-postgres-data:/var/lib/postgresql/data` | 可选 Server 日志 volume | Server `/data` 不是数据库；持久化 PostgreSQL 服务或使用托管数据库。 |
+| Docker Compose MySQL | 默认 `/app/config/mysql.toml` | 数据库服务的 `tikeo-mysql-data:/var/lib/mysql` | 可选 Server 日志 volume | Server `/data` 不是数据库；持久化 MySQL 服务或使用托管数据库。 |
+| Kubernetes 原始 manifest | ConfigMap 挂到 `/config/container.toml` | SQLite manifest 中 PVC 挂 `/data` | 默认 stdout；可选日志 volume | `deploy/k8s/tikeo.yaml` 挂载 ConfigMap 到 `/config`、PVC 到 `/data`。 |
+| Kubernetes Raft/HA | ConfigMap 挂到 `/config/container.toml` | 外部 PostgreSQL/MySQL Secret URL | 默认 stdout | `deploy/k8s/tikeo-raft-ha.yaml` 使用外部 DB，不挂 SQLite `/data`。 |
+| Helm SQLite | chart ConfigMap 挂到 `/config/container.toml` | `server.storage.persistence.enabled=true` 时 PVC 挂 `/data` | 默认 stdout | 只建议开发/小型单节点；设置 `server.storage.persistence.size` 和 storage class。 |
+| Helm 外部 DB | chart ConfigMap 挂到 `/config/container.toml` | Server Pod 外部的托管/自建 DB | 默认 stdout | 创建包含 `database-url` 的 Secret，设置 `server.storage.existingSecret` 和 `databaseUrlSecretKey`。 |
+| Binary/systemd | `/etc/tikeo/tikeo.toml` | 本地 SQLite 用 `/var/lib/tikeo`；外部 DB 不需要本地 DB 目录 | 启用时 `/var/log/tikeo/tikeo.log` | 给 `tikeo` 用户创建目录并设置权限，`/etc/tikeo` 纳入变更管理。 |
+| Web / Docs 静态镜像 | 不需要 | 不需要 | nginx stdout | 无持久化数据；只有主动覆盖 nginx 默认行为时才挂载自定义 nginx config。 |
+
+Server 配置文件通过 `tikeo serve --config <path>` 或 `TIKEO_CONFIG` 选择。环境变量使用 `TIKEO` 前缀和双下划线，因此 `observability.logging.log_dir` 对应 `TIKEO__OBSERVABILITY__LOGGING__LOG_DIR`。
+
+### Docker bind mount 示例
+
+如果需要单机 Docker 部署可复现、配置可编辑、SQLite 可持久化、日志可落盘，可以使用下面的形态：
+
+```bash
+mkdir -p ./tikeo/config ./tikeo/data ./tikeo/logs
+cp config/container.toml ./tikeo/config/container.toml
+sed -i 's|# log_dir = "./logs"|log_dir = "/logs"|' ./tikeo/config/container.toml
+
+docker run -d --name tikeo-server \
+  -p 9090:9090 -p 9998:9998 \
+  -v "$PWD/tikeo/config/container.toml:/config/container.toml:ro" \
+  -v "$PWD/tikeo/data:/data" \
+  -v "$PWD/tikeo/logs:/logs" \
+  -e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc' \
+  yhyzgn/tikeo-server:v${TIKEO_VERSION} \
+  serve --config /config/container.toml
+```
+
+如果不想改 TOML，可以保持只读配置，并使用环境变量覆盖：
+
+```bash
+-e TIKEO__OBSERVABILITY__LOGGING__LOG_DIR=/logs \
+-e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc'
+```
+
+### Docker Compose 挂载覆盖
+
+默认 SQLite Compose 文件已经包含 `tikeo-data:/data`。如果还需要外部配置和文件日志，增加下面的覆盖：
+
+```yaml
+services:
+  tikeo:
+    command: ["serve", "--config", "/config/container.toml"]
+    volumes:
+      - ./tikeo/config/container.toml:/config/container.toml:ro
+      - tikeo-data:/data
+      - tikeo-logs:/logs
+    environment:
+      TIKEO__OBSERVABILITY__LOGGING__LOG_DIR: /logs
+volumes:
+  tikeo-data:
+  tikeo-logs:
+```
+
+PostgreSQL/MySQL Compose 中，不要误以为 Server `/data` volume 就是数据库备份。请备份数据库服务 volume 或托管数据库本身：
+
+```yaml
+services:
+  postgres:
+    volumes:
+      - tikeo-postgres-data:/var/lib/postgresql/data
+  mysql:
+    volumes:
+      - tikeo-mysql-data:/var/lib/mysql
+```
+
+### Kubernetes 与 Helm 挂载形态
+
+原始 Kubernetes 和 Helm 使用同一个容器约定：配置位于 `/config/container.toml`，SQLite 数据可选位于 `/data`，日志默认 stdout。
+
+SQLite 开发 values：
+
+```yaml
+server:
+  storage:
+    mode: sqlite
+    databaseUrl: sqlite:///data/tikeo.db?mode=rwc
+    persistence:
+      enabled: true
+      size: 10Gi
+```
+
+外部数据库生产 values：
+
+```bash
+kubectl -n tikeo create secret generic tikeo-database   --from-literal=database-url='postgres://tikeo:${PASSWORD}@postgres.example:5432/tikeo?sslmode=require'
+```
+
+```yaml
+server:
+  storage:
+    mode: external
+    existingSecret: tikeo-database
+    databaseUrlSecretKey: database-url
+    persistence:
+      enabled: false
+```
+
+如果在 Kubernetes 中启用文件日志，必须给配置的目录增加真实 volume。否则目录位于容器文件系统，Pod 重建后会消失。大多数集群应保持文件日志关闭，用平台日志采集器收集 stdout/stderr。
+
 ## Docker Compose 生产形态
 
 共享非 Kubernetes 环境可以这样启动：
