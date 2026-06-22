@@ -23,8 +23,8 @@ class ReleaseEvidenceScriptsContractTest(unittest.TestCase):
                 "legacy-xxl-worker",
                 "MIGRATE_BIN",
                 "apply --bundle .tikeo-migration",
-                "management-api-requests.jsonl",
-                "--include-needs-review",
+                "reviewed-import-payloads.json",
+                "code-apply-evidence.json",
             ],
             "scripts/release-readiness-evidence.sh": [
                 "TIKEO_CLOUD_HA_SERVER_URL",

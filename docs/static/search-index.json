@@ -45,13 +45,13 @@
     "title": "Migrate from legacy schedulers",
     "url": "/docs/integrations/migrating-from-legacy-schedulers",
     "locale": "en",
-    "summary": "Review-first tikeo-migrate runbook for XXL-JOB and PowerJob: auto-detect, legacy DB export, Java Spring dependency adaptation, migration bundle review, dry-run apply, and staged import evidence."
+    "summary": "Review-first tikeo-migrate runbook for XXL-JOB and PowerJob: auto-detect, legacy DB export, Java Spring dependency adaptation, migration bundle review, local apply into an isolated Worker copy, and staged import evidence."
   },
   {
     "title": "旧调度器迁移指南",
     "url": "/zh-CN/docs/integrations/migrating-from-legacy-schedulers",
     "locale": "zh-CN",
-    "summary": "面向 XXL-JOB 与 PowerJob 的 tikeo-migrate 迁移 runbook：自动探测、旧库导出、Java Spring 依赖适配、迁移包复核、dry-run apply 和预发导入证据。"
+    "summary": "面向 XXL-JOB 与 PowerJob 的 tikeo-migrate 迁移 runbook：自动探测、旧库导出、Java Spring 依赖适配、迁移包复核、本地 apply 到隔离 Worker 副本和预发导入证据。"
   },
   {
     "title": "Configuration cookbook",

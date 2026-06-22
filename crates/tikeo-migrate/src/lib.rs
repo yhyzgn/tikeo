@@ -2,8 +2,8 @@
 //!
 //! The default workflow is intentionally non-destructive: it discovers a legacy scheduler project,
 //! exports known scheduler database tables when possible, and writes a migration bundle containing Tikeo job
-//! drafts, Java dependency guidance, source patches, and review notes. Live API writes require the
-//! explicit `apply` command.
+//! drafts, Java dependency guidance, source patches, and review notes. `apply` performs
+//! local code migration only; service endpoints and API keys are emitted as config placeholders.
 
 use std::{
     fs,
@@ -17,12 +17,10 @@ use serde_json::{Map, Value, json};
 use sqlx::{Column, Row};
 use tikeo_core::{MisfirePolicy, ScheduleType};
 
-mod apply;
 mod code_apply;
 mod code_only;
 mod render;
 
-use apply::apply_data;
 use code_apply::apply_code;
 use code_only::build_code_only_export_json;
 use render::{render_checklist, render_java_project_plan, render_markdown_report};
@@ -45,12 +43,11 @@ impl Cli {
     ///
     /// # Errors
     ///
-    /// Returns an error when migration planning, bundle writing, or API application fails.
+    /// Returns an error when migration planning, bundle writing, or local project migration fails.
     pub async fn run(self) -> Result<()> {
         match self.command {
             Command::Plan(command) => run_plan_command(&command).await,
             Command::Apply(command) => run_apply_command(&command).await,
-            Command::ApplyCode(command) => run_apply_code_command(&command),
         }
     }
 }
@@ -60,12 +57,9 @@ impl Cli {
 pub enum Command {
     /// Build a complete non-destructive migration bundle.
     Plan(PlanCommand),
-    /// Apply ready job drafts from an existing migration bundle to a Tikeo server.
+    /// Apply a migration bundle to an isolated Java worker project copy.
     #[command(name = "apply")]
     Apply(ApplyCommand),
-    /// Copy a legacy Java worker project and apply compile-oriented Tikeo code changes.
-    #[command(name = "apply-code")]
-    ApplyCode(CodeApplyCommand),
 }
 
 /// Source scheduler supported by the migration planner.
@@ -139,32 +133,9 @@ pub struct PlanCommand {
     pub tikeo_version: String,
 }
 
-/// Apply ready job drafts from a bundle to Tikeo Management API.
+/// Apply a migration bundle to an isolated Java worker project copy.
 #[derive(Debug, Clone, clap::Args)]
 pub struct ApplyCommand {
-    /// Migration bundle directory created by `tikeo-migrate plan`.
-    #[arg(long, default_value = ".tikeo-migration")]
-    pub bundle: PathBuf,
-    /// Tikeo server endpoint, for example http://127.0.0.1:9090.
-    #[arg(long)]
-    pub endpoint: String,
-    /// SDK API key. Prefer environment/secret injection in real runs.
-    #[arg(long, env = "TIKEO_MIGRATION_API_KEY")]
-    pub api_key: String,
-    /// Also apply jobs marked needs_review. By default only ready jobs are sent.
-    #[arg(long)]
-    pub include_needs_review: bool,
-    /// Do not call the API; write the request list that would be sent.
-    #[arg(long)]
-    pub dry_run: bool,
-    /// Optional output path for apply evidence. Defaults to <bundle>/apply-evidence.json.
-    #[arg(long)]
-    pub output: Option<PathBuf>,
-}
-
-/// Copy a legacy Java worker project and apply compile-oriented Tikeo code changes.
-#[derive(Debug, Clone, clap::Args)]
-pub struct CodeApplyCommand {
     /// Migration bundle directory created by `tikeo-migrate plan`.
     #[arg(long, default_value = ".tikeo-migration")]
     pub bundle: PathBuf,
@@ -177,7 +148,7 @@ pub struct CodeApplyCommand {
     /// Replace an existing output project directory.
     #[arg(long)]
     pub force: bool,
-    /// Optional output path for code migration evidence. Defaults to <bundle>/code-apply-evidence.json.
+    /// Optional output evidence path. Defaults to <bundle>/code-apply-evidence.json.
     #[arg(long)]
     pub output: Option<PathBuf>,
 }
@@ -209,44 +180,14 @@ pub async fn run_plan_command(command: &PlanCommand) -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns an error when the bundle cannot be read or the Tikeo API rejects a request.
-pub async fn run_apply_command(command: &ApplyCommand) -> Result<()> {
-    let report_path = command.bundle.join("jobs.tikeo.json");
-    let report_text = fs::read_to_string(&report_path).with_context(|| {
-        format!(
-            "failed to read migration bundle report {}",
-            report_path.display()
-        )
-    })?;
-    let report: MigrationReport = serde_json::from_str(&report_text).with_context(|| {
-        format!(
-            "failed to parse migration bundle report {}",
-            report_path.display()
-        )
-    })?;
-    let evidence = apply_data(command, &report).await?;
-    let output = command
-        .output
-        .clone()
-        .unwrap_or_else(|| command.bundle.join("apply-evidence.json"));
-    fs::write(&output, serde_json::to_string_pretty(&evidence)?)
-        .with_context(|| format!("failed to write apply evidence {}", output.display()))?;
-    println!("apply evidence written to {}", output.display());
-    Ok(())
-}
-
-/// Execute the code apply command.
-///
-/// # Errors
-///
 /// Returns an error when the bundle cannot be read or the project copy cannot be transformed.
-pub fn run_apply_code_command(command: &CodeApplyCommand) -> Result<()> {
+pub async fn run_apply_command(command: &ApplyCommand) -> Result<()> {
     let evidence = apply_code(command)?;
     let output = command
         .output
         .clone()
         .unwrap_or_else(|| command.bundle.join("code-apply-evidence.json"));
-    println!("code apply evidence written to {}", output.display());
+    println!("apply evidence written to {}", output.display());
     println!("migrated project written to {}", evidence.output_project);
     Ok(())
 }
@@ -957,30 +898,6 @@ pub struct HandlerCandidate {
     pub processor_name: String,
     /// Method name when detected.
     pub method_name: Option<String>,
-}
-
-/// Evidence for applying job drafts to Tikeo.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ApplyEvidence {
-    /// Whether this run avoided live API calls.
-    pub dry_run: bool,
-    /// Requests attempted or planned.
-    pub requests: Vec<ApplyRequestEvidence>,
-}
-
-/// Evidence for one apply request.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ApplyRequestEvidence {
-    /// Job name.
-    pub name: String,
-    /// Request status.
-    pub status: String,
-    /// HTTP status code when live API was called.
-    pub http_status: Option<u16>,
-    /// Response or error body.
-    pub response: Option<String>,
 }
 
 /// Build the full migration bundle in memory.

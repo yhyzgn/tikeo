@@ -123,7 +123,7 @@ post-release 追加提交的短跑本地证据：
 | 模块 | 脚本 | 证据产物 | 边界 |
 | --- | --- | --- | --- |
 | 通知中心 provider/e2e | `scripts/notification-provider-e2e-smoke.sh` | `REPORT.md`、`summary.json`、provider 收包 JSONL、渠道测试响应、message/attempt/queue 快照 | 使用本地协议级 HTTP mock provider；真实租户 provider 仍需按部署环境做 test-send。 |
-| 迁移 CLI 旧项目链路 | `scripts/migration-cli-full-chain-smoke.sh` | `REPORT.md`、生成的旧项目、`.tikeo-migration/`、dry-run/live apply 证据、mock Management API 请求 | 本地证明 CLI 探测、bundle 和 apply 机制；业务语义等价仍需要代表性旧项目验证。 |
+| 迁移 CLI 旧项目链路 | `scripts/migration-cli-full-chain-smoke.sh` | `REPORT.md`、生成的旧项目、迁移后的 Worker 副本、`.tikeo-migration/`、`code-apply-evidence.json`、已复核导入 payload | 本地证明 CLI 探测、bundle 生成、本地代码/配置 apply 和已复核导入 payload 准备；业务语义等价仍需要代表性旧项目验证。 |
 | 真实云 HA | `scripts/release-readiness-evidence.sh` 按需调用 `scripts/cloud-raft-ha-acceptance.sh` | 云环境 `REPORT.md`、`summary.json`，或明确的 `deferred_cloud_endpoint_missing` 边界报告 | 需要 `TIKEO_CLOUD_HA_SERVER_URL`；没有云目标时以 Kind 证据作为本地替代。 |
 
 ## 迁移 CLI 证据
@@ -132,11 +132,11 @@ post-release 追加提交的短跑本地证据：
 
 1. 在旧项目根目录执行 `tikeo-migrate plan`。
 2. 复核 `.tikeo-migration/manifest.json`、`jobs.tikeo.md`、`data-import-plan.json` 和生成的 Java patch 建议。
-3. 执行 `tikeo-migrate apply --endpoint <staging> --api-key <key> --dry-run`。
-4. 只把复核过的 `ready` jobs 导入预发。
-5. 切流前用匹配的 Tikeo Worker 至少触发一个迁移后的作业。
+3. 执行 `tikeo-migrate apply --bundle ./.tikeo-migration --output-project ../legacy-worker-tikeo`，并编译/测试迁移后的 Worker 副本。
+4. 在迁移后的 Spring 配置中补全生成的 `tikeo.worker.*` / `tikeo.management.*` endpoint 和 API-key 占位符。
+5. 通过控制台、Management API 或 GitOps 只把复核过的 `ready` jobs 导入预发，然后用匹配的 Tikeo Worker 至少触发一个迁移后的作业。
 
-如果没有真实旧项目，可先运行 `scripts/migration-cli-full-chain-smoke.sh` 做本地全链路演练：它会创建临时 Spring Boot + XXL-JOB 项目，从本地旧调度器 DB 自动导出，执行 dry-run apply，并把 ready jobs live apply 到 mock Management API。
+如果没有真实旧项目，可先运行 `scripts/migration-cli-full-chain-smoke.sh` 做本地全链路演练：它会创建临时 Spring Boot + XXL-JOB 项目，从本地旧调度器 DB 自动导出，执行本地 `apply` 到隔离 Worker 副本，验证就地 Tikeo 配置占位符，并归档已复核导入 payload。
 
 相关文档：[旧调度器迁移指南](../integrations/migrating-from-legacy-schedulers)。
 
@@ -153,5 +153,5 @@ post-release 追加提交的短跑本地证据：
 | 有云环境时 P0 | 使用外部 DB、ingress/LB/WAF/TLS、NetworkPolicy 和托管数据库 HA 做真实云环境 HA 验收。 | 归档 `scripts/cloud-raft-ha-acceptance.sh` 产物：`summary.json`、`REPORT.md`、cluster diagnostics 和明确 pass/fail 说明。 |
 | 下个 release candidate 前 P1 | 通过 `.github/workflows/release-candidate-worker-soak.yml` 手动运行跨语言 soak gate，时长应比短证据更长。 | `TIKEO_CROSS_SOAK_SECONDS=120` 或更长运行产出 `cross-language-worker-soak` artifact，并得到 `failed=0`、`workersOnline` 稳定、`queuePending` 有界、`outboxPending` 不增长。 |
 | provider 生产签核前 P1 | 对部署环境实际使用的通知渠道做真实 provider test-send；本地协议级证据可用 `scripts/notification-provider-e2e-smoke.sh` 生成。 | 归档 provider response、message trace、retry/DLQ 状态和脱敏证据。 |
-| 大规模迁移推广前 P2 | 用代表性 XXL-JOB 或 PowerJob 旧项目跑 `tikeo-migrate`；本地演练可用 `scripts/migration-cli-full-chain-smoke.sh`。 | dry-run apply 加至少一个预发 live trigger，并保留行为对比。 |
+| 大规模迁移推广前 P2 | 用代表性 XXL-JOB 或 PowerJob 旧项目跑 `tikeo-migrate`；本地演练可用 `scripts/migration-cli-full-chain-smoke.sh`。 | 本地 apply 证据加至少一个预发触发执行，并保留行为对比。 |
 | 持续 P2 | 保持公共文档与 release 证据同步。 | docs build、docs contract、search/LLM indexes、README links 和 release asset checks 全部通过。 |

@@ -10,7 +10,7 @@ High-value English pages:
 - /docs/deployment/production — production deployment guide for Server/Web/Docs images, external databases, Worker Tunnel networking, TLS/mTLS, observability, backup, rollback, and smoke verification
 - /docs/deployment/server-ha — Server HA and cluster modes: Raft single-Leader scheduling ownership, topology diagrams, Worker Tunnel gateway relay, and production verification
 - /docs/integrations/sdk-and-api — application integration guide for Worker SDKs, Management API keys, API jobs, triggers, broadcast selectors, task-status notifications, and evidence
-- /docs/integrations/migrating-from-legacy-schedulers — review-first tikeo-migrate runbook for XXL-JOB/PowerJob auto-detect, legacy DB export, Java dependency adaptation, dry-run apply, and staged import evidence
+- /docs/integrations/migrating-from-legacy-schedulers — review-first tikeo-migrate runbook for XXL-JOB/PowerJob auto-detect, legacy DB export, Java dependency adaptation, local apply into an isolated Worker copy, and staged import evidence
 - /docs/reference/configuration-cookbook — scenario recipes for database, TLS/mTLS, OIDC, observability, Notification Center delivery, Worker SDK defaults, and release image pinning
 - /docs/development/overview — maintainer guide for API/Web/SDK/docs changes, notification provider extension, script sandbox boundaries, and release readiness
 - /docs/development/product-readiness-acceptance — release and handoff gates for Notification Center, tikeo-migrate, and Raft FSOD Server HA
@@ -50,7 +50,7 @@ High-value Chinese pages:
 - /zh-CN/docs/deployment/server-ha — Server 高可用与集群模式：Raft 单 Leader 调度所有权、拓扑图、Worker Tunnel gateway relay 和生产验收
 - /zh-CN/docs/development/product-readiness-acceptance — 通知中心、tikeo-migrate 和 Raft FSOD Server HA 的发布/交接门槛
 - /zh-CN/docs/development/release-acceptance-packet-v0.3.9 — v0.3.9 具体交接证据：assets、workflow、Kind HA 指标、跨语言 Worker soak 和剩余检查
-- /zh-CN/docs/integrations/migrating-from-legacy-schedulers — 旧调度器迁移指南，覆盖 tikeo-migrate、自动探测、旧库导出、Java 依赖适配、dry-run apply 和预发导入证据
+- /zh-CN/docs/integrations/migrating-from-legacy-schedulers — 旧调度器迁移指南，覆盖 tikeo-migrate、自动探测、旧库导出、Java 依赖适配、本地 apply 到隔离 Worker 副本和预发导入证据
 
 - /zh-CN/docs/user-guide/notifications — 通知中心渠道、策略、消息、重试、DLQ、UI 渠道/策略 CRUD 与告警边界
 - /zh-CN/docs/user-guide/alerts — 告警规则/事件、静默/恢复/抑制语义与通知中心边界

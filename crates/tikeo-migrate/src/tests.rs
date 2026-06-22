@@ -203,7 +203,7 @@ fn resolves_zero_parameter_project_root_convention() {
 }
 
 #[test]
-fn plans_powerjob_export_and_apply_dry_run() {
+fn plans_powerjob_export_with_review_flags() {
     let input = r#"[{"id":42,"jobName":"etl fanout","appName":"data","timeExpressionType":4,"timeExpression":"PT30S","processorInfo":"etlProcessor","instanceRetryNum":1,"executeType":"BROADCAST"}]"#;
     let report = plan_migration(
         MigrationSource::PowerJob,
@@ -228,22 +228,6 @@ fn plans_powerjob_export_and_apply_dry_run() {
             .iter()
             .any(|item| item.contains("executeType"))
     );
-    let runtime = tokio::runtime::Runtime::new().unwrap_or_else(|error| panic!("runtime: {error}"));
-    let evidence = runtime
-        .block_on(apply_data(
-            &ApplyCommand {
-                bundle: PathBuf::new(),
-                endpoint: "http://127.0.0.1:9090".to_owned(),
-                api_key: "dry".to_owned(),
-                include_needs_review: true,
-                dry_run: true,
-                output: None,
-            },
-            &report,
-        ))
-        .unwrap_or_else(|error| panic!("dry run: {error}"));
-    assert_eq!(evidence.requests.len(), 1);
-    assert_eq!(evidence.requests[0].status, "planned");
     let markdown = render_markdown_report(&report);
     assert!(markdown.contains("Tikeo migration report"));
     assert!(markdown.contains("etl fanout"));

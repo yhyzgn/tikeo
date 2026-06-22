@@ -8,10 +8,10 @@ description: Complete migration process for XXL-JOB and PowerJob scheduler/datab
 
 Tikeo provides a dedicated `tikeo-migrate` CLI for teams moving from XXL-JOB or PowerJob. Treat it as a **review-first migration assistant**: from the legacy Java/Spring Worker project root, automatic mode detects the old Worker code first, optionally enriches the plan from Admin database/export data when available, and writes a migration bundle that operators review before any API write happens. Worker-only repositories with no Admin DB are normal; they continue as code-only inventory instead of failing. Offline JSON input remains supported, but it is a fallback rather than the primary path.
 
-`plan` is deliberately non-destructive. It does **not** edit legacy source files or create Tikeo jobs. It may read the legacy scheduler database to build the review bundle; live writes to Tikeo are isolated behind `apply`, and `apply --dry-run` should be the first command used against every staging or production target.
+`plan` is deliberately non-destructive. It does **not** edit legacy source files or create Tikeo jobs. It may read the legacy scheduler database to build the review bundle. `apply` is also local-only: it copies and rewrites the Java Worker project into an isolated output directory, writes Tikeo configuration placeholders into the same Spring configuration files that already contained XXL-JOB or PowerJob settings, and never calls the Tikeo Server.
 
 :::tip Start here
-If you are replacing XXL-JOB or PowerJob, follow the phases below in order. Do not start by importing jobs. First run the non-destructive discovery/export plan, review the migration bundle, resolve semantic gaps, adapt Workers, then dry-run and validate in staging.
+If you are replacing XXL-JOB or PowerJob, follow the phases below in order. Do not start by importing jobs. First run the non-destructive discovery/export plan, review the migration bundle, resolve semantic gaps, adapt Workers, fill deployment config, then import and validate in staging.
 :::
 
 ## Mental model
@@ -20,7 +20,7 @@ A scheduler migration has two different tracks that must converge before cutover
 
 | Track | What moves | Why it matters |
 | --- | --- | --- |
-| Data track | Job definitions, schedule expressions, retry policy drafts, enabled/disabled state, namespace/app target. | These become Tikeo job drafts and can be imported by `apply` only after review. |
+| Data track | Job definitions, schedule expressions, retry policy drafts, enabled/disabled state, namespace/app target. | These become Tikeo job drafts and are imported manually through the Tikeo console, Management API, or GitOps only after review. |
 | Code track | Java dependencies, legacy handler annotations/interfaces, processor names, method signatures, worker configuration. | Tikeo can only dispatch successfully when a running Worker exposes matching processor names and capabilities. |
 
 The migration is complete only when both tracks are validated together: a migrated Tikeo job must dispatch to a matching Worker and produce behavior that matches the legacy job evidence.
@@ -79,7 +79,6 @@ After extraction, either place the binary on `PATH` or copy it into the legacy J
 tikeo-migrate --help
 tikeo-migrate plan --help
 tikeo-migrate apply --help
-tikeo-migrate apply-code --help
 ```
 
 Expected evidence:
@@ -224,15 +223,15 @@ The bundle is the central review artifact. Do not skip it.
 | `java-project-plan.md` / `.json` | Build system, Spring Boot major, recommended Tikeo artifact, detected handlers, review notes. | Dependency recommendation and processor names. |
 | `java-patches/*.patch` | Review-first patch guidance for dependencies and handler annotations. | Apply manually on a branch; do not treat as blind auto-edits. |
 | `CHECKLIST.md` | Operator acceptance checklist. | Use it as the minimum migration gate list. |
-| `code-apply-evidence.json` | Produced by `apply-code`; records source project, output project, changed files, skipped generated/build directories, and warnings. | Keep it with CI/PR evidence. |
-| `CODE_MIGRATION_REPORT.md` | Produced by `apply-code`; written both to the bundle and the migrated output project. | Use it as handoff material for code review. |
+| `code-apply-evidence.json` | Produced by `apply`; records source project, output project, changed files, skipped generated/build directories, and warnings. | Keep it with CI/PR evidence. |
+| `CODE_MIGRATION_REPORT.md` | Produced by `apply`; written both to the bundle and the migrated output project. | Use it as handoff material for code review. |
 
 Status meanings:
 
 | Status | Meaning | Next action |
 | --- | --- | --- |
-| `ready` | The job draft has no known blocking issue. | Still review it, then dry-run import. |
-| `needs_review` | The planner produced a draft but found non-equivalent or risky source semantics. | Translate the semantics manually before live import. |
+| `ready` | The job draft has no known blocking issue. | Still review it, then import through the chosen operator workflow. |
+| `needs_review` | The planner produced a draft but found non-equivalent or risky source semantics. | Translate the semantics manually before staging/production import. |
 | `skipped` | Required fields were missing or no safe draft could be produced. | Fix the source export/manual mapping and rerun `plan`, or recreate manually in Tikeo. |
 
 Continue only when every `needs_review` and `skipped` item has an explicit decision.
@@ -288,24 +287,24 @@ Review carefully when the source uses:
 
 ### Automatic code application to an isolated copy
 
-`plan` is read-only. To perform the mechanical Java migration, run `apply-code` and point it at an output directory outside the original project:
+`plan` is read-only. To perform the mechanical Java migration, run `apply` and point it at an output directory outside the original project:
 
 ```bash
-tikeo-migrate apply-code \
+tikeo-migrate apply \
   --bundle ./.tikeo-migration \
   --output-project ../legacy-worker-tikeo
 ```
 
-What `apply-code` does today:
+What local `apply` does today:
 
 - copies the source project while skipping generated/build state such as `.git`, `.gradle`, `target`, `build`, and `node_modules`;
 - preserves wrapper/project files that are needed for validation, such as `mvnw` and `.mvn` when present;
 - adds the Spring Boot appropriate Tikeo starter, using `${TIKEO_VERSION}` as the version placeholder;
-- writes `src/main/resources/application-tikeo-migration.yml` with reviewed Tikeo Worker settings and disabled legacy Worker flags;
+- appends reviewed Tikeo Worker and Management placeholders to the existing Spring config file(s) that already contain XXL-JOB or PowerJob settings, while disabling legacy Worker flags in those same files;
 - converts supported XXL-JOB `@XxlJob` handlers and PowerJob `BasicProcessor` processors to `@TikeoProcessor` methods where the transformation is compile-oriented and safe;
 - writes `code-apply-evidence.json` and `CODE_MIGRATION_REPORT.md`.
 
-Use `--force` only to replace an existing output copy. The original Worker project is not modified. After `apply-code`, compile the migrated copy with the chosen SDK version, for example:
+Use `--force` only to replace an existing output copy. The original Worker project is not modified. After local `apply`, compile the migrated copy with the chosen SDK version, for example:
 
 ```bash
 cd ../legacy-worker-tikeo
@@ -338,45 +337,34 @@ Common code issues:
 
 Continue only when staging Workers can start and expose the processor names referenced by the migration bundle.
 
-## Phase 7: dry-run and import data
+## Phase 7: fill deployment config and import reviewed data
 
-Always dry-run first:
+`tikeo-migrate apply` does not have `--endpoint`, `--api-key`, or a server dry-run mode. Those values belong to the migrated application configuration and the operator import workflow, not to the local code-rewrite command.
 
-```bash
-tikeo-migrate apply \
-  --endpoint http://127.0.0.1:9090 \
-  --api-key "$TIKEO_MIGRATION_API_KEY" \
-  --dry-run
-```
+After `apply`, open the config file(s) changed in the migrated copy, for example `src/main/resources/application.yml`, `application-dev.yml`, `application-prod.yml`, `bootstrap.yml`, or `bootstrap-prod.yml`. The CLI chooses files in this order:
 
-For a non-default bundle path:
+1. every `application*` / `bootstrap*` `.yml`, `.yaml`, or `.properties` file under `src/main/resources` that contains `powerjob`, `power-job`, `xxl-job`, `xxl:`, or `xxl.job`;
+2. if no legacy scheduler config file is found, the existing main `application.yml`, `application.yaml`, or `application.properties`;
+3. if no Spring config file exists, a new `application.yml` in the migrated output copy.
 
-```bash
-tikeo-migrate apply \
-  --bundle ./migration-bundle \
-  --endpoint http://127.0.0.1:9090 \
-  --api-key "$TIKEO_MIGRATION_API_KEY" \
-  --dry-run
-```
+The generated block reserves the full Worker and Management configuration surface, including:
 
-Review `apply-evidence.json` before live import. It should show the exact request set that would be sent.
+- `tikeo.worker.enabled`, `auto-startup`, `endpoint`, `dry-run`, heartbeat, namespace/app/cluster/region, capabilities, labels, and election fields;
+- `tikeo.worker.wasm.*` runtime installation fields;
+- `tikeo.worker.scripts.*` sandbox/runtime/tool installation fields and per-language image fields;
+- `tikeo.management.enabled`, `endpoint`, `api-key`, `namespace`, and `app`.
 
-Live import should be controlled:
+Fill the environment-backed placeholders for the target environment, especially `TIKEO_WORKER_ENDPOINT`, `TIKEO_MANAGEMENT_ENDPOINT`, and `TIKEO_MANAGEMENT_API_KEY`. Keep `tikeo.management.enabled=false` unless the migrated application intentionally uses the Management SDK at runtime.
 
-```bash
-# Default behavior imports ready jobs only.
-tikeo-migrate apply \
-  --endpoint https://tikeo-staging.example.com \
-  --api-key "$TIKEO_MIGRATION_API_KEY"
+Job data import is then a controlled operator action outside the migration CLI:
 
-# Use only after every needs_review job has an explicit decision.
-tikeo-migrate apply \
-  --endpoint https://tikeo-staging.example.com \
-  --api-key "$TIKEO_MIGRATION_API_KEY" \
-  --include-needs-review
-```
+- use the Tikeo console, a reviewed Management API script, or a GitOps workflow;
+- read from `.tikeo-migration/jobs.tikeo.json` or `.tikeo-migration/data-import-plan.json`;
+- import reviewed `ready` jobs first;
+- import or recreate `needs_review` jobs only after every semantic gap has an explicit decision;
+- keep the import evidence with the migration bundle and `code-apply-evidence.json`.
 
-Continue only when the imported staging jobs match the reviewed bundle, and disabled/enabled states are intentional.
+Continue only when staging jobs match the reviewed bundle, deployment config values are explicit, and disabled/enabled states are intentional.
 
 ## Phase 8: validate in staging
 
@@ -412,7 +400,7 @@ Recommended cutover sequence:
 3. Enable a small set of low-risk jobs in Tikeo.
 4. Run dual-run or shadow validation where side effects allow it.
 5. Disable corresponding legacy schedules only after Tikeo behavior is accepted.
-6. Keep the migration bundle and `apply-evidence.json` as the release evidence.
+6. Keep the migration bundle, `code-apply-evidence.json`, and separate import evidence as the release evidence.
 
 Rollback plan:
 
@@ -430,7 +418,7 @@ This migration tool is intentionally conservative:
 - `plan` may connect to a legacy XXL-JOB or PowerJob database using read-only access to build the review bundle.
 - `plan` does not edit legacy source files.
 - `plan` does not create Tikeo Jobs.
-- `apply` is the only command that can call the Tikeo Management API.
+- `apply` is local-only and never calls the Tikeo Management API; job import is done separately through the console, a reviewed Management API script, or GitOps.
 - Generated Java patches cover dependency insertion and handler annotation guidance; arbitrary executor/business code still requires review.
 - Broadcast, map-reduce, blocking, routing, pinning, and glue/script semantics are not claimed to be equivalent.
 - Source snapshots remain in the report so humans can audit every decision.
