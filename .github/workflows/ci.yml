@@ -31,6 +31,7 @@ jobs:
         run: |
           python3 .github/tests/workflow_contract_test.py
           python3 .github/tests/management_smoke_contract_test.py
+          python3 .github/tests/release_evidence_scripts_contract_test.py
       - name: Enforce source file size budget
         run: python3 scripts/check-source-size.py
 

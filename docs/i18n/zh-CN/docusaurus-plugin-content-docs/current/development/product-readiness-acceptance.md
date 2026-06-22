@@ -19,6 +19,14 @@ keywords: [tikeo 验收, 通知中心, tikeo migrate, raft fsod, 发布就绪]
 
 停止条件不是“文档写完”，而是证据齐全：每个通过项都应该有可复现命令或 UI 动作、检查的路由/文件、观察到的状态，以及证据目录或产物路径。
 
+如果要一次性生成本地交接证据包，执行：
+
+```bash
+./scripts/release-readiness-evidence.sh
+```
+
+聚合脚本会写入 `.dev/reports/release-readiness-evidence-*/REPORT.md` 和各模块 `summary.json`。它通过协议真实的 loopback provider 证明通知中心投递链路，用 mock Management API 演练完整 `tikeo-migrate` 旧项目迁移链路，并在提供 `TIKEO_CLOUD_HA_SERVER_URL` 时执行真实云 HA 探针；未提供云目标时，会明确输出云环境延期边界报告。
+
 ## 通知中心验收
 
 通知中心验收要证明：渠道配置、模板渲染、策略物化、retry/DLQ 和脱敏能闭环工作。
@@ -35,10 +43,13 @@ keywords: [tikeo 验收, 通知中心, tikeo migrate, raft fsod, 发布就绪]
 建议本地验证：
 
 ```bash
+./scripts/notification-provider-e2e-smoke.sh
 python3 .github/tests/docs_site_contract_test.py
 python3 .github/tests/demo_seed_topology_contract_test.py
 cargo test -p tikeo-server notification --all-features
 ```
+
+`notification-provider-e2e-smoke.sh` 会启动本地 Server 和 mock HTTP provider，发送一条成功测试通知和一条强制 provider 失败通知，然后验证 provider 收包、`notification_messages`、delivery attempts、queue 聚合、dead-letter 状态和目标脱敏。它是本地协议级证据，不替代具体租户中的 Slack/飞书/钉钉/企微/PagerDuty/SMTP 生产签核。
 
 如果当前环境不能访问真实 provider，只能把 provider 投递门槛标记为 deferred；渲染、校验、脱敏和队列证据仍然必须保留。没有真实 outbound 结果时，不要声称该 provider 已生产就绪。
 
@@ -59,10 +70,13 @@ cargo test -p tikeo-server notification --all-features
 建议验证命令：
 
 ```bash
+./scripts/migration-cli-full-chain-smoke.sh
 cargo test -p tikeo-migrate
 python3 .github/tests/workflow_contract_test.py
 python3 scripts/check-source-size.py
 ```
+
+`migration-cli-full-chain-smoke.sh` 会创建临时旧 Spring Boot + XXL-JOB 项目，写入本地旧调度器 DB，执行零参数 `tikeo-migrate plan`，验证生成的迁移包，运行 dry-run `apply`，并把 ready jobs live apply 到 mock Management API，同时归档实际发出的请求。
 
 迁移验收不是“所有 job 都被导入”就结束。真正通过的标准是：不兼容语义有明确处理决定，导入到预发的 job 能被触发执行，并且存在支持回滚的 dual-run / cutover / disable legacy 计划。
 
@@ -93,7 +107,13 @@ TIKEO_KIND_E2E_KEEP=0 TIKEO_KIND_E2E_REBUILD_SERVER=1 scripts/kind-raft-ha-e2e.s
 TIKEO_SERVER_URL="https://tikeo.example.com" TIKEO_MANAGEMENT_API_KEY="$TIKEO_MANAGEMENT_API_KEY" TIKEO_EXPECTED_SERVER_REPLICAS=3 TIKEO_MAX_SHARD_SKEW=1 scripts/verify-raft-ha-rollout.sh
 ```
 
-Kind 可以验证本地 Kubernetes 语义，但不能替代云环境中的多可用区节点故障、托管 LB 行为、WAF/gateway idle timeout、TLS 证书和外部数据库 HA 验收。
+只读云环境验收探针：
+
+```bash
+TIKEO_CLOUD_HA_SERVER_URL="https://tikeo.example.com" TIKEO_CLOUD_HA_EXPECTED_REPLICAS=4 TIKEO_CLOUD_HA_WORKER_TUNNEL_HOST="worker-tunnel.example.com" scripts/cloud-raft-ha-acceptance.sh
+```
+
+Kind 可以验证本地 Kubernetes 语义，但不能替代云环境中的多可用区节点故障、托管 LB 行为、WAF/gateway idle timeout、TLS 证书和外部数据库 HA 验收。没有云目标时，`scripts/release-readiness-evidence.sh` 会把这项记录成云环境边界报告，而不是静默标记通过。
 
 ## 跨功能发布门槛
 

@@ -151,6 +151,14 @@ For release sign-off or development handoff, use the docs-site [Product readines
 
 Keep the evidence packet next to the release or handoff notes: command/UI action, inspected route or file, observed result, and artifact path. For `v0.3.9`, the packet records the 31 uploaded release assets, Kind HA metrics, and the post-release cross-language Worker soak gate added on `main`.
 
+For local handoff without SaaS provider credentials or a cloud Kubernetes target, collect the reproducible evidence bundle with:
+
+```bash
+./scripts/release-readiness-evidence.sh
+```
+
+That wrapper runs `scripts/notification-provider-e2e-smoke.sh` and `scripts/migration-cli-full-chain-smoke.sh`, then runs `scripts/cloud-raft-ha-acceptance.sh` only when `TIKEO_CLOUD_HA_SERVER_URL` is supplied; otherwise it writes an explicit cloud-boundary report linked to the Kind HA evidence.
+
 ## Why evaluators should shortlist Tikeo first
 
 ### 1. It covers more of the real platform problem

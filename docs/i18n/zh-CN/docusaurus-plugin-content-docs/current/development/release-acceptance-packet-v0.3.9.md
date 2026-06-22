@@ -20,7 +20,7 @@ keywords: [tikeo v0.3.9, 发布验收, 交接, raft fsod, worker soak]
 | Release 提交证据 | `ee895ba7 chore: close ha follow-up gates` |
 | 最新 main 追加提交 | `affb4605 test: add cross-language worker soak gate` |
 
-`affb4605` 是 release 后的追加收尾提交。它把可复用的 release-candidate soak gate 和文档契约补到了 main；除非后续 tag 包含该提交，否则不要声称这些脚本改动已经包含在 `v0.3.9` 二进制里。
+`affb4605` 和 `c00a0902` 都是 release 后的追加收尾提交。它们把可复用的 release-candidate soak gate、workflow wrapper 和文档契约补到了 main；除非后续 tag 包含这些提交，否则不要声称这些脚本改动已经包含在 `v0.3.9` 二进制里。
 
 ## 已观察到的 Release 资产
 
@@ -112,6 +112,20 @@ post-release 追加提交的短跑本地证据：
 
 证据文件会和 parity report 写在同一目录：`*-soak-summary.json`、`*-soak-summary.csv` 和 `*-soak-metrics.jsonl`；手动 RC workflow 会把它们作为 `cross-language-worker-soak` artifact 上传，并把关键数字写入 GitHub step summary。
 
+## Release 后证据自动化
+
+以下证据脚本属于 `v0.3.9` 之后 main 分支的交接能力；除非后续 tag 包含它们，否则不要把它们描述成 `v0.3.9` 二进制内置能力。当前可用以下命令一次性收集三个遗留项的本地交接证据：
+
+```bash
+./scripts/release-readiness-evidence.sh
+```
+
+| 模块 | 脚本 | 证据产物 | 边界 |
+| --- | --- | --- | --- |
+| 通知中心 provider/e2e | `scripts/notification-provider-e2e-smoke.sh` | `REPORT.md`、`summary.json`、provider 收包 JSONL、渠道测试响应、message/attempt/queue 快照 | 使用本地协议级 HTTP mock provider；真实租户 provider 仍需按部署环境做 test-send。 |
+| 迁移 CLI 旧项目链路 | `scripts/migration-cli-full-chain-smoke.sh` | `REPORT.md`、生成的旧项目、`.tikeo-migration/`、dry-run/live apply 证据、mock Management API 请求 | 本地证明 CLI 探测、bundle 和 apply 机制；业务语义等价仍需要代表性旧项目验证。 |
+| 真实云 HA | `scripts/release-readiness-evidence.sh` 按需调用 `scripts/cloud-raft-ha-acceptance.sh` | 云环境 `REPORT.md`、`summary.json`，或明确的 `deferred_cloud_endpoint_missing` 边界报告 | 需要 `TIKEO_CLOUD_HA_SERVER_URL`；没有云目标时以 Kind 证据作为本地替代。 |
+
 ## 迁移 CLI 证据
 
 `tikeo-migrate` 作为 review-first 迁移助手已经具备发布条件。Release 包含 Linux、macOS Intel、macOS Apple Silicon 和 Windows 压缩包。预期操作流程仍然是：
@@ -122,11 +136,13 @@ post-release 追加提交的短跑本地证据：
 4. 只把复核过的 `ready` jobs 导入预发。
 5. 切流前用匹配的 Tikeo Worker 至少触发一个迁移后的作业。
 
+如果没有真实旧项目，可先运行 `scripts/migration-cli-full-chain-smoke.sh` 做本地全链路演练：它会创建临时 Spring Boot + XXL-JOB 项目，从本地旧调度器 DB 自动导出，执行 dry-run apply，并把 ready jobs live apply 到 mock Management API。
+
 相关文档：[旧调度器迁移指南](../integrations/migrating-from-legacy-schedulers)。
 
 ## 通知中心证据边界
 
-通知中心在目标环境中每个启用 provider family 都有真实 test-send 证据后，才可宣称该环境生产就绪。当前实现和文档已经覆盖 channel 行级密钥、provider-specific template、列表/抽屉测试动作、retry/DLQ 证据和脱敏。是否生产就绪仍取决于目标租户/环境里的真实 provider 调用。
+通知中心在目标环境中每个启用 provider family 都有 test-send 证据后，才可宣称该环境生产就绪。当前实现和文档已经覆盖 channel 行级密钥、provider-specific template、列表/抽屉测试动作、retry/DLQ 证据和脱敏。`scripts/notification-provider-e2e-smoke.sh` 现在可用本地 loopback provider 证明一条 delivered 和一条 forced dead-letter 的完整状态机；是否生产就绪仍取决于目标租户/环境里的真实 provider 调用。
 
 相关文档：[通知用户指南](../user-guide/notifications)、[通知中心参考](../reference/notification-center)、[产品就绪验收清单](./product-readiness-acceptance)。
 
@@ -136,6 +152,6 @@ post-release 追加提交的短跑本地证据：
 | --- | --- | --- |
 | 有云环境时 P0 | 使用外部 DB、ingress/LB/WAF/TLS、NetworkPolicy 和托管数据库 HA 做真实云环境 HA 验收。 | 归档 `scripts/cloud-raft-ha-acceptance.sh` 产物：`summary.json`、`REPORT.md`、cluster diagnostics 和明确 pass/fail 说明。 |
 | 下个 release candidate 前 P1 | 通过 `.github/workflows/release-candidate-worker-soak.yml` 手动运行跨语言 soak gate，时长应比短证据更长。 | `TIKEO_CROSS_SOAK_SECONDS=120` 或更长运行产出 `cross-language-worker-soak` artifact，并得到 `failed=0`、`workersOnline` 稳定、`queuePending` 有界、`outboxPending` 不增长。 |
-| provider 生产签核前 P1 | 对部署环境实际使用的通知渠道做真实 provider test-send。 | 归档 provider response、message trace、retry/DLQ 状态和脱敏证据。 |
-| 大规模迁移推广前 P2 | 用代表性 XXL-JOB 或 PowerJob 旧项目跑 `tikeo-migrate`。 | dry-run apply 加至少一个预发 live trigger，并保留行为对比。 |
+| provider 生产签核前 P1 | 对部署环境实际使用的通知渠道做真实 provider test-send；本地协议级证据可用 `scripts/notification-provider-e2e-smoke.sh` 生成。 | 归档 provider response、message trace、retry/DLQ 状态和脱敏证据。 |
+| 大规模迁移推广前 P2 | 用代表性 XXL-JOB 或 PowerJob 旧项目跑 `tikeo-migrate`；本地演练可用 `scripts/migration-cli-full-chain-smoke.sh`。 | dry-run apply 加至少一个预发 live trigger，并保留行为对比。 |
 | 持续 P2 | 保持公共文档与 release 证据同步。 | docs build、docs contract、search/LLM indexes、README links 和 release asset checks 全部通过。 |

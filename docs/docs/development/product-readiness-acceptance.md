@@ -19,6 +19,14 @@ Use this page when a maintainer, release operator, or handover owner needs to an
 
 The stop condition is evidence, not wording: each accepted area must have a reproducible command or UI action, the route/file inspected, the observed pass/fail result, and the evidence directory or artifact path.
 
+For an all-in-one local handoff packet, run:
+
+```bash
+./scripts/release-readiness-evidence.sh
+```
+
+The wrapper writes `.dev/reports/release-readiness-evidence-*/REPORT.md` plus per-area `summary.json` files. It proves Notification Center delivery through a protocol-real loopback provider, rehearses a full `tikeo-migrate` legacy-project chain against a mock Management API, and either runs the real cloud HA probe or records why cloud HA is deferred until `TIKEO_CLOUD_HA_SERVER_URL` is available.
+
 ## Notification Center acceptance
 
 Acceptance proves that channel configuration, template rendering, policy materialization, retry/DLQ behavior, and redaction all work together.
@@ -35,10 +43,13 @@ Acceptance proves that channel configuration, template rendering, policy materia
 Suggested local verification commands:
 
 ```bash
+./scripts/notification-provider-e2e-smoke.sh
 python3 .github/tests/docs_site_contract_test.py
 python3 .github/tests/demo_seed_topology_contract_test.py
 cargo test -p tikeo-server notification --all-features
 ```
+
+`notification-provider-e2e-smoke.sh` starts a local Server and mock HTTP provider, sends one successful test notification and one forced provider failure, then verifies provider receipt, `notification_messages`, delivery attempts, queue aggregates, dead-letter state, and target redaction. It is local protocol evidence, not a substitute for tenant-specific Slack/Feishu/DingTalk/WeCom/PagerDuty/SMTP sign-off.
 
 If a real provider cannot be called from the environment, mark only the provider-delivery gate as deferred and keep render, validation, redaction, and queue evidence. Do not claim production readiness for that provider until a real outbound call has been observed.
 
@@ -59,10 +70,13 @@ If a real provider cannot be called from the environment, mark only the provider
 Suggested verification commands:
 
 ```bash
+./scripts/migration-cli-full-chain-smoke.sh
 cargo test -p tikeo-migrate
 python3 .github/tests/workflow_contract_test.py
 python3 scripts/check-source-size.py
 ```
+
+`migration-cli-full-chain-smoke.sh` creates a throwaway legacy Spring Boot + XXL-JOB project, populates a local legacy scheduler DB, runs zero-parameter `tikeo-migrate plan`, verifies the generated bundle, performs dry-run `apply`, and live-applies ready jobs to a mock Management API while archiving the posted requests.
 
 A migration is not accepted when all jobs are merely imported. It is accepted when unsupported legacy semantics have explicit decisions, imported jobs can be triggered in staging, and the legacy scheduler can be disabled according to a rollback-aware cutover plan.
 
@@ -93,7 +107,13 @@ Staging rollout gate:
 TIKEO_SERVER_URL="https://tikeo.example.com" TIKEO_MANAGEMENT_API_KEY="$TIKEO_MANAGEMENT_API_KEY" TIKEO_EXPECTED_SERVER_REPLICAS=3 TIKEO_MAX_SHARD_SKEW=1 scripts/verify-raft-ha-rollout.sh
 ```
 
-Kind validates local Kubernetes semantics. It does not replace cloud-specific acceptance for multi-zone node failure, managed load balancer behavior, WAF/gateway idle timeouts, TLS certificates, or external database HA.
+Read-only cloud acceptance probe:
+
+```bash
+TIKEO_CLOUD_HA_SERVER_URL="https://tikeo.example.com" TIKEO_CLOUD_HA_EXPECTED_REPLICAS=4 TIKEO_CLOUD_HA_WORKER_TUNNEL_HOST="worker-tunnel.example.com" scripts/cloud-raft-ha-acceptance.sh
+```
+
+Kind validates local Kubernetes semantics. It does not replace cloud-specific acceptance for multi-zone node failure, managed load balancer behavior, WAF/gateway idle timeouts, TLS certificates, or external database HA. When no cloud target is available, `scripts/release-readiness-evidence.sh` records this as a cloud-boundary report instead of silently marking it passed.
 
 ## Cross-feature release gate
 

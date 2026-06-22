@@ -18,9 +18,9 @@ Use this packet when taking over development after the `v0.3.9` release. It reco
 | Release state | Published, non-draft, non-prerelease |
 | Release asset count observed | `31` uploaded assets |
 | Release commit evidence | `ee895ba7 chore: close ha follow-up gates` |
-| Latest main follow-up | `affb4605 test: add cross-language worker soak gate` |
+| Latest main follow-up | `c00a0902 ci: add release candidate worker soak gate` |
 
-`affb4605` is intentionally listed as a post-release follow-up. It adds a reusable release-candidate soak gate and documentation contracts after the `v0.3.9` assets were produced; do not claim those script changes are inside the `v0.3.9` binaries unless a later tag includes them.
+`affb4605` and `c00a0902` are intentionally listed as post-release follow-ups. They add the reusable release-candidate soak gate, workflow wrapper, and documentation contracts after the `v0.3.9` assets were produced; do not claim those script changes are inside the `v0.3.9` binaries unless a later tag includes them.
 
 ## Release assets observed
 
@@ -49,7 +49,8 @@ The `v0.3.9` GitHub Release contained these uploaded asset families at the last 
 | Publish / Docker web | ✅ success |
 | Publish / Docker server | ✅ success |
 | Main `Coverage` for `affb4605` | ✅ success |
-| Main `CI` for `affb4605` | Check the latest GitHub Actions run before merging more work; it was still running when this page was created. |
+| Main `CI` for `c00a0902` | ✅ success |
+| Main `Coverage` for `c00a0902` | ✅ success |
 
 Before declaring a later release ready, rerun:
 
@@ -112,6 +113,20 @@ Short local evidence from the post-release follow-up run:
 
 Evidence files are written as `*-soak-summary.json`, `*-soak-summary.csv`, and `*-soak-metrics.jsonl` next to the parity report; the manual RC workflow uploads them as the `cross-language-worker-soak` artifact and writes key numbers to the GitHub step summary.
 
+## Post-release evidence automation
+
+The follow-up evidence scripts are intentionally outside the `v0.3.9` binary boundary unless a later tag includes them. They are the current main-branch way to close local handoff evidence for the three previously open areas:
+
+```bash
+./scripts/release-readiness-evidence.sh
+```
+
+| Area | Script | Evidence written | Boundary |
+| --- | --- | --- | --- |
+| Notification Center provider/e2e | `scripts/notification-provider-e2e-smoke.sh` | `REPORT.md`, `summary.json`, provider receipt JSONL, channel test responses, message/attempt/queue snapshots | Uses a local protocol-real HTTP mock provider; real tenant providers still need deployment-specific test-send evidence. |
+| Migration CLI old-project chain | `scripts/migration-cli-full-chain-smoke.sh` | `REPORT.md`, generated legacy project, `.tikeo-migration/`, dry-run/live apply evidence, mock Management API requests | Proves CLI detection/bundle/apply mechanics locally; domain semantic equivalence still needs a representative business project. |
+| Real cloud HA | `scripts/cloud-raft-ha-acceptance.sh` via `scripts/release-readiness-evidence.sh` | Cloud `REPORT.md` and `summary.json`, or an explicit `deferred_cloud_endpoint_missing` boundary report | Requires `TIKEO_CLOUD_HA_SERVER_URL`; local Kind evidence remains the substitute when no cloud target exists. |
+
 ## Migration CLI evidence
 
 `tikeo-migrate` is release-ready as a review-first migration assistant. The release includes Linux, macOS Intel, macOS Apple Silicon, and Windows archives. The expected operator flow remains:
@@ -122,11 +137,13 @@ Evidence files are written as `*-soak-summary.json`, `*-soak-summary.csv`, and `
 4. Import only reviewed `ready` jobs into staging.
 5. Trigger at least one migrated job with a matching Tikeo Worker before cutover.
 
+For local full-chain rehearsal without a real legacy project, run `scripts/migration-cli-full-chain-smoke.sh`; it creates a throwaway Spring Boot + XXL-JOB project, auto-exports from a local scheduler DB, performs dry-run apply, and live-applies ready jobs to a mock Management API.
+
 Relevant docs: [Migrate from legacy schedulers](../integrations/migrating-from-legacy-schedulers).
 
 ## Notification Center evidence boundary
 
-Notification Center is ready for local/staging acceptance when real provider test-send evidence exists for each active provider family in the target environment. The implementation and docs cover channel-row secrets, provider-specific template types, list/drawer test actions, retry/DLQ evidence, and redaction. Production readiness still depends on real tenant/provider calls for the deployment environment.
+Notification Center is ready for local/staging acceptance when provider test-send evidence exists for each active provider family in the target environment. The implementation and docs cover channel-row secrets, provider-specific template types, list/drawer test actions, retry/DLQ evidence, and redaction. `scripts/notification-provider-e2e-smoke.sh` now proves the local delivery state machine end-to-end with one delivered loopback request and one forced dead-letter failure. Production readiness still depends on real tenant/provider calls for the deployment environment.
 
 Relevant docs: [Notifications](../user-guide/notifications), [Notification Center reference](../reference/notification-center), and [Product readiness acceptance checklist](./product-readiness-acceptance).
 
@@ -136,6 +153,6 @@ Relevant docs: [Notifications](../user-guide/notifications), [Notification Cente
 | --- | --- | --- |
 | P0 when cloud environment is available | Run real cloud HA acceptance with external DB, ingress/LB/WAF/TLS, NetworkPolicy, and managed database HA. | `scripts/cloud-raft-ha-acceptance.sh` report archived with `summary.json`, `REPORT.md`, cluster diagnostics, and explicit pass/fail notes. |
 | P1 before next release candidate | Run the manual cross-language soak gate from `.github/workflows/release-candidate-worker-soak.yml` for longer than the short local proof. | `TIKEO_CROSS_SOAK_SECONDS=120` or longer produces the `cross-language-worker-soak` artifact with `failed=0`, stable `workersOnline`, bounded `queuePending`, and no growing `outboxPending`. |
-| P1 before provider production sign-off | Execute real Notification Center provider test-send for the channels used by that deployment. | Provider response, message trace, retry/DLQ state, and redaction evidence archived. |
-| P2 before broad migration promotion | Exercise `tikeo-migrate` against a representative legacy XXL-JOB or PowerJob project. | Dry-run apply plus at least one live staging trigger with behavior comparison. |
+| P1 before provider production sign-off | Execute real Notification Center provider test-send for the channels used by that deployment. Local protocol evidence can be produced with `scripts/notification-provider-e2e-smoke.sh`. | Provider response, message trace, retry/DLQ state, and redaction evidence archived. |
+| P2 before broad migration promotion | Exercise `tikeo-migrate` against a representative legacy XXL-JOB or PowerJob project. Local rehearsal can be produced with `scripts/migration-cli-full-chain-smoke.sh`. | Dry-run apply plus at least one live staging trigger with behavior comparison. |
 | P2 ongoing | Keep public docs and release evidence synced. | Docs build, docs contract tests, search/LLM indexes, README links, and release asset checks pass. |
