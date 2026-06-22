@@ -1116,6 +1116,21 @@ TIKEO_KIND_E2E_KEEP=0 TIKEO_KIND_E2E_REBUILD_SERVER=1 scripts/kind-raft-ha-e2e.s
 
 The Kind run stores an auditable bundle under `.dev/reports/<run-id>/`: cluster diagnostics, FSOD metrics, DB snapshots, worker logs, instance results, Kubernetes events, and the fault-drill report. Kind is enough to validate Kubernetes StatefulSet/headless-Service/Worker-Tunnel behavior locally; still run cloud-specific checks for ingress/LB/WAF/TLS/database HA before production.
 
+Latest local HA acceptance evidence (2026-06-22) used a **multi-node Kind cluster with required Pod Anti-Affinity** to approximate production failure domains on one developer machine. Full report: [`design/reports/kind-raft-ha-e2e-20260622.md`](design/reports/kind-raft-ha-e2e-20260622.md).
+
+| Acceptance signal | Result |
+| --- | ---: |
+| Overall verdict | ✅ Passed |
+| HA confidence index | `99/100` |
+| Server replicas / Kind worker nodes | `4 / 4` |
+| Server Pod spread | `4 / 4` distinct Kind worker nodes before and after gateway force-delete |
+| Raft shard ownership | `64` active rows, `4` owners, ownership skew `0` in rollout gate |
+| Epoch fencing | `100/100`, stale owner token rejection covered by unit evidence plus Leader Pod deletion recovery |
+| Worker gateway reroute | `100/100`, old gateway `tikeo-server-2` force-deleted, Worker reconnected through `tikeo-server-0`, outbox reroute observed |
+| Web/API Service load balancing | `96` in-cluster requests, `4 / 4` Server Pods reached, coverage ratio `1.0`, distribution index `94/100` |
+| Evidence completeness | `26` passed cases, `0` failed cases; Markdown/JSON/CSV/SVG evidence generated under `.dev/reports/<run-id>/` |
+
+
 ### Deployment paths
 
 | Path | Use it when |

@@ -290,15 +290,17 @@ TIKEO_RAFT_WORKER_E2E_KEEP=0 TIKEO_RAFT_WORKER_E2E_REBUILD_SERVER=0 scripts/raft
 
 Kind harness 会做这些事：
 
-1. 创建或复用本地 Kind 集群；
-2. 构建 `target/debug/tikeo`，并打成快速本地 Docker 镜像；
-3. 部署 PostgreSQL，以及四副本 `tikeo-server` StatefulSet、headless peer DNS、API Service、Worker Tunnel Service；
-4. bootstrap admin，并创建 app-scoped `x-tikeo-api-key`；
-5. 把管理/API 请求固定到一个非 Leader Pod，把 Worker Tunnel 长连接固定到另一个非 Leader Pod；
-6. 验证 `/api/v1/cluster/diagnostics`、`/api/v1/metrics/summary`、集群内 Service 访问和 DB 持久化证据；
-7. failover 前触发一个 API job；
-8. 通过 `scripts/raft-ha-fault-injection-drill.sh` 删除当前 schedulable Leader Pod；
-9. 等待 StatefulSet 恢复，并在 failover 后再次触发 API job。
+1. 创建或复用本地 Kind 集群，包含 1 个 control-plane node 和 4 个 worker nodes；
+2. 使用 required Pod Anti-Affinity 与 topology spread，让每个 Server Pod 落到不同 Kind worker node，以逼近生产故障域；
+3. 构建 `target/debug/tikeo`，并打成快速本地 Docker 镜像；
+4. 部署 PostgreSQL，以及四副本 `tikeo-server` StatefulSet、headless peer DNS、API Service、Worker Tunnel Service；
+5. bootstrap admin，并创建 app-scoped `x-tikeo-api-key`；
+6. 把管理/API 请求固定到一个非 Leader Pod，把 Worker Tunnel 长连接固定到另一个非 Leader Pod；
+7. 验证 `/api/v1/cluster/diagnostics`、`/api/v1/metrics/summary`、集群内 Service 访问和 DB 持久化证据；
+8. failover 前触发一个 API job；
+9. 通过 `scripts/raft-ha-fault-injection-drill.sh` 删除当前 schedulable Leader Pod；
+10. 触发一个慢 Worker 任务，强杀当前 Worker gateway Pod，等待 Worker 重连，并验证 durable outbox reroute；
+11. 等待 StatefulSet 恢复，并在 failover 后再次触发 API job。
 
 在仓库根目录执行：
 
@@ -306,6 +308,7 @@ Kind harness 会做这些事：
 # 如果 kind/kubectl 不在 PATH，会自动安装到 .dev/tools/bin。
 TIKEO_KIND_E2E_KEEP=0 \
 TIKEO_KIND_E2E_REBUILD_SERVER=1 \
+TIKEO_KIND_WORKER_NODES=4 \
 scripts/kind-raft-ha-e2e.sh
 ```
 
@@ -316,6 +319,7 @@ scripts/kind-raft-ha-e2e.sh
 | `TIKEO_KIND_CLUSTER_NAME` | `tikeo-raft-ha` | 复用或隔离 Kind cluster 名称。 |
 | `TIKEO_KIND_NAMESPACE` | `tikeo-kind-ha` | harness 使用的 Kubernetes namespace。 |
 | `TIKEO_KIND_SERVER_REPLICAS` | `4` | 验收测试保持 `4`；降低副本会减少覆盖面。 |
+| `TIKEO_KIND_WORKER_NODES` | `4` | Kind worker node 数量。建议至少等于 Server 副本数，这样 required Anti-Affinity 才能做到每个 Server Pod 一个节点。 |
 | `TIKEO_KIND_E2E_KEEP` | `0` | 设置为 `1` 时保留 Kind cluster 和 port-forward 证据，方便人工检查。 |
 | `TIKEO_KIND_E2E_REPORT_DIR` | `.dev/reports/<run-id>` | 证据输出目录。 |
 | `TIKEO_KIND_E2E_INSTALL_TOOLS` | `1` | 设置为 `0` 时要求本机已安装 `kind` 与 `kubectl`。 |
@@ -330,6 +334,32 @@ scripts/kind-raft-ha-e2e.sh
 - `worker.log`、Pod 日志、Kubernetes events 和生成的 manifest。
 
 Kind 能验证 Kubernetes 对象语义、稳定 StatefulSet 身份、headless DNS、集群内 Service 路由、Worker Tunnel gateway 分离、Leader Pod 删除后的恢复。它不能替代生产验证中的多节点/多可用区故障、云 LB idle timeout、WAF 行为、TLS 证书、真实 Ingress Controller 或真实外部数据库 HA。
+
+#### 2026-06-22 本地 Kind HA 验收结果
+
+2026-06-22 的验收使用当前 harness，在一台开发机上创建 **4 个 Kind worker nodes**、部署 **4 个 Tikeo Server replicas**，并通过 required Pod Anti-Affinity 和 topology spread 逼近生产故障域。完整报告已随仓库保存在 `design/reports/kind-raft-ha-e2e-20260622.md`；原始运行证据在 `.dev/reports/kind-raft-ha-e2e-20260622T040236Z-260434/` 下生成。
+
+| 验收项 | 结果 | 证据含义 |
+| --- | ---: | --- |
+| 总体结论 | ✅ 通过 | 本地 HA 必测项全部完成。 |
+| 通过 / 失败用例 | `26 / 0` | 覆盖 preflight、Pod 分布、Raft rollout、故障演练、Worker 重连、DB 证据和报告生成。 |
+| HA confidence index | `99/100` | 综合 Pod 分布、fencing、outbox reroute、Service 分布和证据完整性的加权分。 |
+| Anti-Affinity placement | `100/100` | 初始部署和 gateway 故障恢复后，均为 `4 / 4` Server Pod 分散到不同 Kind worker node。 |
+| Server replicas / Kind worker nodes | `4 / 4` | 验收明确避免单节点 Kind 拓扑。 |
+| Raft shard ownership | `64` active rows，`4` owners | rollout gate 观测到 failover 前 ownership skew 为 `0`。 |
+| Epoch fencing | `100/100` | stale-token 单测证据 + Leader Pod 删除恢复；owner epoch 从 `1` 推进到 `5`。 |
+| Worker gateway reroute | `100/100` | 旧 gateway `tikeo-server-2` 被 force-delete；Worker 通过 `tikeo-server-0` 重连；durable outbox reroute 被观测到。 |
+| API Service 负载均衡 | `96` 次请求，覆盖 `4 / 4` Pods | 集群内 ClusterIP 探针命中全部 Server Pod；coverage ratio `1.0`，distribution index `94/100`。 |
+| 证据完整性 | `100/100` | 生成 Markdown、JSON、CSV、SVG 图表、DB 快照、Pod 日志、Worker 日志和 Kubernetes events。 |
+
+本次演练覆盖了这些混沌路径：
+
+- **旧 Owner Full-GC/僵死近似 / Epoch Fencing**：删除当前 schedulable Leader Pod，等待 StatefulSet 恢复，验证 rollout 健康和 failover 后派发。
+- **Gateway 断电近似 / Outbox Reroute**：在慢 Worker 任务执行中强杀持有 Worker Tunnel stream 的 Server Pod，验证 Worker 重连，以及 durable outbox reroute 到新 Worker session/gateway generation。
+- **Web/API 负载均衡读取**：在集群内对 ClusterIP 重复请求，并通过 `x-tikeo-node-id` 证明 4 个 Server Pod 都能响应。
+
+解读：这是一份较强的本地 Kubernetes 证据，证明 StatefulSet 稳定身份、required Anti-Affinity、headless peer DNS、Raft failover、shard ownership、Service 轮询、Worker Tunnel 重连和 FSOD outbox recovery 能形成闭环。但它仍不能替代真实云环境中的多 AZ 节点故障、云 LB idle timeout、WAF 行为、Ingress Controller 差异、TLS/mTLS 证书和外部数据库 HA 验收。
+
 
 脚本会在 `.dev/reports/<run-id>/` 写入：
 

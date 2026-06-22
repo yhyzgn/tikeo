@@ -293,15 +293,17 @@ When you do not have a real multi-node Kubernetes cluster, use Kind to exercise 
 
 What the Kind harness does:
 
-1. creates or reuses a local Kind cluster;
-2. builds `target/debug/tikeo` and packages it as a fast local Docker image;
-3. deploys PostgreSQL plus a four-replica `tikeo-server` StatefulSet with headless peer DNS, API Service, and Worker Tunnel Service;
-4. bootstraps an admin user and an app-scoped `x-tikeo-api-key`;
-5. pins management/API requests to one non-Leader pod and pins the Worker Tunnel long connection to a different non-Leader pod;
-6. verifies `/api/v1/cluster/diagnostics`, `/api/v1/metrics/summary`, in-cluster Service access, and durable DB evidence;
-7. triggers an API job before failover;
-8. deletes the currently schedulable Leader pod through `scripts/raft-ha-fault-injection-drill.sh`;
-9. waits for StatefulSet recovery and triggers another API job after failover.
+1. creates or reuses a local Kind cluster with one control-plane node and four worker nodes;
+2. uses required Pod Anti-Affinity plus topology spread so each Server pod lands on a different Kind worker node;
+3. builds `target/debug/tikeo` and packages it as a fast local Docker image;
+4. deploys PostgreSQL plus a four-replica `tikeo-server` StatefulSet with headless peer DNS, API Service, and Worker Tunnel Service;
+5. bootstraps an admin user and an app-scoped `x-tikeo-api-key`;
+6. pins management/API requests to one non-Leader pod and pins the Worker Tunnel long connection to a different non-Leader pod;
+7. verifies `/api/v1/cluster/diagnostics`, `/api/v1/metrics/summary`, in-cluster Service access, and durable DB evidence;
+8. triggers an API job before failover;
+9. deletes the currently schedulable Leader pod through `scripts/raft-ha-fault-injection-drill.sh`;
+10. triggers a slow Worker job, force-deletes the current Worker gateway pod, waits for Worker reconnect, and verifies durable outbox reroute;
+11. waits for StatefulSet recovery and triggers another API job after failover.
 
 Run it from the repository root:
 
@@ -309,6 +311,7 @@ Run it from the repository root:
 # Installs kind/kubectl into .dev/tools/bin when they are not already available.
 TIKEO_KIND_E2E_KEEP=0 \
 TIKEO_KIND_E2E_REBUILD_SERVER=1 \
+TIKEO_KIND_WORKER_NODES=4 \
 scripts/kind-raft-ha-e2e.sh
 ```
 
@@ -319,6 +322,7 @@ Useful options:
 | `TIKEO_KIND_CLUSTER_NAME` | `tikeo-raft-ha` | Reuse or isolate a Kind cluster name. |
 | `TIKEO_KIND_NAMESPACE` | `tikeo-kind-ha` | Kubernetes namespace used by the harness. |
 | `TIKEO_KIND_SERVER_REPLICAS` | `4` | Keep at `4` for the acceptance test; lower values reduce coverage. |
+| `TIKEO_KIND_WORKER_NODES` | `4` | Kind worker-node count. Keep at least the Server replica count so required Anti-Affinity can place one Server pod per node. |
 | `TIKEO_KIND_E2E_KEEP` | `0` | Set to `1` to keep the Kind cluster and port-forward evidence for manual inspection. |
 | `TIKEO_KIND_E2E_REPORT_DIR` | `.dev/reports/<run-id>` | Evidence output directory. |
 | `TIKEO_KIND_E2E_INSTALL_TOOLS` | `1` | Set to `0` to require preinstalled `kind` and `kubectl`. |
@@ -333,6 +337,32 @@ A passing run writes `.dev/reports/<run-id>/<run-id>.json` and supporting eviden
 - `worker.log`, pod logs, Kubernetes events, and the generated manifest.
 
 Kind validates Kubernetes object semantics, stable StatefulSet identities, headless DNS, Service routing inside the cluster, Worker Tunnel gateway separation, and Leader-pod deletion recovery. It does **not** replace production validation for multi-node zone failure, cloud load balancer idle timeouts, WAF behavior, TLS certificates, real ingress controllers, or real external database HA.
+
+#### 2026-06-22 local Kind HA acceptance result
+
+The 2026-06-22 run used the current harness with **four Kind worker nodes**, **four Tikeo Server replicas**, required Pod Anti-Affinity, and topology spread to approximate production failure domains on a single developer machine. The full checked-in report is stored in the repository at `design/reports/kind-raft-ha-e2e-20260622.md`; raw run artifacts were generated under `.dev/reports/kind-raft-ha-e2e-20260622T040236Z-260434/`.
+
+| Acceptance area | Result | Evidence meaning |
+| --- | ---: | --- |
+| Overall verdict | ✅ Passed | All required local HA cases completed. |
+| Passed / failed cases | `26 / 0` | Case ledger covered preflight, placement, Raft rollout, fault drills, Worker reconnect, DB evidence, and report generation. |
+| HA confidence index | `99/100` | Weighted score across placement, fencing, outbox reroute, Service distribution, and evidence completeness. |
+| Anti-Affinity placement | `100/100` | Initial and post-gateway-failure placements both had `4 / 4` Server pods on distinct Kind worker nodes. |
+| Server replicas / Kind worker nodes | `4 / 4` | The test intentionally avoids a single-node Kind topology. |
+| Raft shard ownership | `64` active rows, `4` owners | Rollout gate observed ownership skew `0` before failover. |
+| Epoch fencing | `100/100` | Targeted stale-token unit evidence plus Leader Pod deletion recovery; owner epoch advanced from `1` to `5`. |
+| Worker gateway reroute | `100/100` | Old gateway `tikeo-server-2` was force-deleted; Worker reconnected through `tikeo-server-0`; durable outbox reroute was observed. |
+| API Service load balancing | `96` requests, `4 / 4` pods reached | In-cluster ClusterIP probes reached every Server pod; coverage ratio `1.0`, distribution index `94/100`. |
+| Evidence completeness | `100/100` | Markdown, JSON, CSV, SVG charts, DB snapshots, pod logs, Worker logs, and Kubernetes events were produced. |
+
+The run specifically covered these chaos paths:
+
+- **Old owner Full-GC/zombie approximation / Epoch Fencing**: delete the currently schedulable Leader pod, wait for StatefulSet recovery, verify rollout health and post-failover dispatch.
+- **Gateway poweroff approximation / Outbox Reroute**: force-delete the Server pod that owns the Worker Tunnel stream while a slow Worker task is in flight, then verify Worker reconnect and durable outbox reroute to the newer Worker session/gateway generation.
+- **Web/API load-balanced reads**: run repeated in-cluster ClusterIP requests and confirm all four Server pods answer through `x-tikeo-node-id` evidence.
+
+Interpretation: this is strong local Kubernetes evidence for StatefulSet identity, required Anti-Affinity, headless peer DNS, Raft failover, shard ownership, Service rotation, Worker Tunnel reconnect, and FSOD outbox recovery. It is still not a substitute for final cloud validation of real multi-AZ node loss, cloud LB idle timeouts, WAF behavior, ingress-controller specifics, TLS/mTLS certificates, and external database HA.
+
 
 The script writes an evidence directory under `.dev/reports/<run-id>/` containing:
 
