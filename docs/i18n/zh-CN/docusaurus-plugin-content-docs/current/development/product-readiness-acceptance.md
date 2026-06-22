@@ -12,7 +12,7 @@ keywords: [tikeo 验收, 通知中心, tikeo migrate, raft fsod, 发布就绪]
 
 | 模块 | 当前就绪状态 | 规范文档入口 | 主要证据 |
 | --- | --- | --- | --- |
-| 通知中心 | 已可做本地/预发验收；启用的每类渠道至少需要一次真实 provider 测试并归档投递证据。 | [通知用户指南](../user-guide/notifications)、[通知中心参考](../reference/notification-center)、[配置参考](../reference/configuration#notification-center-delivery) | 渠道测试结果、policy materialization、`notification_delivery_attempts`、消息 trace、脱敏 API 响应。 |
+| 通知中心 | 已可做本地/预发验收；启用的每类渠道至少需要一次真实 provider 测试并归档投递证据。 | [通知用户指南](../user-guide/notifications)、[通知中心参考](../reference/notification-center)、[配置参考](../reference/configuration#通知中心投递) | 渠道测试结果、policy materialization、`notification_delivery_attempts`、消息 trace、脱敏 API 响应。 |
 | 旧调度器迁移 CLI | 可作为 review-first 迁移助手；`plan` 不产生副作用，`apply --dry-run` 是 live import 前的必要门槛。 | [旧调度器迁移指南](../integrations/migrating-from-legacy-schedulers) | `.tikeo-migration/manifest.json`、`jobs.tikeo.md`、`data-import-plan.json`、`CHECKLIST.md`、dry-run apply 输出。 |
 | Raft FSOD Server HA | 可做本地 Kind 和预发验收；需要外部 DB、稳定 StatefulSet 身份、Raft transport token 和 gRPC/HTTP2 Worker Tunnel 链路。 | [Server 高可用与 Raft FSOD 集群](../deployment/server-ha)、[Kubernetes 与 Helm](../deployment/kubernetes)、[生产部署](../deployment/production) | `scripts/verify-raft-ha-rollout.sh`、`scripts/kind-raft-ha-e2e.sh`、cluster diagnostics、FSOD DB 快照、failover 前后实例结果。 |
 
