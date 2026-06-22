@@ -37,5 +37,27 @@ class JavaDemoWorkerScriptContractTest(unittest.TestCase):
                 self.assertNotIn('${namespace}/${app}/${pool}/local', script)
 
 
+    def test_cross_language_smoke_has_optional_soak_gate_and_evidence_contract(self):
+        script = CROSS_LANGUAGE_SMOKE.read_text()
+        for token in [
+            "TIKEO_CROSS_SOAK_SECONDS",
+            "TIKEO_CROSS_SOAK_INTERVAL_SECONDS",
+            "SOAK_METRICS_JSONL",
+            "SOAK_CSV",
+            "SOAK_JSON",
+            "run_soak_jobs",
+            "cross-language-soak",
+            "soak-summary.json",
+            "soak-summary.csv",
+            "soak-metrics.jsonl",
+            "queuePending",
+            "outboxPending",
+            "workersOnline",
+        ]:
+            self.assertIn(token, script)
+        self.assertRegex(script, r"if \(\( SOAK_SECONDS <= 0 \)\); then")
+        self.assertIn("run_language_jobs\n  run_soak_jobs\n  verify_restart_snapshot", script)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -16,6 +16,11 @@ WEB_LOG="$REPORT_DIR/$RUN_ID-web.log"
 DB_PATH="$REPORT_DIR/$RUN_ID.db"
 SUMMARY_JSON="$REPORT_DIR/$RUN_ID-summary.json"
 REPORT_JSON="$REPORT_DIR/$RUN_ID.json"
+SOAK_SECONDS="${TIKEO_CROSS_SOAK_SECONDS:-0}"
+SOAK_INTERVAL_SECONDS="${TIKEO_CROSS_SOAK_INTERVAL_SECONDS:-10}"
+SOAK_METRICS_JSONL="$REPORT_DIR/$RUN_ID-soak-metrics.jsonl"
+SOAK_CSV="$REPORT_DIR/$RUN_ID-soak-summary.csv"
+SOAK_JSON="$REPORT_DIR/$RUN_ID-soak-summary.json"
 mkdir -p "$REPORT_DIR"
 export TIKEO_SMOKE_REPORT_DIR="$REPORT_DIR"
 export TIKEO_SMOKE_RUN_ID="$RUN_ID"
@@ -567,6 +572,109 @@ run_language_jobs() {
   tikeo_smoke_record_case cross-language-dispatch passed "$REPORT_DIR/$RUN_ID-go-logs.json $REPORT_DIR/$RUN_ID-rust-logs.json $REPORT_DIR/$RUN_ID-python-logs.json $REPORT_DIR/$RUN_ID-nodejs-logs.json" "Java Boot2/Boot3/Boot4, Go, Rust, Python and Node.js jobs reached expected terminal states"
 }
 
+run_soak_jobs() {
+  if (( SOAK_SECONDS <= 0 )); then
+    return 0
+  fi
+  local deadline=$((SECONDS + SOAK_SECONDS))
+  local interval="$SOAK_INTERVAL_SECONDS"
+  local round=0
+  : > "$SOAK_METRICS_JSONL"
+  echo "round,language,instance_id,status,duration_seconds,log_count,queue_pending,outbox_pending,workers_online" > "$SOAK_CSV"
+
+  local go_job rust_job python_job nodejs_job
+  go_job="$(create_job dev-alpha orders soak-go-echo demo.echo)"
+  rust_job="$(create_job dev-alpha orders soak-rust-echo demo.echo)"
+  python_job="$(create_job dev-alpha orders soak-python-echo demo.echo)"
+  nodejs_job="$(create_job dev-alpha orders soak-nodejs-echo demo.echo)"
+
+  while (( SECONDS < deadline )); do
+    round=$((round + 1))
+    local lang job selector expected_log instance start status_file logs_file metrics_file
+    for spec in \
+      "go|$go_job|{\"tags\":[\"go\"],\"labels\":{\"worker_pool\":\"go-blue\"}}|go demo echo processed" \
+      "rust|$rust_job|{\"tags\":[\"rust\"],\"labels\":{\"worker_pool\":\"rust-blue\"}}|rust demo echo processed" \
+      "python|$python_job|{\"tags\":[\"python\"],\"labels\":{\"worker_pool\":\"python-blue\"}}|python demo echo processed" \
+      "nodejs|$nodejs_job|{\"tags\":[\"nodejs\"],\"labels\":{\"worker_pool\":\"nodejs-blue\"}}|nodejs demo echo processed"; do
+      IFS='|' read -r lang job selector expected_log <<< "$spec"
+      start="$SECONDS"
+      instance="$(trigger_broadcast "$job" "$selector")"
+      status_file="$REPORT_DIR/$RUN_ID-soak-$round-$lang-instance.json"
+      logs_file="$REPORT_DIR/$RUN_ID-soak-$round-$lang-logs.json"
+      metrics_file="$REPORT_DIR/$RUN_ID-soak-$round-$lang-metrics.json"
+      wait_instance_status "$instance" succeeded "$status_file" 180
+      api GET "/api/v1/instances/$instance/logs" > "$logs_file"
+      api GET /api/v1/metrics/summary > "$metrics_file"
+      duration="$((SECONDS - start))"
+      python3 - "$round" "$lang" "$instance" "$duration" "$status_file" "$logs_file" "$metrics_file" "$SOAK_METRICS_JSONL" "$SOAK_CSV" "$expected_log" <<'PY_SOAK_ROW'
+import csv, json, sys
+round_id, lang, instance_id, duration_seconds = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
+status_file, logs_file, metrics_file, jsonl_file, csv_file, expected = sys.argv[5:11]
+instance = json.load(open(status_file, encoding='utf-8')).get('data', {})
+logs_payload = json.load(open(logs_file, encoding='utf-8')).get('data')
+logs = logs_payload.get('items') if isinstance(logs_payload, dict) else logs_payload
+logs = logs or []
+messages = '\n'.join(str(item.get('message', '')) for item in logs)
+if expected not in messages:
+    raise SystemExit(f'{lang} soak instance {instance_id} missing expected log {expected!r}: {messages}')
+metrics = json.load(open(metrics_file, encoding='utf-8')).get('data', {})
+queue = metrics.get('queue') or {}
+outbox = metrics.get('outbox') or {}
+workers = metrics.get('workers') or {}
+row = {
+    'round': int(round_id),
+    'language': lang,
+    'instanceId': instance_id,
+    'status': instance.get('status'),
+    'durationSeconds': max(0, duration_seconds),
+    'logCount': len(logs),
+    'queuePending': queue.get('pending', 0),
+    'queueOldestPendingAgeSeconds': queue.get('oldestPendingAgeSeconds', 0),
+    'outboxPending': (outbox.get('byStatus') or {}).get('queued', 0) + (outbox.get('byStatus') or {}).get('reroute_pending', 0),
+    'outboxOldestQueuedAgeSeconds': outbox.get('oldestQueuedAgeSeconds', 0),
+    'workersOnline': workers.get('online', 0),
+}
+with open(jsonl_file, 'a', encoding='utf-8') as fh:
+    json.dump(row, fh, ensure_ascii=False)
+    fh.write('\n')
+with open(csv_file, 'a', encoding='utf-8', newline='') as fh:
+    writer = csv.writer(fh)
+    writer.writerow([row['round'], row['language'], row['instanceId'], row['status'], row['durationSeconds'], row['logCount'], row['queuePending'], row['outboxPending'], row['workersOnline']])
+PY_SOAK_ROW
+    done
+    sleep "$interval"
+  done
+
+  python3 - "$SOAK_METRICS_JSONL" "$SOAK_JSON" <<'PY_SOAK_SUMMARY'
+import json, statistics, sys
+rows = [json.loads(line) for line in open(sys.argv[1], encoding='utf-8') if line.strip()]
+if not rows:
+    raise SystemExit('soak requested but no rows were recorded')
+failed = [row for row in rows if row.get('status') != 'succeeded']
+langs = sorted(set(row['language'] for row in rows))
+summary = {
+    'rounds': max(row['round'] for row in rows),
+    'languages': langs,
+    'totalDispatches': len(rows),
+    'succeeded': len(rows) - len(failed),
+    'failed': len(failed),
+    'maxDurationSeconds': max(row['durationSeconds'] for row in rows),
+    'averageDurationSeconds': round(statistics.mean(row['durationSeconds'] for row in rows), 3),
+    'maxQueuePending': max(row.get('queuePending', 0) for row in rows),
+    'maxQueueOldestPendingAgeSeconds': max(row.get('queueOldestPendingAgeSeconds', 0) for row in rows),
+    'maxOutboxPending': max(row.get('outboxPending', 0) for row in rows),
+    'maxOutboxOldestQueuedAgeSeconds': max(row.get('outboxOldestQueuedAgeSeconds', 0) for row in rows),
+    'minWorkersOnline': min(row.get('workersOnline', 0) for row in rows),
+    'verdict': 'passed' if not failed else 'failed',
+}
+open(sys.argv[2], 'w', encoding='utf-8').write(json.dumps(summary, ensure_ascii=False, indent=2))
+print(json.dumps(summary, ensure_ascii=False, indent=2))
+if failed:
+    raise SystemExit('soak failed')
+PY_SOAK_SUMMARY
+  tikeo_smoke_record_case cross-language-soak passed "$SOAK_JSON $SOAK_CSV $SOAK_METRICS_JSONL" "Cross-language Worker soak completed with repeated Go/Rust/Python/Node dispatches"
+}
+
 verify_restart_snapshot() {
   local before="$REPORT_DIR/$RUN_ID-workers-before-restart.json"
   local filtered_live="$REPORT_DIR/$RUN_ID-worker-pool-filter-live.json"
@@ -611,6 +719,9 @@ summary = {
     'reportDir': str(report_dir),
     'evidence': sorted(p.name for p in report_dir.iterdir() if p.is_file()),
 }
+soak_path = report_dir / f'{run_id}-soak-summary.json'
+if soak_path.exists():
+    summary['soak'] = json.loads(soak_path.read_text(encoding='utf-8'))
 pathlib.Path(sys.argv[3]).write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8')
 print(json.dumps(summary, ensure_ascii=False, indent=2))
 PY
@@ -630,6 +741,7 @@ main() {
   start_all_workers
   wait_workers "$REPORT_DIR/$RUN_ID-workers-initial.json" initial 240
   run_language_jobs
+  run_soak_jobs
   verify_restart_snapshot
   verify_web_routes
   tikeo_smoke_finalize_report "$REPORT_JSON" passed >/dev/null

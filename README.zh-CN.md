@@ -1027,6 +1027,18 @@ TIKEO_KIND_E2E_KEEP=0 TIKEO_KIND_E2E_REBUILD_SERVER=1 scripts/kind-raft-ha-e2e.s
 
 Kind 运行会把可验收证据写到 `.dev/reports/<run-id>/`：cluster diagnostics、FSOD metrics、DB 快照、Worker 日志、instance 结果、Kubernetes events 和 fault-drill 报告。Kind 足够在本地验证 StatefulSet/headless Service/Worker Tunnel 的 Kubernetes 语义；生产前仍需补充云厂商 ingress/LB/WAF/TLS/数据库 HA 检查。
 
+跨语言 Worker soak 是单元 parity 之后的本地运行时门禁。它复用 `deploy/smoke/cross-language-worker-parity-smoke.sh`；普通 CI 默认不启用 soak，发布候选版本可以显式启用 Go/Rust/Python/Node 的多轮派发和 metrics 采样：
+
+```bash
+TIKEO_CROSS_SKIP_WEB=1 \
+TIKEO_CROSS_REBUILD_SERVER=0 \
+TIKEO_CROSS_SOAK_SECONDS=120 \
+TIKEO_CROSS_SOAK_INTERVAL_SECONDS=10 \
+deploy/smoke/cross-language-worker-parity-smoke.sh
+```
+
+soak 证据会和 parity report 写在同一目录：`*-soak-summary.json`、`*-soak-summary.csv` 和 `*-soak-metrics.jsonl`。有价值的 release-candidate 运行应显示 `failed=0`、`workersOnline` 稳定、`queuePending` 有界，并且 `outboxPending` 不持续增长。
+
 ### 部署路径
 
 | 路径 | 适用时机 |

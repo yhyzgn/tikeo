@@ -1130,6 +1130,17 @@ Latest local HA acceptance evidence (2026-06-22) used a **multi-node Kind cluste
 | Web/API Service load balancing | `96` in-cluster requests, `4 / 4` Server Pods reached, coverage ratio `1.0`, distribution index `94/100` |
 | Evidence completeness | `26` passed cases, `0` failed cases; Markdown/JSON/CSV/SVG evidence generated under `.dev/reports/<run-id>/` |
 
+Cross-language Worker soak acceptance is the next local runtime gate after unit parity. It reuses `deploy/smoke/cross-language-worker-parity-smoke.sh`; the normal CI run keeps soak disabled, while release candidates can opt in to repeated Go/Rust/Python/Node dispatch rounds and metrics sampling:
+
+```bash
+TIKEO_CROSS_SKIP_WEB=1 \
+TIKEO_CROSS_REBUILD_SERVER=0 \
+TIKEO_CROSS_SOAK_SECONDS=120 \
+TIKEO_CROSS_SOAK_INTERVAL_SECONDS=10 \
+deploy/smoke/cross-language-worker-parity-smoke.sh
+```
+
+The soak evidence is written next to the parity report: `*-soak-summary.json`, `*-soak-summary.csv`, and `*-soak-metrics.jsonl`. A useful release-candidate run should show `failed=0`, stable `workersOnline`, bounded `queuePending`, and no growing `outboxPending` backlog.
 
 ### Deployment paths
 

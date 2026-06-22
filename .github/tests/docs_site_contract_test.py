@@ -542,6 +542,11 @@ class DocsSiteContractTest(unittest.TestCase):
                 "tikeo-migrate apply --endpoint",
                 "scripts/kind-raft-ha-e2e.sh",
                 "scripts/verify-raft-ha-rollout.sh",
+                "scripts/cloud-raft-ha-acceptance.sh",
+                "Cross-language Worker soak",
+                "TIKEO_CROSS_SOAK_SECONDS=120",
+                "*-soak-summary.json",
+                "*-soak-metrics.jsonl",
                 "worker_dispatch_outbox",
                 "Product readiness acceptance checklist",
             ]),
@@ -553,6 +558,11 @@ class DocsSiteContractTest(unittest.TestCase):
                 "tikeo-migrate apply --endpoint",
                 "scripts/kind-raft-ha-e2e.sh",
                 "scripts/verify-raft-ha-rollout.sh",
+                "scripts/cloud-raft-ha-acceptance.sh",
+                "跨语言 Worker soak",
+                "TIKEO_CROSS_SOAK_SECONDS=120",
+                "*-soak-summary.json",
+                "*-soak-metrics.jsonl",
                 "worker_dispatch_outbox",
                 "产品就绪验收清单",
             ]),
@@ -1101,6 +1111,42 @@ class DocsSiteContractTest(unittest.TestCase):
         self.assertIn("38** | **38", report)
         self.assertNotIn("Python/Node 未形成完整 SDK", report)
         self.assertNotIn("剩余为非 Java SDK parity", report)
+
+
+    def test_cross_language_worker_soak_docs_are_script_backed(self):
+        script = (ROOT / "deploy/smoke/cross-language-worker-parity-smoke.sh").read_text()
+        for token in [
+            "TIKEO_CROSS_SOAK_SECONDS",
+            "TIKEO_CROSS_SOAK_INTERVAL_SECONDS",
+            "SOAK_METRICS_JSONL",
+            "SOAK_JSON",
+            "cross-language-soak",
+            "queuePending",
+            "outboxPending",
+            "workersOnline",
+        ]:
+            self.assertIn(token, script)
+
+        readme = (ROOT / "README.md").read_text()
+        readme_zh = (ROOT / "README.zh-CN.md").read_text()
+        zh_root = DOCS_SITE / "i18n/zh-CN/docusaurus-plugin-content-docs/current"
+        docs = [
+            readme,
+            readme_zh,
+            (DOCS_SITE / "docs/development/product-readiness-acceptance.md").read_text(),
+            (zh_root / "development/product-readiness-acceptance.md").read_text(),
+        ]
+        for doc in docs:
+            for token in [
+                "TIKEO_CROSS_SOAK_SECONDS=120",
+                "deploy/smoke/cross-language-worker-parity-smoke.sh",
+                "*-soak-summary.json",
+                "*-soak-summary.csv",
+                "*-soak-metrics.jsonl",
+            ]:
+                self.assertIn(token, doc)
+        self.assertIn("failed=0", readme)
+        self.assertIn("outboxPending", readme + readme_zh)
 
     def test_cloud_ha_acceptance_runbook_is_script_backed_and_read_only(self):
         script = (ROOT / "scripts/cloud-raft-ha-acceptance.sh").read_text()
