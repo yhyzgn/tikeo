@@ -6,7 +6,7 @@ description: Complete migration process for XXL-JOB and PowerJob scheduler/datab
 
 # Migration process from XXL-JOB or PowerJob
 
-Tikeo provides a dedicated `tikeo-migrate` CLI for teams moving from XXL-JOB or PowerJob. Treat it as a **review-first migration assistant**: from the legacy Java/Spring worker project root, it detects the old scheduler, reads Spring datasource settings, exports known scheduler job tables, scans worker code, and writes a migration bundle that operators review before any API write happens. Offline JSON input remains supported, but it is a fallback rather than the primary path.
+Tikeo provides a dedicated `tikeo-migrate` CLI for teams moving from XXL-JOB or PowerJob. Treat it as a **review-first migration assistant**: from the legacy Java/Spring Worker project root, automatic mode detects the old Worker code first, optionally enriches the plan from Admin database/export data when available, and writes a migration bundle that operators review before any API write happens. Worker-only repositories with no Admin DB are normal; they continue as code-only inventory instead of failing. Offline JSON input remains supported, but it is a fallback rather than the primary path.
 
 `plan` is deliberately non-destructive. It does **not** edit legacy source files or create Tikeo jobs. It may read the legacy scheduler database to build the review bundle; live writes to Tikeo are isolated behind `apply`, and `apply --dry-run` should be the first command used against every staging or production target.
 
@@ -79,6 +79,7 @@ After extraction, either place the binary on `PATH` or copy it into the legacy J
 tikeo-migrate --help
 tikeo-migrate plan --help
 tikeo-migrate apply --help
+tikeo-migrate apply-code --help
 ```
 
 Expected evidence:
@@ -93,11 +94,12 @@ Do **not** start by hand-crafting `xxl-job-export.json` or `powerjob-export.json
 
 1. detect the Java/Spring project from `pom.xml`, `build.gradle`, or `build.gradle.kts`;
 2. detect XXL-JOB or PowerJob from dependencies, annotations, and source code;
-3. detect Spring datasource settings from `application.properties`, `application.yml`, `application.yaml`, `bootstrap.properties`, `bootstrap.yml`, or `bootstrap.yaml`;
-4. connect to the legacy scheduler database and export known job tables such as `xxl_job_info` or `pj_job_info`;
-5. store source snapshots inside the generated migration bundle for audit and review.
+3. detect Spring datasource settings from `application.properties`, `application.yml`, `application.yaml`, `bootstrap.properties`, `bootstrap.yml`, or `bootstrap.yaml` when present;
+4. optionally connect to the legacy scheduler Admin database and export known job tables such as `xxl_job_info` or `pj_job_info`;
+5. fall back to Worker code-only inventory when no Admin DB/export exists;
+6. store source snapshots inside the generated migration bundle for audit and review.
 
-If the repository is Worker-only and does not contain scheduler DB settings or an exported job list, the CLI now falls back to a **code-only** scan: it detects XXL-JOB handlers and PowerJob processor classes from Java source, creates disabled API-style job drafts, and marks every generated job `needs_review`. This keeps the migration moving without inventing schedules, routes, retries, params, or enablement that only exist in the old scheduler control plane.
+If the repository is Worker-only and does not contain scheduler DB settings or an exported job list, the CLI uses a **code-only** scan: it detects XXL-JOB handlers and PowerJob processor classes from Java source, creates disabled API-style job drafts, and marks every generated job `needs_review`. This keeps the migration moving without inventing schedules, routes, retries, params, or enablement that only exist in the old scheduler control plane. A detected but unreachable Admin DB only stops the run when you explicitly pass `--legacy-db-url`; otherwise the CLI continues with Worker inventory.
 
 The CLI supports MySQL/PostgreSQL JDBC URLs and native URLs. If the old project does not expose datasource settings, provide them explicitly without creating an intermediate JSON file:
 
@@ -159,7 +161,7 @@ Accepted fallback JSON shapes:
 - `{ "content": [...] }`;
 - one standalone job object.
 
-Continue only when `.tikeo-migration/manifest.json` records the input origin (`legacy-db:...` or `json-file:...`) and the generated report contains the expected job count.
+Continue only when `.tikeo-migration/manifest.json` records the input origin (`legacy-db:...`, `json-file:...`, or `code-only:...`) and the generated report contains the expected handler/job count.
 
 ## Phase 3: generate the migration bundle
 
@@ -180,7 +182,8 @@ Auto-detection rules:
 | Project root | Current directory when it contains `pom.xml`, `build.gradle`, or `build.gradle.kts`. |
 | Source scheduler | Detected from dependencies/source such as XXL-JOB `@XxlJob`, `xxl-job-core`, or PowerJob `BasicProcessor` / `tech.powerjob`. |
 | Legacy database | Spring datasource URL/user/password from common `application.*` and `bootstrap.*` files, or explicit `--legacy-db-url`, `--legacy-db-user`, `--legacy-db-password`. |
-| Fallback JSON / code-only | After database discovery is unavailable: one detectable JSON under the project root, `export/`, `exports/`, or `migration/`, explicit `--input`, or code-only handler scan when no JSON exists. |
+| Admin DB / export enrichment | If Spring datasource or `--legacy-db-url` is available, the CLI exports known scheduler job tables. If not, migration still proceeds from Worker code. |
+| Fallback JSON / code-only | One detectable JSON under the project root, `export/`, `exports/`, or `migration/`, explicit `--input`, or code-only handler scan when no JSON/Admin DB exists. |
 | Bundle output | `./.tikeo-migration`. |
 
 ### Explicit command for non-standard layouts
@@ -221,6 +224,8 @@ The bundle is the central review artifact. Do not skip it.
 | `java-project-plan.md` / `.json` | Build system, Spring Boot major, recommended Tikeo artifact, detected handlers, review notes. | Dependency recommendation and processor names. |
 | `java-patches/*.patch` | Review-first patch guidance for dependencies and handler annotations. | Apply manually on a branch; do not treat as blind auto-edits. |
 | `CHECKLIST.md` | Operator acceptance checklist. | Use it as the minimum migration gate list. |
+| `code-apply-evidence.json` | Produced by `apply-code`; records source project, output project, changed files, skipped generated/build directories, and warnings. | Keep it with CI/PR evidence. |
+| `CODE_MIGRATION_REPORT.md` | Produced by `apply-code`; written both to the bundle and the migrated output project. | Use it as handoff material for code review. |
 
 Status meanings:
 
@@ -280,6 +285,35 @@ Review carefully when the source uses:
 | `maxInstanceNum` | Instance concurrency can change side effects. | Configure concurrency rules or keep the job disabled until validated. |
 
 ## Phase 6: adapt Java Worker code
+
+### Automatic code application to an isolated copy
+
+`plan` is read-only. To perform the mechanical Java migration, run `apply-code` and point it at an output directory outside the original project:
+
+```bash
+tikeo-migrate apply-code \
+  --bundle ./.tikeo-migration \
+  --output-project ../legacy-worker-tikeo
+```
+
+What `apply-code` does today:
+
+- copies the source project while skipping generated/build state such as `.git`, `.gradle`, `target`, `build`, and `node_modules`;
+- preserves wrapper/project files that are needed for validation, such as `mvnw` and `.mvn` when present;
+- adds the Spring Boot appropriate Tikeo starter, using `${TIKEO_VERSION}` as the version placeholder;
+- writes `src/main/resources/application-tikeo-migration.yml` with reviewed Tikeo Worker settings and disabled legacy Worker flags;
+- converts supported XXL-JOB `@XxlJob` handlers and PowerJob `BasicProcessor` processors to `@TikeoProcessor` methods where the transformation is compile-oriented and safe;
+- writes `code-apply-evidence.json` and `CODE_MIGRATION_REPORT.md`.
+
+Use `--force` only to replace an existing output copy. The original Worker project is not modified. After `apply-code`, compile the migrated copy with the chosen SDK version, for example:
+
+```bash
+cd ../legacy-worker-tikeo
+mvn -DTIKEO_VERSION=0.3.x -DskipTests compile
+```
+
+If the old project uses Maven Wrapper but does not commit `.mvn/wrapper/maven-wrapper.properties`, run system `mvn` or restore the wrapper metadata before validation.
+
 
 The data import can succeed while execution still fails if Workers do not expose the expected processor names. Resolve code before production import.
 

@@ -243,20 +243,23 @@ schedulers only when you intentionally want a narrower Java-first scheduler.
 
 ## Migrate from XXL-JOB or PowerJob
 
-Tikeo includes a dedicated `tikeo-migrate` CLI for migration assessment. Use it as a **review-first migration assistant**, not as a blind one-click converter: when you run it from the legacy Java/Spring worker project, it detects XXL-JOB or PowerJob code/config, tries to export jobs from the legacy scheduler database, generates Tikeo job drafts, and writes a bundle that operators can review before anything is imported. A pre-exported JSON file is only a fallback for offline or locked-down environments.
+Tikeo includes a dedicated `tikeo-migrate` CLI for migration assessment. Use it as a **review-first migration assistant**, not as a blind one-click converter. Its automatic mode starts from the legacy Java/Spring Worker project: it detects XXL-JOB or PowerJob code/config first, then treats the old Admin database as optional enrichment. If the Worker repository has no scheduler DB/export, that is normal for many executor-only projects: planning continues as code-only inventory instead of failing.
 
 The simplest path is convention-first:
 
 ```bash
 cd ./legacy-worker
-# Auto-detects the Java project, legacy framework, Spring datasource, and scheduler DB tables.
+# Auto-detects the Java project and legacy framework first; Admin DB/export is optional.
 tikeo-migrate plan
 
-# Review ./.tikeo-migration, then dry-run the API import against staging.
+# Copy the legacy Worker into an isolated migrated project and apply code changes there.
+tikeo-migrate apply-code --bundle ./.tikeo-migration --output-project ../legacy-worker-tikeo
+
+# Compile/test the isolated copy, review ./.tikeo-migration, then dry-run API import.
 tikeo-migrate apply --endpoint http://127.0.0.1:9090 --api-key "$TIKEO_MIGRATION_API_KEY" --dry-run
 ```
 
-If the old project does not expose a Spring datasource, pass the old scheduler DB explicitly: `--legacy-db-url jdbc:mysql://host:3306/xxl_job --legacy-db-user <user> --legacy-db-password <password>`. Use `--input ./exports/jobs.json` only for offline JSON audit files. When a repository is Worker-only and has no scheduler DB/export, `tikeo-migrate plan` falls back to a **code-only** scan of XXL-JOB handlers or PowerJob `BasicProcessor` classes; those generated jobs are deliberately marked `needs_review` because schedule, routing, retry, params, and enablement still need to be reconciled with the old scheduler. Other override flags are for non-standard layouts: `--from xxl-job`, `--project ./legacy-worker`, `--output-dir ./migration-bundle`, `--namespace ops`, and `--app billing`.
+If the old project does not expose a Spring datasource, pass the old scheduler DB explicitly: `--legacy-db-url jdbc:mysql://host:3306/xxl_job --legacy-db-user <user> --legacy-db-password <password>`. Explicit DB flags mean “export this DB now”; a failure is reported. Without explicit DB flags, an unreachable or missing Admin DB is not a blocker: Worker-only repositories fall back to **code-only** scans of XXL-JOB handlers or PowerJob `BasicProcessor` classes. Those generated jobs are deliberately marked `needs_review` because schedule, routing, retry, params, and enablement still need to be reconciled with the old scheduler. Use `--input ./exports/jobs.json` only for offline JSON audit files. Other override flags are for non-standard layouts: `--from xxl-job`, `--project ./legacy-worker`, `--output-dir ./migration-bundle`, `--namespace ops`, and `--app billing`.
 
 Auto-export uses read-only `SELECT` access against known scheduler tables: XXL-JOB `xxl_job_info` / `XXL_JOB_INFO` / `job_info`, and PowerJob `pj_job_info` / `job_info` / `powerjob_job_info`. Production URLs can be `jdbc:mysql://...`, `jdbc:postgresql://...`, `mysql://...`, `postgres://...`, or `postgresql://...`; SQLite URLs are supported only for the local demo/CI fixtures under `examples/migration/legacy-scheduler-fixtures`. For local SQLite fixtures, use `sqlite:/abs/path.db`, `sqlite:///abs/path.db`, `jdbc:sqlite:/abs/path.db`, or on Windows `sqlite:C:\path\legacy.db`; the CLI preserves the local file path form so Windows drive letters are not treated as URL hosts.
 
@@ -266,17 +269,21 @@ Release builds include ready-to-run `tikeo-migrate` archives for Linux, macOS In
 flowchart TD
   A[Download tikeo-migrate] --> B[Copy it into legacy Java worker root]
   B --> C[Run tikeo-migrate plan]
-  C --> D[Auto-export legacy scheduler jobs or read fallback JSON]
-  D --> E[Review generated migration bundle]
-  E --> F{Any needs_review or code changes?}
-  F -- Yes --> G[Resolve semantics and apply Java changes on a branch]
-  F -- No --> H[Dry-run apply against staging]
-  G --> H
-  H --> I[Import reviewed ready jobs to staging]
-  I --> J[Start matching Workers and trigger one job]
-  J --> K{Logs/results match legacy behavior?}
-  K -- No --> E
-  K -- Yes --> L[Dual-run, switch traffic, disable legacy schedules]
+  C --> D{Admin DB/export available?}
+  D -- Yes --> E[Enrich jobs from legacy scheduler data]
+  D -- No --> F[Code-only Worker inventory]
+  E --> G[Review generated migration bundle]
+  F --> G
+  G --> H[Run apply-code into isolated copy]
+  H --> I[Compile/test migrated Worker copy]
+  I --> J{Any needs_review or code gaps?}
+  J -- Yes --> G
+  J -- No --> K[Dry-run apply against staging]
+  K --> L[Import reviewed ready jobs to staging]
+  L --> M[Start matching Workers and trigger one job]
+  M --> N{Logs/results match legacy behavior?}
+  N -- No --> G
+  N -- Yes --> O[Dual-run, switch traffic, disable legacy schedules]
 ```
 
 Migration phases:
@@ -284,14 +291,14 @@ Migration phases:
 | Phase | Goal | Main command / artifact | Continue only when |
 | --- | --- | --- | --- |
 | 0. Prepare | Decide namespace/app, staging endpoint, API key, rollback owner, and Worker processor naming. | Internal migration plan. | Staging Tikeo Server and matching Worker plan exist. |
-| 1. Discover/export | Preserve the legacy scheduler state as audit input. | `tikeo-migrate plan` auto-detects Spring datasource / `--legacy-db-url`, reads `--input` fallback JSON, or uses code-only handler scan for Worker-only repositories. | The generated `manifest.json` records `legacy-db:...`, `json-file:...`, or `code-only:...` input origin and the raw source snapshots used for review. |
+| 1. Discover/export | Preserve the legacy scheduler state as audit input. | `tikeo-migrate plan` detects Worker code first, optionally enriches from Spring datasource / `--legacy-db-url`, reads `--input` fallback JSON, or uses code-only handler scan for Worker-only repositories. | The generated `manifest.json` records `legacy-db:...`, `json-file:...`, or `code-only:...` input origin and the raw source snapshots used for review. |
 | 2. Plan | Generate a non-destructive migration bundle. | `tikeo-migrate plan` → `.tikeo-migration/`. | `manifest.json`, `jobs.tikeo.md`, `data-import-plan.json`, and `CHECKLIST.md` are reviewed. |
 | 3. Resolve | Translate non-equivalent legacy semantics instead of pretending they are identical. | Review `needs_review`, Java patch guidance, and unsupported-feature warnings. | Broadcast/map-reduce/routing/blocking/pinning/glue decisions are explicit. |
-| 4. Code | Add Tikeo Worker dependency and processor annotations/adapters. | Java branch + old project tests. | Worker starts and exposes processor names used by job drafts. |
+| 4. Code | Add Tikeo Worker dependency, generated migration profile, and processor annotations/adapters in an isolated copy. | `tikeo-migrate apply-code --bundle ./.tikeo-migration --output-project ../legacy-worker-tikeo` + compile/tests. | The original project is unchanged; the migrated copy compiles and exposes processor names used by job drafts. |
 | 5. Import | Prove the API request set before live writes. | `tikeo-migrate apply --dry-run`, then reviewed live import. | `apply-evidence.json` is accepted and only reviewed jobs are imported. |
 | 6. Validate | Compare behavior before cutover. | Trigger one job at a time; compare Tikeo instance logs/results with legacy. | Dual-run evidence is accepted and rollback steps are documented. |
 
-The generated bundle is deliberately conservative. `plan` never edits legacy source and never writes Tikeo data; it may read the legacy scheduler database with a read-only connection to build the review bundle. Live job creation is isolated behind `apply`, and `--dry-run` should be used before every staging or production import. See the full [legacy scheduler migration guide](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
+The generated bundle is deliberately conservative. `plan` never edits legacy source and never writes Tikeo data; it may read the legacy scheduler database with a read-only connection to enrich the review bundle. `apply-code` writes to a separate output project by default and emits `code-apply-evidence.json` plus `CODE_MIGRATION_REPORT.md`; use `--force` only when intentionally replacing that output copy. Live job creation is isolated behind `apply`, and `--dry-run` should be used before every staging or production import. See the full [legacy scheduler migration guide](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
 
 ## Evaluation checklist
 

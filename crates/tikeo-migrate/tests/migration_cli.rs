@@ -300,6 +300,91 @@ insert into pj_job_info values (2001, 'etl fanout', 'data-platform', 4, 'PT30S',
 }
 
 #[test]
+fn apply_code_command_copies_project_and_transforms_powerjob_worker() {
+    let binary = std::env::var("CARGO_BIN_EXE_tikeo-migrate")
+        .unwrap_or_else(|error| panic!("binary path should exist: {error}"));
+    let project_dir = std::env::temp_dir().join(format!(
+        "tikeo-migrate-apply-code-powerjob-{}",
+        std::process::id()
+    ));
+    let output_project = std::env::temp_dir().join(format!(
+        "tikeo-migrate-apply-code-output-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&project_dir);
+    let _ = fs::remove_dir_all(&output_project);
+    fs::create_dir_all(project_dir.join("src/main/java/com/example/jobs"))
+        .unwrap_or_else(|error| panic!("project dir should be created: {error}"));
+    fs::create_dir_all(project_dir.join("src/main/resources"))
+        .unwrap_or_else(|error| panic!("resources dir should be created: {error}"));
+    fs::write(
+        project_dir.join("pom.xml"),
+        r#"<project>
+  <modelVersion>4.0.0</modelVersion>
+  <parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId><version>3.5.8</version></parent>
+  <groupId>com.example</groupId>
+  <artifactId>ivs</artifactId>
+  <dependencies><dependency><groupId>tech.powerjob</groupId><artifactId>powerjob-worker-spring-boot-starter</artifactId><version>4.3.2</version></dependency></dependencies>
+</project>
+"#,
+    )
+    .unwrap_or_else(|error| panic!("pom should be written: {error}"));
+    fs::write(
+        project_dir.join("src/main/java/com/example/jobs/OutboxPublishProcessor.java"),
+        "package com.example.jobs;\nimport org.springframework.stereotype.Component;\nimport tech.powerjob.worker.core.processor.ProcessResult;\nimport tech.powerjob.worker.core.processor.TaskContext;\nimport tech.powerjob.worker.core.processor.sdk.BasicProcessor;\n@Component\npublic class OutboxPublishProcessor implements BasicProcessor {\n  @Override\n  public ProcessResult process(TaskContext context) { return new ProcessResult(true, \"ok\"); }\n}\n",
+    )
+    .unwrap_or_else(|error| panic!("processor should be written: {error}"));
+
+    let plan_status = Command::new(&binary)
+        .arg("plan")
+        .current_dir(&project_dir)
+        .status()
+        .unwrap_or_else(|error| panic!("code-only plan should run: {error}"));
+    assert!(plan_status.success());
+
+    let apply_status = Command::new(&binary)
+        .args(["apply-code", "--bundle"])
+        .arg(project_dir.join(".tikeo-migration"))
+        .args(["--output-project"])
+        .arg(&output_project)
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .status()
+        .unwrap_or_else(|error| panic!("apply-code should run: {error}"));
+    assert!(apply_status.success());
+
+    let original = fs::read_to_string(
+        project_dir.join("src/main/java/com/example/jobs/OutboxPublishProcessor.java"),
+    )
+    .unwrap_or_else(|error| panic!("original source should be readable: {error}"));
+    assert!(original.contains("implements BasicProcessor"));
+    let migrated = fs::read_to_string(
+        output_project.join("src/main/java/com/example/jobs/OutboxPublishProcessor.java"),
+    )
+    .unwrap_or_else(|error| panic!("migrated source should be readable: {error}"));
+    assert!(migrated.contains("import net.tikeo.processor.TikeoProcessor;"));
+    assert!(migrated.contains("import net.tikeo.processor.TaskOutcome;"));
+    assert!(migrated.contains("@TikeoProcessor(\"OutboxPublishProcessor\")"));
+    assert!(!migrated.contains("implements BasicProcessor"));
+    assert!(migrated.contains("TaskOutcome process(TaskContext context)"));
+    let pom = fs::read_to_string(output_project.join("pom.xml"))
+        .unwrap_or_else(|error| panic!("migrated pom should be readable: {error}"));
+    assert!(pom.contains("<artifactId>tikeo-spring-boot3-starter</artifactId>"));
+    assert!(pom.contains("${TIKEO_VERSION}"));
+    assert!(
+        output_project
+            .join("src/main/resources/application-tikeo-migration.yml")
+            .exists()
+    );
+    assert!(output_project.join("CODE_MIGRATION_REPORT.md").exists());
+    let evidence =
+        fs::read_to_string(project_dir.join(".tikeo-migration/code-apply-evidence.json"))
+            .unwrap_or_else(|error| panic!("code evidence should be readable: {error}"));
+    assert!(evidence.contains("OutboxPublishProcessor.java"));
+    let _ = fs::remove_dir_all(project_dir);
+    let _ = fs::remove_dir_all(output_project);
+}
+
+#[test]
 fn plan_command_reports_known_tables_for_legacy_db_export_failure() {
     let binary = std::env::var("CARGO_BIN_EXE_tikeo-migrate")
         .unwrap_or_else(|error| panic!("binary path should exist: {error}"));

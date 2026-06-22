@@ -18,10 +18,12 @@ use sqlx::{Column, Row};
 use tikeo_core::{MisfirePolicy, ScheduleType};
 
 mod apply;
+mod code_apply;
 mod code_only;
 mod render;
 
 use apply::apply_data;
+use code_apply::apply_code;
 use code_only::build_code_only_export_json;
 use render::{render_checklist, render_java_project_plan, render_markdown_report};
 
@@ -48,6 +50,7 @@ impl Cli {
         match self.command {
             Command::Plan(command) => run_plan_command(&command).await,
             Command::Apply(command) => run_apply_command(&command).await,
+            Command::ApplyCode(command) => run_apply_code_command(&command),
         }
     }
 }
@@ -60,6 +63,9 @@ pub enum Command {
     /// Apply ready job drafts from an existing migration bundle to a Tikeo server.
     #[command(name = "apply")]
     Apply(ApplyCommand),
+    /// Copy a legacy Java worker project and apply compile-oriented Tikeo code changes.
+    #[command(name = "apply-code")]
+    ApplyCode(CodeApplyCommand),
 }
 
 /// Source scheduler supported by the migration planner.
@@ -98,7 +104,7 @@ pub struct PlanCommand {
     /// Source scheduler export format. Auto-detected from export content/file name when omitted.
     #[arg(long, value_enum)]
     pub from: Option<MigrationSource>,
-    /// Path to a pre-exported JSON file. Usually unnecessary: when omitted, the CLI first tries to export from the detected legacy database, then falls back to compatible JSON files.
+    /// Path to a pre-exported JSON file. Usually unnecessary: automatic mode detects the Worker code first and treats Admin DB/export data as optional enrichment.
     #[arg(long)]
     pub input: Option<PathBuf>,
     /// Legacy scheduler database URL. Auto-detected from Spring config when omitted. Supports MySQL/PostgreSQL JDBC and native URLs.
@@ -156,6 +162,26 @@ pub struct ApplyCommand {
     pub output: Option<PathBuf>,
 }
 
+/// Copy a legacy Java worker project and apply compile-oriented Tikeo code changes.
+#[derive(Debug, Clone, clap::Args)]
+pub struct CodeApplyCommand {
+    /// Migration bundle directory created by `tikeo-migrate plan`.
+    #[arg(long, default_value = ".tikeo-migration")]
+    pub bundle: PathBuf,
+    /// Source Java worker project. Defaults to java-project-plan.json projectRoot.
+    #[arg(long)]
+    pub project: Option<PathBuf>,
+    /// Output project copy. Defaults to <bundle>/migrated-project.
+    #[arg(long)]
+    pub output_project: Option<PathBuf>,
+    /// Replace an existing output project directory.
+    #[arg(long)]
+    pub force: bool,
+    /// Optional output path for code migration evidence. Defaults to <bundle>/code-apply-evidence.json.
+    #[arg(long)]
+    pub output: Option<PathBuf>,
+}
+
 /// Execute the non-destructive plan command.
 ///
 /// # Errors
@@ -209,6 +235,22 @@ pub async fn run_apply_command(command: &ApplyCommand) -> Result<()> {
     Ok(())
 }
 
+/// Execute the code apply command.
+///
+/// # Errors
+///
+/// Returns an error when the bundle cannot be read or the project copy cannot be transformed.
+pub fn run_apply_code_command(command: &CodeApplyCommand) -> Result<()> {
+    let evidence = apply_code(command)?;
+    let output = command
+        .output
+        .clone()
+        .unwrap_or_else(|| command.bundle.join("code-apply-evidence.json"));
+    println!("code apply evidence written to {}", output.display());
+    println!("migrated project written to {}", evidence.output_project);
+    Ok(())
+}
+
 #[derive(Debug, Clone)]
 struct ResolvedPlanInputs {
     source: MigrationSource,
@@ -228,30 +270,45 @@ async fn resolve_plan_inputs_from(command: &PlanCommand, cwd: &Path) -> Result<R
         .project
         .clone()
         .or_else(|| looks_like_java_project(cwd).then_some(cwd.to_path_buf()));
+    let root = project.as_deref().unwrap_or(cwd);
+
     if let Some(input) = &command.input {
-        let input_text = fs::read_to_string(input)
-            .with_context(|| format!("failed to read migration input {}", input.display()))?;
-        let source = command
-            .from
-            .or_else(|| infer_source_from_path(input))
-            .or_else(|| infer_source_from_json(&input_text))
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "failed to auto-detect source scheduler; pass --from xxl-job or --from powerjob"
-                )
-            })?;
+        return resolve_json_file_input(command, input, project);
+    }
+
+    let detected_source = command.from.or_else(|| infer_source_from_project(root));
+    if detected_source.is_some() {
+        match export_from_legacy_database(command, root).await {
+            Ok(Some(export)) => {
+                return Ok(ResolvedPlanInputs {
+                    source: export.source,
+                    input_origin: export.origin,
+                    export_json: export.json,
+                    project,
+                    code_only: false,
+                });
+            }
+            Ok(None) => {}
+            Err(error) if command.legacy_db_url.is_some() => return Err(error),
+            Err(error) => eprintln!(
+                "warning: detected a legacy scheduler datasource but could not export admin DB data; continuing with worker code-only migration: {error:#}"
+            ),
+        }
+        if let Ok(input) = find_export_file(root) {
+            return resolve_json_file_input(command, &input, project);
+        }
+        let source = detected_source.expect("checked above");
+        let export_json = build_code_only_export_json(root, source)?;
         return Ok(ResolvedPlanInputs {
             source,
-            input_origin: format!("json-file:{}", input.display()),
-            export_json: input_text,
+            input_origin: format!("code-only:{}", root.display()),
+            export_json,
             project,
-            code_only: false,
+            code_only: true,
         });
     }
 
-    if let Some(export) =
-        export_from_legacy_database(command, project.as_deref().unwrap_or(cwd)).await?
-    {
+    if let Some(export) = export_from_legacy_database(command, root).await? {
         return Ok(ResolvedPlanInputs {
             source: export.source,
             input_origin: export.origin,
@@ -261,48 +318,33 @@ async fn resolve_plan_inputs_from(command: &PlanCommand, cwd: &Path) -> Result<R
         });
     }
 
-    match find_export_file(project.as_deref().unwrap_or(cwd)) {
-        Ok(input) => {
-            let input_text = fs::read_to_string(&input)
-                .with_context(|| format!("failed to read migration input {}", input.display()))?;
-            let source = command
-                .from
-                .or_else(|| infer_source_from_path(&input))
-                .or_else(|| infer_source_from_json(&input_text))
-                .ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "failed to auto-detect source scheduler; pass --from xxl-job or --from powerjob"
-                    )
-                })?;
-            Ok(ResolvedPlanInputs {
-                source,
-                input_origin: format!("json-file:{}", input.display()),
-                export_json: input_text,
-                project,
-                code_only: false,
-            })
-        }
-        Err(error) => {
-            let Some(project_root) = project
-                .as_deref()
-                .or_else(|| looks_like_java_project(cwd).then_some(cwd))
-            else {
-                return Err(error);
-            };
-            let source = command
-                .from
-                .or_else(|| infer_source_from_project(project_root))
-                .ok_or(error)?;
-            let export_json = build_code_only_export_json(project_root, source)?;
-            Ok(ResolvedPlanInputs {
-                source,
-                input_origin: format!("code-only:{}", project_root.display()),
-                export_json,
-                project,
-                code_only: true,
-            })
-        }
-    }
+    let input = find_export_file(root)?;
+    resolve_json_file_input(command, &input, project)
+}
+
+fn resolve_json_file_input(
+    command: &PlanCommand,
+    input: &Path,
+    project: Option<PathBuf>,
+) -> Result<ResolvedPlanInputs> {
+    let input_text = fs::read_to_string(input)
+        .with_context(|| format!("failed to read migration input {}", input.display()))?;
+    let source = command
+        .from
+        .or_else(|| infer_source_from_path(input))
+        .or_else(|| infer_source_from_json(&input_text))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "failed to auto-detect source scheduler; pass --from xxl-job or --from powerjob"
+            )
+        })?;
+    Ok(ResolvedPlanInputs {
+        source,
+        input_origin: format!("json-file:{}", input.display()),
+        export_json: input_text,
+        project,
+        code_only: false,
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -1314,11 +1356,28 @@ fn detect_powerjob_handlers(content: &str) -> Vec<(String, Option<String>)> {
         || content.contains("BroadcastProcessor")
         || content.contains("ProcessorBean")
     {
-        let name =
-            class_name(content).map_or_else(|| "TODO_powerjob_processor".to_owned(), |name| name);
+        let name = powerjob_processor_name(content)
+            .or_else(|| class_name(content))
+            .unwrap_or_else(|| "TODO_powerjob_processor".to_owned());
         handlers.push((name, Some("process".to_owned())));
     }
     handlers
+}
+
+fn powerjob_processor_name(content: &str) -> Option<String> {
+    for marker in ["@ProcessorBean", "@Component"] {
+        let Some(index) = content.find(marker) else {
+            continue;
+        };
+        let rest = &content[index
+            ..content[index..]
+                .find('\n')
+                .map_or(content.len(), |offset| index + offset)];
+        if let Some(name) = first_quoted(rest) {
+            return Some(name);
+        }
+    }
+    None
 }
 
 fn first_quoted(value: &str) -> Option<String> {
