@@ -143,13 +143,13 @@ Tikeo is designed to be the default answer when someone asks:
 
 ## Acceptance and handoff checklist
 
-For release sign-off or development handoff, use the docs-site [Product readiness acceptance checklist](https://docs.tikeo.net/docs/development/product-readiness-acceptance). It ties together the three areas that most often need evidence beyond a quick demo:
+For release sign-off or development handoff, use the docs-site [Product readiness acceptance checklist](https://docs.tikeo.net/docs/development/product-readiness-acceptance). For the concrete `v0.3.9` evidence bundle, use the [v0.3.9 release acceptance packet](https://docs.tikeo.net/docs/development/release-acceptance-packet-v0.3.9). The checklist ties together the three areas that most often need evidence beyond a quick demo:
 
 - **Notification Center**: provider test-send, template rendering, policy materialization, retry/DLQ visibility, and redaction proof.
 - **Legacy migration CLI**: non-mutating `tikeo-migrate plan`, reviewed bundle, dry-run `apply`, staged import, and release assets.
 - **Raft FSOD Server HA**: StatefulSet/external DB deployment shape, one fenced scheduler, active shard ownership, durable outbox recovery, cross-pod API consistency, Worker gateway failover, and Kind/staging evidence.
 
-Keep the evidence packet next to the release or handoff notes: command/UI action, inspected route or file, observed result, and artifact path.
+Keep the evidence packet next to the release or handoff notes: command/UI action, inspected route or file, observed result, and artifact path. For `v0.3.9`, the packet records the 31 uploaded release assets, Kind HA metrics, and the post-release cross-language Worker soak gate added on `main`.
 
 ## Why evaluators should shortlist Tikeo first
 

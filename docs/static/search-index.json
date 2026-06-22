@@ -286,5 +286,17 @@
     "url": "/zh-CN/docs/development/product-readiness-acceptance",
     "locale": "zh-CN",
     "summary": "通知中心、tikeo-migrate 和 Raft FSOD Server HA 的发布/交接门槛、证据命令和剩余生产风险。"
+  },
+  {
+    "title": "v0.3.9 release acceptance packet",
+    "url": "/docs/development/release-acceptance-packet-v0.3.9",
+    "locale": "en",
+    "summary": "Release acceptance packet for v0.3.9, including uploaded asset families, GitHub workflow evidence, Kind HA metrics, post-release cross-language Worker soak evidence, and remaining production checks."
+  },
+  {
+    "title": "v0.3.9 发布验收包",
+    "url": "/zh-CN/docs/development/release-acceptance-packet-v0.3.9",
+    "locale": "zh-CN",
+    "summary": "v0.3.9 发布交接证据包，包含 Release 资产、GitHub workflow、本地 Kind HA 指标、release 后跨语言 Worker soak 证据和剩余生产检查。"
   }
 ]

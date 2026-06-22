@@ -581,9 +581,12 @@ class DocsSiteContractTest(unittest.TestCase):
         for token in [
             "/docs/development/product-readiness-acceptance",
             "/zh-CN/docs/development/product-readiness-acceptance",
+            "/docs/development/release-acceptance-packet-v0.3.9",
+            "/zh-CN/docs/development/release-acceptance-packet-v0.3.9",
         ]:
             self.assertIn(token, readme + readme_zh + search_index + llms)
         self.assertIn("development/product-readiness-acceptance", sidebars)
+        self.assertIn("development/release-acceptance-packet-v0.3.9", sidebars)
 
     def test_deployment_docs_include_copy_paste_runbooks(self):
         deployment_text = "\n".join(
@@ -1113,6 +1116,41 @@ class DocsSiteContractTest(unittest.TestCase):
         self.assertNotIn("剩余为非 Java SDK parity", report)
 
 
+
+    def test_release_acceptance_packet_v039_is_indexed_and_evidence_backed(self):
+        zh_root = DOCS_SITE / "i18n/zh-CN/docusaurus-plugin-content-docs/current"
+        pages = [
+            DOCS_SITE / "docs/development/release-acceptance-packet-v0.3.9.md",
+            zh_root / "development/release-acceptance-packet-v0.3.9.md",
+        ]
+        for path in pages:
+            self.assertTrue(path.exists(), f"missing release acceptance packet: {path}")
+            text = path.read_text()
+            for token in [
+                "v0.3.9",
+                "31",
+                "ee895ba7",
+                "affb4605",
+                "kind-raft-ha-e2e-20260622.md",
+                "TIKEO_CROSS_SOAK_SECONDS=120",
+                "cross-language-workers-20260622T065243Z-596956",
+                "scripts/cloud-raft-ha-acceptance.sh",
+            ]:
+                self.assertIn(token, text, f"{path.relative_to(DOCS_SITE)} missing {token!r}")
+            self.assertNotIn("../../../design/reports", text)
+
+        readme = (ROOT / "README.md").read_text()
+        readme_zh = (ROOT / "README.zh-CN.md").read_text()
+        sidebars = (DOCS_SITE / "sidebars.ts").read_text()
+        search_index = (DOCS_SITE / "static/search-index.json").read_text()
+        llms = (DOCS_SITE / "static/llms.txt").read_text() + (DOCS_SITE / "static/llms-full.txt").read_text()
+        for route in [
+            "/docs/development/release-acceptance-packet-v0.3.9",
+            "/zh-CN/docs/development/release-acceptance-packet-v0.3.9",
+        ]:
+            self.assertIn(route, readme + readme_zh + search_index + llms)
+        self.assertIn("development/release-acceptance-packet-v0.3.9", sidebars)
+
     def test_cross_language_worker_soak_docs_are_script_backed(self):
         script = (ROOT / "deploy/smoke/cross-language-worker-parity-smoke.sh").read_text()
         for token in [
@@ -1195,12 +1233,15 @@ class DocsSiteContractTest(unittest.TestCase):
             "/zh-CN/docs/integrations/migrating-from-legacy-schedulers",
             "/docs/development/product-readiness-acceptance",
             "/zh-CN/docs/development/product-readiness-acceptance",
+            "/docs/development/release-acceptance-packet-v0.3.9",
+            "/zh-CN/docs/development/release-acceptance-packet-v0.3.9",
         ]:
             self.assertIn(route, search_index + llms, f"search/LLM entrypoints missing {route}")
         for doc_id in [
             "deployment/server-ha",
             "integrations/migrating-from-legacy-schedulers",
             "development/product-readiness-acceptance",
+            "development/release-acceptance-packet-v0.3.9",
         ]:
             self.assertIn(doc_id, sidebars)
         for root in [DOCS_SITE / "docs", DOCS_SITE / "i18n/zh-CN/docusaurus-plugin-content-docs/current"]:
