@@ -85,7 +85,7 @@ scripts/kind-raft-ha-e2e.sh
 
 ## 跨语言 Worker soak 追加验证
 
-release 后的 main 提交 `affb4605` 在 `deploy/smoke/cross-language-worker-parity-smoke.sh` 中加入了可重复执行的跨语言 Worker soak gate。普通 CI 默认不启用，可在 release candidate 阶段显式开启：
+release 后的 main 提交 `affb4605` 在 `deploy/smoke/cross-language-worker-parity-smoke.sh` 中加入了可重复执行的跨语言 Worker soak gate。后续 workflow `.github/workflows/release-candidate-worker-soak.yml` 把它暴露为手动 release-candidate gate，并支持 `ref`、`soak_seconds`、`soak_interval_seconds`、`rebuild_server`、`skip_web` 输入。普通 CI 默认不启用，也可以在本地显式运行：
 
 ```bash
 TIKEO_CROSS_SKIP_WEB=1 \
@@ -110,7 +110,7 @@ post-release 追加提交的短跑本地证据：
 | Minimum online workers | `7` |
 | Verdict | ✅ passed |
 
-证据文件会和 parity report 写在同一目录：`*-soak-summary.json`、`*-soak-summary.csv` 和 `*-soak-metrics.jsonl`。
+证据文件会和 parity report 写在同一目录：`*-soak-summary.json`、`*-soak-summary.csv` 和 `*-soak-metrics.jsonl`；手动 RC workflow 会把它们作为 `cross-language-worker-soak` artifact 上传，并把关键数字写入 GitHub step summary。
 
 ## 迁移 CLI 证据
 
@@ -135,7 +135,7 @@ post-release 追加提交的短跑本地证据：
 | 优先级 | 工作 | 停止条件 |
 | --- | --- | --- |
 | 有云环境时 P0 | 使用外部 DB、ingress/LB/WAF/TLS、NetworkPolicy 和托管数据库 HA 做真实云环境 HA 验收。 | 归档 `scripts/cloud-raft-ha-acceptance.sh` 产物：`summary.json`、`REPORT.md`、cluster diagnostics 和明确 pass/fail 说明。 |
-| 下个 release candidate 前 P1 | 把跨语言 soak gate 跑到比短证据更长。 | `TIKEO_CROSS_SOAK_SECONDS=120` 或更长运行得到 `failed=0`、`workersOnline` 稳定、`queuePending` 有界、`outboxPending` 不增长。 |
+| 下个 release candidate 前 P1 | 通过 `.github/workflows/release-candidate-worker-soak.yml` 手动运行跨语言 soak gate，时长应比短证据更长。 | `TIKEO_CROSS_SOAK_SECONDS=120` 或更长运行产出 `cross-language-worker-soak` artifact，并得到 `failed=0`、`workersOnline` 稳定、`queuePending` 有界、`outboxPending` 不增长。 |
 | provider 生产签核前 P1 | 对部署环境实际使用的通知渠道做真实 provider test-send。 | 归档 provider response、message trace、retry/DLQ 状态和脱敏证据。 |
 | 大规模迁移推广前 P2 | 用代表性 XXL-JOB 或 PowerJob 旧项目跑 `tikeo-migrate`。 | dry-run apply 加至少一个预发 live trigger，并保留行为对比。 |
 | 持续 P2 | 保持公共文档与 release 证据同步。 | docs build、docs contract、search/LLM indexes、README links 和 release asset checks 全部通过。 |

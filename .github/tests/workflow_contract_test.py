@@ -13,6 +13,7 @@ DOCKER_DOCS = (WORKFLOWS / "publish-docker-docs.yml").read_text()
 JAVA_SDK = (WORKFLOWS / "publish-java-sdk.yml").read_text()
 RUST_SDK = (WORKFLOWS / "publish-rust-sdk.yml").read_text()
 GO_SDK = (WORKFLOWS / "publish-go-sdk.yml").read_text()
+RC_WORKER_SOAK = (WORKFLOWS / "release-candidate-worker-soak.yml").read_text()
 
 
 def workflow_job_block(workflow_text: str, job: str) -> str:
@@ -206,6 +207,49 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("workflow_dispatch", GITHUB_RELEASE)
         self.assertNotIn("docker/login-action", GITHUB_RELEASE)
 
+
+    def test_release_candidate_worker_soak_is_manual_evidence_gate(self):
+        self.assertIn("Release candidate / cross-language Worker soak", RC_WORKER_SOAK)
+        self.assertIn("workflow_dispatch", RC_WORKER_SOAK)
+        for token in [
+            "ref:",
+            "soak_seconds:",
+            "default: '120'",
+            "soak_interval_seconds:",
+            "default: '10'",
+            "rebuild_server:",
+            "skip_web:",
+            "cancel-in-progress: false",
+            "timeout-minutes: 45",
+        ]:
+            self.assertIn(token, RC_WORKER_SOAK)
+
+        soak_job = workflow_job_block(RC_WORKER_SOAK, "soak")
+        for token in [
+            "actions/checkout@v6",
+            "dtolnay/rust-toolchain@stable",
+            "actions/setup-java@v5",
+            "actions/setup-go@v6",
+            "actions/setup-python@v6",
+            "oven-sh/setup-bun@v2",
+            "bun install --frozen-lockfile",
+            "python -m pip install -e sdks/python/tikeo",
+            "python -m pip install -e examples/python/worker-demo",
+            "TIKEO_CROSS_SKIP_WEB",
+            "TIKEO_CROSS_REBUILD_SERVER",
+            "TIKEO_CROSS_SOAK_SECONDS",
+            "TIKEO_CROSS_SOAK_INTERVAL_SECONDS",
+            "deploy/smoke/cross-language-worker-parity-smoke.sh",
+            "GITHUB_STEP_SUMMARY",
+            "cross-language-worker-soak",
+            "actions/upload-artifact@v6",
+            ".dev/reports/cross-language-workers-*/*",
+        ]:
+            self.assertIn(token, soak_job)
+        self.assertNotIn("softprops/action-gh-release", RC_WORKER_SOAK)
+        self.assertNotIn("docker/login-action", RC_WORKER_SOAK)
+        self.assertNotIn("contents: write", RC_WORKER_SOAK)
+
     def test_migration_cli_binary_ci_is_separate_and_artifact_only(self):
         self.assertIn("CI / Migration CLI binaries", MIGRATE_CLI)
         self.assertIn("cargo test -p tikeo-migrate --locked --target", MIGRATE_CLI)
@@ -325,6 +369,9 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("Docker docs", setup)
         self.assertIn(".github/workflows/publish-docker-docs.yml", setup)
         self.assertIn("yhyzgn/tikeo-docs", setup)
+        self.assertIn("Release candidate Worker soak", setup)
+        self.assertIn(".github/workflows/release-candidate-worker-soak.yml", setup)
+        self.assertIn("cross-language-worker-soak", setup)
         self.assertIn("Docker server, Docker web, and Docker docs are separate workflows", setup)
 
     def test_sdk_publish_targets_are_split(self):

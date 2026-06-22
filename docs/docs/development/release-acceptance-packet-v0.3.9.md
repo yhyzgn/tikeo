@@ -85,7 +85,7 @@ scripts/kind-raft-ha-e2e.sh
 
 ## Cross-language Worker soak follow-up
 
-The post-release main commit `affb4605` adds a repeatable cross-language Worker soak gate to `deploy/smoke/cross-language-worker-parity-smoke.sh`. It is disabled by default in normal CI and can be enabled for release candidates:
+The post-release main commit `affb4605` adds a repeatable cross-language Worker soak gate to `deploy/smoke/cross-language-worker-parity-smoke.sh`. The follow-up workflow `.github/workflows/release-candidate-worker-soak.yml` exposes it as a manual release-candidate gate with configurable `ref`, `soak_seconds`, `soak_interval_seconds`, `rebuild_server`, and `skip_web` inputs. It is disabled by default in normal CI and can also be run locally:
 
 ```bash
 TIKEO_CROSS_SKIP_WEB=1 \
@@ -110,7 +110,7 @@ Short local evidence from the post-release follow-up run:
 | Minimum online workers | `7` |
 | Verdict | ✅ passed |
 
-Evidence files are written as `*-soak-summary.json`, `*-soak-summary.csv`, and `*-soak-metrics.jsonl` next to the parity report.
+Evidence files are written as `*-soak-summary.json`, `*-soak-summary.csv`, and `*-soak-metrics.jsonl` next to the parity report; the manual RC workflow uploads them as the `cross-language-worker-soak` artifact and writes key numbers to the GitHub step summary.
 
 ## Migration CLI evidence
 
@@ -135,7 +135,7 @@ Relevant docs: [Notifications](../user-guide/notifications), [Notification Cente
 | Priority | Work | Stop condition |
 | --- | --- | --- |
 | P0 when cloud environment is available | Run real cloud HA acceptance with external DB, ingress/LB/WAF/TLS, NetworkPolicy, and managed database HA. | `scripts/cloud-raft-ha-acceptance.sh` report archived with `summary.json`, `REPORT.md`, cluster diagnostics, and explicit pass/fail notes. |
-| P1 before next release candidate | Run the cross-language soak gate for longer than the short local proof. | `TIKEO_CROSS_SOAK_SECONDS=120` or longer produces `failed=0`, stable `workersOnline`, bounded `queuePending`, and no growing `outboxPending`. |
+| P1 before next release candidate | Run the manual cross-language soak gate from `.github/workflows/release-candidate-worker-soak.yml` for longer than the short local proof. | `TIKEO_CROSS_SOAK_SECONDS=120` or longer produces the `cross-language-worker-soak` artifact with `failed=0`, stable `workersOnline`, bounded `queuePending`, and no growing `outboxPending`. |
 | P1 before provider production sign-off | Execute real Notification Center provider test-send for the channels used by that deployment. | Provider response, message trace, retry/DLQ state, and redaction evidence archived. |
 | P2 before broad migration promotion | Exercise `tikeo-migrate` against a representative legacy XXL-JOB or PowerJob project. | Dry-run apply plus at least one live staging trigger with behavior comparison. |
 | P2 ongoing | Keep public docs and release evidence synced. | Docs build, docs contract tests, search/LLM indexes, README links, and release asset checks pass. |
