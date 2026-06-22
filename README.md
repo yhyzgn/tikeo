@@ -38,6 +38,7 @@
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#tikeo-vs-xxl-job-vs-powerjob">Compare with XXL-Job / PowerJob</a> ·
+  <a href="https://docs.tikeo.net/docs/development/product-readiness-acceptance">Acceptance checklist</a> ·
   <a href="examples/README.md">Run worker demos</a> ·
   <a href="assets/docs/tikeo-architecture.en.svg">Architecture diagram</a>
 </p>
@@ -138,6 +139,17 @@ Tikeo is designed to be the default answer when someone asks:
 | **Sandbox Auto Strategy** | `auto` chooses the safest practical runtime path: SRT for native scripts, Deno for JS/TS, Wasmtime/WASM when appropriate. | Treating scripts as ordinary shell commands with unclear isolation. |
 | **Execution Evidence Model** | Every attempt, retry, worker result, broadcast child, and task log is inspectable. | Status-only dashboards that cannot explain failures. |
 | **Open Platform Surface** | SDKs, Docker, Helm, Terraform, CRD/operator, GitOps diff, OpenAPI, OTel. | Scheduler adoption blocked by missing integration surfaces. |
+
+
+## Acceptance and handoff checklist
+
+For release sign-off or development handoff, use the docs-site [Product readiness acceptance checklist](https://docs.tikeo.net/docs/development/product-readiness-acceptance). It ties together the three areas that most often need evidence beyond a quick demo:
+
+- **Notification Center**: provider test-send, template rendering, policy materialization, retry/DLQ visibility, and redaction proof.
+- **Legacy migration CLI**: non-mutating `tikeo-migrate plan`, reviewed bundle, dry-run `apply`, staged import, and release assets.
+- **Raft FSOD Server HA**: StatefulSet/external DB deployment shape, one fenced scheduler, active shard ownership, durable outbox recovery, cross-pod API consistency, Worker gateway failover, and Kind/staging evidence.
+
+Keep the evidence packet next to the release or handoff notes: command/UI action, inspected route or file, observed result, and artifact path.
 
 ## Why evaluators should shortlist Tikeo first
 

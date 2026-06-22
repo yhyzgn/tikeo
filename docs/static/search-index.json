@@ -262,5 +262,17 @@
     "url": "/zh-CN/docs/user-guide/workers",
     "locale": "zh-CN",
     "summary": "理解 Worker Tunnel 状态、持久化 Worker 快照、生命周期历史和派发能力。"
+  },
+  {
+    "title": "Product readiness acceptance checklist",
+    "url": "/docs/development/product-readiness-acceptance",
+    "locale": "en",
+    "summary": "Release and handoff gates for Notification Center, tikeo-migrate, and Raft FSOD Server HA with evidence commands and remaining production risks."
+  },
+  {
+    "title": "产品就绪验收清单",
+    "url": "/zh-CN/docs/development/product-readiness-acceptance",
+    "locale": "zh-CN",
+    "summary": "通知中心、tikeo-migrate 和 Raft FSOD Server HA 的发布/交接门槛、证据命令和剩余生产风险。"
   }
 ]

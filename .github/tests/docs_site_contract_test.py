@@ -531,6 +531,50 @@ class DocsSiteContractTest(unittest.TestCase):
         self.assertIn("Server HA and Raft FSOD Cluster", index_en)
         self.assertIn("Server 高可用与 Raft FSOD 集群", index_zh)
 
+    def test_product_readiness_acceptance_links_core_surfaces(self):
+        zh_root = DOCS_SITE / "i18n/zh-CN/docusaurus-plugin-content-docs/current"
+        expectations = [
+            (DOCS_SITE / "docs" / "development/product-readiness-acceptance.md", [
+                "Notification Center",
+                "tikeo-migrate",
+                "Raft FSOD Server HA",
+                "provider test-send",
+                "tikeo-migrate apply --endpoint",
+                "scripts/kind-raft-ha-e2e.sh",
+                "scripts/verify-raft-ha-rollout.sh",
+                "worker_dispatch_outbox",
+                "Product readiness acceptance checklist",
+            ]),
+            (zh_root / "development/product-readiness-acceptance.md", [
+                "通知中心",
+                "tikeo-migrate",
+                "Raft FSOD Server HA",
+                "provider 测试",
+                "tikeo-migrate apply --endpoint",
+                "scripts/kind-raft-ha-e2e.sh",
+                "scripts/verify-raft-ha-rollout.sh",
+                "worker_dispatch_outbox",
+                "产品就绪验收清单",
+            ]),
+        ]
+        for path, tokens in expectations:
+            self.assertTrue(path.exists(), f"missing product readiness checklist: {path}")
+            text = path.read_text()
+            for token in tokens:
+                self.assertIn(token, text, f"{path.relative_to(DOCS_SITE)} missing {token!r}")
+
+        readme = (ROOT / "README.md").read_text()
+        readme_zh = (ROOT / "README.zh-CN.md").read_text()
+        sidebars = (DOCS_SITE / "sidebars.ts").read_text()
+        search_index = (DOCS_SITE / "static/search-index.json").read_text()
+        llms = (DOCS_SITE / "static/llms.txt").read_text() + (DOCS_SITE / "static/llms-full.txt").read_text()
+        for token in [
+            "/docs/development/product-readiness-acceptance",
+            "/zh-CN/docs/development/product-readiness-acceptance",
+        ]:
+            self.assertIn(token, readme + readme_zh + search_index + llms)
+        self.assertIn("development/product-readiness-acceptance", sidebars)
+
     def test_deployment_docs_include_copy_paste_runbooks(self):
         deployment_text = "\n".join(
             (DOCS_SITE / "docs" / relative_path).read_text()

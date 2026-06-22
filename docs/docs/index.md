@@ -24,6 +24,7 @@ Read these pages in order when you are new to the repository:
 | 5 | SDK pages | Dependency coordinates, WorkerConfig defaults, minimal Worker examples, Management client credentials, live verification runbooks. |
 | 6 | Deployment pages | Single binary, Docker Compose, Kubernetes/Helm, [Server HA and Raft FSOD Cluster](./deployment/server-ha), controller-specific ingress guidance, and smoke scripts. |
 | 7 | Reference pages | Implementation-derived Management OpenAPI, Notification Center, and Worker Tunnel protobuf reference. |
+| 8 | [Product readiness acceptance checklist](./development/product-readiness-acceptance) | Cross-feature release/handoff gates for Notification Center, legacy migration CLI, and Raft FSOD Server HA. |
 
 If you only want a proof that the whole local path still works, run the Management trigger smoke from the quickstart. If you are writing a production runbook, use the configuration and deployment references first, then select one SDK page for the Worker language used by your service team.
 
