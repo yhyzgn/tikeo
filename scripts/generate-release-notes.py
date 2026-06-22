@@ -144,6 +144,33 @@ def load_commits(release_tag: str, previous: str | None) -> list[Commit]:
     return commits
 
 
+META_SUBJECT_PATTERNS = (
+    "agent context",
+    "agents.md",
+    "project agent",
+    "handoff",
+    "session context",
+    "memory context",
+    "update project agent context",
+)
+
+META_ONLY_FILES = {"agents.md", "prompt.md"}
+
+
+def is_release_note_material(commit: Commit) -> bool:
+    subject = commit.subject.lower()
+    files = {path.lower() for path in commit.files}
+    if any(pattern in subject for pattern in META_SUBJECT_PATTERNS):
+        return False
+    if files and files.issubset(META_ONLY_FILES):
+        return False
+    return True
+
+
+def material_commits(commits: list[Commit]) -> list[Commit]:
+    return [commit for commit in commits if is_release_note_material(commit)]
+
+
 def classify_area(commit: Commit) -> Area:
     subject = commit.subject.lower()
     files = " ".join(commit.files).lower()
@@ -323,7 +350,7 @@ def render_asset_table(assets: list[str]) -> list[str]:
 
 
 def codename_for(tag: str, commits: list[Commit]) -> str:
-    area_keys = [area.key for area, _ in area_groups(commits)]
+    area_keys = [area.key for area, _ in area_groups(material_commits(commits))]
     for key, codename in CODENAME_HINTS:
         if key in area_keys:
             return codename
@@ -333,7 +360,7 @@ def codename_for(tag: str, commits: list[Commit]) -> str:
 
 
 def one_line_summary(commits: list[Commit]) -> str:
-    areas = [area.title for area, _ in area_groups(commits)]
+    areas = [area.title for area, _ in area_groups(material_commits(commits))]
     if not areas:
         return "This release packages the latest validated Tikeo build and distribution assets."
     if len(areas) == 1:
@@ -351,7 +378,8 @@ def render_notes(tag: str, previous: str | None, commits: list[Commit], assets: 
     version = tag[1:] if tag.startswith("v") else tag
     range_label = f"{previous} → {tag}" if previous else f"initial history → {tag}"
     codename = codename_for(tag, commits)
-    groups = group_commits(commits)
+    release_commits = material_commits(commits)
+    groups = group_commits(release_commits)
 
     lines: list[str] = []
     lines.append(f"# Tikeo {version} — {codename}")
@@ -362,7 +390,7 @@ def render_notes(tag: str, previous: str | None, commits: list[Commit], assets: 
     lines.append("")
     lines.append("## Highlights")
     lines.append("")
-    lines.extend(top_highlights(commits))
+    lines.extend(top_highlights(release_commits))
     lines.append("")
     lines.append("> Download the matching binary, SDK package, deployment manifest, or Helm chart from the assets attached below.")
     lines.append("")

@@ -75,6 +75,28 @@ class ReleaseNotesGeneratorTest(unittest.TestCase):
         self.assertIn("Upgrades the GitHub Release page into a product-oriented summary", body)
         self.assertIn("Keeps the migration CLI implementation within repository quality gates", body)
 
+    def test_agent_context_commits_stay_out_of_user_facing_sections(self):
+        commits = [
+            release_notes.Commit("aaa1111", "2026-06-18", "Update project agent context", ["AGENTS.md"]),
+            release_notes.Commit(
+                "bbb2222",
+                "2026-06-18",
+                "Stabilize shard owner SLO test data",
+                ["crates/tikeo-storage/src/repository/tests/part_03.rs"],
+            ),
+        ]
+
+        body = release_notes.render_notes("v0.3.7", "v0.3.6", commits, [])
+        highlights = body.split("## Downloads", 1)[0]
+        user_facing_changes = body.split("## Upgrade notes", 1)[0]
+        audit = body.split("## Commit audit", 1)[1]
+
+        self.assertNotIn("Update project agent context", highlights)
+        self.assertNotIn("Update project agent context", user_facing_changes)
+        self.assertIn("Server & scheduling", highlights)
+        self.assertIn("Stabilize shard owner SLO test data", user_facing_changes)
+        self.assertIn("Update project agent context", audit)
+
     def test_asset_table_is_ordered_by_operator_use(self):
         assets = [
             "rust-sdk-0.3.6.tar.gz",
