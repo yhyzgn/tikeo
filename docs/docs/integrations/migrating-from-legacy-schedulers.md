@@ -8,7 +8,7 @@ description: Complete migration process for XXL-JOB and PowerJob scheduler/datab
 
 Tikeo provides a dedicated `tikeo-migrate` CLI for teams moving from XXL-JOB or PowerJob. Treat it as a **review-first migration assistant**: from the legacy Java/Spring Worker project root, automatic mode detects the old Worker code first, optionally enriches the plan from Admin database/export data when available, and writes a migration bundle that operators review before any API write happens. Worker-only repositories with no Admin DB are normal; they continue as code-only inventory instead of failing. Offline JSON input remains supported, but it is a fallback rather than the primary path.
 
-`plan` is deliberately non-destructive. It does **not** edit legacy source files or create Tikeo jobs. It may read the legacy scheduler database to build the review bundle. `apply` is also local-only: it copies and rewrites the Java Worker project into an isolated output directory, writes Tikeo configuration placeholders into the same Spring configuration files that already contained XXL-JOB or PowerJob settings, and never calls the Tikeo Server.
+`plan` is deliberately non-destructive. It does **not** edit legacy source files or create Tikeo jobs. It may read the legacy scheduler database to build the review bundle. `apply` is local-only but intentionally mutates the legacy Java Worker project in place: it edits dependencies, processors, and the same Spring configuration files that already contained XXL-JOB or PowerJob settings. It never calls the Tikeo Server.
 
 :::tip Start here
 If you are replacing XXL-JOB or PowerJob, follow the phases below in order. Do not start by importing jobs. First run the non-destructive discovery/export plan, review the migration bundle, resolve semantic gaps, adapt Workers, fill deployment config, then import and validate in staging.
@@ -285,29 +285,26 @@ Review carefully when the source uses:
 
 ## Phase 6: adapt Java Worker code
 
-### Automatic code application to an isolated copy
+### Automatic in-place code application
 
-`plan` is read-only. To perform the mechanical Java migration, run `apply` and point it at an output directory outside the original project:
+`plan` is read-only. To perform the mechanical Java migration, run `apply` from a migration branch in the legacy Worker project. This command intentionally edits that project in place:
 
 ```bash
-tikeo-migrate apply \
-  --bundle ./.tikeo-migration \
-  --output-project ../legacy-worker-tikeo
+git checkout -b migrate-to-tikeo
+
+tikeo-migrate apply --bundle ./.tikeo-migration
 ```
 
 What local `apply` does today:
 
-- copies the source project while skipping generated/build state such as `.git`, `.gradle`, `target`, `build`, and `node_modules`;
-- preserves wrapper/project files that are needed for validation, such as `mvnw` and `.mvn` when present;
 - adds the Spring Boot appropriate Tikeo starter, using `${TIKEO_VERSION}` as the version placeholder;
 - appends reviewed Tikeo Worker and Management placeholders to the existing Spring config file(s) that already contain XXL-JOB or PowerJob settings, while disabling legacy Worker flags in those same files;
 - converts supported XXL-JOB `@XxlJob` handlers and PowerJob `BasicProcessor` processors to `@TikeoProcessor` methods where the transformation is compile-oriented and safe;
 - writes `code-apply-evidence.json` and `CODE_MIGRATION_REPORT.md`.
 
-Use `--force` only to replace an existing output copy. The original Worker project is not modified. After local `apply`, compile the migrated copy with the chosen SDK version, for example:
+After local `apply`, compile the migrated project with the chosen SDK version, for example:
 
 ```bash
-cd ../legacy-worker-tikeo
 mvn -DTIKEO_VERSION=0.3.x -DskipTests compile
 ```
 
@@ -341,7 +338,7 @@ Continue only when staging Workers can start and expose the processor names refe
 
 `tikeo-migrate apply` does not have `--endpoint`, `--api-key`, or a server dry-run mode. Those values belong to the migrated application configuration and the operator import workflow, not to the local code-rewrite command.
 
-After `apply`, open the config file(s) changed in the migrated copy, for example `src/main/resources/application.yml`, `application-dev.yml`, `application-prod.yml`, `bootstrap.yml`, or `bootstrap-prod.yml`. The CLI chooses files in this order:
+After `apply`, open the config file(s) changed in the project, for example `src/main/resources/application.yml`, `application-dev.yml`, `application-prod.yml`, `bootstrap.yml`, or `bootstrap-prod.yml`. The CLI chooses files in this order:
 
 1. every `application*` / `bootstrap*` `.yml`, `.yaml`, or `.properties` file under `src/main/resources` that contains `powerjob`, `power-job`, `xxl-job`, `xxl:`, or `xxl.job`;
 2. if no legacy scheduler config file is found, the existing main `application.yml`, `application.yaml`, or `application.properties`;

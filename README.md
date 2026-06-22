@@ -146,7 +146,7 @@ Tikeo is designed to be the default answer when someone asks:
 For release sign-off or development handoff, use the docs-site [Product readiness acceptance checklist](https://docs.tikeo.net/docs/development/product-readiness-acceptance). For the concrete `v0.3.9` evidence bundle, use the [v0.3.9 release acceptance packet](https://docs.tikeo.net/docs/development/release-acceptance-packet-v0.3.9). The checklist ties together the three areas that most often need evidence beyond a quick demo:
 
 - **Notification Center**: provider test-send, template rendering, policy materialization, retry/DLQ visibility, and redaction proof.
-- **Legacy migration CLI**: non-mutating `tikeo-migrate plan`, local `apply` into an isolated Worker copy, reviewed bundle, staged manual import, and release assets.
+- **Legacy migration CLI**: non-mutating `tikeo-migrate plan`, local in-place `apply` on the legacy Worker project, reviewed bundle, staged manual import, and release assets.
 - **Raft FSOD Server HA**: StatefulSet/external DB deployment shape, one fenced scheduler, active shard ownership, durable outbox recovery, cross-pod API consistency, Worker gateway failover, and Kind/staging evidence.
 
 Keep the evidence packet next to the release or handoff notes: command/UI action, inspected route or file, observed result, and artifact path. For `v0.3.9`, the packet records the 31 uploaded release assets, Kind HA metrics, and the post-release cross-language Worker soak gate added on `main`.
@@ -252,10 +252,10 @@ cd ./legacy-worker
 # Auto-detects the Java project and legacy framework first; Admin DB/export is optional.
 tikeo-migrate plan
 
-# Copy the legacy Worker into an isolated migrated project and apply code changes there.
-tikeo-migrate apply --bundle ./.tikeo-migration --output-project ../legacy-worker-tikeo
+# Apply code/config changes directly in the legacy Worker project directory.
+tikeo-migrate apply --bundle ./.tikeo-migration
 
-# Compile/test the isolated copy, then fill generated endpoint/api-key placeholders manually.
+# Compile/test the migrated project, then fill generated endpoint/api-key placeholders manually.
 # Import reviewed job drafts from jobs.tikeo.json/data-import-plan.json via UI, API, or GitOps.
 ```
 
@@ -274,8 +274,8 @@ flowchart TD
   D -- No --> F[Code-only Worker inventory]
   E --> G[Review generated migration bundle]
   F --> G
-  G --> H[Run apply into isolated copy]
-  H --> I[Compile/test migrated Worker copy]
+  G --> H[Run apply in the legacy project]
+  H --> I[Compile/test migrated Worker project]
   I --> J{Any needs_review or code gaps?}
   J -- Yes --> G
   J -- No --> K[Fill generated endpoint/api-key config]
@@ -294,11 +294,11 @@ Migration phases:
 | 1. Discover/export | Preserve the legacy scheduler state as audit input. | `tikeo-migrate plan` detects Worker code first, optionally enriches from Spring datasource / `--legacy-db-url`, reads `--input` fallback JSON, or uses code-only handler scan for Worker-only repositories. | The generated `manifest.json` records `legacy-db:...`, `json-file:...`, or `code-only:...` input origin and the raw source snapshots used for review. |
 | 2. Plan | Generate a non-destructive migration bundle. | `tikeo-migrate plan` → `.tikeo-migration/`. | `manifest.json`, `jobs.tikeo.md`, `data-import-plan.json`, and `CHECKLIST.md` are reviewed. |
 | 3. Resolve | Translate non-equivalent legacy semantics instead of pretending they are identical. | Review `needs_review`, Java patch guidance, and unsupported-feature warnings. | Broadcast/map-reduce/routing/blocking/pinning/glue decisions are explicit. |
-| 4. Code | Add Tikeo Worker dependency, in-place Spring config placeholders, and processor annotations/adapters in an isolated copy. | `tikeo-migrate apply --bundle ./.tikeo-migration --output-project ../legacy-worker-tikeo` + compile/tests. | The original project is unchanged; the migrated copy compiles, original legacy scheduler config files contain Tikeo placeholders, and processor names match job drafts. |
+| 4. Code | Add Tikeo Worker dependency, in-place Spring config placeholders, and processor annotations/adapters directly in the legacy project. | `tikeo-migrate apply --bundle ./.tikeo-migration` + compile/tests. | The project has been changed on a migration branch, it compiles, original legacy scheduler config files contain Tikeo placeholders, and processor names match job drafts. |
 | 5. Import | Import only after code migration and review are complete. | Use the Tikeo console, Management API, or GitOps workflow with `jobs.tikeo.json` / `data-import-plan.json`. | Only reviewed ready jobs are imported; endpoint/api-key values are filled outside the migration CLI. |
 | 6. Validate | Compare behavior before cutover. | Trigger one job at a time; compare Tikeo instance logs/results with legacy. | Dual-run evidence is accepted and rollback steps are documented. |
 
-The generated bundle is deliberately conservative. `plan` never edits legacy source and never writes Tikeo data; it may read the legacy scheduler database with a read-only connection to enrich the review bundle. Local `apply` writes to a separate output project by default, emits `code-apply-evidence.json` plus `CODE_MIGRATION_REPORT.md`, and appends full `tikeo.worker.*` / `tikeo.management.*` placeholders into the existing `application*` or `bootstrap*` file(s) that already contained XXL-JOB or PowerJob settings. It does not create a standalone migration profile, and it does not call the Tikeo Server; import reviewed jobs manually after filling deployment config. See the full [legacy scheduler migration guide](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
+The generated bundle is deliberately conservative. `plan` never edits legacy source and never writes Tikeo data; it may read the legacy scheduler database with a read-only connection to enrich the review bundle. Local `apply` writes to a separate output project by default, emits `code-apply-evidence.json` plus `CODE_MIGRATION_REPORT.md`, and appends full `tikeo.worker.*` / `tikeo.management.*` placeholders into the existing `application*` or `bootstrap*` file(s) that already contained XXL-JOB or PowerJob settings. It does not create a standalone migration profile, does not copy the project, and does not call the Tikeo Server; import reviewed jobs manually after filling deployment config. See the full [legacy scheduler migration guide](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
 
 ## Evaluation checklist
 

@@ -124,7 +124,7 @@ The follow-up evidence scripts are intentionally outside the `v0.3.9` binary bou
 | Area | Script | Evidence written | Boundary |
 | --- | --- | --- | --- |
 | Notification Center provider/e2e | `scripts/notification-provider-e2e-smoke.sh` | `REPORT.md`, `summary.json`, provider receipt JSONL, channel test responses, message/attempt/queue snapshots | Uses a local protocol-real HTTP mock provider; real tenant providers still need deployment-specific test-send evidence. |
-| Migration CLI old-project chain | `scripts/migration-cli-full-chain-smoke.sh` | `REPORT.md`, generated legacy project, migrated Worker copy, `.tikeo-migration/`, `code-apply-evidence.json`, reviewed import payloads | Proves CLI detection, bundle generation, local code/config apply, and reviewed import payload preparation locally; domain semantic equivalence still needs a representative business project. |
+| Migration CLI old-project chain | `scripts/migration-cli-full-chain-smoke.sh` | `REPORT.md`, generated legacy project, migrated Worker project, `.tikeo-migration/`, `code-apply-evidence.json`, reviewed import payloads | Proves CLI detection, bundle generation, local code/config apply, and reviewed import payload preparation locally; domain semantic equivalence still needs a representative business project. |
 | Real cloud HA | `scripts/cloud-raft-ha-acceptance.sh` via `scripts/release-readiness-evidence.sh` | Cloud `REPORT.md` and `summary.json`, or an explicit `deferred_cloud_endpoint_missing` boundary report | Requires `TIKEO_CLOUD_HA_SERVER_URL`; local Kind evidence remains the substitute when no cloud target exists. |
 
 ## Migration CLI evidence
@@ -133,11 +133,11 @@ The follow-up evidence scripts are intentionally outside the `v0.3.9` binary bou
 
 1. Run `tikeo-migrate plan` from the legacy project root.
 2. Review `.tikeo-migration/manifest.json`, `jobs.tikeo.md`, `data-import-plan.json`, and generated Java patch guidance.
-3. Run `tikeo-migrate apply --bundle ./.tikeo-migration --output-project ../legacy-worker-tikeo` and compile/test the migrated Worker copy.
+3. Run `tikeo-migrate apply --bundle ./.tikeo-migration` and compile/test the migrated Worker project.
 4. Fill the generated `tikeo.worker.*` / `tikeo.management.*` endpoint and API-key placeholders in the migrated Spring config.
 5. Import only reviewed `ready` jobs into staging through the console, Management API, or GitOps, then trigger at least one migrated job with a matching Tikeo Worker before cutover.
 
-For local full-chain rehearsal without a real legacy project, run `scripts/migration-cli-full-chain-smoke.sh`; it creates a throwaway Spring Boot + XXL-JOB project, auto-exports from a local scheduler DB, runs local `apply` into an isolated Worker copy, verifies in-place Tikeo config placeholders, and archives reviewed import payloads.
+For local full-chain rehearsal without a real legacy project, run `scripts/migration-cli-full-chain-smoke.sh`; it creates a throwaway Spring Boot + XXL-JOB project, auto-exports from a local scheduler DB, runs local in-place `apply` on the legacy Worker project, verifies in-place Tikeo config placeholders, and archives reviewed import payloads.
 
 Relevant docs: [Migrate from legacy schedulers](../integrations/migrating-from-legacy-schedulers).
 

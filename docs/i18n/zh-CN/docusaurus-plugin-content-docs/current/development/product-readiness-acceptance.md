@@ -13,7 +13,7 @@ keywords: [tikeo 验收, 通知中心, tikeo migrate, raft fsod, 发布就绪]
 | 模块 | 当前就绪状态 | 规范文档入口 | 主要证据 |
 | --- | --- | --- | --- |
 | 通知中心 | 已可做本地/预发验收；启用的每类渠道至少需要一次真实 provider 测试并归档投递证据。 | [通知用户指南](../user-guide/notifications)、[通知中心参考](../reference/notification-center)、[配置参考](../reference/configuration#通知中心投递) | 渠道测试结果、policy materialization、`notification_delivery_attempts`、消息 trace、脱敏 API 响应。 |
-| 旧调度器迁移 CLI | 可作为 review-first 迁移助手；`plan` 不产生副作用，`apply` 只做本地隔离 Worker 副本改造；预发导入是单独复核后的控制台/API/GitOps 动作。 | [旧调度器迁移指南](../integrations/migrating-from-legacy-schedulers) | `.tikeo-migration/manifest.json`、`jobs.tikeo.md`、`data-import-plan.json`、`CHECKLIST.md`、`code-apply-evidence.json`、已复核导入证据。 |
+| 旧调度器迁移 CLI | 可作为 review-first 迁移助手；`plan` 不产生副作用，`apply` 只做本地旧 Worker 项目原地迁移改造；预发导入是单独复核后的控制台/API/GitOps 动作。 | [旧调度器迁移指南](../integrations/migrating-from-legacy-schedulers) | `.tikeo-migration/manifest.json`、`jobs.tikeo.md`、`data-import-plan.json`、`CHECKLIST.md`、`code-apply-evidence.json`、已复核导入证据。 |
 | Raft FSOD Server HA | 可做本地 Kind 和预发验收；需要外部 DB、稳定 StatefulSet 身份、Raft transport token 和 gRPC/HTTP2 Worker Tunnel 链路。 | [Server 高可用与 Raft FSOD 集群](../deployment/server-ha)、[Kubernetes 与 Helm](../deployment/kubernetes)、[生产部署](../deployment/production) | `scripts/verify-raft-ha-rollout.sh`、`scripts/kind-raft-ha-e2e.sh`、`scripts/cloud-raft-ha-acceptance.sh`、cluster diagnostics、FSOD DB 快照、failover 前后实例结果。 |
 | 跨语言 Worker soak | 可选的 release-candidate 运行时门禁，用于验证 Go/Rust/Python/Node 多轮派发、任务日志和 queue/outbox metrics。 | [SDK 与 API 集成](../integrations/sdk-and-api)、[Worker 用户指南](../user-guide/workers) | 手动 workflow `.github/workflows/release-candidate-worker-soak.yml`、`TIKEO_CROSS_SOAK_SECONDS=120 deploy/smoke/cross-language-worker-parity-smoke.sh`、`cross-language-worker-soak` artifact、`*-soak-summary.json`、`*-soak-summary.csv`、`*-soak-metrics.jsonl`。 |
 
@@ -25,7 +25,7 @@ keywords: [tikeo 验收, 通知中心, tikeo migrate, raft fsod, 发布就绪]
 ./scripts/release-readiness-evidence.sh
 ```
 
-聚合脚本会写入 `.dev/reports/release-readiness-evidence-*/REPORT.md` 和各模块 `summary.json`。它通过协议真实的 loopback provider 证明通知中心投递链路，演练完整 `tikeo-migrate` 旧项目迁移链路并输出隔离 Worker 副本，并在提供 `TIKEO_CLOUD_HA_SERVER_URL` 时执行真实云 HA 探针；未提供云目标时，会明确输出云环境延期边界报告。
+聚合脚本会写入 `.dev/reports/release-readiness-evidence-*/REPORT.md` 和各模块 `summary.json`。它通过协议真实的 loopback provider 证明通知中心投递链路，演练完整 `tikeo-migrate` 旧项目迁移链路并输出旧 Worker 项目原地迁移，并在提供 `TIKEO_CLOUD_HA_SERVER_URL` 时执行真实云 HA 探针；未提供云目标时，会明确输出云环境延期边界报告。
 
 ## 通知中心验收
 
@@ -63,7 +63,7 @@ cargo test -p tikeo-server notification --all-features
 | `plan` 无副作用 | 确认 `plan` 不改旧源码、不调用 Tikeo Server。 | `plan` 前后 `git diff` 干净，新增文件仅在 `.tikeo-migration/` 或指定输出目录。 |
 | 数据复核 | 复核生成的 job draft 和语义警告。 | `jobs.tikeo.md`、`data-import-plan.json`，以及 `ready`、`needs_review`、`skipped` 数量。 |
 | 代码迁移建议 | 复核 Java 依赖和 processor patch 建议。 | 迁移分支上的 `java-project-plan.md`、`.json` 和 `java-patches/*.patch`。 |
-| 本地 apply | 执行 `tikeo-migrate apply --bundle ./.tikeo-migration --output-project ../legacy-worker-tikeo`；编译/测试迁移副本并检查生成配置占位符。 | `code-apply-evidence.json`、`CODE_MIGRATION_REPORT.md`、迁移后源码 diff，以及追加了 Tikeo 占位配置的原旧调度器配置文件。 |
+| 本地 apply | 执行 `tikeo-migrate apply --bundle ./.tikeo-migration`；编译/测试迁移后的项目并检查生成配置占位符。 | `code-apply-evidence.json`、`CODE_MIGRATION_REPORT.md`、迁移后源码 diff，以及追加了 Tikeo 占位配置的原旧调度器配置文件。 |
 | 预发 live import | 只导入已复核的 `ready` job，启动匹配的 Tikeo Worker，并触发至少一个迁移作业。 | Tikeo job id、实例结果/日志、Worker processor name，以及和旧行为的对比。 |
 | Release 产物 | 确认 release 中有各平台 `tikeo-migrate` 压缩包和 checksum。 | GitHub Release 中 Linux、macOS Intel、macOS Apple Silicon、Windows 资产列表。 |
 
@@ -76,7 +76,7 @@ python3 .github/tests/workflow_contract_test.py
 python3 scripts/check-source-size.py
 ```
 
-`migration-cli-full-chain-smoke.sh` 会创建临时旧 Spring Boot + XXL-JOB 项目，写入本地旧调度器 DB，执行零参数 `tikeo-migrate plan`，验证生成的迁移包，执行本地 `apply` 到隔离 Worker 副本，检查就地配置占位符，并归档`reviewed-import-payloads.json`。
+`migration-cli-full-chain-smoke.sh` 会创建临时旧 Spring Boot + XXL-JOB 项目，写入本地旧调度器 DB，执行零参数 `tikeo-migrate plan`，验证生成的迁移包，执行在旧 Worker 项目中本地原地 `apply`，检查就地配置占位符，并归档`reviewed-import-payloads.json`。
 
 迁移验收不是“所有 job 都被导入”就结束。真正通过的标准是：不兼容语义有明确处理决定，导入到预发的 job 能被触发执行，并且存在支持回滚的 dual-run / cutover / disable legacy 计划。
 

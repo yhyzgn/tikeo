@@ -132,11 +132,11 @@ post-release 追加提交的短跑本地证据：
 
 1. 在旧项目根目录执行 `tikeo-migrate plan`。
 2. 复核 `.tikeo-migration/manifest.json`、`jobs.tikeo.md`、`data-import-plan.json` 和生成的 Java patch 建议。
-3. 执行 `tikeo-migrate apply --bundle ./.tikeo-migration --output-project ../legacy-worker-tikeo`，并编译/测试迁移后的 Worker 副本。
+3. 执行 `tikeo-migrate apply --bundle ./.tikeo-migration`，并编译/测试迁移后的 Worker 项目。
 4. 在迁移后的 Spring 配置中补全生成的 `tikeo.worker.*` / `tikeo.management.*` endpoint 和 API-key 占位符。
 5. 通过控制台、Management API 或 GitOps 只把复核过的 `ready` jobs 导入预发，然后用匹配的 Tikeo Worker 至少触发一个迁移后的作业。
 
-如果没有真实旧项目，可先运行 `scripts/migration-cli-full-chain-smoke.sh` 做本地全链路演练：它会创建临时 Spring Boot + XXL-JOB 项目，从本地旧调度器 DB 自动导出，执行本地 `apply` 到隔离 Worker 副本，验证就地 Tikeo 配置占位符，并归档已复核导入 payload。
+如果没有真实旧项目，可先运行 `scripts/migration-cli-full-chain-smoke.sh` 做本地全链路演练：它会创建临时 Spring Boot + XXL-JOB 项目，从本地旧调度器 DB 自动导出，执行在旧 Worker 项目中本地原地 `apply`，验证就地 Tikeo 配置占位符，并归档已复核导入 payload。
 
 相关文档：[旧调度器迁移指南](../integrations/migrating-from-legacy-schedulers)。
 

@@ -57,7 +57,7 @@ impl Cli {
 pub enum Command {
     /// Build a complete non-destructive migration bundle.
     Plan(PlanCommand),
-    /// Apply a migration bundle to an isolated Java worker project copy.
+    /// Apply a migration bundle to a Java worker project.
     #[command(name = "apply")]
     Apply(ApplyCommand),
 }
@@ -133,7 +133,7 @@ pub struct PlanCommand {
     pub tikeo_version: String,
 }
 
-/// Apply a migration bundle to an isolated Java worker project copy.
+/// Apply a migration bundle to a Java worker project.
 #[derive(Debug, Clone, clap::Args)]
 pub struct ApplyCommand {
     /// Migration bundle directory created by `tikeo-migrate plan`.
@@ -142,12 +142,6 @@ pub struct ApplyCommand {
     /// Source Java worker project. Defaults to java-project-plan.json projectRoot.
     #[arg(long)]
     pub project: Option<PathBuf>,
-    /// Output project copy. Defaults to <bundle>/migrated-project.
-    #[arg(long)]
-    pub output_project: Option<PathBuf>,
-    /// Replace an existing output project directory.
-    #[arg(long)]
-    pub force: bool,
     /// Optional output evidence path. Defaults to <bundle>/code-apply-evidence.json.
     #[arg(long)]
     pub output: Option<PathBuf>,
@@ -180,7 +174,7 @@ pub async fn run_plan_command(command: &PlanCommand) -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns an error when the bundle cannot be read or the project copy cannot be transformed.
+/// Returns an error when the bundle cannot be read or the project cannot be transformed.
 pub async fn run_apply_command(command: &ApplyCommand) -> Result<()> {
     let evidence = apply_code(command)?;
     let output = command
@@ -188,7 +182,7 @@ pub async fn run_apply_command(command: &ApplyCommand) -> Result<()> {
         .clone()
         .unwrap_or_else(|| command.bundle.join("code-apply-evidence.json"));
     println!("apply evidence written to {}", output.display());
-    println!("migrated project written to {}", evidence.output_project);
+    println!("migrated project: {}", evidence.target_project);
     Ok(())
 }
 

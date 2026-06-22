@@ -13,7 +13,7 @@ Use this page when a maintainer, release operator, or handover owner needs to an
 | Area | Current readiness | Canonical operator docs | Primary evidence |
 | --- | --- | --- | --- |
 | Notification Center | Ready for local/staging acceptance when at least one real provider per active channel family is tested and delivery queue evidence is archived. | [Notifications](../user-guide/notifications), [Notification Center reference](../reference/notification-center), [Configuration reference](../reference/configuration#notification-center-delivery) | Channel test-send result, policy materialization, `notification_delivery_attempts`, message trace, redacted API response. |
-| Legacy scheduler migration CLI | Ready as a review-first migration assistant. `plan` is non-mutating; `apply` is local-only and rewrites an isolated Worker copy; staging import is a separate reviewed console/API/GitOps step. | [Migrate from legacy schedulers](../integrations/migrating-from-legacy-schedulers) | `.tikeo-migration/manifest.json`, `jobs.tikeo.md`, `data-import-plan.json`, `CHECKLIST.md`, `code-apply-evidence.json`, reviewed import evidence. |
+| Legacy scheduler migration CLI | Ready as a review-first migration assistant. `plan` is non-mutating; `apply` is local-only and rewrites an legacy Worker project; staging import is a separate reviewed console/API/GitOps step. | [Migrate from legacy schedulers](../integrations/migrating-from-legacy-schedulers) | `.tikeo-migration/manifest.json`, `jobs.tikeo.md`, `data-import-plan.json`, `CHECKLIST.md`, `code-apply-evidence.json`, reviewed import evidence. |
 | Raft FSOD Server HA | Ready for local Kind and staging acceptance with external DB, stable StatefulSet identity, Raft transport token, and Worker Tunnel gRPC/HTTP2 path. | [Server HA and Raft FSOD Cluster](../deployment/server-ha), [Kubernetes and Helm](../deployment/kubernetes), [Production deployment](../deployment/production) | `scripts/verify-raft-ha-rollout.sh`, `scripts/kind-raft-ha-e2e.sh`, `scripts/cloud-raft-ha-acceptance.sh`, cluster diagnostics, FSOD DB snapshots, before/after failover instance results. |
 | Cross-language Worker soak | Optional release-candidate runtime gate for repeated Go/Rust/Python/Node dispatch, task logs, and queue/outbox metrics. | [SDK and API integration](../integrations/sdk-and-api), [Workers guide](../user-guide/workers) | Manual workflow `.github/workflows/release-candidate-worker-soak.yml`, `TIKEO_CROSS_SOAK_SECONDS=120 deploy/smoke/cross-language-worker-parity-smoke.sh`, `cross-language-worker-soak` artifact, `*-soak-summary.json`, `*-soak-summary.csv`, `*-soak-metrics.jsonl`. |
 
@@ -25,7 +25,7 @@ For an all-in-one local handoff packet, run:
 ./scripts/release-readiness-evidence.sh
 ```
 
-The wrapper writes `.dev/reports/release-readiness-evidence-*/REPORT.md` plus per-area `summary.json` files. It proves Notification Center delivery through a protocol-real loopback provider, rehearses a full `tikeo-migrate` legacy-project chain into an isolated migrated Worker copy, and either runs the real cloud HA probe or records why cloud HA is deferred until `TIKEO_CLOUD_HA_SERVER_URL` is available.
+The wrapper writes `.dev/reports/release-readiness-evidence-*/REPORT.md` plus per-area `summary.json` files. It proves Notification Center delivery through a protocol-real loopback provider, rehearses a full `tikeo-migrate` legacy-project chain into an legacy Worker project in-place apply, and either runs the real cloud HA probe or records why cloud HA is deferred until `TIKEO_CLOUD_HA_SERVER_URL` is available.
 
 ## Notification Center acceptance
 
@@ -63,7 +63,7 @@ If a real provider cannot be called from the environment, mark only the provider
 | Non-mutating plan | Confirm `plan` does not edit legacy source and does not call Tikeo Server. | Clean `git diff` before/after `plan`, and bundle files only under `.tikeo-migration/` or the selected output directory. |
 | Data review | Review generated job drafts and semantic warnings. | `jobs.tikeo.md`, `data-import-plan.json`, counts for `ready`, `needs_review`, and `skipped`. |
 | Code migration guidance | Review generated Java dependency/processor patch guidance. | `java-project-plan.md`, `.json`, and `java-patches/*.patch` on a migration branch. |
-| Local apply | Run `tikeo-migrate apply --bundle ./.tikeo-migration --output-project ../legacy-worker-tikeo`; compile/test the migrated copy and inspect generated config placeholders. | `code-apply-evidence.json`, `CODE_MIGRATION_REPORT.md`, migrated source diff, and original legacy scheduler config file with appended Tikeo placeholders. |
+| Local apply | Run `tikeo-migrate apply --bundle ./.tikeo-migration`; compile/test the migrated project and inspect generated config placeholders. | `code-apply-evidence.json`, `CODE_MIGRATION_REPORT.md`, migrated source diff, and original legacy scheduler config file with appended Tikeo placeholders. |
 | Live staging import | Import only reviewed `ready` jobs into staging, start matching Tikeo Workers, and trigger at least one migrated job. | Tikeo job ids, instance result/logs, Worker processor name, and comparison with legacy behavior. |
 | Release artifacts | Confirm release includes platform-specific `tikeo-migrate` archives and checksums. | GitHub Release asset list for Linux, macOS Intel, macOS Apple Silicon, and Windows. |
 
@@ -76,7 +76,7 @@ python3 .github/tests/workflow_contract_test.py
 python3 scripts/check-source-size.py
 ```
 
-`migration-cli-full-chain-smoke.sh` creates a throwaway legacy Spring Boot + XXL-JOB project, populates a local legacy scheduler DB, runs zero-parameter `tikeo-migrate plan`, verifies the generated bundle, runs local `apply` into an isolated Worker copy, checks in-place config placeholders, and archives `reviewed-import-payloads.json`.
+`migration-cli-full-chain-smoke.sh` creates a throwaway legacy Spring Boot + XXL-JOB project, populates a local legacy scheduler DB, runs zero-parameter `tikeo-migrate plan`, verifies the generated bundle, runs local in-place `apply` on the legacy Worker project, checks in-place config placeholders, and archives `reviewed-import-payloads.json`.
 
 A migration is not accepted when all jobs are merely imported. It is accepted when unsupported legacy semantics have explicit decisions, imported jobs can be triggered in staging, and the legacy scheduler can be disabled according to a rollback-aware cutover plan.
 

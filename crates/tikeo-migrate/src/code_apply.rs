@@ -12,7 +12,7 @@ use crate::{ApplyCommand, JavaProjectMigrationPlan};
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CodeApplyEvidence {
     pub source_project: String,
-    pub output_project: String,
+    pub target_project: String,
     pub bundle: String,
     pub changed_files: Vec<String>,
     pub skipped_paths: Vec<String>,
@@ -35,41 +35,17 @@ pub(crate) fn apply_code(command: &ApplyCommand) -> Result<CodeApplyEvidence> {
             source_project.display()
         );
     }
-    let output_project = command
-        .output_project
-        .clone()
-        .unwrap_or_else(|| command.bundle.join("migrated-project"));
-    if output_project.exists() {
-        if command.force {
-            fs::remove_dir_all(&output_project).with_context(|| {
-                format!(
-                    "failed to remove existing output project {}",
-                    output_project.display()
-                )
-            })?;
-        } else {
-            bail!(
-                "output project already exists: {} (pass --force to replace it)",
-                output_project.display()
-            );
-        }
-    }
-    let mut skipped_paths = Vec::new();
-    copy_project(
-        &source_project,
-        &source_project,
-        &output_project,
-        &mut skipped_paths,
-    )?;
+    let target_project = source_project.clone();
+    let skipped_paths = Vec::new();
     let mut changed_files = Vec::new();
     let mut warnings = Vec::new();
-    apply_dependency(&output_project, &plan, &mut changed_files, &mut warnings)?;
-    apply_worker_config(&output_project, &plan, &mut changed_files)?;
+    apply_dependency(&target_project, &plan, &mut changed_files, &mut warnings)?;
+    apply_worker_config(&target_project, &plan, &mut changed_files)?;
     for handler in &plan.handler_candidates {
-        let path = output_project.join(&handler.path);
+        let path = target_project.join(&handler.path);
         if !path.exists() {
             warnings.push(format!(
-                "handler source file missing in output copy: {}",
+                "handler source file missing in target project: {}",
                 handler.path
             ));
             continue;
@@ -95,62 +71,14 @@ pub(crate) fn apply_code(command: &ApplyCommand) -> Result<CodeApplyEvidence> {
     }
     let evidence = CodeApplyEvidence {
         source_project: source_project.display().to_string(),
-        output_project: output_project.display().to_string(),
+        target_project: target_project.display().to_string(),
         bundle: command.bundle.display().to_string(),
         changed_files,
         skipped_paths,
         warnings,
     };
-    write_code_apply_outputs(command, &output_project, &evidence)?;
+    write_code_apply_outputs(command, &target_project, &evidence)?;
     Ok(evidence)
-}
-
-fn copy_project(
-    root: &Path,
-    current: &Path,
-    output: &Path,
-    skipped: &mut Vec<String>,
-) -> Result<()> {
-    fs::create_dir_all(output)
-        .with_context(|| format!("failed to create output directory {}", output.display()))?;
-    for entry in
-        fs::read_dir(current).with_context(|| format!("failed to read {}", current.display()))?
-    {
-        let entry = entry?;
-        let source = entry.path();
-        let relative = source.strip_prefix(root).unwrap_or(&source);
-        if should_skip(relative) {
-            skipped.push(relative.display().to_string());
-            continue;
-        }
-        let target = output.join(relative);
-        if source.is_dir() {
-            copy_project(root, &source, output, skipped)?;
-        } else {
-            if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent)
-                    .with_context(|| format!("failed to create {}", parent.display()))?;
-            }
-            fs::copy(&source, &target).with_context(|| {
-                format!(
-                    "failed to copy {} to {}",
-                    source.display(),
-                    target.display()
-                )
-            })?;
-        }
-    }
-    Ok(())
-}
-
-fn should_skip(relative: &Path) -> bool {
-    relative.components().any(|component| {
-        let value = component.as_os_str().to_string_lossy();
-        matches!(
-            value.as_ref(),
-            ".git" | ".gradle" | ".idea" | ".tikeo-migration" | "build" | "target" | "node_modules"
-        )
-    })
 }
 
 fn apply_dependency(
@@ -652,7 +580,7 @@ fn insert_import(content: String, import_line: &str) -> String {
 
 fn write_code_apply_outputs(
     command: &ApplyCommand,
-    output_project: &Path,
+    target_project: &Path,
     evidence: &CodeApplyEvidence,
 ) -> Result<()> {
     let evidence_path = command
@@ -667,7 +595,7 @@ fn write_code_apply_outputs(
         .with_context(|| format!("failed to write {}", evidence_path.display()))?;
     let report = render_code_apply_report(evidence);
     fs::write(
-        output_project.join("CODE_MIGRATION_REPORT.md"),
+        target_project.join("CODE_MIGRATION_REPORT.md"),
         report.clone(),
     )
     .with_context(|| "failed to write CODE_MIGRATION_REPORT.md".to_owned())?;
@@ -679,7 +607,7 @@ fn write_code_apply_outputs(
 fn render_code_apply_report(evidence: &CodeApplyEvidence) -> String {
     let mut output = format!(
         "# Tikeo code migration report\n\n- Source project: `{}`\n- Output project: `{}`\n- Bundle: `{}`\n\n## Changed files\n\n",
-        evidence.source_project, evidence.output_project, evidence.bundle
+        evidence.source_project, evidence.target_project, evidence.bundle
     );
     for file in &evidence.changed_files {
         output.push_str(&format!("- `{file}`\n"));

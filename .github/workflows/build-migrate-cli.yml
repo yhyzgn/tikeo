@@ -94,7 +94,7 @@ jobs:
           3. Run `tikeo-migrate plan`. It auto-detects the Java project, legacy scheduler, Spring datasource, and known scheduler DB tables.
           4. If datasource settings are not in the project, pass `--legacy-db-url`, `--legacy-db-user`, and `--legacy-db-password`. Use `--input <jobs.json>` only for offline fallback JSON.
           5. Review `./.tikeo-migration/CHECKLIST.md`, `jobs.tikeo.md`, and `java-project-plan.md`.
-          6. Run `tikeo-migrate apply --bundle ./.tikeo-migration --output-project ../legacy-worker-tikeo` locally, fill generated endpoint/API-key placeholders in the migrated Spring config, then import reviewed jobs through the console, Management API, or GitOps.
+          6. Run `tikeo-migrate apply --bundle ./.tikeo-migration` locally, fill generated endpoint/API-key placeholders in the migrated Spring config, then import reviewed jobs through the console, Management API, or GitOps.
           EOF
           if [ "${{ matrix.archive_ext }}" = "zip" ]; then
             (cd dist && 7z a "$PKG.zip" "$PKG")
