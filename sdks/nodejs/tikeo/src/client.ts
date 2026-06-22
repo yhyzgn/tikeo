@@ -115,7 +115,16 @@ export class Client {
 export class Session {
   private sequence = 0;
   private logSequence = 0;
-  constructor(private client: any, private call: any, public workerId: string, public leaseSeconds: number, public generation: number, private fencingToken: string, private heartbeatEveryMs: number) {}
+  private streamError: Error | undefined;
+
+  constructor(private client: any, private call: any, public workerId: string, public leaseSeconds: number, public generation: number, private fencingToken: string, private heartbeatEveryMs: number) {
+    const markClosed = (error?: Error) => {
+      this.streamError = error ?? this.streamError ?? new Error("worker tunnel closed");
+    };
+    this.call.on?.("error", (error: Error) => markClosed(error));
+    this.call.on?.("end", () => markClosed());
+    this.call.on?.("close", () => markClosed());
+  }
 
   sendHeartbeat(): number {
     this.sequence += 1;
@@ -124,13 +133,21 @@ export class Session {
     return this.sequence;
   }
 
-  startHeartbeat(): () => void {
-    this.sendHeartbeat();
-    const id = setInterval(() => this.sendHeartbeat(), this.heartbeatEveryMs);
+  startHeartbeat(onError?: (error: Error) => void): () => void {
+    const send = () => {
+      try {
+        this.sendHeartbeat();
+      } catch (error) {
+        onError?.(error as Error);
+      }
+    };
+    send();
+    const id = setInterval(send, this.heartbeatEveryMs);
     return () => clearInterval(id);
   }
 
   emitTaskLog(instanceId: string, assignmentToken: string, level: string, message: string): number {
+    this.assertOpen();
     this.logSequence += 1;
     this.call.write({ taskLog: { workerId: this.workerId, instanceId, level: level || "info", message, sequence: this.logSequence, assignmentToken } });
     return this.logSequence;
@@ -138,14 +155,18 @@ export class Session {
 
   async processNext(processor: TaskProcessor, scripts?: ScriptRunnerRegistry): Promise<TaskOutcome> {
     while (true) {
+      this.assertOpen();
       const message = await nextStreamMessage(this.call);
+      this.assertOpen();
       const task = message?.dispatchTask ?? message?.dispatch_task;
       if (!task?.instanceId && !task?.instance_id) continue;
       const normalized = normalizeDispatchTask(task);
       this.emitTaskLogSafely(normalized, "info", `received task ${normalized.instanceId} processor=${normalized.processorName}`);
       const outcome = await processDispatchTask(processor, scripts, normalized, (level, msg) => this.emitTaskLogSafely(normalized, level, msg));
+      this.assertOpen();
       const level = outcome.success ? "info" : "error";
       this.emitTaskLogSafely(normalized, level, `completed task ${normalized.instanceId} success=${outcome.success} message=${outcome.message}`);
+      this.assertOpen();
       this.call.write({ taskResult: { workerId: this.workerId, instanceId: normalized.instanceId, success: outcome.success, message: outcome.message, assignmentToken: normalized.assignmentToken } });
       return outcome;
     }
@@ -153,12 +174,26 @@ export class Session {
 
   close(): void {
     try {
-      this.call.write({ unregister: { workerId: this.workerId, generation: this.generation, fencingToken: this.fencingToken } });
-      this.call.end();
+      this.call.end?.();
+    } catch (error) {
+      sdkLog("warning", `worker tunnel close ignored error=${(error as Error).message}`);
     } finally {
       closeGrpcCall(this.call);
       closeGrpcClient(this.client);
     }
+  }
+
+  gracefulClose(): void {
+    try {
+      this.call.write({ unregister: { workerId: this.workerId, generation: this.generation, fencingToken: this.fencingToken } });
+    } catch (error) {
+      sdkLog("warning", `worker tunnel unregister ignored error=${(error as Error).message}`);
+    }
+    this.close();
+  }
+
+  private assertOpen(): void {
+    if (this.streamError) throw this.streamError;
   }
 
   private emitTaskLogSafely(task: any, level: string, message: string): void {
@@ -166,7 +201,9 @@ export class Session {
     try {
       this.emitTaskLog(task.instanceId, task.assignmentToken, level, message);
     } catch (error) {
-      sdkLog("warning", `failed to emit task log instance_id=${task.instanceId} error=${(error as Error).message}`);
+      runWithoutTaskLogBridgeCapture(() => {
+        sdkLog("warning", `failed to emit task log instance_id=${task.instanceId} error=${(error as Error).message}`);
+      });
     }
   }
 }

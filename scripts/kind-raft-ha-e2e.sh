@@ -5,11 +5,15 @@ set -euo pipefail
 #
 # Validates on one developer machine:
 #   1. four Kubernetes Server pods form one Raft scheduling control plane;
-#   2. cluster diagnostics can probe every pod through stable headless DNS;
-#   3. API requests can enter one pod while the Worker Tunnel long connection is
+#   2. multi-node Kind + required pod anti-affinity spreads Server pods across
+#      separate Kind worker nodes to approximate production failure domains;
+#   3. cluster diagnostics can probe every pod through stable headless DNS;
+#   4. API requests can enter one pod while the Worker Tunnel long connection is
 #      pinned to another pod;
-#   4. jobs dispatch before and after deleting the current schedulable leader;
-#   5. durable shard ownership / worker outbox evidence is persisted in Postgres.
+#   5. jobs dispatch before and after deleting the current schedulable leader;
+#   6. hard-killing the Worker gateway pod forces Worker reconnect and durable
+#      outbox reroute to the new gateway;
+#   7. durable shard ownership / worker outbox evidence is persisted in Postgres.
 #
 # The script is intentionally self-contained: if kind/kubectl are not installed
 # globally, it downloads known-good local binaries under .dev/tools/bin.
@@ -32,6 +36,8 @@ INSTALL_TOOLS="${TIKEO_KIND_E2E_INSTALL_TOOLS:-1}"
 KIND_VERSION="${TIKEO_KIND_VERSION:-v0.29.0}"
 KUBECTL_VERSION="${TIKEO_KUBECTL_VERSION:-}"
 KIND_NODE_IMAGE="${TIKEO_KIND_NODE_IMAGE:-kindest/node:v1.33.1}"
+KIND_WORKER_NODES="${TIKEO_KIND_WORKER_NODES:-4}"
+ENABLE_POD_ANTI_AFFINITY="${TIKEO_KIND_ENABLE_POD_ANTI_AFFINITY:-1}"
 LOAD_POSTGRES_IMAGE="${TIKEO_KIND_LOAD_POSTGRES_IMAGE:-1}"
 TOKEN="${TIKEO_KIND_RAFT_TOKEN:-kind-raft-$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')}"
 POSTGRES_PASSWORD="${TIKEO_KIND_POSTGRES_PASSWORD:-tikeo}"
@@ -65,6 +71,8 @@ GATEWAY_POD=""
 API_KEY=""
 LEADER_BEFORE=""
 LEADER_AFTER=""
+GATEWAY_POD_BEFORE=""
+GATEWAY_POD_AFTER=""
 
 log() { printf '[kind-raft-ha-e2e] %s\n' "$*"; }
 record() { tikeo_smoke_record_case "$1" "$2" "${3:-}" "${4:-}"; }
@@ -200,12 +208,17 @@ create_kind_cluster() {
   if kind get clusters 2>/dev/null | grep -Fxq "$CLUSTER_NAME"; then
     log "reusing existing Kind cluster: $CLUSTER_NAME"
   else
-    cat > "$REPORT_DIR/kind-config.yaml" <<'YAML'
+    {
+      cat <<'YAML'
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
   - role: control-plane
 YAML
+      for _ in $(seq 1 "$KIND_WORKER_NODES"); do
+        printf '  - role: worker\n'
+      done
+    } > "$REPORT_DIR/kind-config.yaml"
     kind create cluster --name "$CLUSTER_NAME" --image "$KIND_NODE_IMAGE" --config "$REPORT_DIR/kind-config.yaml" 2>&1 | tee "$REPORT_DIR/kind-create-cluster.log"
   fi
   kubectl cluster-info > "$REPORT_DIR/kubectl-cluster-info.txt"
@@ -391,6 +404,24 @@ spec:
         app.kubernetes.io/instance: kind-e2e
         app.kubernetes.io/component: server
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/component
+                    operator: In
+                    values: ["server"]
+              topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: tikeo
+              app.kubernetes.io/instance: kind-e2e
+              app.kubernetes.io/component: server
       containers:
         - name: tikeo
           image: ${SERVER_IMAGE}
@@ -516,6 +547,11 @@ spec:
 YAML
 }
 
+run_epoch_fencing_unit_evidence() {
+  (cd "$ROOT_DIR" && cargo test -p tikeo-server failover_epoch_rejects_stale_fencing_token --all-features -- --nocapture 2>&1 | tee "$REPORT_DIR/epoch-fencing-unit-test.log")
+  record epoch-fencing-unit passed "$REPORT_DIR/epoch-fencing-unit-test.log" "targeted stale owner epoch fencing unit test passed"
+}
+
 deploy_stack() {
   write_manifests
   kubectl apply -f "$REPORT_DIR/k8s-manifest.yaml" 2>&1 | tee "$REPORT_DIR/kubectl-apply.log"
@@ -523,7 +559,39 @@ deploy_stack() {
   kubectl -n "$NAMESPACE" rollout status statefulset/tikeo-server --timeout=420s 2>&1 | tee "$REPORT_DIR/server-rollout.log"
   kubectl -n "$NAMESPACE" get pods -o wide > "$REPORT_DIR/pods-after-rollout.txt"
   kubectl -n "$NAMESPACE" get svc -o wide > "$REPORT_DIR/services-after-rollout.txt"
-  record k8s-stack-ready passed "$REPORT_DIR/pods-after-rollout.txt $REPORT_DIR/server-rollout.log" "Postgres and four server pods are ready"
+  collect_node_spread_evidence initial
+}
+
+collect_node_spread_evidence() {
+  local label="$1"
+  kubectl get nodes -o wide > "$REPORT_DIR/kind-nodes-$label.txt"
+  kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=server -o json > "$REPORT_DIR/server-pod-placement-$label.json"
+  python3 - "$REPORT_DIR/server-pod-placement-$label.json" "$SERVER_REPLICAS" "$REPORT_DIR/server-pod-placement-$label-summary.json" <<'PY'
+import json, sys, pathlib
+path, replicas, out = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+payload = json.load(open(path, encoding='utf-8'))
+placements = []
+for item in payload.get('items', []):
+    placements.append({
+        'pod': item.get('metadata', {}).get('name'),
+        'node': item.get('spec', {}).get('nodeName'),
+        'phase': item.get('status', {}).get('phase'),
+        'podIP': item.get('status', {}).get('podIP'),
+    })
+nodes = sorted({p['node'] for p in placements if p.get('node')})
+summary = {
+    'serverReplicas': replicas,
+    'scheduledPods': len([p for p in placements if p.get('node')]),
+    'uniqueNodes': len(nodes),
+    'antiAffinitySatisfied': len(placements) == replicas and len(nodes) == replicas,
+    'nodes': nodes,
+    'placements': placements,
+}
+pathlib.Path(out).write_text(json.dumps(summary, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+if not summary['antiAffinitySatisfied']:
+    raise SystemExit(f"pod anti-affinity not satisfied: {summary}")
+PY
+  record "pod-anti-affinity-$label" passed "$REPORT_DIR/server-pod-placement-$label-summary.json $REPORT_DIR/kind-nodes-$label.txt" "server pods are spread across ${SERVER_REPLICAS} distinct Kind nodes"
 }
 
 start_port_forward() {
@@ -694,7 +762,8 @@ start_worker() {
     TIKEO_WORKER_CLUSTER=kind-raft-e2e \
     TIKEO_WORKER_REGION=kind \
     TIKEO_WORKER_CLIENT_INSTANCE_ID="$CLIENT_INSTANCE_ID" \
-    TIKEO_WORKER_SDK_PROCESSORS=demo.echo \
+    TIKEO_WORKER_SDK_PROCESSORS=demo.echo,demo.sleep \
+    TIKEO_DEMO_SLEEP_MS=18000 \
     TIKEO_ENABLE_PLUGIN_SQL=0 \
     TIKEO_SANDBOX_AUTO_INSTALL=0 \
     exec bun start >>"$REPORT_DIR/worker.log" 2>&1
@@ -715,8 +784,9 @@ for item in items:
         if item.get('namespace') != namespace or item.get('app') != app:
             raise SystemExit(f'scope mismatch: {item}')
         caps=item.get('structuredCapabilities') or {}
-        if 'demo.echo' not in (caps.get('sdkProcessors') or []):
-            raise SystemExit(f'missing demo.echo capability: {caps}')
+        processors = caps.get('sdkProcessors') or []
+        if 'demo.echo' not in processors or 'demo.sleep' not in processors:
+            raise SystemExit(f'missing demo.echo/demo.sleep capability: {caps}')
         gateway_node = item.get('gatewayNodeId') or item.get('gateway_node_id')
         if gateway_node and gateway_node != gateway:
             raise SystemExit(f'expected gateway {gateway}, got {gateway_node}: {item}')
@@ -751,17 +821,19 @@ run_rollout_gate() {
 
 create_and_trigger_job() {
   local suffix="$1"
+  local processor="${2:-demo.echo}"
+  local payload="${3:-}"
   local job_file="$REPORT_DIR/job-$suffix.json"
   local trigger_file="$REPORT_DIR/trigger-$suffix.json"
-  api_key_request POST /api/v1/jobs "$(python3 - "$NAMESPACE_NAME" "$APP_NAME" "$RUN_ID-$suffix" <<'PY'
+  api_key_request POST /api/v1/jobs "$(python3 - "$NAMESPACE_NAME" "$APP_NAME" "$RUN_ID-$suffix" "$processor" <<'PY'
 import json, sys
-namespace, app, name = sys.argv[1:4]
+namespace, app, name, processor = sys.argv[1:5]
 print(json.dumps({
   'namespace': namespace,
   'app': app,
   'name': name,
   'scheduleType': 'api',
-  'processorName': 'demo.echo',
+  'processorName': processor,
   'enabled': True,
   'retryPolicy': {'enabled': True, 'maxAttempts': 3, 'initialDelaySeconds': 1, 'backoffMultiplier': 1, 'maxDelaySeconds': 5},
 }, separators=(',', ':')))
@@ -769,7 +841,15 @@ PY
 )" > "$job_file"
   local job_id
   job_id="$(json_get_file "$job_file" data.id)"
-  api_key_request POST "/api/v1/jobs/${job_id}:trigger" '{"triggerType":"api","executionMode":"single"}' > "$trigger_file"
+  api_key_request POST "/api/v1/jobs/${job_id}:trigger" "$(python3 - "$payload" <<'PY'
+import json, sys
+payload = sys.argv[1]
+body = {'triggerType': 'api', 'executionMode': 'single'}
+if payload:
+    body['payload'] = payload
+print(json.dumps(body, separators=(',', ':')))
+PY
+)" > "$trigger_file"
   json_get_file "$trigger_file" data.id
 }
 
@@ -786,13 +866,37 @@ instance=json.load(open(sys.argv[1], encoding='utf-8'))['data']
 logs=json.load(open(sys.argv[2], encoding='utf-8'))['data']['items']
 if instance.get('status') != 'succeeded':
     raise SystemExit(instance)
-if (instance.get('result') or {}).get('message') != 'nodejs demo echo processed':
+message = (instance.get('result') or {}).get('message') or ''
+if not (message == 'nodejs demo echo processed' or message.startswith('nodejs demo sleep processed')):
     raise SystemExit(f"unexpected result: {instance.get('result')}")
-if 'nodejs demo echo processed' not in '\n'.join(str(item.get('message', '')) for item in logs):
+joined = '\n'.join(str(item.get('message', '')) for item in logs)
+if 'nodejs demo echo processed' not in joined and 'nodejs demo sleep processed' not in joined:
     raise SystemExit(f"missing worker log: {logs}")
 PY
   python3 -m json.tool "$instance_file" > "$instance_file.tmp" && mv "$instance_file.tmp" "$instance_file"
   python3 -m json.tool "$logs_file" > "$logs_file.tmp" && mv "$logs_file.tmp" "$logs_file"
+}
+
+wait_outbox_for_instance_status() {
+  local instance_id="$1" status="$2" timeout="${3:-60}"
+  local deadline=$((SECONDS + timeout))
+  local output="$REPORT_DIR/outbox-status-${instance_id}-${status}.json"
+  until kubectl -n "$NAMESPACE" exec -i deploy/postgres -- psql -U tikeo -d tikeo -t -A > "$output" <<SQL
+SELECT COALESCE((SELECT status FROM worker_dispatch_outbox WHERE instance_id = '$instance_id' ORDER BY created_at DESC LIMIT 1), 'missing');
+SQL
+  do
+    sleep 1
+  done
+  while ! grep -Fxq "$status" "$output"; do
+    if (( SECONDS >= deadline )); then
+      echo "timed out waiting for outbox instance $instance_id status $status, got $(cat "$output" 2>/dev/null || true)" >&2
+      return 1
+    fi
+    sleep 1
+    kubectl -n "$NAMESPACE" exec -i deploy/postgres -- psql -U tikeo -d tikeo -t -A > "$output" <<SQL
+SELECT COALESCE((SELECT status FROM worker_dispatch_outbox WHERE instance_id = '$instance_id' ORDER BY created_at DESC LIMIT 1), 'missing');
+SQL
+  done
 }
 
 collect_db_evidence() {
@@ -815,12 +919,92 @@ SQL
 run_incluster_service_probe() {
   local label="$1"
   local pod="service-probe-$label"
-  kubectl -n "$NAMESPACE" run "$pod" --restart=Never --image="$SERVER_IMAGE" --image-pull-policy=IfNotPresent --command -- sh -c 'for i in $(seq 1 16); do curl -fsS -D - http://tikeo:9090/api/v1/cluster -o /tmp/body.json | awk "tolower(\$0) ~ /^x-tikeo-node-id:/ {print}"; done; cat /tmp/body.json' > "$REPORT_DIR/service-probe-$label-create.log" 2>&1 || true
+  kubectl -n "$NAMESPACE" run "$pod" --restart=Never --image="$SERVER_IMAGE" --image-pull-policy=IfNotPresent --command -- sh -c 'for i in $(seq 1 48); do printf "request=%s " "$i"; curl -fsS -D /tmp/headers.txt http://tikeo:9090/api/v1/cluster -o /tmp/body.json; grep -i "^x-tikeo-node-id:" /tmp/headers.txt | tr -d "\015" || true; done; cat /tmp/body.json' > "$REPORT_DIR/service-probe-$label-create.log" 2>&1 || true
   kubectl -n "$NAMESPACE" wait --for=condition=Ready "pod/$pod" --timeout=60s > "$REPORT_DIR/service-probe-$label-wait-ready.log" 2>&1 || true
   kubectl -n "$NAMESPACE" wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$pod" --timeout=120s > "$REPORT_DIR/service-probe-$label-wait.log" 2>&1 || true
   kubectl -n "$NAMESPACE" logs "$pod" > "$REPORT_DIR/service-probe-$label.log" 2>&1 || true
+  python3 - "$REPORT_DIR/service-probe-$label.log" "$SERVER_REPLICAS" "$REPORT_DIR/service-probe-$label-summary.json" <<'PY'
+import collections, json, re, sys, pathlib
+log, replicas, out = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+text = pathlib.Path(log).read_text(encoding='utf-8', errors='replace')
+nodes = re.findall(r'x-tikeo-node-id:\s*([^\s]+)', text, flags=re.I)
+counts = collections.Counter(nodes)
+total = sum(counts.values())
+expected = total / replicas if replicas else 0
+max_skew = max((abs(v - expected) for v in counts.values()), default=0)
+summary = {
+    'requests': total,
+    'uniqueRespondingNodes': len(counts),
+    'serverReplicas': replicas,
+    'countsByNode': dict(sorted(counts.items())),
+    'expectedPerNode': expected,
+    'maxAbsoluteSkew': max_skew,
+    'coverageRatio': (len(counts) / replicas) if replicas else 0,
+    'passed': total >= replicas and len(counts) >= max(2, replicas // 2),
+}
+pathlib.Path(out).write_text(json.dumps(summary, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+if not summary['passed']:
+    raise SystemExit(f"service load balancing probe did not cover enough pods: {summary}")
+PY
   kubectl -n "$NAMESPACE" delete pod "$pod" --ignore-not-found=true > /dev/null 2>&1 || true
-  record "incluster-service-probe-$label" passed "$REPORT_DIR/service-probe-$label.log" "in-cluster client called the ClusterIP API service repeatedly"
+  record "incluster-service-probe-$label" passed "$REPORT_DIR/service-probe-$label.log $REPORT_DIR/service-probe-$label-summary.json" "in-cluster client called the ClusterIP API service repeatedly"
+}
+
+run_gateway_poweroff_drill() {
+  GATEWAY_POD_BEFORE="$GATEWAY_POD"
+  local old_gateway="$GATEWAY_POD_BEFORE"
+  local before="$REPORT_DIR/db-evidence-before-gateway-poweroff.json"
+  local after="$REPORT_DIR/db-evidence-after-gateway-poweroff.json"
+  collect_db_evidence before-gateway-poweroff
+  cp "$before" "$REPORT_DIR/gateway-poweroff-before.json" 2>/dev/null || true
+  stop_pid "$TUNNEL_PF_PID"; TUNNEL_PF_PID=""
+  kubectl -n "$NAMESPACE" get pod "$old_gateway" -o yaml > "$REPORT_DIR/gateway-pod-before-poweroff.yaml"
+  kubectl -n "$NAMESPACE" delete pod "$old_gateway" --grace-period=0 --force --wait=false 2>&1 | tee "$REPORT_DIR/gateway-poweroff-delete.log"
+  kubectl -n "$NAMESPACE" rollout status statefulset/tikeo-server --timeout=300s 2>&1 | tee "$REPORT_DIR/gateway-poweroff-rollout.log" || true
+  collect_node_spread_evidence after-gateway-poweroff
+  local deadline=$((SECONDS + 240))
+  while (( SECONDS < deadline )); do
+    local diag="$REPORT_DIR/cluster-diagnostics-gateway-reselect.json"
+    collect_api_snapshot gateway-reselect || true
+    mapfile -t candidates < <(jq -r --arg api "$API_POD" '.data.nodes[].nodeId | select(. != $api)' "$diag" 2>/dev/null | grep -Fxv "$old_gateway" | sort || true)
+    if (( ${#candidates[@]} > 0 )); then
+      GATEWAY_POD="${candidates[0]}"
+      break
+    fi
+    sleep 3
+  done
+  [[ -n "$GATEWAY_POD" && "$GATEWAY_POD" != "$old_gateway" ]] || { echo "could not select replacement gateway after deleting $old_gateway" >&2; return 1; }
+  TUNNEL_PF_PID="$(start_port_forward "pod/${GATEWAY_POD}" "$TUNNEL_PORT" 9998 worker-gateway-pod-reroute)"
+  wait_worker_online
+  collect_db_evidence after-gateway-reroute
+  python3 - "$before" "$REPORT_DIR/db-evidence-after-gateway-reroute.json" "$old_gateway" "$GATEWAY_POD" "$REPORT_DIR/gateway-reroute-summary.json" <<'PY'
+import json, sys, pathlib
+before, after, old_gateway, new_gateway, out = sys.argv[1:]
+def rows(path):
+    return json.load(open(path, encoding='utf-8')).get('workerDispatchOutbox') or []
+before_rows = rows(before)
+after_rows = rows(after)
+old_nonterminal = [r for r in before_rows if r.get('gatewayNodeId') == old_gateway and r.get('status') != 'completed']
+new_rows = [r for r in after_rows if r.get('gatewayNodeId') == new_gateway]
+completed = [r for r in after_rows if r.get('status') == 'completed']
+summary = {
+    'oldGateway': old_gateway,
+    'newGateway': new_gateway,
+    'oldGatewayNonTerminalBefore': len(old_nonterminal),
+    'newGatewayRowsAfter': len(new_rows),
+    'completedRowsAfter': len(completed),
+    'rerouteObserved': any(r.get('gatewayNodeId') == new_gateway and r.get('gatewayGeneration', 0) >= 2 for r in after_rows),
+    'statusByGatewayAfter': {},
+}
+for r in after_rows:
+    summary['statusByGatewayAfter'].setdefault(r.get('gatewayNodeId'), {}).setdefault(r.get('status'), 0)
+    summary['statusByGatewayAfter'][r.get('gatewayNodeId')][r.get('status')] += 1
+pathlib.Path(out).write_text(json.dumps(summary, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+if not summary['rerouteObserved']:
+    raise SystemExit(f"outbox reroute was not observed after gateway poweroff: {summary}")
+PY
+  printf 'oldGateway=%s\nnewGateway=%s\n' "$old_gateway" "$GATEWAY_POD" > "$REPORT_DIR/gateway-reroute-pods.txt"
+  record gateway-poweroff-reroute passed "$REPORT_DIR/gateway-reroute-summary.json $REPORT_DIR/gateway-poweroff-delete.log" "gateway pod was force deleted; worker reconnected and durable outbox rows moved to new gateway"
 }
 
 run_fault_drill() {
@@ -856,9 +1040,9 @@ collect_k8s_evidence() {
 }
 
 write_summary() {
-  python3 - "$SUMMARY_JSON" "$RUN_ID" "$CLUSTER_NAME" "$KIND_NODE_IMAGE" "$NAMESPACE" "$SERVER_REPLICAS" "$LEADER_BEFORE" "$LEADER_AFTER" "$API_POD" "$GATEWAY_POD" "$REPORT_DIR" <<'PY'
+  python3 - "$SUMMARY_JSON" "$RUN_ID" "$CLUSTER_NAME" "$KIND_NODE_IMAGE" "$KIND_WORKER_NODES" "$NAMESPACE" "$SERVER_REPLICAS" "$LEADER_BEFORE" "$LEADER_AFTER" "$API_POD" "$GATEWAY_POD_BEFORE" "$GATEWAY_POD_AFTER" "$GATEWAY_POD" "$REPORT_DIR" <<'PY'
 import json, sys, datetime, pathlib
-out, run_id, cluster, node_image, namespace, replicas, leader_before, leader_after, api_pod, gateway_pod, report_dir = sys.argv[1:]
+out, run_id, cluster, node_image, kind_worker_nodes, namespace, replicas, leader_before, leader_after, api_pod, gateway_before, gateway_after, gateway_current, report_dir = sys.argv[1:]
 summary = {
     'runId': run_id,
     'status': 'passed',
@@ -867,10 +1051,13 @@ summary = {
     'kindNodeImage': node_image,
     'namespace': namespace,
     'serverReplicas': int(replicas),
+    'kindWorkerNodes': int(kind_worker_nodes),
     'leaderBefore': leader_before,
     'leaderAfter': leader_after,
     'apiPod': api_pod,
-    'workerGatewayPod': gateway_pod,
+    'workerGatewayPodBeforePoweroff': gateway_before,
+    'workerGatewayPodAfterPoweroff': gateway_after,
+    'workerGatewayPod': gateway_current,
     'evidenceDirectory': report_dir,
     'keyEvidence': sorted(str(p.name) for p in pathlib.Path(report_dir).glob('*') if p.is_file())[:200],
 }
@@ -881,6 +1068,7 @@ PY
 
 main() {
   resolve_tools
+  run_epoch_fencing_unit_evidence
   create_kind_cluster
   build_server_image
   deploy_stack
@@ -906,6 +1094,15 @@ main() {
   wait_worker_online
   run_incluster_service_probe after-failover
 
+  local gateway_pending_instance
+  gateway_pending_instance="$(create_and_trigger_job before-gateway-poweroff demo.sleep)"
+  wait_outbox_for_instance_status "$gateway_pending_instance" acked 60
+  sleep 1
+  run_gateway_poweroff_drill
+  assert_instance_succeeded gateway-reroute "$gateway_pending_instance"
+  record gateway-reroute-dispatch passed "$REPORT_DIR/instance-result-gateway-reroute.json" "pending job completed after old gateway pod was force deleted and Worker reconnected"
+  GATEWAY_POD_AFTER="$GATEWAY_POD"
+
   failover_instance="$(create_and_trigger_job after-failover)"
   assert_instance_succeeded after-failover "$failover_instance"
   record post-failover-dispatch passed "$REPORT_DIR/instance-result-after-failover.json" "job succeeded after deleting initial leader pod"
@@ -914,8 +1111,10 @@ main() {
   collect_k8s_evidence final
   write_summary | tee "$REPORT_DIR/summary.stdout.json"
   tikeo_smoke_finalize_report "$REPORT_JSON" passed >/dev/null
+  python3 "$ROOT_DIR/scripts/generate-kind-ha-report.py" "$REPORT_DIR" > "$REPORT_DIR/kind-ha-validation-summary.stdout.json"
   log "PASS: Kind Raft HA E2E succeeded"
-  log "report: $REPORT_JSON"
+  log "smoke report: $REPORT_JSON"
+  log "validation report: $REPORT_DIR/kind-ha-validation-report.md"
 }
 
 main "$@"

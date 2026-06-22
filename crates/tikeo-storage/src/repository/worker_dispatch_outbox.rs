@@ -310,6 +310,34 @@ impl WorkerDispatchOutboxRepository {
         self.get(outbox_id).await
     }
 
+    /// List non-terminal rows that may need reroute to a newer logical Worker session.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when database access fails.
+    pub async fn list_reroute_candidates(
+        &self,
+        limit: u64,
+    ) -> Result<Vec<WorkerDispatchOutboxSummary>, sea_orm::DbErr> {
+        worker_dispatch_outbox::Entity::find()
+            .filter(worker_dispatch_outbox::Column::Status.is_in([
+                "queued",
+                "reroute_pending",
+                "delivering",
+                "delivered",
+                "acked",
+            ]))
+            .order_by_asc(worker_dispatch_outbox::Column::UpdatedAt)
+            .limit(limit.max(1))
+            .all(&self.db)
+            .await
+            .map(|rows| {
+                rows.into_iter()
+                    .map(WorkerDispatchOutboxSummary::from)
+                    .collect()
+            })
+    }
+
     /// Requeue delivered rows that did not receive Worker ack/progress before visibility timeout.
     ///
     /// # Errors

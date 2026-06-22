@@ -37,10 +37,49 @@ pub async fn run(
         {
             warn!(%error, %gateway_node_id, "worker dispatch outbox visibility scan failed");
         }
+        if let Err(error) = reroute_stale_logical_rows(&outbox, &registry).await {
+            warn!(%error, %gateway_node_id, "worker dispatch outbox reroute scan failed");
+        }
         if let Err(error) = deliver_once(&outbox, &registry, &gateway_node_id).await {
             warn!(%error, %gateway_node_id, "worker dispatch outbox delivery iteration failed");
         }
     }
+}
+
+/// Reroute non-terminal rows when the same logical Worker has a newer online session.
+///
+/// This is intentionally global rather than gateway-local: when a gateway pod is
+/// hard-killed, that old gateway cannot scan its own rows. Any surviving Server
+/// may observe the newer logical Worker session and move durable outbox rows to
+/// the new gateway before delivery resumes.
+///
+/// # Errors
+///
+/// Returns an error when repository access fails.
+pub async fn reroute_stale_logical_rows(
+    outbox: &WorkerDispatchOutboxRepository,
+    registry: &WorkerRegistry,
+) -> Result<u64, tikeo_storage::DbErr> {
+    let mut moved = 0_u64;
+    for row in outbox.list_reroute_candidates(100).await? {
+        if let Some(current) = registry
+            .current_logical_dispatch_target(&row.logical_instance_id)
+            .await
+            && current.generation > row.gateway_generation
+            && outbox
+                .reroute(
+                    &row.id,
+                    &current.gateway_node_id,
+                    &current.worker_id,
+                    current.generation,
+                )
+                .await?
+                .is_some()
+        {
+            moved = moved.saturating_add(1);
+        }
+    }
+    Ok(moved)
 }
 
 /// Deliver at most one queued outbox row for this gateway node.
@@ -188,8 +227,198 @@ mod reroute_tests {
     };
     use tonic_prost::prost::Message as _;
 
-    use super::deliver_once;
+    use super::{deliver_once, reroute_stale_logical_rows};
     use crate::tunnel::WorkerRegistry;
+
+    #[tokio::test]
+    async fn global_reroute_scan_moves_rows_when_old_gateway_is_gone() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let lifecycle = WorkerLifecycleRepository::new(db.clone());
+        let old = lifecycle
+            .register_session(RegisterWorkerSession {
+                worker_id: "worker-old-hard-killed-gateway".to_owned(),
+                namespace_name: "default".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "local".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "worker-global-reroute".to_owned(),
+                connection_id: "conn-old".to_owned(),
+                gateway_node_id: "gateway-hard-killed".to_owned(),
+                fencing_token: "token-old".to_owned(),
+                lease_seconds: 30,
+                capabilities_json: "[]".to_owned(),
+                structured_capabilities_json: "{}".to_owned(),
+                labels_json: "{}".to_owned(),
+                master_json: "{}".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("old worker should register: {error}"));
+        let new = lifecycle
+            .register_session(RegisterWorkerSession {
+                worker_id: "worker-new-surviving-gateway".to_owned(),
+                namespace_name: "default".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "local".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "worker-global-reroute".to_owned(),
+                connection_id: "conn-new".to_owned(),
+                gateway_node_id: "gateway-survivor".to_owned(),
+                fencing_token: "token-new".to_owned(),
+                lease_seconds: 30,
+                capabilities_json: "[]".to_owned(),
+                structured_capabilities_json: "{}".to_owned(),
+                labels_json: "{}".to_owned(),
+                master_json: "{}".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("new worker should register: {error}"));
+        let outbox = WorkerDispatchOutboxRepository::new(db);
+        let task = DispatchTask {
+            instance_id: "inst-global-reroute".to_owned(),
+            job_id: "job-global-reroute".to_owned(),
+            assignment_token: "asg-global-reroute".to_owned(),
+            ..DispatchTask::default()
+        };
+        let created = outbox
+            .create(CreateWorkerDispatchOutbox {
+                instance_id: "inst-global-reroute".to_owned(),
+                attempt_id: "attempt-global-reroute".to_owned(),
+                worker_id: old.worker_id,
+                logical_instance_id: old.logical_instance_id,
+                gateway_node_id: "gateway-hard-killed".to_owned(),
+                gateway_generation: old.generation,
+                assignment_token: "asg-global-reroute".to_owned(),
+                dispatch_payload: BASE64_STANDARD.encode(task.encode_to_vec()),
+                shard_id: 0,
+                shard_map_version: 1,
+                shard_count: 64,
+                owner_node_id: "owner".to_owned(),
+                owner_epoch: 0,
+                owner_fencing_token: "fence".to_owned(),
+                next_delivery_at: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("outbox should create: {error}"));
+
+        let moved = reroute_stale_logical_rows(&outbox, &WorkerRegistry::with_lifecycle(lifecycle))
+            .await
+            .unwrap_or_else(|error| panic!("reroute scan should not fail: {error}"));
+
+        assert_eq!(moved, 1);
+        let updated = outbox
+            .get(&created.id)
+            .await
+            .unwrap_or_else(|error| panic!("outbox get should not fail: {error}"))
+            .unwrap_or_else(|| panic!("outbox row should exist"));
+        assert_eq!(updated.status, "queued");
+        assert_eq!(updated.worker_id, new.worker_id);
+        assert_eq!(updated.gateway_node_id, "gateway-survivor");
+        assert_eq!(updated.gateway_generation, new.generation);
+    }
+
+    #[tokio::test]
+    async fn global_reroute_scan_moves_acked_rows_when_result_channel_is_lost() {
+        let db = connect_and_migrate("sqlite::memory:")
+            .await
+            .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+        let lifecycle = WorkerLifecycleRepository::new(db.clone());
+        let old = lifecycle
+            .register_session(RegisterWorkerSession {
+                worker_id: "worker-old-acked-gateway".to_owned(),
+                namespace_name: "default".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "local".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "worker-acked-reroute".to_owned(),
+                connection_id: "conn-old".to_owned(),
+                gateway_node_id: "gateway-old-acked".to_owned(),
+                fencing_token: "token-old".to_owned(),
+                lease_seconds: 30,
+                capabilities_json: "[]".to_owned(),
+                structured_capabilities_json: "{}".to_owned(),
+                labels_json: "{}".to_owned(),
+                master_json: "{}".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("old worker should register: {error}"));
+        let new = lifecycle
+            .register_session(RegisterWorkerSession {
+                worker_id: "worker-new-acked-gateway".to_owned(),
+                namespace_name: "default".to_owned(),
+                app_name: "billing".to_owned(),
+                cluster: "local".to_owned(),
+                region: "local".to_owned(),
+                client_instance_id: "worker-acked-reroute".to_owned(),
+                connection_id: "conn-new".to_owned(),
+                gateway_node_id: "gateway-new-acked".to_owned(),
+                fencing_token: "token-new".to_owned(),
+                lease_seconds: 30,
+                capabilities_json: "[]".to_owned(),
+                structured_capabilities_json: "{}".to_owned(),
+                labels_json: "{}".to_owned(),
+                master_json: "{}".to_owned(),
+            })
+            .await
+            .unwrap_or_else(|error| panic!("new worker should register: {error}"));
+        let outbox = WorkerDispatchOutboxRepository::new(db);
+        let task = DispatchTask {
+            instance_id: "inst-acked-reroute".to_owned(),
+            job_id: "job-acked-reroute".to_owned(),
+            assignment_token: "asg-acked-reroute".to_owned(),
+            ..DispatchTask::default()
+        };
+        let created = outbox
+            .create(CreateWorkerDispatchOutbox {
+                instance_id: "inst-acked-reroute".to_owned(),
+                attempt_id: "attempt-acked-reroute".to_owned(),
+                worker_id: old.worker_id,
+                logical_instance_id: old.logical_instance_id,
+                gateway_node_id: "gateway-old-acked".to_owned(),
+                gateway_generation: old.generation,
+                assignment_token: "asg-acked-reroute".to_owned(),
+                dispatch_payload: BASE64_STANDARD.encode(task.encode_to_vec()),
+                shard_id: 0,
+                shard_map_version: 1,
+                shard_count: 64,
+                owner_node_id: "owner".to_owned(),
+                owner_epoch: 0,
+                owner_fencing_token: "fence".to_owned(),
+                next_delivery_at: None,
+            })
+            .await
+            .unwrap_or_else(|error| panic!("outbox should create: {error}"));
+        outbox
+            .mark_hint_delivered(&created.id, 30)
+            .await
+            .unwrap_or_else(|error| panic!("outbox should mark delivered: {error}"));
+        assert!(
+            outbox
+                .mark_acked_by_assignment(
+                    "inst-acked-reroute",
+                    "worker-old-acked-gateway",
+                    "asg-acked-reroute",
+                )
+                .await
+                .unwrap_or_else(|error| panic!("outbox should ack: {error}"))
+        );
+
+        let moved = reroute_stale_logical_rows(&outbox, &WorkerRegistry::with_lifecycle(lifecycle))
+            .await
+            .unwrap_or_else(|error| panic!("reroute scan should not fail: {error}"));
+
+        assert_eq!(moved, 1);
+        let updated = outbox
+            .get(&created.id)
+            .await
+            .unwrap_or_else(|error| panic!("outbox get should not fail: {error}"))
+            .unwrap_or_else(|| panic!("outbox row should exist"));
+        assert_eq!(updated.status, "queued");
+        assert_eq!(updated.worker_id, new.worker_id);
+        assert_eq!(updated.gateway_node_id, "gateway-new-acked");
+        assert_eq!(updated.gateway_generation, new.generation);
+    }
 
     #[tokio::test]
     async fn deliver_once_reroutes_outbox_when_worker_reconnected_to_new_gateway() {

@@ -27,7 +27,7 @@ export async function main(): Promise<void> {
   config.region = envOr("TIKEO_WORKER_REGION", "local");
   config.addTag("nodejs");
   config.addTag("manual-demo");
-  for (const processor of csvOr("TIKEO_WORKER_SDK_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception")) config.addSDKProcessor(processor);
+  for (const processor of csvOr("TIKEO_WORKER_SDK_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.sleep,demo.fail,demo.exception")) config.addSDKProcessor(processor);
   config.labels.worker_pool = envOr("TIKEO_WORKER_POOL", "nodejs-blue");
   if (enabledByDefault("TIKEO_ENABLE_PLUGIN_SQL")) {
     config.addPluginProcessor(envOr("TIKEO_PLUGIN_SQL_TYPE", "sql"), envOr("TIKEO_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"));
@@ -61,13 +61,18 @@ export async function main(): Promise<void> {
   while (true) {
     try {
       const session = await client.connect();
-      const stop = session.startHeartbeat();
+      let heartbeatError: Error | undefined;
+      const stop = session.startHeartbeat((error) => { heartbeatError = error; });
       console.log(`nodejs worker connected: worker_id=${session.workerId} generation=${session.generation} lease_seconds=${session.leaseSeconds}`);
       try {
         while (true) {
+          if (heartbeatError) throw heartbeatError;
           const outcome = await session.processNext(processTask, scripts);
           console.log(`processed task success=${outcome.success} message=${outcome.message}`);
-          if (oneshot) return;
+          if (oneshot) {
+            session.gracefulClose();
+            return;
+          }
           await new Promise((resolve) => setTimeout(resolve, 50));
         }
       } finally {
@@ -109,7 +114,7 @@ export function configureScripts(config: WorkerConfig): ScriptRunnerRegistry {
   return scripts;
 }
 
-export function processTask(task: TaskContext): TaskOutcome {
+export async function processTask(task: TaskContext): Promise<TaskOutcome> {
   console.info(`[nodejs-worker] processor=${task.processorName} instance=${task.instanceId} payload_bytes=${task.payload.length}`);
   const payload = new TextDecoder().decode(task.payload);
   switch (task.processorName || "demo.echo") {
@@ -118,6 +123,13 @@ export function processTask(task: TaskContext): TaskOutcome {
     case "demo.context": console.info(`[demo.context] jobId=${task.jobId} instanceId=${task.instanceId}`); return { success: true, message: `nodejs demo context processed instance=${task.instanceId}` };
     case "demo.bytes": console.info(`[demo.bytes] payload='${payload}' length=${task.payload.length}`); return { success: true, message: `nodejs demo bytes processed payload_bytes=${task.payload.length}` };
     case "demo.heartbeat": console.info(`[demo.heartbeat] tick jobId=${task.jobId} instanceId=${task.instanceId}`); return { success: true, message: "nodejs demo heartbeat processed" };
+    case "demo.sleep": {
+      const ms = Math.min(Math.max(Number.parseInt(payload || process.env.TIKEO_DEMO_SLEEP_MS || "6000", 10) || 6000, 100), 30000);
+      console.info(`[demo.sleep] sleeping_ms=${ms} instance=${task.instanceId}`);
+      await new Promise((resolve) => setTimeout(resolve, ms));
+      console.info(`[demo.sleep] completed sleeping_ms=${ms} instance=${task.instanceId}`);
+      return { success: true, message: `nodejs demo sleep processed ms=${ms}` };
+    }
     case "billing.sql-sync": console.info(`[billing.sql-sync] plugin SQL processor received payload='${payload}'`); return { success: true, message: "nodejs demo sql plugin processed" };
     case "demo.fail": console.error(`[demo.fail] intentional failure payload='${payload}'`); return failed("nodejs demo intentional failure");
     case "demo.exception": console.error(`[demo.exception] throwing runtime exception payload='${payload}'`); throw new Error("nodejs demo runtime exception");
