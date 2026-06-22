@@ -284,6 +284,47 @@ scripts/raft-ha-fault-injection-drill.sh
 TIKEO_RAFT_WORKER_E2E_KEEP=0 TIKEO_RAFT_WORKER_E2E_REBUILD_SERVER=0 scripts/raft-worker-failover-e2e.sh
 ```
 
+### 云环境/预发 Raft FSOD 验收门禁
+
+Kind 可以在本地证明 Kubernetes 对象模型，但云环境或预发环境还需要沿真实网络链路做一次只读验收。发布后、回滚后，以及在 release note 中声明生产 HA 就绪前，都应运行 `scripts/cloud-raft-ha-acceptance.sh`。该脚本默认不做任何变更：不会删除 Pod、创建任务、写 DB 行或修改 Kubernetes 对象，只会把 API、metrics、SSE、Worker Tunnel 和可选 `kubectl` 证据汇总到一个报告目录。
+
+```bash
+TIKEO_CLOUD_HA_SERVER_URL="https://tikeo.example.com" \
+TIKEO_CLOUD_HA_API_KEY="$TIKEO_MANAGEMENT_API_KEY" \
+TIKEO_CLOUD_HA_EXPECTED_REPLICAS=4 \
+TIKEO_CLOUD_HA_NAMESPACE=tikeo \
+TIKEO_CLOUD_HA_WORKER_TUNNEL_HOST="worker-tunnel.example.com" \
+TIKEO_CLOUD_HA_WORKER_TUNNEL_PORT=9998 \
+scripts/cloud-raft-ha-acceptance.sh
+```
+
+验收范围：
+
+| 检查项 | 为什么重要 | 证据文件 |
+| --- | --- | --- |
+| `/api/v1/cluster` 和 `/api/v1/cluster/diagnostics` | 确认 Raft mode、member 数、peer probe、唯一 schedulable authority 和 leader fencing。 | `cluster.json`、`cluster-diagnostics.json` |
+| `/api/v1/metrics/summary` | 确认 active shard ownership、ownership skew、dispatch queue age、outbox age 和 Smart Gateway 健康状态。 | `metrics-summary.json`、`summary.json` |
+| SSE endpoint probe | 发现真实 ingress/LB/WAF 对 Web 实时页面造成的 buffering 或鉴权形态问题。 | `sse-headers.txt`、`sse-sample.txt` |
+| Worker Tunnel TCP probe | 确认公开或内网 Worker Tunnel endpoint 在预期 gRPC/HTTP2 端口可达。 | `worker-tunnel-tcp.json` |
+| 可选 `kubectl` 证据 | 记录实际集群中的 Pod placement、StatefulSet/Service/Ingress/Gateway 形态和近期 events。 | `kubectl-pods.txt`、`kubectl-networking.txt`、`kubectl-events.txt` |
+
+关键环境变量：
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `TIKEO_CLOUD_HA_SERVER_URL` | 必填 | Server API 的公网或内网 base URL，也可以作为第一个参数传入。 |
+| `TIKEO_CLOUD_HA_API_KEY` | 空 | endpoint 需要鉴权时，以 `x-tikeo-api-key` 发送。 |
+| `TIKEO_CLOUD_HA_EXPECTED_REPLICAS` | `4` | 报告中期望看到的最小 diagnostics node 数。 |
+| `TIKEO_CLOUD_HA_NAMESPACE` | `tikeo` | 可选 `kubectl` 证据使用的 namespace。 |
+| `TIKEO_CLOUD_HA_APP_LABEL_SELECTOR` | `app.kubernetes.io/name=tikeo` | 可选 Pod placement 证据使用的 selector。 |
+| `TIKEO_CLOUD_HA_WORKER_TUNNEL_HOST` | 空 | 设置后会探测 Worker Tunnel 网络链路。 |
+| `TIKEO_CLOUD_HA_WORKER_TUNNEL_PORT` | `9998` | Worker Tunnel TCP 端口。 |
+| `TIKEO_STREAM_TOKEN` | 空 | 启用 stream token 鉴权时追加到 SSE URL。 |
+| `TIKEO_CLOUD_HA_REPORT_DIR` | `.dev/reports/cloud-raft-ha-acceptance-<timestamp>` | 证据目录。 |
+| `TIKEO_CLOUD_HA_MUTATING` | `0` | 任何非 0 值都会失败退出；破坏性演练必须使用明确的 chaos 脚本。 |
+
+通过的云环境报告应显示：`mode=raft`，diagnostics nodes 不少于期望副本数，最多一个 schedulable node，开启调度时存在 leader fencing token，`shardOwnership.active > 0`，queue/outbox backlog 不超过 300 秒，Smart Gateway diagnostics 存在，SSE endpoint 要么返回 `text/event-stream`，要么以鉴权状态 fail closed。请把 `REPORT.md`、`summary.json` 和原始 JSON/header 文件一起归档到 release 或预发验收证据中。
+
 ### 本地 Kind 4-Pod Kubernetes E2E
 
 如果本地没有真实多节点 Kubernetes 集群，可以用 Kind 在一台机器上验证 HA 设计中 Kubernetes 相关的闭环。这是声明四 Pod Raft 路径可用前，推荐执行的本地验收。

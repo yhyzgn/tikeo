@@ -1058,5 +1058,117 @@ class DocsSiteContractTest(unittest.TestCase):
 
 
 
+    def test_non_java_sdk_parity_is_real_code_not_stale_report_state(self):
+        source_expectations = {
+            "go": (
+                [
+                    ROOT / "sdks/go/tikeo/grpc_client.go",
+                    ROOT / "sdks/go/tikeo/management.go",
+                    ROOT / "sdks/go/tikeo/task_logging.go",
+                    ROOT / "sdks/go/tikeo/script_sandbox_tools.go",
+                    ROOT / "sdks/go/tikeo/client_test.go",
+                ],
+                ["ConnectGRPC", "OpenTunnel", "NewManagementClient", "BroadcastAPITrigger", "TaskSlogHandler", "SandboxToolResolver"],
+            ),
+            "python": (
+                [
+                    ROOT / "sdks/python/tikeo/src/tikeo/client.py",
+                    ROOT / "sdks/python/tikeo/src/tikeo/management.py",
+                    ROOT / "sdks/python/tikeo/src/tikeo/task_logging.py",
+                    ROOT / "sdks/python/tikeo/src/tikeo/sandbox_tools.py",
+                    ROOT / "sdks/python/tikeo/tests/test_sdk.py",
+                ],
+                ["WorkerTunnelServiceStub", "ManagementClient", "broadcast_api_trigger", "install_task_log_handler", "SandboxToolResolver"],
+            ),
+            "nodejs": (
+                [
+                    ROOT / "sdks/nodejs/tikeo/src/client.ts",
+                    ROOT / "sdks/nodejs/tikeo/src/management.ts",
+                    ROOT / "sdks/nodejs/tikeo/src/taskLogging.ts",
+                    ROOT / "sdks/nodejs/tikeo/src/script/sandboxTools.ts",
+                    ROOT / "sdks/nodejs/tikeo/tests/sdk.test.ts",
+                ],
+                ["WorkerTunnelService", "ManagementClient", "broadcastApiTrigger", "installConsoleTaskLogBridge", "SandboxToolResolver"],
+            ),
+        }
+        for language, (paths, tokens) in source_expectations.items():
+            combined = "\n".join(path.read_text() for path in paths)
+            for token in tokens:
+                self.assertIn(token, combined, f"{language} SDK parity source missing {token!r}")
+
+        report = (ROOT / "design/reports/feature-coverage-competitive-checklist.md").read_text()
+        self.assertIn("Go/Python/Node SDK | ✅ 已覆盖", report)
+        self.assertIn("38** | **38", report)
+        self.assertNotIn("Python/Node 未形成完整 SDK", report)
+        self.assertNotIn("剩余为非 Java SDK parity", report)
+
+    def test_cloud_ha_acceptance_runbook_is_script_backed_and_read_only(self):
+        script = (ROOT / "scripts/cloud-raft-ha-acceptance.sh").read_text()
+        for token in [
+            "TIKEO_CLOUD_HA_SERVER_URL",
+            "TIKEO_CLOUD_HA_EXPECTED_REPLICAS",
+            "TIKEO_CLOUD_HA_WORKER_TUNNEL_HOST",
+            "TIKEO_CLOUD_HA_MUTATING",
+            "/api/v1/cluster/diagnostics",
+            "/api/v1/metrics/summary",
+            "/api/v1/dispatch-queue/stream",
+            "summary.json",
+            "REPORT.md",
+            "kubectl-pods.txt",
+            "worker-tunnel-tcp.json",
+        ]:
+            self.assertIn(token, script)
+        self.assertIn("mutating cloud HA drills are intentionally disabled", script)
+        self.assertNotIn("kubectl delete", script)
+        self.assertNotIn("curl -X POST", script)
+
+        zh_root = DOCS_SITE / "i18n/zh-CN/docusaurus-plugin-content-docs/current"
+        for root in [DOCS_SITE / "docs", zh_root]:
+            text = (root / "deployment/server-ha.md").read_text()
+            for token in [
+                "scripts/cloud-raft-ha-acceptance.sh",
+                "TIKEO_CLOUD_HA_SERVER_URL",
+                "TIKEO_CLOUD_HA_EXPECTED_REPLICAS",
+                "TIKEO_CLOUD_HA_WORKER_TUNNEL_HOST",
+                "REPORT.md",
+                "summary.json",
+                "text/event-stream",
+                "shardOwnership.active > 0",
+            ]:
+                self.assertIn(token, text, f"{root.relative_to(DOCS_SITE)} server-ha missing {token!r}")
+
+    def test_docs_links_indexes_and_generated_surfaces_stay_consistent(self):
+        self.assertFalse((DOCS_SITE / "reports").exists(), "validation reports must stay outside docs site root")
+        sidebars = (DOCS_SITE / "sidebars.ts").read_text()
+        search_index = (DOCS_SITE / "static/search-index.json").read_text()
+        llms = (DOCS_SITE / "static/llms.txt").read_text() + (DOCS_SITE / "static/llms-full.txt").read_text()
+        for route in [
+            "/docs/deployment/server-ha",
+            "/zh-CN/docs/deployment/server-ha",
+            "/docs/integrations/migrating-from-legacy-schedulers",
+            "/zh-CN/docs/integrations/migrating-from-legacy-schedulers",
+            "/docs/development/product-readiness-acceptance",
+            "/zh-CN/docs/development/product-readiness-acceptance",
+        ]:
+            self.assertIn(route, search_index + llms, f"search/LLM entrypoints missing {route}")
+        for doc_id in [
+            "deployment/server-ha",
+            "integrations/migrating-from-legacy-schedulers",
+            "development/product-readiness-acceptance",
+        ]:
+            self.assertIn(doc_id, sidebars)
+        for root in [DOCS_SITE / "docs", DOCS_SITE / "i18n/zh-CN/docusaurus-plugin-content-docs/current"]:
+            configuration = (root / "reference/configuration.md").read_text()
+            product = (root / "development/product-readiness-acceptance.md").read_text()
+            heading_slugs = set()
+            for heading in re.findall(r"^#+\s+(.+)$", configuration, flags=re.MULTILINE):
+                slug = re.sub(r"[^\w\u4e00-\u9fff -]", "", heading.strip().lower())
+                slug = re.sub(r"\s+", "-", slug).strip("-")
+                heading_slugs.add(slug)
+            anchors = re.findall(r"reference/configuration#([^\)\s]+)", product)
+            for anchor in anchors:
+                self.assertIn(anchor.lower(), heading_slugs, f"broken configuration anchor {anchor!r} in {root.relative_to(DOCS_SITE)} readiness doc")
+
+
 if __name__ == "__main__":
     unittest.main()

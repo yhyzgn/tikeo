@@ -171,7 +171,7 @@ pub async fn run_plan_command(command: &PlanCommand) -> Result<()> {
     Ok(())
 }
 
-/// Execute the data-apply command.
+/// Execute the apply command.
 ///
 /// # Errors
 ///

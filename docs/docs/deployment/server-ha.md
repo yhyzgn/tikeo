@@ -287,6 +287,47 @@ TIKEO_RAFT_WORKER_E2E_REBUILD_SERVER=0 \
 scripts/raft-worker-failover-e2e.sh
 ```
 
+### Cloud/staging Raft FSOD acceptance gate
+
+Kind proves the Kubernetes object model locally, but a cloud or staging environment still needs a read-only acceptance run against the real network path. Use `scripts/cloud-raft-ha-acceptance.sh` after rollout, after rollback, and before publishing a release note that claims production HA readiness. The script is intentionally non-mutating: it does not delete pods, create jobs, write DB rows, or change Kubernetes objects. It collects API, metrics, SSE, Worker Tunnel, and optional `kubectl` evidence into one report directory.
+
+```bash
+TIKEO_CLOUD_HA_SERVER_URL="https://tikeo.example.com" \
+TIKEO_CLOUD_HA_API_KEY="$TIKEO_MANAGEMENT_API_KEY" \
+TIKEO_CLOUD_HA_EXPECTED_REPLICAS=4 \
+TIKEO_CLOUD_HA_NAMESPACE=tikeo \
+TIKEO_CLOUD_HA_WORKER_TUNNEL_HOST="worker-tunnel.example.com" \
+TIKEO_CLOUD_HA_WORKER_TUNNEL_PORT=9998 \
+scripts/cloud-raft-ha-acceptance.sh
+```
+
+Acceptance scope:
+
+| Check | Why it matters | Evidence file |
+| --- | --- | --- |
+| `/api/v1/cluster` and `/api/v1/cluster/diagnostics` | Confirms Raft mode, member count, peer probes, one visible schedulable authority, and leader fencing. | `cluster.json`, `cluster-diagnostics.json` |
+| `/api/v1/metrics/summary` | Confirms active shard ownership, ownership skew, dispatch queue age, outbox age, and Smart Gateway health. | `metrics-summary.json`, `summary.json` |
+| SSE endpoint probe | Catches ingress/LB/WAF buffering or auth-shape regressions for realtime Web pages. | `sse-headers.txt`, `sse-sample.txt` |
+| Worker Tunnel TCP probe | Confirms the public or private Worker Tunnel endpoint is reachable on the expected gRPC/HTTP2 port. | `worker-tunnel-tcp.json` |
+| Optional `kubectl` evidence | Records pod placement, StatefulSet/Service/Ingress/Gateway shape, and recent events from the actual cluster. | `kubectl-pods.txt`, `kubectl-networking.txt`, `kubectl-events.txt` |
+
+Important environment variables:
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `TIKEO_CLOUD_HA_SERVER_URL` | required | Public or private Server API base URL. You may also pass it as the first argument. |
+| `TIKEO_CLOUD_HA_API_KEY` | empty | Sent as `x-tikeo-api-key` when your endpoints require auth. |
+| `TIKEO_CLOUD_HA_EXPECTED_REPLICAS` | `4` | Minimum diagnostics node count expected in the report. |
+| `TIKEO_CLOUD_HA_NAMESPACE` | `tikeo` | Namespace used for optional `kubectl` evidence. |
+| `TIKEO_CLOUD_HA_APP_LABEL_SELECTOR` | `app.kubernetes.io/name=tikeo` | Pod selector for optional placement evidence. |
+| `TIKEO_CLOUD_HA_WORKER_TUNNEL_HOST` | empty | Set to probe the Worker Tunnel network path. |
+| `TIKEO_CLOUD_HA_WORKER_TUNNEL_PORT` | `9998` | Worker Tunnel TCP port. |
+| `TIKEO_STREAM_TOKEN` | empty | Appended to the SSE URL when stream token auth is enabled. |
+| `TIKEO_CLOUD_HA_REPORT_DIR` | `.dev/reports/cloud-raft-ha-acceptance-<timestamp>` | Evidence directory. |
+| `TIKEO_CLOUD_HA_MUTATING` | `0` | Any non-zero value fails fast. Use explicit chaos scripts for destructive drills. |
+
+A passing cloud report should show: `mode=raft`, diagnostics nodes at least equal to the expected replicas, at most one schedulable node, a leader fencing token when scheduling is enabled, `shardOwnership.active > 0`, no stale queue/outbox backlog over 300 seconds, Smart Gateway diagnostics present, and an SSE endpoint that either streams `text/event-stream` or fails closed with an auth status. Archive `REPORT.md`, `summary.json`, and the raw JSON/header files with the release or staging sign-off.
+
 ### Local Kind 4-Pod Kubernetes E2E
 
 When you do not have a real multi-node Kubernetes cluster, use Kind to exercise the Kubernetes-specific part of the HA design on one machine. This is the recommended local acceptance test before claiming the four-Pod Raft path works.
