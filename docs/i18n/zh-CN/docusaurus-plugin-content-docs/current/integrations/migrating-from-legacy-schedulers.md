@@ -97,6 +97,8 @@ tikeo-migrate apply --help
 4. 连接旧调度器数据库并导出已知任务表，例如 `xxl_job_info` 或 `pj_job_info`；
 5. 把 source snapshots 写入生成的迁移包，用于审计和复核。
 
+如果仓库只有 Worker 代码，没有旧调度器 DB 配置或导出的 job list，CLI 会进入 **code-only** 兜底扫描：从 Java 源码中识别 XXL-JOB handler 和 PowerJob processor 类，生成禁用的 API 风格 Job 草案，并把每个 Job 标记为 `needs_review`。这可以继续推进迁移盘点，但不会凭空编造只存在于旧调度器控制面的 schedule、路由、重试、参数或启用状态。
+
 CLI 支持 MySQL/PostgreSQL JDBC URL 和原生 URL。如果旧项目没有暴露 datasource，可以直接显式传旧库连接，而不是先人为制造一个 JSON 文件：
 
 ```bash
@@ -117,7 +119,7 @@ tikeo-migrate plan \
 | 所需权限 | 对调度器任务表的只读 `SELECT`。不要使用能修改旧调度器状态的账号。 |
 | XXL-JOB 表候选 | `xxl_job_info`、`XXL_JOB_INFO`、`job_info`。 |
 | PowerJob 表候选 | `pj_job_info`、`job_info`、`powerjob_job_info`。 |
-| 记录的证据 | `manifest.json` 会记录脱敏后的 `legacy-db:...` origin；凭据不会出现在 origin 中。 |
+| 记录的证据 | DB 导出时 `manifest.json` 会记录脱敏后的 `legacy-db:...` origin；离线文件记录 `json-file:...`；Worker-only 源码扫描记录 `code-only:...`。凭据不会出现在 origin 中。 |
 
 如果自动导出失败，先看错误信息：它会带上检测到的来源类型和 CLI 已尝试的表名。常见修复方式：
 
@@ -125,6 +127,18 @@ tikeo-migrate plan \
 - datasource 由部署系统注入、没有写在 `application.*` 中时，显式传 `--legacy-db-url`、`--legacy-db-user`、`--legacy-db-password`；
 - 为上面已知表名授予只读 `SELECT`；
 - 只有迁移工作机无法访问旧数据库时，才使用 `--input ./exports/jobs.json`。
+
+### Worker-only / code-only 兜底
+
+有些真实项目只包含 PowerJob/XXL-JOB Worker 代码，调度定义由独立部署的 Admin 服务维护。此时仍然可以在 Worker 项目根目录生成复核包：
+
+```bash
+cd ./legacy-worker-only
+
+tikeo-migrate plan
+```
+
+迁移包会把 input origin 记录为 `code-only:<project-root>`。请把它当成 **processor inventory 和代码改造计划**，而不是完整调度迁移：所有生成草案都会保持禁用/需复核，直到操作人员核对旧调度器中的 cron/fixed-rate 表达式、路由策略、重试策略、参数、并发/阻塞语义和启用状态。
 
 仓库中的 `examples/migration/legacy-scheduler-fixtures` 提供了本地确定性 fixture，可在没有真实 XXL-JOB 或 PowerJob 数据库时跑通完整自动导出链路。
 
@@ -166,7 +180,7 @@ tikeo-migrate plan
 | 项目根目录 | 当前目录包含 `pom.xml`、`build.gradle` 或 `build.gradle.kts` 时自动识别。 |
 | 来源调度器 | 从依赖/源码识别，例如 XXL-JOB 的 `@XxlJob`、`xxl-job-core`，或 PowerJob 的 `BasicProcessor` / `tech.powerjob`。 |
 | 旧数据库 | 从常见 `application.*` 和 `bootstrap.*` 读取 Spring datasource URL/user/password，或显式使用 `--legacy-db-url`、`--legacy-db-user`、`--legacy-db-password`。 |
-| 兜底 JSON | 仅在数据库探测不可用时使用：项目根、`export/`、`exports/`、`migration/` 下单个可识别 JSON，或显式 `--input`。 |
+| 兜底 JSON / code-only | 数据库探测不可用后：项目根、`export/`、`exports/`、`migration/` 下单个可识别 JSON，显式 `--input`，或在没有 JSON 时做 code-only handler 扫描。 |
 | 迁移包输出 | `./.tikeo-migration`。 |
 
 ### 非标准目录显式命令

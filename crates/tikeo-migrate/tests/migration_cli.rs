@@ -119,6 +119,66 @@ fn plan_command_uses_project_root_convention_without_manual_params() {
 }
 
 #[test]
+fn plan_command_falls_back_to_code_only_powerjob_handlers_without_scheduler_export() {
+    let binary = std::env::var("CARGO_BIN_EXE_tikeo-migrate")
+        .unwrap_or_else(|error| panic!("binary path should exist: {error}"));
+    let project_dir = std::env::temp_dir().join(format!(
+        "tikeo-migrate-code-only-powerjob-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&project_dir);
+    fs::create_dir_all(project_dir.join("src/main/java/com/example/jobs"))
+        .unwrap_or_else(|error| panic!("project dir should be created: {error}"));
+    fs::write(
+        project_dir.join("pom.xml"),
+        r#"<project>
+  <modelVersion>4.0.0</modelVersion>
+  <parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId><version>3.5.8</version></parent>
+  <groupId>com.example</groupId>
+  <artifactId>ivs</artifactId>
+  <dependencies><dependency><groupId>tech.powerjob</groupId><artifactId>powerjob-worker-spring-boot-starter</artifactId><version>4.3.2</version></dependency></dependencies>
+</project>
+"#,
+    )
+    .unwrap_or_else(|error| panic!("pom should be written: {error}"));
+    fs::write(
+        project_dir.join("src/main/java/com/example/jobs/OutboxPublishProcessor.java"),
+        "package com.example.jobs;
+import tech.powerjob.worker.core.processor.sdk.BasicProcessor;
+import tech.powerjob.worker.core.processor.ProcessResult;
+import tech.powerjob.worker.core.processor.TaskContext;
+public class OutboxPublishProcessor implements BasicProcessor { public ProcessResult process(TaskContext context) { return new ProcessResult(true); } }
+",
+    )
+    .unwrap_or_else(|error| panic!("processor should be written: {error}"));
+
+    let status = Command::new(&binary)
+        .arg("plan")
+        .current_dir(&project_dir)
+        .status()
+        .unwrap_or_else(|error| panic!("code-only migration CLI should run: {error}"));
+
+    assert!(status.success());
+    let output_dir = project_dir.join(".tikeo-migration");
+    let manifest = fs::read_to_string(output_dir.join("manifest.json"))
+        .unwrap_or_else(|error| panic!("manifest should be readable: {error}"));
+    assert!(manifest.contains("code-only:"));
+    assert!(manifest.contains("OutboxPublishProcessor"));
+    let report = fs::read_to_string(output_dir.join("jobs.tikeo.json"))
+        .unwrap_or_else(|error| panic!("report should be readable: {error}"));
+    assert!(report.contains(r#""source": "powerjob""#));
+    assert!(report.contains(r#""total": 1"#));
+    assert!(report.contains(r#""needsReview": 1"#));
+    assert!(report.contains("Generated from Java handler code only"));
+    assert!(report.contains(r#""app": "ivs""#));
+    let java_plan = fs::read_to_string(output_dir.join("java-project-plan.md"))
+        .unwrap_or_else(|error| panic!("java plan should be readable: {error}"));
+    assert!(java_plan.contains("tikeo-spring-boot3-starter"));
+    assert!(java_plan.contains("OutboxPublishProcessor"));
+    let _ = fs::remove_dir_all(project_dir);
+}
+
+#[test]
 fn plan_command_auto_exports_xxl_job_from_legacy_sqlite_fixture() {
     let binary = std::env::var("CARGO_BIN_EXE_tikeo-migrate")
         .unwrap_or_else(|error| panic!("binary path should exist: {error}"));

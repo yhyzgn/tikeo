@@ -240,7 +240,7 @@ tikeo-migrate plan
 tikeo-migrate apply --endpoint http://127.0.0.1:9090 --api-key "$TIKEO_MIGRATION_API_KEY" --dry-run
 ```
 
-如果旧项目没有暴露 Spring datasource，可显式传旧调度器数据库：`--legacy-db-url jdbc:mysql://host:3306/xxl_job --legacy-db-user <user> --legacy-db-password <password>`。只有离线 JSON 审计文件才使用 `--input ./exports/jobs.json`。其他覆盖参数用于非标准目录：`--from xxl-job`、`--project ./legacy-worker`、`--output-dir ./migration-bundle`、`--namespace ops`、`--app billing`。
+如果旧项目没有暴露 Spring datasource，可显式传旧调度器数据库：`--legacy-db-url jdbc:mysql://host:3306/xxl_job --legacy-db-user <user> --legacy-db-password <password>`。只有离线 JSON 审计文件才使用 `--input ./exports/jobs.json`。如果仓库只是 Worker 代码、没有旧调度器 DB/export，`tikeo-migrate plan` 会兜底扫描 XXL-JOB handler 或 PowerJob `BasicProcessor` 类，生成 **code-only** 草案；这些 Job 会被刻意标记为 `needs_review`，因为 schedule、路由、重试、参数和启用状态仍需和旧调度器核对。其他覆盖参数用于非标准目录：`--from xxl-job`、`--project ./legacy-worker`、`--output-dir ./migration-bundle`、`--namespace ops`、`--app billing`。
 
 自动导出只需要旧库的只读 `SELECT` 权限，会依次尝试已知调度器表：XXL-JOB 的 `xxl_job_info` / `XXL_JOB_INFO` / `job_info`，以及 PowerJob 的 `pj_job_info` / `job_info` / `powerjob_job_info`。生产 URL 可使用 `jdbc:mysql://...`、`jdbc:postgresql://...`、`mysql://...`、`postgres://...` 或 `postgresql://...`；SQLite URL 只用于 `examples/migration/legacy-scheduler-fixtures` 下的本地 demo/CI fixture。
 
@@ -268,7 +268,7 @@ flowchart TD
 | 阶段 | 目标 | 主要命令 / 产物 | 进入下一阶段的条件 |
 | --- | --- | --- | --- |
 | 0. 准备 | 明确 namespace/app、staging endpoint、API key、回滚负责人和 Worker processor 命名。 | 内部迁移计划。 | 已有 staging Tikeo Server 和匹配 Worker 方案。 |
-| 1. 探测/导出 | 把旧调度器状态保存为审计输入。 | `tikeo-migrate plan` 自动探测 Spring datasource / `--legacy-db-url`，或读取 `--input` 兜底 JSON。 | 生成的 `manifest.json` 记录 input origin 和用于复核的 source snapshots。 |
+| 1. 探测/导出 | 把旧调度器状态保存为审计输入。 | `tikeo-migrate plan` 自动探测 Spring datasource / `--legacy-db-url`、读取 `--input` 兜底 JSON，或对 Worker-only 仓库做 code-only handler 扫描。 | 生成的 `manifest.json` 记录 `legacy-db:...`、`json-file:...` 或 `code-only:...` input origin 和用于复核的 source snapshots。 |
 | 2. 规划 | 生成非破坏性迁移包。 | `tikeo-migrate plan` → `.tikeo-migration/`。 | 已复核 `manifest.json`、`jobs.tikeo.md`、`data-import-plan.json`、`CHECKLIST.md`。 |
 | 3. 消解差异 | 不假装旧语义完全等价，而是显式翻译。 | 复核 `needs_review`、Java patch guidance、unsupported-feature warnings。 | broadcast/map-reduce/routing/blocking/pinning/glue 等语义已有明确处理方案。 |
 | 4. 代码改造 | 添加 Tikeo Worker 依赖、processor 注解或适配器。 | Java 分支 + 旧项目测试。 | Worker 能启动，并暴露 job 草案中使用的 processor name。 |

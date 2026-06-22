@@ -17,6 +17,14 @@ use serde_json::{Map, Value, json};
 use sqlx::{Column, Row};
 use tikeo_core::{MisfirePolicy, ScheduleType};
 
+mod apply;
+mod code_only;
+mod render;
+
+use apply::apply_data;
+use code_only::build_code_only_export_json;
+use render::{render_checklist, render_java_project_plan, render_markdown_report};
+
 /// tikeo-migrate command-line entrypoint.
 #[derive(Debug, Parser)]
 #[command(
@@ -207,6 +215,7 @@ struct ResolvedPlanInputs {
     input_origin: String,
     export_json: String,
     project: Option<PathBuf>,
+    code_only: bool,
 }
 
 async fn resolve_plan_inputs(command: &PlanCommand) -> Result<ResolvedPlanInputs> {
@@ -236,6 +245,7 @@ async fn resolve_plan_inputs_from(command: &PlanCommand, cwd: &Path) -> Result<R
             input_origin: format!("json-file:{}", input.display()),
             export_json: input_text,
             project,
+            code_only: false,
         });
     }
 
@@ -247,27 +257,52 @@ async fn resolve_plan_inputs_from(command: &PlanCommand, cwd: &Path) -> Result<R
             input_origin: export.origin,
             export_json: export.json,
             project,
+            code_only: false,
         });
     }
 
-    let input = find_export_file(project.as_deref().unwrap_or(cwd))?;
-    let input_text = fs::read_to_string(&input)
-        .with_context(|| format!("failed to read migration input {}", input.display()))?;
-    let source = command
-        .from
-        .or_else(|| infer_source_from_path(&input))
-        .or_else(|| infer_source_from_json(&input_text))
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "failed to auto-detect source scheduler; pass --from xxl-job or --from powerjob"
-            )
-        })?;
-    Ok(ResolvedPlanInputs {
-        source,
-        input_origin: format!("json-file:{}", input.display()),
-        export_json: input_text,
-        project,
-    })
+    match find_export_file(project.as_deref().unwrap_or(cwd)) {
+        Ok(input) => {
+            let input_text = fs::read_to_string(&input)
+                .with_context(|| format!("failed to read migration input {}", input.display()))?;
+            let source = command
+                .from
+                .or_else(|| infer_source_from_path(&input))
+                .or_else(|| infer_source_from_json(&input_text))
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "failed to auto-detect source scheduler; pass --from xxl-job or --from powerjob"
+                    )
+                })?;
+            Ok(ResolvedPlanInputs {
+                source,
+                input_origin: format!("json-file:{}", input.display()),
+                export_json: input_text,
+                project,
+                code_only: false,
+            })
+        }
+        Err(error) => {
+            let Some(project_root) = project
+                .as_deref()
+                .or_else(|| looks_like_java_project(cwd).then_some(cwd))
+            else {
+                return Err(error);
+            };
+            let source = command
+                .from
+                .or_else(|| infer_source_from_project(project_root))
+                .ok_or(error)?;
+            let export_json = build_code_only_export_json(project_root, source)?;
+            Ok(ResolvedPlanInputs {
+                source,
+                input_origin: format!("code-only:{}", project_root.display()),
+                export_json,
+                project,
+                code_only: true,
+            })
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -934,6 +969,9 @@ pub async fn build_migration_bundle(command: &PlanCommand) -> Result<MigrationBu
         "Run tikeo-migrate apply against staging, trigger one migrated job, and compare logs/results with the legacy scheduler.".to_owned(),
         "Keep legacy and Tikeo in dual-run until instance outcomes and operator evidence match.".to_owned(),
     ];
+    if resolved.code_only {
+        checklist.push("This bundle was generated from Java handler code only because no scheduler DB/export was available; every generated job is review-required until schedule, route, retry, params, and enablement are reconciled with the legacy scheduler.".to_owned());
+    }
     if java_project.is_none() {
         checklist.push("No Java project was scanned; code migration remains manual until --project is provided.".to_owned());
     }
@@ -1008,17 +1046,6 @@ fn write_migration_bundle(bundle: &MigrationBundle, output_dir: &Path) -> Result
         }
     }
     Ok(())
-}
-
-fn render_checklist(bundle: &MigrationBundle) -> String {
-    let mut output = format!(
-        "# Tikeo migration checklist\n\nSource: `{}`\n\n",
-        bundle.source
-    );
-    for (index, item) in bundle.checklist.iter().enumerate() {
-        output.push_str(&format!("{}. {item}\n", index + 1));
-    }
-    output
 }
 
 fn scan_java_project(
@@ -1331,93 +1358,6 @@ fn java_patch_guidance(content: &str, candidates: &[(String, Option<String>)]) -
     diff
 }
 
-fn render_java_project_plan(project: &JavaProjectMigrationPlan) -> String {
-    let mut output = format!(
-        "# Java project migration plan\n\n- Project: `{}`\n- Build system: `{}`\n- Spring Boot major: `{}`\n- Recommended artifact: `net.tikeo:{}`\n\n## Dependency\n\n```\n{}\n```\n\n",
-        project.project_root,
-        project.build_system,
-        project
-            .spring_boot_major
-            .map_or_else(|| "unknown".to_owned(), |major| major.to_string()),
-        project.recommended_artifact,
-        project.dependency_snippet
-    );
-    output.push_str("## Handler candidates\n\n");
-    for handler in &project.handler_candidates {
-        output.push_str(&format!(
-            "- `{}` → `{}` ({})\n",
-            handler.path, handler.processor_name, handler.framework
-        ));
-    }
-    if project.handler_candidates.is_empty() {
-        output.push_str("- No legacy handlers detected.\n");
-    }
-    output.push_str("\n## Review notes\n\n");
-    for note in &project.review_notes {
-        output.push_str(&format!("- {note}\n"));
-    }
-    output
-}
-
-async fn apply_data(command: &ApplyCommand, report: &MigrationReport) -> Result<ApplyEvidence> {
-    let mut drafts = Vec::new();
-    for job in &report.jobs {
-        if job.status == "ready" || (command.include_needs_review && job.status == "needs_review") {
-            if let Some(draft) = &job.tikeo_job {
-                drafts.push(draft.clone());
-            }
-        }
-    }
-    let mut requests = Vec::new();
-    if command.dry_run {
-        for draft in drafts {
-            requests.push(ApplyRequestEvidence {
-                name: draft.name,
-                status: "planned".to_owned(),
-                http_status: None,
-                response: None,
-            });
-        }
-        return Ok(ApplyEvidence {
-            dry_run: true,
-            requests,
-        });
-    }
-    let client = reqwest::Client::new();
-    let endpoint = command.endpoint.trim_end_matches('/');
-    for draft in drafts {
-        let response = client
-            .post(format!("{endpoint}/api/v1/jobs"))
-            .header("x-tikeo-api-key", &command.api_key)
-            .json(&draft)
-            .send()
-            .await
-            .with_context(|| format!("failed to apply job {}", draft.name))?;
-        let status = response.status().as_u16();
-        let body = response.text().await.unwrap_or_default();
-        requests.push(ApplyRequestEvidence {
-            name: draft.name,
-            status: if (200..300).contains(&status) {
-                "applied"
-            } else {
-                "failed"
-            }
-            .to_owned(),
-            http_status: Some(status),
-            response: Some(body),
-        });
-    }
-    Ok(ApplyEvidence {
-        dry_run: false,
-        requests,
-    })
-}
-
-/// Plan a scheduler migration from a JSON export string.
-///
-/// # Errors
-///
-/// Returns an error when the JSON document shape is unsupported.
 fn plan_migration(
     source: MigrationSource,
     input: &str,
@@ -1518,6 +1458,12 @@ fn plan_xxl_job(record: &Map<String, Value>, defaults: &MigrationDefaults) -> Mi
         "childJobId",
         "XXL-JOB childJobId should be migrated to a Tikeo Workflow edge set",
     );
+    collect_if_present(
+        record,
+        &mut unsupported_features,
+        "codeOnly",
+        "Generated from Java handler code only; scheduler definition, schedule, route, retry, and enablement require review",
+    );
     let retry_count = integer_field(
         record,
         &["executorFailRetryCount", "executor_fail_retry_count"],
@@ -1612,6 +1558,12 @@ fn plan_powerjob(record: &Map<String, Value>, defaults: &MigrationDefaults) -> M
         &mut unsupported_features,
         "maxInstanceNum",
         "PowerJob maxInstanceNum requires review against Tikeo concurrency policy",
+    );
+    collect_if_present(
+        record,
+        &mut unsupported_features,
+        "codeOnly",
+        "Generated from Java handler code only; scheduler definition, schedule, route, retry, and enablement require review",
     );
     let retry_count = integer_field(
         record,
@@ -1723,46 +1675,6 @@ fn integer_field(record: &Map<String, Value>, names: &[&str]) -> Option<i64> {
             _ => None,
         })
     })
-}
-
-fn render_markdown_report(report: &MigrationReport) -> String {
-    let mut output = format!(
-        "# Tikeo migration report\n\n- Source: `{}`\n- Mode: `{}`\n- Total: {}\n- Ready: {}\n- Needs review: {}\n- Skipped: {}\n\n",
-        report.source,
-        report.mode,
-        report.summary.total,
-        report.summary.ready,
-        report.summary.needs_review,
-        report.summary.skipped
-    );
-    output.push_str("| Source ID | Name | Status | Tikeo schedule | Processor | Notes |\n");
-    output.push_str("| --- | --- | --- | --- | --- | --- |\n");
-    for job in &report.jobs {
-        let (schedule, processor) = job.tikeo_job.as_ref().map_or(("-", "-"), |draft| {
-            (
-                draft.schedule_type.as_str(),
-                draft.processor_name.as_deref().unwrap_or("-"),
-            )
-        });
-        let notes = job
-            .unsupported_features
-            .iter()
-            .chain(job.warnings.iter())
-            .cloned()
-            .collect::<Vec<_>>()
-            .join("; ")
-            .replace('|', "\\|");
-        output.push_str(&format!(
-            "| `{}` | {} | {} | `{}` | `{}` | {} |\n",
-            job.source_id,
-            job.source_name.replace('|', "\\|"),
-            job.status,
-            schedule,
-            processor,
-            notes
-        ));
-    }
-    output
 }
 
 #[cfg(test)]

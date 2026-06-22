@@ -97,6 +97,8 @@ Do **not** start by hand-crafting `xxl-job-export.json` or `powerjob-export.json
 4. connect to the legacy scheduler database and export known job tables such as `xxl_job_info` or `pj_job_info`;
 5. store source snapshots inside the generated migration bundle for audit and review.
 
+If the repository is Worker-only and does not contain scheduler DB settings or an exported job list, the CLI now falls back to a **code-only** scan: it detects XXL-JOB handlers and PowerJob processor classes from Java source, creates disabled API-style job drafts, and marks every generated job `needs_review`. This keeps the migration moving without inventing schedules, routes, retries, params, or enablement that only exist in the old scheduler control plane.
+
 The CLI supports MySQL/PostgreSQL JDBC URLs and native URLs. If the old project does not expose datasource settings, provide them explicitly without creating an intermediate JSON file:
 
 ```bash
@@ -117,7 +119,7 @@ tikeo-migrate plan \
 | Required permission | Read-only `SELECT` on the scheduler job table. Do not use an account that can mutate legacy scheduler state. |
 | XXL-JOB table candidates | `xxl_job_info`, `XXL_JOB_INFO`, `job_info`. |
 | PowerJob table candidates | `pj_job_info`, `job_info`, `powerjob_job_info`. |
-| Recorded evidence | `manifest.json` records a redacted `legacy-db:...` origin; credentials are not printed in the origin. |
+| Recorded evidence | `manifest.json` records a redacted `legacy-db:...` origin for DB exports, `json-file:...` for offline files, or `code-only:...` for Worker-only source scans; credentials are not printed in the origin. |
 
 If auto-export fails, read the error first: it includes the detected source family and the table candidates the CLI attempted. Common fixes are:
 
@@ -125,6 +127,18 @@ If auto-export fails, read the error first: it includes the detected source fami
 - pass `--legacy-db-url`, `--legacy-db-user`, and `--legacy-db-password` when datasource settings are injected by a deployment system rather than committed in `application.*`;
 - grant read-only `SELECT` on the known table names above;
 - use `--input ./exports/jobs.json` only when the migration workstation cannot reach the legacy database.
+
+### Worker-only / code-only fallback
+
+Some real projects contain only PowerJob/XXL-JOB Worker code and obtain scheduler definitions from a separately deployed Admin service. In that case, running from the Worker project root still produces a review bundle:
+
+```bash
+cd ./legacy-worker-only
+
+tikeo-migrate plan
+```
+
+The bundle records `code-only:<project-root>` as input origin. Treat this as a **processor inventory and code migration plan**, not as a complete schedule migration: each generated draft is disabled/review-required until an operator reconciles the old scheduler's cron/fixed-rate expression, route strategy, retry policy, parameters, concurrency/blocking semantics, and enablement state.
 
 A local deterministic fixture is available under `examples/migration/legacy-scheduler-fixtures` for trying the full auto-export path without a real XXL-JOB or PowerJob database.
 
@@ -166,7 +180,7 @@ Auto-detection rules:
 | Project root | Current directory when it contains `pom.xml`, `build.gradle`, or `build.gradle.kts`. |
 | Source scheduler | Detected from dependencies/source such as XXL-JOB `@XxlJob`, `xxl-job-core`, or PowerJob `BasicProcessor` / `tech.powerjob`. |
 | Legacy database | Spring datasource URL/user/password from common `application.*` and `bootstrap.*` files, or explicit `--legacy-db-url`, `--legacy-db-user`, `--legacy-db-password`. |
-| Fallback JSON | Only after database discovery is unavailable: one detectable JSON under the project root, `export/`, `exports/`, or `migration/`, or explicit `--input`. |
+| Fallback JSON / code-only | After database discovery is unavailable: one detectable JSON under the project root, `export/`, `exports/`, or `migration/`, explicit `--input`, or code-only handler scan when no JSON exists. |
 | Bundle output | `./.tikeo-migration`. |
 
 ### Explicit command for non-standard layouts
