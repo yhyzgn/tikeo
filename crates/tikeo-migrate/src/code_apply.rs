@@ -10,6 +10,7 @@ use serde_json::Value;
 use crate::{ApplyCommand, JavaProjectMigrationPlan};
 
 const DEFAULT_TIKEO_VERSION: &str = "0.3.10";
+const TIKEO_PROTOBUF_JAVA_VERSION: &str = "4.34.1";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -211,13 +212,16 @@ fn apply_maven_dependency(
     text = remove_legacy_scheduler_dependencies(&text);
     text = remove_legacy_scheduler_version_properties(&text);
     text = ensure_maven_tikeo_version_property(&text, &version);
-    if !text.contains(&format!("<artifactId>{artifact}</artifactId>")) {
-        if has_dependency_management(&text) {
+    text = ensure_maven_protobuf_version_property(&text);
+    if has_dependency_management(&text) {
+        text = ensure_maven_managed_dependency(&text, "protobuf-java")?;
+        if !text.contains(&format!("<artifactId>{artifact}</artifactId>")) {
             text = ensure_maven_managed_dependency(&text, artifact)?;
             text = ensure_maven_direct_dependency(&text, artifact, false)?;
-        } else {
-            text = ensure_maven_direct_dependency(&text, artifact, true)?;
         }
+    } else if !text.contains(&format!("<artifactId>{artifact}</artifactId>")) {
+        text = ensure_maven_direct_dependency(&text, artifact, true)?;
+        text = ensure_maven_direct_dependency(&text, "protobuf-java", true)?;
     }
     text = trim_whitespace_only_lines(&text);
     if text == before {
@@ -354,6 +358,26 @@ fn ensure_maven_tikeo_version_property(text: &str, version: &str) -> String {
     }
 }
 
+fn ensure_maven_protobuf_version_property(text: &str) -> String {
+    if text.contains("<protobuf-java.version>") {
+        return text.to_owned();
+    }
+    if let Some(index) = text.find("</properties>") {
+        let mut output = text.to_owned();
+        let (insert_at, closing_indent) = line_start_and_indent_at(text, index);
+        let indent = format!("{closing_indent}    ");
+        output.insert_str(
+            insert_at,
+            &format!(
+                "{indent}<!-- Tikeo generated protobuf classes require runtime >= gencode version. -->\n{indent}<protobuf-java.version>{TIKEO_PROTOBUF_JAVA_VERSION}</protobuf-java.version>\n"
+            ),
+        );
+        output
+    } else {
+        text.to_owned()
+    }
+}
+
 fn line_start_and_indent_at(text: &str, index: usize) -> (usize, String) {
     let line_start = text[..index].rfind('\n').map_or(0, |position| position + 1);
     let line_prefix = &text[line_start..index];
@@ -369,7 +393,7 @@ fn line_start_and_indent_at(text: &str, index: usize) -> (usize, String) {
 }
 
 fn ensure_maven_managed_dependency(text: &str, artifact: &str) -> Result<String> {
-    if text.contains(&format!("<artifactId>{artifact}</artifactId>")) {
+    if managed_dependency_section(text).contains(&format!("<artifactId>{artifact}</artifactId>")) {
         return Ok(text.to_owned());
     }
     let dependency_management_end = text
@@ -382,12 +406,27 @@ fn ensure_maven_managed_dependency(text: &str, artifact: &str) -> Result<String>
     let (insert_at, closing_indent) = line_start_and_indent_at(text, dependencies_end);
     let indent = format!("{closing_indent}    ");
     let child = format!("{indent}    ");
-    let managed = format!(
-        "{indent}<dependency>\n{child}<groupId>net.tikeo</groupId>\n{child}<artifactId>{artifact}</artifactId>\n{child}<version>${{tikeo.version}}</version>\n{indent}</dependency>\n"
-    );
+    let managed = managed_dependency_block(artifact, &indent, &child);
     let mut output = text.to_owned();
     output.insert_str(insert_at, &managed);
     Ok(output)
+}
+
+fn managed_dependency_section(text: &str) -> &str {
+    let Some(start) = text.find("<dependencyManagement>") else {
+        return "";
+    };
+    let Some(relative_end) = text[start..].find("</dependencyManagement>") else {
+        return &text[start..];
+    };
+    &text[start..start + relative_end]
+}
+
+fn managed_dependency_block(artifact: &str, indent: &str, child: &str) -> String {
+    let (group_id, version_property) = dependency_coordinates(artifact);
+    format!(
+        "{indent}<dependency>\n{child}<groupId>{group_id}</groupId>\n{child}<artifactId>{artifact}</artifactId>\n{child}<version>${{{version_property}}}</version>\n{indent}</dependency>\n"
+    )
 }
 
 fn ensure_maven_direct_dependency(
@@ -421,14 +460,22 @@ fn ensure_maven_direct_dependency(
 
 fn direct_dependency_block(artifact: &str, include_version: bool, base: &str) -> String {
     let child = format!("{base}    ");
+    let (group_id, version_property) = dependency_coordinates(artifact);
     let version = if include_version {
-        format!("{child}<version>${{tikeo.version}}</version>\n")
+        format!("{child}<version>${{{version_property}}}</version>\n")
     } else {
         String::new()
     };
     format!(
-        "{base}<dependency>\n{child}<groupId>net.tikeo</groupId>\n{child}<artifactId>{artifact}</artifactId>\n{version}{base}</dependency>\n"
+        "{base}<dependency>\n{child}<groupId>{group_id}</groupId>\n{child}<artifactId>{artifact}</artifactId>\n{version}{base}</dependency>\n"
     )
+}
+
+fn dependency_coordinates(artifact: &str) -> (&'static str, &'static str) {
+    match artifact {
+        "protobuf-java" => ("com.google.protobuf", "protobuf-java.version"),
+        _ => ("net.tikeo", "tikeo.version"),
+    }
 }
 
 fn apply_gradle_dependency(

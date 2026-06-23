@@ -434,7 +434,10 @@ xxl.job.executor.enabled: true
     assert!(pom.contains("<artifactId>tikeo-spring-boot3-starter</artifactId>"));
     assert!(!pom.contains("${TIKEO_VERSION}"));
     assert!(pom.contains("<tikeo.version>0.3.10</tikeo.version>"));
+    assert!(pom.contains("<protobuf-java.version>4.34.1</protobuf-java.version>"));
+    assert!(pom.contains("<artifactId>protobuf-java</artifactId>"));
     assert!(pom.contains("<version>${tikeo.version}</version>"));
+    assert!(pom.contains("<version>${protobuf-java.version}</version>"));
     assert!(!pom.contains("tech.powerjob"));
     assert!(!pom.contains("powerjob.version"));
     let migrated_config =
