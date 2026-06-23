@@ -298,5 +298,17 @@
     "url": "/zh-CN/docs/development/release-acceptance-packet-v0.3.9",
     "locale": "zh-CN",
     "summary": "v0.3.9 发布交接证据包，包含 Release 资产、GitHub workflow、本地 Kind HA 指标、release 后跨语言 Worker soak 证据和剩余生产检查。"
+  },
+  {
+    "title": "v0.3.10 release acceptance packet",
+    "url": "/docs/development/release-acceptance-packet-v0.3.10",
+    "section": "development",
+    "summary": "Release acceptance packet for v0.3.10, including in-place migration apply, uploaded asset families, GitHub workflow evidence, Kind HA metrics, cross-language Worker soak evidence, and remaining production checks."
+  },
+  {
+    "title": "v0.3.10 发布验收包",
+    "url": "/zh-CN/docs/development/release-acceptance-packet-v0.3.10",
+    "section": "development",
+    "summary": "v0.3.10 发布交接证据包，包含原地迁移 apply、Release 资产、GitHub workflow、本地 Kind HA 指标、跨语言 Worker soak 证据和剩余生产检查。"
   }
 ]

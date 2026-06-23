@@ -5,6 +5,7 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{ApplyCommand, JavaProjectMigrationPlan};
 
@@ -16,7 +17,84 @@ pub(crate) struct CodeApplyEvidence {
     pub bundle: String,
     pub changed_files: Vec<String>,
     pub skipped_paths: Vec<String>,
+    pub data_import_summary: Option<CodeApplyDataImportSummary>,
+    pub semantic_review_items: Vec<CodeApplySemanticReviewItem>,
+    pub next_actions: Vec<String>,
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CodeApplyDataImportSummary {
+    pub source: Option<String>,
+    pub mode: Option<String>,
+    pub total: usize,
+    pub ready: usize,
+    pub needs_review: usize,
+    pub skipped: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CodeApplySemanticReviewItem {
+    pub source_id: String,
+    pub source_name: String,
+    pub status: String,
+    pub processor_name: Option<String>,
+    pub unsupported_features: Vec<String>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BundleMigrationReport {
+    source: Option<String>,
+    mode: Option<String>,
+    summary: Option<BundleMigrationSummary>,
+    #[serde(default)]
+    jobs: Vec<BundleJobPlan>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BundleMigrationSummary {
+    total: usize,
+    ready: usize,
+    needs_review: usize,
+    skipped: usize,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BundleDataImportPlan {
+    #[serde(default)]
+    ready: Vec<Value>,
+    #[serde(default)]
+    needs_review: Vec<Value>,
+    #[serde(default)]
+    skipped: Vec<Value>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BundleJobPlan {
+    #[serde(default)]
+    source_id: String,
+    #[serde(default)]
+    source_name: String,
+    #[serde(default)]
+    status: String,
+    tikeo_job: Option<BundleTikeoJobDraft>,
+    #[serde(default)]
+    unsupported_features: Vec<String>,
+    #[serde(default)]
+    warnings: Vec<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BundleTikeoJobDraft {
+    processor_name: Option<String>,
 }
 
 pub(crate) fn apply_code(command: &ApplyCommand) -> Result<CodeApplyEvidence> {
@@ -69,12 +147,17 @@ pub(crate) fn apply_code(command: &ApplyCommand) -> Result<CodeApplyEvidence> {
             push_unique(&mut changed_files, handler.path.clone());
         }
     }
+    let (data_import_summary, semantic_review_items) =
+        read_bundle_review_context(&command.bundle, &mut warnings);
     let evidence = CodeApplyEvidence {
         source_project: source_project.display().to_string(),
         target_project: target_project.display().to_string(),
         bundle: command.bundle.display().to_string(),
         changed_files,
         skipped_paths,
+        data_import_summary,
+        semantic_review_items,
+        next_actions: code_apply_next_actions(),
         warnings,
     };
     write_code_apply_outputs(command, &target_project, &evidence)?;
@@ -578,6 +661,128 @@ fn insert_import(content: String, import_line: &str) -> String {
     }
 }
 
+fn read_bundle_review_context(
+    bundle: &Path,
+    warnings: &mut Vec<String>,
+) -> (
+    Option<CodeApplyDataImportSummary>,
+    Vec<CodeApplySemanticReviewItem>,
+) {
+    let report_path = bundle.join("jobs.tikeo.json");
+    let report = match fs::read_to_string(&report_path) {
+        Ok(text) => match serde_json::from_str::<BundleMigrationReport>(&text) {
+            Ok(report) => Some(report),
+            Err(error) => {
+                warnings.push(format!(
+                    "failed to parse {}; semantic migration review summary was not embedded: {error}",
+                    report_path.display()
+                ));
+                None
+            }
+        },
+        Err(error) => {
+            warnings.push(format!(
+                "failed to read {}; semantic migration review summary was not embedded: {error}",
+                report_path.display()
+            ));
+            None
+        }
+    };
+
+    let data_path = bundle.join("data-import-plan.json");
+    let data_plan = match fs::read_to_string(&data_path) {
+        Ok(text) => match serde_json::from_str::<BundleDataImportPlan>(&text) {
+            Ok(plan) => Some(plan),
+            Err(error) => {
+                warnings.push(format!(
+                    "failed to parse {}; data import summary fell back to jobs.tikeo.json: {error}",
+                    data_path.display()
+                ));
+                None
+            }
+        },
+        Err(error) => {
+            warnings.push(format!(
+                "failed to read {}; data import summary fell back to jobs.tikeo.json: {error}",
+                data_path.display()
+            ));
+            None
+        }
+    };
+
+    let data_import_summary = data_plan
+        .as_ref()
+        .map(|plan| CodeApplyDataImportSummary {
+            source: report.as_ref().and_then(|report| report.source.clone()),
+            mode: report.as_ref().and_then(|report| report.mode.clone()),
+            total: plan.ready.len() + plan.needs_review.len() + plan.skipped.len(),
+            ready: plan.ready.len(),
+            needs_review: plan.needs_review.len(),
+            skipped: plan.skipped.len(),
+        })
+        .or_else(|| {
+            report.as_ref().and_then(|report| {
+                report
+                    .summary
+                    .as_ref()
+                    .map(|summary| CodeApplyDataImportSummary {
+                        source: report.source.clone(),
+                        mode: report.mode.clone(),
+                        total: summary.total,
+                        ready: summary.ready,
+                        needs_review: summary.needs_review,
+                        skipped: summary.skipped,
+                    })
+            })
+        });
+
+    let semantic_review_items = report
+        .map(|report| {
+            report
+                .jobs
+                .into_iter()
+                .filter(|job| {
+                    job.status != "ready"
+                        || !job.unsupported_features.is_empty()
+                        || !job.warnings.is_empty()
+                })
+                .map(|job| CodeApplySemanticReviewItem {
+                    source_id: if job.source_id.is_empty() {
+                        "unknown".to_owned()
+                    } else {
+                        job.source_id
+                    },
+                    source_name: if job.source_name.is_empty() {
+                        "unknown".to_owned()
+                    } else {
+                        job.source_name
+                    },
+                    status: if job.status.is_empty() {
+                        "unknown".to_owned()
+                    } else {
+                        job.status
+                    },
+                    processor_name: job.tikeo_job.and_then(|draft| draft.processor_name),
+                    unsupported_features: job.unsupported_features,
+                    warnings: job.warnings,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    (data_import_summary, semantic_review_items)
+}
+
+fn code_apply_next_actions() -> Vec<String> {
+    vec![
+        "Set a concrete TIKEO_VERSION and compile the project on the migration branch.".to_owned(),
+        "Fill tikeo.worker.endpoint, tikeo.management.endpoint, and API-key placeholders for staging before starting traffic.".to_owned(),
+        "Review every needs_review job and unsupported feature in jobs.tikeo.json/data-import-plan.json before import.".to_owned(),
+        "Import only reviewed ready jobs through the console, Management API, or GitOps; tikeo-migrate apply never calls the server.".to_owned(),
+        "Trigger at least one migrated job in staging and compare payload, logs, retries, and result semantics with the legacy scheduler.".to_owned(),
+    ]
+}
+
 fn write_code_apply_outputs(
     command: &ApplyCommand,
     target_project: &Path,
@@ -606,7 +811,7 @@ fn write_code_apply_outputs(
 
 fn render_code_apply_report(evidence: &CodeApplyEvidence) -> String {
     let mut output = format!(
-        "# Tikeo code migration report\n\n- Source project: `{}`\n- Output project: `{}`\n- Bundle: `{}`\n\n## Changed files\n\n",
+        "# Tikeo code migration report\n\n- Source project: `{}`\n- Target project (in-place): `{}`\n- Bundle: `{}`\n\n## Changed files\n\n",
         evidence.source_project, evidence.target_project, evidence.bundle
     );
     for file in &evidence.changed_files {
@@ -615,12 +820,63 @@ fn render_code_apply_report(evidence: &CodeApplyEvidence) -> String {
     if evidence.changed_files.is_empty() {
         output.push_str("- No files changed.\n");
     }
-    output.push_str("\n## Skipped copied paths\n\n");
+    output.push_str("\n## Data import summary\n\n");
+    if let Some(summary) = &evidence.data_import_summary {
+        output.push_str("| Source | Mode | Total | Ready | Needs review | Skipped |\n");
+        output.push_str("| --- | --- | ---: | ---: | ---: | ---: |\n");
+        output.push_str(&format!(
+            "| `{}` | `{}` | {} | {} | {} | {} |\n",
+            summary.source.as_deref().unwrap_or("unknown"),
+            summary.mode.as_deref().unwrap_or("unknown"),
+            summary.total,
+            summary.ready,
+            summary.needs_review,
+            summary.skipped
+        ));
+    } else {
+        output.push_str(
+            "- No `jobs.tikeo.json` or `data-import-plan.json` summary was available in the bundle.\n",
+        );
+    }
+
+    output.push_str("\n## Semantic review items\n\n");
+    if evidence.semantic_review_items.is_empty() {
+        output.push_str(
+            "- None. All planned jobs are marked ready and no unsupported features were reported.\n",
+        );
+    } else {
+        output.push_str("| Source ID | Name | Status | Processor | Review reason |\n");
+        output.push_str("| --- | --- | --- | --- | --- |\n");
+        for item in &evidence.semantic_review_items {
+            let mut reasons = item.unsupported_features.clone();
+            reasons.extend(item.warnings.clone());
+            let reason = reasons.join("; ").replace('|', "\\|");
+            output.push_str(&format!(
+                "| `{}` | {} | `{}` | `{}` | {} |\n",
+                item.source_id,
+                item.source_name.replace('|', "\\|"),
+                item.status,
+                item.processor_name.as_deref().unwrap_or("-"),
+                if reason.is_empty() {
+                    "manual review"
+                } else {
+                    reason.as_str()
+                }
+            ));
+        }
+    }
+
+    output.push_str("\n## Next manual actions\n\n");
+    for action in &evidence.next_actions {
+        output.push_str(&format!("- {action}\n"));
+    }
+
+    output.push_str("\n## Skipped paths\n\n");
     for file in &evidence.skipped_paths {
         output.push_str(&format!("- `{file}`\n"));
     }
     if evidence.skipped_paths.is_empty() {
-        output.push_str("- None.\n");
+        output.push_str("- None. `apply` is in-place and does not copy the project.\n");
     }
     output.push_str("\n## Warnings\n\n");
     for warning in &evidence.warnings {

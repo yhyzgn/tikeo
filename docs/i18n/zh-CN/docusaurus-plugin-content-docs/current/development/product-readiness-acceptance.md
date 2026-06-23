@@ -25,7 +25,7 @@ keywords: [tikeo 验收, 通知中心, tikeo migrate, raft fsod, 发布就绪]
 ./scripts/release-readiness-evidence.sh
 ```
 
-聚合脚本会写入 `.dev/reports/release-readiness-evidence-*/REPORT.md` 和各模块 `summary.json`。它通过协议真实的 loopback provider 证明通知中心投递链路，演练完整 `tikeo-migrate` 旧项目迁移链路并输出旧 Worker 项目原地迁移，并在提供 `TIKEO_CLOUD_HA_SERVER_URL` 时执行真实云 HA 探针；未提供云目标时，会明确输出云环境延期边界报告。
+聚合脚本会写入 `.dev/reports/release-readiness-evidence-*/REPORT.md` 和各模块 `summary.json`。它通过协议真实的 loopback provider 证明通知中心投递链路；提供 `TIKEO_NOTIFICATION_REAL_SERVER_URL` 和 `TIKEO_NOTIFICATION_REAL_CHANNEL_IDS` 时会执行 `scripts/notification-real-provider-acceptance.sh`，否则归档真实 provider 延期边界；随后演练完整 `tikeo-migrate` 旧项目迁移链路并输出旧 Worker 项目原地迁移；提供 `TIKEO_CLOUD_HA_SERVER_URL` 时执行真实云 HA 探针，未提供云目标时明确输出云环境延期边界报告。
 
 ## 通知中心验收
 
@@ -44,6 +44,7 @@ keywords: [tikeo 验收, 通知中心, tikeo migrate, raft fsod, 发布就绪]
 
 ```bash
 ./scripts/notification-provider-e2e-smoke.sh
+./scripts/notification-real-provider-acceptance.sh   # 未设置真实 Server/channel 时输出延期边界
 python3 .github/tests/docs_site_contract_test.py
 python3 .github/tests/demo_seed_topology_contract_test.py
 cargo test -p tikeo-server notification --all-features
@@ -51,7 +52,7 @@ cargo test -p tikeo-server notification --all-features
 
 `notification-provider-e2e-smoke.sh` 会启动本地 Server 和 mock HTTP provider，发送一条成功测试通知和一条强制 provider 失败通知，然后验证 provider 收包、`notification_messages`、delivery attempts、queue 聚合、dead-letter 状态和目标脱敏。它是本地协议级证据，不替代具体租户中的 Slack/飞书/钉钉/企微/PagerDuty/SMTP 生产签核。
 
-如果当前环境不能访问真实 provider，只能把 provider 投递门槛标记为 deferred；渲染、校验、脱敏和队列证据仍然必须保留。没有真实 outbound 结果时，不要声称该 provider 已生产就绪。
+如果当前环境不能访问真实 provider，执行 `scripts/notification-real-provider-acceptance.sh` 归档明确的 `deferred_real_provider_inputs_missing` 边界，只能把 provider 投递门槛标记为 deferred；渲染、校验、脱敏和队列证据仍然必须保留。没有真实 outbound 结果时，不要声称该 provider 已生产就绪。
 
 ## 迁移 CLI 验收
 

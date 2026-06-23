@@ -25,7 +25,7 @@ For an all-in-one local handoff packet, run:
 ./scripts/release-readiness-evidence.sh
 ```
 
-The wrapper writes `.dev/reports/release-readiness-evidence-*/REPORT.md` plus per-area `summary.json` files. It proves Notification Center delivery through a protocol-real loopback provider, rehearses a full `tikeo-migrate` legacy-project chain into an legacy Worker project in-place apply, and either runs the real cloud HA probe or records why cloud HA is deferred until `TIKEO_CLOUD_HA_SERVER_URL` is available.
+The wrapper writes `.dev/reports/release-readiness-evidence-*/REPORT.md` plus per-area `summary.json` files. It proves Notification Center delivery through a protocol-real loopback provider, records a real-provider boundary or runs `scripts/notification-real-provider-acceptance.sh` when `TIKEO_NOTIFICATION_REAL_SERVER_URL` and `TIKEO_NOTIFICATION_REAL_CHANNEL_IDS` are supplied, rehearses a full `tikeo-migrate` legacy-project chain into a legacy Worker project in-place apply, and either runs the real cloud HA probe or records why cloud HA is deferred until `TIKEO_CLOUD_HA_SERVER_URL` is available.
 
 ## Notification Center acceptance
 
@@ -44,6 +44,7 @@ Suggested local verification commands:
 
 ```bash
 ./scripts/notification-provider-e2e-smoke.sh
+./scripts/notification-real-provider-acceptance.sh   # emits deferred boundary unless real Server/channel inputs are set
 python3 .github/tests/docs_site_contract_test.py
 python3 .github/tests/demo_seed_topology_contract_test.py
 cargo test -p tikeo-server notification --all-features
@@ -51,7 +52,7 @@ cargo test -p tikeo-server notification --all-features
 
 `notification-provider-e2e-smoke.sh` starts a local Server and mock HTTP provider, sends one successful test notification and one forced provider failure, then verifies provider receipt, `notification_messages`, delivery attempts, queue aggregates, dead-letter state, and target redaction. It is local protocol evidence, not a substitute for tenant-specific Slack/Feishu/DingTalk/WeCom/PagerDuty/SMTP sign-off.
 
-If a real provider cannot be called from the environment, mark only the provider-delivery gate as deferred and keep render, validation, redaction, and queue evidence. Do not claim production readiness for that provider until a real outbound call has been observed.
+If a real provider cannot be called from the environment, run `scripts/notification-real-provider-acceptance.sh` to archive the explicit `deferred_real_provider_inputs_missing` boundary, mark only the provider-delivery gate as deferred, and keep render, validation, redaction, and queue evidence. Do not claim production readiness for that provider until a real outbound call has been observed.
 
 ## Migration CLI acceptance
 

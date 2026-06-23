@@ -25,7 +25,8 @@ Read these pages in order when you are new to the repository:
 | 6 | Deployment pages | Single binary, Docker Compose, Kubernetes/Helm, [Server HA and Raft FSOD Cluster](./deployment/server-ha), controller-specific ingress guidance, and smoke scripts. |
 | 7 | Reference pages | Implementation-derived Management OpenAPI, Notification Center, and Worker Tunnel protobuf reference. |
 | 8 | [Product readiness acceptance checklist](./development/product-readiness-acceptance) | Cross-feature release/handoff gates for Notification Center, legacy migration CLI, and Raft FSOD Server HA. |
-| 9 | [v0.3.9 release acceptance packet](./development/release-acceptance-packet-v0.3.9) | Concrete release/handoff evidence: assets, CI, Kind HA metrics, cross-language Worker soak, and remaining production checks. |
+| 9 | [v0.3.10 release acceptance packet](./development/release-acceptance-packet-v0.3.10) | Concrete release/handoff evidence: assets, CI, in-place migration apply, Kind HA metrics, cross-language Worker soak, and remaining production checks. |
+| 10 | [v0.3.9 release acceptance packet](./development/release-acceptance-packet-v0.3.9) | Historical v0.3.9 release/handoff evidence. |
 
 If you only want a proof that the whole local path still works, run the Management trigger smoke from the quickstart. If you are writing a production runbook, use the configuration and deployment references first, then select one SDK page for the Worker language used by your service team.
 

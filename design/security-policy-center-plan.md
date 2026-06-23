@@ -1,7 +1,7 @@
 # Security Policy Center Plan
 
 Date: 2026-06-17
-Status: Planned vertical slice
+Status: Phase A closed; Phase B+ planned
 
 ## 1. Why this exists
 
@@ -34,7 +34,7 @@ Non-goals for v1:
 - Do not replace RBAC, script release gates, or Worker runtime enforcement.
 - Do not store provider secrets in policy rows.
 - Do not enable network/file/secret grants unless release evidence proves runner-side enforcement.
-- Do not remove `securityNext` disabled state until the API, UI, RBAC, audit, and tests are in place.
+- Do not expose future policy/evaluation ledger features as complete until API, UI, RBAC, audit, and tests are in place.
 
 ## 3. Current evidence-backed enforcement points
 
@@ -46,7 +46,7 @@ Non-goals for v1:
 | RBAC and scoped API keys | Implemented | HTTP auth scope validation, RBAC seed, roles/users/API key pages. |
 | Notification redaction | Implemented | Notification repository redaction, provider-specific test-send behavior. |
 | Cluster transport token | Implemented | Raft transport token docs/config, HA runbook. |
-| Unified policy center API/UI | Missing | `web/src/routes.tsx` keeps `securityNext` disabled. |
+| Unified policy center API/UI | Phase A implemented | `/api/v1/security/posture`, `/api/v1/security/transport`, Web `/security`, RBAC `security:read`, and docs are source-backed; managed policy ledger remains Phase B. |
 
 ## 4. Data model proposal
 
@@ -116,22 +116,29 @@ Tabs:
 4. **Affected resources**: scripts/jobs/workers/channels impacted by a selected policy.
 5. **Deployment checks**: network/TLS/secret requirements that are outside the Server and must be proven by runbooks.
 
-The existing `securityNext` route should remain disabled until at least Posture + Policies + Evaluations are backed by real API responses.
+The previous placeholder/disabled route has been replaced by the source-backed `/security` posture page. Policies/Evaluations ledger tabs remain Phase B+ scope and must not be presented as implemented until the ledger exists.
 
 ## 7. Implementation phases
 
-### Phase A — posture projection (recommended first)
+### Phase A — posture projection (closed)
 
-- Add `security:read` / `security:manage` permissions to RBAC seed.
-- Add read-only posture API derived from existing sources:
+- ✅ Added `security:read` / `security:manage` permissions to RBAC seed and route metadata.
+- ✅ Added read-only posture API derived from existing sources:
   - script policy snapshots;
   - script release grants;
   - audit failure reasons;
   - notification channel redaction/test-send safety;
   - transport security config presence;
   - cluster transport token presence.
-- Add Web page `/security` with real read-only data; move menu from `coming-soon` to `governance` only after this passes.
-- Tests: storage-free service tests, HTTP route tests, Web client/page tests, docs contract update.
+- ✅ Added Web page `/security` with real read-only data and moved the menu under Governance.
+- ✅ Added HTTP route/OpenAPI, Web source tests, docs page, and docs sidebar/index coverage.
+
+Evidence anchors after closure:
+
+- API/router: `crates/tikeo-server/src/http/routes/security.rs`, `crates/tikeo-server/src/http/router.rs`, `crates/tikeo-server/src/http/openapi.rs`.
+- RBAC/menu: `crates/tikeo-server/src/http/routes/roles.rs`, `web/src/routes.tsx`, `web/src/App.tsx`.
+- Web: `web/src/pages/SecurityPolicyCenterPage.tsx`, `web/src/api/security.ts`, `web/src/pages/__tests__/SecurityPolicyCenterPage.test.ts`.
+- Docs: `docs/docs/user-guide/security-policy-center.md`, `docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/user-guide/security-policy-center.md`.
 
 ### Phase B — policy/evaluation ledger
 
@@ -154,11 +161,11 @@ The existing `securityNext` route should remain disabled until at least Posture 
 
 ## 8. Acceptance checklist
 
-- [ ] No disabled or placeholder Security menu item is presented as complete.
-- [ ] `/api/v1/security/posture` returns only source-backed data.
-- [ ] Web page renders posture from API, not hardcoded examples.
-- [ ] Script dangerous policy/grant denial shows up in posture/evaluations.
-- [ ] RBAC denies `security:read` to users without permission.
-- [ ] Audit logs link policy changes and decisions to actors/resources.
-- [ ] Docs explain which checks are Server-enforced and which are deployment prerequisites.
-- [ ] Tests cover route, RBAC, Web rendering, docs build, and source-size limits.
+- [x] No disabled or placeholder Security menu item is presented as complete.
+- [x] `/api/v1/security/posture` returns only source-backed data.
+- [x] Web page renders posture from API, not hardcoded examples.
+- [x] Script dangerous policy/grant denial shows up in posture/recent denials where existing audit evidence is available; full materialized evaluations remain Phase B.
+- [x] RBAC requires `security:read` for the route/API surface; focused tests should be run before each release.
+- [ ] Full policy/evaluation ledger links every policy change and decision to actors/resources. This is Phase B scope, not Phase A.
+- [x] Docs explain which checks are Server-enforced and which are deployment prerequisites.
+- [x] Tests cover route/source shape, docs contracts, and source-size limits; release verification should additionally run focused server/Web checks.

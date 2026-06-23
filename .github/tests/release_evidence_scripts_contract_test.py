@@ -26,9 +26,17 @@ class ReleaseEvidenceScriptsContractTest(unittest.TestCase):
                 "reviewed-import-payloads.json",
                 "code-apply-evidence.json",
             ],
+            "scripts/notification-real-provider-acceptance.sh": [
+                "TIKEO_NOTIFICATION_REAL_SERVER_URL",
+                "TIKEO_NOTIFICATION_REAL_CHANNEL_IDS",
+                "deferred_real_provider_inputs_missing",
+                "/api/v1/notification-channels/$channel_id/test-send",
+            ],
             "scripts/release-readiness-evidence.sh": [
                 "TIKEO_CLOUD_HA_SERVER_URL",
-                "passed_with_cloud_deferred",
+                "TIKEO_NOTIFICATION_REAL_SERVER_URL",
+                "passed_with_external_deferred",
+                "notification-real-provider",
                 "cloud-ha-acceptance",
             ],
         }
@@ -44,6 +52,8 @@ class ReleaseEvidenceScriptsContractTest(unittest.TestCase):
         docs = [
             "docs/docs/development/product-readiness-acceptance.md",
             "docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/development/product-readiness-acceptance.md",
+            "docs/docs/development/release-acceptance-packet-v0.3.10.md",
+            "docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/development/release-acceptance-packet-v0.3.10.md",
             "docs/docs/development/release-acceptance-packet-v0.3.9.md",
             "docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/development/release-acceptance-packet-v0.3.9.md",
         ]

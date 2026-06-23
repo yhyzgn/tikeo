@@ -35,9 +35,9 @@ flowchart TD
   D --> E[4 复核迁移包]
   E --> F{是否需要处理语义或代码差异?}
   F -- 是 --> G[5 消解差异并适配 Java Worker]
-  F -- 否 --> H[6 执行 apply dry-run]
+  F -- 否 --> H[6 执行本地原地 apply]
   G --> H
-  H --> I{dry-run 请求集合是否接受?}
+  H --> I{项目能否编译且报告已接受?}
   I -- 否 --> E
   I -- 是 --> J[7 导入已复核 jobs 到 staging]
   J --> K[8 逐个触发迁移任务]
@@ -57,7 +57,7 @@ flowchart TD
 | Namespace | 通常是团队、租户或业务域。 | 生成的草案需要稳定的归属和 RBAC 边界。 |
 | App | 优先使用旧 executor app name；没有时使用计划好的 Tikeo app name。 | Worker 和 Job 草案需要共享路由边界。 |
 | Processor 命名 | 优先保留稳定且有意义的旧 handler name。 | 降低导入 Job 和 Worker 代码不匹配的概率。 |
-| API key | 使用 staging 作用域、具备 Job 创建权限的 key。 | `apply` 不应该使用无限制个人 token。 |
+| API key | 后续导入流程使用 staging 作用域、具备 Job 创建权限的 key。 | 本地 `apply` 命令不接收也不使用 API key。 |
 | 回滚负责人 | 明确到人或团队。 | 切流必须有人负责禁用 Tikeo Job 或重新启用旧调度。 |
 
 只有当 staging Tikeo Server 可用、目标 Worker 项目明确、团队对“行为与旧系统一致”的标准达成一致后，才继续。标准应包括输出记录、日志、副作用、耗时、重试行为和告警期望。
@@ -221,8 +221,8 @@ tikeo-migrate plan \
 | `java-project-plan.md` / `.json` | build system、Spring Boot major、推荐 Tikeo artifact、检测到的 handlers、review notes。 | 依赖建议和 processor name。 |
 | `java-patches/*.patch` | 依赖和 handler 注解的 review-first patch 建议。 | 在分支上人工应用；不要当作盲目自动改代码。 |
 | `CHECKLIST.md` | 操作验收清单。 | 作为最低迁移门禁。 |
-| `code-apply-evidence.json` | `apply` 生成；记录源项目、项目、变更文件、跳过的生成/构建目录和 warnings。 | 和 CI/PR 证据一起保留。 |
-| `CODE_MIGRATION_REPORT.md` | `apply` 生成；同时写到迁移包和迁移后的项目。 | 作为代码评审和交接材料。 |
+| `code-apply-evidence.json` | `apply` 生成；记录原地修改的目标项目、变更文件、data import 摘要、语义复核项、下一步动作和 warnings。 | 和 CI/PR 证据一起保留。 |
+| `CODE_MIGRATION_REPORT.md` | `apply` 生成；同时写到迁移包和正在原地迁移的旧项目。 | 作为代码评审和交接材料。 |
 
 状态含义：
 
@@ -413,7 +413,7 @@ Job 数据导入是迁移 CLI 之外的受控运维动作：
 - `plan` 可能用只读权限连接旧 XXL-JOB 或 PowerJob 数据库来生成复核包。
 - `plan` 不修改旧源码。
 - `plan` 不创建 Tikeo Job。
-- `apply` 是唯一会调用 Tikeo Management API 的命令。
+- `apply` 是本地命令，不会调用 Tikeo Management API；Job 导入需通过控制台、复核过的 Management API 脚本或 GitOps 单独完成。
 - Java patches 只覆盖依赖插入和 handler 注解建议；任意 executor/业务代码仍需复核。
 - 不声称 broadcast、map-reduce、blocking、routing、pinning、glue/script 语义完全等价。
 - 报告中保留 source snapshots，便于人工审计每个决策。

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Aggregate release-readiness follow-up evidence for post-release items:
+# Aggregate release-readiness evidence for handoff/release items:
 # 1) Notification Center provider e2e
-# 2) Migration CLI full-chain rehearsal
-# 3) Real cloud HA read-only probe when a cloud endpoint is supplied; otherwise
+# 2) Real Notification Center provider acceptance boundary/probe
+# 3) Migration CLI full-chain rehearsal
+# 4) Real cloud HA read-only probe when a cloud endpoint is supplied; otherwise
 #    an explicit deferred cloud-boundary report tied to existing Kind evidence.
 set -euo pipefail
 
@@ -16,6 +17,11 @@ mkdir -p "$REPORT_DIR"
 run_notification() {
   local out="$REPORT_DIR/notification-provider-e2e"
   TIKEO_NOTIFICATION_E2E_REPORT_DIR="$out" "$ROOT_DIR/scripts/notification-provider-e2e-smoke.sh" > "$REPORT_DIR/notification-provider-e2e.stdout" 2> "$REPORT_DIR/notification-provider-e2e.stderr"
+}
+
+run_notification_real_provider() {
+  local out="$REPORT_DIR/notification-real-provider"
+  TIKEO_NOTIFICATION_REAL_REPORT_DIR="$out" "$ROOT_DIR/scripts/notification-real-provider-acceptance.sh" > "$REPORT_DIR/notification-real-provider.stdout" 2> "$REPORT_DIR/notification-real-provider.stderr"
 }
 
 run_migration() {
@@ -76,6 +82,7 @@ PY
 }
 
 run_notification
+run_notification_real_provider
 run_migration
 run_cloud_or_defer "$@"
 
@@ -84,13 +91,19 @@ import json, pathlib, sys
 report = pathlib.Path(sys.argv[1])
 items = {
     'notificationProviderE2e': report / 'notification-provider-e2e/summary.json',
+    'notificationRealProviderAcceptance': report / 'notification-real-provider/summary.json',
     'migrationCliFullChain': report / 'migration-cli-full-chain/summary.json',
     'cloudHaAcceptance': report / 'cloud-ha-acceptance/summary.json',
 }
 summaries = {key: json.loads(path.read_text(encoding='utf-8')) for key, path in items.items()}
 required_passed = summaries['notificationProviderE2e'].get('status') == 'passed' and summaries['migrationCliFullChain'].get('status') == 'passed'
 cloud_status = summaries['cloudHaAcceptance'].get('status')
-status = 'passed_with_cloud_deferred' if required_passed and cloud_status == 'deferred_cloud_endpoint_missing' else ('passed' if required_passed and cloud_status == 'passed' else 'failed')
+provider_status = summaries['notificationRealProviderAcceptance'].get('status')
+external_deferred = {cloud_status, provider_status} & {'deferred_cloud_endpoint_missing', 'deferred_real_provider_inputs_missing'}
+if required_passed and cloud_status in {'passed', 'deferred_cloud_endpoint_missing'} and provider_status in {'passed', 'deferred_real_provider_inputs_missing'}:
+    status = 'passed_with_external_deferred' if external_deferred else 'passed'
+else:
+    status = 'failed'
 summary = {
     'status': status,
     'items': summaries,
@@ -100,7 +113,7 @@ summary = {
 md = ['# Release readiness follow-up evidence', '', f"- Status: `{status}`", '', '| Item | Status | Score | Evidence |', '|---|---|---:|---|']
 for key, value in summaries.items():
     md.append(f"| {key} | `{value.get('status')}` | `{value.get('score')}` | `{items[key].parent}` |")
-md += ['', '## Cloud boundary', '', '- Notification Center and migration CLI are fully exercised locally with protocol-real mocks.', '- Real cloud HA remains environment-bound when no `TIKEO_CLOUD_HA_SERVER_URL` is supplied; attach the generated cloud boundary report and run `scripts/cloud-raft-ha-acceptance.sh` against staging/production when credentials/network are available.']
+md += ['', '## Cloud boundary', '', '- Notification Center protocol delivery and migration CLI are fully exercised locally with protocol-real mocks.', '- Real provider notification acceptance remains environment-bound when no `TIKEO_NOTIFICATION_REAL_SERVER_URL` / `TIKEO_NOTIFICATION_REAL_CHANNEL_IDS` are supplied; attach the generated provider boundary report or rerun `scripts/notification-real-provider-acceptance.sh` against staging.', '- Real cloud HA remains environment-bound when no `TIKEO_CLOUD_HA_SERVER_URL` is supplied; attach the generated cloud boundary report and run `scripts/cloud-raft-ha-acceptance.sh` against staging/production when credentials/network are available.']
 (report / 'REPORT.md').write_text('\n'.join(md) + '\n', encoding='utf-8')
 print(json.dumps(summary, ensure_ascii=False, indent=2))
 if status == 'failed':

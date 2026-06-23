@@ -35,9 +35,9 @@ flowchart TD
   D --> E[4 Review migration bundle]
   E --> F{Needs semantic or code fixes?}
   F -- Yes --> G[5 Resolve gaps and adapt Java Worker]
-  F -- No --> H[6 Dry-run apply]
+  F -- No --> H[6 Run local in-place apply]
   G --> H
-  H --> I{Dry-run request set accepted?}
+  H --> I{Project compiles and report accepted?}
   I -- No --> E
   I -- Yes --> J[7 Import reviewed jobs to staging]
   J --> K[8 Trigger one migrated job]
@@ -57,7 +57,7 @@ Before touching any export, decide the migration target and success criteria.
 | Namespace | Usually the team, tenant, or business domain. | Generated drafts need stable ownership and RBAC boundaries. |
 | App | Existing legacy executor app name when available; otherwise a planned Tikeo app name. | Workers and job drafts need a shared routing boundary. |
 | Processor naming | Prefer legacy handler names when they are stable and meaningful. | Reduces accidental mismatches between imported jobs and Worker code. |
-| API key | A staging-scoped key with job create permissions. | `apply` should not use an unrestricted personal token. |
+| API key | A staging-scoped key with job create permissions for the later import workflow. | The local `apply` command does not accept or use API keys. |
 | Rollback owner | A named operator or team. | Cutover must have someone responsible for disabling Tikeo jobs or re-enabling legacy schedules. |
 
 Continue only when staging Tikeo Server is available, the intended Worker project is known, and the team agrees what “behavior matches legacy” means: output records, logs, side effects, duration, retry behavior, and alerting expectations.
@@ -223,8 +223,8 @@ The bundle is the central review artifact. Do not skip it.
 | `java-project-plan.md` / `.json` | Build system, Spring Boot major, recommended Tikeo artifact, detected handlers, review notes. | Dependency recommendation and processor names. |
 | `java-patches/*.patch` | Review-first patch guidance for dependencies and handler annotations. | Apply manually on a branch; do not treat as blind auto-edits. |
 | `CHECKLIST.md` | Operator acceptance checklist. | Use it as the minimum migration gate list. |
-| `code-apply-evidence.json` | Produced by `apply`; records source project, output project, changed files, skipped generated/build directories, and warnings. | Keep it with CI/PR evidence. |
-| `CODE_MIGRATION_REPORT.md` | Produced by `apply`; written both to the bundle and the migrated output project. | Use it as handoff material for code review. |
+| `code-apply-evidence.json` | Produced by `apply`; records the in-place target project, changed files, data-import summary, semantic review items, next actions, and warnings. | Keep it with CI/PR evidence. |
+| `CODE_MIGRATION_REPORT.md` | Produced by `apply`; written both to the bundle and the same legacy project being migrated in place. | Use it as handoff material for code review. |
 
 Status meanings:
 

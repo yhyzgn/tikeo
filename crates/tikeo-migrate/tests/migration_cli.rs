@@ -390,10 +390,21 @@ powerjob:
             .exists()
     );
     assert!(project_dir.join("CODE_MIGRATION_REPORT.md").exists());
+    let code_report = fs::read_to_string(project_dir.join("CODE_MIGRATION_REPORT.md"))
+        .unwrap_or_else(|error| panic!("code migration report should be readable: {error}"));
+    assert!(code_report.contains("Target project (in-place)"));
+    assert!(code_report.contains("## Data import summary"));
+    assert!(code_report.contains("## Semantic review items"));
+    assert!(code_report.contains("Generated from Java handler code only"));
+    assert!(code_report.contains("Review every needs_review job"));
+    assert!(code_report.contains("tikeo-migrate apply never calls the server"));
     let evidence =
         fs::read_to_string(project_dir.join(".tikeo-migration/code-apply-evidence.json"))
             .unwrap_or_else(|error| panic!("code evidence should be readable: {error}"));
     assert!(evidence.contains("OutboxPublishProcessor.java"));
+    assert!(evidence.contains(r#""dataImportSummary""#));
+    assert!(evidence.contains(r#""semanticReviewItems""#));
+    assert!(evidence.contains(r#""nextActions""#));
     let _ = fs::remove_dir_all(project_dir);
 }
 

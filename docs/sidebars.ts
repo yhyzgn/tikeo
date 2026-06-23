@@ -77,6 +77,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'development/overview',
         'development/product-readiness-acceptance',
+        'development/release-acceptance-packet-v0.3.10',
         'development/release-acceptance-packet-v0.3.9',
         'development/script-support',
         'development/plugin-development',

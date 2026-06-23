@@ -63,7 +63,7 @@ backoff_seconds = 300
 | --- | --- |
 | `notifications:read` | 列出 channel types、channels、policies、messages、delivery attempts 和 queue status。 |
 | `notifications:manage` | 创建、更新、删除 channels 和 policies。 |
-| `notifications:test` | 执行 retry-due delivery scan。 |
+| `notifications:test` | 发送已保存渠道的测试通知，并执行 retry-due delivery scan。 |
 
 Web route `/notifications` 同样要求 `notifications:read`。
 
@@ -110,7 +110,7 @@ Web route `/notifications` 同样要求 `notifications:read`。
 | `GET /api/v1/notification-delivery-attempts:queue-status` | 统计 retry/DLQ 并返回最近 dead letters。 | `notifications:read` |
 | `POST /api/v1/notification-delivery-attempts:retry-due` | 处理 due attempts。 | `notifications:test` |
 
-内置 channel type metadata 返回 `supportsTestSend=true`。使用 `POST /api/v1/notification-channels/{id}/test-send` 或编辑抽屉 **发一条试试** 来验证某条已保存、已启用渠道；`POST /api/v1/notification-delivery-attempts:retry-due` 则用于 generic due-attempt worker scan。
+内置 channel type metadata 返回 `supportsTestSend=true`。使用 `POST /api/v1/notification-channels/{id}/test-send`、列表行 **测试** 或编辑抽屉 **测试** 来验证某条已保存、已启用渠道；`POST /api/v1/notification-delivery-attempts:retry-due` 则用于 generic due-attempt worker scan。
 
 ## Job 通知绑定与消息 Trace
 

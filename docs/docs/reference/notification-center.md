@@ -64,7 +64,7 @@ The notification migration seeds these permissions:
 | --- | --- |
 | `notifications:read` | List channel types/channels/policies/messages/delivery attempts and queue status. |
 | `notifications:manage` | Create, update, and delete channels and policies. |
-| `notifications:test` | Run the retry-due delivery scan endpoint. |
+| `notifications:test` | Send a saved channel test notification and run the retry-due delivery scan endpoint. |
 
 The Web route `/notifications` also requires `notifications:read`.
 
@@ -116,7 +116,7 @@ Examples in this reference use placeholders. Do not include real tokens, webhook
 | `GET /api/v1/notification-delivery-attempts:queue-status` | Count retry/DLQ state and return recent dead letters. | `notifications:read` |
 | `POST /api/v1/notification-delivery-attempts:retry-due` | Process due attempts in a bounded scan. | `notifications:test` |
 
-Built-in channel type metadata reports `supportsTestSend=true`. Use `POST /api/v1/notification-channels/{id}/test-send` or the edit drawer **Send a test** action to exercise one saved enabled channel; use `POST /api/v1/notification-delivery-attempts:retry-due` for the generic due-attempt worker scan.
+Built-in channel type metadata reports `supportsTestSend=true`. Use `POST /api/v1/notification-channels/{id}/test-send`, the list-row **Test** action, or the edit drawer **Test** action to exercise one saved enabled channel; use `POST /api/v1/notification-delivery-attempts:retry-due` for the generic due-attempt worker scan.
 
 ## Job notification bindings
 

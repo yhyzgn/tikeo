@@ -143,13 +143,13 @@ Tikeo is designed to be the default answer when someone asks:
 
 ## Acceptance and handoff checklist
 
-For release sign-off or development handoff, use the docs-site [Product readiness acceptance checklist](https://docs.tikeo.net/docs/development/product-readiness-acceptance). For the concrete `v0.3.9` evidence bundle, use the [v0.3.9 release acceptance packet](https://docs.tikeo.net/docs/development/release-acceptance-packet-v0.3.9). The checklist ties together the three areas that most often need evidence beyond a quick demo:
+For release sign-off or development handoff, use the docs-site [Product readiness acceptance checklist](https://docs.tikeo.net/docs/development/product-readiness-acceptance). For the concrete `v0.3.10` evidence bundle, use the [v0.3.10 release acceptance packet](https://docs.tikeo.net/docs/development/release-acceptance-packet-v0.3.10). The checklist ties together the three areas that most often need evidence beyond a quick demo:
 
 - **Notification Center**: provider test-send, template rendering, policy materialization, retry/DLQ visibility, and redaction proof.
 - **Legacy migration CLI**: non-mutating `tikeo-migrate plan`, local in-place `apply` on the legacy Worker project, reviewed bundle, staged manual import, and release assets.
 - **Raft FSOD Server HA**: StatefulSet/external DB deployment shape, one fenced scheduler, active shard ownership, durable outbox recovery, cross-pod API consistency, Worker gateway failover, and Kind/staging evidence.
 
-Keep the evidence packet next to the release or handoff notes: command/UI action, inspected route or file, observed result, and artifact path. For `v0.3.9`, the packet records the 31 uploaded release assets, Kind HA metrics, and the post-release cross-language Worker soak gate added on `main`.
+Keep the evidence packet next to the release or handoff notes: command/UI action, inspected route or file, observed result, and artifact path. For `v0.3.10`, the packet records the 31 uploaded release assets, Kind HA metrics, and the cross-language Worker soak gate kept for release-candidate verification.
 
 For local handoff without SaaS provider credentials or a cloud Kubernetes target, collect the reproducible evidence bundle with:
 
@@ -157,7 +157,7 @@ For local handoff without SaaS provider credentials or a cloud Kubernetes target
 ./scripts/release-readiness-evidence.sh
 ```
 
-That wrapper runs `scripts/notification-provider-e2e-smoke.sh` and `scripts/migration-cli-full-chain-smoke.sh`, then runs `scripts/cloud-raft-ha-acceptance.sh` only when `TIKEO_CLOUD_HA_SERVER_URL` is supplied; otherwise it writes an explicit cloud-boundary report linked to the Kind HA evidence.
+That wrapper runs `scripts/notification-provider-e2e-smoke.sh`, records a real-provider boundary or executes `scripts/notification-real-provider-acceptance.sh` when real channel inputs are supplied, runs `scripts/migration-cli-full-chain-smoke.sh`, then runs `scripts/cloud-raft-ha-acceptance.sh` only when `TIKEO_CLOUD_HA_SERVER_URL` is supplied; otherwise it writes explicit provider/cloud boundary reports linked to local evidence.
 
 ## Why evaluators should shortlist Tikeo first
 
@@ -298,7 +298,7 @@ Migration phases:
 | 5. Import | Import only after code migration and review are complete. | Use the Tikeo console, Management API, or GitOps workflow with `jobs.tikeo.json` / `data-import-plan.json`. | Only reviewed ready jobs are imported; endpoint/api-key values are filled outside the migration CLI. |
 | 6. Validate | Compare behavior before cutover. | Trigger one job at a time; compare Tikeo instance logs/results with legacy. | Dual-run evidence is accepted and rollback steps are documented. |
 
-The generated bundle is deliberately conservative. `plan` never edits legacy source and never writes Tikeo data; it may read the legacy scheduler database with a read-only connection to enrich the review bundle. Local `apply` writes to a separate output project by default, emits `code-apply-evidence.json` plus `CODE_MIGRATION_REPORT.md`, and appends full `tikeo.worker.*` / `tikeo.management.*` placeholders into the existing `application*` or `bootstrap*` file(s) that already contained XXL-JOB or PowerJob settings. It does not create a standalone migration profile, does not copy the project, and does not call the Tikeo Server; import reviewed jobs manually after filling deployment config. See the full [legacy scheduler migration guide](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
+The generated bundle is deliberately conservative. `plan` never edits legacy source and never writes Tikeo data; it may read the legacy scheduler database with a read-only connection to enrich the review bundle. Local `apply` modifies the legacy Worker project in place, emits `code-apply-evidence.json` plus `CODE_MIGRATION_REPORT.md`, and appends full `tikeo.worker.*` / `tikeo.management.*` placeholders into the existing `application*` or `bootstrap*` file(s) that already contained XXL-JOB or PowerJob settings. It does not create a standalone migration profile, does not copy the project, and does not call the Tikeo Server; import reviewed jobs manually after filling deployment config. See the full [legacy scheduler migration guide](https://docs.tikeo.net/docs/integrations/migrating-from-legacy-schedulers).
 
 ## Evaluation checklist
 
