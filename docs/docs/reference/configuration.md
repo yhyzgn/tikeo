@@ -57,6 +57,8 @@ storage:
 
 ## Server configuration table
 
+The following is the Complete default-value table for Server settings: config key, environment variable, requirement level, default, and operational meaning.
+
 | Config key | Environment variable | Required? | Default | Meaning |
 | --- | --- | --- | --- | --- |
 | `server.listen_addr` | `TIKEO__SERVER__LISTEN_ADDR` | No | `0.0.0.0:9090` | HTTP API, health, readiness, metrics, OpenAPI, and Web API target bind address. |
@@ -168,3 +170,23 @@ cp config/tikeo.yml ./tikeo.yml
 ```
 
 For Docker Compose, edit `config/tikeo.yml`, not Compose `environment`, for Tikeo service behavior.
+## Prerequisites
+
+- Decide whether this process is a Server or Worker; the tables below are separate on purpose.
+- For Server deployments, choose SQLite, PostgreSQL, MySQL, or CockroachDB and prepare the matching `storage.database.*` fields.
+- For Worker deployments, keep SDK settings in the application configuration rather than Server `config/tikeo.yml`.
+
+## Verify
+
+After editing configuration, start the process and check `/readyz` for Server or Worker registration for SDK clients. Confirm that the effective storage, TLS, log, and notification settings match the expected environment.
+
+## Troubleshooting
+
+If configuration does not apply, check load order first: defaults, config file, then `TIKEO__...` environment overrides. For arrays and maps such as `cluster.peers` and `storage.database.params`, prefer file configuration to avoid shell escaping mistakes.
+
+## Production checklist
+
+- [ ] Sensitive values are in platform Secrets or secret references, not copied into public examples.
+- [ ] Structured database fields are used instead of hand-built credential URLs.
+- [ ] TLS/mTLS paths refer to mounted files under `/config/tls` when enabled.
+- [ ] Worker SDK defaults are reviewed for endpoint, namespace, app, state-dir, and advertised capabilities.

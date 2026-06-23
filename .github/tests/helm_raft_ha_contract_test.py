@@ -49,9 +49,9 @@ class HelmRaftHaContractTest(unittest.TestCase):
         self.assertIn("secretKeyRef:", rendered)
         self.assertIn("name: \"tikeo-raft-transport\"", rendered)
         self.assertIn("key: \"transport-token\"", rendered)
-        self.assertIn("endpoint = \"http://tikeo-server-0.tikeo-server-headless:9090\"", rendered)
-        self.assertIn("endpoint = \"http://tikeo-server-1.tikeo-server-headless:9090\"", rendered)
-        self.assertIn("endpoint = \"http://tikeo-server-2.tikeo-server-headless:9090\"", rendered)
+        self.assertIn("endpoint: \"http://tikeo-server-0.tikeo-server-headless:9090\"", rendered)
+        self.assertIn("endpoint: \"http://tikeo-server-1.tikeo-server-headless:9090\"", rendered)
+        self.assertIn("endpoint: \"http://tikeo-server-2.tikeo-server-headless:9090\"", rendered)
 
     def test_raw_k8s_raft_manifest_has_stateful_identity_and_secret_refs(self):
         manifest = (ROOT / "deploy/k8s/tikeo-raft-ha.yaml").read_text()

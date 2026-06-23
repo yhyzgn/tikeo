@@ -53,6 +53,8 @@ storage:
 
 ## Server 配置表
 
+下面是 Server 的完整默认值表，包含配置项、环境变量、是否必填、默认值和说明。
+
 | 配置项 | 环境变量 | 是否必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
 | `server.listen_addr` | `TIKEO__SERVER__LISTEN_ADDR` | 否 | `0.0.0.0:9090` | HTTP API、健康检查、metrics、OpenAPI、Web API 目标绑定地址。 |
@@ -123,3 +125,23 @@ cp config/tikeo.yml ./tikeo.yml
 ```
 
 Docker Compose 部署中，Tikeo 服务行为改 `config/tikeo.yml`，不要放到 Compose `environment`。
+## 前置条件
+
+- 先确认当前进程是 Server 还是 Worker；下面两个表格刻意分开。
+- Server 部署要先选择 SQLite、PostgreSQL、MySQL 或 CockroachDB，并准备对应 `storage.database.*` 字段。
+- Worker 部署把 SDK 配置放在业务应用配置中，不写入 Server `config/tikeo.yml`。
+
+## 验收
+
+配置变更后启动进程：Server 检查 `/readyz`，Worker 检查注册、心跳和能力声明。确认实际存储、TLS、日志、通知配置与目标环境一致。
+
+## 故障排查
+
+配置未生效时先检查加载顺序：默认值、配置文件、`TIKEO__...` 环境变量覆盖。`cluster.peers`、`storage.database.params` 这类数组或 map 优先写在文件里，避免 shell 转义错误。
+
+## 生产检查清单
+
+- [ ] 敏感值来自平台 Secret 或 secret reference，没有复制进公开示例。
+- [ ] 使用结构化数据库字段，而不是手写带凭据的 URL。
+- [ ] 启用 TLS/mTLS 时，证书路径指向 `/config/tls` 下的挂载文件。
+- [ ] 已复核 Worker SDK 默认值，包括 endpoint、namespace、app、state-dir 和声明能力。

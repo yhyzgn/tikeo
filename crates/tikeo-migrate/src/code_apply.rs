@@ -473,11 +473,7 @@ fn apply_worker_config(
     let app = infer_app_name(project).unwrap_or_else(|| "default".to_owned());
     let targets = config_targets(project, &resources)?;
     for path in targets {
-        let relative = path
-            .strip_prefix(project)
-            .unwrap_or(&path)
-            .display()
-            .to_string();
+        let relative = markdown_path(path.strip_prefix(project).unwrap_or(&path));
         let mut content = if path.exists() {
             fs::read_to_string(&path)
                 .with_context(|| format!("failed to read {}", path.display()))?
@@ -633,7 +629,7 @@ fn config_targets(project: &Path, resources: &Path) -> Result<Vec<PathBuf>> {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create {}", parent.display()))?;
     }
-    let relative = path.strip_prefix(project).unwrap_or(&path).display();
+    let relative = markdown_path(path.strip_prefix(project).unwrap_or(&path));
     eprintln!(
         "warning: no legacy scheduler config file found; creating {relative} for Tikeo configuration"
     );
@@ -1079,6 +1075,13 @@ fn write_code_apply_outputs(
     fs::write(command.bundle.join("CODE_MIGRATION_REPORT.md"), report)
         .with_context(|| "failed to write bundle CODE_MIGRATION_REPORT.md".to_owned())?;
     Ok(())
+}
+
+fn markdown_path(path: &Path) -> String {
+    path.components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 fn render_code_apply_report(evidence: &CodeApplyEvidence) -> String {

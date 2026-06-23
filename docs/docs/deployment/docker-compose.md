@@ -109,3 +109,23 @@ curl -fsS http://127.0.0.1:${TIKEO_PROMETHEUS_PORT:-9091}/-/ready
 ## Worker connectivity
 
 Workers dial out to the Server Worker Tunnel. For local demos use `http://127.0.0.1:9998` or `TIKEO_WORKER_TUNNEL_PUBLIC_ENDPOINT` from `.env`. Do not expose arbitrary business Worker ports.
+## Prerequisites
+
+- Docker and Docker Compose v2 are installed for Compose examples.
+- `config/tikeo.yml` exists and has been reviewed for the target database, TLS, logs, and public URLs.
+- Required host directories or named volumes for `/config/tikeo.yml`, `/config/tls`, `/data`, and `/logs` are available.
+
+## Verify
+
+Run the documented command, then verify `/healthz`, `/readyz`, and the Web console. For database-backed stacks, also confirm the DB volume or managed database has a current backup.
+
+## Troubleshooting
+
+If startup fails, inspect `docker compose logs tikeo-server`, confirm `config/tikeo.yml` is mounted at `/config/tikeo.yml`, and check structured database host, port, username, password, and database values.
+
+## Production checklist
+
+- [ ] Images are pinned for rollback-sensitive environments.
+- [ ] `/config/tikeo.yml`, `/config/tls`, `/data`, and `/logs` mounts match the deployment mode.
+- [ ] Database credentials are not committed to source control.
+- [ ] Worker Tunnel and SSE proxy behavior are validated before production traffic.

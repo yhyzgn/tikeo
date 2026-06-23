@@ -367,7 +367,8 @@ class WorkflowContractTest(unittest.TestCase):
             self.assertIn("Docker Compose", content)
             self.assertIn("docker compose", content)
             self.assertIn("latest", content)
-            self.assertIn("v0.2.12", content)
+            self.assertIn("${TIKEO_VERSION}", content)
+            self.assertIn("v${TIKEO_VERSION}", content)
 
 
     def test_release_setup_includes_docs_docker_publish_lane(self):

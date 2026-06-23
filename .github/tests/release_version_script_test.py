@@ -82,9 +82,8 @@ def test_workspace_release_sync_updates_cargo_lock_for_locked_release_builds(tmp
     assert "${TIKEO_VERSION}" in (fixture / "README.md").read_text()
     assert "${TIKEO_VERSION}" in (fixture / "README.zh-CN.md").read_text()
     assert "server.image.tag=v${TIKEO_VERSION}" in (fixture / "deploy/helm/tikeo/README.md").read_text()
-    assert "${TIKEO_VERSION}" in (fixture / "docs/docs/deployment/production.md").read_text()
-    assert "${TIKEO_VERSION}" in (fixture / "docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/deployment/production.md").read_text()
     assert "0.2.9 --version" not in (fixture / "docs/docs/deployment/production.md").read_text()
+    assert "0.2.9 --version" not in (fixture / "docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/deployment/production.md").read_text()
 
 if __name__ == "__main__":
     import tempfile

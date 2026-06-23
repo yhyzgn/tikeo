@@ -9,6 +9,11 @@ Use the Dashboard as the live operations cockpit before you trigger work, roll o
 
 ![Dashboard user guide screenshot](pathname:///img/screenshots/dashboard.svg)
 
+## Prerequisites
+
+- You can log in to the Web console and read Jobs, Workers, Instances, Dispatch Queue, Notifications, Cluster diagnostics, and metrics summary APIs.
+- SSE routes and REST routes are reachable through the same browser origin.
+
 ## What the page shows
 
 | Section | Source in the product | What to decide from it |
@@ -74,6 +79,7 @@ The Dashboard is backed by these code and API surfaces:
 | Workers | `/api/v1/workers` and `/api/v1/workers/stream` |
 | Dispatch queue | `/api/v1/dispatch-queue` and `/api/v1/dispatch-queue/stream` |
 | Cluster diagnostics | `/api/v1/cluster/diagnostics` |
+| Metrics summary | `/api/v1/metrics/summary` |
 | Alert delivery queue | `/api/v1/alert-delivery-attempts:queue-status` |
 | Audit logs | `/api/v1/audit-logs?page_size=8` |
 

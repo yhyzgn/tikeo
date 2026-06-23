@@ -28,7 +28,19 @@ This image is a static web bundle served by nginx. It normally runs next to `yhy
 | --- | --- |
 | `80` | nginx static web console. |
 
-## Compose quick start
+## Quick start with `docker run`
+
+```bash
+docker run -d \
+  --name tikeo-web \
+  -p 8080:80 \
+  --restart unless-stopped \
+  yhyzgn/tikeo-web:latest
+
+open http://127.0.0.1:8080
+```
+
+## Docker Compose quick start
 
 ```bash
 cp deploy/compose/tikeo.env.example .env

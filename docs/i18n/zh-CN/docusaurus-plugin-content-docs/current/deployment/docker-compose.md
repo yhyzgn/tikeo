@@ -108,3 +108,23 @@ curl -fsS http://127.0.0.1:${TIKEO_PROMETHEUS_PORT:-9091}/-/ready
 ## Worker 连接
 
 Worker 主动连接 Server Worker Tunnel。本地 demo 使用 `http://127.0.0.1:9998` 或 `.env` 中的 `TIKEO_WORKER_TUNNEL_PUBLIC_ENDPOINT`。不要暴露任意业务 Worker 端口。
+## 前置条件
+
+- 已安装 Docker 和 Docker Compose v2。
+- `config/tikeo.yml` 已按目标数据库、TLS、日志和公网 URL 检查。
+- `/config/tikeo.yml`、`/config/tls`、`/data`、`/logs` 对应的 host path 或 named volume 已准备好。
+
+## 验收
+
+执行页面中的启动命令后，检查 `/healthz`、`/readyz` 和 Web 控制台。数据库模式还要确认 DB volume 或托管数据库已有备份策略。
+
+## 故障排查
+
+启动失败时先看 `docker compose logs tikeo-server`，确认 `config/tikeo.yml` 已挂载到 `/config/tikeo.yml`，再检查结构化数据库 host、port、username、password 和 database。
+
+## 生产检查清单
+
+- [ ] 对需要回滚的环境固定镜像版本。
+- [ ] `/config/tikeo.yml`、`/config/tls`、`/data`、`/logs` 挂载与部署模式一致。
+- [ ] 数据库凭据没有提交到源码。
+- [ ] 生产流量前已验证 Worker Tunnel 和 SSE 代理行为。

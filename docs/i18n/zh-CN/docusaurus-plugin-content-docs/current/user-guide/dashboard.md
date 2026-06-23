@@ -9,6 +9,11 @@ description: Tikeo 实时运维驾驶舱的人类操作指南。
 
 ![Dashboard 用户指南截图](pathname:///img/screenshots/dashboard.svg)
 
+## 前置条件
+
+- 可以登录 Web 控制台，并具备读取 Jobs、Workers、Instances、Dispatch Queue、Notifications、Cluster diagnostics 和 metrics summary API 的权限。
+- SSE 路由和 REST 路由能通过同一个浏览器 origin 访问。
+
 ## 页面展示什么
 
 | 区域 | 产品数据来源 | 用来判断什么 |
@@ -74,6 +79,7 @@ Dashboard 由以下代码和 API 面支撑：
 | Workers | `/api/v1/workers` 与 `/api/v1/workers/stream` |
 | Dispatch queue | `/api/v1/dispatch-queue` 与 `/api/v1/dispatch-queue/stream` |
 | Cluster diagnostics | `/api/v1/cluster/diagnostics` |
+| Metrics summary | `/api/v1/metrics/summary` |
 | Alert delivery queue | `/api/v1/alert-delivery-attempts:queue-status` |
 | Audit logs | `/api/v1/audit-logs?page_size=8` |
 

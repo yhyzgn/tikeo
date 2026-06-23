@@ -22,6 +22,18 @@ This image is a static Docusaurus build served by nginx. It stores no product da
 | Server file logs | `/logs/tikeo.log` | Enable in `config/tikeo.yml` with `observability.logging.log_dir: /logs`. |
 | Docs static image | none | No persistent mount required. |
 
+## Docker Compose
+
+When running the full stack, use the repository Compose files and keep Server settings in `config/tikeo.yml`:
+
+```bash
+cp deploy/compose/tikeo.env.example .env
+# Edit .env for Docker parameters; edit config/tikeo.yml for Tikeo service settings.
+docker compose --env-file .env pull
+docker compose --env-file .env up -d
+open http://127.0.0.1:8081
+```
+
 ## Port
 
 | Port | Purpose |

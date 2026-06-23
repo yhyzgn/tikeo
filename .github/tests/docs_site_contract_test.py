@@ -608,14 +608,16 @@ class DocsSiteContractTest(unittest.TestCase):
         )
         for snippet in [
             "systemctl enable --now tikeo",
-            "docker compose --env-file .env up -d --build",
-            "Full `docker-compose.yml`",
-            "Full `docker-compose.postgres.yml`",
-            "Full `docker-compose.mysql.yml`",
+            "docker compose --env-file .env pull",
+            "docker compose --env-file .env up -d",
+            "docker compose --env-file .env -f docker-compose.postgres.yml up -d",
+            "docker compose --env-file .env -f docker-compose.mysql.yml up -d",
             "helm upgrade --install tikeo",
             "kubectl -n tikeo create secret generic tikeo-database",
             "server.tls.workerTunnel.mtlsRequired",
-            "TIKEO__STORAGE__DATABASE_URL",
+            "TIKEO__STORAGE__DATABASE__TYPE",
+            "TIKEO__STORAGE__DATABASE__HOST",
+            "TIKEO__STORAGE__DATABASE__PASSWORD",
             "server.worker_tunnel_addr",
         ]:
             self.assertIn(snippet, deployment_text)
