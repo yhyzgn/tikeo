@@ -15,6 +15,7 @@ import { useI18n } from './i18n';
 import { DEFAULT_INFO_COLOR, DEFAULT_PRIMARY_COLOR, PRIMARY_COLOR_STORAGE_KEY, THEME_MODE_STORAGE_KEY, ThemeSettingsContext, normalizeHexColor, normalizeThemeMode, resolveThemeMode, type ThemeMode, type ThemePreference } from './theme';
 
 const Dashboard = lazy(() => import('./pages/Dashboard').then((module) => ({ default: module.Dashboard })));
+const AboutPage = lazy(() => import('./pages/AboutPage').then((module) => ({ default: module.AboutPage })));
 const InstancesPage = lazy(() => import('./pages/InstancesPage').then((module) => ({ default: module.InstancesPage })));
 const JobsPage = lazy(() => import('./pages/JobsPage').then((module) => ({ default: module.JobsPage })));
 const JobTopologyPage = lazy(() => import('./pages/JobTopologyPage').then((module) => ({ default: module.JobTopologyPage })));
@@ -41,6 +42,7 @@ const DispatchQueuePage = lazy(() => import('./pages/DispatchQueuePage').then((m
 
 const KEEP_ALIVE_ROUTES = [
   { path: ROUTE_META.dashboard.path, element: <Dashboard /> },
+  { path: ROUTE_META.about.path, element: <AboutPage /> },
   { path: ROUTE_META.jobs.path, element: <JobsPage /> },
   { path: ROUTE_META.instances.path, element: <InstancesPage /> },
   { path: ROUTE_META.workflows.path, element: <GuardedRoute route={ROUTE_META.workflows}><WorkflowsPage /></GuardedRoute> },
@@ -107,6 +109,7 @@ function AppLayout() {
         <Routes>
           <Route path="/" element={<Navigate to={ROUTE_META.dashboard.path} replace />} />
           <Route path={ROUTE_META.dashboard.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
+          <Route path={ROUTE_META.about.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.jobs.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />
           <Route path={ROUTE_META.jobTopology.path} element={<JobTopologyPage />} />
           <Route path={ROUTE_META.instances.path} element={<KeepAliveOutlet routes={KEEP_ALIVE_ROUTES} />} />

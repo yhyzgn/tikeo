@@ -60,10 +60,10 @@ pub fn router_with_state(state: AppState) -> Router {
         .with_state(Arc::new(state))
 }
 
-pub(super) async fn router_for_database(database_url: &str) -> Result<Router> {
-    let db = connect_and_migrate(database_url)
+pub(super) async fn router_for_database(connection_url: &str) -> Result<Router> {
+    let db = connect_and_migrate(connection_url)
         .await
-        .with_context(|| format!("failed to initialize storage at {database_url}"))?;
+        .with_context(|| format!("failed to initialize storage at {connection_url}"))?;
     Ok(router_with_state(AppState::new(
         JobRepository::new(db.clone()),
         JobInstanceRepository::new(db.clone()),

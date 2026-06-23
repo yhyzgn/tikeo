@@ -30,12 +30,13 @@ try:
     text = open(path, encoding="utf-8").read()
 except OSError:
     sys.exit(0)
-match = re.search(r"^\s*database_url\s*=\s*\"(sqlite://[^\"]+)\"", text, re.M)
+kind = re.search(r"^\s*(?:type|kind)\s*[:=]\s*[\"]?([^\"#\n]+)[\"]?", text, re.M)
+if kind and kind.group(1).strip().lower() not in {"sqlite", "sqlite3"}:
+    sys.exit(0)
+match = re.search(r"^\s*path\s*[:=]\s*[\"]?([^\"#\n]+)[\"]?", text, re.M)
 if not match:
     sys.exit(0)
-url = match.group(1)[len("sqlite://"):]
-url = url.split("?", 1)[0]
-print(url)' "$CONFIG_FILE"
+print(match.group(1).strip())' "$CONFIG_FILE"
 }
 
 extract_config_port() {

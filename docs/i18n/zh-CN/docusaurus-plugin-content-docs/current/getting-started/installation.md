@@ -152,7 +152,7 @@ curl -fsS http://127.0.0.1:9090/api-docs/openapi.json >/tmp/tikeo-openapi.json
 
 ## 与生产部署的差异
 
-本地安装默认追求快速反馈：SQLite 文件在仓库目录，HTTP 和 Worker Tunnel 都是 plaintext，OIDC 关闭，日志主要走控制台，Worker endpoint 是 `127.0.0.1:9998`。生产或共享环境通常要改成外部 PostgreSQL/MySQL、Secret 注入 `TIKEO__STORAGE__DATABASE_URL`、Ingress 或进程内 TLS、Worker Tunnel TLS/mTLS、持久日志目录、OTel collector、明确的 service account 和短权限 SDK API Key。
+本地安装默认追求快速反馈：SQLite 文件在仓库目录，HTTP 和 Worker Tunnel 都是 plaintext，OIDC 关闭，日志主要走控制台，Worker endpoint 是 `127.0.0.1:9998`。生产或共享环境通常要改成外部 PostgreSQL/MySQL、Secret 注入 `TIKEO__STORAGE__DATABASE__HOST / TIKEO__STORAGE__DATABASE__PASSWORD`、Ingress 或进程内 TLS、Worker Tunnel TLS/mTLS、持久日志目录、OTel collector、明确的 service account 和短权限 SDK API Key。
 
 不要把本地 `bootstrap_admin` 示例密码、demo API key、或 demo namespace 当作生产约定。它们只是为了让读者在隔离 SQLite DB 上复现流程。生产 runbook 应该从配置参考和部署页面重新选择值，并保留 smoke/CI 证据。
 

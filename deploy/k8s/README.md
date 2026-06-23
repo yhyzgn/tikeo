@@ -39,7 +39,12 @@ Minimal raw-manifest flow:
 ```bash
 kubectl create namespace tikeo
 kubectl -n tikeo create secret generic tikeo-database \
-  --from-literal=database-url='postgres://tikeo:change-me@postgres:5432/tikeo'
+  --from-literal=type=postgres \
+  --from-literal=host=postgres \
+  --from-literal=port=5432 \
+  --from-literal=username=tikeo \
+  --from-literal=password='change-me' \
+  --from-literal=database=tikeo
 kubectl -n tikeo create secret generic tikeo-raft-transport \
   --from-literal=transport-token="$(openssl rand -hex 32)"
 kubectl apply -f deploy/k8s/tikeo-raft-ha.yaml

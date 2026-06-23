@@ -34,12 +34,12 @@ kubectl -n tikeo port-forward svc/tikeo-web 8080:80 >/tmp/tikeo-web.port-forward
 ## 2. 外部数据库生产形态
 
 ```bash
-kubectl -n tikeo create secret generic tikeo-database   --from-literal=database-url='postgres://tikeo:change-me@postgres.example:5432/tikeo?sslmode=require'
+kubectl -n tikeo create secret generic tikeo-database   --from-literal=host/port/username/password/database='postgres://tikeo:change-me@postgres.example:5432/tikeo?sslmode=require'
 
 helm upgrade --install tikeo ./deploy/helm/tikeo   --namespace tikeo --create-namespace   -f deploy/helm/tikeo/examples/values-external-postgres.yaml   --set server.image.repository=yhyzgn/tikeo-server   --set web.image.repository=yhyzgn/tikeo-web   --set server.image.tag=dev   --set web.image.tag=dev
 ```
 
-chart 会把 Secret 注入为 `TIKEO__STORAGE__DATABASE_URL`。
+chart 会把 Secret 注入为 `TIKEO__STORAGE__DATABASE__HOST / TIKEO__STORAGE__DATABASE__PASSWORD`。
 
 
 ## 3. Server Raft HA 安装
@@ -99,7 +99,7 @@ helm template tikeo ./deploy/helm/tikeo   --namespace tikeo   -f deploy/helm/tik
 | `server.cluster.transportTokenExistingSecret` | 空 | raft 模式必填，保存内部 transport token 的 Secret。 |
 | `server.storage.mode` | `sqlite` | `sqlite` 使用 PVC；`external` 从 Secret 读 DB URL。 |
 | `server.storage.existingSecret` | 空 | 外部 DB Secret 名。 |
-| `server.storage.databaseUrlSecretKey` | `database-url` | Secret key。 |
+| `server.storage.secretKeys` | `host/port/username/password/database` | Secret key。 |
 | `server.tls.http.enabled` | `false` | 启用 Tikeo HTTP listener TLS。 |
 | `server.tls.workerTunnel.enabled` | `false` | 启用 Worker Tunnel TLS。 |
 | `server.tls.workerTunnel.mtlsRequired` | `false` | 要求 Worker 客户端证书。 |

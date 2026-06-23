@@ -42,7 +42,7 @@ cargo build --release --bin tikeo
 sudo useradd --system --home /var/lib/tikeo --shell /usr/sbin/nologin tikeo || true
 sudo install -d -o tikeo -g tikeo /opt/tikeo/bin /var/lib/tikeo /var/log/tikeo /etc/tikeo
 sudo install -m 0755 target/release/tikeo /opt/tikeo/bin/tikeo
-sudo install -m 0644 config/container.toml /etc/tikeo/tikeo.toml
+sudo install -m 0644 config/tikeo.yml /etc/tikeo/tikeo.yml
 sudo install -m 0644 deploy/systemd/tikeo.env /etc/tikeo/tikeo.env
 sudo install -m 0644 deploy/systemd/tikeo.service /etc/systemd/system/tikeo.service
 sudo systemctl daemon-reload
@@ -63,7 +63,7 @@ journalctl -u tikeo -n 80 --no-pager
 |---|---|---|
 | `server.listen_addr` | `0.0.0.0:9090` | Bind behind a proxy or firewall; enable HTTP TLS if exposed directly. |
 | `server.worker_tunnel_addr` | `0.0.0.0:9998` | Publish only the Server tunnel endpoint; workers still connect outbound. |
-| `storage.database_url` | SQLite file URL | Use PostgreSQL/MySQL/CockroachDB for shared environments. |
+| `storage.database.*` | SQLite file URL | Use PostgreSQL/MySQL/CockroachDB for shared environments. |
 | `observability.logging.level` | `info` | Keep `info`; add `log_dir` for durable VM logs. |
 | `transport_security.worker_tunnel` | TLS off in dev | Enable TLS/mTLS before crossing trust boundaries. |
 

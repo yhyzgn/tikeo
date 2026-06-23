@@ -194,7 +194,7 @@ flowchart TD
 | `cluster.transport_token` / `TIKEO__CLUSTER__TRANSPORT_TOKEN` | 空 | 内部 Raft/relay route 必需，放入 K8s Secret。 |
 | `cluster.scheduler_shard_map_version` | `1` | 只能通过计划内 shard-map migration 变更。 |
 | `cluster.scheduler_shard_count` | `64` | 同一 map version 下所有 Pod 必须一致。 |
-| `storage.database_url` / `TIKEO__STORAGE__DATABASE_URL` | SQLite dev path | Raft HA 使用外部 PostgreSQL/MySQL/CockroachDB。 |
+| `storage.database.*` / `TIKEO__STORAGE__DATABASE__HOST / TIKEO__STORAGE__DATABASE__PASSWORD` | SQLite dev path | Raft HA 使用外部 PostgreSQL/MySQL/CockroachDB。 |
 | `server.worker_tunnel_addr` | `0.0.0.0:9998` | 通过保持 gRPC/HTTP2 的 Service/Gateway 暴露；不要走只支持 HTTP/1 的代理。 |
 | API/SSE ingress path | 与部署相关 | Browser/API 流量可以在 Pod 间负载均衡，但 SSE path 必须关闭 proxy buffering，并设置足够长的 idle/read timeout。见 [SSE 实时刷新部署注意事项](./sse-realtime)。 |
 | Worker Tunnel Service | 与部署相关 | 初始 Worker 连接可以负载均衡到任意 Pod；重连会改变 `worker_sessions.gateway_node_id`，后续 delivery 由 outbox reroute 处理。 |

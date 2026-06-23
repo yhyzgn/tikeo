@@ -13,8 +13,9 @@ Tikeo Web 使用 Server-Sent Events（SSE）刷新控制台中的实时状态。
 |---|---|---|
 | Workflow 实例时间线 | `/api/v1/events/instances/{id}/stream` | 回放 workflow events，并持续发送新的时间线事件。 |
 | Job 实例日志抽屉 | `/api/v1/instances/{id}/logs/stream` | 发送实例快照和增量 `instance.log` 事件。 |
-| Worker 集群页 | `/api/v1/workers/stream` | Worker/lifecycle 快照变化时推送。 |
-| 调度队列页 | `/api/v1/dispatch-queue/stream` | 队列快照变化时推送。 |
+| Dashboard 与实例列表 | `/api/v1/instances/stream` | 推送 Jobs/instances 快照，用于实例趋势与状态面板。 |
+| Dashboard 与 Worker 集群页 | `/api/v1/workers/stream` | Worker/lifecycle 快照变化时推送。 |
+| Dashboard 与调度队列页 | `/api/v1/dispatch-queue/stream` | 队列快照变化时推送。 |
 
 浏览器 `EventSource` 不能设置 `Authorization` header，因此 Tikeo Web 会使用 `?token=...` fallback。共享环境必须使用 HTTPS，并在 nginx、LB、WAF、Ingress 和 access log 中脱敏或过滤 `token` query 参数。
 
@@ -41,7 +42,7 @@ curl -N \
   "http://127.0.0.1:9090/api/v1/workers/stream?token=${TIKEO_TOKEN}"
 ```
 
-验收标准：请求保持打开，响应 header 包含 `Content-Type: text/event-stream`，连接不会被代理固定在 30-60 秒关闭。
+验收标准：请求保持打开，响应 header 包含 `Content-Type: text/event-stream`，连接不会被代理固定在 30-60 秒关闭。Dashboard 还会每 3 秒用 REST 兜底刷新 cluster diagnostics、通知投递队列状态、审计日志和 Job instance 历史；SSE 问题通常表现为实时面板滞后，而 REST/代理/认证问题可能导致整个驾驶舱为空。
 
 ## 网络层要求
 
@@ -190,7 +191,7 @@ curl -N \
 - 初始快照或 keep-alive 能持续到达；
 - 代理日志没有原始 token；
 - 浏览器 DevTools 没有固定间隔重连；
-- 触发 Worker 或实例变化后，控制台无需手动刷新即可更新。
+- 触发 Worker、实例或 dispatch queue 变化后，Dashboard 的实例趋势、Worker Mesh/能力覆盖和队列压力面板无需完整刷新即可更新。
 
 ## 排障
 

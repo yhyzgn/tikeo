@@ -77,16 +77,8 @@
                 "external"
               ]
             },
-            "databaseUrl": {
-              "type": "string",
-              "minLength": 1
-            },
             "existingSecret": {
               "type": "string"
-            },
-            "databaseUrlSecretKey": {
-              "type": "string",
-              "minLength": 1
             },
             "persistence": {
               "type": "object",
@@ -106,11 +98,34 @@
                   }
                 }
               }
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "sqlite",
+                "postgres",
+                "mysql",
+                "cockroachdb"
+              ]
+            },
+            "timestampOffset": {
+              "type": "string"
+            },
+            "sqlite": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "external": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "secretKeys": {
+              "type": "object",
+              "additionalProperties": true
             }
           },
           "required": [
-            "mode",
-            "databaseUrlSecretKey"
+            "mode"
           ]
         },
         "cluster": {

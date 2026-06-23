@@ -32,6 +32,15 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 FROM dependencies AS builder
 
+ARG TIKEO_GIT_TAG=
+ARG TIKEO_GIT_SHA=
+ARG TIKEO_BUILD_TIME=
+ARG TIKEO_GIT_DIRTY=
+ENV TIKEO_GIT_TAG=${TIKEO_GIT_TAG}
+ENV TIKEO_GIT_SHA=${TIKEO_GIT_SHA}
+ENV TIKEO_BUILD_TIME=${TIKEO_BUILD_TIME}
+ENV TIKEO_GIT_DIRTY=${TIKEO_GIT_DIRTY}
+
 COPY src ./src
 COPY crates ./crates
 COPY proto ./proto
@@ -60,8 +69,10 @@ LABEL maintainer="Neo<yhyzgn@gmail.com>"
 WORKDIR /app
 COPY --from=builder /tmp/tikeo /usr/local/bin/tikeo
 COPY config ./config
+RUN mkdir -p /config /data /logs /config/tls \
+    && cp /app/config/tikeo.yml /config/tikeo.yml
 
-VOLUME ["/data"]
+VOLUME ["/config", "/data", "/logs"]
 EXPOSE 9090 9998
 ENTRYPOINT ["tikeo"]
-CMD ["serve", "--config", "/app/config/container.toml"]
+CMD ["serve", "--config", "/config/tikeo.yml"]

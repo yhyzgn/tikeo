@@ -15,10 +15,10 @@ async fn sqlite_database_compatibility_smoke() {
 
 #[tokio::test]
 async fn external_database_compatibility_smoke() {
-    let urls = external_database_urls();
+    let urls = external_connection_urls();
     if urls.is_empty() {
         eprintln!(
-            "skip external database compatibility smoke: set TIKEO_TEST_DATABASE_URLS, \
+            "skip external database compatibility smoke: set TIKEO_TEST_CONNECTION_URLS, \
              TIKEO_TEST_POSTGRES_URL, or TIKEO_TEST_MYSQL_URL"
         );
         return;
@@ -29,11 +29,11 @@ async fn external_database_compatibility_smoke() {
     }
 }
 
-async fn run_storage_smoke(database_url: &str) {
-    let db = connect_and_migrate(database_url)
+async fn run_storage_smoke(connection_url: &str) {
+    let db = connect_and_migrate(connection_url)
         .await
         .unwrap_or_else(|error| {
-            panic!("database should connect and migrate: {database_url}: {error}")
+            panic!("database should connect and migrate: {connection_url}: {error}")
         });
 
     let scope_repository = ScopeRepository::new(db.clone());
@@ -43,17 +43,17 @@ async fn run_storage_smoke(database_url: &str) {
     let created_namespace = scope_repository
         .create_namespace(&namespace)
         .await
-        .unwrap_or_else(|error| panic!("namespace should create on {database_url}: {error}"));
+        .unwrap_or_else(|error| panic!("namespace should create on {connection_url}: {error}"));
     assert_eq!(created_namespace.name, namespace);
     let created_app = scope_repository
         .create_app(&namespace, app)
         .await
-        .unwrap_or_else(|error| panic!("app should create on {database_url}: {error}"));
+        .unwrap_or_else(|error| panic!("app should create on {connection_url}: {error}"));
     assert_eq!(created_app.name, app);
     let created_pool = scope_repository
         .create_worker_pool(&namespace, app, pool)
         .await
-        .unwrap_or_else(|error| panic!("worker pool should create on {database_url}: {error}"));
+        .unwrap_or_else(|error| panic!("worker pool should create on {connection_url}: {error}"));
     assert_eq!(created_pool.name, pool);
 
     let plugin_repository = PluginRepository::new(db.clone());
@@ -83,7 +83,7 @@ async fn run_storage_smoke(database_url: &str) {
         })
         .await
         .unwrap_or_else(|error| {
-            panic!("plugin json payload should persist on {database_url}: {error}")
+            panic!("plugin json payload should persist on {connection_url}: {error}")
         });
     assert_eq!(
         plugin.processor_types[0].entrypoint.as_deref(),
@@ -93,7 +93,7 @@ async fn run_storage_smoke(database_url: &str) {
         plugin_repository
             .resolve_processor_type("compat.sql")
             .await
-            .unwrap_or_else(|error| panic!("plugin should resolve on {database_url}: {error}"))
+            .unwrap_or_else(|error| panic!("plugin should resolve on {connection_url}: {error}"))
             .is_some()
     );
 
@@ -114,7 +114,7 @@ async fn run_storage_smoke(database_url: &str) {
             ),
         })
         .await
-        .unwrap_or_else(|error| panic!("script should persist on {database_url}: {error}"));
+        .unwrap_or_else(|error| panic!("script should persist on {connection_url}: {error}"));
     assert_eq!(
         script.allowed_env_vars.as_deref(),
         Some(["TIKEO_COMPAT".to_owned()].as_slice())
@@ -150,7 +150,7 @@ async fn run_storage_smoke(database_url: &str) {
             retry_policy: None,
         })
         .await
-        .unwrap_or_else(|error| panic!("job should persist on {database_url}: {error}"));
+        .unwrap_or_else(|error| panic!("job should persist on {connection_url}: {error}"));
     assert_eq!(job.namespace, namespace);
     assert_eq!(job.processor_name.as_deref(), Some("compat.echo"));
 
@@ -158,8 +158,8 @@ async fn run_storage_smoke(database_url: &str) {
         .versions()
         .get_version_by_number(&job.id, 1)
         .await
-        .unwrap_or_else(|error| panic!("job version should load on {database_url}: {error}"))
-        .unwrap_or_else(|| panic!("job version should exist on {database_url}"));
+        .unwrap_or_else(|error| panic!("job version should load on {connection_url}: {error}"))
+        .unwrap_or_else(|| panic!("job version should exist on {connection_url}"));
     assert_eq!(version.version_number, 1);
     assert!(version.schedule_calendar_json.is_some());
 
@@ -171,14 +171,14 @@ async fn run_storage_smoke(database_url: &str) {
             execution_mode: ExecutionMode::Single,
         })
         .await
-        .unwrap_or_else(|error| panic!("instance should create on {database_url}: {error}"))
-        .unwrap_or_else(|| panic!("instance should exist on {database_url}"));
+        .unwrap_or_else(|error| panic!("instance should create on {connection_url}: {error}"))
+        .unwrap_or_else(|| panic!("instance should exist on {connection_url}"));
     assert_eq!(instance.status, InstanceStatus::Pending);
     assert!(
         instance_repository
             .claim_pending_for_dispatch(&instance.id)
             .await
-            .unwrap_or_else(|error| panic!("instance should claim on {database_url}: {error}"))
+            .unwrap_or_else(|error| panic!("instance should claim on {connection_url}: {error}"))
     );
     let updated = instance_repository
         .update_status_if_current(
@@ -187,7 +187,9 @@ async fn run_storage_smoke(database_url: &str) {
             InstanceStatus::Succeeded,
         )
         .await
-        .unwrap_or_else(|error| panic!("instance status should update on {database_url}: {error}"));
+        .unwrap_or_else(|error| {
+            panic!("instance status should update on {connection_url}: {error}")
+        });
     assert!(updated);
 
     let log_repository = JobInstanceLogRepository::new(db.clone());
@@ -200,19 +202,19 @@ async fn run_storage_smoke(database_url: &str) {
             sequence: 1,
         })
         .await
-        .unwrap_or_else(|error| panic!("instance log should append on {database_url}: {error}"))
-        .unwrap_or_else(|| panic!("instance log should exist on {database_url}"));
+        .unwrap_or_else(|error| panic!("instance log should append on {connection_url}: {error}"))
+        .unwrap_or_else(|| panic!("instance log should exist on {connection_url}"));
     let logs = log_repository
         .list_by_instance(&instance.id)
         .await
-        .unwrap_or_else(|error| panic!("instance logs should list on {database_url}: {error}"));
+        .unwrap_or_else(|error| panic!("instance logs should list on {connection_url}: {error}"));
     assert_eq!(logs.len(), 1);
     assert_eq!(logs[0].worker_id, "compat-worker");
 
-    connect_and_migrate(database_url)
+    connect_and_migrate(connection_url)
         .await
         .unwrap_or_else(|error| {
-            panic!("migration rerun should be idempotent on {database_url}: {error}")
+            panic!("migration rerun should be idempotent on {connection_url}: {error}")
         });
 
     db.close()
@@ -220,9 +222,9 @@ async fn run_storage_smoke(database_url: &str) {
         .unwrap_or_else(|error| panic!("database should close cleanly: {error}"));
 }
 
-fn external_database_urls() -> Vec<String> {
+fn external_connection_urls() -> Vec<String> {
     let mut urls = Vec::new();
-    if let Ok(value) = std::env::var("TIKEO_TEST_DATABASE_URLS") {
+    if let Ok(value) = std::env::var("TIKEO_TEST_CONNECTION_URLS") {
         urls.extend(
             value
                 .split(',')

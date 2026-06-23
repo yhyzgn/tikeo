@@ -1,383 +1,147 @@
 ---
 title: Production deployment guide
-description: A human runbook for deploying Tikeo Server, Web, Docs, databases, Worker Tunnel networking, TLS, observability, backup, rollback, and smoke verification.
+description: Production runbook for Tikeo Server, Web, database, Worker Tunnel, mounts, TLS, observability, backup, rollback, and smoke verification.
 keywords: [tikeo production deployment, docker compose, helm, worker tunnel, postgres, mysql]
 ---
 
 # Production deployment guide
 
-This page is the deployment playbook you should read before copying any YAML. It explains what to deploy, what to keep outside the cluster, how traffic should flow, which configuration keys matter, and how to prove the installation works. Use the narrower pages for exact manifests: [Docker Compose](./docker-compose), [Kubernetes and Helm](./kubernetes), [single binary](./single-binary), [SSE realtime](./sse-realtime), and [management trigger smoke](./management-trigger-smoke-runbook).
+A production Tikeo environment has five responsibilities:
 
-## Deployment goal
+| Component | Responsibility | Exposed to |
+| --- | --- | --- |
+| Tikeo Server | HTTP API, scheduler, migrations, Worker Tunnel, notifications, audit. | Operators, SDK Management clients, outbound Workers. |
+| Tikeo Web | Browser console for jobs, workers, workflows, scripts, notifications, audit, RBAC. | Human operators. |
+| Database | Durable jobs, instances, logs, RBAC, notifications, audit, cluster ownership, outbox rows. | Server only. |
+| Worker processes | Execute SDK processors/scripts/plugins and stream logs/results. | Outbound to Worker Tunnel only. |
+| Notification providers | Receive rendered messages. | Server outbound only. |
 
-A production Tikeo environment has these responsibilities:
-
-| Component | Runs where | Responsibility | Exposed to |
-| --- | --- | --- | --- |
-| Tikeo Server | container, VM, or Kubernetes Deployment | HTTP API, Web API, scheduler, storage migrations, Worker Tunnel listener, Notification Center delivery worker | Operators, SDK Management clients, outbound Workers |
-| Tikeo Web | static nginx container or any static host | Browser console for jobs, workers, workflows, scripts, notifications, audit, RBAC | Human operators |
-| Database | managed PostgreSQL/MySQL, or SQLite only for local/small single-node | Durable jobs, instances, logs, RBAC, notification records, audit | Server only |
-| Worker processes | app clusters, private VPCs, VMs, sidecars, or external networks | Execute SDK processors/scripts/plugins and stream logs/results | Outbound to Worker Tunnel only |
-| Notification providers | SaaS/webhook/email/PagerDuty/office bots | Receive rendered notification payloads | Server outbound only |
-
-The most important boundary: **business Workers do not expose inbound task ports**. They dial out to `server.worker_tunnel_addr`. Do not create a Worker Service just so the scheduler can call it.
+Workers do not expose inbound task ports. They dial `server.worker_tunnel_addr`.
 
 ## Choose an installation path
 
-| Situation | Recommended path | Why |
+| Situation | Recommended path | Notes |
 | --- | --- | --- |
-| Laptop evaluation | `config/dev.toml` + Web dev server or Compose | Fast, disposable SQLite, easy logs. |
-| Small internal VM | Single binary + systemd + PostgreSQL/MySQL | Simple operations, good for one Server node. |
-| Team shared environment | Docker Compose with PostgreSQL/MySQL | Reproducible, close to release images, easy smoke. |
-| Kubernetes production | Helm chart + external database + ingress/gateway | Separates Server/Web, supports TLS/mTLS and platform Secret management. |
-| Air-gapped or strict change control | Pin Docker image digests and release assets | Repeatable rollout and rollback evidence. |
+| Laptop evaluation | `config/dev.toml` or Compose SQLite | Fast and disposable. |
+| Small VM | Single binary + systemd + PostgreSQL/MySQL | Simple operations. |
+| Shared non-Kubernetes environment | Docker Compose + PostgreSQL/MySQL | Uses release images and explicit mounts. |
+| Kubernetes production | Helm + external database + ingress/gateway | Supports HA, Secrets, TLS/mTLS, platform observability. |
+| Air-gapped/change-controlled | Pin image digests and release assets | Repeatable rollback evidence. |
 
-Use SQLite only when you accept single-node local durability. For production, prefer PostgreSQL or MySQL and back it up with your normal database tooling.
+Use SQLite only when you accept single-node local durability. Production should use PostgreSQL/MySQL/CockroachDB-compatible PostgreSQL wire storage.
 
-## Server HA deployment choice
+## Baseline Server configuration
 
-For Kubernetes multi-pod Server HA, use the **Raft FSOD Cluster** runbook, [Server HA and Raft FSOD Cluster](./server-ha). The short version is:
-
-- `standalone` is for one Server process/pod.
-- `raft` is the production multi-pod HA mode and renders a StatefulSet/headless peer topology in Helm.
-- Raft mode uses one fenced Leader for global timer/retry loops and shard ownership projection; dispatch is multi-owner by shard for pods that hold active ownership rows.
-- Extra Server pods improve failover, API availability, Worker Tunnel gateway capacity, and Raft membership; dispatch throughput can spread across active shard owners, while global timer/retry loops remain Leader-fenced.
-- Do not add Redis/Dragonfly locks for core scheduler ownership; future multi-active scheduling must be Raft shard ownership with fencing.
-
-
-## Network model
-
-Plan four network paths separately:
-
-1. **Human Web traffic**: browser → Web nginx → Server API path. Configure reverse proxy timeouts for long API calls and SSE.
-2. **Management API traffic**: app/service → Server HTTP API with `x-tikeo-api-key` for app-scoped SDK clients, or bearer session token for human routes.
-3. **Worker Tunnel traffic**: Worker → Server Worker Tunnel endpoint (`9998` by default). This must support gRPC/HTTP2 if TLS/gateway is enabled.
-4. **Provider traffic**: Server → Slack/DingTalk/Feishu/WeCom/PagerDuty/email/webhook. Secrets live in channel config or environment-compatible refs.
-
-Do not use `0.0.0.0` as a client URL. It is a bind address only. Clients should use `127.0.0.1`, a service DNS name, or a real hostname.
-
-## Baseline configuration
-
-Start from one of the committed config files:
+Start from the single formal production template:
 
 ```bash
-cp config/postgres.toml /etc/tikeo/tikeo.toml
-# or
-cp config/mysql.toml /etc/tikeo/tikeo.toml
+cp config/tikeo.yml /etc/tikeo/tikeo.yml
 ```
 
-Set database credentials through environment variables or platform Secrets:
+Set production values in the mounted YAML file. Prefer structured database fields; passwords with `@`, `/`, `:`, or `#` do not need manual URL escaping.
 
-```bash
-export TIKEO__STORAGE__DATABASE_URL='postgres://tikeo:${PASSWORD}@postgres:5432/tikeo'
-export TIKEO__SERVER__LISTEN_ADDR='0.0.0.0:9090'
-export TIKEO__SERVER__WORKER_TUNNEL_ADDR='0.0.0.0:9998'
-export TIKEO__OBSERVABILITY__LOGGING__LEVEL='info'
+```yaml
+server:
+  listen_addr: "0.0.0.0:9090"
+  worker_tunnel_addr: "0.0.0.0:9998"
+
+storage:
+  database:
+    type: postgres
+    host: postgres.example
+    port: 5432
+    username: tikeo
+    password: "p@ss/word:with#chars"
+    database: tikeo
+    params:
+      sslmode: require
+
+observability:
+  logging:
+    level: info
+    log_dir: /logs
 ```
 
-The environment variable convention maps nested keys to `TIKEO__SECTION__KEY`, for example `storage.database_url` becomes `TIKEO__STORAGE__DATABASE_URL`. See [Configuration reference](../reference/configuration) and [Configuration cookbook](../reference/configuration-cookbook) for complete defaults and recipes.
+See [Configuration reference](../reference/configuration) for the complete Server and Worker tables.
 
 ## Mounts and persistent directories
 
-Plan mounts before choosing a manifest. Tikeo deliberately separates runtime files into three groups:
-
-1. **Config** describes desired state: listeners, storage URL, TLS paths, cluster mode, OTel, and feature toggles.
-2. **Data/db** is durable product state: jobs, instances, execution logs, RBAC, notifications, audit, cluster ownership, and outbox rows.
-3. **Logs** are operational evidence: stdout is always emitted; file logs are opt-in through `observability.logging.log_dir`.
-
-Do not copy one local layout into every environment. A container, a VM, and Kubernetes should use different mount shapes even when they run the same Server binary.
-
-### Runtime path matrix
-
-| Deployment surface | Config path | Data/db path | Log path | Recommended mount method |
+| Deployment surface | Config path | Data/db path | Log path | Mount guidance |
 | --- | --- | --- | --- | --- |
-| Docker image default | `/app/config/container.toml` | `/data/tikeo.db` for SQLite | stdout only unless `log_dir` is set | Acceptable only for quick evaluation; mount `/data` if SQLite is not disposable. |
-| Docker with external config | `/config/container.toml` | `/data/tikeo.db` for SQLite | `/logs/tikeo.log` if `log_dir=/logs` | Bind-mount config read-only, mount `/data` as a volume, mount `/logs` only when file retention is required. |
-| Docker Compose SQLite | `/app/config/container.toml` by default, or `/config/container.toml` if overridden | `tikeo-data:/data` | optional `tikeo-logs:/logs` | The checked-in SQLite Compose stack already persists `/data`. Add config/log mounts when promoting beyond a throwaway demo. |
-| Docker Compose PostgreSQL | `/app/config/postgres.toml` by default | `tikeo-postgres-data:/var/lib/postgresql/data` on the DB service | optional Server log volume | Server `/data` is not the database. Persist the PostgreSQL service or use managed Postgres. |
-| Docker Compose MySQL | `/app/config/mysql.toml` by default | `tikeo-mysql-data:/var/lib/mysql` on the DB service | optional Server log volume | Server `/data` is not the database. Persist the MySQL service or use managed MySQL. |
-| Kubernetes raw manifest | `/config/container.toml` from ConfigMap | `/data` PVC in the SQLite manifest | stdout by default; optional mounted log directory | `deploy/k8s/tikeo.yaml` mounts a ConfigMap at `/config` and a PVC at `/data`. |
-| Kubernetes Raft/HA | `/config/container.toml` from ConfigMap | external PostgreSQL/MySQL Secret URL | stdout by default | `deploy/k8s/tikeo-raft-ha.yaml` uses external DB and does not mount SQLite `/data`. |
-| Helm SQLite | `/config/container.toml` from chart ConfigMap | `/data` PVC when `server.storage.persistence.enabled=true` | stdout by default | Use only for dev/small single-node; set `server.storage.persistence.size` and storage class. |
-| Helm external DB | `/config/container.toml` from chart ConfigMap | managed/self-hosted DB outside Server pod | stdout by default | Create a Secret containing `database-url`; set `server.storage.existingSecret` and `databaseUrlSecretKey`. |
-| Binary/systemd | `/etc/tikeo/tikeo.toml` | `/var/lib/tikeo` for local SQLite or no local DB path for external DB | `/var/log/tikeo/tikeo.log` if enabled | Install directories with ownership for the `tikeo` user and keep `/etc/tikeo` under change control. |
-| Web / Docs static images | none required | none | nginx stdout | No persistent data. Mount custom nginx config only if you intentionally override the default static server. |
+| Docker image default | `/config/tikeo.yml` | `/data/tikeo.db` for SQLite | stdout unless `log_dir` is set | Fine for quick evaluation; mount `/data` if SQLite is not disposable. |
+| Docker with external config | `/config/tikeo.yml` | `/data/tikeo.db` for SQLite | `/logs/tikeo.log` when `log_dir=/logs` | Bind-mount config read-only, mount `/config/tls`, `/data`, and `/logs`. |
+| Docker Compose SQLite | `/config/tikeo.yml` | `tikeo-data:/data` | `tikeo-logs:/logs` | Compose mounts config, TLS, data, and logs explicitly. |
+| Docker Compose PostgreSQL | `/config/tikeo.yml` | `tikeo-postgres-data:/var/lib/postgresql/data` on DB service | `tikeo-logs:/logs` | Server `/data` is only a uniform runtime mount; DB state is in the DB service. |
+| Docker Compose MySQL | `/config/tikeo.yml` | `tikeo-mysql-data:/var/lib/mysql` on DB service | `tikeo-logs:/logs` | Back up the MySQL volume or managed DB. |
+| Kubernetes raw manifest | `/config/tikeo.yml` from ConfigMap | `/data` PVC in SQLite manifest | stdout by default | Add a log PVC only if file logs are enabled. |
+| Kubernetes Raft/HA | `/config/tikeo.yml` from ConfigMap + structured DB Secret | external DB | stdout by default | Use StatefulSet/headless peers and Secret-backed DB fields. |
+| Helm SQLite | `/config/tikeo.yml` from chart ConfigMap | `/data` PVC | stdout by default | Dev/small single-node only. |
+| Helm external DB | `/config/tikeo.yml` + structured DB Secret keys | managed/self-hosted DB | stdout by default | Create Secret keys `type`, `host`, `port`, `username`, `password`, `database`. |
+| Binary/systemd | `/etc/tikeo/tikeo.yml` | `/var/lib/tikeo` for local SQLite | `/var/log/tikeo/tikeo.log` if enabled | Own dirs by the `tikeo` user. |
+| Web/Docs static images | none | none | nginx stdout | No persistent data. |
 
-The Server config file is selected with `tikeo serve --config <path>` or `TIKEO_CONFIG`. Environment overrides use the `TIKEO` prefix and double underscores, so `observability.logging.log_dir` becomes `TIKEO__OBSERVABILITY__LOGGING__LOG_DIR`.
-
-### Docker bind-mount example
-
-Use this shape when you want a reproducible single-host Docker deployment with editable config, persistent SQLite, and file logs:
+## Docker run shape
 
 ```bash
-mkdir -p ./tikeo/config ./tikeo/data ./tikeo/logs
-cp config/container.toml ./tikeo/config/container.toml
-sed -i 's|# log_dir = "./logs"|log_dir = "/logs"|' ./tikeo/config/container.toml
+mkdir -p ./tikeo/config/tls ./tikeo/data ./tikeo/logs
+cp config/tikeo.yml ./tikeo/config/tikeo.yml
 
 docker run -d --name tikeo-server \
   -p 9090:9090 -p 9998:9998 \
-  -v "$PWD/tikeo/config/container.toml:/config/container.toml:ro" \
+  -v "$PWD/tikeo/config/tikeo.yml:/config/tikeo.yml:ro" \
+  -v "$PWD/tikeo/config/tls:/config/tls:ro" \
   -v "$PWD/tikeo/data:/data" \
   -v "$PWD/tikeo/logs:/logs" \
-  -e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc' \
-  yhyzgn/tikeo-server:v${TIKEO_VERSION} \
-  serve --config /config/container.toml
+  yhyzgn/tikeo-server:latest \
+  serve --config /config/tikeo.yml
 ```
 
-If you do not want to edit the TOML file, leave it read-only and use environment overrides:
-
-```bash
--e TIKEO__OBSERVABILITY__LOGGING__LOG_DIR=/logs \
--e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc'
-```
-
-### Docker Compose mount overlay
-
-The default SQLite Compose file already contains `tikeo-data:/data`. Add this overlay when you also want externalized config and file logs:
-
-```yaml
-services:
-  tikeo:
-    command: ["serve", "--config", "/config/container.toml"]
-    volumes:
-      - ./tikeo/config/container.toml:/config/container.toml:ro
-      - tikeo-data:/data
-      - tikeo-logs:/logs
-    environment:
-      TIKEO__OBSERVABILITY__LOGGING__LOG_DIR: /logs
-volumes:
-  tikeo-data:
-  tikeo-logs:
-```
-
-For PostgreSQL/MySQL Compose, do not assume the Server `/data` volume backs up the database. Back up the database service volume or the managed database itself:
-
-```yaml
-services:
-  postgres:
-    volumes:
-      - tikeo-postgres-data:/var/lib/postgresql/data
-  mysql:
-    volumes:
-      - tikeo-mysql-data:/var/lib/mysql
-```
-
-### Kubernetes and Helm mount shapes
-
-Raw Kubernetes and Helm use the same container contract: config at `/config/container.toml`, optional SQLite data at `/data`, and stdout logs by default.
-
-SQLite development values:
-
-```yaml
-server:
-  storage:
-    mode: sqlite
-    databaseUrl: sqlite:///data/tikeo.db?mode=rwc
-    persistence:
-      enabled: true
-      size: 10Gi
-```
-
-External database production values:
-
-```bash
-kubectl -n tikeo create secret generic tikeo-database   --from-literal=database-url='postgres://tikeo:${PASSWORD}@postgres.example:5432/tikeo?sslmode=require'
-```
-
-```yaml
-server:
-  storage:
-    mode: external
-    existingSecret: tikeo-database
-    databaseUrlSecretKey: database-url
-    persistence:
-      enabled: false
-```
-
-If you enable file logs in Kubernetes, add a real volume for the configured directory. Otherwise the directory is inside the container filesystem and disappears on pod recreation. Most clusters should leave file logs disabled and collect stdout/stderr with the platform log collector.
-
-## Docker Compose production-shaped path
-
-For a shared non-Kubernetes environment:
+## Docker Compose shape
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-# Edit .env: image tags, ports, database password, timezone.
-docker compose --env-file .env up -d --build
+# Edit .env for Docker parameters; edit config/tikeo.yml for Tikeo service settings.
+docker compose --env-file .env pull
+docker compose --env-file .env up -d
 curl -fsS http://127.0.0.1:9090/readyz
-curl -fsS http://127.0.0.1:8080/ >/dev/null
 ```
 
-Use `docker-compose.postgres.yml` or `docker-compose.mysql.yml` when you want the database in the same stack. Use managed database endpoints for production. Keep volume names, image tags, and port mappings explicit in `.env` so rollback is repeatable.
+Use `docker-compose.postgres.yml` or `docker-compose.mysql.yml` after switching `config/tikeo.yml` `storage.database.type` and host/user/password/database to the matching database service.
 
-## Kubernetes production-shaped path
+## Kubernetes and Helm shape
 
-For Kubernetes, use Helm and an external database Secret:
+For Helm external database mode, create structured Secret keys:
 
 ```bash
-kubectl create namespace tikeo
 kubectl -n tikeo create secret generic tikeo-database \
-  --from-literal=database-url='postgres://tikeo:${PASSWORD}@postgres:5432/tikeo'
+  --from-literal=type=postgres \
+  --from-literal=host=postgres.example \
+  --from-literal=port=5432 \
+  --from-literal=username=tikeo \
+  --from-literal=password='p@ss/word:with#chars' \
+  --from-literal=database=tikeo
 
 helm upgrade --install tikeo deploy/helm/tikeo \
   --namespace tikeo \
-  --set server.envFromSecret=tikeo-database \
-  --set server.service.type=ClusterIP \
-  --set web.service.type=ClusterIP
+  --set server.storage.mode=external \
+  --set server.storage.type=postgres \
+  --set server.storage.existingSecret=tikeo-database
 ```
 
-Expose Web and Server API through your normal ingress. Treat Worker Tunnel separately: use a controller path that supports gRPC/HTTP2, or expose a dedicated LoadBalancer/service for Workers. For concrete Nginx Ingress, Envoy Gateway, Traefik, and Gateway API settings, use [Kubernetes controller runbook](./kubernetes-controller-runbook).
+Expose Web and HTTP API through normal ingress. Treat Worker Tunnel separately: use a controller path that supports gRPC/HTTP2, or expose a dedicated LoadBalancer/service for Workers.
 
-## Docs site image and operator access
+## TLS/mTLS and SSE
 
-The docs site is also a release artifact. It is not required for the Server to schedule work, but production teams should publish it next to Web so operators can read the exact runbooks for the deployed version. The Docker Hub repository is `yhyzgn/tikeo-docs`, built from `docs/Dockerfile` and served by nginx with `/healthz`.
+- Enable `transport_security.http.*` and/or `transport_security.worker_tunnel.*` only after mounting `/config/tls` or Kubernetes Secrets.
+- SSE endpoints require proxy buffering disabled and long read/idle timeouts. See [SSE realtime deployment](./sse-realtime).
+- Do not use `0.0.0.0` as a client URL; it is a bind address only.
 
-```bash
-docker pull yhyzgn/tikeo-docs:v${TIKEO_VERSION}
-docker run --rm -p 8081:80 yhyzgn/tikeo-docs:v${TIKEO_VERSION}
-curl -fsS http://127.0.0.1:8081/healthz
-curl -fsS http://127.0.0.1:8081/docs/ >/dev/null
-```
-
-In Kubernetes, expose Docs as a separate static site or internal route. Do not proxy Docs traffic through the Server API container; keeping Web and Docs static images separate makes cache, rollback, and access-control policy easier to reason about.
-
-## TLS and mTLS decisions
-
-| Traffic | Minimum | Production recommendation |
-| --- | --- | --- |
-| Web/API browser traffic | TLS at ingress/proxy | TLS at edge, secure cookies, WAF/rate limit if public. |
-| SDK Management API | TLS | TLS plus app-scoped API keys and scoped RBAC. |
-| Worker Tunnel | Plaintext only for local | TLS or mTLS when crossing networks. |
-| Provider outbound | Provider HTTPS/SMTP TLS | Secret rotation and provider test-send before enabling policy. |
-
-The relevant config namespaces are `transport_security.http` and `transport_security.worker_tunnel`. Helm exposes Worker Tunnel mTLS through values such as `server.tls.workerTunnel.mtlsRequired`.
-
-## Bootstrap and access setup
-
-After the Server is reachable, bootstrap the first Owner once:
-
-```bash
-curl -fsS http://127.0.0.1:9090/api/v1/auth/bootstrap | jq .data.registrationOpen
-: "${TIKEO_OWNER_USERNAME:?set the production owner username}"
-: "${TIKEO_OWNER_EMAIL:?set the production owner email}"
-: "${TIKEO_OWNER_PASSWORD:?set the production owner password from your secret manager}"
-TOKEN="$(jq -n \
-  --arg username "$TIKEO_OWNER_USERNAME" \
-  --arg email "$TIKEO_OWNER_EMAIL" \
-  --arg password "$TIKEO_OWNER_PASSWORD" \
-  '{username:$username,email:$email,password:$password,confirmPassword:$password}' \
-  | curl -fsS -X POST http://127.0.0.1:9090/api/v1/auth/bootstrap/register \
-      -H 'content-type: application/json' \
-      -d @- | jq -r .data.token)"
-```
-
-Then create namespace/app scope, service account, and SDK API keys from the Web console or Management API before connecting application Workers. Do not run production Workers with human session tokens.
-
-## Worker rollout pattern
-
-For each service team:
-
-1. Pick the language SDK and read its page under [SDKs](../sdks/rust).
-2. Give the Worker a stable `namespace`, `app`, `workerPool`, and processor names.
-3. Configure `TIKEO_WORKER_ENDPOINT` or language-specific `WorkerConfig.endpoint` to the Worker Tunnel URL.
-4. Start one Worker and verify it appears online in **Workers**.
-5. Trigger a test job with `triggerType=api` and verify `executionMode=single` or broadcast behavior.
-6. Scale the Worker deployment only after logs and result evidence are correct.
-
-## Observability and evidence
-
-Before production traffic:
+## Smoke verification
 
 ```bash
 curl -fsS http://127.0.0.1:9090/healthz
 curl -fsS http://127.0.0.1:9090/readyz
-curl -fsS http://127.0.0.1:9090/api-docs/openapi.json >/tmp/tikeo-openapi.json
+curl -fsS http://127.0.0.1:8080/ >/dev/null
 ```
 
-Enable file logs and OpenTelemetry where required:
-
-```toml
-[observability.logging]
-level = "info"
-log_dir = "/var/log/tikeo"
-
-[observability.tracing]
-enabled = true
-otlp_endpoint = "http://otel-collector:4318/v1/traces"
-headers = []
-```
-
-Operator evidence should include: health/ready checks, bootstrap result, Worker online snapshot, triggered instance, task logs, audit event, and Notification Center delivery attempt if notifications are enabled.
-
-## Backup and restore
-
-Back up the database, not only container volumes. A useful backup runbook includes:
-
-- Database dump schedule and restore test.
-- Configuration file or Helm values version.
-- Docker image tag/digest or release asset checksum.
-- Secret names and rotation procedure, without printing secret values.
-- Smoke command to run after restore.
-
-SQLite backups are file copies only when the Server is stopped or the database is safely checkpointed. PostgreSQL/MySQL should use native backup tools.
-
-## Upgrade and rollback
-
-1. Read the release notes and image tags.
-2. Apply the new Server image in staging.
-3. Run health/ready checks and the management trigger smoke.
-4. Verify Web static bundle loads and Worker Tunnel accepts one Worker.
-5. Promote to production.
-6. Roll back by restoring the previous image tag and config/Helm values. Database migrations may not always be reversible; test rollback before a production upgrade.
-
-For release images, verify the binary version inside the Server container:
-
-```bash
-docker run --rm yhyzgn/tikeo-server:v${TIKEO_VERSION} --version
-```
-
-## Prerequisites
-
-- A reachable database endpoint or a local SQLite-only evaluation path.
-- Docker or Kubernetes access, depending on chosen path.
-- DNS/TLS plan for Web/API and Worker Tunnel.
-- Owner bootstrap plan and at least one app-scoped SDK API key.
-- Secret storage for database URL and notification provider credentials.
-
-## Verify
-
-A production-ready verification should pass:
-
-```bash
-curl -fsS https://tikeo.example.com/readyz
-curl -fsS https://tikeo.example.com/api-docs/openapi.json >/tmp/openapi.json
-TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER=0 scripts/management-trigger-e2e-smoke.sh
-```
-
-For Kubernetes also check:
-
-```bash
-kubectl -n tikeo get pods,svc,ingress
-kubectl -n tikeo logs deploy/tikeo-server --tail=120
-```
-
-## Troubleshooting
-
-| Symptom | First checks |
-| --- | --- |
-| Web loads but API calls fail | Reverse proxy API path, CORS/origin, Server service DNS, auth token. |
-| Worker never appears online | Worker Tunnel URL, gRPC/HTTP2 proxy support, TLS/mTLS CA/client certs, firewall egress. |
-| Jobs stay pending | Worker capability mismatch, disabled Worker, namespace/app mismatch, queue/lease logs. |
-| Notification test fails | Channel enabled, target configured, secret refs resolved, provider network egress. |
-| SSE dashboard stale | Proxy buffering/timeouts; see [SSE realtime](./sse-realtime). |
-
-## Production checklist
-
-- [ ] Database uses PostgreSQL/MySQL or an explicitly accepted SQLite single-node path.
-- [ ] Server/Web/Docs images are pinned by tag or digest.
-- [ ] Worker Tunnel is reachable from Worker networks and does not require inbound Worker ports.
-- [ ] TLS/mTLS decisions are documented for API and Worker Tunnel.
-- [ ] Owner bootstrap is complete and closed.
-- [ ] App-scoped SDK API keys are used by automation instead of human session tokens.
-- [ ] Health/ready/OpenAPI/Worker/instance/log/audit smoke evidence is captured.
-- [ ] Backup and rollback are tested before production traffic.
+Then connect at least one Worker, trigger a test job, inspect instance logs, and verify notification delivery if notification policies are enabled.

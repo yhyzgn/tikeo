@@ -82,7 +82,13 @@ listen_addr = "0.0.0.0:${HTTP_PORT}"
 worker_tunnel_addr = "0.0.0.0:${TUNNEL_PORT}"
 
 [storage]
-database_url = "sqlite:///data/tikeo.db?mode=rwc"
+
+[storage.database]
+type = "sqlite"
+path = "/data/tikeo.db"
+
+[storage.database.params]
+mode = "rwc"
 
 [cluster]
 mode = "raft"

@@ -25,11 +25,16 @@ helm upgrade --install tikeo ./deploy/helm/tikeo \
 
 ## Production database
 
-Use PostgreSQL, MySQL, or CockroachDB through a Kubernetes Secret. Do not commit production database URLs to `values.yaml`.
+Use PostgreSQL, MySQL, or CockroachDB through a Kubernetes Secret. Do not commit production structured database fields to `values.yaml`.
 
 ```bash
 kubectl -n tikeo create secret generic tikeo-database \
-  --from-literal=database-url='postgres://tikeo:change-me@postgres.example:5432/tikeo?sslmode=require'
+  --from-literal=type=postgres \
+  --from-literal=host=postgres.example \
+  --from-literal=port=5432 \
+  --from-literal=username=tikeo \
+  --from-literal=password='change-me' \
+  --from-literal=database=tikeo
 
 helm upgrade --install tikeo ./deploy/helm/tikeo \
   --namespace tikeo --create-namespace \
@@ -43,12 +48,17 @@ server:
   storage:
     mode: external
     existingSecret: tikeo-database
-    databaseUrlSecretKey: database-url
+    secretKeys:
+      host: host
+      port: port
+      username: username
+      password: password
+      database: database
     persistence:
       enabled: false
 ```
 
-The chart injects the secret as `TIKEO__STORAGE__DATABASE_URL`, which overrides the generated `container.toml` fallback through Tikeo's environment configuration loader.
+The chart injects structured database Secret keys as `TIKEO__STORAGE__DATABASE__*`, overriding the generated `/config/tikeo.yml` defaults. Passwords may contain special characters without manual URL escaping.
 
 
 ## Server Raft HA

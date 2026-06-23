@@ -16,8 +16,8 @@ use super::router::router_for_database;
 ///
 /// Returns an error when binding the configured listener address, initializing storage,
 /// or serving HTTP fails.
-pub async fn serve(listen_addr: SocketAddr, database_url: &str) -> Result<()> {
-    serve_with_state(listen_addr, router_for_database(database_url).await?).await
+pub async fn serve(listen_addr: SocketAddr, connection_url: &str) -> Result<()> {
+    serve_with_state(listen_addr, router_for_database(connection_url).await?).await
 }
 
 /// Run the unified HTTP listener with prebuilt application state.

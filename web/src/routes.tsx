@@ -1,6 +1,7 @@
 import {
   ApiOutlined,
   AlertOutlined,
+  InfoCircleOutlined,
   BellOutlined,
   AppstoreAddOutlined,
   AuditOutlined,
@@ -60,6 +61,7 @@ export const MENU_GROUPS: MenuGroupMeta[] = [
 
 export const ROUTE_META = {
   dashboard: { path: '/dashboard', menuKey: '/dashboard', label: '总览', icon: <DashboardOutlined />, menu: true, group: 'overview' },
+  about: { path: '/about', menuKey: '/about', label: '关于', icon: <InfoCircleOutlined />, menu: false, group: 'overview' },
   jobs: { path: '/jobs', menuKey: '/jobs', label: '任务', icon: <ThunderboltOutlined />, menu: true, group: 'orchestration' },
   jobTopology: { path: '/jobs/topology', menuKey: '/jobs', label: '任务拓扑', permission: { resource: 'jobs', action: 'read' }, menu: false },
   workflows: { path: '/workflows', menuKey: '/workflows', label: '工作流', icon: <BranchesOutlined />, permission: { resource: 'workflows', action: 'read' }, menu: true, group: 'orchestration' },

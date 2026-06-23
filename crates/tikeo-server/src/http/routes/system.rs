@@ -28,6 +28,10 @@ pub async fn system_info() -> Json<SystemInfoApiResponse> {
         name: "tikeo",
         version: env!("CARGO_PKG_VERSION"),
         target: std::env::consts::OS,
+        git_tag: env!("TIKEO_GIT_TAG"),
+        git_sha: env!("TIKEO_GIT_SHA"),
+        build_time: env!("TIKEO_BUILD_TIME"),
+        git_dirty: env!("TIKEO_GIT_DIRTY"),
     }))
 }
 

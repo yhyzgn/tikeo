@@ -9,13 +9,17 @@ metadata:
   name: tikeo-config
   namespace: tikeo
 data:
-  container.toml: |
-    [server]
-    listen_addr = "0.0.0.0:9090"
-    worker_tunnel_addr = "0.0.0.0:9998"
-
-    [storage]
-    database_url = "sqlite:///data/tikeo.db?mode=rwc"
+  tikeo.yml: |
+    server:
+      listen_addr: "0.0.0.0:9090"
+      worker_tunnel_addr: "0.0.0.0:9998"
+    storage:
+      timestamp_offset: "+00:00"
+      database:
+        type: sqlite
+        path: /data/tikeo.db
+        params:
+          mode: rwc
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -51,9 +55,9 @@ spec:
     spec:
       containers:
         - name: tikeo
-          image: yhyzgn/tikeo-server:dev
+          image: yhyzgn/tikeo-server:latest
           imagePullPolicy: IfNotPresent
-          args: ["serve", "--config", "/config/container.toml"]
+          args: ["serve", "--config", "/config/tikeo.yml"]
           ports:
             - name: http
               containerPort: 9090
@@ -139,7 +143,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: yhyzgn/tikeo-web:dev
+          image: yhyzgn/tikeo-web:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

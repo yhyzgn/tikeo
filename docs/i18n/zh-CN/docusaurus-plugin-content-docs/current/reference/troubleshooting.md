@@ -50,7 +50,7 @@ cargo run --bin tikeo -- serve --config config/dev.toml
 - `config/dev.toml` 是否能解析；
 - `server.listen_addr` 端口是否被占用；
 - `server.worker_tunnel_addr` 端口是否被占用；
-- `storage.database_url` 指向的 SQLite 文件或外部数据库是否可写；
+- `storage.database.*` 指向的 SQLite 文件或外部数据库是否可写；
 - migration 是否失败；
 - 环境变量覆盖是否把地址、TLS、数据库或认证配置改错。
 

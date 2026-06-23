@@ -267,10 +267,15 @@ pub struct AuditLogQuery {
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct SystemInfoResponse {
     pub name: &'static str,
     pub version: &'static str,
     pub target: &'static str,
+    pub git_tag: &'static str,
+    pub git_sha: &'static str,
+    pub build_time: &'static str,
+    pub git_dirty: &'static str,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

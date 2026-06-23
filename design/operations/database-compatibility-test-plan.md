@@ -53,7 +53,7 @@ export TIKEO_TEST_MYSQL_URL='mysql://user:pass@host:3306/tikeo'
 ./scripts/db-compat-smoke.sh
 ```
 
-Alternatively set comma-separated `TIKEO_TEST_DATABASE_URLS` to run additional endpoints.
+Alternatively set comma-separated `TIKEO_TEST_CONNECTION_URLS` to run additional endpoints.
 
 ## Configuration assets
 

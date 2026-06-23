@@ -735,6 +735,16 @@ export interface OidcIdentitySummary {
   updatedAt: string;
 }
 
+export interface SystemInfoResponse {
+  name: string;
+  version: string;
+  target: string;
+  gitTag: string;
+  gitSha: string;
+  buildTime: string;
+  gitDirty: string;
+}
+
 export interface UpsertOidcIdentityRequest {
   issuer: string;
   subject: string;
@@ -811,6 +821,10 @@ export function setAuthToken(token: string | null): void {
 
 export async function getBootstrapStatus(): Promise<BootstrapStatusResponse> {
   return request<BootstrapStatusResponse>('/api/v1/auth/bootstrap', { auth: false });
+}
+
+export async function getSystemInfo(): Promise<SystemInfoResponse> {
+  return request<SystemInfoResponse>('/api/v1/system/info');
 }
 
 export async function registerBootstrapAdmin(payload: BootstrapRegisterRequest): Promise<AuthSession> {

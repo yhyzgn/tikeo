@@ -288,7 +288,14 @@ listen_addr = "0.0.0.0:${HTTP_PORTS[$i]}"
 worker_tunnel_addr = "0.0.0.0:${TUNNEL_PORTS[$i]}"
 
 [storage]
-database_url = "postgres://tikeo:tikeo@127.0.0.1:${POSTGRES_PORT}/tikeo"
+
+[storage.database]
+type = "postgres"
+host = "127.0.0.1"
+port = ${POSTGRES_PORT}
+username = "tikeo"
+password = "tikeo"
+database = "tikeo"
 
 [cluster]
 mode = "raft"

@@ -3,25 +3,32 @@ listen_addr = "0.0.0.0:9090"
 worker_tunnel_addr = "0.0.0.0:9998"
 
 [storage]
-database_url = "sqlite://.dev/tikeo-dev.db?mode=rwc"
-timestamp_offset = "+08:00"
+timestamp_offset = "+00:00"
+
+[storage.database]
+type = "sqlite"
+path = ".dev/tikeo-dev.db"
+
+[storage.database.params]
+mode = "rwc"
 
 [cluster]
 mode = "standalone"
-node_id = "standalone"
+node_id = "dev"
 peers = []
+scheduler_shard_map_version = 1
+scheduler_shard_count = 64
 
 [auth]
 local_login_enabled = true
 
-[auth.api_tokens]
-default_ttl_seconds = 43200
-min_ttl_seconds = 300
-max_ttl_seconds = 2592000
+[observability.logging]
+level = "info"
+# log_dir = "./logs"
 
-[auth.oidc]
+[observability.tracing]
 enabled = false
-scopes = ["openid", "profile", "email"]
+headers = []
 
 [transport_security.http]
 tls_enabled = false
@@ -31,15 +38,6 @@ mtls_required = false
 tls_enabled = false
 mtls_required = false
 
-[observability.logging]
-level = "info"
-# log_dir = "./logs"
-
-[observability.tracing]
-enabled = false
-headers = []
-# otlp_endpoint = "http://otel-collector:4318/v1/traces"
-
 [alert_retry]
 enabled = true
 interval_seconds = 60
@@ -47,13 +45,12 @@ batch_size = 50
 max_attempts = 3
 backoff_seconds = 300
 
-[script_governance]
-# Optional local signature verification for script release approval tickets.
-# release_signature_secret_ref = "env:TIKEO_SCRIPT_RELEASE_SECRET"
+[alert_secrets]
+allow_env_refs = true
+env_prefix = "TIKEO_ALERT_SECRET_"
 
 [notification_delivery]
 enabled = true
-# Development default used by Feishu/Lark card buttons.
 public_console_base_url = "http://localhost:5173"
 interval_seconds = 60
 batch_size = 50

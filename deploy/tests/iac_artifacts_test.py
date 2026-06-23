@@ -45,14 +45,15 @@ class IacArtifactsTest(unittest.TestCase):
         # External database credentials must come from Kubernetes Secrets, not inline values.
         self.assertIn('mode: sqlite', values)
         self.assertIn('existingSecret:', values)
-        self.assertIn('databaseUrlSecretKey: database-url', values)
-        self.assertIn('TIKEO__STORAGE__DATABASE_URL', server)
+        self.assertIn('secretKeys:', values)
+        self.assertIn('TIKEO__STORAGE__DATABASE__HOST', server)
         self.assertIn('secretKeyRef', server)
         self.assertIn('eq .Values.server.storage.mode "sqlite"', server)
 
         # Real listener TLS/mTLS settings must be wired into the generated config and mounted secrets.
-        self.assertIn('[transport_security.http]', configmap)
-        self.assertIn('[transport_security.worker_tunnel]', configmap)
+        self.assertIn('transport_security:', configmap)
+        self.assertIn('http:', configmap)
+        self.assertIn('worker_tunnel:', configmap)
         self.assertIn('tls.crt', server)
         self.assertIn('tls.key', server)
         self.assertIn('ca.crt', server)
@@ -95,7 +96,9 @@ class IacArtifactsTest(unittest.TestCase):
         self.assertIn('worker-tunnel', gateway)
 
         self.assertIn('"values.schema.json"', schema)
-        self.assertIn('"enum": ["sqlite", "external"]', schema)
+        self.assertIn('\"sqlite\"', schema)
+        self.assertIn('\"external\"', schema)
+        self.assertIn('\"postgres\"', schema)
         self.assertIn('"gatewayApi"', schema)
 
         self.assertIn('PodDisruptionBudget', readme)

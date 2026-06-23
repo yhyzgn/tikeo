@@ -48,8 +48,41 @@ listen_addr = "127.0.0.1:$api_port"
 worker_tunnel_addr = "127.0.0.1:$tunnel_port"
 
 [storage]
-database_url = "$url"
 timestamp_offset = "+08:00"
+
+$(case "$url" in
+  sqlite://*)
+    db_path="${url#sqlite://}"; db_path="${db_path%%\?*}"
+    printf '[storage.database]
+type = "sqlite"
+path = "%s"
+
+[storage.database.params]
+mode = "rwc"
+' "$db_path"
+    ;;
+  postgres://*)
+    printf '[storage.database]
+type = "postgres"
+host = "127.0.0.1"
+port = %s
+username = "tikeo"
+password = "tikeo"
+database = "tikeo"
+' "${TIKEO_TEST_POSTGRES_PORT:-15432}"
+    ;;
+  mysql://*)
+    printf '[storage.database]
+type = "mysql"
+host = "127.0.0.1"
+port = %s
+username = "tikeo"
+password = "tikeo"
+database = "tikeo"
+' "${TIKEO_TEST_MYSQL_PORT:-13306}"
+    ;;
+  *) echo "unsupported connection URL: $url" >&2; exit 2 ;;
+esac)
 
 [cluster]
 mode = "standalone"

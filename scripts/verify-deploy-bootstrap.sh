@@ -18,9 +18,9 @@ test -f deploy/helm/tikeo/examples/values-raft-ha.yaml
 test -f deploy/k8s/tikeo-raft-ha.yaml
 test -f deploy/helm/tikeo/values.schema.json
 
-grep -q 'TIKEO_CONFIG=/etc/tikeo/tikeo.toml' deploy/systemd/tikeo.env
+grep -q 'TIKEO_CONFIG=/etc/tikeo/tikeo.yml' deploy/systemd/tikeo.env
 grep -q 'ExecStart=/opt/tikeo/bin/tikeo serve --config' deploy/systemd/tikeo.service
-grep -q 'TIKEO__STORAGE__DATABASE_URL' deploy/compose/tikeo.env.example
+grep -q 'TIKEO__STORAGE__DATABASE__TYPE' deploy/compose/tikeo.env.example
 grep -q 'mode: external' deploy/helm/tikeo/examples/values-external-postgres.yaml
 grep -q 'existingSecret: tikeo-database' deploy/helm/tikeo/examples/values-external-postgres.yaml
 grep -q 'mtlsRequired: true' deploy/helm/tikeo/examples/values-ingress-tls.yaml

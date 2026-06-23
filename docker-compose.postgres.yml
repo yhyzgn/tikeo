@@ -1,14 +1,12 @@
 services:
   tikeo:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: ${TIKEO_IMAGE:-yhyzgn/tikeo-server:local}
-    command: ["serve", "--config", "/app/config/postgres.toml"]
+    image: ${TIKEO_IMAGE:-yhyzgn/tikeo-server:latest}
+    command: ["serve", "--config", "/config/tikeo.yml"]
     depends_on:
       postgres:
         condition: service_healthy
     environment:
+      # Service behavior lives in ./config/tikeo.yml. Keep Compose env focused on container runtime differences only.
       TZ: ${TZ:-Asia/Shanghai}
       MIMALLOC_PURGE_DELAY: ${MIMALLOC_PURGE_DELAY:-0}
       MIMALLOC_PURGE_DECOMMITS: ${MIMALLOC_PURGE_DECOMMITS:-1}
@@ -16,6 +14,11 @@ services:
     ports:
       - "${TIKEO_HTTP_PORT:-9090}:9090"
       - "${TIKEO_WORKER_TUNNEL_PORT:-9998}:9998"
+    volumes:
+      - ./config/tikeo.yml:/config/tikeo.yml:ro
+      - ./config/tls:/config/tls:ro
+      - tikeo-data:/data
+      - tikeo-logs:/logs
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9090/readyz >/dev/null"]
       interval: 5s
@@ -25,10 +28,7 @@ services:
     restart: unless-stopped
 
   web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-    image: ${TIKEO_WEB_IMAGE:-yhyzgn/tikeo-web:local}
+    image: ${TIKEO_WEB_IMAGE:-yhyzgn/tikeo-web:latest}
     depends_on:
       tikeo:
         condition: service_healthy
@@ -47,7 +47,7 @@ services:
     environment:
       POSTGRES_DB: ${TIKEO_POSTGRES_DB:-tikeo}
       POSTGRES_USER: ${TIKEO_POSTGRES_USER:-tikeo}
-      POSTGRES_PASSWORD: ${TIKEO_POSTGRES_PASSWORD:-tikeo}
+      POSTGRES_PASSWORD: ${TIKEO_POSTGRES_PASSWORD:-change-me}
     ports:
       - "${TIKEO_POSTGRES_PORT:-15432}:5432"
     volumes:
@@ -77,5 +77,9 @@ services:
     restart: unless-stopped
 
 volumes:
+  tikeo-data:
+    name: ${TIKEO_DATA_VOLUME:-tikeo-data}
   tikeo-postgres-data:
     name: ${TIKEO_POSTGRES_DATA_VOLUME:-tikeo-postgres-data}
+  tikeo-logs:
+    name: ${TIKEO_LOGS_VOLUME:-tikeo-logs}

@@ -254,7 +254,6 @@ DOCKERFILE
 }
 
 write_manifests() {
-  local db_url="postgres://tikeo:${POSTGRES_PASSWORD}@postgres:5432/tikeo"
   cat > "$REPORT_DIR/k8s-manifest.yaml" <<YAML
 apiVersion: v1
 kind: Namespace
@@ -277,7 +276,12 @@ metadata:
   namespace: ${NAMESPACE}
 type: Opaque
 stringData:
-  database-url: "${db_url}"
+  type: "postgres"
+  host: "postgres"
+  port: "5432"
+  username: "tikeo"
+  password: "${POSTGRES_PASSWORD}"
+  database: "tikeo"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -285,52 +289,56 @@ metadata:
   name: tikeo-config
   namespace: ${NAMESPACE}
 data:
-  container.toml: |
-    [server]
-    listen_addr = "0.0.0.0:9090"
-    worker_tunnel_addr = "0.0.0.0:9998"
+  tikeo.yml: |
+    server:
+      listen_addr: 0.0.0.0:9090
+      worker_tunnel_addr: 0.0.0.0:9998
 
-    [storage]
-    database_url = "${db_url}"
+    storage:
+      database:
+        type: postgres
+        host: postgres
+        port: 5432
+        username: tikeo
+        database: tikeo
+      timestamp_offset: "+00:00"
 
-    [cluster]
-    mode = "raft"
-    node_id = "tikeo-server-0"
-    scheduler_shard_map_version = 1
-    scheduler_shard_count = 64
-    peers = [
-$(for i in $(seq 0 $((SERVER_REPLICAS - 1))); do printf '      { node_id = "tikeo-server-%s", endpoint = "http://tikeo-server-%s.tikeo-server-headless:9090" },\n' "$i" "$i"; done)
-    ]
+    cluster:
+      mode: raft
+      node_id: tikeo-server-0
+      scheduler_shard_map_version: 1
+      scheduler_shard_count: 64
+      peers:
+$(for i in $(seq 0 $((SERVER_REPLICAS - 1))); do printf '        - node_id: tikeo-server-%s\n          endpoint: http://tikeo-server-%s.tikeo-server-headless:9090\n' "$i" "$i"; done)
 
-    [auth]
-    local_login_enabled = true
+    auth:
+      local_login_enabled: true
+      api_tokens:
+        default_ttl_seconds: 43200
+        min_ttl_seconds: 300
+        max_ttl_seconds: 2592000
+      oidc:
+        enabled: false
+        scopes: ["openid", "profile", "email"]
 
-    [auth.api_tokens]
-    default_ttl_seconds = 43200
-    min_ttl_seconds = 300
-    max_ttl_seconds = 2592000
+    transport_security:
+      http:
+        tls_enabled: false
+        mtls_required: false
+      worker_tunnel:
+        tls_enabled: false
+        mtls_required: false
 
-    [auth.oidc]
-    enabled = false
-    scopes = ["openid", "profile", "email"]
+    observability:
+      tracing:
+        enabled: false
+        headers: []
 
-    [transport_security.http]
-    tls_enabled = false
-    mtls_required = false
+    alert_retry:
+      enabled: false
 
-    [transport_security.worker_tunnel]
-    tls_enabled = false
-    mtls_required = false
-
-    [observability.tracing]
-    enabled = false
-    headers = []
-
-    [alert_retry]
-    enabled = false
-
-    [notification_delivery]
-    enabled = false
+    notification_delivery:
+      enabled: false
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -426,13 +434,38 @@ spec:
         - name: tikeo
           image: ${SERVER_IMAGE}
           imagePullPolicy: IfNotPresent
-          args: ["serve", "--config", "/config/container.toml"]
+          args: ["serve", "--config", "/config/tikeo.yml"]
           env:
-            - name: TIKEO__STORAGE__DATABASE_URL
+            - name: TIKEO__STORAGE__DATABASE__TYPE
               valueFrom:
                 secretKeyRef:
                   name: tikeo-database
-                  key: database-url
+                  key: type
+            - name: TIKEO__STORAGE__DATABASE__HOST
+              valueFrom:
+                secretKeyRef:
+                  name: tikeo-database
+                  key: host
+            - name: TIKEO__STORAGE__DATABASE__PORT
+              valueFrom:
+                secretKeyRef:
+                  name: tikeo-database
+                  key: port
+            - name: TIKEO__STORAGE__DATABASE__USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: tikeo-database
+                  key: username
+            - name: TIKEO__STORAGE__DATABASE__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tikeo-database
+                  key: password
+            - name: TIKEO__STORAGE__DATABASE__DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: tikeo-database
+                  key: database
             - name: TIKEO__CLUSTER__MODE
               value: raft
             - name: TIKEO__CLUSTER__NODE_ID

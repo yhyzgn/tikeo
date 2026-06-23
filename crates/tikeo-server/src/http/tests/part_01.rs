@@ -201,6 +201,13 @@
         assert_eq!(json["code"], 0);
         assert_eq!(json["message"], "success");
         assert_eq!(json["data"]["name"], "tikeo");
+        assert_eq!(json["data"]["version"], env!("CARGO_PKG_VERSION"));
+        assert!(json["data"].get("gitTag").is_some());
+        assert!(json["data"].get("gitSha").is_some());
+        assert!(json["data"].get("buildTime").is_some());
+        if let Some(git_tag) = json["data"]["gitTag"].as_str().filter(|value| !value.is_empty()) {
+            assert_eq!(git_tag, format!("v{}", env!("CARGO_PKG_VERSION")));
+        }
     }
 
     #[tokio::test]

@@ -46,7 +46,7 @@ if [[ "$should_start_compose" == "true" ]]; then
   echo "[db-compat] starting PostgreSQL/MySQL compatibility services"
   docker compose -f "$COMPOSE_FILE" up -d --wait
   COMPOSE_STARTED=true
-elif [[ "$RUN_EXTERNAL" == "auto" && -z "${TIKEO_TEST_DATABASE_URLS:-}" && -z "${TIKEO_TEST_POSTGRES_URL:-}" && -z "${TIKEO_TEST_MYSQL_URL:-}" ]]; then
+elif [[ "$RUN_EXTERNAL" == "auto" && -z "${TIKEO_TEST_CONNECTION_URLS:-}" && -z "${TIKEO_TEST_POSTGRES_URL:-}" && -z "${TIKEO_TEST_MYSQL_URL:-}" ]]; then
   echo "[db-compat] docker unavailable and no external DB URLs provided; SQLite smoke completed"
   exit 0
 fi

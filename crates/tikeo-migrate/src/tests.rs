@@ -136,7 +136,7 @@ fn detects_legacy_database_config_from_spring_properties() {
         infer_source_from_project(project.path()),
         Some(MigrationSource::XxlJob)
     );
-    let normalized = normalize_database_url(
+    let normalized = normalize_connection_url(
         config.url.as_deref().unwrap_or_default(),
         config.username.as_deref(),
         config.password.as_deref(),
@@ -148,17 +148,17 @@ fn detects_legacy_database_config_from_spring_properties() {
 #[test]
 fn normalizes_sqlite_paths_without_rewriting_windows_drive_letters() {
     assert_eq!(
-        normalize_database_url("jdbc:sqlite:/tmp/legacy.db", None, None)
+        normalize_connection_url("jdbc:sqlite:/tmp/legacy.db", None, None)
             .unwrap_or_else(|error| panic!("sqlite url should normalize: {error}")),
         "sqlite:/tmp/legacy.db"
     );
     assert_eq!(
-        normalize_database_url("sqlite:///tmp/legacy.db", None, None)
+        normalize_connection_url("sqlite:///tmp/legacy.db", None, None)
             .unwrap_or_else(|error| panic!("sqlite url should normalize: {error}")),
         "sqlite:///tmp/legacy.db"
     );
     assert_eq!(
-        normalize_database_url(
+        normalize_connection_url(
             r"sqlite:C:\legacy\xxl-job.db",
             Some("ignored"),
             Some("ignored")
@@ -167,7 +167,7 @@ fn normalizes_sqlite_paths_without_rewriting_windows_drive_letters() {
         r"sqlite:C:\legacy\xxl-job.db"
     );
     assert_eq!(
-        redact_database_url(r"sqlite:C:\legacy\xxl-job.db"),
+        redact_connection_url(r"sqlite:C:\legacy\xxl-job.db"),
         r"sqlite:C:\legacy\xxl-job.db"
     );
 }

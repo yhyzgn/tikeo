@@ -43,7 +43,7 @@ The repository contains production-shaped surfaces, not just screenshots:
 - Rust workspace crates for configuration, storage, server, protocol, and WASM boundaries.
 - A single `tikeo` binary with `serve --config <path>` and `TIKEO_CONFIG` support.
 - Config examples for local SQLite, container SQLite, PostgreSQL/CockroachDB, MySQL, and raft-shape metadata.
-- Web console in `web/`, built with React, TypeScript, Vite, Ant Design, and Bun. Current operations surfaces include Notification Center channels/policies/messages/delivery queue and alert-event review.
+- Web console in `web/`, built with React, TypeScript, Vite, Ant Design, and Bun. Current operations surfaces include the live Dashboard cockpit, Jobs, Instances, Worker Mesh, Workflows, Scripts, Notification Center channels/policies/messages/delivery queue, Security Policy Center, Audit, and RBAC settings.
 - Docs site in `docs/`, built as a standalone Docusaurus module and Docker image.
 - Worker SDKs for Rust, Go, Java/Spring Boot, Python, and Node.js.
 - Runnable Worker demos under `examples/<language>/worker-demo` with structured processor capabilities.

@@ -19,7 +19,12 @@ metadata:
   namespace: tikeo
 type: Opaque
 stringData:
-  database-url: postgres://tikeo:change-me@postgres.example:5432/tikeo?sslmode=require
+  type: postgres
+  host: postgres.example
+  port: "5432"
+  username: tikeo
+  password: change-me
+  database: tikeo
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -27,22 +32,26 @@ metadata:
   name: tikeo-config
   namespace: tikeo
 data:
-  container.toml: |
-    [server]
-    listen_addr = "0.0.0.0:9090"
-    worker_tunnel_addr = "0.0.0.0:9998"
-
-    [storage]
-    database_url = "postgres://override-by-secret/tikeo"
-
-    [cluster]
-    mode = "raft"
-    node_id = "tikeo-server-0"
-    peers = [
-      { node_id = "tikeo-server-0", endpoint = "http://tikeo-server-0.tikeo-server-headless:9090" },
-      { node_id = "tikeo-server-1", endpoint = "http://tikeo-server-1.tikeo-server-headless:9090" },
-      { node_id = "tikeo-server-2", endpoint = "http://tikeo-server-2.tikeo-server-headless:9090" },
-    ]
+  tikeo.yml: |
+    server:
+      listen_addr: "0.0.0.0:9090"
+      worker_tunnel_addr: "0.0.0.0:9998"
+    storage:
+      timestamp_offset: "+00:00"
+      database:
+        type: postgres
+        host: override-by-secret
+        port: 5432
+        username: tikeo
+        password: override-by-secret
+        database: tikeo
+    cluster:
+      mode: raft
+      node_id: tikeo-server-0
+      peers:
+        - { node_id: tikeo-server-0, endpoint: "http://tikeo-server-0.tikeo-server-headless:9090" }
+        - { node_id: tikeo-server-1, endpoint: "http://tikeo-server-1.tikeo-server-headless:9090" }
+        - { node_id: tikeo-server-2, endpoint: "http://tikeo-server-2.tikeo-server-headless:9090" }
 ---
 apiVersion: v1
 kind: Service
@@ -118,15 +127,40 @@ spec:
     spec:
       containers:
         - name: tikeo
-          image: yhyzgn/tikeo-server:dev
+          image: yhyzgn/tikeo-server:latest
           imagePullPolicy: IfNotPresent
-          args: ["serve", "--config", "/config/container.toml"]
+          args: ["serve", "--config", "/config/tikeo.yml"]
           env:
-            - name: TIKEO__STORAGE__DATABASE_URL
+            - name: TIKEO__STORAGE__DATABASE__TYPE
               valueFrom:
                 secretKeyRef:
                   name: tikeo-database
-                  key: database-url
+                  key: type
+            - name: TIKEO__STORAGE__DATABASE__HOST
+              valueFrom:
+                secretKeyRef:
+                  name: tikeo-database
+                  key: host
+            - name: TIKEO__STORAGE__DATABASE__PORT
+              valueFrom:
+                secretKeyRef:
+                  name: tikeo-database
+                  key: port
+            - name: TIKEO__STORAGE__DATABASE__USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: tikeo-database
+                  key: username
+            - name: TIKEO__STORAGE__DATABASE__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tikeo-database
+                  key: password
+            - name: TIKEO__STORAGE__DATABASE__DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: tikeo-database
+                  key: database
             - name: TIKEO__CLUSTER__MODE
               value: "raft"
             - name: TIKEO__CLUSTER__NODE_ID

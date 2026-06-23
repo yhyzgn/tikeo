@@ -2,8 +2,14 @@ server:
   replicas: 3
   storage:
     mode: external
+    type: postgres
     existingSecret: tikeo-database
-    databaseUrlSecretKey: database-url
+    external:
+      host: postgres.example
+      port: 5432
+      username: tikeo
+      password: ""
+      database: tikeo
     persistence:
       enabled: false
   cluster:

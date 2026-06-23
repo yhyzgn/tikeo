@@ -28,7 +28,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
     let http_addr = config.server.listen_addr;
     let tunnel_addr = config.server.worker_tunnel_addr;
     let timestamp_offset = config.storage.timestamp_offset.clone();
-    let database_url = config.storage.database_url;
+    let connection_url = config.storage.effective_connection_url();
     let cluster_config = config.cluster;
     let auth_config = config.auth;
     let transport_security = config.transport_security;
@@ -51,9 +51,9 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
         shard_count = shard_policy.shard_count,
         "configured scheduler shard policy"
     );
-    let db = connect_and_migrate(&database_url)
+    let db = connect_and_migrate(&connection_url)
         .await
-        .with_context(|| format!("failed to initialize storage at {database_url}"))?;
+        .with_context(|| format!("failed to initialize storage at {connection_url}"))?;
     let raft = RaftRepository::new(db.clone());
     let cluster = coordinator_from_config_with_storage(&cluster_config, &raft)
         .await

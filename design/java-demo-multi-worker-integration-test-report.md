@@ -269,8 +269,14 @@ listen_addr = "127.0.0.1:19090"
 worker_tunnel_addr = "127.0.0.1:19998"
 
 [storage]
-database_url = "sqlite://.dev/verify-integration-seed.db?mode=rwc"
 timestamp_offset = "+08:00"
+
+[storage.database]
+type = "sqlite"
+path = ".dev/verify-integration-seed.db"
+
+[storage.database.params]
+mode = "rwc"
 ```
 
 健康检查结果：

@@ -114,7 +114,7 @@ pub struct PlanCommand {
     #[arg(long, default_value = ".tikeo-migration")]
     pub output_dir: PathBuf,
     /// Optional legacy Java/Spring project root. Defaults to the current directory when it looks like a Java project.
-    #[arg(long)]
+    #[arg(long, visible_alias = "path")]
     pub project: Option<PathBuf>,
     /// Optional standalone report output. The bundle always contains JSON and Markdown reports.
     #[arg(long)]
@@ -128,8 +128,8 @@ pub struct PlanCommand {
     /// Default Tikeo app for generated job drafts when source app/group is absent.
     #[arg(long, default_value = "default")]
     pub app: String,
-    /// Tikeo dependency version placeholder or concrete version used in generated Java snippets.
-    #[arg(long, default_value = "${TIKEO_VERSION}")]
+    /// Concrete Tikeo dependency version used in generated Java snippets.
+    #[arg(long, default_value = "0.3.10")]
     pub tikeo_version: String,
 }
 
@@ -140,7 +140,7 @@ pub struct ApplyCommand {
     #[arg(long, default_value = ".tikeo-migration")]
     pub bundle: PathBuf,
     /// Source Java worker project. Defaults to java-project-plan.json projectRoot.
-    #[arg(long)]
+    #[arg(long, visible_alias = "path")]
     pub project: Option<PathBuf>,
     /// Optional output evidence path. Defaults to <bundle>/code-apply-evidence.json.
     #[arg(long)]
@@ -312,12 +312,12 @@ async fn export_from_legacy_database(
                 "legacy database URL was detected but source scheduler was not; pass --from xxl-job or --from powerjob"
             )
         })?;
-    let database_url = normalize_database_url(
+    let connection_url = normalize_connection_url(
         &raw_url,
         config.username.as_deref(),
         config.password.as_deref(),
     )?;
-    let rows = export_legacy_rows(source, &database_url)
+    let rows = export_legacy_rows(source, &connection_url)
         .await
         .with_context(|| {
             format!(
@@ -328,7 +328,7 @@ async fn export_from_legacy_database(
         })?;
     Ok(Some(LegacyDatabaseExport {
         source,
-        origin: format!("legacy-db:{}", redact_database_url(&database_url)),
+        origin: format!("legacy-db:{}", redact_connection_url(&connection_url)),
         json: serde_json::to_string(&json!({"jobs": rows}))?,
     }))
 }
@@ -477,7 +477,7 @@ fn infer_source_from_project(project_root: &Path) -> Option<MigrationSource> {
     None
 }
 
-fn normalize_database_url(
+fn normalize_connection_url(
     raw: &str,
     username: Option<&str>,
     password: Option<&str>,
@@ -540,7 +540,7 @@ fn percent_encode_credential(value: &str) -> String {
     output
 }
 
-fn redact_database_url(url: &str) -> String {
+fn redact_connection_url(url: &str) -> String {
     if url.starts_with("sqlite:") {
         return url.to_owned();
     }
@@ -553,11 +553,11 @@ fn redact_database_url(url: &str) -> String {
     )
 }
 
-async fn export_legacy_rows(source: MigrationSource, database_url: &str) -> Result<Vec<Value>> {
+async fn export_legacy_rows(source: MigrationSource, connection_url: &str) -> Result<Vec<Value>> {
     sqlx::any::install_default_drivers();
     let pool = sqlx::any::AnyPoolOptions::new()
         .max_connections(1)
-        .connect(database_url)
+        .connect(connection_url)
         .await?;
     let queries = match source {
         MigrationSource::XxlJob => [
@@ -1247,7 +1247,7 @@ fn detect_xxl_handlers(content: &str) -> Vec<(String, Option<String>)> {
         if let Some(start) = line.find("@XxlJob(") {
             let rest = &line[start..];
             if let Some(name) = first_quoted(rest) {
-                handlers.push((name, None));
+                handlers.push((lower_camel_identifier(&name), None));
             }
         }
         if line.contains("extends IJobHandler") || line.contains("implements IJobHandler") {
@@ -1268,7 +1268,7 @@ fn detect_powerjob_handlers(content: &str) -> Vec<(String, Option<String>)> {
         || content.contains("ProcessorBean")
     {
         let name = powerjob_processor_name(content)
-            .or_else(|| class_name(content))
+            .or_else(|| class_name(content).map(|name| lower_camel_identifier(&name)))
             .unwrap_or_else(|| "TODO_powerjob_processor".to_owned());
         handlers.push((name, Some("process".to_owned())));
     }
@@ -1289,6 +1289,37 @@ fn powerjob_processor_name(content: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn lower_camel_identifier(value: &str) -> String {
+    let mut chars = value.chars().collect::<Vec<_>>();
+    if chars
+        .first()
+        .is_none_or(|first| !first.is_ascii_uppercase())
+    {
+        return value.to_owned();
+    }
+    let mut uppercase_prefix = 0;
+    for character in &chars {
+        if character.is_ascii_uppercase() {
+            uppercase_prefix += 1;
+        } else {
+            break;
+        }
+    }
+    let chars_to_lower = if uppercase_prefix > 1
+        && chars
+            .get(uppercase_prefix)
+            .is_some_and(|character| character.is_ascii_lowercase())
+    {
+        uppercase_prefix - 1
+    } else {
+        1
+    };
+    for character in chars.iter_mut().take(chars_to_lower) {
+        character.make_ascii_lowercase();
+    }
+    chars.into_iter().collect()
 }
 
 fn first_quoted(value: &str) -> Option<String> {
@@ -1390,7 +1421,8 @@ fn plan_xxl_job(record: &Map<String, Value>, defaults: &MigrationDefaults) -> Mi
     let source_id = string_field(record, &["id", "jobId"]).unwrap_or_else(|| "unknown".to_owned());
     let source_name = string_field(record, &["jobDesc", "job_desc", "name"])
         .unwrap_or_else(|| format!("xxl-job-{source_id}"));
-    let processor_name = string_field(record, &["executorHandler", "executor_handler"]);
+    let processor_name = string_field(record, &["executorHandler", "executor_handler"])
+        .map(|name| lower_camel_identifier(&name));
     let schedule_type_raw = string_field(record, &["scheduleType", "schedule_type"])
         .unwrap_or_else(|| "NONE".to_owned());
     let schedule_expr = string_field(record, &["scheduleConf", "schedule_conf"]);
@@ -1491,7 +1523,8 @@ fn plan_powerjob(record: &Map<String, Value>, defaults: &MigrationDefaults) -> M
     let processor_name = string_field(
         record,
         &["processorInfo", "processor_info", "processorName"],
-    );
+    )
+    .map(|name| lower_camel_identifier(&name));
     let schedule_type_raw = string_field(
         record,
         &["timeExpressionType", "time_expression_type", "scheduleType"],

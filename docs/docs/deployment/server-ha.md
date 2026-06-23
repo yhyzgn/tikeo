@@ -187,7 +187,7 @@ These are the minimum deployment requirements for the Raft FSOD Cluster. All Ser
 | `cluster.transport_token` / `TIKEO__CLUSTER__TRANSPORT_TOKEN` | empty | Required for internal Raft/relay routes; store in a Kubernetes Secret. |
 | `cluster.scheduler_shard_map_version` | `1` | Change only through a planned shard-map migration. |
 | `cluster.scheduler_shard_count` | `64` | Must stay stable across all pods for a map version. |
-| `storage.database_url` / `TIKEO__STORAGE__DATABASE_URL` | SQLite dev path | Use external PostgreSQL/MySQL/CockroachDB for Raft HA. |
+| `storage.database.*` / `TIKEO__STORAGE__DATABASE__HOST / TIKEO__STORAGE__DATABASE__PASSWORD` | SQLite dev path | Use external PostgreSQL/MySQL/CockroachDB for Raft HA. |
 | `server.worker_tunnel_addr` | `0.0.0.0:9998` | Expose through a Service/Gateway that preserves gRPC/HTTP2; do not route it through an HTTP/1-only proxy. |
 | API/SSE ingress path | deployment-specific | Browser/API traffic can be load-balanced across pods, but SSE paths must disable proxy buffering and use long idle/read timeouts. See [SSE realtime deployment notes](./sse-realtime). |
 | Worker Tunnel Service | deployment-specific | May load-balance initial Worker connections across pods; reconnect changes `worker_sessions.gateway_node_id` and outbox reroute handles later delivery. |

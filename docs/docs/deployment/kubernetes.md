@@ -42,7 +42,7 @@ Create the Secret first. PostgreSQL example:
 
 ```bash
 kubectl -n tikeo create secret generic tikeo-database \
-  --from-literal=database-url='postgres://tikeo:change-me@postgres.example:5432/tikeo?sslmode=require'
+  --from-literal=host/port/username/password/database='postgres://tikeo:change-me@postgres.example:5432/tikeo?sslmode=require'
 ```
 
 Install with the external DB overlay:
@@ -60,7 +60,7 @@ kubectl -n tikeo rollout status deploy/tikeo-web
 curl -fsS http://127.0.0.1:9090/readyz || true
 ```
 
-The chart injects the database URL as `TIKEO__STORAGE__DATABASE_URL`, overriding generated config.
+The chart injects the database URL as `TIKEO__STORAGE__DATABASE__HOST / TIKEO__STORAGE__DATABASE__PASSWORD`, overriding generated config.
 
 
 ## 3. Server Raft HA install
@@ -139,7 +139,7 @@ helm template tikeo ./deploy/helm/tikeo \
 | `server.cluster.transportTokenExistingSecret` | empty | Required in raft mode; Secret containing the internal transport token. |
 | `server.storage.mode` | `sqlite` | `sqlite` creates/uses PVC; `external` reads DB URL from Secret. |
 | `server.storage.existingSecret` | empty | Secret containing database URL for external mode. |
-| `server.storage.databaseUrlSecretKey` | `database-url` | Secret key read into `TIKEO__STORAGE__DATABASE_URL`. |
+| `server.storage.secretKeys` | `host/port/username/password/database` | Secret key read into `TIKEO__STORAGE__DATABASE__HOST / TIKEO__STORAGE__DATABASE__PASSWORD`. |
 | `server.storage.persistence.enabled` | `true` | SQLite PVC toggle. Disable for external DB mode. |
 | `server.tls.http.enabled` | `false` | Enable Tikeo HTTP listener TLS. |
 | `server.tls.workerTunnel.enabled` | `false` | Enable Worker Tunnel listener TLS. |

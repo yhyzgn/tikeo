@@ -107,9 +107,23 @@ jobs:
           VERSION="${RELEASE_TAG#v}"
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-      - name: Sync server workspace version
+      - name: Check release version consistency
         shell: bash
-        run: python scripts/set-release-version.py "${{ steps.version.outputs.version }}" --tag "${{ steps.version.outputs.tag }}" --scope workspace
+        run: python scripts/check-release-version.py "${{ steps.version.outputs.version }}" --tag "${{ steps.version.outputs.tag }}"
+      - name: Verify release tag commit
+        id: buildmeta
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ steps.version.outputs.tag }}"
+          TAG_SHA="$(git rev-list -n 1 "$RELEASE_TAG")"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "$TAG_SHA" != "$HEAD_SHA" ]; then
+            echo "release tag $RELEASE_TAG points to $TAG_SHA but checkout HEAD is $HEAD_SHA" >&2
+            exit 1
+          fi
+          echo "git_sha=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+          echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - name: Build server binary
         shell: bash
         run: |
@@ -184,9 +198,23 @@ jobs:
           VERSION="${RELEASE_TAG#v}"
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-      - name: Sync migration CLI workspace version
+      - name: Check release version consistency
         shell: bash
-        run: python scripts/set-release-version.py "${{ steps.version.outputs.version }}" --tag "${{ steps.version.outputs.tag }}" --scope workspace
+        run: python scripts/check-release-version.py "${{ steps.version.outputs.version }}" --tag "${{ steps.version.outputs.tag }}"
+      - name: Verify release tag commit
+        id: buildmeta
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ steps.version.outputs.tag }}"
+          TAG_SHA="$(git rev-list -n 1 "$RELEASE_TAG")"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "$TAG_SHA" != "$HEAD_SHA" ]; then
+            echo "release tag $RELEASE_TAG points to $TAG_SHA but checkout HEAD is $HEAD_SHA" >&2
+            exit 1
+          fi
+          echo "git_sha=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+          echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - name: Test migration CLI
         shell: bash
         run: cargo test -p tikeo-migrate --locked --target ${{ matrix.target }}
@@ -365,7 +393,13 @@ jobs:
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
           RELEASE_TAG="${{ steps.version.outputs.tag }}"
-          python scripts/set-release-version.py "$VERSION" --tag "$RELEASE_TAG" --scope workspace
+          python scripts/check-release-version.py "$VERSION" --tag "$RELEASE_TAG"
+          TAG_SHA="$(git rev-list -n 1 "$RELEASE_TAG")"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "$TAG_SHA" != "$HEAD_SHA" ]; then
+            echo "release tag $RELEASE_TAG points to $TAG_SHA but checkout HEAD is $HEAD_SHA" >&2
+            exit 1
+          fi
           helm lint deploy/helm/tikeo
           helm package deploy/helm/tikeo --destination dist
           cp deploy/k8s/tikeo.yaml "dist/tikeo-k8s-manifest-${VERSION}.yaml"

@@ -66,12 +66,47 @@ fn plan_command_writes_complete_bundle_for_xxl_job_and_java_project() {
     assert!(report.contains(r#""total": 2"#));
     assert!(report.contains(r#""namespace": "ops""#));
     assert!(report.contains(r#""scheduleType": "cron""#));
+    assert!(report.contains("billingSettlementProcessor"));
     let java_plan = fs::read_to_string(output_dir.join("java-project-plan.md"))
         .unwrap_or_else(|error| panic!("java plan should be readable: {error}"));
     assert!(java_plan.contains("tikeo-spring-boot3-starter"));
     assert!(java_plan.contains("billingProcessor"));
     assert!(output_dir.join("data-import-plan.json").exists());
     assert!(output_dir.join("CHECKLIST.md").exists());
+    let _ = fs::remove_dir_all(output_dir);
+}
+
+#[test]
+fn plan_command_normalizes_pascal_case_xxl_handlers_to_lower_camel() {
+    let binary = std::env::var("CARGO_BIN_EXE_tikeo-migrate")
+        .unwrap_or_else(|error| panic!("binary path should exist: {error}"));
+    let output_dir = std::env::temp_dir().join(format!(
+        "tikeo-migrate-xxl-lower-camel-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&output_dir);
+    let input = output_dir.join("xxl.json");
+    fs::create_dir_all(&output_dir)
+        .unwrap_or_else(|error| panic!("output dir should be created: {error}"));
+    fs::write(
+        &input,
+        r#"{"jobs":[{"id":9,"jobDesc":"Pascal handler","scheduleType":"NONE","executorHandler":"BillingProcessor","triggerStatus":1}]}"#,
+    )
+    .unwrap_or_else(|error| panic!("xxl export should be written: {error}"));
+
+    let status = Command::new(&binary)
+        .args(["plan", "--from", "xxl-job", "--input"])
+        .arg(&input)
+        .args(["--output-dir"])
+        .arg(output_dir.join("bundle"))
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .status()
+        .unwrap_or_else(|error| panic!("migration CLI should run: {error}"));
+
+    assert!(status.success());
+    let report = fs::read_to_string(output_dir.join("bundle/jobs.tikeo.json"))
+        .unwrap_or_else(|error| panic!("report should be readable: {error}"));
+    assert!(report.contains(r#""processorName": "billingProcessor""#));
     let _ = fs::remove_dir_all(output_dir);
 }
 
@@ -136,7 +171,18 @@ fn plan_command_falls_back_to_code_only_powerjob_handlers_without_scheduler_expo
   <parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId><version>3.5.8</version></parent>
   <groupId>com.example</groupId>
   <artifactId>ivs</artifactId>
-  <dependencies><dependency><groupId>tech.powerjob</groupId><artifactId>powerjob-worker-spring-boot-starter</artifactId><version>4.3.2</version></dependency></dependencies>
+  <properties>
+    <java.version>21</java.version>
+    <powerjob.version>4.3.2</powerjob.version>
+  </properties>
+  <dependencyManagement>
+    <dependencies>
+      <dependency><groupId>tech.powerjob</groupId><artifactId>powerjob-worker-spring-boot-starter</artifactId><version>${powerjob.version}</version></dependency>
+    </dependencies>
+  </dependencyManagement>
+  <dependencies>
+    <dependency><groupId>tech.powerjob</groupId><artifactId>powerjob-worker-spring-boot-starter</artifactId></dependency>
+  </dependencies>
 </project>
 "#,
     )
@@ -174,7 +220,7 @@ public class OutboxPublishProcessor implements BasicProcessor { public ProcessRe
     let java_plan = fs::read_to_string(output_dir.join("java-project-plan.md"))
         .unwrap_or_else(|error| panic!("java plan should be readable: {error}"));
     assert!(java_plan.contains("tikeo-spring-boot3-starter"));
-    assert!(java_plan.contains("OutboxPublishProcessor"));
+    assert!(java_plan.contains("outboxPublishProcessor"));
     let _ = fs::remove_dir_all(project_dir);
 }
 
@@ -319,7 +365,18 @@ fn apply_command_transforms_powerjob_worker_in_place() {
   <parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId><version>3.5.8</version></parent>
   <groupId>com.example</groupId>
   <artifactId>ivs</artifactId>
-  <dependencies><dependency><groupId>tech.powerjob</groupId><artifactId>powerjob-worker-spring-boot-starter</artifactId><version>4.3.2</version></dependency></dependencies>
+  <properties>
+    <java.version>21</java.version>
+    <powerjob.version>4.3.2</powerjob.version>
+  </properties>
+  <dependencyManagement>
+    <dependencies>
+      <dependency><groupId>tech.powerjob</groupId><artifactId>powerjob-worker-spring-boot-starter</artifactId><version>${powerjob.version}</version></dependency>
+    </dependencies>
+  </dependencyManagement>
+  <dependencies>
+    <dependency><groupId>tech.powerjob</groupId><artifactId>powerjob-worker-spring-boot-starter</artifactId></dependency>
+  </dependencies>
 </project>
 "#,
     )
@@ -340,6 +397,10 @@ powerjob:
     enabled: true
     app-name: ivs
     server-address: 127.0.0.1:7700
+xxl:
+  job:
+    admin-addresses: http://127.0.0.1:8080/xxl-job-admin
+xxl.job.executor.enabled: true
 ",
     )
     .unwrap_or_else(|error| panic!("legacy config should be written: {error}"));
@@ -365,25 +426,33 @@ powerjob:
     .unwrap_or_else(|error| panic!("migrated source should be readable: {error}"));
     assert!(migrated.contains("import net.tikeo.processor.TikeoProcessor;"));
     assert!(migrated.contains("import net.tikeo.processor.TaskOutcome;"));
-    assert!(migrated.contains("@TikeoProcessor(\"OutboxPublishProcessor\")"));
+    assert!(migrated.contains("@TikeoProcessor(\"outboxPublishProcessor\")"));
     assert!(!migrated.contains("implements BasicProcessor"));
     assert!(migrated.contains("TaskOutcome process(TaskContext context)"));
     let pom = fs::read_to_string(project_dir.join("pom.xml"))
         .unwrap_or_else(|error| panic!("migrated pom should be readable: {error}"));
     assert!(pom.contains("<artifactId>tikeo-spring-boot3-starter</artifactId>"));
-    assert!(pom.contains("${TIKEO_VERSION}"));
+    assert!(!pom.contains("${TIKEO_VERSION}"));
+    assert!(pom.contains("<tikeo.version>0.3.10</tikeo.version>"));
+    assert!(pom.contains("<version>${tikeo.version}</version>"));
+    assert!(!pom.contains("tech.powerjob"));
+    assert!(!pom.contains("powerjob.version"));
     let migrated_config =
         fs::read_to_string(project_dir.join("src/main/resources/application-dev.yml"))
             .unwrap_or_else(|error| panic!("migrated config should be readable: {error}"));
     assert!(migrated_config.contains("Generated by tikeo-migrate apply"));
-    assert!(migrated_config.contains("powerjob:"));
-    assert!(migrated_config.contains("enabled: false"));
+    assert!(!migrated_config.contains("powerjob:"));
+    assert!(!migrated_config.contains("POWERJOB_ENABLED"));
+    assert!(!migrated_config.contains("xxl:"));
+    assert!(!migrated_config.contains("xxl.job"));
     assert!(migrated_config.contains("tikeo:"));
     assert!(migrated_config.contains("endpoint: ${TIKEO_WORKER_ENDPOINT:http://127.0.0.1:9998}"));
+    assert!(migrated_config.contains("app: ${TIKEO_APP:ivs}"));
+    assert!(migrated_config.contains("state-dir: ${TIKEO_WORKER_STATE_DIR:~/.tikeo/workers}"));
     assert!(migrated_config.contains("api-key: ${TIKEO_MANAGEMENT_API_KEY:}"));
-    assert!(migrated_config.contains("heartbeat-interval-millis"));
-    assert!(migrated_config.contains("power-shell-install-version"));
-    assert!(migrated_config.contains("images:"));
+    assert!(!migrated_config.contains("heartbeat-interval-millis"));
+    assert!(!migrated_config.contains("power-shell-install-version"));
+    assert!(!migrated_config.contains("images:"));
     assert!(
         !project_dir
             .join("src/main/resources/application-tikeo-migration.yml")
@@ -393,6 +462,13 @@ powerjob:
     let code_report = fs::read_to_string(project_dir.join("CODE_MIGRATION_REPORT.md"))
         .unwrap_or_else(|error| panic!("code migration report should be readable: {error}"));
     assert!(code_report.contains("Target project (in-place)"));
+    assert!(code_report.contains("## Migration result checklist"));
+    assert!(code_report.contains("| `pom.xml` | dependency | migrated |"));
+    assert!(
+        code_report
+            .contains("| `src/main/resources/application-dev.yml` | configuration | migrated |")
+    );
+    assert!(code_report.contains("OutboxPublishProcessor.java` | executor | migrated"));
     assert!(code_report.contains("## Data import summary"));
     assert!(code_report.contains("## Semantic review items"));
     assert!(code_report.contains("Generated from Java handler code only"));
@@ -402,6 +478,7 @@ powerjob:
         fs::read_to_string(project_dir.join(".tikeo-migration/code-apply-evidence.json"))
             .unwrap_or_else(|error| panic!("code evidence should be readable: {error}"));
     assert!(evidence.contains("OutboxPublishProcessor.java"));
+    assert!(evidence.contains("outboxPublishProcessor"));
     assert!(evidence.contains(r#""dataImportSummary""#));
     assert!(evidence.contains(r#""semanticReviewItems""#));
     assert!(evidence.contains(r#""nextActions""#));

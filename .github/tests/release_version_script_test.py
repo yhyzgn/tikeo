@@ -17,6 +17,8 @@ def copy_release_sync_fixture(tmp_path: Path) -> Path:
     (fixture / "docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/deployment").mkdir(parents=True)
     (fixture / "docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/reference").mkdir(parents=True)
     shutil.copy2(ROOT / "scripts/set-release-version.py", fixture / "scripts/set-release-version.py")
+    shutil.copy2(ROOT / "scripts/release-version-lib.py", fixture / "scripts/release-version-lib.py")
+    shutil.copy2(ROOT / "scripts/check-release-version.py", fixture / "scripts/check-release-version.py")
     shutil.copy2(ROOT / "Cargo.toml", fixture / "Cargo.toml")
     shutil.copy2(ROOT / "Cargo.lock", fixture / "Cargo.lock")
     for manifest in sorted((ROOT / "crates").glob("*/Cargo.toml")):
@@ -29,6 +31,7 @@ def copy_release_sync_fixture(tmp_path: Path) -> Path:
         "README.md",
         "README.zh-CN.md",
         "docs/package.json",
+        "web/package.json",
         "docs/docs/deployment/production.md",
         "docs/docs/reference/configuration-cookbook.md",
         "docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/deployment/production.md",
@@ -75,14 +78,44 @@ def test_workspace_release_sync_updates_cargo_lock_for_locked_release_builds(tmp
     assert 'version = "0.2.9"' in (fixture / "Cargo.toml").read_text()
     assert "tag: v0.2.9" in (fixture / "deploy/helm/tikeo/values.yaml").read_text()
     assert '"version": "0.2.9"' in (fixture / "docs/package.json").read_text()
-    assert "yhyzgn/tikeo-server:0.2.9" in (fixture / "README.md").read_text()
-    assert "server.image.tag=v0.2.9" in (fixture / "README.md").read_text()
-    assert "yhyzgn/tikeo-server:0.2.9" in (fixture / "README.zh-CN.md").read_text()
-    assert "server.image.tag=v0.2.9" in (fixture / "deploy/helm/tikeo/README.md").read_text()
-    assert "v0.2.9 --version" in (fixture / "docs/docs/deployment/production.md").read_text()
-    assert "v0.2.9 --version" in (fixture / "docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/deployment/production.md").read_text()
+    assert '"version": "0.2.9"' in (fixture / "web/package.json").read_text()
+    assert "${TIKEO_VERSION}" in (fixture / "README.md").read_text()
+    assert "${TIKEO_VERSION}" in (fixture / "README.zh-CN.md").read_text()
+    assert "server.image.tag=v${TIKEO_VERSION}" in (fixture / "deploy/helm/tikeo/README.md").read_text()
+    assert "${TIKEO_VERSION}" in (fixture / "docs/docs/deployment/production.md").read_text()
+    assert "${TIKEO_VERSION}" in (fixture / "docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/deployment/production.md").read_text()
+    assert "0.2.9 --version" not in (fixture / "docs/docs/deployment/production.md").read_text()
 
 if __name__ == "__main__":
     import tempfile
     with tempfile.TemporaryDirectory() as raw:
         test_workspace_release_sync_updates_cargo_lock_for_locked_release_builds(Path(raw))
+
+
+def test_release_version_check_rejects_tag_manifest_mismatch(tmp_path: Path):
+    fixture = copy_release_sync_fixture(tmp_path)
+    result = subprocess.run(
+        ["python3", "scripts/check-release-version.py", "0.2.9", "--tag", "v0.2.9"],
+        cwd=fixture,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode != 0
+    assert "release version check failed" in result.stdout
+
+
+def test_release_version_check_accepts_prepared_manifests(tmp_path: Path):
+    fixture = copy_release_sync_fixture(tmp_path)
+    subprocess.run(
+        ["python3", "scripts/set-release-version.py", "0.2.9", "--tag", "v0.2.9", "--scope", "workspace"],
+        cwd=fixture,
+        check=True,
+    )
+    result = subprocess.run(
+        ["python3", "scripts/check-release-version.py", "0.2.9", "--tag", "v0.2.9"],
+        cwd=fixture,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0
+    assert "release version check passed" in result.stdout

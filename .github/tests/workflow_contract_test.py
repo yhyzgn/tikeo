@@ -273,24 +273,30 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertNotIn("echo \"## 中文\"", GITHUB_RELEASE)
 
 
-    def test_server_release_and_docker_publish_sync_workspace_version_from_tag(self):
+    def test_server_release_and_docker_publish_gate_manifest_version_from_tag(self):
         github_server_job = workflow_job_block(GITHUB_RELEASE, "server-binaries")
         docker_server_job = workflow_job_block(DOCKER_SERVER, "publish")
         for job_block in [github_server_job, docker_server_job]:
             self.assertIn("Resolve release version", job_block)
             self.assertIn("RELEASE_TAG", job_block)
             self.assertIn('VERSION="${RELEASE_TAG#v}"', job_block)
-            self.assertIn("scripts/set-release-version.py", job_block)
-            self.assertIn("--scope workspace", job_block)
+            self.assertIn("scripts/check-release-version.py", job_block)
+            self.assertIn("Verify release tag commit", job_block)
+            self.assertIn("git rev-list -n 1", job_block)
+            self.assertNotIn("scripts/set-release-version.py", job_block)
+            self.assertNotIn("--scope workspace", job_block)
         self.assertIn("github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name", docker_server_job)
         self.assertLess(
-            github_server_job.index("scripts/set-release-version.py"),
+            github_server_job.index("scripts/check-release-version.py"),
             github_server_job.index("Build server binary"),
         )
         self.assertLess(
-            docker_server_job.index("scripts/set-release-version.py"),
+            docker_server_job.index("scripts/check-release-version.py"),
             docker_server_job.index("docker/build-push-action@v7"),
         )
+        self.assertIn("TIKEO_GIT_TAG=${{ steps.version.outputs.tag }}", docker_server_job)
+        self.assertIn("TIKEO_GIT_SHA=${{ steps.buildmeta.outputs.git_sha }}", docker_server_job)
+        self.assertIn("TIKEO_BUILD_TIME=${{ steps.buildmeta.outputs.build_time }}", docker_server_job)
 
     def test_docker_server_manual_dispatch_can_build_from_explicit_ref(self):
         self.assertIn("ref:", DOCKER_SERVER)

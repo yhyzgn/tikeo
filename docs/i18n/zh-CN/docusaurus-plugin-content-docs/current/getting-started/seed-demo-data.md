@@ -209,7 +209,7 @@ curl -fsS -X POST "http://127.0.0.1:9090/api/v1/events/webhooks/${TIKEO_DEMO_JOB
 | 现象 | 检查项 | 处理 |
 |---|---|---|
 | `/healthz` 不通 | Server 是否运行、端口是否被占用 | 用 `cargo run --bin tikeo -- serve --config config/dev.toml` 重新启动，确认监听端口。 |
-| `/readyz` 失败 | SQLite 文件权限、migration 日志、配置覆盖 | 查看 Server 日志和 `config/dev.toml` 中 `storage.database_url`。 |
+| `/readyz` 失败 | SQLite 文件权限、migration 日志、配置覆盖 | 查看 Server 日志和 `config/dev.toml` 中 `storage.database.*`。 |
 | API 返回 401/403 | token、角色权限、scope 绑定 | 重新登录或使用有 `jobs:write`、`jobs:read`、`instances:execute`、`tenants:manage` 权限的账号。 |
 | Job 一直 pending | 没有在线 Worker 或 capability 不匹配 | 启动对应 demo Worker，确认它广告 `demo.echo` 等 processor。不要用宽泛 wildcard capability 掩盖问题。 |
 | 入站 Webhook 返回签名错误 | `secretRef`、`timestamp`、`nonce`、`signature` | 确认 `secretRef` 指向进程环境变量；timestamp 与当前时间相差不要超过 300 秒；nonce 不要复用。 |

@@ -1,10 +1,10 @@
-import { BulbOutlined, LogoutOutlined, MoonOutlined } from '@ant-design/icons';
+import { BulbOutlined, InfoCircleOutlined, LogoutOutlined, MoonOutlined } from '@ant-design/icons';
 import { Avatar, Badge, Button, ColorPicker, Layout, Menu, Select, Space, Tooltip, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { hasMenuAccess, usePrincipal } from './AuthGuard';
-import { MENU_GROUPS, MENU_ROUTE_META } from '../routes';
+import { MENU_GROUPS, MENU_ROUTE_META, ROUTE_META } from '../routes';
 import { DEFAULT_PRIMARY_COLOR, useThemeSettings } from '../theme';
 import { LOCALE_OPTIONS, useI18n } from '../i18n';
 import { TikeoLogo } from './TikeoLogo';
@@ -84,6 +84,16 @@ export function AppShell({ children, onLogout }: AppShellProps) {
             <Typography.Text className="app-shell__subtitle">{t('轻量、容器友好、Worker 主动隧道连接')}</Typography.Text>
           </div>
           <Space className="app-shell__user" size={14}>
+
+            <Tooltip title={t('关于 Tikeo')}>
+              <Button
+                className="app-shell__about-button"
+                aria-label={t('关于 Tikeo')}
+                shape="circle"
+                icon={<InfoCircleOutlined />}
+                onClick={() => navigate(ROUTE_META.about.path)}
+              />
+            </Tooltip>
             <Tooltip title={mode === 'system' ? `${t('跟随系统')}：${t('当前')}${resolvedMode === 'dark' ? t('暗色') : t('亮色')}` : t('选择明暗主题')}>
               <Select
                 aria-label={t('选择明暗主题')}

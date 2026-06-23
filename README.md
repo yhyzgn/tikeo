@@ -104,6 +104,7 @@ Tikeo is designed to be the default answer when someone asks:
 | **Operations-grade evidence** | **Retries**, **misfire policy**, **canary rollback evidence**, **task logs**, **audit logs**, **OpenTelemetry**, metrics, and file logs answer “what happened?” |
 | **Multi-DB deployment freedom** | Start with **SQLite** locally, then run production with **PostgreSQL** or **MySQL** using maintained Compose profiles and migration compatibility. |
 | **Cloud-native release surface** | Docker, Compose, Helm, Kubernetes CRD/operator, Terraform provider, GitOps diff, and cross-platform release assets. |
+| **Live operations cockpit** | The Web Dashboard combines KPI cards, 12-hour execution trends, instance status distribution, task schedule rails, queue pressure, alert delivery, HA/gateway diagnostics, audit activity, Worker Mesh distribution, capability coverage, and risk signals in one page. |
 
 <p align="center">
   <strong>Keywords:</strong>
@@ -128,6 +129,7 @@ Tikeo is designed to be the default answer when someone asks:
 | 🛡️ **Scripts as governed workloads** | Immutable versions, digest checks, approval metadata, policy limits, task-scoped logs, and sandbox auto-selection are first-class. |
 | 🧩 **SDK parity by design** | **Java/Rust/Go/Python/Node.js** align on worker registration, task logs, retries, management APIs, sandbox behavior, and diagnostics. |
 | 📈 **Evidence-first operations** | Instance results, retry logs, broadcast worker grouping, terminal-style logs, audit trails, OTel traces, metrics, and GitOps diffs are built in. |
+| 🧭 **Dashboard as an operations cockpit** | The `/dashboard` page reads live instance, Worker, dispatch queue, alert delivery, cluster diagnostics, and audit data; SSE streams keep the cockpit fresh with a 3-second polling fallback. |
 
 ## Innovation map
 
@@ -140,6 +142,24 @@ Tikeo is designed to be the default answer when someone asks:
 | **Execution Evidence Model** | Every attempt, retry, worker result, broadcast child, and task log is inspectable. | Status-only dashboards that cannot explain failures. |
 | **Open Platform Surface** | SDKs, Docker, Helm, Terraform, CRD/operator, GitOps diff, OpenAPI, OTel. | Scheduler adoption blocked by missing integration surfaces. |
 
+
+## Web operations cockpit
+
+The Web console is not only a configuration UI. The Dashboard is designed as an operator cockpit for live health checks before and after deployments:
+
+| Dashboard section | Data source | What it helps decide |
+| --- | --- | --- |
+| KPI strip | Jobs, instances, Workers | How many jobs are enabled, how many instances are active or failed, and whether any Workers are online. |
+| 12-hour execution trend | `/api/v1/instances/stream` plus job instance history | Whether failures or bursts are recent, isolated, or trending. |
+| Instance status distribution | persisted instance status/result | Whether the current fleet is mostly pending, running, succeeded, failed, retrying, or cancelled. |
+| Task schedule rail | Job schedule metadata | Which Cron/fixed/API jobs are currently the most relevant plans to inspect. |
+| Queue pressure | `/api/v1/dispatch-queue` and `/api/v1/dispatch-queue/stream` | Whether dispatch backlog is growing before triggering more work. |
+| Notification delivery | `/api/v1/alert-delivery-attempts:queue-status` | Whether notifications are delivered, retrying, failed, or in dead-letter state. |
+| HA / gateway panel | `/api/v1/cluster/diagnostics` | Whether Raft/Smart Gateway state, local/remote Worker counts, and outbox totals look healthy. |
+| Worker Mesh and capability coverage | `/api/v1/workers` and `/api/v1/workers/stream` | Which namespace/app scopes have online capacity and which capabilities are actually advertised. |
+| Audit activity and risk signals | `/api/v1/audit-logs`, queue, alert, instance, and cluster data | Whether the console state is safe to operate or needs incident triage first. |
+
+Dashboard realtime surfaces use SSE where available and fall back to a 3-second refresh loop, so deployment proxies must support streaming responses. See the [Dashboard user guide](docs/docs/user-guide/dashboard.md) and [SSE realtime deployment notes](docs/docs/deployment/sse-realtime.md).
 
 ## Acceptance and handoff checklist
 
@@ -419,32 +439,39 @@ These are not separate products you need to stitch together. They are Tikeo oper
 
 ## Configuration that operators actually need
 
-Config files live in `config/` and can be overridden with `TIKEO__...` environment variables.
-The complete default/env table is in the docs-site [Configuration reference](https://docs.tikeo.net/docs/reference/configuration); keep that page as the canonical operator checklist when adding runtime config.
+Config files live in `config/`. For Docker/Compose deployments, edit and mount the appropriate config file directly instead of scattering service settings through environment variables. The complete default table is in the docs-site [Configuration reference](https://docs.tikeo.net/docs/reference/configuration); keep that page as the canonical operator checklist when adding runtime config.
 
-```toml
-[storage]
-database_url = "postgres://tikeo:tikeo@postgres:5432/tikeo"
+```yaml
+storage:
+  database:
+    type: postgres
+    host: postgres
+    port: 5432
+    username: tikeo
+    password: "p@ss/word:with#chars"
+    database: tikeo
+    params:
+      sslmode: disable
 
-[cluster]
-mode = "standalone"
-scheduler_shard_map_version = 1
-scheduler_shard_count = 64
+cluster:
+  mode: standalone
+  scheduler_shard_map_version: 1
+  scheduler_shard_count: 64
 
-[notification_delivery]
-enabled = true
-interval_seconds = 60
-batch_size = 50
-max_attempts = 3
-backoff_seconds = 300
+notification_delivery:
+  enabled: true
+  interval_seconds: 60
+  batch_size: 50
+  max_attempts: 3
+  backoff_seconds: 300
 
-[observability.logging]
-level = "info"
-log_dir = "./logs"
-
-[observability.tracing]
-enabled = true
-otlp_endpoint = "http://otel-collector:4318/v1/traces"
+observability:
+  logging:
+    level: info
+    log_dir: ./logs
+  tracing:
+    enabled: true
+    otlp_endpoint: "http://otel-collector:4318/v1/traces"
 ```
 
 Storage support:
@@ -798,29 +825,93 @@ pnpm add @yhyzgn/tikeo@${TIKEO_VERSION}
 import { Client, WorkerConfig } from "@yhyzgn/tikeo";
 ```
 
-### Worker runtime configuration shared by SDKs
+### Worker configuration reference shared by SDKs
 
-These are Worker registration/runtime fields common to the Java, Rust, Go, Python, and Node.js SDKs.
-Language-specific wrappers may expose them as Java records, Rust structs, Go structs, Python dataclasses,
-TypeScript classes, or Spring Boot properties.
+Worker services use SDK-level configuration, separate from Server configuration. Java Spring Boot exposes these as `tikeo.worker.*` properties; other SDKs expose equivalent `WorkerConfig` fields or demo environment variables.
 
-| Field | Default in SDK helpers | Meaning |
-| --- | --- | --- |
-| `endpoint` | usually `http://127.0.0.1:9998` in demos | Worker Tunnel endpoint reachable from the worker process. |
-| `clientInstanceId` / `client_instance_id` | required for core SDK helpers; Boot can generate/persist it | Stable client-side hint. The server still assigns the authoritative `worker_id`. |
-| `namespace` | `default` | Tenant/environment namespace used for dispatch and management scoping. |
-| `app` | `default` | Application scope used for routing and management operations. |
-| `cluster` | `local` in non-Java helpers; Java Boot default is `default` | Worker cluster or environment shard. |
-| `region` | `local` in non-Java helpers; Java Boot default is `default` | Worker region/zone. |
-| `name` | usually the client instance id | Operator-facing worker name when the language SDK exposes it. |
-| `version` | `dev` in Go/Python/Node helpers | Worker/application build version when exposed by the SDK. |
-| `heartbeatEvery` / `heartbeat-interval-millis` | `10s` / `10000` | Worker lease renewal cadence. |
-| `capabilities` | `[]` | Legacy/operator metadata; dispatch routing uses structured capabilities where available. |
-| `structuredCapabilities` | empty | SDK processors, script runners, plugin processors, and structured tags used for routing. |
-| `labels` | `{}` | Free-form operational metadata such as `worker_pool`, `runtime`, `team`, or `tier`. |
-| `election.enabled` | `true` | Worker-cluster master election flag in registration. |
-| `election.domain` | blank | Blank means `namespace/app/cluster/region`. |
-| `election.priority` | `100` | Deterministic election priority; lower values win. |
+| Config key / SDK field | Environment variable | Required? | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `tikeo.worker.enabled` | `TIKEO_WORKER_ENABLED` | No | `true` | Spring Boot auto-configuration switch. Core SDKs do not have a global enable flag. |
+| `tikeo.worker.auto-startup` | `TIKEO_WORKER_AUTO_STARTUP` | No | `true` | Spring Boot lifecycle auto-start switch. |
+| `endpoint` / `tikeo.worker.endpoint` | `TIKEO_WORKER_ENDPOINT` | Yes for live workers | demos use `http://127.0.0.1:9998` | Worker Tunnel endpoint reachable from the worker process. Do not use `0.0.0.0` as a client URL. |
+| `dry-run` | `TIKEO_WORKER_DRY_RUN` | No | `false` | Avoids opening a live Worker Tunnel; useful for tests and examples. |
+| `heartbeatEvery` / `heartbeat-interval-millis` | `TIKEO_WORKER_HEARTBEAT_INTERVAL_MILLIS` | No | `10000` ms / `10s` | Worker lease renewal cadence; must be positive. |
+| `clientInstanceId` / `client-instance-id` | `TIKEO_WORKER_CLIENT_INSTANCE_ID` | Core SDKs: yes; Boot: no | Boot generates/persists when blank | Stable client-side hint. Server still assigns authoritative `worker_id`. |
+| `state-dir` | `TIKEO_WORKER_STATE_DIR` | No | `~/.tikeo/workers` in Boot identity helper | Directory for generated client instance ids and local sandbox tool cache. |
+| `namespace` | `TIKEO_WORKER_NAMESPACE` | No | `default` | Tenant/environment namespace for dispatch and management scoping. |
+| `app` | `TIKEO_WORKER_APP` | No | `default` | Application scope for routing and management operations. |
+| `cluster` | `TIKEO_WORKER_CLUSTER` | No | Java Boot `default`; other helpers `local` | Worker cluster or environment shard. |
+| `region` | `TIKEO_WORKER_REGION` | No | Java Boot `default`; other helpers `local` | Worker region/zone. |
+| `name` | `TIKEO_WORKER_NAME` | No | usually client instance id | Operator-facing worker name where the SDK exposes it. |
+| `version` | `TIKEO_WORKER_VERSION` | No | `dev` in Go/Python/Node helpers | Worker/application build version where exposed. |
+| `capabilities` | `TIKEO_WORKER_CAPABILITIES` | No | `[]` | Legacy/operator metadata; dispatch routing uses structured capabilities when available. |
+| `labels` | `TIKEO_WORKER_LABELS` | No | `{}` | Comma-separated `key=value` labels in demos; maps in Spring Boot. |
+| `structured.sdkProcessors` | `TIKEO_WORKER_SDK_PROCESSORS` | No | demo-dependent | SDK processor names advertised for dispatch. |
+| `structured.scriptRunners` | `TIKEO_WORKER_SCRIPT_LANGUAGES` / SDK API | No | demo-dependent | Script languages and sandbox backend advertised for routing. |
+| `election.enabled` | `TIKEO_WORKER_ELECTION_ENABLED` | No | `true` | Worker-cluster master election flag in registration. |
+| `election.domain` | `TIKEO_WORKER_ELECTION_DOMAIN` | No | blank | Blank means `namespace/app/cluster/region`. |
+| `election.priority` | `TIKEO_WORKER_ELECTION_PRIORITY` | No | `100` | Deterministic election priority; lower values win. |
+| `wasm.auto-install` | `TIKEO_WORKER_WASM_AUTO_INSTALL` | No | `true` | Auto-install Wasmtime when unavailable. |
+| `wasm.install-version` | `TIKEO_WORKER_WASM_INSTALL_VERSION` | No | `latest` | Wasmtime installer version. |
+| `wasm.install-dir` | `TIKEO_WORKER_WASM_INSTALL_DIR` | No | `~/.tikeo/sandbox-tools/wasmtime` | Optional install directory. |
+| `wasm.installer-url` | `TIKEO_WORKER_WASM_INSTALLER_URL` | No | `https://wasmtime.dev/install.sh` | Wasmtime installer URL. |
+| `wasm.install-timeout-millis` | `TIKEO_WORKER_WASM_INSTALL_TIMEOUT_MILLIS` | No | `120000` | Wasmtime installer timeout. |
+| `scripts.enabled` | `TIKEO_WORKER_SCRIPTS_ENABLED` | No | `true` | Enable dynamic script execution. |
+| `scripts.container-enabled` | `TIKEO_WORKER_SCRIPTS_CONTAINER_ENABLED` | No | `false` | Enable container-backed shell/python/node/powershell runners. |
+| `scripts.availability-check` | `TIKEO_WORKER_SCRIPTS_AVAILABILITY_CHECK` | No | `true` | Probe runtime before advertising non-WASM script capabilities. |
+| `scripts.runtime-command` | `TIKEO_WORKER_SCRIPTS_RUNTIME_COMMAND` | No | blank | Explicit Docker-compatible runtime command, e.g. `docker` or `podman`. |
+| `scripts.runtime-args` | `TIKEO_WORKER_SCRIPTS_RUNTIME_ARGS` | No | `[]` | Extra runtime args before image. |
+| `scripts.auto-install-tools` | `TIKEO_WORKER_SCRIPTS_AUTO_INSTALL_TOOLS` | No | `true` | Auto-install local development script tools when absent. |
+| `scripts.*-install-version` | `TIKEO_WORKER_SCRIPT_*_INSTALL_VERSION` | No | `latest` / blank by tool | Tool versions for SRT, ripgrep, Deno, Rhai, PowerShell, WasmEdge, V8. |
+| `scripts.*-install-dir` | `TIKEO_WORKER_SCRIPT_*_INSTALL_DIR` | No | `~/.tikeo/sandbox-tools/<tool>` | Tool install/cache directories. |
+| `scripts.*-installer-url` | `TIKEO_WORKER_SCRIPT_*_INSTALLER_URL` | No | tool default | Installer URLs for Deno/WasmEdge and similar tools. |
+| `scripts.tool-install-timeout-millis` | `TIKEO_WORKER_SCRIPT_TOOL_INSTALL_TIMEOUT_MILLIS` | No | `120000` | Script tool installer timeout. |
+| `scripts.images.*` | `TIKEO_WORKER_SCRIPT_IMAGE_*` | No | blank | Optional per-language container images; blank disables that container runner. |
+
+### Server configuration reference
+
+Server configuration is loaded from defaults, then a config file, then `TIKEO__...` environment overrides. In Docker/Compose, prefer editing the mounted `/config/tikeo.yml`; reserve `TIKEO__...` for Kubernetes Secrets, emergency overrides, or platforms where file mounting is inconvenient.
+
+| Config key | Environment variable | Required? | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `server.listen_addr` | `TIKEO__SERVER__LISTEN_ADDR` | No | `0.0.0.0:9090` | HTTP API, health, readiness, metrics, OpenAPI, and Web API target bind address. |
+| `server.worker_tunnel_addr` | `TIKEO__SERVER__WORKER_TUNNEL_ADDR` | No | `0.0.0.0:9998` | gRPC/HTTP2 Worker Tunnel bind address. Workers dial this endpoint outbound. |
+| `storage.database.type` | `TIKEO__STORAGE__DATABASE__TYPE` | No | `sqlite` | `sqlite`, `postgres`, `mysql`, or `cockroachdb`. |
+| `storage.database.path` | `TIKEO__STORAGE__DATABASE__PATH` | SQLite only | `.dev/tikeo-dev.db`; production template `/data/tikeo.db` | SQLite file path. Persist `/data` in containers. |
+| `storage.database.host` | `TIKEO__STORAGE__DATABASE__HOST` | PostgreSQL/MySQL/CockroachDB | `127.0.0.1` if omitted | Database host for network databases. |
+| `storage.database.port` | `TIKEO__STORAGE__DATABASE__PORT` | No | Postgres `5432`, MySQL `3306` | Database port for network databases. |
+| `storage.database.username` | `TIKEO__STORAGE__DATABASE__USERNAME` | Usually yes for network DB | unset | Database username. |
+| `storage.database.password` | `TIKEO__STORAGE__DATABASE__PASSWORD` | Usually yes for network DB | unset | Database password. May contain `@`, `/`, `:`, `#`; Tikeo percent-encodes the internal URL. |
+| `storage.database.database` | `TIKEO__STORAGE__DATABASE__DATABASE` | Network DB | `tikeo` if omitted | Database/schema name. |
+| `storage.database.params.*` | best kept in file | No | SQLite uses `mode=rwc` when params are empty | Query parameters such as `sslmode=disable` or SQLite `mode=rwc`. |
+| `storage.timestamp_offset` | `TIKEO__STORAGE__TIMESTAMP_OFFSET` | No | `+00:00` | Offset used when writing DB timestamps. |
+| `cluster.mode` | `TIKEO__CLUSTER__MODE` | No | `standalone` | `standalone` or `raft`. Use raft for multi-pod Server HA. |
+| `cluster.node_id` | `TIKEO__CLUSTER__NODE_ID` | Raft: yes | `standalone` | Stable node id; in Kubernetes use pod name. |
+| `cluster.peers` | `TIKEO__CLUSTER__PEERS` | Raft: yes | `[]` | Static peer list; arrays are clearer in config files or Helm values. |
+| `cluster.transport_token` | `TIKEO__CLUSTER__TRANSPORT_TOKEN` | Raft: yes | unset | Shared token for internal Raft/relay traffic; store in a Secret. |
+| `cluster.scheduler_shard_map_version` | `TIKEO__CLUSTER__SCHEDULER_SHARD_MAP_VERSION` | No | `1` | Monotonic scheduler shard-map version. |
+| `cluster.scheduler_shard_count` | `TIKEO__CLUSTER__SCHEDULER_SHARD_COUNT` | No | `64` | Logical scheduler shard count. Keep stable per map version. |
+| `auth.local_login_enabled` | `TIKEO__AUTH__LOCAL_LOGIN_ENABLED` | No | `true` | Local username/password login toggle. |
+| `auth.api_tokens.default_ttl_seconds` | `TIKEO__AUTH__API_TOKENS__DEFAULT_TTL_SECONDS` | No | `43200` | Default API token TTL. |
+| `auth.api_tokens.min_ttl_seconds` | `TIKEO__AUTH__API_TOKENS__MIN_TTL_SECONDS` | No | `300` | Minimum requested token TTL. |
+| `auth.api_tokens.max_ttl_seconds` | `TIKEO__AUTH__API_TOKENS__MAX_TTL_SECONDS` | No | `2592000` | Maximum requested token TTL. |
+| `auth.oidc.enabled` | `TIKEO__AUTH__OIDC__ENABLED` | No | `false` | Enable OIDC login. |
+| `auth.oidc.issuer_url` | `TIKEO__AUTH__OIDC__ISSUER_URL` | If OIDC enabled | unset | OIDC issuer URL. |
+| `auth.oidc.client_id` | `TIKEO__AUTH__OIDC__CLIENT_ID` | If OIDC enabled | unset | OIDC client id. |
+| `auth.oidc.client_secret` | `TIKEO__AUTH__OIDC__CLIENT_SECRET` | If OIDC enabled | unset | OIDC client secret. |
+| `auth.oidc.scopes` | `TIKEO__AUTH__OIDC__SCOPES` | No | `openid,profile,email` | Prefer config file for list shape. |
+| `transport_security.http.*` | `TIKEO__TRANSPORT_SECURITY__HTTP__*` | Only when enabled | TLS/mTLS disabled | HTTP listener TLS/mTLS and cert/key/client CA paths. |
+| `transport_security.worker_tunnel.*` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__*` | Only when enabled | TLS/mTLS disabled | Worker Tunnel TLS/mTLS and cert/key/client CA paths. |
+| `observability.logging.level` | `TIKEO__OBSERVABILITY__LOGGING__LEVEL` | No | `info` | Default log level when `RUST_LOG` is not set. |
+| `observability.logging.log_dir` | `TIKEO__OBSERVABILITY__LOGGING__LOG_DIR` | No | unset; production template `/logs` | Writes `tikeo.log` in addition to stdout. Mount `/logs` if enabled in containers. |
+| `observability.tracing.enabled` | `TIKEO__OBSERVABILITY__TRACING__ENABLED` | No | `false` | Enable OTLP trace export. |
+| `observability.tracing.otlp_endpoint` | `TIKEO__OBSERVABILITY__TRACING__OTLP_ENDPOINT` | If tracing enabled | unset | OTLP collector endpoint. |
+| `observability.tracing.headers` | `TIKEO__OBSERVABILITY__TRACING__HEADERS` | No | `[]` | Exporter auth/tenant header names; values live outside status APIs. |
+| `alert_retry.*` | `TIKEO__ALERT_RETRY__*` | No | enabled, `60s`, batch `50`, attempts `3`, backoff `300s` | Alert delivery retry worker settings. |
+| `notification_delivery.*` | `TIKEO__NOTIFICATION_DELIVERY__*` | No | enabled, `60s`, batch `50`, attempts `3`, backoff `300s` | Notification Center delivery worker settings. Set `public_console_base_url` for card links. |
+| `alert_secrets.allow_env_refs` | `TIKEO__ALERT_SECRETS__ALLOW_ENV_REFS` | No | `true` | Allows `env:NAME` references in alert/channel secrets. |
+| `alert_secrets.env_prefix` | `TIKEO__ALERT_SECRETS__ENV_PREFIX` | No | `TIKEO_ALERT_SECRET_` | Expected env secret prefix. |
+| `script_governance.release_signature_secret_ref` | `TIKEO__SCRIPT_GOVERNANCE__RELEASE_SIGNATURE_SECRET_REF` | Only if signature gate enabled | unset | `env:NAME` secret ref for script release signature verification. |
 
 ## Run Tikeo services
 
@@ -832,11 +923,11 @@ Tunnel on `9998`; the web console container exposes port `80` internally.
 
 Treat runtime files as three separate concerns: **configuration** is desired state, **data/db** is durable state,
 and **logs** are operational evidence. Do not bake environment-specific database URLs, TLS paths, or
-notification secrets into images; mount config or inject `TIKEO__...` environment overrides instead.
+notification secrets into images; mount and edit the appropriate config file instead.
 
 | Surface | Recommended path in containers | VM/systemd path | What to mount or persist | Required? |
 | --- | --- | --- | --- | --- |
-| Server config | `/config/container.toml` (recommended external mount); image default is `/app/config/container.toml` | `/etc/tikeo/tikeo.toml` | Read-only TOML file, selected with `tikeo serve --config <path>` or `TIKEO_CONFIG`. | Recommended for every non-demo deployment. |
+| Server config | `/config/tikeo.yml` (recommended external mount); image default is `/config/tikeo.yml` | `/etc/tikeo/tikeo.toml` | Read-only YAML file, selected with `tikeo serve --config <path>` or `TIKEO_CONFIG`. | Recommended for every non-demo deployment. |
 | SQLite data/db | `/data/tikeo.db` from `sqlite:///data/tikeo.db?mode=rwc` | `/var/lib/tikeo/tikeo.db` or another local path | Persistent volume/PVC/bind mount for the whole `/data` or data directory. | Required only when using SQLite and data must survive restart/recreate. |
 | PostgreSQL data | Not stored in the Server container | Managed DB or database host volume | Persist the PostgreSQL service's `/var/lib/postgresql/data`, or use a managed database backup/snapshot. | Required when PostgreSQL is self-hosted. |
 | MySQL data | Not stored in the Server container | Managed DB or database host volume | Persist the MySQL service's `/var/lib/mysql`, or use a managed database backup/snapshot. | Required when MySQL is self-hosted. |
@@ -844,55 +935,47 @@ notification secrets into images; mount config or inject `TIKEO__...` environmen
 | TLS certificates | `/config/tls`, `/etc/tikeo/tls`, or Helm TLS secret mount paths | `/etc/tikeo/tls` | Read-only cert/key/CA mounts referenced by `transport_security.*.*_path`. | Required only when process-level TLS/mTLS is enabled. |
 | Web and Docs images | none | none | Static nginx bundles; normally no persistent data. Mount custom nginx config only if you intentionally override the image behavior. | Not required. |
 
-The config loader reads Rust defaults, then the TOML file, then environment overrides using the `TIKEO`
-prefix and double underscores. For example, `storage.database_url` becomes
-`TIKEO__STORAGE__DATABASE_URL`, and `observability.logging.log_dir` becomes
-`TIKEO__OBSERVABILITY__LOGGING__LOG_DIR`.
+The config loader reads Rust defaults, then the YAML/TOML file, then environment overrides using the `TIKEO`
+prefix and double underscores. For Docker Compose, keep Tikeo service behavior in `config/tikeo.yml`.
+Use `.env` only for Docker/Compose parameters such as image tags, host ports, volume names, database
+container credentials, timezone, and container memory policy.
+
+Recommended ownership model:
+
+| File or surface | Put these values here | Avoid putting these values here |
+| --- | --- | --- |
+| `config/tikeo.yml` | SQLite default DB URL, listeners, auth defaults, log level, `/logs`, retry workers, notification delivery defaults. | Docker image tags, host ports, Docker volume names. |
+| `config/tikeo.yml` | Same service behavior as above, plus the database backend URL and timestamp policy. Keep the URL in sync with the bundled DB container credentials if you use the bundled DB. | Docker image tags, host ports, Docker volume names. |
+| `.env` for Compose | `TIKEO_IMAGE`, `TIKEO_WEB_IMAGE`, host ports, volume names, DB container passwords, timezone, mimalloc policy, local worker-demo helper values. | Tikeo service keys such as `storage.database.*` or `notification_delivery.public_console_base_url`. |
+| Compose `environment` | Container runtime values only, such as `TZ` and mimalloc knobs. | Any Tikeo service override; put service settings in `config/tikeo.yml`. |
+
 
 Minimal Docker run with external config, SQLite data, and file logs:
 
 ```bash
-mkdir -p ./tikeo/config ./tikeo/data ./tikeo/logs
-cp config/container.toml ./tikeo/config/container.toml
-# Enable file logs without duplicating the existing TOML table.
-sed -i 's|# log_dir = "./logs"|log_dir = "/logs"|' ./tikeo/config/container.toml
+mkdir -p ./tikeo/config/tls ./tikeo/data ./tikeo/logs
+cp config/tikeo.yml ./tikeo/config/tikeo.yml
+# Edit ./tikeo/config/tikeo.yml when service behavior needs to change.
 
 docker run -d --name tikeo-server \
   -p 9090:9090 -p 9998:9998 \
-  -v "$PWD/tikeo/config/container.toml:/config/container.toml:ro" \
+  -v "$PWD/tikeo/config/tikeo.yml:/config/tikeo.yml:ro" \
   -v "$PWD/tikeo/data:/data" \
   -v "$PWD/tikeo/logs:/logs" \
-  -e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc' \
-  yhyzgn/tikeo-server:${TIKEO_VERSION} \
-  serve --config /config/container.toml
+  yhyzgn/tikeo-server:latest \
+  serve --config /config/tikeo.yml
 ```
 
-For Docker Compose, the default SQLite stack already mounts `tikeo-data:/data`. If you also want an
-external config and file logs, add a read-only config mount, a log volume, and a command override:
+The checked-in Docker Compose files already mount external config, data/db, and logs. SQLite uses
+`./config/tikeo.yml:/config/tikeo.yml:ro`, `tikeo-data:/data`, and `tikeo-logs:/logs`.
+All Compose stacks use the same `./config/tikeo.yml` plus `./config/tls`, `tikeo-data:/data`, and `tikeo-logs:/logs`. PostgreSQL/MySQL durable data still lives in the database service volume. Edit `storage.database` in `config/tikeo.yml` to match the database container credentials from `.env`.
 
-```yaml
-services:
-  tikeo:
-    command: ["serve", "--config", "/config/container.toml"]
-    volumes:
-      - ./tikeo/config/container.toml:/config/container.toml:ro
-      - tikeo-data:/data
-      - tikeo-logs:/logs
-    environment:
-      TIKEO__OBSERVABILITY__LOGGING__LOG_DIR: /logs
-volumes:
-  tikeo-data:
-  tikeo-logs:
-```
-
-For PostgreSQL/MySQL Compose stacks, the Server normally does **not** need `/data` because durable
-state lives in the database container or managed database. Persist `tikeo-postgres-data:/var/lib/postgresql/data`
-for PostgreSQL or `tikeo-mysql-data:/var/lib/mysql` for MySQL, and inject the Server database URL with
-`TIKEO__STORAGE__DATABASE_URL` or the checked-in database-specific config file.
+For PostgreSQL/MySQL Compose stacks, Server `/data` is only a uniform runtime mount; durable database state lives in the database container or managed database. Persist `tikeo-postgres-data:/var/lib/postgresql/data`
+for PostgreSQL or `tikeo-mysql-data:/var/lib/mysql` for MySQL, and configure Server `storage.database` in `config/tikeo.yml`.
 
 For Kubernetes and Helm, Tikeo mounts the Server ConfigMap at `/config` and runs
-`serve --config /config/container.toml`. SQLite mode mounts a PVC at `/data`; external database mode
-injects `TIKEO__STORAGE__DATABASE_URL` from a Secret and does not need a SQLite data PVC. Prefer stdout
+`serve --config /config/tikeo.yml`. SQLite mode mounts a PVC at `/data`; external database mode
+injects the database URL from a Secret and does not need a SQLite data PVC. Prefer stdout
 logs for cluster log collection; if you enable `observability.logging.log_dir`, add an explicit volume
 or PVC for that directory.
 
@@ -936,12 +1019,15 @@ If a plugin or app-style provider needs `appId`/`appSecret`, store those values 
 
 ### Docker Compose: SQLite default
 
-Use this for the fastest local product evaluation. It builds the server and web images locally unless
-you override `TIKEO_IMAGE` / `TIKEO_WEB_IMAGE`.
+Use this for the fastest local product evaluation. Compose pulls Docker Hub release images by default:
+`yhyzgn/tikeo-server:latest` and `yhyzgn/tikeo-web:latest`. For production, pin the two image variables
+to `v${TIKEO_VERSION}` in `.env` before startup.
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-DOCKER_BUILDKIT=1 docker compose --env-file .env up -d --build
+# Edit .env for Docker parameters; edit config/tikeo.yml for Tikeo service settings.
+docker compose --env-file .env pull
+docker compose --env-file .env up -d
 curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
 open http://127.0.0.1:${TIKEO_WEB_PORT:-8080}
 ```
@@ -950,9 +1036,9 @@ open http://127.0.0.1:${TIKEO_WEB_PORT:-8080}
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-DOCKER_BUILDKIT=1 docker compose --env-file .env \
-  -f docker-compose.postgres.yml \
-  up -d --build
+# Edit .env database container credentials, then switch config/tikeo.yml storage.database to postgres and match host/user/password/database.
+docker compose --env-file .env -f docker-compose.postgres.yml pull
+docker compose --env-file .env -f docker-compose.postgres.yml up -d
 curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
 ```
 
@@ -960,9 +1046,9 @@ curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-DOCKER_BUILDKIT=1 docker compose --env-file .env \
-  -f docker-compose.mysql.yml \
-  up -d --build
+# Edit .env database container credentials, then switch config/tikeo.yml storage.database to mysql and match host/user/password/database.
+docker compose --env-file .env -f docker-compose.mysql.yml pull
+docker compose --env-file .env -f docker-compose.mysql.yml up -d
 curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
 ```
 
@@ -974,27 +1060,27 @@ Run the control plane and web container manually when you already manage the dat
 docker network create tikeo || true
 docker volume create tikeo-data
 docker volume create tikeo-logs
-mkdir -p ./tikeo/config
-cp config/container.toml ./tikeo/config/container.toml
+mkdir -p ./tikeo/config/tls
+cp config/tikeo.yml ./tikeo/config/tikeo.yml
+# Edit ./tikeo/config/tikeo.yml for service behavior changes; keep .env for deployment differences.
 
 docker run -d --name tikeo-server --network tikeo \
   -p 9090:9090 -p 9998:9998 \
-  -v "$PWD/tikeo/config/container.toml:/config/container.toml:ro" \
+  -v "$PWD/tikeo/config/tikeo.yml:/config/tikeo.yml:ro" \
+  -v "$PWD/tikeo/config/tls:/config/tls:ro" \
   -v tikeo-data:/data \
   -v tikeo-logs:/logs \
-  -e TIKEO__STORAGE__DATABASE_URL='sqlite:///data/tikeo.db?mode=rwc' \
-  -e TIKEO__OBSERVABILITY__LOGGING__LOG_DIR='/logs' \
-  yhyzgn/tikeo-server:${TIKEO_VERSION} serve --config /config/container.toml
+  yhyzgn/tikeo-server:latest serve --config /config/tikeo.yml
 
 docker run -d --name tikeo-web --network tikeo \
   -p 8080:80 \
-  yhyzgn/tikeo-web:${TIKEO_VERSION}
+  yhyzgn/tikeo-web:latest
 
 curl -fsS http://127.0.0.1:9090/readyz
 ```
 
-For PostgreSQL/MySQL, replace `TIKEO__STORAGE__DATABASE_URL` with the database URL exposed by your
-platform and keep credentials in your secret manager.
+For PostgreSQL/MySQL, edit the mounted YAML `storage.database` fields to the database URL exposed by
+your platform and keep credentials in your secret manager.
 
 ### Non-Docker binary / VM / bare metal
 
@@ -1004,9 +1090,9 @@ Production environments should prefer PostgreSQL or MySQL and durable log direct
 ```bash
 cargo build --release --bin tikeo
 install -d ./var/lib/tikeo ./logs
-cp config/dev.toml ./tikeo.toml
-TIKEO__OBSERVABILITY__LOGGING__LOG_DIR=./logs \
-  ./target/release/tikeo serve --config ./tikeo.toml
+cp config/tikeo.yml ./tikeo.yml
+# Edit ./tikeo.yml, for example set observability.logging.log_dir = "./logs".
+./target/release/tikeo serve --config ./tikeo.yml
 curl -fsS http://127.0.0.1:9090/readyz
 ```
 
@@ -1016,7 +1102,7 @@ Systemd deployment uses the checked-in unit files:
 sudo useradd --system --home /var/lib/tikeo --shell /usr/sbin/nologin tikeo || true
 sudo install -d -o tikeo -g tikeo /opt/tikeo/bin /var/lib/tikeo /var/log/tikeo /etc/tikeo
 sudo install -m 0755 target/release/tikeo /opt/tikeo/bin/tikeo
-sudo install -m 0644 config/container.toml /etc/tikeo/tikeo.toml
+sudo install -m 0644 config/tikeo.yml /etc/tikeo/tikeo.yml
 sudo install -m 0644 deploy/systemd/tikeo.env /etc/tikeo/tikeo.env
 sudo install -m 0644 deploy/systemd/tikeo.service /etc/systemd/system/tikeo.service
 sudo systemctl daemon-reload

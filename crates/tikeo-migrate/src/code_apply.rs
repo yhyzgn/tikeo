@@ -9,6 +9,8 @@ use serde_json::Value;
 
 use crate::{ApplyCommand, JavaProjectMigrationPlan};
 
+const DEFAULT_TIKEO_VERSION: &str = "0.3.10";
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CodeApplyEvidence {
@@ -171,16 +173,21 @@ fn apply_dependency(
     warnings: &mut Vec<String>,
 ) -> Result<()> {
     match plan.build_system.as_str() {
-        "maven" => apply_maven_dependency(project, &plan.recommended_artifact, changed),
+        "maven" => apply_maven_dependency(project, plan, changed),
         "gradle-kotlin" => apply_gradle_dependency(
             project,
             "build.gradle.kts",
             &plan.recommended_artifact,
+            &tikeo_version_from_plan(plan),
             changed,
         ),
-        "gradle-groovy" => {
-            apply_gradle_dependency(project, "build.gradle", &plan.recommended_artifact, changed)
-        }
+        "gradle-groovy" => apply_gradle_dependency(
+            project,
+            "build.gradle",
+            &plan.recommended_artifact,
+            &tikeo_version_from_plan(plan),
+            changed,
+        ),
         other => {
             warnings.push(format!(
                 "unsupported build system `{other}`; dependency was not edited automatically"
@@ -190,38 +197,245 @@ fn apply_dependency(
     }
 }
 
-fn apply_maven_dependency(project: &Path, artifact: &str, changed: &mut Vec<String>) -> Result<()> {
+fn apply_maven_dependency(
+    project: &Path,
+    plan: &JavaProjectMigrationPlan,
+    changed: &mut Vec<String>,
+) -> Result<()> {
+    let artifact = &plan.recommended_artifact;
+    let version = tikeo_version_from_plan(plan);
     let path = project.join("pom.xml");
     let mut text =
         fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
-    if text.contains(&format!("<artifactId>{artifact}</artifactId>")) {
-        return Ok(());
+    let before = text.clone();
+    text = remove_legacy_scheduler_dependencies(&text);
+    text = remove_legacy_scheduler_version_properties(&text);
+    text = ensure_maven_tikeo_version_property(&text, &version);
+    if !text.contains(&format!("<artifactId>{artifact}</artifactId>")) {
+        if has_dependency_management(&text) {
+            text = ensure_maven_managed_dependency(&text, artifact)?;
+            text = ensure_maven_direct_dependency(&text, artifact, false)?;
+        } else {
+            text = ensure_maven_direct_dependency(&text, artifact, true)?;
+        }
     }
-    let dependency = format!(
-        "    <dependency>\n      <groupId>net.tikeo</groupId>\n      <artifactId>{artifact}</artifactId>\n      <version>${{TIKEO_VERSION}}</version>\n    </dependency>\n"
-    );
-    let search_start = text
-        .find("</dependencyManagement>")
-        .map_or(0, |index| index + "</dependencyManagement>".len());
-    if let Some(offset) = text[search_start..].find("</dependencies>") {
-        text.insert_str(search_start + offset, &dependency);
-    } else if let Some(index) = text.find("</project>") {
-        text.insert_str(
-            index,
-            &format!("  <dependencies>\n{dependency}  </dependencies>\n"),
-        );
-    } else {
-        bail!("pom.xml does not contain </project>");
+    text = trim_whitespace_only_lines(&text);
+    if text == before {
+        return Ok(());
     }
     fs::write(&path, text).with_context(|| format!("failed to write {}", path.display()))?;
     push_unique(changed, "pom.xml".to_owned());
     Ok(())
 }
 
+fn trim_whitespace_only_lines(text: &str) -> String {
+    let mut output = text
+        .lines()
+        .map(|line| if line.trim().is_empty() { "" } else { line })
+        .collect::<Vec<_>>()
+        .join("\n");
+    if text.ends_with('\n') {
+        output.push('\n');
+    }
+    output
+}
+
+fn has_dependency_management(text: &str) -> bool {
+    text.contains("<dependencyManagement>")
+}
+
+fn tikeo_version_from_plan(plan: &JavaProjectMigrationPlan) -> String {
+    let snippet = plan.dependency_snippet.trim();
+    let version = if let Some(start) = snippet.find("<version>") {
+        let value_start = start + "<version>".len();
+        snippet[value_start..]
+            .find("</version>")
+            .map(|end| snippet[value_start..value_start + end].trim().to_owned())
+    } else if let Some(start) = snippet.find(&format!("net.tikeo:{}:", plan.recommended_artifact)) {
+        let value_start = start + format!("net.tikeo:{}:", plan.recommended_artifact).len();
+        let tail = &snippet[value_start..];
+        let value = tail
+            .trim_end_matches(')')
+            .trim_end_matches('"')
+            .trim_end_matches('\'')
+            .trim()
+            .to_owned();
+        (!value.is_empty()).then_some(value)
+    } else {
+        None
+    }
+    .unwrap_or_else(|| DEFAULT_TIKEO_VERSION.to_owned());
+
+    if version.contains("${TIKEO_VERSION}") || version.contains("<") || version.contains(">") {
+        DEFAULT_TIKEO_VERSION.to_owned()
+    } else {
+        version
+    }
+}
+
+fn remove_legacy_scheduler_dependencies(text: &str) -> String {
+    let mut output = text.to_owned();
+    for marker in [
+        "<groupId>tech.powerjob</groupId>",
+        "<groupId>com.xuxueli</groupId>",
+        "<artifactId>xxl-job-core</artifactId>",
+    ] {
+        output = remove_dependency_blocks_containing(&output, marker);
+    }
+    output
+}
+
+fn remove_dependency_blocks_containing(text: &str, marker: &str) -> String {
+    let mut output = String::with_capacity(text.len());
+    let mut cursor = 0;
+    while let Some(relative_start) = text[cursor..].find("<dependency>") {
+        let start = cursor + relative_start;
+        let Some(relative_end) = text[start..].find("</dependency>") else {
+            break;
+        };
+        let end = start + relative_end + "</dependency>".len();
+        let block = &text[start..end];
+        if block.contains(marker) {
+            output.push_str(&text[cursor..start]);
+            cursor = consume_following_blank_line(text, end);
+        } else {
+            output.push_str(&text[cursor..end]);
+            cursor = end;
+        }
+    }
+    output.push_str(&text[cursor..]);
+    output
+}
+
+fn consume_following_blank_line(text: &str, index: usize) -> usize {
+    let bytes = text.as_bytes();
+    let mut cursor = index;
+    if bytes.get(cursor) == Some(&b'\r') {
+        cursor += 1;
+    }
+    if bytes.get(cursor) == Some(&b'\n') {
+        let next = cursor + 1;
+        if text[next..]
+            .lines()
+            .next()
+            .is_some_and(|line| line.trim().is_empty())
+        {
+            return next + text[next..].find('\n').map_or(0, |offset| offset + 1);
+        }
+    }
+    index
+}
+
+fn remove_legacy_scheduler_version_properties(text: &str) -> String {
+    text.lines()
+        .filter(|line| !line.contains("<powerjob.version>") && !line.contains("<xxl-job.version>"))
+        .collect::<Vec<_>>()
+        .join("\n")
+        + if text.ends_with('\n') { "\n" } else { "" }
+}
+
+fn ensure_maven_tikeo_version_property(text: &str, version: &str) -> String {
+    if text.contains("<tikeo.version>") {
+        return text.to_owned();
+    }
+    if let Some(index) = text.find("</properties>") {
+        let mut output = text.to_owned();
+        let (insert_at, closing_indent) = line_start_and_indent_at(text, index);
+        let indent = format!("{closing_indent}    ");
+        output.insert_str(
+            insert_at,
+            &format!(
+                "{indent}<!-- tikeo-migrate default: replace with the release badge version when upgrading. -->\n{indent}<tikeo.version>{version}</tikeo.version>\n"
+            ),
+        );
+        output
+    } else {
+        text.to_owned()
+    }
+}
+
+fn line_start_and_indent_at(text: &str, index: usize) -> (usize, String) {
+    let line_start = text[..index].rfind('\n').map_or(0, |position| position + 1);
+    let line_prefix = &text[line_start..index];
+    let indent = line_prefix
+        .chars()
+        .take_while(|character| character.is_whitespace())
+        .collect::<String>();
+    if indent.is_empty() {
+        (line_start, "    ".to_owned())
+    } else {
+        (line_start, indent)
+    }
+}
+
+fn ensure_maven_managed_dependency(text: &str, artifact: &str) -> Result<String> {
+    if text.contains(&format!("<artifactId>{artifact}</artifactId>")) {
+        return Ok(text.to_owned());
+    }
+    let dependency_management_end = text
+        .find("</dependencyManagement>")
+        .context("pom.xml contains <dependencyManagement> but no </dependencyManagement>")?;
+    let search = &text[..dependency_management_end];
+    let dependencies_end = search
+        .rfind("</dependencies>")
+        .context("dependencyManagement does not contain </dependencies>")?;
+    let (insert_at, closing_indent) = line_start_and_indent_at(text, dependencies_end);
+    let indent = format!("{closing_indent}    ");
+    let child = format!("{indent}    ");
+    let managed = format!(
+        "{indent}<dependency>\n{child}<groupId>net.tikeo</groupId>\n{child}<artifactId>{artifact}</artifactId>\n{child}<version>${{tikeo.version}}</version>\n{indent}</dependency>\n"
+    );
+    let mut output = text.to_owned();
+    output.insert_str(insert_at, &managed);
+    Ok(output)
+}
+
+fn ensure_maven_direct_dependency(
+    text: &str,
+    artifact: &str,
+    include_version: bool,
+) -> Result<String> {
+    let dependency_management_end = text
+        .find("</dependencyManagement>")
+        .map_or(0, |index| index + "</dependencyManagement>".len());
+    let Some(relative_end) = text[dependency_management_end..].find("</dependencies>") else {
+        let project_end = text
+            .find("</project>")
+            .context("pom.xml does not contain </project>")?;
+        let dependency = direct_dependency_block(artifact, include_version, "        ");
+        let mut output = text.to_owned();
+        output.insert_str(
+            project_end,
+            &format!("    <dependencies>\n{dependency}    </dependencies>\n"),
+        );
+        return Ok(output);
+    };
+    let dependencies_end = dependency_management_end + relative_end;
+    let (insert_at, closing_indent) = line_start_and_indent_at(text, dependencies_end);
+    let indent = format!("{closing_indent}    ");
+    let dependency = direct_dependency_block(artifact, include_version, &indent);
+    let mut output = text.to_owned();
+    output.insert_str(insert_at, &dependency);
+    Ok(output)
+}
+
+fn direct_dependency_block(artifact: &str, include_version: bool, base: &str) -> String {
+    let child = format!("{base}    ");
+    let version = if include_version {
+        format!("{child}<version>${{tikeo.version}}</version>\n")
+    } else {
+        String::new()
+    };
+    format!(
+        "{base}<dependency>\n{child}<groupId>net.tikeo</groupId>\n{child}<artifactId>{artifact}</artifactId>\n{version}{base}</dependency>\n"
+    )
+}
+
 fn apply_gradle_dependency(
     project: &Path,
     file: &str,
     artifact: &str,
+    version: &str,
     changed: &mut Vec<String>,
 ) -> Result<()> {
     let path = project.join(file);
@@ -231,9 +445,9 @@ fn apply_gradle_dependency(
         return Ok(());
     }
     let line = if file.ends_with(".kts") {
-        format!("    implementation(\"net.tikeo:{artifact}:${{TIKEO_VERSION}}\")\n")
+        format!("    implementation(\"net.tikeo:{artifact}:{version}\")\n")
     } else {
-        format!("    implementation 'net.tikeo:{artifact}:${{TIKEO_VERSION}}'\n")
+        format!("    implementation 'net.tikeo:{artifact}:{version}'\n")
     };
     if let Some(index) = text.find("dependencies {") {
         let insert_at = text[index..]
@@ -273,7 +487,13 @@ fn apply_worker_config(
         if content.contains("Generated by tikeo-migrate apply") {
             continue;
         }
-        let block = if path.extension().and_then(|ext| ext.to_str()) == Some("properties") {
+        let is_properties = path.extension().and_then(|ext| ext.to_str()) == Some("properties");
+        content = if is_properties {
+            remove_legacy_scheduler_properties(content)
+        } else {
+            remove_legacy_scheduler_yaml(content)
+        };
+        let block = if is_properties {
             tikeo_properties_block(&app)
         } else {
             tikeo_yaml_block(&app)
@@ -286,6 +506,92 @@ fn apply_worker_config(
         push_unique(changed, relative);
     }
     Ok(())
+}
+
+fn remove_legacy_scheduler_properties(content: String) -> String {
+    let mut output = Vec::new();
+    for line in content.lines() {
+        let trimmed = line.trim_start();
+        let lower = trimmed.to_ascii_lowercase();
+        if lower.starts_with("powerjob.")
+            || lower.starts_with("power-job.")
+            || lower.starts_with("xxl.job.")
+            || lower.starts_with("xxl-job.")
+            || lower.starts_with("xxl.")
+        {
+            continue;
+        }
+        output.push(line.to_owned());
+    }
+    let mut result = output.join("\n");
+    if content.ends_with('\n') {
+        result.push('\n');
+    }
+    result
+}
+
+fn remove_legacy_scheduler_yaml(content: String) -> String {
+    let lines = content.lines().collect::<Vec<_>>();
+    let mut output = Vec::new();
+    let mut index = 0;
+    while index < lines.len() {
+        let line = lines[index];
+        let trimmed = line.trim();
+        let indent = leading_whitespace_count(line);
+        if indent == 0 && is_legacy_scheduler_yaml_root(trimmed) {
+            index += 1;
+            while index < lines.len() {
+                let next = lines[index];
+                let next_trimmed = next.trim();
+                let next_indent = leading_whitespace_count(next);
+                if !next_trimmed.is_empty() && next_indent == 0 {
+                    break;
+                }
+                index += 1;
+            }
+            continue;
+        }
+        if indent == 0 && is_legacy_scheduler_flat_yaml_key(trimmed) {
+            index += 1;
+            continue;
+        }
+        output.push(line.to_owned());
+        index += 1;
+    }
+    let mut result = output.join("\n");
+    if content.ends_with('\n') {
+        result.push('\n');
+    }
+    result
+}
+
+fn leading_whitespace_count(line: &str) -> usize {
+    line.chars()
+        .take_while(|character| character.is_whitespace())
+        .count()
+}
+
+fn is_legacy_scheduler_yaml_root(trimmed: &str) -> bool {
+    let key = trimmed
+        .split_once(':')
+        .map_or(trimmed, |(key, _)| key)
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase();
+    matches!(
+        key.as_str(),
+        "powerjob" | "power-job" | "xxl" | "xxl-job" | "xxl_job"
+    )
+}
+
+fn is_legacy_scheduler_flat_yaml_key(trimmed: &str) -> bool {
+    let lower = trimmed.to_ascii_lowercase();
+    lower.starts_with("powerjob.")
+        || lower.starts_with("power-job.")
+        || lower.starts_with("xxl.job.")
+        || lower.starts_with("xxl-job.")
+        || lower.starts_with("xxl.")
 }
 
 fn config_targets(project: &Path, resources: &Path) -> Result<Vec<PathBuf>> {
@@ -361,84 +667,28 @@ fn tikeo_yaml_block(app: &str) -> String {
     format!(
         r#"
 # Generated by tikeo-migrate apply. Review values before enabling production traffic.
-# Legacy scheduler workers are disabled in the migrated profile.
-powerjob:
-  worker:
-    enabled: false
-xxl:
-  job:
-    executor:
-      enabled: false
+# Legacy scheduler powerjob/xxl config blocks are removed from this file during migration.
+# This is intentionally minimal: keep advanced tuning in deployment docs or your ops overlay.
 
 tikeo:
   worker:
     enabled: ${{TIKEO_WORKER_ENABLED:true}}
-    auto-startup: ${{TIKEO_WORKER_AUTO_STARTUP:true}}
     endpoint: ${{TIKEO_WORKER_ENDPOINT:http://127.0.0.1:9998}}
-    dry-run: ${{TIKEO_WORKER_DRY_RUN:false}}
-    heartbeat-interval-millis: ${{TIKEO_WORKER_HEARTBEAT_INTERVAL_MILLIS:10000}}
-    client-instance-id: ${{TIKEO_WORKER_CLIENT_INSTANCE_ID:}}
-    state-dir: ${{TIKEO_WORKER_STATE_DIR:~/.tikeo/workers}}
     namespace: ${{TIKEO_NAMESPACE:default}}
     app: ${{TIKEO_APP:{app}}}
     cluster: ${{TIKEO_WORKER_CLUSTER:default}}
-    region: ${{TIKEO_WORKER_REGION:default}}
     capabilities:
       - ${{TIKEO_WORKER_CAPABILITY_0:java}}
       - ${{TIKEO_WORKER_CAPABILITY_1:spring-boot}}
     labels:
-      migrated-from: ${{TIKEO_WORKER_LABEL_MIGRATED_FROM:legacy-scheduler}}
-    election:
-      enabled: ${{TIKEO_WORKER_ELECTION_ENABLED:true}}
-      domain: ${{TIKEO_WORKER_ELECTION_DOMAIN:}}
-      priority: ${{TIKEO_WORKER_ELECTION_PRIORITY:100}}
-    wasm:
-      auto-install: ${{TIKEO_WORKER_WASM_AUTO_INSTALL:true}}
-      install-version: ${{TIKEO_WORKER_WASM_INSTALL_VERSION:latest}}
-      install-dir: ${{TIKEO_WORKER_WASM_INSTALL_DIR:}}
-      installer-url: ${{TIKEO_WORKER_WASM_INSTALLER_URL:https://wasmtime.dev/install.sh}}
-      install-timeout-millis: ${{TIKEO_WORKER_WASM_INSTALL_TIMEOUT_MILLIS:120000}}
-    scripts:
-      enabled: ${{TIKEO_WORKER_SCRIPTS_ENABLED:true}}
-      container-enabled: ${{TIKEO_WORKER_SCRIPTS_CONTAINER_ENABLED:false}}
-      availability-check: ${{TIKEO_WORKER_SCRIPTS_AVAILABILITY_CHECK:true}}
-      runtime-command: ${{TIKEO_WORKER_SCRIPTS_RUNTIME_COMMAND:}}
-      # Optional extra container-runtime arguments; uncomment and add entries when needed.
-      runtime-args: []
-      auto-install-tools: ${{TIKEO_WORKER_SCRIPTS_AUTO_INSTALL_TOOLS:true}}
-      srt-install-version: ${{TIKEO_WORKER_SCRIPTS_SRT_INSTALL_VERSION:latest}}
-      srt-install-dir: ${{TIKEO_WORKER_SCRIPTS_SRT_INSTALL_DIR:}}
-      ripgrep-install-version: ${{TIKEO_WORKER_SCRIPTS_RIPGREP_INSTALL_VERSION:latest}}
-      ripgrep-install-dir: ${{TIKEO_WORKER_SCRIPTS_RIPGREP_INSTALL_DIR:}}
-      deno-install-version: ${{TIKEO_WORKER_SCRIPTS_DENO_INSTALL_VERSION:latest}}
-      deno-install-dir: ${{TIKEO_WORKER_SCRIPTS_DENO_INSTALL_DIR:}}
-      deno-installer-url: ${{TIKEO_WORKER_SCRIPTS_DENO_INSTALLER_URL:https://deno.land/install.sh}}
-      rhai-install-version: ${{TIKEO_WORKER_SCRIPTS_RHAI_INSTALL_VERSION:}}
-      rhai-install-dir: ${{TIKEO_WORKER_SCRIPTS_RHAI_INSTALL_DIR:}}
-      power-shell-install-version: ${{TIKEO_WORKER_SCRIPTS_POWER_SHELL_INSTALL_VERSION:7.5.4}}
-      power-shell-install-dir: ${{TIKEO_WORKER_SCRIPTS_POWER_SHELL_INSTALL_DIR:}}
-      wasmedge-auto-install: ${{TIKEO_WORKER_SCRIPTS_WASMEDGE_AUTO_INSTALL:false}}
-      wasmedge-install-version: ${{TIKEO_WORKER_SCRIPTS_WASMEDGE_INSTALL_VERSION:latest}}
-      wasmedge-install-dir: ${{TIKEO_WORKER_SCRIPTS_WASMEDGE_INSTALL_DIR:}}
-      wasmedge-installer-url: ${{TIKEO_WORKER_SCRIPTS_WASMEDGE_INSTALLER_URL:https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh}}
-      v8-install-version: ${{TIKEO_WORKER_SCRIPTS_V8_INSTALL_VERSION:latest}}
-      v8-install-dir: ${{TIKEO_WORKER_SCRIPTS_V8_INSTALL_DIR:}}
-      tool-install-timeout-millis: ${{TIKEO_WORKER_SCRIPTS_TOOL_INSTALL_TIMEOUT_MILLIS:120000}}
-      images:
-        shell: ${{TIKEO_WORKER_SCRIPTS_IMAGE_SHELL:}}
-        python: ${{TIKEO_WORKER_SCRIPTS_IMAGE_PYTHON:}}
-        js: ${{TIKEO_WORKER_SCRIPTS_IMAGE_JS:}}
-        ts: ${{TIKEO_WORKER_SCRIPTS_IMAGE_TS:}}
-        powershell: ${{TIKEO_WORKER_SCRIPTS_IMAGE_POWERSHELL:}}
-        php: ${{TIKEO_WORKER_SCRIPTS_IMAGE_PHP:}}
-        groovy: ${{TIKEO_WORKER_SCRIPTS_IMAGE_GROOVY:}}
-        rhai: ${{TIKEO_WORKER_SCRIPTS_IMAGE_RHAI:}}
+      migrated-from: legacy-scheduler
+    # Recommended when generated Worker identity should survive restarts.
+    state-dir: ${{TIKEO_WORKER_STATE_DIR:~/.tikeo/workers}}
+  # Optional: enable only if this service uses the Tikeo Management SDK/API.
   management:
     enabled: ${{TIKEO_MANAGEMENT_ENABLED:false}}
     endpoint: ${{TIKEO_MANAGEMENT_ENDPOINT:http://127.0.0.1:9090}}
     api-key: ${{TIKEO_MANAGEMENT_API_KEY:}}
-    namespace: ${{TIKEO_NAMESPACE:default}}
-    app: ${{TIKEO_APP:{app}}}
 "#
     )
 }
@@ -447,70 +697,23 @@ fn tikeo_properties_block(app: &str) -> String {
     format!(
         r#"
 # Generated by tikeo-migrate apply. Review values before enabling production traffic.
-# Legacy scheduler workers are disabled in the migrated profile.
-powerjob.worker.enabled=false
-xxl.job.executor.enabled=false
+# Legacy scheduler powerjob/xxl config keys are removed from this file during migration.
+# This is intentionally minimal: keep advanced tuning in deployment docs or your ops overlay.
 
 tikeo.worker.enabled=${{TIKEO_WORKER_ENABLED:true}}
-tikeo.worker.auto-startup=${{TIKEO_WORKER_AUTO_STARTUP:true}}
 tikeo.worker.endpoint=${{TIKEO_WORKER_ENDPOINT:http://127.0.0.1:9998}}
-tikeo.worker.dry-run=${{TIKEO_WORKER_DRY_RUN:false}}
-tikeo.worker.heartbeat-interval-millis=${{TIKEO_WORKER_HEARTBEAT_INTERVAL_MILLIS:10000}}
-tikeo.worker.client-instance-id=${{TIKEO_WORKER_CLIENT_INSTANCE_ID:}}
-tikeo.worker.state-dir=${{TIKEO_WORKER_STATE_DIR:~/.tikeo/workers}}
 tikeo.worker.namespace=${{TIKEO_NAMESPACE:default}}
 tikeo.worker.app=${{TIKEO_APP:{app}}}
 tikeo.worker.cluster=${{TIKEO_WORKER_CLUSTER:default}}
-tikeo.worker.region=${{TIKEO_WORKER_REGION:default}}
 tikeo.worker.capabilities[0]=${{TIKEO_WORKER_CAPABILITY_0:java}}
 tikeo.worker.capabilities[1]=${{TIKEO_WORKER_CAPABILITY_1:spring-boot}}
-tikeo.worker.labels.migrated-from=${{TIKEO_WORKER_LABEL_MIGRATED_FROM:legacy-scheduler}}
-tikeo.worker.election.enabled=${{TIKEO_WORKER_ELECTION_ENABLED:true}}
-tikeo.worker.election.domain=${{TIKEO_WORKER_ELECTION_DOMAIN:}}
-tikeo.worker.election.priority=${{TIKEO_WORKER_ELECTION_PRIORITY:100}}
-tikeo.worker.wasm.auto-install=${{TIKEO_WORKER_WASM_AUTO_INSTALL:true}}
-tikeo.worker.wasm.install-version=${{TIKEO_WORKER_WASM_INSTALL_VERSION:latest}}
-tikeo.worker.wasm.install-dir=${{TIKEO_WORKER_WASM_INSTALL_DIR:}}
-tikeo.worker.wasm.installer-url=${{TIKEO_WORKER_WASM_INSTALLER_URL:https://wasmtime.dev/install.sh}}
-tikeo.worker.wasm.install-timeout-millis=${{TIKEO_WORKER_WASM_INSTALL_TIMEOUT_MILLIS:120000}}
-tikeo.worker.scripts.enabled=${{TIKEO_WORKER_SCRIPTS_ENABLED:true}}
-tikeo.worker.scripts.container-enabled=${{TIKEO_WORKER_SCRIPTS_CONTAINER_ENABLED:false}}
-tikeo.worker.scripts.availability-check=${{TIKEO_WORKER_SCRIPTS_AVAILABILITY_CHECK:true}}
-tikeo.worker.scripts.runtime-command=${{TIKEO_WORKER_SCRIPTS_RUNTIME_COMMAND:}}
-# Optional extra container-runtime arguments; uncomment and add entries when needed.
-# tikeo.worker.scripts.runtime-args[0]=${{TIKEO_WORKER_SCRIPTS_RUNTIME_ARG_0:}}
-tikeo.worker.scripts.auto-install-tools=${{TIKEO_WORKER_SCRIPTS_AUTO_INSTALL_TOOLS:true}}
-tikeo.worker.scripts.srt-install-version=${{TIKEO_WORKER_SCRIPTS_SRT_INSTALL_VERSION:latest}}
-tikeo.worker.scripts.srt-install-dir=${{TIKEO_WORKER_SCRIPTS_SRT_INSTALL_DIR:}}
-tikeo.worker.scripts.ripgrep-install-version=${{TIKEO_WORKER_SCRIPTS_RIPGREP_INSTALL_VERSION:latest}}
-tikeo.worker.scripts.ripgrep-install-dir=${{TIKEO_WORKER_SCRIPTS_RIPGREP_INSTALL_DIR:}}
-tikeo.worker.scripts.deno-install-version=${{TIKEO_WORKER_SCRIPTS_DENO_INSTALL_VERSION:latest}}
-tikeo.worker.scripts.deno-install-dir=${{TIKEO_WORKER_SCRIPTS_DENO_INSTALL_DIR:}}
-tikeo.worker.scripts.deno-installer-url=${{TIKEO_WORKER_SCRIPTS_DENO_INSTALLER_URL:https://deno.land/install.sh}}
-tikeo.worker.scripts.rhai-install-version=${{TIKEO_WORKER_SCRIPTS_RHAI_INSTALL_VERSION:}}
-tikeo.worker.scripts.rhai-install-dir=${{TIKEO_WORKER_SCRIPTS_RHAI_INSTALL_DIR:}}
-tikeo.worker.scripts.power-shell-install-version=${{TIKEO_WORKER_SCRIPTS_POWER_SHELL_INSTALL_VERSION:7.5.4}}
-tikeo.worker.scripts.power-shell-install-dir=${{TIKEO_WORKER_SCRIPTS_POWER_SHELL_INSTALL_DIR:}}
-tikeo.worker.scripts.wasmedge-auto-install=${{TIKEO_WORKER_SCRIPTS_WASMEDGE_AUTO_INSTALL:false}}
-tikeo.worker.scripts.wasmedge-install-version=${{TIKEO_WORKER_SCRIPTS_WASMEDGE_INSTALL_VERSION:latest}}
-tikeo.worker.scripts.wasmedge-install-dir=${{TIKEO_WORKER_SCRIPTS_WASMEDGE_INSTALL_DIR:}}
-tikeo.worker.scripts.wasmedge-installer-url=${{TIKEO_WORKER_SCRIPTS_WASMEDGE_INSTALLER_URL:https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh}}
-tikeo.worker.scripts.v8-install-version=${{TIKEO_WORKER_SCRIPTS_V8_INSTALL_VERSION:latest}}
-tikeo.worker.scripts.v8-install-dir=${{TIKEO_WORKER_SCRIPTS_V8_INSTALL_DIR:}}
-tikeo.worker.scripts.tool-install-timeout-millis=${{TIKEO_WORKER_SCRIPTS_TOOL_INSTALL_TIMEOUT_MILLIS:120000}}
-tikeo.worker.scripts.images.shell=${{TIKEO_WORKER_SCRIPTS_IMAGE_SHELL:}}
-tikeo.worker.scripts.images.python=${{TIKEO_WORKER_SCRIPTS_IMAGE_PYTHON:}}
-tikeo.worker.scripts.images.js=${{TIKEO_WORKER_SCRIPTS_IMAGE_JS:}}
-tikeo.worker.scripts.images.ts=${{TIKEO_WORKER_SCRIPTS_IMAGE_TS:}}
-tikeo.worker.scripts.images.powershell=${{TIKEO_WORKER_SCRIPTS_IMAGE_POWERSHELL:}}
-tikeo.worker.scripts.images.php=${{TIKEO_WORKER_SCRIPTS_IMAGE_PHP:}}
-tikeo.worker.scripts.images.groovy=${{TIKEO_WORKER_SCRIPTS_IMAGE_GROOVY:}}
-tikeo.worker.scripts.images.rhai=${{TIKEO_WORKER_SCRIPTS_IMAGE_RHAI:}}
+tikeo.worker.labels.migrated-from=legacy-scheduler
+# Recommended when generated Worker identity should survive restarts.
+tikeo.worker.state-dir=${{TIKEO_WORKER_STATE_DIR:~/.tikeo/workers}}
+# Optional: enable only if this service uses the Tikeo Management SDK/API.
 tikeo.management.enabled=${{TIKEO_MANAGEMENT_ENABLED:false}}
 tikeo.management.endpoint=${{TIKEO_MANAGEMENT_ENDPOINT:http://127.0.0.1:9090}}
 tikeo.management.api-key=${{TIKEO_MANAGEMENT_API_KEY:}}
-tikeo.management.namespace=${{TIKEO_NAMESPACE:default}}
-tikeo.management.app=${{TIKEO_APP:{app}}}
 "#
     )
 }
@@ -531,6 +734,7 @@ fn infer_app_name(project: &Path) -> Option<String> {
 }
 
 fn transform_powerjob_handler(content: &str, processor_name: &str) -> String {
+    let processor_name = lower_camel_processor_name(processor_name);
     let mut output = content.to_owned();
     output = output.replace(
         "import tech.powerjob.worker.core.processor.ProcessResult;\n",
@@ -573,10 +777,12 @@ fn transform_powerjob_handler(content: &str, processor_name: &str) -> String {
         "new String(context.payload(), StandardCharsets.UTF_8)",
     );
     output = remove_override_before_process(output);
-    add_annotation_before_process(output, processor_name)
+    let output = add_annotation_before_process(output, &processor_name);
+    ensure_javadoc_before_tikeo_processor(output)
 }
 
 fn transform_xxl_handler(content: &str, processor_name: &str) -> String {
+    let processor_name = lower_camel_processor_name(processor_name);
     let mut output = content.to_owned();
     output = output.replace(
         "import com.xxl.job.core.handler.annotation.XxlJob;",
@@ -595,6 +801,72 @@ fn transform_xxl_handler(content: &str, processor_name: &str) -> String {
         transformed.push('\n');
     }
     transformed
+}
+
+fn lower_camel_processor_name(value: &str) -> String {
+    let mut chars = value.chars().collect::<Vec<_>>();
+    if chars
+        .first()
+        .is_none_or(|first| !first.is_ascii_uppercase())
+    {
+        return value.to_owned();
+    }
+    let mut uppercase_prefix = 0;
+    for character in &chars {
+        if character.is_ascii_uppercase() {
+            uppercase_prefix += 1;
+        } else {
+            break;
+        }
+    }
+    let chars_to_lower = if uppercase_prefix > 1
+        && chars
+            .get(uppercase_prefix)
+            .is_some_and(|character| character.is_ascii_lowercase())
+    {
+        uppercase_prefix - 1
+    } else {
+        1
+    };
+    for character in chars.iter_mut().take(chars_to_lower) {
+        character.make_ascii_lowercase();
+    }
+    chars.into_iter().collect()
+}
+
+fn ensure_javadoc_before_tikeo_processor(content: String) -> String {
+    let input_lines = content.lines().collect::<Vec<_>>();
+    let mut output = Vec::new();
+    for (index, line) in input_lines.iter().enumerate() {
+        if line.trim_start().starts_with("@TikeoProcessor(")
+            && !previous_significant_line_is_javadoc_end(&input_lines, index)
+        {
+            let indent = line
+                .chars()
+                .take_while(|character| character.is_whitespace())
+                .collect::<String>();
+            output.push(format!("{indent}/**"));
+            output.push(format!("{indent} * Tikeo 任务执行入口。"));
+            output.push(format!("{indent} *"));
+            output.push(format!("{indent} * @param context 任务上下文"));
+            output.push(format!("{indent} * @return 执行结果"));
+            output.push(format!("{indent} */"));
+        }
+        output.push((*line).to_owned());
+    }
+    let mut result = output.join("\n");
+    if content.ends_with('\n') {
+        result.push('\n');
+    }
+    result
+}
+
+fn previous_significant_line_is_javadoc_end(lines: &[&str], index: usize) -> bool {
+    lines[..index]
+        .iter()
+        .rev()
+        .find(|line| !line.trim().is_empty())
+        .is_some_and(|line| line.trim() == "*/")
 }
 
 fn remove_override_before_process(content: String) -> String {
@@ -775,7 +1047,7 @@ fn read_bundle_review_context(
 
 fn code_apply_next_actions() -> Vec<String> {
     vec![
-        "Set a concrete TIKEO_VERSION and compile the project on the migration branch.".to_owned(),
+        "Review <tikeo.version>, upgrade it to the release badge version when needed, and compile the project on the migration branch.".to_owned(),
         "Fill tikeo.worker.endpoint, tikeo.management.endpoint, and API-key placeholders for staging before starting traffic.".to_owned(),
         "Review every needs_review job and unsupported feature in jobs.tikeo.json/data-import-plan.json before import.".to_owned(),
         "Import only reviewed ready jobs through the console, Management API, or GitOps; tikeo-migrate apply never calls the server.".to_owned(),
@@ -811,14 +1083,20 @@ fn write_code_apply_outputs(
 
 fn render_code_apply_report(evidence: &CodeApplyEvidence) -> String {
     let mut output = format!(
-        "# Tikeo code migration report\n\n- Source project: `{}`\n- Target project (in-place): `{}`\n- Bundle: `{}`\n\n## Changed files\n\n",
+        "# Tikeo code migration report\n\n- Source project: `{}`\n- Target project (in-place): `{}`\n- Bundle: `{}`\n\n## Migration result checklist\n\n",
         evidence.source_project, evidence.target_project, evidence.bundle
     );
-    for file in &evidence.changed_files {
-        output.push_str(&format!("- `{file}`\n"));
-    }
     if evidence.changed_files.is_empty() {
         output.push_str("- No files changed.\n");
+    } else {
+        output.push_str("| File | Migration type | Status |\n");
+        output.push_str("| --- | --- | --- |\n");
+        for file in &evidence.changed_files {
+            output.push_str(&format!(
+                "| `{file}` | {} | migrated |\n",
+                migration_type_for_file(file)
+            ));
+        }
     }
     output.push_str("\n## Data import summary\n\n");
     if let Some(summary) = &evidence.data_import_summary {
@@ -886,6 +1164,18 @@ fn render_code_apply_report(evidence: &CodeApplyEvidence) -> String {
         output.push_str("- None.\n");
     }
     output
+}
+
+fn migration_type_for_file(file: &str) -> &'static str {
+    if file == "pom.xml" || file.ends_with("build.gradle") || file.ends_with("build.gradle.kts") {
+        "dependency"
+    } else if file.ends_with(".yml") || file.ends_with(".yaml") || file.ends_with(".properties") {
+        "configuration"
+    } else if file.ends_with(".java") {
+        "executor"
+    } else {
+        "other"
+    }
 }
 
 fn push_unique(values: &mut Vec<String>, value: String) {

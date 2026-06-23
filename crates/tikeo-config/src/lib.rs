@@ -2,7 +2,7 @@
 
 #![forbid(unsafe_code)]
 
-use std::{net::SocketAddr, path::Path};
+use std::{collections::BTreeMap, net::SocketAddr, path::Path};
 
 use config::{Config, Environment, File};
 use serde::{Deserialize, Serialize};
@@ -64,19 +64,157 @@ impl Default for ServerConfig {
 /// Persistent storage configuration.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StorageConfig {
-    /// Database URL consumed by SeaORM/sqlx.
-    pub database_url: String,
+    /// Structured database connection settings.
+    #[serde(default)]
+    pub database: DatabaseConfig,
     /// RFC3339 offset used when the application writes DB timestamps.
     pub timestamp_offset: String,
+}
+
+impl StorageConfig {
+    /// Build the effective SeaORM/sqlx connection URL consumed by storage.
+    #[must_use]
+    pub fn effective_connection_url(&self) -> String {
+        self.database
+            .to_url()
+            .unwrap_or_else(|| DatabaseConfig::default().to_url().unwrap_or_default())
+    }
 }
 
 impl Default for StorageConfig {
     fn default() -> Self {
         Self {
-            database_url: "sqlite://.dev/tikeo-dev.db?mode=rwc".to_owned(),
+            database: DatabaseConfig::default(),
             timestamp_offset: "+00:00".to_owned(),
         }
     }
+}
+
+/// Structured database settings that avoid URL escaping issues for passwords containing `@`, `/`, `:`, etc.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DatabaseConfig {
+    /// Database driver: `sqlite`, `postgres`, `mysql`, or `cockroachdb`.
+    #[serde(rename = "type", default = "default_database_type")]
+    pub kind: String,
+    /// Hostname for network databases.
+    #[serde(default)]
+    pub host: Option<String>,
+    /// Port for network databases.
+    #[serde(default)]
+    pub port: Option<u16>,
+    /// Username for network databases.
+    #[serde(default)]
+    pub username: Option<String>,
+    /// Password for network databases. May contain special characters without URL escaping.
+    #[serde(default)]
+    pub password: Option<String>,
+    /// Database/schema name for network databases.
+    #[serde(default)]
+    pub database: Option<String>,
+    /// SQLite file path.
+    #[serde(default = "default_sqlite_path")]
+    pub path: String,
+    /// Query parameters appended to the generated URL.
+    #[serde(default = "default_database_params")]
+    pub params: BTreeMap<String, String>,
+}
+
+impl DatabaseConfig {
+    /// Convert structured settings to the connection URL expected by SeaORM/sqlx.
+    #[must_use]
+    pub fn to_url(&self) -> Option<String> {
+        match self.kind.trim().to_ascii_lowercase().as_str() {
+            "sqlite" => {
+                let mut url = format!("sqlite://{}", self.path);
+                let mut params = self.params.clone();
+                if params.is_empty() {
+                    params.insert("mode".to_owned(), "rwc".to_owned());
+                }
+                append_query_params(&mut url, &params);
+                Some(url)
+            }
+            "postgres" | "postgresql" | "cockroach" | "cockroachdb" => {
+                Some(self.network_url("postgres", 5432))
+            }
+            "mysql" | "mariadb" => Some(self.network_url("mysql", 3306)),
+            _ => None,
+        }
+    }
+
+    fn network_url(&self, scheme: &str, default_port: u16) -> String {
+        let host = self.host.as_deref().unwrap_or("127.0.0.1");
+        let port = self.port.unwrap_or(default_port);
+        let database = self.database.as_deref().unwrap_or("tikeo");
+        let mut url =
+            if let Some(username) = self.username.as_deref().filter(|value| !value.is_empty()) {
+                let encoded_username = percent_encode_url_component(username);
+                let encoded_password = self
+                    .password
+                    .as_deref()
+                    .map(percent_encode_url_component)
+                    .unwrap_or_default();
+                format!("{scheme}://{encoded_username}:{encoded_password}@{host}:{port}/{database}")
+            } else {
+                format!("{scheme}://{host}:{port}/{database}")
+            };
+        append_query_params(&mut url, &self.params);
+        url
+    }
+}
+
+impl Default for DatabaseConfig {
+    fn default() -> Self {
+        Self {
+            kind: default_database_type(),
+            host: None,
+            port: None,
+            username: None,
+            password: None,
+            database: None,
+            path: default_sqlite_path(),
+            params: default_database_params(),
+        }
+    }
+}
+
+fn default_database_type() -> String {
+    "sqlite".to_owned()
+}
+
+fn default_sqlite_path() -> String {
+    ".dev/tikeo-dev.db".to_owned()
+}
+
+fn default_database_params() -> BTreeMap<String, String> {
+    BTreeMap::new()
+}
+
+fn append_query_params(url: &mut String, params: &BTreeMap<String, String>) {
+    if params.is_empty() {
+        return;
+    }
+    url.push('?');
+    for (index, (key, value)) in params.iter().enumerate() {
+        if index > 0 {
+            url.push('&');
+        }
+        url.push_str(&percent_encode_url_component(key));
+        url.push('=');
+        url.push_str(&percent_encode_url_component(value));
+    }
+}
+
+fn percent_encode_url_component(value: &str) -> String {
+    let mut encoded = String::new();
+    for byte in value.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                encoded.push(char::from(byte));
+            }
+            _ => encoded.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    encoded
 }
 
 /// Server cluster coordination settings.
@@ -490,10 +628,8 @@ pub fn load_config(path: Option<&Path>) -> Result<TikeoConfig, ConfigError> {
             "server.worker_tunnel_addr",
             TikeoConfig::default().server.worker_tunnel_addr.to_string(),
         )?
-        .set_default(
-            "storage.database_url",
-            TikeoConfig::default().storage.database_url,
-        )?
+        .set_default("storage.database.type", default_database_type())?
+        .set_default("storage.database.path", default_sqlite_path())?
         .set_default(
             "storage.timestamp_offset",
             TikeoConfig::default().storage.timestamp_offset,
@@ -609,6 +745,67 @@ scheduler_shard_count = 128
 
         assert_eq!(config.cluster.scheduler_shard_map_version, 7);
         assert_eq!(config.cluster.scheduler_shard_count, 128);
+    }
+
+    #[test]
+    fn structured_postgres_database_config_percent_encodes_special_password_chars() {
+        let path = std::env::temp_dir().join(format!(
+            "tikeo-structured-postgres-{}.toml",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            r#"[storage.database]
+type = "postgres"
+host = "postgres"
+port = 5432
+username = "tikeo"
+password = "p@ss/word:with#chars"
+database = "tikeo"
+
+[storage.database.params]
+sslmode = "disable"
+"#,
+        )
+        .unwrap_or_else(|error| panic!("temp config should write: {error}"));
+        let config = load_config(Some(&path))
+            .unwrap_or_else(|error| panic!("temp config should load: {error}"));
+        std::fs::remove_file(&path)
+            .unwrap_or_else(|error| panic!("temp config should delete: {error}"));
+
+        assert_eq!(
+            config.storage.effective_connection_url(),
+            "postgres://tikeo:p%40ss%2Fword%3Awith%23chars@postgres:5432/tikeo?sslmode=disable"
+        );
+    }
+
+    #[test]
+    fn structured_network_database_config_does_not_inherit_sqlite_params() {
+        let path = std::env::temp_dir().join(format!(
+            "tikeo-structured-network-no-sqlite-params-{}.toml",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            r#"[storage.database]
+type = "mysql"
+host = "mysql"
+port = 3306
+username = "tikeo"
+password = "p@ss/word:with#chars"
+database = "tikeo"
+"#,
+        )
+        .unwrap_or_else(|error| panic!("temp config should write: {error}"));
+        let config = load_config(Some(&path))
+            .unwrap_or_else(|error| panic!("temp config should load: {error}"));
+        std::fs::remove_file(&path)
+            .unwrap_or_else(|error| panic!("temp config should delete: {error}"));
+
+        assert_eq!(
+            config.storage.effective_connection_url(),
+            "mysql://tikeo:p%40ss%2Fword%3Awith%23chars@mysql:3306/tikeo"
+        );
     }
 
     #[test]

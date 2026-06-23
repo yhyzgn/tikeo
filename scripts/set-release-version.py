@@ -145,6 +145,15 @@ def sync_sdk_versions(version: str, *, dry_run: bool) -> None:
     sync_go_version()
 
 
+
+def sync_web_app_version(version: str, *, dry_run: bool) -> None:
+    set_json_version(
+        ROOT / "web/package.json",
+        version,
+        dry_run=dry_run,
+        label="Web console package version",
+    )
+
 def sync_docs_package_version(version: str, *, dry_run: bool) -> None:
     set_json_version(
         ROOT / "docs/package.json",
@@ -197,7 +206,7 @@ def sync_workspace_versions(version: str, tag: str, *, dry_run: bool) -> None:
         label="Helm appVersion",
     )
     sync_docs_package_version(version, dry_run=dry_run)
-    sync_release_example_versions(version, tag, dry_run=dry_run)
+    sync_web_app_version(version, dry_run=dry_run)
     values = ROOT / "deploy/helm/tikeo/values.yaml"
     text = read(values)
     updated, count = re.subn(r"(?m)^(\s*tag: ).+$", rf"\g<1>{tag}", text)

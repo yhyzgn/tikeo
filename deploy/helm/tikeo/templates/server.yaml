@@ -60,15 +60,40 @@ spec:
         - name: tikeo
           image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
-          args: ["serve", "--config", "/config/container.toml"]
+          args: ["serve", "--config", "/config/tikeo.yml"]
           {{- if or (and (eq .Values.server.storage.mode "external") .Values.server.storage.existingSecret) $raftEnabled }}
           env:
             {{- if and (eq .Values.server.storage.mode "external") .Values.server.storage.existingSecret }}
-            - name: TIKEO__STORAGE__DATABASE_URL
+            - name: TIKEO__STORAGE__DATABASE__TYPE
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.server.storage.existingSecret | quote }}
-                  key: {{ .Values.server.storage.databaseUrlSecretKey | quote }}
+                  key: {{ .Values.server.storage.secretKeys.type | quote }}
+            - name: TIKEO__STORAGE__DATABASE__HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.server.storage.existingSecret | quote }}
+                  key: {{ .Values.server.storage.secretKeys.host | quote }}
+            - name: TIKEO__STORAGE__DATABASE__PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.server.storage.existingSecret | quote }}
+                  key: {{ .Values.server.storage.secretKeys.port | quote }}
+            - name: TIKEO__STORAGE__DATABASE__USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.server.storage.existingSecret | quote }}
+                  key: {{ .Values.server.storage.secretKeys.username | quote }}
+            - name: TIKEO__STORAGE__DATABASE__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.server.storage.existingSecret | quote }}
+                  key: {{ .Values.server.storage.secretKeys.password | quote }}
+            - name: TIKEO__STORAGE__DATABASE__DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.server.storage.existingSecret | quote }}
+                  key: {{ .Values.server.storage.secretKeys.database | quote }}
             {{- end }}
             {{- if $raftEnabled }}
             - name: TIKEO__CLUSTER__MODE

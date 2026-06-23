@@ -73,7 +73,13 @@ listen_addr = "${API_URL#http://}"
 worker_tunnel_addr = "${WORKER_ENDPOINT#http://}"
 
 [storage]
-database_url = "sqlite://$DB_PATH?mode=rwc"
+
+[storage.database]
+type = "sqlite"
+path = "$DB_PATH"
+
+[storage.database.params]
+mode = "rwc"
 
 [cluster]
 mode = "standalone"

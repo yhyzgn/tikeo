@@ -33,7 +33,13 @@ listen_addr = "127.0.0.1:19090"
 worker_tunnel_addr = "127.0.0.1:19998"
 
 [storage]
-database_url = "sqlite://$REPORT_DIR/${RUN_ID}.db?mode=rwc"
+
+[storage.database]
+type = "sqlite"
+path = "$REPORT_DIR/${RUN_ID}.db"
+
+[storage.database.params]
+mode = "rwc"
 
 [cluster]
 mode = "standalone"

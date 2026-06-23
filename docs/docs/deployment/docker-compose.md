@@ -1,371 +1,111 @@
 ---
-title: Docker Compose
-description: Complete copy-paste Docker Compose deployment files for SQLite, PostgreSQL, MySQL, Web, Worker Tunnel, and Prometheus.
+title: Docker Compose deployment
+description: Deploy Tikeo with Docker Hub images, mounted config/tikeo.yml, persistent data/log/tls mounts, and SQLite/PostgreSQL/MySQL Compose stacks.
 ---
 
-# Docker Compose
+# Docker Compose deployment
 
-Use Docker Compose when you want a reproducible local or VM smoke environment with packaged Server and Web containers. This page includes the **complete** committed Compose files so users can copy the full YAML without jumping back to GitHub.
+The checked-in Compose files use published Docker Hub images by default:
 
-## Quick start
+- `yhyzgn/tikeo-server:latest`
+- `yhyzgn/tikeo-web:latest`
+
+They do **not** build local images. Pin `TIKEO_IMAGE` and `TIKEO_WEB_IMAGE` in `.env` when you need rollback-safe production operations.
+
+## Configuration ownership
+
+| Surface | What belongs here | What does not belong here |
+| --- | --- | --- |
+| `config/tikeo.yml` | Tikeo service behavior: listeners, structured database fields, auth, TLS, logs, cluster, retry, notification delivery. | Docker image tags, host ports, Docker volume names. |
+| `.env` | Docker/Compose parameters: image tags, host ports, named volume names, database container credentials, timezone, mimalloc knobs, local worker-demo helpers. | `TIKEO__...` service overrides for normal deployment. |
+| Compose `environment` | Container runtime values such as `TZ` and mimalloc knobs. | Tikeo service settings; edit `config/tikeo.yml` instead. |
+
+## Mounted runtime paths
+
+| Runtime path | SQLite stack | PostgreSQL stack | MySQL stack | Meaning |
+| --- | --- | --- | --- | --- |
+| `/config/tikeo.yml` | `./config/tikeo.yml:/config/tikeo.yml:ro` | same | same | Single formal Server config file. |
+| `/config/tls` | `./config/tls:/config/tls:ro` | same | same | Optional HTTP/Worker Tunnel TLS/mTLS certs. |
+| `/data` | `tikeo-data:/data` | `tikeo-data:/data` | `tikeo-data:/data` | SQLite DB path and uniform runtime data mount. |
+| `/logs` | `tikeo-logs:/logs` | `tikeo-logs:/logs` | `tikeo-logs:/logs` | Optional file logs when `log_dir=/logs`. |
+| DB service data | n/a | `tikeo-postgres-data:/var/lib/postgresql/data` | `tikeo-mysql-data:/var/lib/mysql` | Durable self-hosted database storage. |
+
+## First run
 
 ```bash
 cp deploy/compose/tikeo.env.example .env
-DOCKER_BUILDKIT=1 docker compose --env-file .env up -d --build
+# Edit .env for Docker parameters.
+# Edit config/tikeo.yml for Tikeo service settings.
+
+docker compose --env-file .env pull
+docker compose --env-file .env up -d
 curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
-curl -fsS http://127.0.0.1:${TIKEO_WEB_PORT:-8080}/ >/dev/null
-```
-
-Open the Web console at `http://127.0.0.1:${TIKEO_WEB_PORT:-8080}`.
-
-## Full `docker-compose.yml`
-
-SQLite is the fastest local evaluation path. It persists `/data/tikeo.db` in the `tikeo-data` named volume.
-
-```yaml
-services:
-  tikeo:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: ${TIKEO_IMAGE:-yhyzgn/tikeo-server:local}
-    command: ["serve", "--config", "/app/config/container.toml"]
-    environment:
-      TZ: ${TZ:-Asia/Shanghai}
-      MIMALLOC_PURGE_DELAY: ${MIMALLOC_PURGE_DELAY:-0}
-      MIMALLOC_PURGE_DECOMMITS: ${MIMALLOC_PURGE_DECOMMITS:-1}
-      MIMALLOC_ABANDONED_PAGE_PURGE: ${MIMALLOC_ABANDONED_PAGE_PURGE:-1}
-    ports:
-      - "${TIKEO_HTTP_PORT:-9090}:9090"
-      - "${TIKEO_WORKER_TUNNEL_PORT:-9998}:9998"
-    volumes:
-      - tikeo-data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9090/readyz >/dev/null"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 10s
-    restart: unless-stopped
-
-  web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-    image: ${TIKEO_WEB_IMAGE:-yhyzgn/tikeo-web:local}
-    depends_on:
-      tikeo:
-        condition: service_healthy
-    ports:
-      - "${TIKEO_WEB_PORT:-8080}:80"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 5s
-    restart: unless-stopped
-
-  prometheus:
-    image: prom/prometheus:v3.0.1
-    profiles: ["observability"]
-    depends_on:
-      tikeo:
-        condition: service_healthy
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--web.enable-lifecycle"
-    volumes:
-      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./observability/prometheus/tikeo-recording-rules.yml:/etc/prometheus/tikeo-recording-rules.yml:ro
-    ports:
-      - "${TIKEO_PROMETHEUS_PORT:-9091}:9090"
-    restart: unless-stopped
-
-volumes:
-  tikeo-data:
-    name: ${TIKEO_DATA_VOLUME:-tikeo-data}
+open http://127.0.0.1:${TIKEO_WEB_PORT:-8080}
 ```
 
 ## PostgreSQL stack
 
-```bash
-DOCKER_BUILDKIT=1 docker compose --env-file .env -f docker-compose.postgres.yml up -d --build
-curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
-docker compose --env-file .env -f docker-compose.postgres.yml ps
-```
-
-Useful `.env` overrides:
-
-```properties
-TIKEO_POSTGRES_PORT=15432
-TIKEO_POSTGRES_DB=tikeo
-TIKEO_POSTGRES_USER=tikeo
-TIKEO_POSTGRES_PASSWORD=change-me
-TIKEO_POSTGRES_DATA_VOLUME=tikeo-postgres-data
-```
-
-## Full `docker-compose.postgres.yml`
+Before startup, edit `config/tikeo.yml`:
 
 ```yaml
-services:
-  tikeo:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: ${TIKEO_IMAGE:-yhyzgn/tikeo-server:local}
-    command: ["serve", "--config", "/app/config/postgres.toml"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      TZ: ${TZ:-Asia/Shanghai}
-      MIMALLOC_PURGE_DELAY: ${MIMALLOC_PURGE_DELAY:-0}
-      MIMALLOC_PURGE_DECOMMITS: ${MIMALLOC_PURGE_DECOMMITS:-1}
-      MIMALLOC_ABANDONED_PAGE_PURGE: ${MIMALLOC_ABANDONED_PAGE_PURGE:-1}
-    ports:
-      - "${TIKEO_HTTP_PORT:-9090}:9090"
-      - "${TIKEO_WORKER_TUNNEL_PORT:-9998}:9998"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9090/readyz >/dev/null"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 10s
-    restart: unless-stopped
+storage:
+  database:
+    type: postgres
+    host: postgres
+    port: 5432
+    username: tikeo
+    password: "p@ss/word:with#chars"
+    database: tikeo
+    params:
+      sslmode: disable
+```
 
-  web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-    image: ${TIKEO_WEB_IMAGE:-yhyzgn/tikeo-web:local}
-    depends_on:
-      tikeo:
-        condition: service_healthy
-    ports:
-      - "${TIKEO_WEB_PORT:-8080}:80"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 5s
-    restart: unless-stopped
+Then run:
 
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: ${TIKEO_POSTGRES_DB:-tikeo}
-      POSTGRES_USER: ${TIKEO_POSTGRES_USER:-tikeo}
-      POSTGRES_PASSWORD: ${TIKEO_POSTGRES_PASSWORD:-tikeo}
-    ports:
-      - "${TIKEO_POSTGRES_PORT:-15432}:5432"
-    volumes:
-      - tikeo-postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 10s
-    restart: unless-stopped
-
-  prometheus:
-    image: prom/prometheus:v3.0.1
-    profiles: ["observability"]
-    depends_on:
-      tikeo:
-        condition: service_healthy
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--web.enable-lifecycle"
-    volumes:
-      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./observability/prometheus/tikeo-recording-rules.yml:/etc/prometheus/tikeo-recording-rules.yml:ro
-    ports:
-      - "${TIKEO_PROMETHEUS_PORT:-9091}:9090"
-    restart: unless-stopped
-
-volumes:
-  tikeo-postgres-data:
-    name: ${TIKEO_POSTGRES_DATA_VOLUME:-tikeo-postgres-data}
+```bash
+cp deploy/compose/tikeo.env.example .env
+# Keep .env DB container credentials aligned with config/tikeo.yml.
+docker compose --env-file .env -f docker-compose.postgres.yml pull
+docker compose --env-file .env -f docker-compose.postgres.yml up -d
+curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
 ```
 
 ## MySQL stack
 
-```bash
-DOCKER_BUILDKIT=1 docker compose --env-file .env -f docker-compose.mysql.yml up -d --build
-curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
-docker compose --env-file .env -f docker-compose.mysql.yml ps
-```
-
-Useful `.env` overrides:
-
-```properties
-TIKEO_MYSQL_PORT=13306
-TIKEO_MYSQL_DATABASE=tikeo
-TIKEO_MYSQL_USER=tikeo
-TIKEO_MYSQL_PASSWORD=change-me
-TIKEO_MYSQL_ROOT_PASSWORD=change-root
-TIKEO_MYSQL_DATA_VOLUME=tikeo-mysql-data
-```
-
-## Full `docker-compose.mysql.yml`
+Before startup, edit `config/tikeo.yml`:
 
 ```yaml
-services:
-  tikeo:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: ${TIKEO_IMAGE:-yhyzgn/tikeo-server:local}
-    command: ["serve", "--config", "/app/config/mysql.toml"]
-    depends_on:
-      mysql:
-        condition: service_healthy
-    environment:
-      TZ: ${TZ:-Asia/Shanghai}
-      MIMALLOC_PURGE_DELAY: ${MIMALLOC_PURGE_DELAY:-0}
-      MIMALLOC_PURGE_DECOMMITS: ${MIMALLOC_PURGE_DECOMMITS:-1}
-      MIMALLOC_ABANDONED_PAGE_PURGE: ${MIMALLOC_ABANDONED_PAGE_PURGE:-1}
-    ports:
-      - "${TIKEO_HTTP_PORT:-9090}:9090"
-      - "${TIKEO_WORKER_TUNNEL_PORT:-9998}:9998"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9090/readyz >/dev/null"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 10s
-    restart: unless-stopped
-
-  web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-    image: ${TIKEO_WEB_IMAGE:-yhyzgn/tikeo-web:local}
-    depends_on:
-      tikeo:
-        condition: service_healthy
-    ports:
-      - "${TIKEO_WEB_PORT:-8080}:80"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 5s
-    restart: unless-stopped
-
-  mysql:
-    image: mysql:8.4
-    environment:
-      MYSQL_DATABASE: ${TIKEO_MYSQL_DATABASE:-tikeo}
-      MYSQL_USER: ${TIKEO_MYSQL_USER:-tikeo}
-      MYSQL_PASSWORD: ${TIKEO_MYSQL_PASSWORD:-tikeo}
-      MYSQL_ROOT_PASSWORD: ${TIKEO_MYSQL_ROOT_PASSWORD:-root}
-    command:
-      - "--character-set-server=utf8mb4"
-      - "--collation-server=utf8mb4_0900_ai_ci"
-    ports:
-      - "${TIKEO_MYSQL_PORT:-13306}:3306"
-    volumes:
-      - tikeo-mysql-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 60
-      start_period: 20s
-    restart: unless-stopped
-
-  prometheus:
-    image: prom/prometheus:v3.0.1
-    profiles: ["observability"]
-    depends_on:
-      tikeo:
-        condition: service_healthy
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--web.enable-lifecycle"
-    volumes:
-      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./observability/prometheus/tikeo-recording-rules.yml:/etc/prometheus/tikeo-recording-rules.yml:ro
-    ports:
-      - "${TIKEO_PROMETHEUS_PORT:-9091}:9090"
-    restart: unless-stopped
-
-volumes:
-  tikeo-mysql-data:
-    name: ${TIKEO_MYSQL_DATA_VOLUME:-tikeo-mysql-data}
+storage:
+  database:
+    type: mysql
+    host: mysql
+    port: 3306
+    username: tikeo
+    password: "p@ss/word:with#chars"
+    database: tikeo
 ```
 
-## Optional Prometheus
+Then run:
 
-The three Compose files include a `prometheus` service behind the `observability` profile.
+```bash
+cp deploy/compose/tikeo.env.example .env
+# Keep .env DB container credentials aligned with config/tikeo.yml.
+docker compose --env-file .env -f docker-compose.mysql.yml pull
+docker compose --env-file .env -f docker-compose.mysql.yml up -d
+curl -fsS http://127.0.0.1:${TIKEO_HTTP_PORT:-9090}/readyz
+```
+
+## Why structured database fields
+
+Use `storage.database.*` fields for database settings. Passwords with `@`, `/`, `:`, or `#` are valid plain config values; Tikeo percent-encodes the generated internal URL automatically.
+
+## Optional Prometheus
 
 ```bash
 docker compose --env-file .env --profile observability up -d prometheus
 curl -fsS http://127.0.0.1:${TIKEO_PROMETHEUS_PORT:-9091}/-/ready
 ```
 
-Prometheus reads committed files under `observability/prometheus/`.
-
-## Compose parameter reference
-
-| Variable | Default | Used by | Meaning |
-|---|---:|---|---|
-| `TIKEO_IMAGE` | `yhyzgn/tikeo-server:dev` | Server | Server image tag to build/use. |
-| `TIKEO_WEB_IMAGE` | `yhyzgn/tikeo-web:dev` | Web | Web image tag to build/use. |
-| `TIKEO_HTTP_PORT` | `9090` | Server | Host port for HTTP API and health checks. |
-| `TIKEO_WORKER_TUNNEL_PORT` | `9998` | Server | Host port for outbound Worker Tunnel clients. |
-| `TIKEO_WEB_PORT` | `8080` | Web | Host port for browser UI. |
-| `TIKEO_PROMETHEUS_PORT` | `9091` | Prometheus | Host port for optional Prometheus. |
-| `TIKEO_DATA_VOLUME` | `tikeo-data` | SQLite | Named volume for SQLite data. |
-| `TIKEO_WORKER_TUNNEL_PUBLIC_ENDPOINT` | `http://127.0.0.1:9998` | Workers | Endpoint external demo workers should dial. |
-| `TIKEO__STORAGE__DATABASE_URL` | unset | Server | Optional config override for external DB URLs. |
-
 ## Worker connectivity
 
-Workers still dial out to the Server Worker Tunnel. For a local Rust demo:
-
-```bash
-TIKEO_WORKER_TUNNEL_ENDPOINT=${TIKEO_WORKER_TUNNEL_PUBLIC_ENDPOINT:-http://127.0.0.1:9998}   cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
-```
-
-Do not expose arbitrary business Worker ports. The only public Worker-facing endpoint should be Tikeo's Server tunnel.
-
-## Cleanup and reset
-
-Stop containers but keep data:
-
-```bash
-docker compose --env-file .env down --remove-orphans
-```
-
-Delete local SQLite data volume:
-
-```bash
-docker compose --env-file .env down --remove-orphans -v
-```
-
-For PostgreSQL/MySQL stacks, include the same `-f` file you used for startup.
-
-## Prerequisites
-
-Use the setup, authentication, and access requirements described in this page before running any command. For local examples, start the Server with `config/dev.toml`, use `127.0.0.1` as the client host, and keep tokens in shell variables rather than pasted into files.
-
-## Verify
-
-After following the page, verify the result with the documented API, UI, build, smoke, or deployment checks. A valid verification includes the command that was run, the route or file that was inspected, and the observed status or artifact.
-
-## Troubleshooting
-
-When a step fails, first capture the exact command, response status, and Server log window. Then check authentication, namespace/app scope, Worker eligibility, storage readiness, and proxy behavior before changing production configuration.
-
-## Production checklist
-
-- [ ] Secrets are referenced through environment or platform secret mechanisms and are not written into examples.
-- [ ] Commands have been adapted from local `127.0.0.1` to the real host, TLS, and authentication model.
-- [ ] Rollback and evidence collection are documented for the changed surface.
-- [ ] Operators can repeat the verification without private shell history or hidden state.
+Workers dial out to the Server Worker Tunnel. For local demos use `http://127.0.0.1:9998` or `TIKEO_WORKER_TUNNEL_PUBLIC_ENDPOINT` from `.env`. Do not expose arbitrary business Worker ports.

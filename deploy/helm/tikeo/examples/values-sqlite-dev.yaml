@@ -3,7 +3,10 @@ server:
   replicas: 1
   storage:
     mode: sqlite
-    databaseUrl: sqlite:///data/tikeo.db?mode=rwc
+    type: sqlite
+    sqlite:
+      path: /data/tikeo.db
+      mode: rwc
     persistence:
       enabled: true
       size: 5Gi

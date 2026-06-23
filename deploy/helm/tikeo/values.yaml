@@ -55,7 +55,7 @@ gatewayApi:
 server:
   image:
     repository: yhyzgn/tikeo-server
-    tag: dev
+    tag: v0.3.11
     pullPolicy: IfNotPresent
   replicas: 1
   cluster:
@@ -87,11 +87,28 @@ server:
       memory: 1Gi
   storage:
     # sqlite keeps a local PVC for development/single-node installs.
-    # external uses TIKEO__STORAGE__DATABASE_URL from a Kubernetes Secret.
+    # external injects structured database fields from a Kubernetes Secret.
     mode: sqlite
-    databaseUrl: sqlite:///data/tikeo.db?mode=rwc
+    type: sqlite
+    timestampOffset: "+00:00"
+    sqlite:
+      path: /data/tikeo.db
+      mode: rwc
+    external:
+      host: 127.0.0.1
+      port: 5432
+      username: tikeo
+      password: ""
+      database: tikeo
+      params: {}
     existingSecret: ""
-    databaseUrlSecretKey: database-url
+    secretKeys:
+      type: type
+      host: host
+      port: port
+      username: username
+      password: password
+      database: database
     persistence:
       enabled: true
       storageClass: ""
@@ -151,7 +168,7 @@ server:
 web:
   image:
     repository: yhyzgn/tikeo-web
-    tag: dev
+    tag: v0.3.11
     pullPolicy: IfNotPresent
   replicas: 1
   cluster:

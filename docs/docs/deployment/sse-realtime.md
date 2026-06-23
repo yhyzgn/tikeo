@@ -13,9 +13,9 @@ Tikeo Web uses Server-Sent Events (SSE) for realtime console updates. SSE is a l
 | --- | --- | --- | --- |
 | Workflow instance timeline | `/api/v1/events/instances/{id}/stream` | workflow event types from the instance event log | `workflows:read` |
 | Job instance log drawer | `/api/v1/instances/{id}/logs/stream` | `instance.snapshot`, `instance.log` | `instances:read` |
-| Instance list / dashboard refresh | `/api/v1/instances/stream` | `instances.snapshot` | `instances:read` |
-| Worker cluster page | `/api/v1/workers/stream` | `workers.snapshot` | `workers:read` |
-| Dispatch queue page | `/api/v1/dispatch-queue/stream` | `dispatchQueue.snapshot` | `workers:read` |
+| Dashboard and instance list | `/api/v1/instances/stream` | `instances.snapshot` | `instances:read` |
+| Dashboard and Worker cluster page | `/api/v1/workers/stream` | `workers.snapshot` | `workers:read` |
+| Dashboard and dispatch queue page | `/api/v1/dispatch-queue/stream` | `dispatchQueue.snapshot` | `workers:read` |
 
 Browsers use `EventSource`, which cannot attach an `Authorization` header. Tikeo therefore supports a `?token=...` query fallback for stream routes. Use HTTPS in shared environments and redact query strings, or at least the `token` parameter, from proxy, WAF, load balancer, and application access logs.
 
@@ -37,7 +37,7 @@ Expected behavior:
 - a `workers.snapshot` event appears when the visible worker snapshot changes;
 - keep-alives are sent every 15 seconds.
 
-If direct access fails, fix auth, Server readiness, or route permissions before debugging nginx, load balancers, or Ingress.
+If direct access fails, fix auth, Server readiness, or route permissions before debugging nginx, load balancers, or Ingress. The Dashboard also polls REST endpoints every 3 seconds for cluster diagnostics, alert delivery queue status, audit logs, and job instance history; SSE problems usually make realtime panels stale, while REST/proxy/auth problems can make the whole cockpit empty.
 
 ## Network requirements
 
@@ -189,6 +189,7 @@ Set target group health checks to `/readyz`. If WAF is attached to the ALB, allo
 6. Inspect proxy/WAF/LB logs for `499`, `502`, `504`, `524`, `403`, or challenge-page responses.
 7. Verify that `?token=...` is accepted when the browser uses `EventSource` and no `Authorization` header can be sent.
 8. Confirm frontend and API origin/CORS policy if Web is not served from the same origin as the API.
+9. Open Dashboard and verify the instance trend, Worker Mesh/capability coverage, and queue pressure panels change without a full page reload.
 
 ## Common symptoms
 

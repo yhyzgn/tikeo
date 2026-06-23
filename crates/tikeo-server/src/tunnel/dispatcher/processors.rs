@@ -14,7 +14,7 @@ pub(super) struct SqlProcessorOutcome {
 }
 
 pub(super) async fn execute_sql_processor(config: &serde_json::Value) -> SqlProcessorOutcome {
-    let Some(database_url) = config
+    let Some(connection_url) = config
         .get("databaseUrl")
         .and_then(serde_json::Value::as_str)
         .map(str::trim)
@@ -37,7 +37,7 @@ pub(super) async fn execute_sql_processor(config: &serde_json::Value) -> SqlProc
         };
     };
     let allowed = string_array(config.get("allowedDatabaseUrls"));
-    if allowed.is_empty() || !allowed.iter().any(|candidate| candidate == database_url) {
+    if allowed.is_empty() || !allowed.iter().any(|candidate| candidate == connection_url) {
         return SqlProcessorOutcome {
             success: false,
             message: "sql databaseUrl is not in allowedDatabaseUrls".to_owned(),
@@ -63,7 +63,7 @@ pub(super) async fn execute_sql_processor(config: &serde_json::Value) -> SqlProc
             message: "sql dry-run validated statement and datasource allowlist".to_owned(),
         };
     }
-    if !database_url.starts_with("sqlite:") {
+    if !connection_url.starts_with("sqlite:") {
         return SqlProcessorOutcome {
             success: false,
             message: "sql executor currently supports sqlite databaseUrl for direct execution"
@@ -72,7 +72,7 @@ pub(super) async fn execute_sql_processor(config: &serde_json::Value) -> SqlProc
     }
     let pool = match sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(1)
-        .connect(database_url)
+        .connect(connection_url)
         .await
     {
         Ok(pool) => pool,

@@ -1,193 +1,125 @@
 ---
 title: 配置参考
-description: Tikeo 的完整默认值、环境变量覆盖、示例 TOML、安全、观测、存储和 Worker SDK 默认值。
+description: Tikeo Server 与 Worker 的完整配置参考、环境变量、默认值、挂载目录、结构化数据库配置和部署说明。
 ---
 
 # 配置参考
 
-Tikeo Server 配置由 `crates/tikeo-config/src/lib.rs` 中的类型加载。运行 `tikeo serve --config <path>` 或设置 `TIKEO_CONFIG` 指定 TOML 文件，然后用 `TIKEO` 前缀和双下划线覆盖嵌套字段，例如 `storage.database_url` 对应 `TIKEO__STORAGE__DATABASE_URL`。
+Tikeo 有两个配置面：
 
-## 加载顺序
+1. **Server 配置**控制控制面、存储、认证、集群、通知投递、TLS 和观测。Docker/Compose 使用 `config/tikeo.yml`，容器内挂载为 `/config/tikeo.yml`。
+2. **Worker 配置**位于 SDK 或业务应用配置中。Java Spring Boot 暴露为 `tikeo.worker.*`；其他 SDK 使用等价 `WorkerConfig` 字段或 demo 环境变量。
 
-加载顺序是 Rust 默认值、可选 TOML 文件、环境变量覆盖。生产建议把非敏感默认值写入 TOML，把 DB URL、证书路径、OIDC secret、OTel 凭证和集群 token 放到平台 Secret 或环境变量中。
+Server 加载顺序：默认值、`tikeo serve --config <path>`/`TIKEO_CONFIG` 指定的文件、`TIKEO__...` 环境变量覆盖。例如 `storage.database.host` 对应 `TIKEO__STORAGE__DATABASE__HOST`。
 
-```bash
-TIKEO__SERVER__LISTEN_ADDR=0.0.0.0:19090 \
-TIKEO__SERVER__WORKER_TUNNEL_ADDR=0.0.0.0:19998 \
-TIKEO__STORAGE__DATABASE_URL='sqlite:///tmp/tikeo-smoke.db?mode=rwc' \
-cargo run --bin tikeo -- serve --config config/dev.toml
-```
+正常部署优先编辑挂载配置文件。环境变量覆盖更适合 Kubernetes Secret、紧急覆盖或无法挂载文件的平台。
 
 ## 运行时文件与挂载路径
 
-下面这些路径是 release 镜像和示例暴露出来的部署约定：
-
-| 路径 | 使用位置 | 含义 | 挂载建议 |
+| 路径 | 用途 | 含义 | 挂载建议 |
 | --- | --- | --- | --- |
-| `/app/config/container.toml` | `Dockerfile` 默认命令 | 镜像内置容器配置。 | 适合 demo；生产建议改用只读外部配置 `/config/container.toml`。 |
-| `/config/container.toml` | Helm 和原始 Kubernetes manifest | 通过 `serve --config /config/container.toml` 选择的外部 Server 配置。 | 从 ConfigMap 或 bind mount 只读挂载。 |
-| `/data/tikeo.db` | `config/container.toml` SQLite URL | 容器 SQLite 数据库文件。 | SQLite 数据需要保留时，用 Docker volume、bind mount 或 PVC 持久化 `/data`。 |
-| `/logs/tikeo.log` | 可选容器文件日志 | `observability.logging.log_dir="/logs"` 时创建的文件日志。 | 可选；只有 stdout 之外还需要文件日志时挂载 `/logs`。 |
-| `/etc/tikeo/tikeo.toml` | systemd/裸机示例 | 传统主机配置文件。 | 由 root 或部署自动化管理，`tikeo` 进程可读。 |
-| `/var/lib/tikeo` | systemd/裸机示例 | 主机本地持久状态，通常是 VM 上的 SQLite。 | 归属 `tikeo` 用户；如果里面有 SQLite，需要纳入备份。 |
-| `/var/log/tikeo/tikeo.log` | systemd/裸机示例 | 主机文件日志。 | 启动前创建目录，并纳入系统日志轮转策略。 |
-| `/etc/tikeo/tls` 或 `/config/tls` | TLS/mTLS 示例 | `transport_security.*` 引用的证书、私钥和 CA 文件。 | 从 Secret 或 host path 只读挂载；不要把私钥烘进镜像。 |
+| `/config/tikeo.yml` | Dockerfile、Compose、Kubernetes、Helm | `serve --config /config/tikeo.yml` 读取的 Server 配置。 | 从 host path、ConfigMap 或 Secret 只读挂载。 |
+| `/config/tls` | TLS/mTLS | `transport_security.*` 引用的证书、私钥、CA。 | 只读挂载，不要把私钥打进镜像。 |
+| `/data/tikeo.db` | SQLite 模式 | `storage.database.path=/data/tikeo.db` 对应的 SQLite 文件。 | SQLite 数据需要保留时持久化 `/data`。 |
+| `/logs/tikeo.log` | 可选文件日志 | `observability.logging.log_dir=/logs` 时生成。 | 可选；stdout 始终输出。 |
+| `/etc/tikeo/tikeo.yml` | systemd/裸机 | 主机上的配置文件。 | root 或部署系统管理，进程可读。 |
+| `/var/lib/tikeo` | systemd/裸机 | 本地持久状态，通常是 VM 上的 SQLite。 | `tikeo` 用户拥有；使用 SQLite 时纳入备份。 |
+| `/var/log/tikeo` | systemd/裸机 | 主机文件日志。 | 启动前创建并按主机策略轮转。 |
 
-Console 日志始终启用。文件日志是增量能力：设置 `observability.logging.log_dir` 后，Server 会自动创建目录，并在其中写入 `tikeo.log`。
+## 仓库内置配置文件
 
-外部数据库会把持久状态移出 Server 容器。使用 PostgreSQL 或 MySQL 时，请持久化数据库服务或使用托管数据库备份；除非 `storage.database_url` 配置的是 SQLite，否则不要依赖 Server `/data` volume。
-
-## 配置文件用途
-
-| 文件 | 用途 | 关键值 |
+| 文件 | 用途 | 说明 |
 | --- | --- | --- |
-| `config/dev.toml` | 本地源码评估 | HTTP `0.0.0.0:9090`、Worker Tunnel `0.0.0.0:9998`、SQLite `.dev/tikeo-dev.db`、`timestamp_offset="+08:00"`、OIDC/TLS/OTel 关闭。 |
-| `config/container.toml` | root Dockerfile 默认 | SQLite `/data/tikeo.db`、日志 info、alert retry 开启、alert env refs 开启。 |
-| `config/postgres.toml` | PostgreSQL/Cockroach 示例 | `postgres://tikeo:tikeo@postgres:5432/tikeo`，注释说明 `TIKEO__STORAGE__DATABASE_URL`。 |
-| `config/mysql.toml` | MySQL 示例 | `mysql://tikeo:tikeo@mysql:3306/tikeo`，提醒使用 `utf8mb4`。 |
-| `config/raft.toml` | raft shape 示例 | `mode="raft"`、静态 peers、`transport_token` 从 Secret 注入。 |
+| `config/tikeo.yml` | 生产/容器模板 | 唯一正式部署入口。默认 SQLite `/data/tikeo.db`，包含 PostgreSQL/MySQL/Raft/TLS 注释示例。 |
+| `config/dev.toml` | 本地源码开发 | 保留快速 dev 路径，使用 `.dev/tikeo-dev.db`。 |
 
-## 完整默认值表
+## 结构化数据库配置
 
-| Config key | 默认值 | 环境变量 | 说明 |
-| --- | --- | --- | --- |
-| `server.listen_addr` | `0.0.0.0:9090` | `TIKEO__SERVER__LISTEN_ADDR` | HTTP API、health、ready、metrics、OpenAPI。 |
-| `server.worker_tunnel_addr` | `0.0.0.0:9998` | `TIKEO__SERVER__WORKER_TUNNEL_ADDR` | gRPC/HTTP2 Worker Tunnel，Worker 主动连接。 |
-| `storage.database_url` | `sqlite://.dev/tikeo-dev.db?mode=rwc` | `TIKEO__STORAGE__DATABASE_URL` | SeaORM/sqlx URL；生产用 PostgreSQL/MySQL。 |
-| `storage.timestamp_offset` | `+00:00` | `TIKEO__STORAGE__TIMESTAMP_OFFSET` | 启动时解析；dev/mysql 示例为 `+08:00`。 |
-| `cluster.mode` | `standalone` | `TIKEO__CLUSTER__MODE` | `standalone` 或 `raft`；K8s 生产多 Pod HA 使用 Helm Raft StatefulSet/headless peers。Leader 负责 fencing、全局定时/重试循环和 shard ownership 投影，持有 active shard ownership 的 Pod 可派发自己拥有的 queue shard。 |
-| `cluster.node_id` | `standalone` | `TIKEO__CLUSTER__NODE_ID` | 集群状态和 raft 元数据节点 ID。 |
-| `cluster.peers` | `[]` | `TIKEO__CLUSTER__PEERS` | peer 数组建议用 TOML/Helm 表达。 |
-| `cluster.transport_token` | 未设置 | `TIKEO__CLUSTER__TRANSPORT_TOKEN` | 内部 raft HTTP token，不要提交真实值。 |
-| `cluster.scheduler_shard_map_version` | `1` | `TIKEO__CLUSTER__SCHEDULER_SHARD_MAP_VERSION` | dispatch queue hashing 使用的单调 shard-map 版本；除计划内迁移外，Raft 各 Pod 必须一致。 |
-| `cluster.scheduler_shard_count` | `64` | `TIKEO__CLUSTER__SCHEDULER_SHARD_COUNT` | 逻辑 scheduler shard 数；同一 map version 下保持稳定并在所有 Pod 一致。 |
-| `auth.local_login_enabled` | `true` | `TIKEO__AUTH__LOCAL_LOGIN_ENABLED` | 本地用户名密码登录开关。 |
-| `auth.api_tokens.default_ttl_seconds` | `43200` | `TIKEO__AUTH__API_TOKENS__DEFAULT_TTL_SECONDS` | 默认 12 小时。 |
-| `auth.api_tokens.min_ttl_seconds` | `300` | `TIKEO__AUTH__API_TOKENS__MIN_TTL_SECONDS` | 最小 5 分钟。 |
-| `auth.api_tokens.max_ttl_seconds` | `2592000` | `TIKEO__AUTH__API_TOKENS__MAX_TTL_SECONDS` | 最大 30 天。 |
-| `auth.oidc.enabled` | `false` | `TIKEO__AUTH__OIDC__ENABLED` | OIDC 默认关闭。 |
-| `auth.oidc.issuer_url` | 未设置 | `TIKEO__AUTH__OIDC__ISSUER_URL` | OIDC issuer。 |
-| `auth.oidc.client_id` | 未设置 | `TIKEO__AUTH__OIDC__CLIENT_ID` | OIDC client id。 |
-| `auth.oidc.client_secret` | 未设置 | `TIKEO__AUTH__OIDC__CLIENT_SECRET` | Secret 存平台 Secret。 |
-| `auth.oidc.scopes` | `openid, profile, email` | `TIKEO__AUTH__OIDC__SCOPES` | 列表形状不确定时用 TOML。 |
-| `transport_security.http.tls_enabled` | `false` | `TIKEO__TRANSPORT_SECURITY__HTTP__TLS_ENABLED` | HTTP listener 进程内 TLS。 |
-| `transport_security.http.mtls_required` | `false` | `TIKEO__TRANSPORT_SECURITY__HTTP__MTLS_REQUIRED` | HTTP mTLS。 |
-| `transport_security.http.cert_path` | 未设置 | `TIKEO__TRANSPORT_SECURITY__HTTP__CERT_PATH` | 证书路径。 |
-| `transport_security.http.key_path` | 未设置 | `TIKEO__TRANSPORT_SECURITY__HTTP__KEY_PATH` | 私钥路径。 |
-| `transport_security.http.client_ca_path` | 未设置 | `TIKEO__TRANSPORT_SECURITY__HTTP__CLIENT_CA_PATH` | mTLS 客户端 CA。 |
-| `transport_security.worker_tunnel.tls_enabled` | `false` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__TLS_ENABLED` | Worker Tunnel TLS。 |
-| `transport_security.worker_tunnel.mtls_required` | `false` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__MTLS_REQUIRED` | Worker 客户端证书。 |
-| `transport_security.worker_tunnel.cert_path` | 未设置 | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__CERT_PATH` | Tunnel 证书。 |
-| `transport_security.worker_tunnel.key_path` | 未设置 | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__KEY_PATH` | Tunnel 私钥。 |
-| `transport_security.worker_tunnel.client_ca_path` | 未设置 | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__CLIENT_CA_PATH` | Worker 客户端 CA。 |
-| `observability.logging.level` | `info` | `TIKEO__OBSERVABILITY__LOGGING__LEVEL` | `RUST_LOG` 未设置时使用。 |
-| `observability.logging.log_dir` | 未设置 | `TIKEO__OBSERVABILITY__LOGGING__LOG_DIR` | 设置后写 `tikeo.log`。 |
-| `observability.tracing.enabled` | `false` | `TIKEO__OBSERVABILITY__TRACING__ENABLED` | OTel trace export 开关。 |
-| `observability.tracing.otlp_endpoint` | 未设置 | `TIKEO__OBSERVABILITY__TRACING__OTLP_ENDPOINT` | 开启 tracing 时必须设置。 |
-| `observability.tracing.headers` | `[]` | `TIKEO__OBSERVABILITY__TRACING__HEADERS` | header 名称，值不进 status API。 |
-| `alert_retry.enabled` | `true` | `TIKEO__ALERT_RETRY__ENABLED` | 告警投递重试 worker。 |
-| `alert_retry.interval_seconds` | `60` | `TIKEO__ALERT_RETRY__INTERVAL_SECONDS` | 扫描间隔。 |
-| `alert_retry.batch_size` | `50` | `TIKEO__ALERT_RETRY__BATCH_SIZE` | 每轮最大数量。 |
-| `alert_retry.max_attempts` | `3` | `TIKEO__ALERT_RETRY__MAX_ATTEMPTS` | 死信前最大次数。 |
-| `alert_retry.backoff_seconds` | `300` | `TIKEO__ALERT_RETRY__BACKOFF_SECONDS` | 重试退避。 |
-| `notification_delivery.enabled` | `true` | `TIKEO__NOTIFICATION_DELIVERY__ENABLED` | 通用通知中心投递 worker。 |
-| `notification_delivery.public_console_base_url` | 未设置 | `TIKEO__NOTIFICATION_DELIVERY__PUBLIC_CONSOLE_BASE_URL` | 可选外部 Web 基地址，用于 provider 卡片链接。 |
-| `notification_delivery.interval_seconds` | `60` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | due-attempt 扫描间隔。 |
-| `notification_delivery.batch_size` | `50` | `TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE` | 每轮最大扫描数量。 |
-| `notification_delivery.max_attempts` | `3` | `TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS` | 进入 dead-letter 前最大尝试次数。 |
-| `notification_delivery.backoff_seconds` | `300` | `TIKEO__NOTIFICATION_DELIVERY__BACKOFF_SECONDS` | 下一次通用投递重试前的延迟。 |
-| `alert_secrets.allow_env_refs` | `true` | `TIKEO__ALERT_SECRETS__ALLOW_ENV_REFS` | 允许 `env:NAME` 引用。 |
-| `alert_secrets.env_prefix` | `TIKEO_ALERT_SECRET_` | `TIKEO__ALERT_SECRETS__ENV_PREFIX` | 告警 Secret 前缀。 |
-| `script_governance.release_signature_secret_ref` | 未设置 | `TIKEO__SCRIPT_GOVERNANCE__RELEASE_SIGNATURE_SECRET_REF` | 脚本发布签名 Secret 引用。 |
+Tikeo 使用结构化 `storage.database.*` 字段配置 Server 持久化。密码包含 `@`、`/`、`:`、`#` 时可以直接写普通值；Tikeo 会生成内部 sqlx/SeaORM connection URL 并自动转义凭据。
 
-## 存储、认证和安全
+```yaml
+storage:
+  database:
+    type: postgres
+    host: postgres
+    port: 5432
+    username: tikeo
+    password: "p@ss/word:with#chars"
+    database: tikeo
+    params:
+      sslmode: disable
+```
 
-SQLite 适合本地，容器里要持久化 `/data`。生产建议使用 PostgreSQL 或 MySQL，并通过 `TIKEO__STORAGE__DATABASE_URL` 从 Secret 注入。SQLite 启动会设置 WAL、busy timeout、foreign keys，但 schema 变更仍必须走显式 SeaORM migration。
 
-本地登录默认开启。首个部署 Owner 通过 `/api/v1/auth/bootstrap/register` 创建。OIDC 默认关闭；开启后需要 issuer、client_id、client_secret，并且外部身份需要先映射到本地用户。SDK API Key 与人类 bearer token 不同，SDK 使用 `x-tikeo-api-key`，通常来自 `TIKEO_MANAGEMENT_API_KEY`。
+## Server 配置表
 
-TLS/mTLS 默认关闭。跨主机、跨集群、跨 VPC 或不可信网络时，应给 HTTP 和 Worker Tunnel 分别配置 TLS。mTLS 需要 `tls_enabled=true`、`cert_path`、`key_path` 和 `client_ca_path`。Ingress TLS 与 Tikeo 进程内 TLS 是两层不同配置。
-
-## 观测和集群
-
-日志默认 console + `info`。设置 `observability.logging.log_dir` 后会写 `tikeo.log`。开启 OTel 时必须设置 `observability.tracing.otlp_endpoint`，并把凭证放环境变量或 Secret。
-
-## 集群模式
-
-完整部署架构、优缺点和模式选择流程请看 [Server 高可用与 Raft FSOD 集群](../deployment/server-ha)。
-
-`standalone` 是单 Server 安装的默认模式。`raft` 是生产多 Pod Server HA 模式，但必须配合稳定 node id、静态 peers、外部数据库和内部 transport token 部署。Raft 模式下，已选出的 Leader 会持久化 fencing token、报告 `canSchedule=true`、运行全局 timer/retry 循环，并投影均衡的 shard ownership 行。派发是 shard-owned：任一持有 active ownership row 的 Pod 都只能 claim 并派发自己拥有的 queue shard；非 owner 和旧 token 会 fail closed。配置了 `cluster.transport_token` 时，内部 raft append/relay 流量需要 `x-tikeo-raft-token`。核心调度所有权不要引入 Redis/Dragonfly 分布式锁；多 owner 调度通过 Raft/fencing shard ownership 实现。
-
-## Worker SDK 默认值
-
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `endpoint` | 调用方提供，demo 多用 `http://127.0.0.1:9998` | 可达的 Worker Tunnel endpoint。 |
-| `clientInstanceId` / `client_instance_id` | 必填或由 Java Boot 生成 | 稳定客户端提示；Server 分配权威 `worker_id`。 |
-| `namespace` | SDK helper 通常是 `default` | 调度和管理 scope。 |
-| `app` | SDK helper 通常是 `default` | 应用 scope。 |
-| `cluster` | Rust/Go/Python/Node 多为 `local`，Java Boot 默认为 `default` | Worker 集群元数据。 |
-| `region` | Rust/Go/Python/Node 多为 `local`，Java Boot 默认为 `default` | 区域元数据。 |
-| `heartbeatEvery` | 10 秒或 10000 ms | lease 续约频率。 |
-| `capabilities` | 空 | legacy metadata，路由应使用 structured。 |
-| `structuredCapabilities` | 空 | SDK processors、script runners、plugin processors、tags。 |
-| `labels` | 空 | 如 `worker_pool`。 |
-| `election.enabled` | true | Worker 集群选主元数据。 |
-| `election.priority` | 100 | 数值越小优先级越高。 |
-
-只广告真实可执行能力。缺少 SRT、Deno、Docker、Podman、SQL 或 plugin 工具时要 fail-closed，不要为了展示而广告能力。
-
-## 部署检查清单
-
-选择存储并确认备份；用 Secret 注入 DB URL；决定 API 和 Worker Tunnel 的 TLS/mTLS；业务 Worker 不放进 Helm chart，而是独立部署并出站连接；初始化 Owner 后创建 service account 和 SDK API Key；确认日志/OTel 目标存在；运行对应 smoke 并保存 `.dev/reports` 或 CI artifact。
-
-## 环境变量覆盖 runbook
-
-现场改配置时优先遵循“可公开默认值进 TOML、敏感值进 Secret、临时排障值进环境变量”的顺序。示例：数据库 URL 用 `TIKEO__STORAGE__DATABASE_URL` 覆盖；OIDC issuer 用 `TIKEO__AUTH__OIDC__ISSUER_URL`，client secret 用 `TIKEO__AUTH__OIDC__CLIENT_SECRET`；Worker Tunnel 客户端 CA 用 `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__CLIENT_CA_PATH`。如果数组或 map 的环境变量表达不清楚，例如 `cluster.peers`、`observability.tracing.headers`，应写入 TOML 或 Helm values，避免 shell 转义导致启动成功但运行语义错误。
-
-每次变更后至少执行三类检查：`/healthz` 证明进程存活，`/readyz` 证明存储和运行依赖可用，`/api-docs/openapi.json` 证明 HTTP router 已加载；Worker 侧再用一个 outbound demo Worker 连接 `server.worker_tunnel_addr`，确认注册、心跳、`DispatchTask`、任务日志和结果回传。若启用 mTLS，先用短期证书在 staging 验证证书链，再切生产 Secret；若启用 OTel，确认 collector 收到 span 后再把 tracing 当作上线证据。
+| 配置项 | 环境变量 | 是否必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `server.listen_addr` | `TIKEO__SERVER__LISTEN_ADDR` | 否 | `0.0.0.0:9090` | HTTP API、健康检查、metrics、OpenAPI、Web API 目标绑定地址。 |
+| `server.worker_tunnel_addr` | `TIKEO__SERVER__WORKER_TUNNEL_ADDR` | 否 | `0.0.0.0:9998` | gRPC/HTTP2 Worker Tunnel 绑定地址；Worker 主动连接。 |
+| `storage.database.type` | `TIKEO__STORAGE__DATABASE__TYPE` | 否 | `sqlite` | `sqlite`、`postgres`、`mysql` 或 `cockroachdb`。 |
+| `storage.database.path` | `TIKEO__STORAGE__DATABASE__PATH` | SQLite 模式 | `.dev/tikeo-dev.db`；生产模板 `/data/tikeo.db` | SQLite 文件路径，容器中要持久化 `/data`。 |
+| `storage.database.host` | `TIKEO__STORAGE__DATABASE__HOST` | 网络数据库 | 省略时 `127.0.0.1` | PostgreSQL/MySQL/CockroachDB host。 |
+| `storage.database.port` | `TIKEO__STORAGE__DATABASE__PORT` | 否 | Postgres `5432`、MySQL `3306` | 网络数据库端口。 |
+| `storage.database.username` | `TIKEO__STORAGE__DATABASE__USERNAME` | 网络数据库通常必填 | 未设置 | 数据库用户名。 |
+| `storage.database.password` | `TIKEO__STORAGE__DATABASE__PASSWORD` | 网络数据库通常必填 | 未设置 | 数据库密码；特殊字符不需要人工 URL 转义。 |
+| `storage.database.database` | `TIKEO__STORAGE__DATABASE__DATABASE` | 网络数据库 | 省略时 `tikeo` | 数据库/schema 名。 |
+| `storage.database.params.*` | 建议放文件 | 否 | SQLite 参数为空时使用 `mode=rwc` | 查询参数，例如 `sslmode=disable`。 |
+| `storage.timestamp_offset` | `TIKEO__STORAGE__TIMESTAMP_OFFSET` | 否 | `+00:00` | 写入 DB 时间戳时使用的 offset。 |
+| `cluster.mode` | `TIKEO__CLUSTER__MODE` | 否 | `standalone` | `standalone` 或 `raft`；多 Pod Server HA 用 raft。 |
+| `cluster.node_id` | `TIKEO__CLUSTER__NODE_ID` | Raft 必填 | `standalone` | 稳定节点 id；Kubernetes 中用 pod name。 |
+| `cluster.peers` | `TIKEO__CLUSTER__PEERS` | Raft 必填 | `[]` | 静态 peer 列表；数组结构建议放文件/Helm values。 |
+| `cluster.transport_token` | `TIKEO__CLUSTER__TRANSPORT_TOKEN` | Raft 必填 | 未设置 | 内部 Raft/relay 通信 token，放 Secret。 |
+| `cluster.scheduler_shard_map_version` | `TIKEO__CLUSTER__SCHEDULER_SHARD_MAP_VERSION` | 否 | `1` | 调度 shard map 版本。 |
+| `cluster.scheduler_shard_count` | `TIKEO__CLUSTER__SCHEDULER_SHARD_COUNT` | 否 | `64` | 逻辑调度 shard 数。 |
+| `auth.local_login_enabled` | `TIKEO__AUTH__LOCAL_LOGIN_ENABLED` | 否 | `true` | 本地账号密码登录开关。 |
+| `auth.api_tokens.*` | `TIKEO__AUTH__API_TOKENS__*` | 否 | `43200`/`300`/`2592000` | API token 默认、最小、最大 TTL。 |
+| `auth.oidc.*` | `TIKEO__AUTH__OIDC__*` | 启用 OIDC 时 | disabled / 未设置 | OIDC issuer、client id、client secret、scopes。 |
+| `transport_security.http.*` | `TIKEO__TRANSPORT_SECURITY__HTTP__*` | 启用时 | TLS/mTLS 关闭 | HTTP listener TLS/mTLS 与证书路径。 |
+| `transport_security.worker_tunnel.*` | `TIKEO__TRANSPORT_SECURITY__WORKER_TUNNEL__*` | 启用时 | TLS/mTLS 关闭 | Worker Tunnel TLS/mTLS 与证书路径。 |
+| `observability.logging.level` | `TIKEO__OBSERVABILITY__LOGGING__LEVEL` | 否 | `info` | 未设置 `RUST_LOG` 时的日志级别。 |
+| `observability.logging.log_dir` | `TIKEO__OBSERVABILITY__LOGGING__LOG_DIR` | 否 | 未设置；生产模板 `/logs` | 除 stdout 外写 `tikeo.log`。 |
+| `observability.tracing.*` | `TIKEO__OBSERVABILITY__TRACING__*` | tracing 启用时 | disabled / 未设置 | OTLP trace 导出开关、endpoint、headers。 |
+| `alert_retry.*` | `TIKEO__ALERT_RETRY__*` | 否 | 开启，`60`，`50`，`3`，`300` | Alert retry worker 配置。 |
+| `notification_delivery.*` | `TIKEO__NOTIFICATION_DELIVERY__*` | 否 | 开启，`60`，`50`，`3`，`300` | 通知中心通用投递 worker；卡片链接设置 `public_console_base_url`。 |
+| `alert_secrets.allow_env_refs` | `TIKEO__ALERT_SECRETS__ALLOW_ENV_REFS` | 否 | `true` | 允许 `env:NAME` secret 引用。 |
+| `alert_secrets.env_prefix` | `TIKEO__ALERT_SECRETS__ENV_PREFIX` | 否 | `TIKEO_ALERT_SECRET_` | 期望的 env secret 前缀。 |
+| `script_governance.release_signature_secret_ref` | `TIKEO__SCRIPT_GOVERNANCE__RELEASE_SIGNATURE_SECRET_REF` | 启用签名门禁时 | 未设置 | 脚本发布签名校验用 `env:NAME` secret ref。 |
 
 ## 通知中心投递
 
-通知中心有独立的通用投递 worker，与 `alert_retry` 分离。它扫描由 notification policies 产生的 `notification_delivery_attempts`，并更新关联的 `notification_messages`。配置形状来自 `crates/tikeo-config/src/lib.rs` 中的 `NotificationDeliveryConfig`，并已出现在 `config/dev.toml` 与 `config/container.toml`。
+`notification_delivery.*` 控制通知中心通用投递 worker。需要让供应商卡片回链控制台时，把 `notification_delivery.public_console_base_url` 设置为外部可访问的 Web URL。供应商凭据保存在每条渠道配置中；这里的 Server 配置只控制后台投递循环和公开链接 base。
 
-| Config key | 默认值 | 环境变量 | 说明 |
-| --- | --- | --- | --- |
-| `notification_delivery.enabled` | `true` | `TIKEO__NOTIFICATION_DELIVERY__ENABLED` | 启用通用通知中心投递 worker。 |
-| `notification_delivery.public_console_base_url` | 未设置 | `TIKEO__NOTIFICATION_DELIVERY__PUBLIC_CONSOLE_BASE_URL` | 可选的外部可访问 Web 基地址，用于 provider 卡片中的公开执行控制台链接。 |
-| `notification_delivery.interval_seconds` | `60` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | due-attempt 扫描间隔。 |
-| `notification_delivery.batch_size` | `50` | `TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE` | 每轮最大扫描数量。 |
-| `notification_delivery.max_attempts` | `3` | `TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS` | 进入 dead-letter 前最大尝试次数。 |
-| `notification_delivery.backoff_seconds` | `300` | `TIKEO__NOTIFICATION_DELIVERY__BACKOFF_SECONDS` | 下一次通用投递重试前的延迟。 |
+## Worker 配置表
 
-示例覆盖：
+| 配置项 / SDK 字段 | 环境变量 | 是否必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `tikeo.worker.enabled` | `TIKEO_WORKER_ENABLED` | 否 | `true` | Spring Boot 自动配置开关。 |
+| `tikeo.worker.auto-startup` | `TIKEO_WORKER_AUTO_STARTUP` | 否 | `true` | Spring Boot 生命周期自动启动开关。 |
+| `endpoint` / `tikeo.worker.endpoint` | `TIKEO_WORKER_ENDPOINT` | 真实连接时必填 | demo 常用 `http://127.0.0.1:9998` | Worker Tunnel 地址。 |
+| `dry-run` | `TIKEO_WORKER_DRY_RUN` | 否 | `false` | 不打开真实 Worker Tunnel。 |
+| `heartbeatEvery` / `heartbeat-interval-millis` | `TIKEO_WORKER_HEARTBEAT_INTERVAL_MILLIS` | 否 | `10000` ms / `10s` | Worker lease 续约周期。 |
+| `clientInstanceId` / `client-instance-id` | `TIKEO_WORKER_CLIENT_INSTANCE_ID` | 核心 SDK 必填；Boot 可空 | Boot 为空时生成并持久化 | 稳定客户端 hint。 |
+| `state-dir` | `TIKEO_WORKER_STATE_DIR` | 否 | `~/.tikeo/workers` | client instance id 和沙箱工具缓存目录。 |
+| `namespace` | `TIKEO_WORKER_NAMESPACE` | 否 | `default` | 命名空间。 |
+| `app` | `TIKEO_WORKER_APP` | 否 | `default` | 应用 scope。 |
+| `cluster` | `TIKEO_WORKER_CLUSTER` | 否 | Java Boot `default`；其他 helper `local` | Worker 集群/环境分片。 |
+| `region` | `TIKEO_WORKER_REGION` | 否 | Java Boot `default`；其他 helper `local` | Worker region/zone。 |
+| `name` | `TIKEO_WORKER_NAME` | 否 | 通常为 client instance id | 运维可见 worker 名。 |
+| `version` | `TIKEO_WORKER_VERSION` | 否 | `dev` | Worker/应用构建版本。 |
+| `capabilities` | `TIKEO_WORKER_CAPABILITIES` | 否 | `[]` | 旧式/运维 metadata。 |
+| `labels` | `TIKEO_WORKER_LABELS` | 否 | `{}` | demo 用逗号分隔 `key=value`；Boot 用 map。 |
+| `structured.sdkProcessors` | `TIKEO_WORKER_SDK_PROCESSORS` | 否 | 随 demo 而定 | 可派发 SDK processor。 |
+| `structured.scriptRunners` | `TIKEO_WORKER_SCRIPT_LANGUAGES` / SDK API | 否 | 随 demo 而定 | 脚本语言与沙箱 backend。 |
+| `election.*` | `TIKEO_WORKER_ELECTION_*` | 否 | enabled `true`、priority `100` | Worker-cluster master election 配置。 |
+| `wasm.*` | `TIKEO_WORKER_WASM_*` | 否 | auto install、`latest`、`120000` | Wasmtime 自动安装配置。 |
+| `scripts.*` | `TIKEO_WORKER_SCRIPTS_*` / `TIKEO_WORKER_SCRIPT_*` | 否 | 见 SDK 默认值 | 动态脚本、容器 runner、工具安装、镜像配置。 |
+
+## 示例启动
 
 ```bash
-TIKEO__NOTIFICATION_DELIVERY__ENABLED=true \
-TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS=30 \
-TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE=100 \
-TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS=5 \
-TIKEO__NOTIFICATION_DELIVERY__BACKOFF_SECONDS=120 \
-cargo run --bin tikeo -- serve --config config/dev.toml
+cp config/tikeo.yml ./tikeo.yml
+./target/release/tikeo serve --config ./tikeo.yml
 ```
 
-`alert_retry` 只影响兼容告警投递尝试；`notification_delivery` 影响 Notification Center messages。不要调整一个队列却期望改变另一个队列。渠道、策略、重试、DLQ 与脱敏行为见 [通知中心参考](./notification-center)。
-
-## 前置条件
-
-执行本页命令前，请先满足页面列出的安装、认证和权限要求。本地示例默认 Server 使用 `config/dev.toml`，客户端访问 `127.0.0.1`，令牌保存在 shell 变量中，不写入文件或截图。
-
-## 验收
-
-完成本页步骤后，用对应 API、UI、构建、smoke 或部署检查验证结果。有效验收至少包含执行的命令、检查的路由或文件，以及观察到的状态或产物。
-
-## 故障排查
-
-步骤失败时，先保留完整命令、响应状态和 Server 日志时间窗口，再检查认证、namespace/app scope、Worker 匹配、存储 readiness 和代理行为，不要直接修改生产配置。
-
-## 生产检查清单
-
-- [ ] 密钥通过环境变量或平台 Secret 引用管理，不写入示例。
-- [ ] 已把本地 `127.0.0.1` 命令替换成真实域名、TLS 和认证方式。
-- [ ] 已记录变更面的回滚和证据采集方式。
-- [ ] 运维人员可以在没有隐藏 shell 历史或隐式状态的情况下复现验收。
+Docker Compose 部署中，Tikeo 服务行为改 `config/tikeo.yml`，不要放到 Compose `environment`。

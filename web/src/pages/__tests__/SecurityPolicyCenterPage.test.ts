@@ -24,8 +24,16 @@ describe('Security Policy Center page', () => {
     expect(pageSource).toContain('scriptGovernance');
     expect(pageSource).toContain('notificationSafety');
     expect(pageSource).toContain('clusterTransport');
+    expect(pageSource).toContain('transport?.http');
+    expect(pageSource).toContain('transport?.workerTunnel');
     expect(pageSource).toContain('recentDenials');
-    expect(pageSource).toContain('不展示占位数据');
+    expect(pageSource).toContain('不是单纯看板');
+    expect(pageSource).toContain('可操作治理入口');
+    expect(pageSource).toContain('刷新态势');
+    expect(pageSource).toContain('进入脚本管理');
+    expect(pageSource).toContain('进入通知中心');
+    expect(pageSource).toContain('进入角色管理');
+    expect(pageSource).toContain('进入 API-Key');
     expect(pageSource).not.toContain('mock');
     expect(pageSource).not.toContain('TODO');
   });

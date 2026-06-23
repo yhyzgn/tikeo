@@ -89,17 +89,17 @@ pub enum StorageError {
 /// # Errors
 ///
 /// Returns an error when the database cannot be opened or migrations fail.
-pub async fn connect_and_migrate(database_url: &str) -> Result<DatabaseConnection, StorageError> {
-    ensure_sqlite_database_parent(database_url)?;
+pub async fn connect_and_migrate(connection_url: &str) -> Result<DatabaseConnection, StorageError> {
+    ensure_sqlite_database_parent(connection_url)?;
 
-    let mut options = ConnectOptions::new(database_url.to_owned());
+    let mut options = ConnectOptions::new(connection_url.to_owned());
     options
         .max_connections(16)
         .min_connections(1)
         .connect_timeout(Duration::from_secs(8))
         .sqlx_logging(std::env::var_os("TIKEO_SQLX_LOGGING").is_some())
         .idle_timeout(Duration::from_mins(1));
-    configure_sqlite_connect_options(database_url, &mut options);
+    configure_sqlite_connect_options(connection_url, &mut options);
 
     let db = Database::connect(options).await?;
     migration::Migrator::up(&db, None).await?;
@@ -107,8 +107,8 @@ pub async fn connect_and_migrate(database_url: &str) -> Result<DatabaseConnectio
     Ok(db)
 }
 
-fn ensure_sqlite_database_parent(database_url: &str) -> Result<(), StorageError> {
-    let Some(path) = sqlite_database_file_path(database_url) else {
+fn ensure_sqlite_database_parent(connection_url: &str) -> Result<(), StorageError> {
+    let Some(path) = sqlite_connection_file_path(connection_url) else {
         return Ok(());
     };
     let parent = Path::new(&path).parent();
@@ -121,10 +121,10 @@ fn ensure_sqlite_database_parent(database_url: &str) -> Result<(), StorageError>
     Ok(())
 }
 
-fn sqlite_database_file_path(database_url: &str) -> Option<String> {
-    let path_with_query = database_url
+fn sqlite_connection_file_path(connection_url: &str) -> Option<String> {
+    let path_with_query = connection_url
         .strip_prefix("sqlite://")
-        .or_else(|| database_url.strip_prefix("sqlite:"))?;
+        .or_else(|| connection_url.strip_prefix("sqlite:"))?;
     let path = path_with_query
         .split_once('?')
         .map_or(path_with_query, |(path, _)| path);
@@ -134,8 +134,8 @@ fn sqlite_database_file_path(database_url: &str) -> Option<String> {
     Some(path.to_owned())
 }
 
-fn configure_sqlite_connect_options(database_url: &str, options: &mut ConnectOptions) {
-    if !database_url.starts_with("sqlite:") {
+fn configure_sqlite_connect_options(connection_url: &str, options: &mut ConnectOptions) {
+    if !connection_url.starts_with("sqlite:") {
         return;
     }
     options.map_sqlx_sqlite_opts(|sqlite_options| {
@@ -251,9 +251,9 @@ mod tests {
                 .as_nanos()
         ));
         let db_path = base.join("nested").join("tikeo-dev.db");
-        let database_url = format!("sqlite://{}?mode=rwc", db_path.display());
+        let connection_url = format!("sqlite://{}?mode=rwc", db_path.display());
 
-        let db = crate::connect_and_migrate(&database_url)
+        let db = crate::connect_and_migrate(&connection_url)
             .await
             .unwrap_or_else(|error| panic!("sqlite file db should initialize: {error}"));
         assert!(
@@ -301,7 +301,7 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("sqlite file db should close: {error}"));
 
-        let reopened = crate::connect_and_migrate(&database_url)
+        let reopened = crate::connect_and_migrate(&connection_url)
             .await
             .unwrap_or_else(|error| panic!("sqlite file db should reopen and migrate: {error}"));
         let namespace_count = reopened
@@ -357,8 +357,8 @@ mod tests {
                 .unwrap_or_default()
                 .as_nanos()
         ));
-        let database_url = format!("sqlite://{}?mode=rwc", path.display());
-        let legacy = sea_orm::Database::connect(&database_url)
+        let connection_url = format!("sqlite://{}?mode=rwc", path.display());
+        let legacy = sea_orm::Database::connect(&connection_url)
             .await
             .unwrap_or_else(|error| panic!("legacy sqlite db should open: {error}"));
         for statement in [
@@ -420,7 +420,7 @@ mod tests {
             .await
             .unwrap_or_else(|error| panic!("legacy sqlite db should close: {error}"));
 
-        let migrated = crate::connect_and_migrate(&database_url)
+        let migrated = crate::connect_and_migrate(&connection_url)
             .await
             .unwrap_or_else(|error| panic!("legacy sqlite db should migrate: {error}"));
 
