@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const appSource = readFileSync(new URL('../../App.tsx', import.meta.url), 'utf8');
 const routesSource = readFileSync(new URL('../../routes.tsx', import.meta.url), 'utf8');
-const clientSource = readFileSync(new URL('../../api/client.ts', import.meta.url), 'utf8');
+const alertDeliverySource = readFileSync(new URL('../../api/alertDelivery.ts', import.meta.url), 'utf8');
 const pageSource = readFileSync(new URL('../AlertDeliveryPage.tsx', import.meta.url), 'utf8');
 
 describe('alert delivery operations page', () => {
@@ -13,7 +13,7 @@ describe('alert delivery operations page', () => {
     expect(routesSource).toContain('告警事件');
     expect(appSource).toContain('AlertDeliveryPage');
     expect(appSource).toContain('ROUTE_META.alerts.path');
-    expect(clientSource).toContain('/api/v1/alert-delivery-attempts:queue-status');
+    expect(alertDeliverySource).toContain('/api/v1/alert-delivery-attempts:queue-status');
   });
 
   test('renders operator-facing retry and DLQ status with redacted targets', () => {
