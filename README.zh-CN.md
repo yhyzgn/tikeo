@@ -794,7 +794,7 @@ Worker 服务使用 SDK 侧配置，和 Server 配置是两套入口。Java Spri
 | 配置项 / SDK 字段 | 环境变量 | 是否必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
 | `tikeo.worker.enabled` | `TIKEO_WORKER_ENABLED` | 否 | `true` | Spring Boot 自动配置开关；核心 SDK 没有这个全局开关。 |
-| `tikeo.worker.auto-startup` | `TIKEO_WORKER_AUTO_STARTUP` | 否 | `true` | Spring Boot 生命周期自动启动开关。 |
+| `tikeo.worker.auto-startup` | `TIKEO_WORKER_AUTO_STARTUP` | 否 | `true` | Spring Boot 生命周期自动启动开关。Tikeo Server / Worker Tunnel 临时不可达时，Boot starter 只记录 warning，不阻塞业务应用启动，Worker client 会继续后台重连。 |
 | `endpoint` / `tikeo.worker.endpoint` | `TIKEO_WORKER_ENDPOINT` | 真实连接时必填 | demo 通常是 `http://127.0.0.1:9998` | Worker 进程可访问的 Worker Tunnel 地址；客户端 URL 不要写 `0.0.0.0`。 |
 | `dry-run` | `TIKEO_WORKER_DRY_RUN` | 否 | `false` | 不建立真实 Worker Tunnel，适合测试和示例。 |
 | `heartbeatEvery` / `heartbeat-interval-millis` | `TIKEO_WORKER_HEARTBEAT_INTERVAL_MILLIS` | 否 | `10000` ms / `10s` | Worker lease 续约周期，必须大于 0。 |

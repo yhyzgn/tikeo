@@ -36,6 +36,18 @@ class TikeoWorkerAutoConfigurationTest {
                     "tikeo.worker.scripts.auto-install-tools=false",
                     "tikeo.worker.scripts.deno-install-dir=/tmp/tikeo-test-missing-deno");
 
+    private static final class FailingWorkerClient implements TikeoWorkerClient {
+        @Override
+        public void start() {
+            throw new IllegalStateException("Tikeo server is temporarily unavailable");
+        }
+
+        @Override
+        public void close() {
+            // no-op
+        }
+    }
+
     private static List<String> scriptLanguages(NoopTikeoWorkerClient noop) {
         return noop.registration().structuredCapabilities().scriptRunners().stream()
                 .map(runner -> runner.language())
@@ -80,6 +92,15 @@ class TikeoWorkerAutoConfigurationTest {
             Assertions.assertThat(noop.running()).isTrue();
             Assertions.assertThat(context.getBean(TikeoProcessorRegistry.class).handlers()).containsKey("demo.echo");
         });
+    }
+
+    @Test
+    void workerLifecycleStartFailureDoesNotFailApplicationContext() {
+        TikeoWorkerProperties properties = new TikeoWorkerProperties();
+        TikeoWorkerLifecycle lifecycle = new TikeoWorkerLifecycle(new FailingWorkerClient(), properties);
+
+        Assertions.assertThatCode(lifecycle::start).doesNotThrowAnyException();
+        Assertions.assertThat(lifecycle.isRunning()).isFalse();
     }
 
     @Test

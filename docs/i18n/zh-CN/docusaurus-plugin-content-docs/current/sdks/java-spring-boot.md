@@ -35,7 +35,7 @@ dependencies {
 
 ## 最小 Worker
 
-Spring Boot starter 从 `tikeo.worker.*` 绑定 Worker 配置。默认启用 Worker auto-configuration 和 auto-startup；部署时必须显式设置 namespace/app 和 endpoint。
+Spring Boot starter 从 `tikeo.worker.*` 绑定 Worker 配置。默认启用 Worker auto-configuration 和 auto-startup；部署时必须显式设置 namespace/app 和 endpoint。Tikeo Server / Worker Tunnel 临时不可达时，starter 只记录 warning，不阻塞业务应用启动，worker client 会继续后台重连。
 
 ```yaml
 tikeo:

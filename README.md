@@ -832,7 +832,7 @@ Worker services use SDK-level configuration, separate from Server configuration.
 | Config key / SDK field | Environment variable | Required? | Default | Meaning |
 | --- | --- | --- | --- | --- |
 | `tikeo.worker.enabled` | `TIKEO_WORKER_ENABLED` | No | `true` | Spring Boot auto-configuration switch. Core SDKs do not have a global enable flag. |
-| `tikeo.worker.auto-startup` | `TIKEO_WORKER_AUTO_STARTUP` | No | `true` | Spring Boot lifecycle auto-start switch. |
+| `tikeo.worker.auto-startup` | `TIKEO_WORKER_AUTO_STARTUP` | No | `true` | Spring Boot lifecycle auto-start switch. If the Tikeo Server / Worker Tunnel is temporarily unreachable, the Boot starter logs a warning and lets the business application continue starting while the worker client keeps retrying. |
 | `endpoint` / `tikeo.worker.endpoint` | `TIKEO_WORKER_ENDPOINT` | Yes for live workers | demos use `http://127.0.0.1:9998` | Worker Tunnel endpoint reachable from the worker process. Do not use `0.0.0.0` as a client URL. |
 | `dry-run` | `TIKEO_WORKER_DRY_RUN` | No | `false` | Avoids opening a live Worker Tunnel; useful for tests and examples. |
 | `heartbeatEvery` / `heartbeat-interval-millis` | `TIKEO_WORKER_HEARTBEAT_INTERVAL_MILLIS` | No | `10000` ms / `10s` | Worker lease renewal cadence; must be positive. |

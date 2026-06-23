@@ -108,6 +108,30 @@ class GrpcTikeoWorkerClientTest {
         }
     }
 
+
+    @Test
+    void startDoesNotFailApplicationWhenTikeoServerIsUnavailable() {
+        ManagedChannel channel = InProcessChannelBuilder.forName("missing-tikeo-server-" + UUID.randomUUID()).directExecutor().build();
+        try {
+            GrpcTikeoWorkerClient client = new GrpcTikeoWorkerClient(
+                    channel,
+                    false,
+                    new WorkerRegistration("java-instance-offline", "default", "billing", "local", "local", List.of("java"), Map.of()),
+                    context -> TaskOutcome.succeeded(),
+                    Duration.ofMillis(50),
+                    Duration.ofMillis(50),
+                    Duration.ofMillis(10),
+                    Duration.ofMillis(20),
+                    ignored -> {});
+
+            Assertions.assertDoesNotThrow(client::start);
+            Assertions.assertFalse(client.connected());
+            client.close();
+        } finally {
+            channel.shutdownNow();
+        }
+    }
+
     @Test
     void closeSendsGracefulUnregisterWithGenerationAndFencingToken() throws Exception {
         String serverName = "tikeo-worker-test-" + UUID.randomUUID();

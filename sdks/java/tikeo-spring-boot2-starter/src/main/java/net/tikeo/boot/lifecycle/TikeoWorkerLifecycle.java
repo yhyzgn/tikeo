@@ -4,6 +4,8 @@ import net.tikeo.worker.client.TikeoWorkerClient;
 import net.tikeo.boot.autoconfigure.TikeoWorkerProperties;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
 
 /**
@@ -11,6 +13,8 @@ import org.springframework.context.SmartLifecycle;
  */
 @RequiredArgsConstructor
 public final class TikeoWorkerLifecycle implements SmartLifecycle {
+    private static final Logger log = LoggerFactory.getLogger(TikeoWorkerLifecycle.class);
+
     private final TikeoWorkerClient client;
     private final TikeoWorkerProperties properties;
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -18,7 +22,12 @@ public final class TikeoWorkerLifecycle implements SmartLifecycle {
     @Override
     public void start() {
         if (running.compareAndSet(false, true)) {
-            client.start();
+            try {
+                client.start();
+            } catch (RuntimeException error) {
+                running.set(false);
+                log.warn("[tikeo.worker] worker tunnel startup failed; application startup will continue and the worker can reconnect when Tikeo is available", error);
+            }
         }
     }
 

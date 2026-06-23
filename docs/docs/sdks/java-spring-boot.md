@@ -56,7 +56,7 @@ Verify locally:
 | Property | Default | Meaning |
 | --- | --- | --- |
 | `tikeo.worker.enabled` | `true` | Enable Worker auto-configuration. |
-| `tikeo.worker.auto-startup` | `true` | Start with Spring lifecycle. |
+| `tikeo.worker.auto-startup` | `true` | Start with Spring lifecycle. Startup is non-fatal when the Tikeo Server / Worker Tunnel is temporarily unreachable: the starter logs a warning, the business application continues booting, and the worker client retries in the background. |
 | `tikeo.worker.endpoint` | `http://127.0.0.1:9998` | Local Worker Tunnel endpoint; override to the reachable Service/LB/Gateway URL in deployments. |
 | `tikeo.worker.dry-run` | `false` | Avoid live tunnel when true. |
 | `tikeo.worker.heartbeat-interval-millis` | `10000` | Lease renewal cadence. |
