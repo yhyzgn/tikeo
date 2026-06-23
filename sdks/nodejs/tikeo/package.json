@@ -1,6 +1,6 @@
 {
   "name": "@yhyzgn/tikeo",
-  "version": "0.2.0",
+  "version": "0.3.12",
   "description": "Node.js Worker SDK for tikeo",
   "type": "module",
   "main": "dist/index.js",

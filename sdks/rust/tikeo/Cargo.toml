@@ -2,7 +2,7 @@
 name = "tikeo"
 description = "Rust Worker SDK for active outbound tikeo Worker Tunnel connections."
 edition = "2024"
-version = "0.2.0"
+version = "0.3.12"
 license = "MIT"
 repository = "https://github.com/yhyzgn/tikeo.git"
 rust-version = "1.95"
