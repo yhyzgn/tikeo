@@ -4,32 +4,47 @@
 //! snapshots, and dispatch eligibility. This registry intentionally keeps only the
 //! per-process live stream handles required to send gRPC messages.
 
+use registry_capabilities::worker_capabilities_json;
+pub use registry_election::WorkerMasterState;
+use registry_election::{
+    WorkerElectionRegistration, recompute_worker_master_states, worker_election_registration,
+};
+use registry_routing::{
+    broadcast_selector_matches, is_match, persisted_broadcast_worker_matches,
+    persisted_lasso_dispatch_score, persisted_worker_matches, persisted_worker_satisfies,
+    registered_lasso_dispatch_score, worker_satisfies,
+};
+use session_identity::{
+    empty_to_none, logical_instance_id, next_generation, replace_previous_generations,
+    session_snapshots, stable_worker_id,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     sync::Arc,
     time::{Duration, SystemTime},
 };
 
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use tikeo_proto::worker::v1::{
-    DispatchTask, RegisterWorker, ServerMessage, WorkerCapabilities, WorkerClusterElection,
-    server_message,
+    DispatchTask, RegisterWorker, ServerMessage, WorkerCapabilities, server_message,
 };
 use tikeo_storage::{
-    PersistedOnlineWorkerSummary, RegisterWorkerSession, WorkerHeartbeat,
-    WorkerLifecycleRepository, WorkerSessionSnapshotUpdate,
+    RegisterWorkerSession, WorkerHeartbeat, WorkerLifecycleRepository, WorkerSessionSnapshotUpdate,
 };
 use tokio::sync::{RwLock, mpsc};
 use tonic::Status;
 use uuid::Uuid;
 
-use super::{
-    capability::{WorkerRequirement, structured_capabilities_match},
-    relay::SharedWorkerRelayDispatch,
-};
+use super::{capability::WorkerRequirement, relay::SharedWorkerRelayDispatch};
 
 const DEFAULT_LEASE_SECONDS: u64 = 30;
+
+fn json_or_empty_array<T: serde::Serialize>(value: &T) -> String {
+    serde_json::to_string(value).unwrap_or_else(|_| "[]".to_owned())
+}
+
+fn json_or_empty_object<T: serde::Serialize>(value: &T) -> String {
+    serde_json::to_string(value).unwrap_or_else(|_| "{}".to_owned())
+}
 
 /// Durable dispatch routing target derived from persisted worker lifecycle state.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,15 +57,6 @@ pub struct WorkerDispatchTarget {
     pub gateway_node_id: String,
     /// Worker session generation.
     pub generation: i64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct LassoDispatchScore {
-    local_gateway: bool,
-    worker_master: bool,
-    master_domain: String,
-    spread_score: u64,
-    worker_id: String,
 }
 
 /// Registry of live Worker Tunnel streams plus durable worker lifecycle routing metadata.
@@ -84,41 +90,6 @@ pub struct BroadcastSelector {
     pub cluster: Option<String>,
     /// Optional worker labels that must all match.
     pub labels: HashMap<String, String>,
-}
-
-/// Worker-side master election outcome for a namespace/app/cluster/region domain.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkerMasterState {
-    /// Deterministic election domain.
-    pub domain: String,
-    /// Whether this worker is the elected master for the domain.
-    pub is_master: bool,
-    /// Current elected master worker id, when one exists.
-    pub master_worker_id: Option<String>,
-    /// Monotonic-ish term derived from domain membership generations.
-    pub term: u64,
-    /// Fencing token bound to domain, term, and elected master.
-    pub fencing_token: Option<String>,
-}
-
-impl WorkerMasterState {
-    const fn follower(domain: String) -> Self {
-        Self {
-            domain,
-            is_master: false,
-            master_worker_id: None,
-            term: 0,
-            fencing_token: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct WorkerElectionRegistration {
-    enabled: bool,
-    domain: String,
-    priority: u32,
 }
 
 impl WorkerRegistry {
@@ -865,568 +836,6 @@ impl WorkerRegistry {
     }
 }
 
-fn logical_instance_id(
-    namespace: &str,
-    app: &str,
-    cluster: &str,
-    region: &str,
-    client_instance_id: Option<&str>,
-    worker_id: &str,
-) -> String {
-    let instance = client_instance_id.unwrap_or(worker_id);
-    [namespace, app, cluster, region, instance].join("/")
-}
-
-fn stable_worker_id(
-    namespace: &str,
-    app: &str,
-    cluster: &str,
-    region: &str,
-    client_instance_id: Option<&str>,
-) -> String {
-    if let Some(client_instance_id) = client_instance_id {
-        let digest = Sha256::digest(
-            [namespace, app, cluster, region, client_instance_id]
-                .join("/")
-                .as_bytes(),
-        );
-        return format!("wrk-stable-{digest:x}");
-    }
-    format!("wrk-{}", Uuid::now_v7())
-}
-
-fn worker_election_registration(worker: &RegisterWorker) -> WorkerElectionRegistration {
-    let election = worker.election.clone().unwrap_or_default();
-    WorkerElectionRegistration {
-        enabled: election.enabled,
-        domain: normalized_election_domain(worker, &election),
-        priority: election.priority,
-    }
-}
-
-fn normalized_election_domain(worker: &RegisterWorker, election: &WorkerClusterElection) -> String {
-    let configured = election.domain.trim();
-    if configured.is_empty() {
-        worker_domain(
-            &worker.namespace,
-            &worker.app,
-            &worker.cluster,
-            &worker.region,
-        )
-    } else {
-        configured.to_owned()
-    }
-}
-
-fn worker_domain(namespace: &str, app: &str, cluster: &str, region: &str) -> String {
-    format!("{namespace}/{app}/{cluster}/{region}")
-}
-
-fn recompute_worker_master_states(workers: &mut HashMap<String, RegisteredWorker>) {
-    let now = SystemTime::now();
-    let mut winners = HashMap::<String, (String, u64, String)>::new();
-    for worker in workers.values() {
-        if !worker.election.enabled || !worker.is_current() || worker.lease_expires_at <= now {
-            continue;
-        }
-        let term = workers
-            .values()
-            .filter(|candidate| candidate.election.domain == worker.election.domain)
-            .map(|candidate| candidate.generation)
-            .max()
-            .unwrap_or(worker.generation);
-        let candidate = (
-            worker.worker_id.clone(),
-            term,
-            worker_master_fencing_token(&worker.election.domain, term, &worker.worker_id),
-        );
-        let replace = winners
-            .get(&worker.election.domain)
-            .is_none_or(|(winner_id, _, _)| {
-                let winner = workers.get(winner_id);
-                winner.is_none_or(|winner| {
-                    worker.election.priority < winner.election.priority
-                        || (worker.election.priority == winner.election.priority
-                            && worker.worker_id < winner.worker_id)
-                })
-            });
-        if replace {
-            winners.insert(worker.election.domain.clone(), candidate);
-        }
-    }
-
-    for worker in workers.values_mut() {
-        if !worker.election.enabled {
-            worker.master = WorkerMasterState::follower(worker.election.domain.clone());
-            continue;
-        }
-        if let Some((master_worker_id, term, fencing_token)) = winners.get(&worker.election.domain)
-        {
-            worker.master = WorkerMasterState {
-                domain: worker.election.domain.clone(),
-                is_master: master_worker_id == &worker.worker_id,
-                master_worker_id: Some(master_worker_id.clone()),
-                term: *term,
-                fencing_token: Some(fencing_token.clone()),
-            };
-        } else {
-            worker.master = WorkerMasterState::follower(worker.election.domain.clone());
-        }
-    }
-}
-
-fn worker_master_fencing_token(domain: &str, term: u64, worker_id: &str) -> String {
-    let digest = Sha256::digest(format!("{domain}:{term}:{worker_id}").as_bytes());
-    format!("wmf-{term}-{}", hex_prefix(&digest, 16))
-}
-
-fn hex_prefix(bytes: &[u8], len: usize) -> String {
-    bytes
-        .iter()
-        .flat_map(|byte| [byte >> 4, byte & 0x0f])
-        .take(len)
-        .map(|nibble| char::from_digit(u32::from(nibble), 16).unwrap_or('0'))
-        .collect()
-}
-
-fn json_or_empty_array<T: serde::Serialize>(value: &T) -> String {
-    serde_json::to_string(value).unwrap_or_else(|_| "[]".to_owned())
-}
-
-fn json_or_empty_object<T: serde::Serialize>(value: &T) -> String {
-    serde_json::to_string(value).unwrap_or_else(|_| "{}".to_owned())
-}
-
-fn worker_capabilities_json(capabilities: Option<&WorkerCapabilities>) -> String {
-    let Some(capabilities) = capabilities else {
-        return "{}".to_owned();
-    };
-    serde_json::to_string(&serde_json::json!({
-        "tags": capabilities.tags,
-        "normalProcessors": capabilities.normal_processors.iter().map(|processor| serde_json::json!({
-            "name": processor.name,
-            "description": processor.description,
-        })).collect::<Vec<_>>(),
-        "scriptRunners": capabilities.script_runners.iter().map(|runner| serde_json::json!({
-            "language": runner.language,
-            "sandboxBackend": runner.sandbox_backend,
-        })).collect::<Vec<_>>(),
-        "pluginProcessors": capabilities.plugin_processors.iter().map(|processor| serde_json::json!({
-            "type": processor.r#type,
-            "processorNames": plugin_processor_names(processor),
-            "processors": plugin_processors(processor),
-        })).collect::<Vec<_>>(),
-    }))
-    .unwrap_or_else(|_| "{}".to_owned())
-}
-
-fn plugin_processor_names(
-    processor: &tikeo_proto::worker::v1::PluginProcessorCapability,
-) -> Vec<&str> {
-    let mut names = Vec::new();
-    for name in &processor.processor_names {
-        if !name.trim().is_empty() && !names.iter().any(|existing| existing == &name.as_str()) {
-            names.push(name.as_str());
-        }
-    }
-    for processor in &processor.processors {
-        if !processor.name.trim().is_empty()
-            && !names
-                .iter()
-                .any(|existing| existing == &processor.name.as_str())
-        {
-            names.push(processor.name.as_str());
-        }
-    }
-    names
-}
-
-fn plugin_processors(
-    processor: &tikeo_proto::worker::v1::PluginProcessorCapability,
-) -> Vec<serde_json::Value> {
-    let mut processors = processor
-        .processors
-        .iter()
-        .filter(|processor| !processor.name.trim().is_empty())
-        .map(|processor| {
-            serde_json::json!({
-                "name": processor.name,
-                "description": processor.description,
-            })
-        })
-        .collect::<Vec<_>>();
-    for name in &processor.processor_names {
-        if name.trim().is_empty()
-            || processors.iter().any(|processor| {
-                processor.get("name").and_then(serde_json::Value::as_str) == Some(name.as_str())
-            })
-        {
-            continue;
-        }
-        processors.push(serde_json::json!({ "name": name, "description": "" }));
-    }
-    processors
-}
-
-fn session_snapshots<'a>(
-    workers: impl IntoIterator<Item = &'a RegisteredWorker>,
-) -> Vec<WorkerSessionSnapshotUpdate> {
-    workers
-        .into_iter()
-        .filter(|worker| worker.is_current())
-        .map(|worker| WorkerSessionSnapshotUpdate {
-            worker_id: worker.worker_id.clone(),
-            capabilities_json: json_or_empty_array(&worker.capabilities),
-            structured_capabilities_json: worker_capabilities_json(Some(
-                &worker.structured_capabilities,
-            )),
-            labels_json: json_or_empty_object(&worker.labels),
-            master_json: json_or_empty_object(&worker.master),
-        })
-        .collect()
-}
-
-fn next_generation(workers: &HashMap<String, RegisteredWorker>, logical_instance_id: &str) -> u64 {
-    workers
-        .values()
-        .filter(|worker| worker.logical_instance_id == logical_instance_id)
-        .map(|worker| worker.generation)
-        .max()
-        .unwrap_or(0)
-        .saturating_add(1)
-}
-
-fn replace_previous_generations(
-    workers: &mut HashMap<String, RegisteredWorker>,
-    logical_instance_id: &str,
-    replacement_worker_id: &str,
-) {
-    for worker in workers
-        .values_mut()
-        .filter(|worker| worker.logical_instance_id == logical_instance_id && worker.is_current())
-    {
-        worker.status = WorkerSessionStatus::Replaced;
-        worker.status_reason = Some("replaced_by_new_generation".to_owned());
-        worker.status_evidence =
-            Some("same logical instance registered a newer generation".to_owned());
-        worker.replaced_by_worker_id = Some(replacement_worker_id.to_owned());
-    }
-}
-
-fn empty_to_none(value: String) -> Option<String> {
-    if value.trim().is_empty() {
-        None
-    } else {
-        Some(value)
-    }
-}
-
-fn is_match(worker_val: &str, job_val: &str) -> bool {
-    worker_val == job_val
-        || worker_val == "*"
-        || worker_val.is_empty()
-        || job_val == "*"
-        || job_val.is_empty()
-}
-
-fn broadcast_selector_matches(worker: &RegisteredWorker, selector: &BroadcastSelector) -> bool {
-    if selector
-        .region
-        .as_deref()
-        .is_some_and(|region| !is_match(&worker.region, region))
-    {
-        return false;
-    }
-    if selector
-        .cluster
-        .as_deref()
-        .is_some_and(|cluster| !is_match(&worker.cluster, cluster))
-    {
-        return false;
-    }
-    if !selector
-        .labels
-        .iter()
-        .all(|(key, value)| worker.labels.get(key).is_some_and(|actual| actual == value))
-    {
-        return false;
-    }
-    if selector.tags.is_empty() {
-        return true;
-    }
-    let tags: HashSet<&str> = worker
-        .structured_capabilities
-        .tags
-        .iter()
-        .map(String::as_str)
-        .collect();
-    selector.tags.iter().all(|tag| tags.contains(tag.as_str()))
-}
-
-fn worker_satisfies(worker: &RegisteredWorker, requirement: &WorkerRequirement) -> bool {
-    structured_capabilities_match(&worker.structured_capabilities, requirement)
-}
-
-fn persisted_lasso_dispatch_score(
-    worker: &PersistedOnlineWorkerSummary,
-    local_gateway_node_id: &str,
-    dispatch_key: &str,
-) -> LassoDispatchScore {
-    let (worker_master, master_domain) = persisted_master_order(worker);
-    LassoDispatchScore {
-        local_gateway: worker.gateway_node_id == local_gateway_node_id,
-        worker_master,
-        master_domain,
-        spread_score: rendezvous_spread_score(dispatch_key, &worker.worker_id),
-        worker_id: worker.worker_id.clone(),
-    }
-}
-
-fn registered_lasso_dispatch_score(
-    worker: &RegisteredWorker,
-    dispatch_key: &str,
-) -> LassoDispatchScore {
-    LassoDispatchScore {
-        local_gateway: true,
-        worker_master: worker.master.is_master,
-        master_domain: worker.master.domain.clone(),
-        spread_score: rendezvous_spread_score(dispatch_key, &worker.worker_id),
-        worker_id: worker.worker_id.clone(),
-    }
-}
-
-impl Ord for LassoDispatchScore {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        other
-            .local_gateway
-            .cmp(&self.local_gateway)
-            .then_with(|| other.worker_master.cmp(&self.worker_master))
-            .then_with(|| self.master_domain.cmp(&other.master_domain))
-            .then_with(|| other.spread_score.cmp(&self.spread_score))
-            .then_with(|| self.worker_id.cmp(&other.worker_id))
-    }
-}
-
-impl PartialOrd for LassoDispatchScore {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-fn persisted_master_order(worker: &PersistedOnlineWorkerSummary) -> (bool, String) {
-    let value = serde_json::from_str::<serde_json::Value>(&worker.master_json).unwrap_or_default();
-    (
-        value
-            .get("isMaster")
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or(false),
-        value
-            .get("domain")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("")
-            .to_owned(),
-    )
-}
-
-fn rendezvous_spread_score(dispatch_key: &str, worker_id: &str) -> u64 {
-    let mut hasher = Sha256::new();
-    hasher.update(dispatch_key.as_bytes());
-    hasher.update([0]);
-    hasher.update(worker_id.as_bytes());
-    let digest = hasher.finalize();
-    let mut prefix = [0_u8; 8];
-    prefix.copy_from_slice(&digest[..8]);
-    u64::from_be_bytes(prefix)
-}
-
-fn persisted_worker_matches(
-    worker: &PersistedOnlineWorkerSummary,
-    namespace: &str,
-    app: &str,
-    requirement: Option<&WorkerRequirement>,
-) -> bool {
-    is_match(&worker.namespace_name, namespace)
-        && is_match(&worker.app_name, app)
-        && requirement.is_none_or(|requirement| persisted_worker_satisfies(worker, requirement))
-}
-
-fn persisted_broadcast_worker_matches(
-    worker: &PersistedOnlineWorkerSummary,
-    namespace: &str,
-    app: &str,
-    selector: &BroadcastSelector,
-) -> bool {
-    if !is_match(&worker.namespace_name, namespace) || !is_match(&worker.app_name, app) {
-        return false;
-    }
-    if selector
-        .region
-        .as_deref()
-        .is_some_and(|region| !is_match(&worker.region, region))
-    {
-        return false;
-    }
-    if selector
-        .cluster
-        .as_deref()
-        .is_some_and(|cluster| !is_match(&worker.cluster, cluster))
-    {
-        return false;
-    }
-    let labels = parse_persisted_labels(&worker.labels_json);
-    if !selector
-        .labels
-        .iter()
-        .all(|(key, value)| labels.get(key).is_some_and(|actual| actual == value))
-    {
-        return false;
-    }
-    if selector.tags.is_empty() {
-        return true;
-    }
-    let capabilities = parse_persisted_capabilities(&worker.structured_capabilities_json);
-    let tags = capabilities
-        .tags
-        .iter()
-        .map(String::as_str)
-        .collect::<HashSet<_>>();
-    selector.tags.iter().all(|tag| tags.contains(tag.as_str()))
-}
-
-fn persisted_worker_satisfies(
-    worker: &PersistedOnlineWorkerSummary,
-    requirement: &WorkerRequirement,
-) -> bool {
-    structured_capabilities_match(
-        &parse_persisted_capabilities(&worker.structured_capabilities_json),
-        requirement,
-    )
-}
-
-fn parse_persisted_capabilities(value: &str) -> WorkerCapabilities {
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(value) else {
-        return WorkerCapabilities::default();
-    };
-    WorkerCapabilities {
-        tags: value
-            .get("tags")
-            .and_then(serde_json::Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(serde_json::Value::as_str)
-            .map(str::to_owned)
-            .collect(),
-        normal_processors: parse_normal_processors(&value),
-        script_runners: value
-            .get("scriptRunners")
-            .and_then(serde_json::Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|runner| {
-                Some(tikeo_proto::worker::v1::ScriptRunnerCapability {
-                    language: runner.get("language")?.as_str()?.to_owned(),
-                    sandbox_backend: runner
-                        .get("sandboxBackend")
-                        .and_then(serde_json::Value::as_str)
-                        .unwrap_or_default()
-                        .to_owned(),
-                })
-            })
-            .collect(),
-        plugin_processors: value
-            .get("pluginProcessors")
-            .and_then(serde_json::Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|processor| {
-                Some(tikeo_proto::worker::v1::PluginProcessorCapability {
-                    r#type: processor.get("type")?.as_str()?.to_owned(),
-                    processor_names: parse_processor_names(processor),
-                    processors: parse_processor_capabilities(processor.get("processors")),
-                })
-            })
-            .collect(),
-    }
-}
-
-fn parse_normal_processors(
-    value: &serde_json::Value,
-) -> Vec<tikeo_proto::worker::v1::ProcessorCapability> {
-    let mut processors = Vec::new();
-    if let Some(values) = value
-        .get("normalProcessors")
-        .and_then(serde_json::Value::as_array)
-    {
-        for processor in values {
-            if let Some(name) = processor.get("name").and_then(serde_json::Value::as_str) {
-                if name.trim().is_empty() {
-                    continue;
-                }
-                let description = processor
-                    .get("description")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or_default()
-                    .to_owned();
-                processors.push(tikeo_proto::worker::v1::ProcessorCapability {
-                    name: name.to_owned(),
-                    description,
-                });
-            } else if let Some(name) = processor.as_str() {
-                if !name.trim().is_empty() {
-                    processors.push(tikeo_proto::worker::v1::ProcessorCapability {
-                        name: name.to_owned(),
-                        description: String::new(),
-                    });
-                }
-            }
-        }
-    }
-    processors
-}
-
-fn parse_processor_capabilities(
-    value: Option<&serde_json::Value>,
-) -> Vec<tikeo_proto::worker::v1::ProcessorCapability> {
-    value
-        .and_then(serde_json::Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|processor| {
-            let name = processor.get("name")?.as_str()?.trim();
-            (!name.is_empty()).then(|| tikeo_proto::worker::v1::ProcessorCapability {
-                name: name.to_owned(),
-                description: processor
-                    .get("description")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or_default()
-                    .to_owned(),
-            })
-        })
-        .collect()
-}
-
-fn parse_processor_names(processor: &serde_json::Value) -> Vec<String> {
-    let mut names = processor
-        .get("processorNames")
-        .and_then(serde_json::Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(serde_json::Value::as_str)
-        .filter(|name| !name.trim().is_empty())
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    for processor in parse_processor_capabilities(processor.get("processors")) {
-        if !names.iter().any(|name| name == &processor.name) {
-            names.push(processor.name);
-        }
-    }
-    names
-}
-
-fn parse_persisted_labels(value: &str) -> HashMap<String, String> {
-    serde_json::from_str::<HashMap<String, String>>(value).unwrap_or_default()
-}
-
 /// Worker session status used by scheduling and UI grouping.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorkerSessionStatus {
@@ -1518,5 +927,9 @@ impl RegisteredWorker {
     }
 }
 
+mod registry_capabilities;
+mod registry_election;
+mod registry_routing;
 #[cfg(test)]
 mod registry_tests;
+mod session_identity;
