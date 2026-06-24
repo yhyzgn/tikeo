@@ -82,7 +82,7 @@ public final class SandboxToolResolver {
         }
 
         String command = tool.binaryName();
-        if (!options.requireManagedTools() && toolAvailable(tool, command)) {
+        if (!options.strictSandboxIsolation() && toolAvailable(tool, command)) {
             log.info(
                 "[tikeo.sandbox] tool={} found on PATH command={}",
                 tool.binaryName(),
@@ -108,7 +108,7 @@ public final class SandboxToolResolver {
             );
             return command;
         }
-        String fallback = options.requireManagedTools() ? localCommand(tool) : tool.binaryName();
+        String fallback = options.strictSandboxIsolation() ? localCommand(tool) : tool.binaryName();
         log.info(
             "[tikeo.sandbox] tool={} unavailable after environment check; returning fallback command={}",
             tool.binaryName(),
@@ -180,7 +180,7 @@ public final class SandboxToolResolver {
     }
 
     public Optional<String> resolveInterpreterCommand(String binary) {
-        String command = options.requireManagedTools()
+        String command = options.strictSandboxIsolation()
             ? managedInterpreterCommand(binary)
             : binary;
         boolean available = "sh".equals(binary)
@@ -476,7 +476,7 @@ public final class SandboxToolResolver {
         String rhaiInstallDir,
         String powerShellInstallVersion,
         String powerShellInstallDir,
-        boolean requireManagedTools,
+        boolean strictSandboxIsolation,
         long installTimeoutMillis
     ) {
         public Options(

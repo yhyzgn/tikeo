@@ -862,7 +862,7 @@ Worker services use SDK-level configuration, separate from Server configuration.
 | `scripts.runtime-command` | `TIKEO_WORKER_SCRIPTS_RUNTIME_COMMAND` | No | blank | Explicit Docker-compatible runtime command, e.g. `docker` or `podman`. |
 | `scripts.runtime-args` | `TIKEO_WORKER_SCRIPTS_RUNTIME_ARGS` | No | `[]` | Extra runtime args before image. |
 | `scripts.auto-install-tools` | `TIKEO_WORKER_SCRIPTS_AUTO_INSTALL_TOOLS` | No | `true` | Background-prewarm local development script tools when absent; missing tools are not advertised until present. |
-| `scripts.require-managed-tools` | `TIKEO_SANDBOX_REQUIRE_MANAGED_TOOLS` / Boot: `TIKEO_WORKER_SCRIPTS_REQUIRE_MANAGED_TOOLS` | No | `false` | Strong isolation switch for SDK sandbox tooling. When `true`, SDKs skip host `PATH` tools/interpreters and use only managed `TIKEO_SANDBOX_TOOLS_DIR` / `~/.tikeo/sandbox-tools` binaries. |
+| `scripts.strict-sandbox-isolation` | `TIKEO_SANDBOX_STRICT_ISOLATION` / Boot: `TIKEO_WORKER_SCRIPTS_STRICT_SANDBOX_ISOLATION` | No | `false` | Strict sandbox isolation switch for SDK sandbox tooling. When `true`, SDKs skip host `PATH` tools/interpreters and use only the isolated `TIKEO_SANDBOX_TOOLS_DIR` / `~/.tikeo/sandbox-tools` tool cache. |
 | `scripts.*-install-version` | `TIKEO_WORKER_SCRIPT_*_INSTALL_VERSION` | No | `latest` / blank by tool | Tool versions for SRT, ripgrep, Deno, Rhai, PowerShell, WasmEdge, V8. |
 | `scripts.*-install-dir` | `TIKEO_WORKER_SCRIPT_*_INSTALL_DIR` | No | `~/.tikeo/sandbox-tools/<tool>` | Tool install/cache directories. |
 | `scripts.*-installer-url` | `TIKEO_WORKER_SCRIPT_*_INSTALLER_URL` | No | tool default | Installer URLs for Deno/WasmEdge and similar tools. |
@@ -873,7 +873,7 @@ Sandbox tool install policy across SDKs:
 
 - Tool auto-install is a **background prewarm** only. Worker/Spring Boot/process startup does not wait for downloads such as `powershell-*-linux-x64.tar.gz`, SRT, Deno, ripgrep, Rhai, or Wasmtime.
 - Default mode may reuse a valid host `PATH` binary, while each task still runs with sandbox `cwd`, `HOME`, `TMPDIR`, `DENO_DIR`, and PowerShell/.NET cache directories.
-- Set `TIKEO_SANDBOX_REQUIRE_MANAGED_TOOLS=1` (Java Boot: `tikeo.worker.scripts.require-managed-tools=true`) when you need stronger isolation: SDKs ignore host `PATH` tools and interpreters, then use only managed tool-cache binaries and fail closed until those binaries exist.
+- Set `TIKEO_SANDBOX_STRICT_ISOLATION=1` (Java Boot: `tikeo.worker.scripts.strict-sandbox-isolation=true`) when you need strict sandbox isolation: SDKs ignore host `PATH` tools and interpreters, then use only sandbox-tools cache binaries and fail closed until those binaries exist.
 - Until a tool is available in the selected mode, the SDK does **not** advertise that script capability. A task that still reaches an unavailable runner fails closed with a clear diagnostic instead of crashing the host application.
 - Background installer failures are logged and can be retried by restarting the worker or by pre-populating the cache directory.
 - Production recommendation: bake required sandbox tools into the worker image or mount a persistent/read-only cache at `~/.tikeo/sandbox-tools` / `TIKEO_SANDBOX_TOOLS_DIR`; keep auto-install mainly for developer laptops and demos.

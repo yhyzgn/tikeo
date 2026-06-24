@@ -88,7 +88,7 @@ export async function main(): Promise<void> {
 
 export function configureScripts(config: WorkerConfig): ScriptRunnerRegistry {
   const scripts = new ScriptRunnerRegistry();
-  const resolver = new SandboxToolResolver(envOr("TIKEO_WORKER_STATE_DIR", ""), !disabled("TIKEO_SANDBOX_AUTO_INSTALL"), 120_000, enabled("TIKEO_SANDBOX_REQUIRE_MANAGED_TOOLS"));
+  const resolver = new SandboxToolResolver(envOr("TIKEO_WORKER_STATE_DIR", ""), !disabled("TIKEO_SANDBOX_AUTO_INSTALL"), 120_000, enabled("TIKEO_SANDBOX_STRICT_ISOLATION"));
   for (const language of csvOr("TIKEO_WORKER_SCRIPT_LANGUAGES", "shell,python,javascript,typescript,powershell,php,groovy,rhai")) {
     if (disabled("TIKEO_ENABLE_SCRIPT_" + language.toUpperCase())) continue;
     const backend = scriptSandboxBackend(language);

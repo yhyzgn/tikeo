@@ -507,12 +507,12 @@ func TestSandboxToolResolverAutoInstallReturnsUnavailableImmediately(t *testing.
 	}
 }
 
-func TestSandboxToolResolverRequireManagedToolsSkipsHostPath(t *testing.T) {
+func TestSandboxToolResolverStrictSandboxIsolationSkipsHostPath(t *testing.T) {
 	hostBin := t.TempDir()
 	writeExecutable(t, filepath.Join(hostBin, executableName("srt")), "#!/bin/sh\necho host-srt\n")
 	t.Setenv("PATH", hostBin)
 	t.Setenv("TIKEO_SANDBOX_TOOLS_DIR", t.TempDir())
-	resolver := SandboxToolResolver{StateDir: t.TempDir(), AutoInstall: false, RequireManagedTools: true}
+	resolver := SandboxToolResolver{StateDir: t.TempDir(), AutoInstall: false, StrictSandboxIsolation: true}
 	if _, ok := resolver.ResolveSrt(); ok {
 		t.Fatal("managed-only resolver must ignore host PATH sandbox tools")
 	}

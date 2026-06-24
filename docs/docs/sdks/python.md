@@ -197,7 +197,7 @@ Keep SDK helper docs anchored to operator-verified API and protocol references:
 6. Inspect `/api/v1/workers`, `/api/v1/instances`, instance logs, and audit logs.
 7. Preserve smoke evidence. For a maintained end-to-end proof, run `TIKEO_MANAGEMENT_TRIGGER_REBUILD_SERVER=0 scripts/management-trigger-e2e-smoke.sh`.
 
-Sandbox tooling note: default mode may reuse host PATH tools while keeping task cwd/env under sandbox runtime directories. Set `TIKEO_SANDBOX_REQUIRE_MANAGED_TOOLS=1` to skip host PATH tools/interpreters and require managed sandbox-tools binaries.
+Sandbox tooling note: default mode may reuse host PATH tools while keeping task cwd/env under sandbox runtime directories. Set `TIKEO_SANDBOX_STRICT_ISOLATION=1` to skip host PATH tools/interpreters and use only isolated sandbox-tools cache binaries.
 
 Expected acceptance evidence includes an online worker with the requested structured processor, an API-triggered instance with `executionMode=single`, task logs from the Worker, and a successful processor message. Missing sandbox tools or unsupported processors must fail closed and be visible in task/diagnostic logs.
 

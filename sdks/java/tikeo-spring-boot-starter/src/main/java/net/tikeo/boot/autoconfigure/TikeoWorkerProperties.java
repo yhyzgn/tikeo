@@ -160,7 +160,11 @@ public class TikeoWorkerProperties {
  */
         private boolean autoInstallTools = true;
         /**
- * Require sandbox tools/interpreters to come from managed install directories instead of the host PATH.
+ * Strict sandbox isolation: skip host PATH tools/interpreters and use only managed sandbox tool directories.
+ */
+        private boolean strictSandboxIsolation = false;
+        /**
+ * Deprecated compatibility alias for strictSandboxIsolation.
  */
         private boolean requireManagedTools = false;
         /**

@@ -262,7 +262,7 @@ describe("node sdk parity", () => {
   });
 
 
-  test("sandbox resolver require managed tools skips host path", () => {
+  test("sandbox resolver strict sandbox isolation skips host path", () => {
     const oldPath = process.env.PATH;
     const oldToolsDir = process.env.TIKEO_SANDBOX_TOOLS_DIR;
     const root = mkdtempSync(join(tmpdir(), "tikeo-node-managed-only-"));

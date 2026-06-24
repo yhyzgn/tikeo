@@ -247,13 +247,13 @@ def test_sandbox_tool_resolver_auto_install_returns_unavailable_immediately(tmp_
 
 
 
-def test_sandbox_tool_resolver_require_managed_tools_skips_host_path(tmp_path, monkeypatch):
+def test_sandbox_tool_resolver_strict_sandbox_isolation_skips_host_path(tmp_path, monkeypatch):
     host_bin = tmp_path / "host-bin"
     host_bin.mkdir()
     write_executable(host_bin / "srt", "#!/bin/sh\necho host-srt\n")
     monkeypatch.setenv("PATH", str(host_bin))
     monkeypatch.setenv("TIKEO_SANDBOX_TOOLS_DIR", str(tmp_path / "managed-tools"))
-    resolver = tikeo.SandboxToolResolver(state_dir=str(tmp_path), auto_install=False, require_managed_tools=True)
+    resolver = tikeo.SandboxToolResolver(state_dir=str(tmp_path), auto_install=False, strict_sandbox_isolation=True)
     _path, ok = resolver.resolve_srt()
     assert not ok
     _interpreter, interpreter_ok = resolver.resolve_interpreter("sh")

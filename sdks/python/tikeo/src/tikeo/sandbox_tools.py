@@ -29,7 +29,11 @@ class SandboxToolResolver:
     state_dir: str = ""
     auto_install: bool = True
     install_timeout: float = 120.0
-    require_managed_tools: bool = False
+    strict_sandbox_isolation: bool = False
+    require_managed_tools: bool = False  # deprecated compatibility alias
+
+    def _strict_sandbox_isolation(self) -> bool:
+        return self.strict_sandbox_isolation or self.require_managed_tools
 
     def resolve_srt(self) -> tuple[str, bool]:
         return self._resolve_tool("srt", "srt", lambda d: self._run_installer(self._managed_bin(d), "npm", "install", "-g", "--prefix", str(d), _env_or("TIKEO_SRT_NPM_PACKAGE", "@anthropic-ai/sandbox-runtime")))
@@ -58,7 +62,7 @@ class SandboxToolResolver:
         return self.resolve_interpreter("npm")
 
     def resolve_interpreter(self, binary: str) -> tuple[str, bool]:
-        if self.require_managed_tools:
+        if self._strict_sandbox_isolation():
             path = self._managed_bin(self._install_dir(binary)) / self._executable_name(binary)
             if self._command_works(str(path), "--version") or (binary == "sh" and self._command_works(str(path), "-c", "exit 0")):
                 return str(path), True
@@ -69,7 +73,7 @@ class SandboxToolResolver:
         return "", False
 
     def _resolve_tool(self, key: str, binary: str, installer) -> tuple[str, bool]:
-        if not self.require_managed_tools:
+        if not self._strict_sandbox_isolation():
             path = shutil.which(binary)
             if path and self._tool_works(binary, path):
                 return path, True

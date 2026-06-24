@@ -34,7 +34,7 @@ const client = new Client(config);
 ## Operational cautions
 
 - Sandbox auto-install is background prewarm only: SDK startup never waits for downloads; missing tools stay unadvertised and fail closed until available.
-- Set `TIKEO_SANDBOX_REQUIRE_MANAGED_TOOLS=1` when stronger isolation is required; this skips host `PATH` tools/interpreters and uses only managed sandbox-tools binaries.
+- Set `TIKEO_SANDBOX_STRICT_ISOLATION=1` when strict sandbox isolation is required; this skips host `PATH` tools/interpreters and uses only sandbox-tools cache binaries.
 - Bun is the default repository package runner for this project.
 - Do not capture global stdout/stderr for task logs; use the task-scoped log callback.
 - Keep SDK diagnostics at INFO unless debugging Worker Tunnel or sandbox issues.

@@ -17,7 +17,9 @@ pub struct SandboxToolResolver {
     pub state_dir: Option<PathBuf>,
     /// Automatically install missing tools when installer prerequisites exist.
     pub auto_install: bool,
-    /// Require sandbox tools/interpreters to come from managed install directories instead of PATH.
+    /// Strict sandbox isolation: skip host PATH tools/interpreters and use only isolated sandbox tool directories.
+    pub strict_sandbox_isolation: bool,
+    /// Compatibility alias for `strict_sandbox_isolation`.
     pub require_managed_tools: bool,
     /// Installer timeout.
     pub install_timeout: Duration,
@@ -28,6 +30,7 @@ impl Default for SandboxToolResolver {
         Self {
             state_dir: None,
             auto_install: true,
+            strict_sandbox_isolation: false,
             require_managed_tools: false,
             install_timeout: Duration::from_mins(2),
         }
@@ -35,6 +38,13 @@ impl Default for SandboxToolResolver {
 }
 
 impl SandboxToolResolver {
+    fn uses_strict_sandbox_isolation(&self) -> bool {
+        #[allow(deprecated)]
+        {
+            self.strict_sandbox_isolation || self.require_managed_tools
+        }
+    }
+
     /// Resolve Anthropic Sandbox Runtime.
     #[must_use]
     pub fn resolve_srt(&self) -> Option<PathBuf> {
@@ -128,7 +138,7 @@ impl SandboxToolResolver {
     /// Resolve an already-installed native interpreter command used by SRT.
     #[must_use]
     pub fn resolve_interpreter(&self, binary: &str) -> Option<PathBuf> {
-        if self.require_managed_tools {
+        if self.uses_strict_sandbox_isolation() {
             let command = Self::install_dir(binary).join("bin").join(binary);
             return command_available(&command).then_some(command);
         }
@@ -151,7 +161,7 @@ impl SandboxToolResolver {
     where
         F: FnOnce(&Path, &Path) -> bool + Send + 'static,
     {
-        if !self.require_managed_tools {
+        if !self.uses_strict_sandbox_isolation() {
             if let Some(command) = find_command(binary).filter(|command| command_available(command))
             {
                 return Some(command);
@@ -523,6 +533,7 @@ mod tests {
         let resolver = SandboxToolResolver {
             state_dir: None,
             auto_install: true,
+            strict_sandbox_isolation: false,
             require_managed_tools: false,
             install_timeout: Duration::from_millis(1),
         };
@@ -553,11 +564,12 @@ mod tests {
     }
 
     #[test]
-    fn require_managed_tools_skips_host_path_tools() {
+    fn strict_sandbox_isolation_skips_host_path_tools() {
         let resolver = SandboxToolResolver {
             state_dir: None,
             auto_install: false,
-            require_managed_tools: true,
+            strict_sandbox_isolation: true,
+            require_managed_tools: false,
             install_timeout: Duration::from_millis(1),
         };
         assert!(

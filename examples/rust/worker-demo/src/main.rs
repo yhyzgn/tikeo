@@ -56,7 +56,7 @@ async fn main() -> Result<(), WorkerSdkError> {
         sandbox_tools.state_dir = Some(std::path::PathBuf::from(state_dir));
     }
     sandbox_tools.auto_install = !disabled_env("TIKEO_SANDBOX_AUTO_INSTALL");
-    sandbox_tools.require_managed_tools = enabled_env("TIKEO_SANDBOX_REQUIRE_MANAGED_TOOLS");
+    sandbox_tools.strict_sandbox_isolation = enabled_env("TIKEO_SANDBOX_STRICT_ISOLATION");
     configure_default_script_runner(
         &mut config,
         &mut runners,

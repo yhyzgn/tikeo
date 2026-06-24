@@ -214,7 +214,7 @@ class SandboxToolResolverTest {
 
 
     @Test
-    void requireManagedToolsSkipsHostPathTools() throws Exception {
+    void strictSandboxIsolationSkipsHostPathTools() throws Exception {
         Path toolsDir = Files.createTempDirectory("tikeo-managed-only-sandbox-tools-");
         SandboxToolResolver resolver = new SandboxToolResolver(new SandboxToolResolver.Options(
                 "",
