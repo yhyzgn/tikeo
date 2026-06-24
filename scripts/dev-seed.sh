@@ -49,7 +49,7 @@ SQL
   fi
 fi
 
-sqlite3 "$DB_PATH" < "$SQL_FILE"
+sqlite3 -bail "$DB_PATH" < "$SQL_FILE"
 
 sqlite3 "$DB_PATH" <<'SQL'
 .headers on

@@ -192,19 +192,34 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertFalse((WORKFLOWS / "release.yml").exists())
 
     def test_github_release_assets_are_independent(self):
-        for target in ["x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "aarch64-apple-darwin", "x86_64-pc-windows-msvc"]:
+        for target in [
+            "x86_64-unknown-linux-gnu",
+            "aarch64-unknown-linux-gnu",
+            "x86_64-apple-darwin",
+            "aarch64-apple-darwin",
+            "x86_64-pc-windows-msvc",
+            "aarch64-pc-windows-msvc",
+        ]:
             self.assertIn(target, GITHUB_RELEASE)
+        for runner in ["ubuntu-24.04-arm", "windows-11-arm"]:
+            self.assertIn(runner, GITHUB_RELEASE)
         self.assertIn("tikeo-web-dist", GITHUB_RELEASE)
         self.assertIn("deploy-assets", GITHUB_RELEASE)
         self.assertIn("terraform-provider-tikeo", GITHUB_RELEASE)
         self.assertIn("helm package deploy/helm/tikeo", GITHUB_RELEASE)
         self.assertIn("migrate-cli-binaries", GITHUB_RELEASE)
         self.assertIn("tikeo-migrate-${VERSION}-${{ matrix.target }}", GITHUB_RELEASE)
+        self.assertIn("tikeo-server-${VERSION}-${{ matrix.target }}${{ matrix.asset_ext }}", GITHUB_RELEASE)
+        self.assertIn("tikeo-migrate-${VERSION}-${{ matrix.target }}${{ matrix.asset_ext }}", GITHUB_RELEASE)
+        self.assertIn("path: dist/tikeo-server-*", GITHUB_RELEASE)
+        self.assertIn("path: dist/tikeo-migrate-*", GITHUB_RELEASE)
         self.assertIn("--bin tikeo-migrate", GITHUB_RELEASE)
         self.assertIn("needs: [server-binaries, migrate-cli-binaries, web-dist, deploy-assets]", GITHUB_RELEASE)
-        self.assertIn("config", GITHUB_RELEASE)
+        self.assertIn("dist/terraform-provider-tikeo_*", GITHUB_RELEASE)
+        self.assertIn("dist/tikeo-operator-*", GITHUB_RELEASE)
         self.assertIn("softprops/action-gh-release", GITHUB_RELEASE)
         self.assertIn("workflow_dispatch", GITHUB_RELEASE)
+        self.assertNotIn("dist/*.zip", GITHUB_RELEASE)
         self.assertNotIn("docker/login-action", GITHUB_RELEASE)
 
 
@@ -257,9 +272,16 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("actions/upload-artifact@v6", MIGRATE_CLI)
         self.assertIn("tikeo-migrate-${VERSION}-${{ matrix.target }}", MIGRATE_CLI)
         self.assertIn("x86_64-unknown-linux-gnu", MIGRATE_CLI)
+        self.assertIn("aarch64-unknown-linux-gnu", MIGRATE_CLI)
         self.assertIn("x86_64-apple-darwin", MIGRATE_CLI)
         self.assertIn("aarch64-apple-darwin", MIGRATE_CLI)
         self.assertIn("x86_64-pc-windows-msvc", MIGRATE_CLI)
+        self.assertIn("aarch64-pc-windows-msvc", MIGRATE_CLI)
+        self.assertIn("ubuntu-24.04-arm", MIGRATE_CLI)
+        self.assertIn("windows-11-arm", MIGRATE_CLI)
+        self.assertIn("path: dist/tikeo-migrate-*", MIGRATE_CLI)
+        self.assertNotIn("dist/*.tar.gz", MIGRATE_CLI)
+        self.assertNotIn("dist/*.zip", MIGRATE_CLI)
         self.assertNotIn("softprops/action-gh-release", MIGRATE_CLI)
         self.assertNotIn("contents: write", MIGRATE_CLI)
 

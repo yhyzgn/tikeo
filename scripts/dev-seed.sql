@@ -15,7 +15,7 @@ BEGIN TRANSACTION;
 -- scripts/start-java-demo-workers.sh, and language worker demo defaults.
 INSERT INTO namespaces (id, name, created_at, updated_at)
 VALUES
-  ('ns-dev-default', 'default', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+  ('ns-dev-default', 'dev-default', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
   ('ns-dev-alpha', 'dev-alpha', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
   ('ns-dev-beta', 'dev-beta', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
   ('ns-dev-ops', 'dev-ops', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
@@ -25,7 +25,7 @@ ON CONFLICT(id) DO UPDATE SET
 
 INSERT INTO apps (id, namespace_id, name, created_at, updated_at)
 VALUES
-  ('app-dev-default', 'ns-dev-default', 'default', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+  ('app-dev-default', 'ns-dev-default', 'dev-default', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
   ('app-dev-observability', 'ns-dev-default', 'observability-demo', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
   ('app-dev-alpha-orders', 'ns-dev-alpha', 'orders', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
   ('app-dev-alpha-billing', 'ns-dev-alpha', 'billing', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
@@ -75,11 +75,11 @@ ON CONFLICT(id) DO UPDATE SET
   user_id = excluded.user_id,
   role_id = excluded.role_id;
 
-INSERT INTO jobs (id, namespace_id, app_id, name, schedule_type, schedule_expr, processor_name, misfire_policy, enabled, canary_percent, retry_policy_json, created_at, updated_at)
+INSERT INTO jobs (id, namespace_id, app_id, name, schedule_type, schedule_expr, processor_name, misfire_policy, enabled, canary_percent, canary_policy_json, retry_policy_json, created_at, updated_at)
 VALUES
-  ('job-dev-api-hello', 'ns-dev-alpha', 'app-dev-alpha-orders', 'api-hello', 'api', NULL, 'demo.echo', 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
-  ('job-dev-fixed-rate-heartbeat', 'ns-dev-alpha', 'app-dev-alpha-orders', 'fixed-rate-heartbeat', 'fixed_rate', '30s', 'demo.heartbeat', 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
-  ('job-dev-cron-minute-report', 'ns-dev-alpha', 'app-dev-alpha-orders', 'cron-minute-report', 'cron', '0/30 * * * * * *', 'demo.report', 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
+  ('job-dev-api-hello', 'ns-dev-alpha', 'app-dev-alpha-orders', 'api-hello', 'api', NULL, 'demo.echo', 'ignore', 1, 0, '{"metricsGateEnabled":false,"minimumSamples":5,"evaluationWindow":20,"maxFailureRate":0.5,"autoRollback":true}', '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+  ('job-dev-fixed-rate-heartbeat', 'ns-dev-alpha', 'app-dev-alpha-orders', 'fixed-rate-heartbeat', 'fixed_rate', '30s', 'demo.heartbeat', 'ignore', 1, 0, '{"metricsGateEnabled":false,"minimumSamples":5,"evaluationWindow":20,"maxFailureRate":0.5,"autoRollback":true}', '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+  ('job-dev-cron-minute-report', 'ns-dev-alpha', 'app-dev-alpha-orders', 'cron-minute-report', 'cron', '0/30 * * * * * *', 'demo.report', 'ignore', 1, 0, '{"metricsGateEnabled":false,"minimumSamples":5,"evaluationWindow":20,"maxFailureRate":0.5,"autoRollback":true}', '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')
 ON CONFLICT(id) DO UPDATE SET
   namespace_id = excluded.namespace_id,
   app_id = excluded.app_id,
@@ -90,6 +90,7 @@ ON CONFLICT(id) DO UPDATE SET
   misfire_policy = excluded.misfire_policy,
   enabled = excluded.enabled,
   canary_percent = excluded.canary_percent,
+  canary_policy_json = excluded.canary_policy_json,
   retry_policy_json = excluded.retry_policy_json,
   updated_at = excluded.updated_at;
 
@@ -269,15 +270,15 @@ ON CONFLICT(id) DO UPDATE SET
   created_by = excluded.created_by,
   created_at = excluded.created_at;
 
-INSERT INTO jobs (id, namespace_id, app_id, name, schedule_type, schedule_expr, processor_name, misfire_policy, enabled, canary_percent, retry_policy_json, created_at, updated_at, script_id)
+INSERT INTO jobs (id, namespace_id, app_id, name, schedule_type, schedule_expr, processor_name, misfire_policy, enabled, canary_percent, canary_policy_json, retry_policy_json, created_at, updated_at, script_id)
 VALUES
-  ('job-dev-script-shell-example', 'ns-dev-alpha', 'app-dev-alpha-orders', 'dev-shell-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-shell-example'),
-  ('job-dev-script-python-example', 'ns-dev-alpha', 'app-dev-alpha-orders', 'dev-python-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-python-example'),
-  ('job-dev-script-javascript-example', 'ns-dev-alpha', 'app-dev-alpha-orders', 'dev-javascript-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-javascript-example'),
-  ('job-dev-script-typescript-example', 'ns-dev-alpha', 'app-dev-alpha-orders', 'dev-typescript-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-typescript-example'),
-  ('job-dev-script-powershell-example', 'ns-dev-alpha', 'app-dev-alpha-orders', 'dev-powershell-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-powershell-example'),
-  ('job-dev-script-rhai-example', 'ns-dev-alpha', 'app-dev-alpha-orders', 'dev-rhai-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-rhai-example'),
-  ('job-dev-script-rhai-object-example', 'ns-dev-alpha', 'app-dev-alpha-orders', 'dev-rhai-object-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-rhai-object-example')
+  ('job-dev-script-shell-example', 'ns-dev-alpha', 'app-dev-alpha-orders', 'dev-shell-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"metricsGateEnabled":false,"minimumSamples":5,"evaluationWindow":20,"maxFailureRate":0.5,"autoRollback":true}', '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-shell-example'),
+  ('job-dev-script-python-example', 'ns-dev-alpha', 'app-dev-alpha-orders', 'dev-python-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"metricsGateEnabled":false,"minimumSamples":5,"evaluationWindow":20,"maxFailureRate":0.5,"autoRollback":true}', '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-python-example'),
+  ('job-dev-script-javascript-example', 'ns-dev-alpha', 'app-dev-alpha-orders', 'dev-javascript-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"metricsGateEnabled":false,"minimumSamples":5,"evaluationWindow":20,"maxFailureRate":0.5,"autoRollback":true}', '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-javascript-example'),
+  ('job-dev-script-typescript-example', 'ns-dev-alpha', 'app-dev-alpha-orders', 'dev-typescript-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"metricsGateEnabled":false,"minimumSamples":5,"evaluationWindow":20,"maxFailureRate":0.5,"autoRollback":true}', '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-typescript-example'),
+  ('job-dev-script-powershell-example', 'ns-dev-alpha', 'app-dev-alpha-orders', 'dev-powershell-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"metricsGateEnabled":false,"minimumSamples":5,"evaluationWindow":20,"maxFailureRate":0.5,"autoRollback":true}', '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-powershell-example'),
+  ('job-dev-script-rhai-example', 'ns-dev-alpha', 'app-dev-alpha-orders', 'dev-rhai-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"metricsGateEnabled":false,"minimumSamples":5,"evaluationWindow":20,"maxFailureRate":0.5,"autoRollback":true}', '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-rhai-example'),
+  ('job-dev-script-rhai-object-example', 'ns-dev-alpha', 'app-dev-alpha-orders', 'dev-rhai-object-script-job', 'api', NULL, NULL, 'ignore', 1, 0, '{"metricsGateEnabled":false,"minimumSamples":5,"evaluationWindow":20,"maxFailureRate":0.5,"autoRollback":true}', '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 'script-dev-rhai-object-example')
 ON CONFLICT(id) DO UPDATE SET
   namespace_id = excluded.namespace_id,
   app_id = excluded.app_id,
@@ -288,6 +289,7 @@ ON CONFLICT(id) DO UPDATE SET
   misfire_policy = excluded.misfire_policy,
   enabled = excluded.enabled,
   canary_percent = excluded.canary_percent,
+  canary_policy_json = excluded.canary_policy_json,
   retry_policy_json = excluded.retry_policy_json,
   script_id = excluded.script_id,
   updated_at = excluded.updated_at;
@@ -339,10 +341,10 @@ ON CONFLICT(id) DO UPDATE SET
 -- Notification Center failure/success/status demo data for card rendering and public console passthrough.
 -- These rows are intentionally persisted seed data, not provider metadata: after applying the seed,
 -- the Notification Center page and /public/instances/{id}/console can be opened immediately.
-INSERT INTO jobs (id, namespace_id, app_id, name, schedule_type, schedule_expr, processor_name, misfire_policy, enabled, canary_percent, retry_policy_json, created_at, updated_at)
+INSERT INTO jobs (id, namespace_id, app_id, name, schedule_type, schedule_expr, processor_name, misfire_policy, enabled, canary_percent, canary_policy_json, retry_policy_json, created_at, updated_at)
 VALUES
-  ('job-dev-notify-exception', 'ns-dev-alpha', 'app-dev-alpha-orders', 'AutoGenerateStockPdfRecordAfterDateTask', 'api', NULL, 'demo.exception', 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-06-11T17:35:17+08:00', '2026-06-11T17:35:57+08:00'),
-  ('job-dev-notify-success', 'ns-dev-alpha', 'app-dev-alpha-orders', 'RebuildCustomerStatementTask', 'api', NULL, 'demo.echo', 'ignore', 1, 0, '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-06-11T17:40:00+08:00', '2026-06-11T17:40:12+08:00')
+  ('job-dev-notify-exception', 'ns-dev-alpha', 'app-dev-alpha-orders', 'AutoGenerateStockPdfRecordAfterDateTask', 'api', NULL, 'demo.exception', 'ignore', 1, 0, '{"metricsGateEnabled":false,"minimumSamples":5,"evaluationWindow":20,"maxFailureRate":0.5,"autoRollback":true}', '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-06-11T17:35:17+08:00', '2026-06-11T17:35:57+08:00'),
+  ('job-dev-notify-success', 'ns-dev-alpha', 'app-dev-alpha-orders', 'RebuildCustomerStatementTask', 'api', NULL, 'demo.echo', 'ignore', 1, 0, '{"metricsGateEnabled":false,"minimumSamples":5,"evaluationWindow":20,"maxFailureRate":0.5,"autoRollback":true}', '{"enabled":true,"maxAttempts":3,"initialDelaySeconds":5,"backoffMultiplier":2,"maxDelaySeconds":60}', '2026-06-11T17:40:00+08:00', '2026-06-11T17:40:12+08:00')
 ON CONFLICT(id) DO UPDATE SET
   namespace_id = excluded.namespace_id,
   app_id = excluded.app_id,
@@ -353,6 +355,7 @@ ON CONFLICT(id) DO UPDATE SET
   misfire_policy = excluded.misfire_policy,
   enabled = excluded.enabled,
   canary_percent = excluded.canary_percent,
+  canary_policy_json = excluded.canary_policy_json,
   retry_policy_json = excluded.retry_policy_json,
   updated_at = excluded.updated_at;
 

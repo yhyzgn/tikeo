@@ -267,7 +267,7 @@ tikeo-migrate apply --bundle ./.tikeo-migration
 
 自动导出只需要旧库的只读 `SELECT` 权限，会依次尝试已知调度器表：XXL-JOB 的 `xxl_job_info` / `XXL_JOB_INFO` / `job_info`，以及 PowerJob 的 `pj_job_info` / `job_info` / `powerjob_job_info`。生产 URL 可使用 `jdbc:mysql://...`、`jdbc:postgresql://...`、`mysql://...`、`postgres://...` 或 `postgresql://...`；SQLite URL 只用于 `examples/migration/legacy-scheduler-fixtures` 下的本地 demo/CI fixture。
 
-Release 会提供可直接运行的 `tikeo-migrate` 压缩包，覆盖 Linux、macOS Intel、macOS Apple Silicon 和 Windows。用户从 GitHub Release 下载 `tikeo-migrate-${TIKEO_VERSION}-<target>.tar.gz` 或 `.zip`，解压后把二进制放进 `PATH`，或直接复制到旧项目根目录即可。
+Release 会提供可直接运行、未压缩的 `tikeo-migrate` 二进制，覆盖 Linux x86_64/arm64、macOS Intel/Apple Silicon、Windows x86_64/arm64。用户从 GitHub Release 下载 `tikeo-migrate-${TIKEO_VERSION}-<target>` 或 `tikeo-migrate-${TIKEO_VERSION}-<target>.exe`；Unix 平台如有需要先 `chmod +x`，然后把二进制放进 `PATH`，或直接复制到旧项目根目录即可。
 
 ```mermaid
 flowchart TD

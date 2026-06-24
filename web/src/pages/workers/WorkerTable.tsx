@@ -49,7 +49,7 @@ function WorkerNode({ worker, isEnglish }: { worker: WorkerSummary; isEnglish: b
       <div className="worker-node__main">
         <div className="worker-node__identity">
           <Space size={8} wrap>
-            {isMaster ? <Tag icon={<CrownOutlined />} color="gold">{isEnglish ? 'Master' : '主节点'}</Tag> : <Tag>{isEnglish ? 'Follower' : '从节点'}</Tag>}
+            {isMaster ? <Tag className="worker-role-tag worker-role-tag--master" icon={<CrownOutlined />}>{isEnglish ? 'Master' : '主节点'}</Tag> : <Tag color="blue">{isEnglish ? 'Follower' : '从节点'}</Tag>}
             <Badge status={statusColor(worker)} text={<Typography.Text strong copyable data-runtime-text>{worker.workerId}</Typography.Text>} />
           </Space>
           <Typography.Text type="secondary">
@@ -60,7 +60,7 @@ function WorkerNode({ worker, isEnglish }: { worker: WorkerSummary; isEnglish: b
           <Tag color="geekblue">{isEnglish ? 'Generation' : '代际'} <span data-runtime-text>{worker.generation}</span></Tag>
           {worker.master?.domain ? <Tag color="blue">{isEnglish ? 'Election domain' : '选举域'} <span data-runtime-text>{worker.master.domain}</span></Tag> : <Tag>{isEnglish ? 'Election disabled' : '未启用选举'}</Tag>}
           {worker.master?.term ? <Tag color="purple">{isEnglish ? 'Term' : '任期'} <span data-runtime-text>{worker.master.term}</span></Tag> : null}
-          {!isMaster && worker.master?.masterWorkerId ? <Tooltip title={worker.master.masterWorkerId}><Tag color="gold">{isEnglish ? 'Known master' : '主节点已知'}</Tag></Tooltip> : null}
+          {!isMaster && worker.master?.masterWorkerId ? <Tooltip title={worker.master.masterWorkerId}><Tag className="worker-role-tag worker-role-tag--master">{isEnglish ? 'Known master' : '主节点已知'}</Tag></Tooltip> : null}
         </div>
         <div className="worker-node__capabilities">
           {tags.map((item) => <Tag key={item} data-runtime-text>{item}</Tag>)}
@@ -128,7 +128,7 @@ export function WorkerTable({ workers, loading }: WorkerTableProps) {
                       <NodeIndexOutlined />
                       <Typography.Text strong data-runtime-text>{cluster.cluster}</Typography.Text>
                       <Tag data-runtime-text>{cluster.region}</Tag>
-                      <Tag color={cluster.master ? 'gold' : 'orange'}>{cluster.master ? <>{isEnglish ? 'Master' : '主节点'} <span data-runtime-text>{cluster.master.workerId}</span></> : (isEnglish ? 'No master found' : '未发现主节点')}</Tag>
+                      <Tag className={cluster.master ? 'worker-role-tag worker-role-tag--master' : undefined} color={cluster.master ? undefined : 'red'}>{cluster.master ? <>{isEnglish ? 'Master' : '主节点'} <span data-runtime-text>{cluster.master.workerId}</span></> : (isEnglish ? 'No master found' : '未发现主节点')}</Tag>
                       <Tag color="blue">{isEnglish ? `Followers ${cluster.followers.length}` : `从节点 ${cluster.followers.length}`}</Tag>
                     </Space>
                   </div>

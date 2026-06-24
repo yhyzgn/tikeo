@@ -64,16 +64,18 @@ flowchart TD
 
 ## 阶段 1：下载迁移 CLI
 
-每个 Release 都会在 GitHub Release 页面发布可直接运行的 `tikeo-migrate` 压缩包：
+每个 Release 都会在 GitHub Release 页面发布可直接运行、未压缩的 `tikeo-migrate` 二进制：
 
 | 平台 | 产物名称 |
 | --- | --- |
-| Linux x86_64 | `tikeo-migrate-${TIKEO_VERSION}-x86_64-unknown-linux-gnu.tar.gz` |
-| macOS Intel | `tikeo-migrate-${TIKEO_VERSION}-x86_64-apple-darwin.tar.gz` |
-| macOS Apple Silicon | `tikeo-migrate-${TIKEO_VERSION}-aarch64-apple-darwin.tar.gz` |
-| Windows x86_64 | `tikeo-migrate-${TIKEO_VERSION}-x86_64-pc-windows-msvc.zip` |
+| Linux x86_64 | `tikeo-migrate-${TIKEO_VERSION}-x86_64-unknown-linux-gnu` |
+| Linux arm64 | `tikeo-migrate-${TIKEO_VERSION}-aarch64-unknown-linux-gnu` |
+| macOS Intel | `tikeo-migrate-${TIKEO_VERSION}-x86_64-apple-darwin` |
+| macOS Apple Silicon | `tikeo-migrate-${TIKEO_VERSION}-aarch64-apple-darwin` |
+| Windows x86_64 | `tikeo-migrate-${TIKEO_VERSION}-x86_64-pc-windows-msvc.exe` |
+| Windows arm64 | `tikeo-migrate-${TIKEO_VERSION}-aarch64-pc-windows-msvc.exe` |
 
-解压后，把二进制放进 `PATH`，或直接复制到旧 Java Worker 项目根目录。
+Unix 平台如有需要先执行 `chmod +x ./tikeo-migrate-${TIKEO_VERSION}-<target>`；然后把二进制放进 `PATH`，或直接复制到旧 Java Worker 项目根目录。
 
 ```bash
 tikeo-migrate --help

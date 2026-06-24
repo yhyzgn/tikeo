@@ -64,16 +64,18 @@ Continue only when staging Tikeo Server is available, the intended Worker projec
 
 ## Phase 1: download the migration CLI
 
-Every release publishes ready-to-run `tikeo-migrate` archives on the GitHub Release page:
+Every release publishes ready-to-run, unarchived `tikeo-migrate` binaries on the GitHub Release page:
 
 | Platform | Asset shape |
 | --- | --- |
-| Linux x86_64 | `tikeo-migrate-${TIKEO_VERSION}-x86_64-unknown-linux-gnu.tar.gz` |
-| macOS Intel | `tikeo-migrate-${TIKEO_VERSION}-x86_64-apple-darwin.tar.gz` |
-| macOS Apple Silicon | `tikeo-migrate-${TIKEO_VERSION}-aarch64-apple-darwin.tar.gz` |
-| Windows x86_64 | `tikeo-migrate-${TIKEO_VERSION}-x86_64-pc-windows-msvc.zip` |
+| Linux x86_64 | `tikeo-migrate-${TIKEO_VERSION}-x86_64-unknown-linux-gnu` |
+| Linux arm64 | `tikeo-migrate-${TIKEO_VERSION}-aarch64-unknown-linux-gnu` |
+| macOS Intel | `tikeo-migrate-${TIKEO_VERSION}-x86_64-apple-darwin` |
+| macOS Apple Silicon | `tikeo-migrate-${TIKEO_VERSION}-aarch64-apple-darwin` |
+| Windows x86_64 | `tikeo-migrate-${TIKEO_VERSION}-x86_64-pc-windows-msvc.exe` |
+| Windows arm64 | `tikeo-migrate-${TIKEO_VERSION}-aarch64-pc-windows-msvc.exe` |
 
-After extraction, either place the binary on `PATH` or copy it into the legacy Java worker project root.
+On Unix platforms, run `chmod +x ./tikeo-migrate-${TIKEO_VERSION}-<target>` if the executable bit is not preserved. Then either place the binary on `PATH` or copy it into the legacy Java worker project root.
 
 ```bash
 tikeo-migrate --help

@@ -283,7 +283,7 @@ If the old project does not expose a Spring datasource, pass the old scheduler D
 
 Auto-export uses read-only `SELECT` access against known scheduler tables: XXL-JOB `xxl_job_info` / `XXL_JOB_INFO` / `job_info`, and PowerJob `pj_job_info` / `job_info` / `powerjob_job_info`. Production URLs can be `jdbc:mysql://...`, `jdbc:postgresql://...`, `mysql://...`, `postgres://...`, or `postgresql://...`; SQLite URLs are supported only for the local demo/CI fixtures under `examples/migration/legacy-scheduler-fixtures`. For local SQLite fixtures, use `sqlite:/abs/path.db`, `sqlite:///abs/path.db`, `jdbc:sqlite:/abs/path.db`, or on Windows `sqlite:C:\path\legacy.db`; the CLI preserves the local file path form so Windows drive letters are not treated as URL hosts.
 
-Release builds include ready-to-run `tikeo-migrate` archives for Linux, macOS Intel, macOS Apple Silicon, and Windows. Download `tikeo-migrate-${TIKEO_VERSION}-<target>.tar.gz` or `.zip` from the GitHub Release, extract it, and either put the binary on `PATH` or copy it into the legacy project root.
+Release builds include ready-to-run, unarchived `tikeo-migrate` binaries for Linux x86_64/arm64, macOS Intel/Apple Silicon, and Windows x86_64/arm64. Download `tikeo-migrate-${TIKEO_VERSION}-<target>` or `tikeo-migrate-${TIKEO_VERSION}-<target>.exe` from the GitHub Release, mark Unix binaries executable if needed, and either put the binary on `PATH` or copy it into the legacy project root.
 
 ```mermaid
 flowchart TD

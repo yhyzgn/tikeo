@@ -31,20 +31,28 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            archive_ext: tar.gz
             binary_name: tikeo
+            asset_ext: ""
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            binary_name: tikeo
+            asset_ext: ""
           - target: x86_64-apple-darwin
             os: macos-15-intel
-            archive_ext: tar.gz
             binary_name: tikeo
+            asset_ext: ""
           - target: aarch64-apple-darwin
             os: macos-14
-            archive_ext: tar.gz
             binary_name: tikeo
+            asset_ext: ""
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            archive_ext: zip
             binary_name: tikeo.exe
+            asset_ext: .exe
+          - target: aarch64-pc-windows-msvc
+            os: windows-11-arm
+            binary_name: tikeo.exe
+            asset_ext: .exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -61,8 +69,12 @@ jobs:
           set -euo pipefail
           PROTOC_VERSION=21.12
           case "${{ runner.os }}:${{ matrix.target }}" in
-            Linux:*)
+            Linux:x86_64-*)
               PROTOC_ASSET="protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+              PROTOC_BIN_NAME="protoc"
+              ;;
+            Linux:aarch64-*)
+              PROTOC_ASSET="protoc-${PROTOC_VERSION}-linux-aarch_64.zip"
               PROTOC_BIN_NAME="protoc"
               ;;
             macOS:*)
@@ -130,31 +142,20 @@ jobs:
           set -euo pipefail
           echo "Using PROTOC=$PROTOC"
           cargo build --release --locked --bin tikeo --target ${{ matrix.target }}
-      - name: Stage server release payload
+      - name: Stage server release binary
         shell: bash
         run: |
           set -euo pipefail
           RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           VERSION="${RELEASE_TAG#v}"
-          PKG="tikeo-server-${VERSION}-${{ matrix.target }}"
-          mkdir -p "dist/$PKG/config" "dist/$PKG/deploy"
-          cp "target/${{ matrix.target }}/release/${{ matrix.binary_name }}" "dist/$PKG/${{ matrix.binary_name }}"
-          cp README.md "dist/$PKG/README.md"
-          cp LICENSE "dist/$PKG/LICENSE"
-          cp -R config/. "dist/$PKG/config/"
-          cp deploy/compose/tikeo.env.example "dist/$PKG/deploy/tikeo.env.example"
-          cp docker-compose.yml "dist/$PKG/docker-compose.yml"
-          if [ "${{ matrix.archive_ext }}" = "zip" ]; then
-            (cd dist && 7z a "$PKG.zip" "$PKG")
-          else
-            tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
-          fi
+          ASSET="tikeo-server-${VERSION}-${{ matrix.target }}${{ matrix.asset_ext }}"
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary_name }}" "dist/$ASSET"
+          chmod +x "dist/$ASSET" || true
       - uses: actions/upload-artifact@v6
         with:
           name: server-${{ matrix.target }}
-          path: |
-            dist/*.tar.gz
-            dist/*.zip
+          path: dist/tikeo-server-*
           if-no-files-found: error
 
   migrate-cli-binaries:
@@ -165,20 +166,28 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            archive_ext: tar.gz
             binary_name: tikeo-migrate
+            asset_ext: ""
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            binary_name: tikeo-migrate
+            asset_ext: ""
           - target: x86_64-apple-darwin
             os: macos-15-intel
-            archive_ext: tar.gz
             binary_name: tikeo-migrate
+            asset_ext: ""
           - target: aarch64-apple-darwin
             os: macos-14
-            archive_ext: tar.gz
             binary_name: tikeo-migrate
+            asset_ext: ""
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            archive_ext: zip
             binary_name: tikeo-migrate.exe
+            asset_ext: .exe
+          - target: aarch64-pc-windows-msvc
+            os: windows-11-arm
+            binary_name: tikeo-migrate.exe
+            asset_ext: .exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -221,41 +230,20 @@ jobs:
       - name: Build migration CLI binary
         shell: bash
         run: cargo build -p tikeo-migrate --release --locked --bin tikeo-migrate --target ${{ matrix.target }}
-      - name: Stage migration CLI release payload
+      - name: Stage migration CLI release binary
         shell: bash
         run: |
           set -euo pipefail
           RELEASE_TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           VERSION="${RELEASE_TAG#v}"
-          PKG="tikeo-migrate-${VERSION}-${{ matrix.target }}"
-          mkdir -p "dist/$PKG/docs"
-          cp "target/${{ matrix.target }}/release/${{ matrix.binary_name }}" "dist/$PKG/${{ matrix.binary_name }}"
-          cp README.md "dist/$PKG/README.md"
-          cp README.zh-CN.md "dist/$PKG/README.zh-CN.md"
-          cp LICENSE "dist/$PKG/LICENSE"
-          cp docs/docs/integrations/migrating-from-legacy-schedulers.md "dist/$PKG/docs/migrating-from-legacy-schedulers.md"
-          cp docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/integrations/migrating-from-legacy-schedulers.md "dist/$PKG/docs/migrating-from-legacy-schedulers.zh-CN.md"
-          cat > "dist/$PKG/QUICKSTART.md" <<'EOF'
-          # tikeo-migrate quickstart
-
-          1. Extract this archive.
-          2. Put the binary on your PATH, or copy it into the legacy Java worker project root.
-          3. Run `tikeo-migrate plan`. It auto-detects the Java project, legacy scheduler, Spring datasource, and known scheduler DB tables.
-          4. If datasource settings are not in the project, pass `--legacy-db-url`, `--legacy-db-user`, and `--legacy-db-password`. Use `--input <jobs.json>` only for offline fallback JSON.
-          5. Review `./.tikeo-migration/CHECKLIST.md`, `jobs.tikeo.md`, and `java-project-plan.md`.
-          6. Run `tikeo-migrate apply --bundle ./.tikeo-migration` locally, fill generated endpoint/API-key placeholders in the migrated Spring config, then import reviewed jobs through the console, Management API, or GitOps.
-          EOF
-          if [ "${{ matrix.archive_ext }}" = "zip" ]; then
-            (cd dist && 7z a "$PKG.zip" "$PKG")
-          else
-            tar -C dist -czf "dist/$PKG.tar.gz" "$PKG"
-          fi
+          ASSET="tikeo-migrate-${VERSION}-${{ matrix.target }}${{ matrix.asset_ext }}"
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary_name }}" "dist/$ASSET"
+          chmod +x "dist/$ASSET" || true
       - uses: actions/upload-artifact@v6
         with:
           name: tikeo-migrate-${{ matrix.target }}
-          path: |
-            dist/*.tar.gz
-            dist/*.zip
+          path: dist/tikeo-migrate-*
           if-no-files-found: error
 
   web-dist:
@@ -343,6 +331,7 @@ jobs:
             "darwin amd64"
             "darwin arm64"
             "windows amd64"
+            "windows arm64"
           )
           for entry in "${targets[@]}"; do
             set -- $entry
@@ -351,12 +340,7 @@ jobs:
             [ "$os" = "windows" ] && ext=".exe"
             out="terraform-provider-tikeo_v${VERSION}_${os}_${arch}${ext}"
             (cd deploy/terraform/provider && GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o "../../../dist/$out" .)
-            if [ "$os" = "windows" ]; then
-              (cd dist && 7z a "${out}.zip" "$out" && rm "$out")
-            else
-              tar -C dist -czf "dist/${out}.tar.gz" "$out"
-              rm "dist/$out"
-            fi
+            chmod +x "dist/$out" || true
           done
       - name: Build K8s operator binaries
         shell: bash
@@ -369,6 +353,7 @@ jobs:
             "darwin amd64"
             "darwin arm64"
             "windows amd64"
+            "windows arm64"
           )
           for entry in "${targets[@]}"; do
             set -- $entry
@@ -380,12 +365,10 @@ jobs:
             (cd deploy/k8s/operator && GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o "../../../dist/$pkg/tikeo-operator${ext}" ./cmd/tikeo-operator)
             cp deploy/k8s/operator/README.md "dist/$pkg/README.md"
             cp deploy/k8s/crd/tikeo-manifest-crd.yaml "dist/$pkg/tikeo-manifest-crd.yaml"
-            if [ "$os" = "windows" ]; then
-              (cd dist && 7z a "$pkg.zip" "$pkg" && rm -rf "$pkg")
-            else
-              tar -C dist -czf "dist/$pkg.tar.gz" "$pkg"
-              rm -rf "dist/$pkg"
-            fi
+            ASSET="tikeo-operator-${VERSION}-${os}-${arch}${ext}"
+            cp "dist/$pkg/tikeo-operator${ext}" "dist/$ASSET"
+            chmod +x "dist/$ASSET" || true
+            rm -rf "dist/$pkg"
           done
       - name: Package K8s manifests, compose files, and Helm chart
         shell: bash
@@ -413,10 +396,11 @@ jobs:
           name: deploy-assets
           path: |
             dist/*.tar.gz
-            dist/*.zip
             dist/*.tgz
             dist/*.yaml
             dist/*.yml
+            dist/terraform-provider-tikeo_*
+            dist/tikeo-operator-*
           if-no-files-found: error
 
   github-release:
