@@ -801,11 +801,10 @@
             .queue_overview(10)
             .await
             .unwrap_or_else(|error| panic!("queue should load: {error}"));
-        assert_eq!(overview.pending, 1);
         assert_eq!(overview.running, 0);
         assert!(
             overview.items.iter().any(|item| item.job_instance_id.is_some()),
-            "shard-owner follower should materialize an owned workflow node into a job dispatch item: {overview:?}"
+            "shard-owner follower should create a job dispatch item for the owned workflow node; the same dispatcher tick may already advance it beyond pending: {overview:?}"
         );
         assert!(
             overview.items.iter().any(|item| {
