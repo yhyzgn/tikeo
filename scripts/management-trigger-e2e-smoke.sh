@@ -270,8 +270,18 @@ for item in items:
     if item.get("namespace") != namespace or item.get("app") != app:
         raise SystemExit(f"worker scope mismatch: {item.get('namespace')}/{item.get('app')}")
     structured = item.get("structuredCapabilities") or {}
-    if "demo.echo" not in (structured.get("sdkProcessors") or []):
-        raise SystemExit(f"worker missing demo.echo capability: {structured}")
+    processor_entries = (
+        structured.get("normalProcessors")
+        or structured.get("normal_processors")
+        or structured.get("sdkProcessors")
+        or []
+    )
+    processor_names = [
+        entry.get("name") if isinstance(entry, dict) else entry
+        for entry in processor_entries
+    ]
+    if "demo.echo" not in processor_names:
+        raise SystemExit(f"worker missing demo.echo normal processor: {structured}")
     # Worker labels intentionally are not exposed in the public worker DTO;
     # dispatch is verified below through the instance result/log transition.
     if not worker_pool:
