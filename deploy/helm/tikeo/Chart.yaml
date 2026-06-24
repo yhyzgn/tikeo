@@ -2,8 +2,8 @@ apiVersion: v2
 name: tikeo
 description: Tikeo server and web deployment for Kubernetes.
 type: application
-version: 0.3.16
-appVersion: "0.3.16"
+version: 0.3.17
+appVersion: "0.3.17"
 home: https://github.com/yhyzgn/tikeo
 sources:
   - https://github.com/yhyzgn/tikeo
