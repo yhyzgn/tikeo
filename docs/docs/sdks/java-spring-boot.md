@@ -74,6 +74,7 @@ Verify locally:
 | `tikeo.worker.scripts.enabled` | `true` | Dynamic script registry enabled. |
 | `tikeo.worker.scripts.container-enabled` | `false` | Container-backed non-WASM scripts disabled by default. |
 | `tikeo.worker.scripts.auto-install-tools` | `true` | Background local development tool prewarm; startup never waits for downloads. |
+| `tikeo.worker.scripts.require-managed-tools` | `false` | Strong isolation switch: ignore host PATH tools/interpreters and use only managed sandbox-tools binaries. Env: `TIKEO_WORKER_SCRIPTS_REQUIRE_MANAGED_TOOLS`. |
 | `tikeo.management.enabled` | `false` in starter, demos set true | Auto-configure `TikeoJobClient`. |
 | `tikeo.management.endpoint` | `http://127.0.0.1:9090` | HTTP Management endpoint; override to your Server API URL. |
 | `tikeo.management.api-key` | blank | App-scoped SDK API key. |

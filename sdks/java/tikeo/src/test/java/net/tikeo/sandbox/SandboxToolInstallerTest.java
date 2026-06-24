@@ -39,6 +39,7 @@ class SandboxToolInstallerTest {
                 "",
                 "7.5.4",
                 installDir.toString(),
+                false,
                 1));
 
         Assertions.assertTrue(resolver.resolvePowerShellCommand().isPresent());

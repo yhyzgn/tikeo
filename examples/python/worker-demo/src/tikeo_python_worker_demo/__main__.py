@@ -70,7 +70,7 @@ def main() -> None:
 
 def configure_scripts(config: tikeo.WorkerConfig) -> tikeo.ScriptRunnerRegistry:
     scripts = tikeo.ScriptRunnerRegistry()
-    resolver = tikeo.SandboxToolResolver(state_dir=env_or("TIKEO_WORKER_STATE_DIR", ""), auto_install=not disabled("TIKEO_SANDBOX_AUTO_INSTALL"))
+    resolver = tikeo.SandboxToolResolver(state_dir=env_or("TIKEO_WORKER_STATE_DIR", ""), auto_install=not disabled("TIKEO_SANDBOX_AUTO_INSTALL"), require_managed_tools=enabled("TIKEO_SANDBOX_REQUIRE_MANAGED_TOOLS"))
     for language in csv_or("TIKEO_WORKER_SCRIPT_LANGUAGES", "shell,python,javascript,typescript,powershell,php,groovy,rhai"):
         if disabled("TIKEO_ENABLE_SCRIPT_" + language.upper()):
             continue

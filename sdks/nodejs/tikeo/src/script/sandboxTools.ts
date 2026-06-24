@@ -6,7 +6,7 @@ import { spawn, spawnSync } from "node:child_process";
 const backgroundInstalls = new Set<string>();
 
 export class SandboxToolResolver {
-  constructor(public stateDir = "", public autoInstall = true, public installTimeoutMs = 120_000) {}
+  constructor(public stateDir = "", public autoInstall = true, public installTimeoutMs = 120_000, public requireManagedTools = false) {}
 
   resolveSrt(): [string, boolean] {
     return this.resolveTool("srt", "srt", (dir) => this.runInstaller(this.managedBin(dir), "npm", ["install", "-g", "--prefix", dir, process.env.TIKEO_SRT_NPM_PACKAGE || "@anthropic-ai/sandbox-runtime"]));
@@ -24,13 +24,19 @@ export class SandboxToolResolver {
   resolveNpm(): [string, boolean] { return this.resolveInterpreter("npm"); }
 
   resolveInterpreter(binary: string): [string, boolean] {
+    if (this.requireManagedTools) {
+      const path = join(this.managedBin(this.installDir(binary)), executableName(binary));
+      return this.commandWorks(path, ["--version"]) || (binary === "sh" && this.commandWorks(path, ["-c", "exit 0"])) ? [path, true] : ["", false];
+    }
     const path = findOnPath(binary);
     return path && this.commandWorks(path, ["--version"]) ? [path, true] : ["", false];
   }
 
   private resolveTool(key: string, binary: string, installer: (dir: string) => void | Promise<void>): [string, boolean] {
-    const found = findOnPath(binary);
-    if (found && this.toolWorks(binary, found)) return [found, true];
+    if (!this.requireManagedTools) {
+      const found = findOnPath(binary);
+      if (found && this.toolWorks(binary, found)) return [found, true];
+    }
     const legacyDir = this.legacyInstallDir(key);
     if (legacyDir) {
       const legacyLocal = join(this.managedBin(legacyDir), executableName(binary));

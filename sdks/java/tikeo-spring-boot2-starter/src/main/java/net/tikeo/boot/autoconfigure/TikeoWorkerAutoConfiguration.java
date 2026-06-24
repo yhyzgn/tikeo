@@ -487,6 +487,7 @@ public class TikeoWorkerAutoConfiguration {
                 scripts.getRhaiInstallDir(),
                 scripts.getPowerShellInstallVersion(),
                 scripts.getPowerShellInstallDir(),
+                scripts.isRequireManagedTools(),
                 Math.max(
                     wasm.getInstallTimeoutMillis(),
                     scripts.getToolInstallTimeoutMillis()

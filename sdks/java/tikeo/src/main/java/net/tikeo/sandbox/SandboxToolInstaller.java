@@ -83,12 +83,11 @@ public final class SandboxToolInstaller {
     }
 
     public static Path defaultInstallDir(Tool tool) {
-        return Path.of(
-            System.getProperty("user.home"),
-            ".tikeo",
-            "sandbox-tools",
-            installDirectoryKey(tool)
-        );
+        String configuredRoot = System.getenv("TIKEO_SANDBOX_TOOLS_DIR");
+        Path root = configuredRoot == null || configuredRoot.isBlank()
+            ? Path.of(System.getProperty("user.home"), ".tikeo", "sandbox-tools")
+            : Path.of(configuredRoot);
+        return root.resolve(installDirectoryKey(tool));
     }
 
     private static String installDirectoryKey(Tool tool) {

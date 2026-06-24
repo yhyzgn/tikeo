@@ -17,6 +17,8 @@ pub struct SandboxToolResolver {
     pub state_dir: Option<PathBuf>,
     /// Automatically install missing tools when installer prerequisites exist.
     pub auto_install: bool,
+    /// Require sandbox tools/interpreters to come from managed install directories instead of PATH.
+    pub require_managed_tools: bool,
     /// Installer timeout.
     pub install_timeout: Duration,
 }
@@ -26,6 +28,7 @@ impl Default for SandboxToolResolver {
         Self {
             state_dir: None,
             auto_install: true,
+            require_managed_tools: false,
             install_timeout: Duration::from_mins(2),
         }
     }
@@ -55,13 +58,13 @@ impl SandboxToolResolver {
     /// Resolve Node.js required by npm-installed SRT launchers.
     #[must_use]
     pub fn resolve_node(&self) -> Option<PathBuf> {
-        find_command("node").filter(|command| command_available(command))
+        self.resolve_interpreter("node")
     }
 
     /// Resolve npm used to install SRT. Its parent directory is also useful for PATH repair.
     #[must_use]
     pub fn resolve_npm(&self) -> Option<PathBuf> {
-        find_command("npm").filter(|command| command_available(command))
+        self.resolve_interpreter("npm")
     }
 
     /// Resolve ripgrep required by SRT.
@@ -125,6 +128,10 @@ impl SandboxToolResolver {
     /// Resolve an already-installed native interpreter command used by SRT.
     #[must_use]
     pub fn resolve_interpreter(&self, binary: &str) -> Option<PathBuf> {
+        if self.require_managed_tools {
+            let command = Self::install_dir(binary).join("bin").join(binary);
+            return command_available(&command).then_some(command);
+        }
         find_command(binary).filter(|command| command_available(command))
     }
 
@@ -144,8 +151,11 @@ impl SandboxToolResolver {
     where
         F: FnOnce(&Path, &Path) -> bool + Send + 'static,
     {
-        if let Some(command) = find_command(binary).filter(|command| command_available(command)) {
-            return Some(command);
+        if !self.require_managed_tools {
+            if let Some(command) = find_command(binary).filter(|command| command_available(command))
+            {
+                return Some(command);
+            }
         }
         if let Some(legacy_dir) = self.legacy_install_dir(tool_key) {
             let legacy_local = legacy_dir.join("bin").join(binary);
@@ -513,6 +523,7 @@ mod tests {
         let resolver = SandboxToolResolver {
             state_dir: None,
             auto_install: true,
+            require_managed_tools: false,
             install_timeout: Duration::from_millis(1),
         };
         let started = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -539,6 +550,26 @@ mod tests {
             std::thread::sleep(Duration::from_millis(10));
         }
         panic!("background installer should have been scheduled");
+    }
+
+    #[test]
+    fn require_managed_tools_skips_host_path_tools() {
+        let resolver = SandboxToolResolver {
+            state_dir: None,
+            auto_install: false,
+            require_managed_tools: true,
+            install_timeout: Duration::from_millis(1),
+        };
+        assert!(
+            resolver
+                .resolve_tool_with_local_binary(
+                    "srt",
+                    "definitely-missing-host-path-tool",
+                    |_dir, _bin_dir| true,
+                )
+                .is_none()
+        );
+        assert!(resolver.resolve_interpreter("sh").is_none());
     }
 
     #[test]

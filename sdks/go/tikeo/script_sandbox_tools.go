@@ -16,9 +16,10 @@ var sandboxToolInstalls sync.Map
 
 // SandboxToolResolver resolves lightweight script sandbox tools and prewarms missing tools in the background.
 type SandboxToolResolver struct {
-	StateDir       string
-	AutoInstall    bool
-	InstallTimeout time.Duration
+	StateDir            string
+	AutoInstall         bool
+	RequireManagedTools bool
+	InstallTimeout      time.Duration
 }
 
 func NewSandboxToolResolver() SandboxToolResolver {
@@ -69,6 +70,13 @@ func (r SandboxToolResolver) ResolvePowerShell() (string, bool) {
 }
 
 func (r SandboxToolResolver) ResolveInterpreter(binary string) (string, bool) {
+	if r.RequireManagedTools {
+		path := filepath.Join(r.installDir(binary), "bin", executableName(binary))
+		if commandWorks(path, "--version") || (binary == "sh" && commandWorks(path, "-c", "exit 0")) {
+			return path, true
+		}
+		return "", false
+	}
 	path, err := exec.LookPath(binary)
 	if err != nil || !commandWorks(path, "--version") {
 		return "", false
@@ -81,8 +89,10 @@ func (r SandboxToolResolver) resolveTool(binary string, installer func(string) e
 }
 
 func (r SandboxToolResolver) resolveToolWithLocalBinary(toolKey, binary string, installer func(string) error) (string, bool) {
-	if path, err := exec.LookPath(binary); err == nil && toolWorks(binary, path) {
-		return path, true
+	if !r.RequireManagedTools {
+		if path, err := exec.LookPath(binary); err == nil && toolWorks(binary, path) {
+			return path, true
+		}
 	}
 	if legacy := r.legacyInstallDir(toolKey); legacy != "" {
 		legacyLocal := filepath.Join(legacy, "bin", executableName(binary))

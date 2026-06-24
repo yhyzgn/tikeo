@@ -245,6 +245,20 @@ def test_sandbox_tool_resolver_auto_install_returns_unavailable_immediately(tmp_
     assert not ok
     assert time.monotonic() - started_at < 1.0
 
+
+
+def test_sandbox_tool_resolver_require_managed_tools_skips_host_path(tmp_path, monkeypatch):
+    host_bin = tmp_path / "host-bin"
+    host_bin.mkdir()
+    write_executable(host_bin / "srt", "#!/bin/sh\necho host-srt\n")
+    monkeypatch.setenv("PATH", str(host_bin))
+    monkeypatch.setenv("TIKEO_SANDBOX_TOOLS_DIR", str(tmp_path / "managed-tools"))
+    resolver = tikeo.SandboxToolResolver(state_dir=str(tmp_path), auto_install=False, require_managed_tools=True)
+    _path, ok = resolver.resolve_srt()
+    assert not ok
+    _interpreter, interpreter_ok = resolver.resolve_interpreter("sh")
+    assert not interpreter_ok
+
 def test_sandbox_tool_resolver_uses_host_cache_when_worker_state_is_empty(tmp_path):
     resolver = tikeo.SandboxToolResolver(state_dir=str(tmp_path), auto_install=False)
     assert resolver._install_dir("srt") == Path.home() / ".tikeo" / "sandbox-tools" / "srt"

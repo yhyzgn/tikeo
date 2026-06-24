@@ -82,7 +82,7 @@ public final class SandboxToolResolver {
         }
 
         String command = tool.binaryName();
-        if (toolAvailable(tool, command)) {
+        if (!options.requireManagedTools() && toolAvailable(tool, command)) {
             log.info(
                 "[tikeo.sandbox] tool={} found on PATH command={}",
                 tool.binaryName(),
@@ -108,12 +108,13 @@ public final class SandboxToolResolver {
             );
             return command;
         }
+        String fallback = options.requireManagedTools() ? localCommand(tool) : tool.binaryName();
         log.info(
             "[tikeo.sandbox] tool={} unavailable after environment check; returning fallback command={}",
             tool.binaryName(),
-            tool.binaryName()
+            fallback
         );
-        return tool.binaryName();
+        return fallback;
     }
 
     public Optional<String> resolveWasmtimeCommand() {
@@ -179,10 +180,19 @@ public final class SandboxToolResolver {
     }
 
     public Optional<String> resolveInterpreterCommand(String binary) {
+        String command = options.requireManagedTools()
+            ? managedInterpreterCommand(binary)
+            : binary;
         boolean available = "sh".equals(binary)
-            ? runtimeAvailable(binary, "-c", "exit 0")
-            : runtimeAvailable(binary, "--version");
-        return available ? Optional.of(binary) : Optional.empty();
+            ? runtimeAvailable(command, "-c", "exit 0")
+            : runtimeAvailable(command, "--version");
+        return available ? Optional.of(command) : Optional.empty();
+    }
+
+    private String managedInterpreterCommand(String binary) {
+        return SandboxToolInstaller.defaultInstallDir(
+            SandboxToolInstaller.Tool.SRT
+        ).getParent().resolve(binary).resolve("bin").resolve(binary).toString();
     }
 
     public Optional<String> resolveRhaiCommand() {
@@ -466,8 +476,64 @@ public final class SandboxToolResolver {
         String rhaiInstallDir,
         String powerShellInstallVersion,
         String powerShellInstallDir,
+        boolean requireManagedTools,
         long installTimeoutMillis
     ) {
+        public Options(
+            String stateDir,
+            boolean autoInstallWasmtime,
+            String wasmtimeInstallVersion,
+            String wasmtimeInstallDir,
+            String wasmtimeInstallerUrl,
+            boolean autoInstallWasmedge,
+            String wasmedgeInstallVersion,
+            String wasmedgeInstallDir,
+            String wasmedgeInstallerUrl,
+            boolean autoInstallScriptTools,
+            String srtInstallVersion,
+            String srtInstallDir,
+            String ripgrepInstallVersion,
+            String ripgrepInstallDir,
+            String denoInstallVersion,
+            String denoInstallDir,
+            String denoInstallerUrl,
+            String v8InstallVersion,
+            String v8InstallDir,
+            String rhaiInstallVersion,
+            String rhaiInstallDir,
+            String powerShellInstallVersion,
+            String powerShellInstallDir,
+            long installTimeoutMillis
+        ) {
+            this(
+                stateDir,
+                autoInstallWasmtime,
+                wasmtimeInstallVersion,
+                wasmtimeInstallDir,
+                wasmtimeInstallerUrl,
+                autoInstallWasmedge,
+                wasmedgeInstallVersion,
+                wasmedgeInstallDir,
+                wasmedgeInstallerUrl,
+                autoInstallScriptTools,
+                srtInstallVersion,
+                srtInstallDir,
+                ripgrepInstallVersion,
+                ripgrepInstallDir,
+                denoInstallVersion,
+                denoInstallDir,
+                denoInstallerUrl,
+                v8InstallVersion,
+                v8InstallDir,
+                rhaiInstallVersion,
+                rhaiInstallDir,
+                powerShellInstallVersion,
+                powerShellInstallDir,
+                false,
+                installTimeoutMillis
+            );
+        }
+
         public static Options defaults() {
             return new Options(
                 "",
@@ -493,6 +559,7 @@ public final class SandboxToolResolver {
                 "",
                 "7.5.4",
                 "",
+                false,
                 120_000
             );
         }

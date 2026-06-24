@@ -311,6 +311,7 @@ See the docs-site [SDK and worker configuration](../../website/docs/reference/co
 | `tikeo.worker.scripts.container-enabled` | `false` | Enables optional container-backed shell/python/node/powershell runners. |
 | `tikeo.worker.scripts.availability-check` | `true` | Probes runtime availability before advertising non-WASM script capabilities. |
 | `tikeo.worker.scripts.auto-install-tools` | `true` | Background-prewarms script tooling when absent; disable in locked-down production images. |
+| `tikeo.worker.scripts.require-managed-tools` | `false` | Strong isolation switch: ignore host PATH tools/interpreters and use only managed sandbox-tools binaries. Env: `TIKEO_WORKER_SCRIPTS_REQUIRE_MANAGED_TOOLS`. |
 | `tikeo.worker.scripts.power-shell-install-version` | `7.5.4` | PowerShell Core version for auto-install. |
 | `tikeo.worker.scripts.power-shell-install-dir` | blank → `~/.tikeo/sandbox-tools/pwsh` | Persist/cache to avoid repeated archive downloads. |
 | `tikeo.worker.scripts.tool-install-timeout-millis` | `120000` | Background script tool installer timeout; failure is logged and never fails Spring startup. |

@@ -35,6 +35,7 @@ class SandboxToolResolverTest {
                 "",
                 "7.5.4",
                 "",
+                false,
                 1000));
 
         Path hostCache = Path.of(System.getProperty("user.home"), ".tikeo", "sandbox-tools");
@@ -73,6 +74,7 @@ class SandboxToolResolverTest {
                 "",
                 "7.5.4",
                 "",
+                false,
                 1000));
 
         Assertions.assertEquals(stateDir.resolve("sandbox-tools/srt"), resolver.installDir(SandboxToolInstaller.Tool.SRT));
@@ -105,6 +107,7 @@ class SandboxToolResolverTest {
                 "",
                 "7.5.4",
                 "",
+                false,
                 1000));
 
         Assertions.assertEquals(List.of("/opt/tikeo/deno/bin/deno", "run", "--no-prompt", "-"),
@@ -147,6 +150,7 @@ class SandboxToolResolverTest {
                 stateDir.resolve("sandbox-tools/rhai").toString(),
                 "7.5.4",
                 stateDir.resolve("sandbox-tools/pwsh").toString(),
+                false,
                 1000));
 
         Assertions.assertEquals(stateDir.resolve("sandbox-tools/wasmtime/bin/wasmtime").toString(),
@@ -196,6 +200,7 @@ class SandboxToolResolverTest {
                 "",
                 "7.5.4",
                 "",
+                false,
                 1000),
             (tool, options) -> scheduled.set(true));
 
@@ -205,6 +210,41 @@ class SandboxToolResolverTest {
 
         Assertions.assertTrue(scheduled.get(), "missing tool should schedule background install");
         Assertions.assertTrue(elapsedMillis < 1_000, "resolution must not wait for installer; elapsedMs=" + elapsedMillis);
+    }
+
+
+    @Test
+    void requireManagedToolsSkipsHostPathTools() throws Exception {
+        Path toolsDir = Files.createTempDirectory("tikeo-managed-only-sandbox-tools-");
+        SandboxToolResolver resolver = new SandboxToolResolver(new SandboxToolResolver.Options(
+                "",
+                false,
+                "latest",
+                "",
+                "https://wasmtime.dev/install.sh",
+                false,
+                "latest",
+                "",
+                "https://wasmedge.example/install.sh",
+                false,
+                "latest",
+                toolsDir.resolve("srt").toString(),
+                "latest",
+                "",
+                "latest",
+                "",
+                "https://deno.land/install.sh",
+                "latest",
+                "",
+                "",
+                "",
+                "7.5.4",
+                "",
+                true,
+                1000));
+
+        Assertions.assertTrue(resolver.resolveSrtCommand().isEmpty());
+        Assertions.assertTrue(resolver.resolveInterpreterCommand("sh").isEmpty());
     }
 
     private static void installFake(Path stateDir, SandboxToolInstaller.Tool tool) throws Exception {

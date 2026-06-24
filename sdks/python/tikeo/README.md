@@ -34,6 +34,7 @@ client = Client(config)
 ## Operational cautions
 
 - Sandbox auto-install is background prewarm only: SDK startup never waits for downloads; missing tools stay unadvertised and fail closed until available.
+- Set `TIKEO_SANDBOX_REQUIRE_MANAGED_TOOLS=1` when stronger isolation is required; this skips host `PATH` tools/interpreters and uses only managed sandbox-tools binaries.
 - Do not log API keys or raw payloads through SDK diagnostics.
 - Use task context logging for execution output that belongs in instance logs.
 - Keep script runners fail-closed when sandbox tools are unavailable.

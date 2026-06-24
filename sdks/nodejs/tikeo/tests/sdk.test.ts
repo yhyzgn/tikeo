@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, writeFileSync, chmodSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, chmodSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -258,6 +258,31 @@ describe("node sdk parity", () => {
       else process.env.PATH = oldPath;
       if (oldToolsDir === undefined) delete process.env.TIKEO_SANDBOX_TOOLS_DIR;
       else process.env.TIKEO_SANDBOX_TOOLS_DIR = oldToolsDir;
+    }
+  });
+
+
+  test("sandbox resolver require managed tools skips host path", () => {
+    const oldPath = process.env.PATH;
+    const oldToolsDir = process.env.TIKEO_SANDBOX_TOOLS_DIR;
+    const root = mkdtempSync(join(tmpdir(), "tikeo-node-managed-only-"));
+    try {
+      const hostBin = join(root, "host-bin");
+      mkdirSync(hostBin, { recursive: true });
+      executable(join(hostBin, "srt"), "#!/bin/sh\necho host-srt\n");
+      process.env.PATH = hostBin;
+      process.env.TIKEO_SANDBOX_TOOLS_DIR = join(root, "managed-tools");
+      const resolver = new SandboxToolResolver(root, false, 120_000, true);
+      const [_path, ok] = resolver.resolveSrt();
+      expect(ok).toBe(false);
+      const [_interpreter, interpreterOk] = resolver.resolveInterpreter("sh");
+      expect(interpreterOk).toBe(false);
+    } finally {
+      if (oldPath === undefined) delete process.env.PATH;
+      else process.env.PATH = oldPath;
+      if (oldToolsDir === undefined) delete process.env.TIKEO_SANDBOX_TOOLS_DIR;
+      else process.env.TIKEO_SANDBOX_TOOLS_DIR = oldToolsDir;
+      rmSync(root, { recursive: true, force: true });
     }
   });
 

@@ -160,6 +160,10 @@ public class TikeoWorkerProperties {
  */
         private boolean autoInstallTools = true;
         /**
+ * Require sandbox tools/interpreters to come from managed install directories instead of the host PATH.
+ */
+        private boolean requireManagedTools = false;
+        /**
  * Anthropic Sandbox Runtime npm package version. Blank/latest follows npm latest.
  */
         private String srtInstallVersion = "latest";

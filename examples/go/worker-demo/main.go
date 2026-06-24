@@ -33,6 +33,7 @@ func main() {
 	resolver := tikeo.NewSandboxToolResolver()
 	resolver.StateDir = envOr("TIKEO_WORKER_STATE_DIR", "")
 	resolver.AutoInstall = !disabled("TIKEO_SANDBOX_AUTO_INSTALL")
+	resolver.RequireManagedTools = enabled("TIKEO_SANDBOX_REQUIRE_MANAGED_TOOLS")
 	for _, lang := range csvOr("TIKEO_WORKER_SCRIPT_LANGUAGES", "shell,python,javascript,typescript,powershell,php,groovy,rhai") {
 		if disabled("TIKEO_ENABLE_SCRIPT_" + strings.ToUpper(lang)) {
 			continue

@@ -29,6 +29,7 @@ class SandboxToolResolver:
     state_dir: str = ""
     auto_install: bool = True
     install_timeout: float = 120.0
+    require_managed_tools: bool = False
 
     def resolve_srt(self) -> tuple[str, bool]:
         return self._resolve_tool("srt", "srt", lambda d: self._run_installer(self._managed_bin(d), "npm", "install", "-g", "--prefix", str(d), _env_or("TIKEO_SRT_NPM_PACKAGE", "@anthropic-ai/sandbox-runtime")))
@@ -57,15 +58,21 @@ class SandboxToolResolver:
         return self.resolve_interpreter("npm")
 
     def resolve_interpreter(self, binary: str) -> tuple[str, bool]:
+        if self.require_managed_tools:
+            path = self._managed_bin(self._install_dir(binary)) / self._executable_name(binary)
+            if self._command_works(str(path), "--version") or (binary == "sh" and self._command_works(str(path), "-c", "exit 0")):
+                return str(path), True
+            return "", False
         path = shutil.which(binary)
         if path and self._command_works(path, "--version"):
             return path, True
         return "", False
 
     def _resolve_tool(self, key: str, binary: str, installer) -> tuple[str, bool]:
-        path = shutil.which(binary)
-        if path and self._tool_works(binary, path):
-            return path, True
+        if not self.require_managed_tools:
+            path = shutil.which(binary)
+            if path and self._tool_works(binary, path):
+                return path, True
         legacy_directory = self._legacy_install_dir(key)
         if legacy_directory is not None:
             legacy_local = self._managed_bin(legacy_directory) / self._executable_name(binary)
