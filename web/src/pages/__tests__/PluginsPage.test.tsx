@@ -43,12 +43,14 @@ describe('plugin system management page', () => {
     expect(jobsSource).toContain('listPlugins');
   });
 
-  test('job plugin executor derives processor name from selected plugin option', () => {
+  test('job plugin executor derives processor names from selected app worker capabilities', () => {
     expect(jobsSource).toContain('applyPluginProcessorSelection');
     expect(jobsSource).toContain('pluginProcessorNameOptions');
-    expect(jobsSource).toContain('selected?.processor.processorNames');
-    expect(jobsSource).toContain('请先在插件管理中维护任务处理器名候选');
-    expect(jobsSource).toContain('任务处理器名必须来自插件管理中的候选项');
+    expect(jobsSource).toContain('worker.structuredCapabilities?.pluginProcessors');
+    expect(jobsSource).toContain('plugin.processors ?? []');
+    expect(jobsSource).toContain('plugin.processorNames');
+    expect(jobsSource).toContain('请选择当前 App 在线 Worker 已注册的插件处理器类型');
+    expect(jobsSource).toContain('任务处理器名必须来自当前 App 在线 Worker 的注册能力');
     expect(jobsSource).not.toContain('selected.plugin.kind');
     expect(jobsSource).not.toContain('selected.plugin.name.toLowerCase');
     expect(jobsSource).not.toContain('if (currentValue?.trim()) names.add');
