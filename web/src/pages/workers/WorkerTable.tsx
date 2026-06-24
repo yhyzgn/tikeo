@@ -10,17 +10,17 @@ export function visibleCapabilityTags(worker: WorkerSummary) {
   return uniqueSorted(worker.structuredCapabilities?.tags ?? []);
 }
 
-export function visibleSdkProcessors(worker: WorkerSummary) {
-  return worker.structuredCapabilities?.sdkProcessors ?? [];
+export function visibleNormalProcessors(worker: WorkerSummary) {
+  return (worker.structuredCapabilities?.normalProcessors?.map((processor) => processor.name) ?? []);
 }
 
 export function capabilityFilterValues(worker: WorkerSummary) {
   return [
     ...visibleCapabilityTags(worker),
-    ...visibleSdkProcessors(worker).map((name) => `SDK:${name}`),
+    ...visibleNormalProcessors(worker).map((name) => `Normal:${name}`),
     ...(worker.structuredCapabilities?.scriptRunners.map((runner) => `Script:${runner.language}`) ?? []),
     ...(worker.structuredCapabilities?.pluginProcessors.flatMap((plugin) =>
-      plugin.processorNames.map((name) => `Plugin:${plugin.type}:${name}`)
+      (plugin.processors?.map((processor) => `Plugin:${plugin.type}:${processor.name}`) ?? plugin.processorNames.map((name) => `Plugin:${plugin.type}:${name}`))
     ) ?? []),
   ];
 }
@@ -39,7 +39,7 @@ function statusColor(worker: WorkerSummary) {
 
 function WorkerNode({ worker, isEnglish }: { worker: WorkerSummary; isEnglish: boolean }) {
   const tags = visibleCapabilityTags(worker);
-  const sdkProcessors = visibleSdkProcessors(worker);
+  const normalProcessors = visibleNormalProcessors(worker);
   const scriptRunners = worker.structuredCapabilities?.scriptRunners ?? [];
   const pluginProcessors = worker.structuredCapabilities?.pluginProcessors ?? [];
   const isMaster = worker.master?.isMaster === true;
@@ -64,10 +64,10 @@ function WorkerNode({ worker, isEnglish }: { worker: WorkerSummary; isEnglish: b
         </div>
         <div className="worker-node__capabilities">
           {tags.map((item) => <Tag key={item} data-runtime-text>{item}</Tag>)}
-          {sdkProcessors.map((item) => <Tag key={`sdk:${item}`} color="purple">{isEnglish ? 'Processor' : '处理器'}: <span data-runtime-text>{item}</span></Tag>)}
+          {normalProcessors.map((item) => <Tag key={`normal:${item}`} color="purple">{isEnglish ? 'Processor' : '处理器'}: <span data-runtime-text>{item}</span></Tag>)}
           {scriptRunners.map((runner) => <Tag key={`script:${runner.language}:${runner.sandboxBackend}`} color="green">{isEnglish ? 'Script' : '脚本'}: <span data-runtime-text>{runner.language} · {runner.sandboxBackend}</span></Tag>)}
           {pluginProcessors.flatMap((plugin) => plugin.processorNames.map((name) => <Tag key={`plugin:${plugin.type}:${name}`} color="blue">{isEnglish ? 'Plugin' : '插件'}: <span data-runtime-text>{plugin.type} · {name}</span></Tag>))}
-          {tags.length + sdkProcessors.length + scriptRunners.length + pluginProcessors.length === 0 ? <Typography.Text type="secondary">{isEnglish ? 'No structured capabilities' : '无结构化能力'}</Typography.Text> : null}
+          {tags.length + normalProcessors.length + scriptRunners.length + pluginProcessors.length === 0 ? <Typography.Text type="secondary">{isEnglish ? 'No structured capabilities' : '无结构化能力'}</Typography.Text> : null}
         </div>
       </div>
     </List.Item>

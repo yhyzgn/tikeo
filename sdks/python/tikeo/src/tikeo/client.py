@@ -259,7 +259,10 @@ def grpc_target(endpoint: str) -> str:
 
 def _to_proto_capabilities(pb2: Any, capabilities: WorkerCapabilities) -> Any:
     out = pb2.WorkerCapabilities(tags=list(capabilities.tags))
-    out.sdk_processors.extend(pb2.SdkProcessorCapability(name=name) for name in capabilities.sdk_processors)
+    out.normal_processors.extend(pb2.ProcessorCapability(name=p.name, description=p.description) for p in capabilities.normal_processors)
     out.script_runners.extend(pb2.ScriptRunnerCapability(language=r.language, sandbox_backend=r.sandbox_backend) for r in capabilities.script_runners)
-    out.plugin_processors.extend(pb2.PluginProcessorCapability(type=p.type, processor_names=list(p.processor_names)) for p in capabilities.plugin_processors)
+    for plugin in capabilities.plugin_processors:
+        proto_plugin = pb2.PluginProcessorCapability(type=str(plugin.type), processor_names=list(plugin.processor_names))
+        proto_plugin.processors.extend(pb2.ProcessorCapability(name=p.name, description=p.description) for p in plugin.processors)
+        out.plugin_processors.append(proto_plugin)
     return out

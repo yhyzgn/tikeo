@@ -9,6 +9,7 @@ import net.tikeo.boot.lifecycle.TikeoWorkerLifecycle;
 import net.tikeo.management.client.TikeoJobClient;
 import net.tikeo.processor.TikeoProcessor;
 import net.tikeo.processor.TikeoProcessorKind;
+import net.tikeo.processor.TikeoPluginType;
 import net.tikeo.script.ScriptRunnerKind;
 import net.tikeo.script.ScriptRunnerRegistry;
 import net.tikeo.script.SrtScriptRunner;
@@ -402,7 +403,7 @@ class TikeoWorkerAutoConfigurationTest {
     }
 
     static class DemoPluginProcessor {
-        @TikeoProcessor(value = "billing.sql-sync", kind = TikeoProcessorKind.PLUGIN, pluginType = "sql")
+        @TikeoProcessor(value = "billing.sql-sync", kind = TikeoProcessorKind.PLUGIN, pluginType = TikeoPluginType.SQL)
         public String sync(String payload) {
             return payload;
         }

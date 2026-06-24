@@ -46,7 +46,18 @@ func NewClient(config WorkerConfig) (*Client, error) {
 	}
 	config.Capabilities = normalizedCapabilities(config.Capabilities)
 	config.Structured.Tags = normalizedCapabilities(config.Structured.Tags)
-	config.Structured.SDKProcessors = normalizedCapabilities(config.Structured.SDKProcessors)
+	config.Structured.NormalProcessors = normalizeProcessors(config.Structured.NormalProcessors)
+	for i := range config.Structured.PluginProcessors {
+		config.Structured.PluginProcessors[i].ProcessorNames = normalizedCapabilities(config.Structured.PluginProcessors[i].ProcessorNames)
+		config.Structured.PluginProcessors[i].Processors = normalizeProcessors(config.Structured.PluginProcessors[i].Processors)
+		for _, name := range config.Structured.PluginProcessors[i].ProcessorNames {
+			config.Structured.PluginProcessors[i].Processors = appendUniqueProcessor(config.Structured.PluginProcessors[i].Processors, newProcessorCapability(name))
+		}
+		config.Structured.PluginProcessors[i].ProcessorNames = nil
+		for _, processor := range config.Structured.PluginProcessors[i].Processors {
+			config.Structured.PluginProcessors[i].ProcessorNames = append(config.Structured.PluginProcessors[i].ProcessorNames, processor.Name)
+		}
+	}
 	if config.Labels == nil {
 		config.Labels = map[string]string{}
 	}
@@ -91,8 +102,8 @@ func cloneMap(values map[string]string) map[string]string {
 
 func cloneWorkerCapabilities(in WorkerCapabilities) WorkerCapabilities {
 	out := WorkerCapabilities{
-		Tags:          append([]string(nil), in.Tags...),
-		SDKProcessors: append([]string(nil), in.SDKProcessors...),
+		Tags:             append([]string(nil), in.Tags...),
+		NormalProcessors: append([]ProcessorCapability(nil), in.NormalProcessors...),
 	}
 	for _, runner := range in.ScriptRunners {
 		out.ScriptRunners = append(out.ScriptRunners, runner)
@@ -100,6 +111,7 @@ func cloneWorkerCapabilities(in WorkerCapabilities) WorkerCapabilities {
 	for _, plugin := range in.PluginProcessors {
 		out.PluginProcessors = append(out.PluginProcessors, PluginProcessorCapability{
 			Type:           plugin.Type,
+			Processors:     append([]ProcessorCapability(nil), plugin.Processors...),
 			ProcessorNames: append([]string(nil), plugin.ProcessorNames...),
 		})
 	}

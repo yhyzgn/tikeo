@@ -45,13 +45,14 @@ message RegisterWorker {
 message WorkerCapabilities {
   // Human/operator tags such as java or spring-boot. Not used for dispatch routing.
   repeated string tags = 1;
-  repeated SdkProcessorCapability sdk_processors = 2;
+  repeated ProcessorCapability normal_processors = 2;
   repeated ScriptRunnerCapability script_runners = 3;
   repeated PluginProcessorCapability plugin_processors = 4;
 }
 
-message SdkProcessorCapability {
+message ProcessorCapability {
   string name = 1;
+  string description = 2;
 }
 
 message ScriptRunnerCapability {
@@ -62,6 +63,8 @@ message ScriptRunnerCapability {
 message PluginProcessorCapability {
   string type = 1;
   repeated string processor_names = 2;
+  // Rich processor list carrying display metadata for operator UI.
+  repeated ProcessorCapability processors = 3;
 }
 
 message WorkerClusterElection {
@@ -102,7 +105,7 @@ message DispatchTask {
   bytes payload = 3;
   // Explicit processor key used by SDK adapters. Defaults to job_id for backwards compatibility.
   string processor_name = 4;
-  // Optional dynamic processor metadata. Empty for normal SDK processors.
+  // Optional dynamic processor metadata. Empty for normal processors.
   TaskProcessorBinding processor_binding = 5;
   // Server-issued opaque assignment authority bound to worker session generation/fencing.
   string assignment_token = 6;

@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public final class HeartbeatTaskProcessor {
-    @TikeoProcessor("demo.heartbeat")
+    @TikeoProcessor(value = "demo.heartbeat", description = "心跳/运行态检查示例处理器")
     public TaskOutcome heartbeat(TaskContext context) {
         log.info("[demo.heartbeat] tick jobId={} instanceId={}", context.jobId(), context.instanceId());
         TaskOutcome outcome = new TaskOutcome(true, "heartbeat:" + context.jobId());

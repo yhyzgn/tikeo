@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public final class BytesTaskProcessor {
-    @TikeoProcessor("demo.bytes")
+    @TikeoProcessor(value = "demo.bytes", description = "字节 payload 示例处理器")
     public String bytes(TaskContext context, byte[] payload) {
         String text = new String(payload, StandardCharsets.UTF_8);
         log.info("[demo.bytes] received bytes payload='{}' length={}", text, payload.length);

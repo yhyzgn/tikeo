@@ -13,7 +13,7 @@ mod session;
 mod task;
 mod wasm;
 
-pub use config::WorkerConfig;
+pub use config::{PluginType, WorkerConfig};
 pub use error::WorkerSdkError;
 pub use logging::{SdkLogConfig, SdkLogLevel, configure_sdk_logging, install_task_log_bridge};
 pub use management::{

@@ -7,9 +7,9 @@ use std::{collections::HashMap, time::Duration};
 use async_trait::async_trait;
 use tikeo::{
     ContainerScriptRunner, DenoScriptRunner, ManagementClient, ManagementCreateJobRequest,
-    ManagementTriggerJobRequest, SandboxToolResolver, ScriptRunnerKind, ScriptRunnerRegistry,
-    SrtScriptRunner, TaskContext, TaskOutcome, TaskProcessor, UnsupportedScriptRunner,
-    WorkerClient, WorkerConfig, WorkerSdkError, install_task_log_bridge,
+    ManagementTriggerJobRequest, PluginType, SandboxToolResolver, ScriptRunnerKind,
+    ScriptRunnerRegistry, SrtScriptRunner, TaskContext, TaskOutcome, TaskProcessor,
+    UnsupportedScriptRunner, WorkerClient, WorkerConfig, WorkerSdkError, install_task_log_bridge,
 };
 
 #[tokio::main]
@@ -30,10 +30,10 @@ async fn main() -> Result<(), WorkerSdkError> {
     config.add_tag("rust");
     config.add_tag("manual-demo");
     for processor in csv_env_or(
-        "TIKEO_WORKER_SDK_PROCESSORS",
+        "TIKEO_WORKER_NORMAL_PROCESSORS",
         "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception",
     ) {
-        config.add_sdk_processor(processor);
+        config.add_normal_processor(processor, "Demo normal processor");
     }
     config.labels.insert(
         "worker_pool".to_owned(),
@@ -41,8 +41,9 @@ async fn main() -> Result<(), WorkerSdkError> {
     );
     if enabled_by_default("TIKEO_ENABLE_PLUGIN_SQL") {
         config.add_plugin_processor(
-            env_or("TIKEO_PLUGIN_SQL_TYPE", "sql"),
+            PluginType::Sql,
             env_or("TIKEO_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"),
+            "SQL sync plugin processor",
         );
         config
             .labels

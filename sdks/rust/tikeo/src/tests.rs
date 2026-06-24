@@ -29,9 +29,13 @@ use super::{
 fn worker_config_registers_structured_capabilities_without_legacy_routing_strings() {
     let mut config = WorkerConfig::local("http://127.0.0.1:9998", "rust-demo");
     config.add_tag("rust");
-    config.add_sdk_processor("demo.echo");
+    config.add_normal_processor("demo.echo", "Rust echo processor");
     config.add_script_runner("python", "container");
-    config.add_plugin_processor("sql", "billing.sql-sync");
+    config.add_plugin_processor(
+        crate::config::PluginType::Sql,
+        "billing.sql-sync",
+        "SQL sync processor",
+    );
 
     let message = config.register_message();
     let register = match message.kind {
@@ -44,13 +48,21 @@ fn worker_config_registers_structured_capabilities_without_legacy_routing_string
 
     assert!(register.capabilities.is_empty());
     assert_eq!(structured.tags, vec!["rust"]);
-    assert_eq!(structured.sdk_processors[0].name, "demo.echo");
+    assert_eq!(structured.normal_processors[0].name, "demo.echo");
+    assert_eq!(
+        structured.normal_processors[0].description,
+        "Rust echo processor"
+    );
     assert_eq!(structured.script_runners[0].language, "python");
     assert_eq!(structured.script_runners[0].sandbox_backend, "container");
     assert_eq!(structured.plugin_processors[0].r#type, "sql");
     assert_eq!(
         structured.plugin_processors[0].processor_names,
         vec!["billing.sql-sync"]
+    );
+    assert_eq!(
+        structured.plugin_processors[0].processors[0].description,
+        "SQL sync processor"
     );
 }
 

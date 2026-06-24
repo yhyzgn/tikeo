@@ -1,5 +1,6 @@
 import {
   ApiOutlined,
+  ArrowRightOutlined,
   ClockCircleOutlined,
   DeploymentUnitOutlined,
   FireOutlined,
@@ -8,9 +9,13 @@ import {
   ThunderboltOutlined,
   TeamOutlined,
   WarningOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
+  FieldTimeOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import { Button, Card, Col, Empty, Progress, Row, Space, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 
 import {
@@ -69,12 +74,13 @@ interface ScopeSummary {
   key: string;
   count: number;
   masters: number;
+  followers: number;
   clusters: number;
 }
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   pending: { label: '等待', color: '#f59e0b' },
-  dispatching: { label: '派发中', color: '#0ea5e9' },
+  dispatching: { label: '派发中', color: 'var(--app-primary-color)' },
   running: { label: '运行中', color: '#6366f1' },
   retrying: { label: '重试', color: '#f97316' },
   succeeded: { label: '成功', color: '#10b981' },
@@ -186,6 +192,56 @@ function riskSignals(params: {
   return signals;
 }
 
+
+
+function instancesPath(filters: Record<string, string>): string {
+  const params = new URLSearchParams(filters);
+  const query = params.toString();
+  return query ? `${ROUTE_META.instances.path}?${query}` : ROUTE_META.instances.path;
+}
+
+function recommendedActions(params: {
+  failedInstances: number;
+  queueBacklog: number;
+  onlineWorkers: number;
+  alertDeadLetters: number;
+  clusterStatus: string;
+}): Array<{ key: string; label: string; detail: string; to: string; tone: 'ok' | 'warn' | 'danger' }> {
+  const actions: Array<{ key: string; label: string; detail: string; to: string; tone: 'ok' | 'warn' | 'danger' }> = [];
+  if (params.failedInstances > 0) {
+    actions.push({ key: 'failed', label: '复查失败实例', detail: `${params.failedInstances} 个实例需要定位日志或重试策略`, to: instancesPath({ status: 'failed' }), tone: 'danger' });
+  }
+  if (params.queueBacklog > 0) {
+    actions.push({ key: 'queue', label: '观察派发队列', detail: `${params.queueBacklog} 个队列项仍在等待或执行`, to: ROUTE_META.dispatchQueue.path, tone: 'warn' });
+  }
+  if (params.onlineWorkers === 0) {
+    actions.push({ key: 'workers', label: '恢复 Worker 容量', detail: '当前没有在线 Worker，任务不会被实际消费', to: ROUTE_META.workers.path, tone: 'danger' });
+  }
+  if (params.alertDeadLetters > 0) {
+    actions.push({ key: 'alerts', label: '处理通知死信', detail: `${params.alertDeadLetters} 条通知进入死信队列`, to: ROUTE_META.notifications.path, tone: 'warn' });
+  }
+  if (!['ready', 'leader'].includes(params.clusterStatus)) {
+    actions.push({ key: 'ha', label: '检查集群状态', detail: `当前状态为 ${params.clusterStatus}，建议确认网关与 Raft 节点`, to: ROUTE_META.workers.path, tone: 'warn' });
+  }
+  if (actions.length === 0) {
+    actions.push({ key: 'healthy', label: '系统处于稳定态', detail: '可继续观察趋势，或进入任务配置做容量和通知演练', to: ROUTE_META.jobs.path, tone: 'ok' });
+  }
+  return actions.slice(0, 4);
+}
+
+function scheduleTagClass(scheduleType: string): string {
+  if (scheduleType === 'cron') return 'dashboard-plan-tag dashboard-plan-tag--cron';
+  if (scheduleType === 'api') return 'dashboard-plan-tag dashboard-plan-tag--api';
+  if (scheduleType === 'fixed_rate') return 'dashboard-plan-tag dashboard-plan-tag--rate';
+  return 'dashboard-plan-tag dashboard-plan-tag--other';
+}
+
+function realtimeModeMeta(mode: 'connecting' | 'live' | 'fallback'): { label: string; detail: string; className: string } {
+  if (mode === 'live') return { label: 'SSE 实时', detail: '实例、Worker、队列事件实时推送；慢变化指标 15 秒补偿刷新', className: 'dashboard-realtime-chip--live' };
+  if (mode === 'fallback') return { label: '轮询兜底', detail: 'SSE 连接异常，临时使用 3 秒轮询恢复数据一致性', className: 'dashboard-realtime-chip--fallback' };
+  return { label: '连接中', detail: '正在建立 SSE 流，首屏数据由 HTTP 快照填充', className: 'dashboard-realtime-chip--connecting' };
+}
+
 function schedulePlans(jobs: JobSummary[]): JobSummary[] {
   const weight = (job: JobSummary) => {
     if (!job.enabled) return 30;
@@ -200,7 +256,7 @@ function schedulePlans(jobs: JobSummary[]): JobSummary[] {
 function scheduleTone(job: JobSummary): { label: string; color: string; width: number } {
   if (!job.enabled) return { label: '停用', color: '#94a3b8', width: 22 };
   if (job.scheduleType === 'cron') return { label: '周期调度', color: '#2563eb', width: 88 };
-  if (job.scheduleType === 'fixed_rate') return { label: '固定频率', color: '#0ea5e9', width: 68 };
+  if (job.scheduleType === 'fixed_rate') return { label: '固定频率', color: 'var(--dashboard-muted-accent)', width: 68 };
   if (job.scheduleType === 'api') return { label: 'API 触发', color: '#7c3aed', width: 44 };
   return { label: job.scheduleType, color: '#14b8a6', width: 58 };
 }
@@ -296,6 +352,8 @@ export function Dashboard() {
   const [alertQueue, setAlertQueue] = useState<AlertDeliveryQueueStatus | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogPage | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [realtimeMode, setRealtimeMode] = useState<'connecting' | 'live' | 'fallback'>('connecting');
+  const streamHealthyRef = useRef(false);
   const active = useRouteActive(ROUTE_META.dashboard.path);
 
   const load = useCallback(async () => {
@@ -325,45 +383,77 @@ export function Dashboard() {
 
   useEffect(() => {
     if (!active) return undefined;
+    streamHealthyRef.current = false;
+    setRealtimeMode('connecting');
+    const healthyStreams = new Set<'instances' | 'workers' | 'queue'>();
+    const markLive = (stream: 'instances' | 'workers' | 'queue') => {
+      healthyStreams.add(stream);
+      streamHealthyRef.current = healthyStreams.size === 3;
+      setRealtimeMode(streamHealthyRef.current ? 'live' : 'connecting');
+      setLastUpdated(new Date());
+    };
+    const markFallback = (stream: 'instances' | 'workers' | 'queue') => {
+      healthyStreams.delete(stream);
+      streamHealthyRef.current = false;
+      setRealtimeMode('fallback');
+    };
+    const refreshSlowSignals = () => {
+      void Promise.all([
+        getClusterDiagnostics().then(setClusterDiagnostics).catch(() => null),
+        getAlertDeliveryQueueStatus().then(setAlertQueue).catch(() => null),
+        listAuditLogs({ page_size: 8 }).then(setAuditLogs).catch(() => null),
+      ]).then(() => setLastUpdated(new Date()));
+    };
+
     const instanceSource = new EventSource(instanceListStreamUrl());
     instanceSource.addEventListener('instances.snapshot', (event) => {
       try {
         const snapshot = JSON.parse((event as MessageEvent).data) as InstanceListStreamSnapshot;
         setJobs(snapshot.jobs);
         setInstances(snapshot.instances);
-        setLastUpdated(new Date());
+        markLive('instances');
       } catch {
         // Ignore malformed stream frames; periodic fallback refresh keeps the dashboard current.
       }
     });
+    instanceSource.onopen = () => markLive('instances');
+    instanceSource.onerror = () => markFallback('instances');
 
     const workerSource = new EventSource(workerStreamUrl());
     workerSource.addEventListener('workers.snapshot', (event) => {
       try {
         const snapshot = JSON.parse((event as MessageEvent).data) as WorkerStreamSnapshot;
         setWorkers(snapshot.workers);
-        setLastUpdated(new Date());
+        markLive('workers');
       } catch {
         // Ignore malformed stream frames; periodic fallback refresh keeps the dashboard current.
       }
     });
+    workerSource.onopen = () => markLive('workers');
+    workerSource.onerror = () => markFallback('workers');
 
     const queueSource = new EventSource(dispatchQueueStreamUrl());
     queueSource.addEventListener('dispatchQueue.snapshot', (event) => {
       try {
         setQueue(JSON.parse((event as MessageEvent).data) as DispatchQueueStreamSnapshot);
-        setLastUpdated(new Date());
+        markLive('queue');
       } catch {
         // Ignore malformed stream frames; periodic fallback refresh keeps the dashboard current.
       }
     });
+    queueSource.onopen = () => markLive('queue');
+    queueSource.onerror = () => markFallback('queue');
 
-    const fallbackTimer = window.setInterval(() => { void load(); }, 3000);
+    const fallbackTimer = window.setInterval(() => {
+      if (!streamHealthyRef.current) void load();
+    }, 3000);
+    const slowSignalTimer = window.setInterval(refreshSlowSignals, 15000);
     return () => {
       instanceSource.close();
       workerSource.close();
       queueSource.close();
       window.clearInterval(fallbackTimer);
+      window.clearInterval(slowSignalTimer);
     };
   }, [active, load]);
 
@@ -379,7 +469,7 @@ export function Dashboard() {
   const scheduleMix = useMemo(() => miniSlices([
     { label: 'Cron', value: jobs.filter((job) => job.scheduleType === 'cron').length, color: '#2563eb' },
     { label: 'API', value: jobs.filter((job) => job.scheduleType === 'api').length, color: '#7c3aed' },
-    { label: '固定频率', value: jobs.filter((job) => job.scheduleType === 'fixed_rate').length, color: '#0ea5e9' },
+    { label: '固定频率', value: jobs.filter((job) => job.scheduleType === 'fixed_rate').length, color: 'var(--dashboard-muted-accent)' },
     { label: '其他', value: jobs.filter((job) => !['cron', 'api', 'fixed_rate'].includes(job.scheduleType)).length, color: '#14b8a6' },
   ]), [jobs]);
   const triggerMix = useMemo(() => {
@@ -399,7 +489,7 @@ export function Dashboard() {
       map.set(key, current);
     }
     return [...map.entries()]
-      .map(([key, value]) => ({ key, count: value.workers, masters: value.masters, clusters: value.clusters.size }))
+      .map(([key, value]) => ({ key, count: value.workers, masters: value.masters, followers: Math.max(0, value.workers - value.masters), clusters: value.clusters.size }))
       .sort((left, right) => right.count - left.count)
       .slice(0, 5);
   }, [workers]);
@@ -408,9 +498,9 @@ export function Dashboard() {
     for (const worker of workers?.items ?? []) {
       const capabilities = [
         ...(worker.structuredCapabilities?.tags ?? []),
-        ...(worker.structuredCapabilities?.sdkProcessors.map((processor) => `SDK:${processor}`) ?? []),
+        ...(worker.structuredCapabilities?.normalProcessors?.map((processor) => `Normal:${processor.name}`) ?? []),
         ...(worker.structuredCapabilities?.scriptRunners.map((runner) => `Script:${runner.language}`) ?? []),
-        ...(worker.structuredCapabilities?.pluginProcessors.flatMap((plugin) => plugin.processorNames.map((processor) => `Plugin:${plugin.type}:${processor}`)) ?? []),
+        ...(worker.structuredCapabilities?.pluginProcessors.flatMap((plugin) => (plugin.processors?.map((processor) => `Plugin:${plugin.type}:${processor.name}`) ?? plugin.processorNames.map((processor) => `Plugin:${plugin.type}:${processor}`))) ?? []),
       ];
       for (const capability of capabilities) counts.set(capability, (counts.get(capability) ?? 0) + 1);
     }
@@ -424,6 +514,8 @@ export function Dashboard() {
   const queueBacklog = (queue?.pending ?? 0) + (queue?.running ?? 0);
   const alertDeliveryRate = alertQueue?.total_attempts ? Math.round((alertQueue.delivered / alertQueue.total_attempts) * 100) : 100;
   const riskItems = riskSignals({ failedInstances, pendingInstances, onlineWorkers, queue, alertQueue, clusterStatus });
+  const actions = recommendedActions({ failedInstances, queueBacklog, onlineWorkers, alertDeadLetters: alertQueue?.dead_letter ?? 0, clusterStatus });
+  const realtime = realtimeModeMeta(realtimeMode);
   const recentAudits = auditLogs?.items ?? [];
 
   return (
@@ -441,6 +533,11 @@ export function Dashboard() {
             <Button type="primary"><Link to={ROUTE_META.jobs.path}>创建或触发任务</Link></Button>
             <Button><Link to={ROUTE_META.instances.path}>查看实例日志</Link></Button>
             <Button><Link to={ROUTE_META.workers.path}>检查 Worker</Link></Button>
+            <Tooltip title={realtime.detail}>
+              <span className={`dashboard-realtime-chip ${realtime.className}`}>
+                <SyncOutlined spin={realtimeMode === 'connecting'} /> {realtime.label}
+              </span>
+            </Tooltip>
           </Space>
         </div>
         <div className="dashboard-hero__control-tower" aria-label="调度健康雷达">
@@ -454,13 +551,39 @@ export function Dashboard() {
         </div>
       </section>
 
+      <Row gutter={[16, 16]} className="dashboard-brief-row">
+        <Col xs={24} xl={14}>
+          <Card className="clean-card dashboard-brief-card" title="运营摘要" extra={<span className="dashboard-muted">{realtime.label}</span>}>
+            <div className="dashboard-brief-grid">
+              <div className="dashboard-brief-item dashboard-brief-item--strong"><CheckCircleOutlined /><span>成功率</span><strong>{successRate}%</strong></div>
+              <div className="dashboard-brief-item"><TeamOutlined /><span>Worker 覆盖</span><strong>{workerCoverage}%</strong></div>
+              <div className="dashboard-brief-item"><NodeIndexOutlined /><span>队列积压</span><strong>{queueBacklog}</strong></div>
+              <div className="dashboard-brief-item"><FieldTimeOutlined /><span>最近刷新</span><strong>{lastUpdated ? formatTime(lastUpdated.toISOString()) : '-'}</strong></div>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} xl={10}>
+          <Card className="clean-card dashboard-action-brief" title="建议动作">
+            <div className="dashboard-action-brief__list">
+              {actions.map((action) => (
+                <Link className={`dashboard-action-brief__item dashboard-action-brief__item--${action.tone}`} to={action.to} key={action.key}>
+                  {action.tone === 'ok' ? <CheckCircleOutlined /> : <ExclamationCircleOutlined />}
+                  <span><strong>{action.label}</strong><em>{action.detail}</em></span>
+                  <ArrowRightOutlined className="dashboard-link-icon" />
+                </Link>
+              ))}
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
       <Row gutter={[20, 20]}>
         <Col xs={24} sm={12} xl={4}><Card className="metric-card"><Statistic prefix={<ThunderboltOutlined />} title="任务总数" value={jobs.length} /></Card></Col>
         <Col xs={24} sm={12} xl={4}><Card className="metric-card"><Statistic prefix={<ApiOutlined />} title="启用任务" value={enabledJobs} /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card className="metric-card"><Statistic prefix={<ClockCircleOutlined />} title="活跃实例" value={pendingInstances} /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Link className="dashboard-metric-link" to={instancesPath({ status: 'active' })}><Card className="metric-card"><Statistic prefix={<ClockCircleOutlined />} title="活跃实例" value={pendingInstances} /></Card></Link></Col>
         <Col xs={24} sm={12} xl={4}><Card className="metric-card"><Statistic prefix={<TeamOutlined />} title="在线 Worker" value={onlineWorkers} /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card className="metric-card"><Statistic prefix={<DeploymentUnitOutlined />} title="广播实例" value={broadcastInstances} /></Card></Col>
-        <Col xs={24} sm={12} xl={4}><Card className="metric-card"><Statistic prefix={<WarningOutlined />} title="失败实例" value={failedInstances} valueStyle={{ color: failedInstances ? '#ef4444' : '#10b981' }} /></Card></Col>
+        <Col xs={24} sm={12} xl={4}><Link className="dashboard-metric-link" to={instancesPath({ executionMode: 'broadcast' })}><Card className="metric-card"><Statistic prefix={<DeploymentUnitOutlined />} title="广播实例" value={broadcastInstances} /></Card></Link></Col>
+        <Col xs={24} sm={12} xl={4}><Link className="dashboard-metric-link" to={instancesPath({ status: 'failed' })}><Card className="metric-card"><Statistic prefix={<WarningOutlined />} title="失败实例" value={failedInstances} valueStyle={{ color: failedInstances ? '#ef4444' : '#10b981' }} /></Card></Link></Col>
       </Row>
 
       <Row gutter={[16, 16]}>
@@ -543,7 +666,7 @@ export function Dashboard() {
 
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={15}>
-          <Card className="clean-card" title="任务计划图" extra={<Link to={ROUTE_META.jobs.path}>查看全部</Link>}>
+          <Card className="clean-card dashboard-plan-card" title="任务计划图" extra={<Link to={ROUTE_META.jobs.path}>查看全部 <ArrowRightOutlined /></Link>}>
             <SchedulePlanMap jobs={plans} />
             <Table<JobSummary>
               rowKey="id"
@@ -552,8 +675,8 @@ export function Dashboard() {
               dataSource={plans}
               className="dashboard-plan-table"
               columns={[
-                { title: '任务', dataIndex: 'name', render: (value: string, row) => <Space direction="vertical" size={0}><Link to={ROUTE_META.jobs.path}>{value}</Link><Typography.Text type="secondary">{row.namespace}/{row.app}</Typography.Text></Space> },
-                { title: '计划', dataIndex: 'scheduleType', width: 130, render: (value: string, row) => <Tag color={value === 'cron' ? 'blue' : value === 'api' ? 'purple' : 'cyan'}>{value}{row.scheduleExpr ? ` · ${row.scheduleExpr}` : ''}</Tag> },
+                { title: '任务', dataIndex: 'name', render: (value: string, row) => <Space direction="vertical" size={0}><Link className="dashboard-plan-link" to={ROUTE_META.jobs.path}>{value}</Link><Typography.Text type="secondary">{row.namespace}/{row.app}</Typography.Text></Space> },
+                { title: '计划', dataIndex: 'scheduleType', width: 240, render: (value: string, row) => <span className={scheduleTagClass(value)}>{value}{row.scheduleExpr ? ` · ${row.scheduleExpr}` : ''}</span> },
                 { title: '处理器', width: 180, render: (_, row) => <span data-runtime-text>{row.processorName ?? row.processorType ?? row.scriptId ?? '-'}</span> },
                 { title: '状态', dataIndex: 'enabled', width: 90, render: (value: boolean) => value ? <Tag color="green">启用</Tag> : <Tag>停用</Tag> },
               ]}
@@ -572,10 +695,10 @@ export function Dashboard() {
             </Card>
             <Card className="clean-card" title="快速入口">
               <div className="dashboard-action-grid">
-                <Link to={ROUTE_META.dispatchQueue.path}><NodeIndexOutlined /> 调度队列</Link>
-                <Link to={ROUTE_META.security.path}><FireOutlined /> 安全态势</Link>
-                <Link to={ROUTE_META.notifications.path}><ApiOutlined /> 通知中心</Link>
-                <Link to={ROUTE_META.audit.path}><ClockCircleOutlined /> 审计日志</Link>
+                <Link to={ROUTE_META.dispatchQueue.path}><NodeIndexOutlined /> 调度队列 <ArrowRightOutlined className="dashboard-link-icon" /></Link>
+                <Link to={ROUTE_META.security.path}><FireOutlined /> 安全态势 <ArrowRightOutlined className="dashboard-link-icon" /></Link>
+                <Link to={ROUTE_META.notifications.path}><ApiOutlined /> 通知中心 <ArrowRightOutlined className="dashboard-link-icon" /></Link>
+                <Link to={ROUTE_META.audit.path}><ClockCircleOutlined /> 审计日志 <ArrowRightOutlined className="dashboard-link-icon" /></Link>
               </div>
             </Card>
           </Space>
@@ -584,8 +707,8 @@ export function Dashboard() {
 
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={8}>
-          <Card className="clean-card dashboard-ops-card" title="Worker Mesh 分布" extra={<Link to={ROUTE_META.workers.path}>查看 Worker</Link>}>
-            <TopList items={workerScopes.map((scope) => ({ label: scope.key, value: scope.count, hint: `${scope.clusters} 集群 · ${scope.masters} 主节点` }))} emptyText="暂无在线 Worker" />
+          <Card className="clean-card dashboard-ops-card" title="Worker Mesh 分布" extra={<Link to={ROUTE_META.workers.path}>查看 Worker <ArrowRightOutlined /></Link>}>
+            <TopList items={workerScopes.map((scope) => ({ label: scope.key, value: scope.count, hint: `${scope.clusters} 集群 · ${scope.masters} 主节点 · ${scope.followers} 从节点` }))} emptyText="暂无在线 Worker" />
           </Card>
         </Col>
         <Col xs={24} xl={8}>
@@ -594,7 +717,7 @@ export function Dashboard() {
           </Card>
         </Col>
         <Col xs={24} xl={8}>
-          <Card className="clean-card dashboard-ops-card" title="最近审计" extra={<Link to={ROUTE_META.audit.path}>查看审计</Link>}>
+          <Card className="clean-card dashboard-ops-card" title="最近审计" extra={<Link to={ROUTE_META.audit.path}>查看审计 <ArrowRightOutlined /></Link>}>
             <div className="dashboard-audit-list">
               {recentAudits.slice(0, 6).map((item) => (
                 <div key={item.id} className="dashboard-audit-list__item">

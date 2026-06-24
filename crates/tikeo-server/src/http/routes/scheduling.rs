@@ -131,7 +131,7 @@ fn required_requirement_for_job(job: &tikeo_storage::JobSummary) -> WorkerRequir
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .unwrap_or(&job.name);
-    WorkerRequirement::SdkProcessor {
+    WorkerRequirement::NormalProcessor {
         name: processor.to_owned(),
     }
 }

@@ -15,7 +15,7 @@ By the end, you should have evidence for:
 - The first Owner can be bootstrapped in an isolated local database.
 - A namespace/app/worker pool can be created.
 - A service account and app-scoped SDK API key can be created.
-- A Node.js Worker demo can connect with `TIKEO_WORKER_CONNECT=1` and advertise `demo.echo` as a structured SDK processor.
+- A Node.js Worker demo can connect with `TIKEO_WORKER_CONNECT=1` and advertise `demo.echo` as a structured normal processor.
 - The SDK Management client can create an API-scheduled job and trigger it with `executionMode=single`.
 - Instance result/log evidence includes `nodejs demo echo processed`.
 
@@ -174,7 +174,7 @@ TIKEO_WORKER_POOL=nodejs-blue \
 TIKEO_WORKER_CLUSTER=local \
 TIKEO_WORKER_REGION=local \
 TIKEO_WORKER_CLIENT_INSTANCE_ID=nodejs-quickstart-worker \
-TIKEO_WORKER_SDK_PROCESSORS=demo.echo \
+TIKEO_WORKER_NORMAL_PROCESSORS=demo.echo \
 TIKEO_ENABLE_PLUGIN_SQL=0 \
 TIKEO_SANDBOX_AUTO_INSTALL=0 \
 bun start
@@ -271,7 +271,7 @@ rm -f .dev/tikeo-dev.db .dev/tikeo-dev.db-shm .dev/tikeo-dev.db-wal
 | `readyz` fails | DB URL, port conflicts, invalid config env overrides, Server log. |
 | bootstrap returns closed | Existing DB already has a bootstrap admin; login instead or use a fresh DB. |
 | SDK key cannot list jobs | Key missing scopes, wrong namespace/app, or using bearer token where `x-tikeo-api-key` is required. |
-| Worker online but job pending | Worker namespace/app/processor does not match job; check `structuredCapabilities.sdkProcessors`. |
+| Worker online but job pending | Worker namespace/app/processor does not match job; check `structuredCapabilities.normalProcessors`. |
 | Worker never appears | Wrong `TIKEO_WORKER_ENDPOINT`, Server Worker Tunnel not listening, TLS/plaintext mismatch, or demo in dry-run mode because `TIKEO_WORKER_CONNECT` is disabled. |
 | Instance failed | Inspect instance logs; unsupported processor names fail closed in demos. |
 

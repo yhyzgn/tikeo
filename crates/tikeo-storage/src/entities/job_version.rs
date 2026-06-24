@@ -27,7 +27,7 @@ pub struct Model {
     pub schedule_end_at: Option<String>,
     /// Snapshot of optional lifecycle calendar JSON with maintenance/freeze windows and excluded dates.
     pub schedule_calendar_json: Option<String>,
-    /// Snapshot of optional SDK processor binding.
+    /// Snapshot of optional normal processor binding.
     pub processor_name: Option<String>,
     /// Optional custom plugin processor type for capability resolution.
     pub processor_type: Option<String>,

@@ -6,7 +6,7 @@ description: Tikeo 是 Rust 原生任务调度、工作流 DAG、出站 Worker T
 
 # Tikeo 是什么？
 
-Tikeo 是一个 Rust 原生的任务编排控制平面，目标不是只提供一个定时器，而是把计划任务、API 触发任务、工作流 DAG、出站 Worker Tunnel、多语言 SDK Processor、受治理脚本、通知中心投递、告警边界、RBAC、审计证据、Web 运维控制台、Docker/Helm/Terraform 部署资产和可验证示例连接成一个系统。
+Tikeo 是一个 Rust 原生的任务编排控制平面，目标不是只提供一个定时器，而是把计划任务、API 触发任务、工作流 DAG、出站 Worker Tunnel、多语言 Normal Processor、受治理脚本、通知中心投递、告警边界、RBAC、审计证据、Web 运维控制台、Docker/Helm/Terraform 部署资产和可验证示例连接成一个系统。
 
 README 只负责“为什么值得看”和“十分钟入口”。文档站负责“能不能照着搭起来、接入 SDK、部署、排错、验收”。阅读结果应该非常具体：你能安装工具链，启动 Server，创建首个 Owner，创建 namespace/app/worker pool，创建应用级 SDK API Key，让 Worker 通过 Worker Tunnel 主动出站连接，用 SDK 创建并触发任务，检查实例、日志和审计证据，并知道从本地 SQLite 迁到 PostgreSQL/MySQL、Compose 或 Helm 时哪些默认值发生了变化。
 

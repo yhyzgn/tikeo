@@ -888,7 +888,7 @@
         use tonic_prost::prost::Message as _;
         use tower::ServiceExt;
         use std::collections::HashMap;
-        use tikeo_proto::worker::v1::{DispatchTask, SdkProcessorCapability, WorkerCapabilities, server_message};
+        use tikeo_proto::worker::v1::{DispatchTask, ProcessorCapability, WorkerCapabilities, server_message};
 
         let db = connect_and_migrate("sqlite::memory:")
             .await
@@ -916,8 +916,9 @@
                     region: "local".to_owned(),
                     capabilities: Vec::new(),
                     structured_capabilities: Some(WorkerCapabilities {
-                        sdk_processors: vec![SdkProcessorCapability {
+                        normal_processors: vec![ProcessorCapability {
                             name: "billing.manual".to_owned(),
+                            description: String::new(),
                         }],
                         ..WorkerCapabilities::default()
                     }),

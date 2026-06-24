@@ -56,7 +56,7 @@ cargo test --manifest-path sdks/rust/tikeo/Cargo.toml --all-features
 | `election.domain` | empty | Blank means namespace/app/cluster/region domain. |
 | `election.priority` | `100` | Lower wins. |
 
-Structured helpers include `add_tag`, `add_sdk_processor`, `add_script_runner`, and `add_plugin_processor`. These deduplicate and ignore blank values.
+Structured helpers include `add_tag`, `add_normal_processor`, `add_script_runner`, and `add_plugin_processor`. These deduplicate and ignore blank values.
 
 ## Minimal Worker
 
@@ -80,7 +80,7 @@ async fn main() -> Result<(), WorkerSdkError> {
     let mut config = WorkerConfig::local("http://127.0.0.1:9998", "rust-worker-1");
     config.namespace = "sdk-smoke".to_owned();
     config.app = "management".to_owned();
-    config.add_sdk_processor("demo.echo");
+    config.add_normal_processor("demo.echo", "Echo payload demo processor");
     config.labels.insert("worker_pool".to_owned(), "rust-blue".to_owned());
 
     let client = WorkerClient::new(config);
@@ -107,7 +107,7 @@ Use `process_next_with_script_runners` only when you have registered real script
 | `TIKEO_WORKER_APP` | `orders` | Demo app. |
 | `TIKEO_WORKER_CLUSTER` | `local` | Demo cluster. |
 | `TIKEO_WORKER_REGION` | `local` | Demo region. |
-| `TIKEO_WORKER_SDK_PROCESSORS` | `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception` | Structured SDK processors. |
+| `TIKEO_WORKER_NORMAL_PROCESSORS` | `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception` | Structured normal processors. |
 | `TIKEO_WORKER_POOL` | `rust-blue` | Stored as label `worker_pool`. |
 | `TIKEO_WORKER_DRY_RUN` | unset | Set to `1` to avoid live tunnel. |
 | `TIKEO_WORKER_ONESHOT` | unset | Exit after one processed task. |
@@ -119,7 +119,7 @@ Run:
 TIKEO_WORKER_CONNECT=1 \
 TIKEO_WORKER_NAMESPACE=sdk-smoke \
 TIKEO_WORKER_APP=management \
-TIKEO_WORKER_SDK_PROCESSORS=demo.echo \
+TIKEO_WORKER_NORMAL_PROCESSORS=demo.echo \
 cargo run --manifest-path examples/rust/worker-demo/Cargo.toml
 ```
 
@@ -203,7 +203,7 @@ All language demos now separate business failure from runtime exceptions. `demo.
 
 ## Capability discipline
 
-The dispatch contract uses structured capabilities, not folklore or only string naming conventions. A Worker should advertise SDK processors, plugin processors, script runners, labels, and tags only when the runtime can really execute them. Do not advertise SQL, shell, Python, Node.js, WASM, SRT, Deno, Docker, or Podman support just because a package exists; advertise it after the demo or service has resolved the tool and can fail safely.
+The dispatch contract uses structured capabilities, not folklore or only string naming conventions. A Worker should advertise normal processors, plugin processors, script runners, labels, and tags only when the runtime can really execute them. Do not advertise SQL, shell, Python, Node.js, WASM, SRT, Deno, Docker, or Podman support just because a package exists; advertise it after the demo or service has resolved the tool and can fail safely.
 
 ## Prerequisites
 

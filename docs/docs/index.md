@@ -7,7 +7,7 @@ keywords: [rust scheduler, workflow orchestration, worker tunnel, distributed jo
 
 # What is Tikeo?
 
-Tikeo is a Rust-native orchestration control plane for teams that need more than a timer. It combines scheduled jobs, API-triggered jobs, workflow DAGs, outbound-only Workers, SDK processors, governed scripts, Notification Center delivery, alerting boundaries, RBAC, audit evidence, Web operations, Docker/Helm/Terraform deployment assets, and operator-verified SDK examples into one project.
+Tikeo is a Rust-native orchestration control plane for teams that need more than a timer. It combines scheduled jobs, API-triggered jobs, workflow DAGs, outbound-only Workers, normal processors, governed scripts, Notification Center delivery, alerting boundaries, RBAC, audit evidence, Web operations, Docker/Helm/Terraform deployment assets, and operator-verified SDK examples into one project.
 
 The README is intentionally short: it explains why the project exists and how to evaluate it at a glance. This documentation site is the operating manual. A reader outcome for this site is concrete: after following the relevant pages, you should be able to install the toolchain, start the Server, bootstrap the first Owner, create namespace/app scope, create an app-scoped SDK API key, connect a Worker through the Worker Tunnel, create and trigger a job from an SDK, inspect instances/logs/audit evidence, deploy the Server/Web pair with Compose or Helm, and know which defaults changed when you moved from local SQLite to production PostgreSQL/MySQL.
 

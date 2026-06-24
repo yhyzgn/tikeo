@@ -7,7 +7,9 @@ import net.tikeo.processor.TaskContext;
 import net.tikeo.processor.TaskOutcome;
 import net.tikeo.processor.TikeoProcessor;
 import net.tikeo.processor.TikeoProcessorKind;
+import net.tikeo.processor.TikeoPluginType;
 import net.tikeo.spring.worker.SpringTikeoTaskProcessor;
+import net.tikeo.worker.WorkerCapabilitySet;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -77,8 +79,9 @@ class TikeoProcessorRegistryTest {
         registry.postProcessAfterInitialization(new StringBean(), "stringBean");
         registry.postProcessAfterInitialization(new PluginBean(), "pluginBean");
 
-        Assertions.assertThat(registry.processorCapabilities()).containsExactly("processor:demo.string");
-        Assertions.assertThat(registry.workerCapabilities().sdkProcessors()).containsExactly("demo.string");
+        Assertions.assertThat(registry.workerCapabilities().normalProcessors())
+                .extracting(WorkerCapabilitySet.Processor::name)
+                .containsExactly("demo.string");
         Assertions.assertThat(registry.workerCapabilities().pluginProcessors())
                 .anySatisfy(plugin -> {
                     Assertions.assertThat(plugin.type()).isEqualTo("sql");
@@ -92,7 +95,7 @@ class TikeoProcessorRegistryTest {
 
         Assertions.assertThatThrownBy(() -> registry.postProcessAfterInitialization(new MissingPluginTypeBean(), "pluginBean"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("requires non-blank pluginType");
+                .hasMessageContaining("requires non-NONE pluginType");
     }
 
     @Test
@@ -101,7 +104,7 @@ class TikeoProcessorRegistryTest {
 
         Assertions.assertThatThrownBy(() -> registry.postProcessAfterInitialization(new ScriptPrefixedBean(), "scriptBean"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("@TikeoProcessor is reserved for SDK processors");
+                .hasMessageContaining("@TikeoProcessor is reserved for normal processors");
     }
 
     @Test
@@ -148,7 +151,7 @@ class TikeoProcessorRegistryTest {
     }
 
     static final class PluginBean {
-        @TikeoProcessor(value = "billing.sql-sync", kind = TikeoProcessorKind.PLUGIN, pluginType = "sql")
+        @TikeoProcessor(value = "billing.sql-sync", kind = TikeoProcessorKind.PLUGIN, pluginType = TikeoPluginType.SQL)
         public void run(String payload) {}
     }
 

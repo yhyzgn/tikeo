@@ -34,15 +34,47 @@ type WorkerConfig struct {
 	HeartbeatEvery time.Duration
 }
 
+// ProcessorCapability declares one normal or plugin processor and optional display metadata.
+type ProcessorCapability struct {
+	// Name is the stable processorName used by job definitions.
+	Name string
+	// Description is optional operator-facing help text.
+	Description string
+}
+
+// PluginType is a constrained plugin processor type value.
+type PluginType string
+
+const (
+	// PluginTypeSQL declares a SQL-oriented plugin processor.
+	PluginTypeSQL PluginType = "sql"
+	// PluginTypeHTTP declares an HTTP/API plugin processor.
+	PluginTypeHTTP PluginType = "http"
+	// PluginTypeNotification declares a notification plugin processor.
+	PluginTypeNotification PluginType = "notification"
+	// PluginTypeCustom is an explicit extension point for project-specific plugin types.
+	PluginTypeCustom PluginType = "custom"
+)
+
+// Valid reports whether the plugin type is one of the constrained values accepted by tikeo.
+func (t PluginType) Valid() bool {
+	switch t {
+	case PluginTypeSQL, PluginTypeHTTP, PluginTypeNotification, PluginTypeCustom:
+		return true
+	default:
+		return false
+	}
+}
+
 // WorkerCapabilities contains typed routing and operator capability declarations.
 type WorkerCapabilities struct {
 	// Tags are operator-facing structured labels.
 	Tags []string
-	// SDKProcessors are normal application processor names.
-	SDKProcessors []string
+	// NormalProcessors are normal application processor declarations.
+	NormalProcessors []ProcessorCapability
 	// ScriptRunners are language/backend sandbox declarations.
 	ScriptRunners []ScriptRunnerCapability
-	// PluginProcessors are plugin type plus concrete processor-name declarations.
+	// PluginProcessors are plugin type plus concrete processor declarations.
 	PluginProcessors []PluginProcessorCapability
 }
 
@@ -57,8 +89,10 @@ type ScriptRunnerCapability struct {
 // PluginProcessorCapability declares plugin dispatch capability.
 type PluginProcessorCapability struct {
 	// Type is the structured plugin processor type.
-	Type string
-	// ProcessorNames are concrete executor names for this plugin type.
+	Type PluginType
+	// Processors are concrete executor declarations for this plugin type.
+	Processors []ProcessorCapability
+	// ProcessorNames are legacy concrete executor names for this plugin type. Prefer Processors.
 	ProcessorNames []string
 }
 
@@ -82,8 +116,12 @@ func (c *WorkerConfig) AddTag(tag string) {
 	c.Structured.Tags = appendUnique(c.Structured.Tags, tag)
 }
 
-func (c *WorkerConfig) AddSDKProcessor(name string) {
-	c.Structured.SDKProcessors = appendUnique(c.Structured.SDKProcessors, name)
+func (c *WorkerConfig) AddNormalProcessor(name string, description ...string) {
+	processor := newProcessorCapability(name, description...)
+	if processor.Name == "" {
+		return
+	}
+	c.Structured.NormalProcessors = appendUniqueProcessor(c.Structured.NormalProcessors, processor)
 }
 
 func (c *WorkerConfig) AddScriptRunner(language, sandboxBackend string) {
@@ -102,25 +140,58 @@ func (c *WorkerConfig) AddScriptRunner(language, sandboxBackend string) {
 	})
 }
 
-func (c *WorkerConfig) AddPluginProcessor(processorType, processorName string) {
-	processorType = strings.TrimSpace(processorType)
-	processorName = strings.TrimSpace(processorName)
-	if processorType == "" || processorName == "" {
+func (c *WorkerConfig) AddPluginProcessor(processorType PluginType, processorName string, description ...string) {
+	processorType = PluginType(strings.TrimSpace(string(processorType)))
+	processor := newProcessorCapability(processorName, description...)
+	if !processorType.Valid() || processor.Name == "" {
 		return
 	}
 	for i := range c.Structured.PluginProcessors {
 		if c.Structured.PluginProcessors[i].Type == processorType {
-			c.Structured.PluginProcessors[i].ProcessorNames = appendUnique(c.Structured.PluginProcessors[i].ProcessorNames, processorName)
+			c.Structured.PluginProcessors[i].Processors = appendUniqueProcessor(c.Structured.PluginProcessors[i].Processors, processor)
+			c.Structured.PluginProcessors[i].ProcessorNames = appendUnique(c.Structured.PluginProcessors[i].ProcessorNames, processor.Name)
 			return
 		}
 	}
 	c.Structured.PluginProcessors = append(c.Structured.PluginProcessors, PluginProcessorCapability{
 		Type:           processorType,
-		ProcessorNames: []string{processorName},
+		Processors:     []ProcessorCapability{processor},
+		ProcessorNames: []string{processor.Name},
 	})
 }
 
+func newProcessorCapability(name string, description ...string) ProcessorCapability {
+	processor := ProcessorCapability{Name: strings.TrimSpace(name)}
+	if len(description) > 0 {
+		processor.Description = strings.TrimSpace(description[0])
+	}
+	return processor
+}
+
+func appendUniqueProcessor(values []ProcessorCapability, value ProcessorCapability) []ProcessorCapability {
+	if value.Name == "" {
+		return values
+	}
+	for i := range values {
+		if values[i].Name == value.Name {
+			if values[i].Description == "" && value.Description != "" {
+				values[i].Description = value.Description
+			}
+			return values
+		}
+	}
+	return append(values, value)
+}
+
 // Validate checks fields before a future gRPC session dials the server.
+func normalizeProcessors(values []ProcessorCapability) []ProcessorCapability {
+	out := []ProcessorCapability{}
+	for _, value := range values {
+		out = appendUniqueProcessor(out, newProcessorCapability(value.Name, value.Description))
+	}
+	return out
+}
+
 func (c WorkerConfig) Validate() error {
 	if strings.TrimSpace(c.Endpoint) == "" {
 		return errors.New("tikeo worker endpoint is required")

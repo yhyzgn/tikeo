@@ -21,9 +21,9 @@ export function workerSearchText(worker: WorkerSummary): string {
     worker.status,
     worker.statusReason ?? '',
     ...(structured?.tags ?? []),
-    ...(structured?.sdkProcessors ?? []),
+    ...(structured?.normalProcessors?.map((processor) => `${processor.name} ${processor.description}`) ?? []),
     ...(structured?.scriptRunners.map((runner) => `${runner.language} ${runner.sandboxBackend}`) ?? []),
-    ...(structured?.pluginProcessors.flatMap((plugin) => [plugin.type, ...plugin.processorNames]) ?? []),
+    ...(structured?.pluginProcessors.flatMap((plugin) => [plugin.type, ...plugin.processorNames, ...(plugin.processors?.flatMap((processor) => [processor.name, processor.description]) ?? [])]) ?? []),
   ].join(' ').toLowerCase();
 }
 
@@ -34,10 +34,10 @@ export function filterWorkers(workers: WorkerSummary[], filters: WorkerFilters):
     const matchesNamespace = !filters.namespace || worker.namespace === filters.namespace;
     const workerFilterValues = [
       ...(worker.structuredCapabilities?.tags ?? []),
-      ...(worker.structuredCapabilities?.sdkProcessors.map((name) => `SDK:${name}`) ?? []),
+      ...(worker.structuredCapabilities?.normalProcessors?.map((processor) => `Normal:${processor.name}`) ?? []),
       ...(worker.structuredCapabilities?.scriptRunners.map((runner) => `Script:${runner.language}`) ?? []),
       ...(worker.structuredCapabilities?.pluginProcessors.flatMap((plugin) =>
-        plugin.processorNames.map((name) => `Plugin:${plugin.type}:${name}`)
+        (plugin.processors?.map((processor) => `Plugin:${plugin.type}:${processor.name}`) ?? plugin.processorNames.map((name) => `Plugin:${plugin.type}:${name}`))
       ) ?? []),
     ];
     const matchesCapability = !filters.capability || workerFilterValues.includes(filters.capability);

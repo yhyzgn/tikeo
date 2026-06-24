@@ -1,13 +1,11 @@
 package net.tikeo.spring.worker;
 
-import net.tikeo.processor.ProcessorCapabilityProvider;
 import net.tikeo.processor.TaskContext;
 import net.tikeo.processor.TaskOutcome;
 import net.tikeo.processor.TaskProcessor;
 import net.tikeo.spring.processor.TikeoProcessorRegistry;
 import net.tikeo.worker.WorkerCapabilityProvider;
 import net.tikeo.worker.WorkerCapabilitySet;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -16,17 +14,12 @@ import lombok.RequiredArgsConstructor;
  * <p>Routes by explicit {@link TaskContext#processorName()}, falling back to job id in older clients.
  */
 @RequiredArgsConstructor
-public final class SpringTikeoTaskProcessor implements TaskProcessor, ProcessorCapabilityProvider, WorkerCapabilityProvider {
+public final class SpringTikeoTaskProcessor implements TaskProcessor, WorkerCapabilityProvider {
     private final TikeoProcessorRegistry registry;
 
     @Override
     public TaskOutcome process(TaskContext context) {
         return registry.invoke(context.processorName(), context);
-    }
-
-    @Override
-    public List<String> capabilities() {
-        return registry.processorCapabilities();
     }
 
     @Override

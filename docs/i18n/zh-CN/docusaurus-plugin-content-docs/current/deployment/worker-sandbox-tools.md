@@ -6,7 +6,7 @@ keywords: [tikeo worker, sandbox tools, dockerfile, powershell, deno, srt, wasmt
 
 # Worker 沙箱工具与 Dockerfile
 
-Tikeo Worker 可以执行 SDK Processor，也可以按需执行脚本/插件运行器。脚本运行器可能需要 SRT、Deno、ripgrep、Rhai、PowerShell、Wasmtime、WasmEdge 等本地工具。
+Tikeo Worker 可以执行 Normal Processor，也可以按需执行脚本/插件运行器。脚本运行器可能需要 SRT、Deno、ripgrep、Rhai、PowerShell、Wasmtime、WasmEdge 等本地工具。
 
 生产环境不要依赖“启动时下载工具”。更稳妥的做法是把 Worker 宿主机或镜像提前准备好，只声明已经可用的能力。
 

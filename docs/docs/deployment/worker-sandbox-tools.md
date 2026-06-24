@@ -6,7 +6,7 @@ keywords: [tikeo worker, sandbox tools, dockerfile, powershell, deno, srt, wasmt
 
 # Worker sandbox tools and Dockerfiles
 
-Tikeo Workers can execute SDK processors and optional script/plugin runners. Script runners may need local tools such as SRT, Deno, ripgrep, Rhai, PowerShell, Wasmtime, or WasmEdge.
+Tikeo Workers can execute normal processors and optional script/plugin runners. Script runners may need local tools such as SRT, Deno, ripgrep, Rhai, PowerShell, Wasmtime, or WasmEdge.
 
 Production Workers should **not** depend on startup-time downloads. Build or prepare the Worker host/image with the tools you intend to advertise, then disable or de-emphasize SDK auto-install.
 

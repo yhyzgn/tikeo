@@ -1286,9 +1286,11 @@ fn required_task_requirement_for_executor(
                 processor_name: processor_name.trim().to_owned(),
             })
         }
-        JobExecutor::SdkProcessor { processor_name, .. } => Some(WorkerRequirement::SdkProcessor {
-            name: processor_name.trim().to_owned(),
-        }),
+        JobExecutor::SdkProcessor { processor_name, .. } => {
+            Some(WorkerRequirement::NormalProcessor {
+                name: processor_name.trim().to_owned(),
+            })
+        }
         JobExecutor::Script { .. } => required_task_requirement(task),
         JobExecutor::Http { .. }
         | JobExecutor::Grpc { .. }

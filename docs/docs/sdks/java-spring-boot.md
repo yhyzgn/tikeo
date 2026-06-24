@@ -108,7 +108,7 @@ public final class EchoProcessor {
 
 Add `net.tikeo.logging.TikeoTaskLogbackAppender` to Logback (the demos provide `logback-spring.xml`). Ordinary SLF4J records emitted while a processor runs are mirrored to the current job instance via a thread-local task scope and MDC keys; startup and unrelated request logs are not attached. `TaskContext.logInfo/logError` remains a fallback.
 
-`@TikeoProcessor` is scanned by `TikeoProcessorRegistry`, converted into structured SDK processor capabilities, and invoked by `SpringTikeoTaskProcessor` when `DispatchTask.processor_name` matches. Do not rely on job ID naming as the primary dispatch contract.
+`@TikeoProcessor` is scanned by `TikeoProcessorRegistry`, converted into structured normal processor capabilities, and invoked by `SpringTikeoTaskProcessor` when `DispatchTask.processor_name` matches. Do not rely on job ID naming as the primary dispatch contract.
 
 Example `application.yml` for a service:
 
@@ -239,7 +239,7 @@ The Spring Boot demos separate expected business failures from runtime exception
 
 ## Capability discipline
 
-The dispatch contract uses structured capabilities, not folklore or only string naming conventions. A Worker should advertise SDK processors, plugin processors, script runners, labels, and tags only when the runtime can really execute them. Do not advertise SQL, shell, Python, Node.js, WASM, SRT, Deno, Docker, or Podman support just because a package exists; advertise it after the demo or service has resolved the tool and can fail safely.
+The dispatch contract uses structured capabilities, not folklore or only string naming conventions. A Worker should advertise normal processors, plugin processors, script runners, labels, and tags only when the runtime can really execute them. Do not advertise SQL, shell, Python, Node.js, WASM, SRT, Deno, Docker, or Podman support just because a package exists; advertise it after the demo or service has resolved the tool and can fail safely.
 
 ## Operational notes
 

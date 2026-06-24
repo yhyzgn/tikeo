@@ -209,9 +209,9 @@ func TestClientRegistrationAndHeartbeatDryRun(t *testing.T) {
 	config.App = "billing"
 	config.Capabilities = []string{"legacy-tag", "legacy-tag", ""}
 	config.AddTag("go")
-	config.AddSDKProcessor("demo.echo")
+	config.AddNormalProcessor("demo.echo", "Go echo processor")
 	config.AddScriptRunner("python", "container")
-	config.AddPluginProcessor("sql", "billing.sql-sync")
+	config.AddPluginProcessor(PluginTypeSQL, "billing.sql-sync", "SQL sync processor")
 	client, err := NewClient(config)
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
@@ -224,13 +224,13 @@ func TestClientRegistrationAndHeartbeatDryRun(t *testing.T) {
 	if got, want := strings.Join(registration.Capabilities, ","), "legacy-tag"; got != want {
 		t.Fatalf("capabilities = %q, want %q", got, want)
 	}
-	if got := registration.Structured.SDKProcessors; len(got) != 1 || got[0] != "demo.echo" {
-		t.Fatalf("structured sdk processors = %+v", got)
+	if got := registration.Structured.NormalProcessors; len(got) != 1 || got[0].Name != "demo.echo" || got[0].Description != "Go echo processor" {
+		t.Fatalf("structured normal processors = %+v", got)
 	}
 	if got := registration.Structured.ScriptRunners; len(got) != 1 || got[0].Language != "python" || got[0].SandboxBackend != "container" {
 		t.Fatalf("structured script runners = %+v", got)
 	}
-	if got := registration.Structured.PluginProcessors; len(got) != 1 || got[0].Type != "sql" || strings.Join(got[0].ProcessorNames, ",") != "billing.sql-sync" {
+	if got := registration.Structured.PluginProcessors; len(got) != 1 || got[0].Type != PluginTypeSQL || strings.Join(got[0].ProcessorNames, ",") != "billing.sql-sync" || got[0].Processors[0].Description != "SQL sync processor" {
 		t.Fatalf("structured plugin processors = %+v", got)
 	}
 	register := client.registerMessage().GetRegister()

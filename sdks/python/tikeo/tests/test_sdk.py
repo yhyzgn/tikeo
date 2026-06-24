@@ -39,9 +39,9 @@ def test_client_registration_and_heartbeat_dry_run():
     config.app = "billing"
     config.capabilities = ["legacy-tag", "legacy-tag", ""]
     config.add_tag("python")
-    config.add_sdk_processor("demo.echo")
+    config.add_normal_processor("demo.echo", "Python echo processor")
     config.add_script_runner("python", "srt")
-    config.add_plugin_processor("sql", "billing.sql-sync")
+    config.add_plugin_processor(tikeo.PluginType.SQL, "billing.sql-sync", "SQL sync processor")
     client = tikeo.Client(config)
 
     registration = client.registration()
@@ -49,9 +49,11 @@ def test_client_registration_and_heartbeat_dry_run():
     assert registration.namespace == "tenant-a"
     assert registration.app == "billing"
     assert registration.capabilities == ["legacy-tag"]
-    assert registration.structured.sdk_processors == ["demo.echo"]
+    assert registration.structured.normal_processors[0].name == "demo.echo"
+    assert registration.structured.normal_processors[0].description == "Python echo processor"
     assert registration.structured.script_runners[0].language == "python"
     assert registration.structured.plugin_processors[0].processor_names == ["billing.sql-sync"]
+    assert registration.structured.plugin_processors[0].processors[0].description == "SQL sync processor"
 
     client.start_dry_run(lambda task: tikeo.succeeded())
     heartbeat = client.next_heartbeat("worker-1", "fence-1", 3)

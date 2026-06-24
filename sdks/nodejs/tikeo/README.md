@@ -27,7 +27,7 @@ configureSdkLogging({ level: "info", logDir: "./logs" });
 const config = new WorkerConfig({ endpoint: "http://127.0.0.1:9998", clientInstanceId: "orders-node-1" });
 config.namespace = "dev-alpha";
 config.app = "orders";
-config.addSDKProcessor("demo.echo");
+config.addNormalProcessor("demo.echo", "Echo payload demo processor");
 const client = new Client(config);
 ```
 

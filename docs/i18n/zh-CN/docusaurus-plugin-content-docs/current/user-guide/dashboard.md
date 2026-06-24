@@ -26,7 +26,7 @@ description: Tikeo 实时运维驾驶舱的人类操作指南。
 | 通知投递 | Alert delivery queue status | Provider 投递是健康、等待重试、失败，还是进入死信。 |
 | HA / 网关 | Cluster diagnostics 与 Smart Gateway diagnostics | Server HA、Worker gateway 本地性、远端 gateway 容量和 outbox 总量是否安全。 |
 | Worker Mesh 分布 | 按 namespace/app/cluster/region 聚合的 Worker 快照 | 哪些应用作用域有在线容量，哪些作用域缺少 master 或足够 Worker。 |
-| 能力覆盖 | 结构化 Worker capabilities | 在线 Worker 实际广告了哪些 SDK processor、脚本 runner、插件 processor 和标签。 |
+| 能力覆盖 | 结构化 Worker capabilities | 在线 Worker 实际广告了哪些 normal processor、脚本 runner、插件 processor 和标签。 |
 | 审计活动 | 最近审计日志页 | 最近哪些操作人或 API Key 做了变更，以及这些操作成功还是失败。 |
 | 风险信号 | 从失败、队列、通知投递、Worker 数和集群状态派生 | 当前是否可以继续常规操作，还是应该先暂停并排查。 |
 

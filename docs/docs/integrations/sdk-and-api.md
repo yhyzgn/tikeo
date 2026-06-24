@@ -16,7 +16,7 @@ Use this page as the shared contract for every Tikeo SDK. It defines the concept
 | Worker Tunnel endpoint | `https://tikeo-worker.example.com` | Worker SDK | Outbound Worker target; local demos use `http://127.0.0.1:9998`. |
 | `namespace` / `app` | `billing` / `invoices` | Both | Must match Worker registration, job scope, and API-key scope. |
 | SDK API key | `TIKEO_MANAGEMENT_API_KEY` | Management client | Sent as `x-tikeo-api-key`; never use browser/OIDC sessions. |
-| Processor name | `invoice.send-reminder` | Both | Job binding must match Worker-advertised SDK processor. |
+| Processor name | `invoice.send-reminder` | Both | Job binding must match Worker-advertised normal processor. |
 | Worker pool label | `worker_pool=blue` | Worker routing | Used by selectors, canary, and runbooks. |
 
 ## Common concepts
@@ -55,7 +55,7 @@ sequenceDiagram
 | Namespace/app | `namespace`, `app` | `Namespace`, `App` | `tikeo.worker.*`, `tikeo.management.*` | `namespace`, `app` | `namespace`, `app` | Shared scope for key, Worker, job, and instance. |
 | Client instance id | `client_instance_id` | `ClientInstanceID` | `tikeo.worker.client-instance-id` | `client_instance_id` | `clientInstanceId` | Stable Worker identity hint. |
 | Labels | `labels` | `Labels` | `tikeo.worker.labels` | `labels` | `labels` | Include `worker_pool` when routing depends on it. |
-| SDK processors | `add_sdk_processor` | `AddSDKProcessor` | `@TikeoProcessor` | `add_sdk_processor` | `addSDKProcessor` | Advertised processor names. |
+| normal processors | `add_normal_processor` | `AddNormalProcessor` | `@TikeoProcessor` | `add_normal_processor` | `addNormalProcessor` | Advertised processor names. |
 
 ## Authentication and Management API semantics
 
@@ -89,7 +89,7 @@ A Worker is outbound-only. It connects to the Worker Tunnel, registers metadata,
 | `namespace` + `app` | Job scope must match Worker scope. | Same as Management client scope. |
 | `cluster` + `region` | Broadcast selector and operator filters can match them. | `local` for development. |
 | `labels.worker_pool` | Common selector for pools, canary, and runbooks. | Explicit value per deployment. |
-| SDK processors | Scheduler routes SDK jobs by processor name. | Add only implemented processors. |
+| normal processors | Scheduler routes normal processor jobs by processor name. | Add only implemented processors. |
 | Script/plugin capabilities | Scheduler can route script/plugin jobs. | Advertise only when runtime exists. |
 
 ## Trigger types

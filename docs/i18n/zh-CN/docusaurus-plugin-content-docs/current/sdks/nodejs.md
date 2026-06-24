@@ -41,7 +41,7 @@ function process(task: TaskContext): TaskOutcome {
 const config = localConfig("http://127.0.0.1:9998", "nodejs-worker-1");
 config.namespace = "sdk-smoke";
 config.app = "management";
-config.addSDKProcessor("demo.echo");
+config.addNormalProcessor("demo.echo", "回显 payload 示例处理器");
 config.labels.worker_pool = "nodejs-blue";
 
 installConsoleTaskLogBridge(); // 只在当前 Tikeo 任务作用域内镜像 console.*
@@ -131,7 +131,7 @@ console.log(`broadcastSelector=${JSON.stringify(broadcast.broadcastSelector)}`);
 | `clientInstanceId` | 示例手工指定 | 生产中应唯一且稳定，便于 Worker 页面和审计定位。 |
 | `cluster` / `region` | `local` | 多机房部署必须真实填写，广播和选择器会使用这些信息。 |
 | `labels` | 空 map | 用 `worker_pool`、`region`、`cluster` 等标签表达调度边界。 |
-| `sdkProcessors` | 空列表 | 只声明当前进程真实实现的 processor，避免实例被派发后失败。 |
+| `normalProcessors` | 空列表 | 只声明当前进程真实实现的 processor，避免实例被派发后失败。 |
 | `heartbeat` | 约 10 秒 | 保持默认即可；高延迟网络再根据运维策略调整。 |
 
 ## 管理客户端凭证

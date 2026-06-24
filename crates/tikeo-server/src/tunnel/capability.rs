@@ -5,9 +5,9 @@ use tikeo_proto::worker::v1::{PluginProcessorCapability, WorkerCapabilities};
 /// Structured dispatch requirement for a task.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkerRequirement {
-    /// Normal SDK processor selected by processor name.
-    SdkProcessor {
-        /// Processor name declared by the SDK worker.
+    /// Normal application processor selected by processor name.
+    NormalProcessor {
+        /// Processor name declared by the Worker.
         name: String,
     },
     /// Dynamic script runner selected by script language.
@@ -29,7 +29,7 @@ impl WorkerRequirement {
     #[must_use]
     pub fn display_label(&self) -> String {
         match self {
-            Self::SdkProcessor { name } => format!("SDK processor '{name}'"),
+            Self::NormalProcessor { name } => format!("normal processor '{name}'"),
             Self::ScriptRunner { language } => format!("script runner '{language}'"),
             Self::PluginProcessor {
                 processor_type,
@@ -38,26 +38,6 @@ impl WorkerRequirement {
                 format!("plugin processor type '{processor_type}' name '{processor_name}'")
             }
         }
-    }
-
-    /// Best-effort parser for legacy capability strings used only for compatibility.
-    #[must_use]
-    pub fn from_legacy(required: &str) -> Option<Self> {
-        let required = required.trim();
-        if let Some(name) = required.strip_prefix("processor:") {
-            let name = name.trim();
-            return (!name.is_empty()).then(|| Self::SdkProcessor {
-                name: name.to_owned(),
-            });
-        }
-        if let Some(processor_type) = required.strip_prefix("plugin-processor:") {
-            let processor_type = processor_type.trim();
-            return (!processor_type.is_empty()).then(|| Self::PluginProcessor {
-                processor_type: processor_type.to_owned(),
-                processor_name: "*".to_owned(),
-            });
-        }
-        None
     }
 }
 
@@ -68,8 +48,8 @@ pub fn structured_capabilities_match(
     requirement: &WorkerRequirement,
 ) -> bool {
     match requirement {
-        WorkerRequirement::SdkProcessor { name } => capabilities
-            .sdk_processors
+        WorkerRequirement::NormalProcessor { name } => capabilities
+            .normal_processors
             .iter()
             .any(|processor| clean_eq(&processor.name, name)),
         WorkerRequirement::ScriptRunner { language } => {
@@ -99,7 +79,11 @@ fn plugin_processor_matches(
             || plugin
                 .processor_names
                 .iter()
-                .any(|name| clean_eq(name, processor_name)))
+                .any(|name| clean_eq(name, processor_name))
+            || plugin
+                .processors
+                .iter()
+                .any(|processor| clean_eq(&processor.name, processor_name)))
 }
 
 fn clean_eq(left: &str, right: &str) -> bool {

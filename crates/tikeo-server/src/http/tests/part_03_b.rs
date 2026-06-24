@@ -1281,7 +1281,7 @@
                 fencing_token: "token-db-online".to_owned(),
                 lease_seconds: 30,
                 capabilities_json: r#"["java"]"#.to_owned(),
-                structured_capabilities_json: r#"{"tags":["java"],"sdkProcessors":["demo.echo"],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
+                structured_capabilities_json: r#"{"tags":["java"],"normalProcessors":["demo.echo"],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
                 labels_json: r#"{"worker_pool":"blue"}"#.to_owned(),
                 master_json: r#"{"domain":"default/billing/local/local","isMaster":true,"masterWorkerId":"wrk-db-online","term":1,"fencingToken":"wmf-test"}"#.to_owned(),
             })

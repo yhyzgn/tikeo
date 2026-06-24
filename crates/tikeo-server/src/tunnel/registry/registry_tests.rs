@@ -1,6 +1,6 @@
 use tikeo_proto::worker::v1::{
-    DispatchTask, PluginProcessorCapability, RegisterWorker, ScriptRunnerCapability,
-    SdkProcessorCapability, WorkerCapabilities, WorkerClusterElection,
+    DispatchTask, PluginProcessorCapability, ProcessorCapability, RegisterWorker,
+    ScriptRunnerCapability, WorkerCapabilities, WorkerClusterElection,
 };
 use tokio::sync::mpsc;
 
@@ -270,14 +270,6 @@ async fn registry_requires_structured_script_runner_capabilities() {
         )
         .await;
 
-    let legacy_script_workers = registry
-        .find_eligible_workers_with_capability("finance", "billing", Some("script"))
-        .await;
-    assert!(legacy_script_workers.is_empty());
-    let legacy_python_workers = registry
-        .find_eligible_workers_with_capability("finance", "billing", Some("legacy-script-python"))
-        .await;
-    assert!(legacy_python_workers.is_empty());
     let python_workers = registry
         .find_eligible_workers_with_requirement(
             "finance",
@@ -298,8 +290,9 @@ async fn registry_matches_structured_sdk_script_and_plugin_capabilities() {
             RegisterWorker {
                 structured_capabilities: Some(WorkerCapabilities {
                     tags: vec!["java".to_owned()],
-                    sdk_processors: vec![SdkProcessorCapability {
+                    normal_processors: vec![ProcessorCapability {
                         name: "demo.echo".to_owned(),
+                        description: "Echo processor".to_owned(),
                     }],
                     script_runners: vec![ScriptRunnerCapability {
                         language: "python".to_owned(),
@@ -308,6 +301,7 @@ async fn registry_matches_structured_sdk_script_and_plugin_capabilities() {
                     plugin_processors: vec![PluginProcessorCapability {
                         r#type: "sql".to_owned(),
                         processor_names: vec!["billing.sql-sync".to_owned()],
+                        processors: Vec::new(),
                     }],
                 }),
                 ..register_worker("pod-structured")
@@ -321,7 +315,7 @@ async fn registry_matches_structured_sdk_script_and_plugin_capabilities() {
             .find_eligible_workers_with_requirement(
                 "finance",
                 "billing",
-                Some(&WorkerRequirement::SdkProcessor {
+                Some(&WorkerRequirement::NormalProcessor {
                     name: "demo.echo".to_owned()
                 })
             )
@@ -448,8 +442,9 @@ async fn registry_persists_worker_snapshots_after_master_election() {
             RegisterWorker {
                 structured_capabilities: Some(WorkerCapabilities {
                     tags: vec!["java".to_owned()],
-                    sdk_processors: vec![SdkProcessorCapability {
+                    normal_processors: vec![ProcessorCapability {
                         name: "demo.echo".to_owned(),
+                        description: "Echo processor".to_owned(),
                     }],
                     script_runners: vec![ScriptRunnerCapability {
                         language: "python".to_owned(),
@@ -458,6 +453,7 @@ async fn registry_persists_worker_snapshots_after_master_election() {
                     plugin_processors: vec![PluginProcessorCapability {
                         r#type: "sql".to_owned(),
                         processor_names: vec!["billing.sql-sync".to_owned()],
+                        processors: Vec::new(),
                     }],
                 }),
                 ..election_worker("pod-master", 1)
@@ -490,10 +486,13 @@ async fn registry_persists_worker_snapshots_after_master_election() {
             .master_json
             .contains(&format!("\"masterWorkerId\":\"{}\"", master.worker_id))
     );
-    assert!(
-        persisted_master
-            .structured_capabilities_json
-            .contains("\"sdkProcessors\":[\"demo.echo\"]")
+    let structured: serde_json::Value =
+        serde_json::from_str(&persisted_master.structured_capabilities_json)
+            .unwrap_or_else(|error| panic!("structured capabilities should be JSON: {error}"));
+    assert_eq!(structured["normalProcessors"][0]["name"], "demo.echo");
+    assert_eq!(
+        structured["normalProcessors"][0]["description"],
+        "Echo processor"
     );
     assert!(
         persisted_master

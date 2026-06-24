@@ -27,7 +27,7 @@ configure_logging(LogConfig.from_env())
 config = local_config("http://127.0.0.1:9998", "orders-python-1")
 config.namespace = "dev-alpha"
 config.app = "orders"
-config.add_sdk_processor("demo.echo")
+config.add_normal_processor("demo.echo", "Echo payload demo processor")
 client = Client(config)
 ```
 

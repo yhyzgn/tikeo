@@ -629,9 +629,16 @@ pub struct WorkerMasterSummary {
 #[serde(rename_all = "camelCase")]
 pub struct WorkerCapabilitiesSummary {
     pub tags: Vec<String>,
-    pub sdk_processors: Vec<String>,
+    pub normal_processors: Vec<WorkerProcessorSummary>,
     pub script_runners: Vec<WorkerScriptRunnerSummary>,
     pub plugin_processors: Vec<WorkerPluginProcessorSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerProcessorSummary {
+    pub name: String,
+    pub description: String,
 }
 
 #[derive(Debug, Clone, Serialize, serde::Deserialize, ToSchema)]
@@ -646,6 +653,7 @@ pub struct WorkerScriptRunnerSummary {
 pub struct WorkerPluginProcessorSummary {
     pub r#type: String,
     pub processor_names: Vec<String>,
+    pub processors: Vec<WorkerProcessorSummary>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

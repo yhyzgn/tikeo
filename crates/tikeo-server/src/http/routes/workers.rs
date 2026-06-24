@@ -220,7 +220,20 @@ fn parse_string_vec(value: &str) -> Vec<String> {
 }
 
 fn parse_capabilities_summary(value: &str) -> WorkerCapabilitiesSummary {
-    serde_json::from_str(value).unwrap_or_default()
+    let mut summary: WorkerCapabilitiesSummary = serde_json::from_str(value).unwrap_or_default();
+    for plugin in &mut summary.plugin_processors {
+        if plugin.processors.is_empty() {
+            plugin.processors = plugin
+                .processor_names
+                .iter()
+                .map(|name| crate::http::dto::WorkerProcessorSummary {
+                    name: name.clone(),
+                    description: String::new(),
+                })
+                .collect();
+        }
+    }
+    summary
 }
 
 fn parse_master_summary(value: &str) -> Option<WorkerMasterSummary> {

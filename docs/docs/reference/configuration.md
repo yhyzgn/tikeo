@@ -140,7 +140,7 @@ The following is the Complete default-value table for Server settings: config ke
 | `version` | `TIKEO_WORKER_VERSION` | No | `dev` in Go/Python/Node helpers | Worker/application build version. |
 | `capabilities` | `TIKEO_WORKER_CAPABILITIES` | No | `[]` | Legacy/operator metadata. |
 | `labels` | `TIKEO_WORKER_LABELS` | No | `{}` | Comma-separated `key=value` in demos; maps in Boot. |
-| `structured.sdkProcessors` | `TIKEO_WORKER_SDK_PROCESSORS` | No | demo-dependent | SDK processor names advertised for dispatch. |
+| `structured.normalProcessors` | `TIKEO_WORKER_NORMAL_PROCESSORS` (legacy environment variable name) | No | demo-dependent | normal processor names advertised for dispatch. |
 | `structured.scriptRunners` | `TIKEO_WORKER_SCRIPT_LANGUAGES` / SDK API | No | demo-dependent | Script languages and sandbox backends. |
 | `election.enabled` | `TIKEO_WORKER_ELECTION_ENABLED` | No | `true` | Worker-cluster master election flag. |
 | `election.domain` | `TIKEO_WORKER_ELECTION_DOMAIN` | No | blank | Blank means `namespace/app/cluster/region`. |

@@ -5,11 +5,19 @@ package net.tikeo.processor;
  */
 public enum TikeoProcessorKind {
     /**
- * Normal SDK processor selected by job processorName.
- */
-    SDK,
+     * Normal application processor selected by job processorName.
+     */
+    NORMAL,
+
     /**
- * Plugin processor selected by plugin processorType plus processorName.
- */
-    PLUGIN
+     * Plugin processor selected by plugin processorType plus processorName.
+     */
+    PLUGIN;
+
+    /**
+     * @return true for the normal application processor kind.
+     */
+    public boolean isNormal() {
+        return this == NORMAL;
+    }
 }

@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public final class WorkflowStepTaskProcessor {
-    @TikeoProcessor("demo.workflow.step")
+    @TikeoProcessor(value = "demo.workflow.step", description = "工作流步骤节点示例处理器")
     public TaskOutcome workflowStep(TaskContext context) {
         log.info("[demo.workflow.step] running workflow step jobId={} instanceId={}",
                 context.jobId(), context.instanceId());

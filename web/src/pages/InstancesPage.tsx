@@ -1,6 +1,7 @@
-import { Alert, Button, Card, Drawer, Empty, Popconfirm, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Col, Drawer, Empty, Input, Popconfirm, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import {
   cancelInstance,
@@ -23,6 +24,92 @@ import { useI18n, type LocaleCode } from '../i18n/I18nContext';
 import { ROUTE_META } from '../routes';
 import { formatWorkerDisplayId } from './instances/workerDisplay';
 import { persistentPagination, usePersistentTablePageSize } from '../utils/pagination';
+
+
+const ACTIVE_INSTANCE_STATUSES = ['pending', 'dispatching', 'running', 'retrying'];
+const INSTANCE_STATUS_OPTIONS = ['pending', 'dispatching', 'running', 'retrying', 'succeeded', 'failed', 'partial_failed', 'cancelled'];
+const INSTANCE_TRIGGER_OPTIONS = ['api', 'schedule', 'manual', 'cron', 'fixed_rate', 'webhook', 'unknown'];
+const INSTANCE_MODE_OPTIONS = ['single', 'broadcast'];
+
+type InstanceFilters = {
+  status: string;
+  jobId: string;
+  triggerType: string;
+  executionMode: string;
+  workerId: string;
+  keyword: string;
+};
+
+const EMPTY_INSTANCE_FILTERS: InstanceFilters = {
+  status: '',
+  jobId: '',
+  triggerType: '',
+  executionMode: '',
+  workerId: '',
+  keyword: '',
+};
+
+function filtersFromSearchParams(params: URLSearchParams): InstanceFilters {
+  return {
+    status: params.get('status') ?? '',
+    jobId: params.get('jobId') ?? '',
+    triggerType: params.get('triggerType') ?? '',
+    executionMode: params.get('executionMode') ?? '',
+    workerId: params.get('workerId') ?? '',
+    keyword: params.get('keyword') ?? '',
+  };
+}
+
+function hasInstanceFilters(filters: InstanceFilters): boolean {
+  return Object.values(filters).some((value) => value.trim() !== '');
+}
+
+function instanceMatchesFilters(
+  instance: JobInstanceSummary,
+  attempts: JobInstanceAttemptSummary[] | undefined,
+  jobName: Map<string, string>,
+  filters: InstanceFilters,
+): boolean {
+  if (filters.status) {
+    const statuses = filters.status === 'active' ? ACTIVE_INSTANCE_STATUSES : [filters.status];
+    if (!statuses.includes(instance.status)) return false;
+  }
+  if (filters.jobId && instance.jobId !== filters.jobId) return false;
+  if (filters.triggerType && instance.triggerType !== filters.triggerType) return false;
+  if (filters.executionMode && instance.executionMode !== filters.executionMode) return false;
+  if (filters.workerId) {
+    const workerNeedle = filters.workerId.toLowerCase();
+    const workerValues = [instance.workerId, instance.latestLog?.workerId, ...(attempts ?? []).map((attempt) => attempt.workerId)]
+      .filter(Boolean)
+      .map((value) => String(value).toLowerCase());
+    if (!workerValues.some((value) => value.includes(workerNeedle))) return false;
+  }
+  if (filters.keyword) {
+    const keyword = filters.keyword.toLowerCase();
+    const searchable = [
+      instance.id,
+      instance.jobId,
+      jobName.get(instance.jobId),
+      instance.status,
+      instance.triggerType,
+      instance.executionMode,
+      instance.latestLog?.message,
+      instance.workerId,
+      instance.latestLog?.workerId,
+    ].filter(Boolean).join(' ').toLowerCase();
+    if (!searchable.includes(keyword)) return false;
+  }
+  return true;
+}
+
+function semanticFilterLabel(filters: InstanceFilters): string | null {
+  if (filters.status === 'failed') return '失败实例';
+  if (filters.status === 'active') return '活跃实例';
+  if (filters.executionMode === 'broadcast') return '广播实例';
+  if (filters.workerId) return '指定 Worker';
+  if (filters.jobId) return '指定任务';
+  return null;
+}
 
 const displayWorkerId = (instance: JobInstanceSummary) => instance.workerId ?? instance.latestLog?.workerId ?? '暂无 worker';
 
@@ -221,6 +308,8 @@ export function InstancesPage() {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [instances, setInstances] = useState<JobInstanceSummary[]>([]);
   const [attemptsByInstance, setAttemptsByInstance] = useState<Map<string, JobInstanceAttemptSummary[]>>(new Map());
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(() => filtersFromSearchParams(searchParams), [searchParams]);
   const active = useRouteActive(ROUTE_META.instances.path);
 
   const applyInstanceSnapshot = useCallback((snapshot: InstanceListStreamSnapshot) => {
@@ -274,7 +363,28 @@ export function InstancesPage() {
       window.clearInterval(fallbackTimer);
     };
   }, [active, applyInstanceSnapshot, load]);
-  const jobName = new Map(jobs.map((job) => [job.id, job.name]));
+  const jobName = useMemo(() => new Map(jobs.map((job) => [job.id, job.name])), [jobs]);
+  const filteredInstances = useMemo(() => instances.filter((instance) => instanceMatchesFilters(instance, attemptsByInstance.get(instance.id), jobName, filters)), [attemptsByInstance, filters, instances, jobName]);
+  const filterEntryLabel = semanticFilterLabel(filters);
+  const updateFilters = useCallback((patch: Partial<InstanceFilters>) => {
+    const next = { ...filters, ...patch };
+    setSearchParams((previous) => {
+      const params = new URLSearchParams(previous);
+      (Object.entries(next) as Array<[keyof InstanceFilters, string]>).forEach(([key, value]) => {
+        const normalized = value.trim();
+        if (normalized) params.set(key, normalized);
+        else params.delete(key);
+      });
+      return params;
+    }, { replace: true });
+  }, [filters, setSearchParams]);
+  const resetFilters = useCallback(() => {
+    setSearchParams((previous) => {
+      const params = new URLSearchParams(previous);
+      (Object.keys(EMPTY_INSTANCE_FILTERS) as Array<keyof InstanceFilters>).forEach((key) => params.delete(key));
+      return params;
+    }, { replace: true });
+  }, [setSearchParams]);
   const [logDrawerOpen, setLogDrawerOpen] = useState(false);
   const [selectedInstance, setSelectedInstance] = useState<JobInstanceSummary | null>(null);
   const [logs, setLogs] = useState<JobInstanceLogSummary[]>([]);
@@ -443,13 +553,77 @@ export function InstancesPage() {
   const governanceLogs = logs.filter((log) => log.governanceEvent === 'script_execution_governance');
 
   return (
-    <Card className="clean-card" title="执行实例">
+    <Card className="clean-card instance-list-card" title="执行实例">
+      <div className="instance-filter-panel">
+        <div className="instance-filter-panel__header">
+          <div>
+            <Typography.Text strong>实例过滤</Typography.Text>
+            <Typography.Paragraph type="secondary">
+              {filterEntryLabel ? `当前入口：${filterEntryLabel}` : '可按状态、任务、触发来源、执行模式、Worker 或关键字过滤。'}
+            </Typography.Paragraph>
+          </div>
+          <Space>
+            <Tag color={hasInstanceFilters(filters) ? 'blue' : 'default'}>{filteredInstances.length}/{instances.length}</Tag>
+            <Button onClick={resetFilters} disabled={!hasInstanceFilters(filters)}>重置</Button>
+          </Space>
+        </div>
+        <Row gutter={[12, 12]}>
+          <Col xs={24} md={8} xl={4}>
+            <Select
+              allowClear
+              value={filters.status || undefined}
+              placeholder="状态"
+              style={{ width: '100%' }}
+              onChange={(value) => updateFilters({ status: value ?? '' })}
+              options={[{ value: 'active', label: 'active / 运行中' }, ...INSTANCE_STATUS_OPTIONS.map((value) => ({ value, label: value }))]}
+            />
+          </Col>
+          <Col xs={24} md={8} xl={5}>
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              value={filters.jobId || undefined}
+              placeholder="任务"
+              style={{ width: '100%' }}
+              onChange={(value) => updateFilters({ jobId: value ?? '' })}
+              options={jobs.map((job) => ({ value: job.id, label: `${job.name} · ${job.namespace}/${job.app}` }))}
+            />
+          </Col>
+          <Col xs={24} md={8} xl={4}>
+            <Select
+              allowClear
+              value={filters.triggerType || undefined}
+              placeholder="触发方式"
+              style={{ width: '100%' }}
+              onChange={(value) => updateFilters({ triggerType: value ?? '' })}
+              options={INSTANCE_TRIGGER_OPTIONS.map((value) => ({ value, label: value }))}
+            />
+          </Col>
+          <Col xs={24} md={8} xl={4}>
+            <Select
+              allowClear
+              value={filters.executionMode || undefined}
+              placeholder="执行模式"
+              style={{ width: '100%' }}
+              onChange={(value) => updateFilters({ executionMode: value ?? '' })}
+              options={INSTANCE_MODE_OPTIONS.map((value) => ({ value, label: value }))}
+            />
+          </Col>
+          <Col xs={24} md={8} xl={3}>
+            <Input value={filters.workerId} placeholder="Worker" allowClear onChange={(event) => updateFilters({ workerId: event.target.value })} />
+          </Col>
+          <Col xs={24} md={8} xl={4}>
+            <Input.Search value={filters.keyword} placeholder="实例 / 日志关键字" allowClear onChange={(event) => updateFilters({ keyword: event.target.value })} />
+          </Col>
+        </Row>
+      </div>
       {instances.length === 0 ? (
         <Empty description="还没有实例，请先在 Jobs 页面创建并触发任务" />
       ) : (
         <>
           <Typography.Paragraph type="secondary">实例详情 API 已可用：GET /api/v1/instances/&lt;instance&gt;</Typography.Paragraph>
-          <Table rowKey="id" columns={columns} dataSource={instances} pagination={persistentPagination(pageSize, setPageSize)} scroll={{ x: 1_440 }} />
+          <Table rowKey="id" columns={columns} dataSource={filteredInstances} pagination={persistentPagination(pageSize, setPageSize)} scroll={{ x: 1_440 }} locale={{ emptyText: hasInstanceFilters(filters) ? '没有匹配当前过滤条件的实例' : '暂无实例' }} />
         </>
       )}
       <Drawer

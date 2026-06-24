@@ -5,7 +5,7 @@ description: How Tikeo treats scripts as reviewed, versioned, worker-executed ru
 
 # Script support
 
-Tikeo script support is for small operational executors that need review, versioning, rollback, stdout/stderr capture, and job binding without forcing every team to publish a compiled SDK processor. A script is not a hidden shell escape in the Server. The Server stores metadata, versions, RBAC, audit, and bindings; Workers run the approved version through an allowed runtime and report normal instance evidence.
+Tikeo script support is for small operational executors that need review, versioning, rollback, stdout/stderr capture, and job binding without forcing every team to publish a compiled normal processor. A script is not a hidden shell escape in the Server. The Server stores metadata, versions, RBAC, audit, and bindings; Workers run the approved version through an allowed runtime and report normal instance evidence.
 
 ![Script release loop](pathname:///img/diagrams/script-release-loop.svg)
 
@@ -18,7 +18,7 @@ Tikeo script support is for small operational executors that need review, versio
 
 ## When to use
 
-Use a script when the logic is short, operational, and benefits from fast review. Examples: cleanup, health probe, data export handoff, or a simple integration call. Prefer an SDK processor when the logic is large, performance-sensitive, requires complex dependencies, or should be tested and released as normal application code.
+Use a script when the logic is short, operational, and benefits from fast review. Examples: cleanup, health probe, data export handoff, or a simple integration call. Prefer an normal processor when the logic is large, performance-sensitive, requires complex dependencies, or should be tested and released as normal application code.
 
 ## Closed-loop release flow
 

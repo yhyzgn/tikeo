@@ -224,7 +224,7 @@
                 fencing_token: "token-one".to_owned(),
                 lease_seconds: 30,
                 capabilities_json: r#"["java"]"#.to_owned(),
-                structured_capabilities_json: r#"{"tags":["java"],"sdkProcessors":["demo.echo"],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
+                structured_capabilities_json: r#"{"tags":["java"],"normalProcessors":[{"name":"demo.echo","description":""}],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
                 labels_json: r#"{"worker_pool":"blue"}"#.to_owned(),
                 master_json: r#"{"domain":"dev-alpha/orders/local/local","isMaster":true,"masterWorkerId":"wrk-persisted-online","term":1,"fencingToken":"wmf-test"}"#.to_owned(),
             })
@@ -243,7 +243,7 @@
                 fencing_token: "token-two".to_owned(),
                 lease_seconds: 30,
                 capabilities_json: r#"["java"]"#.to_owned(),
-                structured_capabilities_json: r#"{"tags":["java"],"sdkProcessors":["demo.echo"],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
+                structured_capabilities_json: r#"{"tags":["java"],"normalProcessors":[{"name":"demo.echo","description":""}],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
                 labels_json: r#"{"worker_pool":"blue"}"#.to_owned(),
                 master_json: r#"{"domain":"dev-alpha/orders/local/local","isMaster":true,"masterWorkerId":"wrk-persisted-online","term":1,"fencingToken":"wmf-test"}"#.to_owned(),
             })
@@ -328,7 +328,7 @@
                 fencing_token: "token-persisted-online".to_owned(),
                 lease_seconds: 30,
                 capabilities_json: r#"["java"]"#.to_owned(),
-                structured_capabilities_json: r#"{"tags":["java"],"sdkProcessors":["demo.echo"],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
+                structured_capabilities_json: r#"{"tags":["java"],"normalProcessors":[{"name":"demo.echo","description":""}],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
                 labels_json: r#"{"worker_pool":"blue"}"#.to_owned(),
                 master_json: r#"{"domain":"dev-alpha/orders/local/local","isMaster":true,"masterWorkerId":"wrk-persisted-online","term":1,"fencingToken":"wmf-test"}"#.to_owned(),
             })
@@ -398,7 +398,7 @@
                 fencing_token: "token-online".to_owned(),
                 lease_seconds: 30,
                 capabilities_json: r#"["java"]"#.to_owned(),
-                structured_capabilities_json: r#"{"tags":["java"],"sdkProcessors":["demo.echo"],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
+                structured_capabilities_json: r#"{"tags":["java"],"normalProcessors":[{"name":"demo.echo","description":""}],"scriptRunners":[],"pluginProcessors":[]}"#.to_owned(),
                 labels_json: r#"{"worker_pool":"blue"}"#.to_owned(),
                 master_json: r#"{"domain":"default/billing/local/local","isMaster":true,"masterWorkerId":"wrk-online-current","term":1,"fencingToken":"wmf-test"}"#.to_owned(),
             })

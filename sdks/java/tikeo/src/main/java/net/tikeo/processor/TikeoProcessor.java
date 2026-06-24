@@ -23,12 +23,26 @@ public @interface TikeoProcessor {
      *
      * @return processor kind
      */
-    TikeoProcessorKind kind() default TikeoProcessorKind.SDK;
+    TikeoProcessorKind kind() default TikeoProcessorKind.NORMAL;
+
+    /**
+     * Optional processor description shown in operator UI.
+     *
+     * @return human-readable processor description
+     */
+    String description() default "";
 
     /**
      * Plugin processor type when {@link #kind()} is {@link TikeoProcessorKind#PLUGIN}.
      *
-     * @return plugin processor type
+     * @return constrained plugin processor type
      */
-    String pluginType() default "";
+    TikeoPluginType pluginType() default TikeoPluginType.NONE;
+
+    /**
+     * Custom plugin processor type when {@link #pluginType()} is {@link TikeoPluginType#CUSTOM}.
+     *
+     * @return custom plugin processor type
+     */
+    String customPluginType() default "";
 }

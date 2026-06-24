@@ -285,7 +285,7 @@ The Worker runtime fields are shared across all SDKs and belong in the global co
 | `cluster` | `local` in core helpers; Java Boot default is `default` | Worker cluster or environment shard. |
 | `region` | `local` in core helpers; Java Boot default is `default` | Worker region/zone. |
 | `capabilities` | `[]` | Legacy/operator metadata. Prefer structured capabilities for dispatch routing when available. |
-| `structuredCapabilities` | empty | SDK processors, script runners, plugin processors, and structured tags used for routing. |
+| `structuredCapabilities` | empty | normal processors, script runners, plugin processors, and structured tags used for routing. |
 | `labels` | `{}` | Free-form operational metadata such as `worker_pool`, `runtime`, `team`, or `tier`. |
 | `election.enabled` | `true` | Worker-cluster master election flag in registration. |
 | `election.domain` | blank | Blank means `namespace/app/cluster/region`. |

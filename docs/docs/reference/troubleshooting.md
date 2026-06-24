@@ -132,7 +132,7 @@ Common causes:
 | --- | --- | --- |
 | Worker never appears | `TIKEO_WORKER_ENDPOINT`, local tunnel port `9998`, TLS/plaintext match. | Use `TIKEO_WORKER_ENDPOINT=http://127.0.0.1:9998` for local plaintext. |
 | Worker appears offline | Process stopped, heartbeat expired, or network path closed. | Restart worker and inspect worker logs. |
-| Worker has no useful processors | `structuredCapabilities` does not include the processor required by the job. | Set the demo worker processor env, for example `TIKEO_WORKER_SDK_PROCESSORS=demo.echo`. |
+| Worker has no useful processors | `structuredCapabilities` does not include the processor required by the job. | Set the demo worker processor env, for example `TIKEO_WORKER_NORMAL_PROCESSORS=demo.echo`. |
 | Stale worker blocks diagnosis | Old worker sessions remain in history. | Compare live status and `clientInstanceId`; inspect `/api/v1/workers/history`. |
 
 ## Job stays pending or queued

@@ -19,11 +19,11 @@ def main() -> None:
     config.region = env_or("TIKEO_WORKER_REGION", "local")
     config.add_tag("python")
     config.add_tag("manual-demo")
-    for processor in csv_or("TIKEO_WORKER_SDK_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception"):
-        config.add_sdk_processor(processor)
+    for processor in csv_or("TIKEO_WORKER_NORMAL_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception"):
+        config.add_normal_processor(processor, "Demo normal processor")
     config.labels["worker_pool"] = env_or("TIKEO_WORKER_POOL", "python-blue")
     if enabled_by_default("TIKEO_ENABLE_PLUGIN_SQL"):
-        config.add_plugin_processor(env_or("TIKEO_PLUGIN_SQL_TYPE", "sql"), env_or("TIKEO_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"))
+        config.add_plugin_processor(tikeo.PluginType.SQL, env_or("TIKEO_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"), "SQL sync plugin processor")
         config.labels["plugin_sql"] = "enabled"
 
     scripts = configure_scripts(config)

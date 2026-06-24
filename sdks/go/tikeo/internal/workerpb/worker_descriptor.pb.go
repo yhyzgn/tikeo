@@ -669,20 +669,24 @@ const file_worker_proto_rawDesc = "" +
 	"\belection\x18\t \x01(\v2&.tikeo.worker.v1.WorkerClusterElectionR\belection\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa1\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa4\x02\n" +
 	"\x12WorkerCapabilities\x12\x12\n" +
-	"\x04tags\x18\x01 \x03(\tR\x04tags\x12N\n" +
-	"\x0esdk_processors\x18\x02 \x03(\v2'.tikeo.worker.v1.SdkProcessorCapabilityR\rsdkProcessors\x12N\n" +
+	"\x04tags\x18\x01 \x03(\tR\x04tags\x12Q\n" +
+	"\x11normal_processors\x18\x02 \x03(\v2$.tikeo.worker.v1.ProcessorCapabilityR\x10normalProcessors\x12N\n" +
 	"\x0escript_runners\x18\x03 \x03(\v2'.tikeo.worker.v1.ScriptRunnerCapabilityR\rscriptRunners\x12W\n" +
-	"\x11plugin_processors\x18\x04 \x03(\v2*.tikeo.worker.v1.PluginProcessorCapabilityR\x10pluginProcessors\",\n" +
-	"\x16SdkProcessorCapability\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"]\n" +
+	"\x11plugin_processors\x18\x04 \x03(\v2*.tikeo.worker.v1.PluginProcessorCapabilityR\x10pluginProcessors\"K\n" +
+	"\x13ProcessorCapability\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\"]\n" +
 	"\x16ScriptRunnerCapability\x12\x1a\n" +
 	"\blanguage\x18\x01 \x01(\tR\blanguage\x12'\n" +
-	"\x0fsandbox_backend\x18\x02 \x01(\tR\x0esandboxBackend\"X\n" +
+	"\x0fsandbox_backend\x18\x02 \x01(\tR\x0esandboxBackend\"\x9e\x01\n" +
 	"\x19PluginProcessorCapability\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12'\n" +
-	"\x0fprocessor_names\x18\x02 \x03(\tR\x0eprocessorNames\"e\n" +
+	"\x0fprocessor_names\x18\x02 \x03(\tR\x0eprocessorNames\x12D\n" +
+	"\n" +
+	"processors\x18\x03 \x03(\v2$.tikeo.worker.v1.ProcessorCapabilityR\n" +
+	"processors\"e\n" +
 	"\x15WorkerClusterElection\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x1a\n" +
@@ -814,7 +818,7 @@ var file_worker_proto_goTypes = []any{
 	(*ServerMessage)(nil),             // 1: tikeo.worker.v1.ServerMessage
 	(*RegisterWorker)(nil),            // 2: tikeo.worker.v1.RegisterWorker
 	(*WorkerCapabilities)(nil),        // 3: tikeo.worker.v1.WorkerCapabilities
-	(*SdkProcessorCapability)(nil),    // 4: tikeo.worker.v1.SdkProcessorCapability
+	(*ProcessorCapability)(nil),       // 4: tikeo.worker.v1.ProcessorCapability
 	(*ScriptRunnerCapability)(nil),    // 5: tikeo.worker.v1.ScriptRunnerCapability
 	(*PluginProcessorCapability)(nil), // 6: tikeo.worker.v1.PluginProcessorCapability
 	(*WorkerClusterElection)(nil),     // 7: tikeo.worker.v1.WorkerClusterElection
@@ -845,21 +849,22 @@ var file_worker_proto_depIdxs = []int32{
 	20, // 9: tikeo.worker.v1.RegisterWorker.labels:type_name -> tikeo.worker.v1.RegisterWorker.LabelsEntry
 	3,  // 10: tikeo.worker.v1.RegisterWorker.structured_capabilities:type_name -> tikeo.worker.v1.WorkerCapabilities
 	7,  // 11: tikeo.worker.v1.RegisterWorker.election:type_name -> tikeo.worker.v1.WorkerClusterElection
-	4,  // 12: tikeo.worker.v1.WorkerCapabilities.sdk_processors:type_name -> tikeo.worker.v1.SdkProcessorCapability
+	4,  // 12: tikeo.worker.v1.WorkerCapabilities.normal_processors:type_name -> tikeo.worker.v1.ProcessorCapability
 	5,  // 13: tikeo.worker.v1.WorkerCapabilities.script_runners:type_name -> tikeo.worker.v1.ScriptRunnerCapability
 	6,  // 14: tikeo.worker.v1.WorkerCapabilities.plugin_processors:type_name -> tikeo.worker.v1.PluginProcessorCapability
-	13, // 15: tikeo.worker.v1.DispatchTask.processor_binding:type_name -> tikeo.worker.v1.TaskProcessorBinding
-	15, // 16: tikeo.worker.v1.TaskProcessorBinding.wasm:type_name -> tikeo.worker.v1.WasmProcessorBinding
-	14, // 17: tikeo.worker.v1.TaskProcessorBinding.script:type_name -> tikeo.worker.v1.ScriptProcessorBinding
-	0,  // 18: tikeo.worker.v1.WorkerTunnelService.OpenTunnel:input_type -> tikeo.worker.v1.WorkerMessage
-	19, // 19: tikeo.worker.v1.WorkerTunnelService.SubscribeTaskLogs:input_type -> tikeo.worker.v1.SubscribeTaskLogsRequest
-	1,  // 20: tikeo.worker.v1.WorkerTunnelService.OpenTunnel:output_type -> tikeo.worker.v1.ServerMessage
-	17, // 21: tikeo.worker.v1.WorkerTunnelService.SubscribeTaskLogs:output_type -> tikeo.worker.v1.TaskLog
-	20, // [20:22] is the sub-list for method output_type
-	18, // [18:20] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	4,  // 15: tikeo.worker.v1.PluginProcessorCapability.processors:type_name -> tikeo.worker.v1.ProcessorCapability
+	13, // 16: tikeo.worker.v1.DispatchTask.processor_binding:type_name -> tikeo.worker.v1.TaskProcessorBinding
+	15, // 17: tikeo.worker.v1.TaskProcessorBinding.wasm:type_name -> tikeo.worker.v1.WasmProcessorBinding
+	14, // 18: tikeo.worker.v1.TaskProcessorBinding.script:type_name -> tikeo.worker.v1.ScriptProcessorBinding
+	0,  // 19: tikeo.worker.v1.WorkerTunnelService.OpenTunnel:input_type -> tikeo.worker.v1.WorkerMessage
+	19, // 20: tikeo.worker.v1.WorkerTunnelService.SubscribeTaskLogs:input_type -> tikeo.worker.v1.SubscribeTaskLogsRequest
+	1,  // 21: tikeo.worker.v1.WorkerTunnelService.OpenTunnel:output_type -> tikeo.worker.v1.ServerMessage
+	17, // 22: tikeo.worker.v1.WorkerTunnelService.SubscribeTaskLogs:output_type -> tikeo.worker.v1.TaskLog
+	21, // [21:23] is the sub-list for method output_type
+	19, // [19:21] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_worker_proto_init() }

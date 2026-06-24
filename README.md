@@ -97,7 +97,7 @@ Tikeo is designed to be the default answer when someone asks:
 | --- | --- |
 | **5 production SDK tracks** | **Java · Rust · Go · Python · Node.js** workers follow one contract, and the same worker cluster can mix languages instead of becoming a Java-only executor model. |
 | **Outbound Worker Tunnel** | Workers connect out; production services do **not** need inbound task-execution ports. |
-| **Structured capability routing** | Dispatch matches typed **SDK processors**, **plugin processors**, and **script runners**. No magic string parsing. |
+| **Structured capability routing** | Dispatch matches typed **normal processors**, **plugin processors**, and **script runners**. No magic string parsing. |
 | **Sandbox-first script jobs** | `auto` selects **SRT** for native scripts and **Deno** for JS/TS, with **WASM/V8/container** paths available explicitly. |
 | **Workflow + topology UX** | Visual workflow canvas, dependency topology, impact analysis, replay data, and per-worker broadcast results. |
 | **Canary safety gate** | Jobs can route explicit triggers to a canary target, evaluate persisted canary instance failure rate, and automatically roll traffic back to `0%`. |
@@ -125,7 +125,7 @@ Tikeo is designed to be the default answer when someone asks:
 | --- | --- |
 | 🧠 **One orchestration brain** | **Cron**, **fixed-rate**, **API-triggered**, **broadcast**, **workflow**, **script**, **plugin**, and **SDK** jobs share one governed instance model. |
 | 🔌 **No exposed executor ports** | Workers initiate **outbound gRPC tunnels**; business services stay behind normal network boundaries. |
-| 🧱 **Typed dispatch, no folklore** | Routing uses structured **SDK processors**, **plugin processor types**, **script languages**, **sandbox backends**, tags, and election fields. |
+| 🧱 **Typed dispatch, no folklore** | Routing uses structured **normal processors**, **plugin processor types**, **script languages**, **sandbox backends**, tags, and election fields. |
 | 🛡️ **Scripts as governed workloads** | Immutable versions, digest checks, approval metadata, policy limits, task-scoped logs, and sandbox auto-selection are first-class. |
 | 🧩 **SDK parity by design** | **Java/Rust/Go/Python/Node.js** align on worker registration, task logs, retries, management APIs, sandbox behavior, and diagnostics. |
 | 📈 **Evidence-first operations** | Instance results, retry logs, broadcast worker grouping, terminal-style logs, audit trails, OTel traces, metrics, and GitOps diffs are built in. |
@@ -137,7 +137,7 @@ Tikeo is designed to be the default answer when someone asks:
 | --- | --- | --- |
 | **Worker Tunnel** | Workers pull assignments over an outbound tunnel with lease/fencing metadata. | Inbound executor exposure and fragile callback assumptions. |
 | **Raft FSOD Cluster** | Raft provides one fenced control-plane authority, shard ownership spreads dispatch across active Server pods, and durable outbox rows survive Worker Tunnel failover. | Active-passive scheduler waste, Redis/DB lock ownership ambiguity, and pod-local dispatch state loss. |
-| **Capability Graph** | Worker ability is a typed graph: SDK processors, plugins, scripts, tags, election domains. | Ambiguous string conventions and “why did this worker get this job?” debugging. |
+| **Capability Graph** | Worker ability is a typed graph: normal processors, plugins, scripts, tags, election domains. | Ambiguous string conventions and “why did this worker get this job?” debugging. |
 | **Sandbox Auto Strategy** | `auto` chooses the safest practical runtime path: SRT for native scripts, Deno for JS/TS, Wasmtime/WASM when appropriate. | Treating scripts as ordinary shell commands with unclear isolation. |
 | **Execution Evidence Model** | Every attempt, retry, worker result, broadcast child, and task log is inspectable. | Status-only dashboards that cannot explain failures. |
 | **Open Platform Surface** | SDKs, Docker, Helm, Terraform, CRD/operator, GitOps diff, OpenAPI, OTel. | Scheduler adoption blocked by missing integration surfaces. |
@@ -192,7 +192,7 @@ Terraform, Kubernetes CRDs, Helm, Docker images, and SDK publishing.
 
 A scheduler that depends on magic strings eventually becomes hard to operate. Tikeo routes by
 structured capability declarations. Workers advertise exactly what they can run, and the server
-matches typed SDK processors, plugin processor types, and script languages/backends explicitly.
+matches typed normal processors, plugin processor types, and script languages/backends explicitly.
 
 ### 3. It treats script execution as a security product, not a checkbox
 
@@ -846,7 +846,7 @@ Worker services use SDK-level configuration, separate from Server configuration.
 | `version` | `TIKEO_WORKER_VERSION` | No | `dev` in Go/Python/Node helpers | Worker/application build version where exposed. |
 | `capabilities` | `TIKEO_WORKER_CAPABILITIES` | No | `[]` | Legacy/operator metadata; dispatch routing uses structured capabilities when available. |
 | `labels` | `TIKEO_WORKER_LABELS` | No | `{}` | Comma-separated `key=value` labels in demos; maps in Spring Boot. |
-| `structured.sdkProcessors` | `TIKEO_WORKER_SDK_PROCESSORS` | No | demo-dependent | SDK processor names advertised for dispatch. |
+| `structured.normalProcessors` | `TIKEO_WORKER_NORMAL_PROCESSORS` (legacy environment variable name) | No | demo-dependent | normal processor names advertised for dispatch. |
 | `structured.scriptRunners` | `TIKEO_WORKER_SCRIPT_LANGUAGES` / SDK API | No | demo-dependent | Script languages and sandbox backend advertised for routing. |
 | `election.enabled` | `TIKEO_WORKER_ELECTION_ENABLED` | No | `true` | Worker-cluster master election flag in registration. |
 | `election.domain` | `TIKEO_WORKER_ELECTION_DOMAIN` | No | blank | Blank means `namespace/app/cluster/region`. |

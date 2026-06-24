@@ -111,7 +111,7 @@ storage:
 | `version` | `TIKEO_WORKER_VERSION` | 否 | `dev` | Worker/应用构建版本。 |
 | `capabilities` | `TIKEO_WORKER_CAPABILITIES` | 否 | `[]` | 旧式/运维 metadata。 |
 | `labels` | `TIKEO_WORKER_LABELS` | 否 | `{}` | demo 用逗号分隔 `key=value`；Boot 用 map。 |
-| `structured.sdkProcessors` | `TIKEO_WORKER_SDK_PROCESSORS` | 否 | 随 demo 而定 | 可派发 SDK processor。 |
+| `structured.normalProcessors` | `TIKEO_WORKER_NORMAL_PROCESSORS`（兼容环境变量名） | 否 | 随 demo 而定 | 可派发 normal processor。 |
 | `structured.scriptRunners` | `TIKEO_WORKER_SCRIPT_LANGUAGES` / SDK API | 否 | 随 demo 而定 | 脚本语言与沙箱 backend。 |
 | `election.*` | `TIKEO_WORKER_ELECTION_*` | 否 | enabled `true`、priority `100` | Worker-cluster master election 配置。 |
 | `wasm.*` | `TIKEO_WORKER_WASM_*` | 否 | 后台预热、`latest`、`120000` | Wasmtime 自动安装配置。 |

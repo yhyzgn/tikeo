@@ -21,12 +21,12 @@ func main() {
 	config.Region = envOr("TIKEO_WORKER_REGION", "local")
 	config.AddTag("go")
 	config.AddTag("manual-demo")
-	for _, processor := range csvOr("TIKEO_WORKER_SDK_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception") {
-		config.AddSDKProcessor(processor)
+	for _, processor := range csvOr("TIKEO_WORKER_NORMAL_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception") {
+		config.AddNormalProcessor(processor, "Demo normal processor")
 	}
 	config.Labels["worker_pool"] = envOr("TIKEO_WORKER_POOL", "go-blue")
 	if enabledByDefault("TIKEO_ENABLE_PLUGIN_SQL") {
-		config.AddPluginProcessor(envOr("TIKEO_PLUGIN_SQL_TYPE", "sql"), envOr("TIKEO_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"))
+		config.AddPluginProcessor(tikeo.PluginTypeSQL, envOr("TIKEO_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"), "SQL sync plugin processor")
 		config.Labels["plugin_sql"] = "enabled"
 	}
 	scripts := tikeo.NewScriptRunnerRegistry()

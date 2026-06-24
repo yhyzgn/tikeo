@@ -55,7 +55,7 @@ python3 -m pytest
 | `structured` | empty `WorkerCapabilities` | Routing uses this. |
 | `heartbeat_every` | `timedelta(seconds=10)` | Lease renewal cadence. |
 
-Structured helpers include `add_tag`, `add_sdk_processor`, `add_script_runner`, and `add_plugin_processor`. Validation rejects blank endpoint/client/scope/name/cluster and non-positive heartbeat intervals.
+Structured helpers include `add_tag`, `add_normal_processor`, `add_script_runner`, and `add_plugin_processor`. Validation rejects blank endpoint/client/scope/name/cluster and non-positive heartbeat intervals.
 
 ## Minimal Worker
 
@@ -67,7 +67,7 @@ import tikeo
 config = tikeo.local_config("http://127.0.0.1:9998", "python-worker-1")
 config.namespace = "sdk-smoke"
 config.app = "management"
-config.add_sdk_processor("demo.echo")
+config.add_normal_processor("demo.echo", "Echo payload demo processor")
 config.labels["worker_pool"] = "python-blue"
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -108,7 +108,7 @@ Use ordinary `logging.getLogger(__name__)` calls in processors. The `TikeoTaskLo
 | `TIKEO_WORKER_APP` | `orders` | Demo app. |
 | `TIKEO_WORKER_CLUSTER` | `local` | Demo cluster. |
 | `TIKEO_WORKER_REGION` | `local` | Demo region. |
-| `TIKEO_WORKER_SDK_PROCESSORS` | `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception` | Structured SDK processors. |
+| `TIKEO_WORKER_NORMAL_PROCESSORS` | `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception` | Structured normal processors. |
 | `TIKEO_WORKER_POOL` | `python-blue` | `worker_pool` label. |
 | `TIKEO_WORKER_SCRIPT_LANGUAGES` | `shell,python,javascript,typescript,powershell,php,groovy,rhai` | Candidate script languages. |
 | `TIKEO_WORKER_SCRIPT_SANDBOX` | `auto` | `deno` for JS/TS, `srt` for native languages. |
@@ -127,7 +127,7 @@ Run live:
 TIKEO_WORKER_CONNECT=1 \
 TIKEO_WORKER_NAMESPACE=sdk-smoke \
 TIKEO_WORKER_APP=management \
-TIKEO_WORKER_SDK_PROCESSORS=demo.echo \
+TIKEO_WORKER_NORMAL_PROCESSORS=demo.echo \
 python3 -m tikeo_python_worker_demo
 ```
 
@@ -207,7 +207,7 @@ All language demos now separate business failure from runtime exceptions. `demo.
 
 ## Capability discipline
 
-The dispatch contract uses structured capabilities, not folklore or only string naming conventions. A Worker should advertise SDK processors, plugin processors, script runners, labels, and tags only when the runtime can really execute them. Do not advertise SQL, shell, Python, Node.js, WASM, SRT, Deno, Docker, or Podman support just because a package exists; advertise it after the demo or service has resolved the tool and can fail safely.
+The dispatch contract uses structured capabilities, not folklore or only string naming conventions. A Worker should advertise normal processors, plugin processors, script runners, labels, and tags only when the runtime can really execute them. Do not advertise SQL, shell, Python, Node.js, WASM, SRT, Deno, Docker, or Podman support just because a package exists; advertise it after the demo or service has resolved the tool and can fail safely.
 
 ## Operational notes
 

@@ -24,7 +24,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import net.tikeo.logging.TikeoTaskLogScope;
-import net.tikeo.processor.ProcessorCapabilityProvider;
 import net.tikeo.processor.TaskContext;
 import net.tikeo.processor.TaskOutcome;
 import net.tikeo.processor.TaskProcessor;
@@ -530,8 +529,6 @@ public final class GrpcTikeoWorkerClient implements TikeoWorkerClient {
         WorkerCapabilitySet capabilities = registration.structuredCapabilities();
         if (processor instanceof WorkerCapabilityProvider provider) {
             capabilities = capabilities.merge(provider.workerCapabilities());
-        } else if (processor instanceof ProcessorCapabilityProvider provider) {
-            capabilities = capabilities.merge(legacyProcessorCapabilities(provider.capabilities()));
         }
         capabilities = capabilities.merge(new WorkerCapabilitySet(
             List.of(),
@@ -548,29 +545,13 @@ public final class GrpcTikeoWorkerClient implements TikeoWorkerClient {
         return toProto(capabilities);
     }
 
-    private static WorkerCapabilitySet legacyProcessorCapabilities(List<String> capabilities) {
-        var sdkProcessors = new ArrayList<String>();
-        for (String capability : capabilities) {
-            if (capability != null && capability.startsWith("processor:")) {
-                String name = capability.substring("processor:".length()).trim();
-                if (!name.isEmpty()) {
-                    sdkProcessors.add(name);
-                }
-            }
-        }
-        return new WorkerCapabilitySet(
-            List.of(),
-            sdkProcessors,
-            List.of(),
-            List.of()
-        );
-    }
-
     private static Worker.WorkerCapabilities toProto(WorkerCapabilitySet capabilities) {
         Worker.WorkerCapabilities.Builder builder = Worker.WorkerCapabilities.newBuilder()
             .addAllTags(capabilities.tags());
-        for (String name : capabilities.sdkProcessors()) {
-            builder.addSdkProcessors(Worker.SdkProcessorCapability.newBuilder().setName(name));
+        for (WorkerCapabilitySet.Processor processor : capabilities.normalProcessors()) {
+            builder.addNormalProcessors(Worker.ProcessorCapability.newBuilder()
+                .setName(processor.name())
+                .setDescription(processor.description()));
         }
         for (WorkerCapabilitySet.ScriptRunner runner : capabilities.scriptRunners()) {
             builder.addScriptRunners(Worker.ScriptRunnerCapability.newBuilder()
@@ -578,9 +559,15 @@ public final class GrpcTikeoWorkerClient implements TikeoWorkerClient {
                 .setSandboxBackend(runner.sandboxBackend()));
         }
         for (WorkerCapabilitySet.PluginProcessor plugin : capabilities.pluginProcessors()) {
-            builder.addPluginProcessors(Worker.PluginProcessorCapability.newBuilder()
+            Worker.PluginProcessorCapability.Builder pluginBuilder = Worker.PluginProcessorCapability.newBuilder()
                 .setType(plugin.type())
-                .addAllProcessorNames(plugin.processorNames()));
+                .addAllProcessorNames(plugin.processorNames());
+            for (WorkerCapabilitySet.Processor processor : plugin.processors()) {
+                pluginBuilder.addProcessors(Worker.ProcessorCapability.newBuilder()
+                    .setName(processor.name())
+                    .setDescription(processor.description()));
+            }
+            builder.addPluginProcessors(pluginBuilder);
         }
         return builder.build();
     }

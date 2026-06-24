@@ -18,7 +18,7 @@ Use Scripts to manage reviewed, versioned, auditable code snippets that Workers 
 
 ## When to use
 
-- A small operational task is better expressed as a script than a compiled SDK processor.
+- A small operational task is better expressed as a script than a compiled normal processor.
 - You need reviewable diffs and rollback.
 - The same script version should be bound to multiple Jobs.
 - Operators need stdout/stderr and exception stack evidence.

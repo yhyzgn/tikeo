@@ -535,11 +535,11 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
               return (
                 <g key={`${edge.from}-${edge.to}-${index}`} className={`workflow-edge ${selected ? 'workflow-edge--selected' : ''}`}>
                   {editable ? <path className="workflow-edge__hit" d={path} stroke="transparent" strokeWidth="16" fill="none" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedEdgeIndex(index); setSelectedNodeKey(null); }} /> : null}
-                  <path className="workflow-edge__line" d={path} stroke={selected ? '#0ea5e9' : meta.color} strokeWidth={selected ? '3.5' : '2.5'} fill="none" markerEnd="url(#workflow-arrow)" />
-                  <circle className="workflow-edge__flow-dot" r="4.8" fill={selected ? '#67e8f9' : meta.color}>
+                  <path className="workflow-edge__line" d={path} stroke={selected ? 'var(--app-primary-color)' : meta.color} strokeWidth={selected ? '3.5' : '2.5'} fill="none" markerEnd="url(#workflow-arrow)" />
+                  <circle className="workflow-edge__flow-dot" r="4.8" fill={selected ? 'var(--app-primary-color)' : meta.color}>
                     <animateMotion dur="2.4s" repeatCount="indefinite" path={path} />
                   </circle>
-                  <circle className="workflow-edge__flow-dot workflow-edge__flow-dot--secondary" r="3.6" fill={selected ? '#bae6fd' : meta.color}>
+                  <circle className="workflow-edge__flow-dot workflow-edge__flow-dot--secondary" r="3.6" fill={selected ? 'var(--app-info-color)' : meta.color}>
                     <animateMotion dur="2.4s" begin="-1.2s" repeatCount="indefinite" path={path} />
                   </circle>
                   <text className="workflow-edge__label" x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 10} fill={meta.color}>{meta.value}</text>
@@ -573,7 +573,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
               const x2 = linkDrag.x;
               const y2 = linkDrag.y;
               const mid = Math.max(80, Math.abs(x2 - x1) / 2);
-              return <path className="workflow-node-canvas__temp-edge" d={`M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`} stroke="#0ea5e9" strokeWidth="2.5" fill="none" markerEnd="url(#workflow-arrow)" />;
+              return <path className="workflow-node-canvas__temp-edge" d={`M ${x1} ${y1} C ${x1 + mid} ${y1}, ${x2 - mid} ${y2}, ${x2} ${y2}`} stroke="var(--app-primary-color)" strokeWidth="2.5" fill="none" markerEnd="url(#workflow-arrow)" />;
             })() : null}
           </svg>
           {editable && selectedEdgeIndex !== null && selectedEdgeHandles ? (
@@ -627,7 +627,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
                   <Tag color={STATUS_COLORS[status] ?? 'default'}>{status}</Tag>
                 </div>
                 <div className="workflow-node-card__body">
-                  <Tag color="cyan">{nodeKind(node)}</Tag>
+                  <Tag>{nodeKind(node)}</Tag>
                   <Typography.Text className="workflow-node-card__key">{node.key}</Typography.Text>
                   {node.jobId ? <Typography.Text type="secondary">job: {jobs.find((job) => job.id === node.jobId)?.name ?? node.jobId}</Typography.Text> : null}
                   {node.processorName ? <Typography.Text type="secondary">processor: {node.processorName}</Typography.Text> : null}
@@ -648,7 +648,7 @@ function DagPreview({ definition, instance, jobs = [], workflows = [], notificat
       </div>
 
       {editable && selectedNode ? (
-        <Card size="small" title={`节点属性 · ${selectedNode.key}`} className="workflow-node-inspector" extra={<Tag color="cyan">{nodeKind(selectedNode)}</Tag>}>
+        <Card size="small" title={`节点属性 · ${selectedNode.key}`} className="workflow-node-inspector" extra={<Tag>{nodeKind(selectedNode)}</Tag>}>
           <Space direction="vertical" style={{ width: '100%' }} size={12}>
             <Space wrap>
               <Input addonBefore="Key" value={selectedNode.key} style={{ width: 260 }} onChange={(event) => renameNodeKey(selectedNode.key, event.target.value)} />

@@ -14,7 +14,9 @@ describe('dashboard realtime overview', () => {
     expect(source).toContain("instanceSource.addEventListener('instances.snapshot'");
     expect(source).toContain("workerSource.addEventListener('workers.snapshot'");
     expect(source).toContain('setWorkers(snapshot.workers);');
-    expect(source).toContain('window.setInterval(() => { void load(); }, 3000)');
+    expect(source).toContain('streamHealthyRef.current');
+    expect(source).toContain('if (!streamHealthyRef.current) void load();');
+    expect(source).toContain('const slowSignalTimer = window.setInterval(refreshSlowSignals, 15000);');
     expect(source).toContain('new EventSource(dispatchQueueStreamUrl())');
     expect(source).toContain("queueSource.addEventListener('dispatchQueue.snapshot'");
     expect(source).toContain('queueSource.close();');
@@ -45,10 +47,15 @@ describe('dashboard realtime overview', () => {
     expect(source).toContain('触发方式分布');
     expect(source).toContain('风险信号');
     expect(source).toContain('Worker Mesh 分布');
+    expect(source).toContain('从节点');
     expect(source).toContain('能力覆盖 Top 6');
     expect(source).toContain('最近审计');
     expect(source).toContain('快速入口');
     expect(source).toContain('SSE + 3s fallback');
+    expect(source).toContain('运营摘要');
+    expect(source).toContain('建议动作');
+    expect(source).toContain('SSE 实时');
+    expect(source).toContain('轮询兜底');
   });
 
   test('ships dashboard-specific visual structure for trend bars, donut chart, radar, and action grid', () => {
@@ -66,6 +73,11 @@ describe('dashboard realtime overview', () => {
     expect(styles).toContain('.dashboard-top-list');
     expect(styles).toContain('.dashboard-audit-list');
     expect(styles).toContain('.dashboard-action-grid');
+    expect(styles).toContain('.dashboard-brief-grid');
+    expect(styles).toContain('.dashboard-action-brief__item');
+    expect(styles).toContain('.dashboard-plan-tag');
+    expect(styles).toContain('.dashboard-realtime-chip');
+    expect(styles).toContain('.dashboard-metric-link');
     expect(styles).toContain('@media (max-width: 991px)');
   });
 });

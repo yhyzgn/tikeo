@@ -106,7 +106,7 @@ management trigger e2e evidence: .dev/reports/management-trigger-e2e-...
 
 1. **Server 未到 `/readyz`**：看 `*-server.log`、`*-config.toml`，确认 `TIKEO_HTTP_URL` / `TIKEO_WORKER_ENDPOINT` 端口未被占用。
 2. **Service Account 或 API key 创建失败**：检查 `/api/v1/management/service-accounts`、`/api/v1/management/api-keys`、`x-tikeo-api-key`、bootstrap 登录和 RBAC scope。
-3. **Worker 未 online**：看 `*-nodejs-worker.log`、`TIKEO_WORKER_CONNECT=1`、`TIKEO_WORKER_ENDPOINT`、`/api/v1/workers`、`clientInstanceId`、namespace/app/pool，以及 `structuredCapabilities.sdkProcessors` 是否包含 `demo.echo`。
+3. **Worker 未 online**：看 `*-nodejs-worker.log`、`TIKEO_WORKER_CONNECT=1`、`TIKEO_WORKER_ENDPOINT`、`/api/v1/workers`、`clientInstanceId`、namespace/app/pool，以及 `structuredCapabilities.normalProcessors` 是否包含 `demo.echo`。
 4. **SDK create/trigger 失败**：检查 `sdks/nodejs/tikeo/src/management.ts`、`apiJob`、`apiTrigger`、`/api/v1/jobs`、`/api/v1/jobs/{job}:trigger` 和默认 `executionMode=single`。
 5. **实例未成功**：检查 dispatcher 日志、`/api/v1/instances/$instance_id`、`/api/v1/instances/$instance_id/logs`、`result.success`，以及结果和日志中是否都有 `nodejs demo echo processed`。
 

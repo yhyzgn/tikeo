@@ -22,7 +22,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import net.tikeo.logging.TikeoTaskLogbackAppender;
-import net.tikeo.processor.ProcessorCapabilityProvider;
 import net.tikeo.processor.TaskContext;
 import net.tikeo.processor.TaskOutcome;
 import net.tikeo.processor.TaskProcessor;
@@ -33,6 +32,8 @@ import net.tikeo.script.ScriptRunnerRegistry;
 import net.tikeo.script.ScriptRunnerTask;
 import net.tikeo.wasm.WasmRunnerRegistry;
 import net.tikeo.wasm.WasmRunnerTask;
+import net.tikeo.worker.WorkerCapabilityProvider;
+import net.tikeo.worker.WorkerCapabilitySet;
 import net.tikeo.worker.WorkerRegistration;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -85,7 +86,7 @@ class GrpcTikeoWorkerClientTest {
             Assertions.assertTrue(register.getElection().getEnabled());
             Assertions.assertEquals("", register.getElection().getDomain());
             Assertions.assertEquals(100, register.getElection().getPriority());
-            Assertions.assertTrue(register.getStructuredCapabilities().getSdkProcessorsList().stream()
+            Assertions.assertTrue(register.getStructuredCapabilities().getNormalProcessorsList().stream()
                     .anyMatch(item -> "demo.echo".equals(item.getName())));
             Assertions.assertTrue(service.hasHeartbeat("assigned-java-worker", 1, "java-fencing-token"));
             Assertions.assertTrue(service.hasTaskLogFrom("assigned-java-worker"));
@@ -96,15 +97,19 @@ class GrpcTikeoWorkerClientTest {
         }
     }
 
-    private static final class CapabilityAwareProcessor implements TaskProcessor, ProcessorCapabilityProvider {
+    private static final class CapabilityAwareProcessor implements TaskProcessor, WorkerCapabilityProvider {
         @Override
         public TaskOutcome process(TaskContext context) {
             return TaskOutcome.succeeded();
         }
 
         @Override
-        public List<String> capabilities() {
-            return List.of("processor:demo.echo");
+        public WorkerCapabilitySet workerCapabilities() {
+            return new WorkerCapabilitySet(
+                    List.of(),
+                    List.of(new WorkerCapabilitySet.Processor("demo.echo", "Echo processor")),
+                    List.of(),
+                    List.of());
         }
     }
 
@@ -564,7 +569,7 @@ class GrpcTikeoWorkerClientTest {
             service.awaitTaskLogs(3);
             client.close();
 
-            Assertions.assertNull(observedProcessor.get(), "wasm binding must not invoke SDK processor handlers");
+            Assertions.assertNull(observedProcessor.get(), "wasm binding must not invoke normal processor handlers");
             Assertions.assertEquals("script_wasm", observedWasm.get().scriptId());
             Worker.TaskResult result = service.result.get();
             Assertions.assertTrue(result.getSuccess());
@@ -719,7 +724,7 @@ class GrpcTikeoWorkerClientTest {
                 System.setOut(originalOut);
             }
 
-            Assertions.assertNull(observedProcessor.get(), "script binding must not invoke SDK processor handlers");
+            Assertions.assertNull(observedProcessor.get(), "script binding must not invoke normal processor handlers");
             Assertions.assertEquals("script_shell", observedScript.get().scriptId());
             Assertions.assertEquals("shell", observedScript.get().language());
             Worker.TaskResult result = service.result.get();

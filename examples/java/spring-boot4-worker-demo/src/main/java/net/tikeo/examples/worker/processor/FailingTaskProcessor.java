@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public final class FailingTaskProcessor {
-    @TikeoProcessor("demo.fail")
+    @TikeoProcessor(value = "demo.fail", description = "返回失败结果的演示处理器")
     public TaskOutcome fail(TaskContext context, String payload) {
         log.error("[demo.fail] received payload='{}'", payload);
         TaskOutcome outcome = TaskOutcome.failed("demo failure:" + payload);
@@ -18,7 +18,7 @@ public final class FailingTaskProcessor {
         return outcome;
     }
 
-    @TikeoProcessor("demo.exception")
+    @TikeoProcessor(value = "demo.exception", description = "抛出异常用于失败链路演示")
     public TaskOutcome exception(TaskContext context, String payload) {
         log.error("[demo.exception] throwing runtime exception payload='{}'", payload);
         throw new IllegalStateException("java demo runtime exception:" + payload);

@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public final class ContextTaskProcessor {
-    @TikeoProcessor("demo.context")
+    @TikeoProcessor(value = "demo.context", description = "展示 TaskContext 元数据读取")
     public TaskOutcome context(TaskContext context) {
         log.info("[demo.context] received jobId={} instanceId={} processor={}",
                 context.jobId(), context.instanceId(), context.processorName());

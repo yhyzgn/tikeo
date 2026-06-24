@@ -11,7 +11,7 @@ const stylesSource = readFileSync(new URL('../../styles.css', import.meta.url), 
 
 describe('job schedule form governance', () => {
 
-  test('keeps SDK processor options live from worker SSE snapshots', () => {
+  test('keeps normal processor options live from worker SSE snapshots', () => {
     expect(source).toContain('workerStreamUrl');
     expect(source).toContain('new EventSource(workerStreamUrl())');
     expect(source).toContain("source.addEventListener('workers.snapshot'");
@@ -30,7 +30,7 @@ describe('job schedule form governance', () => {
     expect(source).toContain('处理器');
     expect(source).toContain('脚本（沙箱自动执行）');
     expect(source).toContain('具体脚本');
-    expect(source).toContain('workerSdkProcessorNames');
+    expect(source).toContain('normalProcessorsForScope');
     expect(source).toContain('选择已审批脚本');
     expect(source).toContain('Server 会按脚本语言匹配 Worker 注册的结构化 scriptRunners');
     expect(source).toContain('demo.echo');
@@ -51,7 +51,7 @@ describe('job schedule form governance', () => {
     expect(source).toContain("{ value: 'script', label: '脚本（沙箱自动执行）' }");
     expect(source).toContain('normalizeExecutor');
     expect(source).toContain("if (values.executorKind === 'script') return { ...rest, processorName: null, processorType: null }");
-    expect(source).toContain('validatePluginExecutor(values.processorType, values.processorName)');
+    expect(source).toContain('validatePluginExecutor(values.processorType, values.processorName, values.namespace, values.app)');
     expect(source).toContain('return { ...rest, scriptId: null, processorType: null }');
     expect(source).not.toContain('script:${script.id}');
   });

@@ -454,7 +454,7 @@ impl WorkerRegistry {
 
     /// Return worker ids matching the given namespace and app.
     pub async fn find_eligible_workers(&self, namespace: &str, app: &str) -> Vec<String> {
-        self.find_eligible_workers_with_capability(namespace, app, None)
+        self.find_eligible_workers_with_requirement(namespace, app, None)
             .await
     }
 
@@ -478,25 +478,6 @@ impl WorkerRegistry {
             })
             .map(|worker| worker.worker_id.clone())
             .collect()
-    }
-
-    /// Return worker ids matching namespace/app and an optional required capability.
-    pub async fn find_eligible_workers_with_capability(
-        &self,
-        namespace: &str,
-        app: &str,
-        required_capability: Option<&str>,
-    ) -> Vec<String> {
-        let Some(required_capability) = required_capability else {
-            return self
-                .find_eligible_workers_with_requirement(namespace, app, None)
-                .await;
-        };
-        let Some(requirement) = WorkerRequirement::from_legacy(required_capability) else {
-            return Vec::new();
-        };
-        self.find_eligible_workers_with_requirement(namespace, app, Some(&requirement))
-            .await
     }
 
     /// Return worker ids matching namespace/app and an optional structured requirement.
@@ -578,22 +559,6 @@ impl WorkerRegistry {
                 .cmp(&registered_lasso_dispatch_score(right, dispatch_key))
         });
         workers.into_iter().map(|worker| worker.worker_id).collect()
-    }
-
-    /// Return true when a connected worker advertises the required capability.
-    pub async fn worker_supports_capability(
-        &self,
-        worker_id: &str,
-        required_capability: Option<&str>,
-    ) -> bool {
-        let Some(required_capability) = required_capability else {
-            return self.worker_supports_requirement(worker_id, None).await;
-        };
-        let Some(requirement) = WorkerRequirement::from_legacy(required_capability) else {
-            return false;
-        };
-        self.worker_supports_requirement(worker_id, Some(&requirement))
-            .await
     }
 
     /// Return true when a connected worker satisfies the structured requirement.
@@ -1038,17 +1003,69 @@ fn worker_capabilities_json(capabilities: Option<&WorkerCapabilities>) -> String
     };
     serde_json::to_string(&serde_json::json!({
         "tags": capabilities.tags,
-        "sdkProcessors": capabilities.sdk_processors.iter().map(|processor| processor.name.as_str()).collect::<Vec<_>>(),
+        "normalProcessors": capabilities.normal_processors.iter().map(|processor| serde_json::json!({
+            "name": processor.name,
+            "description": processor.description,
+        })).collect::<Vec<_>>(),
         "scriptRunners": capabilities.script_runners.iter().map(|runner| serde_json::json!({
             "language": runner.language,
             "sandboxBackend": runner.sandbox_backend,
         })).collect::<Vec<_>>(),
         "pluginProcessors": capabilities.plugin_processors.iter().map(|processor| serde_json::json!({
             "type": processor.r#type,
-            "processorNames": processor.processor_names,
+            "processorNames": plugin_processor_names(processor),
+            "processors": plugin_processors(processor),
         })).collect::<Vec<_>>(),
     }))
     .unwrap_or_else(|_| "{}".to_owned())
+}
+
+fn plugin_processor_names(
+    processor: &tikeo_proto::worker::v1::PluginProcessorCapability,
+) -> Vec<&str> {
+    let mut names = Vec::new();
+    for name in &processor.processor_names {
+        if !name.trim().is_empty() && !names.iter().any(|existing| existing == &name.as_str()) {
+            names.push(name.as_str());
+        }
+    }
+    for processor in &processor.processors {
+        if !processor.name.trim().is_empty()
+            && !names
+                .iter()
+                .any(|existing| existing == &processor.name.as_str())
+        {
+            names.push(processor.name.as_str());
+        }
+    }
+    names
+}
+
+fn plugin_processors(
+    processor: &tikeo_proto::worker::v1::PluginProcessorCapability,
+) -> Vec<serde_json::Value> {
+    let mut processors = processor
+        .processors
+        .iter()
+        .filter(|processor| !processor.name.trim().is_empty())
+        .map(|processor| {
+            serde_json::json!({
+                "name": processor.name,
+                "description": processor.description,
+            })
+        })
+        .collect::<Vec<_>>();
+    for name in &processor.processor_names {
+        if name.trim().is_empty()
+            || processors.iter().any(|processor| {
+                processor.get("name").and_then(serde_json::Value::as_str) == Some(name.as_str())
+            })
+        {
+            continue;
+        }
+        processors.push(serde_json::json!({ "name": name, "description": "" }));
+    }
+    processors
 }
 
 fn session_snapshots<'a>(
@@ -1299,16 +1316,7 @@ fn parse_persisted_capabilities(value: &str) -> WorkerCapabilities {
             .filter_map(serde_json::Value::as_str)
             .map(str::to_owned)
             .collect(),
-        sdk_processors: value
-            .get("sdkProcessors")
-            .and_then(serde_json::Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(serde_json::Value::as_str)
-            .map(|name| tikeo_proto::worker::v1::SdkProcessorCapability {
-                name: name.to_owned(),
-            })
-            .collect(),
+        normal_processors: parse_normal_processors(&value),
         script_runners: value
             .get("scriptRunners")
             .and_then(serde_json::Value::as_array)
@@ -1333,18 +1341,86 @@ fn parse_persisted_capabilities(value: &str) -> WorkerCapabilities {
             .filter_map(|processor| {
                 Some(tikeo_proto::worker::v1::PluginProcessorCapability {
                     r#type: processor.get("type")?.as_str()?.to_owned(),
-                    processor_names: processor
-                        .get("processorNames")
-                        .and_then(serde_json::Value::as_array)
-                        .into_iter()
-                        .flatten()
-                        .filter_map(serde_json::Value::as_str)
-                        .map(str::to_owned)
-                        .collect(),
+                    processor_names: parse_processor_names(processor),
+                    processors: parse_processor_capabilities(processor.get("processors")),
                 })
             })
             .collect(),
     }
+}
+
+fn parse_normal_processors(
+    value: &serde_json::Value,
+) -> Vec<tikeo_proto::worker::v1::ProcessorCapability> {
+    let mut processors = Vec::new();
+    if let Some(values) = value
+        .get("normalProcessors")
+        .and_then(serde_json::Value::as_array)
+    {
+        for processor in values {
+            if let Some(name) = processor.get("name").and_then(serde_json::Value::as_str) {
+                if name.trim().is_empty() {
+                    continue;
+                }
+                let description = processor
+                    .get("description")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned();
+                processors.push(tikeo_proto::worker::v1::ProcessorCapability {
+                    name: name.to_owned(),
+                    description,
+                });
+            } else if let Some(name) = processor.as_str() {
+                if !name.trim().is_empty() {
+                    processors.push(tikeo_proto::worker::v1::ProcessorCapability {
+                        name: name.to_owned(),
+                        description: String::new(),
+                    });
+                }
+            }
+        }
+    }
+    processors
+}
+
+fn parse_processor_capabilities(
+    value: Option<&serde_json::Value>,
+) -> Vec<tikeo_proto::worker::v1::ProcessorCapability> {
+    value
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|processor| {
+            let name = processor.get("name")?.as_str()?.trim();
+            (!name.is_empty()).then(|| tikeo_proto::worker::v1::ProcessorCapability {
+                name: name.to_owned(),
+                description: processor
+                    .get("description")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
+            })
+        })
+        .collect()
+}
+
+fn parse_processor_names(processor: &serde_json::Value) -> Vec<String> {
+    let mut names = processor
+        .get("processorNames")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_str)
+        .filter(|name| !name.trim().is_empty())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    for processor in parse_processor_capabilities(processor.get("processors")) {
+        if !names.iter().any(|name| name == &processor.name) {
+            names.push(processor.name);
+        }
+    }
+    names
 }
 
 fn parse_persisted_labels(value: &str) -> HashMap<String, String> {

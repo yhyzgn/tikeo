@@ -146,9 +146,14 @@ export interface WorkerMasterSummary {
 
 export interface WorkerCapabilitiesSummary {
   tags: string[];
-  sdkProcessors: string[];
+  normalProcessors?: WorkerProcessorSummary[];
   scriptRunners: WorkerScriptRunnerSummary[];
   pluginProcessors: WorkerPluginProcessorSummary[];
+}
+
+export interface WorkerProcessorSummary {
+  name: string;
+  description: string;
 }
 
 export interface WorkerScriptRunnerSummary {
@@ -159,6 +164,7 @@ export interface WorkerScriptRunnerSummary {
 export interface WorkerPluginProcessorSummary {
   type: string;
   processorNames: string[];
+  processors?: WorkerProcessorSummary[];
 }
 
 export interface WorkerSessionHistorySummary {

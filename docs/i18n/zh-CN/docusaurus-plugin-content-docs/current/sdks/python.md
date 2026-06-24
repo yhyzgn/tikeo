@@ -42,7 +42,7 @@ def main() -> None:
     config = tikeo.local_config("http://127.0.0.1:9998", "python-worker-1")
     config.namespace = "sdk-smoke"
     config.app = "management"
-    config.add_sdk_processor("demo.echo")
+    config.add_normal_processor("demo.echo", "回显 payload 示例处理器")
     config.labels["worker_pool"] = "python-blue"
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     tikeo.install_task_log_handler(logging.getLogger())
@@ -131,7 +131,7 @@ print(f"broadcastSelector={broadcast.broadcast_selector}")
 | `clientInstanceId` | 示例手工指定 | 生产中应唯一且稳定，便于 Worker 页面和审计定位。 |
 | `cluster` / `region` | `local` | 多机房部署必须真实填写，广播和选择器会使用这些信息。 |
 | `labels` | 空 map | 用 `worker_pool`、`region`、`cluster` 等标签表达调度边界。 |
-| `sdkProcessors` | 空列表 | 只声明当前进程真实实现的 processor，避免实例被派发后失败。 |
+| `normalProcessors` | 空列表 | 只声明当前进程真实实现的 processor，避免实例被派发后失败。 |
 | `heartbeat` | 约 10 秒 | 保持默认即可；高延迟网络再根据运维策略调整。 |
 
 ## 管理客户端凭证

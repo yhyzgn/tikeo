@@ -12,7 +12,7 @@ Go SDK for active outbound Worker Tunnel clients and app-scoped management APIs.
 ## Features
 
 - Real gRPC Worker Tunnel client using official `google.golang.org/grpc`.
-- Structured worker capabilities for SDK processors, plugin processors, script runners, and tags.
+- Structured worker capabilities for normal processors, plugin processors, script runners, and tags.
 - Task-scoped logging bridge for `log/slog` via `TaskSlogHandler`, plus `TaskContext.LogInfo` / `LogError` fallback.
 - Bridge-friendly SDK diagnostics through the `Logger` interface, default `INFO`, console output, and optional `tikeo-sdk.log`.
 - SRT/Deno sandbox auto tooling aligned with Java/Rust behavior.
@@ -24,7 +24,7 @@ Go SDK for active outbound Worker Tunnel clients and app-scoped management APIs.
 config := tikeo.LocalConfig("http://127.0.0.1:9998", "orders-go-1")
 config.Namespace = "dev-alpha"
 config.App = "orders"
-config.AddSDKProcessor("demo.echo")
+config.AddNormalProcessor("demo.echo")
 tikeo.ConfigureLogging(tikeo.LogConfigFromEnv())
 client, err := tikeo.NewClient(config)
 _ = client

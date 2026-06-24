@@ -13,7 +13,7 @@ Tikeo is built toward a Rust-native orchestration control plane for scheduled jo
 
 - Production deployment hardening: Helm values, external databases, TLS/mTLS, secret references, readiness/liveness, resource sizing, and rollback docs.
 - Documentation site with quick start, concepts, SDKs, deployments, architecture, and comparison guides.
-- More focused examples for Worker Tunnel, SDK processors, script sandbox policy, and workflow recovery.
+- More focused examples for Worker Tunnel, normal processors, script sandbox policy, and workflow recovery.
 - Release notes and changelog discipline for preview releases.
 
 ## Later

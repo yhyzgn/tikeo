@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public final class EchoTaskProcessor {
-    @TikeoProcessor("demo.echo")
+    @TikeoProcessor(value = "demo.echo", description = "回显输入 payload 的普通执行器")
     public String echo(TaskContext context, String payload) {
         log.info("[demo.echo] received payload='{}'", payload);
         String result = "echo:" + payload;

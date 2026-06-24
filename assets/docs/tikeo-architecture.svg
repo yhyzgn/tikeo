@@ -1,6 +1,6 @@
 <svg width="1800" height="1500" viewBox="0 0 1800 1500" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">Tikeo complete architecture</title>
-  <desc id="desc">A complete logical architecture diagram for Tikeo showing entrypoints, server cluster, Raft ownership, storage, observability, outbound worker tunnel, worker fleets, SDK processors, plugins, and sandbox runtimes.</desc>
+  <desc id="desc">A complete logical architecture diagram for Tikeo showing entrypoints, server cluster, Raft ownership, storage, observability, outbound worker tunnel, worker fleets, normal processors, plugins, and sandbox runtimes.</desc>
 
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1800" y2="1360" gradientUnits="userSpaceOnUse">
@@ -191,7 +191,7 @@
     <rect x="743" y="1310" width="145" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
       <text text-anchor="middle" x="815.5" y="1332" class="mono">Node.js</text>
     <rect x="910" y="1310" width="210" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
-      <text text-anchor="middle" x="1015.0" y="1332" class="mono">SDK processors</text>
+      <text text-anchor="middle" x="1015.0" y="1332" class="mono">normal processors</text>
     <rect x="1142" y="1310" width="170" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>
       <text text-anchor="middle" x="1227.0" y="1332" class="mono">Plugins</text>
     <rect x="1334" y="1310" width="330" height="34" rx="17" fill="#134e4a" stroke="#99f6e4" stroke-width="1.4"/>

@@ -347,8 +347,11 @@ func toProtoCapabilities(capabilities WorkerCapabilities) *workerpb.WorkerCapabi
 	out := &workerpb.WorkerCapabilities{
 		Tags: append([]string(nil), capabilities.Tags...),
 	}
-	for _, name := range capabilities.SDKProcessors {
-		out.SdkProcessors = append(out.SdkProcessors, &workerpb.SdkProcessorCapability{Name: name})
+	for _, processor := range capabilities.NormalProcessors {
+		if processor.Name == "" {
+			continue
+		}
+		out.NormalProcessors = append(out.NormalProcessors, &workerpb.ProcessorCapability{Name: processor.Name, Description: processor.Description})
 	}
 	for _, runner := range capabilities.ScriptRunners {
 		out.ScriptRunners = append(out.ScriptRunners, &workerpb.ScriptRunnerCapability{
@@ -357,10 +360,14 @@ func toProtoCapabilities(capabilities WorkerCapabilities) *workerpb.WorkerCapabi
 		})
 	}
 	for _, plugin := range capabilities.PluginProcessors {
-		out.PluginProcessors = append(out.PluginProcessors, &workerpb.PluginProcessorCapability{
-			Type:           plugin.Type,
+		protoPlugin := &workerpb.PluginProcessorCapability{
+			Type:           string(plugin.Type),
 			ProcessorNames: append([]string(nil), plugin.ProcessorNames...),
-		})
+		}
+		for _, processor := range plugin.Processors {
+			protoPlugin.Processors = append(protoPlugin.Processors, &workerpb.ProcessorCapability{Name: processor.Name, Description: processor.Description})
+		}
+		out.PluginProcessors = append(out.PluginProcessors, protoPlugin)
 	}
 	return out
 }

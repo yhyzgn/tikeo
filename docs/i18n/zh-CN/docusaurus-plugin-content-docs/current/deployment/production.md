@@ -13,7 +13,7 @@ keywords: [tikeo 生产部署, docker compose, helm, worker tunnel, postgres, my
 | Tikeo Server | HTTP API、调度、migration、Worker Tunnel、通知、审计。 | 运维、SDK Management clients、主动连接的 Workers。 |
 | Tikeo Web | Jobs、Workers、Workflows、Scripts、Notifications、Audit、RBAC 控制台。 | 人类操作员。 |
 | Database | 持久化任务、实例、日志、RBAC、通知、审计、集群 ownership、outbox。 | 仅 Server。 |
-| Worker 进程 | 执行 SDK processors/scripts/plugins 并回传日志和结果。 | 只主动连接 Worker Tunnel。 |
+| Worker 进程 | 执行 normal processors/scripts/plugins 并回传日志和结果。 | 只主动连接 Worker Tunnel。 |
 | 通知供应商 | 接收渲染后的消息。 | Server 出站。 |
 
 Worker 不开放入站任务端口，只拨出连接 `server.worker_tunnel_addr`。

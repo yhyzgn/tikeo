@@ -174,3 +174,22 @@ describe('instance list realtime refresh', () => {
     expect(source).toContain('window.clearInterval(fallbackTimer);');
   });
 });
+
+
+describe('instance list filters', () => {
+  test('supports URL-driven semantic filters and filtered table data', () => {
+    expect(source).toContain('useSearchParams');
+    expect(source).toContain('filtersFromSearchParams(searchParams)');
+    expect(source).toContain('instanceMatchesFilters(instance, attemptsByInstance.get(instance.id), jobName, filters)');
+    expect(source).toContain('semanticFilterLabel(filters)');
+    expect(source).toContain('instance-filter-panel');
+    expect(source).toContain('状态');
+    expect(source).toContain('任务');
+    expect(source).toContain('触发方式');
+    expect(source).toContain('执行模式');
+    expect(source).toContain('Worker');
+    expect(source).toContain('实例 / 日志关键字');
+    expect(source).toContain('dataSource={filteredInstances}');
+    expect(source).toContain('没有匹配当前过滤条件的实例');
+  });
+});

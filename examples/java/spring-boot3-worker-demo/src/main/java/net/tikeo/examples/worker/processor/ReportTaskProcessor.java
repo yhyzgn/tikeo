@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public final class ReportTaskProcessor {
-    @TikeoProcessor("demo.report")
+    @TikeoProcessor(value = "demo.report", description = "生成报告类任务示例处理器")
     public TaskOutcome report(TaskContext context) {
         log.info("[demo.report] generating report jobId={} instanceId={}", context.jobId(), context.instanceId());
         TaskOutcome outcome = new TaskOutcome(true, "report:" + context.processorName());

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 
 import type { WorkerSummary } from '../../api/client';
-import { capabilityFilterValues, visibleCapabilityTags, visibleSdkProcessors } from '../workers/WorkerTable';
+import { capabilityFilterValues, visibleCapabilityTags, visibleNormalProcessors } from '../workers/WorkerTable';
 import { filterWorkers, groupWorkersByNamespaceApp } from '../workers/workerPageModel';
 
 const pageSource = readFileSync(new URL('../WorkersPage.tsx', import.meta.url), 'utf8');
@@ -69,10 +69,10 @@ describe('Worker capability presentation model', () => {
     app: 'billing',
     cluster: 'standalone',
     region: 'local',
-    capabilities: ['sdk', 'processor:demo.echo', 'legacy-script-shell', 'legacy-tag'],
+    capabilities: ['normal', 'legacy-script-shell', 'legacy-tag'],
     structuredCapabilities: {
-      tags: ['sdk', 'java'],
-      sdkProcessors: ['demo.echo'],
+      tags: ['normal', 'java'],
+      normalProcessors: [{ name: 'demo.echo', description: 'Echo processor' }],
       scriptRunners: [{ language: 'shell', sandboxBackend: 'srt' }],
       pluginProcessors: [{ type: 'sql', processorNames: ['billing.sql-sync'] }],
     },
@@ -91,22 +91,21 @@ describe('Worker capability presentation model', () => {
   };
 
   test('keeps processor names out of the generic Capabilities column', () => {
-    expect(visibleCapabilityTags(worker)).toEqual(['java', 'sdk']);
-    expect(visibleCapabilityTags(worker)).not.toContain('processor:demo.echo');
+    expect(visibleCapabilityTags(worker)).toEqual(['java', 'normal']);
     expect(visibleCapabilityTags(worker)).not.toContain('legacy-script-shell');
-    expect(visibleSdkProcessors(worker)).toEqual(['demo.echo']);
+    expect(visibleNormalProcessors(worker)).toEqual(['demo.echo']);
   });
 
   test('still exposes structured processor choices through dedicated filters', () => {
     expect(capabilityFilterValues(worker)).toEqual([
       'java',
-      'sdk',
-      'SDK:demo.echo',
+      'normal',
+      'Normal:demo.echo',
       'Script:shell',
       'Plugin:sql:billing.sql-sync',
     ]);
     expect(filterWorkers([worker], { query: 'billing.sql-sync', namespace: '', capability: '' })).toHaveLength(1);
-    expect(filterWorkers([worker], { query: '', namespace: '', capability: 'SDK:demo.echo' })).toHaveLength(1);
+    expect(filterWorkers([worker], { query: '', namespace: '', capability: 'Normal:demo.echo' })).toHaveLength(1);
     expect(groupWorkersByNamespaceApp([worker])[0].scopeKey).toBe('default/billing');
     expect(groupWorkersByNamespaceApp([worker])[0].clusters[0].master?.workerId).toBe('worker-1');
   });

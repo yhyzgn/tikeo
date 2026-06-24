@@ -376,7 +376,7 @@ type WorkerCapabilities struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Human/operator tags such as java or spring-boot. Not used for dispatch routing.
 	Tags             []string                     `protobuf:"bytes,1,rep,name=tags,proto3" json:"tags,omitempty"`
-	SdkProcessors    []*SdkProcessorCapability    `protobuf:"bytes,2,rep,name=sdk_processors,json=sdkProcessors,proto3" json:"sdk_processors,omitempty"`
+	NormalProcessors []*ProcessorCapability       `protobuf:"bytes,2,rep,name=normal_processors,json=normalProcessors,proto3" json:"normal_processors,omitempty"`
 	ScriptRunners    []*ScriptRunnerCapability    `protobuf:"bytes,3,rep,name=script_runners,json=scriptRunners,proto3" json:"script_runners,omitempty"`
 	PluginProcessors []*PluginProcessorCapability `protobuf:"bytes,4,rep,name=plugin_processors,json=pluginProcessors,proto3" json:"plugin_processors,omitempty"`
 	unknownFields    protoimpl.UnknownFields
@@ -420,9 +420,9 @@ func (x *WorkerCapabilities) GetTags() []string {
 	return nil
 }
 
-func (x *WorkerCapabilities) GetSdkProcessors() []*SdkProcessorCapability {
+func (x *WorkerCapabilities) GetNormalProcessors() []*ProcessorCapability {
 	if x != nil {
-		return x.SdkProcessors
+		return x.NormalProcessors
 	}
 	return nil
 }
@@ -441,27 +441,28 @@ func (x *WorkerCapabilities) GetPluginProcessors() []*PluginProcessorCapability 
 	return nil
 }
 
-type SdkProcessorCapability struct {
+type ProcessorCapability struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SdkProcessorCapability) Reset() {
-	*x = SdkProcessorCapability{}
+func (x *ProcessorCapability) Reset() {
+	*x = ProcessorCapability{}
 	mi := &file_worker_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SdkProcessorCapability) String() string {
+func (x *ProcessorCapability) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SdkProcessorCapability) ProtoMessage() {}
+func (*ProcessorCapability) ProtoMessage() {}
 
-func (x *SdkProcessorCapability) ProtoReflect() protoreflect.Message {
+func (x *ProcessorCapability) ProtoReflect() protoreflect.Message {
 	mi := &file_worker_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -473,14 +474,21 @@ func (x *SdkProcessorCapability) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SdkProcessorCapability.ProtoReflect.Descriptor instead.
-func (*SdkProcessorCapability) Descriptor() ([]byte, []int) {
+// Deprecated: Use ProcessorCapability.ProtoReflect.Descriptor instead.
+func (*ProcessorCapability) Descriptor() ([]byte, []int) {
 	return file_worker_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *SdkProcessorCapability) GetName() string {
+func (x *ProcessorCapability) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *ProcessorCapability) GetDescription() string {
+	if x != nil {
+		return x.Description
 	}
 	return ""
 }
@@ -541,8 +549,10 @@ type PluginProcessorCapability struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Type           string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	ProcessorNames []string               `protobuf:"bytes,2,rep,name=processor_names,json=processorNames,proto3" json:"processor_names,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Rich processor list carrying display metadata for operator UI.
+	Processors    []*ProcessorCapability `protobuf:"bytes,3,rep,name=processors,proto3" json:"processors,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PluginProcessorCapability) Reset() {
@@ -585,6 +595,13 @@ func (x *PluginProcessorCapability) GetType() string {
 func (x *PluginProcessorCapability) GetProcessorNames() []string {
 	if x != nil {
 		return x.ProcessorNames
+	}
+	return nil
+}
+
+func (x *PluginProcessorCapability) GetProcessors() []*ProcessorCapability {
+	if x != nil {
+		return x.Processors
 	}
 	return nil
 }
@@ -898,7 +915,7 @@ type DispatchTask struct {
 	Payload    []byte                 `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
 	// Explicit processor key used by SDK adapters. Defaults to job_id for backwards compatibility.
 	ProcessorName string `protobuf:"bytes,4,opt,name=processor_name,json=processorName,proto3" json:"processor_name,omitempty"`
-	// Optional dynamic processor metadata. Empty for normal SDK processors.
+	// Optional dynamic processor metadata. Empty for normal processors.
 	ProcessorBinding *TaskProcessorBinding `protobuf:"bytes,5,opt,name=processor_binding,json=processorBinding,proto3" json:"processor_binding,omitempty"`
 	// Server-issued opaque assignment authority bound to worker session generation/fencing.
 	AssignmentToken string `protobuf:"bytes,6,opt,name=assignment_token,json=assignmentToken,proto3" json:"assignment_token,omitempty"`

@@ -53,7 +53,7 @@ go test ./... -count=1
 | `Structured` | empty `WorkerCapabilities` | Routing uses this. |
 | `HeartbeatEvery` | `10 * time.Second` | Lease renewal cadence. |
 
-Use `AddTag`, `AddSDKProcessor`, `AddScriptRunner`, and `AddPluginProcessor` for structured registration.
+Use `AddTag`, `AddNormalProcessor`, `AddScriptRunner`, and `AddPluginProcessor` for structured registration.
 
 ## Minimal Worker
 
@@ -72,7 +72,7 @@ func main() {
   cfg := tikeo.LocalConfig("http://127.0.0.1:9998", "go-worker-1")
   cfg.Namespace = "sdk-smoke"
   cfg.App = "management"
-  cfg.AddSDKProcessor("demo.echo")
+  cfg.AddNormalProcessor("demo.echo")
   cfg.Labels["worker_pool"] = "go-blue"
 
   client, err := tikeo.NewClient(cfg)
@@ -110,7 +110,7 @@ Keep the reconnect loop conservative in services; a Worker Tunnel can close due 
 | `TIKEO_WORKER_APP` | `orders` | Demo app. |
 | `TIKEO_WORKER_CLUSTER` | `local` | Demo cluster. |
 | `TIKEO_WORKER_REGION` | `local` | Demo region. |
-| `TIKEO_WORKER_SDK_PROCESSORS` | `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception` | Structured SDK processors. |
+| `TIKEO_WORKER_NORMAL_PROCESSORS` | `demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.fail,demo.exception` | Structured normal processors. |
 | `TIKEO_WORKER_POOL` | `go-blue` | `worker_pool` label. |
 | `TIKEO_WORKER_DRY_RUN` / `TIKEO_WORKER_CONNECT=0` | dry-run | Avoids live tunnel. |
 | `TIKEO_WORKER_ONESHOT` | unset | Exit after one task. |
@@ -128,7 +128,7 @@ Run live:
 TIKEO_WORKER_CONNECT=1 \
 TIKEO_WORKER_NAMESPACE=sdk-smoke \
 TIKEO_WORKER_APP=management \
-TIKEO_WORKER_SDK_PROCESSORS=demo.echo \
+TIKEO_WORKER_NORMAL_PROCESSORS=demo.echo \
 go run .
 ```
 
@@ -218,7 +218,7 @@ All language demos now separate business failure from runtime exceptions. `demo.
 
 ## Capability discipline
 
-The dispatch contract uses structured capabilities, not folklore or only string naming conventions. A Worker should advertise SDK processors, plugin processors, script runners, labels, and tags only when the runtime can really execute them. Do not advertise SQL, shell, Python, Node.js, WASM, SRT, Deno, Docker, or Podman support just because a package exists; advertise it after the demo or service has resolved the tool and can fail safely.
+The dispatch contract uses structured capabilities, not folklore or only string naming conventions. A Worker should advertise normal processors, plugin processors, script runners, labels, and tags only when the runtime can really execute them. Do not advertise SQL, shell, Python, Node.js, WASM, SRT, Deno, Docker, or Podman support just because a package exists; advertise it after the demo or service has resolved the tool and can fail safely.
 
 ## Operational notes
 

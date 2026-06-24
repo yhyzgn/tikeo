@@ -3,6 +3,8 @@
 from .client import Client, Heartbeat, Registration, Session, grpc_target
 from .config import (
     PluginProcessorCapability,
+    PluginType,
+    ProcessorCapability,
     ScriptRunnerCapability,
     WorkerCapabilities,
     WorkerConfig,
@@ -56,6 +58,8 @@ __all__ = [
     "LocalCommandScriptRunner",
     "ManagementClient",
     "PluginProcessorCapability",
+    "PluginType",
+    "ProcessorCapability",
     "Registration",
     "SandboxToolResolver",
     "ScriptRunnerCapability",

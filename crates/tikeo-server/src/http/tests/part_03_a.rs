@@ -909,13 +909,14 @@
             .unwrap_or_else(|error| panic!("body should be JSON: {error}"));
         assert_eq!(json["data"]["ready"], false);
         assert_eq!(json["data"]["severity"], "error");
-        assert_eq!(json["data"]["requiredCapability"], "SDK processor 'billing.advice'");
+        assert_eq!(json["data"]["requiredCapability"], "normal processor 'billing.advice'");
 
         let (tx, _rx) = tokio::sync::mpsc::channel(1);
         let mut worker = worker("advice-worker", "billing");
         worker.structured_capabilities = Some(tikeo_proto::worker::v1::WorkerCapabilities {
-            sdk_processors: vec![tikeo_proto::worker::v1::SdkProcessorCapability {
+            normal_processors: vec![tikeo_proto::worker::v1::ProcessorCapability {
                 name: "billing.advice".to_owned(),
+                description: String::new(),
             }],
             ..tikeo_proto::worker::v1::WorkerCapabilities::default()
         });
@@ -1304,8 +1305,9 @@
             region: "local".to_owned(),
             capabilities: Vec::new(),
             structured_capabilities: Some(tikeo_proto::worker::v1::WorkerCapabilities {
-                sdk_processors: vec![tikeo_proto::worker::v1::SdkProcessorCapability {
+                normal_processors: vec![tikeo_proto::worker::v1::ProcessorCapability {
                     name: "demo.predict".to_owned(),
+                    description: String::new(),
                 }],
                 ..tikeo_proto::worker::v1::WorkerCapabilities::default()
             }),

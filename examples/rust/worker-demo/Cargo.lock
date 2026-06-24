@@ -1475,7 +1475,7 @@ dependencies = [
 
 [[package]]
 name = "tikeo"
-version = "0.2.0"
+version = "0.3.12"
 dependencies = [
  "async-trait",
  "prost",

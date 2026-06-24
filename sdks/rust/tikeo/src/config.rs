@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use crate::proto::worker::v1::{
-    PluginProcessorCapability, RegisterWorker, ScriptRunnerCapability, SdkProcessorCapability,
+    PluginProcessorCapability, ProcessorCapability, RegisterWorker, ScriptRunnerCapability,
     WorkerCapabilities, WorkerClusterElection, WorkerMessage, worker_message,
 };
 
@@ -57,19 +57,26 @@ impl WorkerConfig {
         push_unique(&mut self.structured_capabilities.tags, tag.into());
     }
 
-    /// Advertise an SDK processor by structured name.
-    pub fn add_sdk_processor(&mut self, name: impl Into<String>) {
-        let name = name.into();
-        if !name.trim().is_empty()
+    /// Advertise a normal application processor by structured name.
+    pub fn add_normal_processor(
+        &mut self,
+        name: impl Into<String>,
+        description: impl Into<String>,
+    ) {
+        let processor = ProcessorCapability {
+            name: name.into().trim().to_owned(),
+            description: description.into().trim().to_owned(),
+        };
+        if !processor.name.is_empty()
             && !self
                 .structured_capabilities
-                .sdk_processors
+                .normal_processors
                 .iter()
-                .any(|processor| processor.name == name)
+                .any(|existing| existing.name == processor.name)
         {
             self.structured_capabilities
-                .sdk_processors
-                .push(SdkProcessorCapability { name });
+                .normal_processors
+                .push(processor);
         }
     }
 
@@ -100,12 +107,16 @@ impl WorkerConfig {
     /// Advertise a plugin processor type and concrete processor name.
     pub fn add_plugin_processor(
         &mut self,
-        processor_type: impl Into<String>,
+        processor_type: PluginType,
         processor_name: impl Into<String>,
+        description: impl Into<String>,
     ) {
-        let processor_type = processor_type.into();
-        let processor_name = processor_name.into();
-        if processor_type.trim().is_empty() || processor_name.trim().is_empty() {
+        let processor_type = processor_type.as_str().to_owned();
+        let processor = ProcessorCapability {
+            name: processor_name.into().trim().to_owned(),
+            description: description.into().trim().to_owned(),
+        };
+        if processor_type.trim().is_empty() || processor.name.is_empty() {
             return;
         }
         if let Some(plugin) = self
@@ -114,14 +125,16 @@ impl WorkerConfig {
             .iter_mut()
             .find(|plugin| plugin.r#type == processor_type)
         {
-            push_unique(&mut plugin.processor_names, processor_name);
+            push_unique(&mut plugin.processor_names, processor.name.clone());
+            push_unique_processor(&mut plugin.processors, processor);
             return;
         }
         self.structured_capabilities
             .plugin_processors
             .push(PluginProcessorCapability {
                 r#type: processor_type,
-                processor_names: vec![processor_name],
+                processor_names: vec![processor.name.clone()],
+                processors: vec![processor],
             });
     }
 
@@ -144,6 +157,48 @@ impl WorkerConfig {
             })),
         }
     }
+}
+
+/// Constrained plugin processor type values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginType {
+    /// SQL-oriented plugin processor.
+    Sql,
+    /// HTTP/API plugin processor.
+    Http,
+    /// Notification plugin processor.
+    Notification,
+    /// Explicit extension point for project-specific plugin types.
+    Custom,
+}
+
+impl PluginType {
+    /// Stable lowercase value sent to the tikeo server.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Sql => "sql",
+            Self::Http => "http",
+            Self::Notification => "notification",
+            Self::Custom => "custom",
+        }
+    }
+}
+
+fn push_unique_processor(values: &mut Vec<ProcessorCapability>, value: ProcessorCapability) {
+    if value.name.trim().is_empty() {
+        return;
+    }
+    if let Some(existing) = values
+        .iter_mut()
+        .find(|existing| existing.name == value.name)
+    {
+        if existing.description.is_empty() && !value.description.is_empty() {
+            existing.description = value.description;
+        }
+        return;
+    }
+    values.push(value);
 }
 
 fn push_unique(values: &mut Vec<String>, value: String) {

@@ -103,9 +103,13 @@ export class Client {
       labels: { ...this.config.labels },
       structuredCapabilities: {
         tags: [...this.config.structured.tags],
-        sdkProcessors: this.config.structured.sdkProcessors.map((name) => ({ name })),
+        normalProcessors: this.config.structured.normalProcessors.map((processor) => ({ name: processor.name, description: processor.description ?? "" })),
         scriptRunners: this.config.structured.scriptRunners.map((runner) => ({ language: runner.language, sandboxBackend: runner.sandboxBackend })),
-        pluginProcessors: this.config.structured.pluginProcessors.map((plugin) => ({ type: plugin.type, processorNames: [...plugin.processorNames] })),
+        pluginProcessors: this.config.structured.pluginProcessors.map((plugin) => ({
+          type: plugin.type,
+          processorNames: [...plugin.processorNames],
+          processors: plugin.processors.map((processor) => ({ name: processor.name, description: processor.description ?? "" })),
+        })),
       },
       election: { enabled: true, priority: 100 },
     };

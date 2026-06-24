@@ -5,7 +5,7 @@ description: The outbound-only Worker Tunnel model that keeps execution private 
 
 # Server, Worker, and Worker Tunnel
 
-The Worker Tunnel is the most important runtime boundary in Tikeo. The Server owns scheduling, identity, governance, audit, and Management API state. Workers own business execution: SDK processors, approved scripts, plugin processors, HTTP calls, SQL processors, and other controlled runtimes. The two sides are connected by an outbound long-lived gRPC/HTTP2 tunnel opened by the Worker. This means a Worker can run in a private subnet, Kubernetes cluster, VM, or systemd service without exposing an inbound business execution endpoint.
+The Worker Tunnel is the most important runtime boundary in Tikeo. The Server owns scheduling, identity, governance, audit, and Management API state. Workers own business execution: normal processors, approved scripts, plugin processors, HTTP calls, SQL processors, and other controlled runtimes. The two sides are connected by an outbound long-lived gRPC/HTTP2 tunnel opened by the Worker. This means a Worker can run in a private subnet, Kubernetes cluster, VM, or systemd service without exposing an inbound business execution endpoint.
 
 ![Worker Tunnel closed loop](pathname:///img/diagrams/worker-tunnel-loop.svg)
 
@@ -47,7 +47,7 @@ The Server assigns authoritative identity during registration. A human-readable 
 | --- | --- | --- | --- |
 | Server | Schedules instances, stores state, validates API requests, checks RBAC, issues dispatch, fences stale writes | Arbitrary user code execution inside the Server process | Jobs, Instances, Audit, Notification delivery attempts |
 | Worker Tunnel | Registration, heartbeat, dispatch stream, logs, checkpoints, results, cancellation | Business policy decisions that belong to Server | Worker session history, transport errors, lost reason |
-| Worker | SDK processors, script runner, plugin processor, external service calls, stdout/stderr capture | Tenant-wide authorization or unreviewed Server mutations | Capability snapshot, task logs, result payload, runtime error stack |
+| Worker | normal processors, script runner, plugin processor, external service calls, stdout/stderr capture | Tenant-wide authorization or unreviewed Server mutations | Capability snapshot, task logs, result payload, runtime error stack |
 | Storage | Durable definitions, instances, attempts, logs, sessions, audit | In-memory-only source of truth | Replayable incident trail after restarts |
 
 ## Identity, lease, and fencing

@@ -5,8 +5,8 @@ use sha2::{Digest, Sha256};
 use crate::cluster::{ClusterMode, ClusterRole, ClusterStatus, StaticCoordinator};
 use tikeo_core::{ExecutionMode, InstanceStatus, TriggerType};
 use tikeo_proto::worker::v1::{
-    DispatchTask, RegisterWorker, ScriptRunnerCapability, SdkProcessorCapability,
-    WorkerCapabilities, server_message, task_processor_binding,
+    DispatchTask, ProcessorCapability, RegisterWorker, ScriptRunnerCapability, WorkerCapabilities,
+    server_message, task_processor_binding,
 };
 use tikeo_storage::{
     AuditLogRepository, CreateJob, CreateJobInstance, JobInstanceAttemptRepository,
@@ -25,10 +25,11 @@ use super::{
     script_version_is_dispatchable,
 };
 
-fn sdk_capabilities(processor_name: &str) -> WorkerCapabilities {
+fn normal_capabilities(processor_name: &str) -> WorkerCapabilities {
     WorkerCapabilities {
-        sdk_processors: vec![SdkProcessorCapability {
+        normal_processors: vec![ProcessorCapability {
             name: processor_name.to_owned(),
+            description: String::new(),
         }],
         ..WorkerCapabilities::default()
     }

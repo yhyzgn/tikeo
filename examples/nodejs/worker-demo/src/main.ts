@@ -15,6 +15,7 @@ import {
   localConfig,
   normalizeScriptLanguage,
   pluginApiJob,
+  PluginTypes,
   type WorkerConfig,
 } from "@yhyzgn/tikeo";
 
@@ -27,10 +28,10 @@ export async function main(): Promise<void> {
   config.region = envOr("TIKEO_WORKER_REGION", "local");
   config.addTag("nodejs");
   config.addTag("manual-demo");
-  for (const processor of csvOr("TIKEO_WORKER_SDK_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.sleep,demo.fail,demo.exception")) config.addSDKProcessor(processor);
+  for (const processor of csvOr("TIKEO_WORKER_NORMAL_PROCESSORS", "demo.echo,demo.context,demo.bytes,demo.heartbeat,demo.sleep,demo.fail,demo.exception")) config.addNormalProcessor(processor, "Demo normal processor");
   config.labels.worker_pool = envOr("TIKEO_WORKER_POOL", "nodejs-blue");
   if (enabledByDefault("TIKEO_ENABLE_PLUGIN_SQL")) {
-    config.addPluginProcessor(envOr("TIKEO_PLUGIN_SQL_TYPE", "sql"), envOr("TIKEO_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"));
+    config.addPluginProcessor(PluginTypes.SQL, envOr("TIKEO_PLUGIN_SQL_PROCESSOR", "billing.sql-sync"), "SQL sync plugin processor");
     config.labels.plugin_sql = "enabled";
   }
   const scripts = configureScripts(config);

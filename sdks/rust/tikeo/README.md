@@ -12,7 +12,7 @@ Rust SDK for active outbound Tikeo Worker Tunnel connections.
 ## Features
 
 - Outbound gRPC Worker Tunnel registration, heartbeat, task result, and unregister flow.
-- Structured worker capabilities: SDK processors, plugin processors, script runners, and tags.
+- Structured worker capabilities: normal processors, plugin processors, script runners, and tags.
 - Task-scoped `tracing` / `log` bridge that sends processor events precisely to the current job instance.
 - SDK diagnostics with `SdkLogConfig`, default `INFO`, console output, and optional `tikeo-sdk.log`.
 - App-scoped management client using `x-tikeo-api-key`.
@@ -29,7 +29,7 @@ let _ = install_task_log_bridge();
 let mut config = WorkerConfig::local("http://127.0.0.1:9998", "orders-rust-1");
 config.namespace = "dev-alpha".into();
 config.app = "orders".into();
-config.add_sdk_processor("demo.echo");
+config.add_normal_processor("demo.echo", "Echo payload demo processor");
 
 let client = WorkerClient::new(config);
 ```

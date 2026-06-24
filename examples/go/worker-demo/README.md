@@ -35,7 +35,7 @@ Defaults:
 
 - scope: `dev-alpha/orders`
 - worker pool: `go-blue`
-- SDK processors: `demo.echo`, `demo.context`, `demo.bytes`, `demo.heartbeat`, `demo.fail`, `demo.exception`
+- normal processors: `demo.echo`, `demo.context`, `demo.bytes`, `demo.heartbeat`, `demo.fail`, `demo.exception`
 - plugin processor: `type=sql`, `processorName=billing.sql-sync`
 - script runners: shell, Python, JavaScript, TypeScript, PowerShell, PHP, Groovy, Rhai
 - sandbox auto path: SRT for native scripts and Deno for JavaScript/TypeScript

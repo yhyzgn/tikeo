@@ -23,6 +23,7 @@ import {
   printTaskLogLocally,
   scriptApiJob,
   type ScriptRunnerTask,
+  PluginTypes,
 } from "../src/index";
 import { ScriptTaskRuntimeDirs } from "../src/script/runtimeDirs";
 import { writeSrtSettings } from "../src/script/index";
@@ -42,14 +43,14 @@ describe("node sdk parity", () => {
     config.app = "billing";
     config.capabilities = ["legacy-tag", "legacy-tag", ""];
     config.addTag("nodejs");
-    config.addSDKProcessor("demo.echo");
+    config.addNormalProcessor("demo.echo", "Node echo processor");
     config.addScriptRunner("python", "srt");
-    config.addPluginProcessor("sql", "billing.sql-sync");
+    config.addPluginProcessor(PluginTypes.SQL, "billing.sql-sync", "SQL sync processor");
     const client = new Client(config);
     const registration = client.registration();
     expect(registration.capabilities).toEqual(["legacy-tag"]);
-    expect(registration.structured.sdkProcessors).toEqual(["demo.echo"]);
-    expect(registration.structured.pluginProcessors[0].processorNames).toEqual(["billing.sql-sync"]);
+    expect(registration.structured.normalProcessors).toEqual([{ name: "demo.echo", description: "Node echo processor" }]);
+    expect(registration.structured.pluginProcessors[0].processors).toEqual([{ name: "billing.sql-sync", description: "SQL sync processor" }]);
     client.startDryRun(() => ({ success: true, message: "" }));
     const heartbeat = client.nextHeartbeat("worker-1", "fence-1", 3);
     expect(heartbeat.sequence).toBe(1);

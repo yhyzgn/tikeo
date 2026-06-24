@@ -18,7 +18,7 @@ description: Tikeo scripts 控制台页面的人类操作指南。
 
 ## When to use / 何时使用
 
-- 小型运维任务更适合脚本而不是编译 SDK Processor。
+- 小型运维任务更适合脚本而不是编译 Normal Processor。
 - 需要可审查 diff 与回滚。
 - 同一个脚本版本要绑定到多个 Job。
 - 操作人需要 stdout/stderr 与异常堆栈证据。

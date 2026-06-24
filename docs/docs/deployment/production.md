@@ -13,7 +13,7 @@ A production Tikeo environment has five responsibilities:
 | Tikeo Server | HTTP API, scheduler, migrations, Worker Tunnel, notifications, audit. | Operators, SDK Management clients, outbound Workers. |
 | Tikeo Web | Browser console for jobs, workers, workflows, scripts, notifications, audit, RBAC. | Human operators. |
 | Database | Durable jobs, instances, logs, RBAC, notifications, audit, cluster ownership, outbox rows. | Server only. |
-| Worker processes | Execute SDK processors/scripts/plugins and stream logs/results. | Outbound to Worker Tunnel only. |
+| Worker processes | Execute normal processors/scripts/plugins and stream logs/results. | Outbound to Worker Tunnel only. |
 | Notification providers | Receive rendered messages. | Server outbound only. |
 
 Workers do not expose inbound task ports. They dial `server.worker_tunnel_addr`.

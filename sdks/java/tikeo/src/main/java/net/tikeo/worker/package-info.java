@@ -4,7 +4,7 @@
  * <p>Workers connect outbound to tikeo and receive an authoritative server-assigned worker id.
  * Client instance ids are stable hints used for reconnect correlation and operational visibility.
  *
- * <p><strong>Usage:</strong> declare SDK processors, script runners, plugin processors, tags, and worker
+ * <p><strong>Usage:</strong> declare normal processors, script runners, plugin processors, tags, and worker
  * cluster election fields through {@link net.tikeo.worker.WorkerCapabilitySet} and
  * {@link net.tikeo.worker.WorkerRegistration}.
  *

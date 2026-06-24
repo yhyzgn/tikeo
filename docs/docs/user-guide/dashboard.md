@@ -26,7 +26,7 @@ Use the Dashboard as the live operations cockpit before you trigger work, roll o
 | Notification delivery | Alert delivery queue status | Whether provider delivery is healthy, retrying, failed, or in dead-letter state. |
 | HA / gateway | Cluster diagnostics and Smart Gateway diagnostics | Whether Server HA, Worker gateway locality, remote gateway capacity, and outbox totals look safe. |
 | Worker Mesh distribution | Worker snapshot grouped by namespace/app/cluster/region | Which application scopes have online capacity and which scopes lack a master or enough Workers. |
-| Capability coverage | Structured Worker capabilities | Which SDK processors, script runners, plugin processors, and tags are actually advertised by online Workers. |
+| Capability coverage | Structured Worker capabilities | Which normal processors, script runners, plugin processors, and tags are actually advertised by online Workers. |
 | Audit activity | Recent audit log page | What operators or API keys recently changed, and whether those actions succeeded or failed. |
 | Risk signals | Derived from failures, queue, alert delivery, Worker count, and cluster status | Whether to continue normal operation or stop and triage first. |
 
