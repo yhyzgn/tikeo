@@ -38,7 +38,7 @@ impl Default for SandboxToolResolver {
 }
 
 impl SandboxToolResolver {
-    fn uses_strict_sandbox_isolation(&self) -> bool {
+    const fn uses_strict_sandbox_isolation(&self) -> bool {
         #[allow(deprecated)]
         {
             self.strict_sandbox_isolation || self.require_managed_tools
@@ -161,11 +161,10 @@ impl SandboxToolResolver {
     where
         F: FnOnce(&Path, &Path) -> bool + Send + 'static,
     {
-        if !self.uses_strict_sandbox_isolation() {
-            if let Some(command) = find_command(binary).filter(|command| command_available(command))
-            {
-                return Some(command);
-            }
+        if !self.uses_strict_sandbox_isolation()
+            && let Some(command) = find_command(binary).filter(|command| command_available(command))
+        {
+            return Some(command);
         }
         if let Some(legacy_dir) = self.legacy_install_dir(tool_key) {
             let legacy_local = legacy_dir.join("bin").join(binary);
@@ -182,12 +181,11 @@ impl SandboxToolResolver {
         if !self.auto_install {
             return None;
         }
-        self.schedule_background_install(tool_key, binary, install_dir, bin_dir, installer);
+        Self::schedule_background_install(tool_key, binary, install_dir, bin_dir, installer);
         None
     }
 
     fn schedule_background_install<F>(
-        &self,
         tool_key: &str,
         binary: &str,
         install_dir: PathBuf,
@@ -197,10 +195,10 @@ impl SandboxToolResolver {
         F: FnOnce(&Path, &Path) -> bool + Send + 'static,
     {
         let key = format!("{}@{}", tool_key, install_dir.display());
-        if let Ok(mut installs) = BACKGROUND_INSTALLS.lock() {
-            if !installs.insert(key) {
-                return;
-            }
+        if let Ok(mut installs) = BACKGROUND_INSTALLS.lock()
+            && !installs.insert(key)
+        {
+            return;
         }
         let binary = binary.to_owned();
         let _ = std::thread::Builder::new()
@@ -542,7 +540,7 @@ mod tests {
         let tool_key = format!("tikeo-test-missing-{}", std::process::id());
 
         let started_at = Instant::now();
-        let resolved = resolver.resolve_tool_with_local_binary(
+        let command_path = resolver.resolve_tool_with_local_binary(
             &tool_key,
             "definitely-missing-tikeo-sandbox-tool",
             move |_dir, _bin_dir| {
@@ -552,7 +550,7 @@ mod tests {
             },
         );
 
-        assert!(resolved.is_none());
+        assert!(command_path.is_none());
         assert!(started_at.elapsed() < Duration::from_secs(1));
         for _ in 0..20 {
             if started.load(std::sync::atomic::Ordering::SeqCst) {
