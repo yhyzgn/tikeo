@@ -36,6 +36,7 @@ let client = WorkerClient::new(config);
 
 ## Operational cautions
 
+- Sandbox auto-install is background prewarm only: SDK startup never waits for downloads; missing tools stay unadvertised and fail closed until available.
 - The server assigns the authoritative `worker_id`; `client_instance_id` is only a stable hint.
 - Keep SDK diagnostics at `INFO` in production and switch to `DEBUG` only while troubleshooting.
 - Prefer `tracing::info!/warn!/error!` in processors after `install_task_log_bridge()`; `TaskContext::log_info` / `log_error` remains a direct fallback. Do not capture global stdout.

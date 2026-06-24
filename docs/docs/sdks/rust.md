@@ -111,7 +111,7 @@ Use `process_next_with_script_runners` only when you have registered real script
 | `TIKEO_WORKER_POOL` | `rust-blue` | Stored as label `worker_pool`. |
 | `TIKEO_WORKER_DRY_RUN` | unset | Set to `1` to avoid live tunnel. |
 | `TIKEO_WORKER_ONESHOT` | unset | Exit after one processed task. |
-| `TIKEO_SANDBOX_AUTO_INSTALL` | enabled unless disabled | Controls sandbox tool auto-install. |
+| `TIKEO_SANDBOX_AUTO_INSTALL` | enabled unless disabled | Controls background sandbox tool prewarm; startup never waits for downloads and missing tools fail closed. |
 
 Run:
 

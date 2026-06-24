@@ -112,7 +112,7 @@ Use ordinary `logging.getLogger(__name__)` calls in processors. The `TikeoTaskLo
 | `TIKEO_WORKER_POOL` | `python-blue` | `worker_pool` label. |
 | `TIKEO_WORKER_SCRIPT_LANGUAGES` | `shell,python,javascript,typescript,powershell,php,groovy,rhai` | Candidate script languages. |
 | `TIKEO_WORKER_SCRIPT_SANDBOX` | `auto` | `deno` for JS/TS, `srt` for native languages. |
-| `TIKEO_SANDBOX_AUTO_INSTALL` | enabled unless disabled | Tool auto-install. |
+| `TIKEO_SANDBOX_AUTO_INSTALL` | enabled unless disabled | Background sandbox tool prewarm; startup never waits for downloads and missing tools fail closed. |
 
 Run dry-run:
 

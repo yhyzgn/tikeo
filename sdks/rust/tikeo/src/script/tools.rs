@@ -1,11 +1,16 @@
 use std::{
+    collections::HashSet,
     ffi::OsString,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    sync::{LazyLock, Mutex},
     time::{Duration, Instant},
 };
 
-/// Resolves and optionally installs lightweight script sandbox tools.
+static BACKGROUND_INSTALLS: LazyLock<Mutex<HashSet<String>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+
+/// Resolves lightweight script sandbox tools and prewarms missing tools in the background.
 #[derive(Debug, Clone)]
 pub struct SandboxToolResolver {
     /// Optional state directory used for managed tool installs.
@@ -30,9 +35,10 @@ impl SandboxToolResolver {
     /// Resolve Anthropic Sandbox Runtime.
     #[must_use]
     pub fn resolve_srt(&self) -> Option<PathBuf> {
-        self.resolve_tool("srt", |dir, bin_dir| {
+        let timeout = self.install_timeout;
+        self.resolve_tool("srt", move |dir, bin_dir| {
             run_installer(
-                self.install_timeout,
+                timeout,
                 "npm",
                 &[
                     "install",
@@ -61,9 +67,10 @@ impl SandboxToolResolver {
     /// Resolve ripgrep required by SRT.
     #[must_use]
     pub fn resolve_ripgrep(&self) -> Option<PathBuf> {
-        self.resolve_tool("rg", |dir, bin_dir| {
+        let timeout = self.install_timeout;
+        self.resolve_tool("rg", move |dir, bin_dir| {
             run_installer(
-                self.install_timeout,
+                timeout,
                 "cargo",
                 &["install", "--root", &dir.to_string_lossy(), "ripgrep"],
                 &[bin_dir.to_path_buf()],
@@ -74,26 +81,23 @@ impl SandboxToolResolver {
     /// Resolve Deno for JavaScript/TypeScript sandboxing.
     #[must_use]
     pub fn resolve_deno(&self) -> Option<PathBuf> {
-        self.resolve_tool("deno", |dir, bin_dir| {
+        let timeout = self.install_timeout;
+        self.resolve_tool("deno", move |dir, bin_dir| {
             let script = format!(
                 "curl -fsSL https://deno.land/install.sh | DENO_INSTALL={} sh",
                 shell_quote(&dir.to_string_lossy())
             );
-            run_installer(
-                self.install_timeout,
-                "sh",
-                &["-c", &script],
-                &[bin_dir.to_path_buf()],
-            )
+            run_installer(timeout, "sh", &["-c", &script], &[bin_dir.to_path_buf()])
         })
     }
 
     /// Resolve Rhai CLI runner.
     #[must_use]
     pub fn resolve_rhai(&self) -> Option<PathBuf> {
-        self.resolve_tool("rhai-run", |dir, bin_dir| {
+        let timeout = self.install_timeout;
+        self.resolve_tool("rhai-run", move |dir, bin_dir| {
             run_installer(
-                self.install_timeout,
+                timeout,
                 "cargo",
                 &[
                     "install",
@@ -112,8 +116,9 @@ impl SandboxToolResolver {
     /// Resolve PowerShell Core for SRT-backed PowerShell script execution.
     #[must_use]
     pub fn resolve_powershell(&self) -> Option<PathBuf> {
-        self.resolve_tool_with_local_binary("pwsh", "pwsh", |dir, bin_dir| {
-            install_powershell(self.install_timeout, dir, bin_dir)
+        let timeout = self.install_timeout;
+        self.resolve_tool_with_local_binary("pwsh", "pwsh", move |dir, bin_dir| {
+            install_powershell(timeout, dir, bin_dir)
         })
     }
 
@@ -125,7 +130,7 @@ impl SandboxToolResolver {
 
     fn resolve_tool<F>(&self, binary: &str, installer: F) -> Option<PathBuf>
     where
-        F: FnOnce(&Path, &Path) -> bool,
+        F: FnOnce(&Path, &Path) -> bool + Send + 'static,
     {
         self.resolve_tool_with_local_binary(binary, binary, installer)
     }
@@ -137,7 +142,7 @@ impl SandboxToolResolver {
         installer: F,
     ) -> Option<PathBuf>
     where
-        F: FnOnce(&Path, &Path) -> bool,
+        F: FnOnce(&Path, &Path) -> bool + Send + 'static,
     {
         if let Some(command) = find_command(binary).filter(|command| command_available(command)) {
             return Some(command);
@@ -154,10 +159,45 @@ impl SandboxToolResolver {
         if command_available(&local) {
             return Some(local);
         }
-        if !self.auto_install || !installer(&install_dir, &bin_dir) {
+        if !self.auto_install {
             return None;
         }
-        command_available(&local).then_some(local)
+        self.schedule_background_install(tool_key, binary, install_dir, bin_dir, installer);
+        None
+    }
+
+    fn schedule_background_install<F>(
+        &self,
+        tool_key: &str,
+        binary: &str,
+        install_dir: PathBuf,
+        bin_dir: PathBuf,
+        installer: F,
+    ) where
+        F: FnOnce(&Path, &Path) -> bool + Send + 'static,
+    {
+        let key = format!("{}@{}", tool_key, install_dir.display());
+        if let Ok(mut installs) = BACKGROUND_INSTALLS.lock() {
+            if !installs.insert(key) {
+                return;
+            }
+        }
+        let binary = binary.to_owned();
+        let _ = std::thread::Builder::new()
+            .name(format!("tikeo-sandbox-install-{binary}"))
+            .spawn(move || {
+                if !installer(&install_dir, &bin_dir) {
+                    eprintln!("[tikeo.sandbox] background auto-install failed tool={binary}");
+                    return;
+                }
+                let local = bin_dir.join(&binary);
+                if !command_available(&local) {
+                    eprintln!(
+                        "[tikeo.sandbox] background auto-install completed but tool is still unavailable tool={binary} path={}",
+                        local.display()
+                    );
+                }
+            });
     }
 
     fn install_dir(binary: &str) -> PathBuf {
@@ -467,6 +507,39 @@ fn shell_quote(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn auto_install_resolves_missing_tool_without_blocking_on_installer() {
+        let resolver = SandboxToolResolver {
+            state_dir: None,
+            auto_install: true,
+            install_timeout: Duration::from_millis(1),
+        };
+        let started = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let started_in_thread = std::sync::Arc::clone(&started);
+        let tool_key = format!("tikeo-test-missing-{}", std::process::id());
+
+        let started_at = Instant::now();
+        let resolved = resolver.resolve_tool_with_local_binary(
+            &tool_key,
+            "definitely-missing-tikeo-sandbox-tool",
+            move |_dir, _bin_dir| {
+                started_in_thread.store(true, std::sync::atomic::Ordering::SeqCst);
+                std::thread::sleep(Duration::from_secs(2));
+                false
+            },
+        );
+
+        assert!(resolved.is_none());
+        assert!(started_at.elapsed() < Duration::from_secs(1));
+        for _ in 0..20 {
+            if started.load(std::sync::atomic::Ordering::SeqCst) {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        panic!("background installer should have been scheduled");
+    }
 
     #[test]
     fn install_dir_prefers_host_cache_root() {

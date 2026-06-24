@@ -167,6 +167,46 @@ class SandboxToolResolverTest {
                 resolver.resolvePowerShellCommand().orElseThrow());
     }
 
+
+    @Test
+    void autoInstallSchedulesBackgroundInstallWithoutBlockingResolution() throws Exception {
+        Path toolsDir = Files.createTempDirectory("tikeo-async-sandbox-tools-");
+        java.util.concurrent.atomic.AtomicBoolean scheduled = new java.util.concurrent.atomic.AtomicBoolean(false);
+        SandboxToolResolver resolver = new SandboxToolResolver(new SandboxToolResolver.Options(
+                "",
+                false,
+                "latest",
+                "",
+                "https://wasmtime.dev/install.sh",
+                false,
+                "latest",
+                "",
+                "https://wasmedge.example/install.sh",
+                true,
+                "latest",
+                toolsDir.resolve("srt").toString(),
+                "latest",
+                "",
+                "latest",
+                "",
+                "https://deno.land/install.sh",
+                "latest",
+                "",
+                "",
+                "",
+                "7.5.4",
+                "",
+                1000),
+            (tool, options) -> scheduled.set(true));
+
+        long startedAt = System.nanoTime();
+        Assertions.assertTrue(resolver.resolveSrtCommand().isEmpty());
+        long elapsedMillis = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+
+        Assertions.assertTrue(scheduled.get(), "missing tool should schedule background install");
+        Assertions.assertTrue(elapsedMillis < 1_000, "resolution must not wait for installer; elapsedMs=" + elapsedMillis);
+    }
+
     private static void installFake(Path stateDir, SandboxToolInstaller.Tool tool) throws Exception {
         String installKey = tool == SandboxToolInstaller.Tool.POWERSHELL
                 ? "pwsh"

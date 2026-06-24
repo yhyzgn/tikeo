@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import net.tikeo.script.ScriptRunnerKind;
 import org.slf4j.Logger;
@@ -20,10 +21,29 @@ public final class SandboxToolResolver {
         SandboxToolResolver.class
     );
 
+    private static final java.util.Set<String> BACKGROUND_INSTALLS =
+        ConcurrentHashMap.newKeySet();
+
     private final Options options;
+    private final BackgroundInstaller backgroundInstaller;
 
     public SandboxToolResolver(Options options) {
+        this(options, SandboxToolResolver::runBackgroundInstall);
+    }
+
+    SandboxToolResolver(Options options, BackgroundInstaller backgroundInstaller) {
         this.options = options == null ? Options.defaults() : options;
+        this.backgroundInstaller = backgroundInstaller == null
+            ? SandboxToolResolver::runBackgroundInstall
+            : backgroundInstaller;
+    }
+
+    @FunctionalInterface
+    interface BackgroundInstaller {
+        void install(
+            SandboxToolInstaller.Tool tool,
+            SandboxToolInstaller.Options installOptions
+        );
     }
 
     public String resolveCommand(SandboxToolInstaller.Tool tool) {
@@ -334,26 +354,60 @@ public final class SandboxToolResolver {
                 "[tikeo.sandbox] auto-install disabled tool={}",
                 tool.binaryName()
             );
-            return tool.binaryName();
+            return localCommand(tool);
         }
-        if (!SandboxToolInstaller.canInstall(tool)) {
-            log.info(
-                "[tikeo.sandbox] auto-install prerequisites missing tool={}",
-                tool.binaryName()
+        scheduleBackgroundInstall(tool);
+        return localCommand(tool);
+    }
+
+    private void scheduleBackgroundInstall(SandboxToolInstaller.Tool tool) {
+        SandboxToolInstaller.Options installOptions = installOptions(tool);
+        String key = tool.name() + "@" + installOptions.installDir().toAbsolutePath();
+        if (!BACKGROUND_INSTALLS.add(key)) {
+            log.debug(
+                "[tikeo.sandbox] background install already scheduled tool={} installDir={}",
+                tool.binaryName(),
+                installOptions.installDir()
             );
-            return tool.binaryName();
+            return;
         }
+        Thread installer = new Thread(
+            () -> backgroundInstaller.install(tool, installOptions),
+            "tikeo-sandbox-install-" + tool.binaryName()
+        );
+        installer.setDaemon(true);
+        installer.start();
+        log.info(
+            "[tikeo.sandbox] scheduled background install tool={} installDir={}",
+            tool.binaryName(),
+            installOptions.installDir()
+        );
+    }
+
+    private static void runBackgroundInstall(
+        SandboxToolInstaller.Tool tool,
+        SandboxToolInstaller.Options installOptions
+    ) {
         try {
-            return SandboxToolInstaller.install(
-                installOptions(tool)
-            ).toString();
-        } catch (IllegalStateException error) {
+            if (!SandboxToolInstaller.canInstall(tool)) {
+                log.info(
+                    "[tikeo.sandbox] background auto-install prerequisites missing tool={}",
+                    tool.binaryName()
+                );
+                return;
+            }
+            Path binary = SandboxToolInstaller.install(installOptions);
             log.info(
-                "[tikeo.sandbox] auto-install failed tool={} error={}",
+                "[tikeo.sandbox] background auto-install completed tool={} binary={}",
+                tool.binaryName(),
+                binary
+            );
+        } catch (Exception error) {
+            log.warn(
+                "[tikeo.sandbox] background auto-install failed tool={} error={}",
                 tool.binaryName(),
                 error.getMessage()
             );
-            return tool.binaryName();
         }
     }
 

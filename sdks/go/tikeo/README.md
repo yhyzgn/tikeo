@@ -33,6 +33,7 @@ _ = err
 
 ## Operational cautions
 
+- Sandbox auto-install is background prewarm only: SDK startup never waits for downloads; missing tools stay unadvertised and fail closed until available.
 - Task instance logs and SDK diagnostics are separate by design.
 - Keep diagnostics at INFO unless investigating connectivity, sandbox, or registration issues.
 - Do not advertise script capabilities until the sandbox runner is registered and executable.

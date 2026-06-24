@@ -8,10 +8,13 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
-// SandboxToolResolver resolves and optionally installs lightweight script sandbox tools.
+var sandboxToolInstalls sync.Map
+
+// SandboxToolResolver resolves lightweight script sandbox tools and prewarms missing tools in the background.
 type SandboxToolResolver struct {
 	StateDir       string
 	AutoInstall    bool
@@ -95,10 +98,25 @@ func (r SandboxToolResolver) resolveToolWithLocalBinary(toolKey, binary string, 
 	if !r.AutoInstall {
 		return local, false
 	}
-	if err := installer(installDir); err != nil {
-		return local, false
+	r.scheduleBackgroundInstall(toolKey, installDir, binary, installer)
+	return local, false
+}
+
+func (r SandboxToolResolver) scheduleBackgroundInstall(toolKey, installDir, binary string, installer func(string) error) {
+	key := toolKey + "@" + installDir
+	if _, loaded := sandboxToolInstalls.LoadOrStore(key, struct{}{}); loaded {
+		return
 	}
-	return local, toolWorks(binary, local)
+	go func() {
+		if err := installer(installDir); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "[tikeo.sandbox] background auto-install failed tool=%s error=%v\n", binary, err)
+			return
+		}
+		local := filepath.Join(installDir, "bin", executableName(binary))
+		if !toolWorks(binary, local) {
+			_, _ = fmt.Fprintf(os.Stderr, "[tikeo.sandbox] background auto-install completed but tool is still unavailable tool=%s path=%s\n", binary, local)
+		}
+	}()
 }
 
 func (r SandboxToolResolver) installDir(binary string) string {

@@ -1,8 +1,8 @@
 /**
  * Sandbox tool discovery and installation utilities.
  *
- * <p>The Java SDK can check and install toolchains such as SRT, Deno, Wasmtime, WasmEdge, V8-facing
- * runtimes, PowerShell, and Rhai under a managed SDK directory. This keeps worker startup repeatable
+ * <p>The Java SDK can check and background-prewarm toolchains such as SRT, Deno, Wasmtime, WasmEdge, V8-facing
+ * runtimes, PowerShell, and Rhai under a managed SDK directory. This keeps worker startup non-blocking and repeatable
  * across bare metal, VM, and container environments.
  *
  * <p><strong>Operational cautions:</strong> automatic installers require network access and platform

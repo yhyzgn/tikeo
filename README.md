@@ -851,7 +851,7 @@ Worker services use SDK-level configuration, separate from Server configuration.
 | `election.enabled` | `TIKEO_WORKER_ELECTION_ENABLED` | No | `true` | Worker-cluster master election flag in registration. |
 | `election.domain` | `TIKEO_WORKER_ELECTION_DOMAIN` | No | blank | Blank means `namespace/app/cluster/region`. |
 | `election.priority` | `TIKEO_WORKER_ELECTION_PRIORITY` | No | `100` | Deterministic election priority; lower values win. |
-| `wasm.auto-install` | `TIKEO_WORKER_WASM_AUTO_INSTALL` | No | `true` | Auto-install Wasmtime when unavailable. |
+| `wasm.auto-install` | `TIKEO_WORKER_WASM_AUTO_INSTALL` | No | `true` | Background-prewarm Wasmtime when unavailable; startup never waits for installer completion. |
 | `wasm.install-version` | `TIKEO_WORKER_WASM_INSTALL_VERSION` | No | `latest` | Wasmtime installer version. |
 | `wasm.install-dir` | `TIKEO_WORKER_WASM_INSTALL_DIR` | No | `~/.tikeo/sandbox-tools/wasmtime` | Optional install directory. |
 | `wasm.installer-url` | `TIKEO_WORKER_WASM_INSTALLER_URL` | No | `https://wasmtime.dev/install.sh` | Wasmtime installer URL. |
@@ -861,12 +861,19 @@ Worker services use SDK-level configuration, separate from Server configuration.
 | `scripts.availability-check` | `TIKEO_WORKER_SCRIPTS_AVAILABILITY_CHECK` | No | `true` | Probe runtime before advertising non-WASM script capabilities. |
 | `scripts.runtime-command` | `TIKEO_WORKER_SCRIPTS_RUNTIME_COMMAND` | No | blank | Explicit Docker-compatible runtime command, e.g. `docker` or `podman`. |
 | `scripts.runtime-args` | `TIKEO_WORKER_SCRIPTS_RUNTIME_ARGS` | No | `[]` | Extra runtime args before image. |
-| `scripts.auto-install-tools` | `TIKEO_WORKER_SCRIPTS_AUTO_INSTALL_TOOLS` | No | `true` | Auto-install local development script tools when absent. |
+| `scripts.auto-install-tools` | `TIKEO_WORKER_SCRIPTS_AUTO_INSTALL_TOOLS` | No | `true` | Background-prewarm local development script tools when absent; missing tools are not advertised until present. |
 | `scripts.*-install-version` | `TIKEO_WORKER_SCRIPT_*_INSTALL_VERSION` | No | `latest` / blank by tool | Tool versions for SRT, ripgrep, Deno, Rhai, PowerShell, WasmEdge, V8. |
 | `scripts.*-install-dir` | `TIKEO_WORKER_SCRIPT_*_INSTALL_DIR` | No | `~/.tikeo/sandbox-tools/<tool>` | Tool install/cache directories. |
 | `scripts.*-installer-url` | `TIKEO_WORKER_SCRIPT_*_INSTALLER_URL` | No | tool default | Installer URLs for Deno/WasmEdge and similar tools. |
-| `scripts.tool-install-timeout-millis` | `TIKEO_WORKER_SCRIPT_TOOL_INSTALL_TIMEOUT_MILLIS` | No | `120000` | Script tool installer timeout. |
+| `scripts.tool-install-timeout-millis` | `TIKEO_WORKER_SCRIPT_TOOL_INSTALL_TIMEOUT_MILLIS` | No | `120000` | Background script tool installer timeout; failure is logged and does not stop the worker process. |
 | `scripts.images.*` | `TIKEO_WORKER_SCRIPT_IMAGE_*` | No | blank | Optional per-language container images; blank disables that container runner. |
+
+Sandbox tool install policy across SDKs:
+
+- Tool auto-install is a **background prewarm** only. Worker/Spring Boot/process startup does not wait for downloads such as `powershell-*-linux-x64.tar.gz`, SRT, Deno, ripgrep, Rhai, or Wasmtime.
+- Until a tool is already present on `PATH`, in `TIKEO_SANDBOX_TOOLS_DIR`, or under `~/.tikeo/sandbox-tools/<tool>`, the SDK does **not** advertise that script capability. A task that still reaches an unavailable runner fails closed with a clear diagnostic instead of crashing the host application.
+- Background installer failures are logged and can be retried by restarting the worker or by pre-populating the cache directory.
+- Production recommendation: bake required sandbox tools into the worker image or mount a persistent/read-only cache at `~/.tikeo/sandbox-tools` / `TIKEO_SANDBOX_TOOLS_DIR`; keep auto-install mainly for developer laptops and demos.
 
 ### Server configuration reference
 

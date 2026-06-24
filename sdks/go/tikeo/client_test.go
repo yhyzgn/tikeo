@@ -493,6 +493,20 @@ func TestSandboxToolResolverDoesNotAdvertiseMissingToolsWhenAutoInstallDisabled(
 	}
 }
 
+func TestSandboxToolResolverAutoInstallReturnsUnavailableImmediately(t *testing.T) {
+	t.Setenv("PATH", "")
+	t.Setenv("TIKEO_SANDBOX_TOOLS_DIR", t.TempDir())
+	resolver := SandboxToolResolver{StateDir: t.TempDir(), AutoInstall: true, InstallTimeout: time.Millisecond}
+	startedAt := time.Now()
+	_, ok := resolver.ResolveSrt()
+	if ok {
+		t.Fatal("missing SRT tool must not be advertised before background install completes")
+	}
+	if elapsed := time.Since(startedAt); elapsed > time.Second {
+		t.Fatalf("resolution blocked on installer: %s", elapsed)
+	}
+}
+
 func TestSandboxToolResolverUsesHostCacheWhenWorkerStateIsEmpty(t *testing.T) {
 	resolver := SandboxToolResolver{StateDir: t.TempDir(), AutoInstall: false}
 	home, err := os.UserHomeDir()

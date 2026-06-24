@@ -5,6 +5,7 @@ import logging
 import json
 from types import SimpleNamespace
 import stat
+import time
 from pathlib import Path
 
 import pytest
@@ -232,6 +233,17 @@ def test_sandbox_tool_resolver_does_not_advertise_missing_tools_when_auto_instal
     _path, ok = resolver.resolve_srt()
     assert not ok
 
+
+
+
+def test_sandbox_tool_resolver_auto_install_returns_unavailable_immediately(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setenv("TIKEO_SANDBOX_TOOLS_DIR", str(tmp_path / "host-tools"))
+    resolver = tikeo.SandboxToolResolver(state_dir=str(tmp_path), auto_install=True, install_timeout=0.001)
+    started_at = time.monotonic()
+    _path, ok = resolver.resolve_srt()
+    assert not ok
+    assert time.monotonic() - started_at < 1.0
 
 def test_sandbox_tool_resolver_uses_host_cache_when_worker_state_is_empty(tmp_path):
     resolver = tikeo.SandboxToolResolver(state_dir=str(tmp_path), auto_install=False)

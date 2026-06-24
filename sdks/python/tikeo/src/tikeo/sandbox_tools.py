@@ -6,11 +6,16 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
+import threading
 import tempfile
 import time
 from dataclasses import dataclass
 from contextlib import contextmanager
 from pathlib import Path
+
+_BACKGROUND_INSTALLS: set[str] = set()
+_BACKGROUND_INSTALLS_LOCK = threading.Lock()
 
 
 def _env_or(key: str, fallback: str) -> str:
@@ -72,11 +77,31 @@ class SandboxToolResolver:
             return str(local), True
         if not self.auto_install:
             return str(local), False
-        try:
-            installer(directory)
-        except Exception:
-            return str(local), False
-        return str(local), self._tool_works(binary, str(local))
+        self._schedule_background_install(key, binary, directory, installer)
+        return str(local), False
+
+
+    def _schedule_background_install(self, key: str, binary: str, directory: Path, installer) -> None:
+        install_key = f"{key}@{directory}"
+        with _BACKGROUND_INSTALLS_LOCK:
+            if install_key in _BACKGROUND_INSTALLS:
+                return
+            _BACKGROUND_INSTALLS.add(install_key)
+
+        def run() -> None:
+            try:
+                installer(directory)
+            except Exception as error:
+                print(f"[tikeo.sandbox] background auto-install failed tool={binary} error={error}", file=sys.stderr)
+                return
+            local = self._managed_bin(directory) / self._executable_name(binary)
+            if not self._tool_works(binary, str(local)):
+                print(
+                    f"[tikeo.sandbox] background auto-install completed but tool is still unavailable tool={binary} path={local}",
+                    file=sys.stderr,
+                )
+
+        threading.Thread(target=run, name=f"tikeo-sandbox-install-{binary}", daemon=True).start()
 
     def _install_dir(self, key: str) -> Path:
         return _host_sandbox_tools_root() / key

@@ -1,7 +1,9 @@
 import { existsSync, mkdirSync, rmSync, chmodSync, symlinkSync, copyFileSync, writeFileSync, mkdtempSync, renameSync } from "node:fs";
 import { homedir, platform, arch, tmpdir } from "node:os";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+
+const backgroundInstalls = new Set<string>();
 
 export class SandboxToolResolver {
   constructor(public stateDir = "", public autoInstall = true, public installTimeoutMs = 120_000) {}
@@ -12,8 +14,8 @@ export class SandboxToolResolver {
   resolveRipgrep(): [string, boolean] { return this.resolveTool("rg", "rg", (dir) => this.runInstaller(this.managedBin(dir), "cargo", ["install", "--root", dir, "ripgrep"])); }
   resolveDeno(): [string, boolean] {
     return this.resolveTool("deno", "deno", (dir) => {
-      if (process.platform === "win32") this.runInstaller(this.managedBin(dir), "powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm https://deno.land/install.ps1 | iex"]);
-      else this.runInstaller(this.managedBin(dir), "sh", ["-c", `curl -fsSL https://deno.land/install.sh | DENO_INSTALL='${dir}' sh`]);
+      if (process.platform === "win32") return this.runInstaller(this.managedBin(dir), "powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm https://deno.land/install.ps1 | iex"]);
+      return this.runInstaller(this.managedBin(dir), "sh", ["-c", `curl -fsSL https://deno.land/install.sh | DENO_INSTALL='${dir}' sh`]);
     });
   }
   resolveRhai(): [string, boolean] { return this.resolveTool("rhai-run", "rhai-run", (dir) => this.runInstaller(this.managedBin(dir), "cargo", ["install", "--root", dir, "rhai", "--bins", "--features", "bin-features"])); }
@@ -26,7 +28,7 @@ export class SandboxToolResolver {
     return path && this.commandWorks(path, ["--version"]) ? [path, true] : ["", false];
   }
 
-  private resolveTool(key: string, binary: string, installer: (dir: string) => void): [string, boolean] {
+  private resolveTool(key: string, binary: string, installer: (dir: string) => void | Promise<void>): [string, boolean] {
     const found = findOnPath(binary);
     if (found && this.toolWorks(binary, found)) return [found, true];
     const legacyDir = this.legacyInstallDir(key);
@@ -38,27 +40,58 @@ export class SandboxToolResolver {
     const local = join(this.managedBin(dir), executableName(binary));
     if (this.toolWorks(binary, local)) return [local, true];
     if (!this.autoInstall) return [local, false];
-    try { installer(dir); } catch { return [local, false]; }
-    return [local, this.toolWorks(binary, local)];
+    this.scheduleBackgroundInstall(key, binary, dir, installer);
+    return [local, false];
+  }
+
+
+  private scheduleBackgroundInstall(key: string, binary: string, dir: string, installer: (dir: string) => void | Promise<void>): void {
+    const installKey = `${key}@${dir}`;
+    if (backgroundInstalls.has(installKey)) return;
+    backgroundInstalls.add(installKey);
+    setImmediate(async () => {
+      try {
+        await installer(dir);
+      } catch (error) {
+        console.warn(`[tikeo.sandbox] background auto-install failed tool=${binary} error=${error instanceof Error ? error.message : String(error)}`);
+        return;
+      }
+      const local = join(this.managedBin(dir), executableName(binary));
+      if (!this.toolWorks(binary, local)) console.warn(`[tikeo.sandbox] background auto-install completed but tool is still unavailable tool=${binary} path=${local}`);
+    });
   }
 
   private installDir(key: string): string { return join(hostSandboxToolsRoot(), key); }
   private legacyInstallDir(key: string): string { return this.stateDir.trim() ? join(this.stateDir.trim(), "sandbox-tools", key) : ""; }
   private managedBin(dir: string): string { return join(dir, "bin"); }
 
-  private runInstaller(managedBin: string, command: string, args: string[]): void {
-    this.runInstallerWithTimeout(this.installTimeoutMs, managedBin, command, args);
+  private runInstaller(managedBin: string, command: string, args: string[]): Promise<void> {
+    return this.runInstallerWithTimeout(this.installTimeoutMs, managedBin, command, args);
   }
 
-  private runInstallerWithTimeout(timeoutMs: number, managedBin: string, command: string, args: string[]): void {
+  private runInstallerWithTimeout(timeoutMs: number, managedBin: string, command: string, args: string[]): Promise<void> {
     mkdirSync(managedBin, { recursive: true });
     const env = { ...process.env, PATH: dedupe([managedBin, ...(process.env.PATH ?? "").split(process.platform === "win32" ? ";" : ":")]).join(process.platform === "win32" ? ";" : ":") };
-    const result = spawnSync(command, args, { stdio: "inherit", env, timeout: timeoutMs });
-    if (result.status !== 0) throw new Error(`installer failed: ${command}`);
+    return new Promise((resolve, reject) => {
+      const child = spawn(command, args, { stdio: "inherit", env });
+      const timer = setTimeout(() => {
+        child.kill("SIGKILL");
+        reject(new Error(`installer timed out: ${command}`));
+      }, timeoutMs);
+      child.once("error", (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.once("exit", (code) => {
+        clearTimeout(timer);
+        if (code === 0) resolve();
+        else reject(new Error(`installer failed: ${command} exit=${code ?? "signal"}`));
+      });
+    });
   }
 
-  private installPowerShell(dir: string): void {
-    if (process.platform === "win32") { this.runInstaller(this.managedBin(dir), "winget", ["install", "-e", "--id", "Microsoft.PowerShell"]); return; }
+  private async installPowerShell(dir: string): Promise<void> {
+    if (process.platform === "win32") { await this.runInstaller(this.managedBin(dir), "winget", ["install", "-e", "--id", "Microsoft.PowerShell"]); return; }
     const key = powerShellArchivePlatform();
     if (!key) throw new Error(`PowerShell auto-install does not support ${platform()}/${arch()}`);
     const version = process.env.TIKEO_POWERSHELL_VERSION || "7.5.4";
@@ -81,10 +114,10 @@ export class SandboxToolResolver {
         if (existsSync(archive)) {
           copyFileSync(archive, tmpArchive);
         } else {
-          this.runInstallerWithTimeout(powerShellInstallTimeout(this.installTimeoutMs), bin, "curl", ["-fL", "-C", "-", url, "-o", partialArchive]);
+          await this.runInstallerWithTimeout(powerShellInstallTimeout(this.installTimeoutMs), bin, "curl", ["-fL", "-C", "-", url, "-o", partialArchive]);
           copyFileSync(partialArchive, tmpArchive);
         }
-        this.runInstallerWithTimeout(powerShellInstallTimeout(this.installTimeoutMs), bin, "tar", ["-xzf", tmpArchive, "-C", tmpExtract]);
+        await this.runInstallerWithTimeout(powerShellInstallTimeout(this.installTimeoutMs), bin, "tar", ["-xzf", tmpArchive, "-C", tmpExtract]);
         const pwsh = join(tmpExtract, "pwsh");
         if (!existsSync(pwsh)) throw new Error("PowerShell archive did not contain pwsh");
         chmodSync(pwsh, 0o755);

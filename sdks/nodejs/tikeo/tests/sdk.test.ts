@@ -242,6 +242,26 @@ describe("node sdk parity", () => {
     }
   });
 
+  test("sandbox resolver auto install returns unavailable immediately", () => {
+    const oldPath = process.env.PATH;
+    const oldToolsDir = process.env.TIKEO_SANDBOX_TOOLS_DIR;
+    try {
+      process.env.PATH = "";
+      process.env.TIKEO_SANDBOX_TOOLS_DIR = mkdtempSync(join(tmpdir(), "tikeo-node-host-tools-"));
+      const resolver = new SandboxToolResolver(mkdtempSync(join(tmpdir(), "tikeo-node-tools-")), true, 1);
+      const startedAt = Date.now();
+      const [_path, ok] = resolver.resolveSrt();
+      expect(ok).toBe(false);
+      expect(Date.now() - startedAt).toBeLessThan(1_000);
+    } finally {
+      if (oldPath === undefined) delete process.env.PATH;
+      else process.env.PATH = oldPath;
+      if (oldToolsDir === undefined) delete process.env.TIKEO_SANDBOX_TOOLS_DIR;
+      else process.env.TIKEO_SANDBOX_TOOLS_DIR = oldToolsDir;
+    }
+  });
+
+
   test("sandbox resolver uses host cache when worker state is empty", () => {
     const resolver = new SandboxToolResolver(mkdtempSync(join(tmpdir(), "tikeo-node-tools-")), false);
     const installDir = (resolver as unknown as { installDir(key: string): string }).installDir("srt");

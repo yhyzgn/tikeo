@@ -304,16 +304,16 @@ See the docs-site [SDK and worker configuration](../../website/docs/reference/co
 | `tikeo.worker.heartbeat-interval-millis` | `10000` | Worker lease renewal cadence. |
 | `tikeo.worker.client-instance-id` | blank | Optional; blank lets Boot generate and persist one per scope/runtime identity. |
 | `tikeo.worker.state-dir` | blank → `~/.tikeo/workers` | Directory for generated worker instance identity state. |
-| `tikeo.worker.wasm.auto-install` | `true` | Installs Wasmtime automatically when missing. |
+| `tikeo.worker.wasm.auto-install` | `true` | Background-prewarms Wasmtime when missing; startup never waits for installer completion. |
 | `tikeo.worker.wasm.install-version` | `latest` | Wasmtime installer version. |
 | `tikeo.worker.wasm.install-dir` | blank → `~/.tikeo/sandbox-tools/wasmtime` | Persist/cache to avoid repeated downloads. |
 | `tikeo.worker.scripts.enabled` | `true` | Enables dynamic script execution through the configured sandbox paths. |
 | `tikeo.worker.scripts.container-enabled` | `false` | Enables optional container-backed shell/python/node/powershell runners. |
 | `tikeo.worker.scripts.availability-check` | `true` | Probes runtime availability before advertising non-WASM script capabilities. |
-| `tikeo.worker.scripts.auto-install-tools` | `true` | Installs script tooling when absent; disable in locked-down production images. |
+| `tikeo.worker.scripts.auto-install-tools` | `true` | Background-prewarms script tooling when absent; disable in locked-down production images. |
 | `tikeo.worker.scripts.power-shell-install-version` | `7.5.4` | PowerShell Core version for auto-install. |
 | `tikeo.worker.scripts.power-shell-install-dir` | blank → `~/.tikeo/sandbox-tools/pwsh` | Persist/cache to avoid repeated archive downloads. |
-| `tikeo.worker.scripts.tool-install-timeout-millis` | `120000` | Script tool installer timeout. |
+| `tikeo.worker.scripts.tool-install-timeout-millis` | `120000` | Background script tool installer timeout; failure is logged and never fails Spring startup. |
 | `tikeo.management.enabled` | `false` | Enables `TikeoJobClient` auto-configuration. |
 | `tikeo.management.endpoint` | `http://127.0.0.1:9090` | HTTP Management endpoint; override to your Server API URL. |
 | `tikeo.management.api-key` | blank | App-scoped API key; inject from a Secret store. |
