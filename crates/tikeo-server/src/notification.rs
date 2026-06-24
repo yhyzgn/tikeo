@@ -24,7 +24,7 @@ use tikeo_storage::{
     NotificationPolicySummary, NotificationTemplateRepository, NotificationTemplateSummary,
     RecordNotificationDeliveryAttempt,
 };
-use tracing::warn;
+use tracing::{debug, warn};
 
 use delivery::dedupe_window_elapsed;
 use provider_templates::{render_template_value, validate_template_tokens};
@@ -168,6 +168,7 @@ pub struct NotificationCenter {
     templates: NotificationTemplateRepository,
     jobs: JobRepository,
     public_console_base_url: Option<String>,
+    delivery_trigger: Option<NotificationDeliveryTrigger>,
 }
 
 impl NotificationCenter {
@@ -189,6 +190,7 @@ impl NotificationCenter {
             templates,
             jobs,
             public_console_base_url: None,
+            delivery_trigger: None,
         }
     }
 
@@ -199,6 +201,14 @@ impl NotificationCenter {
             .map(Into::into)
             .map(|value| value.trim().trim_end_matches('/').to_owned())
             .filter(|value| !value.is_empty());
+        self
+    }
+
+    /// Attach an in-process delivery worker trigger. When attempts are created this wakes the
+    /// local worker immediately instead of waiting for the periodic recovery scan.
+    #[must_use]
+    pub fn with_delivery_trigger(mut self, trigger: Option<NotificationDeliveryTrigger>) -> Self {
+        self.delivery_trigger = trigger;
         self
     }
 
@@ -372,7 +382,24 @@ impl NotificationCenter {
                 }
             }
         }
+        self.kick_delivery_if_attempts_created(&summary);
         Ok(summary)
+    }
+}
+
+impl NotificationCenter {
+    fn kick_delivery_if_attempts_created(&self, summary: &NotificationEmitSummary) {
+        if summary.delivery_attempts_created == 0 {
+            return;
+        }
+        if let Some(trigger) = &self.delivery_trigger {
+            trigger.kick();
+        } else {
+            debug!(
+                delivery_attempts_created = summary.delivery_attempts_created,
+                "notification attempts materialized without an in-process delivery trigger; periodic scan will deliver them"
+            );
+        }
     }
 }
 
@@ -646,8 +673,8 @@ fn policy_matches_job_event(
 }
 
 pub(crate) use delivery::{
-    deliver_notification_channel_once, process_due_notification_delivery_attempts,
-    run_delivery_loop,
+    NotificationDeliveryTrigger, deliver_notification_channel_once,
+    process_due_notification_delivery_attempts, run_delivery_loop_with_trigger,
 };
 
 fn app_owner_matches(owner_id: Option<&str>, namespace: &str, app: &str) -> bool {

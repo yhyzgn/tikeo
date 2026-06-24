@@ -48,12 +48,12 @@ backoff_seconds = 300
 | --- | --- | --- | --- |
 | `notification_delivery.enabled` | `true` | `TIKEO__NOTIFICATION_DELIVERY__ENABLED` | 启动通用投递 worker。 |
 | `notification_delivery.public_console_base_url` | 未设置 | `TIKEO__NOTIFICATION_DELIVERY__PUBLIC_CONSOLE_BASE_URL` | 可选的外部可访问 Web 基地址，用于把 `/public/instances/{id}/console` 转成飞书/Lark 卡片按钮可直接打开的绝对 URL。 |
-| `notification_delivery.interval_seconds` | `60` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | due-attempt 扫描间隔。 |
+| `notification_delivery.interval_seconds` | `60` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | due-attempt 恢复扫描间隔。新 attempt 会立即唤醒本进程投递 worker；该扫描用于兜底处理信号丢失、进程重启、跨进程/HA handoff 和 retry。 |
 | `notification_delivery.batch_size` | `50` | `TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE` | 每轮最大扫描数量。 |
 | `notification_delivery.max_attempts` | `3` | `TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS` | 进入 dead-letter 前最大尝试次数。 |
 | `notification_delivery.backoff_seconds` | `300` | `TIKEO__NOTIFICATION_DELIVERY__BACKOFF_SECONDS` | 失败后的退避秒数。 |
 
-手动 retry endpoint 会 clamp 参数：`limit <= 500`，`maxAttempts` 在 `1..20`，`backoffSeconds` 在 `1..86400`。
+投递链路优先事件驱动，周期扫描只做兜底。Job、Workflow、Alert 通知物化时会写入标准化的 `notification_messages` 和立即 due 的 `notification_delivery_attempts`，随后唤醒本进程投递 worker，不需要等待下一轮 `interval_seconds`。周期扫描仍保留，用于进程重启、信号丢失、跨进程/HA handoff 以及失败后的 retry backoff 窗口。手动 retry endpoint 会 clamp 参数：`limit <= 500`，`maxAttempts` 在 `1..20`，`backoffSeconds` 在 `1..86400`。
 
 ## RBAC
 

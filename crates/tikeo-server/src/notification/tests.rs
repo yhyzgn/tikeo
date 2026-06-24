@@ -6,6 +6,7 @@ use super::delivery::{
 use super::provider_templates::{email_alert_payload_from_message, feishu_payload};
 use super::*;
 use crate::alert::{AlertDeliveryPolicy, NotificationChannel};
+use crate::cluster::StandaloneCoordinator;
 use tikeo_core::{ExecutionMode, TriggerType};
 use tikeo_storage::{
     AuditLogRepository, CreateJob, CreateJobInstance, CreateNotificationChannel,

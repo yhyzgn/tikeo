@@ -708,3 +708,164 @@ async fn job_instance_event_materializes_message_and_delivery_attempts() {
     assert_eq!(delivery[0].retry_state, "retry_pending");
     assert_eq!(delivery[0].target_redacted, "https://hooks.example.com/...");
 }
+
+#[tokio::test]
+async fn delivery_loop_wakes_immediately_when_new_attempt_is_materialized() {
+    let db = connect_and_migrate("sqlite::memory:")
+        .await
+        .unwrap_or_else(|error| panic!("test storage should initialize: {error}"));
+    let jobs = JobRepository::new(db.clone());
+    let instances = JobInstanceRepository::new(db.clone());
+    let channels = NotificationChannelRepository::new(db.clone());
+    let policies = NotificationPolicyRepository::new(db.clone());
+    let messages = NotificationMessageRepository::new(db.clone());
+    let attempts = NotificationDeliveryAttemptRepository::new(db.clone());
+    let received = std::sync::Arc::new(tokio::sync::Notify::new());
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .unwrap_or_else(|error| panic!("webhook listener should bind: {error}"));
+    let url = format!(
+        "http://{}/notify",
+        listener
+            .local_addr()
+            .unwrap_or_else(|error| panic!("listener addr should read: {error}"))
+    );
+    let received_for_route = received.clone();
+    let app = axum::Router::new().route(
+        "/notify",
+        axum::routing::post(move |axum::Json(_payload): axum::Json<serde_json::Value>| {
+            let received = received_for_route.clone();
+            async move {
+                received.notify_one();
+                axum::http::StatusCode::OK
+            }
+        }),
+    );
+    let server = tokio::spawn(async move {
+        axum::serve(listener, app)
+            .await
+            .unwrap_or_else(|error| panic!("webhook server should run: {error}"));
+    });
+
+    let job = jobs
+        .create_job(CreateJob {
+            created_by: None,
+            namespace: "default".to_owned(),
+            app: "demo".to_owned(),
+            name: "api-hello".to_owned(),
+            schedule_type: "api".to_owned(),
+            schedule_expr: None,
+            misfire_policy: "fire_once".to_owned(),
+            schedule_start_at: None,
+            schedule_end_at: None,
+            schedule_calendar_json: None,
+            processor_name: Some("apiHello".to_owned()),
+            processor_type: None,
+            script_id: None,
+            enabled: true,
+            canary_job_id: None,
+            canary_percent: 0,
+            canary_policy: None,
+            retry_policy: None,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("job should create: {error}"));
+    let instance = instances
+        .create_pending(CreateJobInstance {
+            job_id: job.id.clone(),
+            trigger_type: TriggerType::Api,
+            execution_mode: ExecutionMode::Single,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("instance should create: {error}"))
+        .unwrap_or_else(|| panic!("instance should exist"));
+    let instance = instances
+        .update_status(&instance.id, InstanceStatus::Succeeded)
+        .await
+        .unwrap_or_else(|error| panic!("status should update: {error}"))
+        .unwrap_or_else(|| panic!("instance should exist"));
+    let channel = channels
+        .create_channel(CreateNotificationChannel {
+            scope_type: "app".to_owned(),
+            namespace: Some("default".to_owned()),
+            app: Some("demo".to_owned()),
+            worker_pool: None,
+            name: "feishu-like webhook".to_owned(),
+            provider: "webhook".to_owned(),
+            enabled: true,
+            config_json: serde_json::json!({"url": url, "messageType": "json"}).to_string(),
+            secret_refs_json: "{}".to_owned(),
+            safety_policy_json: Some(
+                serde_json::json!({"allowInsecureLoopback": true}).to_string(),
+            ),
+        })
+        .await
+        .unwrap_or_else(|error| panic!("channel should create: {error}"));
+    policies
+        .create_policy(CreateNotificationPolicy {
+            owner_type: "job".to_owned(),
+            owner_id: Some(job.id.clone()),
+            name: "接口-hello 成功通知".to_owned(),
+            event_family: "job_instance".to_owned(),
+            event_filter_json: serde_json::json!({"statuses":["succeeded"]}).to_string(),
+            channel_refs_json: serde_json::json!([{"channelId": channel.id}]).to_string(),
+            template_ref: None,
+            severity: "info".to_owned(),
+            enabled: true,
+            dedupe_seconds: 0,
+        })
+        .await
+        .unwrap_or_else(|error| panic!("policy should create: {error}"));
+
+    let trigger = NotificationDeliveryTrigger::new();
+    let loop_task = tokio::spawn(run_delivery_loop_with_trigger(
+        channels.clone(),
+        messages.clone(),
+        attempts.clone(),
+        StandaloneCoordinator::shared("standalone-test"),
+        std::time::Duration::from_secs(60),
+        50,
+        NotificationDeliveryPolicy::default(),
+        Some(trigger.clone()),
+    ));
+    let center = NotificationCenter::new(
+        channels,
+        policies,
+        messages.clone(),
+        attempts,
+        tikeo_storage::NotificationTemplateRepository::new(db),
+        jobs,
+    )
+    .with_delivery_trigger(Some(trigger));
+
+    let emitted = center
+        .emit_job_instance_event(&instance, JobNotificationEvent::Succeeded, None)
+        .await
+        .unwrap_or_else(|error| panic!("notification should emit: {error}"));
+    assert_eq!(emitted.delivery_attempts_created, 1);
+
+    tokio::time::timeout(std::time::Duration::from_secs(2), received.notified())
+        .await
+        .unwrap_or_else(|_| panic!("delivery should be kicked immediately, not after 60s scan"));
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        loop {
+            let timeline = messages
+                .list_messages(NotificationMessageFilters {
+                    source_type: Some("job_instance".to_owned()),
+                    source_id: Some(instance.id.clone()),
+                    ..Default::default()
+                })
+                .await
+                .unwrap_or_else(|error| panic!("messages should list: {error}"));
+            if timeline[0].status == "delivered" {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("message status should become delivered after provider success"));
+
+    loop_task.abort();
+    server.abort();
+}

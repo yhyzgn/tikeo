@@ -13,7 +13,7 @@ use tokio::{sync::mpsc, time};
 use tokio_stream::{Stream, wrappers::ReceiverStream};
 
 use crate::{
-    notification::{JobNotificationEvent, NotificationCenter, emit_job_instance_event_best_effort},
+    notification::{JobNotificationEvent, emit_job_instance_event_best_effort},
     tunnel::registry::BroadcastSelector,
 };
 
@@ -1120,15 +1120,7 @@ pub async fn cancel_job_instance(
     )
     .await;
     if summary.status == tikeo_core::InstanceStatus::Cancelled {
-        let notifications = NotificationCenter::new(
-            state.notification_channels.clone(),
-            state.notification_policies.clone(),
-            state.notification_messages.clone(),
-            state.notification_delivery_attempts.clone(),
-            state.notification_templates.clone(),
-            state.jobs.clone(),
-        )
-        .with_public_console_base_url(state.notification_public_console_base_url.clone());
+        let notifications = state.notification_center();
         emit_job_instance_event_best_effort(
             &notifications,
             &summary,

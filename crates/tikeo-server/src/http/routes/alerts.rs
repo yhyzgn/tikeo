@@ -21,8 +21,7 @@ use crate::{
         error::ApiError,
     },
     notification::{
-        NotificationCenter, emit_alert_event_best_effort,
-        ensure_alert_rule_notification_policy_from_channels,
+        emit_alert_event_best_effort, ensure_alert_rule_notification_policy_from_channels,
     },
 };
 
@@ -582,15 +581,7 @@ pub async fn resolve_alert_event(
         .await
         .map_err(|error| ApiError::storage(&error))?;
     }
-    let notifications = NotificationCenter::new(
-        state.notification_channels.clone(),
-        state.notification_policies.clone(),
-        state.notification_messages.clone(),
-        state.notification_delivery_attempts.clone(),
-        state.notification_templates.clone(),
-        state.jobs.clone(),
-    )
-    .with_public_console_base_url(state.notification_public_console_base_url.clone());
+    let notifications = state.notification_center();
     emit_alert_event_best_effort(&notifications, &resolved).await;
     Ok(Json(ApiResponse::success(AlertEventSummary {
         id: resolved.id,

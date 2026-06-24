@@ -18,7 +18,7 @@ pub(super) struct LassoDispatchScore {
     worker_id: String,
 }
 
-pub(super) fn is_match(worker_val: &str, job_val: &str) -> bool {
+pub(in crate::tunnel) fn is_match(worker_val: &str, job_val: &str) -> bool {
     worker_val == job_val
         || worker_val == "*"
         || worker_val.is_empty()

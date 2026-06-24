@@ -1,13 +1,13 @@
 //! Notification Center provider delivery and retry processing.
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use tikeo_storage::{
     NotificationChannelDeliveryConfig, NotificationChannelRepository,
     NotificationDeliveryAttemptRepository, NotificationDeliveryAttemptSummary,
     NotificationMessageRepository, NotificationMessageSummary, RecordNotificationDeliveryAttempt,
 };
-use tokio::time as tokio_time;
+use tokio::{sync::Notify, time as tokio_time};
 use tracing::{info, warn};
 
 use super::provider_templates::{
@@ -23,6 +23,31 @@ use crate::{
     },
     cluster::SharedClusterCoordinator,
 };
+
+/// In-process signal used to wake the Notification Center delivery worker as soon as
+/// new due attempts are materialized. Periodic scans still remain the cross-process
+/// and crash-recovery fallback.
+#[derive(Debug, Clone, Default)]
+pub struct NotificationDeliveryTrigger {
+    notify: Arc<Notify>,
+}
+
+impl NotificationDeliveryTrigger {
+    /// Create a new shared delivery trigger.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Wake one delivery worker iteration. Multiple rapid kicks intentionally coalesce.
+    pub fn kick(&self) {
+        self.notify.notify_one();
+    }
+
+    async fn notified(&self) {
+        self.notify.notified().await;
+    }
+}
 
 /// Process due generic notification delivery attempts using production-safe delivery policy.
 ///
@@ -96,8 +121,8 @@ pub async fn retry_once_if_owner(
     process_due_notification_delivery_attempts(channels, messages, attempts, limit, policy).await
 }
 
-/// Run the generic notification delivery retry worker forever.
-pub async fn run_delivery_loop(
+/// Run the generic notification delivery worker forever, with an optional immediate wake-up signal.
+pub async fn run_delivery_loop_with_trigger(
     channels: NotificationChannelRepository,
     messages: NotificationMessageRepository,
     attempts: NotificationDeliveryAttemptRepository,
@@ -105,16 +130,18 @@ pub async fn run_delivery_loop(
     interval: Duration,
     limit: u64,
     policy: NotificationDeliveryPolicy,
+    trigger: Option<NotificationDeliveryTrigger>,
 ) {
     let mut ticker = tokio_time::interval(interval.max(Duration::from_secs(1)));
     info!(
         interval_seconds = interval.as_secs(),
         limit,
         max_attempts = policy.max_attempts,
+        immediate_wakeup = trigger.is_some(),
         "notification delivery worker started"
     );
     loop {
-        ticker.tick().await;
+        wait_for_delivery_iteration(&mut ticker, trigger.as_ref()).await;
         match retry_once_if_owner(&channels, &messages, &attempts, &cluster, limit, policy).await {
             Ok(summary) if summary.scanned > 0 => {
                 info!(
@@ -129,6 +156,20 @@ pub async fn run_delivery_loop(
             Ok(_) => {}
             Err(error) => warn!(%error, "notification delivery iteration failed"),
         }
+    }
+}
+
+async fn wait_for_delivery_iteration(
+    ticker: &mut tokio_time::Interval,
+    trigger: Option<&NotificationDeliveryTrigger>,
+) {
+    if let Some(trigger) = trigger {
+        tokio::select! {
+            _ = ticker.tick() => {}
+            () = trigger.notified() => {}
+        }
+    } else {
+        ticker.tick().await;
     }
 }
 

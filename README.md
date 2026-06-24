@@ -460,6 +460,7 @@ cluster:
 
 notification_delivery:
   enabled: true
+  # Recovery scan fallback. New notification attempts wake the local delivery worker immediately.
   interval_seconds: 60
   batch_size: 50
   max_attempts: 3
@@ -473,6 +474,12 @@ observability:
     enabled: true
     otlp_endpoint: "http://otel-collector:4318/v1/traces"
 ```
+
+
+Notification delivery is event-driven first and scan-driven as a resilience fallback. Job, workflow,
+and alert notification materialization writes due delivery attempts and immediately wakes the local
+delivery worker; `notification_delivery.interval_seconds` is the recovery scan interval for missed
+signals, process restarts, HA handoff, and retries, not the expected normal delivery latency.
 
 Storage support:
 
@@ -1125,7 +1132,7 @@ Server configuration is loaded from defaults, then a config file, then `TIKEO__.
 | `observability.tracing.otlp_endpoint` | `TIKEO__OBSERVABILITY__TRACING__OTLP_ENDPOINT` | If tracing enabled | unset | OTLP collector endpoint. |
 | `observability.tracing.headers` | `TIKEO__OBSERVABILITY__TRACING__HEADERS` | No | `[]` | Exporter auth/tenant header names; values live outside status APIs. |
 | `alert_retry.*` | `TIKEO__ALERT_RETRY__*` | No | enabled, `60s`, batch `50`, attempts `3`, backoff `300s` | Alert delivery retry worker settings. |
-| `notification_delivery.*` | `TIKEO__NOTIFICATION_DELIVERY__*` | No | enabled, `60s`, batch `50`, attempts `3`, backoff `300s` | Notification Center delivery worker settings. Set `public_console_base_url` for card links. |
+| `notification_delivery.*` | `TIKEO__NOTIFICATION_DELIVERY__*` | No | enabled, recovery scan `60s`, batch `50`, attempts `3`, backoff `300s` | Notification Center delivery worker settings. New messages wake the local delivery worker immediately; `interval_seconds` is the recovery scan fallback. Set `public_console_base_url` for card links. |
 | `alert_secrets.allow_env_refs` | `TIKEO__ALERT_SECRETS__ALLOW_ENV_REFS` | No | `true` | Allows `env:NAME` references in alert/channel secrets. |
 | `alert_secrets.env_prefix` | `TIKEO__ALERT_SECRETS__ENV_PREFIX` | No | `TIKEO_ALERT_SECRET_` | Expected env secret prefix. |
 | `script_governance.release_signature_secret_ref` | `TIKEO__SCRIPT_GOVERNANCE__RELEASE_SIGNATURE_SECRET_REF` | Only if signature gate enabled | unset | `env:NAME` secret ref for script release signature verification. |

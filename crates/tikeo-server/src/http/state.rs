@@ -53,6 +53,8 @@ pub struct AppState {
     pub(crate) cluster: SharedClusterCoordinator,
     pub(crate) raft_transport_token: Option<String>,
     pub(crate) notification_public_console_base_url: Option<String>,
+    pub(crate) notification_delivery_trigger:
+        Option<crate::notification::NotificationDeliveryTrigger>,
 }
 
 impl AppState {
@@ -119,6 +121,7 @@ impl AppState {
             cluster,
             raft_transport_token: None,
             notification_public_console_base_url: None,
+            notification_delivery_trigger: None,
         }
     }
 
@@ -170,5 +173,30 @@ impl AppState {
             .map(|value| value.trim().trim_end_matches('/').to_owned())
             .filter(|value| !value.is_empty());
         self
+    }
+
+    /// Attach the optional in-process Notification Center delivery trigger.
+    #[must_use]
+    pub fn with_notification_delivery_trigger(
+        mut self,
+        trigger: Option<crate::notification::NotificationDeliveryTrigger>,
+    ) -> Self {
+        self.notification_delivery_trigger = trigger;
+        self
+    }
+
+    /// Build a Notification Center using the shared HTTP repositories and runtime trigger.
+    #[must_use]
+    pub(crate) fn notification_center(&self) -> crate::notification::NotificationCenter {
+        crate::notification::NotificationCenter::new(
+            self.notification_channels.clone(),
+            self.notification_policies.clone(),
+            self.notification_messages.clone(),
+            self.notification_delivery_attempts.clone(),
+            self.notification_templates.clone(),
+            self.jobs.clone(),
+        )
+        .with_public_console_base_url(self.notification_public_console_base_url.clone())
+        .with_delivery_trigger(self.notification_delivery_trigger.clone())
     }
 }

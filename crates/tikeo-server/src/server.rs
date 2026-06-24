@@ -70,6 +70,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
     let alerts = tikeo_storage::AlertRepository::new(db.clone());
     let notification_channels = NotificationChannelRepository::new(db.clone());
     let notification_policies = NotificationPolicyRepository::new(db.clone());
+    let notification_delivery_trigger = crate::notification::NotificationDeliveryTrigger::new();
     let notification_center = crate::notification::NotificationCenter::new(
         notification_channels.clone(),
         notification_policies.clone(),
@@ -78,7 +79,8 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
         tikeo_storage::NotificationTemplateRepository::new(db.clone()),
         jobs.clone(),
     )
-    .with_public_console_base_url(public_console_base_url.clone());
+    .with_public_console_base_url(public_console_base_url.clone())
+    .with_delivery_trigger(Some(notification_delivery_trigger.clone()));
     let plugins = tikeo_storage::PluginRepository::new(db.clone())
         .list_plugins()
         .await
@@ -130,6 +132,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
         script_governance,
         raft_transport_token,
         notification_public_console_base_url: public_console_base_url,
+        notification_delivery_trigger: Some(notification_delivery_trigger.clone()),
     });
     let tunnel_instances = instances.clone();
     let tikeo_instances = instances.clone();
@@ -207,6 +210,7 @@ pub async fn serve(config: TikeoConfig) -> Result<()> {
             NotificationDeliveryAttemptRepository::new(db.clone()),
             notification_delivery_cluster,
             notification_delivery_config,
+            Some(notification_delivery_trigger),
         ),
         run_worker_lease_scanner(worker_lifecycle),
     )
@@ -232,6 +236,7 @@ struct HttpRouterParts {
     script_governance: ScriptGovernanceConfig,
     raft_transport_token: Option<String>,
     notification_public_console_base_url: Option<String>,
+    notification_delivery_trigger: Option<crate::notification::NotificationDeliveryTrigger>,
 }
 
 fn build_http_router(parts: HttpRouterParts) -> axum::Router {
@@ -253,7 +258,8 @@ fn build_http_router(parts: HttpRouterParts) -> axum::Router {
         .with_observability_config(parts.observability)
         .with_script_governance_config(parts.script_governance)
         .with_raft_transport_token(parts.raft_transport_token)
-        .with_notification_public_console_base_url(parts.notification_public_console_base_url),
+        .with_notification_public_console_base_url(parts.notification_public_console_base_url)
+        .with_notification_delivery_trigger(parts.notification_delivery_trigger),
     )
 }
 
@@ -304,9 +310,10 @@ async fn run_notification_delivery_worker(
     attempts: NotificationDeliveryAttemptRepository,
     cluster: crate::cluster::SharedClusterCoordinator,
     config: NotificationDeliveryConfig,
+    trigger: Option<crate::notification::NotificationDeliveryTrigger>,
 ) -> Result<()> {
     if config.enabled {
-        crate::notification::run_delivery_loop(
+        crate::notification::run_delivery_loop_with_trigger(
             channels,
             messages,
             attempts,
@@ -317,6 +324,7 @@ async fn run_notification_delivery_worker(
                 max_attempts: config.max_attempts.clamp(1, 20),
                 backoff_seconds: config.backoff_seconds.clamp(1, 86_400),
             },
+            trigger,
         )
         .await;
     } else {

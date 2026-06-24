@@ -164,6 +164,7 @@ impl NotificationCenter {
                 }
             }
         }
+        self.kick_delivery_if_attempts_created(&summary);
         Ok(summary)
     }
 }

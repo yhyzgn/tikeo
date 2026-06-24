@@ -109,7 +109,7 @@ The following is the Complete default-value table for Server settings: config ke
 | `alert_retry.backoff_seconds` | `TIKEO__ALERT_RETRY__BACKOFF_SECONDS` | No | `300` | Retry backoff. |
 | `notification_delivery.enabled` | `TIKEO__NOTIFICATION_DELIVERY__ENABLED` | No | `true` | Notification Center delivery worker switch. |
 | `notification_delivery.public_console_base_url` | `TIKEO__NOTIFICATION_DELIVERY__PUBLIC_CONSOLE_BASE_URL` | No | unset; template `http://127.0.0.1:8080` | External Web base URL for notification card links. |
-| `notification_delivery.interval_seconds` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | No | `60` | Due-attempt scan interval. |
+| `notification_delivery.interval_seconds` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | No | `60` | Due-attempt recovery scan interval; new attempts wake the local delivery worker immediately. |
 | `notification_delivery.batch_size` | `TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE` | No | `50` | Max due attempts scanned per iteration. |
 | `notification_delivery.max_attempts` | `TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS` | No | `3` | Attempts before dead-lettering. |
 | `notification_delivery.backoff_seconds` | `TIKEO__NOTIFICATION_DELIVERY__BACKOFF_SECONDS` | No | `300` | Retry backoff. |
@@ -119,7 +119,7 @@ The following is the Complete default-value table for Server settings: config ke
 
 ## Notification Center delivery
 
-`notification_delivery.*` controls the generic Notification Center delivery worker. Set `notification_delivery.public_console_base_url` to the externally reachable Web URL when provider cards should link back to the console. Provider credentials live on each channel row, while this Server config only controls the background delivery loop and public link base.
+`notification_delivery.*` controls the generic Notification Center delivery worker. New notification attempts kick the local delivery worker immediately; `notification_delivery.interval_seconds` is the recovery scan fallback for missed signals, restarts, HA handoff, and retries rather than the expected normal delivery delay. Set `notification_delivery.public_console_base_url` to the externally reachable Web URL when provider cards should link back to the console. Provider credentials live on each channel row, while this Server config only controls delivery worker behavior and public link base.
 
 ## Worker configuration table
 

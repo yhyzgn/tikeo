@@ -49,12 +49,12 @@ backoff_seconds = 300
 | --- | --- | --- | --- |
 | `notification_delivery.enabled` | `true` | `TIKEO__NOTIFICATION_DELIVERY__ENABLED` | Runs the generic delivery worker. |
 | `notification_delivery.public_console_base_url` | unset | `TIKEO__NOTIFICATION_DELIVERY__PUBLIC_CONSOLE_BASE_URL` | Optional externally reachable Web base URL used to turn `/public/instances/{id}/console` into an absolute Feishu/Lark card button URL. |
-| `notification_delivery.interval_seconds` | `60` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | Delay between due-attempt scans. |
+| `notification_delivery.interval_seconds` | `60` | `TIKEO__NOTIFICATION_DELIVERY__INTERVAL_SECONDS` | Recovery scan interval for due attempts. New attempts wake the local delivery worker immediately; this scan handles missed signals, restarts, cross-process handoff, and retries. |
 | `notification_delivery.batch_size` | `50` | `TIKEO__NOTIFICATION_DELIVERY__BATCH_SIZE` | Maximum due attempts scanned per worker iteration. |
 | `notification_delivery.max_attempts` | `3` | `TIKEO__NOTIFICATION_DELIVERY__MAX_ATTEMPTS` | Attempts before dead-lettering. |
 | `notification_delivery.backoff_seconds` | `300` | `TIKEO__NOTIFICATION_DELIVERY__BACKOFF_SECONDS` | Retry delay for failed provider attempts. |
 
-The manual retry endpoint accepts per-call overrides and clamps them to safe ranges: `limit <= 500`, `maxAttempts` between `1` and `20`, and `backoffSeconds` between `1` and `86400`.
+Delivery is event-driven first and scan-driven as a fallback. Job, workflow, and alert notification materialization writes normalized `notification_messages` plus due `notification_delivery_attempts`, then signals the local delivery worker immediately. The periodic `interval_seconds` scan is still retained for resilience: it catches missed in-process signals, process restarts, cross-process/HA handoff, and normal retry backoff windows. The manual retry endpoint accepts per-call overrides and clamps them to safe ranges: `limit <= 500`, `maxAttempts` between `1` and `20`, and `backoffSeconds` between `1` and `86400`.
 
 ## RBAC
 

@@ -83,14 +83,14 @@ storage:
 | `observability.logging.log_dir` | `TIKEO__OBSERVABILITY__LOGGING__LOG_DIR` | 否 | 未设置；生产模板 `/logs` | 除 stdout 外写 `tikeo.log`。 |
 | `observability.tracing.*` | `TIKEO__OBSERVABILITY__TRACING__*` | tracing 启用时 | disabled / 未设置 | OTLP trace 导出开关、endpoint、headers。 |
 | `alert_retry.*` | `TIKEO__ALERT_RETRY__*` | 否 | 开启，`60`，`50`，`3`，`300` | Alert retry worker 配置。 |
-| `notification_delivery.*` | `TIKEO__NOTIFICATION_DELIVERY__*` | 否 | 开启，`60`，`50`，`3`，`300` | 通知中心通用投递 worker；卡片链接设置 `public_console_base_url`。 |
+| `notification_delivery.*` | `TIKEO__NOTIFICATION_DELIVERY__*` | 否 | 开启，恢复扫描 `60`，`50`，`3`，`300` | 通知中心通用投递 worker；新 attempt 会立即唤醒本进程投递 worker，`interval_seconds` 是恢复扫描兜底；卡片链接设置 `public_console_base_url`。 |
 | `alert_secrets.allow_env_refs` | `TIKEO__ALERT_SECRETS__ALLOW_ENV_REFS` | 否 | `true` | 允许 `env:NAME` secret 引用。 |
 | `alert_secrets.env_prefix` | `TIKEO__ALERT_SECRETS__ENV_PREFIX` | 否 | `TIKEO_ALERT_SECRET_` | 期望的 env secret 前缀。 |
 | `script_governance.release_signature_secret_ref` | `TIKEO__SCRIPT_GOVERNANCE__RELEASE_SIGNATURE_SECRET_REF` | 启用签名门禁时 | 未设置 | 脚本发布签名校验用 `env:NAME` secret ref。 |
 
 ## 通知中心投递
 
-`notification_delivery.*` 控制通知中心通用投递 worker。需要让供应商卡片回链控制台时，把 `notification_delivery.public_console_base_url` 设置为外部可访问的 Web URL。供应商凭据保存在每条渠道配置中；这里的 Server 配置只控制后台投递循环和公开链接 base。
+`notification_delivery.*` 控制通知中心通用投递 worker。新的通知 attempt 会立即唤醒本进程投递 worker；`notification_delivery.interval_seconds` 是信号丢失、进程重启、HA handoff 和 retry 场景的恢复扫描兜底，不是正常通知的目标延迟。需要让供应商卡片回链控制台时，把 `notification_delivery.public_console_base_url` 设置为外部可访问的 Web URL。供应商凭据保存在每条渠道配置中；这里的 Server 配置只控制投递 worker 行为和公开链接 base。
 
 ## Worker 配置表
 

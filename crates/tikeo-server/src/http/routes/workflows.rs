@@ -326,15 +326,7 @@ pub async fn materialize_next_workflow_node(
         .await
         .map_err(|error| ApiError::storage(&error))?
         .ok_or_else(|| ApiError::not_found("no queued workflow node found"))?;
-    let notifications = crate::notification::NotificationCenter::new(
-        state.notification_channels.clone(),
-        state.notification_policies.clone(),
-        state.notification_messages.clone(),
-        state.notification_delivery_attempts.clone(),
-        state.notification_templates.clone(),
-        state.jobs.clone(),
-    )
-    .with_public_console_base_url(state.notification_public_console_base_url.clone());
+    let notifications = state.notification_center();
     crate::notification::emit_workflow_notification_node_requested_best_effort(
         &notifications,
         &state.workflows,
