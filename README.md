@@ -878,6 +878,213 @@ Sandbox tool install policy across SDKs:
 - Background installer failures are logged and can be retried by restarting the worker or by pre-populating the cache directory.
 - Production recommendation: bake required sandbox tools into the worker image or mount a persistent/read-only cache at `~/.tikeo/sandbox-tools` / `TIKEO_SANDBOX_TOOLS_DIR`; keep auto-install mainly for developer laptops and demos.
 
+
+#### Worker image and host preinstall guide for sandbox tools
+
+For production Workers, treat sandbox tools as part of the Worker runtime image, not as something the SDK should download while the business application is starting. The SDK behavior is:
+
+- **Default mode**: prefer a working host `PATH` binary and still run each task with sandbox `cwd`, `HOME`, `TMPDIR`, `DENO_DIR`, and PowerShell/.NET cache directories.
+- **Strict sandbox isolation**: set `TIKEO_SANDBOX_STRICT_ISOLATION=1` (Java Boot: `tikeo.worker.scripts.strict-sandbox-isolation=true`) and populate `TIKEO_SANDBOX_TOOLS_DIR` so the SDK skips host `PATH` and only uses isolated cache binaries.
+- **Recommended Docker pattern**: install common tools into `/usr/local/bin` for default mode, then create compatibility symlinks under `/opt/tikeo/sandbox-tools` for strict mode.
+
+Tool source map:
+
+| Tool / binary | Used for | Can be installed from distro/central package manager? | Manual/upstream install path when needed |
+| --- | --- | --- | --- |
+| `bash` / `sh` | shell-backed script runners and installers | Yes: `apt`, `dnf`, `apk` | Usually not needed; strict mode can symlink `/bin/sh` into the cache. |
+| `node`, `npm` | SRT launcher and npm package install | Yes on most distros; NodeSource or official Node images are also OK | Use official Node images or binary tarballs if distro version is too old. |
+| `srt` | Anthropic Sandbox Runtime-backed shell/python/node/powershell execution | npm registry | `npm install -g --prefix /opt/tikeo/sandbox-tools/srt @anthropic-ai/sandbox-runtime`. |
+| `rg` | ripgrep dependency used by SRT | Yes on Debian/Ubuntu/Fedora/RHEL/Alpine; also crates.io | `cargo install --root /opt/tikeo/sandbox-tools/rg ripgrep`; Java also accepts `/opt/tikeo/sandbox-tools/ripgrep/bin/rg`. |
+| `deno` | JavaScript/TypeScript sandbox execution | Not consistently available in base distro repos | Official installer: `curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/opt/tikeo/sandbox-tools/deno sh`; or download the GitHub release zip. |
+| `rhai-run` | Rhai scripts | crates.io | `cargo install --root /opt/tikeo/sandbox-tools/rhai-run rhai --bins --features bin-features`; Java also accepts `/opt/tikeo/sandbox-tools/rhai/bin/rhai-run`. |
+| `pwsh` | PowerShell scripts | Microsoft package repos for supported Debian/Ubuntu/RHEL-family images; Alpine uses tarball | Download `powershell-${version}-linux-x64.tar.gz` or `linux-arm64.tar.gz` from GitHub Releases and extract it under `/opt/tikeo/sandbox-tools/pwsh`. |
+| `wasmtime` | WASM script/runtime execution | Usually upstream installer or release archive; cargo fallback possible | `curl https://wasmtime.dev/install.sh -sSf | bash`, then copy/symlink `wasmtime` into `/opt/tikeo/sandbox-tools/wasmtime/bin`. |
+| `wasmedge` | Optional WasmEdge backend | Fedora/EPEL has packages; otherwise upstream script | `curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash`, then copy/symlink into `/opt/tikeo/sandbox-tools/wasmedge/bin`. |
+
+> Mixed-language Worker images should create both compatibility names where SDKs differ today: `rg` and `ripgrep` for ripgrep, `rhai-run` and `rhai` for Rhai. This avoids a Java image and a Go/Python/Node/Rust image needing different cache layouts.
+
+Minimal strict-cache helper used by the examples below:
+
+```dockerfile
+ENV TIKEO_SANDBOX_TOOLS_DIR=/opt/tikeo/sandbox-tools \
+    TIKEO_SANDBOX_STRICT_ISOLATION=1 \
+    TIKEO_SANDBOX_AUTO_INSTALL=0
+
+RUN mkdir -p \
+      ${TIKEO_SANDBOX_TOOLS_DIR}/sh/bin \
+      ${TIKEO_SANDBOX_TOOLS_DIR}/node/bin \
+      ${TIKEO_SANDBOX_TOOLS_DIR}/npm/bin \
+      ${TIKEO_SANDBOX_TOOLS_DIR}/rg/bin \
+      ${TIKEO_SANDBOX_TOOLS_DIR}/ripgrep/bin \
+      ${TIKEO_SANDBOX_TOOLS_DIR}/rhai-run/bin \
+      ${TIKEO_SANDBOX_TOOLS_DIR}/rhai/bin \
+      ${TIKEO_SANDBOX_TOOLS_DIR}/deno/bin \
+      ${TIKEO_SANDBOX_TOOLS_DIR}/pwsh/bin \
+      ${TIKEO_SANDBOX_TOOLS_DIR}/wasmtime/bin \
+      ${TIKEO_SANDBOX_TOOLS_DIR}/wasmedge/bin
+```
+
+Debian/Ubuntu Worker base image example:
+
+```dockerfile
+FROM eclipse-temurin:21-jre-jammy
+
+ARG POWERSHELL_VERSION=7.5.4
+ENV TIKEO_SANDBOX_TOOLS_DIR=/opt/tikeo/sandbox-tools \
+    TIKEO_SANDBOX_STRICT_ISOLATION=1 \
+    TIKEO_SANDBOX_AUTO_INSTALL=0
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ca-certificates curl tar gzip unzip xz-utils bash nodejs npm cargo ripgrep \
+ && rm -rf /var/lib/apt/lists/*
+
+# SRT from npm; Rhai from crates.io; Deno from official release zip; PowerShell from GitHub release tarball.
+RUN set -eux; \
+    mkdir -p "$TIKEO_SANDBOX_TOOLS_DIR"; \
+    npm install -g --prefix "$TIKEO_SANDBOX_TOOLS_DIR/srt" @anthropic-ai/sandbox-runtime; \
+    cargo install --root "$TIKEO_SANDBOX_TOOLS_DIR/rhai-run" rhai --bins --features bin-features; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in amd64) deno_arch=x86_64-unknown-linux-gnu; ps_arch=linux-x64 ;; arm64) deno_arch=aarch64-unknown-linux-gnu; ps_arch=linux-arm64 ;; *) echo "unsupported arch: $arch"; exit 1 ;; esac; \
+    curl -fsSL "https://github.com/denoland/deno/releases/latest/download/deno-${deno_arch}.zip" -o /tmp/deno.zip; \
+    mkdir -p "$TIKEO_SANDBOX_TOOLS_DIR/deno/bin"; \
+    unzip -q /tmp/deno.zip -d "$TIKEO_SANDBOX_TOOLS_DIR/deno/bin"; \
+    chmod +x "$TIKEO_SANDBOX_TOOLS_DIR/deno/bin/deno"; \
+    curl -fsSL "https://github.com/PowerShell/PowerShell/releases/download/v${POWERSHELL_VERSION}/powershell-${POWERSHELL_VERSION}-${ps_arch}.tar.gz" -o /tmp/pwsh.tar.gz; \
+    mkdir -p "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}" "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/bin"; \
+    tar -xzf /tmp/pwsh.tar.gz -C "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}"; \
+    chmod +x "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}/pwsh"; \
+    ln -sf "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}/pwsh" "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/bin/pwsh"; \
+    mkdir -p "$TIKEO_SANDBOX_TOOLS_DIR/sh/bin" "$TIKEO_SANDBOX_TOOLS_DIR/node/bin" "$TIKEO_SANDBOX_TOOLS_DIR/npm/bin" "$TIKEO_SANDBOX_TOOLS_DIR/rg/bin" "$TIKEO_SANDBOX_TOOLS_DIR/ripgrep/bin" "$TIKEO_SANDBOX_TOOLS_DIR/rhai/bin"; \
+    ln -sf /bin/sh "$TIKEO_SANDBOX_TOOLS_DIR/sh/bin/sh"; \
+    ln -sf "$(command -v node)" "$TIKEO_SANDBOX_TOOLS_DIR/node/bin/node"; \
+    ln -sf "$(command -v npm)" "$TIKEO_SANDBOX_TOOLS_DIR/npm/bin/npm"; \
+    ln -sf "$(command -v rg)" "$TIKEO_SANDBOX_TOOLS_DIR/rg/bin/rg"; \
+    ln -sf "$(command -v rg)" "$TIKEO_SANDBOX_TOOLS_DIR/ripgrep/bin/rg"; \
+    ln -sf "$TIKEO_SANDBOX_TOOLS_DIR/rhai-run/bin/rhai-run" "$TIKEO_SANDBOX_TOOLS_DIR/rhai/bin/rhai-run"; \
+    curl https://wasmtime.dev/install.sh -sSf | bash; \
+    mkdir -p "$TIKEO_SANDBOX_TOOLS_DIR/wasmtime/bin"; \
+    cp "$HOME/.wasmtime/bin/wasmtime" "$TIKEO_SANDBOX_TOOLS_DIR/wasmtime/bin/wasmtime"; \
+    rm -rf /tmp/deno.zip /tmp/pwsh.tar.gz "$HOME/.cargo/registry" "$HOME/.cargo/git"
+
+WORKDIR /app
+COPY target/app.jar /app/app.jar
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+```
+
+RHEL/UBI/Fedora Worker base image example. This uses Fedora because the required build-time packages are available from default repositories; for UBI/RHEL minimal images, enable the required Red Hat repositories or use a builder stage and copy the completed tool cache into the runtime image.
+
+```dockerfile
+FROM fedora:42
+
+ARG POWERSHELL_VERSION=7.5.4
+ENV TIKEO_SANDBOX_TOOLS_DIR=/opt/tikeo/sandbox-tools \
+    TIKEO_SANDBOX_STRICT_ISOLATION=1 \
+    TIKEO_SANDBOX_AUTO_INSTALL=0
+RUN dnf install -y ca-certificates curl tar gzip unzip xz bash nodejs npm cargo ripgrep java-21-openjdk-headless \
+ && dnf clean all
+
+RUN set -eux; \
+    npm install -g --prefix "$TIKEO_SANDBOX_TOOLS_DIR/srt" @anthropic-ai/sandbox-runtime; \
+    cargo install --root "$TIKEO_SANDBOX_TOOLS_DIR/rhai-run" rhai --bins --features bin-features; \
+    arch="$(uname -m)"; \
+    case "$arch" in x86_64) deno_arch=x86_64-unknown-linux-gnu; ps_arch=linux-x64 ;; aarch64) deno_arch=aarch64-unknown-linux-gnu; ps_arch=linux-arm64 ;; *) echo "unsupported arch: $arch"; exit 1 ;; esac; \
+    curl -fsSL "https://github.com/denoland/deno/releases/latest/download/deno-${deno_arch}.zip" -o /tmp/deno.zip; \
+    mkdir -p "$TIKEO_SANDBOX_TOOLS_DIR/deno/bin"; unzip -q /tmp/deno.zip -d "$TIKEO_SANDBOX_TOOLS_DIR/deno/bin"; chmod +x "$TIKEO_SANDBOX_TOOLS_DIR/deno/bin/deno"; \
+    curl -fsSL "https://github.com/PowerShell/PowerShell/releases/download/v${POWERSHELL_VERSION}/powershell-${POWERSHELL_VERSION}-${ps_arch}.tar.gz" -o /tmp/pwsh.tar.gz; \
+    mkdir -p "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}" "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/bin"; \
+    tar -xzf /tmp/pwsh.tar.gz -C "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}"; \
+    chmod +x "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}/pwsh"; \
+    ln -sf "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}/pwsh" "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/bin/pwsh"; \
+    mkdir -p "$TIKEO_SANDBOX_TOOLS_DIR/sh/bin" "$TIKEO_SANDBOX_TOOLS_DIR/node/bin" "$TIKEO_SANDBOX_TOOLS_DIR/npm/bin" "$TIKEO_SANDBOX_TOOLS_DIR/rg/bin" "$TIKEO_SANDBOX_TOOLS_DIR/ripgrep/bin" "$TIKEO_SANDBOX_TOOLS_DIR/rhai/bin" "$TIKEO_SANDBOX_TOOLS_DIR/wasmtime/bin"; \
+    ln -sf /bin/sh "$TIKEO_SANDBOX_TOOLS_DIR/sh/bin/sh"; \
+    ln -sf "$(command -v node)" "$TIKEO_SANDBOX_TOOLS_DIR/node/bin/node"; \
+    ln -sf "$(command -v npm)" "$TIKEO_SANDBOX_TOOLS_DIR/npm/bin/npm"; \
+    ln -sf "$(command -v rg)" "$TIKEO_SANDBOX_TOOLS_DIR/rg/bin/rg"; \
+    ln -sf "$(command -v rg)" "$TIKEO_SANDBOX_TOOLS_DIR/ripgrep/bin/rg"; \
+    ln -sf "$TIKEO_SANDBOX_TOOLS_DIR/rhai-run/bin/rhai-run" "$TIKEO_SANDBOX_TOOLS_DIR/rhai/bin/rhai-run"; \
+    curl https://wasmtime.dev/install.sh -sSf | bash; cp "$HOME/.wasmtime/bin/wasmtime" "$TIKEO_SANDBOX_TOOLS_DIR/wasmtime/bin/wasmtime"; \
+    rm -rf /tmp/deno.zip /tmp/pwsh.tar.gz "$HOME/.cargo/registry" "$HOME/.cargo/git"
+
+WORKDIR /app
+COPY target/app.jar /app/app.jar
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+```
+
+Alpine Worker base image example:
+
+```dockerfile
+FROM alpine:3.22
+
+ARG POWERSHELL_VERSION=7.5.4
+ENV TIKEO_SANDBOX_TOOLS_DIR=/opt/tikeo/sandbox-tools \
+    TIKEO_SANDBOX_STRICT_ISOLATION=1 \
+    TIKEO_SANDBOX_AUTO_INSTALL=0
+
+RUN apk add --no-cache \
+      ca-certificates curl tar gzip unzip xz bash nodejs npm cargo ripgrep \
+      icu-libs krb5-libs libgcc libintl libssl3 libstdc++ zlib
+
+RUN set -eux; \
+    npm install -g --prefix "$TIKEO_SANDBOX_TOOLS_DIR/srt" @anthropic-ai/sandbox-runtime; \
+    cargo install --root "$TIKEO_SANDBOX_TOOLS_DIR/rhai-run" rhai --bins --features bin-features; \
+    arch="$(apk --print-arch)"; \
+    case "$arch" in x86_64) deno_arch=x86_64-unknown-linux-gnu; ps_arch=linux-x64 ;; aarch64) deno_arch=aarch64-unknown-linux-gnu; ps_arch=linux-arm64 ;; *) echo "unsupported arch: $arch"; exit 1 ;; esac; \
+    curl -fsSL "https://github.com/denoland/deno/releases/latest/download/deno-${deno_arch}.zip" -o /tmp/deno.zip; \
+    mkdir -p "$TIKEO_SANDBOX_TOOLS_DIR/deno/bin"; unzip -q /tmp/deno.zip -d "$TIKEO_SANDBOX_TOOLS_DIR/deno/bin"; chmod +x "$TIKEO_SANDBOX_TOOLS_DIR/deno/bin/deno"; \
+    curl -fsSL "https://github.com/PowerShell/PowerShell/releases/download/v${POWERSHELL_VERSION}/powershell-${POWERSHELL_VERSION}-${ps_arch}.tar.gz" -o /tmp/pwsh.tar.gz; \
+    mkdir -p "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}" "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/bin"; \
+    tar -xzf /tmp/pwsh.tar.gz -C "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}"; \
+    chmod +x "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}/pwsh"; \
+    ln -sf "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}/pwsh" "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/bin/pwsh"; \
+    mkdir -p "$TIKEO_SANDBOX_TOOLS_DIR/sh/bin" "$TIKEO_SANDBOX_TOOLS_DIR/node/bin" "$TIKEO_SANDBOX_TOOLS_DIR/npm/bin" "$TIKEO_SANDBOX_TOOLS_DIR/rg/bin" "$TIKEO_SANDBOX_TOOLS_DIR/ripgrep/bin" "$TIKEO_SANDBOX_TOOLS_DIR/rhai/bin" "$TIKEO_SANDBOX_TOOLS_DIR/wasmtime/bin"; \
+    ln -sf /bin/sh "$TIKEO_SANDBOX_TOOLS_DIR/sh/bin/sh"; \
+    ln -sf "$(command -v node)" "$TIKEO_SANDBOX_TOOLS_DIR/node/bin/node"; \
+    ln -sf "$(command -v npm)" "$TIKEO_SANDBOX_TOOLS_DIR/npm/bin/npm"; \
+    ln -sf "$(command -v rg)" "$TIKEO_SANDBOX_TOOLS_DIR/rg/bin/rg"; \
+    ln -sf "$(command -v rg)" "$TIKEO_SANDBOX_TOOLS_DIR/ripgrep/bin/rg"; \
+    ln -sf "$TIKEO_SANDBOX_TOOLS_DIR/rhai-run/bin/rhai-run" "$TIKEO_SANDBOX_TOOLS_DIR/rhai/bin/rhai-run"; \
+    curl https://wasmtime.dev/install.sh -sSf | bash; cp "$HOME/.wasmtime/bin/wasmtime" "$TIKEO_SANDBOX_TOOLS_DIR/wasmtime/bin/wasmtime"; \
+    rm -rf /tmp/deno.zip /tmp/pwsh.tar.gz "$HOME/.cargo/registry" "$HOME/.cargo/git"
+
+WORKDIR /app
+COPY ./dist/worker /app/worker
+ENTRYPOINT ["/app/worker"]
+```
+
+Distroless/minimal runtime pattern:
+
+```dockerfile
+FROM debian:bookworm-slim AS sandbox-tools
+ARG POWERSHELL_VERSION=7.5.4
+ENV TIKEO_SANDBOX_TOOLS_DIR=/opt/tikeo/sandbox-tools
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl tar gzip unzip bash nodejs npm cargo ripgrep && rm -rf /var/lib/apt/lists/*
+RUN npm install -g --prefix "$TIKEO_SANDBOX_TOOLS_DIR/srt" @anthropic-ai/sandbox-runtime \
+ && cargo install --root "$TIKEO_SANDBOX_TOOLS_DIR/rhai-run" rhai --bins --features bin-features \
+ && mkdir -p "$TIKEO_SANDBOX_TOOLS_DIR/deno/bin" "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/bin" "$TIKEO_SANDBOX_TOOLS_DIR/rg/bin" "$TIKEO_SANDBOX_TOOLS_DIR/ripgrep/bin" "$TIKEO_SANDBOX_TOOLS_DIR/node/bin" "$TIKEO_SANDBOX_TOOLS_DIR/npm/bin" "$TIKEO_SANDBOX_TOOLS_DIR/sh/bin" \
+ && curl -fsSL "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip" -o /tmp/deno.zip \
+ && unzip -q /tmp/deno.zip -d "$TIKEO_SANDBOX_TOOLS_DIR/deno/bin" \
+ && curl -fsSL "https://github.com/PowerShell/PowerShell/releases/download/v${POWERSHELL_VERSION}/powershell-${POWERSHELL_VERSION}-linux-x64.tar.gz" -o /tmp/pwsh.tar.gz \
+ && mkdir -p "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}" \
+ && tar -xzf /tmp/pwsh.tar.gz -C "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}" \
+ && ln -sf "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/powershell-${POWERSHELL_VERSION}/pwsh" "$TIKEO_SANDBOX_TOOLS_DIR/pwsh/bin/pwsh" \
+ && ln -sf /bin/sh "$TIKEO_SANDBOX_TOOLS_DIR/sh/bin/sh" \
+ && ln -sf "$(command -v node)" "$TIKEO_SANDBOX_TOOLS_DIR/node/bin/node" \
+ && ln -sf "$(command -v npm)" "$TIKEO_SANDBOX_TOOLS_DIR/npm/bin/npm" \
+ && ln -sf "$(command -v rg)" "$TIKEO_SANDBOX_TOOLS_DIR/rg/bin/rg" \
+ && ln -sf "$(command -v rg)" "$TIKEO_SANDBOX_TOOLS_DIR/ripgrep/bin/rg"
+
+FROM gcr.io/distroless/java21-debian12
+ENV TIKEO_SANDBOX_TOOLS_DIR=/opt/tikeo/sandbox-tools \
+    TIKEO_SANDBOX_STRICT_ISOLATION=1 \
+    TIKEO_SANDBOX_AUTO_INSTALL=0
+COPY --from=sandbox-tools /opt/tikeo/sandbox-tools /opt/tikeo/sandbox-tools
+COPY target/app.jar /app/app.jar
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+```
+
+Full worker-image guidance and the same examples are also maintained in the docs site: [Worker sandbox tools and Dockerfiles](docs/docs/deployment/worker-sandbox-tools.md).
+
 ### Server configuration reference
 
 Server configuration is loaded from defaults, then a config file, then `TIKEO__...` environment overrides. In Docker/Compose, prefer editing the mounted `/config/tikeo.yml`; reserve `TIKEO__...` for Kubernetes Secrets, emergency overrides, or platforms where file mounting is inconvenient.

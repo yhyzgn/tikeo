@@ -824,11 +824,22 @@ Worker 服务使用 SDK 侧配置，和 Server 配置是两套入口。Java Spri
 | `scripts.runtime-command` | `TIKEO_WORKER_SCRIPTS_RUNTIME_COMMAND` | 否 | 空 | 显式 Docker 兼容 runtime 命令，例如 `docker` 或 `podman`。 |
 | `scripts.runtime-args` | `TIKEO_WORKER_SCRIPTS_RUNTIME_ARGS` | 否 | `[]` | 镜像名前附加的 runtime 参数。 |
 | `scripts.auto-install-tools` | `TIKEO_WORKER_SCRIPTS_AUTO_INSTALL_TOOLS` | 否 | `true` | 本地开发工具缺失时自动安装。 |
+| `scripts.strict-sandbox-isolation` | `TIKEO_SANDBOX_STRICT_ISOLATION` / Boot: `TIKEO_WORKER_SCRIPTS_STRICT_SANDBOX_ISOLATION` | 否 | `false` | 严格沙箱隔离开关；开启后跳过宿主 `PATH` 工具/解释器，只使用 `TIKEO_SANDBOX_TOOLS_DIR` / `~/.tikeo/sandbox-tools` 中的二进制。 |
 | `scripts.*-install-version` | `TIKEO_WORKER_SCRIPT_*_INSTALL_VERSION` | 否 | 各工具为 `latest` 或空 | SRT、ripgrep、Deno、Rhai、PowerShell、WasmEdge、V8 等工具版本。 |
 | `scripts.*-install-dir` | `TIKEO_WORKER_SCRIPT_*_INSTALL_DIR` | 否 | `~/.tikeo/sandbox-tools/<tool>` | 工具安装/缓存目录。 |
 | `scripts.*-installer-url` | `TIKEO_WORKER_SCRIPT_*_INSTALLER_URL` | 否 | 工具默认值 | Deno/WasmEdge 等 installer URL。 |
 | `scripts.tool-install-timeout-millis` | `TIKEO_WORKER_SCRIPT_TOOL_INSTALL_TIMEOUT_MILLIS` | 否 | `120000` | 脚本工具安装超时。 |
 | `scripts.images.*` | `TIKEO_WORKER_SCRIPT_IMAGE_*` | 否 | 空 | 每种语言的可选容器镜像；空表示不声明对应容器 runner。 |
+
+
+### Sandbox 工具安装策略
+
+- 自动安装只是**后台预热**，不会阻塞 Worker 启动、Spring Boot Context 启动或 SDK Client 构造。
+- 默认模式可复用宿主 `PATH` 中可用的工具，但每个任务仍使用 sandbox `cwd`、`HOME`、`TMPDIR`、`DENO_DIR` 和 PowerShell/.NET 缓存目录。
+- 如需强隔离，设置 `TIKEO_SANDBOX_STRICT_ISOLATION=1`（Java Boot：`tikeo.worker.scripts.strict-sandbox-isolation=true`）。开启后 SDK 只使用 `TIKEO_SANDBOX_TOOLS_DIR` / `~/.tikeo/sandbox-tools` 中的二进制。
+- 工具缺失时不会声明对应脚本能力；任务仍命中不可用 runner 时会 fail-closed 并输出诊断，不会让业务进程崩溃。
+- 生产建议把 SRT、Deno、ripgrep、Rhai、PowerShell、Wasmtime、WasmEdge 等工具预装到 Worker 镜像或宿主机。完整来源清单、手动安装方式和 Debian/Ubuntu、RHEL/UBI/Fedora、Alpine、Distroless Dockerfile 示例见[文档站：Worker 沙箱工具与 Dockerfile](docs/i18n/zh-CN/docusaurus-plugin-content-docs/current/deployment/worker-sandbox-tools.md)。
+
 
 ### Server 配置参考
 

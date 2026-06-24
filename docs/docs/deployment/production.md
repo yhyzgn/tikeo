@@ -145,3 +145,5 @@ curl -fsS http://127.0.0.1:8080/ >/dev/null
 ```
 
 Then connect at least one Worker, trigger a test job, inspect instance logs, and verify notification delivery if notification policies are enabled.
+
+For Worker-side script sandbox tools, do not rely on startup downloads in production. Preinstall the tools in the Worker host/image and follow [Worker sandbox tools and Dockerfiles](./worker-sandbox-tools).

@@ -173,6 +173,7 @@ All SDKs use the same operational rule for SRT, Deno, ripgrep, Rhai, PowerShell,
 - Missing tools are not advertised as structured script capabilities until they are available in the selected mode. If a task requires an unavailable tool, the SDK returns a fail-closed task result/log instead of crashing the business process.
 - Installer failures are logged only. Populate `TIKEO_SANDBOX_TOOLS_DIR` or `~/.tikeo/sandbox-tools/<tool>` manually, or restart the worker to retry background prewarm.
 - In production, prefer pre-baked worker images or mounted tool caches; leave auto-install for local demos, CI smoke tests, and controlled artifact mirrors.
+- For production host and Dockerfile examples, see [Worker sandbox tools and Dockerfiles](../deployment/worker-sandbox-tools).
 
 ## Example run
 

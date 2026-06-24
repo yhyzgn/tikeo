@@ -50,6 +50,7 @@ const sidebars: SidebarsConfig = {
         'deployment/production',
         'deployment/single-binary',
         'deployment/docker-compose',
+        'deployment/worker-sandbox-tools',
         'deployment/kubernetes',
         'deployment/server-ha',
         'deployment/kubernetes-controller-runbook',

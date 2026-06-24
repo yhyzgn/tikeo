@@ -109,6 +109,8 @@ curl -fsS http://127.0.0.1:${TIKEO_PROMETHEUS_PORT:-9091}/-/ready
 ## Worker connectivity
 
 Workers dial out to the Server Worker Tunnel. For local demos use `http://127.0.0.1:9998` or `TIKEO_WORKER_TUNNEL_PUBLIC_ENDPOINT` from `.env`. Do not expose arbitrary business Worker ports.
+
+If a Worker container advertises script runners, preinstall sandbox tools in that Worker image or mount a populated `TIKEO_SANDBOX_TOOLS_DIR`; see [Worker sandbox tools and Dockerfiles](./worker-sandbox-tools).
 ## Prerequisites
 
 - Docker and Docker Compose v2 are installed for Compose examples.
