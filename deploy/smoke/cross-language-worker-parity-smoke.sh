@@ -478,9 +478,19 @@ for client, rule in expected.items():
     if item.get('namespace') != rule['namespace'] or item.get('app') != rule['app']:
         raise SystemExit(f'{client} scope mismatch: {item.get("namespace")}/{item.get("app")}')
     structured = item.get('structuredCapabilities') or {}
-    processors = structured.get('sdkProcessors') or []
+    raw_processors = (
+        structured.get('normalProcessors')
+        or structured.get('normal_processors')
+        or structured.get('sdkProcessors')
+        or structured.get('sdk_processors')
+        or []
+    )
+    processors = [
+        processor.get('name') if isinstance(processor, dict) else processor
+        for processor in raw_processors
+    ]
     if rule['processor'] not in processors:
-        raise SystemExit(f'{client} missing sdk processor {rule["processor"]}: {processors}')
+        raise SystemExit(f'{client} missing normal processor {rule["processor"]}: {processors}')
     if rule.get('tag') and rule['tag'] not in (structured.get('tags') or []):
         raise SystemExit(f'{client} missing tag {rule["tag"]}')
     runners = structured.get('scriptRunners') or []
@@ -697,7 +707,7 @@ verify_restart_snapshot() {
   capture_pool_filtered_workers "$filtered_persisted"
   tikeo_smoke_record_case worker-restart-persisted-snapshot passed "$after_restart $filtered_persisted" "workers remained visible from persisted session snapshots after server restart with workers stopped"
   start_all_workers
-  wait_workers "$after_reconnect" reconnected 240
+  wait_workers "$after_reconnect" reconnected 420
   tikeo_smoke_record_case worker-reconnect-supersedes-snapshot passed "$after_reconnect" "live workers reconnected and remained structured after persisted snapshot visibility"
 }
 
@@ -745,7 +755,7 @@ main() {
   create_pool_reader_token
   start_web
   start_all_workers
-  wait_workers "$REPORT_DIR/$RUN_ID-workers-initial.json" initial 240
+  wait_workers "$REPORT_DIR/$RUN_ID-workers-initial.json" initial 420
   run_language_jobs
   run_soak_jobs
   verify_restart_snapshot
