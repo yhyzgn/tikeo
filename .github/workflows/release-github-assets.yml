@@ -360,7 +360,7 @@ jobs:
             os="$1"; arch="$2"
             ext=""
             [ "$os" = "windows" ] && ext=".exe"
-            pkg="tikeo-operator-${VERSION}-${os}-${arch}"
+            pkg=".tmp-tikeo-operator-${VERSION}-${os}-${arch}"
             mkdir -p "dist/$pkg"
             (cd deploy/k8s/operator && GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o "../../../dist/$pkg/tikeo-operator${ext}" ./cmd/tikeo-operator)
             cp deploy/k8s/operator/README.md "dist/$pkg/README.md"
